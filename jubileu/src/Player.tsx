@@ -1,0 +1,151 @@
+import React, { useRef, useState, useEffect, useMemo } from 'react';
+import { useThree, useFrame } from '@react-three/fiber';
+import { useGLTF, useAnimations } from '@react-three/drei';
+import { Vector3, Euler } from 'three';
+import * as THREE from 'three';
+import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, ELEV_W, LOBBY_W, DOOR_SEAL, L1_BND, ELEV_BLD, HOUSE_EX, HOUSE_IN, HOUSE_DW } from './constants';
+
+const Avatar = ({ animation, visible = true }: any) => {
+  const { scene } = useGLTF(WALKING_URL) as any;
+  const { animations: walkAnims } = useGLTF(WALKING_URL) as any;
+  const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
+  const { actions } = useAnimations(useMemo(() => {
+      const w = walkAnims.map((a: any) => a.clone(true)); const i = idleAnims.map((a: any) => a.clone(true));
+      if (w[0]) w[0].name = "Walking"; if (i[0]) i[0].name = "Idle";
+      return [...i, ...w];
+  }, [walkAnims, idleAnims]), scene);
+  const hipsRef = useRef<any>(null); const opRef = useRef(1.0);
+  useEffect(() => {
+     scene.traverse((c: any) => {
+       if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (c.material) { c.material.transparent = true; c.material.depthWrite = true; c.material.alphaTest = 0; c.material.side = THREE.DoubleSide; c.material.metalness = 0; c.material.roughness = 1; c.material.needsUpdate = true; } }
+       if ((c.isBone || c.type === 'Bone') && !hipsRef.current) { if (c.name.toLowerCase().includes('hips') || c.name.toLowerCase().includes('root')) hipsRef.current = c; }
+     });
+  }, [scene]);
+  useFrame((s, dt) => {
+      if (hipsRef.current) { hipsRef.current.position.x = 0; hipsRef.current.position.z = 0; }
+      const tgt = visible ? 1 : 0; opRef.current = THREE.MathUtils.lerp(opRef.current, tgt, 8 * dt);
+      scene.traverse((c: any) => { if (c.isMesh && c.material) { c.material.opacity = opRef.current; c.visible = opRef.current > 0.01; } });
+  });
+  useEffect(() => {
+     const a = actions[animation === 'Walking' ? 'Walking' : 'Idle']; const o = actions[animation === 'Walking' ? 'Idle' : 'Walking'];
+     if (o) o.fadeOut(0.2); if (a) a.reset().fadeIn(0.2).play();
+  }, [animation, actions]);
+  return (<group><hemisphereLight intensity={1.0} color="#ffffff" groundColor="#444444" position={[0, 5, 0]} /><primitive object={scene} scale={[30, 30, 30]} position={[0, 0.75, 0]} /></group>);
+};
+
+const _resolve = (cx: number, cz: number, r: number, walls: number[][]) => {
+    let x = cx, z = cz;
+    for (let i = 0; i < 3; i++) {
+        for (const w of walls) {
+            const dx = w[2]-w[0], dz = w[3]-w[1], l2 = dx*dx+dz*dz;
+            if (l2 < 1e-4) continue;
+            const t = Math.max(0, Math.min(1, ((x-w[0])*dx+(z-w[1])*dz)/l2));
+            const px = w[0]+t*dx, pz = w[1]+t*dz, sx = x-px, sz = z-pz;
+            const d = Math.sqrt(sx*sx+sz*sz);
+            if (d < r && d > 1e-4) { const o = r-d; x += sx/d*o; z += sz/d*o; }
+        }
+    }
+    return [x, z];
+};
+
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }: any) => {
+  const { camera, size } = useThree();
+  const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
+  const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
+  const [anim, setAnim] = useState('Idle');
+  const elevTriggered = useRef(false); const HH = 1.6;
+  const prevInsideElevatorRef = useRef(false);
+  const _vRef = useRef<any>(null);
+  if (_vRef.current === null) _vRef.current = Array.from({length:8}, () => new Vector3());
+  const _v = _vRef;
+
+  const timeRef = useRef(0);
+
+  useEffect(() => { elevTriggered.current = false; }, [currentLevel]);
+
+  useFrame((state, dt) => {
+    if (!active) return;
+    timeRef.current += dt;
+    
+    if (positionCmdRef && positionCmdRef.current) {
+        pos.current.set(positionCmdRef.current.x, positionCmdRef.current.y, positionCmdRef.current.z);
+        positionCmdRef.current = null;
+    }
+    
+    const fp = zoomLevel < 0.5;
+    if (sharedPositionRef) sharedPositionRef.current.copy(pos.current);
+    if (sharedRotationYRef) sharedRotationYRef.current = charRot.current.y;
+    
+    if (onElevatorZoneChange) {
+        const inside = pos.current.z <= -10 && Math.abs(pos.current.x) <= 3.1;
+        if (inside !== prevInsideElevatorRef.current) {
+            prevInsideElevatorRef.current = inside;
+            onElevatorZoneChange(inside);
+        }
+    }
+    
+    const shakeX = cameraShakeRef?.current ? (Math.sin(timeRef.current * 18) * 0.015 + Math.sin(timeRef.current * 31) * 0.008) : 0;
+    const shakeY = cameraShakeRef?.current ? (Math.cos(timeRef.current * 22) * 0.012) : 0;
+
+    if (dialogueOpen && npcPositionRef?.current) {
+        setAnim('Idle');
+        if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
+        const nP = npcPositionRef.current; const pP = pos.current;
+        const d2p = _v.current[0].subVectors(pP, nP).normalize(); if (d2p.lengthSq() < 1e-3) d2p.set(0,0,1);
+        const tCam = _v.current[1].copy(nP).addScaledVector(d2p, 2.2); tCam.y += 1.75;
+        const tLook = _v.current[2].copy(nP); tLook.y += 1.35;
+        camera.position.lerp(tCam, 5*dt);
+        if (camLookRef.current.distanceTo(tLook) > 10) { camLookRef.current.copy(pP); camLookRef.current.y += 1.6; }
+        camLookRef.current.lerp(tLook, 5*dt);
+        camera.lookAt(camLookRef.current);
+        (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, 40, 5*dt); camera.updateProjectionMatrix();
+    } else {
+        const sens = 0.003 * (fp ? 1.5 : 1.0);
+        if (isDesktop) {
+           if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * sens * 500 * dt; camAng.current.phi += lookInput.current.y * sens * 500 * dt; lookInput.current.x = 0; lookInput.current.y = 0; }
+        } else {
+           if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * (fp ? 1.5 : 1); camAng.current.phi += lookInput.current.y * (fp ? 1.5 : 1); lookInput.current.x = 0; lookInput.current.y = 0; }
+        }
+        camAng.current.phi = Math.max(fp ? -1.5 : -0.5, Math.min(fp ? 1.5 : 1.2, camAng.current.phi));
+
+        const fwd = -moveInput.current.y; const strafe = moveInput.current.x; let moving = false;
+        if (Math.abs(fwd) > 0.01 || Math.abs(strafe) > 0.01) {
+            moving = true;
+            const cd = _v.current[3].set(Math.sin(camAng.current.theta), 0, Math.cos(camAng.current.theta));
+            const rd = _v.current[4].set(Math.sin(camAng.current.theta-Math.PI/2), 0, Math.cos(camAng.current.theta-Math.PI/2));
+            const mv = _v.current[5].set(0,0,0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * dt);
+            const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
+
+            let wl = [...ELEV_W];
+            if (currentLevel === 0) { wl.push(...LOBBY_W); if (doorsClosed) wl.push(DOOR_SEAL); }
+            else { wl.push(...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN); if (!houseDoorOpen) wl.push(HOUSE_DW); if (doorsClosed) wl.push(DOOR_SEAL); }
+            const [rx, rz] = _resolve(nx, nz, PR, wl);
+            pos.current.x = rx; pos.current.z = rz; pos.current.y = 0;
+
+            if (fp) { charRot.current.y = camAng.current.theta + Math.PI; } else { const a = Math.atan2(mv.x, mv.z); let d = a - charRot.current.y; while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; charRot.current.y += d*10*dt; }
+            if (currentLevel === 1) { const dx = pos.current.x-HOUSE_DOOR_X; const dz = pos.current.z-HOUSE_DOOR_Z; onInteractionUpdate(Math.sqrt(dx*dx+dz*dz) < 3); } else { onInteractionUpdate(false); }
+            if (currentLevel === 0 && npcPositionRef?.current) { onNpcInteractionUpdate(pos.current.distanceTo(npcPositionRef.current) < 4); } else { onNpcInteractionUpdate(false); }
+            if (pos.current.z < EZ_START - 1 && !elevTriggered.current && currentLevel === 0) { elevTriggered.current = true; onEnterElevator(); }
+        }
+        setAnim(moving ? 'Walking' : 'Idle');
+        if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
+        const ly = pos.current.y + HH;
+        const nla = _v.current[6].set(pos.current.x, ly, pos.current.z);
+        camLookRef.current.lerp(nla, 10*dt);
+        if (fp) {
+            camera.position.set(pos.current.x + shakeX, ly + shakeY, pos.current.z);
+            const ld = 5; camera.lookAt(pos.current.x - Math.sin(camAng.current.theta)*ld*Math.cos(camAng.current.phi), ly - Math.sin(camAng.current.phi)*ld, pos.current.z - Math.cos(camAng.current.theta)*ld*Math.cos(camAng.current.phi));
+            (camera as THREE.PerspectiveCamera).fov = 90; camera.updateProjectionMatrix();
+        } else {
+            const asp = size.width/size.height; const tFov = asp < 1 ? 90 : 75;
+            if (Math.abs((camera as THREE.PerspectiveCamera).fov-tFov) > 0.1) { (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, tFov, 5*dt); camera.updateProjectionMatrix(); }
+            const cx = pos.current.x + Math.sin(camAng.current.theta)*zoomLevel*Math.cos(camAng.current.phi);
+            const cz = pos.current.z + Math.cos(camAng.current.theta)*zoomLevel*Math.cos(camAng.current.phi);
+            const cy = Math.max(ly + Math.sin(camAng.current.phi)*zoomLevel, 0.2);
+            camera.position.lerp(_v.current[7].set(cx + shakeX, cy + shakeY, cz), 10*dt);
+            camera.lookAt(pos.current.x, ly, pos.current.z);
+        }
+    }
+  });
+  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} /></group>);
+};

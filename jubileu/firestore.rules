@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} { allow read, write: if false; }
+
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isOwner(userId) { return request.auth.uid == userId; }
+
+    function isValidPlayerPosition(data) {
+      return data.keys().hasAll(['x', 'y', 'z', 'ry', 'updatedAt', 'state', 'worldId', 'isActive'])
+          && data.keys().size() == 8
+          && data.x is number
+          && data.y is number
+          && data.z is number
+          && data.ry is number
+          && data.updatedAt == request.time
+          && data.state is string && data.state.size() <= 32
+          && data.worldId is string && data.worldId.size() <= 64
+          && data.isActive is bool;
+    }
+
+    match /worlds/{worldId}/players/{userId} {
+      allow get: if isSignedIn() && isValidId(worldId) && isValidId(userId);
+      allow list: if isSignedIn() && isValidId(worldId) && existing().worldId == worldId && existing().isActive == true;
+
+      allow create: if isSignedIn() 
+        && isValidId(worldId) 
+        && isValidId(userId) 
+        && isOwner(userId)
+        && isValidPlayerPosition(incoming())
+        && incoming().worldId == worldId;
+
+      allow update: if isSignedIn()
+        && isValidId(worldId)
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidPlayerPosition(incoming())
+        && incoming().worldId == existing().worldId
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['x', 'y', 'z', 'ry', 'updatedAt', 'state', 'isActive'])
+        );
+        
+      allow delete: if isSignedIn() && isValidId(worldId) && isValidId(userId) && isOwner(userId);
+    }
+  }
+}
