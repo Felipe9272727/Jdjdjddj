@@ -86,12 +86,16 @@ export const useMultiplayer = (
             where('isActive', '==', true),
             where('level', '==', level ?? 0)
         );
+        const GHOST_TTL_MS = 10000;
         const unsub = onSnapshot(q, (snap) => {
             const players: Record<string, MPPlayer> = {};
+            const cutoff = Date.now() - GHOST_TTL_MS;
             snap.forEach(d => {
-                if (d.id !== playerIdRef.current) {
-                    players[d.id] = { id: d.id, ...d.data() } as MPPlayer;
-                }
+                if (d.id === playerIdRef.current) return;
+                const data = d.data();
+                const updatedAt = data.updatedAt?.toMillis?.() ?? 0;
+                if (updatedAt > 0 && updatedAt < cutoff) return;
+                players[d.id] = { id: d.id, ...data } as MPPlayer;
             });
             setOtherPlayers(players);
         }, (err) => console.error('[MP] Snapshot erro:', err));
@@ -108,8 +112,12 @@ export const useMultiplayer = (
         let lastPos = new Vector3();
         let lastRot = 0;
         let lastTime = 0;
+        let writeInFlight = false;
+        let writeQueued = false;
 
         const push = async () => {
+            if (writeInFlight) { writeQueued = true; return; }
+            writeInFlight = true;
             try {
                 const data = {
                     x: playerPositionRef.current.x,
@@ -130,6 +138,9 @@ export const useMultiplayer = (
                 }
             } catch (e) {
                 console.error('[MP] Push erro:', e);
+            } finally {
+                writeInFlight = false;
+                if (writeQueued) { writeQueued = false; push(); }
             }
         };
 
@@ -155,9 +166,16 @@ export const useMultiplayer = (
         return () => {
             clearInterval(updateTimerRef.current);
             window.removeEventListener('beforeunload', handleUnload);
-            handleUnload();
         };
     }, [isEnabled, level, playerPositionRef, rotationYRef]);
+
+  useEffect(() => {
+      if (isEnabled) return;
+      const db = getDb();
+      if (!db) return;
+      const docRef = doc(db, 'worlds/main/players', playerIdRef.current);
+      updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});
+  }, [isEnabled]);
 
     const login = async () => {};
     const user = isEnabled ? { uid: playerIdRef.current } : null;

@@ -1,23 +1,29 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const dist = path.resolve('dist');
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const dist = path.join(scriptDir, 'dist');
 const htmlPath = path.join(dist, 'index.html');
 let html = fs.readFileSync(htmlPath, 'utf8');
 
 const scriptMatch = html.match(/<script type="module"[^>]*src="([^"]+)"[^>]*><\/script>/);
 const cssMatch = html.match(/<link rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/);
-if (!scriptMatch) throw new Error('script tag not found');
-if (!cssMatch) throw new Error('css link not found');
+if (!scriptMatch) throw new Error('script tag not found in dist/index.html');
+
+const escapeScript = (s) => s.replace(/<\/script/gi, '<\\/script');
+const escapeStyle = (s) => s.replace(/<\/style/gi, '<\\/style');
 
 const jsRel = scriptMatch[1].replace(/^\//, '');
-const cssRel = cssMatch[1].replace(/^\//, '');
 const js = fs.readFileSync(path.join(dist, jsRel), 'utf8');
-const css = fs.readFileSync(path.join(dist, cssRel), 'utf8');
+html = html.replace(scriptMatch[0], `<script type="module">${escapeScript(js)}</script>`);
 
-html = html.replace(scriptMatch[0], `<script type="module">${js}</script>`);
-html = html.replace(cssMatch[0], `<style>${css}</style>`);
+if (cssMatch) {
+  const cssRel = cssMatch[1].replace(/^\//, '');
+  const css = fs.readFileSync(path.join(dist, cssRel), 'utf8');
+  html = html.replace(cssMatch[0], `<style>${escapeStyle(css)}</style>`);
+}
 
-const outPath = path.resolve('..', 'index.html');
+const outPath = path.join(scriptDir, '..', 'index.html');
 fs.writeFileSync(outPath, html);
 console.log('Wrote', outPath, 'size:', html.length);

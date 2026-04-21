@@ -163,6 +163,10 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
           try { reverbInput.disconnect(); } catch(e) {}
           try { compressor.disconnect(); } catch(e) {}
           try { makeupGain.disconnect(); } catch(e) {}
+          masterGainRef.current = null;
+          lobbyGainRef.current = null;
+          barneyGainRef.current = null;
+          barneyFilterRef.current = null;
       };
   }, [audioContext]);
   return null;

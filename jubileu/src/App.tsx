@@ -94,11 +94,14 @@ export default function App() {
   useEffect(() => {
       if (gameState !== 'chase') return;
       setNightMode(true);
+      const resolved = { current: false };
       const interval = setInterval(() => {
+          if (resolved.current) return;
           const p = sharedPlayerPositionRef.current;
           const b = barneyRef.current;
           const d = Math.sqrt((p.x - b.x) ** 2 + (p.z - b.z) ** 2);
           if (d < 1.2) {
+              resolved.current = true;
               setJumpscare(true);
               setGameState('caught');
               scheduleTimeout(() => {
@@ -111,8 +114,8 @@ export default function App() {
                   setDoorOpenAmount(0);
                   setGameState('outdoor');
               }, 2000);
-          }
-          if (p.z <= -10 && Math.abs(p.x) <= 3.1) {
+          } else if (p.z <= -10 && Math.abs(p.x) <= 3.1) {
+              resolved.current = true;
               setGameState('saved');
               setDoorsClosed(true);
               setDoorSoundTrigger(prev => prev + 1);
@@ -217,6 +220,7 @@ export default function App() {
 
   const handleStartDialogue = () => { setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
   const handleStartGame = (mpEnabled: boolean) => {
+    if (audioCtx) return;
     setMultiplayerEnabled(mpEnabled);
     const AC = window.AudioContext || (window as any).webkitAudioContext;
     const ctx = new AC();
@@ -280,6 +284,15 @@ export default function App() {
     };
   }, []);
   const activePointers = useRef(new Map());
+
+  useEffect(() => {
+    if (!dialogueOpen && !barneyDialogueOpen) return;
+    moveInput.current = { x: 0, y: 0 };
+    lookInput.current = { x: 0, y: 0 };
+    activePointers.current.clear();
+    prevPinchDist.current = null;
+    setJoystickVisual(p => ({ ...p, active: false }));
+  }, [dialogueOpen, barneyDialogueOpen]);
 
   const handlePointerDown = (e: any) => {
     if (!hasStarted) return;

@@ -9,8 +9,7 @@ import { SkeletonUtils } from 'three-stdlib';
 export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
     const groupRef = useRef<any>(null);
     const hipsRef = useRef<any>(null);
-    const { scene } = useGLTF(WALKING_URL) as any;
-    const { animations: walkAnims } = useGLTF(WALKING_URL) as any;
+    const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
     const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
 
     const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);

@@ -121,6 +121,7 @@ export const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRe
     }, [texture]);
     
     const isScary = gameState === 'chase' || gameState === 'indoor_night';
+    const isVisible = gameState === 'barney_greet' || gameState === 'indoor_day' || gameState === 'indoor_night' || gameState === 'chase' || gameState === 'sleep_fade';
 
     useFrame((state, dt) => {
         if (!groupRef.current || !meshRef.current) return;
@@ -166,7 +167,9 @@ export const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRe
         } else {
             breathe = 1 + Math.sin(timeRef.current * 2.5) * 0.04;
         }
-        const finalScale = 2.4 * scaleRef.current * breathe;
+        const effectiveScale = isVisible ? scaleRef.current : THREE.MathUtils.lerp(scaleRef.current, 0, Math.min(1, dt * 5));
+        scaleRef.current = effectiveScale;
+        const finalScale = 2.4 * effectiveScale * breathe;
         meshRef.current.scale.set(finalScale, finalScale, finalScale);
         
         const cx = state.camera.position.x;
@@ -179,8 +182,7 @@ export const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRe
         }
     });
     
-    const visible = gameState === 'barney_greet' || gameState === 'indoor_night' || gameState === 'indoor_day' || gameState === 'chase' || gameState === 'sleep_fade';
-    if (!visible && scaleRef.current < 0.01) return null;
+    if (!isVisible && scaleRef.current < 0.01) return null;
     
     return (
         <>
