@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "PlayerPosition": {
+      "title": "PlayerPosition",
+      "description": "Represents a player's spatial coordinates and state in the multiplayer world.",
+      "type": "object",
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" },
+        "ry": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "state": { "type": "string" },
+        "worldId": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["x", "y", "z", "ry", "updatedAt", "state", "worldId", "isActive"]
+    }
+  },
+  "firestore": {
+    "/worlds/{worldId}/players/{userId}": {
+      "schema": { "$ref": "#/entities/PlayerPosition" },
+      "description": "Stores the real-time position of authenticated players."
+    }
+  }
+}
