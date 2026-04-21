@@ -1,13 +1,51 @@
 import { useEffect, useRef, useState } from 'react';
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, serverTimestamp } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, serverTimestamp, Firestore } from 'firebase/firestore';
+import fallbackConfig from '../firebase-applet-config.json';
 import { Vector3 } from 'three';
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const auth = getAuth(app);
+declare global {
+    interface Window {
+        __FIREBASE_CONFIG__?: any;
+    }
+}
+
+const getPlayerId = () => {
+    const KEY = 'jubileu_player_id';
+    try {
+        let id = localStorage.getItem(KEY);
+        if (!id) {
+            id = (crypto && (crypto as any).randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
+            localStorage.setItem(KEY, id);
+        }
+        return id;
+    } catch {
+        return Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+};
+
+const getConfig = () => {
+    if (typeof window !== 'undefined' && window.__FIREBASE_CONFIG__ && window.__FIREBASE_CONFIG__.projectId) {
+        return window.__FIREBASE_CONFIG__;
+    }
+    if (fallbackConfig && (fallbackConfig as any).projectId) return fallbackConfig as any;
+    return null;
+};
+
+let _dbCache: Firestore | null = null;
+const getDb = (): Firestore | null => {
+    if (_dbCache) return _dbCache;
+    const cfg = getConfig();
+    if (!cfg) return null;
+    try {
+        const app = getApps().length === 0 ? initializeApp(cfg) : getApps()[0];
+        _dbCache = getFirestore(app, cfg.firestoreDatabaseId || '(default)');
+        return _dbCache;
+    } catch (e) {
+        console.error('[MP] Firestore init erro:', e);
+        return null;
+    }
+};
 
 export interface MPPlayer {
     id: string;
@@ -18,58 +56,60 @@ export interface MPPlayer {
     state: string;
     worldId: string;
     isActive: boolean;
+    level: number;
     updatedAt: any;
 }
 
-export const useMultiplayer = (playerPositionRef: React.MutableRefObject<Vector3>, rotationYRef: React.MutableRefObject<number>, playerState: "idle" | "walking", isEnabled: boolean) => {
-    const [user, setUser] = useState<User | null>(null);
+export const useMultiplayer = (
+    playerPositionRef: React.MutableRefObject<Vector3>,
+    rotationYRef: React.MutableRefObject<number>,
+    playerState: 'idle' | 'walking',
+    isEnabled: boolean,
+    level: number = 0
+) => {
     const [otherPlayers, setOtherPlayers] = useState<Record<string, MPPlayer>>({});
-    const updateTimerId = useRef<any>(null);
+    const playerIdRef = useRef<string>(getPlayerId());
+    const updateTimerRef = useRef<any>(null);
     const playerStateRef = useRef(playerState);
     useEffect(() => { playerStateRef.current = playerState; }, [playerState]);
 
     useEffect(() => {
-        return onAuthStateChanged(auth, u => setUser(u));
-    }, []);
-
-    const login = async () => {
-        await signInAnonymously(auth);
-    };
-
-    useEffect(() => {
-        if (!isEnabled || !user) return;
-
+        if (!isEnabled) return;
+        const db = getDb();
+        if (!db) {
+            console.warn('[MP] Sem config Firebase');
+            return;
+        }
         const q = query(
             collection(db, 'worlds/main/players'),
             where('worldId', '==', 'main'),
-            where('isActive', '==', true)
+            where('isActive', '==', true),
+            where('level', '==', level ?? 0)
         );
-
         const unsub = onSnapshot(q, (snap) => {
             const players: Record<string, MPPlayer> = {};
             snap.forEach(d => {
-                if (d.id !== user.uid) {
+                if (d.id !== playerIdRef.current) {
                     players[d.id] = { id: d.id, ...d.data() } as MPPlayer;
                 }
             });
             setOtherPlayers(players);
-        }, (err) => console.error("Firestore error:", err));
-
+        }, (err) => console.error('[MP] Snapshot erro:', err));
         return () => unsub();
-    }, [isEnabled, user]);
+    }, [isEnabled, level]);
 
     useEffect(() => {
-        if (!isEnabled || !user) return;
+        if (!isEnabled || !playerPositionRef?.current) return;
+        const db = getDb();
+        if (!db) return;
+        const docRef = doc(db, 'worlds/main/players', playerIdRef.current);
 
-        const docRef = doc(db, 'worlds/main/players', user.uid);
-        
+        let initialized = false;
         let lastPos = new Vector3();
         let lastRot = 0;
         let lastTime = 0;
-        
-        let isInitialized = false;
-        
-        const forceUpdate = async () => {
+
+        const push = async () => {
             try {
                 const data = {
                     x: playerPositionRef.current.x,
@@ -79,64 +119,48 @@ export const useMultiplayer = (playerPositionRef: React.MutableRefObject<Vector3
                     updatedAt: serverTimestamp(),
                     state: playerStateRef.current,
                     worldId: 'main',
-                    isActive: true
+                    isActive: true,
+                    level: level ?? 0,
                 };
-                if (!isInitialized) {
+                if (!initialized) {
                     await setDoc(docRef, data);
-                    isInitialized = true;
+                    initialized = true;
                 } else {
-                    await updateDoc(docRef, {
-                        x: data.x,
-                        y: data.y,
-                        z: data.z,
-                        ry: data.ry,
-                        updatedAt: data.updatedAt,
-                        state: data.state,
-                        isActive: data.isActive
-                    });
+                    await updateDoc(docRef, data);
                 }
-            } catch (err: any) {
-                console.error("Failed to update position:", err);
-                if (err?.message?.includes("offline")) {
-                    console.error("Please check your Firebase configuration.");
-                }
+            } catch (e) {
+                console.error('[MP] Push erro:', e);
             }
         };
 
-        // Initialize state
-        forceUpdate();
+        push();
 
-        updateTimerId.current = setInterval(() => {
-            const currentPos = playerPositionRef.current;
-            const currentRot = rotationYRef.current;
+        updateTimerRef.current = setInterval(() => {
+            const p = playerPositionRef.current;
+            const r = rotationYRef.current;
             const now = Date.now();
-            
-            // Only update if moved more than 0.1 units, rotated more than 0.1 rad, or state changed, OR every 2.5s anyway to keep alive
-            const dist = currentPos.distanceTo(lastPos);
-            const rotDiff = Math.abs(currentRot - lastRot);
-            if (dist > 0.1 || rotDiff > 0.1 || (now - lastTime > 2500)) {
-                forceUpdate();
-                lastPos.copy(currentPos);
-                lastRot = currentRot;
+            if (p.distanceTo(lastPos) > 0.1 || Math.abs(r - lastRot) > 0.1 || now - lastTime > 2500) {
+                push();
+                lastPos.copy(p);
+                lastRot = r;
                 lastTime = now;
             }
         }, 100);
 
         const handleUnload = () => {
-             updateDoc(docRef, {
-                isActive: false,
-                updatedAt: serverTimestamp(),
-             }).catch(console.error);
+            updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});
         };
         window.addEventListener('beforeunload', handleUnload);
 
         return () => {
-            clearInterval(updateTimerId.current);
+            clearInterval(updateTimerRef.current);
             window.removeEventListener('beforeunload', handleUnload);
             handleUnload();
         };
+    }, [isEnabled, level, playerPositionRef, rotationYRef]);
 
-    }, [isEnabled, user, playerPositionRef, rotationYRef]);
+    const login = async () => {};
+    const user = isEnabled ? { uid: playerIdRef.current } : null;
 
     return { user, login, otherPlayers };
 };

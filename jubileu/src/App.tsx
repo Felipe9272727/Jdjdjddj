@@ -12,6 +12,7 @@ import { LobbyEnvironment } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { BARNEY_URL, BARNEY_DIALOGUE } from './constants';
 import { useMultiplayer } from './Multiplayer';
+import { RemotePlayer } from './RemotePlayer';
 
 const MAX_JOYSTICK_RADIUS = 50;
 
@@ -22,15 +23,9 @@ const World = ({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPau
       <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
       {Object.values(otherPlayers || {}).map((p: any) => (
-          <group key={p.id} position={[p.x, p.y, p.z]} rotation={[0, p.ry, 0]}>
-              <mesh position={[0, Math.sin(Date.now() / 200) * 0.1 + 0.9, 0]}>
-                  <capsuleGeometry args={[0.3, 1.2]} />
-                  <meshStandardMaterial color="#3b82f6" />
-              </mesh>
-              <Html position={[0, 2.2, 0]} center>
-                  <div className="bg-black/50 text-white px-2 py-1 rounded text-xs font-mono">{p.id.substring(0,6)}</div>
-              </Html>
-          </group>
+          <Suspense key={p.id} fallback={null}>
+              <RemotePlayer id={p.id} x={p.x} y={p.y} z={p.z} ry={p.ry} state={p.state} />
+          </Suspense>
       ))}
   </>
 );
@@ -218,7 +213,7 @@ export default function App() {
     }, 250);
     return () => clearInterval(id);
   }, [multiplayerEnabled]);
-  const { user, otherPlayers } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled);
+  const { user, otherPlayers } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel);
 
   const handleStartDialogue = () => { setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
   const handleStartGame = (mpEnabled: boolean) => {
