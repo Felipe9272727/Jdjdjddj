@@ -345,11 +345,25 @@ export default function App() {
     if (dialogueOpen || barneyDialogueOpen) { document.exitPointerLock(); return; }
     const keys = { w: false, a: false, s: false, d: false };
     const upd = () => { let x=0, y=0; if (keys.w) y-=1; if (keys.s) y+=1; if (keys.a) x-=1; if (keys.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
-    const kd = (e: any) => { if (dialogueOpen || barneyDialogueOpen) return; switch(e.key.toLowerCase()) { case 'w': keys.w=true; break; case 'a': keys.a=true; break; case 's': keys.s=true; break; case 'd': keys.d=true; break; } upd(); };
+    const kd = (e: any) => {
+      if (dialogueOpen || barneyDialogueOpen) return;
+      switch(e.key.toLowerCase()) {
+        case 'w': keys.w=true; break;
+        case 'a': keys.a=true; break;
+        case 's': keys.s=true; break;
+        case 'd': keys.d=true; break;
+        case 'e':
+          if (canInteractNPC) handleStartDialogue();
+          else if (canInteractDoor && !houseDoorOpen) handleOpenDoor();
+          else if (canSleepNow && gameState === 'indoor_day') handleSleep();
+          break;
+      }
+      upd();
+    };
     const ku = (e: any) => { switch(e.key.toLowerCase()) { case 'w': keys.w=false; break; case 'a': keys.a=false; break; case 's': keys.s=false; break; case 'd': keys.d=false; break; } upd(); };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, canInteractNPC, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
 
   return (
     <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: any) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
