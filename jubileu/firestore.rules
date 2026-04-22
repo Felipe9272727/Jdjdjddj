@@ -23,7 +23,10 @@ service cloud.firestore {
     }
 
     match /worlds/{worldId}/players/{userId} {
-      allow get: if isSignedIn() && isValidId(worldId) && isValidId(userId);
+      allow get: if isSignedIn()
+        && isValidId(worldId)
+        && isValidId(userId)
+        && (isOwner(userId) || (existing().worldId == worldId && existing().isActive == true));
       allow list: if isSignedIn() && isValidId(worldId) && existing().worldId == worldId && existing().isActive == true;
 
       allow create: if isSignedIn() 

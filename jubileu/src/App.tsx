@@ -240,8 +240,10 @@ export default function App() {
         if (!doorsClosed) {
             setTravelPhase('waiting');
         } else {
-            setTravelPhase('traveling');
-            setCameraShake(true);
+            if (elevatorTimer <= 19) {
+                setTravelPhase('traveling');
+                setCameraShake(true);
+            }
             if (elevatorTimer === 19) { setOverlayOpacity(1); }
             if (elevatorTimer === 18) { if (currentLevel === 0) { setCurrentLevel(1); setFloorReveal(true); } }
             if (elevatorTimer === 17) { setOverlayOpacity(0); }
@@ -386,7 +388,7 @@ export default function App() {
       <Canvas camera={{ fov: 75, near: 0.1, far: 100 }} dpr={[1, 1.5]}>
         <Suspense fallback={<Html center><div className="text-white font-mono">Loading...</div></Html>}>
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} otherPlayers={otherPlayers} />
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueOpen={dialogueOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
         </Suspense>
       </Canvas>
       <Loader />

@@ -9,7 +9,7 @@
         "y": { "type": "number" },
         "z": { "type": "number" },
         "ry": { "type": "number" },
-        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time", "readOnly": true, "description": "Server-generated timestamp (Firestore serverTimestamp). Must not be set by clients." },
         "state": { "type": "string" },
         "worldId": { "type": "string" },
         "isActive": { "type": "boolean" }

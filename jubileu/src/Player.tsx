@@ -13,15 +13,22 @@ const Avatar = ({ animation, visible = true }: any) => {
       if (w[0]) w[0].name = "Walking"; if (i[0]) i[0].name = "Idle";
       return [...i, ...w];
   }, [walkAnims, idleAnims]), scene);
-  const hipsRef = useRef<any>(null); const opRef = useRef(1.0);
+  const hipsRef = useRef<any>(null);
+  const hipsBindRef = useRef({ x: 0, z: 0 });
+  const opRef = useRef(1.0);
   useEffect(() => {
      scene.traverse((c: any) => {
        if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (c.material) { c.material.transparent = true; c.material.depthWrite = true; c.material.alphaTest = 0; c.material.side = THREE.DoubleSide; c.material.metalness = 0; c.material.roughness = 1; c.material.needsUpdate = true; } }
-       if ((c.isBone || c.type === 'Bone') && !hipsRef.current) { if (c.name.toLowerCase().includes('hips') || c.name.toLowerCase().includes('root')) hipsRef.current = c; }
+       if ((c.isBone || c.type === 'Bone') && !hipsRef.current) {
+           if (c.name.toLowerCase().includes('hips') || c.name.toLowerCase().includes('root')) {
+               hipsRef.current = c;
+               hipsBindRef.current = { x: c.position.x, z: c.position.z };
+           }
+       }
      });
   }, [scene]);
   useFrame((s, dt) => {
-      if (hipsRef.current) { hipsRef.current.position.x = 0; hipsRef.current.position.z = 0; }
+      if (hipsRef.current) { hipsRef.current.position.x = hipsBindRef.current.x; hipsRef.current.position.z = hipsBindRef.current.z; }
       const tgt = visible ? 1 : 0; opRef.current = THREE.MathUtils.lerp(opRef.current, tgt, 8 * dt);
       scene.traverse((c: any) => { if (c.isMesh && c.material) { c.material.opacity = opRef.current; c.visible = opRef.current > 0.01; } });
   });

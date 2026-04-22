@@ -9,6 +9,7 @@ import { SkeletonUtils } from 'three-stdlib';
 export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
     const groupRef = useRef<any>(null);
     const hipsRef = useRef<any>(null);
+    const hipsBindRef = useRef({ x: 0, z: 0 });
     const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
     const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
 
@@ -38,7 +39,10 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
             }
             if ((c.isBone || c.type === 'Bone') && !hipsRef.current) {
                 const n = c.name.toLowerCase();
-                if (n.includes('hips') || n.includes('root')) hipsRef.current = c;
+                if (n.includes('hips') || n.includes('root')) {
+                    hipsRef.current = c;
+                    hipsBindRef.current = { x: c.position.x, z: c.position.z };
+                }
             }
         });
     }, [clonedScene]);
@@ -60,7 +64,7 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
 
     useFrame((_, dt) => {
         if (!groupRef.current) return;
-        if (hipsRef.current) { hipsRef.current.position.x = 0; hipsRef.current.position.z = 0; }
+        if (hipsRef.current) { hipsRef.current.position.x = hipsBindRef.current.x; hipsRef.current.position.z = hipsBindRef.current.z; }
         const k = Math.min(1, 10 * dt);
         groupRef.current.position.lerp(targetPos.current, k);
         let d = targetRot.current - groupRef.current.rotation.y;

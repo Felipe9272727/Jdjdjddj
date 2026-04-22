@@ -1,9 +1,10 @@
 import { assertSucceeds, assertFails, initializeTestEnvironment } from '@firebase/rules-unit-testing';
+import { serverTimestamp } from 'firebase/firestore';
 import * as fs from 'fs';
 import { beforeAll, afterAll, beforeEach, describe, it } from 'vitest';
 
 let testEnv: any;
-const rules = fs.readFileSync('DRAFT_firestore.rules', 'utf8');
+const rules = fs.readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8');
 
 beforeAll(async () => {
     testEnv = await initializeTestEnvironment({
@@ -32,7 +33,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
         const db = testEnv.authenticatedContext('user123').firestore();
         await assertFails(db.doc('worlds/main/players/user123').set({
             x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true,
-            updatedAt: testEnv.firestore.FieldValue.serverTimestamp(),
+            updatedAt: serverTimestamp(),
             ghostField: 'spoof'
         }));
     });
@@ -43,7 +44,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
             const db = context.firestore();
             await db.doc('worlds/main/players/user123').set({
                 x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true,
-                updatedAt: testEnv.firestore.FieldValue.serverTimestamp()
+                updatedAt: serverTimestamp()
             });
         });
         const db = dbContext.firestore();
@@ -58,13 +59,13 @@ describe('Firestore Security Rules for Multiplayer', () => {
             const db = context.firestore();
             await db.doc('worlds/main/players/victim').set({
                 x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true,
-                updatedAt: testEnv.firestore.FieldValue.serverTimestamp()
+                updatedAt: serverTimestamp()
             });
         });
         const db = dbContext.firestore();
         await assertFails(db.doc('worlds/main/players/victim').update({
             x: 999,
-            updatedAt: testEnv.firestore.FieldValue.serverTimestamp()
+            updatedAt: serverTimestamp()
         }));
     });
 
@@ -80,7 +81,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
         const db = testEnv.authenticatedContext('user123').firestore();
         await assertFails(db.doc('worlds/main/players/user123').set({
             x: '0', y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true,
-            updatedAt: testEnv.firestore.FieldValue.serverTimestamp()
+            updatedAt: serverTimestamp()
         }));
     });
 
@@ -88,7 +89,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
         const db = testEnv.authenticatedContext('user123').firestore();
         await assertFails(db.doc('worlds/main/players/user123').set({
             x: 0, y: 0, z: 0, ry: 0, state: 'A'.repeat(50), worldId: 'main', isActive: true,
-            updatedAt: testEnv.firestore.FieldValue.serverTimestamp()
+            updatedAt: serverTimestamp()
         }));
     });
 
@@ -96,11 +97,11 @@ describe('Firestore Security Rules for Multiplayer', () => {
         const db = testEnv.authenticatedContext('user123').firestore();
         await assertSucceeds(db.doc('worlds/main/players/user123').set({
             x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true,
-            updatedAt: testEnv.firestore.FieldValue.serverTimestamp()
+            updatedAt: serverTimestamp()
         }));
         await assertSucceeds(db.doc('worlds/main/players/user123').set({
             x: 1, y: 1, z: 1, ry: 1, state: 'run', worldId: 'main', isActive: true,
-            updatedAt: testEnv.firestore.FieldValue.serverTimestamp()
+            updatedAt: serverTimestamp()
         }));
     });
 });
