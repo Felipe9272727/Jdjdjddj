@@ -500,7 +500,7 @@ export default function App() {
           </button>
         </div>
       )}
-      {hasStarted && canInteractNPC && !dialogueOpen && (
+      {hasStarted && canInteractNPC && !dialogueOpen && !barneyDialogueOpen && (
         <div className="absolute bottom-32 left-1/2 transform -translate-x-1/2 z-50 pointer-events-auto">
           <button onClick={handleStartDialogue} className="group relative">
             <div className="absolute -inset-1.5 bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 rounded-full blur-md opacity-80 animate-pulse" />

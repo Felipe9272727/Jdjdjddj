@@ -207,18 +207,29 @@ export const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRe
     );
 };
 
-export const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOpenAmount }: any) => (
+export const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOpenAmount }: any) => {
+    const bgColor = nightMode ? '#05051a' : '#87CEEB';
+    const fogColor = nightMode ? '#05051a' : '#C8E6F0';
+    const skyColor = nightMode ? '#05051a' : COLORS.sky;
+    const grassTint = nightMode ? '#1a2a1a' : COLORS.grass;
+    return (
     <group>
-        <color attach="background" args={['#87CEEB']} />
-        <fog attach="fog" args={['#C8E6F0', 25, 60]} />
-        <ambientLight intensity={0.5} color="#E3F2FD" />
-        <hemisphereLight intensity={0.4} color="#87CEEB" groundColor="#4CAF50" />
-        <mesh position={[0, 24, 0]}><boxGeometry args={[60, 60, 60]} /><meshBasicMaterial color={COLORS.sky} side={THREE.BackSide} /></mesh>
-        <mesh position={[-20, 30, -20]}><sphereGeometry args={[4, 32, 32]} /><meshBasicMaterial color="#FFD700" /></mesh>
-        <pointLight position={[-20, 30, -20]} intensity={0.5} distance={80} color="#FFF9C4" />
-        <directionalLight position={[-20, 30, -20]} intensity={1.8} shadow-mapSize={[2048, 2048]}></directionalLight>
-        <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0, 0]}><planeGeometry args={[50, 50]} /><TextureMaterial url={ASSETS.grass} color={COLORS.grass} repeat={[12, 12]} roughness={0.8} /></mesh>
-        <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.015, -2]}><planeGeometry args={[2.5, 14]} /><meshStandardMaterial color="#9E9E9E" roughness={0.9} /></mesh>
+        <color attach="background" args={[bgColor]} />
+        <fog attach="fog" args={[fogColor, nightMode ? 8 : 25, nightMode ? 22 : 60]} />
+        <ambientLight intensity={nightMode ? 0.07 : 0.5} color={nightMode ? '#1a1a40' : '#E3F2FD'} />
+        <hemisphereLight intensity={nightMode ? 0.04 : 0.4} color={nightMode ? '#0a0a30' : '#87CEEB'} groundColor={nightMode ? '#000000' : '#4CAF50'} />
+        <mesh position={[0, 24, 0]}><boxGeometry args={[60, 60, 60]} /><meshBasicMaterial color={skyColor} side={THREE.BackSide} /></mesh>
+        {!nightMode && <>
+            <mesh position={[-20, 30, -20]}><sphereGeometry args={[4, 32, 32]} /><meshBasicMaterial color="#FFD700" /></mesh>
+            <pointLight position={[-20, 30, -20]} intensity={0.5} distance={80} color="#FFF9C4" />
+        </>}
+        {nightMode && <>
+            <mesh position={[12, 26, -18]}><sphereGeometry args={[1.8, 16, 16]} /><meshBasicMaterial color="#E8E8D8" /></mesh>
+            <pointLight position={[12, 26, -18]} intensity={0.3} distance={100} color="#7070a0" />
+        </>}
+        <directionalLight position={nightMode ? [12, 26, -18] : [-20, 30, -20]} intensity={nightMode ? 0.08 : 1.8} shadow-mapSize={[2048, 2048]} />
+        <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0, 0]}><planeGeometry args={[50, 50]} /><TextureMaterial url={ASSETS.grass} color={grassTint} repeat={[12, 12]} roughness={0.8} /></mesh>
+        <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.015, -2]}><planeGeometry args={[2.5, 14]} /><meshStandardMaterial color={nightMode ? '#555' : '#9E9E9E'} roughness={0.9} /></mesh>
         <House x={0} z={10} rot={Math.PI} doorOpen={houseDoorOpen} doorOpenAmount={doorOpenAmount} />
         <group position={[0, 0, -10]}>
             <ElevatorFacade z={0} height={5} width={10} />
@@ -255,7 +266,7 @@ export const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOp
                 <Instance key={i} position={[tx, 4.9*s, tz]} scale={[s,s,s]} />
             ))}
         </Instances>
-        {[[-15,22,10,3],[10,25,-5,4],[20,23,15,2.5],[-5,24,-15,3.5],[0,26,20,2]].map(([cx,cy,cz,cr],i) => (
+        {!nightMode && [[-15,22,10,3],[10,25,-5,4],[20,23,15,2.5],[-5,24,-15,3.5],[0,26,20,2]].map(([cx,cy,cz,cr],i) => (
             <mesh key={i} position={[cx,cy,cz]}><sphereGeometry args={[cr, 8, 8]} /><meshBasicMaterial color="#FFFFFF" transparent opacity={0.7} /></mesh>
         ))}
         {[[-6,5,-6,15],[6,5,6,15],[-6,15,6,15],[-6,5,-4.5,5],[4.5,5,6,5]].map(([x1,z1,x2,z2],i) => {
@@ -266,4 +277,5 @@ export const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOp
             </group>);
         })}
     </group>
-));
+    );
+});

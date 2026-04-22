@@ -18,7 +18,7 @@ export const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }: any) => {
       const i = idleAnims.map((a: any) => { const c = a.clone(true); c.name = "Idle"; return c; });
       return [...i, ...w];
   }, [walkAnims, idleAnims]), group);
-  const aiState = useRef({ state: 'Idle', target: new Vector3(0, 0, 0), timer: 0 });
+  const aiState = useRef({ state: 'Idle', target: new Vector3(0, 0, 0), timer: 2 + Math.random() * 3 });
   const _nDir = useRef(new Vector3());
   useEffect(() => {
       scene.traverse((child: any) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; if (child.material) { child.material.side = THREE.DoubleSide; child.material.transparent = false; child.material.alphaTest = 0.5; } } });
