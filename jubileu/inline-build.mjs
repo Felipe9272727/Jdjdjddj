@@ -16,7 +16,11 @@ const escapeStyle = (s) => s.replace(/<\/style/gi, '<\\/style');
 
 const jsRel = scriptMatch[1].replace(/^\//, '');
 const js = fs.readFileSync(path.join(dist, jsRel), 'utf8');
-html = html.replace(scriptMatch[0], `<script type="module">${escapeScript(js)}</script>`);
+html = html.replace(scriptMatch[0], `<script>${escapeScript(js)}</script>`);
+
+// Remove modulepreload link tags — they point to external assets that don't
+// exist in a standalone file and cause load errors when opened via file://.
+html = html.replace(/<link rel="modulepreload"[^>]*>/gi, '');
 
 if (cssMatch) {
   const cssRel = cssMatch[1].replace(/^\//, '');
