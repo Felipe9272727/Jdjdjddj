@@ -37,6 +37,7 @@ export default function App() {
   const [zoomLevel, setZoomLevel] = useState(4.0);
   const prevPinchDist = useRef<any>(null);
   const moveInput = useRef({ x: 0, y: 0 }); const lookInput = useRef({ x: 0, y: 0 });
+  const keysRef = useRef({ w: false, a: false, s: false, d: false });
   const sharedPlayerPositionRef = useRef(new Vector3(0, 0, 8));
   const sharedRotationYRef = useRef(0);
   const playerPositionCmdRef = useRef<any>(null);
@@ -291,6 +292,7 @@ export default function App() {
     if (!dialogueOpen && !barneyDialogueOpen) return;
     moveInput.current = { x: 0, y: 0 };
     lookInput.current = { x: 0, y: 0 };
+    keysRef.current = { w: false, a: false, s: false, d: false };
     activePointers.current.clear();
     prevPinchDist.current = null;
     setJoystickVisual(p => ({ ...p, active: false }));
@@ -358,15 +360,15 @@ export default function App() {
   useEffect(() => {
     if (!isDesktop || !hasStarted) return;
     if (dialogueOpen || barneyDialogueOpen) { document.exitPointerLock(); return; }
-    const keys = { w: false, a: false, s: false, d: false };
-    const upd = () => { let x=0, y=0; if (keys.w) y-=1; if (keys.s) y+=1; if (keys.a) x-=1; if (keys.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
+    const upd = () => { const k = keysRef.current; let x=0, y=0; if (k.w) y-=1; if (k.s) y+=1; if (k.a) x-=1; if (k.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
     const kd = (e: any) => {
       if (dialogueOpen || barneyDialogueOpen) return;
+      const k = keysRef.current;
       switch(e.key.toLowerCase()) {
-        case 'w': keys.w=true; break;
-        case 'a': keys.a=true; break;
-        case 's': keys.s=true; break;
-        case 'd': keys.d=true; break;
+        case 'w': k.w=true; break;
+        case 'a': k.a=true; break;
+        case 's': k.s=true; break;
+        case 'd': k.d=true; break;
         case 'e':
           if (canInteractNPC) handleStartDialogue();
           else if (canInteractDoor && !houseDoorOpen) handleOpenDoor();
@@ -375,7 +377,7 @@ export default function App() {
       }
       upd();
     };
-    const ku = (e: any) => { switch(e.key.toLowerCase()) { case 'w': keys.w=false; break; case 'a': keys.a=false; break; case 's': keys.s=false; break; case 'd': keys.d=false; break; } upd(); };
+    const ku = (e: any) => { const k = keysRef.current; switch(e.key.toLowerCase()) { case 'w': k.w=false; break; case 'a': k.a=false; break; case 's': k.s=false; break; case 'd': k.d=false; break; } upd(); };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
   }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, canInteractNPC, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);

@@ -145,7 +145,9 @@ export const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRe
         }
         
         const targetScale = target.scale !== undefined ? target.scale : 1;
-        scaleRef.current = THREE.MathUtils.lerp(scaleRef.current, targetScale, Math.min(1, dt * 3));
+        if (isVisible) {
+            scaleRef.current = THREE.MathUtils.lerp(scaleRef.current, targetScale, Math.min(1, dt * 3));
+        }
         groupRef.current.position.set(b.x, 0, b.z);
         
         const isActive = gameState === 'chase';
