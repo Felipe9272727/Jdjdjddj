@@ -16,7 +16,15 @@ const escapeStyle = (s) => s.replace(/<\/style/gi, '<\\/style');
 
 const jsRel = scriptMatch[1].replace(/^\//, '');
 const js = fs.readFileSync(path.join(dist, jsRel), 'utf8');
-html = html.replace(scriptMatch[0], `<script>${escapeScript(js)}</script>`);
+// Remove the external script tag from <head>.
+// Use a function replacement to prevent JS's $& / $' / $` special patterns
+// inside the bundle from being expanded by String.prototype.replace().
+html = html.replace(scriptMatch[0], () => '');
+
+// Insert the inlined script just before </body> so the DOM (#root) exists
+// when the script runs — inline scripts in <head> lack implicit defer.
+const inlinedJs = escapeScript(js);
+html = html.replace('</body>', () => `<script>${inlinedJs}</script>\n  </body>`);
 
 // Remove modulepreload link tags — they point to external assets that don't
 // exist in a standalone file and cause load errors when opened via file://.
@@ -25,7 +33,8 @@ html = html.replace(/<link rel="modulepreload"[^>]*>/gi, '');
 if (cssMatch) {
   const cssRel = cssMatch[1].replace(/^\//, '');
   const css = fs.readFileSync(path.join(dist, cssRel), 'utf8');
-  html = html.replace(cssMatch[0], `<style>${escapeStyle(css)}</style>`);
+  const inlinedCss = escapeStyle(css);
+  html = html.replace(cssMatch[0], () => `<style>${inlinedCss}</style>`);
 }
 
 const outPath = path.join(scriptDir, '..', 'index.html');
