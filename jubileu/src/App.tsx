@@ -54,6 +54,7 @@ export default function App() {
   const [travelPhase, setTravelPhase] = useState('idle');
   const [floorReveal, setFloorReveal] = useState(false);
   const [cameraShake, setCameraShake] = useState(false);
+  const lastHandledTimerRef = useRef<number | null>(null);
   const [arrivalPulse, setArrivalPulse] = useState(false);
 
   const [gameState, setGameState] = useState('lobby');
@@ -245,24 +246,29 @@ export default function App() {
                 setTravelPhase('traveling');
                 setCameraShake(true);
             }
-            if (elevatorTimer === 19) { setOverlayOpacity(1); }
-            if (elevatorTimer === 18) { if (currentLevel === 0) { setCurrentLevel(1); setFloorReveal(true); } }
-            if (elevatorTimer === 17) { setOverlayOpacity(0); }
-            if (elevatorTimer === 15) { setFloorReveal(false); }
+            if (elevatorTimer !== lastHandledTimerRef.current) {
+                lastHandledTimerRef.current = elevatorTimer;
+                if (elevatorTimer === 19) { setOverlayOpacity(1); }
+                if (elevatorTimer === 18) { if (currentLevel === 0) { setCurrentLevel(1); setFloorReveal(true); } }
+                if (elevatorTimer === 17) { setOverlayOpacity(0); }
+                if (elevatorTimer === 15) { setFloorReveal(false); }
+            }
         }
     } else if (elevatorTimer === 0) {
         if (!doorsClosed) {
-            setDoorsClosed(true); 
-            setElevatorTimer(20); 
+            setDoorsClosed(true);
+            setElevatorTimer(20);
             setDoorSoundTrigger(prev => prev + 1);
             setTravelPhase('closing');
+            lastHandledTimerRef.current = null;
         } else {
-            setDoorsClosed(false); 
-            setElevatorTimer(null); 
+            setDoorsClosed(false);
+            setElevatorTimer(null);
             setOverlayOpacity(0);
             setTravelPhase('arriving');
             setCameraShake(false);
             setArrivalPulse(true);
+            lastHandledTimerRef.current = null;
             scheduleTimeout(() => { setArrivalPulse(false); setTravelPhase('idle'); }, 1500);
         }
     }

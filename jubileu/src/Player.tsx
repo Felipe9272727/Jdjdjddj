@@ -14,7 +14,7 @@ const Avatar = ({ animation, visible = true }: any) => {
       return [...i, ...w];
   }, [walkAnims, idleAnims]), scene);
   const hipsRef = useRef<any>(null);
-  const hipsBindRef = useRef({ x: 0, z: 0 });
+  const hipsBindRef = useRef<Vector3 | null>(null);
   const opRef = useRef(1.0);
   useEffect(() => {
      scene.traverse((c: any) => {
@@ -22,13 +22,13 @@ const Avatar = ({ animation, visible = true }: any) => {
        if ((c.isBone || c.type === 'Bone') && !hipsRef.current) {
            if (c.name.toLowerCase().includes('hips') || c.name.toLowerCase().includes('root')) {
                hipsRef.current = c;
-               hipsBindRef.current = { x: c.position.x, z: c.position.z };
+               hipsBindRef.current = c.position.clone();
            }
        }
      });
   }, [scene]);
   useFrame((s, dt) => {
-      if (hipsRef.current) { hipsRef.current.position.x = hipsBindRef.current.x; hipsRef.current.position.z = hipsBindRef.current.z; }
+      if (hipsRef.current && hipsBindRef.current) { hipsRef.current.position.copy(hipsBindRef.current); }
       const tgt = visible ? 1 : 0; opRef.current = THREE.MathUtils.lerp(opRef.current, tgt, 8 * dt);
       scene.traverse((c: any) => { if (c.isMesh && c.material) { c.material.opacity = opRef.current; c.visible = opRef.current > 0.01; } });
   });

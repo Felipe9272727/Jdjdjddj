@@ -32,7 +32,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
     it('2. Create with extra fields (Shadow Update) should fail', async () => {
         const db = testEnv.authenticatedContext('user123').firestore();
         await assertFails(db.doc('worlds/main/players/user123').set({
-            x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true,
+            x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true, level: 0,
             updatedAt: serverTimestamp(),
             ghostField: 'spoof'
         }));
@@ -43,7 +43,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
         await testEnv.withSecurityRulesDisabled(async (context: any) => {
             const db = context.firestore();
             await db.doc('worlds/main/players/user123').set({
-                x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true,
+                x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true, level: 0,
                 updatedAt: serverTimestamp()
             });
         });
@@ -58,7 +58,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
         await testEnv.withSecurityRulesDisabled(async (context: any) => {
             const db = context.firestore();
             await db.doc('worlds/main/players/victim').set({
-                x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true,
+                x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true, level: 0,
                 updatedAt: serverTimestamp()
             });
         });
@@ -72,7 +72,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
     it('6. Fake timestamp create should fail', async () => {
         const db = testEnv.authenticatedContext('user123').firestore();
         await assertFails(db.doc('worlds/main/players/user123').set({
-            x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true,
+            x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true, level: 0,
             updatedAt: new Date() // Client time
         }));
     });
@@ -80,7 +80,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
     it('7. Invalid data type for X should fail', async () => {
         const db = testEnv.authenticatedContext('user123').firestore();
         await assertFails(db.doc('worlds/main/players/user123').set({
-            x: '0', y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true,
+            x: '0', y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true, level: 0,
             updatedAt: serverTimestamp()
         }));
     });
@@ -88,7 +88,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
     it('8. Huge state field should fail', async () => {
         const db = testEnv.authenticatedContext('user123').firestore();
         await assertFails(db.doc('worlds/main/players/user123').set({
-            x: 0, y: 0, z: 0, ry: 0, state: 'A'.repeat(50), worldId: 'main', isActive: true,
+            x: 0, y: 0, z: 0, ry: 0, state: 'A'.repeat(50), worldId: 'main', isActive: true, level: 0,
             updatedAt: serverTimestamp()
         }));
     });
@@ -96,11 +96,11 @@ describe('Firestore Security Rules for Multiplayer', () => {
     it('SUCCESS: valid create and update', async () => {
         const db = testEnv.authenticatedContext('user123').firestore();
         await assertSucceeds(db.doc('worlds/main/players/user123').set({
-            x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true,
+            x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true, level: 0,
             updatedAt: serverTimestamp()
         }));
         await assertSucceeds(db.doc('worlds/main/players/user123').set({
-            x: 1, y: 1, z: 1, ry: 1, state: 'run', worldId: 'main', isActive: true,
+            x: 1, y: 1, z: 1, ry: 1, state: 'run', worldId: 'main', isActive: true, level: 1,
             updatedAt: serverTimestamp()
         }));
     });
