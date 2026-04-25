@@ -9,6 +9,7 @@ export interface GameSettings {
     invertY: boolean;
     multiplayer: boolean;
     showFps: boolean;
+    botMode: boolean;         // dev/test driver — auto-walks the player
 }
 
 const DEFAULTS: GameSettings = {
@@ -19,6 +20,7 @@ const DEFAULTS: GameSettings = {
     invertY: false,
     multiplayer: false,
     showFps: false,
+    botMode: false,
 };
 
 const STORAGE_KEY = 'jubileu_settings_v1';
@@ -147,6 +149,10 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
 
                     <Row label="Mostrar FPS">
                         <Toggle on={settings.showFps} onChange={(on) => update({ showFps: on })} />
+                    </Row>
+
+                    <Row label="Modo bot (auto-teste)">
+                        <Toggle on={settings.botMode} onChange={(on) => update({ botMode: on })} />
                     </Row>
 
                     <div className="pt-2 flex justify-between gap-2">
