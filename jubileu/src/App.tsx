@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, Loader } from '@react-three/drei';
-import { Vector3 } from 'three';
+import { Vector3, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 
 import { LiminalAudioEngine } from './AudioEngine';
 import { MainMenu } from './MainMenu';
@@ -393,10 +393,21 @@ export default function App() {
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted} nightMode={nightMode} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
-      <Canvas camera={{ fov: 75, near: 0.1, far: 100 }} dpr={[1, 1.5]}>
-        <Suspense fallback={<Html center><div className="text-white font-mono">Loading...</div></Html>}>
+      <Canvas
+        camera={{ fov: 75, near: 0.1, far: 100 }}
+        dpr={[1, 1.5]}
+        gl={{
+          antialias: true,
+          powerPreference: 'high-performance',
+          // ACES Filmic gives the lobby/house lighting more depth without crushing
+          // highlights. Combined with sRGB output for correctly-encoded colors.
+          toneMapping: ACESFilmicToneMapping,
+          outputColorSpace: SRGBColorSpace,
+        }}
+      >
+        <Suspense fallback={<Html center><div className="px-4 py-2 rounded bg-black/70 border border-amber-500/40 text-amber-200 font-mono text-sm tracking-wider animate-pulse">CARREGANDO...</div></Html>}>
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} otherPlayers={otherPlayers} />
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
         </Suspense>
       </Canvas>
       <Loader />
