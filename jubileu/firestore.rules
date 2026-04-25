@@ -22,6 +22,7 @@ service cloud.firestore {
           && data.isActive is bool
           && data.level is int
           && data.level >= 0
+          // Keep in sync with MAX_LEVEL in src/constants.ts.
           && data.level <= 100;
     }
 

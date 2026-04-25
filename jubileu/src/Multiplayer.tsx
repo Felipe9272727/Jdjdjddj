@@ -3,6 +3,12 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, serverTimestamp, Firestore } from 'firebase/firestore';
 import fallbackConfig from '../firebase-applet-config.json';
 import { Vector3 } from 'three';
+import { MAX_LEVEL } from './constants';
+
+const clampLevel = (n: number) => {
+    const v = Number.isFinite(n) ? Math.floor(n) : 0;
+    return Math.min(MAX_LEVEL, Math.max(0, v));
+};
 
 declare global {
     interface Window {
@@ -84,7 +90,7 @@ export const useMultiplayer = (
             collection(db, 'worlds/main/players'),
             where('worldId', '==', 'main'),
             where('isActive', '==', true),
-            where('level', '==', level ?? 0)
+            where('level', '==', clampLevel(level ?? 0))
         );
         const GHOST_TTL_MS = 10000;
         const unsub = onSnapshot(q, (snap) => {
@@ -128,7 +134,7 @@ export const useMultiplayer = (
                     state: playerStateRef.current,
                     worldId: 'main',
                     isActive: true,
-                    level: level ?? 0,
+                    level: clampLevel(level ?? 0),
                 };
                 if (!initialized) {
                     await setDoc(docRef, data);

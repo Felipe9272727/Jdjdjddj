@@ -62,6 +62,16 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
         targetRot.current = ry;
     }, [x, y, z, ry]);
 
+    // Initialize transform once on mount; subsequent updates are smoothed in useFrame.
+    // Setting position/rotation as JSX props would overwrite the lerp every render.
+    useEffect(() => {
+        if (groupRef.current) {
+            groupRef.current.position.set(x, y, z);
+            groupRef.current.rotation.y = ry;
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     useFrame((_, dt) => {
         if (!groupRef.current) return;
         if (hipsRef.current && hipsBindRef.current) { hipsRef.current.position.copy(hipsBindRef.current); }
@@ -74,7 +84,7 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
     });
 
     return (
-        <group ref={groupRef} position={[x, y, z]} rotation={[0, ry, 0]}>
+        <group ref={groupRef}>
             <hemisphereLight intensity={1} color="#ffffff" groundColor="#444444" />
             <primitive object={clonedScene} scale={[30, 30, 30]} position={[0, 0, 0]} />
             <Html position={[0, 2.2, 0]} center distanceFactor={8}>

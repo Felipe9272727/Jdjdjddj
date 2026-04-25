@@ -1,5 +1,8 @@
 import { Vector3, Euler } from 'three';
 
+// Keep in sync with `data.level <= MAX_LEVEL` in firestore.rules.
+export const MAX_LEVEL = 100;
+
 export const WALKING_URL = "https://raw.githubusercontent.com/Felipe9272727/Bancon...../main/Walking(1).glb";
 export const IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/BACON-PROJETO-FUNCIONALLLLL/main/Idle.glb";
 export const NPC_WALK_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20walking.glb";

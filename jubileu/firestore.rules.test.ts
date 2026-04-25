@@ -38,7 +38,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
         }));
     });
 
-    it('3. Update with missing fields should fail', async () => {
+    it('3. Update injecting an extra (unknown) field should fail', async () => {
         const dbContext = testEnv.authenticatedContext('user123');
         await testEnv.withSecurityRulesDisabled(async (context: any) => {
             const db = context.firestore();
@@ -53,7 +53,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
         }));
     });
 
-    it('5. Spoofing update (update other player) should fail', async () => {
+    it('4. Spoofing update (update other player) should fail', async () => {
         const dbContext = testEnv.authenticatedContext('hacker');
         await testEnv.withSecurityRulesDisabled(async (context: any) => {
             const db = context.firestore();
@@ -69,7 +69,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
         }));
     });
 
-    it('6. Fake timestamp create should fail', async () => {
+    it('5. Fake timestamp create should fail', async () => {
         const db = testEnv.authenticatedContext('user123').firestore();
         await assertFails(db.doc('worlds/main/players/user123').set({
             x: 0, y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true, level: 0,
@@ -77,7 +77,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
         }));
     });
 
-    it('7. Invalid data type for X should fail', async () => {
+    it('6. Invalid data type for X should fail', async () => {
         const db = testEnv.authenticatedContext('user123').firestore();
         await assertFails(db.doc('worlds/main/players/user123').set({
             x: '0', y: 0, z: 0, ry: 0, state: 'idle', worldId: 'main', isActive: true, level: 0,
@@ -85,7 +85,7 @@ describe('Firestore Security Rules for Multiplayer', () => {
         }));
     });
 
-    it('8. Huge state field should fail', async () => {
+    it('7. Huge state field should fail', async () => {
         const db = testEnv.authenticatedContext('user123').firestore();
         await assertFails(db.doc('worlds/main/players/user123').set({
             x: 0, y: 0, z: 0, ry: 0, state: 'A'.repeat(50), worldId: 'main', isActive: true, level: 0,

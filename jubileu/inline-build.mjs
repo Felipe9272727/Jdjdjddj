@@ -24,6 +24,9 @@ html = html.replace(scriptMatch[0], () => '');
 // Insert the inlined script just before </body> so the DOM (#root) exists
 // when the script runs — inline scripts in <head> lack implicit defer.
 const inlinedJs = escapeScript(js);
+if (!html.includes('</body>')) {
+  throw new Error('</body> not found in dist/index.html — refusing to write a broken bundle.');
+}
 html = html.replace('</body>', () => `<script>${inlinedJs}</script>\n  </body>`);
 
 // Remove modulepreload link tags — they point to external assets that don't
