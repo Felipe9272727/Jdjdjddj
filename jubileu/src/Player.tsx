@@ -19,9 +19,21 @@ const Avatar = ({ animation, visible = true }: any) => {
   const hipsRef = useRef<any>(null);
   const hipsBindRef = useRef<Vector3 | null>(null);
   const opRef = useRef(1.0);
+  // Cache the meshes once on mount so the per-frame visibility/opacity update
+  // doesn't traverse the whole skeleton tree. This was a measurable mobile cost.
+  const meshesRef = useRef<any[]>([]);
   useEffect(() => {
+     const meshes: any[] = [];
      scene.traverse((c: any) => {
-       if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (c.material) { c.material.transparent = true; c.material.depthWrite = true; c.material.alphaTest = 0; c.material.side = THREE.DoubleSide; c.material.metalness = 0; c.material.roughness = 1; c.material.needsUpdate = true; } }
+       if (c.isMesh) {
+           c.castShadow = true; c.receiveShadow = true;
+           if (c.material) {
+               c.material.transparent = true; c.material.depthWrite = true; c.material.alphaTest = 0;
+               c.material.side = THREE.DoubleSide; c.material.metalness = 0; c.material.roughness = 1;
+               c.material.needsUpdate = true;
+           }
+           meshes.push(c);
+       }
        if ((c.isBone || c.type === 'Bone') && !hipsRef.current) {
            if (c.name.toLowerCase().includes('hips') || c.name.toLowerCase().includes('root')) {
                hipsRef.current = c;
@@ -29,26 +41,37 @@ const Avatar = ({ animation, visible = true }: any) => {
            }
        }
      });
+     meshesRef.current = meshes;
   }, [scene]);
   useFrame((s, dt) => {
-      if (hipsRef.current && hipsBindRef.current) { hipsRef.current.position.copy(hipsBindRef.current); }
+      // Reset only X/Z of the hips bone — keep Y so the natural walking bob
+      // (vertical motion baked into the animation) plays through. Zeroing Y
+      // here was producing the visual "float" because the avatar's contact
+      // with the floor depends on the bob's lowest point.
+      if (hipsRef.current && hipsBindRef.current) {
+          hipsRef.current.position.x = hipsBindRef.current.x;
+          hipsRef.current.position.z = hipsBindRef.current.z;
+      }
       const tgt = visible ? 1 : 0; opRef.current = THREE.MathUtils.lerp(opRef.current, tgt, 8 * dt);
-      scene.traverse((c: any) => { if (c.isMesh && c.material) { c.material.opacity = opRef.current; c.visible = opRef.current > 0.01; } });
+      const op = opRef.current;
+      const visibleMesh = op > 0.01;
+      const meshes = meshesRef.current;
+      for (let i = 0; i < meshes.length; i++) {
+          const m = meshes[i];
+          if (m.material) m.material.opacity = op;
+          m.visible = visibleMesh;
+      }
   });
   useEffect(() => {
      const a = actions[animation === 'Walking' ? 'Walking' : 'Idle']; const o = actions[animation === 'Walking' ? 'Idle' : 'Walking'];
      if (o) o.fadeOut(0.2); if (a) a.reset().fadeIn(0.2).play();
   }, [animation, actions]);
-  // Soft contact shadow blob: anchors the avatar to the ground without needing a full
-  // shadow map. Slight Y offset prevents z-fighting with floor textures.
+  // No per-avatar light: the lobby/house scenes already provide ambient and
+  // point lights. Adding a hemisphere light per avatar shows up as a cost on
+  // mobile (each light increases shader complexity in lit materials).
   return (
     <group>
-      <hemisphereLight intensity={1.0} color="#ffffff" groundColor="#444444" position={[0, 5, 0]} />
       <primitive object={scene} scale={[30, 30, 30]} position={[0, 0, 0]} />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} renderOrder={-1}>
-        <circleGeometry args={[0.5, 24]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.35} depthWrite={false} />
-      </mesh>
     </group>
   );
 };

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, limit, serverTimestamp, Firestore } from 'firebase/firestore';
+import { getAuth, signInAnonymously, onAuthStateChanged, Auth } from 'firebase/auth';
 import fallbackConfig from '../firebase-applet-config.json';
 import { Vector3 } from 'three';
 import { MAX_LEVEL } from './constants';
@@ -16,20 +17,6 @@ declare global {
     }
 }
 
-const getPlayerId = () => {
-    const KEY = 'jubileu_player_id';
-    try {
-        let id = localStorage.getItem(KEY);
-        if (!id) {
-            id = (crypto && (crypto as any).randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
-            localStorage.setItem(KEY, id);
-        }
-        return id;
-    } catch {
-        return Math.random().toString(36).slice(2) + Date.now().toString(36);
-    }
-};
-
 const getConfig = () => {
     if (typeof window !== 'undefined' && window.__FIREBASE_CONFIG__ && window.__FIREBASE_CONFIG__.projectId) {
         return window.__FIREBASE_CONFIG__;
@@ -39,18 +26,51 @@ const getConfig = () => {
 };
 
 let _dbCache: Firestore | null = null;
-const getDb = (): Firestore | null => {
-    if (_dbCache) return _dbCache;
+let _authCache: Auth | null = null;
+const getServices = (): { db: Firestore; auth: Auth } | null => {
+    if (_dbCache && _authCache) return { db: _dbCache, auth: _authCache };
     const cfg = getConfig();
     if (!cfg) return null;
     try {
         const app = getApps().length === 0 ? initializeApp(cfg) : getApps()[0];
         _dbCache = getFirestore(app, cfg.firestoreDatabaseId || '(default)');
-        return _dbCache;
+        _authCache = getAuth(app);
+        return { db: _dbCache, auth: _authCache };
     } catch (e) {
-        console.error('[MP] Firestore init erro:', e);
+        console.error('[MP] Firebase init erro:', e);
         return null;
     }
+};
+
+// Wait for an authenticated UID. The Firestore rules require request.auth.uid
+// to equal the player doc id, so we sign in anonymously and use auth.uid as
+// the canonical player id (replacing the previous localStorage UUID, which
+// rules-rejected every write).
+const ensureSignedIn = (auth: Auth): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        if (auth.currentUser?.uid) {
+            resolve(auth.currentUser.uid);
+            return;
+        }
+        let settled = false;
+        const unsub = onAuthStateChanged(
+            auth,
+            (user) => {
+                if (settled) return;
+                if (user?.uid) {
+                    settled = true;
+                    unsub();
+                    resolve(user.uid);
+                }
+            },
+            (err) => {
+                if (!settled) { settled = true; unsub(); reject(err); }
+            }
+        );
+        signInAnonymously(auth).catch((err) => {
+            if (!settled) { settled = true; unsub(); reject(err); }
+        });
+    });
 };
 
 export interface MPPlayer {
@@ -74,25 +94,38 @@ export const useMultiplayer = (
     level: number = 0
 ) => {
     const [otherPlayers, setOtherPlayers] = useState<Record<string, MPPlayer>>({});
-    const playerIdRef = useRef<string>(getPlayerId());
-    const updateTimerRef = useRef<any>(null);
+    const [uid, setUid] = useState<string | null>(null);
     const playerStateRef = useRef(playerState);
     useEffect(() => { playerStateRef.current = playerState; }, [playerState]);
 
+    // Resolve the auth UID once the hook is enabled. Without this every
+    // Firestore op below is rejected by the security rules.
     useEffect(() => {
         if (!isEnabled) return;
-        const db = getDb();
-        if (!db) {
+        const services = getServices();
+        if (!services) {
             console.warn('[MP] Sem config Firebase');
             return;
         }
+        let cancelled = false;
+        ensureSignedIn(services.auth)
+            .then((id) => { if (!cancelled) setUid(id); })
+            .catch((e) => console.error('[MP] Auth erro:', e));
+        return () => { cancelled = true; };
+    }, [isEnabled]);
+
+    // Subscribe to other players in the same level once we have a UID.
+    useEffect(() => {
+        if (!isEnabled || !uid) return;
+        const services = getServices();
+        if (!services) return;
         const q = query(
-            collection(db, 'worlds/main/players'),
+            collection(services.db, 'worlds/main/players'),
             where('worldId', '==', 'main'),
             where('isActive', '==', true),
             where('level', '==', clampLevel(level ?? 0)),
-            // Cap reads per snapshot — the renderer can't keep up with hundreds of remote
-            // players anyway, and this bounds Firestore costs if the world is busy.
+            // Cap reads per snapshot — the renderer can't keep up with hundreds of
+            // remote players anyway, and this bounds Firestore costs.
             limit(50)
         );
         const GHOST_TTL_MS = 10000;
@@ -100,7 +133,7 @@ export const useMultiplayer = (
             const players: Record<string, MPPlayer> = {};
             const cutoff = Date.now() - GHOST_TTL_MS;
             snap.forEach(d => {
-                if (d.id === playerIdRef.current) return;
+                if (d.id === uid) return;
                 const data = d.data();
                 const updatedAt = data.updatedAt?.toMillis?.() ?? 0;
                 if (updatedAt > 0 && updatedAt < cutoff) return;
@@ -109,13 +142,14 @@ export const useMultiplayer = (
             setOtherPlayers(players);
         }, (err) => console.error('[MP] Snapshot erro:', err));
         return () => unsub();
-    }, [isEnabled, level]);
+    }, [isEnabled, level, uid]);
 
+    // Publish own position/state. Only runs after auth resolves.
     useEffect(() => {
-        if (!isEnabled || !playerPositionRef?.current) return;
-        const db = getDb();
-        if (!db) return;
-        const docRef = doc(db, 'worlds/main/players', playerIdRef.current);
+        if (!isEnabled || !uid || !playerPositionRef?.current) return;
+        const services = getServices();
+        if (!services) return;
+        const docRef = doc(services.db, 'worlds/main/players', uid);
 
         let initialized = false;
         let lastPos = new Vector3();
@@ -155,7 +189,7 @@ export const useMultiplayer = (
 
         push();
 
-        updateTimerRef.current = setInterval(() => {
+        const intervalId = setInterval(() => {
             const p = playerPositionRef.current;
             const r = rotationYRef.current;
             const now = Date.now();
@@ -173,21 +207,36 @@ export const useMultiplayer = (
         window.addEventListener('beforeunload', handleUnload);
 
         return () => {
-            clearInterval(updateTimerRef.current);
+            clearInterval(intervalId);
             window.removeEventListener('beforeunload', handleUnload);
+            // SPA navigation away from the gameplay route unmounts this hook
+            // without firing beforeunload, so mark inactive here too.
+            updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});
         };
-    }, [isEnabled, level, playerPositionRef, rotationYRef]);
+    }, [isEnabled, level, uid, playerPositionRef, rotationYRef]);
 
-  useEffect(() => {
-      if (isEnabled) return;
-      const db = getDb();
-      if (!db) return;
-      const docRef = doc(db, 'worlds/main/players', playerIdRef.current);
-      updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});
-  }, [isEnabled]);
+    // When MP is disabled (e.g. user toggled it off), proactively flag inactive.
+    useEffect(() => {
+        if (isEnabled || !uid) return;
+        const services = getServices();
+        if (!services) return;
+        const docRef = doc(services.db, 'worlds/main/players', uid);
+        updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});
+    }, [isEnabled, uid]);
 
-    const login = async () => {};
-    const user = isEnabled ? { uid: playerIdRef.current } : null;
+    const login = async (): Promise<string | null> => {
+        const services = getServices();
+        if (!services) return null;
+        try {
+            const id = await ensureSignedIn(services.auth);
+            setUid(id);
+            return id;
+        } catch (e) {
+            console.error('[MP] Login erro:', e);
+            return null;
+        }
+    };
+    const user = uid ? { uid } : null;
 
     return { user, login, otherPlayers };
 };
