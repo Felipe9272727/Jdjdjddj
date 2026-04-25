@@ -74,7 +74,12 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
 
     useFrame((_, dt) => {
         if (!groupRef.current) return;
-        if (hipsRef.current && hipsBindRef.current) { hipsRef.current.position.copy(hipsBindRef.current); }
+        // Keep the hips' Y so the walking bob plays naturally; only lock X/Z to
+        // the bind pose to avoid lateral drift from baked root motion.
+        if (hipsRef.current && hipsBindRef.current) {
+            hipsRef.current.position.x = hipsBindRef.current.x;
+            hipsRef.current.position.z = hipsBindRef.current.z;
+        }
         const k = Math.min(1, 10 * dt);
         groupRef.current.position.lerp(targetPos.current, k);
         let d = targetRot.current - groupRef.current.rotation.y;
@@ -85,12 +90,9 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
 
     return (
         <group ref={groupRef}>
-            <hemisphereLight intensity={1} color="#ffffff" groundColor="#444444" />
+            {/* Per-avatar lights compound on mobile (every remote player added one
+                full hemisphere light to the scene); rely on the scene's lighting. */}
             <primitive object={clonedScene} scale={[30, 30, 30]} position={[0, 0, 0]} />
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} renderOrder={-1}>
-                <circleGeometry args={[0.5, 24]} />
-                <meshBasicMaterial color="#000000" transparent opacity={0.35} depthWrite={false} />
-            </mesh>
             <Html position={[0, 2.2, 0]} center distanceFactor={8}>
                 <div className="pointer-events-none select-none whitespace-nowrap">
                     <div className="bg-black/70 text-white px-2 py-0.5 rounded text-xs font-mono border border-white/20 backdrop-blur-sm">

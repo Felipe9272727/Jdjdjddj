@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode }: any) => {
+export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, masterVolume = 1 }: any) => {
   const lobbyGainRef = useRef<any>(null);
   const masterGainRef = useRef<any>(null);
   const lobbyReadyRef = useRef(false);
@@ -53,8 +53,11 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
   };
   
   useEffect(() => {
-      if (masterGainRef.current && audioContext) masterGainRef.current.gain.setTargetAtTime(muted ? 0 : 1, audioContext.currentTime, 0.1);
-  }, [muted, audioContext]);
+      if (masterGainRef.current && audioContext) {
+          const target = muted ? 0 : Math.max(0, Math.min(1, masterVolume));
+          masterGainRef.current.gain.setTargetAtTime(target, audioContext.currentTime, 0.1);
+      }
+  }, [muted, audioContext, masterVolume]);
 
   useEffect(() => {
      if (doorTrigger > 0 && audioContext && masterGainRef.current) {

@@ -13,6 +13,7 @@ import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { BARNEY_URL, BARNEY_DIALOGUE } from './constants';
 import { useMultiplayer } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
+import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES } from './Settings';
 
 const MAX_JOYSTICK_RADIUS = 50;
 
@@ -31,6 +32,8 @@ const World = ({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPau
 );
 
 export default function App() {
+  const { settings, update: updateSettings } = useSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [audioCtx, setAudioCtx] = useState<any>(null);
   const [muted, setMuted] = useState(false);
@@ -205,7 +208,10 @@ export default function App() {
       }, 3000);
   };
 
-  const [multiplayerEnabled, setMultiplayerEnabled] = useState(false);
+  // Multiplayer is now a global setting; the game-start callback below also
+  // syncs it (so the menu's MP toggle still wins on the first launch).
+  const multiplayerEnabled = settings.multiplayer;
+  const setMultiplayerEnabled = useCallback((on: boolean) => updateSettings({ multiplayer: on }), [updateSettings]);
   const [playerAnimState, setPlayerAnimState] = useState<'idle' | 'walking'>('idle');
   useEffect(() => {
     if (!multiplayerEnabled) return;
@@ -324,7 +330,15 @@ export default function App() {
 
   const handlePointerMove = (e: any) => {
     if (!hasStarted) return;
-    if (isDesktop) { if (document.pointerLockElement === document.body && !dialogueOpen && !barneyDialogueOpen) { lookInput.current.x += e.movementX; lookInput.current.y += e.movementY; } return; }
+    if (isDesktop) {
+      if (document.pointerLockElement === document.body && !dialogueOpen && !barneyDialogueOpen) {
+        const sx = settings.sensitivity;
+        const sy = settings.sensitivity * (settings.invertY ? -1 : 1);
+        lookInput.current.x += e.movementX * sx;
+        lookInput.current.y += e.movementY * sy;
+      }
+      return;
+    }
     e.preventDefault(); e.stopPropagation();
     const { pointerId, clientX, clientY } = e; const pointer = activePointers.current.get(pointerId);
     if (pointer) {
@@ -343,7 +357,9 @@ export default function App() {
             setJoystickVisual(prev => ({ ...prev, currentX: nx, currentY: ny }));
           } else if (pointer.type === 'look') {
             const deltaX = clientX - pointer.startX; const deltaY = clientY - pointer.startY;
-            lookInput.current.x += deltaX * 0.006; lookInput.current.y += deltaY * 0.006;
+            const sx = 0.006 * settings.sensitivity;
+            const sy = 0.006 * settings.sensitivity * (settings.invertY ? -1 : 1);
+            lookInput.current.x += deltaX * sx; lookInput.current.y += deltaY * sy;
             pointer.startX = clientX; pointer.startY = clientY;
           }
       }
@@ -390,14 +406,16 @@ export default function App() {
 
   return (
     <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: any) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
-      <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted} nightMode={nightMode} />
+      <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted} masterVolume={settings.masterVolume} nightMode={nightMode} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
       <Canvas
-        camera={{ fov: 75, near: 0.1, far: 100 }}
-        dpr={[1, 1.5]}
+        // Re-create the renderer when quality changes so dpr / antialias actually update.
+        key={`gl-${settings.quality}`}
+        camera={{ fov: 75, near: 0.1, far: QUALITY_PROFILES[settings.quality].far }}
+        dpr={QUALITY_PROFILES[settings.quality].dpr}
         gl={{
-          antialias: true,
+          antialias: QUALITY_PROFILES[settings.quality].antialias,
           powerPreference: 'high-performance',
           // ACES Filmic gives the lobby/house lighting more depth without crushing
           // highlights. Combined with sRGB output for correctly-encoded colors.
@@ -487,7 +505,16 @@ export default function App() {
       
       {hasStarted && (
         <div className="absolute top-4 right-4 z-50 flex gap-2 pointer-events-auto">
-          <button onClick={() => setMuted(!muted)} className="relative group">
+          <button onClick={() => setSettingsOpen(true)} className="relative group" aria-label="Configurações">
+            <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative bg-black/70 backdrop-blur-sm border border-white/10 group-hover:border-amber-500/40 p-2.5 rounded-full transition-all group-active:scale-95">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#fbbf24" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+            </div>
+          </button>
+          <button onClick={() => setMuted(!muted)} className="relative group" aria-label={muted ? 'Ativar som' : 'Silenciar'}>
             <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
             <div className="relative bg-black/70 backdrop-blur-sm border border-white/10 group-hover:border-amber-500/40 p-2.5 rounded-full transition-all group-active:scale-95">
               {muted ? (
@@ -499,6 +526,8 @@ export default function App() {
           </button>
         </div>
       )}
+      {settings.showFps && hasStarted && <FpsCounter />}
+      <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
       {hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && (
         <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-50 pointer-events-auto">
