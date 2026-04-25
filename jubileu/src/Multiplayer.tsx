@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, serverTimestamp, Firestore } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, limit, serverTimestamp, Firestore } from 'firebase/firestore';
 import fallbackConfig from '../firebase-applet-config.json';
 import { Vector3 } from 'three';
 import { MAX_LEVEL } from './constants';
@@ -90,7 +90,10 @@ export const useMultiplayer = (
             collection(db, 'worlds/main/players'),
             where('worldId', '==', 'main'),
             where('isActive', '==', true),
-            where('level', '==', clampLevel(level ?? 0))
+            where('level', '==', clampLevel(level ?? 0)),
+            // Cap reads per snapshot — the renderer can't keep up with hundreds of remote
+            // players anyway, and this bounds Firestore costs if the world is busy.
+            limit(50)
         );
         const GHOST_TTL_MS = 10000;
         const unsub = onSnapshot(q, (snap) => {

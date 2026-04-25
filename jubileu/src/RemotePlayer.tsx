@@ -6,6 +6,9 @@ import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL } from './constants';
 import { SkeletonUtils } from 'three-stdlib';
 
+useGLTF.preload(WALKING_URL);
+useGLTF.preload(IDLE_URL);
+
 export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
     const groupRef = useRef<any>(null);
     const hipsRef = useRef<any>(null);

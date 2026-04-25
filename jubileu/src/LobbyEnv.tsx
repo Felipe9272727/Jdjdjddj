@@ -9,6 +9,9 @@ import { Shop } from './HouseEnv';
 import * as THREE from 'three';
 import { Vector3 } from 'three';
 
+useGLTF.preload(NPC_WALK_URL);
+useGLTF.preload(NPC_IDLE_URL);
+
 export const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }: any) => {
   const group = useRef<any>(null);
   const { scene, animations: walkAnims } = useGLTF(NPC_WALK_URL) as any;

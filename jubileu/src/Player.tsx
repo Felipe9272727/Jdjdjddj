@@ -5,6 +5,9 @@ import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, ELEV_W, LOBBY_W, DOOR_SEAL, L1_BND, ELEV_BLD, HOUSE_EX, HOUSE_IN, HOUSE_DW } from './constants';
 
+useGLTF.preload(WALKING_URL);
+useGLTF.preload(IDLE_URL);
+
 const Avatar = ({ animation, visible = true }: any) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
