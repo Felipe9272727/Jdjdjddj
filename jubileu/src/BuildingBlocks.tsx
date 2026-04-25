@@ -1,0 +1,133 @@
+import React, { useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { Text } from '@react-three/drei';
+import { TextureMaterial } from './Materials';
+import { ASSETS, COLORS } from './constants';
+import * as THREE from 'three';
+
+export const Door = React.memo(({ x, z, rot }: any) => (
+    <group position={[x, 1.1, z]} rotation={[0, rot, 0]}>
+      <mesh><boxGeometry args={[1.4, 2.2, 0.1]} /><meshStandardMaterial color="#E0E0E0" roughness={0.4} /></mesh>
+      <mesh position={[0, 0, 0]}><boxGeometry args={[1.5, 2.3, 0.05]} /><meshStandardMaterial color="#9E9E9E" roughness={0.5} /></mesh>
+      <mesh position={[0.6, 0, 0.08]}><sphereGeometry args={[0.05, 8, 8]} /><meshStandardMaterial color="#FFD54F" metalness={0.4} roughness={0.2} /></mesh>
+    </group>
+));
+
+export const WallPanel = React.memo(({ x, z, rot }: any) => (
+    <group position={[x, 2.2, z]} rotation={[0, rot, 0]}>
+      <mesh><boxGeometry args={[2, 1.2, 0.05]} /><meshStandardMaterial color="#212121" roughness={0.2} /></mesh>
+      <mesh position={[0, 0, 0.03]}><boxGeometry args={[1.8, 1.0, 0.01]} /><meshBasicMaterial color="#000000" /></mesh>
+      <Text position={[0, 0, 0.04]} fontSize={0.2} color="#00FF00" anchorX="center" anchorY="middle">3</Text>
+    </group>
+));
+
+export const CallPanel = React.memo(({ x, z, rot }: any) => (
+    <group position={[x, 1.5, z]} rotation={[0, rot, 0]}>
+        <mesh><boxGeometry args={[0.45, 0.75, 0.05]} /><meshStandardMaterial color="#1a1a1a" metalness={0.5} roughness={0.3} /></mesh>
+        <mesh position={[0, 0, 0.026]}><boxGeometry args={[0.38, 0.68, 0.01]} /><meshStandardMaterial color={COLORS.elevPanel} metalness={0.4} roughness={0.35} /></mesh>
+        <mesh position={[0, 0.15, 0.035]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.06, 0.06, 0.02, 16]} /><meshStandardMaterial color="#FFD54F" emissive="#FFD54F" emissiveIntensity={0.8} toneMapped={false} /></mesh>
+        <mesh position={[0, -0.05, 0.035]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.06, 0.06, 0.02, 16]} /><meshStandardMaterial color="#424242" metalness={0.6} roughness={0.3} /></mesh>
+        <mesh position={[0, -0.22, 0.035]}><planeGeometry args={[0.3, 0.15]} /><meshBasicMaterial color="#000000" /></mesh>
+        <Text position={[0, -0.22, 0.04]} fontSize={0.09} color="#FF3333" anchorX="center" anchorY="middle">▲ 01</Text>
+        <Text position={[0, 0.15, 0.05]} fontSize={0.08} color="#1a1a1a" anchorX="center" anchorY="middle">▲</Text>
+    </group>
+));
+
+export const CeilingLight = React.memo(({ x, z }: any) => (
+    <mesh position={[x, 4.45, z]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[1.5, 3]} />
+        <meshBasicMaterial color="#FFF9C4" toneMapped={false} />
+    </mesh>
+));
+
+export const Armchair = React.memo(({ x, z, rot = 0, color = "#5D4037" }: any) => (
+    <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+        <mesh position={[0, 0.35, 0]}>
+            <boxGeometry args={[1.1, 0.7, 0.9]} /><meshStandardMaterial color={color} roughness={0.9} />
+        </mesh>
+        <mesh position={[0, 0.9, -0.35]}>
+            <boxGeometry args={[1.1, 0.9, 0.2]} /><meshStandardMaterial color={color} roughness={0.9} />
+        </mesh>
+        <mesh position={[0, 0.72, 0.05]}>
+            <boxGeometry args={[0.95, 0.12, 0.75]} /><meshStandardMaterial color="#8D6E63" roughness={0.95} />
+        </mesh>
+        <mesh position={[-0.55, 0.55, -0.05]}><boxGeometry args={[0.12, 0.5, 0.85]} /><meshStandardMaterial color={color} roughness={0.9} /></mesh>
+        <mesh position={[0.55, 0.55, -0.05]}><boxGeometry args={[0.12, 0.5, 0.85]} /><meshStandardMaterial color={color} roughness={0.9} /></mesh>
+    </group>
+));
+
+export const TallPlant = React.memo(({ x, z, variant = 0 }: any) => {
+    const leafColor = ["#2E7D32", "#388E3C", "#43A047"][variant % 3];
+    const accentColor = ["#66BB6A", "#4CAF50", "#81C784"][variant % 3];
+    return (
+        <group position={[x, 0, z]}>
+            <mesh position={[0, 0.25, 0]}>
+                <cylinderGeometry args={[0.32, 0.24, 0.5, 10]} />
+                <meshStandardMaterial color="#EFEBE9" roughness={0.4} />
+            </mesh>
+            <mesh position={[0, 1.1, 0]}>
+                <sphereGeometry args={[0.5, 10, 8]} /><meshStandardMaterial color={leafColor} roughness={0.9} />
+            </mesh>
+            <mesh position={[0.15, 1.5, 0.1]}>
+                <sphereGeometry args={[0.3, 10, 8]} /><meshStandardMaterial color={accentColor} roughness={0.9} />
+            </mesh>
+            <mesh position={[-0.15, 1.45, -0.12]}>
+                <sphereGeometry args={[0.28, 10, 8]} /><meshStandardMaterial color={leafColor} roughness={0.9} />
+            </mesh>
+        </group>
+    );
+});
+
+export const FloorLamp = React.memo(({ x, z }: any) => (
+    <group position={[x, 0, z]}>
+        <mesh position={[0, 0.05, 0]}>
+            <cylinderGeometry args={[0.22, 0.28, 0.1, 10]} />
+            <meshStandardMaterial color="#212121" metalness={0.5} roughness={0.4} />
+        </mesh>
+        <mesh position={[0, 1.0, 0]}>
+            <cylinderGeometry args={[0.025, 0.025, 1.9, 6]} />
+            <meshStandardMaterial color="#424242" metalness={0.7} roughness={0.3} />
+        </mesh>
+        <mesh position={[0, 2.0, 0]}>
+            <coneGeometry args={[0.35, 0.5, 12, 1, true]} />
+            <meshBasicMaterial color="#FFE0B2" side={THREE.DoubleSide} toneMapped={false} />
+        </mesh>
+    </group>
+));
+
+export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
+    <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+        <mesh position={[0, 0.6, 0]}>
+            <boxGeometry args={[3.5, 1.2, 0.7]} />
+            <meshStandardMaterial color="#4E342E" roughness={0.6} />
+        </mesh>
+        <mesh position={[0, 1.22, 0.05]}>
+            <boxGeometry args={[3.7, 0.06, 0.85]} />
+            <meshStandardMaterial color="#F5F0EB" roughness={0.2} metalness={0.1} />
+        </mesh>
+        <mesh position={[0, 0.6, 0.36]}>
+            <boxGeometry args={[3.3, 1.0, 0.04]} />
+            <meshStandardMaterial color="#6D4C41" roughness={0.5} />
+        </mesh>
+        <mesh position={[0, 1.15, 0.38]}>
+            <boxGeometry args={[3.4, 0.03, 0.02]} />
+            <meshStandardMaterial color="#FFD54F" metalness={0.8} roughness={0.2} />
+        </mesh>
+        <group position={[1.3, 1.25, 0]}>
+            <mesh><cylinderGeometry args={[0.08, 0.1, 0.04, 8]} /><meshStandardMaterial color="#424242" metalness={0.7} /></mesh>
+            <mesh position={[0, 0.15, 0]}><cylinderGeometry args={[0.02, 0.02, 0.3, 6]} /><meshStandardMaterial color="#424242" metalness={0.7} /></mesh>
+            <mesh position={[0.1, 0.3, 0]} rotation={[0, 0, -0.5]}>
+                <coneGeometry args={[0.1, 0.15, 8, 1, true]} />
+                <meshStandardMaterial color="#FFD54F" side={THREE.DoubleSide} emissive="#FFE0B2" emissiveIntensity={0.5} />
+            </mesh>
+        </group>
+        <mesh position={[-1.2, 1.3, 0]}>
+            <sphereGeometry args={[0.08, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+            <meshStandardMaterial color="#FFC107" metalness={0.8} roughness={0.15} />
+        </mesh>
+        <mesh position={[0.3, 1.26, 0.1]}>
+            <boxGeometry args={[0.2, 0.02, 0.28]} />
+            <meshStandardMaterial color="#FAFAFA" roughness={0.9} />
+        </mesh>
+    </group>
+));
