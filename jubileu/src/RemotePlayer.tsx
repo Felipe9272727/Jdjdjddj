@@ -87,6 +87,10 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
         <group ref={groupRef}>
             <hemisphereLight intensity={1} color="#ffffff" groundColor="#444444" />
             <primitive object={clonedScene} scale={[30, 30, 30]} position={[0, 0, 0]} />
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} renderOrder={-1}>
+                <circleGeometry args={[0.5, 24]} />
+                <meshBasicMaterial color="#000000" transparent opacity={0.35} depthWrite={false} />
+            </mesh>
             <Html position={[0, 2.2, 0]} center distanceFactor={8}>
                 <div className="pointer-events-none select-none whitespace-nowrap">
                     <div className="bg-black/70 text-white px-2 py-0.5 rounded text-xs font-mono border border-white/20 backdrop-blur-sm">

@@ -36,7 +36,18 @@ const Avatar = ({ animation, visible = true }: any) => {
      const a = actions[animation === 'Walking' ? 'Walking' : 'Idle']; const o = actions[animation === 'Walking' ? 'Idle' : 'Walking'];
      if (o) o.fadeOut(0.2); if (a) a.reset().fadeIn(0.2).play();
   }, [animation, actions]);
-  return (<group><hemisphereLight intensity={1.0} color="#ffffff" groundColor="#444444" position={[0, 5, 0]} /><primitive object={scene} scale={[30, 30, 30]} position={[0, 0, 0]} /></group>);
+  // Soft contact shadow blob: anchors the avatar to the ground without needing a full
+  // shadow map. Slight Y offset prevents z-fighting with floor textures.
+  return (
+    <group>
+      <hemisphereLight intensity={1.0} color="#ffffff" groundColor="#444444" position={[0, 5, 0]} />
+      <primitive object={scene} scale={[30, 30, 30]} position={[0, 0, 0]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} renderOrder={-1}>
+        <circleGeometry args={[0.5, 24]} />
+        <meshBasicMaterial color="#000000" transparent opacity={0.35} depthWrite={false} />
+      </mesh>
+    </group>
+  );
 };
 
 const _resolve = (cx: number, cz: number, r: number, walls: number[][]) => {
@@ -54,7 +65,7 @@ const _resolve = (cx: number, cz: number, r: number, walls: number[][]) => {
     return [x, z];
 };
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }: any) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }: any) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -93,10 +104,14 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     const shakeX = cameraShakeRef?.current ? (Math.sin(timeRef.current * 18) * 0.015 + Math.sin(timeRef.current * 31) * 0.008) : 0;
     const shakeY = cameraShakeRef?.current ? (Math.cos(timeRef.current * 22) * 0.012) : 0;
 
-    if (dialogueOpen && npcPositionRef?.current) {
+    // Camera focus during dialogue uses dialogueTargetRef (the actual NPC the player
+    // is talking to: lobby NPC, Barney, etc.) and falls back to the lobby NPC ref so
+    // existing call sites that don't pass a target still work.
+    const dialogueFocusRef = dialogueTargetRef ?? npcPositionRef;
+    if (dialogueOpen && dialogueFocusRef?.current) {
         setAnim('Idle');
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
-        const nP = npcPositionRef.current; const pP = pos.current;
+        const nP = dialogueFocusRef.current; const pP = pos.current;
         const d2p = _v.current[0].subVectors(pP, nP).normalize(); if (d2p.lengthSq() < 1e-3) d2p.set(0,0,1);
         const tCam = _v.current[1].copy(nP).addScaledVector(d2p, 2.2); tCam.y += 1.75;
         const tLook = _v.current[2].copy(nP); tLook.y += 1.35;
