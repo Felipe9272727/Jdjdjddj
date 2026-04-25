@@ -14,6 +14,7 @@ import { BARNEY_URL, BARNEY_DIALOGUE } from './constants';
 import { useMultiplayer } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES } from './Settings';
+import { useBot, BotHud } from './Bot';
 
 const MAX_JOYSTICK_RADIUS = 50;
 
@@ -404,6 +405,30 @@ export default function App() {
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
   }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, canInteractNPC, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
 
+  // Bot driver — auto-walks the player through scripted scenarios. Only active
+  // after the user has actually started the game so the inputs aren't blocked.
+  const botEnabled = settings.botMode && hasStarted;
+  const botInfo = useBot(botEnabled, {
+    moveInput,
+    lookInput,
+    sharedPlayerPositionRef,
+    sharedRotationYRef,
+    positionCmdRef: playerPositionCmdRef,
+    currentLevel,
+    gameState,
+    canInteractDoor,
+    canInteractNPC,
+    canSleepNow,
+    barneyDialogueOpen,
+    dialogueOpen,
+    handleOpenDoor,
+    handleStartDialogue,
+    handleBarneyResponse,
+    handleSleep,
+    setDialogueNode,
+    setDialogueOpen,
+  });
+
   return (
     <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: any) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted} masterVolume={settings.masterVolume} nightMode={nightMode} />
@@ -527,6 +552,7 @@ export default function App() {
         </div>
       )}
       {settings.showFps && hasStarted && <FpsCounter />}
+      {botEnabled && <BotHud info={botInfo} />}
       <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
       {hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && (

@@ -66,12 +66,13 @@ const Avatar = ({ animation, visible = true }: any) => {
      const a = actions[animation === 'Walking' ? 'Walking' : 'Idle']; const o = actions[animation === 'Walking' ? 'Idle' : 'Walking'];
      if (o) o.fadeOut(0.2); if (a) a.reset().fadeIn(0.2).play();
   }, [animation, actions]);
-  // No per-avatar light: the lobby/house scenes already provide ambient and
-  // point lights. Adding a hemisphere light per avatar shows up as a cost on
-  // mobile (each light increases shader complexity in lit materials).
+  // The GLB origin sits 0.75 units below the character's feet, so the
+  // primitive needs that lift for the feet to land on Y=0 (floor plane).
+  // Removing this lift was what made the avatar appear to "float": the
+  // visible feet ended up below the floor and the visible bob looked elevated.
   return (
     <group>
-      <primitive object={scene} scale={[30, 30, 30]} position={[0, 0, 0]} />
+      <primitive object={scene} scale={[30, 30, 30]} position={[0, 0.75, 0]} />
     </group>
   );
 };
