@@ -96,7 +96,7 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
     return (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
             <div
-                className="w-full max-w-md bg-gradient-to-b from-[#1a120a] to-black border border-amber-500/40 rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.8)] overflow-hidden"
+                className="w-full max-w-md bg-gradient-to-b from-[#1a120a] to-black ring-1 ring-amber-500/40 rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.8)] overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="px-5 py-3 border-b border-amber-500/30 flex items-center justify-between">
@@ -158,7 +158,7 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                     <div className="pt-2 flex justify-between gap-2">
                         <button
                             onClick={reset}
-                            className="px-3 py-1.5 rounded border border-amber-500/30 text-amber-200/70 hover:text-amber-100 hover:border-amber-500/60 text-xs font-mono uppercase tracking-wider"
+                            className="px-3 py-1.5 rounded ring-1 ring-amber-500/30 hover:ring-amber-500/60 text-amber-200/70 hover:text-amber-100 text-xs font-mono uppercase tracking-wider"
                         >Restaurar</button>
                         <button
                             onClick={onClose}

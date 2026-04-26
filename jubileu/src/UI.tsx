@@ -78,7 +78,7 @@ export const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }: any) => {
         <div className={`flex flex-col gap-2 mb-3 pointer-events-auto transition-all duration-500 overflow-y-auto max-h-[40vh] sm:max-h-[50vh] landscape:max-h-[60vh] scrollbar-hide ${showOptions ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
           {node.options.map((opt: any, i: number) => (
             <button key={i} onClick={() => opt.next ? onOptionSelect(opt.next) : onClose()} className={`group relative w-full text-left overflow-hidden animate-fade-in-up stagger-${i + 1} flex-shrink-0`}>
-              <div className="relative px-4 py-3 bg-gray-900 border border-white/10 rounded-xl transition-all duration-300 hover:border-yellow-500/50 active:scale-[0.98]">
+              <div className="relative px-4 py-3 bg-gray-900 ring-1 ring-white/10 hover:ring-amber-500/50 rounded-xl transition-all duration-300 active:scale-[0.98]">
                 <div className="flex items-center gap-3">
                   <div className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center text-yellow-400 text-xs font-bold group-hover:bg-yellow-500 group-hover:text-black transition-all">
                     {i + 1}
