@@ -268,9 +268,11 @@ state — getter da posição/estado
 };
 
 export const BotHud = ({ info }: { info: { routine: string; status: string; log: string[] } }) => {
+    // z-[90] = above jumpscare (80) and saved overlay (70) but under
+    // SettingsMenu (100) so the user can still close settings even with bot on.
     return (
         <div
-            className="absolute z-[55] pointer-events-none w-[240px] max-w-[calc(100vw-24px)] bg-black/70 ring-1 ring-fuchsia-500/40 rounded-lg backdrop-blur-sm px-3 py-2 text-[10px] font-mono text-fuchsia-200 shadow-[0_4px_24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)]"
+            className="fixed z-[90] pointer-events-none w-[220px] max-w-[calc(100vw-24px)] bg-black/70 ring-1 ring-fuchsia-500/40 rounded-lg backdrop-blur-sm px-3 py-2 text-[10px] font-mono text-fuchsia-200 shadow-[0_4px_24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)]"
             style={{
                 bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
                 left: 'calc(env(safe-area-inset-left, 0px) + 12px)',
@@ -288,6 +290,68 @@ export const BotHud = ({ info }: { info: { routine: string; status: string; log:
                     <div key={i} className="text-[9px] text-fuchsia-200/70 truncate">{l}</div>
                 ))}
             </div>
+        </div>
+    );
+};
+
+// Live debug overlay for viewport / safe-area / canvas dimensions. Mounted
+// only when bot mode is on so it doesn't pollute the regular HUD. Useful to
+// confirm visually that the layout system is doing the right thing on
+// the actual device (no need to plug in DevTools).
+export const ViewportDebug = () => {
+    const [info, setInfo] = useState({
+        innerW: 0, innerH: 0,
+        dvh: 0, lvh: 0, svh: 0,
+        sat: 0, sar: 0, sab: 0, sal: 0,
+        dpr: 1,
+    });
+    useEffect(() => {
+        const probe = () => {
+            // Build a temporary element to measure dvh/lvh/svh and safe-area-insets.
+            const probeEl = document.createElement('div');
+            probeEl.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;left:0;top:0;';
+            probeEl.innerHTML = `
+                <span data-k="dvh" style="height:100dvh;display:inline-block"></span>
+                <span data-k="lvh" style="height:100lvh;display:inline-block"></span>
+                <span data-k="svh" style="height:100svh;display:inline-block"></span>
+                <span data-k="sat" style="height:env(safe-area-inset-top, 0px);display:inline-block"></span>
+                <span data-k="sar" style="height:env(safe-area-inset-right, 0px);display:inline-block"></span>
+                <span data-k="sab" style="height:env(safe-area-inset-bottom, 0px);display:inline-block"></span>
+                <span data-k="sal" style="height:env(safe-area-inset-left, 0px);display:inline-block"></span>
+            `;
+            document.body.appendChild(probeEl);
+            const get = (k: string) => Math.round((probeEl.querySelector(`[data-k="${k}"]`) as HTMLElement)?.getBoundingClientRect().height ?? 0);
+            setInfo({
+                innerW: window.innerWidth,
+                innerH: window.innerHeight,
+                dvh: get('dvh'), lvh: get('lvh'), svh: get('svh'),
+                sat: get('sat'), sar: get('sar'), sab: get('sab'), sal: get('sal'),
+                dpr: window.devicePixelRatio || 1,
+            });
+            document.body.removeChild(probeEl);
+        };
+        probe();
+        window.addEventListener('resize', probe);
+        window.addEventListener('orientationchange', probe);
+        return () => {
+            window.removeEventListener('resize', probe);
+            window.removeEventListener('orientationchange', probe);
+        };
+    }, []);
+    return (
+        <div
+            className="fixed z-[90] pointer-events-none px-2 py-1.5 rounded bg-black/80 ring-1 ring-cyan-500/40 text-cyan-200 text-[9px] font-mono tabular-nums leading-tight"
+            style={{
+                bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
+                right: 'calc(env(safe-area-inset-right, 0px) + 12px)',
+                minWidth: '140px',
+            }}
+        >
+            <div className="font-bold uppercase tracking-widest text-cyan-300 mb-1">viewport</div>
+            <div>inner {info.innerW}×{info.innerH}</div>
+            <div>dvh {info.dvh}  lvh {info.lvh}  svh {info.svh}</div>
+            <div>safe T{info.sat} R{info.sar} B{info.sab} L{info.sal}</div>
+            <div>dpr {info.dpr.toFixed(2)}</div>
         </div>
     );
 };

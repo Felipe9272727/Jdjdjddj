@@ -14,7 +14,7 @@ import { BARNEY_URL, BARNEY_DIALOGUE } from './constants';
 import { useMultiplayer } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES } from './Settings';
-import { useBot, BotHud } from './Bot';
+import { useBot, BotHud, ViewportDebug } from './Bot';
 
 const MAX_JOYSTICK_RADIUS = 50;
 
@@ -462,25 +462,34 @@ export default function App() {
       <Loader />
       {!hasStarted && <MainMenu onPlay={handleStartGame} />}
       
-      {hasStarted && (
-        <div className="absolute top-0 left-0 right-0 z-40 pointer-events-none pt-3 px-3 flex justify-center">
+      {/* ─────────────────────────────────────────────────────────────────────
+          HUD layer: ONE safe-area boundary. Every element inside positions
+          itself relative to this fixed wrapper, so `top-3 right-3` ends up at
+          (safe-area-inset-top + 12, safe-area-inset-right + 12). No element
+          should re-add env() inline — the wrapper resolves it once.
+          ───────────────────────────────────────────────────────────────────── */}
+      {hasStarted && <div className="hud-fixed">
+
+        {/* TOP — elevator status panel. max-w guard so it doesn't overflow on
+            narrow phones; padding from inset is in .hud-fixed. */}
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 px-2 max-w-[calc(100%-1rem)] pe-none">
           <div className="relative">
             <div className={`absolute -inset-2 rounded-2xl blur-xl transition-opacity duration-500 ${(elevatorTimer !== null && elevatorTimer <= 5) ? 'bg-red-500/40 opacity-100' : arrivalPulse ? 'bg-green-400/50 opacity-100' : 'bg-amber-500/20 opacity-70'}`} />
-            <div className="relative bg-gradient-to-b from-black/95 to-black/80 backdrop-blur-xl border border-amber-500/40 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+            <div className="relative bg-gradient-to-b from-black/95 to-black/80 backdrop-blur-xl ring-1 ring-amber-500/40 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
               <div className="flex items-stretch divide-x divide-amber-500/20">
-                <div className="px-4 py-2.5 flex flex-col items-center justify-center min-w-[85px] relative">
+                <div className="px-3 sm:px-4 py-2 sm:py-2.5 flex flex-col items-center justify-center min-w-[72px] sm:min-w-[85px] relative">
                   <span className="text-amber-500/60 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5">{currentLevel === 0 ? 'Location' : 'Floor'}</span>
                   {currentLevel === 0 ? (
-                    <span className="text-amber-300 text-lg font-black tracking-widest leading-none" style={{ textShadow: '0 0 20px rgba(251,191,36,0.6)' }}>LOBBY</span>
+                    <span className="text-amber-300 text-base sm:text-lg font-black tracking-widest leading-none" style={{ textShadow: '0 0 20px rgba(251,191,36,0.6)' }}>LOBBY</span>
                   ) : (
                     <div className="flex items-baseline gap-0.5">
-                      <span className="text-amber-500/50 text-sm font-bold">▲</span>
-                      <span className="text-amber-300 text-3xl font-black font-mono leading-none" style={{ textShadow: '0 0 25px rgba(251,191,36,0.7)' }}>{String(currentLevel).padStart(2, '0')}</span>
+                      <span className="text-amber-500/50 text-xs sm:text-sm font-bold">▲</span>
+                      <span className="text-amber-300 text-2xl sm:text-3xl font-black font-mono leading-none tabular-nums" style={{ textShadow: '0 0 25px rgba(251,191,36,0.7)' }}>{String(currentLevel).padStart(2, '0')}</span>
                     </div>
                   )}
                 </div>
-                <div className="px-4 py-2.5 flex flex-col items-center justify-center min-w-[115px]">
+                <div className="px-3 sm:px-4 py-2 sm:py-2.5 flex flex-col items-center justify-center min-w-[100px] sm:min-w-[115px]">
                   {elevatorTimer !== null ? (
                     <>
                       <span className={`text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5 ${(elevatorTimer <= 5 && !doorsClosed) ? 'text-red-400/80' : doorsClosed ? 'text-blue-400/80' : 'text-amber-400/60'}`}>
@@ -488,7 +497,7 @@ export default function App() {
                       </span>
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${(elevatorTimer <= 5 && !doorsClosed) ? 'bg-red-500 animate-ping' : doorsClosed ? 'bg-blue-400' : 'bg-amber-400'}`} />
-                        <span className={`text-2xl font-black font-mono leading-none tabular-nums ${(elevatorTimer <= 5 && !doorsClosed) ? 'text-red-300' : 'text-white'}`} style={{ textShadow: '0 0 10px rgba(255,255,255,0.3)' }}>{String(elevatorTimer).padStart(2, '0')}</span>
+                        <span className={`text-xl sm:text-2xl font-black font-mono leading-none tabular-nums ${(elevatorTimer <= 5 && !doorsClosed) ? 'text-red-300' : 'text-white'}`} style={{ textShadow: '0 0 10px rgba(255,255,255,0.3)' }}>{String(elevatorTimer).padStart(2, '0')}</span>
                         <span className="text-white/40 text-xs font-mono -mb-0.5">s</span>
                       </div>
                     </>
@@ -522,14 +531,14 @@ export default function App() {
             </div>
           </div>
         </div>
-      )}
-      
+      </div>}
+
       {floorReveal && (
-        <div className="absolute inset-0 z-[45] flex items-center justify-center pointer-events-none">
-          <div className="animate-floor-reveal text-center">
-            <div className="text-amber-500/70 text-sm font-mono uppercase tracking-[0.6em] mb-4 animate-fade-in">Now Arriving</div>
-            <div className="text-white text-8xl font-black tracking-wider" style={{ textShadow: '0 0 60px rgba(251,191,36,0.8), 0 0 30px rgba(255,255,255,0.4)' }}>FLOOR <span className="text-amber-400">{String(currentLevel).padStart(2, '0')}</span></div>
-            <div className="h-[2px] w-48 mx-auto mt-6 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
+        <div className="absolute inset-0 z-[45] flex items-center justify-center pointer-events-none px-4">
+          <div className="animate-floor-reveal text-center w-full">
+            <div className="text-amber-500/70 text-xs sm:text-sm font-mono uppercase tracking-[0.4em] sm:tracking-[0.6em] mb-3 sm:mb-4 animate-fade-in">Now Arriving</div>
+            <div className="text-white font-black tracking-wider tabular-nums" style={{ fontSize: 'clamp(2.5rem, 14vw, 6rem)', textShadow: '0 0 60px rgba(251,191,36,0.8), 0 0 30px rgba(255,255,255,0.4)' }}>FLOOR <span className="text-amber-400">{String(currentLevel).padStart(2, '0')}</span></div>
+            <div className="h-[2px] w-32 sm:w-48 mx-auto mt-4 sm:mt-6 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
           </div>
         </div>
       )}
@@ -565,13 +574,23 @@ export default function App() {
       )}
       {settings.showFps && hasStarted && <FpsCounter />}
       {botEnabled && <BotHud info={botInfo} />}
+      {botEnabled && <ViewportDebug />}
       <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
+      {/* ─── Bottom-center action buttons ─────────────────────────────────
+          ABRIR/FALAR/DORMIR are mutually exclusive by game state, so they
+          all share the same bottom anchor. Bottom anchor uses safe-area
+          inset + 24px so it clears the iOS home indicator and Android
+          gesture bar. Horizontal padding is fluid for narrow screens.
+          ───────────────────────────────────────────────────────────────── */}
       {hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && (
-        <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-50 pointer-events-auto">
-          <button onClick={handleOpenDoor} className="group relative">
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}
+        >
+          <button onClick={handleOpenDoor} className="group relative tap-target">
             <div className="absolute -inset-1 bg-gradient-to-r from-amber-400 to-yellow-300 rounded-full blur-md opacity-70 group-hover:opacity-100 animate-pulse" />
-            <div className="relative bg-white text-black px-8 py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 border-2 border-amber-200">
+            <div className="relative bg-white text-black px-5 sm:px-8 py-3 sm:py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-amber-200 text-sm sm:text-base">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" /></svg>
               ABRIR PORTA
             </div>
@@ -579,10 +598,13 @@ export default function App() {
         </div>
       )}
       {hasStarted && canInteractNPC && !dialogueOpen && !barneyDialogueOpen && (
-        <div className="absolute bottom-32 left-1/2 transform -translate-x-1/2 z-50 pointer-events-auto">
-          <button onClick={handleStartDialogue} className="group relative">
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}
+        >
+          <button onClick={handleStartDialogue} className="group relative tap-target">
             <div className="absolute -inset-1.5 bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 rounded-full blur-md opacity-80 animate-pulse" />
-            <div className="relative bg-gradient-to-b from-yellow-300 to-amber-400 text-black px-8 py-3.5 rounded-full font-black tracking-[0.25em] shadow-2xl active:scale-95 transition-transform flex items-center gap-2 border-2 border-yellow-200">
+            <div className="relative bg-gradient-to-b from-yellow-300 to-amber-400 text-black px-5 sm:px-8 py-3 sm:py-3.5 rounded-full font-black tracking-[0.2em] sm:tracking-[0.25em] shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-yellow-200 text-sm sm:text-base">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
               FALAR
             </div>
@@ -603,10 +625,13 @@ export default function App() {
       )}
       
       {hasStarted && canSleepNow && gameState === 'indoor_day' && !dialogueOpen && !barneyDialogueOpen && (
-        <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-50 pointer-events-auto">
-          <button onClick={handleSleep} className="group relative">
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}
+        >
+          <button onClick={handleSleep} className="group relative tap-target">
             <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full blur-md opacity-70 animate-pulse" />
-            <div className="relative bg-gradient-to-b from-slate-200 to-slate-300 text-slate-900 px-8 py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 border-2 border-blue-200">
+            <div className="relative bg-gradient-to-b from-slate-200 to-slate-300 text-slate-900 px-5 sm:px-8 py-3 sm:py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-blue-200 text-sm sm:text-base">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3C7.03 3 3 7.03 3 12s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z"/></svg>
               DORMIR
             </div>
@@ -614,23 +639,32 @@ export default function App() {
         </div>
       )}
       
+      {/* Status banners — positioned below the elevator HUD; safe-area + ~88px
+          drops below the elevator panel on portrait. Text size shrinks on
+          narrow screens so "CORRA PARA O ELEVADOR" doesn't overflow. */}
       {hasStarted && gameState === 'indoor_night' && (
-        <div className="absolute top-24 left-1/2 transform -translate-x-1/2 z-40 pointer-events-none">
-          <div className="bg-red-950/80 border border-red-500/40 text-red-200 px-4 py-2 rounded-lg font-mono text-sm tracking-wider animate-pulse">Algo não está certo...</div>
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)]"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 88px)' }}
+        >
+          <div className="bg-red-950/80 ring-1 ring-red-500/40 text-red-200 px-3 sm:px-4 py-2 rounded-lg font-mono text-xs sm:text-sm tracking-wider animate-pulse">Algo não está certo...</div>
         </div>
       )}
       {hasStarted && gameState === 'chase' && (
-        <div className="absolute top-24 left-1/2 transform -translate-x-1/2 z-40 pointer-events-none">
-          <div className="bg-red-900/90 border-2 border-red-500 text-white px-6 py-3 rounded-lg font-black tracking-widest text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)]">
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)]"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 88px)' }}
+        >
+          <div className="bg-red-900/90 ring-2 ring-red-500 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-sm sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center">
             ⚠ CORRA PARA O ELEVADOR ⚠
           </div>
         </div>
       )}
       {hasStarted && gameState === 'saved' && (
-        <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80">
-          <div className="text-center">
-            <div className="text-green-400 text-5xl font-black mb-3 animate-fade-in">VOCÊ SOBREVIVEU</div>
-            <div className="text-white/60 text-lg font-mono">Por enquanto...</div>
+        <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-4">
+          <div className="text-center w-full">
+            <div className="text-green-400 font-black mb-3 animate-fade-in" style={{ fontSize: 'clamp(2rem, 9vw, 3rem)' }}>VOCÊ SOBREVIVEU</div>
+            <div className="text-white/60 text-base sm:text-lg font-mono">Por enquanto...</div>
           </div>
         </div>
       )}
