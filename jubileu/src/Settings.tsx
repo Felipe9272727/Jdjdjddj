@@ -233,8 +233,14 @@ export const FpsCounter = () => {
         return () => cancelAnimationFrame(raf);
     }, []);
     return (
-        <div className="absolute top-3 right-3 z-[60] pointer-events-none px-2 py-1 rounded bg-black/60 border border-amber-500/30 text-amber-200 text-[10px] font-mono">
-            {fps} FPS
+        <div
+            className="absolute z-[60] pointer-events-none px-2 py-1 rounded bg-black/60 ring-1 ring-amber-500/30 text-amber-200 text-[10px] font-mono tabular-nums shadow-[inset_0_1px_0_rgba(255,176,0,0.08)]"
+            style={{
+                top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+                right: 'calc(env(safe-area-inset-right, 0px) + 12px)',
+            }}
+        >
+            {fps.toString().padStart(3, ' ')} FPS
         </div>
     );
 };

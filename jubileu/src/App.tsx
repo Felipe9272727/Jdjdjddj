@@ -44,6 +44,9 @@ export default function App() {
   const keysRef = useRef({ w: false, a: false, s: false, d: false });
   const sharedPlayerPositionRef = useRef(new Vector3(0, 0, 8));
   const sharedRotationYRef = useRef(0);
+  // Camera azimuth (theta) populated by Player every frame; used by the bot to
+  // convert world-space targets into camera-relative moveInput.
+  const cameraThetaRef = useRef(Math.PI);
   const playerPositionCmdRef = useRef<any>(null);
   const cameraShakeRef = useRef(false);
   const pendingTimeoutsRef = useRef<Set<any>>(new Set());
@@ -413,6 +416,7 @@ export default function App() {
     lookInput,
     sharedPlayerPositionRef,
     sharedRotationYRef,
+    cameraThetaRef,
     positionCmdRef: playerPositionCmdRef,
     currentLevel,
     gameState,
@@ -435,8 +439,10 @@ export default function App() {
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
       <Canvas
-        // Re-create the renderer when quality changes so dpr / antialias actually update.
-        key={`gl-${settings.quality}`}
+        // NOTE: no `key` here. Re-keying on settings change would unmount/remount
+        // the entire scene (and reload every GLB!), which is what was causing the
+        // visible "cut/flash" mid-game. dpr is reactive in r3f; antialias change
+        // requires a reload (we just accept that — quality is set from menu).
         camera={{ fov: 75, near: 0.1, far: QUALITY_PROFILES[settings.quality].far }}
         dpr={QUALITY_PROFILES[settings.quality].dpr}
         gl={{
@@ -450,7 +456,7 @@ export default function App() {
       >
         <Suspense fallback={<Html center><div className="px-4 py-2 rounded bg-black/70 border border-amber-500/40 text-amber-200 font-mono text-sm tracking-wider animate-pulse">CARREGANDO...</div></Html>}>
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} otherPlayers={otherPlayers} />
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
         </Suspense>
       </Canvas>
       <Loader />
@@ -529,7 +535,13 @@ export default function App() {
       )}
       
       {hasStarted && (
-        <div className="absolute top-4 right-4 z-50 flex gap-2 pointer-events-auto">
+        <div
+          className="absolute z-50 flex gap-2 pointer-events-auto"
+          style={{
+            top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
+            right: 'calc(env(safe-area-inset-right, 0px) + 16px)',
+          }}
+        >
           <button onClick={() => setSettingsOpen(true)} className="relative group" aria-label="Configurações">
             <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
             <div className="relative bg-black/70 backdrop-blur-sm border border-white/10 group-hover:border-amber-500/40 p-2.5 rounded-full transition-all group-active:scale-95">

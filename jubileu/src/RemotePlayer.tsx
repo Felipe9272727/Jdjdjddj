@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations, Html } from '@react-three/drei';
 import { Vector3 } from 'three';
@@ -23,6 +23,9 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
     }, [walkAnims, idleAnims]);
     const { actions } = useAnimations(anims, clonedScene);
 
+    // Same bbox-derived ground offset as the local Player so remote avatars
+    // align with the floor without needing a hardcoded lift.
+    const [groundY, setGroundY] = useState(0);
     useEffect(() => {
         clonedScene.traverse((c: any) => {
             if (c.isMesh) {
@@ -45,6 +48,11 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
                 }
             }
         });
+        try {
+            clonedScene.updateMatrixWorld(true);
+            const box = new THREE.Box3().setFromObject(clonedScene);
+            if (Number.isFinite(box.min.y)) setGroundY(-box.min.y);
+        } catch { /* ignored */ }
     }, [clonedScene]);
 
     useEffect(() => {
@@ -90,11 +98,11 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
 
     return (
         <group ref={groupRef}>
-            {/* Per-avatar lights compound on mobile (every remote player added one
-                full hemisphere light to the scene); rely on the scene's lighting.
-                The 0.75 Y lift puts the GLB's feet on the floor — same offset the
-                local Player uses (the GLB origin is below the feet). */}
-            <primitive object={clonedScene} scale={[30, 30, 30]} position={[0, 0.75, 0]} />
+            {/* Per-avatar lights compound on mobile (every remote player added
+                one full hemisphere light to the scene); rely on the scene's
+                lighting. groundY is bbox-derived so the feet always land on
+                Y=0 regardless of how the GLB origin is set. */}
+            <primitive object={clonedScene} scale={[30, 30, 30]} position={[0, groundY, 0]} />
             <Html position={[0, 2.2, 0]} center distanceFactor={8}>
                 <div className="pointer-events-none select-none whitespace-nowrap">
                     <div className="bg-black/70 text-white px-2 py-0.5 rounded text-xs font-mono border border-white/20 backdrop-blur-sm">

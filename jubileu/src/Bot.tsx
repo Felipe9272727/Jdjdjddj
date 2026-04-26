@@ -7,6 +7,7 @@ export interface BotHandles {
     lookInput: React.MutableRefObject<{ x: number; y: number }>;
     sharedPlayerPositionRef: React.MutableRefObject<Vector3>;
     sharedRotationYRef: React.MutableRefObject<number>;
+    cameraThetaRef: React.MutableRefObject<number>;
     positionCmdRef: React.MutableRefObject<any>;
     currentLevel: number;
     gameState: string;
@@ -69,7 +70,18 @@ export const useBot = (enabled: boolean, h: BotHandles) => {
         log(`rotina → ${r.kind}`);
     };
 
-    // Drive moveInput so player walks toward (tx, tz). Returns true when arrived.
+    // Drive moveInput so the player walks toward (tx, tz). Returns true on arrive.
+    //
+    // Player.tsx maps moveInput in CAMERA frame (not character frame):
+    //   fwd    = -moveInput.y
+    //   strafe =  moveInput.x
+    //   cd  = ( sin(theta), 0, cos(theta) )           // camera "forward"
+    //   rd  = ( sin(theta - π/2), 0, cos(theta - π/2) )  // camera "right"
+    //   mv  = -fwd*cd - strafe*rd  (then * SPEED * dt)
+    // Solving mv = (vx, vz) for (fwd, strafe):
+    //   strafe =  vx*cos(θ) - vz*sin(θ)
+    //   fwd    = -vx*sin(θ) - vz*cos(θ)
+    //   moveInput = (strafe, -fwd) = (vx*cosθ - vz*sinθ,  vx*sinθ + vz*cosθ)
     const stepWalkTo = (tx: number, tz: number, arriveDist = 0.5): boolean => {
         const p = h.sharedPlayerPositionRef.current;
         const dx = tx - p.x, dz = tz - p.z;
@@ -79,21 +91,14 @@ export const useBot = (enabled: boolean, h: BotHandles) => {
             h.moveInput.current.y = 0;
             return true;
         }
-        // Player.tsx forward is -y of moveInput (camera-relative). The bot is naive:
-        // we drive the player frame relative to its facing rotation so the avatar
-        // moves toward the target regardless of camera angle.
-        const ry = h.sharedRotationYRef.current;
-        // Want to move toward (dx, dz). Convert into player-local frame.
-        const cosR = Math.cos(ry), sinR = Math.sin(ry);
-        const localX = dx * cosR - dz * sinR;
-        const localZ = dx * sinR + dz * cosR;
-        const len = Math.max(1e-3, Math.sqrt(localX * localX + localZ * localZ));
-        const nx = localX / len;
-        const nz = localZ / len;
-        // Player.tsx: fwd = -moveInput.y, strafe = moveInput.x. Forward in world is
-        // roughly -Z in player local when facing +Z. We map nx → strafe, -nz → fwd.
-        h.moveInput.current.x = Math.max(-1, Math.min(1, nx));
-        h.moveInput.current.y = Math.max(-1, Math.min(1, -nz));
+        const len = Math.max(1e-3, d);
+        const vx = dx / len, vz = dz / len;
+        const theta = h.cameraThetaRef.current;
+        const c = Math.cos(theta), s = Math.sin(theta);
+        const mx = vx * c - vz * s;
+        const my = vx * s + vz * c;
+        h.moveInput.current.x = Math.max(-1, Math.min(1, mx));
+        h.moveInput.current.y = Math.max(-1, Math.min(1, my));
         return false;
     };
 
@@ -264,14 +269,20 @@ state — getter da posição/estado
 
 export const BotHud = ({ info }: { info: { routine: string; status: string; log: string[] } }) => {
     return (
-        <div className="absolute bottom-3 left-3 z-[55] pointer-events-none w-[240px] bg-black/70 border border-fuchsia-500/40 rounded-lg backdrop-blur-sm px-3 py-2 text-[10px] font-mono text-fuchsia-200 shadow-lg">
+        <div
+            className="absolute z-[55] pointer-events-none w-[240px] max-w-[calc(100vw-24px)] bg-black/70 ring-1 ring-fuchsia-500/40 rounded-lg backdrop-blur-sm px-3 py-2 text-[10px] font-mono text-fuchsia-200 shadow-[0_4px_24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)]"
+            style={{
+                bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
+                left: 'calc(env(safe-area-inset-left, 0px) + 12px)',
+            }}
+        >
             <div className="flex items-center justify-between mb-1">
                 <span className="font-bold tracking-widest uppercase text-fuchsia-300">BOT</span>
-                <span className={`px-1.5 py-0.5 rounded text-[9px] ${info.status === 'ativo' ? 'bg-green-500/30 text-green-200' : 'bg-gray-500/30 text-gray-300'}`}>
+                <span className={`px-1.5 py-0.5 rounded text-[9px] ${info.status === 'ativo' ? 'bg-green-500/30 text-green-200 ring-1 ring-green-500/40' : 'bg-gray-500/30 text-gray-300 ring-1 ring-gray-500/40'}`}>
                     {info.status}
                 </span>
             </div>
-            <div className="text-fuchsia-100/90 mb-1">rotina: {info.routine}</div>
+            <div className="text-fuchsia-100/90 mb-1 truncate">rotina: {info.routine}</div>
             <div className="border-t border-fuchsia-500/20 mt-1 pt-1 max-h-[80px] overflow-hidden">
                 {info.log.map((l, i) => (
                     <div key={i} className="text-[9px] text-fuchsia-200/70 truncate">{l}</div>
