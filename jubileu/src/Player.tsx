@@ -22,6 +22,11 @@ const Avatar = ({ animation, visible = true }: any) => {
   // Cache the meshes once on mount so the per-frame visibility/opacity update
   // doesn't traverse the whole skeleton tree. This was a measurable mobile cost.
   const meshesRef = useRef<any[]>([]);
+  // Computed once from the scene bounding box: the Y offset (in primitive-local
+  // units) that puts the model's lowest vertex on Y=0. Beats hardcoding 0.75
+  // (which only worked for the original GLB; updated assets had different
+  // origin offsets and made the avatar visibly float).
+  const [groundY, setGroundY] = useState(0);
   useEffect(() => {
      const meshes: any[] = [];
      scene.traverse((c: any) => {
@@ -42,6 +47,14 @@ const Avatar = ({ animation, visible = true }: any) => {
        }
      });
      meshesRef.current = meshes;
+     // Bounding box in scene-local space (before our scale={[30,30,30]} multiplier).
+     // We want the lowest visible point at world Y=0, so the primitive lift in
+     // primitive-local units = -bbox.min.y.
+     try {
+       scene.updateMatrixWorld(true);
+       const box = new THREE.Box3().setFromObject(scene);
+       if (Number.isFinite(box.min.y)) setGroundY(-box.min.y);
+     } catch { /* ignored */ }
   }, [scene]);
   useFrame((s, dt) => {
       // Reset only X/Z of the hips bone — keep Y so the natural walking bob
@@ -66,13 +79,11 @@ const Avatar = ({ animation, visible = true }: any) => {
      const a = actions[animation === 'Walking' ? 'Walking' : 'Idle']; const o = actions[animation === 'Walking' ? 'Idle' : 'Walking'];
      if (o) o.fadeOut(0.2); if (a) a.reset().fadeIn(0.2).play();
   }, [animation, actions]);
-  // The GLB origin sits 0.75 units below the character's feet, so the
-  // primitive needs that lift for the feet to land on Y=0 (floor plane).
-  // Removing this lift was what made the avatar appear to "float": the
-  // visible feet ended up below the floor and the visible bob looked elevated.
+  // groundY comes from the scene bbox above: it's the local-units offset that
+  // puts the lowest vertex on Y=0 after the scale multiplier is applied.
   return (
     <group>
-      <primitive object={scene} scale={[30, 30, 30]} position={[0, 0.75, 0]} />
+      <primitive object={scene} scale={[30, 30, 30]} position={[0, groundY, 0]} />
     </group>
   );
 };
@@ -92,7 +103,7 @@ const _resolve = (cx: number, cz: number, r: number, walls: number[][]) => {
     return [x, z];
 };
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }: any) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }: any) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -119,6 +130,8 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     const fp = zoomLevel < 0.5;
     if (sharedPositionRef) sharedPositionRef.current.copy(pos.current);
     if (sharedRotationYRef) sharedRotationYRef.current = charRot.current.y;
+    // Bot reads this to map world deltas into camera-frame moveInput.
+    if (cameraThetaRef) cameraThetaRef.current = camAng.current.theta;
     
     if (onElevatorZoneChange) {
         const inside = pos.current.z <= -10 && Math.abs(pos.current.x) <= 3.1;
