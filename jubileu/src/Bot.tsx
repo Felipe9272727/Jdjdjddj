@@ -1,43 +1,194 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useGLTF, useAnimations, Html } from '@react-three/drei';
 import { Vector3 } from 'three';
+import * as THREE from 'three';
+import { SkeletonUtils } from 'three-stdlib';
+import { WALKING_URL, IDLE_URL, LOBBY_W, ELEV_W, HOUSE_DW, L1_BND, ELEV_BLD, HOUSE_EX, HOUSE_IN, DOOR_SEAL, PR } from './constants';
+import { resolveCollision } from './physics';
 
-// Public handles the bot needs to drive the game. App passes these in.
-export interface BotHandles {
-    moveInput: React.MutableRefObject<{ x: number; y: number }>;
-    lookInput: React.MutableRefObject<{ x: number; y: number }>;
-    sharedPlayerPositionRef: React.MutableRefObject<Vector3>;
-    sharedRotationYRef: React.MutableRefObject<number>;
-    cameraThetaRef: React.MutableRefObject<number>;
-    positionCmdRef: React.MutableRefObject<any>;
-    currentLevel: number;
-    gameState: string;
-    canInteractDoor: boolean;
-    canInteractNPC: boolean;
-    canSleepNow: boolean;
-    barneyDialogueOpen: boolean;
-    dialogueOpen: boolean;
-    handleOpenDoor: () => void;
-    handleStartDialogue: () => void;
-    handleBarneyResponse: (next: string) => void;
-    handleSleep: () => void;
-    setDialogueNode: (n: string) => void;
-    setDialogueOpen: (b: boolean) => void;
+// ─────────────────────────────────────────────────────────────────────────────
+// Bot redesign: each bot is an autonomous "player-like" avatar in the scene.
+// It is NOT routed through Firestore (running multiple anonymous Firebase
+// users from a single tab is a non-trivial workaround for limited gain) — it
+// is rendered locally with the same GLB and label style as a remote player,
+// so the human player sees a bot moving around just like another MP user.
+//
+// AI = simple steering behaviors (Reynolds 1999):
+//   - wander: random direction with small per-frame jitter so paths feel
+//             organic instead of teleporting to random points
+//   - follow: arrive at a target offset from the human player
+//   - tour:   scripted waypoints exercising lobby + elevator (one bot only)
+//
+// Collision: reuses `resolveCollision` from physics.ts so the bot is pushed
+// out of walls exactly like the human player.
+// ─────────────────────────────────────────────────────────────────────────────
+
+useGLTF.preload(WALKING_URL);
+useGLTF.preload(IDLE_URL);
+
+export type BotBehavior = 'idle' | 'wander' | 'follow' | 'tour';
+
+export interface BotState {
+    id: string;
+    pos: Vector3;
+    rot: number;
+    anim: 'idle' | 'walking';
+    behavior: BotBehavior;
+    // Steering scratch
+    wanderTheta: number;        // current wander direction
+    target: Vector3 | null;     // for seek/follow/tour
+    tourIdx: number;            // for tour
+    color: string;              // tint for the name label
 }
 
-type Routine =
-    | { kind: 'idle' }
-    | { kind: 'walkTo'; x: number; z: number; arrive: number }
-    | { kind: 'wait'; until: number; reason: string }
-    | { kind: 'tour' } // grand-tour script
-    | { kind: 'circle'; cx: number; cz: number; r: number; t: number };
+const TOUR_WAYPOINTS: [number, number][] = [
+    [5, 5],     // lobby NPC area
+    [-5, 5],    // lobby left
+    [-5, -5],   // lobby left back
+    [5, -5],    // lobby right back
+    [0, -8],    // near elevator entrance
+    [0, 0],     // lobby center
+];
 
-const ROUTINE_DESC: Record<string, string> = {
-    idle: 'parado',
-    walkTo: 'andando até alvo',
-    wait: 'aguardando',
-    tour: 'tour completo',
-    circle: 'andando em círculo',
+const COLORS = ['#fbbf24', '#a78bfa', '#34d399', '#f472b6', '#60a5fa', '#fb923c'];
+
+const SPEED = 2.4;          // slightly slower than human player so bots feel different
+const WANDER_JITTER = 1.8;  // radians/sec maximum direction noise
+const ARRIVE_DIST = 0.6;
+
+const randomLobbyPos = (): Vector3 => {
+    // Spawn in the lobby quadrants, away from walls.
+    const x = (Math.random() - 0.5) * 14;
+    const z = (Math.random() - 0.5) * 14;
+    return new Vector3(x, 0, z);
 };
+
+// Walls used for bot collision: lobby + elevator entrance + (in level 1) the
+// outdoor/indoor sets so a bot doing a tour doesn't clip through walls.
+const wallsForLevel = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
+    if (level === 0) {
+        const w = [...ELEV_W, ...LOBBY_W];
+        if (doorsClosed) w.push(DOOR_SEAL);
+        return w;
+    }
+    const w = [...ELEV_W, ...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN];
+    if (!houseDoorOpen) w.push(HOUSE_DW);
+    if (doorsClosed) w.push(DOOR_SEAL);
+    return w;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bot avatar — same rig + animations as a remote MP player. Uses a cloned
+// skeleton so multiple bots don't share animation state.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BotAvatar = ({ state }: { state: BotState }) => {
+    const groupRef = useRef<any>(null);
+    const hipsRef = useRef<any>(null);
+    const hipsBindRef = useRef<Vector3 | null>(null);
+    const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
+    const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
+
+    const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
+    const anims = useMemo(() => {
+        const w = walkAnims.map((a: any) => a.clone(true));
+        const i = idleAnims.map((a: any) => a.clone(true));
+        if (w[0]) w[0].name = 'Walking';
+        if (i[0]) i[0].name = 'Idle';
+        return [...i, ...w];
+    }, [walkAnims, idleAnims]);
+    const { actions } = useAnimations(anims, clonedScene);
+
+    const [groundY, setGroundY] = useState(0);
+    useEffect(() => {
+        clonedScene.traverse((c: any) => {
+            if (c.isMesh && c.material) {
+                c.material = c.material.clone();
+                c.material.side = THREE.DoubleSide;
+                c.material.transparent = false;
+                c.material.depthWrite = true;
+                c.material.metalness = 0;
+                c.material.roughness = 1;
+                c.material.needsUpdate = true;
+            }
+            if ((c.isBone || c.type === 'Bone') && !hipsRef.current) {
+                const n = c.name.toLowerCase();
+                if (n.includes('hips') || n.includes('root')) {
+                    hipsRef.current = c;
+                    hipsBindRef.current = c.position.clone();
+                }
+            }
+        });
+        try {
+            clonedScene.updateMatrixWorld(true);
+            const box = new THREE.Box3().setFromObject(clonedScene);
+            if (Number.isFinite(box.min.y)) setGroundY(-box.min.y);
+        } catch { /* ignored */ }
+    }, [clonedScene]);
+
+    useEffect(() => {
+        const walking = state.anim === 'walking';
+        const a = actions[walking ? 'Walking' : 'Idle'];
+        const o = actions[walking ? 'Idle' : 'Walking'];
+        if (o) o.fadeOut(0.2);
+        if (a) a.reset().fadeIn(0.2).play();
+    }, [state.anim, actions]);
+
+    // Initialize transform once on mount.
+    useEffect(() => {
+        if (groupRef.current) {
+            groupRef.current.position.copy(state.pos);
+            groupRef.current.rotation.y = state.rot;
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useFrame((_, dt) => {
+        if (!groupRef.current) return;
+        // Lock hips X/Z to bind (kill lateral root drift, keep natural Y bob).
+        if (hipsRef.current && hipsBindRef.current) {
+            hipsRef.current.position.x = hipsBindRef.current.x;
+            hipsRef.current.position.z = hipsBindRef.current.z;
+        }
+        // Smooth toward latest sim state.
+        const k = Math.min(1, 10 * dt);
+        groupRef.current.position.lerp(state.pos, k);
+        let d = state.rot - groupRef.current.rotation.y;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        groupRef.current.rotation.y += d * k;
+    });
+
+    return (
+        <group ref={groupRef}>
+            <primitive object={clonedScene} scale={[30, 30, 30]} position={[0, groundY, 0]} />
+            <Html position={[0, 2.2, 0]} center distanceFactor={8}>
+                <div className="pointer-events-none select-none whitespace-nowrap">
+                    <div
+                        className="bg-black/75 px-2 py-0.5 rounded text-xs font-mono ring-1 ring-white/20 backdrop-blur-sm tabular-nums"
+                        style={{ color: state.color, textShadow: '0 0 6px rgba(0,0,0,0.9)' }}
+                    >
+                        {('BOT-' + state.id).slice(0, 8).toUpperCase()}
+                    </div>
+                </div>
+            </Html>
+        </group>
+    );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// useBots — the simulation hook. Returns the array of bot states (so App can
+// render BotAvatars). Drives steering behaviors in useFrame; exposes a stable
+// imperative API on window.__jubileuBot for hand-driving from devtools.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface BotSystemProps {
+    playerPositionRef: React.MutableRefObject<Vector3>;
+    currentLevel: number;
+    doorsClosed: boolean;
+    houseDoorOpen: boolean;
+}
 
 declare global {
     interface Window {
@@ -45,234 +196,236 @@ declare global {
     }
 }
 
-export const useBot = (enabled: boolean, h: BotHandles) => {
-    const routineRef = useRef<Routine>({ kind: 'idle' });
-    const [hudInfo, setHudInfo] = useState<{ routine: string; status: string; log: string[] }>({
-        routine: 'idle',
-        status: 'desligado',
-        log: [],
-    });
-    const logRef = useRef<string[]>([]);
-    const lastTickRef = useRef(0);
-    const tourStepRef = useRef(0);
+const makeBot = (i: number): BotState => ({
+    id: Math.random().toString(36).slice(2, 6),
+    pos: randomLobbyPos(),
+    rot: Math.random() * Math.PI * 2,
+    anim: 'walking',
+    behavior: 'wander',
+    wanderTheta: Math.random() * Math.PI * 2,
+    target: null,
+    tourIdx: 0,
+    color: COLORS[i % COLORS.length],
+});
 
+// ─── Tiny external store ──────────────────────────────────────────────────────
+// `useBots` runs inside <Canvas> (because of useFrame), but BotHud lives
+// outside the Canvas. They communicate via this module-scoped store that
+// either side can subscribe to without a full context provider.
+interface BotsInfo { count: number; behaviors: string[]; log: string[] }
+let _storeBots: BotState[] = [];
+let _storeInfo: BotsInfo = { count: 0, behaviors: [], log: [] };
+const _storeListeners = new Set<() => void>();
+const _emit = () => _storeListeners.forEach((l) => l());
+
+const subscribeStore = (l: () => void) => { _storeListeners.add(l); return () => { _storeListeners.delete(l); }; };
+
+export const useBotStore = (): { bots: BotState[]; info: BotsInfo } => {
+    const [, force] = useState(0);
+    useEffect(() => subscribeStore(() => force((n) => n + 1)), []);
+    return { bots: _storeBots, info: _storeInfo };
+};
+
+export const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseDoorOpen }: BotSystemProps) => {
+    const [bots, setBots] = useState<BotState[]>([]);
+    const botsRef = useRef<BotState[]>([]);
+    botsRef.current = bots;
+    const logRef = useRef<string[]>([]);
     const log = (msg: string) => {
         const line = `${new Date().toLocaleTimeString()} ${msg}`;
-        logRef.current = [line, ...logRef.current].slice(0, 8);
-        setHudInfo((s) => ({ ...s, log: logRef.current }));
+        logRef.current = [line, ...logRef.current].slice(0, 6);
+        _storeInfo = { ..._storeInfo, log: logRef.current };
+        _emit();
         // eslint-disable-next-line no-console
         console.log('[bot]', msg);
     };
 
-    const setRoutine = (r: Routine) => {
-        routineRef.current = r;
-        setHudInfo((s) => ({ ...s, routine: ROUTINE_DESC[r.kind] || r.kind }));
-        log(`rotina → ${r.kind}`);
-    };
-
-    // Drive moveInput so the player walks toward (tx, tz). Returns true on arrive.
-    //
-    // Player.tsx maps moveInput in CAMERA frame (not character frame):
-    //   fwd    = -moveInput.y
-    //   strafe =  moveInput.x
-    //   cd  = ( sin(theta), 0, cos(theta) )           // camera "forward"
-    //   rd  = ( sin(theta - π/2), 0, cos(theta - π/2) )  // camera "right"
-    //   mv  = -fwd*cd - strafe*rd  (then * SPEED * dt)
-    // Solving mv = (vx, vz) for (fwd, strafe):
-    //   strafe =  vx*cos(θ) - vz*sin(θ)
-    //   fwd    = -vx*sin(θ) - vz*cos(θ)
-    //   moveInput = (strafe, -fwd) = (vx*cosθ - vz*sinθ,  vx*sinθ + vz*cosθ)
-    const stepWalkTo = (tx: number, tz: number, arriveDist = 0.5): boolean => {
-        const p = h.sharedPlayerPositionRef.current;
-        const dx = tx - p.x, dz = tz - p.z;
-        const d = Math.sqrt(dx * dx + dz * dz);
-        if (d < arriveDist) {
-            h.moveInput.current.x = 0;
-            h.moveInput.current.y = 0;
-            return true;
-        }
-        const len = Math.max(1e-3, d);
-        const vx = dx / len, vz = dz / len;
-        const theta = h.cameraThetaRef.current;
-        const c = Math.cos(theta), s = Math.sin(theta);
-        const mx = vx * c - vz * s;
-        const my = vx * s + vz * c;
-        h.moveInput.current.x = Math.max(-1, Math.min(1, mx));
-        h.moveInput.current.y = Math.max(-1, Math.min(1, my));
-        return false;
-    };
-
-    // Tour state machine — exercises every major flow once.
-    const runTourStep = (now: number) => {
-        const step = tourStepRef.current;
-        const p = h.sharedPlayerPositionRef.current;
-        switch (step) {
-            case 0:
-                log('tour: indo ao NPC do lobby');
-                tourStepRef.current = 1;
-                break;
-            case 1: {
-                if (stepWalkTo(5, 5, 1.2)) { tourStepRef.current = 2; log('tour: chegou ao NPC'); }
-                break;
-            }
-            case 2:
-                if (h.canInteractNPC) { h.handleStartDialogue(); tourStepRef.current = 3; }
-                break;
-            case 3:
-                if (h.dialogueOpen) {
-                    setTimeout(() => h.setDialogueOpen(false), 1500);
-                    tourStepRef.current = 4;
-                }
-                break;
-            case 4:
-                if (!h.dialogueOpen) {
-                    log('tour: indo ao elevador');
-                    tourStepRef.current = 5;
-                }
-                break;
-            case 5:
-                if (stepWalkTo(0, -11, 0.8)) { tourStepRef.current = 6; log('tour: dentro do elevador'); }
-                break;
-            case 6:
-                // Wait for level transition.
-                if (h.currentLevel === 1) { tourStepRef.current = 7; log('tour: chegou no andar 1'); }
-                break;
-            case 7:
-                if (stepWalkTo(0, 5, 1.5)) { tourStepRef.current = 8; log('tour: na porta'); }
-                break;
-            case 8:
-                if (h.canInteractDoor) { h.handleOpenDoor(); tourStepRef.current = 9; }
-                break;
-            case 9:
-                if (h.barneyDialogueOpen) {
-                    setTimeout(() => h.handleBarneyResponse('accept_coffee'), 2000);
-                    tourStepRef.current = 10;
-                }
-                break;
-            case 10:
-                if (h.gameState === 'indoor_day') { tourStepRef.current = 11; log('tour: dentro de casa'); }
-                break;
-            case 11:
-                if (stepWalkTo(-2.5, 12.5, 0.6)) { tourStepRef.current = 12; log('tour: na cama'); }
-                break;
-            case 12:
-                if (h.canSleepNow) { h.handleSleep(); tourStepRef.current = 13; }
-                break;
-            case 13:
-                if (h.gameState === 'chase') { tourStepRef.current = 14; log('tour: chase iniciada — fugindo'); }
-                break;
-            case 14:
-                if (stepWalkTo(0, -11, 0.6)) { tourStepRef.current = 15; }
-                break;
-            case 15:
-                log('tour: completo');
-                setRoutine({ kind: 'idle' });
-                tourStepRef.current = 0;
-                break;
-        }
-    };
-
-    // Tick at ~30Hz to drive the bot independently of useFrame.
+    // Keep the external store in sync whenever bots changes.
     useEffect(() => {
-        if (!enabled) {
-            // Stop driving inputs and reset.
-            h.moveInput.current.x = 0;
-            h.moveInput.current.y = 0;
-            setHudInfo((s) => ({ ...s, status: 'desligado' }));
-            return;
+        _storeBots = bots;
+        _storeInfo = { ..._storeInfo, count: bots.length, behaviors: [...new Set(bots.map((b) => b.behavior))] };
+        _emit();
+    }, [bots]);
+
+    // Auto-spawn one bot the first time the system mounts so the user sees
+    // something happen. The component itself is unmounted when bot mode is
+    // disabled (App.tsx mounts conditionally), so cleanup is handled there.
+    useEffect(() => {
+        if (bots.length === 0) {
+            setBots([makeBot(0)]);
+            log('auto-spawned 1 bot (wander)');
         }
-        setHudInfo((s) => ({ ...s, status: 'ativo' }));
-        let raf = 0;
-        let timeoutId: any = null;
-        const tick = () => {
-            const now = performance.now();
-            if (now - lastTickRef.current >= 33) {
-                lastTickRef.current = now;
-                const r = routineRef.current;
-                if (r.kind === 'walkTo') {
-                    const arrived = stepWalkTo(r.x, r.z, r.arrive);
-                    if (arrived) { setRoutine({ kind: 'idle' }); log(`alvo (${r.x.toFixed(1)}, ${r.z.toFixed(1)}) atingido`); }
-                } else if (r.kind === 'circle') {
-                    const t = (r.t = r.t + 0.033);
-                    const tx = r.cx + Math.cos(t * 0.5) * r.r;
-                    const tz = r.cz + Math.sin(t * 0.5) * r.r;
-                    stepWalkTo(tx, tz, 0.1);
-                } else if (r.kind === 'wait') {
-                    if (now >= r.until) { setRoutine({ kind: 'idle' }); log(`espera ${r.reason} terminou`); }
-                } else if (r.kind === 'tour') {
-                    runTourStep(now);
-                } else {
-                    h.moveInput.current.x = 0;
-                    h.moveInput.current.y = 0;
+        return () => {
+            _storeBots = [];
+            _storeInfo = { count: 0, behaviors: [], log: logRef.current };
+            _emit();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ─── Drive every bot every frame ───────────────────────────────────────
+    useFrame((_, dtRaw) => {
+        if (botsRef.current.length === 0) return;
+        const dt = Math.min(0.05, dtRaw); // clamp big spikes (tab returning from background)
+        const walls = wallsForLevel(currentLevel, doorsClosed, houseDoorOpen);
+        const player = playerPositionRef.current;
+
+        let mutated = false;
+        for (const b of botsRef.current) {
+            const prevX = b.pos.x, prevZ = b.pos.z;
+            let desiredX = 0, desiredZ = 0;
+
+            switch (b.behavior) {
+                case 'idle':
+                    desiredX = 0; desiredZ = 0;
+                    break;
+                case 'wander': {
+                    // Wander = current heading + small random jitter to the angle.
+                    b.wanderTheta += (Math.random() - 0.5) * WANDER_JITTER * dt;
+                    desiredX = Math.sin(b.wanderTheta);
+                    desiredZ = Math.cos(b.wanderTheta);
+                    break;
+                }
+                case 'follow': {
+                    // Stand a couple of meters to the right of the player; arrive
+                    // (slow down on approach) so they don't oscillate on top of them.
+                    const tx = player.x + 1.6;
+                    const tz = player.z + 0.5;
+                    const dx = tx - b.pos.x, dz = tz - b.pos.z;
+                    const d = Math.sqrt(dx * dx + dz * dz);
+                    if (d > ARRIVE_DIST) {
+                        const slow = Math.min(1, d / 2);
+                        desiredX = (dx / d) * slow;
+                        desiredZ = (dz / d) * slow;
+                        // Aim heading at the desired direction so the avatar faces it.
+                        b.wanderTheta = Math.atan2(desiredX, desiredZ);
+                    }
+                    break;
+                }
+                case 'tour': {
+                    if (b.tourIdx >= TOUR_WAYPOINTS.length) {
+                        b.tourIdx = 0;
+                    }
+                    const [tx, tz] = TOUR_WAYPOINTS[b.tourIdx];
+                    const dx = tx - b.pos.x, dz = tz - b.pos.z;
+                    const d = Math.sqrt(dx * dx + dz * dz);
+                    if (d < ARRIVE_DIST) {
+                        b.tourIdx += 1;
+                    } else {
+                        desiredX = dx / d;
+                        desiredZ = dz / d;
+                        b.wanderTheta = Math.atan2(desiredX, desiredZ);
+                    }
+                    break;
                 }
             }
-            raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
 
-        // Programmatic API on window.__jubileuBot. Open devtools and call
-        // window.__jubileuBot.walk(0, -10) etc. Useful for hand-driving when
-        // Claude (or any tester) needs to issue commands without the HUD.
+            const moving = Math.abs(desiredX) + Math.abs(desiredZ) > 0.05;
+            if (moving) {
+                const nx = b.pos.x + desiredX * SPEED * dt;
+                const nz = b.pos.z + desiredZ * SPEED * dt;
+                const [rx, rz] = resolveCollision(nx, nz, PR, walls);
+
+                // Stuck detection: if collision pushed us back to ~same place,
+                // randomize wander angle so we can escape corners.
+                const moved = Math.hypot(rx - prevX, rz - prevZ);
+                if (moved < SPEED * dt * 0.2 && b.behavior === 'wander') {
+                    b.wanderTheta = Math.random() * Math.PI * 2;
+                }
+
+                b.pos.x = rx;
+                b.pos.z = rz;
+                // Smoothly face the wander direction.
+                let dRot = b.wanderTheta - b.rot;
+                while (dRot > Math.PI) dRot -= Math.PI * 2;
+                while (dRot < -Math.PI) dRot += Math.PI * 2;
+                b.rot += dRot * Math.min(1, 8 * dt);
+            }
+            const nextAnim = moving ? 'walking' : 'idle';
+            if (nextAnim !== b.anim) {
+                b.anim = nextAnim;
+                mutated = true;
+            }
+        }
+        if (mutated) setBots([...botsRef.current]); // trigger anim transitions
+    });
+
+    // ─── Imperative API on window.__jubileuBot ─────────────────────────────
+    useEffect(() => {
         const api = {
-            get state() {
-                const p = h.sharedPlayerPositionRef.current;
-                return {
-                    routine: routineRef.current,
-                    pos: { x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2) },
-                    ry: +h.sharedRotationYRef.current.toFixed(3),
-                    currentLevel: h.currentLevel,
-                    gameState: h.gameState,
-                };
+            list: () => botsRef.current.map((b) => ({ id: b.id, behavior: b.behavior, pos: { x: +b.pos.x.toFixed(2), z: +b.pos.z.toFixed(2) } })),
+            spawn: (n: number = 1) => {
+                const start = botsRef.current.length;
+                const next = [...botsRef.current];
+                for (let i = 0; i < n; i++) next.push(makeBot(start + i));
+                setBots(next);
+                log(`spawned ${n} bot(s) — total ${next.length}`);
             },
-            stop: () => setRoutine({ kind: 'idle' }),
-            walk: (x: number, z: number, arrive = 0.5) => setRoutine({ kind: 'walkTo', x, z, arrive }),
-            circle: (cx = 0, cz = 0, r = 4) => setRoutine({ kind: 'circle', cx, cz, r, t: 0 }),
-            tour: () => { tourStepRef.current = 0; setRoutine({ kind: 'tour' }); },
-            jumpTo: (x: number, y: number, z: number) => { h.positionCmdRef.current = { x, y, z }; log(`teleport (${x},${y},${z})`); },
-            interact: () => {
-                if (h.canInteractDoor) { h.handleOpenDoor(); log('interagiu: porta'); return; }
-                if (h.canInteractNPC) { h.handleStartDialogue(); log('interagiu: NPC'); return; }
-                if (h.canSleepNow) { h.handleSleep(); log('interagiu: dormir'); return; }
-                log('nada para interagir');
+            despawn: () => {
+                setBots([]);
+                log('despawned all bots');
             },
-            sayBarney: (next: string) => h.handleBarneyResponse(next),
-            log: (m: string) => log(m),
+            wander: () => {
+                setBots(botsRef.current.map((b) => ({ ...b, behavior: 'wander', target: null })));
+                log('all bots → wander');
+            },
+            follow: () => {
+                setBots(botsRef.current.map((b) => ({ ...b, behavior: 'follow', target: null })));
+                log('all bots → follow player');
+            },
+            idle: () => {
+                setBots(botsRef.current.map((b) => ({ ...b, behavior: 'idle', target: null })));
+                log('all bots → idle');
+            },
+            tour: () => {
+                if (botsRef.current.length === 0) {
+                    setBots([{ ...makeBot(0), behavior: 'tour', tourIdx: 0 }]);
+                } else {
+                    setBots([{ ...botsRef.current[0], behavior: 'tour', tourIdx: 0 }, ...botsRef.current.slice(1)]);
+                }
+                log('first bot running tour waypoints');
+            },
             help: () => {
                 // eslint-disable-next-line no-console
                 console.log(`%cjubileu bot api%c
-walk(x, z, arrive?) — anda até (x,z)
-circle(cx?, cz?, r?) — anda em círculo
-tour() — executa o tour completo
-jumpTo(x, y, z) — teleporta o player
-interact() — abre porta / fala NPC / dorme se possível
-sayBarney(next) — escolhe opção do diálogo do Barney
-stop() — para tudo
-state — getter da posição/estado
+spawn(n=1)   — adds n bots into the lobby
+despawn()    — removes all bots
+wander()     — all bots resume autonomous wandering
+follow()     — all bots flock toward the human player
+idle()       — all bots stop
+tour()       — first bot runs the lobby waypoint tour
+list()       — array of {id, behavior, pos}
 `, 'background:#fbbf24;color:#000;padding:2px 6px;border-radius:3px', '');
             },
         };
         window.__jubileuBot = api;
-        log('bot ativo — window.__jubileuBot.help() no console');
-
-        return () => {
-            cancelAnimationFrame(raf);
-            if (timeoutId) clearTimeout(timeoutId);
-            h.moveInput.current.x = 0;
-            h.moveInput.current.y = 0;
-            delete window.__jubileuBot;
-        };
+        log('bot API ready — window.__jubileuBot.help()');
+        return () => { delete window.__jubileuBot; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, h.currentLevel, h.gameState, h.canInteractDoor, h.canInteractNPC, h.canSleepNow, h.dialogueOpen, h.barneyDialogueOpen]);
+    }, []);
 
-    return hudInfo;
+    return <BotAvatars bots={bots} />;
 };
 
-export const BotHud = ({ info }: { info: { routine: string; status: string; log: string[] } }) => {
-    // z-[90] = above jumpscare (80) and saved overlay (70) but under
-    // SettingsMenu (100) so the user can still close settings even with bot on.
+// ─────────────────────────────────────────────────────────────────────────────
+// Render helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const BotAvatars = ({ bots }: { bots: BotState[] }) => (
+    <>
+        {bots.map((b) => (
+            <BotAvatar key={b.id} state={b} />
+        ))}
+    </>
+);
+
+export const BotHud = ({ info }: { info: { count: number; behaviors: string[]; log: string[] } }) => {
+    const summary = info.count === 0
+        ? 'aguardando spawn'
+        : `${info.count} bot${info.count > 1 ? 's' : ''} • ${[...new Set(info.behaviors)].join(', ')}`;
     return (
         <div
-            className="fixed z-[90] pointer-events-none w-[220px] max-w-[calc(100vw-24px)] bg-black/70 ring-1 ring-fuchsia-500/40 rounded-lg backdrop-blur-sm px-3 py-2 text-[10px] font-mono text-fuchsia-200 shadow-[0_4px_24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)]"
+            className="fixed z-[90] pointer-events-none w-[220px] max-w-[calc(100vw-24px)] bg-black/75 ring-1 ring-fuchsia-500/40 rounded-lg backdrop-blur-sm px-3 py-2 text-[10px] font-mono text-fuchsia-200 shadow-[0_4px_24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)]"
             style={{
                 bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
                 left: 'calc(env(safe-area-inset-left, 0px) + 12px)',
@@ -280,11 +433,11 @@ export const BotHud = ({ info }: { info: { routine: string; status: string; log:
         >
             <div className="flex items-center justify-between mb-1">
                 <span className="font-bold tracking-widest uppercase text-fuchsia-300">BOT</span>
-                <span className={`px-1.5 py-0.5 rounded text-[9px] ${info.status === 'ativo' ? 'bg-green-500/30 text-green-200 ring-1 ring-green-500/40' : 'bg-gray-500/30 text-gray-300 ring-1 ring-gray-500/40'}`}>
-                    {info.status}
+                <span className={`px-1.5 py-0.5 rounded text-[9px] ring-1 ${info.count > 0 ? 'bg-green-500/30 text-green-200 ring-green-500/40' : 'bg-gray-500/30 text-gray-300 ring-gray-500/40'}`}>
+                    {info.count > 0 ? 'ativo' : 'idle'}
                 </span>
             </div>
-            <div className="text-fuchsia-100/90 mb-1 truncate">rotina: {info.routine}</div>
+            <div className="text-fuchsia-100/90 mb-1 truncate">{summary}</div>
             <div className="border-t border-fuchsia-500/20 mt-1 pt-1 max-h-[80px] overflow-hidden">
                 {info.log.map((l, i) => (
                     <div key={i} className="text-[9px] text-fuchsia-200/70 truncate">{l}</div>
@@ -304,10 +457,10 @@ export const ViewportDebug = () => {
         dvh: 0, lvh: 0, svh: 0,
         sat: 0, sar: 0, sab: 0, sal: 0,
         dpr: 1,
+        orient: '',
     });
     useEffect(() => {
         const probe = () => {
-            // Build a temporary element to measure dvh/lvh/svh and safe-area-insets.
             const probeEl = document.createElement('div');
             probeEl.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;left:0;top:0;';
             probeEl.innerHTML = `
@@ -321,12 +474,14 @@ export const ViewportDebug = () => {
             `;
             document.body.appendChild(probeEl);
             const get = (k: string) => Math.round((probeEl.querySelector(`[data-k="${k}"]`) as HTMLElement)?.getBoundingClientRect().height ?? 0);
+            const orient = window.matchMedia('(orientation: landscape)').matches ? 'land' : 'portrait';
             setInfo({
                 innerW: window.innerWidth,
                 innerH: window.innerHeight,
                 dvh: get('dvh'), lvh: get('lvh'), svh: get('svh'),
                 sat: get('sat'), sar: get('sar'), sab: get('sab'), sal: get('sal'),
                 dpr: window.devicePixelRatio || 1,
+                orient,
             });
             document.body.removeChild(probeEl);
         };
@@ -347,7 +502,7 @@ export const ViewportDebug = () => {
                 minWidth: '140px',
             }}
         >
-            <div className="font-bold uppercase tracking-widest text-cyan-300 mb-1">viewport</div>
+            <div className="font-bold uppercase tracking-widest text-cyan-300 mb-1">viewport · {info.orient}</div>
             <div>inner {info.innerW}×{info.innerH}</div>
             <div>dvh {info.dvh}  lvh {info.lvh}  svh {info.svh}</div>
             <div>safe T{info.sat} R{info.sar} B{info.sab} L{info.sal}</div>

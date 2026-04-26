@@ -4,6 +4,7 @@ import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, ELEV_W, LOBBY_W, DOOR_SEAL, L1_BND, ELEV_BLD, HOUSE_EX, HOUSE_IN, HOUSE_DW } from './constants';
+import { resolveCollision as _resolve } from './physics';
 
 const Avatar = ({ animation, visible = true }: any) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
@@ -83,21 +84,6 @@ const Avatar = ({ animation, visible = true }: any) => {
       <primitive object={scene} scale={[30, 30, 30]} position={[0, groundY, 0]} />
     </group>
   );
-};
-
-const _resolve = (cx: number, cz: number, r: number, walls: number[][]) => {
-    let x = cx, z = cz;
-    for (let i = 0; i < 3; i++) {
-        for (const w of walls) {
-            const dx = w[2]-w[0], dz = w[3]-w[1], l2 = dx*dx+dz*dz;
-            if (l2 < 1e-4) continue;
-            const t = Math.max(0, Math.min(1, ((x-w[0])*dx+(z-w[1])*dz)/l2));
-            const px = w[0]+t*dx, pz = w[1]+t*dz, sx = x-px, sz = z-pz;
-            const d = Math.sqrt(sx*sx+sz*sz);
-            if (d < r && d > 1e-4) { const o = r-d; x += sx/d*o; z += sz/d*o; }
-        }
-    }
-    return [x, z];
 };
 
 export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }: any) => {
