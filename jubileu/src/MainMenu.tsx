@@ -145,7 +145,7 @@ export const MainMenu = ({ onPlay }: any) => {
             
             <div className="flex-1 flex flex-col items-center justify-center px-6 min-h-0 overflow-y-auto landscape:justify-center">
               <div className="relative mb-8 landscape:hidden" style={{ animationDelay: '0.3s' }}>
-                <div className="w-40 h-56 border-4 border-[#2a2a2a] rounded-t-lg bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]">
+                <div className="w-32 h-44 sm:w-40 sm:h-56 max-w-[45vw] border-4 border-[#2a2a2a] rounded-t-lg bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]">
                   <div className="absolute inset-2 bg-gradient-to-b from-amber-500/5 to-transparent rounded-t" />
                   <div className="absolute top-3 left-1/2 -translate-x-1/2 w-16 h-6 bg-black rounded-sm border border-amber-500/20 flex items-center justify-center">
                     <span className="text-amber-400/80 text-sm font-mono">▲ 03</span>
@@ -166,10 +166,10 @@ export const MainMenu = ({ onPlay }: any) => {
               <div className="text-center mb-6 landscape:mb-4 flex-shrink-0">
                 <p className="text-amber-500/50 text-xs uppercase tracking-[0.5em] mb-2 font-light landscape:hidden">Bem-vindo ao</p>
                 <div className="landscape:hidden">
-                  <h1 className="text-5xl font-black text-white mb-1" style={{ textShadow: '0 0 40px rgba(255,255,255,0.1)' }}>
+                  <h1 className="font-black text-white mb-1 leading-none" style={{ fontSize: 'clamp(2rem, 9vw, 3rem)', textShadow: '0 0 40px rgba(255,255,255,0.1)' }}>
                     THE NORMAL
                   </h1>
-                  <h2 className="text-3xl font-thin text-amber-400 tracking-[0.3em] uppercase" style={{ textShadow: '0 0 20px rgba(251,191,36,0.3)' }}>
+                  <h2 className="font-thin text-amber-400 tracking-[0.2em] sm:tracking-[0.3em] uppercase" style={{ fontSize: 'clamp(1.25rem, 6vw, 1.875rem)', textShadow: '0 0 20px rgba(251,191,36,0.3)' }}>
                     ELEVATOR
                   </h2>
                 </div>
@@ -193,8 +193,8 @@ export const MainMenu = ({ onPlay }: any) => {
                 <div className="flex flex-col gap-2 mb-4 bg-black/50 border border-white/10 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                      <span className="text-white/70 text-sm font-mono tracking-widest">MULTIPLAYER</span>
-                     <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-6 rounded-full transition-colors relative border border-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
-                        <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${multiplayerEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                     <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
+                        <div className={`absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                      </button>
                   </div>
                   
@@ -231,8 +231,8 @@ export const MainMenu = ({ onPlay }: any) => {
               <div className="flex flex-col gap-2 border border-white/10 rounded-lg mb-4 bg-black/50 backdrop-blur-md p-4">
                  <div className="flex items-center justify-between">
                      <span className="text-white/70 text-sm font-mono tracking-widest">MULTIPLAYER</span>
-                     <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-6 rounded-full transition-colors relative border border-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
-                        <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${multiplayerEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                     <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
+                        <div className={`absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                      </button>
                  </div>
                  

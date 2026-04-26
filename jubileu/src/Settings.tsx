@@ -103,7 +103,7 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                     <h2 className="text-amber-200 font-mono tracking-widest text-sm uppercase">Configurações</h2>
                     <button
                         onClick={onClose}
-                        className="text-amber-200/70 hover:text-amber-100 font-mono text-lg leading-none px-2"
+                        className="text-amber-200/70 hover:text-amber-100 font-mono text-2xl leading-none w-10 h-10 flex items-center justify-center rounded hover:bg-amber-500/10 active:bg-amber-500/20 transition-colors tap-target"
                         aria-label="Fechar"
                     >×</button>
                 </div>
@@ -181,15 +181,15 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
 const Segmented = ({
     value, options, onChange,
 }: { value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) => (
-    <div className="flex bg-black/40 border border-amber-500/20 rounded-lg overflow-hidden">
+    <div className="flex bg-black/40 ring-1 ring-amber-500/20 rounded-lg overflow-hidden">
         {options.map((o) => (
             <button
                 key={o.value}
                 onClick={() => onChange(o.value)}
-                className={`flex-1 px-3 py-1.5 text-xs font-mono tracking-wider transition-colors ${
+                className={`flex-1 px-3 py-2.5 min-h-[40px] text-xs font-mono tracking-wider transition-colors ${
                     value === o.value
                         ? 'bg-amber-500/80 text-black font-bold'
-                        : 'text-amber-200/70 hover:bg-amber-500/10'
+                        : 'text-amber-200/70 hover:bg-amber-500/10 active:bg-amber-500/20'
                 }`}
             >{o.label}</button>
         ))}
@@ -199,13 +199,13 @@ const Segmented = ({
 const Toggle = ({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) => (
     <button
         onClick={() => onChange(!on)}
-        className={`relative w-11 h-6 rounded-full transition-colors ${
-            on ? 'bg-amber-500/80' : 'bg-black/60 border border-amber-500/30'
+        className={`relative w-12 h-7 min-h-[28px] rounded-full transition-colors ring-1 ${
+            on ? 'bg-amber-500/80 ring-amber-400/60' : 'bg-black/60 ring-amber-500/30'
         }`}
         aria-pressed={on}
     >
         <span
-            className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+            className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform shadow-sm ${
                 on ? 'translate-x-[22px]' : 'translate-x-0.5'
             }`}
         />
@@ -233,11 +233,14 @@ export const FpsCounter = () => {
         return () => cancelAnimationFrame(raf);
     }, []);
     return (
+        // FpsCounter sits above the HUD (z-[91] > settings menu would be 100,
+        // so it's still under modals). top-left so it doesn't fight the
+        // settings/mute buttons in the top-right corner.
         <div
-            className="absolute z-[60] pointer-events-none px-2 py-1 rounded bg-black/60 ring-1 ring-amber-500/30 text-amber-200 text-[10px] font-mono tabular-nums shadow-[inset_0_1px_0_rgba(255,176,0,0.08)]"
+            className="fixed z-[91] pointer-events-none px-2 py-1 rounded bg-black/70 ring-1 ring-amber-500/30 text-amber-200 text-[10px] font-mono tabular-nums shadow-[inset_0_1px_0_rgba(255,176,0,0.08)]"
             style={{
                 top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
-                right: 'calc(env(safe-area-inset-right, 0px) + 12px)',
+                left: 'calc(env(safe-area-inset-left, 0px) + 12px)',
             }}
         >
             {fps.toString().padStart(3, ' ')} FPS
