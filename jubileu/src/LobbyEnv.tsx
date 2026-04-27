@@ -21,7 +21,7 @@ export const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }: any) => {
   const aiState = useRef({ state: 'Idle', target: new Vector3(0, 0, 0), timer: 2 + Math.random() * 3 });
   const _nDir = useRef(new Vector3());
   useEffect(() => {
-      scene.traverse((child: any) => { if (child.isMesh) { if (child.material) { child.material.side = THREE.DoubleSide; child.material.transparent = false; child.material.alphaTest = 0.5; } } });
+      scene.traverse((child: any) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; if (child.material) { child.material.side = THREE.DoubleSide; child.material.transparent = false; child.material.alphaTest = 0.5; } } });
       if(actions['Idle']) actions['Idle'].play();
   }, [scene, actions]);
   useFrame((state, delta) => {
@@ -77,7 +77,7 @@ export const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPo
             <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0, 0]}><planeGeometry args={[W, L]} /><TextureMaterial url={ASSETS.lobbyFloor} repeat={[8, 8]} roughness={0.4} metalness={0.05} /></mesh>
             <mesh rotation={[Math.PI/2, 0, 0]} position={[0, H, 0]}><planeGeometry args={[W, L]} /><TextureMaterial url={ASSETS.ceiling} repeat={[6, 6]} roughness={0.9} /></mesh>
             <ambientLight intensity={0.45} color="#FFE0B2" />
-            {/* Main lobby light handled by FluorescentFlicker in App.tsx (flicker effect) */}
+            <pointLight position={[0, 3.8, 0]} intensity={2.8} distance={22} color="#FFE0B2" decay={2} />
             <pointLight position={[0, 3, -6]} intensity={1.5} distance={12} color="#FFF8E1" decay={2} />
             <group position={[0, H/2, L/2]}><mesh><boxGeometry args={[W, H, 0.5]} /><TextureMaterial url={ASSETS.wall} repeat={[4, 1]} roughness={0.9} /></mesh><mesh position={[0, -H/2+WH/2, -0.3]}><boxGeometry args={[W-0.6, WH, 0.1]} /><TextureMaterial url={ASSETS.wallPanel} color="#ffffff" repeat={[12, 1]} roughness={0.6} /></mesh></group>
             <group position={[-W/2, H/2, 0]}><mesh><boxGeometry args={[0.5, H, L]} /><TextureMaterial url={ASSETS.wall} repeat={[4, 1]} roughness={0.9} /></mesh><mesh position={[0.3, -H/2+WH/2, 0]}><boxGeometry args={[0.1, WH, L-0.1]} /><TextureMaterial url={ASSETS.wallPanel} color="#ffffff" repeat={[12, 1]} roughness={0.6} /></mesh></group>

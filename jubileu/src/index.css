@@ -124,11 +124,6 @@ canvas {
  * box so any `top-0` element sits exactly at the safe edge — never under a
  * notch, never double-counted).
  */
-/* ─── HUD Entrance Animation ─────────────────────────────────────────────── */
-@keyframes hud-fade-in {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
 .hud-fixed {
   position: fixed;
   inset: 0;
@@ -141,7 +136,6 @@ canvas {
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left:   env(safe-area-inset-left, 0px);
   box-sizing: border-box;
-  animation: hud-fade-in 0.6s ease-out;
 }
 .hud-fixed > * { pointer-events: auto; }
 .hud-fixed .pe-none { pointer-events: none; }
@@ -151,29 +145,6 @@ canvas {
 
 /* Min touch-target helper (Apple HIG / Material both want ≥ 44px). */
 .tap-target { min-width: 44px; min-height: 44px; }
-
-/* ─── Button Micro-interactions (animate skill) ──────────────────────────── */
-button {
-  transition: transform 120ms ease-out, opacity 120ms ease-out;
-}
-button:active {
-  transform: scale(0.97);
-}
-@media (hover: hover) {
-  button:hover {
-    transform: scale(1.02);
-  }
-}
-
-/* ─── Focus-visible for keyboard navigation (harden skill) ───────────────── */
-:focus-visible {
-  outline: 2px solid rgba(251, 191, 36, 0.6);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-button:focus:not(:focus-visible) {
-  outline: none;
-}
 
 /* Hide scrollbar but keep scroll functionality */
 .scrollbar-hide {
@@ -412,31 +383,6 @@ input[type=range]::-webkit-slider-runnable-track {
 }
 .animate-barney-bounce {
   animation: barney-image-bounce 2s ease-in-out infinite;
-}
-
-/* ─── Reduced Motion ───────────────────────────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-  .animate-pulse,
-  .animate-bounce,
-  .animate-ping,
-  .animate-barney-bounce,
-  .animate-barney-dialogue,
-  .animate-jumpscare,
-  .animate-floor-reveal,
-  .animate-fade-in,
-  .animate-fade-in-up,
-  .animate-glow-pulse,
-  .speech-bubble,
-  .traveling-vignette,
-  .barney-glow {
-    animation: none !important;
-  }
 }
 
 /* ─── Polish Effects ──────────────────────────────────────────────────── */

@@ -221,7 +221,7 @@ export const useMultiplayer = (
                 lastRot = r;
                 lastTime = now;
             }
-        }, 200); // Write every 200ms (5/sec) instead of 100ms — still smooth, half the Firestore writes
+        }, 100);
 
         const handleUnload = () => {
             updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});

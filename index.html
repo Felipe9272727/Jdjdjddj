@@ -483,10 +483,6 @@
     position: relative;
   }
 
-  .static {
-    position: static;
-  }
-
   .sticky {
     position: sticky;
   }
@@ -1207,10 +1203,6 @@
 
   .animate-pulse {
     animation: var(--animate-pulse);
-  }
-
-  .cursor-default {
-    cursor: default;
   }
 
   .resize {
@@ -2251,12 +2243,6 @@
   }
 
   .via-black\/95 {
-    --tw-gradient-via-stops: var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position);
-    --tw-gradient-stops: var(--tw-gradient-via-stops);
-  }
-
-  .via-green-400 {
-    --tw-gradient-via: var(--color-green-400);
     --tw-gradient-via-stops: var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position);
     --tw-gradient-stops: var(--tw-gradient-via-stops);
   }
@@ -4312,18 +4298,6 @@ canvas {
   display: block;
 }
 
-@keyframes hud-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .hud-fixed {
   pointer-events: none;
   z-index: 40;
@@ -4334,7 +4308,6 @@ canvas {
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   box-sizing: border-box;
-  animation: .6s ease-out hud-fade-in;
   position: fixed;
   inset: 0;
 }
@@ -4354,30 +4327,6 @@ canvas {
 .tap-target {
   min-width: 44px;
   min-height: 44px;
-}
-
-button {
-  transition: transform .12s ease-out, opacity .12s ease-out;
-}
-
-button:active {
-  transform: scale(.97);
-}
-
-@media (hover: hover) {
-  button:hover {
-    transform: scale(1.02);
-  }
-}
-
-:focus-visible {
-  outline-offset: 2px;
-  border-radius: 4px;
-  outline: 2px solid #fbbf2499;
-}
-
-button:focus:not(:focus-visible) {
-  outline: none;
 }
 
 .scrollbar-hide {
@@ -4826,19 +4775,6 @@ input[type="range"]::-webkit-slider-runnable-track {
 
 .animate-barney-bounce {
   animation: 2s ease-in-out infinite barney-image-bounce;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, :before, :after {
-    scroll-behavior: auto !important;
-    transition-duration: .01ms !important;
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-  }
-
-  .animate-pulse, .animate-bounce, .animate-ping, .animate-barney-bounce, .animate-barney-dialogue, .animate-jumpscare, .animate-floor-reveal, .animate-fade-in, .animate-fade-in-up, .animate-glow-pulse, .speech-bubble, .traveling-vignette, .barney-glow {
-    animation: none !important;
-  }
 }
 
 .scanlines:after {
@@ -95392,7 +95328,7 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
         lastRot = r2;
         lastTime = now2;
       }
-    }, 200);
+    }, 100);
     const handleUnload = () => {
       updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {
       });
@@ -95465,20 +95401,8 @@ const MainMenu = ({ onPlay }) => {
   const [loginError, setLoginError] = reactExports.useState("");
   const [copiedLink, setCopiedLink] = reactExports.useState(false);
   const [isFullscreen, setIsFullscreen] = reactExports.useState(false);
-  const [easterEgg, setEasterEgg] = reactExports.useState(0);
   const [playerName, setPlayerNameState] = reactExports.useState(getPlayerName());
-  const [mousePos, setMousePos] = reactExports.useState({ x: 0, y: 0 });
   const { user, login } = useMultiplayer({ current: null }, { current: 0 }, "idle", false);
-  reactExports.useEffect(() => {
-    const handler = (e2) => {
-      setMousePos({
-        x: (e2.clientX / window.innerWidth - 0.5) * 2,
-        y: (e2.clientY / window.innerHeight - 0.5) * 2
-      });
-    };
-    window.addEventListener("mousemove", handler);
-    return () => window.removeEventListener("mousemove", handler);
-  }, []);
   const handlePlay = async () => {
     if (multiplayerEnabled && !user) {
       setIsLoggingIn(true);
@@ -95539,7 +95463,7 @@ const MainMenu = ({ onPlay }) => {
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute inset-0", style: { opacity: flickerOpacity, transition: "opacity 0.05s" }, children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 bg-gradient-to-b from-[#0a0a0f] via-[#0d0d15] to-[#05050a]" }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute top-0 left-1/2 -translate-x-1/2 w-[200%] h-[60%] bg-gradient-to-b from-amber-500/[0.03] via-transparent to-transparent", style: { clipPath: "polygon(40% 0%, 60% 0%, 80% 100%, 20% 100%)" } }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 overflow-hidden", style: { transform: `translate(${mousePos.x * 3}px, ${mousePos.y * 2}px)`, transition: "transform 0.5s ease-out" }, children: reactExports.useMemo(() => Array.from({ length: 30 }, (_, i2) => ({
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 overflow-hidden", children: reactExports.useMemo(() => Array.from({ length: 30 }, (_, i2) => ({
         left: `${Math.random() * 100}%`,
         top: `${Math.random() * 100}%`,
         duration: 5 + Math.random() * 10,
@@ -95753,7 +95677,7 @@ const MainMenu = ({ onPlay }) => {
         ] })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "hidden md:flex h-full items-center justify-center pointer-events-auto", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-10 lg:gap-24 max-w-6xl mx-auto px-8", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative animate-fade-in", style: { animationDelay: "0.5s", transform: `translate(${mousePos.x * -6}px, ${mousePos.y * -4}px)`, transition: "transform 0.3s ease-out" }, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative animate-fade-in", style: { animationDelay: "0.5s" }, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-64 h-96 border-8 border-[#2a2a2a] rounded-t-2xl bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a] shadow-[inset_0_0_60px_rgba(0,0,0,0.9),0_0_80px_rgba(0,0,0,0.5)]", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-4 bg-gradient-to-b from-amber-500/10 via-transparent to-transparent rounded-t-xl" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute top-6 left-1/2 -translate-x-1/2 w-24 h-10 bg-black/90 rounded border border-amber-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.3)]", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400 text-2xl font-mono font-bold", style: { textShadow: "0 0 15px rgba(251,191,36,0.8)" }, children: "▲ 03" }) }),
@@ -95838,7 +95762,7 @@ const MainMenu = ({ onPlay }) => {
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "ml-4", children: "CAM_01" })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 left-6 text-white/40 text-xs tracking-wider hidden md:block", children: "© 2026 LIMINAL SYSTEMS" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 right-6 text-white/40 text-xs tracking-wider hidden md:block cursor-default select-none", onClick: () => setEasterEgg((p2) => p2 + 1), children: easterEgg >= 3 ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400 animate-pulse", children: "🏆 O elevador sabe de tudo..." }) : "v1.0.3" })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 right-6 text-white/40 text-xs tracking-wider hidden md:block", children: "v1.0.3" })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 pointer-events-none opacity-[0.02]", style: { backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)" } })
   ] });
@@ -95938,6 +95862,8 @@ const Avatar = ({ animation, visible = true }) => {
     const meshes = [];
     scene.traverse((c2) => {
       if (c2.isMesh) {
+        c2.castShadow = true;
+        c2.receiveShadow = true;
         if (c2.material) {
           c2.material.transparent = true;
           c2.material.depthWrite = true;
@@ -96003,38 +95929,20 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
   if (_vRef.current === null) _vRef.current = Array.from({ length: 8 }, () => new Vector3());
   const _v = _vRef;
   const timeRef = reactExports.useRef(0);
-  const camPosRef = reactExports.useRef(new Vector3(0, 0, 8));
-  const camInitRef = reactExports.useRef(false);
   reactExports.useEffect(() => {
     elevTriggered.current = false;
   }, [currentLevel]);
   useFrame((state2, dt2) => {
     if (!active) return;
-    const safeDt = Math.min(dt2, 0.05);
-    timeRef.current += safeDt;
+    timeRef.current += dt2;
     if (positionCmdRef && positionCmdRef.current) {
       pos.current.set(positionCmdRef.current.x, positionCmdRef.current.y, positionCmdRef.current.z);
       positionCmdRef.current = null;
-      camInitRef.current = false;
     }
     const fp = zoomLevel < 0.5;
     if (sharedPositionRef) sharedPositionRef.current.copy(pos.current);
     if (sharedRotationYRef) sharedRotationYRef.current = charRot.current.y;
     if (cameraThetaRef) cameraThetaRef.current = camAng.current.theta;
-    if (!camInitRef.current) {
-      camInitRef.current = true;
-      const ly = pos.current.y + HH;
-      if (fp) {
-        camera.position.set(pos.current.x, ly, pos.current.z);
-      } else {
-        const cx = pos.current.x + Math.sin(camAng.current.theta) * zoomLevel * Math.cos(camAng.current.phi);
-        const cz = pos.current.z + Math.cos(camAng.current.theta) * zoomLevel * Math.cos(camAng.current.phi);
-        const cy = Math.max(ly + Math.sin(camAng.current.phi) * zoomLevel, 0.2);
-        camera.position.set(cx, cy, cz);
-      }
-      camera.lookAt(pos.current.x, ly, pos.current.z);
-      camPosRef.current.copy(camera.position);
-    }
     if (onElevatorZoneChange) {
       const inside = pos.current.z <= -10 && Math.abs(pos.current.x) <= 3.1;
       if (inside !== prevInsideElevatorRef.current) {
@@ -96059,23 +95967,21 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       tCam.y += 1.75;
       const tLook = _v.current[2].copy(nP);
       tLook.y += 1.35;
-      const dlgAlpha = Math.min(5 * safeDt, 0.4);
-      camera.position.lerp(tCam, dlgAlpha);
+      camera.position.lerp(tCam, 5 * dt2);
       if (camLookRef.current.distanceTo(tLook) > 10) {
         camLookRef.current.copy(pP);
         camLookRef.current.y += 1.6;
       }
-      camLookRef.current.lerp(tLook, dlgAlpha);
+      camLookRef.current.lerp(tLook, 5 * dt2);
       camera.lookAt(camLookRef.current);
-      camera.fov = MathUtils.lerp(camera.fov, 40, dlgAlpha);
+      camera.fov = MathUtils.lerp(camera.fov, 40, 5 * dt2);
       camera.updateProjectionMatrix();
-      camPosRef.current.copy(camera.position);
     } else {
       const sens = 3e-3 * (fp ? 1.5 : 1);
       if (isDesktop) {
         if (lookInput.current.x || lookInput.current.y) {
-          camAng.current.theta -= lookInput.current.x * sens * 500 * safeDt;
-          camAng.current.phi += lookInput.current.y * sens * 500 * safeDt;
+          camAng.current.theta -= lookInput.current.x * sens * 500 * dt2;
+          camAng.current.phi += lookInput.current.y * sens * 500 * dt2;
           lookInput.current.x = 0;
           lookInput.current.y = 0;
         }
@@ -96095,7 +96001,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
         moving = true;
         const cd = _v.current[3].set(Math.sin(camAng.current.theta), 0, Math.cos(camAng.current.theta));
         const rd = _v.current[4].set(Math.sin(camAng.current.theta - Math.PI / 2), 0, Math.cos(camAng.current.theta - Math.PI / 2));
-        const mv = _v.current[5].set(0, 0, 0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * safeDt);
+        const mv = _v.current[5].set(0, 0, 0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * dt2);
         const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
         let wl = [...ELEV_W];
         if (currentLevel === 0) {
@@ -96117,7 +96023,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
           let d = a2 - charRot.current.y;
           while (d > Math.PI) d -= Math.PI * 2;
           while (d < -Math.PI) d += Math.PI * 2;
-          charRot.current.y += d * 10 * safeDt;
+          charRot.current.y += d * 10 * dt2;
         }
         if (pos.current.z < EZ_START - 1 && !elevTriggered.current && currentLevel === 0) {
           elevTriggered.current = true;
@@ -96143,28 +96049,24 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       }
       const ly = pos.current.y + HH;
       const nla = _v.current[6].set(pos.current.x, ly, pos.current.z);
-      const lookAlpha = Math.min(10 * safeDt, 0.5);
-      camLookRef.current.lerp(nla, lookAlpha);
+      camLookRef.current.lerp(nla, 10 * dt2);
       if (fp) {
         camera.position.set(pos.current.x + shakeX, ly + shakeY, pos.current.z);
         const ld = 5;
         camera.lookAt(pos.current.x - Math.sin(camAng.current.theta) * ld * Math.cos(camAng.current.phi), ly - Math.sin(camAng.current.phi) * ld, pos.current.z - Math.cos(camAng.current.theta) * ld * Math.cos(camAng.current.phi));
         camera.fov = 90;
         camera.updateProjectionMatrix();
-        camPosRef.current.copy(camera.position);
       } else {
         const asp = size.width / size.height;
         const tFov = asp < 0.85 ? 90 : asp > 1.15 ? 75 : 90 - (asp - 0.85) / 0.3 * 15;
         if (Math.abs(camera.fov - tFov) > 0.1) {
-          camera.fov = MathUtils.lerp(camera.fov, tFov, Math.min(5 * safeDt, 0.3));
+          camera.fov = MathUtils.lerp(camera.fov, tFov, 5 * dt2);
           camera.updateProjectionMatrix();
         }
         const cx = pos.current.x + Math.sin(camAng.current.theta) * zoomLevel * Math.cos(camAng.current.phi);
         const cz = pos.current.z + Math.cos(camAng.current.theta) * zoomLevel * Math.cos(camAng.current.phi);
         const cy = Math.max(ly + Math.sin(camAng.current.phi) * zoomLevel, 0.2);
-        const camAlpha = Math.min(10 * safeDt, 0.4);
-        camPosRef.current.lerp(_v.current[7].set(cx + shakeX, cy + shakeY, cz), camAlpha);
-        camera.position.copy(camPosRef.current);
+        camera.position.lerp(_v.current[7].set(cx + shakeX, cy + shakeY, cz), 10 * dt2);
         camera.lookAt(pos.current.x, ly, pos.current.z);
       }
     }
@@ -96910,7 +96812,7 @@ const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOpenAmoun
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [12, 26, -18], intensity: 0.3, distance: 100, color: "#7070a0" })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("directionalLight", { position: nightMode ? [12, 26, -18] : [-20, 30, -20], intensity: nightMode ? 0.08 : 1.8 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("directionalLight", { position: nightMode ? [12, 26, -18] : [-20, 30, -20], intensity: nightMode ? 0.08 : 1.8, "shadow-mapSize": [2048, 2048] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [50, 50] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.grass, color: grassTint, repeat: [12, 12], roughness: 0.8 })
@@ -97000,6 +96902,8 @@ const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }) => {
   reactExports.useEffect(() => {
     scene.traverse((child) => {
       if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
         if (child.material) {
           child.material.side = DoubleSide;
           child.material.transparent = false;
@@ -97097,6 +97001,7 @@ const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionR
       /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.ceiling, repeat: [6, 6], roughness: 0.9 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.45, color: "#FFE0B2" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 3.8, 0], intensity: 2.8, distance: 22, color: "#FFE0B2", decay: 2 }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 3, -6], intensity: 1.5, distance: 12, color: "#FFF8E1", decay: 2 }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, H / 2, L / 2], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
@@ -97211,6 +97116,7 @@ const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2, name: name2, chatMsg
   reactExports.useEffect(() => {
     clonedScene.traverse((c2) => {
       if (c2.isMesh) {
+        c2.castShadow = true;
         if (c2.material) {
           c2.material = c2.material.clone();
           c2.material.transparent = false;
@@ -97295,7 +97201,7 @@ const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2, name: name2, chatMsg
     const timer2 = setTimeout(() => setShowChat(false), remaining);
     return () => clearTimeout(timer2);
   }, [chatMsg, chatAt]);
-  const displayName = (name2 || "P-" + (id || "").slice(0, 4).toUpperCase()).slice(0, 16);
+  const displayName = name2 || "P-" + (id || "").slice(0, 4).toUpperCase();
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene, scale: [30, 30, 30], position: [0, groundY, 0] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.3, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none select-none whitespace-nowrap", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/70 text-white px-2.5 py-0.5 rounded-md text-[11px] font-bold font-mono border border-white/20 backdrop-blur-sm tracking-wider text-center shadow-lg", children: displayName }) }) }),
@@ -98415,270 +98321,14 @@ const BubbleChatFallback = ({ messages, currentUserId }) => {
     }
   );
 };
-const GameEffects = ({
-  nightMode,
-  gameState,
-  currentLevel,
-  quality = "high"
-}) => {
-  if (quality === "low") return null;
-  const isChase = gameState === "chase";
-  const isScary = nightMode || isChase;
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        inset: 0,
-        pointerEvents: "none",
-        zIndex: 5,
-        // Vignette via radial gradient
-        background: `radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,${isChase ? 0.6 : isScary ? 0.4 : 0.25}) 100%)`,
-        // Film grain via CSS animation
-        mixBlendMode: "multiply",
-        opacity: isChase ? 0.15 : isScary ? 0.08 : 0.04
-      }
-    }
-  );
-};
-const DustParticles = ({ count = 20, area: area2 = 16 }) => {
-  const meshRef = reactExports.useRef(null);
-  const dummy = reactExports.useMemo(() => new Object3D(), []);
-  const particles = reactExports.useMemo(() => {
-    return Array.from({ length: count }, () => ({
-      x: (Math.random() - 0.5) * area2,
-      y: Math.random() * 4,
-      z: (Math.random() - 0.5) * area2,
-      vy: 0.02 + Math.random() * 0.05,
-      phase: Math.random() * Math.PI * 2,
-      speed: 0.3 + Math.random() * 0.7,
-      size: 0.015 + Math.random() * 0.025
-    }));
-  }, [count, area2]);
-  const frameRef = reactExports.useRef(0);
-  useFrame((state2) => {
-    if (!meshRef.current) return;
-    frameRef.current++;
-    if (frameRef.current % 3 !== 0) return;
-    const t2 = state2.clock.elapsedTime;
-    for (let i2 = 0; i2 < count; i2++) {
-      const p2 = particles[i2];
-      const x2 = p2.x + Math.sin(t2 * p2.speed + p2.phase) * 0.3;
-      const y = (p2.y + t2 * p2.vy) % 4.2 - 0.1;
-      const z = p2.z + Math.cos(t2 * p2.speed * 0.7 + p2.phase) * 0.3;
-      dummy.position.set(x2, y, z);
-      dummy.scale.setScalar(p2.size * (1 + Math.sin(t2 * 2 + p2.phase) * 0.3));
-      dummy.updateMatrix();
-      meshRef.current.setMatrixAt(i2, dummy.matrix);
-    }
-    meshRef.current.instanceMatrix.needsUpdate = true;
-  });
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("instancedMesh", { ref: meshRef, args: [void 0, void 0, count], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [1, 4, 4] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "meshBasicMaterial",
-      {
-        color: "#FFE0B2",
-        transparent: true,
-        opacity: 0.15,
-        depthWrite: false,
-        toneMapped: false
-      }
-    )
-  ] });
-};
-const FluorescentFlicker = ({ intensity = 2.8 }) => {
-  const lightRef = reactExports.useRef(null);
-  const lastUpdateRef = reactExports.useRef(0);
-  useFrame((state2) => {
-    if (!lightRef.current) return;
-    const now2 = state2.clock.elapsedTime;
-    if (now2 - lastUpdateRef.current < 0.1) return;
-    lastUpdateRef.current = now2;
-    const t2 = now2;
-    const base = intensity;
-    const flicker = Math.sin(t2 * 30) * 0.02;
-    const dip = Math.sin(t2 * 0.5) > 0.95 ? -0.3 : 0;
-    const random = (Math.sin(t2 * 137.5) * 0.5 + 0.5) * 0.05;
-    lightRef.current.intensity = base + flicker + dip + random;
-  });
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { ref: lightRef, position: [0, 3.8, 0], intensity, distance: 22, color: "#FFE0B2", decay: 2 });
-};
-const NightAmbient = ({ active }) => {
-  const lightRef = reactExports.useRef(null);
-  const lastUpdateRef = reactExports.useRef(0);
-  useFrame((state2) => {
-    if (!lightRef.current || !active) return;
-    const now2 = state2.clock.elapsedTime;
-    if (now2 - lastUpdateRef.current < 0.1) return;
-    lastUpdateRef.current = now2;
-    lightRef.current.intensity = 0.1 + Math.sin(now2 * 1.5) * 0.05;
-  });
-  if (!active) return null;
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
-    "pointLight",
-    {
-      ref: lightRef,
-      position: [0, 3, 0],
-      intensity: 0.1,
-      distance: 20,
-      color: "#1a1a40",
-      decay: 2
-    }
-  );
-};
-const CeilingFan = ({ x: x2 = 0, z = 0, speed = 0.8 }) => {
-  const bladeRef = reactExports.useRef(null);
-  const lastUpdateRef = reactExports.useRef(0);
-  useFrame((state2) => {
-    if (!bladeRef.current) return;
-    const now2 = state2.clock.elapsedTime;
-    if (now2 - lastUpdateRef.current < 0.05) return;
-    lastUpdateRef.current = now2;
-    bladeRef.current.rotation.y = now2 * speed;
-  });
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, 4.3, z], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.15, 0.15, 0.2, 12] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#424242", metalness: 0.6, roughness: 0.3 })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.2, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.03, 0.03, 0.3, 6] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#424242", metalness: 0.7, roughness: 0.3 })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: bladeRef, position: [0, -0.05, 0], children: [0, 1, 2, 3].map((i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0], rotation: [0, Math.PI / 2 * i2, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.12, 0.02, 1.2] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037", roughness: 0.8 })
-    ] }, i2)) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, -0.2, 0], intensity: 0.5, distance: 6, color: "#FFE0B2", decay: 2 })
-  ] });
-};
-const playArrivalDing = (audioContext) => {
-  if (!audioContext) return;
-  const t2 = audioContext.currentTime;
-  const osc1 = audioContext.createOscillator();
-  osc1.type = "sine";
-  osc1.frequency.setValueAtTime(880, t2);
-  osc1.frequency.exponentialRampToValueAtTime(830, t2 + 0.8);
-  const gain1 = audioContext.createGain();
-  gain1.gain.setValueAtTime(0, t2);
-  gain1.gain.linearRampToValueAtTime(0.12, t2 + 0.02);
-  gain1.gain.exponentialRampToValueAtTime(1e-3, t2 + 1.5);
-  const osc2 = audioContext.createOscillator();
-  osc2.type = "sine";
-  osc2.frequency.setValueAtTime(1320, t2);
-  const gain2 = audioContext.createGain();
-  gain2.gain.setValueAtTime(0, t2);
-  gain2.gain.linearRampToValueAtTime(0.05, t2 + 0.02);
-  gain2.gain.exponentialRampToValueAtTime(1e-3, t2 + 1);
-  osc1.connect(gain1).connect(audioContext.destination);
-  osc2.connect(gain2).connect(audioContext.destination);
-  osc1.start(t2);
-  osc2.start(t2);
-  osc1.stop(t2 + 1.5);
-  osc2.stop(t2 + 1);
-};
-const createElevatorHum = (audioContext) => {
-  if (!audioContext) return () => {
-  };
-  const osc = audioContext.createOscillator();
-  osc.type = "sawtooth";
-  osc.frequency.setValueAtTime(45, audioContext.currentTime);
-  const filter = audioContext.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = 150;
-  const gain = audioContext.createGain();
-  gain.gain.setValueAtTime(0, audioContext.currentTime);
-  gain.gain.linearRampToValueAtTime(0.03, audioContext.currentTime + 0.5);
-  osc.connect(filter).connect(gain).connect(audioContext.destination);
-  osc.start();
-  return () => {
-    gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.3);
-    setTimeout(() => {
-      try {
-        osc.stop();
-      } catch {
-      }
-    }, 300);
-  };
-};
-const WallClock = ({ x: x2 = 8, z = -8 }) => {
-  const handRef = reactExports.useRef(null);
-  const lastUpdateRef = reactExports.useRef(0);
-  useFrame((state2) => {
-    if (!handRef.current) return;
-    const now2 = state2.clock.elapsedTime;
-    if (now2 - lastUpdateRef.current < 0.1) return;
-    lastUpdateRef.current = now2;
-    handRef.current.rotation.z = -(now2 * Math.PI * 2) / 60;
-  });
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, 2.5, z], rotation: [0, -Math.PI / 2, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.3, 32] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#F5F0EB", roughness: 0.3 })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, -0.01], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("ringGeometry", { args: [0.28, 0.32, 32] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#424242", metalness: 0.6, roughness: 0.3 })
-    ] }),
-    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i2) => {
-      const angle = i2 / 12 * Math.PI * 2 - Math.PI / 2;
-      const r2 = 0.24;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [Math.cos(angle) * r2, Math.sin(angle) * r2, 0.01], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [i2 % 3 === 0 ? 0.02 : 0.01, 8] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#1a1a1a" })
-      ] }, i2);
-    }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { ref: handRef, position: [0, 0, 0.02], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [5e-3, 0.22, 5e-3] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#FF0000" })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.06, 0.015], rotation: [0, 0, -0.8], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.012, 0.14, 5e-3] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#1a1a1a" })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.08, 0.015], rotation: [0, 0, 0.4], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [8e-3, 0.18, 5e-3] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#1a1a1a" })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.025], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.015, 12] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#424242" })
-    ] })
-  ] });
-};
-class CanvasErrorBoundary extends reactExports.Component {
-  constructor() {
-    super(...arguments);
-    this.state = { hasError: false, error: "" };
-  }
-  static getDerivedStateFromError(error2) {
-    return { hasError: true, error: error2.message };
-  }
-  render() {
-    if (this.state.hasError) {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 flex items-center justify-center bg-black", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center px-6", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-lg font-bold mb-2", children: "Algo deu errado" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/50 text-sm font-mono mb-4", children: this.state.error }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => window.location.reload(), className: "bg-amber-500 text-black px-4 py-2 rounded-lg font-bold text-sm", children: "Recarregar" })
-      ] }) });
-    }
-    return this.props.children;
-  }
-}
 const MAX_JOYSTICK_RADIUS = 50;
-const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+const World = ({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
   level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(LobbyEnvironment, { npcPositionRef, isPaused, playerPositionRef }),
-  level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(DustParticles, { count: 20, area: 16 }),
-  level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(FluorescentFlicker, { intensity: 2.8 }),
-  level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(CeilingFan, { x: -5, z: 0, speed: 0.6 }),
-  level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(CeilingFan, { x: 5, z: -5, speed: 0.8 }),
-  level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(WallClock, { x: 9.5, z: -7 }),
   level === 1 && /* @__PURE__ */ jsxRuntimeExports.jsx(FlatMapEnvironment, { houseDoorOpen, nightMode, doorOpenAmount }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorInterior, { timer: timer2, doorsClosed, level }),
   level === 1 && /* @__PURE__ */ jsxRuntimeExports.jsx(BarneyActor, { gameState, barneyRef, barneyTargetRef, playerPosRef: playerPositionRef, houseDoorOpen }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(NightAmbient, { active: nightMode && level === 1 })
-] }));
+  Object.values(otherPlayers || {}).map((p2) => /* @__PURE__ */ jsxRuntimeExports.jsx(reactExports.Suspense, { fallback: null, children: /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id: p2.id, x: p2.x, y: p2.y, z: p2.z, ry: p2.ry, state: p2.state, name: p2.name, chatMsg: p2.chatMsg, chatAt: p2.chatAt }) }, p2.id))
+] });
 function App() {
   const { settings, update: updateSettings } = useSettings();
   const [settingsOpen, setSettingsOpen] = reactExports.useState(false);
@@ -98713,7 +98363,6 @@ function App() {
   const [currentLevel, setCurrentLevel] = reactExports.useState(0);
   const [overlayOpacity, setOverlayOpacity] = reactExports.useState(0);
   const [travelPhase, setTravelPhase] = reactExports.useState("idle");
-  const elevatorHumStopRef = reactExports.useRef(null);
   const [floorReveal, setFloorReveal] = reactExports.useState(false);
   const [cameraShake, setCameraShake] = reactExports.useState(false);
   const lastHandledTimerRef = reactExports.useRef(null);
@@ -98952,8 +98601,6 @@ function App() {
         setDoorSoundTrigger((prev) => prev + 1);
         setTravelPhase("closing");
         lastHandledTimerRef.current = null;
-        if (elevatorHumStopRef.current) elevatorHumStopRef.current();
-        elevatorHumStopRef.current = createElevatorHum(audioCtx);
       } else {
         setDoorsClosed(false);
         setElevatorTimer(null);
@@ -98961,11 +98608,6 @@ function App() {
         setTravelPhase("arriving");
         setCameraShake(false);
         setArrivalPulse(true);
-        playArrivalDing(audioCtx);
-        if (elevatorHumStopRef.current) {
-          elevatorHumStopRef.current();
-          elevatorHumStopRef.current = null;
-        }
         lastHandledTimerRef.current = null;
         scheduleTimeout(() => {
           setArrivalPulse(false);
@@ -98977,10 +98619,6 @@ function App() {
   }, [elevatorTimer, doorsClosed, currentLevel]);
   reactExports.useEffect(() => {
     return () => {
-      if (elevatorHumStopRef.current) {
-        elevatorHumStopRef.current();
-        elevatorHumStopRef.current = null;
-      }
       if (audioCtx && audioCtx.state !== "closed") audioCtx.close().catch(() => {
       });
     };
@@ -99188,7 +98826,7 @@ function App() {
     /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx, muted, masterVolume: settings.masterVolume, nightMode }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out", style: { opacity: overlayOpacity } }),
     cameraShake && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-20 pointer-events-none traveling-vignette" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(CanvasErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
       Canvas,
       {
         camera: { fov: 75, near: 0.1, far: QUALITY_PROFILES[settings.quality].far },
@@ -99209,8 +98847,7 @@ function App() {
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
           ] })
         ] }) }), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount }),
-          Object.values(otherPlayers || {}).map((p2) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id: p2.id, x: p2.x, y: p2.y, z: p2.z, ry: p2.ry, state: p2.state, name: p2.name, chatMsg: p2.chatMsg, chatAt: p2.chatAt }, p2.id)),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
           botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
             BotSystem,
@@ -99223,8 +98860,7 @@ function App() {
           )
         ] })
       }
-    ) }),
-    hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(GameEffects, { nightMode, gameState, currentLevel, quality: settings.quality }),
+    ),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Loader2, {}),
     !hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(MainMenu, { onPlay: handleStartGame }),
     hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "hud-fixed", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute left-1/2 -translate-x-1/2 px-2 max-w-[calc(100%-1rem)] pe-none top-2 landscape:top-1", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative", children: [
@@ -99375,10 +99011,9 @@ function App() {
     ),
     hasStarted && gameState === "indoor_night" && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorTimer !== null ? "top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]" : "top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-red-950/80 ring-1 ring-red-500/40 text-red-200 px-3 sm:px-4 py-2 rounded-lg font-mono text-[11px] sm:text-sm tracking-wider animate-pulse", children: "Algo não está certo..." }) }),
     hasStarted && gameState === "chase" && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorTimer !== null ? "top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]" : "top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-[11px] sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight", children: "⚠ CORRA PARA O ELEVADOR ⚠" }) }),
-    hasStarted && gameState === "saved" && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-6 overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center w-full animate-fade-in", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-green-400 font-black mb-2", style: { fontSize: "clamp(1.5rem, 8vw, 3rem)", textShadow: "0 0 40px rgba(74,222,128,0.5)" }, children: "VOCÊ SOBREVIVEU" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-[2px] w-24 mx-auto mb-3 bg-gradient-to-r from-transparent via-green-400 to-transparent" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/50 text-base sm:text-lg font-light tracking-wider", children: "Por enquanto..." })
+    hasStarted && gameState === "saved" && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-6 overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center w-full", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-green-400 font-black mb-3 animate-fade-in", style: { fontSize: "clamp(1.5rem, 8vw, 3rem)" }, children: "VOCÊ SOBREVIVEU" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/60 text-base sm:text-lg font-mono", children: "Por enquanto..." })
     ] }) }),
     barneyDialogueOpen && BARNEY_DIALOGUE[barneyDialogueNode] && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[55] flex items-end justify-center pointer-events-auto landscape:items-center landscape:py-4 overflow-y-auto", style: { background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)" }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full max-w-2xl mx-4 mb-6 landscape:mb-0 relative animate-barney-dialogue flex-shrink-0", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-gradient-to-r from-purple-500/40 via-pink-500/40 to-purple-500/40 rounded-2xl blur-lg barney-glow" }),

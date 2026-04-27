@@ -27,6 +27,7 @@ export const RemotePlayer = ({ id, x, y, z, ry, state, name, chatMsg, chatAt }: 
     useEffect(() => {
         clonedScene.traverse((c: any) => {
             if (c.isMesh) {
+                c.castShadow = true;
                 if (c.material) {
                     c.material = c.material.clone();
                     c.material.transparent = false;
@@ -111,7 +112,7 @@ export const RemotePlayer = ({ id, x, y, z, ry, state, name, chatMsg, chatAt }: 
         return () => clearTimeout(timer);
     }, [chatMsg, chatAt]);
 
-    const displayName = (name || 'P-' + (id || '').slice(0, 4).toUpperCase()).slice(0, 16);
+    const displayName = name || 'P-' + (id || '').slice(0, 4).toUpperCase();
 
     return (
         <group ref={groupRef}>
