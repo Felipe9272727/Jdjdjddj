@@ -178,8 +178,10 @@
     --font-weight-thin: 100;
     --font-weight-extralight: 200;
     --font-weight-light: 300;
+    --font-weight-normal: 400;
     --font-weight-medium: 500;
     --font-weight-bold: 700;
+    --font-weight-extrabold: 800;
     --font-weight-black: 900;
     --tracking-wide: .025em;
     --tracking-wider: .05em;
@@ -192,6 +194,7 @@
     --radius-lg: .5rem;
     --radius-xl: .75rem;
     --radius-2xl: 1rem;
+    --ease-out: cubic-bezier(0, 0, .2, 1);
     --ease-in-out: cubic-bezier(.4, 0, .2, 1);
     --animate-ping: ping 1s cubic-bezier(0, 0, .2, 1) infinite;
     --animate-pulse: pulse 2s cubic-bezier(.4, 0, .6, 1) infinite;
@@ -696,6 +699,10 @@
     z-index: 45;
   }
 
+  .z-\[50\] {
+    z-index: 50;
+  }
+
   .z-\[55\] {
     z-index: 55;
   }
@@ -1198,10 +1205,6 @@
     flex-direction: column;
   }
 
-  .flex-col-reverse {
-    flex-direction: column-reverse;
-  }
-
   .items-baseline {
     align-items: baseline;
   }
@@ -1517,6 +1520,16 @@
     }
   }
 
+  .border-white\/8 {
+    border-color: #ffffff14;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .border-white\/8 {
+      border-color: color-mix(in oklab, var(--color-white) 8%, transparent);
+    }
+  }
+
   .border-white\/10 {
     border-color: #ffffff1a;
   }
@@ -1829,13 +1842,13 @@
     }
   }
 
-  .bg-white\/8 {
-    background-color: #ffffff14;
+  .bg-white\/6 {
+    background-color: #ffffff0f;
   }
 
   @supports (color: color-mix(in lab, red, red)) {
-    .bg-white\/8 {
-      background-color: color-mix(in oklab, var(--color-white) 8%, transparent);
+    .bg-white\/6 {
+      background-color: color-mix(in oklab, var(--color-white) 6%, transparent);
     }
   }
 
@@ -1849,13 +1862,13 @@
     }
   }
 
-  .bg-white\/15 {
-    background-color: #ffffff26;
+  .bg-white\/12 {
+    background-color: #ffffff1f;
   }
 
   @supports (color: color-mix(in lab, red, red)) {
-    .bg-white\/15 {
-      background-color: color-mix(in oklab, var(--color-white) 15%, transparent);
+    .bg-white\/12 {
+      background-color: color-mix(in oklab, var(--color-white) 12%, transparent);
     }
   }
 
@@ -2503,8 +2516,16 @@
     padding-block: calc(var(--spacing) * 2.5);
   }
 
+  .py-3 {
+    padding-block: calc(var(--spacing) * 3);
+  }
+
   .py-4 {
     padding-block: calc(var(--spacing) * 4);
+  }
+
+  .py-\[2px\] {
+    padding-block: 2px;
   }
 
   .py-\[3px\] {
@@ -2614,6 +2635,10 @@
     font-size: 12px;
   }
 
+  .text-\[13px\] {
+    font-size: 13px;
+  }
+
   .leading-none {
     --tw-leading: 1;
     line-height: 1;
@@ -2644,6 +2669,11 @@
     font-weight: var(--font-weight-bold);
   }
 
+  .font-extrabold {
+    --tw-font-weight: var(--font-weight-extrabold);
+    font-weight: var(--font-weight-extrabold);
+  }
+
   .font-extralight {
     --tw-font-weight: var(--font-weight-extralight);
     font-weight: var(--font-weight-extralight);
@@ -2657,6 +2687,11 @@
   .font-medium {
     --tw-font-weight: var(--font-weight-medium);
     font-weight: var(--font-weight-medium);
+  }
+
+  .font-normal {
+    --tw-font-weight: var(--font-weight-normal);
+    font-weight: var(--font-weight-normal);
   }
 
   .font-thin {
@@ -2947,6 +2982,16 @@
     }
   }
 
+  .text-white\/15 {
+    color: #ffffff26;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/15 {
+      color: color-mix(in oklab, var(--color-white) 15%, transparent);
+    }
+  }
+
   .text-white\/20 {
     color: #fff3;
   }
@@ -3037,6 +3082,16 @@
     }
   }
 
+  .text-white\/90 {
+    color: #ffffffe6;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/90 {
+      color: color-mix(in oklab, var(--color-white) 90%, transparent);
+    }
+  }
+
   .text-white\/95 {
     color: #fffffff2;
   }
@@ -3060,6 +3115,16 @@
     font-variant-numeric: var(--tw-ordinal, ) var(--tw-slashed-zero, ) var(--tw-numeric-figure, ) var(--tw-numeric-spacing, ) var(--tw-numeric-fraction, );
   }
 
+  .placeholder-white\/15::placeholder {
+    color: #ffffff26;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .placeholder-white\/15::placeholder {
+      color: color-mix(in oklab, var(--color-white) 15%, transparent);
+    }
+  }
+
   .placeholder-white\/20::placeholder {
     color: #fff3;
   }
@@ -3067,16 +3132,6 @@
   @supports (color: color-mix(in lab, red, red)) {
     .placeholder-white\/20::placeholder {
       color: color-mix(in oklab, var(--color-white) 20%, transparent);
-    }
-  }
-
-  .placeholder-white\/25::placeholder {
-    color: #ffffff40;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .placeholder-white\/25::placeholder {
-      color: color-mix(in oklab, var(--color-white) 25%, transparent);
     }
   }
 
@@ -3464,6 +3519,11 @@
     transition-timing-function: linear;
   }
 
+  .ease-out {
+    --tw-ease: var(--ease-out);
+    transition-timing-function: var(--ease-out);
+  }
+
   .outline-none {
     --tw-outline-style: none;
     outline-style: none;
@@ -3591,16 +3651,6 @@
       }
     }
 
-    .hover\:bg-white\/25:hover {
-      background-color: #ffffff40;
-    }
-
-    @supports (color: color-mix(in lab, red, red)) {
-      .hover\:bg-white\/25:hover {
-        background-color: color-mix(in oklab, var(--color-white) 25%, transparent);
-      }
-    }
-
     .hover\:text-amber-100:hover {
       color: var(--color-amber-100);
     }
@@ -3609,13 +3659,13 @@
       color: var(--color-white);
     }
 
-    .hover\:text-white\/80:hover {
-      color: #fffc;
+    .hover\:text-white\/70:hover {
+      color: #ffffffb3;
     }
 
     @supports (color: color-mix(in lab, red, red)) {
-      .hover\:text-white\/80:hover {
-        color: color-mix(in oklab, var(--color-white) 80%, transparent);
+      .hover\:text-white\/70:hover {
+        color: color-mix(in oklab, var(--color-white) 70%, transparent);
       }
     }
 
@@ -3678,16 +3728,6 @@
   @supports (color: color-mix(in lab, red, red)) {
     .active\:bg-amber-500\/20:active {
       background-color: color-mix(in oklab, var(--color-amber-500) 20%, transparent);
-    }
-  }
-
-  .active\:bg-white\/15:active {
-    background-color: #ffffff26;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .active\:bg-white\/15:active {
-      background-color: color-mix(in oklab, var(--color-white) 15%, transparent);
     }
   }
 
@@ -4734,6 +4774,18 @@ input[type="range"]::-webkit-slider-runnable-track {
 
 .speech-bubble {
   filter: drop-shadow(0 2px 8px #00000080);
+}
+
+@keyframes chatBubblePop {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(.9);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @property --tw-translate-x {
@@ -95076,7 +95128,7 @@ const DIALOGUE_TREE = {
   "exit_demand": { "text": "A saída é uma porta. Mas nem todas as portas levam para fora.", "options": [{ "text": "...", "next": "start" }] },
   "joke": { "text": "Eu não tenho senso de humor. Fui fabricado sem ele.", "options": [{ "text": "Ah.", "next": "start" }] }
 };
-const SPEED$1 = 4;
+const SPEED = 4;
 const PR = 0.5;
 const EZ_START = -10;
 const HOUSE_DOOR_Z = 6;
@@ -95281,7 +95333,7 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
     });
   }, [isEnabled]);
   const sendChat = (msg) => {
-    const clean = msg.trim().slice(0, 80);
+    const clean = msg.trim().slice(0, 200);
     if (!clean) return;
     const now2 = Date.now();
     chatMsgRef.current = clean;
@@ -95924,7 +95976,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
         moving = true;
         const cd = _v.current[3].set(Math.sin(camAng.current.theta), 0, Math.cos(camAng.current.theta));
         const rd = _v.current[4].set(Math.sin(camAng.current.theta - Math.PI / 2), 0, Math.cos(camAng.current.theta - Math.PI / 2));
-        const mv = _v.current[5].set(0, 0, 0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED$1 * dt2);
+        const mv = _v.current[5].set(0, 0, 0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * dt2);
         const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
         let wl = [...ELEV_W];
         if (currentLevel === 0) {
@@ -97386,6 +97438,7 @@ const PATROL_WAYPOINTS = [
   // perimeter walk
 ];
 const ARRIVE_DIST = 0.6;
+const WANDER_JITTER = 2;
 const randomLobbyPos = () => {
   const x2 = (Math.random() - 0.5) * 14;
   const z = (Math.random() - 0.5) * 14;
@@ -97481,7 +97534,7 @@ const BotAvatar = ({ state: state2 }) => {
         "div",
         {
           className: "bg-black/80 px-2.5 py-1 rounded-md text-[10px] font-mono font-bold tracking-wider ring-1 backdrop-blur-sm tabular-nums shadow-lg",
-          style: { color: state2.color, ringColor: state2.color + "40", textShadow: `0 0 8px ${state2.color}80` },
+          style: { color: state2.color, boxShadow: `0 0 0 1px ${state2.color}40, 0 0 8px ${state2.color}80` },
           children: state2.id.toUpperCase()
         }
       ),
@@ -97859,6 +97912,378 @@ const ViewportDebug = () => {
     }
   );
 };
+const NAME_COLORS = [
+  "#f87171",
+  "#fb923c",
+  "#fbbf24",
+  "#4ade80",
+  "#38bdf8",
+  "#a78bfa",
+  "#f472b6",
+  "#2dd4bf",
+  "#e879f9",
+  "#60a5fa",
+  "#34d399",
+  "#f59e0b"
+];
+const getNameColor = (name2, isMe) => {
+  if (isMe) return "#ffffff";
+  const hash = (name2 || "").split("").reduce((a2, c2) => a2 + c2.charCodeAt(0), 0);
+  return NAME_COLORS[hash % NAME_COLORS.length];
+};
+const RobloxChat = ({ messages, currentUserId, onSend, enabled }) => {
+  const [open, setOpen] = reactExports.useState(false);
+  const [input, setInput] = reactExports.useState("");
+  const inputRef = reactExports.useRef(null);
+  const scrollRef = reactExports.useRef(null);
+  const [isDesktop, setIsDesktop] = reactExports.useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches
+  );
+  reactExports.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia("(min-width: 1024px)");
+    const onChange = (e2) => setIsDesktop(e2.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  reactExports.useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, open]);
+  reactExports.useEffect(() => {
+    if (!enabled) return;
+    const handler = (e2) => {
+      if (open) {
+        if (e2.key === "Escape") {
+          setOpen(false);
+          setInput("");
+        }
+        return;
+      }
+      if (e2.key === "/" && !e2.ctrlKey && !e2.metaKey) {
+        e2.preventDefault();
+        setOpen(true);
+        setTimeout(() => {
+          var _a;
+          return (_a = inputRef.current) == null ? void 0 : _a.focus();
+        }, 50);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [enabled, open]);
+  const handleSend = reactExports.useCallback(() => {
+    const msg = input.trim();
+    if (!msg) return;
+    onSend(msg);
+    setInput("");
+  }, [input, onSend]);
+  if (!enabled) return null;
+  if (isDesktop) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: "absolute z-[55] pointer-events-none",
+          style: {
+            top: "calc(env(safe-area-inset-top, 0px) + 8px)",
+            left: "calc(env(safe-area-inset-left, 0px) + 8px)",
+            width: "min(380px, calc(100vw - 16px))",
+            maxHeight: "min(260px, calc(100dvh - 200px))"
+          },
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "div",
+            {
+              ref: scrollRef,
+              className: "flex flex-col gap-0 overflow-y-auto scrollbar-hide rounded-lg",
+              style: {
+                background: "linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.40) 100%)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                padding: "6px 0"
+              },
+              children: [
+                messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/15 text-[11px] font-mono text-center py-3 px-4", children: "Press / to chat" }),
+                messages.slice(-30).map((msg, i2) => {
+                  const age = Date.now() - msg.timestamp;
+                  const fadeOut = age > 25e3;
+                  const opacity = fadeOut ? Math.max(0, 1 - (age - 25e3) / 5e3) : 1;
+                  const isMe = msg.id === currentUserId;
+                  const nameColor = getNameColor(msg.name, isMe);
+                  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "div",
+                    {
+                      className: "px-3 py-[2px] transition-opacity duration-500",
+                      style: { opacity },
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[13px] leading-snug", style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }, children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-extrabold", style: { color: nameColor }, children: msg.name }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/30 font-normal", children: ": " }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/90 font-normal", children: msg.text })
+                      ] })
+                    },
+                    `${msg.id}-${msg.timestamp}-${i2}`
+                  );
+                })
+              ]
+            }
+          )
+        }
+      ),
+      open ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: "absolute z-[65] pointer-events-auto",
+          style: {
+            top: "calc(env(safe-area-inset-top, 0px) + 8px + min(260px, calc(100dvh - 200px)) + 6px)",
+            left: "calc(env(safe-area-inset-left, 0px) + 8px)",
+            width: "min(380px, calc(100vw - 16px))"
+          },
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "div",
+            {
+              className: "flex items-center gap-0 overflow-hidden rounded-lg",
+              style: {
+                background: "rgba(30, 30, 30, 0.9)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.4)"
+              },
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/30 text-xs font-bold px-2.5 shrink-0 select-none", children: "Chat:" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "input",
+                  {
+                    ref: inputRef,
+                    type: "text",
+                    value: input,
+                    onChange: (e2) => setInput(e2.target.value.slice(0, 200)),
+                    onKeyDown: (e2) => {
+                      e2.stopPropagation();
+                      if (e2.key === "Enter") handleSend();
+                      if (e2.key === "Escape") {
+                        setOpen(false);
+                        setInput("");
+                      }
+                    },
+                    placeholder: "Type here...",
+                    maxLength: 200,
+                    className: "flex-1 bg-transparent text-white text-[13px] font-normal placeholder-white/20 outline-none py-2.5 pr-3",
+                    style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' },
+                    autoFocus: true
+                  }
+                )
+              ]
+            }
+          )
+        }
+      ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: "absolute z-40 pointer-events-auto",
+          style: {
+            top: "calc(env(safe-area-inset-top, 0px) + 8px + min(260px, calc(100dvh - 200px)) + 6px)",
+            left: "calc(env(safe-area-inset-left, 0px) + 8px)"
+          },
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              onClick: () => {
+                setOpen(true);
+                setTimeout(() => {
+                  var _a;
+                  return (_a = inputRef.current) == null ? void 0 : _a.focus();
+                }, 50);
+              },
+              className: "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-colors",
+              style: {
+                background: "rgba(30, 30, 30, 0.6)",
+                border: "1px solid rgba(255,255,255,0.08)"
+              },
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/20 text-[11px] font-mono", children: "Press / to chat" })
+            }
+          )
+        }
+      )
+    ] });
+  }
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: open ? (
+    /* Full chat window — Roblox mobile style */
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: "absolute z-[65] pointer-events-auto",
+        style: {
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
+          left: "calc(env(safe-area-inset-left, 0px) + 8px)",
+          right: "calc(env(safe-area-inset-right, 0px) + 8px)",
+          maxHeight: "min(340px, 50dvh)"
+        },
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: "flex flex-col overflow-hidden rounded-xl",
+            style: {
+              background: "rgba(20, 20, 20, 0.85)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.5)"
+            },
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between px-3 py-2 border-b border-white/8", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/50 text-[11px] font-bold tracking-wider uppercase", style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }, children: "Chat" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "button",
+                  {
+                    onClick: () => {
+                      setOpen(false);
+                      setInput("");
+                    },
+                    className: "text-white/30 hover:text-white/70 text-lg font-bold leading-none w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 active:bg-white/20 transition-colors",
+                    children: "×"
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                "div",
+                {
+                  ref: scrollRef,
+                  className: "flex-1 overflow-y-auto scrollbar-hide px-2.5 py-1",
+                  style: { maxHeight: "calc(min(340px, 50dvh) - 90px)" },
+                  children: [
+                    messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/15 text-[11px] font-mono text-center py-4", children: "No messages yet" }),
+                    messages.slice(-30).map((msg, i2) => {
+                      const isMe = msg.id === currentUserId;
+                      const nameColor = getNameColor(msg.name, isMe);
+                      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "px-1 py-[3px]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[13px] leading-snug", style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }, children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-extrabold", style: { color: nameColor }, children: msg.name }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/30 font-normal", children: ": " }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/90 font-normal", children: msg.text })
+                      ] }) }, `${msg.id}-${msg.timestamp}-${i2}`);
+                    })
+                  ]
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t border-white/8 px-2 py-1.5 flex items-center gap-1.5", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "input",
+                  {
+                    ref: inputRef,
+                    type: "text",
+                    value: input,
+                    onChange: (e2) => setInput(e2.target.value.slice(0, 200)),
+                    onKeyDown: (e2) => {
+                      e2.stopPropagation();
+                      if (e2.key === "Enter") handleSend();
+                    },
+                    placeholder: "Type here...",
+                    maxLength: 200,
+                    className: "flex-1 bg-white/6 border border-white/10 rounded-lg px-3 py-2 text-white text-[13px] font-normal placeholder-white/15 outline-none focus:border-white/25 transition-colors",
+                    style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "button",
+                  {
+                    onClick: handleSend,
+                    className: "bg-white/12 hover:bg-white/20 text-white/80 hover:text-white font-bold px-3 py-2 rounded-lg text-sm active:scale-95 transition-all shrink-0",
+                    children: "Send"
+                  }
+                )
+              ] })
+            ]
+          }
+        )
+      }
+    )
+  ) : (
+    /* Chat button — bottom-left, Roblox style */
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "button",
+      {
+        onClick: () => {
+          setOpen(true);
+          setTimeout(() => {
+            var _a;
+            return (_a = inputRef.current) == null ? void 0 : _a.focus();
+          }, 100);
+        },
+        className: "absolute z-50 pointer-events-auto tap-target",
+        style: {
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
+          left: "calc(env(safe-area-inset-left, 0px) + 8px)"
+        },
+        children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: "flex items-center justify-center w-11 h-11 active:scale-95 transition-transform",
+            style: {
+              background: "rgba(30, 30, 30, 0.7)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "10px"
+            },
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5 text-white/50", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" }) })
+          }
+        )
+      }
+    )
+  ) });
+};
+const BubbleChatFallback = ({ messages, currentUserId }) => {
+  const [visible, setVisible] = reactExports.useState([]);
+  reactExports.useEffect(() => {
+    const now2 = Date.now();
+    const recent = messages.filter((m2) => now2 - m2.timestamp < 8e3);
+    setVisible(recent.slice(-5));
+  }, [messages]);
+  if (visible.length === 0) return null;
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "div",
+    {
+      className: "absolute z-[50] pointer-events-none flex flex-col gap-1",
+      style: {
+        top: "calc(env(safe-area-inset-top, 0px) + 8px)",
+        right: "calc(env(safe-area-inset-right, 0px) + 8px)",
+        maxWidth: "min(300px, calc(100vw - 120px))"
+      },
+      children: visible.map((msg, i2) => {
+        const isMe = msg.id === currentUserId;
+        const nameColor = getNameColor(msg.name, isMe);
+        const age = Date.now() - msg.timestamp;
+        const opacity = age > 6e3 ? Math.max(0, 1 - (age - 6e3) / 2e3) : 1;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: "transition-opacity duration-300",
+            style: { opacity, animation: "chatBubblePop 0.2s ease-out" },
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: "rounded-lg px-2.5 py-1.5",
+                style: {
+                  background: "rgba(0, 0, 0, 0.7)",
+                  backdropFilter: "blur(6px)",
+                  border: "1px solid rgba(255,255,255,0.08)"
+                },
+                children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[12px] leading-snug", style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }, children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-extrabold", style: { color: nameColor }, children: msg.name }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/25 font-normal", children: ": " }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/85 font-normal", children: msg.text })
+                ] })
+              }
+            )
+          },
+          `${msg.id}-${msg.timestamp}`
+        );
+      })
+    }
+  );
+};
 const MAX_JOYSTICK_RADIUS = 50;
 const World = ({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
   level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(LobbyEnvironment, { npcPositionRef, isPaused, playerPositionRef }),
@@ -98100,15 +98525,6 @@ function App() {
       });
     }
   };
-  const [chatOpen, setChatOpen] = reactExports.useState(false);
-  const [chatInput, setChatInput] = reactExports.useState("");
-  const chatInputRef = reactExports.useRef(null);
-  const handleSendChat = () => {
-    const msg = chatInput.trim();
-    if (!msg || !multiplayerEnabled) return;
-    sendChat(msg);
-    setChatInput("");
-  };
   reactExports.useEffect(() => {
     let timerId;
     if (elevatorTimer !== null && elevatorTimer > 0) {
@@ -98316,7 +98732,7 @@ function App() {
       moveInput.current.y = y;
     };
     const kd = (e2) => {
-      if (dialogueOpen || barneyDialogueOpen || chatOpen) return;
+      if (dialogueOpen || barneyDialogueOpen) return;
       const k2 = keysRef.current;
       switch (e2.key.toLowerCase()) {
         case "w":
@@ -98340,7 +98756,6 @@ function App() {
       upd();
     };
     const ku = (e2) => {
-      if (chatOpen) return;
       const k2 = keysRef.current;
       switch (e2.key.toLowerCase()) {
         case "w":
@@ -98358,33 +98773,13 @@ function App() {
       }
       upd();
     };
-    const kh = (e2) => {
-      if (!multiplayerEnabled) return;
-      if (chatOpen) {
-        if (e2.key === "Escape") {
-          setChatOpen(false);
-          setChatInput("");
-        }
-        return;
-      }
-      if (e2.key === "/" && !dialogueOpen && !barneyDialogueOpen) {
-        e2.preventDefault();
-        setChatOpen(true);
-        setTimeout(() => {
-          var _a;
-          return (_a = chatInputRef.current) == null ? void 0 : _a.focus();
-        }, 50);
-      }
-    };
     window.addEventListener("keydown", kd);
     window.addEventListener("keyup", ku);
-    window.addEventListener("keydown", kh);
     return () => {
       window.removeEventListener("keydown", kd);
       window.removeEventListener("keyup", ku);
-      window.removeEventListener("keydown", kh);
     };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, canInteractNPC, canInteractDoor, houseDoorOpen, canSleepNow, gameState, chatOpen, multiplayerEnabled]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, canInteractNPC, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
   const botEnabled = settings.botMode && hasStarted;
   const { info: botInfo } = useBotStore();
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full h-full relative overflow-hidden select-none", style: { touchAction: "none", backgroundColor: "#000" }, onPointerDown: handlePointerDown, onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onPointerCancel: handlePointerUp, onPointerLeave: handlePointerUp, onWheel: (e2) => {
@@ -98501,227 +98896,22 @@ function App() {
     botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(BotHud, { info: botInfo }),
     botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(ViewportDebug, {}),
     hasStarted && multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-      isDesktop && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: "absolute z-[55] pointer-events-none",
-            style: {
-              bottom: "calc(env(safe-area-inset-bottom, 0px) + 48px)",
-              left: "calc(env(safe-area-inset-left, 0px) + 8px)",
-              width: "min(340px, calc(100vw - 16px))",
-              maxHeight: "min(220px, calc(100dvh - 400px))"
-            },
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: "flex flex-col-reverse gap-0 overflow-hidden rounded-lg",
-                style: {
-                  background: "linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.45) 100%)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  padding: "4px 0"
-                },
-                children: chatMessages.slice(-20).map((msg) => {
-                  const age = Date.now() - msg.timestamp;
-                  const fadeOut = age > 2e4;
-                  const opacity = fadeOut ? Math.max(0, 1 - (age - 2e4) / 1e4) : 1;
-                  const isMe = msg.id === (user == null ? void 0 : user.uid);
-                  const nameHash = (msg.name || "").split("").reduce((a2, c2) => a2 + c2.charCodeAt(0), 0);
-                  const nameColors = ["#f87171", "#fb923c", "#fbbf24", "#4ade80", "#38bdf8", "#a78bfa", "#f472b6", "#2dd4bf"];
-                  const nameColor = isMe ? "#ffffff" : nameColors[nameHash % nameColors.length];
-                  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "transition-opacity duration-500 px-2.5 py-[3px]", style: { opacity }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[12px] leading-snug font-medium", children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-bold", style: { color: nameColor }, children: msg.name }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/20", children: ": " }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/85", children: msg.text })
-                  ] }) }, `${msg.id}-${msg.timestamp}`);
-                })
-              }
-            )
-          }
-        ),
-        chatOpen ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: "absolute z-[65] pointer-events-auto",
-            style: { bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)", left: "calc(env(safe-area-inset-left, 0px) + 8px)", width: "min(340px, calc(100vw - 16px))" },
-            children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
-              "div",
-              {
-                className: "flex items-center gap-0 overflow-hidden",
-                style: { background: "rgba(0,0,0,0.65)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px" },
-                children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/30 text-sm font-medium px-2.5 shrink-0", children: "💬" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "input",
-                    {
-                      ref: chatInputRef,
-                      type: "text",
-                      value: chatInput,
-                      onChange: (e2) => setChatInput(e2.target.value.slice(0, 80)),
-                      onKeyDown: (e2) => {
-                        e2.stopPropagation();
-                        if (e2.key === "Enter") handleSendChat();
-                        if (e2.key === "Escape") {
-                          setChatOpen(false);
-                          setChatInput("");
-                        }
-                      },
-                      placeholder: "Type here...",
-                      maxLength: 80,
-                      className: "flex-1 bg-transparent text-white text-sm font-medium placeholder-white/25 outline-none py-2.5 pr-3",
-                      autoFocus: true
-                    }
-                  )
-                ]
-              }
-            )
-          }
-        ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: "absolute z-40 pointer-events-auto",
-            style: { bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)", left: "calc(env(safe-area-inset-left, 0px) + 8px)" },
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "button",
-              {
-                onClick: () => {
-                  setChatOpen(true);
-                  setTimeout(() => {
-                    var _a;
-                    return (_a = chatInputRef.current) == null ? void 0 : _a.focus();
-                  }, 50);
-                },
-                className: "flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/10 active:bg-white/15 transition-colors",
-                style: { background: "rgba(0,0,0,0.45)", border: "1px solid rgba(255,255,255,0.08)" },
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/25 text-[11px] font-mono", children: "Press / to chat" })
-              }
-            )
-          }
-        )
-      ] }),
-      !isDesktop && !dialogueOpen && !barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: chatOpen ? (
-        /* Full chat window — Roblox mobile style */
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: "absolute z-[65] pointer-events-auto",
-            style: {
-              bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
-              left: "calc(env(safe-area-inset-left, 0px) + 8px)",
-              right: "calc(env(safe-area-inset-right, 0px) + 8px)",
-              maxHeight: "min(320px, 50dvh)"
-            },
-            children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
-              "div",
-              {
-                className: "flex flex-col overflow-hidden rounded-xl",
-                style: {
-                  background: "rgba(0,0,0,0.7)",
-                  backdropFilter: "blur(16px)",
-                  WebkitBackdropFilter: "blur(16px)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.5)"
-                },
-                children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between px-3 py-2 border-b border-white/10", children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/60 text-[11px] font-mono font-bold tracking-wider uppercase", children: "Chat" }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      "button",
-                      {
-                        onClick: () => {
-                          setChatOpen(false);
-                          setChatInput("");
-                        },
-                        className: "text-white/40 hover:text-white/80 text-lg font-bold leading-none w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 active:bg-white/20 transition-colors",
-                        children: "×"
-                      }
-                    )
-                  ] }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                    "div",
-                    {
-                      className: "flex-1 overflow-y-auto scrollbar-hide px-2.5 py-1",
-                      style: { maxHeight: "calc(min(320px, 50dvh) - 90px)" },
-                      children: [
-                        chatMessages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/20 text-[11px] font-mono text-center py-4", children: "No messages yet" }),
-                        chatMessages.slice(-30).map((msg) => {
-                          const isMe = msg.id === (user == null ? void 0 : user.uid);
-                          const nameHash = (msg.name || "").split("").reduce((a2, c2) => a2 + c2.charCodeAt(0), 0);
-                          const nameColors = ["#f87171", "#fb923c", "#fbbf24", "#4ade80", "#38bdf8", "#a78bfa", "#f472b6", "#2dd4bf"];
-                          const nameColor = isMe ? "#ffffff" : nameColors[nameHash % nameColors.length];
-                          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "px-1 py-[3px]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[12px] leading-snug font-medium", children: [
-                            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-bold", style: { color: nameColor }, children: msg.name }),
-                            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/20", children: ": " }),
-                            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/85", children: msg.text })
-                          ] }) }, `${msg.id}-${msg.timestamp}`);
-                        })
-                      ]
-                    }
-                  ),
-                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t border-white/10 px-2 py-1.5 flex items-center gap-1.5", children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      "input",
-                      {
-                        ref: chatInputRef,
-                        type: "text",
-                        value: chatInput,
-                        onChange: (e2) => setChatInput(e2.target.value.slice(0, 80)),
-                        onKeyDown: (e2) => {
-                          e2.stopPropagation();
-                          if (e2.key === "Enter") handleSendChat();
-                        },
-                        placeholder: "Type here...",
-                        maxLength: 80,
-                        className: "flex-1 bg-white/8 border border-white/10 rounded-lg px-3 py-2 text-white text-sm font-medium placeholder-white/20 outline-none focus:border-white/25 transition-colors"
-                      }
-                    ),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      "button",
-                      {
-                        onClick: handleSendChat,
-                        className: "bg-white/15 hover:bg-white/25 text-white font-bold px-3 py-2 rounded-lg text-sm active:scale-95 transition-all shrink-0",
-                        children: "Send"
-                      }
-                    )
-                  ] })
-                ]
-              }
-            )
-          }
-        )
-      ) : (
-        /* Chat button — bottom-left */
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            onClick: () => {
-              setChatOpen(true);
-              setTimeout(() => {
-                var _a;
-                return (_a = chatInputRef.current) == null ? void 0 : _a.focus();
-              }, 100);
-            },
-            className: "absolute z-50 pointer-events-auto tap-target",
-            style: { bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)", left: "calc(env(safe-area-inset-left, 0px) + 8px)" },
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: "flex items-center justify-center w-11 h-11 active:scale-95 transition-transform",
-                style: {
-                  background: "rgba(0,0,0,0.6)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: "10px"
-                },
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5 text-white/60", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" }) })
-              }
-            )
-          }
-        )
-      ) })
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        RobloxChat,
+        {
+          messages: chatMessages,
+          currentUserId: (user == null ? void 0 : user.uid) || "",
+          onSend: sendChat,
+          enabled: multiplayerEnabled && !dialogueOpen && !barneyDialogueOpen
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        BubbleChatFallback,
+        {
+          messages: chatMessages,
+          currentUserId: (user == null ? void 0 : user.uid) || ""
+        }
+      )
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsMenu, { open: settingsOpen, onClose: () => setSettingsOpen(false) }),
     hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(VisualJoystick, { active: joystickVisual.active, x: joystickVisual.currentX, y: joystickVisual.currentY, origin: { x: joystickVisual.originX, y: joystickVisual.originY } }),
