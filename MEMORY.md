@@ -445,6 +445,24 @@ Sistema de chat reescrito para ser mais parecido com o do Roblox, com fallback p
 - `jubileu/src/index.css` — animação `chatBubblePop` adicionada
 - `jubileu/firestore.rules` — validação atualizada
 
+### Fix: TypeScript Errors (2026-04-28)
+
+#### Problema
+8 erros de TypeScript impedindo build limpo:
+- 3 arquivos importando `../design-tokens` (caminho errado, deveria ser `./design-tokens`)
+- `SPEED` usado mas não importado em Bot.tsx
+- `WANDER_JITTER` usado mas nunca declarado em Bot.tsx
+- `ringColor` não é CSS válido em inline style (Bot.tsx)
+
+#### Solução
+- Corrigido import path em MainMenu.tsx, Settings.tsx, UI.tsx
+- Adicionado `SPEED` ao import de constants em Bot.tsx
+- Definido `WANDER_JITTER = 2.0` como constante em Bot.tsx
+- Substituído `ringColor` por `boxShadow` no inline style do Bot.tsx
+
+#### Commits
+- `f910abe` — fix: resolve all TypeScript errors
+
 ---
 
 ## 📋 Regras para o Assistente
