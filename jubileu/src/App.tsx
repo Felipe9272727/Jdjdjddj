@@ -1,7 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, Loader } from '@react-three/drei';
 import { Vector3, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
+
+// ─── Error Boundary for Canvas ─────────────────────────────────────────────
+class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
+  state = { hasError: false, error: '' };
+  static getDerivedStateFromError(error: Error) { return { hasError: true, error: error.message }; }
+  render() {
+    if (this.state.hasError) {
+      return <div className="absolute inset-0 flex items-center justify-center bg-black"><div className="text-center px-6"><div className="text-amber-400 text-lg font-bold mb-2">Algo deu errado</div><div className="text-white/50 text-sm font-mono mb-4">{this.state.error}</div><button onClick={() => window.location.reload()} className="bg-amber-500 text-black px-4 py-2 rounded-lg font-bold text-sm">Recarregar</button></div></div>;
+    }
+    return this.props.children;
+  }
+}
 
 import { LiminalAudioEngine } from './AudioEngine';
 import { MainMenu } from './MainMenu';
@@ -16,23 +28,26 @@ import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES } from './Settings';
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
 import { RobloxChat, BubbleChatFallback } from './ChatSystem';
+import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient } from './PostEffects';
+import { CeilingFan, WallClock, playArrivalDing, createElevatorHum } from './Atmosphere';
 import { COMPONENT, Z, TYPE } from './design-tokens';
 
 const MAX_JOYSTICK_RADIUS = 50;
 
-const World = ({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }: any) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount }: any) => (
   <>
       {level === 0 && <LobbyEnvironment npcPositionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />}
+      {level === 0 && <DustParticles count={20} area={16} />}
+      {level === 0 && <FluorescentFlicker intensity={2.8} />}
+      {level === 0 && <CeilingFan x={-5} z={0} speed={0.6} />}
+      {level === 0 && <CeilingFan x={5} z={-5} speed={0.8} />}
+      {level === 0 && <WallClock x={9.5} z={-7} />}
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
       <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
-      {Object.values(otherPlayers || {}).map((p: any) => (
-          <Suspense key={p.id} fallback={null}>
-              <RemotePlayer id={p.id} x={p.x} y={p.y} z={p.z} ry={p.ry} state={p.state} name={p.name} chatMsg={p.chatMsg} chatAt={p.chatAt} />
-          </Suspense>
-      ))}
+      <NightAmbient active={nightMode && level === 1} />
   </>
-);
+));
 
 export default function App() {
   const { settings, update: updateSettings } = useSettings();
@@ -61,6 +76,7 @@ export default function App() {
   const [elevatorTimer, setElevatorTimer] = useState<any>(null); const [doorsClosed, setDoorsClosed] = useState(false);
   const [currentLevel, setCurrentLevel] = useState(0); const [overlayOpacity, setOverlayOpacity] = useState(0);
   const [travelPhase, setTravelPhase] = useState('idle');
+  const elevatorHumStopRef = useRef<(() => void) | null>(null);
   const [floorReveal, setFloorReveal] = useState(false);
   const [cameraShake, setCameraShake] = useState(false);
   const lastHandledTimerRef = useRef<number | null>(null);
@@ -275,6 +291,9 @@ export default function App() {
             setDoorSoundTrigger(prev => prev + 1);
             setTravelPhase('closing');
             lastHandledTimerRef.current = null;
+            // Start elevator hum during travel
+            if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+            elevatorHumStopRef.current = createElevatorHum(audioCtx);
         } else {
             setDoorsClosed(false);
             setElevatorTimer(null);
@@ -282,6 +301,9 @@ export default function App() {
             setTravelPhase('arriving');
             setCameraShake(false);
             setArrivalPulse(true);
+            playArrivalDing(audioCtx);
+            // Stop elevator hum on arrival
+            if (elevatorHumStopRef.current) { elevatorHumStopRef.current(); elevatorHumStopRef.current = null; }
             lastHandledTimerRef.current = null;
             scheduleTimeout(() => { setArrivalPulse(false); setTravelPhase('idle'); }, 1500);
         }
@@ -290,7 +312,10 @@ export default function App() {
   }, [elevatorTimer, doorsClosed, currentLevel]);
 
   useEffect(() => {
-    return () => { if (audioCtx && audioCtx.state !== 'closed') audioCtx.close().catch(() => {}); };
+    return () => {
+      if (elevatorHumStopRef.current) { elevatorHumStopRef.current(); elevatorHumStopRef.current = null; }
+      if (audioCtx && audioCtx.state !== 'closed') audioCtx.close().catch(() => {});
+    };
   }, [audioCtx]);
 
   const [joystickVisual, setJoystickVisual] = useState({ active: false, originX: 0, originY: 0, currentX: 0, currentY: 0 });
@@ -428,6 +453,7 @@ export default function App() {
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted} masterVolume={settings.masterVolume} nightMode={nightMode} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
+      <CanvasErrorBoundary>
       <Canvas
         // NOTE: no `key` here. Re-keying on settings change would unmount/remount
         // the entire scene (and reload every GLB!), which is what was causing the
@@ -445,7 +471,12 @@ export default function App() {
         }}
       >
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} otherPlayers={otherPlayers} />
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />
+            {/* RemotePlayers rendered separately — otherPlayers changes every 100ms from
+                Firestore, would re-render the entire World if passed as prop */}
+            {Object.values(otherPlayers || {}).map((p: any) => (
+                <RemotePlayer key={p.id} id={p.id} x={p.x} y={p.y} z={p.z} ry={p.ry} state={p.state} name={p.name} chatMsg={p.chatMsg} chatAt={p.chatAt} />
+            ))}
             <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
             {botEnabled && (
                 <BotSystem
@@ -457,6 +488,8 @@ export default function App() {
             )}
         </Suspense>
       </Canvas>
+      </CanvasErrorBoundary>
+      {hasStarted && <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} quality={settings.quality} />}
       <Loader />
       {!hasStarted && <MainMenu onPlay={handleStartGame} />}
       
@@ -679,9 +712,10 @@ export default function App() {
       )}
       {hasStarted && gameState === 'saved' && (
         <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-6 overflow-hidden">
-          <div className="text-center w-full">
-            <div className="text-green-400 font-black mb-3 animate-fade-in" style={{ fontSize: 'clamp(1.5rem, 8vw, 3rem)' }}>VOCÊ SOBREVIVEU</div>
-            <div className="text-white/60 text-base sm:text-lg font-mono">Por enquanto...</div>
+          <div className="text-center w-full animate-fade-in">
+            <div className="text-green-400 font-black mb-2" style={{ fontSize: 'clamp(1.5rem, 8vw, 3rem)', textShadow: '0 0 40px rgba(74,222,128,0.5)' }}>VOCÊ SOBREVIVEU</div>
+            <div className="h-[2px] w-24 mx-auto mb-3 bg-gradient-to-r from-transparent via-green-400 to-transparent" />
+            <div className="text-white/50 text-base sm:text-lg font-light tracking-wider">Por enquanto...</div>
           </div>
         </div>
       )}

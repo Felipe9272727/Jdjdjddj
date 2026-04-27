@@ -29,7 +29,6 @@ const Avatar = ({ animation, visible = true }: any) => {
      const meshes: any[] = [];
      scene.traverse((c: any) => {
        if (c.isMesh) {
-           c.castShadow = true; c.receiveShadow = true;
            if (c.material) {
                c.material.transparent = true; c.material.depthWrite = true; c.material.alphaTest = 0;
                c.material.side = THREE.DoubleSide; c.material.metalness = 0; c.material.roughness = 1;
@@ -98,16 +97,21 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const _v = _vRef;
 
   const timeRef = useRef(0);
+  const camPosRef = useRef(new Vector3(0, 0, 8)); // smooth camera position
+  const camInitRef = useRef(false); // sync camera to player pos on first frame
 
   useEffect(() => { elevTriggered.current = false; }, [currentLevel]);
 
   useFrame((state, dt) => {
     if (!active) return;
-    timeRef.current += dt;
+    // Clamp dt to prevent camera teleport on frame spikes (tab bg, GC, etc)
+    const safeDt = Math.min(dt, 0.05);
+    timeRef.current += safeDt;
     
     if (positionCmdRef && positionCmdRef.current) {
         pos.current.set(positionCmdRef.current.x, positionCmdRef.current.y, positionCmdRef.current.z);
         positionCmdRef.current = null;
+        camInitRef.current = false; // force camera re-sync after teleport
     }
     
     const fp = zoomLevel < 0.5;
@@ -115,6 +119,22 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     if (sharedRotationYRef) sharedRotationYRef.current = charRot.current.y;
     // Bot reads this to map world deltas into camera-frame moveInput.
     if (cameraThetaRef) cameraThetaRef.current = camAng.current.theta;
+    
+    // Sync camera to player on first frame (prevents lerp from default pos)
+    if (!camInitRef.current) {
+        camInitRef.current = true;
+        const ly = pos.current.y + HH;
+        if (fp) {
+            camera.position.set(pos.current.x, ly, pos.current.z);
+        } else {
+            const cx = pos.current.x + Math.sin(camAng.current.theta)*zoomLevel*Math.cos(camAng.current.phi);
+            const cz = pos.current.z + Math.cos(camAng.current.theta)*zoomLevel*Math.cos(camAng.current.phi);
+            const cy = Math.max(ly + Math.sin(camAng.current.phi)*zoomLevel, 0.2);
+            camera.position.set(cx, cy, cz);
+        }
+        camera.lookAt(pos.current.x, ly, pos.current.z);
+        camPosRef.current.copy(camera.position);
+    }
     
     if (onElevatorZoneChange) {
         const inside = pos.current.z <= -10 && Math.abs(pos.current.x) <= 3.1;
@@ -138,15 +158,18 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         const d2p = _v.current[0].subVectors(pP, nP).normalize(); if (d2p.lengthSq() < 1e-3) d2p.set(0,0,1);
         const tCam = _v.current[1].copy(nP).addScaledVector(d2p, 2.2); tCam.y += 1.75;
         const tLook = _v.current[2].copy(nP); tLook.y += 1.35;
-        camera.position.lerp(tCam, 5*dt);
+        const dlgAlpha = Math.min(5 * safeDt, 0.4);
+        camera.position.lerp(tCam, dlgAlpha);
         if (camLookRef.current.distanceTo(tLook) > 10) { camLookRef.current.copy(pP); camLookRef.current.y += 1.6; }
-        camLookRef.current.lerp(tLook, 5*dt);
+        camLookRef.current.lerp(tLook, dlgAlpha);
         camera.lookAt(camLookRef.current);
-        (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, 40, 5*dt); camera.updateProjectionMatrix();
+        (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, 40, dlgAlpha); camera.updateProjectionMatrix();
+        // Sync smooth refs for transition back to 3P
+        camPosRef.current.copy(camera.position);
     } else {
         const sens = 0.003 * (fp ? 1.5 : 1.0);
         if (isDesktop) {
-           if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * sens * 500 * dt; camAng.current.phi += lookInput.current.y * sens * 500 * dt; lookInput.current.x = 0; lookInput.current.y = 0; }
+           if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * sens * 500 * safeDt; camAng.current.phi += lookInput.current.y * sens * 500 * safeDt; lookInput.current.x = 0; lookInput.current.y = 0; }
         } else {
            if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * (fp ? 1.5 : 1); camAng.current.phi += lookInput.current.y * (fp ? 1.5 : 1); lookInput.current.x = 0; lookInput.current.y = 0; }
         }
@@ -157,7 +180,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             moving = true;
             const cd = _v.current[3].set(Math.sin(camAng.current.theta), 0, Math.cos(camAng.current.theta));
             const rd = _v.current[4].set(Math.sin(camAng.current.theta-Math.PI/2), 0, Math.cos(camAng.current.theta-Math.PI/2));
-            const mv = _v.current[5].set(0,0,0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * dt);
+            const mv = _v.current[5].set(0,0,0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * safeDt);
             const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
 
             let wl = [...ELEV_W];
@@ -166,7 +189,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             const [rx, rz] = _resolve(nx, nz, PR, wl);
             pos.current.x = rx; pos.current.z = rz; pos.current.y = 0;
 
-            if (fp) { charRot.current.y = camAng.current.theta + Math.PI; } else { const a = Math.atan2(mv.x, mv.z); let d = a - charRot.current.y; while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; charRot.current.y += d*10*dt; }
+            if (fp) { charRot.current.y = camAng.current.theta + Math.PI; } else { const a = Math.atan2(mv.x, mv.z); let d = a - charRot.current.y; while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; charRot.current.y += d*10*safeDt; }
             if (pos.current.z < EZ_START - 1 && !elevTriggered.current && currentLevel === 0) { elevTriggered.current = true; onEnterElevator(); }
         }
         if (currentLevel === 1) { const dx = pos.current.x-HOUSE_DOOR_X; const dz = pos.current.z-HOUSE_DOOR_Z; onInteractionUpdate(Math.sqrt(dx*dx+dz*dz) < 3); } else { onInteractionUpdate(false); }
@@ -175,22 +198,30 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
         const ly = pos.current.y + HH;
         const nla = _v.current[6].set(pos.current.x, ly, pos.current.z);
-        camLookRef.current.lerp(nla, 10*dt);
+        // Clamp lerp alpha to prevent overshoot on frame spikes (max 0.5 per frame)
+        const lookAlpha = Math.min(10 * safeDt, 0.5);
+        camLookRef.current.lerp(nla, lookAlpha);
         if (fp) {
             camera.position.set(pos.current.x + shakeX, ly + shakeY, pos.current.z);
             const ld = 5; camera.lookAt(pos.current.x - Math.sin(camAng.current.theta)*ld*Math.cos(camAng.current.phi), ly - Math.sin(camAng.current.phi)*ld, pos.current.z - Math.cos(camAng.current.theta)*ld*Math.cos(camAng.current.phi));
             (camera as THREE.PerspectiveCamera).fov = 90; camera.updateProjectionMatrix();
+            // Sync smooth refs when in FP so transition back is instant
+            camPosRef.current.copy(camera.position);
         } else {
             // Smooth FOV transition with hysteresis band around 1:1 aspect ratio.
             // Portrait (<0.85): 90° | Landscape (>1.15): 75° | Between: interpolated.
             // Avoids flicker when aspect hovers near 1:1 (foldables, tablets).
             const asp = size.width / size.height;
             const tFov = asp < 0.85 ? 90 : asp > 1.15 ? 75 : 90 - ((asp - 0.85) / 0.30) * 15;
-            if (Math.abs((camera as THREE.PerspectiveCamera).fov-tFov) > 0.1) { (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, tFov, 5*dt); camera.updateProjectionMatrix(); }
+            if (Math.abs((camera as THREE.PerspectiveCamera).fov-tFov) > 0.1) { (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, tFov, Math.min(5*safeDt, 0.3)); camera.updateProjectionMatrix(); }
             const cx = pos.current.x + Math.sin(camAng.current.theta)*zoomLevel*Math.cos(camAng.current.phi);
             const cz = pos.current.z + Math.cos(camAng.current.theta)*zoomLevel*Math.cos(camAng.current.phi);
             const cy = Math.max(ly + Math.sin(camAng.current.phi)*zoomLevel, 0.2);
-            camera.position.lerp(_v.current[7].set(cx + shakeX, cy + shakeY, cz), 10*dt);
+            // Clamp lerp alpha to prevent camera overshoot/oscillation on low FPS
+            const camAlpha = Math.min(10 * safeDt, 0.4);
+            camPosRef.current.lerp(_v.current[7].set(cx + shakeX, cy + shakeY, cz), camAlpha);
+            camera.position.copy(camPosRef.current);
+            // lookAt is instant — only camera POSITION is smoothed (original behavior)
             camera.lookAt(pos.current.x, ly, pos.current.z);
         }
     }

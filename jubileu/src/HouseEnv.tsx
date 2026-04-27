@@ -227,7 +227,7 @@ export const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOp
             <mesh position={[12, 26, -18]}><sphereGeometry args={[1.8, 16, 16]} /><meshBasicMaterial color="#E8E8D8" /></mesh>
             <pointLight position={[12, 26, -18]} intensity={0.3} distance={100} color="#7070a0" />
         </>}
-        <directionalLight position={nightMode ? [12, 26, -18] : [-20, 30, -20]} intensity={nightMode ? 0.08 : 1.8} shadow-mapSize={[2048, 2048]} />
+        <directionalLight position={nightMode ? [12, 26, -18] : [-20, 30, -20]} intensity={nightMode ? 0.08 : 1.8} />
         <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0, 0]}><planeGeometry args={[50, 50]} /><TextureMaterial url={ASSETS.grass} color={grassTint} repeat={[12, 12]} roughness={0.8} /></mesh>
         <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.015, -2]}><planeGeometry args={[2.5, 14]} /><meshStandardMaterial color={nightMode ? '#555' : '#9E9E9E'} roughness={0.9} /></mesh>
         <House x={0} z={10} rot={Math.PI} doorOpen={houseDoorOpen} doorOpenAmount={doorOpenAmount} />
