@@ -70,15 +70,26 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
         targetRot.current = ry;
     }, [x, y, z, ry]);
 
-    // Initialize transform once on mount; subsequent updates are smoothed in useFrame.
-    // Setting position/rotation as JSX props would overwrite the lerp every render.
+    // Initialize transform on mount and whenever props change drastically
+    // (e.g. player teleported to a different level). Small movements are
+    // smoothed by the lerp in useFrame.
+    const lastInitPos = useRef(new Vector3(x, y, z));
     useEffect(() => {
         if (groupRef.current) {
-            groupRef.current.position.set(x, y, z);
-            groupRef.current.rotation.y = ry;
+            const dx = x - lastInitPos.current.x;
+            const dz = z - lastInitPos.current.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            // If the new position is far from the last init, snap immediately
+            // (player changed level or reconnected). Otherwise let lerp handle it.
+            if (dist > 5) {
+                groupRef.current.position.set(x, y, z);
+                groupRef.current.rotation.y = ry;
+                targetPos.current.set(x, y, z);
+                targetRot.current = ry;
+            }
+            lastInitPos.current.set(x, y, z);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [x, y, z, ry]);
 
     useFrame((_, dt) => {
         if (!groupRef.current) return;
@@ -88,7 +99,9 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
             hipsRef.current.position.x = hipsBindRef.current.x;
             hipsRef.current.position.z = hipsBindRef.current.z;
         }
-        const k = Math.min(1, 10 * dt);
+        // Smooth interpolation — fast enough to track movement, slow enough
+        // to mask network jitter (~100ms snapshot interval).
+        const k = Math.min(1, 15 * dt);
         groupRef.current.position.lerp(targetPos.current, k);
         let d = targetRot.current - groupRef.current.rotation.y;
         while (d > Math.PI) d -= Math.PI * 2;
