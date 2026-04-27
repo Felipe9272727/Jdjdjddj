@@ -131,3 +131,28 @@ npm run build
 ---
 
 *Última atualização: 2026-04-27*
+
+---
+
+## 📁 Sobre os Arquivos do Repo
+
+### ⚠️ `index-18.html` (1.8MB) — VERSÃO TRUNCADA / PERDIDA
+- **Status:** Ilegível, incompleta, truncada
+- **Tamanho:** ~1.8MB
+- **Origem:** Veio de algum branch antigo ou upload parcial
+- **NÃO USAR** — está quebrada/incompleta
+
+### ✅ `index.html` (4MB) — VERSÃO ATUALIZADA / CANÔNICA
+- **Status:** Versão atual e funcional
+- **Tamanho:** ~4MB (103k+ linhas)
+- **Branch:** `main`
+- **Última atualização:** commit `24b609a` (fix: landscape text sizes increased for readability)
+- **ESTA é a versão que deve ser usada**
+
+### `index-readable.html` (171KB) — Versão legível/comentada
+- Versão beautified do index.html para leitura humana
+- Útil para debug e entendimento do código
+
+---
+
+*Última atualização: 2026-04-27*
