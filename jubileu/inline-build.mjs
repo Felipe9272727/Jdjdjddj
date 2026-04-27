@@ -27,7 +27,7 @@ const inlinedJs = escapeScript(js);
 if (!html.includes('</body>')) {
   throw new Error('</body> not found in dist/index.html — refusing to write a broken bundle.');
 }
-html = html.replace('</body>', () => `<script type="module">${inlinedJs}</script>\n  </body>`);
+html = html.replace('</body>', () => `<script>${inlinedJs}</script>\n  </body>`);
 
 // Remove modulepreload link tags — they point to external assets that don't
 // exist in a standalone file and cause load errors when opened via file://.
