@@ -484,10 +484,10 @@ export default function App() {
                     houseDoorOpen={houseDoorOpen}
                 />
             )}
-            <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} quality={settings.quality} />
         </Suspense>
       </Canvas>
       </CanvasErrorBoundary>
+      {hasStarted && <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} quality={settings.quality} />}
       <Loader />
       {!hasStarted && <MainMenu onPlay={handleStartGame} />}
       
