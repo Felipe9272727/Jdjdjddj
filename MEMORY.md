@@ -463,6 +463,27 @@ Sistema de chat reescrito para ser mais parecido com o do Roblox, com fallback p
 #### Commits
 - `f910abe` — fix: resolve all TypeScript errors
 
+### Fix: Design Audit (2026-04-28)
+
+#### Problemas identificados
+1. **Contraste péssimo** — text-white/10 e text-white/15 praticamente invisíveis
+2. **Fontes minúsculas** — text-[8px], text-[9px] ilegíveis no mobile
+3. **Excesso de font-mono** — tudo monospace, parecia terminal em vez de jogo
+4. **Tokens ignorados** — muita cor/fonte hardcoded
+
+#### Correções
+- text-white/10 → text-white/25 em texto decorativo dos cantos
+- text-white/15 → text-white/30 em placeholders do chat
+- text-white/20 → text-white/35 em hints do menu
+- HUD labels: text-[8px] → text-[10px] (legível no mobile)
+- Removido font-mono de labels MULTIPLAYER, título das configurações, botões
+- Settings row labels: text-[10px] → text-xs, adicionado font-medium
+- "Now Arriving": text-[10px] → text-xs
+- Chat input label: text-white/30 → text-white/40
+
+#### Commits
+- `bf6a6fe` — fix(design): improve contrast, font sizes, reduce mono overuse
+
 ---
 
 ## 📋 Regras para o Assistente
