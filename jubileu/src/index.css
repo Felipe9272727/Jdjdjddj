@@ -1,0 +1,278 @@
+@import "tailwindcss";
+
+/* ─── Viewport setup ──────────────────────────────────────────────────────
+ * Goal: full-bleed canvas behind notch/status bar, HUD respects safe area.
+ * - body uses dvh (tracks live viewport) so any DOM-based root-level layout
+ *   matches what's actually visible.
+ * - canvas uses lvh (largest possible viewport) so it doesn't reflow when the
+ *   Chrome URL bar collapses — the bar slides over the canvas instead of the
+ *   canvas resizing under it. Avoids the "cut/flash" seen on Android.
+ * - Safe-area is NOT applied to #root because that would shrink the canvas;
+ *   it's applied inside .hud-fixed below, which only overlays UI.
+ */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100svh;       /* fallback */
+  height: 100dvh;
+  overflow: hidden;
+  background-color: #050505;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+canvas {
+  /* Full bleed; the Three.js canvas inside <Canvas/> will inherit. */
+  display: block;
+}
+
+/* ─── HUD overlay system ──────────────────────────────────────────────────
+ * One fixed overlay covering the dynamic viewport. It carries pointer-events:
+ * none so the canvas under it still receives input; HUD children opt back in.
+ * Children are absolutely positioned and use top/right/bottom/left RELATIVE
+ * to the safe-area-inset edges (we apply the inset to the overlay's padding
+ * box so any `top-0` element sits exactly at the safe edge — never under a
+ * notch, never double-counted).
+ */
+.hud-fixed {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  pointer-events: none;
+  z-index: 40;
+  padding-top:    env(safe-area-inset-top, 0px);
+  padding-right:  env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left:   env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
+}
+.hud-fixed > * { pointer-events: auto; }
+.hud-fixed .pe-none { pointer-events: none; }
+
+/* Tabular numerals for any HUD digits so they don't jitter as values change. */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Min touch-target helper (Apple HIG / Material both want ≥ 44px). */
+.tap-target { min-width: 44px; min-height: 44px; }
+.no-select { user-select: none; -webkit-user-select: none; }
+
+/* Menu Animations */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fade-in 0.8s ease-out forwards;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in {
+  animation: scale-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Staggered animation delays */
+.stagger-1 { animation-delay: 0.05s; opacity: 0; }
+.stagger-2 { animation-delay: 0.1s; opacity: 0; }
+.stagger-3 { animation-delay: 0.15s; opacity: 0; }
+.stagger-4 { animation-delay: 0.2s; opacity: 0; }
+.stagger-5 { animation-delay: 0.25s; opacity: 0; }
+
+/* Typewriter effect */
+@keyframes typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink-caret {
+  from, to { border-color: transparent; }
+  50% { border-color: #fbbf24; }
+}
+
+/* Glowing border animation */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(251, 191, 36, 0.6); }
+}
+.glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes barney-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
+  50% { box-shadow: 0 0 40px rgba(168, 85, 247, 0.8), inset 0 0 10px rgba(168, 85, 247, 0.3); }
+}
+.barney-glow {
+  animation: barney-glow 2.5s ease-in-out infinite;
+}
+
+/* Floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Glitch effect for menu */
+@keyframes glitch {
+  0%, 90%, 100% { transform: translate(0); }
+  92% { transform: translate(-2px, 2px); }
+  94% { transform: translate(2px, -2px); }
+  96% { transform: translate(-2px, -2px); }
+  98% { transform: translate(2px, 2px); }
+}
+.glitch-hover:hover {
+  animation: glitch 0.3s ease-in-out;
+}
+
+/* Shimmer effect */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Speech Bubble Animation */
+@keyframes pop-in {
+  0% { transform: scale(0); opacity: 0; }
+  80% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.speech-bubble {
+  animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Range Slider Styling */
+input[type=range] {
+  -webkit-appearance: none; 
+  background: transparent; 
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  cursor: pointer;
+  margin-top: -6px; 
+}
+input[type=range]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 4px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+/* Custom scrollbar for dialogue */
+.dialogue-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.dialogue-scroll::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+}
+.dialogue-scroll::-webkit-scrollbar-thumb {
+  background: rgba(251, 191, 36, 0.5);
+  border-radius: 2px;
+}
+
+@keyframes floor-reveal {
+  0% { opacity: 0; transform: scale(0.7); filter: blur(20px); }
+  20% { opacity: 1; transform: scale(1.05); filter: blur(0px); }
+  80% { opacity: 1; transform: scale(1); filter: blur(0px); }
+  100% { opacity: 0; transform: scale(1.1); filter: blur(8px); }
+}
+.animate-floor-reveal { animation: floor-reveal 3s ease-out forwards; }
+
+@keyframes vignette-pulse {
+  0%, 100% { box-shadow: inset 0 0 150px 20px rgba(0,0,0,0.9); }
+  50% { box-shadow: inset 0 0 200px 40px rgba(0,0,0,1); }
+}
+.traveling-vignette { animation: vignette-pulse 2s ease-in-out infinite; }
+
+@keyframes jumpscare {
+  0% { transform: scale(0.3); opacity: 0; filter: blur(20px); }
+  10% { transform: scale(1.5) rotate(-3deg); opacity: 1; filter: blur(0); }
+  50% { transform: scale(1.2) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 1; }
+}
+.animate-jumpscare { animation: jumpscare 0.5s ease-out forwards; }
+
+@keyframes gentle-shake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-1px, 1px); }
+  50% { transform: translate(1px, -1px); }
+  75% { transform: translate(-1px, -1px); }
+}
+
+@keyframes dialogue-popup {
+  0% { opacity: 0; transform: translateY(40px) scale(0.85); }
+  60% { opacity: 1; transform: translateY(-6px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-dialogue-popup { animation: dialogue-popup 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+.animate-glow-pulse { animation: glow-pulse 2.5s ease-in-out infinite; }
+
+/* Nova animação super viva para o diálogo do Barney */
+@keyframes barney-dialogue-entrance {
+  0% { opacity: 0; transform: translateY(100px) scale(0.8) rotate(-4deg); filter: blur(10px); }
+  50% { opacity: 1; transform: translateY(-10px) scale(1.05) rotate(2deg); filter: blur(0px); }
+  75% { transform: translateY(5px) scale(0.98) rotate(-1deg); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+}
+.animate-barney-dialogue {
+  animation: barney-dialogue-entrance 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes barney-image-bounce {
+  0%, 100% { transform: translateY(0) scale(1.2); }
+  50% { transform: translateY(-3px) scale(1.22); }
+}
+.animate-barney-bounce {
+  animation: barney-image-bounce 2s ease-in-out infinite;
+}
