@@ -606,21 +606,21 @@ export default function App() {
       {/* ─── Roblox-style Chat System ──────────────────────────────────────── */}
       {hasStarted && multiplayerEnabled && (
           <>
-              {/* ── Desktop: message window (top-left) + input bar (bottom) ── */}
+              {/* ── Desktop: message window (bottom-left) + input bar (bottom) ── */}
               {isDesktop && (
                   <>
-                      {/* Message history — always visible on desktop */}
+                      {/* Message history — bottom-left above input, Roblox style */}
                       <div
                           className="absolute z-[55] pointer-events-none"
                           style={{
-                              top: 'calc(env(safe-area-inset-top, 0px) + 60px)',
+                              bottom: 'calc(env(safe-area-inset-bottom, 0px) + 48px)',
                               left: 'calc(env(safe-area-inset-left, 0px) + 8px)',
-                              width: 'min(300px, calc(100vw - 16px))',
-                              maxHeight: 'min(250px, calc(100dvh - 300px))',
+                              width: 'min(340px, calc(100vw - 16px))',
+                              maxHeight: 'min(220px, calc(100dvh - 400px))',
                           }}
                       >
                           <div
-                              className="flex flex-col gap-0 overflow-hidden rounded-lg"
+                              className="flex flex-col-reverse gap-0 overflow-hidden rounded-lg"
                               style={{
                                   background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.45) 100%)',
                                   backdropFilter: 'blur(8px)',
@@ -629,7 +629,7 @@ export default function App() {
                                   padding: '4px 0',
                               }}
                           >
-                              {chatMessages.slice(-25).map((msg) => {
+                              {chatMessages.slice(-20).map((msg) => {
                                   const age = Date.now() - msg.timestamp;
                                   const fadeOut = age > 20000;
                                   const opacity = fadeOut ? Math.max(0, 1 - (age - 20000) / 10000) : 1;
@@ -650,10 +650,10 @@ export default function App() {
                           </div>
                       </div>
 
-                      {/* Input bar — bottom */}
+                      {/* Input bar — bottom-left */}
                       {chatOpen ? (
-                          <div className="absolute left-1/2 -translate-x-1/2 z-[65] pointer-events-auto"
-                              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)', width: 'min(460px, calc(100vw - 16px))' }}>
+                          <div className="absolute z-[65] pointer-events-auto"
+                              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)', left: 'calc(env(safe-area-inset-left, 0px) + 8px)', width: 'min(340px, calc(100vw - 16px))' }}>
                               <div className="flex items-center gap-0 overflow-hidden"
                                   style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px' }}>
                                   <span className="text-white/30 text-sm font-medium px-2.5 shrink-0">💬</span>
@@ -665,9 +665,13 @@ export default function App() {
                               </div>
                           </div>
                       ) : (
-                          <div className="absolute z-40 pointer-events-none"
+                          <div className="absolute z-40 pointer-events-auto"
                               style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)', left: 'calc(env(safe-area-inset-left, 0px) + 8px)' }}>
-                              <span className="text-white/15 text-[10px] font-mono">Press / to chat</span>
+                              <button onClick={() => { setChatOpen(true); setTimeout(() => chatInputRef.current?.focus(), 50); }}
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/10 active:bg-white/15 transition-colors"
+                                  style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                  <span className="text-white/25 text-[11px] font-mono">Press / to chat</span>
+                              </button>
                           </div>
                       )}
                   </>

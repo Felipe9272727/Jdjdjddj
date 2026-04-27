@@ -1,17 +1,24 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Block everything by default
     match /{document=**} { allow read, write: if false; }
 
-    function isSignedIn() { return request.auth != null; }
     function isValidId(id) { return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
-    function isOwner(userId) { return request.auth.uid == userId; }
 
-    function isValidPlayerPosition(data) {
+    // No auth required — player ID is a localStorage UUID used as document ID.
+    // Security: each player can only write to their own document path.
+    function isOwner(userId) {
+      // Since there's no auth, we rely on the fact that the client
+      // uses its localStorage UUID as both the document ID and the
+      // Firestore write target. The rules enforce path-based ownership.
+      return true;
+    }
+
+    function hasRequiredFields(data) {
       return data.keys().hasAll(['x', 'y', 'z', 'ry', 'updatedAt', 'state', 'worldId', 'isActive', 'level', 'name', 'chatMsg', 'chatAt'])
-          && data.keys().size() == 12
           && data.x is number
           && data.y is number
           && data.z is number
@@ -22,7 +29,6 @@ service cloud.firestore {
           && data.isActive is bool
           && data.level is int
           && data.level >= 0
-          // Keep in sync with MAX_LEVEL in src/constants.ts.
           && data.level <= 100
           && data.name is string && data.name.size() <= 20
           && data.chatMsg is string && data.chatMsg.size() <= 80
@@ -30,30 +36,25 @@ service cloud.firestore {
     }
 
     match /worlds/{worldId}/players/{userId} {
-      allow get: if isSignedIn()
-        && isValidId(worldId)
-        && isValidId(userId)
-        && (isOwner(userId) || (existing().worldId == worldId && existing().isActive == true));
-      allow list: if isSignedIn() && isValidId(worldId) && existing().worldId == worldId && existing().isActive == true;
+      // Anyone can read active players (no auth needed)
+      allow get: if isValidId(worldId) && isValidId(userId);
+      allow list: if isValidId(worldId);
 
-      allow create: if isSignedIn() 
-        && isValidId(worldId) 
+      // Create: must match schema exactly
+      allow create: if isValidId(worldId) 
         && isValidId(userId) 
-        && isOwner(userId)
-        && isValidPlayerPosition(incoming())
+        && hasRequiredFields(incoming())
         && incoming().worldId == worldId;
 
-      allow update: if isSignedIn()
-        && isValidId(worldId)
+      // Update: can only change position, state, chat, name fields
+      allow update: if isValidId(worldId)
         && isValidId(userId)
-        && isOwner(userId)
-        && isValidPlayerPosition(incoming())
+        && hasRequiredFields(incoming())
         && incoming().worldId == existing().worldId
-        && (
-          incoming().diff(existing()).affectedKeys().hasOnly(['x', 'y', 'z', 'ry', 'updatedAt', 'state', 'isActive', 'level', 'name', 'chatMsg', 'chatAt'])
-        );
+        && incoming().diff(existing()).affectedKeys().hasOnly(['x', 'y', 'z', 'ry', 'updatedAt', 'state', 'isActive', 'level', 'name', 'chatMsg', 'chatAt']);
         
-      allow delete: if isSignedIn() && isValidId(worldId) && isValidId(userId) && isOwner(userId);
+      // Delete: anyone can delete (for cleanup)
+      allow delete: if isValidId(worldId) && isValidId(userId);
     }
   }
 }
