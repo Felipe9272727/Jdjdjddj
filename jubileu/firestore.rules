@@ -4,14 +4,14 @@ service cloud.firestore {
     match /{document=**} { allow read, write: if false; }
 
     function isSignedIn() { return request.auth != null; }
-    function isValidId(id) { return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function isValidId(id) { return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     function isOwner(userId) { return request.auth.uid == userId; }
 
     function isValidPlayerPosition(data) {
-      return data.keys().hasAll(['x', 'y', 'z', 'ry', 'updatedAt', 'state', 'worldId', 'isActive', 'level'])
-          && data.keys().size() == 9
+      return data.keys().hasAll(['x', 'y', 'z', 'ry', 'updatedAt', 'state', 'worldId', 'isActive', 'level', 'name', 'chatMsg', 'chatAt'])
+          && data.keys().size() == 12
           && data.x is number
           && data.y is number
           && data.z is number
@@ -23,7 +23,10 @@ service cloud.firestore {
           && data.level is int
           && data.level >= 0
           // Keep in sync with MAX_LEVEL in src/constants.ts.
-          && data.level <= 100;
+          && data.level <= 100
+          && data.name is string && data.name.size() <= 20
+          && data.chatMsg is string && data.chatMsg.size() <= 80
+          && data.chatAt is int;
     }
 
     match /worlds/{worldId}/players/{userId} {
@@ -47,7 +50,7 @@ service cloud.firestore {
         && isValidPlayerPosition(incoming())
         && incoming().worldId == existing().worldId
         && (
-          incoming().diff(existing()).affectedKeys().hasOnly(['x', 'y', 'z', 'ry', 'updatedAt', 'state', 'isActive', 'level'])
+          incoming().diff(existing()).affectedKeys().hasOnly(['x', 'y', 'z', 'ry', 'updatedAt', 'state', 'isActive', 'level', 'name', 'chatMsg', 'chatAt'])
         );
         
       allow delete: if isSignedIn() && isValidId(worldId) && isValidId(userId) && isOwner(userId);

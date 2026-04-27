@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL } from './constants';
 import { SkeletonUtils } from 'three-stdlib';
 
-export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
+export const RemotePlayer = ({ id, x, y, z, ry, state, name, chatMsg, chatAt }: any) => {
     const groupRef = useRef<any>(null);
     const hipsRef = useRef<any>(null);
     const hipsBindRef = useRef<Vector3 | null>(null);
@@ -23,8 +23,6 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
     }, [walkAnims, idleAnims]);
     const { actions } = useAnimations(anims, clonedScene);
 
-    // Same bbox-derived ground offset as the local Player so remote avatars
-    // align with the floor without needing a hardcoded lift.
     const [groundY, setGroundY] = useState(0);
     useEffect(() => {
         clonedScene.traverse((c: any) => {
@@ -70,17 +68,12 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
         targetRot.current = ry;
     }, [x, y, z, ry]);
 
-    // Initialize transform on mount and whenever props change drastically
-    // (e.g. player teleported to a different level). Small movements are
-    // smoothed by the lerp in useFrame.
     const lastInitPos = useRef(new Vector3(x, y, z));
     useEffect(() => {
         if (groupRef.current) {
             const dx = x - lastInitPos.current.x;
             const dz = z - lastInitPos.current.z;
             const dist = Math.sqrt(dx * dx + dz * dz);
-            // If the new position is far from the last init, snap immediately
-            // (player changed level or reconnected). Otherwise let lerp handle it.
             if (dist > 5) {
                 groupRef.current.position.set(x, y, z);
                 groupRef.current.rotation.y = ry;
@@ -93,14 +86,10 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
 
     useFrame((_, dt) => {
         if (!groupRef.current) return;
-        // Keep the hips' Y so the walking bob plays naturally; only lock X/Z to
-        // the bind pose to avoid lateral drift from baked root motion.
         if (hipsRef.current && hipsBindRef.current) {
             hipsRef.current.position.x = hipsBindRef.current.x;
             hipsRef.current.position.z = hipsBindRef.current.z;
         }
-        // Smooth interpolation — fast enough to track movement, slow enough
-        // to mask network jitter (~100ms snapshot interval).
         const k = Math.min(1, 15 * dt);
         groupRef.current.position.lerp(targetPos.current, k);
         let d = targetRot.current - groupRef.current.rotation.y;
@@ -109,17 +98,38 @@ export const RemotePlayer = ({ id, x, y, z, ry, state }: any) => {
         groupRef.current.rotation.y += d * k;
     });
 
+    // Chat bubble visibility — show for 8s after last chatAt
+    const [showChat, setShowChat] = useState(false);
+    useEffect(() => {
+        if (!chatMsg || !chatAt) { setShowChat(false); return; }
+        const age = Date.now() - chatAt;
+        if (age > 8000) { setShowChat(false); return; }
+        setShowChat(true);
+        const remaining = 8000 - age;
+        const timer = setTimeout(() => setShowChat(false), remaining);
+        return () => clearTimeout(timer);
+    }, [chatMsg, chatAt]);
+
+    const displayName = name || 'P-' + (id || '').slice(0, 4).toUpperCase();
+
     return (
         <group ref={groupRef}>
-            {/* Per-avatar lights compound on mobile (every remote player added
-                one full hemisphere light to the scene); rely on the scene's
-                lighting. groundY is bbox-derived so the feet always land on
-                Y=0 regardless of how the GLB origin is set. */}
             <primitive object={clonedScene} scale={[30, 30, 30]} position={[0, groundY, 0]} />
             <Html position={[0, 2.2, 0]} center distanceFactor={8}>
-                <div className="pointer-events-none select-none whitespace-nowrap">
-                    <div className="bg-black/70 text-white px-2 py-0.5 rounded text-xs font-mono border border-white/20 backdrop-blur-sm">
-                        {'P-' + (id || '').slice(0, 4).toUpperCase()}
+                <div className="pointer-events-none select-none whitespace-nowrap flex flex-col items-center gap-0.5">
+                    {/* Chat bubble */}
+                    {showChat && chatMsg && (
+                        <div className="mb-1 animate-fade-in-up">
+                            <div className="bg-white/95 text-black px-3 py-1.5 rounded-xl text-xs font-medium shadow-lg max-w-[180px] text-center relative">
+                                <span>{chatMsg}</span>
+                                {/* Triangle pointer */}
+                                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white/95 rotate-45" />
+                            </div>
+                        </div>
+                    )}
+                    {/* Player name */}
+                    <div className="bg-black/70 text-white px-2 py-0.5 rounded text-[10px] font-bold font-mono border border-white/20 backdrop-blur-sm tracking-wider">
+                        {displayName}
                     </div>
                 </div>
             </Html>

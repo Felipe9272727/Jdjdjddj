@@ -39,7 +39,7 @@ const getDb = (): Firestore | null => {
     }
 };
 
-// Use localStorage UUID as player ID — same as index-18
+// ─── Player ID (localStorage UUID, no Firebase Auth) ────────────────────────
 const PLAYER_ID_KEY = 'jubileu_player_id';
 const getLocalPlayerId = (): string => {
     let id = localStorage.getItem(PLAYER_ID_KEY);
@@ -47,6 +47,33 @@ const getLocalPlayerId = (): string => {
     return id;
 };
 
+// ─── Player Name ────────────────────────────────────────────────────────────
+const PLAYER_NAME_KEY = 'jubileu_player_name';
+const DEFAULT_NAMES = ['Player', 'Guest', 'Noob', 'Pro', 'Explorer', 'Wanderer'];
+
+export const getPlayerName = (): string => {
+    const stored = localStorage.getItem(PLAYER_NAME_KEY);
+    if (stored && stored.trim().length > 0) return stored.trim().slice(0, 20);
+    const random = DEFAULT_NAMES[Math.floor(Math.random() * DEFAULT_NAMES.length)];
+    const num = Math.floor(Math.random() * 9999);
+    return `${random}${num}`;
+};
+
+export const setPlayerName = (name: string) => {
+    const clean = name.trim().slice(0, 20) || getPlayerName();
+    localStorage.setItem(PLAYER_NAME_KEY, clean);
+    return clean;
+};
+
+// ─── Chat Message Interface ─────────────────────────────────────────────────
+export interface ChatMessage {
+    id: string;
+    name: string;
+    text: string;
+    timestamp: number;
+}
+
+// ─── MP Player Interface ────────────────────────────────────────────────────
 export interface MPPlayer {
     id: string;
     x: number;
@@ -58,19 +85,30 @@ export interface MPPlayer {
     isActive: boolean;
     level: number;
     updatedAt: any;
+    name: string;
+    chatMsg: string;
+    chatAt: number;
 }
 
+// ─── useMultiplayer Hook ────────────────────────────────────────────────────
 export const useMultiplayer = (
     playerPositionRef: React.MutableRefObject<Vector3>,
     rotationYRef: React.MutableRefObject<number>,
     playerState: 'idle' | 'walking',
     isEnabled: boolean,
-    level: number = 0
+    level: number = 0,
+    playerName: string = 'Player'
 ) => {
     const [otherPlayers, setOtherPlayers] = useState<Record<string, MPPlayer>>({});
+    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     const playerIdRef = useRef(getLocalPlayerId());
     const playerStateRef = useRef(playerState);
+    const playerNameRef = useRef(playerName);
+    const chatMsgRef = useRef('');
+    const chatAtRef = useRef(0);
+
     useEffect(() => { playerStateRef.current = playerState; }, [playerState]);
+    useEffect(() => { playerNameRef.current = playerName; }, [playerName]);
 
     // Subscribe to other players in the same level
     useEffect(() => {
@@ -89,7 +127,7 @@ export const useMultiplayer = (
             where('isActive', '==', true),
             where('level', '==', clampLevel(level ?? 0))
         );
-        const GHOST_TTL_MS = 15000; // 15s — remove players that stopped updating
+        const GHOST_TTL_MS = 15000;
         const unsub = onSnapshot(q, (snap) => {
             const players: Record<string, MPPlayer> = {};
             const cutoff = Date.now() - GHOST_TTL_MS;
@@ -97,16 +135,34 @@ export const useMultiplayer = (
                 if (d.id === uid) return;
                 const data = d.data();
                 const updatedAt = data.updatedAt?.toMillis?.() ?? 0;
-                // Skip ghost players (stale entries from crashed/closed tabs)
                 if (updatedAt > 0 && updatedAt < cutoff) return;
                 players[d.id] = { id: d.id, ...data } as MPPlayer;
             });
             setOtherPlayers(players);
+
+            // Collect chat messages from all players (including ghosts within 30s)
+            const msgs: ChatMessage[] = [];
+            const CHAT_TTL = 30000; // 30s for chat messages
+            const chatCutoff = Date.now() - CHAT_TTL;
+            snap.forEach(d => {
+                const data = d.data();
+                if (data.chatMsg && data.chatAt && data.chatAt > chatCutoff) {
+                    msgs.push({
+                        id: d.id,
+                        name: data.name || 'Unknown',
+                        text: data.chatMsg,
+                        timestamp: data.chatAt,
+                    });
+                }
+            });
+            // Sort by timestamp ascending
+            msgs.sort((a, b) => a.timestamp - b.timestamp);
+            setChatMessages(msgs);
         }, (err) => console.error('[MP] Snapshot erro:', err));
         return () => unsub();
     }, [isEnabled, level]);
 
-    // Publish own position/state
+    // Publish own position/state/chat
     useEffect(() => {
         if (!isEnabled || !playerPositionRef?.current) return;
         const db = getDb();
@@ -125,7 +181,7 @@ export const useMultiplayer = (
             if (writeInFlight) { writeQueued = true; return; }
             writeInFlight = true;
             try {
-                const data = {
+                const data: any = {
                     x: playerPositionRef.current.x,
                     y: playerPositionRef.current.y,
                     z: playerPositionRef.current.z,
@@ -135,6 +191,9 @@ export const useMultiplayer = (
                     worldId: 'main',
                     isActive: true,
                     level: clampLevel(level ?? 0),
+                    name: playerNameRef.current,
+                    chatMsg: chatMsgRef.current,
+                    chatAt: chatAtRef.current,
                 };
                 if (!initialized) {
                     await setDoc(docRef, data);
@@ -186,10 +245,36 @@ export const useMultiplayer = (
         updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});
     }, [isEnabled]);
 
+    // Send chat message
+    const sendChat = (msg: string) => {
+        const clean = msg.trim().slice(0, 80);
+        if (!clean) return;
+        chatMsgRef.current = clean;
+        chatAtRef.current = Date.now();
+        // Force an immediate push
+        const db = getDb();
+        if (!db) return;
+        const uid = playerIdRef.current;
+        const docRef = doc(db, 'worlds/main/players', uid);
+        updateDoc(docRef, {
+            chatMsg: clean,
+            chatAt: Date.now(),
+            updatedAt: serverTimestamp(),
+        }).catch(() => {});
+        // Auto-clear after 30s
+        setTimeout(() => {
+            if (chatMsgRef.current === clean) {
+                chatMsgRef.current = '';
+                chatAtRef.current = 0;
+                updateDoc(docRef, { chatMsg: '', chatAt: 0, updatedAt: serverTimestamp() }).catch(() => {});
+            }
+        }, 30000);
+    };
+
     const login = async (): Promise<string | null> => {
         return playerIdRef.current;
     };
     const user = { uid: playerIdRef.current };
 
-    return { user, login, otherPlayers };
+    return { user, login, otherPlayers, sendChat, chatMessages };
 };

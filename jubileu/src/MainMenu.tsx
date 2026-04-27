@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { TYPE, COMPONENT } from '../design-tokens';
-import { useMultiplayer } from './Multiplayer';
+import { useMultiplayer, getPlayerName, setPlayerName } from './Multiplayer';
 
 export const MainMenu = ({ onPlay }: any) => {
   const [doorPosition, setDoorPosition] = useState(0);
@@ -10,10 +10,11 @@ export const MainMenu = ({ onPlay }: any) => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [playerName, setPlayerNameState] = useState(getPlayerName());
 
   // Dummy refs — isEnabled=false so the hook returns early without touching Firebase
   const { user, login } = useMultiplayer({ current: null as any }, { current: 0 }, "idle", false);
-  
+
   const handlePlay = async () => {
      if (multiplayerEnabled && !user) {
          setIsLoggingIn(true);
@@ -34,7 +35,8 @@ export const MainMenu = ({ onPlay }: any) => {
          }
          setIsLoggingIn(false);
      }
-     onPlay(multiplayerEnabled);
+     const finalName = setPlayerName(playerName);
+     onPlay(multiplayerEnabled, finalName);
   };
 
   const handleShare = () => {
@@ -206,10 +208,23 @@ export const MainMenu = ({ onPlay }: any) => {
                   </div>
                   
                   {multiplayerEnabled && (
-                      <button onClick={handleShare} className="mt-2 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2 rounded text-xs text-white hover:bg-white/10 transition-colors">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-                          {copiedLink ? "Link Copiado!" : "Copiar Link para Amigo"}
-                      </button>
+                      <>
+                          <div className="mt-2">
+                              <label className="text-white/40 text-[10px] font-mono tracking-wider mb-1 block">YOUR NAME</label>
+                              <input
+                                  type="text"
+                                  value={playerName}
+                                  onChange={e => setPlayerNameState(e.target.value.slice(0, 20))}
+                                  maxLength={20}
+                                  placeholder="Enter your name..."
+                                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/20 outline-none focus:border-amber-500/60 transition-colors"
+                              />
+                          </div>
+                          <button onClick={handleShare} className="mt-1 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2 rounded text-xs text-white hover:bg-white/10 transition-colors">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                              {copiedLink ? "Link Copiado!" : "Copiar Link para Amigo"}
+                          </button>
+                      </>
                   )}
                   {loginError && <p className="text-red-400 text-xs mt-2 text-center">{loginError}</p>}
                 </div>
@@ -244,10 +259,23 @@ export const MainMenu = ({ onPlay }: any) => {
                  </div>
                  
                  {multiplayerEnabled && (
-                     <button onClick={handleShare} className="mt-2 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2.5 rounded text-sm text-white font-bold hover:bg-white/10 transition-colors">
-                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                         {copiedLink ? "COPIADO!" : "COPIAR LINK PRA AMIGO"}
-                     </button>
+                     <>
+                         <div className="mt-1">
+                             <label className="text-white/40 text-[10px] font-mono tracking-wider mb-1 block">YOUR NAME</label>
+                             <input
+                                 type="text"
+                                 value={playerName}
+                                 onChange={e => setPlayerNameState(e.target.value.slice(0, 20))}
+                                 maxLength={20}
+                                 placeholder="Enter your name..."
+                                 className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/20 outline-none focus:border-amber-500/60 transition-colors"
+                             />
+                         </div>
+                         <button onClick={handleShare} className="mt-1 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2.5 rounded text-sm text-white font-bold hover:bg-white/10 transition-colors">
+                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                             {copiedLink ? "COPIADO!" : "COPIAR LINK PRA AMIGO"}
+                         </button>
+                     </>
                  )}
                  {loginError && <p className="text-red-400 text-xs mt-2 text-center">{loginError}</p>}
               </div>
