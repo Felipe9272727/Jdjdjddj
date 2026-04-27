@@ -1,4 +1,5 @@
 import React from 'react';
+import { TYPE, MONO, COMPONENT, Z } from '../design-tokens';
 import { BARNEY_URL, BARNEY_DIALOGUE } from '../constants';
 import { TypewriterText } from '../UI';
 
@@ -12,7 +13,7 @@ export const ElevatorPanel = ({ currentLevel, elevatorTimer, doorsClosed, arriva
       <div className="relative bg-gradient-to-b from-black/95 to-black/80 backdrop-blur-xl ring-1 ring-amber-500/40 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
         <div className="flex items-stretch divide-x divide-amber-500/20">
-          <div className="px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[56px] sm:min-w-[90px] landscape:min-w-[80px] relative">
+          <div className="px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[48px] sm:min-w-[80px] relative">
             <span className="text-amber-500/60 text-[8px] sm:text-[9px] landscape:text-[10px] font-mono uppercase tracking-[0.35em] mb-0.5">{currentLevel === 0 ? 'Location' : 'Floor'}</span>
             {currentLevel === 0 ? (
               <span className="text-amber-300 text-base sm:text-xl landscape:text-xl font-black tracking-widest leading-none" style={{ textShadow: '0 0 20px rgba(251,191,36,0.6)' }}>LOBBY</span>
@@ -23,7 +24,7 @@ export const ElevatorPanel = ({ currentLevel, elevatorTimer, doorsClosed, arriva
               </div>
             )}
           </div>
-          <div className="px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[70px] sm:min-w-[115px] landscape:min-w-[96px]">
+          <div className="px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[60px] sm:min-w-[100px]">
             {elevatorTimer !== null ? (
               <>
                 <span className={`text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5 ${(elevatorTimer <= 5 && !doorsClosed) ? 'text-red-400/80' : doorsClosed ? 'text-blue-400/80' : 'text-amber-400/60'}`}>
@@ -73,7 +74,7 @@ export const ElevatorPanel = ({ currentLevel, elevatorTimer, doorsClosed, arriva
 export const FloorReveal = ({ currentLevel }: any) => (
   <div className="absolute inset-0 z-[45] flex items-center justify-center pointer-events-none px-4">
     <div className="animate-floor-reveal text-center w-full">
-      <div className="text-amber-500/70 text-[10px] sm:text-sm font-mono uppercase tracking-[0.3em] sm:tracking-[0.6em] mb-2 sm:mb-4 animate-fade-in">Now Arriving</div>
+      <div className="text-amber-500/70 text-xs sm:text-sm font-mono uppercase tracking-[0.3em] sm:tracking-[0.5em] mb-2 sm:mb-4 text-amber-500/70 animate-fade-in">Now Arriving</div>
       <div className="text-white font-black tracking-wider tabular-nums" style={{ fontSize: 'clamp(2rem, 12vw, 5rem)', textShadow: '0 0 60px rgba(251,191,36,0.8), 0 0 30px rgba(255,255,255,0.4)' }}>FLOOR <span className="text-amber-400">{String(currentLevel).padStart(2, '0')}</span></div>
       <div className="h-[2px] w-32 sm:w-48 mx-auto mt-4 sm:mt-6 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
     </div>
@@ -87,14 +88,14 @@ export const StatusBanner = ({ gameState, elevatorTimer }: any) => {
   if (gameState === 'indoor_night') {
     return (
       <div className={`absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorTimer !== null ? 'top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]' : 'top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]'}`}>
-        <div className="bg-red-950/80 ring-1 ring-red-500/40 text-red-200 px-3 sm:px-4 py-2 rounded-lg font-mono text-[11px] sm:text-sm tracking-wider animate-pulse">Algo não está certo...</div>
+        <div className="bg-red-950/80 ring-1 ring-red-500/40 text-red-200 px-3 sm:px-4 py-2 rounded-lg font-mono text-xs sm:text-sm tracking-wider animate-pulse">Algo não está certo...</div>
       </div>
     );
   }
   if (gameState === 'chase') {
     return (
       <div className={`absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorTimer !== null ? 'top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]' : 'top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]'}`}>
-        <div className="bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-[11px] sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight">
+        <div className="bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-xs sm:text-base animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight">
           ⚠ CORRA PARA O ELEVADOR ⚠
         </div>
       </div>
@@ -125,7 +126,7 @@ export const BarneyDialogue = ({ barneyDialogueNode, handleBarneyResponse }: any
     <div className="absolute inset-0 z-[55] flex items-end justify-center pointer-events-auto landscape:items-center landscape:py-4 overflow-y-auto" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)' }}>
       <div className="w-full max-w-2xl mx-4 mb-6 landscape:mb-0 relative animate-barney-dialogue flex-shrink-0">
         <div className="absolute -inset-1 bg-gradient-to-r from-purple-500/40 via-pink-500/40 to-purple-500/40 rounded-2xl blur-lg barney-glow" />
-        <div className="relative bg-[#0d0411]/98 border-2 border-purple-500/50 rounded-xl p-2.5 sm:p-5 shadow-2xl">
+        <div className="relative bg-[#0d0411]/98 border-2 border-purple-500/50 rounded-xl p-3 sm:p-4 shadow-2xl">
           <div className="flex items-start gap-3 sm:gap-4 flex-col landscape:flex-row sm:flex-row">
             <div className="flex items-center gap-3 sm:hidden landscape:hidden w-full border-b border-white/5 pb-2 mb-1">
               <div className="w-12 h-12 flex-shrink-0 bg-transparent rounded-none overflow-hidden">

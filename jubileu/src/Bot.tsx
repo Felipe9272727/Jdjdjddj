@@ -498,7 +498,7 @@ export const BotHud = ({ info }: { info: { count: number; behaviors: string[]; l
     };
     return (
         <div
-            className="fixed z-[90] pointer-events-none w-[200px] max-w-[calc(100vw-16px)] bg-black/80 ring-1 ring-fuchsia-500/30 rounded-xl backdrop-blur-md px-3 py-2.5 text-[10px] font-mono text-fuchsia-200 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+            className="fixed z-[90] pointer-events-none w-[180px] max-w-[calc(100vw-16px)] bg-black/80 ring-1 ring-fuchsia-500/30 rounded-xl backdrop-blur-md px-3 py-2.5 text-[10px] font-mono text-fuchsia-200 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
             style={{
                 bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
                 left: 'calc(env(safe-area-inset-left, 0px) + 8px)',
@@ -507,18 +507,18 @@ export const BotHud = ({ info }: { info: { count: number; behaviors: string[]; l
             <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse shadow-[0_0_6px_rgba(232,121,249,0.6)]" />
-                    <span className="font-bold tracking-widest uppercase text-fuchsia-300 text-[11px]">BOTS</span>
+                    <span className="font-bold tracking-widest uppercase text-fuchsia-300 text-xs">BOTS</span>
                 </div>
-                <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold ring-1 ${info.count > 0 ? 'bg-green-500/20 text-green-300 ring-green-500/30' : 'bg-white/5 text-white/30 ring-white/10'}`}>
+                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ring-1 ${info.count > 0 ? 'bg-green-500/20 text-green-300 ring-green-500/30' : 'bg-white/5 text-white/30 ring-white/10'}`}>
                     {info.count > 0 ? `${info.count} ON` : 'OFF'}
                 </span>
             </div>
-            <div className="text-fuchsia-100/80 mb-1.5 text-[9px] truncate">{summary}</div>
+            <div className="text-fuchsia-100/80 mb-1.5 text-[10px] truncate">{summary}</div>
             {info.log.length > 0 && (
                 <div className="border-t border-fuchsia-500/15 pt-1.5 space-y-0.5 max-h-[60px] overflow-hidden">
                     {info.log.slice(0, 3).map((l, i) => (
-                        <div key={i} className="text-[8px] text-fuchsia-300/50 truncate flex items-center gap-1">
-                            <span className="text-[7px]">›</span>{l}
+                        <div key={i} className="text-[9px] text-fuchsia-300/50 truncate flex items-center gap-1">
+                            <span className="text-[8px]">›</span>{l}
                         </div>
                     ))}
                 </div>
@@ -575,7 +575,7 @@ export const ViewportDebug = () => {
     }, []);
     return (
         <div
-            className="fixed z-[90] pointer-events-none px-2 py-1.5 rounded bg-black/80 ring-1 ring-cyan-500/40 text-cyan-200 text-[9px] font-mono tabular-nums leading-tight"
+            className="fixed z-[90] pointer-events-none px-2 py-1.5 rounded bg-black/80 ring-1 ring-cyan-500/40 text-cyan-200 text-[10px] font-mono tabular-nums leading-tight"
             style={{
                 bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
                 right: 'calc(env(safe-area-inset-right, 0px) + 12px)',

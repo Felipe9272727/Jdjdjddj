@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, createContext, useContext } from 'react';
+import { TYPE, COMPONENT } from '../design-tokens';
 
 export type Quality = 'low' | 'medium' | 'high';
 
@@ -100,7 +101,7 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="px-4 py-2.5 sm:py-3 border-b border-amber-500/30 flex items-center justify-between">
-                    <h2 className="text-amber-200 font-mono tracking-widest text-sm uppercase">Configurações</h2>
+                    <h2 className="text-amber-200 font-mono tracking-wider text-xs sm:text-sm uppercase">Configurações</h2>
                     <button
                         onClick={onClose}
                         className="text-amber-200/70 hover:text-amber-100 font-mono text-2xl leading-none w-10 h-10 flex items-center justify-center rounded hover:bg-amber-500/10 active:bg-amber-500/20 transition-colors tap-target"
@@ -173,7 +174,7 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
     <div>
-        <div className="text-xs font-mono uppercase tracking-wider text-amber-300/80 mb-1.5">{label}</div>
+        <div className="text-[10px] sm:text-xs font-mono uppercase tracking-wider text-amber-300/80 mb-1.5">{label}</div>
         {children}
     </div>
 );

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { TYPE, COMPONENT } from '../design-tokens';
 import { DIALOGUE_TREE, BARNEY_URL } from './constants';
 
 export const VisualJoystick = ({ x, y, active, origin }: any) => {
@@ -67,7 +68,7 @@ export const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }: any) => {
 
         {/* Dialogue Text Box */}
         <div className="bg-black/80 border-t-2 border-yellow-500/50 p-3 sm:p-4 md:p-6 shadow-2xl pointer-events-auto mb-2 sm:mb-4 rounded-t-xl landscape:mb-2">
-          <p className="text-white text-sm sm:text-base md:text-xl font-bold font-serif leading-snug sm:leading-relaxed min-h-[2rem] sm:min-h-[4rem] text-shadow-sm">
+          <p className="text-white text-sm sm:text-base font-bold font-serif leading-snug sm:leading-relaxed min-h-[2rem] sm:min-h-[4rem] text-shadow-sm">
             <TypewriterText text={node.text} speed={30} />
           </p>
         </div>
@@ -83,7 +84,7 @@ export const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }: any) => {
                   <div className="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center text-yellow-400 text-[10px] sm:text-xs font-bold group-hover:bg-yellow-500 group-hover:text-black transition-all">
                     {i + 1}
                   </div>
-                  <span className="text-gray-200 group-hover:text-white font-medium text-sm md:text-base flex-1">{opt.text}</span>
+                  <span className="text-gray-200 group-hover:text-white font-medium text-sm sm:text-base flex-1">{opt.text}</span>
                 </div>
               </div>
             </button>

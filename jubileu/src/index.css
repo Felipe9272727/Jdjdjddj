@@ -1,5 +1,89 @@
 @import "tailwindcss";
 
+
+/* ─── Design System ─────────────────────────────────────────────────────
+ * CSS custom properties for consistent proportions.
+ * Based on 4px spacing grid and 1.25 modular type scale.
+ */
+:root {
+  /* Spacing (4px base) */
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  
+  /* Type scale (1.25 ratio, base 16px) */
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.875rem;    /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.875rem;   /* 30px */
+  --text-4xl: 2.25rem;    /* 36px */
+  
+  /* Safe area (resolved at runtime) */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+}
+
+/* ─── Fluid Typography ──────────────────────────────────────────────────
+ * Scales smoothly between mobile and desktop without breakpoints.
+ */
+.fluid-xs    { font-size: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem); }
+.fluid-sm    { font-size: clamp(0.75rem, 0.625rem + 0.5vw, 0.875rem); }
+.fluid-base  { font-size: clamp(0.875rem, 0.75rem + 0.5vw, 1rem); }
+.fluid-lg    { font-size: clamp(1rem, 0.875rem + 0.5vw, 1.125rem); }
+.fluid-xl    { font-size: clamp(1.125rem, 1rem + 0.5vw, 1.25rem); }
+.fluid-2xl   { font-size: clamp(1.25rem, 1rem + 1vw, 1.5rem); }
+.fluid-3xl   { font-size: clamp(1.5rem, 1rem + 2vw, 2rem); }
+.fluid-4xl   { font-size: clamp(1.75rem, 1rem + 3vw, 2.5rem); }
+
+/* ─── Glass Panel ───────────────────────────────────────────────────────
+ * Reusable glass morphism pattern for HUD elements.
+ */
+.glass-panel {
+  background: linear-gradient(to bottom, rgba(0,0,0,0.95), rgba(0,0,0,0.8));
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+.glass-panel-subtle {
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+}
+
+/* ─── Action Button ─────────────────────────────────────────────────────
+ * Primary call-to-action button pattern.
+ */
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: 9999px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  transition: transform 150ms;
+  font-size: clamp(0.75rem, 0.625rem + 0.5vw, 0.875rem);
+}
+
+.action-btn:active {
+  transform: scale(0.95);
+}
+
 /* ─── Viewport setup ──────────────────────────────────────────────────────
  * Goal: full-bleed canvas behind notch/status bar, HUD respects safe area.
  * - body uses dvh (tracks live viewport) so any DOM-based root-level layout
@@ -305,4 +389,97 @@ input[type=range]::-webkit-slider-runnable-track {
 }
 .animate-barney-bounce {
   animation: barney-image-bounce 2s ease-in-out infinite;
+}
+
+/* ─── Polish Effects ──────────────────────────────────────────────────── */
+
+/* Subtle scanlines overlay for retro/liminal feel */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,255,255,0.015) 2px,
+    rgba(255,255,255,0.015) 4px
+  );
+  z-index: 1;
+}
+
+/* Glow pulse for interactive elements */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(251,191,36,0.3); }
+  50% { box-shadow: 0 0 20px rgba(251,191,36,0.6); }
+}
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* Smooth float for particles */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+/* Floor reveal animation */
+@keyframes floor-reveal {
+  0% { opacity: 0; transform: translateY(20px) scale(0.95); }
+  20% { opacity: 1; transform: translateY(0) scale(1); }
+  80% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-10px) scale(1.02); }
+}
+.animate-floor-reveal {
+  animation: floor-reveal 3s ease-in-out forwards;
+}
+
+/* Barney bounce */
+@keyframes barney-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.animate-barney-bounce {
+  animation: barney-bounce 2s ease-in-out infinite;
+}
+
+/* Barney dialogue entrance */
+@keyframes barney-dialogue {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-barney-dialogue {
+  animation: barney-dialogue 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Barney glow */
+@keyframes barney-glow {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+.barney-glow {
+  animation: barney-glow 3s ease-in-out infinite;
+}
+
+/* Jumpscare animation */
+@keyframes jumpscare {
+  0% { transform: scale(0.8); opacity: 0; }
+  10% { transform: scale(1.1); opacity: 1; }
+  20% { transform: scale(1); }
+  80% { transform: scale(1); }
+  100% { transform: scale(1.05); opacity: 0; }
+}
+.animate-jumpscare {
+  animation: jumpscare 2s ease-in-out forwards;
+}
+
+/* Traveling vignette */
+.traveling-vignette {
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.4) 100%);
+}
+
+/* Speech bubble */
+.speech-bubble {
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
 }

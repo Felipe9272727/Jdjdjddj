@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { TYPE, COMPONENT } from '../design-tokens';
 import { useMultiplayer } from './Multiplayer';
 
 export const MainMenu = ({ onPlay }: any) => {
@@ -172,19 +173,19 @@ export const MainMenu = ({ onPlay }: any) => {
               <div className="text-center mb-3 sm:mb-6 landscape:mb-4 shrink-0">
                 <p className="text-amber-500/50 text-xs uppercase tracking-[0.5em] mb-2 font-light landscape:hidden">Bem-vindo ao</p>
                 <div className="landscape:hidden">
-                  <h1 className="font-black text-white mb-1 leading-none" style={{ fontSize: 'clamp(1.8rem, 8vw, 2.8rem)', textShadow: '0 0 40px rgba(255,255,255,0.1)' }}>
+                  <h1 className="font-black text-white mb-1 leading-none" style={{ fontSize: 'clamp(1.75rem, 8vw, 2.75rem)', textShadow: '0 0 40px rgba(255,255,255,0.1)' }}>
                     THE NORMAL
                   </h1>
-                  <h2 className="font-thin text-amber-400 tracking-[0.2em] sm:tracking-[0.3em] uppercase" style={{ fontSize: 'clamp(1.1rem, 5vw, 1.5rem)', textShadow: '0 0 20px rgba(251,191,36,0.3)' }}>
+                  <h2 className="font-thin text-amber-400 tracking-[0.2em] sm:tracking-[0.3em] uppercase" style={{ fontSize: 'clamp(1rem, 5vw, 1.5rem)', textShadow: '0 0 20px rgba(251,191,36,0.3)' }}>
                     ELEVATOR
                   </h2>
                 </div>
 
                 <div className="hidden landscape:flex items-center justify-center gap-1.5">
-                  <h1 className="text-2xl font-black text-white" style={{ textShadow: '0 0 20px rgba(255,255,255,0.1)' }}>
+                  <h1 className="text-xl sm:text-2xl font-black text-white" style={{ textShadow: '0 0 20px rgba(255,255,255,0.1)' }}>
                     THE NORMAL
                   </h1>
-                  <h2 className="text-2xl font-thin text-amber-400 tracking-widest uppercase" style={{ textShadow: '0 0 10px rgba(251,191,36,0.3)' }}>
+                  <h2 className="text-lg sm:text-xl font-thin text-amber-400 tracking-widest uppercase" style={{ textShadow: '0 0 10px rgba(251,191,36,0.3)' }}>
                     ELEVATOR
                   </h2>
                 </div>
@@ -320,10 +321,10 @@ export const MainMenu = ({ onPlay }: any) => {
                 </div>
                 <div className="mb-6 animate-fade-in-up" style={{ animationDelay: '0.8s' }}>
                   <p className="text-amber-500/40 text-sm uppercase tracking-[0.5em] mb-2 font-light">Bem-vindo ao</p>
-                  <h1 className="text-5xl lg:text-7xl font-black text-white leading-none mb-1" style={{ textShadow: '0 0 60px rgba(255,255,255,0.1)' }}>
+                  <h1 className="text-4xl lg:text-6xl font-black text-white leading-none mb-1" style={{ textShadow: '0 0 60px rgba(255,255,255,0.1)' }}>
                     THE <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200">NORMAL</span>
                   </h1>
-                  <h2 className="text-3xl lg:text-5xl font-extralight text-white/80 tracking-[0.4em] uppercase">
+                  <h2 className="text-2xl lg:text-4xl font-extralight text-white/80 tracking-[0.3em] uppercase">
                     ELEVATOR
                   </h2>
                 </div>
@@ -331,7 +332,7 @@ export const MainMenu = ({ onPlay }: any) => {
                 <div className="animate-fade-in-up mt-2" style={{ animationDelay: '1s' }}>
                   <div className="flex flex-col gap-3 p-4 border border-white/10 rounded-xl mb-4 bg-black/50 backdrop-blur-sm max-w-sm">
                      <div className="flex items-center justify-between">
-                         <span className="text-white/70 text-sm font-mono tracking-widest">MODO MULTIPLAYER (ONLINE)</span>
+                         <span className="text-white/70 text-xs font-mono tracking-wider uppercase">Modo Multiplayer (Online)</span>
                          <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-6 rounded-full transition-colors relative border border-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
                             <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${multiplayerEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
                          </button>
@@ -348,7 +349,7 @@ export const MainMenu = ({ onPlay }: any) => {
                     <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-xl opacity-70 group-hover:opacity-100 blur-sm transition-opacity" />
                     <div className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-xl">
                       <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent rounded-xl" />
-                      <div className="relative flex items-center gap-4 px-12 py-5 text-black font-bold text-xl justify-center">
+                      <div className="relative flex items-center gap-4 px-8 py-4 text-black font-bold text-lg justify-center">
                         <span className="tracking-[0.2em] group-hover:tracking-[0.3em] transition-all duration-500">{isLoggingIn ? "CONECTANDO..." : "ENTRAR NO SAGUÃO"}</span>
                         {!isLoggingIn && (
                             <svg className="w-6 h-6 group-hover:translate-x-2 transition-transform duration-300" fill="currentColor" viewBox="0 0 24 24">
