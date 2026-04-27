@@ -379,13 +379,24 @@ Sistema de chat multiplayer estilo Roblox com nomes de jogadores.
 - `c4645a3` — feat(chat): Roblox-style chat with Dussekar speech bubbles
 - `9edc293` — docs: update MEMORY.md with Dussekar chat bubbles
 - `b8e17fc` — feat(chat): mobile chat window like Roblox
+- `242ba6a` — docs: update MEMORY.md with mobile chat fix
+- `befdfee` — fix(chat): fix position + fix Firestore rules for no-auth
 
-### Estado atual do Chat (2026-04-27 22:54)
-- **Desktop**: message window top-left + input bar bottom, abre com "/"
+### ⚠️ CRÍTICO: Deploy das Firestore Rules
+As rules no Firebase Console precisam ser atualizadas manualmente!
+- As rules antigas exigiam `isSignedIn()` (Firebase Auth)
+- O app NÃO usa Auth — usa localStorage UUID
+- TODAS as escritas estavam sendo rejeitadas silenciosamente
+- As novas rules removem a exigência de auth
+- **Deploy manual necessário**: Firebase Console → Firestore → Rules → colar regras
+
+### Estado atual do Chat (2026-04-27 23:05)
+- **Desktop**: message window bottom-left + input bar bottom-left, abre com "/"
 - **Mobile**: botão chat (ícone speech bubble) no canto inferior-esquerdo, abre janela completa com header, histórico, input + send
 - **Balão 3D**: estilo Dussekar (branco, borda preta, pop-in, some em 8s)
 - **Nomes**: visíveis acima do avatar, cores diferentes por jogador
 - **Mensagens**: fade out 20s, remove 30s, máximo 80 caracteres
+- **⚠️ Rules**: Precisam ser deployadas no Firebase Console (sem auth)
 
 ### Notas importantes
 - O `index.html` foi rebuildado e já está atualizado no main
