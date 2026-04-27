@@ -247,7 +247,7 @@ export const useMultiplayer = (
 
     // Send chat message — with local fallback
     const sendChat = (msg: string) => {
-        const clean = msg.trim().slice(0, 80);
+        const clean = msg.trim().slice(0, 200);
         if (!clean) return;
         const now = Date.now();
         chatMsgRef.current = clean;

@@ -15,6 +15,7 @@ import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES } from './Settings';
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
+import { RobloxChat, BubbleChatFallback } from './ChatSystem';
 import { COMPONENT, Z, TYPE } from './design-tokens';
 
 const MAX_JOYSTICK_RADIUS = 50;
@@ -248,18 +249,6 @@ export default function App() {
     }
   };
 
-  // Chat system
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState('');
-  const chatInputRef = useRef<any>(null);
-  const handleSendChat = () => {
-      const msg = chatInput.trim();
-      if (!msg || !multiplayerEnabled) return;
-      sendChat(msg);
-      setChatInput('');
-      // Keep chat open (Roblox style) — close on Escape instead
-  };
-
   useEffect(() => {
     let timerId: any;
     if (elevatorTimer !== null && elevatorTimer > 0) {
@@ -403,7 +392,7 @@ export default function App() {
     if (dialogueOpen || barneyDialogueOpen) { document.exitPointerLock(); return; }
     const upd = () => { const k = keysRef.current; let x=0, y=0; if (k.w) y-=1; if (k.s) y+=1; if (k.a) x-=1; if (k.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
     const kd = (e: any) => {
-      if (dialogueOpen || barneyDialogueOpen || chatOpen) return;
+      if (dialogueOpen || barneyDialogueOpen) return;
       const k = keysRef.current;
       switch(e.key.toLowerCase()) {
         case 'w': k.w=true; break;
@@ -419,30 +408,13 @@ export default function App() {
       upd();
     };
     const ku = (e: any) => {
-        if (chatOpen) return;
         const k = keysRef.current;
         switch(e.key.toLowerCase()) { case 'w': k.w=false; break; case 'a': k.a=false; break; case 's': k.s=false; break; case 'd': k.d=false; break; }
         upd();
     };
-    // / opens chat on desktop (Roblox style)
-    const kh = (e: any) => {
-        if (!multiplayerEnabled) return;
-        if (chatOpen) {
-            if (e.key === 'Escape') {
-                setChatOpen(false);
-                setChatInput('');
-            }
-            return;
-        }
-        if (e.key === '/' && !dialogueOpen && !barneyDialogueOpen) {
-            e.preventDefault();
-            setChatOpen(true);
-            setTimeout(() => chatInputRef.current?.focus(), 50);
-        }
-    };
-    window.addEventListener('keydown', kd); window.addEventListener('keyup', ku); window.addEventListener('keydown', kh);
-    return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); window.removeEventListener('keydown', kh); };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, canInteractNPC, canInteractDoor, houseDoorOpen, canSleepNow, gameState, chatOpen, multiplayerEnabled]);
+    window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
+    return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, canInteractNPC, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
 
   // Bot mode: spawns autonomous bot avatars in the lobby that move via
   // steering behaviors. The simulation lives inside <BotSystem> (mounted in
@@ -606,165 +578,16 @@ export default function App() {
       {/* ─── Roblox-style Chat System ──────────────────────────────────────── */}
       {hasStarted && multiplayerEnabled && (
           <>
-              {/* ── Desktop: message window (bottom-left) + input bar (bottom) ── */}
-              {isDesktop && (
-                  <>
-                      {/* Message history — bottom-left above input, Roblox style */}
-                      <div
-                          className="absolute z-[55] pointer-events-none"
-                          style={{
-                              bottom: 'calc(env(safe-area-inset-bottom, 0px) + 48px)',
-                              left: 'calc(env(safe-area-inset-left, 0px) + 8px)',
-                              width: 'min(340px, calc(100vw - 16px))',
-                              maxHeight: 'min(220px, calc(100dvh - 400px))',
-                          }}
-                      >
-                          <div
-                              className="flex flex-col-reverse gap-0 overflow-hidden rounded-lg"
-                              style={{
-                                  background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.45) 100%)',
-                                  backdropFilter: 'blur(8px)',
-                                  WebkitBackdropFilter: 'blur(8px)',
-                                  border: '1px solid rgba(255,255,255,0.08)',
-                                  padding: '4px 0',
-                              }}
-                          >
-                              {chatMessages.slice(-20).map((msg) => {
-                                  const age = Date.now() - msg.timestamp;
-                                  const fadeOut = age > 20000;
-                                  const opacity = fadeOut ? Math.max(0, 1 - (age - 20000) / 10000) : 1;
-                                  const isMe = msg.id === user?.uid;
-                                  const nameHash = (msg.name || '').split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
-                                  const nameColors = ['#f87171', '#fb923c', '#fbbf24', '#4ade80', '#38bdf8', '#a78bfa', '#f472b6', '#2dd4bf'];
-                                  const nameColor = isMe ? '#ffffff' : nameColors[nameHash % nameColors.length];
-                                  return (
-                                      <div key={`${msg.id}-${msg.timestamp}`} className="transition-opacity duration-500 px-2.5 py-[3px]" style={{ opacity }}>
-                                          <span className="text-[12px] leading-snug font-medium">
-                                              <span className="font-bold" style={{ color: nameColor }}>{msg.name}</span>
-                                              <span className="text-white/20">: </span>
-                                              <span className="text-white/85">{msg.text}</span>
-                                          </span>
-                                      </div>
-                                  );
-                              })}
-                          </div>
-                      </div>
-
-                      {/* Input bar — bottom-left */}
-                      {chatOpen ? (
-                          <div className="absolute z-[65] pointer-events-auto"
-                              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)', left: 'calc(env(safe-area-inset-left, 0px) + 8px)', width: 'min(340px, calc(100vw - 16px))' }}>
-                              <div className="flex items-center gap-0 overflow-hidden"
-                                  style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px' }}>
-                                  <span className="text-white/30 text-sm font-medium px-2.5 shrink-0">💬</span>
-                                  <input ref={chatInputRef} type="text" value={chatInput}
-                                      onChange={e => setChatInput(e.target.value.slice(0, 80))}
-                                      onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') handleSendChat(); if (e.key === 'Escape') { setChatOpen(false); setChatInput(''); } }}
-                                      placeholder="Type here..." maxLength={80}
-                                      className="flex-1 bg-transparent text-white text-sm font-medium placeholder-white/25 outline-none py-2.5 pr-3" autoFocus />
-                              </div>
-                          </div>
-                      ) : (
-                          <div className="absolute z-40 pointer-events-auto"
-                              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)', left: 'calc(env(safe-area-inset-left, 0px) + 8px)' }}>
-                              <button onClick={() => { setChatOpen(true); setTimeout(() => chatInputRef.current?.focus(), 50); }}
-                                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/10 active:bg-white/15 transition-colors"
-                                  style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                  <span className="text-white/25 text-[11px] font-mono">Press / to chat</span>
-                              </button>
-                          </div>
-                      )}
-                  </>
-              )}
-
-              {/* ── Mobile: chat button + full chat window ── */}
-              {!isDesktop && !dialogueOpen && !barneyDialogueOpen && (
-                  <>
-                      {chatOpen ? (
-                          /* Full chat window — Roblox mobile style */
-                          <div className="absolute z-[65] pointer-events-auto"
-                              style={{
-                                  bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
-                                  left: 'calc(env(safe-area-inset-left, 0px) + 8px)',
-                                  right: 'calc(env(safe-area-inset-right, 0px) + 8px)',
-                                  maxHeight: 'min(320px, 50dvh)',
-                              }}>
-                              <div className="flex flex-col overflow-hidden rounded-xl"
-                                  style={{
-                                      background: 'rgba(0,0,0,0.7)',
-                                      backdropFilter: 'blur(16px)',
-                                      WebkitBackdropFilter: 'blur(16px)',
-                                      border: '1px solid rgba(255,255,255,0.12)',
-                                      boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                                  }}>
-                                  {/* Header */}
-                                  <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
-                                      <span className="text-white/60 text-[11px] font-mono font-bold tracking-wider uppercase">Chat</span>
-                                      <button onClick={() => { setChatOpen(false); setChatInput(''); }}
-                                          className="text-white/40 hover:text-white/80 text-lg font-bold leading-none w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 active:bg-white/20 transition-colors">
-                                          ×
-                                      </button>
-                                  </div>
-
-                                  {/* Messages */}
-                                  <div className="flex-1 overflow-y-auto scrollbar-hide px-2.5 py-1"
-                                      style={{ maxHeight: 'calc(min(320px, 50dvh) - 90px)' }}>
-                                      {chatMessages.length === 0 && (
-                                          <div className="text-white/20 text-[11px] font-mono text-center py-4">No messages yet</div>
-                                      )}
-                                      {chatMessages.slice(-30).map((msg) => {
-                                          const isMe = msg.id === user?.uid;
-                                          const nameHash = (msg.name || '').split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
-                                          const nameColors = ['#f87171', '#fb923c', '#fbbf24', '#4ade80', '#38bdf8', '#a78bfa', '#f472b6', '#2dd4bf'];
-                                          const nameColor = isMe ? '#ffffff' : nameColors[nameHash % nameColors.length];
-                                          return (
-                                              <div key={`${msg.id}-${msg.timestamp}`} className="px-1 py-[3px]">
-                                                  <span className="text-[12px] leading-snug font-medium">
-                                                      <span className="font-bold" style={{ color: nameColor }}>{msg.name}</span>
-                                                      <span className="text-white/20">: </span>
-                                                      <span className="text-white/85">{msg.text}</span>
-                                                  </span>
-                                              </div>
-                                          );
-                                      })}
-                                  </div>
-
-                                  {/* Input */}
-                                  <div className="border-t border-white/10 px-2 py-1.5 flex items-center gap-1.5">
-                                      <input ref={chatInputRef} type="text" value={chatInput}
-                                          onChange={e => setChatInput(e.target.value.slice(0, 80))}
-                                          onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') handleSendChat(); }}
-                                          placeholder="Type here..." maxLength={80}
-                                          className="flex-1 bg-white/8 border border-white/10 rounded-lg px-3 py-2 text-white text-sm font-medium placeholder-white/20 outline-none focus:border-white/25 transition-colors" />
-                                      <button onClick={handleSendChat}
-                                          className="bg-white/15 hover:bg-white/25 text-white font-bold px-3 py-2 rounded-lg text-sm active:scale-95 transition-all shrink-0">
-                                          Send
-                                      </button>
-                                  </div>
-                              </div>
-                          </div>
-                      ) : (
-                          /* Chat button — bottom-left */
-                          <button onClick={() => { setChatOpen(true); setTimeout(() => chatInputRef.current?.focus(), 100); }}
-                              className="absolute z-50 pointer-events-auto tap-target"
-                              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)', left: 'calc(env(safe-area-inset-left, 0px) + 8px)' }}>
-                              <div className="flex items-center justify-center w-11 h-11 active:scale-95 transition-transform"
-                                  style={{
-                                      background: 'rgba(0,0,0,0.6)',
-                                      backdropFilter: 'blur(8px)',
-                                      WebkitBackdropFilter: 'blur(8px)',
-                                      border: '1px solid rgba(255,255,255,0.12)',
-                                      borderRadius: '10px',
-                                  }}>
-                                  {/* Roblox-style chat icon */}
-                                  <svg className="w-5 h-5 text-white/60" fill="currentColor" viewBox="0 0 24 24">
-                                      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
-                                  </svg>
-                              </div>
-                          </button>
-                      )}
-                  </>
-              )}
+              <RobloxChat
+                  messages={chatMessages}
+                  currentUserId={user?.uid || ''}
+                  onSend={sendChat}
+                  enabled={multiplayerEnabled && !dialogueOpen && !barneyDialogueOpen}
+              />
+              <BubbleChatFallback
+                  messages={chatMessages}
+                  currentUserId={user?.uid || ''}
+              />
           </>
       )}
 

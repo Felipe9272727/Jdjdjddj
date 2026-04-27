@@ -31,7 +31,7 @@ service cloud.firestore {
           && data.level >= 0
           && data.level <= 100
           && data.name is string && data.name.size() <= 20
-          && data.chatMsg is string && data.chatMsg.size() <= 80
+          && data.chatMsg is string && data.chatMsg.size() <= 200
           && data.chatAt is int;
     }
 

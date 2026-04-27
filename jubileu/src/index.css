@@ -483,3 +483,9 @@ input[type=range]::-webkit-slider-runnable-track {
 .speech-bubble {
   filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
 }
+
+/* ─── Chat Bubble Pop (fallback overlay) ──────────────────────────────── */
+@keyframes chatBubblePop {
+  0% { opacity: 0; transform: translateY(8px) scale(0.9); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}

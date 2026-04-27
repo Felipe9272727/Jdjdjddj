@@ -73,6 +73,7 @@ Tema: "experiência liminal interativa" — o jogador entra num elevador que vai
 │   │   ├── BuildingBlocks.tsx ← Porta, parede, luz, poltrona, planta, recepção
 │   │   ├── Materials.tsx   ← TextureMaterial (wrapping, repeat, rotation)
 │   │   ├── RemotePlayer.tsx← Avatar remoto (clone + label "P-XXXX")
+│   │   ├── ChatSystem.tsx  ← Chat estilo Roblox + fallback 2D
 │   │   ├── physics.ts      ← resolveCollision (circle vs line segments, 3 passes)
 │   │   └── constants.ts    ← URLs GLB, cores, assets, diálogos, paredes
 │   ├── vite.config.ts      ← Config Vite (HMR, minify off)
@@ -294,7 +295,7 @@ window.__jubileuBot.help()     // ver todos os comandos
 
 ---
 
-*Última atualização: 2026-04-27*
+*Última atualização: 2026-04-28*
 ---
 
 ## 🔧 Fix: Multiplayer (2026-04-27)
@@ -392,21 +393,57 @@ As rules no Firebase Console precisam ser atualizadas manualmente!
 - As novas rules removem a exigência de auth
 - **Deploy manual necessário**: Firebase Console → Firestore → Rules → colar regras
 
-### Estado atual do Chat (2026-04-27 23:09)
-- **Desktop**: message window bottom-left + input bar bottom-left, abre com "/"
+### Estado atual do Chat (2026-04-28 00:59)
+- **Desktop**: message window no topo-esquerdo (estilo Roblox), input bar abaixo das mensagens, abre com "/"
 - **Mobile**: botão chat (ícone speech bubble) no canto inferior-esquerdo, abre janela completa com header, histórico, input + send
-- **Balão 3D**: estilo Dussekar (branco, borda preta, pop-in, some em 8s)
-- **Nomes**: visíveis acima do avatar, cores diferentes por jogador
-- **Mensagens**: fade out 20s, remove 30s, máximo 80 caracteres
-- **Fallback**: chat funciona localmente mesmo se Firestore falhar (rules não deployadas)
+- **Balão 3D**: estilo Dussekar (branco, borda preta, pop-in, some em 8s) — renderizado via `<Html>` do drei
+- **Fallback 2D**: `BubbleChatFallback` mostra mensagens como overlay 2D no topo-direito quando o balão 3D falha
+- **Nomes**: visíveis acima do avatar, cores diferentes por jogador (determinístico por hash do nome)
+- **Mensagens**: fade out 25s, remove 30s, máximo 200 caracteres
+- **Fonte**: "Source Sans 3" / "Segoe UI" (estilo Roblox)
+- **Fallback local**: chat funciona localmente mesmo se Firestore falhar (rules não deployadas)
 - **⚠️ Rules**: Ainda precisam ser deployadas no Firebase Console para multiplayer funcionar
 
-### Notas importantes
-- O `index.html` foi rebuildado e já está atualizado no main
-- Para gerar novo build futuro: `cd jubileu && npm run build && node inline-build.mjs`
-- As Firestore rules precisam ser deployadas no Firebase Console manualmente
-- Chat abre com "/" no desktop (estilo Roblox)
-- Balões de chat 3D usam o mesmo estilo do Dussekar (branco, borda preta, animação pop-in)
+### Refactor: Chat System (2026-04-28)
+
+#### O que foi alterado
+Sistema de chat reescrito para ser mais parecido com o do Roblox, com fallback para bubble chat.
+
+#### ChatSystem.tsx — Novo arquivo
+- `RobloxChat` — componente principal do chat
+  - Desktop: mensagens no topo-esquerdo (estilo Roblox clássico), input bar logo abaixo
+  - Mobile: janela de chat no estilo Roblox com header, scroll, input + send
+  - Fonte "Source Sans 3" / "Segoe UI" para parecer com o Roblox
+  - Mensagens com fade out 25s, máximo 200 caracteres
+  - Cores de nome determinísticas por hash (12 cores disponíveis)
+  - Abre com "/" no desktop, botão flutuante no mobile
+- `BubbleChatFallback` — overlay 2D de fallback
+  - Mostra mensagens recentes (< 8s) como badges no topo-direito
+  - Animação `chatBubblePop` ao aparecer
+  - Máximo 5 mensagens visíveis simultaneamente
+  - Serve como fallback quando o balão 3D `<Html>` do drei falha
+- `getNameColor()` — função utilitária exportada para cores de nome
+
+#### App.tsx — Refatorado
+- Importado `RobloxChat` e `BubbleChatFallback` de `ChatSystem.tsx`
+- Removido ~160 linhas de UI de chat inline (código duplicado desktop/mobile)
+- Removido estado `chatOpen`, `chatInput`, `chatInputRef`, `handleSendChat`
+- Removido handler de tecla "/" do keyboard useEffect (agora dentro do RobloxChat)
+- Chat agora é ~15 linhas no JSX em vez de ~160
+- Referências `chatOpen` removidas do keyboard handler (não bloqueia mais WASD)
+
+#### Multiplayer.tsx
+- Limite de `chatMsg` aumentado de 80 → 200 caracteres
+
+#### firestore.rules
+- Validação de `chatMsg` atualizada de `size() <= 80` para `size() <= 200`
+
+#### Arquivos alterados
+- `jubileu/src/ChatSystem.tsx` — NOVO (componente de chat completo)
+- `jubileu/src/App.tsx` — refatorado (chat inline → componente)
+- `jubileu/src/Multiplayer.tsx` — limite de chars atualizado
+- `jubileu/src/index.css` — animação `chatBubblePop` adicionada
+- `jubileu/firestore.rules` — validação atualizada
 
 ---
 
