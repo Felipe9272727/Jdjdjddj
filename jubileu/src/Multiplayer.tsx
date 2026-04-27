@@ -46,29 +46,62 @@ const getServices = (): { db: Firestore; auth: Auth } | null => {
 // to equal the player doc id, so we sign in anonymously and use auth.uid as
 // the canonical player id (replacing the previous localStorage UUID, which
 // rules-rejected every write).
+const PLAYER_ID_KEY = 'jubileu_player_id';
+const getLocalPlayerId = (): string => {
+    let id = localStorage.getItem(PLAYER_ID_KEY);
+    if (!id) { id = crypto.randomUUID(); localStorage.setItem(PLAYER_ID_KEY, id); }
+    return id;
+};
+
 const ensureSignedIn = (auth: Auth): Promise<string> => {
     return new Promise((resolve, reject) => {
+        // Fast path: already signed in
         if (auth.currentUser?.uid) {
+            console.log('[MP] Already authed:', auth.currentUser.uid.slice(0, 8));
             resolve(auth.currentUser.uid);
             return;
         }
+
         let settled = false;
+        const timeout = setTimeout(() => {
+            if (!settled) {
+                settled = true;
+                console.warn('[MP] Auth timeout — falling back to local ID');
+                resolve(getLocalPlayerId());
+            }
+        }, 8000); // 8s timeout
+
         const unsub = onAuthStateChanged(
             auth,
             (user) => {
                 if (settled) return;
                 if (user?.uid) {
                     settled = true;
+                    clearTimeout(timeout);
                     unsub();
+                    console.log('[MP] Auth success:', user.uid.slice(0, 8));
                     resolve(user.uid);
                 }
             },
             (err) => {
-                if (!settled) { settled = true; unsub(); reject(err); }
+                if (!settled) {
+                    settled = true;
+                    clearTimeout(timeout);
+                    unsub();
+                    console.warn('[MP] Auth error, using local ID:', err.message);
+                    resolve(getLocalPlayerId());
+                }
             }
         );
+
         signInAnonymously(auth).catch((err) => {
-            if (!settled) { settled = true; unsub(); reject(err); }
+            if (!settled) {
+                settled = true;
+                clearTimeout(timeout);
+                unsub();
+                console.warn('[MP] signInAnonymously failed, using local ID:', err.message);
+                resolve(getLocalPlayerId());
+            }
         });
     });
 };
@@ -104,13 +137,18 @@ export const useMultiplayer = (
         if (!isEnabled) return;
         const services = getServices();
         if (!services) {
-            console.warn('[MP] Sem config Firebase');
+            console.warn('[MP] Sem config Firebase — check __FIREBASE_CONFIG__');
             return;
         }
+        console.log('[MP] Initializing auth...');
         let cancelled = false;
         ensureSignedIn(services.auth)
-            .then((id) => { if (!cancelled) setUid(id); })
-            .catch((e) => console.error('[MP] Auth erro:', e));
+            .then((id) => {
+                if (cancelled) return;
+                console.log('[MP] Ready, player ID:', id.slice(0, 8));
+                setUid(id);
+            })
+            .catch((e) => console.error('[MP] Auth fatal error:', e));
         return () => { cancelled = true; };
     }, [isEnabled]);
 
@@ -179,8 +217,8 @@ export const useMultiplayer = (
                 } else {
                     await updateDoc(docRef, data);
                 }
-            } catch (e) {
-                console.error('[MP] Push erro:', e);
+            } catch (e: any) {
+                console.error('[MP] Push erro:', e?.code || e?.message || e);
             } finally {
                 writeInFlight = false;
                 if (writeQueued) { writeQueued = false; push(); }

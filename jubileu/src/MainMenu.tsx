@@ -11,7 +11,7 @@ export const MainMenu = ({ onPlay }: any) => {
   const [loginError, setLoginError] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Temporary ref for MainMenu strictly to satisfy hook, it doesn't do anything here until App passes it
+  // Dummy refs — isEnabled=false so the hook returns early without touching Firebase
   const { user, login } = useMultiplayer({ current: null as any }, { current: 0 }, "idle", false);
   
   const handlePlay = async () => {

@@ -100898,37 +100898,60 @@ const getServices = () => {
     return null;
   }
 };
+const PLAYER_ID_KEY = "jubileu_player_id";
+const getLocalPlayerId = () => {
+  let id = localStorage.getItem(PLAYER_ID_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(PLAYER_ID_KEY, id);
+  }
+  return id;
+};
 const ensureSignedIn = (auth) => {
   return new Promise((resolve2, reject) => {
     var _a;
     if ((_a = auth.currentUser) == null ? void 0 : _a.uid) {
+      console.log("[MP] Already authed:", auth.currentUser.uid.slice(0, 8));
       resolve2(auth.currentUser.uid);
       return;
     }
     let settled = false;
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        console.warn("[MP] Auth timeout — falling back to local ID");
+        resolve2(getLocalPlayerId());
+      }
+    }, 8e3);
     const unsub = onAuthStateChanged(
       auth,
       (user) => {
         if (settled) return;
         if (user == null ? void 0 : user.uid) {
           settled = true;
+          clearTimeout(timeout);
           unsub();
+          console.log("[MP] Auth success:", user.uid.slice(0, 8));
           resolve2(user.uid);
         }
       },
       (err) => {
         if (!settled) {
           settled = true;
+          clearTimeout(timeout);
           unsub();
-          reject(err);
+          console.warn("[MP] Auth error, using local ID:", err.message);
+          resolve2(getLocalPlayerId());
         }
       }
     );
     signInAnonymously(auth).catch((err) => {
       if (!settled) {
         settled = true;
+        clearTimeout(timeout);
         unsub();
-        reject(err);
+        console.warn("[MP] signInAnonymously failed, using local ID:", err.message);
+        resolve2(getLocalPlayerId());
       }
     });
   });
@@ -100944,13 +100967,16 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
     if (!isEnabled) return;
     const services = getServices();
     if (!services) {
-      console.warn("[MP] Sem config Firebase");
+      console.warn("[MP] Sem config Firebase — check __FIREBASE_CONFIG__");
       return;
     }
+    console.log("[MP] Initializing auth...");
     let cancelled = false;
     ensureSignedIn(services.auth).then((id) => {
-      if (!cancelled) setUid(id);
-    }).catch((e2) => console.error("[MP] Auth erro:", e2));
+      if (cancelled) return;
+      console.log("[MP] Ready, player ID:", id.slice(0, 8));
+      setUid(id);
+    }).catch((e2) => console.error("[MP] Auth fatal error:", e2));
     return () => {
       cancelled = true;
     };
@@ -101020,7 +101046,7 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
           await updateDoc(docRef, data);
         }
       } catch (e2) {
-        console.error("[MP] Push erro:", e2);
+        console.error("[MP] Push erro:", (e2 == null ? void 0 : e2.code) || (e2 == null ? void 0 : e2.message) || e2);
       } finally {
         writeInFlight = false;
         if (writeQueued) {
