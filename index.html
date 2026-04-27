@@ -95938,8 +95938,6 @@ const Avatar = ({ animation, visible = true }) => {
     const meshes = [];
     scene.traverse((c2) => {
       if (c2.isMesh) {
-        c2.castShadow = true;
-        c2.receiveShadow = true;
         if (c2.material) {
           c2.material.transparent = true;
           c2.material.depthWrite = true;
@@ -96912,7 +96910,7 @@ const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOpenAmoun
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [12, 26, -18], intensity: 0.3, distance: 100, color: "#7070a0" })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("directionalLight", { position: nightMode ? [12, 26, -18] : [-20, 30, -20], intensity: nightMode ? 0.08 : 1.8, "shadow-mapSize": [2048, 2048] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("directionalLight", { position: nightMode ? [12, 26, -18] : [-20, 30, -20], intensity: nightMode ? 0.08 : 1.8 }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [50, 50] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.grass, color: grassTint, repeat: [12, 12], roughness: 0.8 })
@@ -97002,8 +97000,6 @@ const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }) => {
   reactExports.useEffect(() => {
     scene.traverse((child) => {
       if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
         if (child.material) {
           child.material.side = DoubleSide;
           child.material.transparent = false;
@@ -97215,7 +97211,6 @@ const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2, name: name2, chatMsg
   reactExports.useEffect(() => {
     clonedScene.traverse((c2) => {
       if (c2.isMesh) {
-        c2.castShadow = true;
         if (c2.material) {
           c2.material = c2.material.clone();
           c2.material.transparent = false;
@@ -98672,7 +98667,7 @@ class CanvasErrorBoundary extends reactExports.Component {
   }
 }
 const MAX_JOYSTICK_RADIUS = 50;
-const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
   level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(LobbyEnvironment, { npcPositionRef, isPaused, playerPositionRef }),
   level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(DustParticles, { count: 20, area: 16 }),
   level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(FluorescentFlicker, { intensity: 2.8 }),
@@ -98682,8 +98677,7 @@ const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, np
   level === 1 && /* @__PURE__ */ jsxRuntimeExports.jsx(FlatMapEnvironment, { houseDoorOpen, nightMode, doorOpenAmount }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorInterior, { timer: timer2, doorsClosed, level }),
   level === 1 && /* @__PURE__ */ jsxRuntimeExports.jsx(BarneyActor, { gameState, barneyRef, barneyTargetRef, playerPosRef: playerPositionRef, houseDoorOpen }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(NightAmbient, { active: nightMode && level === 1 }),
-  Object.values(otherPlayers || {}).map((p2) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id: p2.id, x: p2.x, y: p2.y, z: p2.z, ry: p2.ry, state: p2.state, name: p2.name, chatMsg: p2.chatMsg, chatAt: p2.chatAt }, p2.id))
+  /* @__PURE__ */ jsxRuntimeExports.jsx(NightAmbient, { active: nightMode && level === 1 })
 ] }));
 function App() {
   const { settings, update: updateSettings } = useSettings();
@@ -99215,7 +99209,8 @@ function App() {
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
           ] })
         ] }) }), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount }),
+          Object.values(otherPlayers || {}).map((p2) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id: p2.id, x: p2.x, y: p2.y, z: p2.z, ry: p2.ry, state: p2.state, name: p2.name, chatMsg: p2.chatMsg, chatAt: p2.chatAt }, p2.id)),
           /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
           botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
             BotSystem,

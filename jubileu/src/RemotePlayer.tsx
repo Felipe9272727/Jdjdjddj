@@ -27,7 +27,6 @@ export const RemotePlayer = ({ id, x, y, z, ry, state, name, chatMsg, chatAt }: 
     useEffect(() => {
         clonedScene.traverse((c: any) => {
             if (c.isMesh) {
-                c.castShadow = true;
                 if (c.material) {
                     c.material = c.material.clone();
                     c.material.transparent = false;

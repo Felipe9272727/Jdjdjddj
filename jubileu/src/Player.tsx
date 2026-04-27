@@ -29,7 +29,6 @@ const Avatar = ({ animation, visible = true }: any) => {
      const meshes: any[] = [];
      scene.traverse((c: any) => {
        if (c.isMesh) {
-           c.castShadow = true; c.receiveShadow = true;
            if (c.material) {
                c.material.transparent = true; c.material.depthWrite = true; c.material.alphaTest = 0;
                c.material.side = THREE.DoubleSide; c.material.metalness = 0; c.material.roughness = 1;
