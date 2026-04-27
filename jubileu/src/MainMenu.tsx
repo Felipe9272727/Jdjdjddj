@@ -140,7 +140,7 @@ export const MainMenu = ({ onPlay }: any) => {
               </button>
             </div>
 
-            <div className="pt-8 pb-4 flex justify-center landscape:hidden">
+            <div className="pt-4 pb-2 flex justify-center landscape:hidden shrink-0">
               <div className="relative">
                 <div className="w-20 h-10 bg-black/80 border border-amber-500/30 rounded-sm flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.2)]">
                   <span className="text-amber-400 text-2xl font-mono font-bold tracking-wider" style={{ textShadow: '0 0 10px rgba(251,191,36,0.5)' }}>03</span>
@@ -149,9 +149,9 @@ export const MainMenu = ({ onPlay }: any) => {
               </div>
             </div>
             
-            <div className="flex-1 flex flex-col items-center justify-center px-6 min-h-0 overflow-y-auto landscape:justify-center">
-              <div className="relative mb-8 landscape:hidden" style={{ animationDelay: '0.3s' }}>
-                <div className="w-32 h-44 sm:w-40 sm:h-56 max-w-[45vw] border-4 border-[#2a2a2a] rounded-t-lg bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]">
+            <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 min-h-0 overflow-y-auto landscape:justify-center scrollbar-hide">
+              <div className="relative mb-4 sm:mb-8 landscape:hidden shrink-0" style={{ animationDelay: '0.3s' }}>
+                <div className="w-28 h-36 sm:w-40 sm:h-56 max-w-[40vw] max-h-[30vh] border-4 border-[#2a2a2a] rounded-t-lg bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]">
                   <div className="absolute inset-2 bg-gradient-to-b from-amber-500/5 to-transparent rounded-t" />
                   <div className="absolute top-3 left-1/2 -translate-x-1/2 w-16 h-6 bg-black rounded-sm border border-amber-500/20 flex items-center justify-center">
                     <span className="text-amber-400/80 text-sm font-mono">▲ 03</span>
@@ -169,7 +169,7 @@ export const MainMenu = ({ onPlay }: any) => {
                 <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-48 h-4 bg-gradient-to-t from-transparent to-amber-500/10 blur-sm" />
               </div>
               
-              <div className="text-center mb-6 landscape:mb-4 flex-shrink-0">
+              <div className="text-center mb-3 sm:mb-6 landscape:mb-4 shrink-0">
                 <p className="text-amber-500/50 text-xs uppercase tracking-[0.5em] mb-2 font-light landscape:hidden">Bem-vindo ao</p>
                 <div className="landscape:hidden">
                   <h1 className="font-black text-white mb-1 leading-none" style={{ fontSize: 'clamp(2rem, 9vw, 3rem)', textShadow: '0 0 40px rgba(255,255,255,0.1)' }}>
@@ -190,7 +190,7 @@ export const MainMenu = ({ onPlay }: any) => {
                 </div>
               </div>
               
-              <p className="text-white/30 text-center text-sm max-w-xs leading-relaxed landscape:hidden">
+              <p className="text-white/30 text-center text-xs sm:text-sm max-w-xs leading-relaxed landscape:hidden mb-2">
                 Uma experiência liminal interativa.<br/>
                 <span className="text-amber-500/40">Por favor, permaneça calmo.</span>
               </p>
@@ -233,8 +233,8 @@ export const MainMenu = ({ onPlay }: any) => {
 
             </div>
             
-            <div className="p-6 pb-10 sticky bottom-0 bg-gradient-to-t from-black via-black/90 to-transparent z-40 landscape:hidden">
-              <div className="flex flex-col gap-2 border border-white/10 rounded-lg mb-4 bg-black/50 backdrop-blur-md p-4">
+            <div className="p-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent z-40 landscape:hidden shrink-0">
+              <div className="flex flex-col gap-2 border border-white/10 rounded-lg mb-3 bg-black/50 backdrop-blur-md p-3">
                  <div className="flex items-center justify-between">
                      <span className="text-white/70 text-sm font-mono tracking-widest">MULTIPLAYER</span>
                      <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
@@ -259,7 +259,7 @@ export const MainMenu = ({ onPlay }: any) => {
                 <div className="absolute -inset-1 bg-gradient-to-r from-amber-500/50 via-yellow-400/50 to-amber-500/50 rounded-lg blur-lg opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
                 <div className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-lg">
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                  <div className="relative flex items-center justify-center gap-3 px-8 py-5 text-black font-bold text-lg tracking-widest">
+                  <div className="relative flex items-center justify-center gap-3 px-6 py-4 text-black font-bold text-base sm:text-lg tracking-widest">
                     <span className="group-hover:tracking-[0.3em] transition-all duration-300">ENTRAR</span>
                     <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z"/>
