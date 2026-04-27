@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { QUALITY_PROFILES } from '../settings';
+import { QUALITY_PROFILES } from '../Settings';
 
 describe('Settings', () => {
   describe('QUALITY_PROFILES', () => {
