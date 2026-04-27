@@ -1,0 +1,2981 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Normal Elevator — Readable Build</title>
+
+  <!-- ============================================
+       The Normal Elevator — Single-file readable build
+       All code is unminified and commented.
+       Dependencies loaded from esm.sh CDN.
+       ============================================ -->
+
+  <!-- Tailwind CSS v4 via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Firebase config -->
+  <script>
+    window.__FIREBASE_CONFIG__ = {
+      apiKey:            "AIzaSyDwknFvArDiMCFCP3tfdu--UbCxgpFolZY",
+      authDomain:        "meu-jogo-62061.firebaseapp.com",
+      projectId:         "meu-jogo-62061",
+      storageBucket:     "meu-jogo-62061.firebasestorage.app",
+      messagingSenderId: "445197388642",
+      appId:             "1:445197388642:web:edcbda79ea703432407a3b",
+      measurementId:     "G-E6QBBBRB95",
+      firestoreDatabaseId: "(default)"
+    };
+  </script>
+
+  <!-- Import map: maps bare specifiers to CDN URLs -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react":                "https://esm.sh/react@19.2.5",
+      "react/":              "https://esm.sh/react@19.2.5/",
+      "react-dom/client":    "https://esm.sh/react-dom@19.2.5/client",
+      "three":               "https://esm.sh/three@0.184.0",
+      "three/":              "https://esm.sh/three@0.184.0/",
+      "@react-three/fiber":  "https://esm.sh/@react-three/fiber@9.6.0?external=react,three",
+      "@react-three/drei":   "https://esm.sh/@react-three/drei@10.7.7?external=react,three,@react-three/fiber",
+      "firebase/app":        "https://esm.sh/firebase@11/app",
+      "firebase/auth":       "https://esm.sh/firebase@11/auth",
+      "firebase/firestore":  "https://esm.sh/firebase@11/firestore"
+    }
+  }
+  </script>
+
+  <!-- Custom CSS (readable, not minified) -->
+  <style>
+    /* ==========================================
+       Base styles
+       ========================================== */
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #050505;
+      touch-action: none;
+      overscroll-behavior: none;
+    }
+    #root {
+      width: 100vw;
+      height: 100vh;
+    }
+    .no-select {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* ==========================================
+       Animations
+       ========================================== */
+    @keyframes fade-in {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    .animate-fade-in {
+      animation: fade-in 0.8s ease-out forwards;
+    }
+
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in-up {
+      animation: fade-in-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes slide-in-right {
+      from { opacity: 0; transform: translateX(40px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .animate-slide-in-right {
+      animation: slide-in-right 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes slide-in-left {
+      from { opacity: 0; transform: translateX(-40px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .animate-slide-in-left {
+      animation: slide-in-left 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes scale-in {
+      from { opacity: 0; transform: scale(0.9); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    .animate-scale-in {
+      animation: scale-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .stagger-1 { animation-delay: 0.05s; opacity: 0; }
+    .stagger-2 { animation-delay: 0.1s;  opacity: 0; }
+    .stagger-3 { animation-delay: 0.15s; opacity: 0; }
+    .stagger-4 { animation-delay: 0.2s;  opacity: 0; }
+    .stagger-5 { animation-delay: 0.25s; opacity: 0; }
+
+    @keyframes glow-pulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.3); }
+      50%      { box-shadow: 0 0 40px rgba(251, 191, 36, 0.6); }
+    }
+    .glow-pulse {
+      animation: glow-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes barney-glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
+      50%      { box-shadow: 0 0 40px rgba(168, 85, 247, 0.8), inset 0 0 10px rgba(168, 85, 247, 0.3); }
+    }
+    .barney-glow {
+      animation: barney-glow 2.5s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50%      { transform: translateY(-10px); }
+    }
+    .animate-float {
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes glitch {
+      0%, 90%, 100% { transform: translate(0); }
+      92% { transform: translate(-2px, 2px); }
+      94% { transform: translate(2px, -2px); }
+      96% { transform: translate(-2px, -2px); }
+      98% { transform: translate(2px, 2px); }
+    }
+    .glitch-hover:hover {
+      animation: glitch 0.3s ease-in-out;
+    }
+
+    @keyframes shimmer {
+      0%   { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .shimmer {
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      background-size: 200% 100%;
+      animation: shimmer 2s infinite;
+    }
+
+    @keyframes pop-in {
+      0%   { transform: scale(0); opacity: 0; }
+      80%  { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .speech-bubble {
+      animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      background: transparent;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 16px; width: 16px;
+      border-radius: 50%;
+      background: #fff;
+      cursor: pointer;
+      margin-top: -6px;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%; height: 4px;
+      cursor: pointer;
+      background: rgba(255,255,255,0.2);
+      border-radius: 2px;
+    }
+
+    .dialogue-scroll::-webkit-scrollbar { width: 4px; }
+    .dialogue-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); border-radius: 2px; }
+    .dialogue-scroll::-webkit-scrollbar-thumb { background: rgba(251,191,36,0.5); border-radius: 2px; }
+
+    @keyframes floor-reveal {
+      0%   { opacity: 0; transform: scale(0.7); filter: blur(20px); }
+      20%  { opacity: 1; transform: scale(1.05); filter: blur(0); }
+      80%  { opacity: 1; transform: scale(1); filter: blur(0); }
+      100% { opacity: 0; transform: scale(1.1); filter: blur(8px); }
+    }
+    .animate-floor-reveal {
+      animation: floor-reveal 3s ease-out forwards;
+    }
+
+    @keyframes vignette-pulse {
+      0%, 100% { box-shadow: inset 0 0 150px 20px rgba(0,0,0,0.9); }
+      50%      { box-shadow: inset 0 0 200px 40px rgba(0,0,0,1); }
+    }
+    .traveling-vignette {
+      animation: vignette-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes jumpscare {
+      0%   { transform: scale(0.3); opacity: 0; filter: blur(20px); }
+      10%  { transform: scale(1.5) rotate(-3deg); opacity: 1; filter: blur(0); }
+      50%  { transform: scale(1.2) rotate(2deg); opacity: 1; }
+      100% { transform: scale(1.4); opacity: 1; }
+    }
+    .animate-jumpscare {
+      animation: jumpscare 0.5s ease-out forwards;
+    }
+
+    @keyframes dialogue-popup {
+      0%   { opacity: 0; transform: translateY(40px) scale(0.85); }
+      60%  { opacity: 1; transform: translateY(-6px) scale(1.02); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .animate-dialogue-popup {
+      animation: dialogue-popup 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+
+    @keyframes barney-dialogue-entrance {
+      0%   { opacity: 0; transform: translateY(100px) scale(0.8) rotate(-4deg); filter: blur(10px); }
+      50%  { opacity: 1; transform: translateY(-10px) scale(1.05) rotate(2deg); filter: blur(0); }
+      75%  { transform: translateY(5px) scale(0.98) rotate(-1deg); }
+      100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+    }
+    .animate-barney-dialogue {
+      animation: barney-dialogue-entrance 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    @keyframes barney-image-bounce {
+      0%, 100% { transform: translateY(0) scale(1.2); }
+      50%      { transform: translateY(-3px) scale(1.22); }
+    }
+    .animate-barney-bounce {
+      animation: barney-image-bounce 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- ============================================
+       Game code — bundled but NOT minified.
+       All variable names, functions, and structure
+       are preserved and readable.
+       Loaded as ES module with importmap.
+       ============================================ -->
+  <script type="module">
+// src/main.tsx
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+
+// src/App.tsx
+import { useState as useState8, useEffect as useEffect8, useRef as useRef8, useCallback, Suspense } from "react";
+import { Canvas } from "@react-three/fiber";
+import { Html as Html3, Loader } from "@react-three/drei";
+import { Vector3 as Vector34 } from "three";
+
+// src/AudioEngine.tsx
+import { useEffect, useRef } from "react";
+var LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode }) => {
+  const lobbyGainRef = useRef(null);
+  const masterGainRef = useRef(null);
+  const lobbyReadyRef = useRef(false);
+  const sourceRef = useRef(null);
+  const barneySourceRef = useRef(null);
+  const barneyBufferRef = useRef(null);
+  const barneyGainRef = useRef(null);
+  const barneyFilterRef = useRef(null);
+  const crossfadeRef = useRef({ active: false, startTime: 0, duration: 3, from: "lobby", to: "elevator" });
+  const tracksRef = useRef({
+    lobby: { active: true, volume: 1, nextNoteTime: 0, beatCount: 0 },
+    elevator: { active: false, volume: 0, nextNoteTime: 0, beatCount: 0 }
+  });
+  const distortModeRef = useRef(false);
+  const schedulerTimerRef = useRef(null);
+  useEffect(() => {
+    distortModeRef.current = !!nightMode;
+  }, [nightMode]);
+  const setupReverb = (ctx, destination) => {
+    const convolver = ctx.createConvolver();
+    const length = ctx.sampleRate * 1.5;
+    const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+    for (let i = 0; i < length; i++) {
+      const n = i / length;
+      const env = Math.pow(1 - n, 3);
+      impulse.getChannelData(0)[i] = (Math.random() * 2 - 1) * env;
+      impulse.getChannelData(1)[i] = (Math.random() * 2 - 1) * env;
+    }
+    convolver.buffer = impulse;
+    const wetGain = ctx.createGain();
+    wetGain.gain.value = 0.08;
+    const dryGain = ctx.createGain();
+    dryGain.gain.value = 1;
+    const input = ctx.createGain();
+    input.connect(convolver);
+    convolver.connect(wetGain);
+    input.connect(dryGain);
+    wetGain.connect(destination);
+    dryGain.connect(destination);
+    return input;
+  };
+  const playDoorCloseSound = (ctx, dest) => {
+    const t = ctx.currentTime;
+    const dingOsc = ctx.createOscillator();
+    dingOsc.frequency.setValueAtTime(784, t);
+    const dingGain = ctx.createGain();
+    dingGain.gain.setValueAtTime(0.1, t);
+    dingGain.gain.exponentialRampToValueAtTime(1e-3, t + 2);
+    dingOsc.connect(dingGain);
+    dingGain.connect(dest);
+    dingOsc.start(t);
+    dingOsc.stop(t + 2);
+    const motorOsc = ctx.createOscillator();
+    motorOsc.type = "sawtooth";
+    motorOsc.frequency.setValueAtTime(50, t + 0.2);
+    motorOsc.frequency.linearRampToValueAtTime(40, t + 1.2);
+    const motorGain = ctx.createGain();
+    motorGain.gain.setValueAtTime(0, t + 0.2);
+    motorGain.gain.linearRampToValueAtTime(0.05, t + 0.3);
+    motorGain.gain.linearRampToValueAtTime(0, t + 1.2);
+    const motorFilter = ctx.createBiquadFilter();
+    motorFilter.type = "lowpass";
+    motorFilter.frequency.value = 200;
+    motorOsc.connect(motorFilter);
+    motorFilter.connect(motorGain);
+    motorGain.connect(dest);
+    motorOsc.start(t + 0.2);
+    motorOsc.stop(t + 1.2);
+    const thudOsc = ctx.createOscillator();
+    thudOsc.type = "sine";
+    thudOsc.frequency.setValueAtTime(60, t + 1.1);
+    thudOsc.frequency.exponentialRampToValueAtTime(20, t + 1.3);
+    const thudGain = ctx.createGain();
+    thudGain.gain.setValueAtTime(0, t + 1.1);
+    thudGain.gain.linearRampToValueAtTime(0.2, t + 1.15);
+    thudGain.gain.exponentialRampToValueAtTime(1e-3, t + 1.4);
+    thudOsc.connect(thudGain);
+    thudGain.connect(dest);
+    thudOsc.start(t + 1.1);
+    thudOsc.stop(t + 1.4);
+  };
+  useEffect(() => {
+    if (masterGainRef.current && audioContext) masterGainRef.current.gain.setTargetAtTime(muted ? 0 : 1, audioContext.currentTime, 0.1);
+  }, [muted, audioContext]);
+  useEffect(() => {
+    if (doorTrigger > 0 && audioContext && masterGainRef.current) {
+      playDoorCloseSound(audioContext, masterGainRef.current);
+      const now = audioContext.currentTime;
+      crossfadeRef.current = { active: true, startTime: now, duration: 3, from: "lobby", to: "elevator" };
+      tracksRef.current.elevator.active = true;
+      tracksRef.current.elevator.volume = 0;
+      tracksRef.current.elevator.nextNoteTime = now;
+      tracksRef.current.elevator.beatCount = 0;
+    }
+  }, [doorTrigger, audioContext]);
+  const schedulerRef = useRef(null);
+  schedulerRef.current = () => {
+    const ctx = audioContext;
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    if (crossfadeRef.current.active) {
+      const { startTime, duration, from, to } = crossfadeRef.current;
+      const elapsed = now - startTime;
+      if (elapsed >= duration) {
+        tracksRef.current[from].active = false;
+        tracksRef.current[from].volume = 0;
+        tracksRef.current[to].volume = 1;
+        crossfadeRef.current.active = false;
+      } else {
+        const t = elapsed / duration;
+        tracksRef.current[from].volume = 1 - t;
+        tracksRef.current[to].volume = t;
+      }
+    }
+    if (lobbyGainRef.current) lobbyGainRef.current.gain.setTargetAtTime(tracksRef.current.lobby.volume, now, 0.05);
+    const elevatorTrack = tracksRef.current.elevator;
+    if (barneyGainRef.current) {
+      barneyGainRef.current.gain.setTargetAtTime(elevatorTrack.active ? elevatorTrack.volume * 0.7 : 0, now, 0.1);
+    }
+    if (elevatorTrack.active && !barneySourceRef.current && barneyBufferRef.current && barneyGainRef.current && barneyFilterRef.current) {
+      const src = ctx.createBufferSource();
+      src.buffer = barneyBufferRef.current;
+      src.loop = true;
+      src.connect(barneyFilterRef.current);
+      src.start(0);
+      barneySourceRef.current = src;
+    }
+    if (barneySourceRef.current && barneyFilterRef.current) {
+      const distorted = distortModeRef.current;
+      const targetRate = distorted ? 0.65 : 1;
+      try {
+        barneySourceRef.current.playbackRate.setTargetAtTime(targetRate, now, 0.5);
+      } catch (e) {
+      }
+      try {
+        if (barneySourceRef.current.detune) barneySourceRef.current.detune.setTargetAtTime(distorted ? -300 : 0, now, 0.5);
+      } catch (e) {
+      }
+      try {
+        barneyFilterRef.current.frequency.setTargetAtTime(distorted ? 1200 : 2e4, now, 0.3);
+      } catch (e) {
+      }
+      try {
+        barneyFilterRef.current.Q.setTargetAtTime(distorted ? 3 : 1, now, 0.3);
+      } catch (e) {
+      }
+    }
+    if (!elevatorTrack.active && barneySourceRef.current && barneyGainRef.current && barneyGainRef.current.gain.value < 0.01) {
+      try {
+        barneySourceRef.current.stop();
+      } catch (e) {
+      }
+      try {
+        barneySourceRef.current.disconnect();
+      } catch (e) {
+      }
+      barneySourceRef.current = null;
+    }
+  };
+  useEffect(() => {
+    if (!audioContext) return;
+    const ctx = audioContext;
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -12;
+    compressor.ratio.value = 4;
+    const makeupGain = ctx.createGain();
+    makeupGain.gain.value = 2.5;
+    compressor.connect(makeupGain);
+    makeupGain.connect(ctx.destination);
+    const reverbInput = setupReverb(ctx, compressor);
+    masterGainRef.current = reverbInput;
+    const lobbyGain = ctx.createGain();
+    lobbyGain.gain.value = 1;
+    lobbyGain.connect(reverbInput);
+    lobbyGainRef.current = lobbyGain;
+    const barneyGain = ctx.createGain();
+    barneyGain.gain.value = 0;
+    const barneyFilter = ctx.createBiquadFilter();
+    barneyFilter.type = "lowpass";
+    barneyFilter.frequency.value = 2e4;
+    barneyFilter.Q.value = 1;
+    barneyFilter.connect(barneyGain);
+    barneyGain.connect(reverbInput);
+    barneyGainRef.current = barneyGain;
+    barneyFilterRef.current = barneyFilter;
+    let isMounted = true;
+    if (!sourceRef.current) {
+      fetch("https://raw.githubusercontent.com/Felipe9272727/M-sica-pro-meu-jogo/main/Lobby%20Time(MP3_160K).mp3").then((r) => r.arrayBuffer()).then((b) => ctx.decodeAudioData(b)).then((audioBuf) => {
+        if (!isMounted || sourceRef.current) return;
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuf;
+        source.loop = true;
+        source.connect(lobbyGain);
+        source.start(0);
+        sourceRef.current = source;
+        lobbyReadyRef.current = true;
+      }).catch((e) => console.error("Error loading lobby music:", e));
+    }
+    if (!barneyBufferRef.current) {
+      fetch("https://archive.org/download/barneysgreatesthits/Barney%20Theme%20Song.mp3").then((r) => r.arrayBuffer()).then((b) => ctx.decodeAudioData(b)).then((audioBuf) => {
+        if (!isMounted) return;
+        barneyBufferRef.current = audioBuf;
+      }).catch((e) => console.error("Error loading Barney music:", e));
+    }
+    schedulerTimerRef.current = setInterval(() => {
+      if (schedulerRef.current) schedulerRef.current();
+    }, 100);
+    return () => {
+      isMounted = false;
+      if (schedulerTimerRef.current) clearInterval(schedulerTimerRef.current);
+      if (sourceRef.current) {
+        try {
+          sourceRef.current.stop();
+        } catch (e) {
+        }
+        try {
+          sourceRef.current.disconnect();
+        } catch (e) {
+        }
+        sourceRef.current = null;
+      }
+      if (barneySourceRef.current) {
+        try {
+          barneySourceRef.current.stop();
+        } catch (e) {
+        }
+        try {
+          barneySourceRef.current.disconnect();
+        } catch (e) {
+        }
+        barneySourceRef.current = null;
+      }
+      try {
+        lobbyGain.disconnect();
+      } catch (e) {
+      }
+      try {
+        barneyGain.disconnect();
+      } catch (e) {
+      }
+      try {
+        barneyFilter.disconnect();
+      } catch (e) {
+      }
+      try {
+        reverbInput.disconnect();
+      } catch (e) {
+      }
+      try {
+        compressor.disconnect();
+      } catch (e) {
+      }
+      try {
+        makeupGain.disconnect();
+      } catch (e) {
+      }
+    };
+  }, [audioContext]);
+  return null;
+};
+
+// src/MainMenu.tsx
+import { useState as useState3, useEffect as useEffect3 } from "react";
+
+// src/Multiplayer.tsx
+import { useEffect as useEffect2, useRef as useRef2, useState as useState2 } from "react";
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, serverTimestamp } from "firebase/firestore";
+
+// firebase-applet-config.json
+var firebase_applet_config_default = {
+  projectId: "gen-lang-client-0039518806",
+  appId: "1:847113182733:web:2ac1e54d3fca7bf8eebf44",
+  apiKey: "AIzaSyBoxCmvx_ArDxoRId_T7Rgpsb85qCIfaq0",
+  authDomain: "gen-lang-client-0039518806.firebaseapp.com",
+  firestoreDatabaseId: "ai-studio-96e7dfb7-10f4-4970-8205-615b0e005bcf",
+  storageBucket: "gen-lang-client-0039518806.firebasestorage.app",
+  messagingSenderId: "847113182733",
+  measurementId: ""
+};
+
+// src/Multiplayer.tsx
+import { Vector3 } from "three";
+var app = getApps().length === 0 ? initializeApp(firebase_applet_config_default) : getApps()[0];
+var db = getFirestore(app, firebase_applet_config_default.firestoreDatabaseId);
+var auth = getAuth(app);
+var useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled) => {
+  const [user, setUser] = useState2(null);
+  const [otherPlayers, setOtherPlayers] = useState2({});
+  const updateTimerId = useRef2(null);
+  useEffect2(() => {
+    return onAuthStateChanged(auth, (u) => setUser(u));
+  }, []);
+  const login = async () => {
+    await signInAnonymously(auth);
+  };
+  useEffect2(() => {
+    if (!isEnabled || !user) return;
+    const q = query(
+      collection(db, "worlds/main/players"),
+      where("worldId", "==", "main"),
+      where("isActive", "==", true)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const players = {};
+      snap.forEach((d) => {
+        if (d.id !== user.uid) {
+          players[d.id] = { id: d.id, ...d.data() };
+        }
+      });
+      setOtherPlayers(players);
+    }, (err) => console.error("Firestore error:", err));
+    return () => unsub();
+  }, [isEnabled, user]);
+  useEffect2(() => {
+    if (!isEnabled || !user) return;
+    const docRef = doc(db, "worlds/main/players", user.uid);
+    let lastPos = new Vector3();
+    let lastRot = 0;
+    let lastTime = 0;
+    let isInitialized = false;
+    const forceUpdate = async () => {
+      try {
+        const data = {
+          x: playerPositionRef.current.x,
+          y: playerPositionRef.current.y,
+          z: playerPositionRef.current.z,
+          ry: rotationYRef.current,
+          updatedAt: serverTimestamp(),
+          state: playerState,
+          worldId: "main",
+          isActive: true
+        };
+        if (!isInitialized) {
+          await setDoc(docRef, data);
+          isInitialized = true;
+        } else {
+          await updateDoc(docRef, {
+            x: data.x,
+            y: data.y,
+            z: data.z,
+            ry: data.ry,
+            updatedAt: data.updatedAt,
+            state: data.state,
+            isActive: data.isActive
+          });
+        }
+      } catch (err) {
+        console.error("Failed to update position:", err);
+        if (err?.message?.includes("offline")) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
+    };
+    forceUpdate();
+    updateTimerId.current = setInterval(() => {
+      const currentPos = playerPositionRef.current;
+      const currentRot = rotationYRef.current;
+      const now = Date.now();
+      const dist = currentPos.distanceTo(lastPos);
+      const rotDiff = Math.abs(currentRot - lastRot);
+      if (dist > 0.1 || rotDiff > 0.1 || now - lastTime > 2500) {
+        forceUpdate();
+        lastPos.copy(currentPos);
+        lastRot = currentRot;
+        lastTime = now;
+      }
+    }, 100);
+    const handleUnload = () => {
+      updateDoc(docRef, {
+        isActive: false,
+        updatedAt: serverTimestamp()
+      }).catch(console.error);
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => {
+      clearInterval(updateTimerId.current);
+      window.removeEventListener("beforeunload", handleUnload);
+      handleUnload();
+    };
+  }, [isEnabled, user, playerState, playerPositionRef, rotationYRef]);
+  return { user, login, otherPlayers };
+};
+
+// src/MainMenu.tsx
+import { jsx, jsxs } from "react/jsx-runtime";
+var MainMenu = ({ onPlay }) => {
+  const [doorPosition, setDoorPosition] = useState3(0);
+  const [showContent, setShowContent] = useState3(false);
+  const [flickerOpacity, setFlickerOpacity] = useState3(1);
+  const [multiplayerEnabled, setMultiplayerEnabled] = useState3(false);
+  const [isLoggingIn, setIsLoggingIn] = useState3(false);
+  const [loginError, setLoginError] = useState3("");
+  const [copiedLink, setCopiedLink] = useState3(false);
+  const { user, login } = useMultiplayer({ current: null }, { current: 0 }, "idle", false);
+  const handlePlay = async () => {
+    if (multiplayerEnabled && !user) {
+      setIsLoggingIn(true);
+      setLoginError("");
+      try {
+        await login();
+      } catch (e) {
+        console.error(e);
+        setIsLoggingIn(false);
+        if (e.code === "auth/unauthorized-domain") {
+          setLoginError("Erro: Este site n\xE3o est\xE1 autorizado no Firebase. Adicione o dom\xEDnio no painel do Firebase Authentication (Dom\xEDnios Autorizados).");
+        } else if (e.code === "auth/popup-closed-by-user") {
+          setLoginError("Erro: Voc\xEA fechou a janela de login antes de concluir.");
+        } else {
+          setLoginError("Erro ao fazer login: " + e.message);
+        }
+        return;
+      }
+      setIsLoggingIn(false);
+    }
+    onPlay(multiplayerEnabled);
+  };
+  const handleShare = () => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2e3);
+    }
+  };
+  useEffect3(() => {
+    const doorTimer = setTimeout(() => {
+      setDoorPosition(100);
+    }, 500);
+    const contentTimer = setTimeout(() => {
+      setShowContent(true);
+    }, 1200);
+    let flickerTimeout = null;
+    const flickerInterval = setInterval(() => {
+      if (Math.random() > 0.95) {
+        setFlickerOpacity(0.7);
+        flickerTimeout = setTimeout(() => setFlickerOpacity(1), 100);
+      }
+    }, 200);
+    return () => {
+      clearTimeout(doorTimer);
+      clearTimeout(contentTimer);
+      clearInterval(flickerInterval);
+      if (flickerTimeout) clearTimeout(flickerTimeout);
+    };
+  }, []);
+  return /* @__PURE__ */ jsxs("div", { className: "absolute inset-0 z-50 overflow-hidden bg-black", children: [
+    /* @__PURE__ */ jsxs("div", { className: "absolute inset-0", style: { opacity: flickerOpacity, transition: "opacity 0.05s" }, children: [
+      /* @__PURE__ */ jsx("div", { className: "absolute inset-0 bg-gradient-to-b from-[#0a0a0f] via-[#0d0d15] to-[#05050a]" }),
+      /* @__PURE__ */ jsx("div", { className: "absolute top-0 left-1/2 -translate-x-1/2 w-[200%] h-[60%] bg-gradient-to-b from-amber-500/[0.03] via-transparent to-transparent", style: { clipPath: "polygon(40% 0%, 60% 0%, 80% 100%, 20% 100%)" } }),
+      /* @__PURE__ */ jsx("div", { className: "absolute inset-0 overflow-hidden", children: [...Array(30)].map((_, i) => /* @__PURE__ */ jsx(
+        "div",
+        {
+          className: "absolute w-1 h-1 bg-yellow-200/30 rounded-full",
+          style: {
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animation: `float ${5 + Math.random() * 10}s ease-in-out infinite`,
+            animationDelay: `${Math.random() * 5}s`,
+            transform: `scale(${0.5 + Math.random() * 1})`
+          }
+        },
+        i
+      )) }),
+      /* @__PURE__ */ jsx("div", { className: "absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.7)_100%)]" })
+    ] }),
+    /* @__PURE__ */ jsxs("div", { className: "absolute inset-0 pointer-events-none z-10", children: [
+      /* @__PURE__ */ jsxs(
+        "div",
+        {
+          className: "absolute top-0 bottom-0 left-0 w-1/2 bg-gradient-to-r from-[#1a1a1a] via-[#252525] to-[#1f1f1f] border-r border-white/5 shadow-2xl",
+          style: {
+            transform: `translateX(-${doorPosition}%)`,
+            transition: "transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)"
+          },
+          children: [
+            /* @__PURE__ */ jsx("div", { className: "absolute right-4 top-4 bottom-4 w-1 bg-gradient-to-b from-transparent via-white/5 to-transparent" }),
+            /* @__PURE__ */ jsx("div", { className: "absolute right-8 top-1/2 -translate-y-1/2 w-6 h-24 rounded-full bg-white/5" }),
+            /* @__PURE__ */ jsx("div", { className: "absolute inset-4 border border-white/[0.03] rounded-sm" })
+          ]
+        }
+      ),
+      /* @__PURE__ */ jsxs(
+        "div",
+        {
+          className: "absolute top-0 bottom-0 right-0 w-1/2 bg-gradient-to-l from-[#1a1a1a] via-[#252525] to-[#1f1f1f] border-l border-white/5 shadow-2xl",
+          style: {
+            transform: `translateX(${doorPosition}%)`,
+            transition: "transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)"
+          },
+          children: [
+            /* @__PURE__ */ jsx("div", { className: "absolute left-4 top-4 bottom-4 w-1 bg-gradient-to-b from-transparent via-white/5 to-transparent" }),
+            /* @__PURE__ */ jsx("div", { className: "absolute left-8 top-1/2 -translate-y-1/2 w-6 h-24 rounded-full bg-white/5" }),
+            /* @__PURE__ */ jsx("div", { className: "absolute inset-4 border border-white/[0.03] rounded-sm" })
+          ]
+        }
+      )
+    ] }),
+    /* @__PURE__ */ jsxs("div", { className: `absolute inset-0 z-20 flex flex-col transition-all duration-1000 ${showContent ? "opacity-100" : "opacity-0"}`, children: [
+      /* @__PURE__ */ jsxs("div", { className: "md:hidden flex flex-col h-full pointer-events-auto", children: [
+        /* @__PURE__ */ jsx("div", { className: "absolute top-6 right-6 z-50", children: /* @__PURE__ */ jsx(
+          "button",
+          {
+            onClick: () => {
+              if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch((e) => {
+              });
+              else if (document.exitFullscreen) document.exitFullscreen().catch((e) => {
+              });
+            },
+            className: "p-2 text-white/50 hover:text-white transition-colors bg-white/5 rounded-full backdrop-blur-sm",
+            children: /* @__PURE__ */ jsx("svg", { className: "w-6 h-6", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 1.5, d: "M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" }) })
+          }
+        ) }),
+        /* @__PURE__ */ jsx("div", { className: "pt-8 pb-4 flex justify-center landscape:hidden", children: /* @__PURE__ */ jsxs("div", { className: "relative", children: [
+          /* @__PURE__ */ jsx("div", { className: "w-20 h-10 bg-black/80 border border-amber-500/30 rounded-sm flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.2)]", children: /* @__PURE__ */ jsx("span", { className: "text-amber-400 text-2xl font-mono font-bold tracking-wider", style: { textShadow: "0 0 10px rgba(251,191,36,0.5)" }, children: "03" }) }),
+          /* @__PURE__ */ jsx("div", { className: "absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-gradient-to-r from-transparent via-amber-500/50 to-transparent" })
+        ] }) }),
+        /* @__PURE__ */ jsxs("div", { className: "flex-1 flex flex-col items-center justify-center px-6 min-h-0 overflow-y-auto landscape:justify-center", children: [
+          /* @__PURE__ */ jsxs("div", { className: "relative mb-8 landscape:hidden", style: { animationDelay: "0.3s" }, children: [
+            /* @__PURE__ */ jsxs("div", { className: "w-40 h-56 border-4 border-[#2a2a2a] rounded-t-lg bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]", children: [
+              /* @__PURE__ */ jsx("div", { className: "absolute inset-2 bg-gradient-to-b from-amber-500/5 to-transparent rounded-t" }),
+              /* @__PURE__ */ jsx("div", { className: "absolute top-3 left-1/2 -translate-x-1/2 w-16 h-6 bg-black rounded-sm border border-amber-500/20 flex items-center justify-center", children: /* @__PURE__ */ jsx("span", { className: "text-amber-400/80 text-sm font-mono", children: "\u25B2 03" }) }),
+              /* @__PURE__ */ jsxs("div", { className: "absolute bottom-0 left-2 right-2 top-12 flex gap-0.5", children: [
+                /* @__PURE__ */ jsx("div", { className: "flex-1 bg-gradient-to-r from-[#333] to-[#2a2a2a] rounded-t-sm border-t border-l border-white/5" }),
+                /* @__PURE__ */ jsx("div", { className: "flex-1 bg-gradient-to-l from-[#333] to-[#2a2a2a] rounded-t-sm border-t border-r border-white/5" })
+              ] }),
+              /* @__PURE__ */ jsxs("div", { className: "absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-20 bg-[#1a1a1a] rounded-r border border-white/5 flex flex-col items-center justify-center gap-2 py-2", children: [
+                /* @__PURE__ */ jsx("div", { className: "w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" }),
+                /* @__PURE__ */ jsx("div", { className: "w-2 h-2 rounded-full bg-white/20" }),
+                /* @__PURE__ */ jsx("div", { className: "w-2 h-2 rounded-full bg-white/20" })
+              ] })
+            ] }),
+            /* @__PURE__ */ jsx("div", { className: "absolute -bottom-4 left-1/2 -translate-x-1/2 w-48 h-4 bg-gradient-to-t from-transparent to-amber-500/10 blur-sm" })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "text-center mb-6 landscape:mb-4 flex-shrink-0", children: [
+            /* @__PURE__ */ jsx("p", { className: "text-amber-500/50 text-xs uppercase tracking-[0.5em] mb-2 font-light landscape:hidden", children: "Bem-vindo ao" }),
+            /* @__PURE__ */ jsxs("div", { className: "landscape:hidden", children: [
+              /* @__PURE__ */ jsx("h1", { className: "text-5xl font-black text-white mb-1", style: { textShadow: "0 0 40px rgba(255,255,255,0.1)" }, children: "THE NORMAL" }),
+              /* @__PURE__ */ jsx("h2", { className: "text-3xl font-thin text-amber-400 tracking-[0.3em] uppercase", style: { textShadow: "0 0 20px rgba(251,191,36,0.3)" }, children: "ELEVATOR" })
+            ] }),
+            /* @__PURE__ */ jsxs("div", { className: "hidden landscape:flex items-center justify-center gap-2", children: [
+              /* @__PURE__ */ jsx("h1", { className: "text-3xl font-black text-white", style: { textShadow: "0 0 20px rgba(255,255,255,0.1)" }, children: "THE NORMAL" }),
+              /* @__PURE__ */ jsx("h2", { className: "text-3xl font-thin text-amber-400 tracking-widest uppercase", style: { textShadow: "0 0 10px rgba(251,191,36,0.3)" }, children: "ELEVATOR" })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxs("p", { className: "text-white/30 text-center text-sm max-w-xs leading-relaxed landscape:hidden", children: [
+            "Uma experi\xEAncia liminal interativa.",
+            /* @__PURE__ */ jsx("br", {}),
+            /* @__PURE__ */ jsx("span", { className: "text-amber-500/40", children: "Por favor, permane\xE7a calmo." })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "hidden landscape:block w-full max-w-xs mt-2", children: [
+            /* @__PURE__ */ jsxs("div", { className: "flex flex-col gap-2 mb-4 bg-black/50 border border-white/10 rounded-lg p-4", children: [
+              /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between", children: [
+                /* @__PURE__ */ jsx("span", { className: "text-white/70 text-sm font-mono tracking-widest", children: "MULTIPLAYER" }),
+                /* @__PURE__ */ jsx("button", { onClick: () => setMultiplayerEnabled((m) => !m), className: `w-12 h-6 rounded-full transition-colors relative border border-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsx("div", { className: `absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-6" : "translate-x-0"}` }) })
+              ] }),
+              multiplayerEnabled && /* @__PURE__ */ jsxs("button", { onClick: handleShare, className: "mt-2 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2 rounded text-xs text-white hover:bg-white/10 transition-colors", children: [
+                /* @__PURE__ */ jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" }) }),
+                copiedLink ? "Link Copiado!" : "Copiar Link para Amigo"
+              ] }),
+              loginError && /* @__PURE__ */ jsx("p", { className: "text-red-400 text-xs mt-2 text-center", children: loginError })
+            ] }),
+            /* @__PURE__ */ jsxs(
+              "button",
+              {
+                onClick: handlePlay,
+                disabled: isLoggingIn,
+                className: "group relative w-full overflow-hidden rounded-lg transition-all duration-500 active:scale-[0.98]",
+                children: [
+                  /* @__PURE__ */ jsx("div", { className: "absolute -inset-1 bg-gradient-to-r from-amber-500/50 via-yellow-400/50 to-amber-500/50 rounded-lg blur-lg opacity-50 group-hover:opacity-100 transition-opacity duration-500" }),
+                  /* @__PURE__ */ jsxs("div", { className: "relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-lg", children: [
+                    /* @__PURE__ */ jsx("div", { className: "absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" }),
+                    /* @__PURE__ */ jsxs("div", { className: "relative flex items-center justify-center gap-3 px-8 py-4 text-black font-bold text-base tracking-widest", children: [
+                      /* @__PURE__ */ jsx("span", { className: "group-hover:tracking-[0.3em] transition-all duration-300", children: "ENTRAR" }),
+                      /* @__PURE__ */ jsx("svg", { className: "w-4 h-4 group-hover:translate-x-1 transition-transform", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsx("path", { d: "M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" }) })
+                    ] })
+                  ] })
+                ]
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "p-6 pb-10 sticky bottom-0 bg-gradient-to-t from-black via-black/90 to-transparent z-40 landscape:hidden", children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex flex-col gap-2 border border-white/10 rounded-lg mb-4 bg-black/50 backdrop-blur-md p-4", children: [
+            /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between", children: [
+              /* @__PURE__ */ jsx("span", { className: "text-white/70 text-sm font-mono tracking-widest", children: "MULTIPLAYER" }),
+              /* @__PURE__ */ jsx("button", { onClick: () => setMultiplayerEnabled((m) => !m), className: `w-12 h-6 rounded-full transition-colors relative border border-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsx("div", { className: `absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-6" : "translate-x-0"}` }) })
+            ] }),
+            multiplayerEnabled && /* @__PURE__ */ jsxs("button", { onClick: handleShare, className: "mt-2 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2.5 rounded text-sm text-white font-bold hover:bg-white/10 transition-colors", children: [
+              /* @__PURE__ */ jsx("svg", { className: "w-5 h-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" }) }),
+              copiedLink ? "COPIADO!" : "COPIAR LINK PRA AMIGO"
+            ] }),
+            loginError && /* @__PURE__ */ jsx("p", { className: "text-red-400 text-xs mt-2 text-center", children: loginError })
+          ] }),
+          /* @__PURE__ */ jsxs(
+            "button",
+            {
+              onClick: handlePlay,
+              disabled: isLoggingIn,
+              className: "group relative w-full overflow-hidden rounded-lg transition-all duration-500 active:scale-[0.98]",
+              children: [
+                /* @__PURE__ */ jsx("div", { className: "absolute -inset-1 bg-gradient-to-r from-amber-500/50 via-yellow-400/50 to-amber-500/50 rounded-lg blur-lg opacity-50 group-hover:opacity-100 transition-opacity duration-500" }),
+                /* @__PURE__ */ jsxs("div", { className: "relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-lg", children: [
+                  /* @__PURE__ */ jsx("div", { className: "absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" }),
+                  /* @__PURE__ */ jsxs("div", { className: "relative flex items-center justify-center gap-3 px-8 py-5 text-black font-bold text-lg tracking-widest", children: [
+                    /* @__PURE__ */ jsx("span", { className: "group-hover:tracking-[0.3em] transition-all duration-300", children: "ENTRAR" }),
+                    /* @__PURE__ */ jsx("svg", { className: "w-5 h-5 group-hover:translate-x-1 transition-transform", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsx("path", { d: "M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" }) })
+                  ] })
+                ] })
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxs("div", { className: "flex justify-center gap-6 mt-4 text-white/20 text-xs", children: [
+            /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-2", children: [
+              /* @__PURE__ */ jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 1, d: "M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" }) }),
+              "Toque"
+            ] }),
+            /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-2", children: [
+              /* @__PURE__ */ jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 1, d: "M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.536a5 5 0 001.414 1.414m2.828-9.9a9 9 0 012.172-1.414" }) }),
+              "Fones"
+            ] })
+          ] })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsx("div", { className: "hidden md:flex h-full items-center justify-center pointer-events-auto", children: /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-10 lg:gap-24 max-w-6xl mx-auto px-8", children: [
+        /* @__PURE__ */ jsxs("div", { className: "relative animate-fade-in", style: { animationDelay: "0.5s" }, children: [
+          /* @__PURE__ */ jsxs("div", { className: "w-64 h-96 border-8 border-[#2a2a2a] rounded-t-2xl bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a] shadow-[inset_0_0_60px_rgba(0,0,0,0.9),0_0_80px_rgba(0,0,0,0.5)]", children: [
+            /* @__PURE__ */ jsx("div", { className: "absolute inset-4 bg-gradient-to-b from-amber-500/10 via-transparent to-transparent rounded-t-xl" }),
+            /* @__PURE__ */ jsx("div", { className: "absolute top-6 left-1/2 -translate-x-1/2 w-24 h-10 bg-black/90 rounded border border-amber-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.3)]", children: /* @__PURE__ */ jsx("span", { className: "text-amber-400 text-2xl font-mono font-bold", style: { textShadow: "0 0 15px rgba(251,191,36,0.8)" }, children: "\u25B2 03" }) }),
+            /* @__PURE__ */ jsxs("div", { className: "absolute bottom-0 left-4 right-4 top-20 flex gap-1 overflow-hidden rounded-t", children: [
+              /* @__PURE__ */ jsx("div", { className: "flex-1 bg-gradient-to-r from-[#3a3a3a] via-[#404040] to-[#353535] border-t border-l border-white/10 shadow-inner", children: /* @__PURE__ */ jsx("div", { className: "absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/30 to-transparent" }) }),
+              /* @__PURE__ */ jsx("div", { className: "w-0.5 bg-black/50" }),
+              /* @__PURE__ */ jsx("div", { className: "flex-1 bg-gradient-to-l from-[#3a3a3a] via-[#404040] to-[#353535] border-t border-r border-white/10 shadow-inner", children: /* @__PURE__ */ jsx("div", { className: "absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/30 to-transparent" }) })
+            ] }),
+            /* @__PURE__ */ jsx("div", { className: "absolute top-20 left-1/2 -translate-x-1/2 w-32 h-16 bg-gradient-to-b from-amber-400/20 to-transparent blur-xl" })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "absolute -right-12 top-1/2 -translate-y-1/2 w-8 h-32 bg-[#1a1a1a] rounded-r-lg border border-white/5 flex flex-col items-center justify-center gap-3 shadow-xl", children: [
+            /* @__PURE__ */ jsx("div", { className: "w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 shadow-[0_0_15px_rgba(251,191,36,1)] animate-pulse" }),
+            /* @__PURE__ */ jsx("div", { className: "w-5 h-5 rounded-full bg-white/10 border border-white/10" }),
+            /* @__PURE__ */ jsxs("div", { className: "w-4 h-8 bg-black/50 rounded-sm mt-2 flex flex-col items-center justify-center", children: [
+              /* @__PURE__ */ jsx("div", { className: "w-2 h-0.5 bg-amber-500/50 mb-0.5" }),
+              /* @__PURE__ */ jsx("div", { className: "w-2 h-0.5 bg-white/20" })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsx("div", { className: "absolute -bottom-8 left-1/2 -translate-x-1/2 w-80 h-8 bg-gradient-to-t from-transparent to-amber-500/10 blur-md" }),
+          /* @__PURE__ */ jsx("div", { className: "absolute -left-2 top-0 bottom-0 w-2 bg-gradient-to-r from-[#333] to-[#222] rounded-l" }),
+          /* @__PURE__ */ jsx("div", { className: "absolute -right-2 top-0 bottom-0 w-2 bg-gradient-to-l from-[#333] to-[#222] rounded-r" })
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "flex-1 max-w-lg flex flex-col justify-center", children: [
+          /* @__PURE__ */ jsxs("div", { className: "inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full mb-4 animate-fade-in-up", style: { animationDelay: "0.7s" }, children: [
+            /* @__PURE__ */ jsx("div", { className: "w-2 h-2 bg-amber-400 rounded-full animate-pulse" }),
+            /* @__PURE__ */ jsx("span", { className: "text-amber-400/80 text-xs font-mono uppercase tracking-wider", children: "Andar 03 \u2022 Sagu\xE3o" })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "mb-6 animate-fade-in-up", style: { animationDelay: "0.8s" }, children: [
+            /* @__PURE__ */ jsx("p", { className: "text-amber-500/40 text-sm uppercase tracking-[0.5em] mb-2 font-light", children: "Bem-vindo ao" }),
+            /* @__PURE__ */ jsxs("h1", { className: "text-5xl lg:text-7xl font-black text-white leading-none mb-1", style: { textShadow: "0 0 60px rgba(255,255,255,0.1)" }, children: [
+              "THE ",
+              /* @__PURE__ */ jsx("span", { className: "text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200", children: "NORMAL" })
+            ] }),
+            /* @__PURE__ */ jsx("h2", { className: "text-3xl lg:text-5xl font-extralight text-white/80 tracking-[0.4em] uppercase", children: "ELEVATOR" })
+          ] }),
+          /* @__PURE__ */ jsxs("div", { className: "animate-fade-in-up mt-2", style: { animationDelay: "1s" }, children: [
+            /* @__PURE__ */ jsxs("div", { className: "flex flex-col gap-3 p-4 border border-white/10 rounded-xl mb-4 bg-black/50 backdrop-blur-sm max-w-sm", children: [
+              /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between", children: [
+                /* @__PURE__ */ jsx("span", { className: "text-white/70 text-sm font-mono tracking-widest", children: "MODO MULTIPLAYER (ONLINE)" }),
+                /* @__PURE__ */ jsx("button", { onClick: () => setMultiplayerEnabled((m) => !m), className: `w-12 h-6 rounded-full transition-colors relative border border-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsx("div", { className: `absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-6" : "translate-x-0"}` }) })
+              ] }),
+              multiplayerEnabled && /* @__PURE__ */ jsxs("button", { onClick: handleShare, className: "flex items-center justify-center gap-2 border border-white/30 bg-white/10 py-2 rounded-lg text-sm text-white font-mono hover:bg-white/20 transition-all", children: [
+                /* @__PURE__ */ jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" }) }),
+                copiedLink ? "Link na \xC1rea de Transfer\xEAncia!" : "Copiar Link de Convite"
+              ] }),
+              loginError && /* @__PURE__ */ jsx("p", { className: "text-red-400 text-xs mt-1 text-center font-mono", children: loginError })
+            ] }),
+            /* @__PURE__ */ jsxs("button", { onClick: handlePlay, disabled: isLoggingIn, className: "group relative overflow-hidden rounded-xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98]", children: [
+              /* @__PURE__ */ jsx("div", { className: "absolute -inset-0.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-xl opacity-70 group-hover:opacity-100 blur-sm transition-opacity" }),
+              /* @__PURE__ */ jsxs("div", { className: "relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-xl", children: [
+                /* @__PURE__ */ jsx("div", { className: "absolute inset-0 bg-gradient-to-t from-black/30 to-transparent rounded-xl" }),
+                /* @__PURE__ */ jsxs("div", { className: "relative flex items-center gap-4 px-12 py-5 text-black font-bold text-xl justify-center", children: [
+                  /* @__PURE__ */ jsx("span", { className: "tracking-[0.2em] group-hover:tracking-[0.3em] transition-all duration-500", children: isLoggingIn ? "CONECTANDO..." : "ENTRAR NO SAGU\xC3O" }),
+                  !isLoggingIn && /* @__PURE__ */ jsx("svg", { className: "w-6 h-6 group-hover:translate-x-2 transition-transform duration-300", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsx("path", { d: "M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" }) })
+                ] })
+              ] })
+            ] }),
+            /* @__PURE__ */ jsxs("div", { className: "flex gap-8 mt-6 text-white/20 text-sm", children: [
+              /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-2", children: [
+                /* @__PURE__ */ jsx("kbd", { className: "px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-mono", children: "WASD" }),
+                " Mover"
+              ] }),
+              /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-2", children: [
+                /* @__PURE__ */ jsx("kbd", { className: "px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-mono", children: "MOUSE" }),
+                " Olhar"
+              ] }),
+              /* @__PURE__ */ jsxs("span", { className: "flex items-center gap-2", children: [
+                /* @__PURE__ */ jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 1, d: "M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728" }) }),
+                " Fones"
+              ] })
+            ] })
+          ] })
+        ] })
+      ] }) }),
+      /* @__PURE__ */ jsxs("div", { className: "absolute top-6 left-6 text-white/10 text-xs font-mono hidden md:flex items-center gap-2", children: [
+        /* @__PURE__ */ jsx("div", { className: "w-2 h-2 bg-green-500 rounded-full animate-pulse" }),
+        "SISTEMA ATIVO"
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "absolute top-6 right-6 text-white/10 text-xs font-mono hidden md:flex items-center gap-2", children: [
+        /* @__PURE__ */ jsx("span", { className: "text-red-500", children: "\u25CF" }),
+        " REC",
+        /* @__PURE__ */ jsx("span", { className: "ml-4", children: "CAM_01" })
+      ] }),
+      /* @__PURE__ */ jsx("div", { className: "absolute bottom-6 left-6 text-white/10 text-xs font-mono hidden md:block", children: "\xA9 2026 LIMINAL SYSTEMS" }),
+      /* @__PURE__ */ jsx("div", { className: "absolute bottom-6 right-6 text-white/10 text-xs font-mono hidden md:block", children: "v1.0.3" })
+    ] }),
+    /* @__PURE__ */ jsx("div", { className: "absolute inset-0 pointer-events-none opacity-[0.02]", style: { backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)" } })
+  ] });
+};
+
+// src/UI.tsx
+import { useState as useState4, useEffect as useEffect4 } from "react";
+
+// src/constants.ts
+var WALKING_URL = "https://raw.githubusercontent.com/Felipe9272727/Bancon...../main/Walking(1).glb";
+var IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/BACON-PROJETO-FUNCIONALLLLL/main/Idle.glb";
+var NPC_WALK_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20walking.glb";
+var NPC_IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20idle.glb";
+var BARNEY_URL = "https://raw.githubusercontent.com/Felipe9272727/For-my-game/main/1776639536329.png";
+var COLORS = { wall: "#D7CCC8", wood: "#6D4C41", ceiling: "#BCAAA4", metal: "#B0BEC5", elevTrim: "#3E2723", elevFloor: "#F5F0EB", elevDiamond: "#FFD54F", elevDoor: "#9E9E9E", elevPanel: "#78909C", grass: "#66BB6A", sky: "#81D4FA", houseWall: "#EFEBE9", houseRoof: "#6D4C41", bed: "#1565C0", sofa: "#4E342E", light: "#FFE0B2" };
+var ASSETS = { noise: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg", grass: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/terrain/grasslight-big.jpg", wood: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/hardwood2_diffuse.jpg", lobbyFloor: "https://raw.githubusercontent.com/Felipe9272727/Textura-/main/file_00000000febc71f5992f1ccc1b591002.png", wallPanel: "https://raw.githubusercontent.com/Felipe9272727/Textura-amadeirada-/main/file_0000000040e871f59722d8404d631582.png", wall: "https://raw.githubusercontent.com/Felipe9272727/Textura-da-parede/main/file_000000005dc071f5ba34d550bd83847b.png", ceiling: "https://raw.githubusercontent.com/Felipe9272727/Textura-de-teto/refs/heads/main/Screenshot_2026-01-18-12-39-26-946_com.openai.chatgpt-edit.jpg" };
+var BARNEY_DIALOGUE = {
+  "greet": {
+    "text": "Oh... ol\xE1! Que bom que voc\xEA veio me visitar! Eu sou o Barney. Voc\xEA parece cansado... quer entrar e tomar um caf\xE9zinho comigo?",
+    "options": [
+      { "text": "Claro, obrigado!", "next": "accept_coffee" },
+      { "text": "Por que voc\xEA est\xE1 sozinho aqui?", "next": "why_alone" },
+      { "text": "N\xE3o, obrigado. Preciso ir.", "next": "refuse" }
+    ]
+  },
+  "why_alone": {
+    "text": "Sozinho? Eu n\xE3o estou sozinho... eu TENHO voc\xEA agora. *sorri de um jeito estranho* Vamos, o caf\xE9 j\xE1 est\xE1 pronto.",
+    "options": [
+      { "text": "T\xE1... tudo bem.", "next": "accept_coffee" },
+      { "text": "Melhor eu ir.", "next": "refuse" }
+    ]
+  }
+};
+var DIALOGUE_TREE = {
+  "start": {
+    "text": "Bem-vindo. Eu sou o Supervisor do Sagu\xE3o. Este \xE9 um elevador normal. Por favor, aja com naturalidade.",
+    "options": [
+      { "text": "Para onde esse elevador vai?", "next": "destiny" },
+      { "text": "Quantos andares existem?", "next": "floors" },
+      { "text": "Isso \xE9 seguro?", "next": "safety" },
+      { "text": "[Sair]", "next": null }
+    ]
+  },
+  "destiny": {
+    "text": "Ele vai exatamente para onde voc\xEA espera. Ou para o andar logo depois do fim.",
+    "options": [
+      { "text": "O que voc\xEA quer dizer com isso?", "next": "meaning" },
+      { "text": "Existe um andar que n\xE3o deveria existir?", "next": "forbidden" },
+      { "text": "Prefiro n\xE3o saber.", "next": "ignorance" }
+    ]
+  },
+  "floors": {
+    "text": "Existem os andares necess\xE1rios. Alguns aparecem apenas quando s\xE3o lembrados com for\xE7a suficiente.",
+    "options": [
+      { "text": "Como assim, lembrados?", "next": "memory" },
+      { "text": "Posso escolher qualquer um?", "next": "choice" },
+      { "text": "Isso n\xE3o parece normal.", "next": "abnormal" }
+    ]
+  },
+  "safety": {
+    "text": "A maioria das pessoas chega inteira. As partes que sobram tamb\xE9m s\xE3o bem tratadas.",
+    "options": [
+      { "text": "O que voc\xEA fez com os outros?", "next": "others" },
+      { "text": "Quero sair agora.", "next": "exit_demand" },
+      { "text": "Voc\xEA est\xE1 brincando comigo?", "next": "joke" }
+    ]
+  },
+  "meaning": { "text": "Significado \xE9 como fuma\xE7a neste po\xE7o. Concentre-se apenas em subir. E descer. E expandir.", "options": [{ "text": "Voltar", "next": "start" }] },
+  "forbidden": { "text": "Se n\xE3o deveria existir, n\xE3o podemos falar sobre ele. As paredes t\xEAm ouvidos. E bocas.", "options": [{ "text": "...", "next": "start" }] },
+  "ignorance": { "text": "Uma escolha s\xE1bia. A ignor\xE2ncia \xE9 um colete salva-vidas aqui.", "options": [{ "text": "Voltar", "next": "start" }] },
+  "memory": { "text": "Mem\xF3rias s\xE3o tijolos. Se voc\xEA esquecer o ch\xE3o, ele pode deixar de te segurar.", "options": [{ "text": "Entendi...", "next": "start" }] },
+  "choice": { "text": "Voc\xEA pode apertar qualquer bot\xE3o. Se o bot\xE3o aceitar\xE1 seu toque, \xE9 outra quest\xE3o.", "options": [{ "text": "Certo.", "next": "start" }] },
+  "abnormal": { "text": "Normal \xE9 apenas uma m\xE9dia estat\xEDstica. Voc\xEA est\xE1 fora da curva agora.", "options": [{ "text": "Voltar", "next": "start" }] },
+  "others": { "text": "Eles est\xE3o por a\xED. \xC0s vezes nas paredes, \xE0s vezes no som do vento nos dutos.", "options": [{ "text": "Credo.", "next": "start" }] },
+  "exit_demand": { "text": "A sa\xEDda \xE9 uma porta. Mas nem todas as portas levam para fora.", "options": [{ "text": "...", "next": "start" }] },
+  "joke": { "text": "Eu n\xE3o tenho senso de humor. Fui fabricado sem ele.", "options": [{ "text": "Ah.", "next": "start" }] }
+};
+var SPEED = 4;
+var PR = 0.5;
+var EZ_START = -10;
+var HOUSE_DOOR_Z = 6;
+var HOUSE_DOOR_X = 0;
+var LOBBY_W = [[-10, 10, 10, 10], [-10, -10, -10, 10], [10, -10, 10, 10], [-10, -10, -1.3, -10], [1.3, -10, 10, -10]];
+var ELEV_W = [[-3.25, -16, -3.25, -10], [3.25, -16, 3.25, -10], [-3.25, -16, 3.25, -16]];
+var HOUSE_EX = [[-4, 14, 4, 14], [4, 6, 4, 14], [-4, 6, -4, 14], [-4, 6, -0.7, 6], [0.7, 6, 4, 6]];
+var HOUSE_IN = [[0, 10, 4, 10], [0, 10, 0, 14]];
+var HOUSE_DW = [-0.7, 6, 0.7, 6];
+var L1_BND = [[-25, -25, 25, -25], [25, -25, 25, 25], [-25, 25, 25, 25], [-25, -25, -25, 25]];
+var ELEV_BLD = [[-5.5, -16.5, 5.5, -16.5], [-5.5, -10, -5.5, -16.5], [5.5, -10, 5.5, -16.5], [-5.5, -10, -1.3, -10], [1.3, -10, 5.5, -10]];
+var DOOR_SEAL = [-1.3, -10, 1.3, -10];
+
+// src/UI.tsx
+import { jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
+var VisualJoystick = ({ x, y, active, origin }) => {
+  if (!active || !origin) return null;
+  const maxR = 40;
+  const px = x * maxR;
+  const py = y * maxR;
+  return /* @__PURE__ */ jsx2("div", { className: "absolute pointer-events-none z-50", style: { left: origin.x, top: origin.y, transform: "translate(-50%, -50%)" }, children: /* @__PURE__ */ jsx2("div", { className: "w-32 h-32 rounded-full bg-white/10 border-2 border-white/20 backdrop-blur-sm flex items-center justify-center", children: /* @__PURE__ */ jsx2("div", { className: "w-12 h-12 bg-white/80 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.5)]", style: { transform: `translate(px, py)` } }) }) });
+};
+var TypewriterText = ({ text, speed = 30 }) => {
+  const [displayedText, setDisplayedText] = useState4("");
+  const [isComplete, setIsComplete] = useState4(false);
+  useEffect4(() => {
+    setDisplayedText("");
+    setIsComplete(false);
+    let index = 0;
+    const timer = setInterval(() => {
+      if (index < text.length) {
+        setDisplayedText(text.substring(0, index + 1));
+        index++;
+      } else {
+        setIsComplete(true);
+        clearInterval(timer);
+      }
+    }, speed);
+    return () => clearInterval(timer);
+  }, [text, speed]);
+  return /* @__PURE__ */ jsxs2("span", { children: [
+    displayedText,
+    !isComplete && /* @__PURE__ */ jsx2("span", { className: "inline-block w-0.5 h-5 md:h-7 bg-yellow-400 ml-1 animate-pulse" })
+  ] });
+};
+var DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }) => {
+  const node = DIALOGUE_TREE[nodeKey];
+  const [showOptions, setShowOptions] = useState4(false);
+  useEffect4(() => {
+    setShowOptions(false);
+    const timer = setTimeout(() => setShowOptions(true), 800);
+    return () => clearTimeout(timer);
+  }, [nodeKey]);
+  if (!node) return null;
+  return /* @__PURE__ */ jsxs2("div", { className: "fixed inset-0 z-50 pointer-events-none flex flex-col justify-end", children: [
+    /* @__PURE__ */ jsx2("div", { className: "absolute top-0 left-0 right-0 h-12 md:h-16 bg-gradient-to-b from-black to-transparent pointer-events-none" }),
+    /* @__PURE__ */ jsx2("div", { className: "absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-black to-transparent pointer-events-none" }),
+    /* @__PURE__ */ jsxs2("div", { className: "flex flex-col flex-1 justify-end pb-4 px-3 md:px-[20%] landscape:pb-2 landscape:px-8 max-h-screen overflow-hidden", children: [
+      /* @__PURE__ */ jsx2("div", { className: "bg-black/80 border-t-2 border-yellow-500/50 p-4 md:p-6 shadow-2xl pointer-events-auto mb-4 rounded-t-xl landscape:mb-2", children: /* @__PURE__ */ jsx2("p", { className: "text-white text-base md:text-xl font-bold font-serif leading-relaxed min-h-[4rem] text-shadow-sm", children: /* @__PURE__ */ jsx2(TypewriterText, { text: node.text, speed: 30 }) }) }),
+      /* @__PURE__ */ jsx2("div", { className: `flex flex-col gap-2 mb-3 pointer-events-auto transition-all duration-500 overflow-y-auto max-h-[50vh] landscape:max-h-[60vh] scrollbar-hide ${showOptions ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`, children: node.options.map((opt, i) => /* @__PURE__ */ jsx2("button", { onClick: () => opt.next ? onOptionSelect(opt.next) : onClose(), className: `group relative w-full text-left overflow-hidden animate-fade-in-up stagger-${i + 1} flex-shrink-0`, children: /* @__PURE__ */ jsx2("div", { className: "relative px-4 py-3 bg-gray-900 border border-white/10 rounded-xl transition-all duration-300 hover:border-yellow-500/50 active:scale-[0.98]", children: /* @__PURE__ */ jsxs2("div", { className: "flex items-center gap-3", children: [
+        /* @__PURE__ */ jsx2("div", { className: "flex-shrink-0 w-6 h-6 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center text-yellow-400 text-xs font-bold group-hover:bg-yellow-500 group-hover:text-black transition-all", children: i + 1 }),
+        /* @__PURE__ */ jsx2("span", { className: "text-gray-200 group-hover:text-white font-medium text-sm md:text-base flex-1", children: opt.text })
+      ] }) }) }, i)) })
+    ] })
+  ] });
+};
+
+// src/Player.tsx
+import { useRef as useRef3, useState as useState5, useEffect as useEffect5, useMemo } from "react";
+import { useThree, useFrame } from "@react-three/fiber";
+import { useGLTF, useAnimations } from "@react-three/drei";
+import { Vector3 as Vector32, Euler } from "three";
+import * as THREE from "three";
+import { jsx as jsx3, jsxs as jsxs3 } from "react/jsx-runtime";
+var Avatar = ({ animation, visible = true }) => {
+  const { scene } = useGLTF(WALKING_URL);
+  const { animations: walkAnims } = useGLTF(WALKING_URL);
+  const { animations: idleAnims } = useGLTF(IDLE_URL);
+  const { actions } = useAnimations(useMemo(() => {
+    const w = walkAnims.map((a) => a.clone(true));
+    const i = idleAnims.map((a) => a.clone(true));
+    if (w[0]) w[0].name = "Walking";
+    if (i[0]) i[0].name = "Idle";
+    return [...i, ...w];
+  }, [walkAnims, idleAnims]), scene);
+  const hipsRef = useRef3(null);
+  const opRef = useRef3(1);
+  useEffect5(() => {
+    scene.traverse((c) => {
+      if (c.isMesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+        if (c.material) {
+          c.material.transparent = true;
+          c.material.depthWrite = true;
+          c.material.alphaTest = 0;
+          c.material.side = THREE.DoubleSide;
+          c.material.metalness = 0;
+          c.material.roughness = 1;
+          c.material.needsUpdate = true;
+        }
+      }
+      if ((c.isBone || c.type === "Bone") && !hipsRef.current) {
+        if (c.name.toLowerCase().includes("hips") || c.name.toLowerCase().includes("root")) hipsRef.current = c;
+      }
+    });
+  }, [scene]);
+  useFrame((s, dt) => {
+    if (hipsRef.current) {
+      hipsRef.current.position.x = 0;
+      hipsRef.current.position.z = 0;
+    }
+    const tgt = visible ? 1 : 0;
+    opRef.current = THREE.MathUtils.lerp(opRef.current, tgt, 8 * dt);
+    scene.traverse((c) => {
+      if (c.isMesh && c.material) {
+        c.material.opacity = opRef.current;
+        c.visible = opRef.current > 0.01;
+      }
+    });
+  });
+  useEffect5(() => {
+    const a = actions[animation === "Walking" ? "Walking" : "Idle"];
+    const o = actions[animation === "Walking" ? "Idle" : "Walking"];
+    if (o) o.fadeOut(0.2);
+    if (a) a.reset().fadeIn(0.2).play();
+  }, [animation, actions]);
+  return /* @__PURE__ */ jsxs3("group", { children: [
+    /* @__PURE__ */ jsx3("hemisphereLight", { intensity: 1, color: "#ffffff", groundColor: "#444444", position: [0, 5, 0] }),
+    /* @__PURE__ */ jsx3("primitive", { object: scene, scale: [30, 30, 30], position: [0, 0.75, 0] })
+  ] });
+};
+var _resolve = (cx, cz, r, walls) => {
+  let x = cx, z = cz;
+  for (let i = 0; i < 3; i++) {
+    for (const w of walls) {
+      const dx = w[2] - w[0], dz = w[3] - w[1], l2 = dx * dx + dz * dz;
+      if (l2 < 1e-4) continue;
+      const t = Math.max(0, Math.min(1, ((x - w[0]) * dx + (z - w[1]) * dz) / l2));
+      const px = w[0] + t * dx, pz = w[1] + t * dz, sx = x - px, sz = z - pz;
+      const d = Math.sqrt(sx * sx + sz * sz);
+      if (d < r && d > 1e-4) {
+        const o = r - d;
+        x += sx / d * o;
+        z += sz / d * o;
+      }
+    }
+  }
+  return [x, z];
+};
+var Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueOpen, sharedPositionRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }) => {
+  const { camera, size } = useThree();
+  const pos = useRef3(new Vector32(0, 0, 8));
+  const charRot = useRef3(new Euler(0, Math.PI, 0));
+  const camAng = useRef3({ theta: Math.PI, phi: 0.2 });
+  const avRef = useRef3(null);
+  const camLookRef = useRef3(new Vector32());
+  const [anim, setAnim] = useState5("Idle");
+  const elevTriggered = useRef3(false);
+  const HH = 1.6;
+  const prevInsideElevatorRef = useRef3(false);
+  const _vRef = useRef3(null);
+  if (_vRef.current === null) _vRef.current = Array.from({ length: 8 }, () => new Vector32());
+  const _v = _vRef;
+  const timeRef = useRef3(0);
+  useEffect5(() => {
+    elevTriggered.current = false;
+  }, [currentLevel]);
+  useFrame((state, dt) => {
+    if (!active) return;
+    timeRef.current += dt;
+    if (positionCmdRef && positionCmdRef.current) {
+      pos.current.set(positionCmdRef.current.x, positionCmdRef.current.y, positionCmdRef.current.z);
+      positionCmdRef.current = null;
+    }
+    const fp = zoomLevel < 0.5;
+    if (sharedPositionRef) sharedPositionRef.current.copy(pos.current);
+    if (onElevatorZoneChange) {
+      const inside = pos.current.z <= -10 && Math.abs(pos.current.x) <= 3.1;
+      if (inside !== prevInsideElevatorRef.current) {
+        prevInsideElevatorRef.current = inside;
+        onElevatorZoneChange(inside);
+      }
+    }
+    const shakeX = cameraShakeRef?.current ? Math.sin(timeRef.current * 18) * 0.015 + Math.sin(timeRef.current * 31) * 8e-3 : 0;
+    const shakeY = cameraShakeRef?.current ? Math.cos(timeRef.current * 22) * 0.012 : 0;
+    if (dialogueOpen && npcPositionRef?.current) {
+      setAnim("Idle");
+      if (avRef.current) {
+        avRef.current.position.copy(pos.current);
+        avRef.current.rotation.copy(charRot.current);
+      }
+      const nP = npcPositionRef.current;
+      const pP = pos.current;
+      const d2p = _v.current[0].subVectors(pP, nP).normalize();
+      if (d2p.lengthSq() < 1e-3) d2p.set(0, 0, 1);
+      const tCam = _v.current[1].copy(nP).addScaledVector(d2p, 2.2);
+      tCam.y += 1.75;
+      const tLook = _v.current[2].copy(nP);
+      tLook.y += 1.35;
+      camera.position.lerp(tCam, 5 * dt);
+      if (camLookRef.current.distanceTo(tLook) > 10) {
+        camLookRef.current.copy(pP);
+        camLookRef.current.y += 1.6;
+      }
+      camLookRef.current.lerp(tLook, 5 * dt);
+      camera.lookAt(camLookRef.current);
+      camera.fov = THREE.MathUtils.lerp(camera.fov, 40, 5 * dt);
+      camera.updateProjectionMatrix();
+    } else {
+      const sens = 3e-3 * (fp ? 1.5 : 1);
+      if (isDesktop) {
+        if (lookInput.current.x || lookInput.current.y) {
+          camAng.current.theta -= lookInput.current.x * sens * 500 * dt;
+          camAng.current.phi += lookInput.current.y * sens * 500 * dt;
+          lookInput.current.x = 0;
+          lookInput.current.y = 0;
+        }
+      } else {
+        if (lookInput.current.x || lookInput.current.y) {
+          camAng.current.theta -= lookInput.current.x * (fp ? 1.5 : 1);
+          camAng.current.phi += lookInput.current.y * (fp ? 1.5 : 1);
+          lookInput.current.x = 0;
+          lookInput.current.y = 0;
+        }
+      }
+      camAng.current.phi = Math.max(fp ? -1.5 : -0.5, Math.min(fp ? 1.5 : 1.2, camAng.current.phi));
+      const fwd = -moveInput.current.y;
+      const strafe = moveInput.current.x;
+      let moving = false;
+      if (Math.abs(fwd) > 0.01 || Math.abs(strafe) > 0.01) {
+        moving = true;
+        const cd = _v.current[3].set(Math.sin(camAng.current.theta), 0, Math.cos(camAng.current.theta));
+        const rd = _v.current[4].set(Math.sin(camAng.current.theta - Math.PI / 2), 0, Math.cos(camAng.current.theta - Math.PI / 2));
+        const mv = _v.current[5].set(0, 0, 0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * dt);
+        const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
+        let wl = [...ELEV_W];
+        if (currentLevel === 0) {
+          wl.push(...LOBBY_W);
+          if (doorsClosed) wl.push(DOOR_SEAL);
+        } else {
+          wl.push(...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN);
+          if (!houseDoorOpen) wl.push(HOUSE_DW);
+          if (doorsClosed) wl.push(DOOR_SEAL);
+        }
+        const [rx, rz] = _resolve(nx, nz, PR, wl);
+        pos.current.x = rx;
+        pos.current.z = rz;
+        pos.current.y = 0;
+        if (fp) {
+          charRot.current.y = camAng.current.theta + Math.PI;
+        } else {
+          const a = Math.atan2(mv.x, mv.z);
+          let d = a - charRot.current.y;
+          while (d > Math.PI) d -= Math.PI * 2;
+          while (d < -Math.PI) d += Math.PI * 2;
+          charRot.current.y += d * 10 * dt;
+        }
+        if (currentLevel === 1) {
+          const dx = pos.current.x - HOUSE_DOOR_X;
+          const dz = pos.current.z - HOUSE_DOOR_Z;
+          onInteractionUpdate(Math.sqrt(dx * dx + dz * dz) < 3);
+        } else {
+          onInteractionUpdate(false);
+        }
+        if (currentLevel === 0 && npcPositionRef?.current) {
+          onNpcInteractionUpdate(pos.current.distanceTo(npcPositionRef.current) < 4);
+        } else {
+          onNpcInteractionUpdate(false);
+        }
+        if (pos.current.z < EZ_START - 1 && !elevTriggered.current && currentLevel === 0) {
+          elevTriggered.current = true;
+          onEnterElevator();
+        }
+      }
+      setAnim(moving ? "Walking" : "Idle");
+      if (avRef.current) {
+        avRef.current.position.copy(pos.current);
+        avRef.current.rotation.copy(charRot.current);
+      }
+      const ly = pos.current.y + HH;
+      const nla = _v.current[6].set(pos.current.x, ly, pos.current.z);
+      camLookRef.current.lerp(nla, 10 * dt);
+      if (fp) {
+        camera.position.set(pos.current.x + shakeX, ly + shakeY, pos.current.z);
+        const ld = 5;
+        camera.lookAt(pos.current.x - Math.sin(camAng.current.theta) * ld * Math.cos(camAng.current.phi), ly - Math.sin(camAng.current.phi) * ld, pos.current.z - Math.cos(camAng.current.theta) * ld * Math.cos(camAng.current.phi));
+        camera.fov = 90;
+        camera.updateProjectionMatrix();
+      } else {
+        const asp = size.width / size.height;
+        const tFov = asp < 1 ? 90 : 75;
+        if (Math.abs(camera.fov - tFov) > 0.1) {
+          camera.fov = THREE.MathUtils.lerp(camera.fov, tFov, 5 * dt);
+          camera.updateProjectionMatrix();
+        }
+        const cx = pos.current.x + Math.sin(camAng.current.theta) * zoomLevel * Math.cos(camAng.current.phi);
+        const cz = pos.current.z + Math.cos(camAng.current.theta) * zoomLevel * Math.cos(camAng.current.phi);
+        const cy = Math.max(ly + Math.sin(camAng.current.phi) * zoomLevel, 0.2);
+        camera.position.lerp(_v.current[7].set(cx + shakeX, cy + shakeY, cz), 10 * dt);
+        camera.lookAt(pos.current.x, ly, pos.current.z);
+      }
+    }
+  });
+  return /* @__PURE__ */ jsx3("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: /* @__PURE__ */ jsx3(Avatar, { animation: anim, visible: !dialogueOpen }) });
+};
+
+// src/Elevator.tsx
+import React7, { useRef as useRef5 } from "react";
+import { useFrame as useFrame2 } from "@react-three/fiber";
+import { Text as Text2 } from "@react-three/drei";
+
+// src/Materials.tsx
+import React5, { useMemo as useMemo2 } from "react";
+import { useTexture } from "@react-three/drei";
+import * as THREE2 from "three";
+import { jsx as jsx4 } from "react/jsx-runtime";
+var TextureMaterial = React5.memo(({ url, color = "#ffffff", repeat = [1, 1], roughness = 0.8, metalness = 0, bumpScale = 0, transparent = false, opacity = 1, rotation = 0 }) => {
+  const rawTexture = useTexture(url);
+  const texture = Array.isArray(rawTexture) ? rawTexture[0] : rawTexture;
+  const rKey = repeat.join(",");
+  const map = useMemo2(() => {
+    const c = texture.clone();
+    c.wrapS = c.wrapT = THREE2.RepeatWrapping;
+    c.repeat.set(repeat[0], repeat[1]);
+    if (rotation !== 0) {
+      c.center.set(0.5, 0.5);
+      c.rotation = rotation;
+    }
+    c.needsUpdate = true;
+    return c;
+  }, [texture, rKey, rotation]);
+  return /* @__PURE__ */ jsx4("meshStandardMaterial", { map, color, roughness, metalness, bumpMap: bumpScale > 0 ? map : void 0, bumpScale, transparent, opacity });
+});
+
+// src/BuildingBlocks.tsx
+import React6 from "react";
+import { Text } from "@react-three/drei";
+import * as THREE3 from "three";
+import { jsx as jsx5, jsxs as jsxs4 } from "react/jsx-runtime";
+var Door = React6.memo(({ x, z, rot }) => /* @__PURE__ */ jsxs4("group", { position: [x, 1.1, z], rotation: [0, rot, 0], children: [
+  /* @__PURE__ */ jsxs4("mesh", { children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [1.4, 2.2, 0.1] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#E0E0E0", roughness: 0.4 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 0, 0], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [1.5, 2.3, 0.05] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#9E9E9E", roughness: 0.5 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0.6, 0, 0.08], children: [
+    /* @__PURE__ */ jsx5("sphereGeometry", { args: [0.05, 8, 8] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#FFD54F", metalness: 0.4, roughness: 0.2 })
+  ] })
+] }));
+var WallPanel = React6.memo(({ x, z, rot }) => /* @__PURE__ */ jsxs4("group", { position: [x, 2.2, z], rotation: [0, rot, 0], children: [
+  /* @__PURE__ */ jsxs4("mesh", { children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [2, 1.2, 0.05] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#212121", roughness: 0.2 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 0, 0.03], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [1.8, 1, 0.01] }),
+    /* @__PURE__ */ jsx5("meshBasicMaterial", { color: "#000000" })
+  ] }),
+  /* @__PURE__ */ jsx5(Text, { position: [0, 0, 0.04], fontSize: 0.2, color: "#00FF00", anchorX: "center", anchorY: "middle", children: "3" })
+] }));
+var CallPanel = React6.memo(({ x, z, rot }) => /* @__PURE__ */ jsxs4("group", { position: [x, 1.5, z], rotation: [0, rot, 0], children: [
+  /* @__PURE__ */ jsxs4("mesh", { children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [0.45, 0.75, 0.05] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#1a1a1a", metalness: 0.5, roughness: 0.3 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 0, 0.026], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [0.38, 0.68, 0.01] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: COLORS.elevPanel, metalness: 0.4, roughness: 0.35 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 0.15, 0.035], rotation: [Math.PI / 2, 0, 0], children: [
+    /* @__PURE__ */ jsx5("cylinderGeometry", { args: [0.06, 0.06, 0.02, 16] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#FFD54F", emissive: "#FFD54F", emissiveIntensity: 0.8, toneMapped: false })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, -0.05, 0.035], rotation: [Math.PI / 2, 0, 0], children: [
+    /* @__PURE__ */ jsx5("cylinderGeometry", { args: [0.06, 0.06, 0.02, 16] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#424242", metalness: 0.6, roughness: 0.3 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, -0.22, 0.035], children: [
+    /* @__PURE__ */ jsx5("planeGeometry", { args: [0.3, 0.15] }),
+    /* @__PURE__ */ jsx5("meshBasicMaterial", { color: "#000000" })
+  ] }),
+  /* @__PURE__ */ jsx5(Text, { position: [0, -0.22, 0.04], fontSize: 0.09, color: "#FF3333", anchorX: "center", anchorY: "middle", children: "\u25B2 01" }),
+  /* @__PURE__ */ jsx5(Text, { position: [0, 0.15, 0.05], fontSize: 0.08, color: "#1a1a1a", anchorX: "center", anchorY: "middle", children: "\u25B2" })
+] }));
+var CeilingLight = React6.memo(({ x, z }) => /* @__PURE__ */ jsxs4("mesh", { position: [x, 4.45, z], rotation: [Math.PI / 2, 0, 0], children: [
+  /* @__PURE__ */ jsx5("planeGeometry", { args: [1.5, 3] }),
+  /* @__PURE__ */ jsx5("meshBasicMaterial", { color: "#FFF9C4", toneMapped: false })
+] }));
+var Armchair = React6.memo(({ x, z, rot = 0, color = "#5D4037" }) => /* @__PURE__ */ jsxs4("group", { position: [x, 0, z], rotation: [0, rot, 0], children: [
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 0.35, 0], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [1.1, 0.7, 0.9] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color, roughness: 0.9 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 0.9, -0.35], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [1.1, 0.9, 0.2] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color, roughness: 0.9 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 0.72, 0.05], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [0.95, 0.12, 0.75] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#8D6E63", roughness: 0.95 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [-0.55, 0.55, -0.05], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [0.12, 0.5, 0.85] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color, roughness: 0.9 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0.55, 0.55, -0.05], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [0.12, 0.5, 0.85] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color, roughness: 0.9 })
+  ] })
+] }));
+var TallPlant = React6.memo(({ x, z, variant = 0 }) => {
+  const leafColor = ["#2E7D32", "#388E3C", "#43A047"][variant % 3];
+  const accentColor = ["#66BB6A", "#4CAF50", "#81C784"][variant % 3];
+  return /* @__PURE__ */ jsxs4("group", { position: [x, 0, z], children: [
+    /* @__PURE__ */ jsxs4("mesh", { position: [0, 0.25, 0], children: [
+      /* @__PURE__ */ jsx5("cylinderGeometry", { args: [0.32, 0.24, 0.5, 10] }),
+      /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#EFEBE9", roughness: 0.4 })
+    ] }),
+    /* @__PURE__ */ jsxs4("mesh", { position: [0, 1.1, 0], children: [
+      /* @__PURE__ */ jsx5("sphereGeometry", { args: [0.5, 10, 8] }),
+      /* @__PURE__ */ jsx5("meshStandardMaterial", { color: leafColor, roughness: 0.9 })
+    ] }),
+    /* @__PURE__ */ jsxs4("mesh", { position: [0.15, 1.5, 0.1], children: [
+      /* @__PURE__ */ jsx5("sphereGeometry", { args: [0.3, 10, 8] }),
+      /* @__PURE__ */ jsx5("meshStandardMaterial", { color: accentColor, roughness: 0.9 })
+    ] }),
+    /* @__PURE__ */ jsxs4("mesh", { position: [-0.15, 1.45, -0.12], children: [
+      /* @__PURE__ */ jsx5("sphereGeometry", { args: [0.28, 10, 8] }),
+      /* @__PURE__ */ jsx5("meshStandardMaterial", { color: leafColor, roughness: 0.9 })
+    ] })
+  ] });
+});
+var FloorLamp = React6.memo(({ x, z }) => /* @__PURE__ */ jsxs4("group", { position: [x, 0, z], children: [
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 0.05, 0], children: [
+    /* @__PURE__ */ jsx5("cylinderGeometry", { args: [0.22, 0.28, 0.1, 10] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#212121", metalness: 0.5, roughness: 0.4 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 1, 0], children: [
+    /* @__PURE__ */ jsx5("cylinderGeometry", { args: [0.025, 0.025, 1.9, 6] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#424242", metalness: 0.7, roughness: 0.3 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 2, 0], children: [
+    /* @__PURE__ */ jsx5("coneGeometry", { args: [0.35, 0.5, 12, 1, true] }),
+    /* @__PURE__ */ jsx5("meshBasicMaterial", { color: "#FFE0B2", side: THREE3.DoubleSide, toneMapped: false })
+  ] })
+] }));
+var ReceptionDesk = React6.memo(({ x, z, rot = 0 }) => /* @__PURE__ */ jsxs4("group", { position: [x, 0, z], rotation: [0, rot, 0], children: [
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 0.6, 0], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [3.5, 1.2, 0.7] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#4E342E", roughness: 0.6 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 1.22, 0.05], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [3.7, 0.06, 0.85] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#F5F0EB", roughness: 0.2, metalness: 0.1 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 0.6, 0.36], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [3.3, 1, 0.04] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#6D4C41", roughness: 0.5 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0, 1.15, 0.38], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [3.4, 0.03, 0.02] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#FFD54F", metalness: 0.8, roughness: 0.2 })
+  ] }),
+  /* @__PURE__ */ jsxs4("group", { position: [1.3, 1.25, 0], children: [
+    /* @__PURE__ */ jsxs4("mesh", { children: [
+      /* @__PURE__ */ jsx5("cylinderGeometry", { args: [0.08, 0.1, 0.04, 8] }),
+      /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#424242", metalness: 0.7 })
+    ] }),
+    /* @__PURE__ */ jsxs4("mesh", { position: [0, 0.15, 0], children: [
+      /* @__PURE__ */ jsx5("cylinderGeometry", { args: [0.02, 0.02, 0.3, 6] }),
+      /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#424242", metalness: 0.7 })
+    ] }),
+    /* @__PURE__ */ jsxs4("mesh", { position: [0.1, 0.3, 0], rotation: [0, 0, -0.5], children: [
+      /* @__PURE__ */ jsx5("coneGeometry", { args: [0.1, 0.15, 8, 1, true] }),
+      /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#FFD54F", side: THREE3.DoubleSide, emissive: "#FFE0B2", emissiveIntensity: 0.5 })
+    ] })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [-1.2, 1.3, 0], children: [
+    /* @__PURE__ */ jsx5("sphereGeometry", { args: [0.08, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#FFC107", metalness: 0.8, roughness: 0.15 })
+  ] }),
+  /* @__PURE__ */ jsxs4("mesh", { position: [0.3, 1.26, 0.1], children: [
+    /* @__PURE__ */ jsx5("boxGeometry", { args: [0.2, 0.02, 0.28] }),
+    /* @__PURE__ */ jsx5("meshStandardMaterial", { color: "#FAFAFA", roughness: 0.9 })
+  ] })
+] }));
+
+// src/Elevator.tsx
+import * as THREE4 from "three";
+import { jsx as jsx6, jsxs as jsxs5 } from "react/jsx-runtime";
+var ElevatorDoors = React7.memo(({ closed }) => {
+  const leftRef = useRef5(null);
+  const rightRef = useRef5(null);
+  useFrame2((s, dt) => {
+    const spd = 5 * dt;
+    if (leftRef.current) leftRef.current.position.x = THREE4.MathUtils.lerp(leftRef.current.position.x, closed ? -0.76 : -2.3, spd);
+    if (rightRef.current) rightRef.current.position.x = THREE4.MathUtils.lerp(rightRef.current.position.x, closed ? 0.76 : 2.3, spd);
+  });
+  return /* @__PURE__ */ jsxs5("group", { position: [0, 2, 2.92], children: [
+    /* @__PURE__ */ jsx6("group", { ref: leftRef, position: [-2.3, 0, 0], children: /* @__PURE__ */ jsxs5("mesh", { children: [
+      /* @__PURE__ */ jsx6("boxGeometry", { args: [1.52, 4, 0.05] }),
+      /* @__PURE__ */ jsx6("meshStandardMaterial", { color: "#B0BEC5", metalness: 0.2, roughness: 0.3 })
+    ] }) }),
+    /* @__PURE__ */ jsx6("group", { ref: rightRef, position: [2.3, 0, 0], children: /* @__PURE__ */ jsxs5("mesh", { children: [
+      /* @__PURE__ */ jsx6("boxGeometry", { args: [1.52, 4, 0.05] }),
+      /* @__PURE__ */ jsx6("meshStandardMaterial", { color: "#B0BEC5", metalness: 0.2, roughness: 0.3 })
+    ] }) })
+  ] });
+});
+var ElevatorFacade = React7.memo(({ z, height = 4.5, width = 10 }) => {
+  const W = width;
+  const H = height;
+  const WH = 1.2;
+  return /* @__PURE__ */ jsxs5("group", { position: [0, 0, z], children: [
+    /* @__PURE__ */ jsxs5("group", { position: [-(W / 4 + 1), H / 2, 0], children: [
+      /* @__PURE__ */ jsxs5("mesh", { children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [W / 2 - 2, H, 0.5] }),
+        /* @__PURE__ */ jsx6(TextureMaterial, { url: ASSETS.wall, repeat: [2, 1], roughness: 0.9 })
+      ] }),
+      /* @__PURE__ */ jsxs5("mesh", { position: [-0.2, -H / 2 + WH / 2, 0.3], children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [W / 2 - 2.5, WH, 0.1] }),
+        /* @__PURE__ */ jsx6(TextureMaterial, { url: ASSETS.wallPanel, color: "#ffffff", repeat: [2, 1], roughness: 0.6 })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs5("group", { position: [W / 4 + 1, H / 2, 0], children: [
+      /* @__PURE__ */ jsxs5("mesh", { children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [W / 2 - 2, H, 0.5] }),
+        /* @__PURE__ */ jsx6(TextureMaterial, { url: ASSETS.wall, repeat: [2, 1], roughness: 0.9 })
+      ] }),
+      /* @__PURE__ */ jsxs5("mesh", { position: [0.2, -H / 2 + WH / 2, 0.3], children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [W / 2 - 2.5, WH, 0.1] }),
+        /* @__PURE__ */ jsx6(TextureMaterial, { url: ASSETS.wallPanel, color: "#ffffff", repeat: [2, 1], roughness: 0.6 })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs5("mesh", { position: [0, H - (H - 2.8) / 2, 0], children: [
+      /* @__PURE__ */ jsx6("boxGeometry", { args: [4, H - 2.8, 0.5] }),
+      /* @__PURE__ */ jsx6(TextureMaterial, { url: ASSETS.wall, repeat: [1, 0.5], roughness: 0.9 })
+    ] }),
+    /* @__PURE__ */ jsxs5("group", { position: [0, H - 0.4, 0.3], children: [
+      /* @__PURE__ */ jsxs5("mesh", { children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [3.5, 0.6, 0.06] }),
+        /* @__PURE__ */ jsx6("meshStandardMaterial", { color: "#1a1a1a", roughness: 0.2 })
+      ] }),
+      /* @__PURE__ */ jsx6(Text2, { position: [0, 0, 0.04], fontSize: 0.18, color: "#FFD54F", anchorX: "center", anchorY: "middle", letterSpacing: 0.12, children: "THE NORMAL ELEVATOR" }),
+      /* @__PURE__ */ jsx6("pointLight", { position: [0, -0.3, 0.5], intensity: 1, distance: 4, color: "#FFD54F", decay: 2 })
+    ] }),
+    /* @__PURE__ */ jsx6(CallPanel, { x: 2.3, z: 0.05, rot: 0 })
+  ] });
+});
+var ElevatorInterior = React7.memo(({ timer, doorsClosed, level }) => {
+  const EW = 6.5;
+  const ED = 6;
+  const EH = 4;
+  const EZ = -13;
+  const OW = 3;
+  const panelText = timer !== null ? String(Math.ceil(timer)).padStart(2, "0") : "--";
+  const panelColor = timer !== null ? "#FF0000" : "#00FF00";
+  const fi = level === 1 ? 1.5 : 3.5;
+  return /* @__PURE__ */ jsxs5("group", { position: [0, 0, EZ], children: [
+    /* @__PURE__ */ jsx6("pointLight", { position: [0, 3.5, 0], intensity: fi, distance: 15, color: "#FFF3E0", decay: 1 }),
+    /* @__PURE__ */ jsxs5("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.02, 0], children: [
+      /* @__PURE__ */ jsx6("planeGeometry", { args: [EW, ED] }),
+      /* @__PURE__ */ jsx6("meshStandardMaterial", { color: COLORS.elevFloor, roughness: 0.3, metalness: 0.05 })
+    ] }),
+    /* @__PURE__ */ jsxs5("mesh", { rotation: [-Math.PI / 2, 0, Math.PI / 4], position: [0, 0.023, 0], children: [
+      /* @__PURE__ */ jsx6("planeGeometry", { args: [3.2, 3.2] }),
+      /* @__PURE__ */ jsx6("meshStandardMaterial", { color: COLORS.elevDiamond, roughness: 0.4, metalness: 0.1 })
+    ] }),
+    /* @__PURE__ */ jsxs5("mesh", { rotation: [-Math.PI / 2, 0, Math.PI / 4], position: [0, 0.024, 0], children: [
+      /* @__PURE__ */ jsx6("planeGeometry", { args: [2.7, 2.7] }),
+      /* @__PURE__ */ jsx6("meshStandardMaterial", { color: COLORS.elevFloor, roughness: 0.3, metalness: 0.05 })
+    ] }),
+    /* @__PURE__ */ jsxs5("mesh", { rotation: [-Math.PI / 2, 0, Math.PI / 4], position: [0, 0.025, 0], children: [
+      /* @__PURE__ */ jsx6("planeGeometry", { args: [0.8, 0.8] }),
+      /* @__PURE__ */ jsx6("meshStandardMaterial", { color: COLORS.elevDiamond, roughness: 0.4, metalness: 0.1 })
+    ] }),
+    /* @__PURE__ */ jsxs5("mesh", { position: [-EW / 2 + 0.15, 1, 0], children: [
+      /* @__PURE__ */ jsx6("boxGeometry", { args: [0.05, 0.05, ED - 0.5] }),
+      /* @__PURE__ */ jsx6("meshStandardMaterial", { color: "#9E9E9E", metalness: 0.6, roughness: 0.2 })
+    ] }),
+    /* @__PURE__ */ jsxs5("mesh", { position: [EW / 2 - 0.15, 1, 0], children: [
+      /* @__PURE__ */ jsx6("boxGeometry", { args: [0.05, 0.05, ED - 0.5] }),
+      /* @__PURE__ */ jsx6("meshStandardMaterial", { color: "#9E9E9E", metalness: 0.6, roughness: 0.2 })
+    ] }),
+    /* @__PURE__ */ jsxs5("mesh", { position: [0, 1, -ED / 2 + 0.15], children: [
+      /* @__PURE__ */ jsx6("boxGeometry", { args: [EW - 0.5, 0.05, 0.05] }),
+      /* @__PURE__ */ jsx6("meshStandardMaterial", { color: "#9E9E9E", metalness: 0.6, roughness: 0.2 })
+    ] }),
+    /* @__PURE__ */ jsxs5("group", { position: [0, EH, 0], children: [
+      /* @__PURE__ */ jsxs5("mesh", { rotation: [Math.PI / 2, 0, 0], children: [
+        /* @__PURE__ */ jsx6("planeGeometry", { args: [EW, ED] }),
+        /* @__PURE__ */ jsx6(TextureMaterial, { url: ASSETS.wood, color: "#5D4037", repeat: [3, 3], roughness: 0.8 })
+      ] }),
+      [[-2, -2], [2, -2], [-2, 2], [2, 2]].map((p, i) => /* @__PURE__ */ jsxs5("mesh", { position: [p[0], -0.05, p[1]], rotation: [Math.PI / 2, 0, 0], children: [
+        /* @__PURE__ */ jsx6("circleGeometry", { args: [0.22, 16] }),
+        /* @__PURE__ */ jsx6("meshBasicMaterial", { color: "#FFF9C4", toneMapped: false })
+      ] }, i))
+    ] }),
+    /* @__PURE__ */ jsxs5("group", { position: [0, EH / 2, -ED / 2 + 0.05], children: [
+      /* @__PURE__ */ jsxs5("mesh", { children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [EW, EH, 0.1] }),
+        /* @__PURE__ */ jsx6(TextureMaterial, { url: ASSETS.wood, color: COLORS.wood, repeat: [2, 2], rotation: Math.PI / 2, roughness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxs5("mesh", { position: [0, -EH / 2 + 0.3, 0.05], children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [EW, 0.6, 0.05] }),
+        /* @__PURE__ */ jsx6("meshStandardMaterial", { color: COLORS.elevTrim, roughness: 0.6 })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs5("group", { position: [-EW / 2 + 0.05, EH / 2, 0], children: [
+      /* @__PURE__ */ jsxs5("mesh", { children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [0.1, EH, ED] }),
+        /* @__PURE__ */ jsx6(TextureMaterial, { url: ASSETS.wood, color: COLORS.wood, repeat: [2, 2], rotation: Math.PI / 2, roughness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxs5("mesh", { position: [0.05, -EH / 2 + 0.3, 0], children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [0.05, 0.6, ED] }),
+        /* @__PURE__ */ jsx6("meshStandardMaterial", { color: COLORS.elevTrim, roughness: 0.6 })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs5("group", { position: [EW / 2 - 0.05, EH / 2, 0], children: [
+      /* @__PURE__ */ jsxs5("mesh", { children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [0.1, EH, ED] }),
+        /* @__PURE__ */ jsx6(TextureMaterial, { url: ASSETS.wood, color: COLORS.wood, repeat: [2, 2], rotation: Math.PI / 2, roughness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxs5("mesh", { position: [-0.05, -EH / 2 + 0.3, 0], children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [0.05, 0.6, ED] }),
+        /* @__PURE__ */ jsx6("meshStandardMaterial", { color: COLORS.elevTrim, roughness: 0.6 })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs5("group", { position: [1.8, 1.4, 2.7], rotation: [0, Math.PI, 0], children: [
+      /* @__PURE__ */ jsxs5("mesh", { position: [0, 0, -0.1], children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [0.55, 1.15, 0.2] }),
+        /* @__PURE__ */ jsx6("meshStandardMaterial", { color: "#1a1a1a", metalness: 0.5, roughness: 0.3 })
+      ] }),
+      /* @__PURE__ */ jsxs5("mesh", { position: [0, 0, 0], children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [0.5, 1.1, 0.02] }),
+        /* @__PURE__ */ jsx6("meshStandardMaterial", { color: "#37474F", metalness: 0.4, roughness: 0.35 })
+      ] }),
+      /* @__PURE__ */ jsxs5("mesh", { position: [0, 0.5, 0.012], children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [0.48, 0.04, 5e-3] }),
+        /* @__PURE__ */ jsx6("meshStandardMaterial", { color: "#FFD54F", metalness: 0.7, roughness: 0.25 })
+      ] }),
+      /* @__PURE__ */ jsxs5("group", { position: [0, 0.3, 0.02], children: [
+        /* @__PURE__ */ jsxs5("mesh", { children: [
+          /* @__PURE__ */ jsx6("planeGeometry", { args: [0.4, 0.18] }),
+          /* @__PURE__ */ jsx6("meshBasicMaterial", { color: "#000000" })
+        ] }),
+        /* @__PURE__ */ jsx6(Text2, { position: [0, 0, 0.01], fontSize: 0.14, color: panelColor, anchorX: "center", anchorY: "middle", letterSpacing: 0.1, children: panelText })
+      ] }),
+      /* @__PURE__ */ jsx6("group", { position: [0, -0.15, 0.015], children: [1, 2, 3, 4].map((num, i) => {
+        const lit = num === 3;
+        return /* @__PURE__ */ jsxs5("group", { position: [(i % 2 - 0.5) * 0.18, (1 - Math.floor(i / 2)) * 0.18, 0], children: [
+          /* @__PURE__ */ jsxs5("mesh", { rotation: [Math.PI / 2, 0, 0], children: [
+            /* @__PURE__ */ jsx6("cylinderGeometry", { args: [0.05, 0.05, 0.02, 16] }),
+            /* @__PURE__ */ jsx6("meshStandardMaterial", { color: lit ? "#FFEB3B" : "#BDBDBD", emissive: lit ? "#FFEB3B" : "#000000", emissiveIntensity: lit ? 0.8 : 0, metalness: 0.4, roughness: 0.3, toneMapped: !lit })
+          ] }),
+          /* @__PURE__ */ jsx6(Text2, { position: [0, 0, 0.013], fontSize: 0.045, color: lit ? "#1a1a1a" : "#424242", anchorX: "center", anchorY: "middle", children: num })
+        ] }, num);
+      }) }),
+      /* @__PURE__ */ jsxs5("group", { position: [0, -0.45, 0.015], children: [
+        /* @__PURE__ */ jsxs5("mesh", { position: [-0.1, 0, 0], rotation: [Math.PI / 2, 0, 0], children: [
+          /* @__PURE__ */ jsx6("cylinderGeometry", { args: [0.04, 0.04, 0.02, 12] }),
+          /* @__PURE__ */ jsx6("meshStandardMaterial", { color: "#FF5252", emissive: "#FF5252", emissiveIntensity: 0.3, toneMapped: false })
+        ] }),
+        /* @__PURE__ */ jsxs5("mesh", { position: [0.1, 0, 0], rotation: [Math.PI / 2, 0, 0], children: [
+          /* @__PURE__ */ jsx6("cylinderGeometry", { args: [0.04, 0.04, 0.02, 12] }),
+          /* @__PURE__ */ jsx6("meshStandardMaterial", { color: "#81C784" })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs5("group", { position: [0, 0, ED / 2], children: [
+      /* @__PURE__ */ jsxs5("mesh", { position: [-(EW + OW) / 4, EH / 2, 0], children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [(EW - OW) / 2, EH, 0.2] }),
+        /* @__PURE__ */ jsx6("meshStandardMaterial", { color: COLORS.elevDoor, metalness: 0.2, roughness: 0.3 })
+      ] }),
+      /* @__PURE__ */ jsxs5("mesh", { position: [(EW + OW) / 4, EH / 2, 0], children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [(EW - OW) / 2, EH, 0.2] }),
+        /* @__PURE__ */ jsx6("meshStandardMaterial", { color: COLORS.elevDoor, metalness: 0.2, roughness: 0.3 })
+      ] }),
+      /* @__PURE__ */ jsxs5("mesh", { position: [0, EH - (EH - 2.6) / 2, 0], children: [
+        /* @__PURE__ */ jsx6("boxGeometry", { args: [OW, EH - 2.6, 0.2] }),
+        /* @__PURE__ */ jsx6("meshStandardMaterial", { color: COLORS.elevDoor, metalness: 0.2, roughness: 0.3 })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsx6(ElevatorDoors, { closed: doorsClosed })
+  ] });
+});
+
+// src/LobbyEnv.tsx
+import React10, { useRef as useRef7, useEffect as useEffect7, useMemo as useMemo4 } from "react";
+import { useFrame as useFrame4 } from "@react-three/fiber";
+import { useGLTF as useGLTF3, useAnimations as useAnimations2 } from "@react-three/drei";
+
+// src/HouseEnv.tsx
+import React9, { useRef as useRef6, useState as useState6, useEffect as useEffect6, useMemo as useMemo3 } from "react";
+import { useFrame as useFrame3 } from "@react-three/fiber";
+import { Html, useGLTF as useGLTF2, Instances, Instance, useTexture as useTexture2 } from "@react-three/drei";
+
+// src/Furniture.tsx
+import React8 from "react";
+import { jsx as jsx7, jsxs as jsxs6 } from "react/jsx-runtime";
+var Sofa = React8.memo(({ x, z, rot }) => /* @__PURE__ */ jsxs6("group", { position: [x, 0, z], rotation: [0, rot, 0], children: [
+  /* @__PURE__ */ jsxs6("mesh", { position: [0, 0.3, 0], children: [
+    /* @__PURE__ */ jsx7("boxGeometry", { args: [2, 0.6, 0.8] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: COLORS.sofa, roughness: 0.9 })
+  ] }),
+  /* @__PURE__ */ jsxs6("mesh", { position: [0, 0.7, -0.3], children: [
+    /* @__PURE__ */ jsx7("boxGeometry", { args: [2, 0.8, 0.2] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: COLORS.sofa, roughness: 0.9 })
+  ] }),
+  /* @__PURE__ */ jsxs6("mesh", { position: [-0.9, 0.5, 0], children: [
+    /* @__PURE__ */ jsx7("boxGeometry", { args: [0.2, 0.5, 0.8] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: COLORS.sofa, roughness: 0.9 })
+  ] }),
+  /* @__PURE__ */ jsxs6("mesh", { position: [0.9, 0.5, 0], children: [
+    /* @__PURE__ */ jsx7("boxGeometry", { args: [0.2, 0.5, 0.8] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: COLORS.sofa, roughness: 0.9 })
+  ] })
+] }));
+var CoffeeTable = React8.memo(({ x, z }) => /* @__PURE__ */ jsxs6("group", { position: [x, 0, z], children: [
+  /* @__PURE__ */ jsxs6("mesh", { position: [0, 0.35, 0], children: [
+    /* @__PURE__ */ jsx7("boxGeometry", { args: [1.2, 0.05, 0.8] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: "#3E2723", roughness: 0.2 })
+  ] }),
+  [[-0.5, -0.3], [-0.5, 0.3], [0.5, -0.3], [0.5, 0.3]].map((p, i) => /* @__PURE__ */ jsxs6("mesh", { position: [p[0], 0.17, p[1]], children: [
+    /* @__PURE__ */ jsx7("cylinderGeometry", { args: [0.03, 0.03, 0.35] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: "#000" })
+  ] }, i))
+] }));
+var Bed = React8.memo(({ x, z, rot }) => /* @__PURE__ */ jsxs6("group", { position: [x, 0, z], rotation: [0, rot, 0], children: [
+  /* @__PURE__ */ jsxs6("mesh", { position: [0, 0.3, 0], children: [
+    /* @__PURE__ */ jsx7("boxGeometry", { args: [1.8, 0.4, 2.2] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: COLORS.bed, roughness: 0.6 })
+  ] }),
+  /* @__PURE__ */ jsxs6("mesh", { position: [0, 0.05, 0], children: [
+    /* @__PURE__ */ jsx7("boxGeometry", { args: [1.9, 0.1, 2.3] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: "#4E342E" })
+  ] }),
+  /* @__PURE__ */ jsxs6("mesh", { position: [0, 0.6, -1.1], children: [
+    /* @__PURE__ */ jsx7("boxGeometry", { args: [1.9, 1.2, 0.1] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: "#4E342E" })
+  ] }),
+  /* @__PURE__ */ jsxs6("mesh", { position: [0, 0.55, -0.9], children: [
+    /* @__PURE__ */ jsx7("boxGeometry", { args: [1, 0.15, 0.4] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: "#FFFFFF" })
+  ] })
+] }));
+var KitchenCounter = React8.memo(({ x, z, w, d, rot = 0 }) => /* @__PURE__ */ jsxs6("group", { position: [x, 0.45, z], rotation: [0, rot, 0], children: [
+  /* @__PURE__ */ jsxs6("mesh", { children: [
+    /* @__PURE__ */ jsx7("boxGeometry", { args: [w, 0.9, d] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: "#CFD8DC" })
+  ] }),
+  /* @__PURE__ */ jsxs6("mesh", { position: [0, 0.46, 0], children: [
+    /* @__PURE__ */ jsx7("boxGeometry", { args: [w + 0.05, 0.04, d + 0.05] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: "#212121", roughness: 0.1 })
+  ] })
+] }));
+var Barrel = ({ position }) => /* @__PURE__ */ jsxs6("group", { position, children: [
+  /* @__PURE__ */ jsxs6("mesh", { position: [0, 0.4, 0], children: [
+    /* @__PURE__ */ jsx7("cylinderGeometry", { args: [0.5, 0.5, 1, 12] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: "#5D4037" })
+  ] }),
+  /* @__PURE__ */ jsxs6("mesh", { position: [0, 0.8, 0], children: [
+    /* @__PURE__ */ jsx7("cylinderGeometry", { args: [0.51, 0.51, 0.05, 12] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: "#212121" })
+  ] }),
+  /* @__PURE__ */ jsxs6("mesh", { position: [0, 0.1, 0], children: [
+    /* @__PURE__ */ jsx7("cylinderGeometry", { args: [0.51, 0.51, 0.05, 12] }),
+    /* @__PURE__ */ jsx7("meshStandardMaterial", { color: "#212121" })
+  ] })
+] });
+
+// src/HouseEnv.tsx
+import * as THREE5 from "three";
+import { Fragment, jsx as jsx8, jsxs as jsxs7 } from "react/jsx-runtime";
+useTexture2.preload(BARNEY_URL);
+var DussekarCharacter = ({ position, rotation }) => {
+  const [dialogue, setDialogue] = useState6(null);
+  const { scene } = useGLTF2("https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb");
+  const clonedScene = useMemo3(() => scene.clone(true), [scene]);
+  const group = useRef6(null);
+  const timeRef = useRef6(0);
+  useFrame3((state, dt) => {
+    timeRef.current += dt;
+    if (group.current) group.current.position.y = position[1] + Math.sin(timeRef.current * 0.8) * 0.015;
+  });
+  useEffect6(() => {
+    let active = true;
+    let showTimer;
+    let hideTimer;
+    const lines = ["The geometry is leaking.", "I saw a color that doesn't exist.", "Do the buttons feel pain?", "I am vibrating at the wrong frequency.", "Someone stole the floor yesterday.", "The air is too thick to chew.", "I remember when this was all orange.", "My reflection blinked first.", "Static tastes like lemons.", "The elevator knows what you did.", "Gravity is just a suggestion.", "I am waiting for the Tuesday that never comes.", "Do not look at the corners."];
+    const runCycle = () => {
+      if (!active) return;
+      showTimer = setTimeout(() => {
+        if (!active) return;
+        const text = lines[Math.floor(Math.random() * lines.length)];
+        setDialogue(text);
+        hideTimer = setTimeout(() => {
+          if (active) {
+            setDialogue(null);
+            runCycle();
+          }
+        }, 1e4);
+      }, 5e3);
+    };
+    runCycle();
+    return () => {
+      active = false;
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, []);
+  return /* @__PURE__ */ jsxs7("group", { ref: group, position, rotation, children: [
+    /* @__PURE__ */ jsx8("primitive", { object: clonedScene, scale: 3, position: [0, 0, 0] }),
+    dialogue && /* @__PURE__ */ jsx8(Html, { position: [0, 1, 0], center: true, distanceFactor: 10, children: /* @__PURE__ */ jsx8("div", { className: "pointer-events-none select-none whitespace-nowrap speech-bubble", children: /* @__PURE__ */ jsx8("div", { className: "bg-white text-black px-4 py-2 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center transform -translate-y-full", children: /* @__PURE__ */ jsx8("p", { className: "text-sm font-bold font-mono m-0", children: dialogue }) }) }) })
+  ] });
+};
+var Shop = ({ position }) => {
+  const LIGHT_COLOR = "#FFEB3B";
+  return /* @__PURE__ */ jsxs7("group", { position, children: [
+    /* @__PURE__ */ jsxs7("mesh", { position: [2, 0.05, 0], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [4, 0.1, 4.8] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#212121", roughness: 0.9 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [2, 3.95, 0], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [4, 0.1, 4.8] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#3E2723" })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [2, 3.85, 0], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [2.5, 0.1, 3.5] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: LIGHT_COLOR, emissive: LIGHT_COLOR, emissiveIntensity: 4, toneMapped: false })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [3.95, 2, 0], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [0.1, 4, 4.8] }),
+      /* @__PURE__ */ jsx8(TextureMaterial, { url: ASSETS.noise, color: "#A65E2E", repeat: [4, 4], roughness: 0.5 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [2, 2, -2.4], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [4, 4, 0.1] }),
+      /* @__PURE__ */ jsx8(TextureMaterial, { url: ASSETS.noise, color: "#A65E2E", repeat: [4, 4], roughness: 0.5 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [2, 2, 2.4], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [4, 4, 0.1] }),
+      /* @__PURE__ */ jsx8(TextureMaterial, { url: ASSETS.noise, color: "#A65E2E", repeat: [4, 4], roughness: 0.5 })
+    ] }),
+    /* @__PURE__ */ jsx8("group", { position: [3.6, 1.1, -1.2], children: /* @__PURE__ */ jsxs7("mesh", { children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [0.2, 2.2, 1] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#EEEEEE" })
+    ] }) }),
+    /* @__PURE__ */ jsx8(Barrel, { position: [3, 0, 1.8] }),
+    /* @__PURE__ */ jsxs7("group", { position: [0.6, 0, 0], children: [
+      /* @__PURE__ */ jsxs7("mesh", { position: [0, 1.05, 0], children: [
+        /* @__PURE__ */ jsx8("boxGeometry", { args: [1, 0.1, 5] }),
+        /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#EEEEEE", roughness: 0.2, metalness: 0.1 })
+      ] }),
+      /* @__PURE__ */ jsxs7("mesh", { position: [0.1, 0.5, 0], children: [
+        /* @__PURE__ */ jsx8("boxGeometry", { args: [0.8, 1, 5] }),
+        /* @__PURE__ */ jsx8(TextureMaterial, { url: ASSETS.wood, color: "#3E2723", repeat: [1, 1], rotation: Math.PI / 2 })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs7("group", { position: [0.6, 1.1, 0], children: [
+      /* @__PURE__ */ jsxs7("mesh", { position: [0, 0.1, -0.6], children: [
+        /* @__PURE__ */ jsx8("cylinderGeometry", { args: [0.12, 0.1, 0.25, 16] }),
+        /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#1565C0", roughness: 0.3 })
+      ] }),
+      /* @__PURE__ */ jsxs7("mesh", { position: [0, 0.1, 0.6], children: [
+        /* @__PURE__ */ jsx8("cylinderGeometry", { args: [0.12, 0.1, 0.25, 16] }),
+        /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#C62828", roughness: 0.3 })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsx8(DussekarCharacter, { position: [2.2, 1.1, 0], rotation: [0, Math.PI, 0] })
+  ] });
+};
+var House = React9.memo(({ x, z, rot, doorOpen, doorOpenAmount }) => {
+  const doorRef = useRef6(null);
+  useFrame3((state, delta) => {
+    if (doorRef.current) {
+      const target = doorOpenAmount !== void 0 ? -2 * doorOpenAmount : doorOpen ? -2 : 0;
+      doorRef.current.rotation.y = THREE5.MathUtils.lerp(doorRef.current.rotation.y, target, delta * 3);
+    }
+  });
+  return /* @__PURE__ */ jsxs7("group", { position: [x, 0, z], rotation: [0, rot, 0], children: [
+    /* @__PURE__ */ jsxs7("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.05, 0], children: [
+      /* @__PURE__ */ jsx8("planeGeometry", { args: [7.8, 7.8] }),
+      /* @__PURE__ */ jsx8(TextureMaterial, { url: ASSETS.wood, color: COLORS.wood, repeat: [4, 4], roughness: 0.5 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { rotation: [Math.PI / 2, 0, 0], position: [0, 5.95, 0], children: [
+      /* @__PURE__ */ jsx8("planeGeometry", { args: [7.8, 7.8] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#FFFFFF", roughness: 0.9 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [0, 3, -4], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [8, 6, 0.2] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [-4, 3, 0], rotation: [0, Math.PI / 2, 0], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [8, 6, 0.2] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [4, 3, 0], rotation: [0, Math.PI / 2, 0], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [8, 6, 0.2] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [-2.35, 3, 4], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [3.3, 6, 0.2] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [2.35, 3, 4], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [3.3, 6, 0.2] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [0, 5.125, 4], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [1.4, 1.75, 0.2] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [-2, 3, 0], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [4, 6, 0.2] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [0, 3, -2], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [0.2, 6, 4] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsx8(Sofa, { x: -2.5, z: 2.5, rot: Math.PI / 4 }),
+    " ",
+    /* @__PURE__ */ jsx8(CoffeeTable, { x: -2, z: 1.5 }),
+    " ",
+    /* @__PURE__ */ jsx8(KitchenCounter, { x: -3, z: -3.5, w: 1.5, d: 0.8 }),
+    " ",
+    /* @__PURE__ */ jsx8(KitchenCounter, { x: -1, z: -3.5, w: 1.5, d: 0.8 }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [-3.2, 1.5, -0.5], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [1.2, 3, 1] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#ECEFF1", metalness: 0.3, roughness: 0.2 })
+    ] }),
+    /* @__PURE__ */ jsx8(Bed, { x: 2.5, z: -2.5, rot: 0 }),
+    /* @__PURE__ */ jsx8("group", { position: [-0.7, 1.25, 4], ref: doorRef, children: /* @__PURE__ */ jsxs7("group", { position: [0.7, 0, 0], children: [
+      /* @__PURE__ */ jsxs7("mesh", { children: [
+        /* @__PURE__ */ jsx8("boxGeometry", { args: [1.4, 2.5, 0.1] }),
+        /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#5D4037" })
+      ] }),
+      /* @__PURE__ */ jsxs7("mesh", { position: [0.5, 0, 0.06], children: [
+        " ",
+        /* @__PURE__ */ jsx8("sphereGeometry", { args: [0.08, 8, 8] }),
+        /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#FFD700" })
+      ] })
+    ] }) }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [0, 8, 0], rotation: [0, Math.PI / 4, 0], children: [
+      /* @__PURE__ */ jsx8("coneGeometry", { args: [7, 4, 4] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.houseRoof, roughness: 0.6 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [-2.5, 3.5, 4.15], children: [
+      /* @__PURE__ */ jsx8("planeGeometry", { args: [1.5, 1.5] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#81D4FA", emissive: "#000000", roughness: 0.2, metalness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [2.5, 3.5, 4.15], children: [
+      /* @__PURE__ */ jsx8("planeGeometry", { args: [1.5, 1.5] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#81D4FA", emissive: "#000000", roughness: 0.2, metalness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.01, 7], children: [
+      /* @__PURE__ */ jsx8("planeGeometry", { args: [2, 6] }),
+      " ",
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#9E9E9E" })
+    ] }),
+    /* @__PURE__ */ jsx8("pointLight", { position: [0, 5, 0], intensity: 3, distance: 12, color: "#FFD54F" })
+  ] });
+});
+var BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRef, houseDoorOpen }) => {
+  const meshRef = useRef6(null);
+  const groupRef = useRef6(null);
+  const lightRef = useRef6(null);
+  const materialRef = useRef6(null);
+  const timeRef = useRef6(0);
+  const scaleRef = useRef6(0);
+  const texture = useTexture2(BARNEY_URL);
+  useEffect6(() => {
+    if (texture) {
+      texture.magFilter = THREE5.LinearFilter;
+      texture.minFilter = THREE5.LinearFilter;
+      texture.generateMipmaps = false;
+      texture.anisotropy = 1;
+      texture.needsUpdate = true;
+    }
+  }, [texture]);
+  const isScary = gameState === "chase" || gameState === "indoor_night";
+  useFrame3((state, dt) => {
+    if (!groupRef.current || !meshRef.current) return;
+    timeRef.current += dt;
+    const b = barneyRef.current;
+    const p = playerPosRef.current;
+    const target = barneyTargetRef?.current || { x: b.x, z: b.z, scale: 1 };
+    if (gameState === "chase" && p) {
+      const dx = p.x - b.x, dz = p.z - b.z;
+      const d = Math.sqrt(dx * dx + dz * dz);
+      if (d > 0.01) {
+        const spd = 3.3 * dt;
+        b.x += dx / d * spd;
+        b.z += dz / d * spd;
+      }
+    } else {
+      b.x = THREE5.MathUtils.lerp(b.x, target.x, Math.min(1, dt * 2.5));
+      b.z = THREE5.MathUtils.lerp(b.z, target.z, Math.min(1, dt * 2.5));
+    }
+    const targetScale = target.scale !== void 0 ? target.scale : 1;
+    scaleRef.current = THREE5.MathUtils.lerp(scaleRef.current, targetScale, Math.min(1, dt * 3));
+    groupRef.current.position.set(b.x, 0, b.z);
+    const isActive = gameState === "chase";
+    const bobSpeed = isActive ? 8 : 2.2;
+    const bobAmp = isActive ? 0.15 : 0.1;
+    const swaySpeed = isActive ? 4 : 1.5;
+    const swayAmp = isActive ? 0.08 : 0.05;
+    const bob = Math.abs(Math.sin(timeRef.current * bobSpeed)) * bobAmp;
+    const sway = Math.sin(timeRef.current * swaySpeed) * swayAmp;
+    const tilt = Math.sin(timeRef.current * swaySpeed * 1.3) * 0.04;
+    meshRef.current.position.set(sway, 0.935 + bob, 0);
+    meshRef.current.rotation.z = tilt;
+    let breathe;
+    if (isActive) {
+      breathe = 1 + Math.sin(timeRef.current * 8) * 0.08;
+    } else {
+      breathe = 1 + Math.sin(timeRef.current * 2.5) * 0.04;
+    }
+    const finalScale = 2.4 * scaleRef.current * breathe;
+    meshRef.current.scale.set(finalScale, finalScale, finalScale);
+    const cx = state.camera.position.x;
+    const cz = state.camera.position.z;
+    const fdx = cx - b.x, fdz = cz - b.z;
+    groupRef.current.rotation.y = Math.atan2(fdx, fdz);
+    if (lightRef.current) {
+      lightRef.current.position.set(b.x, 1.5, b.z);
+    }
+  });
+  const visible = gameState === "barney_greet" || gameState === "indoor_night" || gameState === "indoor_day" || gameState === "chase" || gameState === "sleep_fade";
+  if (!visible && scaleRef.current < 0.01) return null;
+  return /* @__PURE__ */ jsxs7(Fragment, { children: [
+    /* @__PURE__ */ jsx8("group", { ref: groupRef, children: /* @__PURE__ */ jsxs7("mesh", { ref: meshRef, children: [
+      /* @__PURE__ */ jsx8("planeGeometry", { args: [1.5, 2] }),
+      /* @__PURE__ */ jsx8(
+        "meshBasicMaterial",
+        {
+          map: texture,
+          transparent: true,
+          alphaTest: 0.05,
+          side: THREE5.DoubleSide,
+          toneMapped: false,
+          color: isScary ? "#A86090" : "#ffffff",
+          depthWrite: false
+        }
+      )
+    ] }) }),
+    isScary && /* @__PURE__ */ jsx8("pointLight", { ref: lightRef, intensity: 1.8, distance: 6, color: "#FF1744", decay: 2 })
+  ] });
+};
+var FlatMapEnvironment = React9.memo(({ houseDoorOpen, nightMode, doorOpenAmount }) => /* @__PURE__ */ jsxs7("group", { children: [
+  /* @__PURE__ */ jsx8("color", { attach: "background", args: ["#87CEEB"] }),
+  /* @__PURE__ */ jsx8("fog", { attach: "fog", args: ["#C8E6F0", 25, 60] }),
+  /* @__PURE__ */ jsx8("ambientLight", { intensity: 0.5, color: "#E3F2FD" }),
+  /* @__PURE__ */ jsx8("hemisphereLight", { intensity: 0.4, color: "#87CEEB", groundColor: "#4CAF50" }),
+  /* @__PURE__ */ jsxs7("mesh", { position: [0, 24, 0], children: [
+    /* @__PURE__ */ jsx8("boxGeometry", { args: [60, 60, 60] }),
+    /* @__PURE__ */ jsx8("meshBasicMaterial", { color: COLORS.sky, side: THREE5.BackSide })
+  ] }),
+  /* @__PURE__ */ jsxs7("mesh", { position: [-20, 30, -20], children: [
+    /* @__PURE__ */ jsx8("sphereGeometry", { args: [4, 32, 32] }),
+    /* @__PURE__ */ jsx8("meshBasicMaterial", { color: "#FFD700" })
+  ] }),
+  /* @__PURE__ */ jsx8("pointLight", { position: [-20, 30, -20], intensity: 0.5, distance: 80, color: "#FFF9C4" }),
+  /* @__PURE__ */ jsx8("directionalLight", { position: [-20, 30, -20], intensity: 1.8, "shadow-mapSize": [2048, 2048] }),
+  /* @__PURE__ */ jsxs7("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0, 0], children: [
+    /* @__PURE__ */ jsx8("planeGeometry", { args: [50, 50] }),
+    /* @__PURE__ */ jsx8(TextureMaterial, { url: ASSETS.grass, color: COLORS.grass, repeat: [12, 12], roughness: 0.8 })
+  ] }),
+  /* @__PURE__ */ jsxs7("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.015, -2], children: [
+    /* @__PURE__ */ jsx8("planeGeometry", { args: [2.5, 14] }),
+    /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#9E9E9E", roughness: 0.9 })
+  ] }),
+  /* @__PURE__ */ jsx8(House, { x: 0, z: 10, rot: Math.PI, doorOpen: houseDoorOpen, doorOpenAmount }),
+  /* @__PURE__ */ jsxs7("group", { position: [0, 0, -10], children: [
+    /* @__PURE__ */ jsx8(ElevatorFacade, { z: 0, height: 5, width: 10 }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [0, 2.5, -6.5], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [11, 5, 1] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.wall })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [-5, 2.5, -3.25], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [1, 5, 7.5] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.wall })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [5, 2.5, -3.25], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [1, 5, 7.5] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.wall })
+    ] }),
+    /* @__PURE__ */ jsxs7("mesh", { position: [0, 5.25, -3.25], children: [
+      /* @__PURE__ */ jsx8("boxGeometry", { args: [11, 0.5, 7.5] }),
+      /* @__PURE__ */ jsx8("meshStandardMaterial", { color: COLORS.wall })
+    ] })
+  ] }),
+  /* @__PURE__ */ jsxs7(Instances, { limit: 50, range: 50, children: [
+    /* @__PURE__ */ jsx8("cylinderGeometry", { args: [0.15, 0.2, 3, 6] }),
+    /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#5D4037", roughness: 0.9 }),
+    [[13.06, 0.55, 0.91], [13.76, 6.49, 1.07], [-6.17, 13.14, 0.81], [-12.22, 8.61, 1.02], [-14.72, 1.24, 1.12], [-14.34, -5.65, 1.08], [-7.28, -11.33, 1.18], [13.59, -7.29, 1.09], [19.92, 0.29, 1.09], [17.85, 7.83, 1.21], [11.2, 15.02, 1.25], [9.61, 14.85, 1.04], [2.96, 17.45, 0.95], [-5.66, 18.04, 1.08], [-11.8, 13.1, 1.03], [-18.5, 4.1, 1.2], [-19.02, 2.52, 0.98], [-18.8, -6.74, 1.22], [-13.16, -13.78, 1.32], [16.11, -11.22, 1.06], [17.2, -5.9, 1.36], [21.66, -0.45, 1.15], [19.21, 9.99, 1.35], [10.05, 19.57, 1.13], [-0.54, 22.27, 1.05], [0.04, 21.27, 1.38], [-16.11, 15.06, 1.04], [-20.52, 11.43, 1.32], [-22.51, -5.4, 1.01], [-19.25, -12.04, 1.32], [-16.05, -15.91, 1.07], [-5.63, -21.41, 1.57], [8.68, -19.84, 1.3], [11.42, -20.29, 1.52], [19.27, -11.8, 1.37], [-12.5, 20.34, 1.07], [10.03, 18.71, 0.8], [-6.33, 15.14, 1.26], [13.63, 20.82, 0.95], [-15.91, 21.15, 1.27], [-13.26, -20.06, 0.93], [8.34, -18.94, 0.95], [-0.79, -19.8, 1.01]].map(([tx, tz, s], i) => /* @__PURE__ */ jsx8(Instance, { position: [tx, 1.5 * s, tz], scale: [s, s, s] }, i))
+  ] }),
+  /* @__PURE__ */ jsxs7(Instances, { limit: 50, range: 50, children: [
+    /* @__PURE__ */ jsx8("coneGeometry", { args: [1.2, 2, 6] }),
+    /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#2E7D32", roughness: 0.85 }),
+    [[13.06, 0.55, 0.91], [13.76, 6.49, 1.07], [-6.17, 13.14, 0.81], [-12.22, 8.61, 1.02], [-14.72, 1.24, 1.12], [-14.34, -5.65, 1.08], [-7.28, -11.33, 1.18], [13.59, -7.29, 1.09], [19.92, 0.29, 1.09], [17.85, 7.83, 1.21], [11.2, 15.02, 1.25], [9.61, 14.85, 1.04], [2.96, 17.45, 0.95], [-5.66, 18.04, 1.08], [-11.8, 13.1, 1.03], [-18.5, 4.1, 1.2], [-19.02, 2.52, 0.98], [-18.8, -6.74, 1.22], [-13.16, -13.78, 1.32], [16.11, -11.22, 1.06], [17.2, -5.9, 1.36], [21.66, -0.45, 1.15], [19.21, 9.99, 1.35], [10.05, 19.57, 1.13], [-0.54, 22.27, 1.05], [0.04, 21.27, 1.38], [-16.11, 15.06, 1.04], [-20.52, 11.43, 1.32], [-22.51, -5.4, 1.01], [-19.25, -12.04, 1.32], [-16.05, -15.91, 1.07], [-5.63, -21.41, 1.57], [8.68, -19.84, 1.3], [11.42, -20.29, 1.52], [19.27, -11.8, 1.37], [-12.5, 20.34, 1.07], [10.03, 18.71, 0.8], [-6.33, 15.14, 1.26], [13.63, 20.82, 0.95], [-15.91, 21.15, 1.27], [-13.26, -20.06, 0.93], [8.34, -18.94, 0.95], [-0.79, -19.8, 1.01]].map(([tx, tz, s], i) => /* @__PURE__ */ jsx8(Instance, { position: [tx, 3.5 * s, tz], scale: [s, s, s] }, i))
+  ] }),
+  /* @__PURE__ */ jsxs7(Instances, { limit: 50, range: 50, children: [
+    /* @__PURE__ */ jsx8("coneGeometry", { args: [0.9, 1.6, 6] }),
+    /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#388E3C", roughness: 0.85 }),
+    [[13.06, 0.55, 0.91], [13.76, 6.49, 1.07], [-6.17, 13.14, 0.81], [-12.22, 8.61, 1.02], [-14.72, 1.24, 1.12], [-14.34, -5.65, 1.08], [-7.28, -11.33, 1.18], [13.59, -7.29, 1.09], [19.92, 0.29, 1.09], [17.85, 7.83, 1.21], [11.2, 15.02, 1.25], [9.61, 14.85, 1.04], [2.96, 17.45, 0.95], [-5.66, 18.04, 1.08], [-11.8, 13.1, 1.03], [-18.5, 4.1, 1.2], [-19.02, 2.52, 0.98], [-18.8, -6.74, 1.22], [-13.16, -13.78, 1.32], [16.11, -11.22, 1.06], [17.2, -5.9, 1.36], [21.66, -0.45, 1.15], [19.21, 9.99, 1.35], [10.05, 19.57, 1.13], [-0.54, 22.27, 1.05], [0.04, 21.27, 1.38], [-16.11, 15.06, 1.04], [-20.52, 11.43, 1.32], [-22.51, -5.4, 1.01], [-19.25, -12.04, 1.32], [-16.05, -15.91, 1.07], [-5.63, -21.41, 1.57], [8.68, -19.84, 1.3], [11.42, -20.29, 1.52], [19.27, -11.8, 1.37], [-12.5, 20.34, 1.07], [10.03, 18.71, 0.8], [-6.33, 15.14, 1.26], [13.63, 20.82, 0.95], [-15.91, 21.15, 1.27], [-13.26, -20.06, 0.93], [8.34, -18.94, 0.95], [-0.79, -19.8, 1.01]].map(([tx, tz, s], i) => /* @__PURE__ */ jsx8(Instance, { position: [tx, 4.3 * s, tz], scale: [s, s, s] }, i))
+  ] }),
+  /* @__PURE__ */ jsxs7(Instances, { limit: 50, range: 50, children: [
+    /* @__PURE__ */ jsx8("coneGeometry", { args: [0.6, 1.2, 6] }),
+    /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#43A047", roughness: 0.85 }),
+    [[13.06, 0.55, 0.91], [13.76, 6.49, 1.07], [-6.17, 13.14, 0.81], [-12.22, 8.61, 1.02], [-14.72, 1.24, 1.12], [-14.34, -5.65, 1.08], [-7.28, -11.33, 1.18], [13.59, -7.29, 1.09], [19.92, 0.29, 1.09], [17.85, 7.83, 1.21], [11.2, 15.02, 1.25], [9.61, 14.85, 1.04], [2.96, 17.45, 0.95], [-5.66, 18.04, 1.08], [-11.8, 13.1, 1.03], [-18.5, 4.1, 1.2], [-19.02, 2.52, 0.98], [-18.8, -6.74, 1.22], [-13.16, -13.78, 1.32], [16.11, -11.22, 1.06], [17.2, -5.9, 1.36], [21.66, -0.45, 1.15], [19.21, 9.99, 1.35], [10.05, 19.57, 1.13], [-0.54, 22.27, 1.05], [0.04, 21.27, 1.38], [-16.11, 15.06, 1.04], [-20.52, 11.43, 1.32], [-22.51, -5.4, 1.01], [-19.25, -12.04, 1.32], [-16.05, -15.91, 1.07], [-5.63, -21.41, 1.57], [8.68, -19.84, 1.3], [11.42, -20.29, 1.52], [19.27, -11.8, 1.37], [-12.5, 20.34, 1.07], [10.03, 18.71, 0.8], [-6.33, 15.14, 1.26], [13.63, 20.82, 0.95], [-15.91, 21.15, 1.27], [-13.26, -20.06, 0.93], [8.34, -18.94, 0.95], [-0.79, -19.8, 1.01]].map(([tx, tz, s], i) => /* @__PURE__ */ jsx8(Instance, { position: [tx, 4.9 * s, tz], scale: [s, s, s] }, i))
+  ] }),
+  [[-15, 22, 10, 3], [10, 25, -5, 4], [20, 23, 15, 2.5], [-5, 24, -15, 3.5], [0, 26, 20, 2]].map(([cx, cy, cz, cr], i) => /* @__PURE__ */ jsxs7("mesh", { position: [cx, cy, cz], children: [
+    /* @__PURE__ */ jsx8("sphereGeometry", { args: [cr, 8, 8] }),
+    /* @__PURE__ */ jsx8("meshBasicMaterial", { color: "#FFFFFF", transparent: true, opacity: 0.7 })
+  ] }, i)),
+  [[-6, 5, -6, 15], [6, 5, 6, 15], [-6, 15, 6, 15], [-6, 5, -4.5, 5], [4.5, 5, 6, 5]].map(([x1, z1, x2, z2], i) => {
+    const dx = x2 - x1, dz = z2 - z1, len = Math.sqrt(dx * dx + dz * dz), ang = Math.atan2(dx, dz);
+    return /* @__PURE__ */ jsxs7("group", { children: [
+      /* @__PURE__ */ jsxs7("mesh", { position: [(x1 + x2) / 2, 0.4, (z1 + z2) / 2], rotation: [0, ang, 0], children: [
+        /* @__PURE__ */ jsx8("boxGeometry", { args: [0.04, 0.04, len] }),
+        /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#8D6E63", roughness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxs7("mesh", { position: [(x1 + x2) / 2, 0.7, (z1 + z2) / 2], rotation: [0, ang, 0], children: [
+        /* @__PURE__ */ jsx8("boxGeometry", { args: [0.04, 0.04, len] }),
+        /* @__PURE__ */ jsx8("meshStandardMaterial", { color: "#8D6E63", roughness: 0.8 })
+      ] })
+    ] }, i);
+  })
+] }));
+
+// src/LobbyEnv.tsx
+import * as THREE6 from "three";
+import { Vector3 as Vector33 } from "three";
+import { jsx as jsx9, jsxs as jsxs8 } from "react/jsx-runtime";
+var LobbyNPC = ({ positionRef, isPaused, playerPositionRef }) => {
+  const group = useRef7(null);
+  const { scene, animations: walkAnims } = useGLTF3(NPC_WALK_URL);
+  const { animations: idleAnims } = useGLTF3(NPC_IDLE_URL);
+  const { actions } = useAnimations2(useMemo4(() => {
+    const w = walkAnims.map((a) => {
+      const c = a.clone(true);
+      c.name = "Walking";
+      return c;
+    });
+    const i = idleAnims.map((a) => {
+      const c = a.clone(true);
+      c.name = "Idle";
+      return c;
+    });
+    return [...i, ...w];
+  }, [walkAnims, idleAnims]), group);
+  const aiState = useRef7({ state: "Idle", target: new Vector33(0, 0, 0), timer: 0 });
+  const _nDir = useRef7(new Vector33());
+  useEffect7(() => {
+    scene.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        if (child.material) {
+          child.material.side = THREE6.DoubleSide;
+          child.material.transparent = false;
+          child.material.alphaTest = 0.5;
+        }
+      }
+    });
+    if (actions["Idle"]) actions["Idle"].play();
+  }, [scene, actions]);
+  useFrame4((state, delta) => {
+    if (!group.current) return;
+    if (positionRef) positionRef.current.copy(group.current.position);
+    if (isPaused) {
+      if (aiState.current.state === "Walking") {
+        aiState.current.state = "Idle";
+        const walkAction = actions["Walking"];
+        const idleAction = actions["Idle"];
+        if (idleAction) {
+          idleAction.reset().fadeIn(0.2).play();
+          walkAction?.fadeOut(0.2);
+        }
+      }
+      if (playerPositionRef && playerPositionRef.current) {
+        const playerPos = playerPositionRef.current;
+        const npcPos = group.current.position;
+        const dx = playerPos.x - npcPos.x;
+        const dz = playerPos.z - npcPos.z;
+        const targetRotation = Math.atan2(dx, dz);
+        const currentRotation = group.current.rotation.y;
+        let diff = targetRotation - currentRotation;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        group.current.rotation.y += diff * 5 * delta;
+      }
+      return;
+    }
+    const ai = aiState.current;
+    const pos = group.current.position;
+    if (ai.state === "Idle") {
+      ai.timer -= delta;
+      if (ai.timer <= 0) {
+        const tx = (Math.random() - 0.5) * 14;
+        const tz = -4 + Math.random() * 12;
+        ai.target.set(tx, 0, tz);
+        ai.state = "Walking";
+        const walkAction = actions["Walking"];
+        const idleAction = actions["Idle"];
+        if (walkAction) {
+          walkAction.reset().fadeIn(0.5).play();
+          idleAction?.fadeOut(0.5);
+        }
+      }
+    } else if (ai.state === "Walking") {
+      const direction = _nDir.current.subVectors(ai.target, pos);
+      direction.y = 0;
+      const dist = direction.length();
+      if (dist < 0.5) {
+        ai.state = "Idle";
+        ai.timer = 2 + Math.random() * 4;
+        const walkAction = actions["Walking"];
+        const idleAction = actions["Idle"];
+        if (idleAction) {
+          idleAction.reset().fadeIn(0.5).play();
+          walkAction?.fadeOut(0.5);
+        }
+      } else {
+        direction.normalize();
+        const moveSpeed = 2 * delta;
+        pos.addScaledVector(direction, moveSpeed);
+        const targetRotation = Math.atan2(direction.x, direction.z);
+        const currentRotation = group.current.rotation.y;
+        let diff = targetRotation - currentRotation;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        group.current.rotation.y += diff * 5 * delta;
+      }
+    }
+  });
+  return /* @__PURE__ */ jsx9("group", { ref: group, position: [5, 0, 5], children: /* @__PURE__ */ jsx9("primitive", { object: scene, scale: [1, 1, 1] }) });
+};
+var LobbyEnvironment = React10.memo(({ npcPositionRef, isPaused, playerPositionRef }) => {
+  const W = 20;
+  const L = 20;
+  const H = 4.5;
+  const WH = 1.2;
+  return /* @__PURE__ */ jsxs8("group", { children: [
+    /* @__PURE__ */ jsx9("color", { attach: "background", args: ["#1a1410"] }),
+    /* @__PURE__ */ jsx9("fog", { attach: "fog", args: ["#1a1410", 8, 28] }),
+    /* @__PURE__ */ jsxs8("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0, 0], children: [
+      /* @__PURE__ */ jsx9("planeGeometry", { args: [W, L] }),
+      /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.lobbyFloor, repeat: [8, 8], roughness: 0.4, metalness: 0.05 })
+    ] }),
+    /* @__PURE__ */ jsxs8("mesh", { rotation: [Math.PI / 2, 0, 0], position: [0, H, 0], children: [
+      /* @__PURE__ */ jsx9("planeGeometry", { args: [W, L] }),
+      /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.ceiling, repeat: [6, 6], roughness: 0.9 })
+    ] }),
+    /* @__PURE__ */ jsx9("ambientLight", { intensity: 0.45, color: "#FFE0B2" }),
+    /* @__PURE__ */ jsx9("pointLight", { position: [0, 3.8, 0], intensity: 2.8, distance: 22, color: "#FFE0B2", decay: 2 }),
+    /* @__PURE__ */ jsx9("pointLight", { position: [0, 3, -6], intensity: 1.5, distance: 12, color: "#FFF8E1", decay: 2 }),
+    /* @__PURE__ */ jsxs8("group", { position: [0, H / 2, L / 2], children: [
+      /* @__PURE__ */ jsxs8("mesh", { children: [
+        /* @__PURE__ */ jsx9("boxGeometry", { args: [W, H, 0.5] }),
+        /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.wall, repeat: [4, 1], roughness: 0.9 })
+      ] }),
+      /* @__PURE__ */ jsxs8("mesh", { position: [0, -H / 2 + WH / 2, -0.3], children: [
+        /* @__PURE__ */ jsx9("boxGeometry", { args: [W - 0.6, WH, 0.1] }),
+        /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.wallPanel, color: "#ffffff", repeat: [12, 1], roughness: 0.6 })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs8("group", { position: [-W / 2, H / 2, 0], children: [
+      /* @__PURE__ */ jsxs8("mesh", { children: [
+        /* @__PURE__ */ jsx9("boxGeometry", { args: [0.5, H, L] }),
+        /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.wall, repeat: [4, 1], roughness: 0.9 })
+      ] }),
+      /* @__PURE__ */ jsxs8("mesh", { position: [0.3, -H / 2 + WH / 2, 0], children: [
+        /* @__PURE__ */ jsx9("boxGeometry", { args: [0.1, WH, L - 0.1] }),
+        /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.wallPanel, color: "#ffffff", repeat: [12, 1], roughness: 0.6 })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs8("group", { position: [W / 2, 0, 0], children: [
+      /* @__PURE__ */ jsxs8("mesh", { position: [0, H / 2, -6.25], children: [
+        /* @__PURE__ */ jsx9("boxGeometry", { args: [0.5, H, 7.5] }),
+        /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.wall, repeat: [1.5, 1], roughness: 0.9 })
+      ] }),
+      /* @__PURE__ */ jsxs8("mesh", { position: [-0.3, WH / 2, -6.25], children: [
+        /* @__PURE__ */ jsx9("boxGeometry", { args: [0.1, WH, 7.5] }),
+        /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.wallPanel, color: "#ffffff", repeat: [12, 1], roughness: 0.6 })
+      ] }),
+      /* @__PURE__ */ jsxs8("mesh", { position: [0, H / 2, 6.25], children: [
+        /* @__PURE__ */ jsx9("boxGeometry", { args: [0.5, H, 7.5] }),
+        /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.wall, repeat: [1.5, 1], roughness: 0.9 })
+      ] }),
+      /* @__PURE__ */ jsxs8("mesh", { position: [-0.3, WH / 2, 6.25], children: [
+        /* @__PURE__ */ jsx9("boxGeometry", { args: [0.1, WH, 7.5] }),
+        /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.wallPanel, color: "#ffffff", repeat: [12, 1], roughness: 0.6 })
+      ] }),
+      /* @__PURE__ */ jsxs8("mesh", { position: [0, 4.15, 0], children: [
+        /* @__PURE__ */ jsx9("boxGeometry", { args: [0.5, 0.7, 5] }),
+        /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.wall, repeat: [1, 0.2], roughness: 0.9 })
+      ] }),
+      /* @__PURE__ */ jsxs8("mesh", { position: [0, 0.5, 0], children: [
+        /* @__PURE__ */ jsx9("boxGeometry", { args: [0.5, 1, 5] }),
+        /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.wall, repeat: [1, 0.3], roughness: 0.9 })
+      ] }),
+      /* @__PURE__ */ jsxs8("mesh", { position: [-0.3, 0.5, 0], children: [
+        /* @__PURE__ */ jsx9("boxGeometry", { args: [0.1, 1, 5] }),
+        /* @__PURE__ */ jsx9(TextureMaterial, { url: ASSETS.wallPanel, color: "#ffffff", repeat: [12, 1], roughness: 0.6 })
+      ] }),
+      /* @__PURE__ */ jsx9(Shop, { position: [0, 0, 0] })
+    ] }),
+    /* @__PURE__ */ jsx9(ElevatorFacade, { z: -L / 2, width: W }),
+    /* @__PURE__ */ jsx9(Door, { x: -W / 2 + 0.35, z: -5, rot: Math.PI / 2 }),
+    " ",
+    /* @__PURE__ */ jsx9(Door, { x: -W / 2 + 0.35, z: 5, rot: Math.PI / 2 }),
+    " ",
+    /* @__PURE__ */ jsx9(Door, { x: W / 2 - 0.35, z: -5, rot: -Math.PI / 2 }),
+    " ",
+    /* @__PURE__ */ jsx9(WallPanel, { x: -W / 2 + 0.3, z: 0, rot: Math.PI / 2 }),
+    /* @__PURE__ */ jsx9(CeilingLight, { x: -5, z: -3 }),
+    " ",
+    /* @__PURE__ */ jsx9(CeilingLight, { x: -5, z: 3 }),
+    " ",
+    /* @__PURE__ */ jsx9(CeilingLight, { x: 5, z: -3 }),
+    " ",
+    /* @__PURE__ */ jsx9(CeilingLight, { x: 5, z: 3 }),
+    /* @__PURE__ */ jsx9(ReceptionDesk, { x: 7, z: -7.5, rot: -Math.PI / 2 }),
+    /* @__PURE__ */ jsx9(Armchair, { x: -8.7, z: 2, rot: Math.PI / 2, color: "#4E342E" }),
+    /* @__PURE__ */ jsx9(Armchair, { x: -8.7, z: 3.5, rot: Math.PI / 2, color: "#4E342E" }),
+    /* @__PURE__ */ jsx9(Armchair, { x: -8.7, z: -2, rot: Math.PI / 2, color: "#5D4037" }),
+    /* @__PURE__ */ jsx9(Armchair, { x: -8.7, z: -3.5, rot: Math.PI / 2, color: "#5D4037" }),
+    /* @__PURE__ */ jsx9(Armchair, { x: -4, z: 8.8, rot: Math.PI, color: "#4E342E" }),
+    /* @__PURE__ */ jsx9(Armchair, { x: -2.5, z: 8.8, rot: Math.PI, color: "#4E342E" }),
+    /* @__PURE__ */ jsx9(Armchair, { x: 2.5, z: 8.8, rot: Math.PI, color: "#4E342E" }),
+    /* @__PURE__ */ jsx9(Armchair, { x: 4, z: 8.8, rot: Math.PI, color: "#4E342E" }),
+    /* @__PURE__ */ jsx9(TallPlant, { x: -9.2, z: 9.2, variant: 0 }),
+    /* @__PURE__ */ jsx9(TallPlant, { x: 9.2, z: 9.2, variant: 1 }),
+    /* @__PURE__ */ jsx9(TallPlant, { x: -9.2, z: -9.2, variant: 2 }),
+    /* @__PURE__ */ jsx9(TallPlant, { x: -6, z: -9.2, variant: 0 }),
+    /* @__PURE__ */ jsx9(TallPlant, { x: 6, z: -9.2, variant: 1 }),
+    /* @__PURE__ */ jsx9(FloorLamp, { x: -4, z: -8.8 }),
+    /* @__PURE__ */ jsx9(FloorLamp, { x: 4, z: -8.8 }),
+    /* @__PURE__ */ jsx9(FloorLamp, { x: -7, z: 0 }),
+    /* @__PURE__ */ jsxs8("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.012, -2], children: [
+      /* @__PURE__ */ jsx9("planeGeometry", { args: [3.5, 14] }),
+      /* @__PURE__ */ jsx9("meshStandardMaterial", { color: "#6A1B9A", roughness: 0.95, opacity: 0.6, transparent: true })
+    ] }),
+    /* @__PURE__ */ jsxs8("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.013, -2], children: [
+      /* @__PURE__ */ jsx9("planeGeometry", { args: [2.8, 13.4] }),
+      /* @__PURE__ */ jsx9("meshStandardMaterial", { color: "#4A148C", roughness: 0.95, opacity: 0.4, transparent: true })
+    ] }),
+    /* @__PURE__ */ jsx9(LobbyNPC, { positionRef: npcPositionRef, isPaused, playerPositionRef })
+  ] });
+});
+
+// src/App.tsx
+import { Fragment as Fragment2, jsx as jsx10, jsxs as jsxs9 } from "react/jsx-runtime";
+var MAX_JOYSTICK_RADIUS = 50;
+var World = ({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }) => /* @__PURE__ */ jsxs9(Fragment2, { children: [
+  level === 0 && /* @__PURE__ */ jsx10(LobbyEnvironment, { npcPositionRef, isPaused, playerPositionRef }),
+  level === 1 && /* @__PURE__ */ jsx10(FlatMapEnvironment, { houseDoorOpen, nightMode, doorOpenAmount }),
+  /* @__PURE__ */ jsx10(ElevatorInterior, { timer, doorsClosed, level }),
+  level === 1 && /* @__PURE__ */ jsx10(BarneyActor, { gameState, barneyRef, barneyTargetRef, playerPosRef: playerPositionRef, houseDoorOpen }),
+  Object.values(otherPlayers || {}).map((p) => /* @__PURE__ */ jsxs9("group", { position: [p.x, p.y, p.z], rotation: [0, p.ry, 0], children: [
+    /* @__PURE__ */ jsxs9("mesh", { position: [0, Math.sin(Date.now() / 200) * 0.1 + 0.9, 0], children: [
+      /* @__PURE__ */ jsx10("capsuleGeometry", { args: [0.3, 1.2] }),
+      /* @__PURE__ */ jsx10("meshStandardMaterial", { color: "#3b82f6" })
+    ] }),
+    /* @__PURE__ */ jsx10(Html3, { position: [0, 2.2, 0], center: true, children: /* @__PURE__ */ jsx10("div", { className: "bg-black/50 text-white px-2 py-1 rounded text-xs font-mono", children: p.id.substring(0, 6) }) })
+  ] }, p.id))
+] });
+function App() {
+  const [hasStarted, setHasStarted] = useState8(false);
+  const [audioCtx, setAudioCtx] = useState8(null);
+  const [muted, setMuted] = useState8(false);
+  const [zoomLevel, setZoomLevel] = useState8(4);
+  const prevPinchDist = useRef8(null);
+  const moveInput = useRef8({ x: 0, y: 0 });
+  const lookInput = useRef8({ x: 0, y: 0 });
+  const sharedPlayerPositionRef = useRef8(new Vector34(0, 0, 8));
+  const playerPositionCmdRef = useRef8(null);
+  const cameraShakeRef = useRef8(false);
+  const [elevatorTimer, setElevatorTimer] = useState8(null);
+  const [doorsClosed, setDoorsClosed] = useState8(false);
+  const [currentLevel, setCurrentLevel] = useState8(0);
+  const [overlayOpacity, setOverlayOpacity] = useState8(0);
+  const [travelPhase, setTravelPhase] = useState8("idle");
+  const [floorReveal, setFloorReveal] = useState8(false);
+  const [cameraShake, setCameraShake] = useState8(false);
+  const [arrivalPulse, setArrivalPulse] = useState8(false);
+  const [gameState, setGameState] = useState8("lobby");
+  const [barneyDialogueOpen, setBarneyDialogueOpen] = useState8(false);
+  const [barneyDialogueNode, setBarneyDialogueNode] = useState8("greet");
+  const [canSleep, setCanSleep] = useState8(false);
+  const [canSleepNow, setCanSleepNow] = useState8(false);
+  const [nightMode, setNightMode] = useState8(false);
+  const [sleepFadeOpacity, setSleepFadeOpacity] = useState8(0);
+  const [jumpscare, setJumpscare] = useState8(false);
+  const [doorOpenAmount, setDoorOpenAmount] = useState8(0);
+  const [insideElevator, setInsideElevator] = useState8(false);
+  const barneyRef = useRef8(new Vector34(0, 0, 0));
+  const barneyTargetRef = useRef8({ x: 0, z: 6.8, scale: 0 });
+  const npcPositionRef = useRef8(new Vector34(5, 0, 5));
+  const [canInteractNPC, setCanInteractNPC] = useState8(false);
+  const [dialogueOpen, setDialogueOpen] = useState8(false);
+  const [dialogueNode, setDialogueNode] = useState8("start");
+  const [houseDoorOpen, setHouseDoorOpen] = useState8(false);
+  const [canInteractDoor, setCanInteractDoor] = useState8(false);
+  const [doorSoundTrigger, setDoorSoundTrigger] = useState8(0);
+  const handleElevatorZoneChange = useCallback((inside) => {
+    setInsideElevator(inside);
+  }, []);
+  useEffect8(() => {
+    cameraShakeRef.current = cameraShake;
+  }, [cameraShake]);
+  useEffect8(() => {
+    if (currentLevel === 1 && gameState === "lobby") {
+      setGameState("outdoor");
+      playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+    }
+    if (currentLevel === 0 && gameState !== "lobby") setGameState("lobby");
+  }, [currentLevel, gameState]);
+  useEffect8(() => {
+    if (gameState !== "chase") return;
+    setNightMode(true);
+    const interval = setInterval(() => {
+      const p = sharedPlayerPositionRef.current;
+      const b = barneyRef.current;
+      const d = Math.sqrt((p.x - b.x) ** 2 + (p.z - b.z) ** 2);
+      if (d < 1.2) {
+        setJumpscare(true);
+        setGameState("caught");
+        setTimeout(() => {
+          setJumpscare(false);
+          playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+          barneyRef.current.set(0, 0, 6.5);
+          barneyTargetRef.current = { x: 0, z: 6.8, scale: 0 };
+          setNightMode(false);
+          setHouseDoorOpen(false);
+          setDoorOpenAmount(0);
+          setGameState("outdoor");
+        }, 2e3);
+      }
+      if (p.z <= -10 && Math.abs(p.x) <= 3.1) {
+        setGameState("saved");
+        setDoorsClosed(true);
+        setDoorSoundTrigger((prev) => prev + 1);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+        setTimeout(() => {
+          setNightMode(false);
+          setHouseDoorOpen(false);
+          setDoorOpenAmount(0);
+          setDoorsClosed(false);
+          setGameState("outdoor");
+          barneyRef.current.set(0, 0, 6.5);
+          barneyTargetRef.current = { x: 0, z: 6.8, scale: 0 };
+        }, 2500);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [gameState]);
+  useEffect8(() => {
+    if (gameState !== "indoor_day" || !canSleep) {
+      setCanSleepNow(false);
+      return;
+    }
+    const check = setInterval(() => {
+      const p = sharedPlayerPositionRef.current;
+      const BED_X = -2.5, BED_Z = 12.5;
+      const d = Math.sqrt((p.x - BED_X) ** 2 + (p.z - BED_Z) ** 2);
+      setCanSleepNow(d < 3);
+    }, 200);
+    return () => clearInterval(check);
+  }, [gameState, canSleep]);
+  const handlePlayerEnterElevator = () => {
+    if (elevatorTimer === null && !doorsClosed && currentLevel === 0) {
+      setElevatorTimer(5);
+    }
+  };
+  const handleInteractionUpdate = useCallback((c) => {
+    setCanInteractDoor((p) => p !== c ? c : p);
+  }, []);
+  const handleNpcInteractionUpdate = useCallback((c) => {
+    setCanInteractNPC((p) => p !== c ? c : p);
+  }, []);
+  const handleOpenDoor = () => {
+    if (gameState === "outdoor") {
+      setGameState("barney_greet");
+      setBarneyDialogueNode("greet");
+      setCanInteractDoor(false);
+      setDoorOpenAmount(0.25);
+      barneyRef.current.set(0, 0, 6.8);
+      barneyTargetRef.current = { x: 0, z: 6.8, scale: 0 };
+      setTimeout(() => {
+        setDoorOpenAmount(0.7);
+        barneyTargetRef.current = { x: 0, z: 6.3, scale: 1 };
+      }, 500);
+      setTimeout(() => {
+        setDoorOpenAmount(0.95);
+        barneyTargetRef.current = { x: 0, z: 5.4, scale: 1 };
+      }, 1100);
+      setTimeout(() => {
+        setBarneyDialogueOpen(true);
+      }, 1700);
+    } else {
+      setHouseDoorOpen(true);
+      setDoorOpenAmount(1);
+      setCanInteractDoor(false);
+    }
+  };
+  const handleBarneyResponse = (next) => {
+    if (next === "accept_coffee") {
+      setHouseDoorOpen(true);
+      setDoorOpenAmount(1);
+      setBarneyDialogueOpen(false);
+      setGameState("indoor_day");
+      barneyTargetRef.current = { x: -2, z: 8, scale: 1 };
+      setTimeout(() => setCanSleep(true), 1500);
+    } else if (next === "refuse") {
+      setBarneyDialogueOpen(false);
+      setGameState("outdoor");
+      setDoorOpenAmount(0);
+      barneyTargetRef.current = { x: 0, z: 6.8, scale: 0 };
+    } else {
+      setBarneyDialogueNode(next);
+    }
+  };
+  const handleSleep = () => {
+    setCanSleep(false);
+    setGameState("sleep_fade");
+    setSleepFadeOpacity(1);
+    setTimeout(() => {
+      setNightMode(true);
+      setGameState("indoor_night");
+      playerPositionCmdRef.current = { x: 0, y: 0, z: 2 };
+      setHouseDoorOpen(false);
+      setDoorOpenAmount(0);
+      barneyRef.current.set(0, 0, 5.8);
+      barneyTargetRef.current = { x: 0, z: 5.8, scale: 1 };
+      setTimeout(() => {
+        setSleepFadeOpacity(0);
+        setTimeout(() => setGameState("chase"), 2e3);
+      }, 500);
+    }, 3e3);
+  };
+  const [multiplayerEnabled, setMultiplayerEnabled] = useState8(false);
+  const { user, otherPlayers } = useMultiplayer(sharedPlayerPositionRef, useRef8(0), moveInput.current.x !== 0 || moveInput.current.y !== 0 ? "walking" : "idle", multiplayerEnabled);
+  const handleStartDialogue = () => {
+    setDialogueNode("start");
+    setDialogueOpen(true);
+    setCanInteractNPC(false);
+  };
+  const handleStartGame = (mpEnabled) => {
+    setMultiplayerEnabled(mpEnabled);
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AC();
+    ctx.resume();
+    setAudioCtx(ctx);
+    setHasStarted(true);
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
+      document.body.requestPointerLock();
+    }
+  };
+  useEffect8(() => {
+    let timerId;
+    if (elevatorTimer !== null && elevatorTimer > 0) {
+      timerId = setTimeout(() => {
+        setElevatorTimer((prev) => prev !== null ? prev - 1 : null);
+      }, 1e3);
+      if (!doorsClosed) {
+        setTravelPhase("waiting");
+      } else {
+        setTravelPhase("traveling");
+        setCameraShake(true);
+        if (elevatorTimer === 19) {
+          setOverlayOpacity(1);
+        }
+        if (elevatorTimer === 18) {
+          if (currentLevel === 0) {
+            setCurrentLevel(1);
+            setFloorReveal(true);
+          }
+        }
+        if (elevatorTimer === 17) {
+          setOverlayOpacity(0);
+        }
+        if (elevatorTimer === 15) {
+          setFloorReveal(false);
+        }
+      }
+    } else if (elevatorTimer === 0) {
+      if (!doorsClosed) {
+        setDoorsClosed(true);
+        setElevatorTimer(20);
+        setDoorSoundTrigger((prev) => prev + 1);
+        setTravelPhase("closing");
+      } else {
+        setDoorsClosed(false);
+        setElevatorTimer(null);
+        setOverlayOpacity(0);
+        setTravelPhase("arriving");
+        setCameraShake(false);
+        setArrivalPulse(true);
+        setTimeout(() => {
+          setArrivalPulse(false);
+          setTravelPhase("idle");
+        }, 1500);
+      }
+    }
+    return () => clearTimeout(timerId);
+  }, [elevatorTimer, doorsClosed, currentLevel]);
+  useEffect8(() => {
+    return () => {
+      if (audioCtx && audioCtx.state !== "closed") audioCtx.close().catch(() => {
+      });
+    };
+  }, [audioCtx]);
+  const [joystickVisual, setJoystickVisual] = useState8({ active: false, originX: 0, originY: 0, currentX: 0, currentY: 0 });
+  const isDesktop = typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches;
+  const activePointers = useRef8(/* @__PURE__ */ new Map());
+  const handlePointerDown = (e) => {
+    if (!hasStarted) return;
+    if (isDesktop) {
+      if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen) {
+        document.body.requestPointerLock();
+      }
+      return;
+    }
+    if (dialogueOpen || barneyDialogueOpen) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const { pointerId, clientX, clientY } = e;
+    const screenW = window.innerWidth;
+    const screenH = window.innerHeight;
+    const isPortrait = screenH > screenW;
+    const zoneLimit = isPortrait ? 0.5 : 0.4;
+    if (clientX < screenW * zoneLimit) {
+      const hasMove = Array.from(activePointers.current.values()).some((p) => p.type === "move");
+      activePointers.current.set(pointerId, { type: hasMove ? "aux" : "move", startX: clientX, startY: clientY, currX: clientX, currY: clientY });
+      if (!hasMove) {
+        setJoystickVisual({ active: true, originX: clientX, originY: clientY, currentX: 0, currentY: 0 });
+        moveInput.current = { x: 0, y: 0 };
+      }
+    } else {
+      const hasLook = Array.from(activePointers.current.values()).some((p) => p.type === "look");
+      activePointers.current.set(pointerId, { type: hasLook ? "aux" : "look", startX: clientX, startY: clientY, currX: clientX, currY: clientY });
+    }
+    if (activePointers.current.size === 2) {
+      prevPinchDist.current = null;
+    }
+  };
+  const handlePointerMove = (e) => {
+    if (!hasStarted) return;
+    if (isDesktop) {
+      if (document.pointerLockElement === document.body && !dialogueOpen && !barneyDialogueOpen) {
+        lookInput.current.x += e.movementX;
+        lookInput.current.y += e.movementY;
+      }
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    const { pointerId, clientX, clientY } = e;
+    const pointer = activePointers.current.get(pointerId);
+    if (pointer) {
+      pointer.currX = clientX;
+      pointer.currY = clientY;
+      const types = Array.from(activePointers.current.values()).map((p) => p.type);
+      const isDual = types.includes("move") && types.includes("look");
+      const isPinch = activePointers.current.size === 2 && !isDual;
+      if (!isPinch) {
+        if (pointer.type === "move") {
+          const dx = clientX - pointer.startX;
+          const dy = clientY - pointer.startY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const ang = Math.atan2(dy, dx);
+          const cap = Math.min(dist, MAX_JOYSTICK_RADIUS);
+          const vx = Math.cos(ang) * cap;
+          const vy = Math.sin(ang) * cap;
+          let nx = vx / MAX_JOYSTICK_RADIUS;
+          let ny = vy / MAX_JOYSTICK_RADIUS;
+          moveInput.current = { x: nx, y: ny };
+          setJoystickVisual((prev) => ({ ...prev, currentX: nx, currentY: ny }));
+        } else if (pointer.type === "look") {
+          const deltaX = clientX - pointer.startX;
+          const deltaY = clientY - pointer.startY;
+          lookInput.current.x += deltaX * 6e-3;
+          lookInput.current.y += deltaY * 6e-3;
+          pointer.startX = clientX;
+          pointer.startY = clientY;
+        }
+      }
+      if (isPinch && !dialogueOpen && !barneyDialogueOpen) {
+        const pts = Array.from(activePointers.current.values());
+        const p1 = pts[0];
+        const p2 = pts[1];
+        const dist = Math.sqrt(Math.pow(p1.currX - p2.currX, 2) + Math.pow(p1.currY - p2.currY, 2));
+        if (prevPinchDist.current !== null) {
+          const delta = dist - prevPinchDist.current;
+          setZoomLevel((prev) => Math.min(Math.max(prev - delta * 0.02, 0), 10));
+        }
+        prevPinchDist.current = dist;
+      }
+    }
+  };
+  const handlePointerUp = (e) => {
+    if (!hasStarted || isDesktop) return;
+    e.preventDefault();
+    const pointer = activePointers.current.get(e.pointerId);
+    if (pointer) {
+      if (pointer.type === "move") {
+        moveInput.current = { x: 0, y: 0 };
+        setJoystickVisual((p) => ({ ...p, active: false }));
+      }
+      activePointers.current.delete(e.pointerId);
+    }
+    if (activePointers.current.size < 2) {
+      prevPinchDist.current = null;
+    }
+  };
+  useEffect8(() => {
+    if (!isDesktop || !hasStarted) return;
+    if (dialogueOpen || barneyDialogueOpen) {
+      document.exitPointerLock();
+      return;
+    }
+    const keys = { w: false, a: false, s: false, d: false };
+    const upd = () => {
+      let x = 0, y = 0;
+      if (keys.w) y -= 1;
+      if (keys.s) y += 1;
+      if (keys.a) x -= 1;
+      if (keys.d) x += 1;
+      moveInput.current.x = x;
+      moveInput.current.y = y;
+    };
+    const kd = (e) => {
+      if (dialogueOpen || barneyDialogueOpen) return;
+      switch (e.key.toLowerCase()) {
+        case "w":
+          keys.w = true;
+          break;
+        case "a":
+          keys.a = true;
+          break;
+        case "s":
+          keys.s = true;
+          break;
+        case "d":
+          keys.d = true;
+          break;
+      }
+      upd();
+    };
+    const ku = (e) => {
+      switch (e.key.toLowerCase()) {
+        case "w":
+          keys.w = false;
+          break;
+        case "a":
+          keys.a = false;
+          break;
+        case "s":
+          keys.s = false;
+          break;
+        case "d":
+          keys.d = false;
+          break;
+      }
+      upd();
+    };
+    window.addEventListener("keydown", kd);
+    window.addEventListener("keyup", ku);
+    return () => {
+      window.removeEventListener("keydown", kd);
+      window.removeEventListener("keyup", ku);
+    };
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen]);
+  return /* @__PURE__ */ jsxs9("div", { className: "w-full h-full relative overflow-hidden select-none", style: { touchAction: "none", backgroundColor: "#000" }, onPointerDown: handlePointerDown, onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onPointerCancel: handlePointerUp, onPointerLeave: handlePointerUp, onWheel: (e) => {
+    if (!hasStarted || dialogueOpen || barneyDialogueOpen) return;
+    setZoomLevel((prev) => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10));
+  }, children: [
+    /* @__PURE__ */ jsx10(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx, muted, nightMode }),
+    /* @__PURE__ */ jsx10("div", { className: "absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out", style: { opacity: overlayOpacity } }),
+    cameraShake && /* @__PURE__ */ jsx10("div", { className: "absolute inset-0 z-20 pointer-events-none traveling-vignette" }),
+    /* @__PURE__ */ jsx10(Canvas, { camera: { fov: 75, near: 0.1, far: 100 }, dpr: [1, 1.5], children: /* @__PURE__ */ jsxs9(Suspense, { fallback: /* @__PURE__ */ jsx10(Html3, { center: true, children: /* @__PURE__ */ jsx10("div", { className: "text-white font-mono", children: "Loading..." }) }), children: [
+      /* @__PURE__ */ jsx10(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }),
+      /* @__PURE__ */ jsx10(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueOpen, sharedPositionRef: sharedPlayerPositionRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange })
+    ] }) }),
+    /* @__PURE__ */ jsx10(Loader, {}),
+    !hasStarted && /* @__PURE__ */ jsx10(MainMenu, { onPlay: handleStartGame }),
+    hasStarted && /* @__PURE__ */ jsx10("div", { className: "absolute top-0 left-0 right-0 z-40 pointer-events-none pt-3 px-3 flex justify-center", children: /* @__PURE__ */ jsxs9("div", { className: "relative", children: [
+      /* @__PURE__ */ jsx10("div", { className: `absolute -inset-2 rounded-2xl blur-xl transition-opacity duration-500 ${elevatorTimer !== null && elevatorTimer <= 5 ? "bg-red-500/40 opacity-100" : arrivalPulse ? "bg-green-400/50 opacity-100" : "bg-amber-500/20 opacity-70"}` }),
+      /* @__PURE__ */ jsxs9("div", { className: "relative bg-gradient-to-b from-black/95 to-black/80 backdrop-blur-xl border border-amber-500/40 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]", children: [
+        /* @__PURE__ */ jsx10("div", { className: "absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent" }),
+        /* @__PURE__ */ jsxs9("div", { className: "flex items-stretch divide-x divide-amber-500/20", children: [
+          /* @__PURE__ */ jsxs9("div", { className: "px-4 py-2.5 flex flex-col items-center justify-center min-w-[85px] relative", children: [
+            /* @__PURE__ */ jsx10("span", { className: "text-amber-500/60 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5", children: currentLevel === 0 ? "Location" : "Floor" }),
+            currentLevel === 0 ? /* @__PURE__ */ jsx10("span", { className: "text-amber-300 text-lg font-black tracking-widest leading-none", style: { textShadow: "0 0 20px rgba(251,191,36,0.6)" }, children: "LOBBY" }) : /* @__PURE__ */ jsxs9("div", { className: "flex items-baseline gap-0.5", children: [
+              /* @__PURE__ */ jsx10("span", { className: "text-amber-500/50 text-sm font-bold", children: "\u25B2" }),
+              /* @__PURE__ */ jsx10("span", { className: "text-amber-300 text-3xl font-black font-mono leading-none", style: { textShadow: "0 0 25px rgba(251,191,36,0.7)" }, children: String(currentLevel).padStart(2, "0") })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsx10("div", { className: "px-4 py-2.5 flex flex-col items-center justify-center min-w-[115px]", children: elevatorTimer !== null ? /* @__PURE__ */ jsxs9(Fragment2, { children: [
+            /* @__PURE__ */ jsx10("span", { className: `text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5 ${elevatorTimer <= 5 && !doorsClosed ? "text-red-400/80" : doorsClosed ? "text-blue-400/80" : "text-amber-400/60"}`, children: doorsClosed ? "Traveling" : elevatorTimer <= 5 ? "Closing!" : "Departing" }),
+            /* @__PURE__ */ jsxs9("div", { className: "flex items-center gap-2", children: [
+              /* @__PURE__ */ jsx10("div", { className: `w-2 h-2 rounded-full ${elevatorTimer <= 5 && !doorsClosed ? "bg-red-500 animate-ping" : doorsClosed ? "bg-blue-400" : "bg-amber-400"}` }),
+              /* @__PURE__ */ jsx10("span", { className: `text-2xl font-black font-mono leading-none tabular-nums ${elevatorTimer <= 5 && !doorsClosed ? "text-red-300" : "text-white"}`, style: { textShadow: "0 0 10px rgba(255,255,255,0.3)" }, children: String(elevatorTimer).padStart(2, "0") }),
+              /* @__PURE__ */ jsx10("span", { className: "text-white/40 text-xs font-mono -mb-0.5", children: "s" })
+            ] })
+          ] }) : arrivalPulse ? /* @__PURE__ */ jsxs9(Fragment2, { children: [
+            /* @__PURE__ */ jsx10("span", { className: "text-green-400/80 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5", children: "Arrived" }),
+            /* @__PURE__ */ jsxs9("div", { className: "flex items-center gap-2", children: [
+              /* @__PURE__ */ jsx10("svg", { className: "w-5 h-5 text-green-400", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsx10("path", { fillRule: "evenodd", d: "M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z", clipRule: "evenodd" }) }),
+              /* @__PURE__ */ jsx10("span", { className: "text-green-300 text-lg font-bold leading-none", children: "Ding!" })
+            ] })
+          ] }) : /* @__PURE__ */ jsxs9(Fragment2, { children: [
+            /* @__PURE__ */ jsx10("span", { className: "text-amber-400/60 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5", children: "Status" }),
+            /* @__PURE__ */ jsxs9("div", { className: "flex items-center gap-2", children: [
+              /* @__PURE__ */ jsx10("div", { className: "w-2 h-2 rounded-full bg-amber-400/70 animate-pulse" }),
+              /* @__PURE__ */ jsx10("span", { className: "text-amber-100 text-base font-bold tracking-wide leading-none", children: "Ready" })
+            ] })
+          ] }) })
+        ] }),
+        elevatorTimer !== null && /* @__PURE__ */ jsx10("div", { className: "h-1 bg-black/60 overflow-hidden", children: /* @__PURE__ */ jsx10(
+          "div",
+          {
+            className: `h-full transition-all duration-1000 ease-linear ${doorsClosed ? "bg-gradient-to-r from-blue-500 to-cyan-400" : elevatorTimer <= 5 ? "bg-gradient-to-r from-red-600 to-red-400" : "bg-gradient-to-r from-amber-500 to-yellow-400"}`,
+            style: { width: `${doorsClosed ? (20 - elevatorTimer) / 20 * 100 : (5 - elevatorTimer) / 5 * 100}%` }
+          }
+        ) })
+      ] })
+    ] }) }),
+    floorReveal && /* @__PURE__ */ jsx10("div", { className: "absolute inset-0 z-[45] flex items-center justify-center pointer-events-none", children: /* @__PURE__ */ jsxs9("div", { className: "animate-floor-reveal text-center", children: [
+      /* @__PURE__ */ jsx10("div", { className: "text-amber-500/70 text-sm font-mono uppercase tracking-[0.6em] mb-4 animate-fade-in", children: "Now Arriving" }),
+      /* @__PURE__ */ jsxs9("div", { className: "text-white text-8xl font-black tracking-wider", style: { textShadow: "0 0 60px rgba(251,191,36,0.8), 0 0 30px rgba(255,255,255,0.4)" }, children: [
+        "FLOOR ",
+        /* @__PURE__ */ jsx10("span", { className: "text-amber-400", children: String(currentLevel).padStart(2, "0") })
+      ] }),
+      /* @__PURE__ */ jsx10("div", { className: "h-[2px] w-48 mx-auto mt-6 bg-gradient-to-r from-transparent via-amber-400 to-transparent" })
+    ] }) }),
+    hasStarted && /* @__PURE__ */ jsx10("div", { className: "absolute top-4 right-4 z-50 flex gap-2 pointer-events-auto", children: /* @__PURE__ */ jsxs9("button", { onClick: () => setMuted(!muted), className: "relative group", children: [
+      /* @__PURE__ */ jsx10("div", { className: "absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" }),
+      /* @__PURE__ */ jsx10("div", { className: "relative bg-black/70 backdrop-blur-sm border border-white/10 group-hover:border-amber-500/40 p-2.5 rounded-full transition-all group-active:scale-95", children: muted ? /* @__PURE__ */ jsx10("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#f87171", className: "w-6 h-6", children: /* @__PURE__ */ jsx10("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" }) }) : /* @__PURE__ */ jsx10("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#fbbf24", className: "w-6 h-6", children: /* @__PURE__ */ jsx10("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" }) }) })
+    ] }) }),
+    hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && /* @__PURE__ */ jsx10(VisualJoystick, { active: joystickVisual.active, x: joystickVisual.currentX, y: joystickVisual.currentY, origin: { x: joystickVisual.originX, y: joystickVisual.originY } }),
+    hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && /* @__PURE__ */ jsx10("div", { className: "absolute bottom-24 left-1/2 transform -translate-x-1/2 z-50 pointer-events-auto", children: /* @__PURE__ */ jsxs9("button", { onClick: handleOpenDoor, className: "group relative", children: [
+      /* @__PURE__ */ jsx10("div", { className: "absolute -inset-1 bg-gradient-to-r from-amber-400 to-yellow-300 rounded-full blur-md opacity-70 group-hover:opacity-100 animate-pulse" }),
+      /* @__PURE__ */ jsxs9("div", { className: "relative bg-white text-black px-8 py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 border-2 border-amber-200", children: [
+        /* @__PURE__ */ jsx10("svg", { className: "w-5 h-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2.5, children: /* @__PURE__ */ jsx10("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" }) }),
+        "ABRIR PORTA"
+      ] })
+    ] }) }),
+    hasStarted && canInteractNPC && !dialogueOpen && /* @__PURE__ */ jsx10("div", { className: "absolute bottom-32 left-1/2 transform -translate-x-1/2 z-50 pointer-events-auto", children: /* @__PURE__ */ jsxs9("button", { onClick: handleStartDialogue, className: "group relative", children: [
+      /* @__PURE__ */ jsx10("div", { className: "absolute -inset-1.5 bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 rounded-full blur-md opacity-80 animate-pulse" }),
+      /* @__PURE__ */ jsxs9("div", { className: "relative bg-gradient-to-b from-yellow-300 to-amber-400 text-black px-8 py-3.5 rounded-full font-black tracking-[0.25em] shadow-2xl active:scale-95 transition-transform flex items-center gap-2 border-2 border-yellow-200", children: [
+        /* @__PURE__ */ jsx10("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsx10("path", { d: "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" }) }),
+        "FALAR"
+      ] })
+    ] }) }),
+    dialogueOpen && /* @__PURE__ */ jsx10(DialogueOverlay, { nodeKey: dialogueNode, onOptionSelect: (next) => setDialogueNode(next), onClose: () => setDialogueOpen(false) }),
+    /* @__PURE__ */ jsx10("div", { className: "absolute inset-0 z-[60] bg-black pointer-events-none transition-opacity duration-[2500ms]", style: { opacity: sleepFadeOpacity }, children: sleepFadeOpacity > 0.5 && /* @__PURE__ */ jsx10("div", { className: "absolute inset-0 flex items-center justify-center", children: /* @__PURE__ */ jsx10("div", { className: "text-white/40 text-2xl font-thin tracking-[0.5em] animate-pulse", children: "zzz..." }) }) }),
+    jumpscare && /* @__PURE__ */ jsxs9("div", { className: "absolute inset-0 z-[80] flex items-center justify-center pointer-events-none animate-jumpscare bg-red-950", children: [
+      /* @__PURE__ */ jsx10("img", { src: BARNEY_URL, className: "w-full h-full object-contain mix-blend-color-burn", alt: "", style: { filter: "hue-rotate(-20deg) saturate(1.5) contrast(1.2)" } }),
+      /* @__PURE__ */ jsx10("div", { className: "absolute inset-0 bg-red-600/30 mix-blend-overlay" })
+    ] }),
+    hasStarted && canSleepNow && gameState === "indoor_day" && !dialogueOpen && !barneyDialogueOpen && /* @__PURE__ */ jsx10("div", { className: "absolute bottom-24 left-1/2 transform -translate-x-1/2 z-50 pointer-events-auto", children: /* @__PURE__ */ jsxs9("button", { onClick: handleSleep, className: "group relative", children: [
+      /* @__PURE__ */ jsx10("div", { className: "absolute -inset-1 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full blur-md opacity-70 animate-pulse" }),
+      /* @__PURE__ */ jsxs9("div", { className: "relative bg-gradient-to-b from-slate-200 to-slate-300 text-slate-900 px-8 py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 border-2 border-blue-200", children: [
+        /* @__PURE__ */ jsx10("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsx10("path", { d: "M12 3C7.03 3 3 7.03 3 12s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z" }) }),
+        "DORMIR"
+      ] })
+    ] }) }),
+    hasStarted && gameState === "indoor_night" && /* @__PURE__ */ jsx10("div", { className: "absolute top-24 left-1/2 transform -translate-x-1/2 z-40 pointer-events-none", children: /* @__PURE__ */ jsx10("div", { className: "bg-red-950/80 border border-red-500/40 text-red-200 px-4 py-2 rounded-lg font-mono text-sm tracking-wider animate-pulse", children: "Algo n\xE3o est\xE1 certo..." }) }),
+    hasStarted && gameState === "chase" && /* @__PURE__ */ jsx10("div", { className: "absolute top-24 left-1/2 transform -translate-x-1/2 z-40 pointer-events-none", children: /* @__PURE__ */ jsx10("div", { className: "bg-red-900/90 border-2 border-red-500 text-white px-6 py-3 rounded-lg font-black tracking-widest text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)]", children: "\u26A0 CORRA PARA O ELEVADOR \u26A0" }) }),
+    hasStarted && gameState === "saved" && /* @__PURE__ */ jsx10("div", { className: "absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80", children: /* @__PURE__ */ jsxs9("div", { className: "text-center", children: [
+      /* @__PURE__ */ jsx10("div", { className: "text-green-400 text-5xl font-black mb-3 animate-fade-in", children: "VOC\xCA SOBREVIVEU" }),
+      /* @__PURE__ */ jsx10("div", { className: "text-white/60 text-lg font-mono", children: "Por enquanto..." })
+    ] }) }),
+    barneyDialogueOpen && BARNEY_DIALOGUE[barneyDialogueNode] && /* @__PURE__ */ jsx10("div", { className: "absolute inset-0 z-[55] flex items-end justify-center pointer-events-auto landscape:items-center landscape:py-4 overflow-y-auto", style: { background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)" }, children: /* @__PURE__ */ jsxs9("div", { className: "w-full max-w-2xl mx-4 mb-6 landscape:mb-0 relative animate-barney-dialogue flex-shrink-0", children: [
+      /* @__PURE__ */ jsx10("div", { className: "absolute -inset-1 bg-gradient-to-r from-purple-500/40 via-pink-500/40 to-purple-500/40 rounded-2xl blur-lg barney-glow" }),
+      /* @__PURE__ */ jsx10("div", { className: "relative bg-[#0d0411]/98 border-2 border-purple-500/50 rounded-xl p-3 sm:p-5 shadow-2xl", children: /* @__PURE__ */ jsxs9("div", { className: "flex items-start gap-3 sm:gap-4 flex-col landscape:flex-row sm:flex-row", children: [
+        /* @__PURE__ */ jsxs9("div", { className: "flex items-center gap-3 sm:hidden landscape:hidden w-full border-b border-white/5 pb-2", children: [
+          /* @__PURE__ */ jsx10("div", { className: "w-12 h-12 flex-shrink-0 bg-transparent rounded-none overflow-hidden", children: /* @__PURE__ */ jsx10("img", { src: BARNEY_URL, className: "w-full h-full object-contain object-top animate-barney-bounce", alt: "" }) }),
+          /* @__PURE__ */ jsxs9("div", { className: "flex items-center gap-2", children: [
+            /* @__PURE__ */ jsx10("div", { className: "w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" }),
+            /* @__PURE__ */ jsx10("div", { className: "text-purple-300 text-[11px] font-bold tracking-[0.3em] uppercase", children: "Barney" })
+          ] })
+        ] }),
+        /* @__PURE__ */ jsx10("div", { className: "w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-transparent rounded-none overflow-hidden self-center sm:self-start hidden sm:block landscape:block", children: /* @__PURE__ */ jsx10("img", { src: BARNEY_URL, className: "w-full h-full object-contain object-top animate-barney-bounce", alt: "" }) }),
+        /* @__PURE__ */ jsxs9("div", { className: "flex-1 min-w-0 w-full", children: [
+          /* @__PURE__ */ jsxs9("div", { className: "hidden sm:flex landscape:flex items-center gap-2 mb-1.5", children: [
+            /* @__PURE__ */ jsx10("div", { className: "w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" }),
+            /* @__PURE__ */ jsx10("div", { className: "text-purple-300 text-[11px] font-bold tracking-[0.3em] uppercase", children: "Barney" })
+          ] }),
+          /* @__PURE__ */ jsx10("div", { className: "text-white/95 text-sm sm:text-base leading-relaxed mb-4 font-serif min-h-[3rem] landscape:min-h-0", children: /* @__PURE__ */ jsx10(TypewriterText, { text: BARNEY_DIALOGUE[barneyDialogueNode].text, speed: 28 }) }),
+          /* @__PURE__ */ jsx10("div", { className: "flex flex-col gap-2 max-h-[40vh] landscape:max-h-[35vh] overflow-y-auto scrollbar-hide pr-1", children: BARNEY_DIALOGUE[barneyDialogueNode].options.map((opt, i) => /* @__PURE__ */ jsxs9("button", { onClick: () => handleBarneyResponse(opt.next), className: "group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-lg text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0", children: [
+            /* @__PURE__ */ jsx10("span", { className: "text-purple-400/60 group-hover:text-purple-300 transition-colors", children: "\u25B8" }),
+            /* @__PURE__ */ jsx10("span", { className: "flex-1", children: opt.text })
+          ] }, i)) })
+        ] })
+      ] }) })
+    ] }) })
+  ] });
+}
+
+// src/main.tsx
+import { jsx as jsx11 } from "react/jsx-runtime";
+createRoot(document.getElementById("root")).render(
+  /* @__PURE__ */ jsx11(StrictMode, { children: /* @__PURE__ */ jsx11(App, {}) })
+);
+  </script>
+</body>
+</html>
