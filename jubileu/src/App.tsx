@@ -248,7 +248,7 @@ export default function App() {
   useEffect(() => {
     let timerId: any;
     if (elevatorTimer !== null && elevatorTimer > 0) {
-        timerId = setTimeout(() => { setElevatorTimer((prev: any) => (prev !== null ? prev - 1 : null)); }, 1000);
+        timerId = setTimeout(() => { setElevatorTimer((prev: any) => (prev !== null ? Math.max(prev - 1, 0) : null)); }, 1000);
         if (!doorsClosed) {
             setTravelPhase('waiting');
         } else {
@@ -261,7 +261,7 @@ export default function App() {
                 if (elevatorTimer === 19) { setOverlayOpacity(1); }
                 if (elevatorTimer === 18) { if (currentLevel === 0) { setCurrentLevel(1); setFloorReveal(true); } }
                 if (elevatorTimer === 17) { setOverlayOpacity(0); }
-                if (elevatorTimer === 15) { setFloorReveal(false); }
+                if (elevatorTimer === 15 || elevatorTimer === null) { setFloorReveal(false); }
             }
         }
     } else if (elevatorTimer === 0) {

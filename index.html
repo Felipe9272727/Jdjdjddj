@@ -102126,10 +102126,8 @@ const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRef, hous
       b2.x = MathUtils.lerp(b2.x, target.x, Math.min(1, dt2 * 2.5));
       b2.z = MathUtils.lerp(b2.z, target.z, Math.min(1, dt2 * 2.5));
     }
-    const targetScale = target.scale !== void 0 ? target.scale : 1;
-    if (isVisible) {
-      scaleRef.current = MathUtils.lerp(scaleRef.current, targetScale, Math.min(1, dt2 * 3));
-    }
+    const targetScale = isVisible ? target.scale !== void 0 ? target.scale : 1 : 0;
+    scaleRef.current = MathUtils.lerp(scaleRef.current, targetScale, Math.min(1, dt2 * (isVisible ? 3 : 5)));
     groupRef.current.position.set(b2.x, 0, b2.z);
     const isActive = gameState === "chase";
     const bobSpeed = isActive ? 8 : 2.2;
@@ -103453,7 +103451,7 @@ function App() {
     let timerId;
     if (elevatorTimer !== null && elevatorTimer > 0) {
       timerId = setTimeout(() => {
-        setElevatorTimer((prev) => prev !== null ? prev - 1 : null);
+        setElevatorTimer((prev) => prev !== null ? Math.max(prev - 1, 0) : null);
       }, 1e3);
       if (!doorsClosed) {
         setTravelPhase("waiting");
@@ -103476,7 +103474,7 @@ function App() {
           if (elevatorTimer === 17) {
             setOverlayOpacity(0);
           }
-          if (elevatorTimer === 15) {
+          if (elevatorTimer === 15 || elevatorTimer === null) {
             setFloorReveal(false);
           }
         }

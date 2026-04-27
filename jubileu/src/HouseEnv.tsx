@@ -144,10 +144,10 @@ export const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRe
             b.z = THREE.MathUtils.lerp(b.z, target.z, Math.min(1, dt * 2.5));
         }
         
-        const targetScale = target.scale !== undefined ? target.scale : 1;
-        if (isVisible) {
-            scaleRef.current = THREE.MathUtils.lerp(scaleRef.current, targetScale, Math.min(1, dt * 3));
-        }
+        // When not visible, force target scale to 0 so the actor fades out
+        // instead of lingering at its last scale.
+        const targetScale = isVisible ? (target.scale !== undefined ? target.scale : 1) : 0;
+        scaleRef.current = THREE.MathUtils.lerp(scaleRef.current, targetScale, Math.min(1, dt * (isVisible ? 3 : 5)));
         groupRef.current.position.set(b.x, 0, b.z);
         
         const isActive = gameState === 'chase';
