@@ -11,7 +11,7 @@ import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { BARNEY_URL, BARNEY_DIALOGUE } from './constants';
-import { useMultiplayer } from './Multiplayer';
+import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES } from './Settings';
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
@@ -27,7 +27,7 @@ const World = ({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPau
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
       {Object.values(otherPlayers || {}).map((p: any) => (
           <Suspense key={p.id} fallback={null}>
-              <RemotePlayer id={p.id} x={p.x} y={p.y} z={p.z} ry={p.ry} state={p.state} />
+              <RemotePlayer id={p.id} x={p.x} y={p.y} z={p.z} ry={p.ry} state={p.state} name={p.name} chatMsg={p.chatMsg} chatAt={p.chatAt} />
           </Suspense>
       ))}
   </>
@@ -218,6 +218,7 @@ export default function App() {
   const multiplayerEnabled = settings.multiplayer;
   const setMultiplayerEnabled = useCallback((on: boolean) => updateSettings({ multiplayer: on }), [updateSettings]);
   const [playerAnimState, setPlayerAnimState] = useState<'idle' | 'walking'>('idle');
+  const [playerName, setPlayerName] = useState(getPlayerName());
   useEffect(() => {
     if (!multiplayerEnabled) return;
     const id = setInterval(() => {
@@ -229,12 +230,13 @@ export default function App() {
     }, 250);
     return () => clearInterval(id);
   }, [multiplayerEnabled]);
-  const { user, otherPlayers } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel);
+  const { user, otherPlayers, sendChat } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel, playerName);
 
   const handleStartDialogue = () => { setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
-  const handleStartGame = (mpEnabled: boolean) => {
+  const handleStartGame = (mpEnabled: boolean, name?: string) => {
     if (audioCtx) return;
     setMultiplayerEnabled(mpEnabled);
+    if (name) setPlayerName(name);
     const AC = window.AudioContext || (window as any).webkitAudioContext;
     const ctx = new AC();
     ctx.resume().catch(() => {});
@@ -244,6 +246,18 @@ export default function App() {
       const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined;
       if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {});
     }
+  };
+
+  // Chat system
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const chatInputRef = useRef<any>(null);
+  const handleSendChat = () => {
+      const msg = chatInput.trim();
+      if (!msg || !multiplayerEnabled) return;
+      sendChat(msg);
+      setChatInput('');
+      setChatOpen(false);
   };
 
   useEffect(() => {
@@ -389,7 +403,7 @@ export default function App() {
     if (dialogueOpen || barneyDialogueOpen) { document.exitPointerLock(); return; }
     const upd = () => { const k = keysRef.current; let x=0, y=0; if (k.w) y-=1; if (k.s) y+=1; if (k.a) x-=1; if (k.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
     const kd = (e: any) => {
-      if (dialogueOpen || barneyDialogueOpen) return;
+      if (dialogueOpen || barneyDialogueOpen || chatOpen) return;
       const k = keysRef.current;
       switch(e.key.toLowerCase()) {
         case 'w': k.w=true; break;
@@ -404,10 +418,27 @@ export default function App() {
       }
       upd();
     };
-    const ku = (e: any) => { const k = keysRef.current; switch(e.key.toLowerCase()) { case 'w': k.w=false; break; case 'a': k.a=false; break; case 's': k.s=false; break; case 'd': k.d=false; break; } upd(); };
-    window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
-    return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, canInteractNPC, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
+    const ku = (e: any) => {
+        if (chatOpen) return;
+        const k = keysRef.current;
+        switch(e.key.toLowerCase()) { case 'w': k.w=false; break; case 'a': k.a=false; break; case 's': k.s=false; break; case 'd': k.d=false; break; }
+        upd();
+    };
+    // Enter opens chat on desktop
+    const kh = (e: any) => {
+        if (!multiplayerEnabled) return;
+        if (e.key === 'Enter' && !chatOpen && !dialogueOpen && !barneyDialogueOpen) {
+            e.preventDefault();
+            setChatOpen(true);
+            setTimeout(() => chatInputRef.current?.focus(), 50);
+        } else if (e.key === 'Escape' && chatOpen) {
+            setChatOpen(false);
+            setChatInput('');
+        }
+    };
+    window.addEventListener('keydown', kd); window.addEventListener('keyup', ku); window.addEventListener('keydown', kh);
+    return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); window.removeEventListener('keydown', kh); };
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, canInteractNPC, canInteractDoor, houseDoorOpen, canSleepNow, gameState, chatOpen, multiplayerEnabled]);
 
   // Bot mode: spawns autonomous bot avatars in the lobby that move via
   // steering behaviors. The simulation lives inside <BotSystem> (mounted in
@@ -567,6 +598,48 @@ export default function App() {
       {settings.showFps && hasStarted && <FpsCounter />}
       {botEnabled && <BotHud info={botInfo} />}
       {botEnabled && <ViewportDebug />}
+
+      {/* ─── Chat system ──────────────────────────────────────────────────── */}
+      {hasStarted && multiplayerEnabled && chatOpen && (
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom,0px)+80px)] z-[65] w-[90%] max-w-md pointer-events-auto">
+              <div className="flex gap-2 bg-black/80 backdrop-blur-xl ring-1 ring-white/20 rounded-xl p-2">
+                  <input
+                      ref={chatInputRef}
+                      type="text"
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value.slice(0, 80))}
+                      onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') handleSendChat(); if (e.key === 'Escape') { setChatOpen(false); setChatInput(''); } }}
+                      placeholder="Digite sua mensagem..."
+                      maxLength={80}
+                      className="flex-1 bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/30 outline-none focus:border-amber-500/60 transition-colors"
+                      autoFocus
+                  />
+                  <button onClick={handleSendChat} className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-lg text-sm transition-colors active:scale-95">
+                      Enviar
+                  </button>
+              </div>
+          </div>
+      )}
+      {/* Mobile chat button */}
+      {hasStarted && multiplayerEnabled && !chatOpen && !isDesktop && !dialogueOpen && !barneyDialogueOpen && (
+          <button
+              onClick={() => { setChatOpen(true); setTimeout(() => chatInputRef.current?.focus(), 100); }}
+              className="absolute z-50 pointer-events-auto tap-target bottom-[calc(env(safe-area-inset-bottom,0px)+80px)] right-[calc(env(safe-area-inset-right,0px)+8px)]"
+          >
+              <div className="bg-black/70 backdrop-blur-sm ring-1 ring-white/10 p-2.5 rounded-full active:scale-95 transition-transform">
+                  <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+                  </svg>
+              </div>
+          </button>
+      )}
+      {/* Desktop: hint text */}
+      {hasStarted && multiplayerEnabled && !chatOpen && isDesktop && !dialogueOpen && !barneyDialogueOpen && (
+          <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+16px)] left-1/2 -translate-x-1/2 z-40 pointer-events-none">
+              <span className="text-white/20 text-[10px] font-mono tracking-wider">ENTER para chat</span>
+          </div>
+      )}
+
       <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
       {/* ─── Bottom-center action buttons ─────────────────────────────────
