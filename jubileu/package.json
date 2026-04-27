@@ -8,7 +8,15 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint:eslint": "eslint src/ --ext .ts,.tsx",
+    "lint:types": "tsc --noEmit",
+    "audit": "node audit.mjs",
+    "check": "npm run lint:types && npm run test && npm run audit",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\""
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
@@ -35,6 +43,11 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.4",
+    "@eslint/js": "^9.0.0",
+    "typescript-eslint": "^8.0.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "eslint-plugin-react-refresh": "^0.4.0",
+    "@vitest/coverage-v8": "^4.1.0"
   }
 }
