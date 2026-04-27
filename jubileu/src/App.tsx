@@ -470,9 +470,9 @@ export default function App() {
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
               <div className="flex items-stretch divide-x divide-amber-500/20">
                 <div className="px-3 sm:px-4 landscape:px-3 py-2 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[80px] sm:min-w-[90px] landscape:min-w-[80px] relative">
-                  <span className="text-amber-500/60 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5">{currentLevel === 0 ? 'Location' : 'Floor'}</span>
+                  <span className="text-amber-500/60 text-[8px] sm:text-[9px] landscape:text-[10px] font-mono uppercase tracking-[0.35em] mb-0.5">{currentLevel === 0 ? 'Location' : 'Floor'}</span>
                   {currentLevel === 0 ? (
-                    <span className="text-amber-300 text-lg sm:text-xl font-black tracking-widest leading-none" style={{ textShadow: '0 0 20px rgba(251,191,36,0.6)' }}>LOBBY</span>
+                    <span className="text-amber-300 text-lg sm:text-xl landscape:text-xl font-black tracking-widest leading-none" style={{ textShadow: '0 0 20px rgba(251,191,36,0.6)' }}>LOBBY</span>
                   ) : (
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-amber-500/50 text-xs sm:text-sm font-bold">▲</span>
@@ -488,7 +488,7 @@ export default function App() {
                       </span>
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${(elevatorTimer <= 5 && !doorsClosed) ? 'bg-red-500 animate-ping' : doorsClosed ? 'bg-blue-400' : 'bg-amber-400'}`} />
-                        <span className={`text-xl sm:text-2xl font-black font-mono leading-none tabular-nums ${(elevatorTimer <= 5 && !doorsClosed) ? 'text-red-300' : 'text-white'}`} style={{ textShadow: '0 0 10px rgba(255,255,255,0.3)' }}>{String(elevatorTimer).padStart(2, '0')}</span>
+                        <span className={`text-xl sm:text-2xl landscape:text-2xl font-black font-mono leading-none tabular-nums ${(elevatorTimer <= 5 && !doorsClosed) ? 'text-red-300' : 'text-white'}`} style={{ textShadow: '0 0 10px rgba(255,255,255,0.3)' }}>{String(elevatorTimer).padStart(2, '0')}</span>
                         <span className="text-white/40 text-xs font-mono -mb-0.5">s</span>
                       </div>
                     </>
