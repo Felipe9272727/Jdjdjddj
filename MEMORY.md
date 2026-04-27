@@ -375,11 +375,15 @@ Sistema de chat multiplayer estilo Roblox com nomes de jogadores.
 - `1b0c682` — feat(chat): Roblox-style chat system + player names
 - `32c2d54` — docs: update MEMORY.md with chat system + working rules
 - `52e7218` — rebuild: index.html with Roblox-style chat + player names
+- `487c56e` — docs: update MEMORY.md with rebuild commit
+- `c4645a3` — feat(chat): Roblox-style chat with Dussekar speech bubbles
 
 ### Notas importantes
 - O `index.html` foi rebuildado e já está atualizado no main
 - Para gerar novo build futuro: `cd jubileu && npm run build && node inline-build.mjs`
 - As Firestore rules precisam ser deployadas no Firebase Console manualmente
+- Chat abre com "/" no desktop (estilo Roblox)
+- Balões de chat 3D usam o mesmo estilo do Dussekar (branco, borda preta, animação pop-in)
 
 ---
 
