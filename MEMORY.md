@@ -373,10 +373,12 @@ Sistema de chat multiplayer estilo Roblox com nomes de jogadores.
 
 ### Commits
 - `1b0c682` — feat(chat): Roblox-style chat system + player names
+- `32c2d54` — docs: update MEMORY.md with chat system + working rules
+- `52e7218` — rebuild: index.html with Roblox-style chat + player names
 
 ### Notas importantes
-- O `index.html` principal NÃO foi rebuildado (só o código fonte foi alterado)
-- Para gerar o novo build: `cd jubileu && npm run build && node inline-build.mjs`
+- O `index.html` foi rebuildado e já está atualizado no main
+- Para gerar novo build futuro: `cd jubileu && npm run build && node inline-build.mjs`
 - As Firestore rules precisam ser deployadas no Firebase Console manualmente
 
 ---
