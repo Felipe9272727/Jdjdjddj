@@ -201,7 +201,7 @@ export const MainMenu = ({ onPlay }: any) => {
               <div className="hidden landscape:block w-full max-w-xs mt-2">
                 <div className="flex flex-col gap-2 mb-4 bg-black/50 border border-white/10 rounded-lg p-4">
                   <div className="flex items-center justify-between">
-                     <span className="text-white/70 text-xs font-mono tracking-wider">MULTIPLAYER</span>
+                     <span className="text-white/70 text-xs tracking-widest uppercase">Multiplayer</span>
                      <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
                         <div className={`absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                      </button>
@@ -210,7 +210,7 @@ export const MainMenu = ({ onPlay }: any) => {
                   {multiplayerEnabled && (
                       <>
                           <div className="mt-2">
-                              <label className="text-white/40 text-[10px] font-mono tracking-wider mb-1 block">YOUR NAME</label>
+                              <label className="text-white/50 text-xs tracking-wider mb-1.5 block">Seu Nome</label>
                               <input
                                   type="text"
                                   value={playerName}
@@ -252,7 +252,7 @@ export const MainMenu = ({ onPlay }: any) => {
             <div className="p-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent z-40 landscape:hidden shrink-0">
               <div className="flex flex-col gap-2 border border-white/10 rounded-lg mb-2 bg-black/50 backdrop-blur-md p-2.5">
                  <div className="flex items-center justify-between">
-                     <span className="text-white/70 text-xs font-mono tracking-wider">MULTIPLAYER</span>
+                     <span className="text-white/70 text-xs tracking-widest uppercase">Multiplayer</span>
                      <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
                         <div className={`absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                      </button>
@@ -261,7 +261,7 @@ export const MainMenu = ({ onPlay }: any) => {
                  {multiplayerEnabled && (
                      <>
                          <div className="mt-1">
-                             <label className="text-white/40 text-[10px] font-mono tracking-wider mb-1 block">YOUR NAME</label>
+                             <label className="text-white/50 text-xs tracking-wider mb-1.5 block">Seu Nome</label>
                              <input
                                  type="text"
                                  value={playerName}
@@ -297,7 +297,7 @@ export const MainMenu = ({ onPlay }: any) => {
                 </div>
               </button>
               
-              <div className="flex justify-center gap-4 mt-2 text-white/20 text-[10px]">
+              <div className="flex justify-center gap-5 mt-3 text-white/40 text-xs">
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>
                   Toque
@@ -360,7 +360,7 @@ export const MainMenu = ({ onPlay }: any) => {
                 <div className="animate-fade-in-up mt-2" style={{ animationDelay: '1s' }}>
                   <div className="flex flex-col gap-3 p-4 border border-white/10 rounded-xl mb-4 bg-black/50 backdrop-blur-sm max-w-sm">
                      <div className="flex items-center justify-between">
-                         <span className="text-white/70 text-xs font-mono tracking-wider uppercase">Modo Multiplayer (Online)</span>
+                         <span className="text-white/70 text-xs tracking-widest uppercase">Modo Multiplayer (Online)</span>
                          <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-6 rounded-full transition-colors relative border border-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
                             <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${multiplayerEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
                          </button>
@@ -388,7 +388,7 @@ export const MainMenu = ({ onPlay }: any) => {
                     </div>
                   </button>
                   
-                  <div className="flex gap-8 mt-6 text-white/20 text-sm">
+                  <div className="flex gap-8 mt-6 text-white/35 text-sm">
                     <span className="flex items-center gap-2"><kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-mono">WASD</kbd> Mover</span>
                     <span className="flex items-center gap-2"><kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-mono">MOUSE</kbd> Olhar</span>
                     <span className="flex items-center gap-2"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728" /></svg> Fones</span>
@@ -398,14 +398,14 @@ export const MainMenu = ({ onPlay }: any) => {
             </div>
           </div>
           
-          <div className="absolute top-6 left-6 text-white/10 text-xs font-mono hidden md:flex items-center gap-2">
+          <div className="absolute top-6 left-6 text-white/25 text-xs tracking-wider hidden md:flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />SISTEMA ATIVO
           </div>
-          <div className="absolute top-6 right-6 text-white/10 text-xs font-mono hidden md:flex items-center gap-2">
+          <div className="absolute top-6 right-6 text-white/25 text-xs tracking-wider hidden md:flex items-center gap-2">
             <span className="text-red-500">●</span> REC<span className="ml-4">CAM_01</span>
           </div>
-          <div className="absolute bottom-6 left-6 text-white/10 text-xs font-mono hidden md:block">© 2026 LIMINAL SYSTEMS</div>
-          <div className="absolute bottom-6 right-6 text-white/10 text-xs font-mono hidden md:block">v1.0.3</div>
+          <div className="absolute bottom-6 left-6 text-white/25 text-xs tracking-wider hidden md:block">© 2026 LIMINAL SYSTEMS</div>
+          <div className="absolute bottom-6 right-6 text-white/25 text-xs tracking-wider hidden md:block">v1.0.3</div>
         </div>
         <div className="absolute inset-0 pointer-events-none opacity-[0.02]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)' }} />
       </div>

@@ -478,7 +478,7 @@ export default function App() {
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
               <div className="flex items-stretch divide-x divide-amber-500/20">
                 <div className="px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[56px] sm:min-w-[90px] landscape:min-w-[80px] relative">
-                  <span className="text-amber-500/60 text-[8px] sm:text-[9px] landscape:text-[10px] font-mono uppercase tracking-[0.35em] mb-0.5">{currentLevel === 0 ? 'Location' : 'Floor'}</span>
+                  <span className="text-amber-500/70 text-[10px] sm:text-xs landscape:text-xs tracking-[0.25em] uppercase mb-0.5">{currentLevel === 0 ? 'Location' : 'Floor'}</span>
                   {currentLevel === 0 ? (
                     <span className="text-amber-300 text-base sm:text-xl landscape:text-xl font-black tracking-widest leading-none" style={{ textShadow: '0 0 20px rgba(251,191,36,0.6)' }}>LOBBY</span>
                   ) : (
@@ -491,7 +491,7 @@ export default function App() {
                 <div className="px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[70px] sm:min-w-[115px] landscape:min-w-[96px]">
                   {elevatorTimer !== null ? (
                     <>
-                      <span className={`text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5 ${(elevatorTimer <= 5 && !doorsClosed) ? 'text-red-400/80' : doorsClosed ? 'text-blue-400/80' : 'text-amber-400/60'}`}>
+                      <span className={`text-[10px] tracking-[0.25em] uppercase mb-0.5 ${(elevatorTimer <= 5 && !doorsClosed) ? 'text-red-400/80' : doorsClosed ? 'text-blue-400/80' : 'text-amber-400/70'}`}>
                         {doorsClosed ? 'Traveling' : (elevatorTimer <= 5 ? 'Closing!' : 'Departing')}
                       </span>
                       <div className="flex items-center gap-2">
@@ -502,7 +502,7 @@ export default function App() {
                     </>
                   ) : arrivalPulse ? (
                     <>
-                      <span className="text-green-400/80 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5">Arrived</span>
+                      <span className="text-green-400/90 text-[10px] tracking-[0.25em] uppercase mb-0.5">Arrived</span>
                       <div className="flex items-center gap-2">
                         <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
                         <span className="text-green-300 text-sm sm:text-base font-bold leading-none">Ding!</span>
@@ -510,7 +510,7 @@ export default function App() {
                     </>
                   ) : (
                     <>
-                      <span className="text-amber-400/60 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5">Status</span>
+                      <span className="text-amber-400/70 text-[10px] tracking-[0.25em] uppercase mb-0.5">Status</span>
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-amber-400/70 animate-pulse" />
                         <span className="text-amber-100 text-base font-bold tracking-wide leading-none">Ready</span>
@@ -535,7 +535,7 @@ export default function App() {
       {floorReveal && (
         <div className="absolute inset-0 z-[45] flex items-center justify-center pointer-events-none px-4">
           <div className="animate-floor-reveal text-center w-full">
-            <div className="text-amber-500/70 text-[10px] sm:text-sm font-mono uppercase tracking-[0.3em] sm:tracking-[0.6em] mb-2 sm:mb-4 animate-fade-in">Now Arriving</div>
+            <div className="text-amber-500/80 text-xs sm:text-sm tracking-[0.3em] sm:tracking-[0.5em] uppercase mb-2 sm:mb-4 animate-fade-in">Now Arriving</div>
             <div className="text-white font-black tracking-wider tabular-nums" style={{ fontSize: 'clamp(2rem, 12vw, 5rem)', textShadow: '0 0 60px rgba(251,191,36,0.8), 0 0 30px rgba(255,255,255,0.4)' }}>FLOOR <span className="text-amber-400">{String(currentLevel).padStart(2, '0')}</span></div>
             <div className="h-[2px] w-32 sm:w-48 mx-auto mt-4 sm:mt-6 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
           </div>

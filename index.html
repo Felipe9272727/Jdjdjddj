@@ -763,6 +763,10 @@
     margin-top: calc(var(--spacing) * 2);
   }
 
+  .mt-3 {
+    margin-top: calc(var(--spacing) * 3);
+  }
+
   .mt-4 {
     margin-top: calc(var(--spacing) * 4);
   }
@@ -1263,6 +1267,10 @@
 
   .gap-4 {
     gap: calc(var(--spacing) * 4);
+  }
+
+  .gap-5 {
+    gap: calc(var(--spacing) * 5);
   }
 
   .gap-8 {
@@ -2774,13 +2782,13 @@
     color: var(--color-amber-300);
   }
 
-  .text-amber-300\/80 {
-    color: #ffd236cc;
+  .text-amber-300\/90 {
+    color: #ffd236e6;
   }
 
   @supports (color: color-mix(in lab, red, red)) {
-    .text-amber-300\/80 {
-      color: color-mix(in oklab, var(--color-amber-300) 80%, transparent);
+    .text-amber-300\/90 {
+      color: color-mix(in oklab, var(--color-amber-300) 90%, transparent);
     }
   }
 
@@ -2795,6 +2803,16 @@
   @supports (color: color-mix(in lab, red, red)) {
     .text-amber-400\/60 {
       color: color-mix(in oklab, var(--color-amber-400) 60%, transparent);
+    }
+  }
+
+  .text-amber-400\/70 {
+    color: #fcbb00b3;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-amber-400\/70 {
+      color: color-mix(in oklab, var(--color-amber-400) 70%, transparent);
     }
   }
 
@@ -2845,6 +2863,16 @@
   @supports (color: color-mix(in lab, red, red)) {
     .text-amber-500\/70 {
       color: color-mix(in oklab, var(--color-amber-500) 70%, transparent);
+    }
+  }
+
+  .text-amber-500\/80 {
+    color: #f99c00cc;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-amber-500\/80 {
+      color: color-mix(in oklab, var(--color-amber-500) 80%, transparent);
     }
   }
 
@@ -2920,6 +2948,16 @@
     }
   }
 
+  .text-green-400\/90 {
+    color: #05df72e6;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-green-400\/90 {
+      color: color-mix(in oklab, var(--color-green-400) 90%, transparent);
+    }
+  }
+
   .text-purple-300 {
     color: var(--color-purple-300);
   }
@@ -2972,36 +3010,6 @@
     color: var(--color-white);
   }
 
-  .text-white\/10 {
-    color: #ffffff1a;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .text-white\/10 {
-      color: color-mix(in oklab, var(--color-white) 10%, transparent);
-    }
-  }
-
-  .text-white\/15 {
-    color: #ffffff26;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .text-white\/15 {
-      color: color-mix(in oklab, var(--color-white) 15%, transparent);
-    }
-  }
-
-  .text-white\/20 {
-    color: #fff3;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .text-white\/20 {
-      color: color-mix(in oklab, var(--color-white) 20%, transparent);
-    }
-  }
-
   .text-white\/25 {
     color: #ffffff40;
   }
@@ -3019,6 +3027,16 @@
   @supports (color: color-mix(in lab, red, red)) {
     .text-white\/30 {
       color: color-mix(in oklab, var(--color-white) 30%, transparent);
+    }
+  }
+
+  .text-white\/35 {
+    color: #ffffff59;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/35 {
+      color: color-mix(in oklab, var(--color-white) 35%, transparent);
     }
   }
 
@@ -3964,11 +3982,6 @@
       letter-spacing: .5em;
     }
 
-    .sm\:tracking-\[0\.6em\] {
-      --tw-tracking: .6em;
-      letter-spacing: .6em;
-    }
-
     .sm\:tracking-\[0\.25em\] {
       --tw-tracking: .25em;
       letter-spacing: .25em;
@@ -4143,6 +4156,11 @@
     .landscape\:text-xl {
       font-size: var(--text-xl);
       line-height: var(--tw-leading, var(--text-xl--line-height));
+    }
+
+    .landscape\:text-xs {
+      font-size: var(--text-xs);
+      line-height: var(--tw-leading, var(--text-xs--line-height));
     }
 
     .landscape\:text-\[10px\] {
@@ -95548,12 +95566,12 @@ const MainMenu = ({ onPlay }) => {
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "hidden landscape:block w-full max-w-xs mt-2", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 mb-4 bg-black/50 border border-white/10 rounded-lg p-4", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs font-mono tracking-wider", children: "MULTIPLAYER" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs tracking-widest uppercase", children: "Multiplayer" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), className: `w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-5" : "translate-x-0"}` }) })
               ] }),
               multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-2", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/40 text-[10px] font-mono tracking-wider mb-1 block", children: "YOUR NAME" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/50 text-xs tracking-wider mb-1.5 block", children: "Seu Nome" }),
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "input",
                     {
@@ -95596,12 +95614,12 @@ const MainMenu = ({ onPlay }) => {
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent z-40 landscape:hidden shrink-0", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 border border-white/10 rounded-lg mb-2 bg-black/50 backdrop-blur-md p-2.5", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs font-mono tracking-wider", children: "MULTIPLAYER" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs tracking-widest uppercase", children: "Multiplayer" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), className: `w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-5" : "translate-x-0"}` }) })
             ] }),
             multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-1", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/40 text-[10px] font-mono tracking-wider mb-1 block", children: "YOUR NAME" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/50 text-xs tracking-wider mb-1.5 block", children: "Seu Nome" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "input",
                   {
@@ -95639,7 +95657,7 @@ const MainMenu = ({ onPlay }) => {
               ]
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-4 mt-2 text-white/20 text-[10px]", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-5 mt-3 text-white/40 text-xs", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "flex items-center gap-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 1, d: "M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" }) }),
               "Toque"
@@ -95691,7 +95709,7 @@ const MainMenu = ({ onPlay }) => {
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "animate-fade-in-up mt-2", style: { animationDelay: "1s" }, children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-3 p-4 border border-white/10 rounded-xl mb-4 bg-black/50 backdrop-blur-sm max-w-sm", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs font-mono tracking-wider uppercase", children: "Modo Multiplayer (Online)" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs tracking-widest uppercase", children: "Modo Multiplayer (Online)" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), className: `w-12 h-6 rounded-full transition-colors relative border border-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-6" : "translate-x-0"}` }) })
               ] }),
               multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleShare, className: "flex items-center justify-center gap-2 border border-white/30 bg-white/10 py-2 rounded-lg text-sm text-white font-mono hover:bg-white/20 transition-all", children: [
@@ -95710,7 +95728,7 @@ const MainMenu = ({ onPlay }) => {
                 ] })
               ] })
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-8 mt-6 text-white/20 text-sm", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-8 mt-6 text-white/35 text-sm", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "flex items-center gap-2", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("kbd", { className: "px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-mono", children: "WASD" }),
                 " Mover"
@@ -95727,17 +95745,17 @@ const MainMenu = ({ onPlay }) => {
           ] })
         ] })
       ] }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute top-6 left-6 text-white/10 text-xs font-mono hidden md:flex items-center gap-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute top-6 left-6 text-white/25 text-xs tracking-wider hidden md:flex items-center gap-2", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 bg-green-500 rounded-full animate-pulse" }),
         "SISTEMA ATIVO"
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute top-6 right-6 text-white/10 text-xs font-mono hidden md:flex items-center gap-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute top-6 right-6 text-white/25 text-xs tracking-wider hidden md:flex items-center gap-2", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-red-500", children: "●" }),
         " REC",
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "ml-4", children: "CAM_01" })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 left-6 text-white/10 text-xs font-mono hidden md:block", children: "© 2026 LIMINAL SYSTEMS" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 right-6 text-white/10 text-xs font-mono hidden md:block", children: "v1.0.3" })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 left-6 text-white/25 text-xs tracking-wider hidden md:block", children: "© 2026 LIMINAL SYSTEMS" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 right-6 text-white/25 text-xs tracking-wider hidden md:block", children: "v1.0.3" })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 pointer-events-none opacity-[0.02]", style: { backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)" } })
   ] });
@@ -97255,7 +97273,7 @@ const SettingsMenu = ({ open, onClose }) => {
       onClick: (e2) => e2.stopPropagation(),
       children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-4 py-2.5 sm:py-3 border-b border-amber-500/30 flex items-center justify-between", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-amber-200 font-mono tracking-wider text-xs sm:text-sm uppercase", children: "Configurações" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-amber-200 tracking-wider text-sm sm:text-base uppercase font-bold", children: "Configurações" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "button",
             {
@@ -97312,7 +97330,7 @@ const SettingsMenu = ({ open, onClose }) => {
               "button",
               {
                 onClick: reset,
-                className: "px-3 py-1.5 rounded ring-1 ring-amber-500/30 hover:ring-amber-500/60 text-amber-200/70 hover:text-amber-100 text-xs font-mono uppercase tracking-wider",
+                className: "px-3 py-1.5 rounded ring-1 ring-amber-500/30 hover:ring-amber-500/60 text-amber-200/70 hover:text-amber-100 text-xs tracking-wider uppercase",
                 children: "Restaurar"
               }
             ),
@@ -97320,7 +97338,7 @@ const SettingsMenu = ({ open, onClose }) => {
               "button",
               {
                 onClick: onClose,
-                className: "px-4 py-1.5 rounded bg-amber-500/80 hover:bg-amber-400 text-black text-xs font-mono uppercase tracking-wider font-bold",
+                className: "px-4 py-1.5 rounded bg-amber-500/80 hover:bg-amber-400 text-black text-xs tracking-wider uppercase font-bold",
                 children: "Pronto"
               }
             )
@@ -97331,7 +97349,7 @@ const SettingsMenu = ({ open, onClose }) => {
   ) });
 };
 const Row = ({ label, children }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[10px] sm:text-xs font-mono uppercase tracking-wider text-amber-300/80 mb-1.5", children: label }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-xs sm:text-sm tracking-wider text-amber-300/90 mb-1.5 uppercase font-medium", children: label }),
   children
 ] });
 const Segmented = ({
@@ -98005,7 +98023,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled }) => {
                 padding: "6px 0"
               },
               children: [
-                messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/15 text-[11px] font-mono text-center py-3 px-4", children: "Press / to chat" }),
+                messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/30 text-xs text-center py-3 px-4", children: "Press / to chat" }),
                 messages.slice(-30).map((msg, i2) => {
                   const age = Date.now() - msg.timestamp;
                   const fadeOut = age > 25e3;
@@ -98052,7 +98070,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled }) => {
                 boxShadow: "0 4px 20px rgba(0,0,0,0.4)"
               },
               children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/30 text-xs font-bold px-2.5 shrink-0 select-none", children: "Chat:" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/40 text-xs font-bold px-2.5 shrink-0 select-none", children: "Chat:" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "input",
                   {
@@ -98102,7 +98120,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled }) => {
                 background: "rgba(30, 30, 30, 0.6)",
                 border: "1px solid rgba(255,255,255,0.08)"
               },
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/20 text-[11px] font-mono", children: "Press / to chat" })
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/35 text-xs", children: "Press / to chat" })
             }
           )
         }
@@ -98154,7 +98172,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled }) => {
                   className: "flex-1 overflow-y-auto scrollbar-hide px-2.5 py-1",
                   style: { maxHeight: "calc(min(340px, 50dvh) - 90px)" },
                   children: [
-                    messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/15 text-[11px] font-mono text-center py-4", children: "No messages yet" }),
+                    messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/30 text-xs text-center py-4", children: "No messages yet" }),
                     messages.slice(-30).map((msg, i2) => {
                       const isMe = msg.id === currentUserId;
                       const nameColor = getNameColor(msg.name, isMe);
@@ -98825,27 +98843,27 @@ function App() {
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent" }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-stretch divide-x divide-amber-500/20", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[56px] sm:min-w-[90px] landscape:min-w-[80px] relative", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-500/60 text-[8px] sm:text-[9px] landscape:text-[10px] font-mono uppercase tracking-[0.35em] mb-0.5", children: currentLevel === 0 ? "Location" : "Floor" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-500/70 text-[10px] sm:text-xs landscape:text-xs tracking-[0.25em] uppercase mb-0.5", children: currentLevel === 0 ? "Location" : "Floor" }),
             currentLevel === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-300 text-base sm:text-xl landscape:text-xl font-black tracking-widest leading-none", style: { textShadow: "0 0 20px rgba(251,191,36,0.6)" }, children: "LOBBY" }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-baseline gap-0.5", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-500/50 text-xs sm:text-sm font-bold", children: "▲" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-300 text-2xl sm:text-3xl font-black font-mono leading-none tabular-nums", style: { textShadow: "0 0 25px rgba(251,191,36,0.7)" }, children: String(currentLevel).padStart(2, "0") })
             ] })
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[70px] sm:min-w-[115px] landscape:min-w-[96px]", children: elevatorTimer !== null ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5 ${elevatorTimer <= 5 && !doorsClosed ? "text-red-400/80" : doorsClosed ? "text-blue-400/80" : "text-amber-400/60"}`, children: doorsClosed ? "Traveling" : elevatorTimer <= 5 ? "Closing!" : "Departing" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-[10px] tracking-[0.25em] uppercase mb-0.5 ${elevatorTimer <= 5 && !doorsClosed ? "text-red-400/80" : doorsClosed ? "text-blue-400/80" : "text-amber-400/70"}`, children: doorsClosed ? "Traveling" : elevatorTimer <= 5 ? "Closing!" : "Departing" }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-2 h-2 rounded-full ${elevatorTimer <= 5 && !doorsClosed ? "bg-red-500 animate-ping" : doorsClosed ? "bg-blue-400" : "bg-amber-400"}` }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-lg sm:text-2xl landscape:text-2xl font-black font-mono leading-none tabular-nums ${elevatorTimer <= 5 && !doorsClosed ? "text-red-300" : "text-white"}`, style: { textShadow: "0 0 10px rgba(255,255,255,0.3)" }, children: String(elevatorTimer).padStart(2, "0") }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/40 text-xs font-mono -mb-0.5", children: "s" })
             ] })
           ] }) : arrivalPulse ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-green-400/80 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5", children: "Arrived" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-green-400/90 text-[10px] tracking-[0.25em] uppercase mb-0.5", children: "Arrived" }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5 text-green-400", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { fillRule: "evenodd", d: "M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z", clipRule: "evenodd" }) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-green-300 text-sm sm:text-base font-bold leading-none", children: "Ding!" })
             ] })
           ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400/60 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5", children: "Status" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400/70 text-[10px] tracking-[0.25em] uppercase mb-0.5", children: "Status" }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 rounded-full bg-amber-400/70 animate-pulse" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-100 text-base font-bold tracking-wide leading-none", children: "Ready" })
@@ -98862,7 +98880,7 @@ function App() {
       ] })
     ] }) }) }),
     floorReveal && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[45] flex items-center justify-center pointer-events-none px-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "animate-floor-reveal text-center w-full", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-500/70 text-[10px] sm:text-sm font-mono uppercase tracking-[0.3em] sm:tracking-[0.6em] mb-2 sm:mb-4 animate-fade-in", children: "Now Arriving" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-500/80 text-xs sm:text-sm tracking-[0.3em] sm:tracking-[0.5em] uppercase mb-2 sm:mb-4 animate-fade-in", children: "Now Arriving" }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-white font-black tracking-wider tabular-nums", style: { fontSize: "clamp(2rem, 12vw, 5rem)", textShadow: "0 0 60px rgba(251,191,36,0.8), 0 0 30px rgba(255,255,255,0.4)" }, children: [
         "FLOOR ",
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400", children: String(currentLevel).padStart(2, "0") })

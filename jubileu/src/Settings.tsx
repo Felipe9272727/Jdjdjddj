@@ -101,7 +101,7 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="px-4 py-2.5 sm:py-3 border-b border-amber-500/30 flex items-center justify-between">
-                    <h2 className="text-amber-200 font-mono tracking-wider text-xs sm:text-sm uppercase">Configurações</h2>
+                    <h2 className="text-amber-200 tracking-wider text-sm sm:text-base uppercase font-bold">Configurações</h2>
                     <button
                         onClick={onClose}
                         className="text-amber-200/70 hover:text-amber-100 font-mono text-2xl leading-none w-10 h-10 flex items-center justify-center rounded hover:bg-amber-500/10 active:bg-amber-500/20 transition-colors tap-target"
@@ -159,11 +159,11 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                     <div className="pt-2 flex justify-between gap-2">
                         <button
                             onClick={reset}
-                            className="px-3 py-1.5 rounded ring-1 ring-amber-500/30 hover:ring-amber-500/60 text-amber-200/70 hover:text-amber-100 text-xs font-mono uppercase tracking-wider"
+                            className="px-3 py-1.5 rounded ring-1 ring-amber-500/30 hover:ring-amber-500/60 text-amber-200/70 hover:text-amber-100 text-xs tracking-wider uppercase"
                         >Restaurar</button>
                         <button
                             onClick={onClose}
-                            className="px-4 py-1.5 rounded bg-amber-500/80 hover:bg-amber-400 text-black text-xs font-mono uppercase tracking-wider font-bold"
+                            className="px-4 py-1.5 rounded bg-amber-500/80 hover:bg-amber-400 text-black text-xs tracking-wider uppercase font-bold"
                         >Pronto</button>
                     </div>
                 </div>
@@ -174,7 +174,7 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
     <div>
-        <div className="text-[10px] sm:text-xs font-mono uppercase tracking-wider text-amber-300/80 mb-1.5">{label}</div>
+        <div className="text-xs sm:text-sm tracking-wider text-amber-300/90 mb-1.5 uppercase font-medium">{label}</div>
         {children}
     </div>
 );

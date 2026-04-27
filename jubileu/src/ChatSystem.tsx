@@ -111,7 +111,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled }: RobloxC
                         }}
                     >
                         {messages.length === 0 && (
-                            <div className="text-white/15 text-[11px] font-mono text-center py-3 px-4">
+                            <div className="text-white/30 text-xs text-center py-3 px-4">
                                 Press / to chat
                             </div>
                         )}
@@ -160,7 +160,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled }: RobloxC
                                 boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
                             }}
                         >
-                            <span className="text-white/30 text-xs font-bold px-2.5 shrink-0 select-none">Chat:</span>
+                            <span className="text-white/40 text-xs font-bold px-2.5 shrink-0 select-none">Chat:</span>
                             <input
                                 ref={inputRef}
                                 type="text"
@@ -195,7 +195,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled }: RobloxC
                                 border: '1px solid rgba(255,255,255,0.08)',
                             }}
                         >
-                            <span className="text-white/20 text-[11px] font-mono">Press / to chat</span>
+                            <span className="text-white/35 text-xs">Press / to chat</span>
                         </button>
                     </div>
                 )}
@@ -247,7 +247,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled }: RobloxC
                             style={{ maxHeight: 'calc(min(340px, 50dvh) - 90px)' }}
                         >
                             {messages.length === 0 && (
-                                <div className="text-white/15 text-[11px] font-mono text-center py-4">
+                                <div className="text-white/30 text-xs text-center py-4">
                                     No messages yet
                                 </div>
                             )}
