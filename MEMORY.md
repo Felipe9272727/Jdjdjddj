@@ -381,6 +381,8 @@ Sistema de chat multiplayer estilo Roblox com nomes de jogadores.
 - `b8e17fc` — feat(chat): mobile chat window like Roblox
 - `242ba6a` — docs: update MEMORY.md with mobile chat fix
 - `befdfee` — fix(chat): fix position + fix Firestore rules for no-auth
+- `158272a` — docs: update MEMORY.md with critical Firestore rules fix
+- `4ea0dde` — fix(chat): add local fallback when Firestore fails
 
 ### ⚠️ CRÍTICO: Deploy das Firestore Rules
 As rules no Firebase Console precisam ser atualizadas manualmente!
@@ -390,13 +392,14 @@ As rules no Firebase Console precisam ser atualizadas manualmente!
 - As novas rules removem a exigência de auth
 - **Deploy manual necessário**: Firebase Console → Firestore → Rules → colar regras
 
-### Estado atual do Chat (2026-04-27 23:05)
+### Estado atual do Chat (2026-04-27 23:09)
 - **Desktop**: message window bottom-left + input bar bottom-left, abre com "/"
 - **Mobile**: botão chat (ícone speech bubble) no canto inferior-esquerdo, abre janela completa com header, histórico, input + send
 - **Balão 3D**: estilo Dussekar (branco, borda preta, pop-in, some em 8s)
 - **Nomes**: visíveis acima do avatar, cores diferentes por jogador
 - **Mensagens**: fade out 20s, remove 30s, máximo 80 caracteres
-- **⚠️ Rules**: Precisam ser deployadas no Firebase Console (sem auth)
+- **Fallback**: chat funciona localmente mesmo se Firestore falhar (rules não deployadas)
+- **⚠️ Rules**: Ainda precisam ser deployadas no Firebase Console para multiplayer funcionar
 
 ### Notas importantes
 - O `index.html` foi rebuildado e já está atualizado no main
