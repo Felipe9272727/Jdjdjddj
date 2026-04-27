@@ -444,7 +444,7 @@ export default function App() {
           outputColorSpace: SRGBColorSpace,
         }}
       >
-        <Suspense fallback={<Html center><div className="px-4 py-2 rounded bg-black/70 ring-1 ring-amber-500/40 text-amber-200 font-mono text-sm tracking-wider animate-pulse">CARREGANDO...</div></Html>}>
+        <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} otherPlayers={otherPlayers} />
             <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
             {botEnabled && (
@@ -550,6 +550,12 @@ export default function App() {
             right: 'calc(env(safe-area-inset-right, 0px) + 8px)',
           }}
         >
+          {multiplayerEnabled && (
+            <div className="flex items-center gap-1.5 bg-black/70 backdrop-blur-sm ring-1 ring-white/10 px-2.5 py-1.5 rounded-full" aria-label="Multiplayer ativo">
+              <div className={`w-2 h-2 rounded-full ${Object.keys(otherPlayers).length > 0 ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]' : 'bg-amber-400/70 animate-pulse'}`} />
+              <span className="text-[10px] text-white/60 font-medium tracking-wider">{Object.keys(otherPlayers).length > 0 ? `${Object.keys(otherPlayers).length} online` : 'MP'}</span>
+            </div>
+          )}
           <button onClick={() => setSettingsOpen(true)} className="relative group" aria-label="Configurações">
             <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
             <div className="relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target">
@@ -582,7 +588,8 @@ export default function App() {
                   messages={chatMessages}
                   currentUserId={user?.uid || ''}
                   onSend={sendChat}
-                  enabled={multiplayerEnabled && !dialogueOpen && !barneyDialogueOpen}
+                  enabled={multiplayerEnabled && !dialogueOpen && !barneyDialogueOpen && !settingsOpen}
+                  forceClose={settingsOpen}
               />
               <BubbleChatFallback
                   messages={chatMessages}
@@ -604,7 +611,7 @@ export default function App() {
           className="absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]"
           
         >
-          <button onClick={handleOpenDoor} className="group relative tap-target">
+          <button onClick={handleOpenDoor} className="group relative tap-target" aria-label="Abrir porta">
             <div className="absolute -inset-1 bg-gradient-to-r from-amber-400 to-yellow-300 rounded-full blur-md opacity-70 group-hover:opacity-100 animate-pulse" />
             <div className="relative bg-white text-black px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-amber-200 text-xs sm:text-base">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" /></svg>
@@ -618,7 +625,7 @@ export default function App() {
           className="absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]"
           
         >
-          <button onClick={handleStartDialogue} className="group relative tap-target">
+          <button onClick={handleStartDialogue} className="group relative tap-target" aria-label="Falar com NPC">
             <div className="absolute -inset-1.5 bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 rounded-full blur-md opacity-80 animate-pulse" />
             <div className="relative bg-gradient-to-b from-yellow-300 to-amber-400 text-black px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-[0.15em] sm:tracking-[0.25em] shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-yellow-200 text-xs sm:text-base">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
@@ -645,7 +652,7 @@ export default function App() {
           className="absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]"
           
         >
-          <button onClick={handleSleep} className="group relative tap-target">
+          <button onClick={handleSleep} className="group relative tap-target" aria-label="Dormir">
             <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full blur-md opacity-70 animate-pulse" />
             <div className="relative bg-gradient-to-b from-slate-200 to-slate-300 text-slate-900 px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-blue-200 text-xs sm:text-base">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3C7.03 3 3 7.03 3 12s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z"/></svg>
@@ -709,7 +716,7 @@ export default function App() {
                   <div className="text-white/95 text-sm sm:text-base leading-relaxed mb-4 font-serif min-h-[2rem] sm:min-h-[3rem] landscape:min-h-0">
                     <TypewriterText text={BARNEY_DIALOGUE[barneyDialogueNode].text} speed={28} />
                   </div>
-                  <div className="flex flex-col gap-2 max-h-[30vh] landscape:max-h-[30vh] overflow-y-auto scrollbar-hide pr-1">
+                  <div className="flex flex-col gap-2 max-h-[35vh] landscape:max-h-[30vh] overflow-y-auto scrollbar-hide pr-1">
                     {BARNEY_DIALOGUE[barneyDialogueNode].options.map((opt: any, i: number) => (
                       <button key={i} onClick={() => handleBarneyResponse(opt.next)} className="group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-lg text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0">
                         <span className="text-purple-400/60 group-hover:text-purple-300 transition-colors">▸</span>

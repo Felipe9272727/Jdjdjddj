@@ -127,7 +127,7 @@ export const RemotePlayer = ({ id, x, y, z, ry, state, name, chatMsg, chatAt }: 
             </Html>
             {/* Chat bubble — Dussekar style, pops above name */}
             {showChat && chatMsg && (
-                <Html key={chatKey} position={[0, 2.7, 0]} center distanceFactor={8}>
+                <Html key={chatKey} position={[0, 2.7, 0]} center distanceFactor={8} occlude>
                     <div className="pointer-events-none select-none whitespace-nowrap speech-bubble">
                         <div className="bg-white text-black px-3 py-1.5 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center max-w-[200px]">
                             <p className="text-[11px] sm:text-xs font-bold font-mono m-0 text-center break-words leading-snug">{chatMsg}</p>

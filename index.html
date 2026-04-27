@@ -1079,6 +1079,10 @@
     max-width: 38vw;
   }
 
+  .max-w-\[180px\] {
+    max-width: 180px;
+  }
+
   .max-w-\[200px\] {
     max-width: 200px;
   }
@@ -1622,6 +1626,26 @@
     background-color: var(--color-amber-400);
   }
 
+  .bg-amber-400\/30 {
+    background-color: #fcbb004d;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-amber-400\/30 {
+      background-color: color-mix(in oklab, var(--color-amber-400) 30%, transparent);
+    }
+  }
+
+  .bg-amber-400\/60 {
+    background-color: #fcbb0099;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-amber-400\/60 {
+      background-color: color-mix(in oklab, var(--color-amber-400) 60%, transparent);
+    }
+  }
+
   .bg-amber-400\/70 {
     background-color: #fcbb00b3;
   }
@@ -1754,6 +1778,10 @@
 
   .bg-gray-900 {
     background-color: var(--color-gray-900);
+  }
+
+  .bg-green-400 {
+    background-color: var(--color-green-400);
   }
 
   .bg-green-400\/50 {
@@ -2496,6 +2524,10 @@
     padding-inline: calc(var(--spacing) * 4);
   }
 
+  .px-5 {
+    padding-inline: calc(var(--spacing) * 5);
+  }
+
   .px-6 {
     padding-inline: calc(var(--spacing) * 6);
   }
@@ -2625,10 +2657,6 @@
 
   .text-\[8px\] {
     font-size: 8px;
-  }
-
-  .text-\[9px\] {
-    font-size: 9px;
   }
 
   .text-\[10px\] {
@@ -3010,16 +3038,6 @@
     color: var(--color-white);
   }
 
-  .text-white\/25 {
-    color: #ffffff40;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .text-white\/25 {
-      color: color-mix(in oklab, var(--color-white) 25%, transparent);
-    }
-  }
-
   .text-white\/30 {
     color: #ffffff4d;
   }
@@ -3030,16 +3048,6 @@
     }
   }
 
-  .text-white\/35 {
-    color: #ffffff59;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .text-white\/35 {
-      color: color-mix(in oklab, var(--color-white) 35%, transparent);
-    }
-  }
-
   .text-white\/40 {
     color: #fff6;
   }
@@ -3047,6 +3055,16 @@
   @supports (color: color-mix(in lab, red, red)) {
     .text-white\/40 {
       color: color-mix(in oklab, var(--color-white) 40%, transparent);
+    }
+  }
+
+  .text-white\/45 {
+    color: #ffffff73;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/45 {
+      color: color-mix(in oklab, var(--color-white) 45%, transparent);
     }
   }
 
@@ -3133,23 +3151,23 @@
     font-variant-numeric: var(--tw-ordinal, ) var(--tw-slashed-zero, ) var(--tw-numeric-figure, ) var(--tw-numeric-spacing, ) var(--tw-numeric-fraction, );
   }
 
-  .placeholder-white\/15::placeholder {
-    color: #ffffff26;
+  .placeholder-white\/30::placeholder {
+    color: #ffffff4d;
   }
 
   @supports (color: color-mix(in lab, red, red)) {
-    .placeholder-white\/15::placeholder {
-      color: color-mix(in oklab, var(--color-white) 15%, transparent);
+    .placeholder-white\/30::placeholder {
+      color: color-mix(in oklab, var(--color-white) 30%, transparent);
     }
   }
 
-  .placeholder-white\/20::placeholder {
-    color: #fff3;
+  .placeholder-white\/35::placeholder {
+    color: #ffffff59;
   }
 
   @supports (color: color-mix(in lab, red, red)) {
-    .placeholder-white\/20::placeholder {
-      color: color-mix(in oklab, var(--color-white) 20%, transparent);
+    .placeholder-white\/35::placeholder {
+      color: color-mix(in oklab, var(--color-white) 35%, transparent);
     }
   }
 
@@ -3191,6 +3209,11 @@
 
   .shadow-2xl {
     --tw-shadow: 0 25px 50px -12px var(--tw-shadow-color, #00000040);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+
+  .shadow-\[0_0_6px_rgba\(74\,222\,128\,0\.6\)\] {
+    --tw-shadow: 0 0 6px var(--tw-shadow-color, #4ade8099);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
@@ -4463,11 +4486,11 @@ canvas {
 
 @keyframes glow-pulse {
   0%, 100% {
-    box-shadow: 0 0 8px #fbbf244d;
+    box-shadow: 0 0 20px #fbbf244d;
   }
 
   50% {
-    box-shadow: 0 0 20px #fbbf2499;
+    box-shadow: 0 0 40px #fbbf2499;
   }
 }
 
@@ -4477,12 +4500,16 @@ canvas {
 
 @keyframes barney-glow {
   0%, 100% {
-    opacity: .3;
+    box-shadow: 0 0 20px #a855f766;
   }
 
   50% {
-    opacity: .6;
+    box-shadow: 0 0 40px #a855f7cc, inset 0 0 10px #a855f74d;
   }
+}
+
+.barney-glow {
+  animation: 2.5s ease-in-out infinite barney-glow;
 }
 
 @keyframes float {
@@ -4601,23 +4628,31 @@ input[type="range"]::-webkit-slider-runnable-track {
 @keyframes floor-reveal {
   0% {
     opacity: 0;
-    transform: translateY(20px) scale(.95);
+    filter: blur(20px);
+    transform: scale(.7);
   }
 
   20% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    filter: blur();
+    transform: scale(1.05);
   }
 
   80% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    filter: blur();
+    transform: scale(1);
   }
 
   100% {
     opacity: 0;
-    transform: translateY(-10px) scale(1.02);
+    filter: blur(8px);
+    transform: scale(1.1);
   }
+}
+
+.animate-floor-reveal {
+  animation: 3s ease-out forwards floor-reveal;
 }
 
 @keyframes vignette-pulse {
@@ -4637,26 +4672,29 @@ input[type="range"]::-webkit-slider-runnable-track {
 @keyframes jumpscare {
   0% {
     opacity: 0;
-    transform: scale(.8);
+    filter: blur(20px);
+    transform: scale(.3);
   }
 
   10% {
     opacity: 1;
-    transform: scale(1.1);
+    filter: blur();
+    transform: scale(1.5) rotate(-3deg);
   }
 
-  20% {
-    transform: scale(1);
-  }
-
-  80% {
-    transform: scale(1);
+  50% {
+    opacity: 1;
+    transform: scale(1.2) rotate(2deg);
   }
 
   100% {
-    opacity: 0;
-    transform: scale(1.05);
+    opacity: 1;
+    transform: scale(1.4);
   }
+}
+
+.animate-jumpscare {
+  animation: .5s ease-out forwards jumpscare;
 }
 
 @keyframes gentle-shake {
@@ -4721,6 +4759,10 @@ input[type="range"]::-webkit-slider-runnable-track {
   }
 }
 
+.animate-barney-dialogue {
+  animation: .7s cubic-bezier(.34, 1.56, .64, 1) forwards barney-dialogue-entrance;
+}
+
 @keyframes barney-image-bounce {
   0%, 100% {
     transform: translateY(0) scale(1.2);
@@ -4731,6 +4773,10 @@ input[type="range"]::-webkit-slider-runnable-track {
   }
 }
 
+.animate-barney-bounce {
+  animation: 2s ease-in-out infinite barney-image-bounce;
+}
+
 .scanlines:after {
   content: "";
   pointer-events: none;
@@ -4738,52 +4784,6 @@ input[type="range"]::-webkit-slider-runnable-track {
   background: repeating-linear-gradient(0deg, #0000, #0000 2px, #ffffff04 2px 4px);
   position: absolute;
   inset: 0;
-}
-
-.animate-glow-pulse {
-  animation: 2s ease-in-out infinite glow-pulse;
-}
-
-.animate-floor-reveal {
-  animation: 3s ease-in-out forwards floor-reveal;
-}
-
-@keyframes barney-bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-4px);
-  }
-}
-
-.animate-barney-bounce {
-  animation: 2s ease-in-out infinite barney-bounce;
-}
-
-@keyframes barney-dialogue {
-  0% {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-barney-dialogue {
-  animation: .5s cubic-bezier(.16, 1, .3, 1) forwards barney-dialogue;
-}
-
-.barney-glow {
-  animation: 3s ease-in-out infinite barney-glow;
-}
-
-.animate-jumpscare {
-  animation: 2s ease-in-out forwards jumpscare;
 }
 
 .traveling-vignette {
@@ -95400,6 +95400,7 @@ const MainMenu = ({ onPlay }) => {
   const [isLoggingIn, setIsLoggingIn] = reactExports.useState(false);
   const [loginError, setLoginError] = reactExports.useState("");
   const [copiedLink, setCopiedLink] = reactExports.useState(false);
+  const [isFullscreen, setIsFullscreen] = reactExports.useState(false);
   const [playerName, setPlayerNameState] = reactExports.useState(getPlayerName());
   const { user, login } = useMultiplayer({ current: null }, { current: 0 }, "idle", false);
   const handlePlay = async () => {
@@ -95432,6 +95433,11 @@ const MainMenu = ({ onPlay }) => {
       setTimeout(() => setCopiedLink(false), 2e3);
     }
   };
+  reactExports.useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
   reactExports.useEffect(() => {
     const doorTimer = setTimeout(() => {
       setDoorPosition(100);
@@ -95522,8 +95528,9 @@ const MainMenu = ({ onPlay }) => {
               else if (document.exitFullscreen) document.exitFullscreen().catch((e2) => {
               });
             },
+            "aria-label": isFullscreen ? "Sair da tela cheia" : "Tela cheia",
             className: "p-2 text-white/50 hover:text-white transition-colors bg-white/5 rounded-full backdrop-blur-sm",
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-6 h-6", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 1.5, d: "M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" }) })
+            children: isFullscreen ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-6 h-6", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 1.5, d: "M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-6 h-6", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 1.5, d: "M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" }) })
           }
         ) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pt-4 pb-2 flex justify-center landscape:hidden shrink-0", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative", children: [
@@ -95558,7 +95565,7 @@ const MainMenu = ({ onPlay }) => {
               /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-lg sm:text-xl font-thin text-amber-400 tracking-widest uppercase", style: { textShadow: "0 0 10px rgba(251,191,36,0.3)" }, children: "ELEVATOR" })
             ] })
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-white/30 text-center text-xs sm:text-sm max-w-xs leading-relaxed landscape:hidden mb-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-white/45 text-center text-xs sm:text-sm max-w-xs leading-relaxed landscape:hidden mb-2", children: [
             "Uma experiência liminal interativa.",
             /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-500/40", children: "Por favor, permaneça calmo." })
@@ -95566,12 +95573,12 @@ const MainMenu = ({ onPlay }) => {
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "hidden landscape:block w-full max-w-xs mt-2", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 mb-4 bg-black/50 border border-white/10 rounded-lg p-4", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs tracking-widest uppercase", children: "Multiplayer" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs tracking-widest uppercase font-medium", children: "Multiplayer" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), className: `w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-5" : "translate-x-0"}` }) })
               ] }),
               multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-2", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/50 text-xs tracking-wider mb-1.5 block", children: "Seu Nome" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/60 text-xs tracking-wider mb-1.5 block font-medium", children: "Seu Nome" }),
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "input",
                     {
@@ -95580,7 +95587,7 @@ const MainMenu = ({ onPlay }) => {
                       onChange: (e2) => setPlayerNameState(e2.target.value.slice(0, 20)),
                       maxLength: 20,
                       placeholder: "Enter your name...",
-                      className: "w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/20 outline-none focus:border-amber-500/60 transition-colors"
+                      className: "w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/35 outline-none focus:border-amber-500/60 transition-colors"
                     }
                   )
                 ] }),
@@ -95614,12 +95621,12 @@ const MainMenu = ({ onPlay }) => {
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent z-40 landscape:hidden shrink-0", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 border border-white/10 rounded-lg mb-2 bg-black/50 backdrop-blur-md p-2.5", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs tracking-widest uppercase", children: "Multiplayer" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs tracking-widest uppercase font-medium", children: "Multiplayer" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), className: `w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-5" : "translate-x-0"}` }) })
             ] }),
             multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-1", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/50 text-xs tracking-wider mb-1.5 block", children: "Seu Nome" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/60 text-xs tracking-wider mb-1.5 block font-medium", children: "Seu Nome" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "input",
                   {
@@ -95628,7 +95635,7 @@ const MainMenu = ({ onPlay }) => {
                     onChange: (e2) => setPlayerNameState(e2.target.value.slice(0, 20)),
                     maxLength: 20,
                     placeholder: "Enter your name...",
-                    className: "w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/20 outline-none focus:border-amber-500/60 transition-colors"
+                    className: "w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/35 outline-none focus:border-amber-500/60 transition-colors"
                   }
                 )
               ] }),
@@ -95728,7 +95735,7 @@ const MainMenu = ({ onPlay }) => {
                 ] })
               ] })
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-8 mt-6 text-white/35 text-sm", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-8 mt-6 text-white/50 text-sm", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "flex items-center gap-2", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("kbd", { className: "px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-mono", children: "WASD" }),
                 " Mover"
@@ -95745,17 +95752,17 @@ const MainMenu = ({ onPlay }) => {
           ] })
         ] })
       ] }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute top-6 left-6 text-white/25 text-xs tracking-wider hidden md:flex items-center gap-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute top-6 left-6 text-white/40 text-xs tracking-wider hidden md:flex items-center gap-2", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 bg-green-500 rounded-full animate-pulse" }),
         "SISTEMA ATIVO"
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute top-6 right-6 text-white/25 text-xs tracking-wider hidden md:flex items-center gap-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute top-6 right-6 text-white/40 text-xs tracking-wider hidden md:flex items-center gap-2", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-red-500", children: "●" }),
         " REC",
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "ml-4", children: "CAM_01" })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 left-6 text-white/25 text-xs tracking-wider hidden md:block", children: "© 2026 LIMINAL SYSTEMS" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 right-6 text-white/25 text-xs tracking-wider hidden md:block", children: "v1.0.3" })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 left-6 text-white/40 text-xs tracking-wider hidden md:block", children: "© 2026 LIMINAL SYSTEMS" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 right-6 text-white/40 text-xs tracking-wider hidden md:block", children: "v1.0.3" })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 pointer-events-none opacity-[0.02]", style: { backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)" } })
   ] });
@@ -96539,7 +96546,7 @@ const DussekarCharacter = ({ position, rotation: rotation2 }) => {
   }, []);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: group, position, rotation: rotation2, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene, scale: 3, position: [0, 0, 0] }),
-    dialogue && /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 1, 0], center: true, distanceFactor: 10, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none select-none whitespace-nowrap speech-bubble", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-white text-black px-4 py-2 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center transform -translate-y-full", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs sm:text-sm font-bold font-mono m-0", children: dialogue }) }) }) })
+    dialogue && /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 1, 0], center: true, distanceFactor: 10, occlude: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none select-none whitespace-nowrap speech-bubble", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-white text-black px-4 py-2 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center transform -translate-y-full max-w-[180px]", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs sm:text-sm font-bold font-mono m-0 text-center break-words leading-snug", children: dialogue }) }) }) })
   ] });
 };
 const Shop = ({ position }) => {
@@ -97198,7 +97205,7 @@ const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2, name: name2, chatMsg
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene, scale: [30, 30, 30], position: [0, groundY, 0] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.3, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none select-none whitespace-nowrap", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/70 text-white px-2.5 py-0.5 rounded-md text-[11px] font-bold font-mono border border-white/20 backdrop-blur-sm tracking-wider text-center shadow-lg", children: displayName }) }) }),
-    showChat && chatMsg && /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.7, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pointer-events-none select-none whitespace-nowrap speech-bubble", children: [
+    showChat && chatMsg && /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.7, 0], center: true, distanceFactor: 8, occlude: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pointer-events-none select-none whitespace-nowrap speech-bubble", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-white text-black px-3 py-1.5 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center max-w-[200px]", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[11px] sm:text-xs font-bold font-mono m-0 text-center break-words leading-snug", children: chatMsg }) }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex justify-center -mt-0.5", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-black" }) })
     ] }) }, chatKey)
@@ -97360,7 +97367,7 @@ const Segmented = ({
   "button",
   {
     onClick: () => onChange(o2.value),
-    className: `flex-1 px-3 py-2.5 min-h-[40px] text-xs font-mono tracking-wider transition-colors ${value === o2.value ? "bg-amber-500/80 text-black font-bold" : "text-amber-200/70 hover:bg-amber-500/10 active:bg-amber-500/20"}`,
+    className: `flex-1 px-3 py-2.5 min-h-[40px] text-xs font-medium tracking-wider transition-colors ${value === o2.value ? "bg-amber-500/80 text-black font-bold" : "text-amber-200/70 hover:bg-amber-500/10 active:bg-amber-500/20"}`,
     children: o2.label
   },
   o2.value
@@ -97817,11 +97824,11 @@ const BotHud = ({ info }) => {
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse shadow-[0_0_6px_rgba(232,121,249,0.6)]" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-bold tracking-widest uppercase text-fuchsia-300 text-xs", children: "BOTS" })
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `px-1.5 py-0.5 rounded-full text-[9px] font-bold ring-1 ${info.count > 0 ? "bg-green-500/20 text-green-300 ring-green-500/30" : "bg-white/5 text-white/30 ring-white/10"}`, children: info.count > 0 ? `${info.count} ON` : "OFF" })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `px-1.5 py-0.5 rounded-full text-[10px] font-bold ring-1 ${info.count > 0 ? "bg-green-500/20 text-green-300 ring-green-500/30" : "bg-white/5 text-white/30 ring-white/10"}`, children: info.count > 0 ? `${info.count} ON` : "OFF" })
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-fuchsia-100/80 mb-1.5 text-[10px] truncate", children: summary }),
-        info.log.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t border-fuchsia-500/15 pt-1.5 space-y-0.5 max-h-[60px] overflow-hidden", children: info.log.slice(0, 3).map((l2, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-[9px] text-fuchsia-300/50 truncate flex items-center gap-1", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[8px]", children: "›" }),
+        info.log.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border-t border-fuchsia-500/15 pt-1.5 space-y-0.5 max-h-[60px] overflow-hidden", children: info.log.slice(0, 3).map((l2, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-[10px] text-fuchsia-300/50 truncate flex items-center gap-1", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px]", children: "›" }),
           l2
         ] }, i2)) })
       ]
@@ -97949,10 +97956,16 @@ const getNameColor = (name2, isMe) => {
   const hash = (name2 || "").split("").reduce((a2, c2) => a2 + c2.charCodeAt(0), 0);
   return NAME_COLORS[hash % NAME_COLORS.length];
 };
-const RobloxChat = ({ messages, currentUserId, onSend, enabled }) => {
+const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) => {
   const [open, setOpen] = reactExports.useState(false);
   const [input, setInput] = reactExports.useState("");
   const inputRef = reactExports.useRef(null);
+  reactExports.useEffect(() => {
+    if (forceClose && open) {
+      setOpen(false);
+      setInput("");
+    }
+  }, [forceClose]);
   const scrollRef = reactExports.useRef(null);
   const [isDesktop, setIsDesktop] = reactExports.useState(
     () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches
@@ -98023,7 +98036,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled }) => {
                 padding: "6px 0"
               },
               children: [
-                messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/30 text-xs text-center py-3 px-4", children: "Press / to chat" }),
+                messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/45 text-xs text-center py-3 px-4", children: "Press / to chat" }),
                 messages.slice(-30).map((msg, i2) => {
                   const age = Date.now() - msg.timestamp;
                   const fadeOut = age > 25e3;
@@ -98037,7 +98050,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled }) => {
                       style: { opacity },
                       children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[13px] leading-snug", style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }, children: [
                         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-extrabold", style: { color: nameColor }, children: msg.name }),
-                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/30 font-normal", children: ": " }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/45 font-normal", children: ": " }),
                         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/90 font-normal", children: msg.text })
                       ] })
                     },
@@ -98087,8 +98100,9 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled }) => {
                       }
                     },
                     placeholder: "Type here...",
+                    "aria-label": "Mensagem do chat",
                     maxLength: 200,
-                    className: "flex-1 bg-transparent text-white text-[13px] font-normal placeholder-white/20 outline-none py-2.5 pr-3",
+                    className: "flex-1 bg-transparent text-white text-[13px] font-normal placeholder-white/35 outline-none py-2.5 pr-3",
                     style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' },
                     autoFocus: true
                   }
@@ -98120,7 +98134,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled }) => {
                 background: "rgba(30, 30, 30, 0.6)",
                 border: "1px solid rgba(255,255,255,0.08)"
               },
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/35 text-xs", children: "Press / to chat" })
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/50 text-xs", children: "Press / to chat" })
             }
           )
         }
@@ -98172,13 +98186,13 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled }) => {
                   className: "flex-1 overflow-y-auto scrollbar-hide px-2.5 py-1",
                   style: { maxHeight: "calc(min(340px, 50dvh) - 90px)" },
                   children: [
-                    messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/30 text-xs text-center py-4", children: "No messages yet" }),
+                    messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/45 text-xs text-center py-4", children: "No messages yet" }),
                     messages.slice(-30).map((msg, i2) => {
                       const isMe = msg.id === currentUserId;
                       const nameColor = getNameColor(msg.name, isMe);
                       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "px-1 py-[3px]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[13px] leading-snug", style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }, children: [
                         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-extrabold", style: { color: nameColor }, children: msg.name }),
-                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/30 font-normal", children: ": " }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/45 font-normal", children: ": " }),
                         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/90 font-normal", children: msg.text })
                       ] }) }, `${msg.id}-${msg.timestamp}-${i2}`);
                     })
@@ -98198,8 +98212,9 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled }) => {
                       if (e2.key === "Enter") handleSend();
                     },
                     placeholder: "Type here...",
+                    "aria-label": "Mensagem do chat",
                     maxLength: 200,
-                    className: "flex-1 bg-white/6 border border-white/10 rounded-lg px-3 py-2 text-white text-[13px] font-normal placeholder-white/15 outline-none focus:border-white/25 transition-colors",
+                    className: "flex-1 bg-white/6 border border-white/10 rounded-lg px-3 py-2 text-white text-[13px] font-normal placeholder-white/30 outline-none focus:border-white/25 transition-colors",
                     style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }
                   }
                 ),
@@ -98290,7 +98305,7 @@ const BubbleChatFallback = ({ messages, currentUserId }) => {
                 },
                 children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[12px] leading-snug", style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }, children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-extrabold", style: { color: nameColor }, children: msg.name }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/25 font-normal", children: ": " }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/40 font-normal", children: ": " }),
                   /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/85 font-normal", children: msg.text })
                 ] })
               }
@@ -98820,7 +98835,14 @@ function App() {
           toneMapping: ACESFilmicToneMapping,
           outputColorSpace: SRGBColorSpace$1
         },
-        children: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "px-4 py-2 rounded bg-black/70 ring-1 ring-amber-500/40 text-amber-200 font-mono text-sm tracking-wider animate-pulse", children: "CARREGANDO..." }) }), children: [
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5", children: "The Normal Elevator" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-center gap-1.5", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse", style: { animationDelay: "0.2s" } }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
+          ] })
+        ] }) }), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
           botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -98896,6 +98918,10 @@ function App() {
           right: "calc(env(safe-area-inset-right, 0px) + 8px)"
         },
         children: [
+          multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 bg-black/70 backdrop-blur-sm ring-1 ring-white/10 px-2.5 py-1.5 rounded-full", "aria-label": "Multiplayer ativo", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-2 h-2 rounded-full ${Object.keys(otherPlayers).length > 0 ? "bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]" : "bg-amber-400/70 animate-pulse"}` }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] text-white/60 font-medium tracking-wider", children: Object.keys(otherPlayers).length > 0 ? `${Object.keys(otherPlayers).length} online` : "MP" })
+          ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: () => setSettingsOpen(true), className: "relative group", "aria-label": "Configurações", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#fbbf24", className: "w-6 h-6 landscape:w-6 landscape:h-6", children: [
@@ -98920,7 +98946,8 @@ function App() {
           messages: chatMessages,
           currentUserId: (user == null ? void 0 : user.uid) || "",
           onSend: sendChat,
-          enabled: multiplayerEnabled && !dialogueOpen && !barneyDialogueOpen
+          enabled: multiplayerEnabled && !dialogueOpen && !barneyDialogueOpen && !settingsOpen,
+          forceClose: settingsOpen
         }
       ),
       /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -98937,7 +98964,7 @@ function App() {
       "div",
       {
         className: "absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]",
-        children: /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleOpenDoor, className: "group relative tap-target", children: [
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleOpenDoor, className: "group relative tap-target", "aria-label": "Abrir porta", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-gradient-to-r from-amber-400 to-yellow-300 rounded-full blur-md opacity-70 group-hover:opacity-100 animate-pulse" }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative bg-white text-black px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-amber-200 text-xs sm:text-base", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2.5, children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" }) }),
@@ -98950,7 +98977,7 @@ function App() {
       "div",
       {
         className: "absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]",
-        children: /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleStartDialogue, className: "group relative tap-target", children: [
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleStartDialogue, className: "group relative tap-target", "aria-label": "Falar com NPC", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1.5 bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 rounded-full blur-md opacity-80 animate-pulse" }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative bg-gradient-to-b from-yellow-300 to-amber-400 text-black px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-[0.15em] sm:tracking-[0.25em] shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-yellow-200 text-xs sm:text-base", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" }) }),
@@ -98969,7 +98996,7 @@ function App() {
       "div",
       {
         className: "absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]",
-        children: /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleSleep, className: "group relative tap-target", children: [
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleSleep, className: "group relative tap-target", "aria-label": "Dormir", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full blur-md opacity-70 animate-pulse" }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative bg-gradient-to-b from-slate-200 to-slate-300 text-slate-900 px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-blue-200 text-xs sm:text-base", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M12 3C7.03 3 3 7.03 3 12s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z" }) }),
@@ -99001,7 +99028,7 @@ function App() {
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-purple-300 text-[11px] font-bold tracking-[0.3em] uppercase", children: "Barney" })
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/95 text-sm sm:text-base leading-relaxed mb-4 font-serif min-h-[2rem] sm:min-h-[3rem] landscape:min-h-0", children: /* @__PURE__ */ jsxRuntimeExports.jsx(TypewriterText, { text: BARNEY_DIALOGUE[barneyDialogueNode].text, speed: 28 }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-2 max-h-[30vh] landscape:max-h-[30vh] overflow-y-auto scrollbar-hide pr-1", children: BARNEY_DIALOGUE[barneyDialogueNode].options.map((opt, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: () => handleBarneyResponse(opt.next), className: "group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-lg text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-2 max-h-[35vh] landscape:max-h-[30vh] overflow-y-auto scrollbar-hide pr-1", children: BARNEY_DIALOGUE[barneyDialogueNode].options.map((opt, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: () => handleBarneyResponse(opt.next), className: "group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-lg text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-purple-400/60 group-hover:text-purple-300 transition-colors", children: "▸" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "flex-1", children: opt.text })
           ] }, i2)) })

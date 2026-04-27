@@ -10,6 +10,7 @@ export const MainMenu = ({ onPlay }: any) => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [playerName, setPlayerNameState] = useState(getPlayerName());
 
   // Dummy refs — isEnabled=false so the hook returns early without touching Firebase
@@ -46,6 +47,12 @@ export const MainMenu = ({ onPlay }: any) => {
           setTimeout(() => setCopiedLink(false), 2000);
       }
   };
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
 
   useEffect(() => {
     const doorTimer = setTimeout(() => {
@@ -135,11 +142,18 @@ export const MainMenu = ({ onPlay }: any) => {
                   if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e => {});
                   else if (document.exitFullscreen) document.exitFullscreen().catch(e => {});
                 }}
+                aria-label={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
                 className="p-2 text-white/50 hover:text-white transition-colors bg-white/5 rounded-full backdrop-blur-sm"
               >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                </svg>
+                {isFullscreen ? (
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                  </svg>
+                )}
               </button>
             </div>
 
@@ -193,7 +207,7 @@ export const MainMenu = ({ onPlay }: any) => {
                 </div>
               </div>
               
-              <p className="text-white/30 text-center text-xs sm:text-sm max-w-xs leading-relaxed landscape:hidden mb-2">
+              <p className="text-white/45 text-center text-xs sm:text-sm max-w-xs leading-relaxed landscape:hidden mb-2">
                 Uma experiência liminal interativa.<br/>
                 <span className="text-amber-500/40">Por favor, permaneça calmo.</span>
               </p>
@@ -201,7 +215,7 @@ export const MainMenu = ({ onPlay }: any) => {
               <div className="hidden landscape:block w-full max-w-xs mt-2">
                 <div className="flex flex-col gap-2 mb-4 bg-black/50 border border-white/10 rounded-lg p-4">
                   <div className="flex items-center justify-between">
-                     <span className="text-white/70 text-xs tracking-widest uppercase">Multiplayer</span>
+                     <span className="text-white/70 text-xs tracking-widest uppercase font-medium">Multiplayer</span>
                      <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
                         <div className={`absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                      </button>
@@ -210,14 +224,14 @@ export const MainMenu = ({ onPlay }: any) => {
                   {multiplayerEnabled && (
                       <>
                           <div className="mt-2">
-                              <label className="text-white/50 text-xs tracking-wider mb-1.5 block">Seu Nome</label>
+                              <label className="text-white/60 text-xs tracking-wider mb-1.5 block font-medium">Seu Nome</label>
                               <input
                                   type="text"
                                   value={playerName}
                                   onChange={e => setPlayerNameState(e.target.value.slice(0, 20))}
                                   maxLength={20}
                                   placeholder="Enter your name..."
-                                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/20 outline-none focus:border-amber-500/60 transition-colors"
+                                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/35 outline-none focus:border-amber-500/60 transition-colors"
                               />
                           </div>
                           <button onClick={handleShare} className="mt-1 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2 rounded text-xs text-white hover:bg-white/10 transition-colors">
@@ -252,7 +266,7 @@ export const MainMenu = ({ onPlay }: any) => {
             <div className="p-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent z-40 landscape:hidden shrink-0">
               <div className="flex flex-col gap-2 border border-white/10 rounded-lg mb-2 bg-black/50 backdrop-blur-md p-2.5">
                  <div className="flex items-center justify-between">
-                     <span className="text-white/70 text-xs tracking-widest uppercase">Multiplayer</span>
+                     <span className="text-white/70 text-xs tracking-widest uppercase font-medium">Multiplayer</span>
                      <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
                         <div className={`absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                      </button>
@@ -261,14 +275,14 @@ export const MainMenu = ({ onPlay }: any) => {
                  {multiplayerEnabled && (
                      <>
                          <div className="mt-1">
-                             <label className="text-white/50 text-xs tracking-wider mb-1.5 block">Seu Nome</label>
+                             <label className="text-white/60 text-xs tracking-wider mb-1.5 block font-medium">Seu Nome</label>
                              <input
                                  type="text"
                                  value={playerName}
                                  onChange={e => setPlayerNameState(e.target.value.slice(0, 20))}
                                  maxLength={20}
                                  placeholder="Enter your name..."
-                                 className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/20 outline-none focus:border-amber-500/60 transition-colors"
+                                 className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/35 outline-none focus:border-amber-500/60 transition-colors"
                              />
                          </div>
                          <button onClick={handleShare} className="mt-1 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2.5 rounded text-sm text-white font-bold hover:bg-white/10 transition-colors">
@@ -388,7 +402,7 @@ export const MainMenu = ({ onPlay }: any) => {
                     </div>
                   </button>
                   
-                  <div className="flex gap-8 mt-6 text-white/35 text-sm">
+                  <div className="flex gap-8 mt-6 text-white/50 text-sm">
                     <span className="flex items-center gap-2"><kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-mono">WASD</kbd> Mover</span>
                     <span className="flex items-center gap-2"><kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-mono">MOUSE</kbd> Olhar</span>
                     <span className="flex items-center gap-2"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728" /></svg> Fones</span>
@@ -398,14 +412,14 @@ export const MainMenu = ({ onPlay }: any) => {
             </div>
           </div>
           
-          <div className="absolute top-6 left-6 text-white/25 text-xs tracking-wider hidden md:flex items-center gap-2">
+          <div className="absolute top-6 left-6 text-white/40 text-xs tracking-wider hidden md:flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />SISTEMA ATIVO
           </div>
-          <div className="absolute top-6 right-6 text-white/25 text-xs tracking-wider hidden md:flex items-center gap-2">
+          <div className="absolute top-6 right-6 text-white/40 text-xs tracking-wider hidden md:flex items-center gap-2">
             <span className="text-red-500">●</span> REC<span className="ml-4">CAM_01</span>
           </div>
-          <div className="absolute bottom-6 left-6 text-white/25 text-xs tracking-wider hidden md:block">© 2026 LIMINAL SYSTEMS</div>
-          <div className="absolute bottom-6 right-6 text-white/25 text-xs tracking-wider hidden md:block">v1.0.3</div>
+          <div className="absolute bottom-6 left-6 text-white/40 text-xs tracking-wider hidden md:block">© 2026 LIMINAL SYSTEMS</div>
+          <div className="absolute bottom-6 right-6 text-white/40 text-xs tracking-wider hidden md:block">v1.0.3</div>
         </div>
         <div className="absolute inset-0 pointer-events-none opacity-[0.02]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)' }} />
       </div>

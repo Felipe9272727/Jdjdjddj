@@ -366,12 +366,6 @@ input[type=range]::-webkit-slider-runnable-track {
 }
 .animate-dialogue-popup { animation: dialogue-popup 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 
-@keyframes glow-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
-}
-.animate-glow-pulse { animation: glow-pulse 2.5s ease-in-out infinite; }
-
 /* Nova animação super viva para o diálogo do Barney */
 @keyframes barney-dialogue-entrance {
   0% { opacity: 0; transform: translateY(100px) scale(0.8) rotate(-4deg); filter: blur(10px); }
@@ -407,71 +401,6 @@ input[type=range]::-webkit-slider-runnable-track {
     rgba(255,255,255,0.015) 4px
   );
   z-index: 1;
-}
-
-/* Glow pulse for interactive elements */
-@keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 8px rgba(251,191,36,0.3); }
-  50% { box-shadow: 0 0 20px rgba(251,191,36,0.6); }
-}
-.animate-glow-pulse {
-  animation: glow-pulse 2s ease-in-out infinite;
-}
-
-/* Smooth float for particles */
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-
-/* Floor reveal animation */
-@keyframes floor-reveal {
-  0% { opacity: 0; transform: translateY(20px) scale(0.95); }
-  20% { opacity: 1; transform: translateY(0) scale(1); }
-  80% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(-10px) scale(1.02); }
-}
-.animate-floor-reveal {
-  animation: floor-reveal 3s ease-in-out forwards;
-}
-
-/* Barney bounce */
-@keyframes barney-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-.animate-barney-bounce {
-  animation: barney-bounce 2s ease-in-out infinite;
-}
-
-/* Barney dialogue entrance */
-@keyframes barney-dialogue {
-  0% { opacity: 0; transform: translateY(20px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-.animate-barney-dialogue {
-  animation: barney-dialogue 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* Barney glow */
-@keyframes barney-glow {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.6; }
-}
-.barney-glow {
-  animation: barney-glow 3s ease-in-out infinite;
-}
-
-/* Jumpscare animation */
-@keyframes jumpscare {
-  0% { transform: scale(0.8); opacity: 0; }
-  10% { transform: scale(1.1); opacity: 1; }
-  20% { transform: scale(1); }
-  80% { transform: scale(1); }
-  100% { transform: scale(1.05); opacity: 0; }
-}
-.animate-jumpscare {
-  animation: jumpscare 2s ease-in-out forwards;
 }
 
 /* Traveling vignette */

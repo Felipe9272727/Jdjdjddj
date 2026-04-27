@@ -187,7 +187,7 @@ const Segmented = ({
             <button
                 key={o.value}
                 onClick={() => onChange(o.value)}
-                className={`flex-1 px-3 py-2.5 min-h-[40px] text-xs font-mono tracking-wider transition-colors ${
+                className={`flex-1 px-3 py-2.5 min-h-[40px] text-xs font-medium tracking-wider transition-colors ${
                     value === o.value
                         ? 'bg-amber-500/80 text-black font-bold'
                         : 'text-amber-200/70 hover:bg-amber-500/10 active:bg-amber-500/20'

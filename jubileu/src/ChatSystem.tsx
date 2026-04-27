@@ -28,12 +28,21 @@ interface RobloxChatProps {
     currentUserId: string;
     onSend: (msg: string) => void;
     enabled: boolean;
+    forceClose?: boolean;
 }
 
-export const RobloxChat = ({ messages, currentUserId, onSend, enabled }: RobloxChatProps) => {
+export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }: RobloxChatProps) => {
     const [open, setOpen] = useState(false);
     const [input, setInput] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Force close when external state demands it (e.g. settings opened)
+    useEffect(() => {
+        if (forceClose && open) {
+            setOpen(false);
+            setInput('');
+        }
+    }, [forceClose]);
     const scrollRef = useRef<HTMLDivElement>(null);
     const [isDesktop, setIsDesktop] = useState(() =>
         typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
@@ -111,7 +120,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled }: RobloxC
                         }}
                     >
                         {messages.length === 0 && (
-                            <div className="text-white/30 text-xs text-center py-3 px-4">
+                            <div className="text-white/45 text-xs text-center py-3 px-4">
                                 Press / to chat
                             </div>
                         )}
@@ -131,7 +140,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled }: RobloxC
                                         <span className="font-extrabold" style={{ color: nameColor }}>
                                             {msg.name}
                                         </span>
-                                        <span className="text-white/30 font-normal">: </span>
+                                        <span className="text-white/45 font-normal">: </span>
                                         <span className="text-white/90 font-normal">{msg.text}</span>
                                     </span>
                                 </div>
@@ -171,9 +180,9 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled }: RobloxC
                                     if (e.key === 'Enter') handleSend();
                                     if (e.key === 'Escape') { setOpen(false); setInput(''); }
                                 }}
-                                placeholder="Type here..."
+                                placeholder="Type here..." aria-label="Mensagem do chat"
                                 maxLength={200}
-                                className="flex-1 bg-transparent text-white text-[13px] font-normal placeholder-white/20 outline-none py-2.5 pr-3"
+                                className="flex-1 bg-transparent text-white text-[13px] font-normal placeholder-white/35 outline-none py-2.5 pr-3"
                                 style={{ fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }}
                                 autoFocus
                             />
@@ -195,7 +204,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled }: RobloxC
                                 border: '1px solid rgba(255,255,255,0.08)',
                             }}
                         >
-                            <span className="text-white/35 text-xs">Press / to chat</span>
+                            <span className="text-white/50 text-xs">Press / to chat</span>
                         </button>
                     </div>
                 )}
@@ -247,7 +256,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled }: RobloxC
                             style={{ maxHeight: 'calc(min(340px, 50dvh) - 90px)' }}
                         >
                             {messages.length === 0 && (
-                                <div className="text-white/30 text-xs text-center py-4">
+                                <div className="text-white/45 text-xs text-center py-4">
                                     No messages yet
                                 </div>
                             )}
@@ -260,7 +269,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled }: RobloxC
                                             <span className="font-extrabold" style={{ color: nameColor }}>
                                                 {msg.name}
                                             </span>
-                                            <span className="text-white/30 font-normal">: </span>
+                                            <span className="text-white/45 font-normal">: </span>
                                             <span className="text-white/90 font-normal">{msg.text}</span>
                                         </span>
                                     </div>
@@ -279,9 +288,9 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled }: RobloxC
                                     e.stopPropagation();
                                     if (e.key === 'Enter') handleSend();
                                 }}
-                                placeholder="Type here..."
+                                placeholder="Type here..." aria-label="Mensagem do chat"
                                 maxLength={200}
-                                className="flex-1 bg-white/6 border border-white/10 rounded-lg px-3 py-2 text-white text-[13px] font-normal placeholder-white/15 outline-none focus:border-white/25 transition-colors"
+                                className="flex-1 bg-white/6 border border-white/10 rounded-lg px-3 py-2 text-white text-[13px] font-normal placeholder-white/30 outline-none focus:border-white/25 transition-colors"
                                 style={{ fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }}
                             />
                             <button
@@ -377,7 +386,7 @@ export const BubbleChatFallback = ({ messages, currentUserId }: BubbleChatFallba
                                 <span className="font-extrabold" style={{ color: nameColor }}>
                                     {msg.name}
                                 </span>
-                                <span className="text-white/25 font-normal">: </span>
+                                <span className="text-white/40 font-normal">: </span>
                                 <span className="text-white/85 font-normal">{msg.text}</span>
                             </span>
                         </div>
