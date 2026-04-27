@@ -97077,7 +97077,6 @@ const LobbyEnvironment = ee.memo(({ npcPositionRef, isPaused, playerPositionRef 
       /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.ceiling, repeat: [6, 6], roughness: 0.9 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.45, color: "#FFE0B2" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 3.8, 0], intensity: 2.8, distance: 22, color: "#FFE0B2", decay: 2 }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 3, -6], intensity: 1.5, distance: 12, color: "#FFF8E1", decay: 2 }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, H / 2, L / 2], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
@@ -103770,6 +103769,30 @@ const playArrivalDing = (audioContext) => {
   osc1.stop(t2 + 1.5);
   osc2.stop(t2 + 1);
 };
+const createElevatorHum = (audioContext) => {
+  if (!audioContext) return () => {
+  };
+  const osc = audioContext.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(45, audioContext.currentTime);
+  const filter = audioContext.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 150;
+  const gain = audioContext.createGain();
+  gain.gain.setValueAtTime(0, audioContext.currentTime);
+  gain.gain.linearRampToValueAtTime(0.03, audioContext.currentTime + 0.5);
+  osc.connect(filter).connect(gain).connect(audioContext.destination);
+  osc.start();
+  return () => {
+    gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.3);
+    setTimeout(() => {
+      try {
+        osc.stop();
+      } catch {
+      }
+    }, 300);
+  };
+};
 const WallClock = ({ x: x2 = 8, z = -8 }) => {
   const handRef = reactExports.useRef(null);
   useFrame((state2) => {
@@ -103878,6 +103901,7 @@ function App() {
   const [currentLevel, setCurrentLevel] = reactExports.useState(0);
   const [overlayOpacity, setOverlayOpacity] = reactExports.useState(0);
   const [travelPhase, setTravelPhase] = reactExports.useState("idle");
+  const elevatorHumStopRef = reactExports.useRef(null);
   const [floorReveal, setFloorReveal] = reactExports.useState(false);
   const [cameraShake, setCameraShake] = reactExports.useState(false);
   const lastHandledTimerRef = reactExports.useRef(null);
@@ -104116,6 +104140,8 @@ function App() {
         setDoorSoundTrigger((prev) => prev + 1);
         setTravelPhase("closing");
         lastHandledTimerRef.current = null;
+        if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+        elevatorHumStopRef.current = createElevatorHum(audioCtx);
       } else {
         setDoorsClosed(false);
         setElevatorTimer(null);
@@ -104124,6 +104150,10 @@ function App() {
         setCameraShake(false);
         setArrivalPulse(true);
         playArrivalDing(audioCtx);
+        if (elevatorHumStopRef.current) {
+          elevatorHumStopRef.current();
+          elevatorHumStopRef.current = null;
+        }
         lastHandledTimerRef.current = null;
         scheduleTimeout(() => {
           setArrivalPulse(false);
@@ -104135,6 +104165,10 @@ function App() {
   }, [elevatorTimer, doorsClosed, currentLevel]);
   reactExports.useEffect(() => {
     return () => {
+      if (elevatorHumStopRef.current) {
+        elevatorHumStopRef.current();
+        elevatorHumStopRef.current = null;
+      }
       if (audioCtx && audioCtx.state !== "closed") audioCtx.close().catch(() => {
       });
     };
@@ -104342,7 +104376,7 @@ function App() {
     /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx, muted, masterVolume: settings.masterVolume, nightMode }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out", style: { opacity: overlayOpacity } }),
     cameraShake && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-20 pointer-events-none traveling-vignette" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(CanvasErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    /* @__PURE__ */ jsxRuntimeExports.jsx(CanvasErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       Canvas,
       {
         camera: { fov: 75, near: 0.1, far: QUALITY_PROFILES[settings.quality].far },
@@ -104355,29 +104389,27 @@ function App() {
           toneMapping: ACESFilmicToneMapping,
           outputColorSpace: SRGBColorSpace$1
         },
-        children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5", children: "The Normal Elevator" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-center gap-1.5", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse", style: { animationDelay: "0.2s" } }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
-            ] })
-          ] }) }), children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
-            botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
-              BotSystem,
-              {
-                playerPositionRef: sharedPlayerPositionRef,
-                currentLevel,
-                doorsClosed,
-                houseDoorOpen
-              }
-            )
-          ] }),
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5", children: "The Normal Elevator" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-center gap-1.5", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse", style: { animationDelay: "0.2s" } }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
+          ] })
+        ] }) }), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
+          botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            BotSystem,
+            {
+              playerPositionRef: sharedPlayerPositionRef,
+              currentLevel,
+              doorsClosed,
+              houseDoorOpen
+            }
+          ),
           /* @__PURE__ */ jsxRuntimeExports.jsx(GameEffects, { nightMode, gameState, currentLevel })
-        ]
+        ] })
       }
     ) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Loader2, {}),

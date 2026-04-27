@@ -81,6 +81,7 @@ export default function App() {
   const [elevatorTimer, setElevatorTimer] = useState<any>(null); const [doorsClosed, setDoorsClosed] = useState(false);
   const [currentLevel, setCurrentLevel] = useState(0); const [overlayOpacity, setOverlayOpacity] = useState(0);
   const [travelPhase, setTravelPhase] = useState('idle');
+  const elevatorHumStopRef = useRef<(() => void) | null>(null);
   const [floorReveal, setFloorReveal] = useState(false);
   const [cameraShake, setCameraShake] = useState(false);
   const lastHandledTimerRef = useRef<number | null>(null);
@@ -295,6 +296,9 @@ export default function App() {
             setDoorSoundTrigger(prev => prev + 1);
             setTravelPhase('closing');
             lastHandledTimerRef.current = null;
+            // Start elevator hum during travel
+            if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+            elevatorHumStopRef.current = createElevatorHum(audioCtx);
         } else {
             setDoorsClosed(false);
             setElevatorTimer(null);
@@ -303,6 +307,8 @@ export default function App() {
             setCameraShake(false);
             setArrivalPulse(true);
             playArrivalDing(audioCtx);
+            // Stop elevator hum on arrival
+            if (elevatorHumStopRef.current) { elevatorHumStopRef.current(); elevatorHumStopRef.current = null; }
             lastHandledTimerRef.current = null;
             scheduleTimeout(() => { setArrivalPulse(false); setTravelPhase('idle'); }, 1500);
         }
@@ -311,7 +317,10 @@ export default function App() {
   }, [elevatorTimer, doorsClosed, currentLevel]);
 
   useEffect(() => {
-    return () => { if (audioCtx && audioCtx.state !== 'closed') audioCtx.close().catch(() => {}); };
+    return () => {
+      if (elevatorHumStopRef.current) { elevatorHumStopRef.current(); elevatorHumStopRef.current = null; }
+      if (audioCtx && audioCtx.state !== 'closed') audioCtx.close().catch(() => {});
+    };
   }, [audioCtx]);
 
   const [joystickVisual, setJoystickVisual] = useState({ active: false, originX: 0, originY: 0, currentX: 0, currentY: 0 });
@@ -477,8 +486,8 @@ export default function App() {
                     houseDoorOpen={houseDoorOpen}
                 />
             )}
+            <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} />
         </Suspense>
-        <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} />
       </Canvas>
       </CanvasErrorBoundary>
       <Loader />
