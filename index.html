@@ -96006,7 +96006,6 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
   const _v = _vRef;
   const timeRef = reactExports.useRef(0);
   const camPosRef = reactExports.useRef(new Vector3(0, 0, 8));
-  const camLookSmoothRef = reactExports.useRef(new Vector3(0, 1.6, 8));
   const camInitRef = reactExports.useRef(false);
   reactExports.useEffect(() => {
     elevTriggered.current = false;
@@ -96037,7 +96036,6 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       }
       camera.lookAt(pos.current.x, ly, pos.current.z);
       camPosRef.current.copy(camera.position);
-      camLookSmoothRef.current.set(pos.current.x, ly, pos.current.z);
     }
     if (onElevatorZoneChange) {
       const inside = pos.current.z <= -10 && Math.abs(pos.current.x) <= 3.1;
@@ -96074,7 +96072,6 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       camera.fov = MathUtils.lerp(camera.fov, 40, dlgAlpha);
       camera.updateProjectionMatrix();
       camPosRef.current.copy(camera.position);
-      camLookSmoothRef.current.copy(camLookRef.current);
     } else {
       const sens = 3e-3 * (fp ? 1.5 : 1);
       if (isDesktop) {
@@ -96157,7 +96154,6 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
         camera.fov = 90;
         camera.updateProjectionMatrix();
         camPosRef.current.copy(camera.position);
-        camLookSmoothRef.current.set(pos.current.x, ly, pos.current.z);
       } else {
         const asp = size.width / size.height;
         const tFov = asp < 0.85 ? 90 : asp > 1.15 ? 75 : 90 - (asp - 0.85) / 0.3 * 15;
@@ -96171,8 +96167,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
         const camAlpha = Math.min(10 * safeDt, 0.4);
         camPosRef.current.lerp(_v.current[7].set(cx + shakeX, cy + shakeY, cz), camAlpha);
         camera.position.copy(camPosRef.current);
-        camLookSmoothRef.current.lerp(nla, camAlpha);
-        camera.lookAt(camLookSmoothRef.current);
+        camera.lookAt(pos.current.x, ly, pos.current.z);
       }
     }
   });

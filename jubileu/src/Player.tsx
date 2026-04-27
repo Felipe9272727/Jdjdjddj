@@ -98,8 +98,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const _v = _vRef;
 
   const timeRef = useRef(0);
-  const camPosRef = useRef(new Vector3(0, 0, 8)); // smooth camera position (avoids lookAt vs lerp desync)
-  const camLookSmoothRef = useRef(new Vector3(0, 1.6, 8)); // smooth lookAt target
+  const camPosRef = useRef(new Vector3(0, 0, 8)); // smooth camera position
   const camInitRef = useRef(false); // sync camera to player pos on first frame
 
   useEffect(() => { elevTriggered.current = false; }, [currentLevel]);
@@ -136,7 +135,6 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
         camera.lookAt(pos.current.x, ly, pos.current.z);
         camPosRef.current.copy(camera.position);
-        camLookSmoothRef.current.set(pos.current.x, ly, pos.current.z);
     }
     
     if (onElevatorZoneChange) {
@@ -169,7 +167,6 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, 40, dlgAlpha); camera.updateProjectionMatrix();
         // Sync smooth refs for transition back to 3P
         camPosRef.current.copy(camera.position);
-        camLookSmoothRef.current.copy(camLookRef.current);
     } else {
         const sens = 0.003 * (fp ? 1.5 : 1.0);
         if (isDesktop) {
@@ -211,7 +208,6 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             (camera as THREE.PerspectiveCamera).fov = 90; camera.updateProjectionMatrix();
             // Sync smooth refs when in FP so transition back is instant
             camPosRef.current.copy(camera.position);
-            camLookSmoothRef.current.set(pos.current.x, ly, pos.current.z);
         } else {
             // Smooth FOV transition with hysteresis band around 1:1 aspect ratio.
             // Portrait (<0.85): 90° | Landscape (>1.15): 75° | Between: interpolated.
@@ -226,9 +222,8 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             const camAlpha = Math.min(10 * safeDt, 0.4);
             camPosRef.current.lerp(_v.current[7].set(cx + shakeX, cy + shakeY, cz), camAlpha);
             camera.position.copy(camPosRef.current);
-            // Smooth lookAt target — prevents desync between lerped position and instant lookAt
-            camLookSmoothRef.current.lerp(nla, camAlpha);
-            camera.lookAt(camLookSmoothRef.current);
+            // lookAt is instant — only camera POSITION is smoothed (original behavior)
+            camera.lookAt(pos.current.x, ly, pos.current.z);
         }
     }
   });
