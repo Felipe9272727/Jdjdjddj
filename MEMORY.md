@@ -328,3 +328,70 @@ Reescrito o `Multiplayer.tsx` para usar o mesmo método do `index-18.html` (que 
 - `08b7e05` — backup: original index.html
 - `a305a90` — backup: original Multiplayer.tsx
 
+---
+
+## 💬 Feature: Chat Sistema estilo Roblox + Nomes (2026-04-27)
+
+### O que foi adicionado
+Sistema de chat multiplayer estilo Roblox com nomes de jogadores.
+
+### Detalhes
+
+#### Multiplayer.tsx — Reescrito
+- `getPlayerName()` — lê nome do localStorage, gera aleatório se não existir
+- `setPlayerName()` — salva nome no localStorage
+- `sendChat()` — envia mensagem via Firestore (campo `chatMsg` + `chatAt`)
+- `chatMessages` — array reativo com mensagens de todos os jogadores
+- Dados do player agora incluem: `name`, `chatMsg`, `chatAt` (12 campos total)
+
+#### App.tsx — Chat UI estilo Roblox
+- Janela de mensagens no canto superior-esquerdo
+- Mensagens mostram `NomeDoJogador: texto`
+- Fade out depois de 20s, remove depois de 30s
+- Input bar embaixo — Enter pra enviar, Escape pra fechar
+- Chat não fecha depois de enviar (estilo Roblox)
+- Botão mobile no canto inferior-esquerdo
+
+#### RemotePlayer.tsx — Nome + Balão 3D
+- Nome do jogador aparece acima do avatar em 3D
+- Balão de chat aparece quando jogador manda mensagem (some em 8s)
+
+#### MainMenu.tsx — Input de Nome
+- Campo "YOUR NAME" na seção multiplayer (mobile + desktop)
+- Nome salvo automaticamente no localStorage
+
+#### firestore.rules — Atualizada
+- Agora aceita 12 campos (adicionado `name`, `chatMsg`, `chatAt`)
+- Validação: name ≤ 20 chars, chatMsg ≤ 80 chars, chatAt é int
+
+### Arquivos alterados
+- `jubileu/src/Multiplayer.tsx` — reescrito com chat + nomes
+- `jubileu/src/App.tsx` — UI do chat estilo Roblox
+- `jubileu/src/RemotePlayer.tsx` — nome + balão de chat 3D
+- `jubileu/src/MainMenu.tsx` — input de nome
+- `jubileu/firestore.rules` — novos campos permitidos
+
+### Commits
+- `1b0c682` — feat(chat): Roblox-style chat system + player names
+
+### Notas importantes
+- O `index.html` principal NÃO foi rebuildado (só o código fonte foi alterado)
+- Para gerar o novo build: `cd jubileu && npm run build && node inline-build.mjs`
+- As Firestore rules precisam ser deployadas no Firebase Console manualmente
+
+---
+
+## 📋 Regras para o Assistente
+
+### Sempre atualizar a MEMORY.md
+- A cada passo/mudança feita no projeto, atualizar este arquivo
+- Documentar o que foi alterado, por quê, e os commits relevantes
+- Manter o histórico cronológico das mudanças
+
+### Estilo de trabalho do Felipe
+- Traduzir tudo que ele fala (PT-BR) pra inglês antes de processar
+- Ser direto, sem enrolação
+- Agir em vez de pedir confirmação
+- Sempre dar push após mudanças
+- Sempre atualizar MEMORY.md após cada passo
+
