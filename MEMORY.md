@@ -295,3 +295,36 @@ window.__jubileuBot.help()     // ver todos os comandos
 ---
 
 *Última atualização: 2026-04-27*
+---
+
+## 🔧 Fix: Multiplayer (2026-04-27)
+
+### Problema
+O multiplayer estava bugado — players não apareciam para outros jogadores.
+
+### Causa
+O `Multiplayer.tsx` usava Firebase Anonymous Auth (`signInAnonymously`) para obter o player ID, mas o auth estava falhando (domínio não autorizado ou auth desativado). O fallback usava UUID local, mas o Firestore rejeitava writes sem autenticação.
+
+### Solução
+Reescrito o `Multiplayer.tsx` para usar o mesmo método do `index-18.html` (que funcionava):
+- Player ID via `localStorage` UUID (sem Firebase Auth)
+- Removido filtro ghost TTL (10s) que escondia players
+- Removido `limit(50)` da query
+- Simplificado `getServices` → `getDb` (só Firestore, sem Auth)
+
+### Arquivos alterados
+- `jubileu/src/Multiplayer.tsx` — reescrito
+- `index.html` — rebuildado
+
+### Backup
+- Pasta `backup/` no main com os arquivos originais:
+  - `backup/index.html` — index.html original (pré-fix)
+  - `backup/Multiplayer.tsx` — Multiplayer.tsx original
+- Branch `backup-pre-multiplayer-fix` — snapshot completo do código antes do fix
+
+### Commits
+- `975bd81` — fix(multiplayer): use localStorage UUID like index-18
+- `54db0a8` — rebuild: index.html with multiplayer fix
+- `08b7e05` — backup: original index.html
+- `a305a90` — backup: original Multiplayer.tsx
+
