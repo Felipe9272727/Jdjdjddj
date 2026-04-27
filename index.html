@@ -704,6 +704,10 @@
     z-index: 60;
   }
 
+  .z-\[65\] {
+    z-index: 65;
+  }
+
   .z-\[70\] {
     z-index: 70;
   }
@@ -1040,6 +1044,10 @@
     max-width: 38vw;
   }
 
+  .max-w-\[180px\] {
+    max-width: 180px;
+  }
+
   .max-w-\[calc\(100\%-1\.5rem\)\] {
     max-width: calc(100% - 1.5rem);
   }
@@ -1144,6 +1152,10 @@
   .translate-y-4 {
     --tw-translate-y: calc(var(--spacing) * 4);
     translate: var(--tw-translate-x) var(--tw-translate-y);
+  }
+
+  .rotate-45 {
+    rotate: 45deg;
   }
 
   .transform {
@@ -1792,6 +1804,16 @@
     }
   }
 
+  .bg-white\/95 {
+    background-color: #fffffff2;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-white\/95 {
+      background-color: color-mix(in oklab, var(--color-white) 95%, transparent);
+    }
+  }
+
   .bg-yellow-200\/30 {
     background-color: #fff0854d;
   }
@@ -2336,6 +2358,10 @@
     padding: calc(var(--spacing) * 1);
   }
 
+  .p-1\.5 {
+    padding: calc(var(--spacing) * 1.5);
+  }
+
   .p-2 {
     padding: calc(var(--spacing) * 2);
   }
@@ -2604,6 +2630,10 @@
   .tracking-widest {
     --tw-tracking: var(--tracking-widest);
     letter-spacing: var(--tracking-widest);
+  }
+
+  .break-words {
+    overflow-wrap: break-word;
   }
 
   .whitespace-nowrap {
@@ -2910,6 +2940,16 @@
     }
   }
 
+  .text-white\/90 {
+    color: #ffffffe6;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/90 {
+      color: color-mix(in oklab, var(--color-white) 90%, transparent);
+    }
+  }
+
   .text-white\/95 {
     color: #fffffff2;
   }
@@ -2931,6 +2971,26 @@
   .tabular-nums {
     --tw-numeric-spacing: tabular-nums;
     font-variant-numeric: var(--tw-ordinal, ) var(--tw-slashed-zero, ) var(--tw-numeric-figure, ) var(--tw-numeric-spacing, ) var(--tw-numeric-fraction, );
+  }
+
+  .placeholder-white\/20::placeholder {
+    color: #fff3;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .placeholder-white\/20::placeholder {
+      color: color-mix(in oklab, var(--color-white) 20%, transparent);
+    }
+  }
+
+  .placeholder-white\/30::placeholder {
+    color: #ffffff4d;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .placeholder-white\/30::placeholder {
+      color: color-mix(in oklab, var(--color-white) 30%, transparent);
+    }
   }
 
   .accent-amber-500 {
@@ -3317,6 +3377,11 @@
     transition-timing-function: linear;
   }
 
+  .outline-none {
+    --tw-outline-style: none;
+    outline-style: none;
+  }
+
   .select-none {
     -webkit-user-select: none;
     user-select: none;
@@ -3465,6 +3530,16 @@
       .hover\:ring-amber-500\/60:hover {
         --tw-ring-color: color-mix(in oklab, var(--color-amber-500) 60%, transparent);
       }
+    }
+  }
+
+  .focus\:border-amber-500\/60:focus {
+    border-color: #f99c0099;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .focus\:border-amber-500\/60:focus {
+      border-color: color-mix(in oklab, var(--color-amber-500) 60%, transparent);
     }
   }
 
@@ -94911,13 +94986,34 @@ const getLocalPlayerId = () => {
   }
   return id;
 };
-const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled, level = 0) => {
+const PLAYER_NAME_KEY = "jubileu_player_name";
+const DEFAULT_NAMES = ["Player", "Guest", "Noob", "Pro", "Explorer", "Wanderer"];
+const getPlayerName = () => {
+  const stored = localStorage.getItem(PLAYER_NAME_KEY);
+  if (stored && stored.trim().length > 0) return stored.trim().slice(0, 20);
+  const random = DEFAULT_NAMES[Math.floor(Math.random() * DEFAULT_NAMES.length)];
+  const num = Math.floor(Math.random() * 9999);
+  return `${random}${num}`;
+};
+const setPlayerName = (name2) => {
+  const clean = name2.trim().slice(0, 20) || getPlayerName();
+  localStorage.setItem(PLAYER_NAME_KEY, clean);
+  return clean;
+};
+const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled, level = 0, playerName = "Player") => {
   const [otherPlayers, setOtherPlayers] = reactExports.useState({});
+  const [chatMessages, setChatMessages] = reactExports.useState([]);
   const playerIdRef = reactExports.useRef(getLocalPlayerId());
   const playerStateRef = reactExports.useRef(playerState);
+  const playerNameRef = reactExports.useRef(playerName);
+  const chatMsgRef = reactExports.useRef("");
+  const chatAtRef = reactExports.useRef(0);
   reactExports.useEffect(() => {
     playerStateRef.current = playerState;
   }, [playerState]);
+  reactExports.useEffect(() => {
+    playerNameRef.current = playerName;
+  }, [playerName]);
   reactExports.useEffect(() => {
     if (!isEnabled) return;
     const db = getDb();
@@ -94946,6 +95042,22 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
         players[d.id] = { id: d.id, ...data };
       });
       setOtherPlayers(players);
+      const msgs = [];
+      const CHAT_TTL = 3e4;
+      const chatCutoff = Date.now() - CHAT_TTL;
+      snap.forEach((d) => {
+        const data = d.data();
+        if (data.chatMsg && data.chatAt && data.chatAt > chatCutoff) {
+          msgs.push({
+            id: d.id,
+            name: data.name || "Unknown",
+            text: data.chatMsg,
+            timestamp: data.chatAt
+          });
+        }
+      });
+      msgs.sort((a2, b2) => a2.timestamp - b2.timestamp);
+      setChatMessages(msgs);
     }, (err) => console.error("[MP] Snapshot erro:", err));
     return () => unsub();
   }, [isEnabled, level]);
@@ -94977,7 +95089,10 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
           state: playerStateRef.current,
           worldId: "main",
           isActive: true,
-          level: clampLevel(level ?? 0)
+          level: clampLevel(level ?? 0),
+          name: playerNameRef.current,
+          chatMsg: chatMsgRef.current,
+          chatAt: chatAtRef.current
         };
         if (!initialized) {
           await setDoc(docRef, data);
@@ -95028,11 +95143,35 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
     updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {
     });
   }, [isEnabled]);
+  const sendChat = (msg) => {
+    const clean = msg.trim().slice(0, 80);
+    if (!clean) return;
+    chatMsgRef.current = clean;
+    chatAtRef.current = Date.now();
+    const db = getDb();
+    if (!db) return;
+    const uid = playerIdRef.current;
+    const docRef = doc(db, "worlds/main/players", uid);
+    updateDoc(docRef, {
+      chatMsg: clean,
+      chatAt: Date.now(),
+      updatedAt: serverTimestamp()
+    }).catch(() => {
+    });
+    setTimeout(() => {
+      if (chatMsgRef.current === clean) {
+        chatMsgRef.current = "";
+        chatAtRef.current = 0;
+        updateDoc(docRef, { chatMsg: "", chatAt: 0, updatedAt: serverTimestamp() }).catch(() => {
+        });
+      }
+    }, 3e4);
+  };
   const login = async () => {
     return playerIdRef.current;
   };
   const user = { uid: playerIdRef.current };
-  return { user, login, otherPlayers };
+  return { user, login, otherPlayers, sendChat, chatMessages };
 };
 const MainMenu = ({ onPlay }) => {
   const [doorPosition, setDoorPosition] = reactExports.useState(0);
@@ -95042,6 +95181,7 @@ const MainMenu = ({ onPlay }) => {
   const [isLoggingIn, setIsLoggingIn] = reactExports.useState(false);
   const [loginError, setLoginError] = reactExports.useState("");
   const [copiedLink, setCopiedLink] = reactExports.useState(false);
+  const [playerName, setPlayerNameState] = reactExports.useState(getPlayerName());
   const { user, login } = useMultiplayer({ current: null }, { current: 0 }, "idle", false);
   const handlePlay = async () => {
     if (multiplayerEnabled && !user) {
@@ -95063,7 +95203,8 @@ const MainMenu = ({ onPlay }) => {
       }
       setIsLoggingIn(false);
     }
-    onPlay(multiplayerEnabled);
+    const finalName = setPlayerName(playerName);
+    onPlay(multiplayerEnabled, finalName);
   };
   const handleShare = () => {
     if (typeof window !== "undefined") {
@@ -95209,9 +95350,25 @@ const MainMenu = ({ onPlay }) => {
                 /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs font-mono tracking-wider", children: "MULTIPLAYER" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), className: `w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-5" : "translate-x-0"}` }) })
               ] }),
-              multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleShare, className: "mt-2 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2 rounded text-xs text-white hover:bg-white/10 transition-colors", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" }) }),
-                copiedLink ? "Link Copiado!" : "Copiar Link para Amigo"
+              multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-2", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/40 text-[10px] font-mono tracking-wider mb-1 block", children: "YOUR NAME" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "input",
+                    {
+                      type: "text",
+                      value: playerName,
+                      onChange: (e2) => setPlayerNameState(e2.target.value.slice(0, 20)),
+                      maxLength: 20,
+                      placeholder: "Enter your name...",
+                      className: "w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/20 outline-none focus:border-amber-500/60 transition-colors"
+                    }
+                  )
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleShare, className: "mt-1 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2 rounded text-xs text-white hover:bg-white/10 transition-colors", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" }) }),
+                  copiedLink ? "Link Copiado!" : "Copiar Link para Amigo"
+                ] })
               ] }),
               loginError && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-red-400 text-xs mt-2 text-center", children: loginError })
             ] }),
@@ -95241,9 +95398,25 @@ const MainMenu = ({ onPlay }) => {
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs font-mono tracking-wider", children: "MULTIPLAYER" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), className: `w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-5" : "translate-x-0"}` }) })
             ] }),
-            multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleShare, className: "mt-2 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2.5 rounded text-sm text-white font-bold hover:bg-white/10 transition-colors", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" }) }),
-              copiedLink ? "COPIADO!" : "COPIAR LINK PRA AMIGO"
+            multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-1", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/40 text-[10px] font-mono tracking-wider mb-1 block", children: "YOUR NAME" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "input",
+                  {
+                    type: "text",
+                    value: playerName,
+                    onChange: (e2) => setPlayerNameState(e2.target.value.slice(0, 20)),
+                    maxLength: 20,
+                    placeholder: "Enter your name...",
+                    className: "w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/20 outline-none focus:border-amber-500/60 transition-colors"
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleShare, className: "mt-1 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2.5 rounded text-sm text-white font-bold hover:bg-white/10 transition-colors", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" }) }),
+                copiedLink ? "COPIADO!" : "COPIAR LINK PRA AMIGO"
+              ] })
             ] }),
             loginError && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-red-400 text-xs mt-2 text-center", children: loginError })
           ] }),
@@ -96698,7 +96871,7 @@ const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionR
     /* @__PURE__ */ jsxRuntimeExports.jsx(LobbyNPC, { positionRef: npcPositionRef, isPaused, playerPositionRef })
   ] });
 });
-const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2 }) => {
+const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2, name: name2, chatMsg, chatAt }) => {
   const groupRef = reactExports.useRef(null);
   const hipsRef = reactExports.useRef(null);
   const hipsBindRef = reactExports.useRef(null);
@@ -96784,9 +96957,32 @@ const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2 }) => {
     while (d < -Math.PI) d += Math.PI * 2;
     groupRef.current.rotation.y += d * k2;
   });
+  const [showChat, setShowChat] = reactExports.useState(false);
+  reactExports.useEffect(() => {
+    if (!chatMsg || !chatAt) {
+      setShowChat(false);
+      return;
+    }
+    const age = Date.now() - chatAt;
+    if (age > 8e3) {
+      setShowChat(false);
+      return;
+    }
+    setShowChat(true);
+    const remaining = 8e3 - age;
+    const timer2 = setTimeout(() => setShowChat(false), remaining);
+    return () => clearTimeout(timer2);
+  }, [chatMsg, chatAt]);
+  const displayName = name2 || "P-" + (id || "").slice(0, 4).toUpperCase();
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene, scale: [30, 30, 30], position: [0, groundY, 0] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.2, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none select-none whitespace-nowrap", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/70 text-white px-2 py-0.5 rounded text-xs font-mono border border-white/20 backdrop-blur-sm", children: "P-" + (id || "").slice(0, 4).toUpperCase() }) }) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.2, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pointer-events-none select-none whitespace-nowrap flex flex-col items-center gap-0.5", children: [
+      showChat && chatMsg && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-1 animate-fade-in-up", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-white/95 text-black px-3 py-1.5 rounded-xl text-xs font-medium shadow-lg max-w-[180px] text-center relative", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: chatMsg }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white/95 rotate-45" })
+      ] }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/70 text-white px-2 py-0.5 rounded text-[10px] font-bold font-mono border border-white/20 backdrop-blur-sm tracking-wider", children: displayName })
+    ] }) })
   ] });
 };
 const DEFAULTS = {
@@ -97520,7 +97716,7 @@ const World = ({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRe
   level === 1 && /* @__PURE__ */ jsxRuntimeExports.jsx(FlatMapEnvironment, { houseDoorOpen, nightMode, doorOpenAmount }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorInterior, { timer: timer2, doorsClosed, level }),
   level === 1 && /* @__PURE__ */ jsxRuntimeExports.jsx(BarneyActor, { gameState, barneyRef, barneyTargetRef, playerPosRef: playerPositionRef, houseDoorOpen }),
-  Object.values(otherPlayers || {}).map((p2) => /* @__PURE__ */ jsxRuntimeExports.jsx(reactExports.Suspense, { fallback: null, children: /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id: p2.id, x: p2.x, y: p2.y, z: p2.z, ry: p2.ry, state: p2.state }) }, p2.id))
+  Object.values(otherPlayers || {}).map((p2) => /* @__PURE__ */ jsxRuntimeExports.jsx(reactExports.Suspense, { fallback: null, children: /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id: p2.id, x: p2.x, y: p2.y, z: p2.z, ry: p2.ry, state: p2.state, name: p2.name, chatMsg: p2.chatMsg, chatAt: p2.chatAt }) }, p2.id))
 ] });
 function App() {
   const { settings, update: updateSettings } = useSettings();
@@ -97721,6 +97917,7 @@ function App() {
   const multiplayerEnabled = settings.multiplayer;
   const setMultiplayerEnabled = reactExports.useCallback((on2) => updateSettings({ multiplayer: on2 }), [updateSettings]);
   const [playerAnimState, setPlayerAnimState] = reactExports.useState("idle");
+  const [playerName, setPlayerName2] = reactExports.useState(getPlayerName());
   reactExports.useEffect(() => {
     if (!multiplayerEnabled) return;
     const id = setInterval(() => {
@@ -97732,15 +97929,16 @@ function App() {
     }, 250);
     return () => clearInterval(id);
   }, [multiplayerEnabled]);
-  const { otherPlayers } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel);
+  const { user, otherPlayers, sendChat, chatMessages } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel, playerName);
   const handleStartDialogue = () => {
     setDialogueNode("start");
     setDialogueOpen(true);
     setCanInteractNPC(false);
   };
-  const handleStartGame = (mpEnabled) => {
+  const handleStartGame = (mpEnabled, name2) => {
     if (audioCtx) return;
     setMultiplayerEnabled(mpEnabled);
+    if (name2) setPlayerName2(name2);
     const AC = window.AudioContext || window.webkitAudioContext;
     const ctx = new AC();
     ctx.resume().catch(() => {
@@ -97752,6 +97950,15 @@ function App() {
       if (req && typeof req.catch === "function") req.catch(() => {
       });
     }
+  };
+  const [chatOpen, setChatOpen] = reactExports.useState(false);
+  const [chatInput, setChatInput] = reactExports.useState("");
+  const chatInputRef = reactExports.useRef(null);
+  const handleSendChat = () => {
+    const msg = chatInput.trim();
+    if (!msg || !multiplayerEnabled) return;
+    sendChat(msg);
+    setChatInput("");
   };
   reactExports.useEffect(() => {
     let timerId;
@@ -97960,7 +98167,7 @@ function App() {
       moveInput.current.y = y;
     };
     const kd = (e2) => {
-      if (dialogueOpen || barneyDialogueOpen) return;
+      if (dialogueOpen || barneyDialogueOpen || chatOpen) return;
       const k2 = keysRef.current;
       switch (e2.key.toLowerCase()) {
         case "w":
@@ -97984,6 +98191,7 @@ function App() {
       upd();
     };
     const ku = (e2) => {
+      if (chatOpen) return;
       const k2 = keysRef.current;
       switch (e2.key.toLowerCase()) {
         case "w":
@@ -98001,13 +98209,29 @@ function App() {
       }
       upd();
     };
+    const kh = (e2) => {
+      if (!multiplayerEnabled) return;
+      if (e2.key === "Enter" && !chatOpen && !dialogueOpen && !barneyDialogueOpen) {
+        e2.preventDefault();
+        setChatOpen(true);
+        setTimeout(() => {
+          var _a;
+          return (_a = chatInputRef.current) == null ? void 0 : _a.focus();
+        }, 50);
+      } else if (e2.key === "Escape" && chatOpen) {
+        setChatOpen(false);
+        setChatInput("");
+      }
+    };
     window.addEventListener("keydown", kd);
     window.addEventListener("keyup", ku);
+    window.addEventListener("keydown", kh);
     return () => {
       window.removeEventListener("keydown", kd);
       window.removeEventListener("keyup", ku);
+      window.removeEventListener("keydown", kh);
     };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, canInteractNPC, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, canInteractNPC, canInteractDoor, houseDoorOpen, canSleepNow, gameState, chatOpen, multiplayerEnabled]);
   const botEnabled = settings.botMode && hasStarted;
   const { info: botInfo } = useBotStore();
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full h-full relative overflow-hidden select-none", style: { touchAction: "none", backgroundColor: "#000" }, onPointerDown: handlePointerDown, onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onPointerCancel: handlePointerUp, onPointerLeave: handlePointerUp, onWheel: (e2) => {
@@ -98123,6 +98347,119 @@ function App() {
     settings.showFps && hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(FpsCounter, {}),
     botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(BotHud, { info: botInfo }),
     botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(ViewportDebug, {}),
+    hasStarted && multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: "absolute z-[55] pointer-events-none",
+          style: {
+            top: "calc(env(safe-area-inset-top, 0px) + 60px)",
+            left: "calc(env(safe-area-inset-left, 0px) + 8px)",
+            width: "min(320px, calc(100vw - 16px))",
+            maxHeight: "calc(100dvh - 200px)"
+          },
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-0.5 overflow-hidden", children: chatMessages.slice(-30).map((msg, i2) => {
+            const age = Date.now() - msg.timestamp;
+            const fadeOut = age > 2e4;
+            const opacity = fadeOut ? Math.max(0, 1 - (age - 2e4) / 1e4) : 1;
+            const isMe = msg.id === (user == null ? void 0 : user.uid);
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: "transition-opacity duration-500",
+                style: { opacity },
+                children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-1.5 px-2 py-1 rounded bg-black/60 backdrop-blur-sm", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "span",
+                    {
+                      className: "font-bold text-[11px] font-mono shrink-0",
+                      style: { color: isMe ? "#fbbf24" : "#a78bfa" },
+                      children: msg.name
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/90 text-[11px] font-mono break-words", children: msg.text })
+                ] })
+              },
+              `${msg.id}-${msg.timestamp}`
+            );
+          }) })
+        }
+      ),
+      chatOpen ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: "absolute left-1/2 -translate-x-1/2 z-[65] pointer-events-auto",
+          style: {
+            bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+            width: "min(480px, calc(100vw - 16px))"
+          },
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2 bg-black/90 backdrop-blur-xl ring-1 ring-white/20 rounded-lg p-1.5 shadow-xl", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "input",
+              {
+                ref: chatInputRef,
+                type: "text",
+                value: chatInput,
+                onChange: (e2) => setChatInput(e2.target.value.slice(0, 80)),
+                onKeyDown: (e2) => {
+                  e2.stopPropagation();
+                  if (e2.key === "Enter") handleSendChat();
+                  if (e2.key === "Escape") {
+                    setChatOpen(false);
+                    setChatInput("");
+                  }
+                },
+                placeholder: "Type a message...",
+                maxLength: 80,
+                className: "flex-1 bg-transparent text-white text-sm font-mono placeholder-white/30 outline-none px-2 py-1.5",
+                autoFocus: true
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "button",
+              {
+                onClick: handleSendChat,
+                className: "bg-white/10 hover:bg-white/20 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors active:scale-95",
+                children: "Send"
+              }
+            )
+          ] })
+        }
+      ) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        !isDesktop && !dialogueOpen && !barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            onClick: () => {
+              setChatOpen(true);
+              setTimeout(() => {
+                var _a;
+                return (_a = chatInputRef.current) == null ? void 0 : _a.focus();
+              }, 100);
+            },
+            className: "absolute z-50 pointer-events-auto tap-target",
+            style: {
+              bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+              left: "calc(env(safe-area-inset-left, 0px) + 8px)"
+            },
+            children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-black/70 backdrop-blur-sm ring-1 ring-white/10 px-3 py-2 rounded-lg active:scale-95 transition-transform flex items-center gap-2", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 text-white/50", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 1.5, children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/40 text-xs font-mono", children: "Chat" })
+            ] })
+          }
+        ),
+        isDesktop && !dialogueOpen && !barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: "absolute z-40 pointer-events-none",
+            style: {
+              bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+              left: "calc(env(safe-area-inset-left, 0px) + 8px)"
+            },
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/20 text-[10px] font-mono tracking-wider", children: "Press Enter to chat" })
+          }
+        )
+      ] })
+    ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsMenu, { open: settingsOpen, onClose: () => setSettingsOpen(false) }),
     hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(VisualJoystick, { active: joystickVisual.active, x: joystickVisual.currentX, y: joystickVisual.currentY, origin: { x: joystickVisual.originX, y: joystickVisual.originY } }),
     hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
