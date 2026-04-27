@@ -544,3 +544,44 @@ O assistente tentou corrigir bugs e otimizar o jogo, mas as mudanças causaram p
 - Se o backup funciona, NÃO mexer sem necessidade
 - Adicionar features uma por uma, testando cada uma antes de ir pra próxima
 
+---
+
+## 🔬 Sessão 2026-04-27: Investigação real da regressão + pinning de deps
+
+### Descoberta importante (corrige análise anterior)
+A teoria de que o `package-lock.json` mudou estava **ERRADA**. Verificação:
+
+- `package-lock.json` atual é **byte-idêntico** ao do commit `47164e2` (que produziu o backup index.html de 4087041 bytes / 60fps).
+- `diff <(git show 47164e2:jubileu/package-lock.json) jubileu/package-lock.json` retorna `0` linhas.
+- Versões resolvidas são as mesmas: three 0.184.0, react 19.2.5, react-dom 19.2.5, @react-three/fiber 9.6.0, @react-three/drei 10.7.7, vite 6.4.2.
+- Rebuildei o source atual com `npm ci` + `npm run build` + `inline-build.mjs`: bundle gerado mantém **as mesmas versões** do backup (Three REVISION 184, React 19.2.5).
+
+### Causa real da regressão
+Não é deps — é **diferença no código fonte**. Entre o commit bom (`47164e2`, source que gera 4087041 bytes) e o source atual (`e47e0ed`, gera 3937891 bytes):
+- `+1214 linhas / −297 linhas` em 15 arquivos
+- Adicionados: `Atmosphere.tsx` (177 linhas), `PostEffects.tsx` (149 linhas), `ChatSystem.tsx` (398 linhas)
+- App.tsx, MainMenu.tsx, Multiplayer.tsx, Player.tsx etc. expandidos
+- Bundle ficou ~150KB MENOR mesmo com mais código → indica refactors que removeram código antigo + tree-shake melhor, mas funcionalmente diferente
+- A queda de FPS vem de algumas dessas features (provavelmente PostEffects/Atmosphere/effect overlays), não das versões de bibliotecas
+
+### Mudança feita (pinning preventivo)
+Travei todas as versões em `jubileu/package.json` no formato exato (sem `^`/`~`):
+- `dependencies` e `devDependencies` agora usam versões fixas (e.g. `"three": "0.184.0"` ao invés de `"^0.184.0"`)
+- Adicionado `engines.node: ">=20.19.0 <23"` pra evitar regressões por versão de Node
+- Adicionados scripts:
+  - `npm run install:locked` → `npm ci` (instala estritamente do lock, falha se inconsistente)
+  - `npm run build:reproducible` → `npm ci && npm run build && node inline-build.mjs`
+
+### Como rebuildar com segurança a partir de agora
+```bash
+cd jubileu
+npm run build:reproducible    # usa npm ci, não npm install
+```
+- `npm ci` **não** modifica `package-lock.json`. Se alguém tiver feito drift, falha em vez de "resolver".
+- Versões pinnadas em `package.json` impedem que `npm install` (se rodado por engano) escale para minor/patch novos.
+
+### Próximos passos recomendados
+- Identificar quais features adicionadas causam o drop de FPS (PostEffects.tsx é o suspeito mais óbvio — bloom/grain/vignette via EffectComposer custa caro)
+- Re-introduzir features uma por uma com perfilagem
+- Considerar `package-lock.json` em modo lockfileVersion 3 (já é) e `npm config set save-exact true` localmente
+
