@@ -8,10 +8,15 @@ import * as THREE from 'three';
  */
 export const CeilingFan = ({ x = 0, z = 0, speed = 0.8 }: { x?: number; z?: number; speed?: number }) => {
     const bladeRef = useRef<THREE.Group>(null);
+    const lastUpdateRef = useRef(0);
 
     useFrame((state) => {
         if (!bladeRef.current) return;
-        bladeRef.current.rotation.y = state.clock.elapsedTime * speed;
+        // Throttle to ~20fps — smooth enough for a spinning fan
+        const now = state.clock.elapsedTime;
+        if (now - lastUpdateRef.current < 0.05) return;
+        lastUpdateRef.current = now;
+        bladeRef.current.rotation.y = now * speed;
     });
 
     return (
@@ -112,11 +117,16 @@ export const createElevatorHum = (audioContext: AudioContext | null): (() => voi
  */
 export const WallClock = ({ x = 8, z = -8 }: { x?: number; z?: number }) => {
     const handRef = useRef<THREE.Mesh>(null);
+    const lastUpdateRef = useRef(0);
 
     useFrame((state) => {
         if (!handRef.current) return;
+        // Throttle to ~10fps — a clock hand doesn't need smooth updates
+        const now = state.clock.elapsedTime;
+        if (now - lastUpdateRef.current < 0.1) return;
+        lastUpdateRef.current = now;
         // Second hand rotation — 1 revolution per 60 seconds
-        handRef.current.rotation.z = -(state.clock.elapsedTime * Math.PI * 2) / 60;
+        handRef.current.rotation.z = -(now * Math.PI * 2) / 60;
     });
 
     return (

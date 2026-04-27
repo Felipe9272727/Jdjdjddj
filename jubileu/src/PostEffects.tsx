@@ -15,11 +15,17 @@ export const GameEffects = ({
     nightMode,
     gameState,
     currentLevel,
+    quality = 'high',
 }: {
     nightMode: boolean;
     gameState: string;
     currentLevel: number;
+    quality?: string;
 }) => {
+    // Skip all post-processing on low quality — big perf win
+    if (quality === 'low') return null;
+    const isMedium = quality === 'medium';
+
     const isChase = gameState === 'chase';
     const isScary = nightMode || isChase;
     const isOutdoor = currentLevel === 1;
@@ -41,15 +47,17 @@ export const GameEffects = ({
                 blendFunction={BlendFunction.NORMAL}
             />
 
-            {/* Film grain — subtle texture, heavier during horror */}
-            <Noise
-                premultiply
-                blendFunction={isScary ? BlendFunction.ADD : BlendFunction.SOFT_LIGHT}
-                opacity={isChase ? 0.08 : isScary ? 0.04 : 0.02}
-            />
+            {/* Film grain — subtle texture, heavier during horror (high quality only) */}
+            {!isMedium && (
+                <Noise
+                    premultiply
+                    blendFunction={isScary ? BlendFunction.ADD : BlendFunction.SOFT_LIGHT}
+                    opacity={isChase ? 0.08 : isScary ? 0.04 : 0.02}
+                />
+            )}
 
-            {/* Chromatic aberration — only during chase for disorientation */}
-            {isChase && (
+            {/* Chromatic aberration — only during chase, high quality only */}
+            {isChase && !isMedium && (
                 <ChromaticAberration
                     offset={new THREE.Vector2(0.002, 0.002)}
                     blendFunction={BlendFunction.NORMAL}
@@ -84,8 +92,13 @@ export const DustParticles = ({ count = 60, area = 16 }: { count?: number; area?
         }));
     }, [count, area]);
 
+    const frameRef = useRef(0);
+
     useFrame((state) => {
         if (!meshRef.current) return;
+        // Skip frames: update every 2nd frame for performance
+        frameRef.current++;
+        if (frameRef.current % 2 !== 0) return;
         const t = state.clock.elapsedTime;
 
         for (let i = 0; i < count; i++) {
@@ -123,10 +136,15 @@ export const DustParticles = ({ count = 60, area = 16 }: { count?: number; area?
  */
 export const FluorescentFlicker = ({ intensity = 2.8 }: { intensity?: number }) => {
     const lightRef = useRef<THREE.PointLight>(null);
+    const lastUpdateRef = useRef(0);
 
     useFrame((state) => {
         if (!lightRef.current) return;
-        const t = state.clock.elapsedTime;
+        // Throttle to ~15fps (every 66ms) — fluorescent flicker doesn't need 60fps
+        const now = state.clock.elapsedTime;
+        if (now - lastUpdateRef.current < 0.066) return;
+        lastUpdateRef.current = now;
+        const t = now;
         // Realistic fluorescent flicker: mostly stable with occasional dips
         const base = intensity;
         const flicker = Math.sin(t * 30) * 0.02; // fast subtle buzz
@@ -143,12 +161,16 @@ export const FluorescentFlicker = ({ intensity = 2.8 }: { intensity?: number }) 
  */
 export const NightAmbient = ({ active }: { active: boolean }) => {
     const lightRef = useRef<THREE.PointLight>(null);
+    const lastUpdateRef = useRef(0);
 
     useFrame((state) => {
         if (!lightRef.current || !active) return;
-        const t = state.clock.elapsedTime;
+        // Throttle to ~15fps — eerie pulse doesn't need 60fps
+        const now = state.clock.elapsedTime;
+        if (now - lastUpdateRef.current < 0.066) return;
+        lastUpdateRef.current = now;
         // Slow breathing pulse
-        lightRef.current.intensity = 0.1 + Math.sin(t * 1.5) * 0.05;
+        lightRef.current.intensity = 0.1 + Math.sin(now * 1.5) * 0.05;
     });
 
     if (!active) return null;

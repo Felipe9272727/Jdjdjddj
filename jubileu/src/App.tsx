@@ -34,10 +34,10 @@ import { COMPONENT, Z, TYPE } from './design-tokens';
 
 const MAX_JOYSTICK_RADIUS = 50;
 
-const World = ({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }: any) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }: any) => (
   <>
       {level === 0 && <LobbyEnvironment npcPositionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />}
-      {level === 0 && <DustParticles count={50} area={16} />}
+      {level === 0 && <DustParticles count={20} area={16} />}
       {level === 0 && <FluorescentFlicker intensity={2.8} />}
       {level === 0 && <CeilingFan x={-5} z={0} speed={0.6} />}
       {level === 0 && <CeilingFan x={5} z={-5} speed={0.8} />}
@@ -47,12 +47,10 @@ const World = ({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPau
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
       <NightAmbient active={nightMode && level === 1} />
       {Object.values(otherPlayers || {}).map((p: any) => (
-          <Suspense key={p.id} fallback={null}>
-              <RemotePlayer id={p.id} x={p.x} y={p.y} z={p.z} ry={p.ry} state={p.state} name={p.name} chatMsg={p.chatMsg} chatAt={p.chatAt} />
-          </Suspense>
+          <RemotePlayer key={p.id} id={p.id} x={p.x} y={p.y} z={p.z} ry={p.ry} state={p.state} name={p.name} chatMsg={p.chatMsg} chatAt={p.chatAt} />
       ))}
   </>
-);
+));
 
 export default function App() {
   const { settings, update: updateSettings } = useSettings();
@@ -486,7 +484,7 @@ export default function App() {
                     houseDoorOpen={houseDoorOpen}
                 />
             )}
-            <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} />
+            <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} quality={settings.quality} />
         </Suspense>
       </Canvas>
       </CanvasErrorBoundary>
