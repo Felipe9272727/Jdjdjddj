@@ -378,13 +378,14 @@ Sistema de chat multiplayer estilo Roblox com nomes de jogadores.
 - `487c56e` — docs: update MEMORY.md with rebuild commit
 - `c4645a3` — feat(chat): Roblox-style chat with Dussekar speech bubbles
 - `9edc293` — docs: update MEMORY.md with Dussekar chat bubbles
+- `b8e17fc` — feat(chat): mobile chat window like Roblox
 
 ### Estado atual do Chat (2026-04-27 22:54)
-- Chat window: top-left, dark bg, colored names, fade out 20s
-- Balão 3D: estilo Dussekar (branco, borda preta, pop-in)
-- Desktop: abre com "/", Enter pra enviar, Escape pra fechar
-- Mobile: botão "💬 Chat" no canto inferior-esquerdo
-- ⚠️ **PROBLEMA**: Chat mobile não está igual ao Roblox — precisa de janela de chat dedicada com histórico + input
+- **Desktop**: message window top-left + input bar bottom, abre com "/"
+- **Mobile**: botão chat (ícone speech bubble) no canto inferior-esquerdo, abre janela completa com header, histórico, input + send
+- **Balão 3D**: estilo Dussekar (branco, borda preta, pop-in, some em 8s)
+- **Nomes**: visíveis acima do avatar, cores diferentes por jogador
+- **Mensagens**: fade out 20s, remove 30s, máximo 80 caracteres
 
 ### Notas importantes
 - O `index.html` foi rebuildado e já está atualizado no main
