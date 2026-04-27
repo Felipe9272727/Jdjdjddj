@@ -89,11 +89,17 @@ export const useMultiplayer = (
             where('isActive', '==', true),
             where('level', '==', clampLevel(level ?? 0))
         );
+        const GHOST_TTL_MS = 15000; // 15s — remove players that stopped updating
         const unsub = onSnapshot(q, (snap) => {
             const players: Record<string, MPPlayer> = {};
+            const cutoff = Date.now() - GHOST_TTL_MS;
             snap.forEach(d => {
                 if (d.id === uid) return;
-                players[d.id] = { id: d.id, ...d.data() } as MPPlayer;
+                const data = d.data();
+                const updatedAt = data.updatedAt?.toMillis?.() ?? 0;
+                // Skip ghost players (stale entries from crashed/closed tabs)
+                if (updatedAt > 0 && updatedAt < cutoff) return;
+                players[d.id] = { id: d.id, ...data } as MPPlayer;
             });
             setOtherPlayers(players);
         }, (err) => console.error('[MP] Snapshot erro:', err));
