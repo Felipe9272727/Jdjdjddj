@@ -424,16 +424,20 @@ export default function App() {
         switch(e.key.toLowerCase()) { case 'w': k.w=false; break; case 'a': k.a=false; break; case 's': k.s=false; break; case 'd': k.d=false; break; }
         upd();
     };
-    // Enter opens chat on desktop
+    // / opens chat on desktop (Roblox style)
     const kh = (e: any) => {
         if (!multiplayerEnabled) return;
-        if (e.key === 'Enter' && !chatOpen && !dialogueOpen && !barneyDialogueOpen) {
+        if (chatOpen) {
+            if (e.key === 'Escape') {
+                setChatOpen(false);
+                setChatInput('');
+            }
+            return;
+        }
+        if (e.key === '/' && !dialogueOpen && !barneyDialogueOpen) {
             e.preventDefault();
             setChatOpen(true);
             setTimeout(() => chatInputRef.current?.focus(), 50);
-        } else if (e.key === 'Escape' && chatOpen) {
-            setChatOpen(false);
-            setChatInput('');
         }
     };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku); window.addEventListener('keydown', kh);
@@ -602,55 +606,77 @@ export default function App() {
       {/* ─── Roblox-style Chat System ──────────────────────────────────────── */}
       {hasStarted && multiplayerEnabled && (
           <>
-              {/* Chat message window — top-left, like Roblox */}
+              {/* Chat message window — top-left, Roblox style */}
               <div
                   className="absolute z-[55] pointer-events-none"
                   style={{
                       top: 'calc(env(safe-area-inset-top, 0px) + 60px)',
                       left: 'calc(env(safe-area-inset-left, 0px) + 8px)',
-                      width: 'min(320px, calc(100vw - 16px))',
-                      maxHeight: 'calc(100dvh - 200px)',
+                      width: 'min(300px, calc(100vw - 16px))',
+                      maxHeight: 'min(250px, calc(100dvh - 300px))',
                   }}
               >
-                  <div className="flex flex-col gap-0.5 overflow-hidden">
-                      {chatMessages.slice(-30).map((msg, i) => {
+                  <div
+                      className="flex flex-col gap-0 overflow-hidden rounded-lg"
+                      style={{
+                          background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.45) 100%)',
+                          backdropFilter: 'blur(8px)',
+                          WebkitBackdropFilter: 'blur(8px)',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          padding: '4px 0',
+                      }}
+                  >
+                      {chatMessages.slice(-25).map((msg, i) => {
                           const age = Date.now() - msg.timestamp;
                           const fadeOut = age > 20000;
                           const opacity = fadeOut ? Math.max(0, 1 - (age - 20000) / 10000) : 1;
                           const isMe = msg.id === user?.uid;
+                          // Deterministic color from name hash
+                          const nameHash = (msg.name || '').split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
+                          const nameColors = ['#f87171', '#fb923c', '#fbbf24', '#4ade80', '#38bdf8', '#a78bfa', '#f472b6', '#2dd4bf'];
+                          const nameColor = isMe ? '#ffffff' : nameColors[nameHash % nameColors.length];
                           return (
                               <div
                                   key={`${msg.id}-${msg.timestamp}`}
-                                  className="transition-opacity duration-500"
+                                  className="transition-opacity duration-500 px-2.5 py-[3px]"
                                   style={{ opacity }}
                               >
-                                  <div className="flex items-start gap-1.5 px-2 py-1 rounded bg-black/60 backdrop-blur-sm">
+                                  <span className="text-[12px] leading-snug font-medium">
                                       <span
-                                          className="font-bold text-[11px] font-mono shrink-0"
-                                          style={{ color: isMe ? '#fbbf24' : '#a78bfa' }}
+                                          className="font-bold"
+                                          style={{ color: nameColor }}
                                       >
                                           {msg.name}
                                       </span>
-                                      <span className="text-white/90 text-[11px] font-mono break-words">
-                                          {msg.text}
-                                      </span>
-                                  </div>
+                                      <span className="text-white/20">: </span>
+                                      <span className="text-white/85">{msg.text}</span>
+                                  </span>
                               </div>
                           );
                       })}
                   </div>
               </div>
 
-              {/* Chat input bar — bottom, like Roblox */}
+              {/* Chat input bar — bottom, Roblox style */}
               {chatOpen ? (
                   <div
                       className="absolute left-1/2 -translate-x-1/2 z-[65] pointer-events-auto"
                       style={{
-                          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
-                          width: 'min(480px, calc(100vw - 16px))',
+                          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+                          width: 'min(460px, calc(100vw - 16px))',
                       }}
                   >
-                      <div className="flex gap-2 bg-black/90 backdrop-blur-xl ring-1 ring-white/20 rounded-lg p-1.5 shadow-xl">
+                      <div
+                          className="flex items-center gap-0 overflow-hidden"
+                          style={{
+                              background: 'rgba(0,0,0,0.65)',
+                              backdropFilter: 'blur(12px)',
+                              WebkitBackdropFilter: 'blur(12px)',
+                              border: '1px solid rgba(255,255,255,0.12)',
+                              borderRadius: '8px',
+                          }}
+                      >
+                          <span className="text-white/30 text-sm font-medium px-2.5 shrink-0">💬</span>
                           <input
                               ref={chatInputRef}
                               type="text"
@@ -661,17 +687,11 @@ export default function App() {
                                   if (e.key === 'Enter') handleSendChat();
                                   if (e.key === 'Escape') { setChatOpen(false); setChatInput(''); }
                               }}
-                              placeholder="Type a message..."
+                              placeholder="Type here..."
                               maxLength={80}
-                              className="flex-1 bg-transparent text-white text-sm font-mono placeholder-white/30 outline-none px-2 py-1.5"
+                              className="flex-1 bg-transparent text-white text-sm font-medium placeholder-white/25 outline-none py-2.5 pr-3"
                               autoFocus
                           />
-                          <button
-                              onClick={handleSendChat}
-                              className="bg-white/10 hover:bg-white/20 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors active:scale-95"
-                          >
-                              Send
-                          </button>
                       </div>
                   </div>
               ) : (
@@ -682,28 +702,34 @@ export default function App() {
                               onClick={() => { setChatOpen(true); setTimeout(() => chatInputRef.current?.focus(), 100); }}
                               className="absolute z-50 pointer-events-auto tap-target"
                               style={{
-                                  bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
+                                  bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
                                   left: 'calc(env(safe-area-inset-left, 0px) + 8px)',
                               }}
                           >
-                              <div className="bg-black/70 backdrop-blur-sm ring-1 ring-white/10 px-3 py-2 rounded-lg active:scale-95 transition-transform flex items-center gap-2">
-                                  <svg className="w-4 h-4 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
-                                  </svg>
-                                  <span className="text-white/40 text-xs font-mono">Chat</span>
+                              <div
+                                  className="flex items-center gap-2 px-3 py-2 active:scale-95 transition-transform"
+                                  style={{
+                                      background: 'rgba(0,0,0,0.55)',
+                                      backdropFilter: 'blur(8px)',
+                                      WebkitBackdropFilter: 'blur(8px)',
+                                      border: '1px solid rgba(255,255,255,0.1)',
+                                      borderRadius: '8px',
+                                  }}
+                              >
+                                  <span className="text-white/40 text-xs font-medium">💬 Chat</span>
                               </div>
                           </button>
                       )}
-                      {/* Desktop: Enter hint */}
+                      {/* Desktop: / or Enter hint */}
                       {isDesktop && !dialogueOpen && !barneyDialogueOpen && (
                           <div
                               className="absolute z-40 pointer-events-none"
                               style={{
-                                  bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
+                                  bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
                                   left: 'calc(env(safe-area-inset-left, 0px) + 8px)',
                               }}
                           >
-                              <span className="text-white/20 text-[10px] font-mono tracking-wider">Press Enter to chat</span>
+                              <span className="text-white/15 text-[10px] font-mono">Press / to chat</span>
                           </div>
                       )}
                   </>

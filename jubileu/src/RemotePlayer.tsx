@@ -98,13 +98,15 @@ export const RemotePlayer = ({ id, x, y, z, ry, state, name, chatMsg, chatAt }: 
         groupRef.current.rotation.y += d * k;
     });
 
-    // Chat bubble visibility — show for 8s after last chatAt
+    // Chat bubble — show for 8s, style like Dussekar speech bubble
     const [showChat, setShowChat] = useState(false);
+    const [chatKey, setChatKey] = useState(0);
     useEffect(() => {
         if (!chatMsg || !chatAt) { setShowChat(false); return; }
         const age = Date.now() - chatAt;
         if (age > 8000) { setShowChat(false); return; }
         setShowChat(true);
+        setChatKey(prev => prev + 1); // force re-mount for pop-in animation
         const remaining = 8000 - age;
         const timer = setTimeout(() => setShowChat(false), remaining);
         return () => clearTimeout(timer);
@@ -115,24 +117,28 @@ export const RemotePlayer = ({ id, x, y, z, ry, state, name, chatMsg, chatAt }: 
     return (
         <group ref={groupRef}>
             <primitive object={clonedScene} scale={[30, 30, 30]} position={[0, groundY, 0]} />
-            <Html position={[0, 2.2, 0]} center distanceFactor={8}>
-                <div className="pointer-events-none select-none whitespace-nowrap flex flex-col items-center gap-0.5">
-                    {/* Chat bubble */}
-                    {showChat && chatMsg && (
-                        <div className="mb-1 animate-fade-in-up">
-                            <div className="bg-white/95 text-black px-3 py-1.5 rounded-xl text-xs font-medium shadow-lg max-w-[180px] text-center relative">
-                                <span>{chatMsg}</span>
-                                {/* Triangle pointer */}
-                                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white/95 rotate-45" />
-                            </div>
-                        </div>
-                    )}
-                    {/* Player name */}
-                    <div className="bg-black/70 text-white px-2 py-0.5 rounded text-[10px] font-bold font-mono border border-white/20 backdrop-blur-sm tracking-wider">
+            {/* Name label — always visible */}
+            <Html position={[0, 2.3, 0]} center distanceFactor={8}>
+                <div className="pointer-events-none select-none whitespace-nowrap">
+                    <div className="bg-black/70 text-white px-2.5 py-0.5 rounded-md text-[11px] font-bold font-mono border border-white/20 backdrop-blur-sm tracking-wider text-center shadow-lg">
                         {displayName}
                     </div>
                 </div>
             </Html>
+            {/* Chat bubble — Dussekar style, pops above name */}
+            {showChat && chatMsg && (
+                <Html key={chatKey} position={[0, 2.7, 0]} center distanceFactor={8}>
+                    <div className="pointer-events-none select-none whitespace-nowrap speech-bubble">
+                        <div className="bg-white text-black px-3 py-1.5 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center max-w-[200px]">
+                            <p className="text-[11px] sm:text-xs font-bold font-mono m-0 text-center break-words leading-snug">{chatMsg}</p>
+                        </div>
+                        {/* Triangle pointer */}
+                        <div className="flex justify-center -mt-0.5">
+                            <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-black" />
+                        </div>
+                    </div>
+                </Html>
+            )}
         </group>
     );
 };

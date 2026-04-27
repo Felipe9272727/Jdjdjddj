@@ -744,6 +744,10 @@
     margin-inline: auto;
   }
 
+  .-mt-0\.5 {
+    margin-top: calc(var(--spacing) * -.5);
+  }
+
   .mt-1 {
     margin-top: calc(var(--spacing) * 1);
   }
@@ -822,6 +826,10 @@
 
   .inline-flex {
     display: inline-flex;
+  }
+
+  .h-0 {
+    height: calc(var(--spacing) * 0);
   }
 
   .h-0\.5 {
@@ -948,6 +956,10 @@
     min-height: 40px;
   }
 
+  .w-0 {
+    width: calc(var(--spacing) * 0);
+  }
+
   .w-0\.5 {
     width: calc(var(--spacing) * .5);
   }
@@ -1044,8 +1056,8 @@
     max-width: 38vw;
   }
 
-  .max-w-\[180px\] {
-    max-width: 180px;
+  .max-w-\[200px\] {
+    max-width: 200px;
   }
 
   .max-w-\[calc\(100\%-1\.5rem\)\] {
@@ -1154,10 +1166,6 @@
     translate: var(--tw-translate-x) var(--tw-translate-y);
   }
 
-  .rotate-45 {
-    rotate: 45deg;
-  }
-
   .transform {
     transform: var(--tw-rotate-x, ) var(--tw-rotate-y, ) var(--tw-rotate-z, ) var(--tw-skew-x, ) var(--tw-skew-y, );
   }
@@ -1208,6 +1216,10 @@
 
   .justify-end {
     justify-content: flex-end;
+  }
+
+  .gap-0 {
+    gap: calc(var(--spacing) * 0);
   }
 
   .gap-0\.5 {
@@ -1391,9 +1403,19 @@
     border-top-width: 2px;
   }
 
+  .border-t-\[6px\] {
+    border-top-style: var(--tw-border-style);
+    border-top-width: 6px;
+  }
+
   .border-r {
     border-right-style: var(--tw-border-style);
     border-right-width: 1px;
+  }
+
+  .border-r-\[6px\] {
+    border-right-style: var(--tw-border-style);
+    border-right-width: 6px;
   }
 
   .border-b {
@@ -1404,6 +1426,11 @@
   .border-l {
     border-left-style: var(--tw-border-style);
     border-left-width: 1px;
+  }
+
+  .border-l-\[6px\] {
+    border-left-style: var(--tw-border-style);
+    border-left-width: 6px;
   }
 
   .border-\[\#2a2a2a\] {
@@ -1532,6 +1559,18 @@
     .border-yellow-500\/50 {
       border-color: color-mix(in oklab, var(--color-yellow-500) 50%, transparent);
     }
+  }
+
+  .border-t-black {
+    border-top-color: var(--color-black);
+  }
+
+  .border-r-transparent {
+    border-right-color: #0000;
+  }
+
+  .border-l-transparent {
+    border-left-color: #0000;
   }
 
   .bg-\[\#0d0411\]\/98 {
@@ -1801,16 +1840,6 @@
   @supports (color: color-mix(in lab, red, red)) {
     .bg-white\/80 {
       background-color: color-mix(in oklab, var(--color-white) 80%, transparent);
-    }
-  }
-
-  .bg-white\/95 {
-    background-color: #fffffff2;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .bg-white\/95 {
-      background-color: color-mix(in oklab, var(--color-white) 95%, transparent);
     }
   }
 
@@ -2358,10 +2387,6 @@
     padding: calc(var(--spacing) * 1);
   }
 
-  .p-1\.5 {
-    padding: calc(var(--spacing) * 1.5);
-  }
-
   .p-2 {
     padding: calc(var(--spacing) * 2);
   }
@@ -2442,6 +2467,10 @@
     padding-block: calc(var(--spacing) * 4);
   }
 
+  .py-\[3px\] {
+    padding-block: 3px;
+  }
+
   .pt-1\.5 {
     padding-top: calc(var(--spacing) * 1.5);
   }
@@ -2456,6 +2485,10 @@
 
   .pr-1 {
     padding-right: calc(var(--spacing) * 1);
+  }
+
+  .pr-3 {
+    padding-right: calc(var(--spacing) * 3);
   }
 
   .pb-2 {
@@ -2535,6 +2568,10 @@
 
   .text-\[11px\] {
     font-size: 11px;
+  }
+
+  .text-\[12px\] {
+    font-size: 12px;
   }
 
   .leading-none {
@@ -2870,6 +2907,16 @@
     }
   }
 
+  .text-white\/15 {
+    color: #ffffff26;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/15 {
+      color: color-mix(in oklab, var(--color-white) 15%, transparent);
+    }
+  }
+
   .text-white\/20 {
     color: #fff3;
   }
@@ -2940,13 +2987,13 @@
     }
   }
 
-  .text-white\/90 {
-    color: #ffffffe6;
+  .text-white\/85 {
+    color: #ffffffd9;
   }
 
   @supports (color: color-mix(in lab, red, red)) {
-    .text-white\/90 {
-      color: color-mix(in oklab, var(--color-white) 90%, transparent);
+    .text-white\/85 {
+      color: color-mix(in oklab, var(--color-white) 85%, transparent);
     }
   }
 
@@ -2983,13 +3030,13 @@
     }
   }
 
-  .placeholder-white\/30::placeholder {
-    color: #ffffff4d;
+  .placeholder-white\/25::placeholder {
+    color: #ffffff40;
   }
 
   @supports (color: color-mix(in lab, red, red)) {
-    .placeholder-white\/30::placeholder {
-      color: color-mix(in oklab, var(--color-white) 30%, transparent);
+    .placeholder-white\/25::placeholder {
+      color: color-mix(in oklab, var(--color-white) 25%, transparent);
     }
   }
 
@@ -96958,6 +97005,7 @@ const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2, name: name2, chatMsg
     groupRef.current.rotation.y += d * k2;
   });
   const [showChat, setShowChat] = reactExports.useState(false);
+  const [chatKey, setChatKey] = reactExports.useState(0);
   reactExports.useEffect(() => {
     if (!chatMsg || !chatAt) {
       setShowChat(false);
@@ -96969,6 +97017,7 @@ const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2, name: name2, chatMsg
       return;
     }
     setShowChat(true);
+    setChatKey((prev) => prev + 1);
     const remaining = 8e3 - age;
     const timer2 = setTimeout(() => setShowChat(false), remaining);
     return () => clearTimeout(timer2);
@@ -96976,13 +97025,11 @@ const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2, name: name2, chatMsg
   const displayName = name2 || "P-" + (id || "").slice(0, 4).toUpperCase();
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene, scale: [30, 30, 30], position: [0, groundY, 0] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.2, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pointer-events-none select-none whitespace-nowrap flex flex-col items-center gap-0.5", children: [
-      showChat && chatMsg && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-1 animate-fade-in-up", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-white/95 text-black px-3 py-1.5 rounded-xl text-xs font-medium shadow-lg max-w-[180px] text-center relative", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: chatMsg }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white/95 rotate-45" })
-      ] }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/70 text-white px-2 py-0.5 rounded text-[10px] font-bold font-mono border border-white/20 backdrop-blur-sm tracking-wider", children: displayName })
-    ] }) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.3, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none select-none whitespace-nowrap", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/70 text-white px-2.5 py-0.5 rounded-md text-[11px] font-bold font-mono border border-white/20 backdrop-blur-sm tracking-wider text-center shadow-lg", children: displayName }) }) }),
+    showChat && chatMsg && /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.7, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pointer-events-none select-none whitespace-nowrap speech-bubble", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-white text-black px-3 py-1.5 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center max-w-[200px]", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[11px] sm:text-xs font-bold font-mono m-0 text-center break-words leading-snug", children: chatMsg }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex justify-center -mt-0.5", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-black" }) })
+    ] }) }, chatKey)
   ] });
 };
 const DEFAULTS = {
@@ -98211,16 +98258,20 @@ function App() {
     };
     const kh = (e2) => {
       if (!multiplayerEnabled) return;
-      if (e2.key === "Enter" && !chatOpen && !dialogueOpen && !barneyDialogueOpen) {
+      if (chatOpen) {
+        if (e2.key === "Escape") {
+          setChatOpen(false);
+          setChatInput("");
+        }
+        return;
+      }
+      if (e2.key === "/" && !dialogueOpen && !barneyDialogueOpen) {
         e2.preventDefault();
         setChatOpen(true);
         setTimeout(() => {
           var _a;
           return (_a = chatInputRef.current) == null ? void 0 : _a.focus();
         }, 50);
-      } else if (e2.key === "Escape" && chatOpen) {
-        setChatOpen(false);
-        setChatInput("");
       }
     };
     window.addEventListener("keydown", kd);
@@ -98355,34 +98406,51 @@ function App() {
           style: {
             top: "calc(env(safe-area-inset-top, 0px) + 60px)",
             left: "calc(env(safe-area-inset-left, 0px) + 8px)",
-            width: "min(320px, calc(100vw - 16px))",
-            maxHeight: "calc(100dvh - 200px)"
+            width: "min(300px, calc(100vw - 16px))",
+            maxHeight: "min(250px, calc(100dvh - 300px))"
           },
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-0.5 overflow-hidden", children: chatMessages.slice(-30).map((msg, i2) => {
-            const age = Date.now() - msg.timestamp;
-            const fadeOut = age > 2e4;
-            const opacity = fadeOut ? Math.max(0, 1 - (age - 2e4) / 1e4) : 1;
-            const isMe = msg.id === (user == null ? void 0 : user.uid);
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: "transition-opacity duration-500",
-                style: { opacity },
-                children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-1.5 px-2 py-1 rounded bg-black/60 backdrop-blur-sm", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "span",
-                    {
-                      className: "font-bold text-[11px] font-mono shrink-0",
-                      style: { color: isMe ? "#fbbf24" : "#a78bfa" },
-                      children: msg.name
-                    }
-                  ),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/90 text-[11px] font-mono break-words", children: msg.text })
-                ] })
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: "flex flex-col gap-0 overflow-hidden rounded-lg",
+              style: {
+                background: "linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.45) 100%)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                padding: "4px 0"
               },
-              `${msg.id}-${msg.timestamp}`
-            );
-          }) })
+              children: chatMessages.slice(-25).map((msg, i2) => {
+                const age = Date.now() - msg.timestamp;
+                const fadeOut = age > 2e4;
+                const opacity = fadeOut ? Math.max(0, 1 - (age - 2e4) / 1e4) : 1;
+                const isMe = msg.id === (user == null ? void 0 : user.uid);
+                const nameHash = (msg.name || "").split("").reduce((a2, c2) => a2 + c2.charCodeAt(0), 0);
+                const nameColors = ["#f87171", "#fb923c", "#fbbf24", "#4ade80", "#38bdf8", "#a78bfa", "#f472b6", "#2dd4bf"];
+                const nameColor = isMe ? "#ffffff" : nameColors[nameHash % nameColors.length];
+                return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "div",
+                  {
+                    className: "transition-opacity duration-500 px-2.5 py-[3px]",
+                    style: { opacity },
+                    children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[12px] leading-snug font-medium", children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        "span",
+                        {
+                          className: "font-bold",
+                          style: { color: nameColor },
+                          children: msg.name
+                        }
+                      ),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/20", children: ": " }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/85", children: msg.text })
+                    ] })
+                  },
+                  `${msg.id}-${msg.timestamp}`
+                );
+              })
+            }
+          )
         }
       ),
       chatOpen ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -98390,40 +98458,46 @@ function App() {
         {
           className: "absolute left-1/2 -translate-x-1/2 z-[65] pointer-events-auto",
           style: {
-            bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
-            width: "min(480px, calc(100vw - 16px))"
+            bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
+            width: "min(460px, calc(100vw - 16px))"
           },
-          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2 bg-black/90 backdrop-blur-xl ring-1 ring-white/20 rounded-lg p-1.5 shadow-xl", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "input",
-              {
-                ref: chatInputRef,
-                type: "text",
-                value: chatInput,
-                onChange: (e2) => setChatInput(e2.target.value.slice(0, 80)),
-                onKeyDown: (e2) => {
-                  e2.stopPropagation();
-                  if (e2.key === "Enter") handleSendChat();
-                  if (e2.key === "Escape") {
-                    setChatOpen(false);
-                    setChatInput("");
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "div",
+            {
+              className: "flex items-center gap-0 overflow-hidden",
+              style: {
+                background: "rgba(0,0,0,0.65)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: "8px"
+              },
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/30 text-sm font-medium px-2.5 shrink-0", children: "💬" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "input",
+                  {
+                    ref: chatInputRef,
+                    type: "text",
+                    value: chatInput,
+                    onChange: (e2) => setChatInput(e2.target.value.slice(0, 80)),
+                    onKeyDown: (e2) => {
+                      e2.stopPropagation();
+                      if (e2.key === "Enter") handleSendChat();
+                      if (e2.key === "Escape") {
+                        setChatOpen(false);
+                        setChatInput("");
+                      }
+                    },
+                    placeholder: "Type here...",
+                    maxLength: 80,
+                    className: "flex-1 bg-transparent text-white text-sm font-medium placeholder-white/25 outline-none py-2.5 pr-3",
+                    autoFocus: true
                   }
-                },
-                placeholder: "Type a message...",
-                maxLength: 80,
-                className: "flex-1 bg-transparent text-white text-sm font-mono placeholder-white/30 outline-none px-2 py-1.5",
-                autoFocus: true
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "button",
-              {
-                onClick: handleSendChat,
-                className: "bg-white/10 hover:bg-white/20 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors active:scale-95",
-                children: "Send"
-              }
-            )
-          ] })
+                )
+              ]
+            }
+          )
         }
       ) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         !isDesktop && !dialogueOpen && !barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -98438,13 +98512,23 @@ function App() {
             },
             className: "absolute z-50 pointer-events-auto tap-target",
             style: {
-              bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+              bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
               left: "calc(env(safe-area-inset-left, 0px) + 8px)"
             },
-            children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-black/70 backdrop-blur-sm ring-1 ring-white/10 px-3 py-2 rounded-lg active:scale-95 transition-transform flex items-center gap-2", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 text-white/50", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 1.5, children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/40 text-xs font-mono", children: "Chat" })
-            ] })
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: "flex items-center gap-2 px-3 py-2 active:scale-95 transition-transform",
+                style: {
+                  background: "rgba(0,0,0,0.55)",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "8px"
+                },
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/40 text-xs font-medium", children: "💬 Chat" })
+              }
+            )
           }
         ),
         isDesktop && !dialogueOpen && !barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -98452,10 +98536,10 @@ function App() {
           {
             className: "absolute z-40 pointer-events-none",
             style: {
-              bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+              bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
               left: "calc(env(safe-area-inset-left, 0px) + 8px)"
             },
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/20 text-[10px] font-mono tracking-wider", children: "Press Enter to chat" })
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/15 text-[10px] font-mono", children: "Press / to chat" })
           }
         )
       ] })
