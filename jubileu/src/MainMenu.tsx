@@ -13,9 +13,22 @@ export const MainMenu = ({ onPlay }: any) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [easterEgg, setEasterEgg] = useState(0);
   const [playerName, setPlayerNameState] = useState(getPlayerName());
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   // Dummy refs — isEnabled=false so the hook returns early without touching Firebase
   const { user, login } = useMultiplayer({ current: null as any }, { current: 0 }, "idle", false);
+
+  // Parallax effect — track mouse for subtle background movement
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      setMousePos({
+        x: (e.clientX / window.innerWidth - 0.5) * 2,
+        y: (e.clientY / window.innerHeight - 0.5) * 2,
+      });
+    };
+    window.addEventListener('mousemove', handler);
+    return () => window.removeEventListener('mousemove', handler);
+  }, []);
 
   const handlePlay = async () => {
      if (multiplayerEnabled && !user) {
@@ -85,7 +98,7 @@ export const MainMenu = ({ onPlay }: any) => {
         <div className="absolute inset-0" style={{ opacity: flickerOpacity, transition: 'opacity 0.05s' }}>
           <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f] via-[#0d0d15] to-[#05050a]" />
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200%] h-[60%] bg-gradient-to-b from-amber-500/[0.03] via-transparent to-transparent" style={{ clipPath: 'polygon(40% 0%, 60% 0%, 80% 100%, 20% 100%)' }} />
-          <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 overflow-hidden" style={{ transform: `translate(${mousePos.x * 3}px, ${mousePos.y * 2}px)`, transition: 'transform 0.5s ease-out' }}>
             {useMemo(() => Array.from({ length: 30 }, (_, i) => ({
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
@@ -327,7 +340,7 @@ export const MainMenu = ({ onPlay }: any) => {
           
           <div className="hidden md:flex h-full items-center justify-center pointer-events-auto">
             <div className="flex items-center gap-10 lg:gap-24 max-w-6xl mx-auto px-8">
-              <div className="relative animate-fade-in" style={{ animationDelay: '0.5s' }}>
+              <div className="relative animate-fade-in" style={{ animationDelay: '0.5s', transform: `translate(${mousePos.x * -6}px, ${mousePos.y * -4}px)`, transition: 'transform 0.3s ease-out' }}>
                 <div className="w-64 h-96 border-8 border-[#2a2a2a] rounded-t-2xl bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a] shadow-[inset_0_0_60px_rgba(0,0,0,0.9),0_0_80px_rgba(0,0,0,0.5)]">
                   <div className="absolute inset-4 bg-gradient-to-b from-amber-500/10 via-transparent to-transparent rounded-t-xl" />
                   <div className="absolute top-6 left-1/2 -translate-x-1/2 w-24 h-10 bg-black/90 rounded border border-amber-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.3)]">
