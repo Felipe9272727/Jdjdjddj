@@ -245,22 +245,41 @@ export const useMultiplayer = (
         updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});
     }, [isEnabled]);
 
-    // Send chat message
+    // Send chat message — with local fallback
     const sendChat = (msg: string) => {
         const clean = msg.trim().slice(0, 80);
         if (!clean) return;
+        const now = Date.now();
         chatMsgRef.current = clean;
-        chatAtRef.current = Date.now();
-        // Force an immediate push
+        chatAtRef.current = now;
+
+        // Always add to local messages immediately (fallback)
+        setChatMessages(prev => {
+            const newMsg: ChatMessage = {
+                id: playerIdRef.current,
+                name: playerNameRef.current,
+                text: clean,
+                timestamp: now,
+            };
+            const updated = [...prev, newMsg];
+            // Keep only last 30 messages
+            return updated.slice(-30);
+        });
+
+        // Try Firestore in background (may fail if rules not deployed)
         const db = getDb();
         if (!db) return;
         const uid = playerIdRef.current;
         const docRef = doc(db, 'worlds/main/players', uid);
         updateDoc(docRef, {
             chatMsg: clean,
-            chatAt: Date.now(),
+            chatAt: now,
             updatedAt: serverTimestamp(),
-        }).catch(() => {});
+        }).catch((e) => {
+            // Firestore failed — message is already in local state, so it still works
+            console.warn('[MP] Chat Firestore write failed (local fallback active):', e?.code || e?.message);
+        });
+
         // Auto-clear after 30s
         setTimeout(() => {
             if (chatMsgRef.current === clean) {

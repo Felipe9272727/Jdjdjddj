@@ -95283,17 +95283,29 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
   const sendChat = (msg) => {
     const clean = msg.trim().slice(0, 80);
     if (!clean) return;
+    const now2 = Date.now();
     chatMsgRef.current = clean;
-    chatAtRef.current = Date.now();
+    chatAtRef.current = now2;
+    setChatMessages((prev) => {
+      const newMsg = {
+        id: playerIdRef.current,
+        name: playerNameRef.current,
+        text: clean,
+        timestamp: now2
+      };
+      const updated = [...prev, newMsg];
+      return updated.slice(-30);
+    });
     const db = getDb();
     if (!db) return;
     const uid = playerIdRef.current;
     const docRef = doc(db, "worlds/main/players", uid);
     updateDoc(docRef, {
       chatMsg: clean,
-      chatAt: Date.now(),
+      chatAt: now2,
       updatedAt: serverTimestamp()
-    }).catch(() => {
+    }).catch((e2) => {
+      console.warn("[MP] Chat Firestore write failed (local fallback active):", (e2 == null ? void 0 : e2.code) || (e2 == null ? void 0 : e2.message));
     });
     setTimeout(() => {
       if (chatMsgRef.current === clean) {
