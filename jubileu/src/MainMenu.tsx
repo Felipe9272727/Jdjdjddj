@@ -151,7 +151,7 @@ export const MainMenu = ({ onPlay }: any) => {
             
             <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 min-h-0 overflow-y-auto landscape:justify-center scrollbar-hide">
               <div className="relative mb-4 sm:mb-8 landscape:hidden shrink-0" style={{ animationDelay: '0.3s' }}>
-                <div className="w-28 h-36 sm:w-40 sm:h-56 max-w-[40vw] max-h-[30vh] border-4 border-[#2a2a2a] rounded-t-lg bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]">
+                <div className="w-24 h-32 sm:w-40 sm:h-56 max-w-[38vw] max-h-[25vh] border-4 border-[#2a2a2a] rounded-t-lg bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]">
                   <div className="absolute inset-2 bg-gradient-to-b from-amber-500/5 to-transparent rounded-t" />
                   <div className="absolute top-3 left-1/2 -translate-x-1/2 w-16 h-6 bg-black rounded-sm border border-amber-500/20 flex items-center justify-center">
                     <span className="text-amber-400/80 text-sm font-mono">▲ 03</span>
@@ -166,25 +166,25 @@ export const MainMenu = ({ onPlay }: any) => {
                     <div className="w-2 h-2 rounded-full bg-white/20" />
                   </div>
                 </div>
-                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-48 h-4 bg-gradient-to-t from-transparent to-amber-500/10 blur-sm" />
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-32 h-2 bg-gradient-to-t from-transparent to-amber-500/10 blur-sm" />
               </div>
               
               <div className="text-center mb-3 sm:mb-6 landscape:mb-4 shrink-0">
                 <p className="text-amber-500/50 text-xs uppercase tracking-[0.5em] mb-2 font-light landscape:hidden">Bem-vindo ao</p>
                 <div className="landscape:hidden">
-                  <h1 className="font-black text-white mb-1 leading-none" style={{ fontSize: 'clamp(2rem, 9vw, 3rem)', textShadow: '0 0 40px rgba(255,255,255,0.1)' }}>
+                  <h1 className="font-black text-white mb-1 leading-none" style={{ fontSize: 'clamp(1.8rem, 8vw, 2.8rem)', textShadow: '0 0 40px rgba(255,255,255,0.1)' }}>
                     THE NORMAL
                   </h1>
-                  <h2 className="font-thin text-amber-400 tracking-[0.2em] sm:tracking-[0.3em] uppercase" style={{ fontSize: 'clamp(1.25rem, 6vw, 1.875rem)', textShadow: '0 0 20px rgba(251,191,36,0.3)' }}>
+                  <h2 className="font-thin text-amber-400 tracking-[0.2em] sm:tracking-[0.3em] uppercase" style={{ fontSize: 'clamp(1.1rem, 5vw, 1.5rem)', textShadow: '0 0 20px rgba(251,191,36,0.3)' }}>
                     ELEVATOR
                   </h2>
                 </div>
 
-                <div className="hidden landscape:flex items-center justify-center gap-2">
-                  <h1 className="text-3xl font-black text-white" style={{ textShadow: '0 0 20px rgba(255,255,255,0.1)' }}>
+                <div className="hidden landscape:flex items-center justify-center gap-1.5">
+                  <h1 className="text-2xl font-black text-white" style={{ textShadow: '0 0 20px rgba(255,255,255,0.1)' }}>
                     THE NORMAL
                   </h1>
-                  <h2 className="text-3xl font-thin text-amber-400 tracking-widest uppercase" style={{ textShadow: '0 0 10px rgba(251,191,36,0.3)' }}>
+                  <h2 className="text-2xl font-thin text-amber-400 tracking-widest uppercase" style={{ textShadow: '0 0 10px rgba(251,191,36,0.3)' }}>
                     ELEVATOR
                   </h2>
                 </div>
@@ -198,7 +198,7 @@ export const MainMenu = ({ onPlay }: any) => {
               <div className="hidden landscape:block w-full max-w-xs mt-2">
                 <div className="flex flex-col gap-2 mb-4 bg-black/50 border border-white/10 rounded-lg p-4">
                   <div className="flex items-center justify-between">
-                     <span className="text-white/70 text-sm font-mono tracking-widest">MULTIPLAYER</span>
+                     <span className="text-white/70 text-xs font-mono tracking-wider">MULTIPLAYER</span>
                      <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
                         <div className={`absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                      </button>
@@ -233,10 +233,10 @@ export const MainMenu = ({ onPlay }: any) => {
 
             </div>
             
-            <div className="p-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent z-40 landscape:hidden shrink-0">
-              <div className="flex flex-col gap-2 border border-white/10 rounded-lg mb-3 bg-black/50 backdrop-blur-md p-3">
+            <div className="p-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent z-40 landscape:hidden shrink-0">
+              <div className="flex flex-col gap-2 border border-white/10 rounded-lg mb-2 bg-black/50 backdrop-blur-md p-2.5">
                  <div className="flex items-center justify-between">
-                     <span className="text-white/70 text-sm font-mono tracking-widest">MULTIPLAYER</span>
+                     <span className="text-white/70 text-xs font-mono tracking-wider">MULTIPLAYER</span>
                      <button onClick={() => setMultiplayerEnabled(m => !m)} className={`w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? 'bg-amber-500' : 'bg-gray-800'}`}>
                         <div className={`absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                      </button>
@@ -268,7 +268,7 @@ export const MainMenu = ({ onPlay }: any) => {
                 </div>
               </button>
               
-              <div className="flex justify-center gap-6 mt-4 text-white/20 text-xs">
+              <div className="flex justify-center gap-4 mt-2 text-white/20 text-[10px]">
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>
                   Toque

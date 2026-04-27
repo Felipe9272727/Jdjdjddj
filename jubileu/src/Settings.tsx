@@ -99,7 +99,7 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                 className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md bg-gradient-to-b from-[#1a120a] to-black ring-1 ring-amber-500/40 rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.8)] overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="px-5 py-3 border-b border-amber-500/30 flex items-center justify-between">
+                <div className="px-4 py-2.5 sm:py-3 border-b border-amber-500/30 flex items-center justify-between">
                     <h2 className="text-amber-200 font-mono tracking-widest text-sm uppercase">Configurações</h2>
                     <button
                         onClick={onClose}
@@ -108,7 +108,7 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                     >×</button>
                 </div>
 
-                <div className="p-4 sm:p-5 space-y-4 sm:space-y-5 text-amber-100 max-h-[70vh] overflow-y-auto scrollbar-hide">
+                <div className="p-3 sm:p-5 space-y-3 sm:space-y-5 text-amber-100 max-h-[70vh] overflow-y-auto scrollbar-hide">
                     <Row label="Qualidade gráfica">
                         <Segmented
                             value={settings.quality}

@@ -187,6 +187,7 @@
     --tracking-wider: .05em;
     --tracking-widest: .1em;
     --leading-tight: 1.25;
+    --leading-snug: 1.375;
     --leading-relaxed: 1.625;
     --radius-sm: .25rem;
     --radius-lg: .5rem;
@@ -608,8 +609,8 @@
     bottom: calc(var(--spacing) * -1);
   }
 
-  .-bottom-4 {
-    bottom: calc(var(--spacing) * -4);
+  .-bottom-2 {
+    bottom: calc(var(--spacing) * -2);
   }
 
   .-bottom-8 {
@@ -872,10 +873,6 @@
     height: calc(var(--spacing) * 32);
   }
 
-  .h-36 {
-    height: calc(var(--spacing) * 36);
-  }
-
   .h-40 {
     height: calc(var(--spacing) * 40);
   }
@@ -896,16 +893,16 @@
     height: 100%;
   }
 
+  .max-h-\[25vh\] {
+    max-height: 25vh;
+  }
+
   .max-h-\[30vh\] {
     max-height: 30vh;
   }
 
   .max-h-\[35vh\] {
     max-height: 35vh;
-  }
-
-  .max-h-\[40vh\] {
-    max-height: 40vh;
   }
 
   .max-h-\[70vh\] {
@@ -926,10 +923,6 @@
 
   .min-h-\[2rem\] {
     min-height: 2rem;
-  }
-
-  .min-h-\[3rem\] {
-    min-height: 3rem;
   }
 
   .min-h-\[28px\] {
@@ -1000,16 +993,8 @@
     width: calc(var(--spacing) * 24);
   }
 
-  .w-28 {
-    width: calc(var(--spacing) * 28);
-  }
-
   .w-32 {
     width: calc(var(--spacing) * 32);
-  }
-
-  .w-48 {
-    width: calc(var(--spacing) * 48);
   }
 
   .w-64 {
@@ -1040,8 +1025,8 @@
     max-width: var(--container-6xl);
   }
 
-  .max-w-\[40vw\] {
-    max-width: 40vw;
+  .max-w-\[38vw\] {
+    max-width: 38vw;
   }
 
   .max-w-\[calc\(100\%-1\.5rem\)\] {
@@ -1076,12 +1061,12 @@
     min-width: calc(var(--spacing) * 0);
   }
 
-  .min-w-\[64px\] {
-    min-width: 64px;
+  .min-w-\[56px\] {
+    min-width: 56px;
   }
 
-  .min-w-\[80px\] {
-    min-width: 80px;
+  .min-w-\[70px\] {
+    min-width: 70px;
   }
 
   .flex-1 {
@@ -1202,6 +1187,10 @@
     gap: calc(var(--spacing) * 1);
   }
 
+  .gap-1\.5 {
+    gap: calc(var(--spacing) * 1.5);
+  }
+
   .gap-2 {
     gap: calc(var(--spacing) * 2);
   }
@@ -1214,10 +1203,6 @@
     gap: calc(var(--spacing) * 4);
   }
 
-  .gap-6 {
-    gap: calc(var(--spacing) * 6);
-  }
-
   .gap-8 {
     gap: calc(var(--spacing) * 8);
   }
@@ -1226,10 +1211,10 @@
     gap: calc(var(--spacing) * 10);
   }
 
-  :where(.space-y-4 > :not(:last-child)) {
+  :where(.space-y-3 > :not(:last-child)) {
     --tw-space-y-reverse: 0;
-    margin-block-start: calc(calc(var(--spacing) * 4) * var(--tw-space-y-reverse));
-    margin-block-end: calc(calc(var(--spacing) * 4) * calc(1 - var(--tw-space-y-reverse)));
+    margin-block-start: calc(calc(var(--spacing) * 3) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 3) * calc(1 - var(--tw-space-y-reverse)));
   }
 
   :where(.divide-x > :not(:last-child)) {
@@ -2338,6 +2323,10 @@
     padding: calc(var(--spacing) * 2);
   }
 
+  .p-2\.5 {
+    padding: calc(var(--spacing) * 2.5);
+  }
+
   .p-3 {
     padding: calc(var(--spacing) * 3);
   }
@@ -2360,10 +2349,6 @@
 
   .px-4 {
     padding-inline: calc(var(--spacing) * 4);
-  }
-
-  .px-5 {
-    padding-inline: calc(var(--spacing) * 5);
   }
 
   .px-6 {
@@ -2398,10 +2383,6 @@
     padding-block: calc(var(--spacing) * 2.5);
   }
 
-  .py-3 {
-    padding-block: calc(var(--spacing) * 3);
-  }
-
   .py-4 {
     padding-block: calc(var(--spacing) * 4);
   }
@@ -2434,8 +2415,8 @@
     padding-bottom: calc(var(--spacing) * 4);
   }
 
-  .pb-\[max\(1\.5rem\,env\(safe-area-inset-bottom\,0px\)\)\] {
-    padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+  .pb-\[max\(1rem\,env\(safe-area-inset-bottom\,0px\)\)\] {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
   }
 
   .text-center {
@@ -2518,6 +2499,11 @@
   .leading-relaxed {
     --tw-leading: var(--leading-relaxed);
     line-height: var(--leading-relaxed);
+  }
+
+  .leading-snug {
+    --tw-leading: var(--leading-snug);
+    line-height: var(--leading-snug);
   }
 
   .leading-tight {
@@ -3500,6 +3486,10 @@
       display: none;
     }
 
+    .sm\:h-6 {
+      height: calc(var(--spacing) * 6);
+    }
+
     .sm\:h-12 {
       height: calc(var(--spacing) * 12);
     }
@@ -3520,8 +3510,16 @@
       max-height: 50vh;
     }
 
+    .sm\:min-h-\[3rem\] {
+      min-height: 3rem;
+    }
+
     .sm\:min-h-\[4rem\] {
       min-height: 4rem;
+    }
+
+    .sm\:w-6 {
+      width: calc(var(--spacing) * 6);
     }
 
     .sm\:w-12 {
@@ -3640,8 +3638,18 @@
       line-height: var(--tw-leading, var(--text-xl--line-height));
     }
 
+    .sm\:text-xs {
+      font-size: var(--text-xs);
+      line-height: var(--tw-leading, var(--text-xs--line-height));
+    }
+
     .sm\:text-\[9px\] {
       font-size: 9px;
+    }
+
+    .sm\:leading-relaxed {
+      --tw-leading: var(--leading-relaxed);
+      line-height: var(--leading-relaxed);
     }
 
     .sm\:tracking-\[0\.3em\] {
@@ -3766,8 +3774,8 @@
       height: calc(var(--spacing) * 6);
     }
 
-    .landscape\:max-h-\[35vh\] {
-      max-height: 35vh;
+    .landscape\:max-h-\[30vh\] {
+      max-height: 30vh;
     }
 
     .landscape\:max-h-\[55vh\] {
@@ -101039,7 +101047,7 @@ const MainMenu = ({ onPlay }) => {
         ] }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 flex flex-col items-center justify-center px-4 sm:px-6 min-h-0 overflow-y-auto landscape:justify-center scrollbar-hide", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative mb-4 sm:mb-8 landscape:hidden shrink-0", style: { animationDelay: "0.3s" }, children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-28 h-36 sm:w-40 sm:h-56 max-w-[40vw] max-h-[30vh] border-4 border-[#2a2a2a] rounded-t-lg bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-24 h-32 sm:w-40 sm:h-56 max-w-[38vw] max-h-[25vh] border-4 border-[#2a2a2a] rounded-t-lg bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-2 bg-gradient-to-b from-amber-500/5 to-transparent rounded-t" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute top-3 left-1/2 -translate-x-1/2 w-16 h-6 bg-black rounded-sm border border-amber-500/20 flex items-center justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400/80 text-sm font-mono", children: "▲ 03" }) }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute bottom-0 left-2 right-2 top-12 flex gap-0.5", children: [
@@ -101052,17 +101060,17 @@ const MainMenu = ({ onPlay }) => {
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 rounded-full bg-white/20" })
               ] })
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -bottom-4 left-1/2 -translate-x-1/2 w-48 h-4 bg-gradient-to-t from-transparent to-amber-500/10 blur-sm" })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -bottom-2 left-1/2 -translate-x-1/2 w-32 h-2 bg-gradient-to-t from-transparent to-amber-500/10 blur-sm" })
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center mb-3 sm:mb-6 landscape:mb-4 shrink-0", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-amber-500/50 text-xs uppercase tracking-[0.5em] mb-2 font-light landscape:hidden", children: "Bem-vindo ao" }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "landscape:hidden", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { className: "font-black text-white mb-1 leading-none", style: { fontSize: "clamp(2rem, 9vw, 3rem)", textShadow: "0 0 40px rgba(255,255,255,0.1)" }, children: "THE NORMAL" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "font-thin text-amber-400 tracking-[0.2em] sm:tracking-[0.3em] uppercase", style: { fontSize: "clamp(1.25rem, 6vw, 1.875rem)", textShadow: "0 0 20px rgba(251,191,36,0.3)" }, children: "ELEVATOR" })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { className: "font-black text-white mb-1 leading-none", style: { fontSize: "clamp(1.8rem, 8vw, 2.8rem)", textShadow: "0 0 40px rgba(255,255,255,0.1)" }, children: "THE NORMAL" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "font-thin text-amber-400 tracking-[0.2em] sm:tracking-[0.3em] uppercase", style: { fontSize: "clamp(1.1rem, 5vw, 1.5rem)", textShadow: "0 0 20px rgba(251,191,36,0.3)" }, children: "ELEVATOR" })
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "hidden landscape:flex items-center justify-center gap-2", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { className: "text-3xl font-black text-white", style: { textShadow: "0 0 20px rgba(255,255,255,0.1)" }, children: "THE NORMAL" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-3xl font-thin text-amber-400 tracking-widest uppercase", style: { textShadow: "0 0 10px rgba(251,191,36,0.3)" }, children: "ELEVATOR" })
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "hidden landscape:flex items-center justify-center gap-1.5", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { className: "text-2xl font-black text-white", style: { textShadow: "0 0 20px rgba(255,255,255,0.1)" }, children: "THE NORMAL" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-2xl font-thin text-amber-400 tracking-widest uppercase", style: { textShadow: "0 0 10px rgba(251,191,36,0.3)" }, children: "ELEVATOR" })
             ] })
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-white/30 text-center text-xs sm:text-sm max-w-xs leading-relaxed landscape:hidden mb-2", children: [
@@ -101073,7 +101081,7 @@ const MainMenu = ({ onPlay }) => {
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "hidden landscape:block w-full max-w-xs mt-2", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 mb-4 bg-black/50 border border-white/10 rounded-lg p-4", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-sm font-mono tracking-widest", children: "MULTIPLAYER" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs font-mono tracking-wider", children: "MULTIPLAYER" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), className: `w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-5" : "translate-x-0"}` }) })
               ] }),
               multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleShare, className: "mt-2 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2 rounded text-xs text-white hover:bg-white/10 transition-colors", children: [
@@ -101102,10 +101110,10 @@ const MainMenu = ({ onPlay }) => {
             )
           ] })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent z-40 landscape:hidden shrink-0", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 border border-white/10 rounded-lg mb-3 bg-black/50 backdrop-blur-md p-3", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent z-40 landscape:hidden shrink-0", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 border border-white/10 rounded-lg mb-2 bg-black/50 backdrop-blur-md p-2.5", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-sm font-mono tracking-widest", children: "MULTIPLAYER" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs font-mono tracking-wider", children: "MULTIPLAYER" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), className: `w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-5" : "translate-x-0"}` }) })
             ] }),
             multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleShare, className: "mt-2 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2.5 rounded text-sm text-white font-bold hover:bg-white/10 transition-colors", children: [
@@ -101132,7 +101140,7 @@ const MainMenu = ({ onPlay }) => {
               ]
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-6 mt-4 text-white/20 text-xs", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-4 mt-2 text-white/20 text-[10px]", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "flex items-center gap-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 1, d: "M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" }) }),
               "Toque"
@@ -101283,9 +101291,9 @@ const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }) => {
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute top-0 left-0 right-0 h-12 md:h-16 bg-gradient-to-b from-black to-transparent pointer-events-none" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-black to-transparent pointer-events-none" }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col flex-1 justify-end pb-4 px-3 md:px-[20%] landscape:pb-2 landscape:px-8 max-h-[100dvh] overflow-hidden", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/80 border-t-2 border-yellow-500/50 p-3 sm:p-4 md:p-6 shadow-2xl pointer-events-auto mb-2 sm:mb-4 rounded-t-xl landscape:mb-2", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-white text-sm sm:text-base md:text-xl font-bold font-serif leading-relaxed min-h-[2rem] sm:min-h-[4rem] text-shadow-sm", children: /* @__PURE__ */ jsxRuntimeExports.jsx(TypewriterText, { text: node.text, speed: 30 }) }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `flex flex-col gap-2 mb-3 pointer-events-auto transition-all duration-500 overflow-y-auto max-h-[35vh] sm:max-h-[50vh] landscape:max-h-[55vh] scrollbar-hide ${showOptions ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`, children: node.options.map((opt, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => opt.next ? onOptionSelect(opt.next) : onClose(), className: `group relative w-full text-left overflow-hidden animate-fade-in-up stagger-${i2 + 1} flex-shrink-0`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative px-4 py-3 bg-gray-900 ring-1 ring-white/10 hover:ring-amber-500/50 rounded-xl transition-all duration-300 active:scale-[0.98]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex-shrink-0 w-6 h-6 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center text-yellow-400 text-xs font-bold group-hover:bg-yellow-500 group-hover:text-black transition-all", children: i2 + 1 }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/80 border-t-2 border-yellow-500/50 p-3 sm:p-4 md:p-6 shadow-2xl pointer-events-auto mb-2 sm:mb-4 rounded-t-xl landscape:mb-2", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-white text-sm sm:text-base md:text-xl font-bold font-serif leading-snug sm:leading-relaxed min-h-[2rem] sm:min-h-[4rem] text-shadow-sm", children: /* @__PURE__ */ jsxRuntimeExports.jsx(TypewriterText, { text: node.text, speed: 30 }) }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `flex flex-col gap-2 mb-3 pointer-events-auto transition-all duration-500 overflow-y-auto max-h-[35vh] sm:max-h-[50vh] landscape:max-h-[55vh] scrollbar-hide ${showOptions ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`, children: node.options.map((opt, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => opt.next ? onOptionSelect(opt.next) : onClose(), className: `group relative w-full text-left overflow-hidden animate-fade-in-up stagger-${i2 + 1} flex-shrink-0`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative px-3 py-2.5 sm:py-3 bg-gray-900 ring-1 ring-white/10 hover:ring-amber-500/50 rounded-xl transition-all duration-300 active:scale-[0.98]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center text-yellow-400 text-[10px] sm:text-xs font-bold group-hover:bg-yellow-500 group-hover:text-black transition-all", children: i2 + 1 }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-gray-200 group-hover:text-white font-medium text-sm md:text-base flex-1", children: opt.text })
           ] }) }) }, i2)) })
         ] })
@@ -102715,7 +102723,7 @@ const SettingsMenu = ({ open, onClose }) => {
       className: "w-full max-w-[calc(100vw-2rem)] sm:max-w-md bg-gradient-to-b from-[#1a120a] to-black ring-1 ring-amber-500/40 rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.8)] overflow-hidden",
       onClick: (e2) => e2.stopPropagation(),
       children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-5 py-3 border-b border-amber-500/30 flex items-center justify-between", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-4 py-2.5 sm:py-3 border-b border-amber-500/30 flex items-center justify-between", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-amber-200 font-mono tracking-widest text-sm uppercase", children: "Configurações" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "button",
@@ -102727,7 +102735,7 @@ const SettingsMenu = ({ open, onClose }) => {
             }
           )
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 sm:p-5 space-y-4 sm:space-y-5 text-amber-100 max-h-[70vh] overflow-y-auto scrollbar-hide", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 sm:p-5 space-y-3 sm:space-y-5 text-amber-100 max-h-[70vh] overflow-y-auto scrollbar-hide", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(Row, { label: "Qualidade gráfica", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             Segmented,
             {
@@ -103821,14 +103829,14 @@ function App() {
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative bg-gradient-to-b from-black/95 to-black/80 backdrop-blur-xl ring-1 ring-amber-500/40 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent" }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-stretch divide-x divide-amber-500/20", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-3 sm:px-4 landscape:px-3 py-2 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[64px] sm:min-w-[90px] landscape:min-w-[80px] relative", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[56px] sm:min-w-[90px] landscape:min-w-[80px] relative", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-500/60 text-[8px] sm:text-[9px] landscape:text-[10px] font-mono uppercase tracking-[0.35em] mb-0.5", children: currentLevel === 0 ? "Location" : "Floor" }),
             currentLevel === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-300 text-base sm:text-xl landscape:text-xl font-black tracking-widest leading-none", style: { textShadow: "0 0 20px rgba(251,191,36,0.6)" }, children: "LOBBY" }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-baseline gap-0.5", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-500/50 text-xs sm:text-sm font-bold", children: "▲" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-300 text-2xl sm:text-3xl font-black font-mono leading-none tabular-nums", style: { textShadow: "0 0 25px rgba(251,191,36,0.7)" }, children: String(currentLevel).padStart(2, "0") })
             ] })
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "px-3 sm:px-4 landscape:px-3 py-2 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[80px] sm:min-w-[115px] landscape:min-w-[96px]", children: elevatorTimer !== null ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[70px] sm:min-w-[115px] landscape:min-w-[96px]", children: elevatorTimer !== null ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5 ${elevatorTimer <= 5 && !doorsClosed ? "text-red-400/80" : doorsClosed ? "text-blue-400/80" : "text-amber-400/60"}`, children: doorsClosed ? "Traveling" : elevatorTimer <= 5 ? "Closing!" : "Departing" }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-2 h-2 rounded-full ${elevatorTimer <= 5 && !doorsClosed ? "bg-red-500 animate-ping" : doorsClosed ? "bg-blue-400" : "bg-amber-400"}` }),
@@ -103839,7 +103847,7 @@ function App() {
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-green-400/80 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5", children: "Arrived" }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5 text-green-400", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { fillRule: "evenodd", d: "M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z", clipRule: "evenodd" }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-green-300 text-lg font-bold leading-none", children: "Ding!" })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-green-300 text-base sm:text-lg font-bold leading-none", children: "Ding!" })
             ] })
           ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400/60 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5", children: "Status" }),
@@ -103859,7 +103867,7 @@ function App() {
       ] })
     ] }) }) }),
     floorReveal && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[45] flex items-center justify-center pointer-events-none px-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "animate-floor-reveal text-center w-full", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-500/70 text-xs sm:text-sm font-mono uppercase tracking-[0.4em] sm:tracking-[0.6em] mb-3 sm:mb-4 animate-fade-in", children: "Now Arriving" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-500/70 text-[10px] sm:text-sm font-mono uppercase tracking-[0.3em] sm:tracking-[0.6em] mb-2 sm:mb-4 animate-fade-in", children: "Now Arriving" }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-white font-black tracking-wider tabular-nums", style: { fontSize: "clamp(2rem, 12vw, 5rem)", textShadow: "0 0 60px rgba(251,191,36,0.8), 0 0 30px rgba(255,255,255,0.4)" }, children: [
         "FLOOR ",
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400", children: String(currentLevel).padStart(2, "0") })
@@ -103913,7 +103921,7 @@ function App() {
         className: "absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]",
         children: /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleStartDialogue, className: "group relative tap-target", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1.5 bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 rounded-full blur-md opacity-80 animate-pulse" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative bg-gradient-to-b from-yellow-300 to-amber-400 text-black px-5 sm:px-8 py-3 sm:py-3.5 rounded-full font-black tracking-[0.2em] sm:tracking-[0.25em] shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-yellow-200 text-sm sm:text-base", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative bg-gradient-to-b from-yellow-300 to-amber-400 text-black px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-[0.15em] sm:tracking-[0.25em] shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-yellow-200 text-xs sm:text-base", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" }) }),
             "FALAR"
           ] })
@@ -103932,7 +103940,7 @@ function App() {
         className: "absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]",
         children: /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleSleep, className: "group relative tap-target", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full blur-md opacity-70 animate-pulse" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative bg-gradient-to-b from-slate-200 to-slate-300 text-slate-900 px-5 sm:px-8 py-3 sm:py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-blue-200 text-sm sm:text-base", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative bg-gradient-to-b from-slate-200 to-slate-300 text-slate-900 px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-blue-200 text-xs sm:text-base", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M12 3C7.03 3 3 7.03 3 12s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z" }) }),
             "DORMIR"
           ] })
@@ -103947,7 +103955,7 @@ function App() {
     ] }) }),
     barneyDialogueOpen && BARNEY_DIALOGUE[barneyDialogueNode] && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[55] flex items-end justify-center pointer-events-auto landscape:items-center landscape:py-4 overflow-y-auto", style: { background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)" }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full max-w-2xl mx-4 mb-6 landscape:mb-0 relative animate-barney-dialogue flex-shrink-0", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-gradient-to-r from-purple-500/40 via-pink-500/40 to-purple-500/40 rounded-2xl blur-lg barney-glow" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative bg-[#0d0411]/98 border-2 border-purple-500/50 rounded-xl p-3 sm:p-5 shadow-2xl", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-3 sm:gap-4 flex-col landscape:flex-row sm:flex-row", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative bg-[#0d0411]/98 border-2 border-purple-500/50 rounded-xl p-2.5 sm:p-5 shadow-2xl", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-3 sm:gap-4 flex-col landscape:flex-row sm:flex-row", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 sm:hidden landscape:hidden w-full border-b border-white/5 pb-2 mb-1", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-14 h-14 flex-shrink-0 bg-transparent rounded-none overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: BARNEY_URL, className: "w-full h-full object-contain object-top animate-barney-bounce", alt: "" }) }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
@@ -103961,8 +103969,8 @@ function App() {
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-purple-300 text-[11px] font-bold tracking-[0.3em] uppercase", children: "Barney" })
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/95 text-sm sm:text-base leading-relaxed mb-4 font-serif min-h-[3rem] landscape:min-h-0", children: /* @__PURE__ */ jsxRuntimeExports.jsx(TypewriterText, { text: BARNEY_DIALOGUE[barneyDialogueNode].text, speed: 28 }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-2 max-h-[40vh] landscape:max-h-[35vh] overflow-y-auto scrollbar-hide pr-1", children: BARNEY_DIALOGUE[barneyDialogueNode].options.map((opt, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: () => handleBarneyResponse(opt.next), className: "group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-lg text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/95 text-sm sm:text-base leading-relaxed mb-4 font-serif min-h-[2rem] sm:min-h-[3rem] landscape:min-h-0", children: /* @__PURE__ */ jsxRuntimeExports.jsx(TypewriterText, { text: BARNEY_DIALOGUE[barneyDialogueNode].text, speed: 28 }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-2 max-h-[30vh] landscape:max-h-[30vh] overflow-y-auto scrollbar-hide pr-1", children: BARNEY_DIALOGUE[barneyDialogueNode].options.map((opt, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: () => handleBarneyResponse(opt.next), className: "group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-lg text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-purple-400/60 group-hover:text-purple-300 transition-colors", children: "▸" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "flex-1", children: opt.text })
           ] }, i2)) })
