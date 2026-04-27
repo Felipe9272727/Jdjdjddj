@@ -27,7 +27,7 @@ import { resolveCollision } from './physics';
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
 
-export type BotBehavior = 'idle' | 'wander' | 'follow' | 'tour';
+export type BotBehavior = 'idle' | 'wander' | 'follow' | 'tour' | 'patrol' | 'orbit' | 'dance';
 
 export interface BotState {
     id: string;
@@ -51,10 +51,21 @@ const TOUR_WAYPOINTS: [number, number][] = [
     [0, 0],     // lobby center
 ];
 
-const COLORS = ['#fbbf24', '#a78bfa', '#34d399', '#f472b6', '#60a5fa', '#fb923c'];
+const BOT_PROFILES = [
+    { color: '#fbbf24', name: 'ECHO',    speed: 2.2, jitter: 1.5 },  // calm wanderer
+    { color: '#a78bfa', name: 'GLITCH',  speed: 3.0, jitter: 2.5 },  // erratic fast
+    { color: '#34d399', name: 'GHOST',   speed: 1.8, jitter: 0.8 },  // slow, smooth
+    { color: '#f472b6', name: 'SPARK',   speed: 2.8, jitter: 2.0 },  // energetic
+    { color: '#60a5fa', name: 'DRIFT',   speed: 2.0, jitter: 1.2 },  // chill follower
+    { color: '#fb923c', name: 'BLAZE',   speed: 3.2, jitter: 3.0 },  // chaotic
+];
 
-const SPEED = 2.4;          // slightly slower than human player so bots feel different
-const WANDER_JITTER = 1.8;  // radians/sec maximum direction noise
+const PATROL_WAYPOINTS: [number, number][] = [
+    [-8, 8], [8, 8], [8, -8], [-8, -8],  // perimeter walk
+];
+
+const DANCE_ANGLES = [0, Math.PI/2, Math.PI, Math.PI*1.5]; // spin directions
+
 const ARRIVE_DIST = 0.6;
 
 const randomLobbyPos = (): Vector3 => {
@@ -162,14 +173,22 @@ const BotAvatar = ({ state }: { state: BotState }) => {
 
     return (
         <group ref={groupRef}>
+            {/* Glow ring under bot for visibility */}
+            <mesh position={[0, 0.02, 0]} rotation={[-Math.PI/2, 0, 0]}>
+                <ringGeometry args={[0.3, 0.5, 16]} />
+                <meshBasicMaterial color={state.color} transparent opacity={0.3} toneMapped={false} />
+            </mesh>
             <primitive object={clonedScene} scale={[30, 30, 30]} position={[0, groundY, 0]} />
             <Html position={[0, 2.2, 0]} center distanceFactor={8}>
                 <div className="pointer-events-none select-none whitespace-nowrap">
-                    <div
-                        className="bg-black/75 px-2 py-0.5 rounded text-xs font-mono ring-1 ring-white/20 backdrop-blur-sm tabular-nums"
-                        style={{ color: state.color, textShadow: '0 0 6px rgba(0,0,0,0.9)' }}
-                    >
-                        {('BOT-' + state.id).slice(0, 8).toUpperCase()}
+                    <div className="flex flex-col items-center gap-0.5">
+                        <div
+                            className="bg-black/80 px-2.5 py-1 rounded-md text-[10px] font-mono font-bold tracking-wider ring-1 backdrop-blur-sm tabular-nums shadow-lg"
+                            style={{ color: state.color, ringColor: state.color + '40', textShadow: `0 0 8px ${state.color}80` }}
+                        >
+                            {state.id.toUpperCase()}
+                        </div>
+                        <div className="w-1 h-1 rounded-full" style={{ backgroundColor: state.color, boxShadow: `0 0 6px ${state.color}` }} />
                     </div>
                 </div>
             </Html>
@@ -196,17 +215,20 @@ declare global {
     }
 }
 
-const makeBot = (i: number): BotState => ({
-    id: Math.random().toString(36).slice(2, 6),
-    pos: randomLobbyPos(),
-    rot: Math.random() * Math.PI * 2,
-    anim: 'walking',
-    behavior: 'wander',
-    wanderTheta: Math.random() * Math.PI * 2,
-    target: null,
-    tourIdx: 0,
-    color: COLORS[i % COLORS.length],
-});
+const makeBot = (i: number): BotState => {
+    const profile = BOT_PROFILES[i % BOT_PROFILES.length];
+    return {
+        id: profile.name.toLowerCase() + '-' + Math.random().toString(36).slice(2, 4),
+        pos: randomLobbyPos(),
+        rot: Math.random() * Math.PI * 2,
+        anim: 'walking',
+        behavior: 'wander',
+        wanderTheta: Math.random() * Math.PI * 2,
+        target: null,
+        tourIdx: 0,
+        color: profile.color,
+    };
+};
 
 // ─── Tiny external store ──────────────────────────────────────────────────────
 // `useBots` runs inside <Canvas> (because of useFrame), but BotHud lives
@@ -252,8 +274,10 @@ export const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseD
     // disabled (App.tsx mounts conditionally), so cleanup is handled there.
     useEffect(() => {
         if (bots.length === 0) {
-            setBots([makeBot(0)]);
-            log('auto-spawned 1 bot (wander)');
+            const first = makeBot(0);
+            first.behavior = 'wander';
+            setBots([first]);
+            log('auto-spawned ECHO (wander)');
         }
         return () => {
             _storeBots = [];
@@ -303,19 +327,45 @@ export const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseD
                     break;
                 }
                 case 'tour': {
-                    if (b.tourIdx >= TOUR_WAYPOINTS.length) {
-                        b.tourIdx = 0;
-                    }
+                    if (b.tourIdx >= TOUR_WAYPOINTS.length) b.tourIdx = 0;
                     const [tx, tz] = TOUR_WAYPOINTS[b.tourIdx];
                     const dx = tx - b.pos.x, dz = tz - b.pos.z;
                     const d = Math.sqrt(dx * dx + dz * dz);
-                    if (d < ARRIVE_DIST) {
-                        b.tourIdx += 1;
-                    } else {
-                        desiredX = dx / d;
-                        desiredZ = dz / d;
+                    if (d < ARRIVE_DIST) { b.tourIdx += 1; } else {
+                        desiredX = dx / d; desiredZ = dz / d;
                         b.wanderTheta = Math.atan2(desiredX, desiredZ);
                     }
+                    break;
+                }
+                case 'patrol': {
+                    if (b.tourIdx >= PATROL_WAYPOINTS.length) b.tourIdx = 0;
+                    const [px, pz] = PATROL_WAYPOINTS[b.tourIdx];
+                    const pdx = px - b.pos.x, pdz = pz - b.pos.z;
+                    const pd = Math.sqrt(pdx * pdx + pdz * pdz);
+                    if (pd < ARRIVE_DIST) { b.tourIdx += 1; } else {
+                        desiredX = pdx / pd; desiredZ = pdz / pd;
+                        b.wanderTheta = Math.atan2(desiredX, desiredZ);
+                    }
+                    break;
+                }
+                case 'orbit': {
+                    // Circle around the lobby center at radius 5
+                    const orbitR = 5.0;
+                    const orbitSpeed = 0.8;
+                    const angle = (Date.now() * 0.001 * orbitSpeed) + (b.id.charCodeAt(0) * 0.5);
+                    const otx = Math.cos(angle) * orbitR;
+                    const otz = Math.sin(angle) * orbitR;
+                    const odx = otx - b.pos.x, odz = otz - b.pos.z;
+                    const od = Math.sqrt(odx * odx + odz * odz);
+                    if (od > 0.1) { desiredX = odx / od; desiredZ = odz / od; }
+                    b.wanderTheta = Math.atan2(desiredX, desiredZ);
+                    break;
+                }
+                case 'dance': {
+                    // Spin in place with occasional direction changes
+                    b.wanderTheta += 2.5 * dt;
+                    desiredX = Math.sin(b.wanderTheta) * 0.3;
+                    desiredZ = Math.cos(b.wanderTheta) * 0.3;
                     break;
                 }
             }
@@ -329,7 +379,7 @@ export const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseD
                 // Stuck detection: if collision pushed us back to ~same place,
                 // randomize wander angle so we can escape corners.
                 const moved = Math.hypot(rx - prevX, rz - prevZ);
-                if (moved < SPEED * dt * 0.2 && b.behavior === 'wander') {
+                if (moved < SPEED * dt * 0.2 && (b.behavior === 'wander' || b.behavior === 'patrol')) {
                     b.wanderTheta = Math.random() * Math.PI * 2;
                 }
 
@@ -357,7 +407,12 @@ export const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseD
             spawn: (n: number = 1) => {
                 const start = botsRef.current.length;
                 const next = [...botsRef.current];
-                for (let i = 0; i < n; i++) next.push(makeBot(start + i));
+                const behaviors: BotBehavior[] = ['wander', 'patrol', 'orbit'];
+                for (let i = 0; i < n; i++) {
+                    const bot = makeBot(start + i);
+                    bot.behavior = behaviors[(start + i) % behaviors.length];
+                    next.push(bot);
+                }
                 setBots(next);
                 log(`spawned ${n} bot(s) — total ${next.length}`);
             },
@@ -385,17 +440,32 @@ export const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseD
                 }
                 log('first bot running tour waypoints');
             },
+            patrol: () => {
+                setBots(botsRef.current.map((b, i) => ({ ...b, behavior: 'patrol', tourIdx: 0 })));
+                log('all bots → patrol perimeter');
+            },
+            orbit: () => {
+                setBots(botsRef.current.map((b) => ({ ...b, behavior: 'orbit' })));
+                log('all bots → orbit center');
+            },
+            dance: () => {
+                setBots(botsRef.current.map((b) => ({ ...b, behavior: 'dance' })));
+                log('all bots → dance mode');
+            },
             help: () => {
                 // eslint-disable-next-line no-console
-                console.log(`%cjubileu bot api%c
-spawn(n=1)   — adds n bots into the lobby
-despawn()    — removes all bots
-wander()     — all bots resume autonomous wandering
-follow()     — all bots flock toward the human player
+                console.log(`%c🤖 jubileu bot api%c
+spawn(n=1)   — add n bots to the lobby
+despawn()    — remove all bots
+wander()     — random organic movement
+follow()     — flock toward the player
 idle()       — all bots stop
-tour()       — first bot runs the lobby waypoint tour
+tour()       — first bot runs lobby waypoints
+patrol()     — walk the perimeter
+orbit()      — circle around lobby center
+dance()      — spin in place
 list()       — array of {id, behavior, pos}
-`, 'background:#fbbf24;color:#000;padding:2px 6px;border-radius:3px', '');
+`, 'background:#a78bfa;color:#000;padding:4px 8px;border-radius:4px;font-weight:bold', '');
             },
         };
         window.__jubileuBot = api;
@@ -423,26 +493,36 @@ export const BotHud = ({ info }: { info: { count: number; behaviors: string[]; l
     const summary = info.count === 0
         ? 'aguardando spawn'
         : `${info.count} bot${info.count > 1 ? 's' : ''} • ${[...new Set(info.behaviors)].join(', ')}`;
+    const behaviorEmoji: Record<string, string> = {
+        wander: '🌀', follow: '👣', tour: '🗺️', patrol: '🚶', orbit: '🔄', dance: '💃', idle: '😴',
+    };
     return (
         <div
-            className="fixed z-[90] pointer-events-none w-[220px] max-w-[calc(100vw-24px)] bg-black/75 ring-1 ring-fuchsia-500/40 rounded-lg backdrop-blur-sm px-3 py-2 text-[10px] font-mono text-fuchsia-200 shadow-[0_4px_24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)]"
+            className="fixed z-[90] pointer-events-none w-[200px] max-w-[calc(100vw-16px)] bg-black/80 ring-1 ring-fuchsia-500/30 rounded-xl backdrop-blur-md px-3 py-2.5 text-[10px] font-mono text-fuchsia-200 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
             style={{
-                bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
-                left: 'calc(env(safe-area-inset-left, 0px) + 12px)',
+                bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+                left: 'calc(env(safe-area-inset-left, 0px) + 8px)',
             }}
         >
-            <div className="flex items-center justify-between mb-1">
-                <span className="font-bold tracking-widest uppercase text-fuchsia-300">BOT</span>
-                <span className={`px-1.5 py-0.5 rounded text-[9px] ring-1 ${info.count > 0 ? 'bg-green-500/30 text-green-200 ring-green-500/40' : 'bg-gray-500/30 text-gray-300 ring-gray-500/40'}`}>
-                    {info.count > 0 ? 'ativo' : 'idle'}
+            <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse shadow-[0_0_6px_rgba(232,121,249,0.6)]" />
+                    <span className="font-bold tracking-widest uppercase text-fuchsia-300 text-[11px]">BOTS</span>
+                </div>
+                <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold ring-1 ${info.count > 0 ? 'bg-green-500/20 text-green-300 ring-green-500/30' : 'bg-white/5 text-white/30 ring-white/10'}`}>
+                    {info.count > 0 ? `${info.count} ON` : 'OFF'}
                 </span>
             </div>
-            <div className="text-fuchsia-100/90 mb-1 truncate">{summary}</div>
-            <div className="border-t border-fuchsia-500/20 mt-1 pt-1 max-h-[80px] overflow-hidden">
-                {info.log.map((l, i) => (
-                    <div key={i} className="text-[9px] text-fuchsia-200/70 truncate">{l}</div>
-                ))}
-            </div>
+            <div className="text-fuchsia-100/80 mb-1.5 text-[9px] truncate">{summary}</div>
+            {info.log.length > 0 && (
+                <div className="border-t border-fuchsia-500/15 pt-1.5 space-y-0.5 max-h-[60px] overflow-hidden">
+                    {info.log.slice(0, 3).map((l, i) => (
+                        <div key={i} className="text-[8px] text-fuchsia-300/50 truncate flex items-center gap-1">
+                            <span className="text-[7px]">›</span>{l}
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
