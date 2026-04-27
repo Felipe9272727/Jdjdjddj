@@ -94933,11 +94933,17 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
       where("isActive", "==", true),
       where("level", "==", clampLevel(level ?? 0))
     );
+    const GHOST_TTL_MS = 15e3;
     const unsub = onSnapshot(q2, (snap) => {
       const players = {};
+      const cutoff = Date.now() - GHOST_TTL_MS;
       snap.forEach((d) => {
+        var _a, _b2;
         if (d.id === uid) return;
-        players[d.id] = { id: d.id, ...d.data() };
+        const data = d.data();
+        const updatedAt = ((_b2 = (_a = data.updatedAt) == null ? void 0 : _a.toMillis) == null ? void 0 : _b2.call(_a)) ?? 0;
+        if (updatedAt > 0 && updatedAt < cutoff) return;
+        players[d.id] = { id: d.id, ...data };
       });
       setOtherPlayers(players);
     }, (err) => console.error("[MP] Snapshot erro:", err));
@@ -96750,19 +96756,28 @@ const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2 }) => {
     targetPos.current.set(x2, y, z);
     targetRot.current = ry;
   }, [x2, y, z, ry]);
+  const lastInitPos = reactExports.useRef(new Vector3(x2, y, z));
   reactExports.useEffect(() => {
     if (groupRef.current) {
-      groupRef.current.position.set(x2, y, z);
-      groupRef.current.rotation.y = ry;
+      const dx = x2 - lastInitPos.current.x;
+      const dz = z - lastInitPos.current.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > 5) {
+        groupRef.current.position.set(x2, y, z);
+        groupRef.current.rotation.y = ry;
+        targetPos.current.set(x2, y, z);
+        targetRot.current = ry;
+      }
+      lastInitPos.current.set(x2, y, z);
     }
-  }, []);
+  }, [x2, y, z, ry]);
   useFrame((_, dt2) => {
     if (!groupRef.current) return;
     if (hipsRef.current && hipsBindRef.current) {
       hipsRef.current.position.x = hipsBindRef.current.x;
       hipsRef.current.position.z = hipsBindRef.current.z;
     }
-    const k2 = Math.min(1, 10 * dt2);
+    const k2 = Math.min(1, 15 * dt2);
     groupRef.current.position.lerp(targetPos.current, k2);
     let d = targetRot.current - groupRef.current.rotation.y;
     while (d > Math.PI) d -= Math.PI * 2;
