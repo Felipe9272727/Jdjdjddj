@@ -479,3 +479,10 @@ Sistema de chat reescrito para ser mais parecido com o do Roblox, com fallback p
 - Sempre dar push após mudanças
 - Sempre atualizar MEMORY.md após cada passo
 
+### ⚠️ Regra: Sempre rebuildar o index.html
+- **Sempre que editar qualquer arquivo em `jubileu/src/`, gerar o build final `index.html`**
+- Comando: `cd jubileu && npm run build && node inline-build.mjs`
+- O `index.html` na raiz do repo é a versão que vai pro ar (GitHub Pages, etc.)
+- Sem isso, as mudanças no código fonte não aparecem no jogo final
+- Commitar o `index.html` atualizado junto com as mudanças do código fonte
+
