@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, limit, serverTimestamp, Firestore } from 'firebase/firestore';
-import { getAuth, signInAnonymously, onAuthStateChanged, Auth } from 'firebase/auth';
+import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, serverTimestamp, Firestore } from 'firebase/firestore';
 import fallbackConfig from '../firebase-applet-config.json';
 import { Vector3 } from 'three';
 import { MAX_LEVEL } from './constants';
@@ -26,84 +25,26 @@ const getConfig = () => {
 };
 
 let _dbCache: Firestore | null = null;
-let _authCache: Auth | null = null;
-const getServices = (): { db: Firestore; auth: Auth } | null => {
-    if (_dbCache && _authCache) return { db: _dbCache, auth: _authCache };
+const getDb = (): Firestore | null => {
+    if (_dbCache) return _dbCache;
     const cfg = getConfig();
     if (!cfg) return null;
     try {
         const app = getApps().length === 0 ? initializeApp(cfg) : getApps()[0];
         _dbCache = getFirestore(app, cfg.firestoreDatabaseId || '(default)');
-        _authCache = getAuth(app);
-        return { db: _dbCache, auth: _authCache };
+        return _dbCache;
     } catch (e) {
         console.error('[MP] Firebase init erro:', e);
         return null;
     }
 };
 
-// Wait for an authenticated UID. The Firestore rules require request.auth.uid
-// to equal the player doc id, so we sign in anonymously and use auth.uid as
-// the canonical player id (replacing the previous localStorage UUID, which
-// rules-rejected every write).
+// Use localStorage UUID as player ID — same as index-18
 const PLAYER_ID_KEY = 'jubileu_player_id';
 const getLocalPlayerId = (): string => {
     let id = localStorage.getItem(PLAYER_ID_KEY);
     if (!id) { id = crypto.randomUUID(); localStorage.setItem(PLAYER_ID_KEY, id); }
     return id;
-};
-
-const ensureSignedIn = (auth: Auth): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        // Fast path: already signed in
-        if (auth.currentUser?.uid) {
-            console.log('[MP] Already authed:', auth.currentUser.uid.slice(0, 8));
-            resolve(auth.currentUser.uid);
-            return;
-        }
-
-        let settled = false;
-        const timeout = setTimeout(() => {
-            if (!settled) {
-                settled = true;
-                console.warn('[MP] Auth timeout — falling back to local ID');
-                resolve(getLocalPlayerId());
-            }
-        }, 8000); // 8s timeout
-
-        const unsub = onAuthStateChanged(
-            auth,
-            (user) => {
-                if (settled) return;
-                if (user?.uid) {
-                    settled = true;
-                    clearTimeout(timeout);
-                    unsub();
-                    console.log('[MP] Auth success:', user.uid.slice(0, 8));
-                    resolve(user.uid);
-                }
-            },
-            (err) => {
-                if (!settled) {
-                    settled = true;
-                    clearTimeout(timeout);
-                    unsub();
-                    console.warn('[MP] Auth error, using local ID:', err.message);
-                    resolve(getLocalPlayerId());
-                }
-            }
-        );
-
-        signInAnonymously(auth).catch((err) => {
-            if (!settled) {
-                settled = true;
-                clearTimeout(timeout);
-                unsub();
-                console.warn('[MP] signInAnonymously failed, using local ID:', err.message);
-                resolve(getLocalPlayerId());
-            }
-        });
-    });
 };
 
 export interface MPPlayer {
@@ -127,67 +68,45 @@ export const useMultiplayer = (
     level: number = 0
 ) => {
     const [otherPlayers, setOtherPlayers] = useState<Record<string, MPPlayer>>({});
-    const [uid, setUid] = useState<string | null>(null);
+    const playerIdRef = useRef(getLocalPlayerId());
     const playerStateRef = useRef(playerState);
     useEffect(() => { playerStateRef.current = playerState; }, [playerState]);
 
-    // Resolve the auth UID once the hook is enabled. Without this every
-    // Firestore op below is rejected by the security rules.
+    // Subscribe to other players in the same level
     useEffect(() => {
         if (!isEnabled) return;
-        const services = getServices();
-        if (!services) {
+        const db = getDb();
+        if (!db) {
             console.warn('[MP] Sem config Firebase — check __FIREBASE_CONFIG__');
             return;
         }
-        console.log('[MP] Initializing auth...');
-        let cancelled = false;
-        ensureSignedIn(services.auth)
-            .then((id) => {
-                if (cancelled) return;
-                console.log('[MP] Ready, player ID:', id.slice(0, 8));
-                setUid(id);
-            })
-            .catch((e) => console.error('[MP] Auth fatal error:', e));
-        return () => { cancelled = true; };
-    }, [isEnabled]);
+        const uid = playerIdRef.current;
+        console.log('[MP] Ready, player ID:', uid.slice(0, 8));
 
-    // Subscribe to other players in the same level once we have a UID.
-    useEffect(() => {
-        if (!isEnabled || !uid) return;
-        const services = getServices();
-        if (!services) return;
         const q = query(
-            collection(services.db, 'worlds/main/players'),
+            collection(db, 'worlds/main/players'),
             where('worldId', '==', 'main'),
             where('isActive', '==', true),
-            where('level', '==', clampLevel(level ?? 0)),
-            // Cap reads per snapshot — the renderer can't keep up with hundreds of
-            // remote players anyway, and this bounds Firestore costs.
-            limit(50)
+            where('level', '==', clampLevel(level ?? 0))
         );
-        const GHOST_TTL_MS = 10000;
         const unsub = onSnapshot(q, (snap) => {
             const players: Record<string, MPPlayer> = {};
-            const cutoff = Date.now() - GHOST_TTL_MS;
             snap.forEach(d => {
                 if (d.id === uid) return;
-                const data = d.data();
-                const updatedAt = data.updatedAt?.toMillis?.() ?? 0;
-                if (updatedAt > 0 && updatedAt < cutoff) return;
-                players[d.id] = { id: d.id, ...data } as MPPlayer;
+                players[d.id] = { id: d.id, ...d.data() } as MPPlayer;
             });
             setOtherPlayers(players);
         }, (err) => console.error('[MP] Snapshot erro:', err));
         return () => unsub();
-    }, [isEnabled, level, uid]);
+    }, [isEnabled, level]);
 
-    // Publish own position/state. Only runs after auth resolves.
+    // Publish own position/state
     useEffect(() => {
-        if (!isEnabled || !uid || !playerPositionRef?.current) return;
-        const services = getServices();
-        if (!services) return;
-        const docRef = doc(services.db, 'worlds/main/players', uid);
+        if (!isEnabled || !playerPositionRef?.current) return;
+        const db = getDb();
+        if (!db) return;
+        const uid = playerIdRef.current;
+        const docRef = doc(db, 'worlds/main/players', uid);
 
         let initialized = false;
         let lastPos = new Vector3();
@@ -247,34 +166,24 @@ export const useMultiplayer = (
         return () => {
             clearInterval(intervalId);
             window.removeEventListener('beforeunload', handleUnload);
-            // SPA navigation away from the gameplay route unmounts this hook
-            // without firing beforeunload, so mark inactive here too.
             updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});
         };
-    }, [isEnabled, level, uid, playerPositionRef, rotationYRef]);
+    }, [isEnabled, level, playerPositionRef, rotationYRef]);
 
-    // When MP is disabled (e.g. user toggled it off), proactively flag inactive.
+    // When MP is disabled, flag inactive
     useEffect(() => {
-        if (isEnabled || !uid) return;
-        const services = getServices();
-        if (!services) return;
-        const docRef = doc(services.db, 'worlds/main/players', uid);
+        if (isEnabled) return;
+        const db = getDb();
+        if (!db) return;
+        const uid = playerIdRef.current;
+        const docRef = doc(db, 'worlds/main/players', uid);
         updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});
-    }, [isEnabled, uid]);
+    }, [isEnabled]);
 
     const login = async (): Promise<string | null> => {
-        const services = getServices();
-        if (!services) return null;
-        try {
-            const id = await ensureSignedIn(services.auth);
-            setUid(id);
-            return id;
-        } catch (e) {
-            console.error('[MP] Login erro:', e);
-            return null;
-        }
+        return playerIdRef.current;
     };
-    const user = uid ? { uid } : null;
+    const user = { uid: playerIdRef.current };
 
     return { user, login, otherPlayers };
 };
