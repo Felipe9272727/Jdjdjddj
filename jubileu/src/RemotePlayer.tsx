@@ -112,7 +112,7 @@ export const RemotePlayer = ({ id, x, y, z, ry, state, name, chatMsg, chatAt }: 
         return () => clearTimeout(timer);
     }, [chatMsg, chatAt]);
 
-    const displayName = name || 'P-' + (id || '').slice(0, 4).toUpperCase();
+    const displayName = (name || 'P-' + (id || '').slice(0, 4).toUpperCase()).slice(0, 16);
 
     return (
         <group ref={groupRef}>

@@ -121,7 +121,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                     >
                         {messages.length === 0 && (
                             <div className="text-white/45 text-xs text-center py-3 px-4">
-                                Press / to chat
+                                Pressione <kbd className="px-1 py-0.5 bg-white/10 rounded text-[10px] font-mono">/</kbd> para conversar
                             </div>
                         )}
                         {messages.slice(-30).map((msg, i) => {
@@ -257,7 +257,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                         >
                             {messages.length === 0 && (
                                 <div className="text-white/45 text-xs text-center py-4">
-                                    No messages yet
+                                    Nenhuma mensagem ainda
                                 </div>
                             )}
                             {messages.slice(-30).map((msg, i) => {

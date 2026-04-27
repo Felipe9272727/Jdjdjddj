@@ -11,6 +11,7 @@ export const MainMenu = ({ onPlay }: any) => {
   const [loginError, setLoginError] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [easterEgg, setEasterEgg] = useState(0);
   const [playerName, setPlayerNameState] = useState(getPlayerName());
 
   // Dummy refs — isEnabled=false so the hook returns early without touching Firebase
@@ -419,7 +420,11 @@ export const MainMenu = ({ onPlay }: any) => {
             <span className="text-red-500">●</span> REC<span className="ml-4">CAM_01</span>
           </div>
           <div className="absolute bottom-6 left-6 text-white/40 text-xs tracking-wider hidden md:block">© 2026 LIMINAL SYSTEMS</div>
-          <div className="absolute bottom-6 right-6 text-white/40 text-xs tracking-wider hidden md:block">v1.0.3</div>
+          <div className="absolute bottom-6 right-6 text-white/40 text-xs tracking-wider hidden md:block cursor-default select-none" onClick={() => setEasterEgg(p => p + 1)}>
+            {easterEgg >= 3 ? (
+              <span className="text-amber-400 animate-pulse">🏆 O elevador sabe de tudo...</span>
+            ) : 'v1.0.3'}
+          </div>
         </div>
         <div className="absolute inset-0 pointer-events-none opacity-[0.02]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)' }} />
       </div>

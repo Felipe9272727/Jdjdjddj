@@ -1,7 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, Loader } from '@react-three/drei';
 import { Vector3, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
+
+// ─── Error Boundary for Canvas ─────────────────────────────────────────────
+class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
+  state = { hasError: false, error: '' };
+  static getDerivedStateFromError(error: Error) { return { hasError: true, error: error.message }; }
+  render() {
+    if (this.state.hasError) {
+      return <div className="absolute inset-0 flex items-center justify-center bg-black"><div className="text-center px-6"><div className="text-amber-400 text-lg font-bold mb-2">Algo deu errado</div><div className="text-white/50 text-sm font-mono mb-4">{this.state.error}</div><button onClick={() => window.location.reload()} className="bg-amber-500 text-black px-4 py-2 rounded-lg font-bold text-sm">Recarregar</button></div></div>;
+    }
+    return this.props.children;
+  }
+}
 
 import { LiminalAudioEngine } from './AudioEngine';
 import { MainMenu } from './MainMenu';
@@ -428,6 +440,7 @@ export default function App() {
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted} masterVolume={settings.masterVolume} nightMode={nightMode} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
+      <CanvasErrorBoundary>
       <Canvas
         // NOTE: no `key` here. Re-keying on settings change would unmount/remount
         // the entire scene (and reload every GLB!), which is what was causing the
@@ -457,6 +470,7 @@ export default function App() {
             )}
         </Suspense>
       </Canvas>
+      </CanvasErrorBoundary>
       <Loader />
       {!hasStarted && <MainMenu onPlay={handleStartGame} />}
       
@@ -679,9 +693,10 @@ export default function App() {
       )}
       {hasStarted && gameState === 'saved' && (
         <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-6 overflow-hidden">
-          <div className="text-center w-full">
-            <div className="text-green-400 font-black mb-3 animate-fade-in" style={{ fontSize: 'clamp(1.5rem, 8vw, 3rem)' }}>VOCÊ SOBREVIVEU</div>
-            <div className="text-white/60 text-base sm:text-lg font-mono">Por enquanto...</div>
+          <div className="text-center w-full animate-fade-in">
+            <div className="text-green-400 font-black mb-2" style={{ fontSize: 'clamp(1.5rem, 8vw, 3rem)', textShadow: '0 0 40px rgba(74,222,128,0.5)' }}>VOCÊ SOBREVIVEU</div>
+            <div className="h-[2px] w-24 mx-auto mb-3 bg-gradient-to-r from-transparent via-green-400 to-transparent" />
+            <div className="text-white/50 text-base sm:text-lg font-light tracking-wider">Por enquanto...</div>
           </div>
         </div>
       )}

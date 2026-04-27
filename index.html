@@ -483,6 +483,10 @@
     position: relative;
   }
 
+  .static {
+    position: static;
+  }
+
   .sticky {
     position: sticky;
   }
@@ -1203,6 +1207,10 @@
 
   .animate-pulse {
     animation: var(--animate-pulse);
+  }
+
+  .cursor-default {
+    cursor: default;
   }
 
   .resize {
@@ -2243,6 +2251,12 @@
   }
 
   .via-black\/95 {
+    --tw-gradient-via-stops: var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-via-stops);
+  }
+
+  .via-green-400 {
+    --tw-gradient-via: var(--color-green-400);
     --tw-gradient-via-stops: var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position);
     --tw-gradient-stops: var(--tw-gradient-via-stops);
   }
@@ -4298,6 +4312,18 @@ canvas {
   display: block;
 }
 
+@keyframes hud-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .hud-fixed {
   pointer-events: none;
   z-index: 40;
@@ -4308,6 +4334,7 @@ canvas {
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   box-sizing: border-box;
+  animation: .6s ease-out hud-fade-in;
   position: fixed;
   inset: 0;
 }
@@ -4327,6 +4354,30 @@ canvas {
 .tap-target {
   min-width: 44px;
   min-height: 44px;
+}
+
+button {
+  transition: transform .12s ease-out, opacity .12s ease-out;
+}
+
+button:active {
+  transform: scale(.97);
+}
+
+@media (hover: hover) {
+  button:hover {
+    transform: scale(1.02);
+  }
+}
+
+:focus-visible {
+  outline-offset: 2px;
+  border-radius: 4px;
+  outline: 2px solid #fbbf2499;
+}
+
+button:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .scrollbar-hide {
@@ -4775,6 +4826,19 @@ input[type="range"]::-webkit-slider-runnable-track {
 
 .animate-barney-bounce {
   animation: 2s ease-in-out infinite barney-image-bounce;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, :before, :after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .animate-pulse, .animate-bounce, .animate-ping, .animate-barney-bounce, .animate-barney-dialogue, .animate-jumpscare, .animate-floor-reveal, .animate-fade-in, .animate-fade-in-up, .animate-glow-pulse, .speech-bubble, .traveling-vignette, .barney-glow {
+    animation: none !important;
+  }
 }
 
 .scanlines:after {
@@ -95401,6 +95465,7 @@ const MainMenu = ({ onPlay }) => {
   const [loginError, setLoginError] = reactExports.useState("");
   const [copiedLink, setCopiedLink] = reactExports.useState(false);
   const [isFullscreen, setIsFullscreen] = reactExports.useState(false);
+  const [easterEgg, setEasterEgg] = reactExports.useState(0);
   const [playerName, setPlayerNameState] = reactExports.useState(getPlayerName());
   const { user, login } = useMultiplayer({ current: null }, { current: 0 }, "idle", false);
   const handlePlay = async () => {
@@ -95762,7 +95827,7 @@ const MainMenu = ({ onPlay }) => {
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "ml-4", children: "CAM_01" })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 left-6 text-white/40 text-xs tracking-wider hidden md:block", children: "© 2026 LIMINAL SYSTEMS" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 right-6 text-white/40 text-xs tracking-wider hidden md:block", children: "v1.0.3" })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 right-6 text-white/40 text-xs tracking-wider hidden md:block cursor-default select-none", onClick: () => setEasterEgg((p2) => p2 + 1), children: easterEgg >= 3 ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400 animate-pulse", children: "🏆 O elevador sabe de tudo..." }) : "v1.0.3" })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 pointer-events-none opacity-[0.02]", style: { backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)" } })
   ] });
@@ -97201,7 +97266,7 @@ const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2, name: name2, chatMsg
     const timer2 = setTimeout(() => setShowChat(false), remaining);
     return () => clearTimeout(timer2);
   }, [chatMsg, chatAt]);
-  const displayName = name2 || "P-" + (id || "").slice(0, 4).toUpperCase();
+  const displayName = (name2 || "P-" + (id || "").slice(0, 4).toUpperCase()).slice(0, 16);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene, scale: [30, 30, 30], position: [0, groundY, 0] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.3, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none select-none whitespace-nowrap", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/70 text-white px-2.5 py-0.5 rounded-md text-[11px] font-bold font-mono border border-white/20 backdrop-blur-sm tracking-wider text-center shadow-lg", children: displayName }) }) }),
@@ -98036,7 +98101,11 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
                 padding: "6px 0"
               },
               children: [
-                messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/45 text-xs text-center py-3 px-4", children: "Press / to chat" }),
+                messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-white/45 text-xs text-center py-3 px-4", children: [
+                  "Pressione ",
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("kbd", { className: "px-1 py-0.5 bg-white/10 rounded text-[10px] font-mono", children: "/" }),
+                  " para conversar"
+                ] }),
                 messages.slice(-30).map((msg, i2) => {
                   const age = Date.now() - msg.timestamp;
                   const fadeOut = age > 25e3;
@@ -98186,7 +98255,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
                   className: "flex-1 overflow-y-auto scrollbar-hide px-2.5 py-1",
                   style: { maxHeight: "calc(min(340px, 50dvh) - 90px)" },
                   children: [
-                    messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/45 text-xs text-center py-4", children: "No messages yet" }),
+                    messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/45 text-xs text-center py-4", children: "Nenhuma mensagem ainda" }),
                     messages.slice(-30).map((msg, i2) => {
                       const isMe = msg.id === currentUserId;
                       const nameColor = getNameColor(msg.name, isMe);
@@ -98317,6 +98386,25 @@ const BubbleChatFallback = ({ messages, currentUserId }) => {
     }
   );
 };
+class CanvasErrorBoundary extends reactExports.Component {
+  constructor() {
+    super(...arguments);
+    this.state = { hasError: false, error: "" };
+  }
+  static getDerivedStateFromError(error2) {
+    return { hasError: true, error: error2.message };
+  }
+  render() {
+    if (this.state.hasError) {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 flex items-center justify-center bg-black", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center px-6", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-lg font-bold mb-2", children: "Algo deu errado" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/50 text-sm font-mono mb-4", children: this.state.error }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => window.location.reload(), className: "bg-amber-500 text-black px-4 py-2 rounded-lg font-bold text-sm", children: "Recarregar" })
+      ] }) });
+    }
+    return this.props.children;
+  }
+}
 const MAX_JOYSTICK_RADIUS = 50;
 const World = ({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, otherPlayers }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
   level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(LobbyEnvironment, { npcPositionRef, isPaused, playerPositionRef }),
@@ -98822,7 +98910,7 @@ function App() {
     /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx, muted, masterVolume: settings.masterVolume, nightMode }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out", style: { opacity: overlayOpacity } }),
     cameraShake && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-20 pointer-events-none traveling-vignette" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
+    /* @__PURE__ */ jsxRuntimeExports.jsx(CanvasErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       Canvas,
       {
         camera: { fov: 75, near: 0.1, far: QUALITY_PROFILES[settings.quality].far },
@@ -98856,7 +98944,7 @@ function App() {
           )
         ] })
       }
-    ),
+    ) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Loader2, {}),
     !hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(MainMenu, { onPlay: handleStartGame }),
     hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "hud-fixed", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute left-1/2 -translate-x-1/2 px-2 max-w-[calc(100%-1rem)] pe-none top-2 landscape:top-1", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative", children: [
@@ -99007,9 +99095,10 @@ function App() {
     ),
     hasStarted && gameState === "indoor_night" && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorTimer !== null ? "top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]" : "top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-red-950/80 ring-1 ring-red-500/40 text-red-200 px-3 sm:px-4 py-2 rounded-lg font-mono text-[11px] sm:text-sm tracking-wider animate-pulse", children: "Algo não está certo..." }) }),
     hasStarted && gameState === "chase" && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorTimer !== null ? "top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]" : "top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-[11px] sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight", children: "⚠ CORRA PARA O ELEVADOR ⚠" }) }),
-    hasStarted && gameState === "saved" && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-6 overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center w-full", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-green-400 font-black mb-3 animate-fade-in", style: { fontSize: "clamp(1.5rem, 8vw, 3rem)" }, children: "VOCÊ SOBREVIVEU" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/60 text-base sm:text-lg font-mono", children: "Por enquanto..." })
+    hasStarted && gameState === "saved" && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-6 overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center w-full animate-fade-in", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-green-400 font-black mb-2", style: { fontSize: "clamp(1.5rem, 8vw, 3rem)", textShadow: "0 0 40px rgba(74,222,128,0.5)" }, children: "VOCÊ SOBREVIVEU" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-[2px] w-24 mx-auto mb-3 bg-gradient-to-r from-transparent via-green-400 to-transparent" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/50 text-base sm:text-lg font-light tracking-wider", children: "Por enquanto..." })
     ] }) }),
     barneyDialogueOpen && BARNEY_DIALOGUE[barneyDialogueNode] && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[55] flex items-end justify-center pointer-events-auto landscape:items-center landscape:py-4 overflow-y-auto", style: { background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)" }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full max-w-2xl mx-4 mb-6 landscape:mb-0 relative animate-barney-dialogue flex-shrink-0", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-gradient-to-r from-purple-500/40 via-pink-500/40 to-purple-500/40 rounded-2xl blur-lg barney-glow" }),
