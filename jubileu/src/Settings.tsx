@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, createContext, useContext } from 'react';
-import { TYPE, COMPONENT } from '../design-tokens';
+import { TYPE, COMPONENT } from './design-tokens';
 
 export type Quality = 'low' | 'medium' | 'high';
 

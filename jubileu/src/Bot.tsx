@@ -4,7 +4,7 @@ import { useGLTF, useAnimations, Html } from '@react-three/drei';
 import { Vector3 } from 'three';
 import * as THREE from 'three';
 import { SkeletonUtils } from 'three-stdlib';
-import { WALKING_URL, IDLE_URL, LOBBY_W, ELEV_W, HOUSE_DW, L1_BND, ELEV_BLD, HOUSE_EX, HOUSE_IN, DOOR_SEAL, PR } from './constants';
+import { WALKING_URL, IDLE_URL, LOBBY_W, ELEV_W, HOUSE_DW, L1_BND, ELEV_BLD, HOUSE_EX, HOUSE_IN, DOOR_SEAL, PR, SPEED } from './constants';
 import { resolveCollision } from './physics';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,6 +67,7 @@ const PATROL_WAYPOINTS: [number, number][] = [
 const DANCE_ANGLES = [0, Math.PI/2, Math.PI, Math.PI*1.5]; // spin directions
 
 const ARRIVE_DIST = 0.6;
+const WANDER_JITTER = 2.0;
 
 const randomLobbyPos = (): Vector3 => {
     // Spawn in the lobby quadrants, away from walls.
@@ -184,7 +185,7 @@ const BotAvatar = ({ state }: { state: BotState }) => {
                     <div className="flex flex-col items-center gap-0.5">
                         <div
                             className="bg-black/80 px-2.5 py-1 rounded-md text-[10px] font-mono font-bold tracking-wider ring-1 backdrop-blur-sm tabular-nums shadow-lg"
-                            style={{ color: state.color, ringColor: state.color + '40', textShadow: `0 0 8px ${state.color}80` }}
+                            style={{ color: state.color, boxShadow: `0 0 0 1px ${state.color}40, 0 0 8px ${state.color}80` }}
                         >
                             {state.id.toUpperCase()}
                         </div>

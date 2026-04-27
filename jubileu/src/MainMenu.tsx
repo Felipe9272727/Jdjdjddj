@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { TYPE, COMPONENT } from '../design-tokens';
+import { TYPE, COMPONENT } from './design-tokens';
 import { useMultiplayer, getPlayerName, setPlayerName } from './Multiplayer';
 
 export const MainMenu = ({ onPlay }: any) => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TYPE, COMPONENT } from '../design-tokens';
+import { TYPE, COMPONENT } from './design-tokens';
 import { DIALOGUE_TREE, BARNEY_URL } from './constants';
 
 export const VisualJoystick = ({ x, y, active, origin }: any) => {
