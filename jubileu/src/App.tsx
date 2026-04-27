@@ -469,7 +469,7 @@ export default function App() {
             <div className="relative bg-gradient-to-b from-black/95 to-black/80 backdrop-blur-xl ring-1 ring-amber-500/40 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
               <div className="flex items-stretch divide-x divide-amber-500/20">
-                <div className="px-3 sm:px-4 landscape:px-2.5 py-2 sm:py-2.5 landscape:py-1.5 flex flex-col items-center justify-center min-w-[80px] sm:min-w-[90px] landscape:min-w-[72px] relative">
+                <div className="px-3 sm:px-4 landscape:px-3 py-2 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[80px] sm:min-w-[90px] landscape:min-w-[80px] relative">
                   <span className="text-amber-500/60 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5">{currentLevel === 0 ? 'Location' : 'Floor'}</span>
                   {currentLevel === 0 ? (
                     <span className="text-amber-300 text-lg sm:text-xl font-black tracking-widest leading-none" style={{ textShadow: '0 0 20px rgba(251,191,36,0.6)' }}>LOBBY</span>
@@ -480,7 +480,7 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                <div className="px-3 sm:px-4 landscape:px-2.5 py-2 sm:py-2.5 landscape:py-1.5 flex flex-col items-center justify-center min-w-[100px] sm:min-w-[115px] landscape:min-w-[88px]">
+                <div className="px-3 sm:px-4 landscape:px-3 py-2 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[100px] sm:min-w-[115px] landscape:min-w-[96px]">
                   {elevatorTimer !== null ? (
                     <>
                       <span className={`text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5 ${(elevatorTimer <= 5 && !doorsClosed) ? 'text-red-400/80' : doorsClosed ? 'text-blue-400/80' : 'text-amber-400/60'}`}>
@@ -544,8 +544,8 @@ export default function App() {
         >
           <button onClick={() => setSettingsOpen(true)} className="relative group" aria-label="Configurações">
             <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 landscape:p-1.5 rounded-full transition-all group-active:scale-95 tap-target">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#fbbf24" className="w-6 h-6 landscape:w-5 landscape:h-5">
+            <div className="relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 landscape:p-2 rounded-full transition-all group-active:scale-95 tap-target">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#fbbf24" className="w-6 h-6 landscape:w-6 landscape:h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
               </svg>
@@ -553,11 +553,11 @@ export default function App() {
           </button>
           <button onClick={() => setMuted(!muted)} className="relative group" aria-label={muted ? 'Ativar som' : 'Silenciar'}>
             <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 landscape:p-1.5 rounded-full transition-all group-active:scale-95 tap-target">
+            <div className="relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 landscape:p-2 rounded-full transition-all group-active:scale-95 tap-target">
               {muted ? (
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#f87171" className="w-6 h-6 landscape:w-5 landscape:h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#f87171" className="w-6 h-6 landscape:w-6 landscape:h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#fbbf24" className="w-6 h-6 landscape:w-5 landscape:h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#fbbf24" className="w-6 h-6 landscape:w-6 landscape:h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
               )}
             </div>
           </button>
