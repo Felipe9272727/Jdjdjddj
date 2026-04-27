@@ -9,7 +9,7 @@ class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasErr
   static getDerivedStateFromError(error: Error) { return { hasError: true, error: error.message }; }
   render() {
     if (this.state.hasError) {
-      return <div className="absolute inset-0 flex items-center justify-center bg-black"><div className="text-center px-6"><div className="text-amber-400 text-lg font-bold mb-2">Algo deu errado</div><div className="text-white/50 text-sm font-mono mb-4">{this.state.error}</div><button onClick={() => window.location.reload()} className="bg-amber-500 text-black px-4 py-2 rounded-lg font-bold text-sm">Recarregar</button></div></div>;
+      return <div className="absolute inset-0 flex items-center justify-center bg-black"><div className="text-center px-6"><div className="text-amber-400 text-lg font-bold mb-2">Algo deu errado</div><div className="text-white/50 text-sm font-mono mb-4">{this.state.error}</div><button onClick={() => window.location.reload()} aria-label="Recarregar página" className="bg-amber-500 text-black px-4 py-2 rounded-lg font-bold text-sm">Recarregar</button></div></div>;
     }
     return this.props.children;
   }
@@ -30,7 +30,7 @@ import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
 import { RobloxChat, BubbleChatFallback } from './ChatSystem';
 import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient } from './PostEffects';
 import { CeilingFan, WallClock, playArrivalDing, createElevatorHum } from './Atmosphere';
-import { COMPONENT, Z, TYPE } from './design-tokens';
+
 
 const MAX_JOYSTICK_RADIUS = 50;
 
@@ -752,7 +752,7 @@ export default function App() {
                   </div>
                   <div className="flex flex-col gap-2 max-h-[35vh] landscape:max-h-[30vh] overflow-y-auto scrollbar-hide pr-1">
                     {BARNEY_DIALOGUE[barneyDialogueNode].options.map((opt: any, i: number) => (
-                      <button key={i} onClick={() => handleBarneyResponse(opt.next)} className="group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-lg text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0">
+                      <button key={i} onClick={() => handleBarneyResponse(opt.next)} aria-label={opt.text} className="group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-lg text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0">
                         <span className="text-purple-400/60 group-hover:text-purple-300 transition-colors">▸</span>
                         <span className="flex-1">{opt.text}</span>
                       </button>

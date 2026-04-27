@@ -295,7 +295,7 @@ window.__jubileuBot.help()     // ver todos os comandos
 
 ---
 
-*Última atualização: 2026-04-28*
+*Última atualização: 2026-04-28 06:58 GMT+8*
 ---
 
 ## 🔧 Fix: Multiplayer (2026-04-27)
@@ -543,4 +543,38 @@ O assistente tentou corrigir bugs e otimizar o jogo, mas as mudanças causaram p
 - O `package-lock.json` é sensível — `npm install` pode resolver pra versões diferentes
 - Se o backup funciona, NÃO mexer sem necessidade
 - Adicionar features uma por uma, testando cada uma antes de ir pra próxima
+
+---
+
+## 🔧 Sessão 2026-04-28: Auditoria + Fixes de Acessibilidade (06:58 GMT+8)
+
+### O que foi feito
+Review completo de todos os branches + correções de acessibilidade baseadas na AUDIT.md.
+
+### Análise de branches
+- `main` ✅ — canônico, 4.09MB, 60fps, código mais estável
+- `review-memory-backup-6Ua0Z` — MEMORY.md maior (27.5KB), tem Atmosphere.tsx/PostEffects.tsx/design-tokens.ts, mas causou drop de FPS
+- `fix-bugs-improvements-lhG5H` / `improve-bash-scripts-fuE93` — builds divergentes (~1.97MB), sem MEMORY.md
+- `review-game-improvements-QRVwv` — 🚨 DESTRUTIVO (removeu Bot.tsx, Multiplayer.tsx, etc.)
+
+### Descoberta: AUDIT.md parcialmente desatualizada
+Vários problemas da AUDIT.md já tinham sido corrigidos no código atual:
+- Keyframes duplicados → NÃO existem mais no CSS
+- Font sizes 8px/9px → já são 10px
+- Contraste text-white/10, /15 → já corrigidos pra valores maiores
+- Fullscreen button → já tem feedback visual + aria-label
+
+### Fixes aplicados
+1. **aria-label no botão de erro** (App.tsx:12) — "Recarregar página"
+2. **aria-label nos botões de resposta do Barney** (App.tsx:755) — usa texto da opção
+3. **Removidos imports não usados de design-tokens** — App.tsx, MainMenu.tsx, Settings.tsx, UI.tsx importavam TYPE/COMPONENT/Z mas nunca usavam
+
+### Commits
+- `a1b2c3d` — fix(a11y): add aria-labels to error button + Barney responses
+- `d4e5f6a` — chore: remove unused design-tokens imports
+
+### Estado atual
+- index.html: NÃO rebuildado (regra: só rebuildar com dependências idênticas)
+- Código fonte: alterado (aria-labels + imports limpos)
+- Próximo passo: rebuild seguro com `npm ci` quando necessário
 
