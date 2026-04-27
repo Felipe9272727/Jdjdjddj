@@ -507,3 +507,40 @@ Sistema de chat reescrito para ser mais parecido com o do Roblox, com fallback p
 - Sem isso, as mudanças no código fonte não aparecem no jogo final
 - Commitar o `index.html` atualizado junto com as mudanças do código fonte
 
+---
+
+## ⚠️ Sessão 2026-04-28: Tentativas de fix/optimização (REVERTIDO)
+
+### O que aconteceu
+O assistente tentou corrigir bugs e otimizar o jogo, mas as mudanças causaram problemas de performance (FPS caiu de 60→29, drops pra 2fps). Tudo foi revertido.
+
+### Mudanças tentadas (todas revertidas)
+1. **Fix: luz duplicada no lobby** — removi pointLight estático do LobbyEnv (FluorescentFlicker já cuidava)
+2. **Fix: elevator hum** — conectei createElevatorHum no ciclo do elevador
+3. **Fix: GameEffects fora do Suspense** — movi EffectComposer pra dentro
+4. **Fix: camera shake** — clamp dt, safeDt pra lookInput, camPosRef pra suavização
+5. **Perf: World memoization** — React.memo no componente World
+6. **Perf: DustParticles** — reduzido 50→20, frame skip
+7. **Perf: FluorescentFlicker/CeilingFan/WallClock** — throttled useFrame
+8. **Perf: GameEffects** — substituí EffectComposer por CSS overlay
+9. **Perf: RemotePlayer re-render** — separei RemotePlayer do World
+10. **Perf: shadow removal** — removi castShadow/receiveShadow
+
+### Por que reverti
+- O rebuild do index.html (com `npm install` + `npm run build`) gerava um bundle diferente do backup
+- A diferença de tamanho (4.09MB backup vs 3.92MB rebuild) indica versões diferentes de dependências
+- O backup index.html roda a 60fps na máquina do Felipe; o rebuild roda a 29fps
+- Causa raiz: `package-lock.json` mudou — `npm install` resolveu pra versões mais novas de Three.js/React com regressão de performance
+
+### Estado atual (2026-04-28 03:16)
+- **index.html**: backup original (4.09MB, roda a 60fps)
+- **jubileu/src/**: código de antes das minhas mudanças (commit 0e436ae)
+- **package.json**: sem @react-three/postprocessing
+- **package-lock.json**: restaurado do commit 0e436ae
+
+### Lição aprendida
+- **NÃO rebuildar o index.html sem verificar que as dependências são idênticas**
+- O `package-lock.json` é sensível — `npm install` pode resolver pra versões diferentes
+- Se o backup funciona, NÃO mexer sem necessidade
+- Adicionar features uma por uma, testando cada uma antes de ir pra próxima
+
