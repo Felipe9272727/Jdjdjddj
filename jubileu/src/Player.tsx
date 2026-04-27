@@ -181,7 +181,11 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             const ld = 5; camera.lookAt(pos.current.x - Math.sin(camAng.current.theta)*ld*Math.cos(camAng.current.phi), ly - Math.sin(camAng.current.phi)*ld, pos.current.z - Math.cos(camAng.current.theta)*ld*Math.cos(camAng.current.phi));
             (camera as THREE.PerspectiveCamera).fov = 90; camera.updateProjectionMatrix();
         } else {
-            const asp = size.width/size.height; const tFov = asp < 1 ? 90 : 75;
+            // Smooth FOV transition with hysteresis band around 1:1 aspect ratio.
+            // Portrait (<0.85): 90° | Landscape (>1.15): 75° | Between: interpolated.
+            // Avoids flicker when aspect hovers near 1:1 (foldables, tablets).
+            const asp = size.width / size.height;
+            const tFov = asp < 0.85 ? 90 : asp > 1.15 ? 75 : 90 - ((asp - 0.85) / 0.30) * 15;
             if (Math.abs((camera as THREE.PerspectiveCamera).fov-tFov) > 0.1) { (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, tFov, 5*dt); camera.updateProjectionMatrix(); }
             const cx = pos.current.x + Math.sin(camAng.current.theta)*zoomLevel*Math.cos(camAng.current.phi);
             const cz = pos.current.z + Math.cos(camAng.current.theta)*zoomLevel*Math.cos(camAng.current.phi);

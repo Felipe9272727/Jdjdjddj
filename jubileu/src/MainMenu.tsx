@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useMultiplayer } from './Multiplayer';
 
 export const MainMenu = ({ onPlay }: any) => {
@@ -75,16 +75,22 @@ export const MainMenu = ({ onPlay }: any) => {
           <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f] via-[#0d0d15] to-[#05050a]" />
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200%] h-[60%] bg-gradient-to-b from-amber-500/[0.03] via-transparent to-transparent" style={{ clipPath: 'polygon(40% 0%, 60% 0%, 80% 100%, 20% 100%)' }} />
           <div className="absolute inset-0 overflow-hidden">
-            {[...Array(30)].map((_, i) => (
+            {useMemo(() => Array.from({ length: 30 }, (_, i) => ({
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              duration: 5 + Math.random() * 10,
+              delay: Math.random() * 5,
+              scale: 0.5 + Math.random() * 1,
+            })), []).map((p: any, i: number) => (
               <div
                 key={i}
                 className="absolute w-1 h-1 bg-yellow-200/30 rounded-full"
                 style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                  animation: `float ${5 + Math.random() * 10}s ease-in-out infinite`,
-                  animationDelay: `${Math.random() * 5}s`,
-                  transform: `scale(${0.5 + Math.random() * 1})`
+                  left: p.left,
+                  top: p.top,
+                  animation: `float ${p.duration}s ease-in-out infinite`,
+                  animationDelay: `${p.delay}s`,
+                  transform: `scale(${p.scale})`
                 }}
               />
             ))}

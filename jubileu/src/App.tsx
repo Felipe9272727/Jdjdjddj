@@ -469,10 +469,10 @@ export default function App() {
             <div className="relative bg-gradient-to-b from-black/95 to-black/80 backdrop-blur-xl ring-1 ring-amber-500/40 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
               <div className="flex items-stretch divide-x divide-amber-500/20">
-                <div className="px-3 sm:px-4 landscape:px-2.5 py-2 sm:py-2.5 landscape:py-1.5 flex flex-col items-center justify-center min-w-[72px] sm:min-w-[85px] landscape:min-w-[64px] relative">
+                <div className="px-3 sm:px-4 landscape:px-2.5 py-2 sm:py-2.5 landscape:py-1.5 flex flex-col items-center justify-center min-w-[80px] sm:min-w-[90px] landscape:min-w-[72px] relative">
                   <span className="text-amber-500/60 text-[8px] font-mono uppercase tracking-[0.35em] mb-0.5">{currentLevel === 0 ? 'Location' : 'Floor'}</span>
                   {currentLevel === 0 ? (
-                    <span className="text-amber-300 text-base sm:text-lg font-black tracking-widest leading-none" style={{ textShadow: '0 0 20px rgba(251,191,36,0.6)' }}>LOBBY</span>
+                    <span className="text-amber-300 text-lg sm:text-xl font-black tracking-widest leading-none" style={{ textShadow: '0 0 20px rgba(251,191,36,0.6)' }}>LOBBY</span>
                   ) : (
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-amber-500/50 text-xs sm:text-sm font-bold">▲</span>
@@ -634,19 +634,19 @@ export default function App() {
           ~88px clearance under the elevator panel; landscape phones have far
           less vertical room so we sit close to the top edge instead. */}
       {hasStarted && gameState === 'indoor_night' && (
-        <div className="absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[60%] top-[calc(env(safe-area-inset-top,0px)+88px)] landscape:top-[calc(env(safe-area-inset-top,0px)+56px)]">
+        <div className={`absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[60%] ${elevatorTimer !== null ? 'top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]' : 'top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]'}`}>
           <div className="bg-red-950/80 ring-1 ring-red-500/40 text-red-200 px-3 sm:px-4 py-2 rounded-lg font-mono text-[11px] sm:text-sm tracking-wider animate-pulse">Algo não está certo...</div>
         </div>
       )}
       {hasStarted && gameState === 'chase' && (
-        <div className="absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] top-[calc(env(safe-area-inset-top,0px)+88px)] landscape:top-[calc(env(safe-area-inset-top,0px)+56px)]">
+        <div className={`absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorTimer !== null ? 'top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]' : 'top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]'}`}>
           <div className="bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-xs sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center">
             ⚠ CORRA PARA O ELEVADOR ⚠
           </div>
         </div>
       )}
       {hasStarted && gameState === 'saved' && (
-        <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-4">
+        <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-4 overflow-hidden">
           <div className="text-center w-full">
             <div className="text-green-400 font-black mb-3 animate-fade-in" style={{ fontSize: 'clamp(2rem, 9vw, 3rem)' }}>VOCÊ SOBREVIVEU</div>
             <div className="text-white/60 text-base sm:text-lg font-mono">Por enquanto...</div>
@@ -661,8 +661,8 @@ export default function App() {
             <div className="relative bg-[#0d0411]/98 border-2 border-purple-500/50 rounded-xl p-3 sm:p-5 shadow-2xl">
               <div className="flex items-start gap-3 sm:gap-4 flex-col landscape:flex-row sm:flex-row">
                 {/* Mobile portrait text-only image or smaller image */}
-                <div className="flex items-center gap-3 sm:hidden landscape:hidden w-full border-b border-white/5 pb-2">
-                   <div className="w-12 h-12 flex-shrink-0 bg-transparent rounded-none overflow-hidden">
+                <div className="flex items-center gap-3 sm:hidden landscape:hidden w-full border-b border-white/5 pb-2 mb-1">
+                   <div className="w-14 h-14 flex-shrink-0 bg-transparent rounded-none overflow-hidden">
                      <img src={BARNEY_URL} className="w-full h-full object-contain object-top animate-barney-bounce" alt="" />
                    </div>
                    <div className="flex items-center gap-2">
