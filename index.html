@@ -96007,6 +96007,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
   const timeRef = reactExports.useRef(0);
   const camPosRef = reactExports.useRef(new Vector3(0, 0, 8));
   const camLookSmoothRef = reactExports.useRef(new Vector3(0, 1.6, 8));
+  const camInitRef = reactExports.useRef(false);
   reactExports.useEffect(() => {
     elevTriggered.current = false;
   }, [currentLevel]);
@@ -96017,11 +96018,27 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
     if (positionCmdRef && positionCmdRef.current) {
       pos.current.set(positionCmdRef.current.x, positionCmdRef.current.y, positionCmdRef.current.z);
       positionCmdRef.current = null;
+      camInitRef.current = false;
     }
     const fp = zoomLevel < 0.5;
     if (sharedPositionRef) sharedPositionRef.current.copy(pos.current);
     if (sharedRotationYRef) sharedRotationYRef.current = charRot.current.y;
     if (cameraThetaRef) cameraThetaRef.current = camAng.current.theta;
+    if (!camInitRef.current) {
+      camInitRef.current = true;
+      const ly = pos.current.y + HH;
+      if (fp) {
+        camera.position.set(pos.current.x, ly, pos.current.z);
+      } else {
+        const cx = pos.current.x + Math.sin(camAng.current.theta) * zoomLevel * Math.cos(camAng.current.phi);
+        const cz = pos.current.z + Math.cos(camAng.current.theta) * zoomLevel * Math.cos(camAng.current.phi);
+        const cy = Math.max(ly + Math.sin(camAng.current.phi) * zoomLevel, 0.2);
+        camera.position.set(cx, cy, cz);
+      }
+      camera.lookAt(pos.current.x, ly, pos.current.z);
+      camPosRef.current.copy(camera.position);
+      camLookSmoothRef.current.set(pos.current.x, ly, pos.current.z);
+    }
     if (onElevatorZoneChange) {
       const inside = pos.current.z <= -10 && Math.abs(pos.current.x) <= 3.1;
       if (inside !== prevInsideElevatorRef.current) {
@@ -96062,8 +96079,8 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       const sens = 3e-3 * (fp ? 1.5 : 1);
       if (isDesktop) {
         if (lookInput.current.x || lookInput.current.y) {
-          camAng.current.theta -= lookInput.current.x * sens * 500 * dt2;
-          camAng.current.phi += lookInput.current.y * sens * 500 * dt2;
+          camAng.current.theta -= lookInput.current.x * sens * 500 * safeDt;
+          camAng.current.phi += lookInput.current.y * sens * 500 * safeDt;
           lookInput.current.x = 0;
           lookInput.current.y = 0;
         }

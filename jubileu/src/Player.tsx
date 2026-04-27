@@ -100,6 +100,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const timeRef = useRef(0);
   const camPosRef = useRef(new Vector3(0, 0, 8)); // smooth camera position (avoids lookAt vs lerp desync)
   const camLookSmoothRef = useRef(new Vector3(0, 1.6, 8)); // smooth lookAt target
+  const camInitRef = useRef(false); // sync camera to player pos on first frame
 
   useEffect(() => { elevTriggered.current = false; }, [currentLevel]);
 
@@ -112,6 +113,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     if (positionCmdRef && positionCmdRef.current) {
         pos.current.set(positionCmdRef.current.x, positionCmdRef.current.y, positionCmdRef.current.z);
         positionCmdRef.current = null;
+        camInitRef.current = false; // force camera re-sync after teleport
     }
     
     const fp = zoomLevel < 0.5;
@@ -119,6 +121,23 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     if (sharedRotationYRef) sharedRotationYRef.current = charRot.current.y;
     // Bot reads this to map world deltas into camera-frame moveInput.
     if (cameraThetaRef) cameraThetaRef.current = camAng.current.theta;
+    
+    // Sync camera to player on first frame (prevents lerp from default pos)
+    if (!camInitRef.current) {
+        camInitRef.current = true;
+        const ly = pos.current.y + HH;
+        if (fp) {
+            camera.position.set(pos.current.x, ly, pos.current.z);
+        } else {
+            const cx = pos.current.x + Math.sin(camAng.current.theta)*zoomLevel*Math.cos(camAng.current.phi);
+            const cz = pos.current.z + Math.cos(camAng.current.theta)*zoomLevel*Math.cos(camAng.current.phi);
+            const cy = Math.max(ly + Math.sin(camAng.current.phi)*zoomLevel, 0.2);
+            camera.position.set(cx, cy, cz);
+        }
+        camera.lookAt(pos.current.x, ly, pos.current.z);
+        camPosRef.current.copy(camera.position);
+        camLookSmoothRef.current.set(pos.current.x, ly, pos.current.z);
+    }
     
     if (onElevatorZoneChange) {
         const inside = pos.current.z <= -10 && Math.abs(pos.current.x) <= 3.1;
@@ -154,7 +173,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     } else {
         const sens = 0.003 * (fp ? 1.5 : 1.0);
         if (isDesktop) {
-           if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * sens * 500 * dt; camAng.current.phi += lookInput.current.y * sens * 500 * dt; lookInput.current.x = 0; lookInput.current.y = 0; }
+           if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * sens * 500 * safeDt; camAng.current.phi += lookInput.current.y * sens * 500 * safeDt; lookInput.current.x = 0; lookInput.current.y = 0; }
         } else {
            if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * (fp ? 1.5 : 1); camAng.current.phi += lookInput.current.y * (fp ? 1.5 : 1); lookInput.current.x = 0; lookInput.current.y = 0; }
         }
