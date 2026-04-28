@@ -16,7 +16,9 @@
     "lint:types": "tsc --noEmit",
     "audit": "node audit.mjs",
     "check": "npm run lint:types && npm run test && npm run audit",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css}\""
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
+    "install:locked": "npm ci",
+    "build:reproducible": "npm ci && npm run build && node inline-build.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

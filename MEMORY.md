@@ -705,3 +705,56 @@ Review completo de todos os arquivos do código fonte. Identificados 18 problema
 - HudComponents.tsx: 232 linhas (novo)
 - index.html: NÃO rebuildado
 
+---
+
+## 🔨 Sessão 2026-04-28: Rebuild do `index.html` (catch-up de 8 commits)
+
+### Problema
+Source code foi atualizado em vários commits desde `2674858` (último rebuild
+do `index.html`), mas o `index.html` canônico não acompanhou. O jogo no ar
+estava ~8 commits atrás do source.
+
+### Commits que estavam no source mas NÃO no `index.html`
+1. `a9f52fa` — fix(a11y): add aria-labels + remove unused design-tokens imports
+2. `e26832f` — fix(design): improve text contrast + reduce font-mono overuse
+3. `1125e0d` — fix(critical): type safety, memory leaks, race conditions, magic numbers
+4. `a8892b1` — fix(types): replace any with proper TypeScript interfaces
+5. `19d46c9` — fix(perf): lazy load Barney theme + TypewriterText batch + AudioEngine error handling
+6. `05fd707` — fix(types): resolve all tsc errors — clean compile
+7. `985414f` — refactor: extract HUD components from App.tsx (770→625 lines)
+8. `e47e0ed` — restore: all source code improvements (from e98c695)
+
+### Ação tomada
+Rebuild reprodutível com a toolchain estável:
+```bash
+cd jubileu
+rm -rf dist
+npm ci          # respeita o lock; nunca npm install solto
+npm run build
+node inline-build.mjs
+```
+
+### Resultado
+- `index.html` canônico passou de **4,087,041** → **3,946,090 bytes**
+- Three.js REVISION 184 + React 19.2.5 (idênticas ao backup, build é reprodutível)
+- TypeScript: ✅ compila limpo
+- Build é determinístico (rerun produz a mesma saída byte-a-byte)
+
+### Observação
+A pasta `jubileu/test/` foi removida nesta sessão — virou redundante já que
+o `index.html` canônico agora contém exatamente o mesmo conteúdo.
+
+### Regra reafirmada (alinhada com `MAP.md` regra #1)
+**SEMPRE rebuilde o `index.html` ao editar `jubileu/src/`.** Não deixar mais
+de 1 commit de source acumular sem rebuild. Sequência canônica:
+
+```bash
+cd jubileu && npm ci && npm run build && node inline-build.mjs
+```
+
+Comite `jubileu/src/...` + `index.html` no MESMO commit.
+
+### Commits desta sessão
+- `0377012` — build(test): jubileu/test/index.html (depois removido)
+- (este) — build: rebuild canonical index.html + remove jubileu/test
+

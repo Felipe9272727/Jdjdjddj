@@ -1,501 +1,281 @@
-# 🗺️ MAP.md — The Normal Elevator
+# MAP.md — The Normal Elevator
 
-> **⚠️ LEIA ESTE ARQUIVO ANTES DE QUALQUER COISA.**
-> É o mapa do projeto. Sem ele, você vai se perder.
-
----
-
-## 🧭 Você Está Aqui
-
-```
-  GitHub: Felipe9272727/Jdjdjddj
-  Branch: main ← canônico, estável, 60fps
-  
-  ┌─────────────────────────────────────────────┐
-  │           THE NORMAL ELEVATOR               │
-  │     Jogo 3D multiplayer no navegador        │
-  │                                             │
-  │  React 19 · Three.js · Firebase · Vite      │
-  │  Tailwind v4 · Web Audio API                │
-  └─────────────────────────────────────────────┘
-```
+> **Mapa definitivo do projeto. Leia isto antes de qualquer outra coisa.**
+> Se você é uma IA chegando ao repositório agora, este arquivo + `MEMORY.md` te dão 90% do contexto.
 
 ---
 
-## 🏗️ Arquitetura Visual
+## ⚠️ REGRAS DE OURO (não-negociáveis)
 
-```
-                          ┌──────────────┐
-                          │   main.tsx   │
-                          │  (entry)     │
-                          └──────┬───────┘
-                                 │
-                          ┌──────▼───────┐
-                          │    App.tsx   │
-                          │  (cérebro)   │
-                          └──┬───┬───┬───┘
-                             │   │   │
-              ┌──────────────┘   │   └──────────────┐
-              ▼                  ▼                   ▼
-     ┌────────────────┐ ┌───────────────┐ ┌─────────────────┐
-     │  Player.tsx    │ │  World (3D)   │ │  Multiplayer.tsx│
-     │  (corpo)       │ │  (cenário)    │ │  (rede)         │
-     └────────┬───────┘ └───────┬───────┘ └────────┬────────┘
-              │                 │                   │
-              │          ┌──────┼──────┐            │
-              │          ▼      ▼      ▼            │
-              │     LobbyEnv  Elevator  HouseEnv    │
-              │          │      │      │            │
-              │          ▼      ▼      ▼            │
-              │     Furniture  Materials  Building  │
-              │                                     │
-              └──────────────┬──────────────────────┘
-                             ▼
-                    ┌─────────────────┐
-                    │   physics.ts    │
-                    │  (colisão)      │
-                    └─────────────────┘
-```
+| # | Regra | Por quê |
+|---|-------|---------|
+| 1 | **SEMPRE rebuilde o `index.html` ao editar qualquer arquivo em `jubileu/src/`** | O `index.html` na raiz é o que vai pro ar. Sem rebuild, sua mudança não aparece no jogo. |
+| 2 | **Use `npm run build:reproducible`** (nunca `npm install` solto) | `npm ci` respeita o lock; `npm install` pode escalar versões e causar regressão de FPS. |
+| 3 | **Comite o `index.html` junto com o source** | Source e build no mesmo commit = histórico consistente. |
+| 4 | **Atualize `MEMORY.md` após cada mudança real** | É o histórico cronológico do projeto. Sua próxima sessão vai depender dele. |
+| 5 | **Comunicação em PT-BR, ação direta, sem pedir confirmação** | Estilo do Felipe: "faz aí". |
 
 ---
 
-## 🎮 Fluxo do Jogo (State Machine)
-
-```
- ┌─────────────────────────────────────────────────────────────────┐
- │                        GAME STATES                              │
- └─────────────────────────────────────────────────────────────────┘
-
-  LOBBY ──────► OUTDOOR ──────► BARNEY_GREET ──────► INDOOR_DAY
-  (level 0)     (level 1)       (diálogo)            (casa, dia)
-     │              │                │                     │
-     │              │          ┌─────┴─────┐               │
-     │              │       Aceitar     Recusar            │
-     │              │          │            │               │
-     │              │          │            └──► OUTDOOR    │
-     │              │          ▼                           │
-     │              │     INDOOR_DAY                       │
-     │              │                                      │
-     │              │                              Dormir (cama)
-     │              │                                      │
-     │              │                               SLEEP_FADE
-     │              │                                (3s fade)
-     │              │                                      │
-     │              │                              INDOOR_NIGHT
-     │              │                               "Algo errado"
-     │              │                                      │
-     │              │                                 (2s depois)
-     │              │                                      │
-     │              │                                   CHASE
-     │              │                             (Barney persegue!)
-     │              │                                      │
-     │              │                         ┌────────────┼────────────┐
-     │              │                         ▼                         ▼
-     │              │                      CAUGHT                    SAVED
-     │              │                   (jumpscare)            ("SOBREVIVEU")
-     │              │                         │                         │
-     │              │                         └─────────┬───────────────┘
-     │              │                                   │
-     │              │                              (reset 2.5s)
-     │              │                                   │
-     ◄──────────────◄───────────────────────────────────┘
-                      (volta pro OUTDOOR)
-```
-
----
-
-## 📁 Mapa de Arquivos
-
-### 🎮 Núcleo do Jogo
-
-```
-App.tsx ...................... O cérebro
-├── Game state machine (lobby→chase→saved)
-├── Elevador logic (timer, doors, travel)
-├── Barney logic (dialogue, chase, jumpscare)
-├── Input handling (touch + keyboard + mouse)
-├── Audio context management
-└── Render tree (Canvas → World → Player)
-
-Player.tsx ................... O corpo
-├── Avatar GLB (Walking + Idle animations)
-├── Camera system (1st/3rd person, zoom, shake)
-├── Collision detection (physics.ts)
-├── Movement (WASD + joystick)
-└── Interaction zones (door, NPC, elevator, bed)
-
-Multiplayer.tsx .............. A rede
-├── Firebase Firestore (NO Auth — localStorage UUID)
-├── Position sync (200ms writes)
-├── Chat system (send + receive + fallback)
-├── Player names (localStorage)
-└── Ghost cleanup (15s TTL)
-
-Bot.tsx ...................... Os NPCs
-├── Steering behaviors (Reynolds 1999)
-├── Behaviors: wander, follow, tour, idle, patrol, orbit, dance
-├── Collision (same physics.ts as Player)
-└── API: window.__jubileuBot (console commands)
-
-physics.ts ................... As leis da física
-└── resolveCollision(circle, walls) → [x, z]
-    3 passes, circle-vs-line-segment
-```
-
-### 🏗️ Ambiente 3D
-
-```
-Elevator.tsx ................. O elevador
-├── ElevatorDoors (animated open/close)
-├── ElevatorFacade (exterior with sign)
-└── ElevatorInterior (floor, walls, panel, buttons)
-
-LobbyEnv.tsx ................. O lobby (20x20)
-├── NPC (Supervisor do Saguão)
-├── Móveis (receção, poltronas, plantas)
-├── Elevator facade
-└── Textures (floor, walls, ceiling)
-
-HouseEnv.tsx ................. A casa
-├── Exterior (walls, roof, door)
-├── Interior (bed, sofa, kitchen)
-├── BarneyActor (2D sprite in 3D)
-├── Shop (Dussekar + items)
-└── Trees
-
-Furniture.tsx ................ Móveis
-└── Sofa, CoffeeTable, Bed, KitchenCounter, Barrel
-
-BuildingBlocks.tsx ........... Peças de construção
-└── Door, Wall, Light, Chair, Plant, Reception
-
-Materials.tsx ................ Materiais
-└── TextureMaterial (URL → texture with repeat/rotation)
-```
-
-### 🎨 Interface
-
-```
-MainMenu.tsx ................. Tela inicial
-├── Animação de portas
-├── Multiplayer toggle
-├── Name input
-├── Fullscreen button
-└── Controls display
-
-HudComponents.tsx ............ HUD durante o jogo
-├── ElevatorHud (status panel)
-├── FloorReveal ("Now Arriving")
-├── TopControls (settings, mute, MP)
-├── ActionButton (ABRIR/FALAR/DORMIR)
-├── NightBanner ("Algo não está certo...")
-├── ChaseBanner ("⚠ CORRA PARA O ELEVADOR ⚠")
-├── SavedOverlay ("VOCÊ SOBREVIVEU")
-└── BarneyDialogue (diálogo completo)
-
-ChatSystem.tsx ............... Chat multiplayer
-├── RobloxChat (desktop + mobile layouts)
-└── BubbleChatFallback (2D overlay)
-
-Settings.tsx ................. Configurações
-├── Quality (low/medium/high)
-├── Volume, Sensitivity, Invert Y
-├── Multiplayer toggle
-├── FPS counter
-└── Bot mode toggle
-
-UI.tsx ....................... Componentes utilitários
-├── VisualJoystick (mobile)
-├── DialogueOverlay (lobby NPC)
-└── TypewriterText (animated text)
-```
-
-### 🎵 Áudio & Atmosfera
-
-```
-AudioEngine.tsx .............. Motor de áudio
-├── Lobby music (fetch from GitHub, loop)
-├── Barney theme (lazy-load on elevator trigger)
-├── Elevator sounds (procedural: ding, motor, thud)
-├── Night mode distortion (pitch shift, filter)
-└── Reverb + compressor chain
-
-Atmosphere.tsx ............... Elementos atmosféricos
-├── CeilingFan (spinning, throttled useFrame)
-├── WallClock (ticking second hand)
-├── playArrivalDing (procedural)
-└── createElevatorHum (procedural)
-
-PostEffects.tsx .............. Efeitos visuais
-├── GameEffects (CSS vignette + grain)
-├── DustParticles (InstancedMesh)
-├── FluorescentFlicker (light variation)
-└── NightAmbient (eerie pulsing light)
-```
-
-### 📐 Configuração
-
-```
-constants.ts ................. Tudo que é constante
-├── URLs de assets (GLB, textures, audio)
-├── Cores (COLORS)
-├── Diálogos (DIALOGUE_TREE, BARNEY_DIALOGUE)
-├── Paredes (collision wall segments)
-├── Gameplay (SPEED, PR, distâncias)
-└── Multiplayer (TTLs, limits, intervals)
-
-design-tokens.ts ............. Design system
-├── TYPE (modular scale 1.25)
-├── MONO (for HUD)
-├── SPACE, GAP, RADIUS
-├── RING, SHADOW
-├── COMPONENT patterns
-├── ANIM durations
-└── Z-index layers
-
-index.css .................... Estilos globais
-├── Tailwind import
-├── CSS custom properties
-├── Glass panel patterns
-├── Animations (20+ keyframes)
-├── HUD system
-├── Focus-visible (a11y)
-├── Reduced motion
-└── Scrollbar + slider styling
-
-firestore.rules .............. Regras de segurança
-└── 12 campos validados, ownership por path
-```
-
----
-
-## 🔑 Conceitos que Você PREISA Saber
-
-### 1. Player ID (SEM Auth)
-```
-localStorage.getItem('jubileu_player_id')
-        │
-        ▼
-  UUID v4 gerado no primeiro acesso
-        │
-        ▼
-  Usado como doc ID no Firestore
-  (cada player só escreve no próprio doc)
-```
-
-### 2. Multiplayer Sync
-```
-  Player A                    Firestore                    Player B
-     │                           │                            │
-     ├── write(x,y,z) ─────────►│◄───────── read(x,y,z) ────┤
-     │   (200ms interval)        │    (onSnapshot real-time)  │
-     │                           │                            │
-     ├── chatMsg ───────────────►│◄───────── chatMsg ─────────┤
-     │   (local fallback)        │    (30s TTL)               │
-```
-
-### 3. Collision System
-```
-  Player position (x, z)
-         │
-         ▼
-  resolveCollision(x, z, radius, walls)
-         │
-         ├── Pass 1: push out of wall 1
-         ├── Pass 2: push out of wall 2
-         └── Pass 3: push out of wall 3
-         │
-         ▼
-  Final position (safe, no clip)
-```
-
-### 4. Camera System
-```
-  zoomLevel
-     │
-     ├── < 0.5 → First Person (FOV 90°)
-     └── ≥ 0.5 → Third Person (orbital)
-              │
-              └── Smooth lerp (position only)
-                  lookAt is instant
-```
-
-### 5. Audio Chain
-```
-  Source (lobby/barney/sfx)
-         │
-         ▼
-  Gain (volume control)
-         │
-         ▼
-  Reverb (convolver, 1.5s impulse)
-         │
-         ▼
-  Compressor (threshold -12, ratio 4)
-         │
-         ▼
-  Master Gain (mute/volume)
-         │
-         ▼
-  Destination (speakers)
-```
-
----
-
-## ⚡ Comandos Rápidos
+## 🚀 Workflow Padrão (copia e cola)
 
 ```bash
-# Rodar local
-cd jubileu && npm install && npm run dev     # porta 3000
+# 1. Editar source
+$EDITOR jubileu/src/SeuArquivo.tsx
 
-# Build
-npm run build && node inline-build.mjs       # gera ../index.html
+# 2. Rebuild reprodutível (npm ci + vite build + inline-build)
+cd jubileu && npm run build:reproducible
+cd ..
+
+# 3. Verificar
+git status               # deve mostrar: jubileu/src/... + index.html
+
+# 4. Commitar tudo junto
+git add jubileu/src/SeuArquivo.tsx index.html
+git commit -m "tipo(escopo): descrição curta"
+
+# 5. Atualizar MEMORY.md com o que foi feito
+$EDITOR MEMORY.md
+
+# 6. Push
+git push -u origin <branch-atual>
+```
+
+> **Nunca** comite só o source sem o `index.html` rebuildado. Nem só o `index.html` sem o source. Tem que ser os dois juntos.
+
+---
+
+## 🎮 O Que É o Projeto
+
+**The Normal Elevator** — jogo 3D multiplayer no navegador, estilo liminal/horror.
+
+| Camada | Tech |
+|--------|------|
+| Frontend | React 19 + TypeScript |
+| 3D | Three.js (`@react-three/fiber` + `@react-three/drei`) |
+| Multiplayer | Firebase Firestore (sem Auth — UUID via localStorage) |
+| Build | Vite 6 + script `inline-build.mjs` (gera HTML single-file) |
+| Style | Tailwind v4 |
+| Audio | Web Audio API (procedural, sem arquivos) |
+| Física | Custom circle-vs-line-segment (`physics.ts`) |
+
+**Estado:** lobby → outdoor → barney_greet → indoor_day → sleep_fade → indoor_night → chase → caught/saved → reset.
+
+---
+
+## 🗂️ Estrutura do Repo
+
+```
+/
+├── MAP.md              ← este arquivo
+├── MEMORY.md           ← histórico cronológico (LEIA TAMBÉM)
+├── AUDIT.md            ← problemas conhecidos
+├── index.html          ← BUILD CANÔNICO (~4MB single-file). É o que vai pro ar.
+├── index-readable.html ← build legível pra debug (~170KB, opcional)
+├── backup/             ← snapshot do index.html que roda 60fps
+├── backup-v2/          ← snapshot completo (src + build + lock)
+└── jubileu/            ← código fonte
+    ├── src/            ← edite aqui
+    ├── package.json    ← versões pinnadas (sem ^/~)
+    ├── package-lock.json   ← NÃO mexa manualmente
+    ├── inline-build.mjs    ← gera ../index.html single-file
+    └── vite.config.ts
+```
+
+---
+
+## 📂 Mapa dos Arquivos `jubileu/src/`
+
+### Núcleo
+| Arquivo | Função |
+|---------|--------|
+| `main.tsx` | Entry point, monta `<App/>` |
+| `App.tsx` | Cérebro: state machine, Canvas, orquestra tudo |
+| `Player.tsx` | Avatar local, câmera (1ª/3ª pessoa), input, colisão |
+| `Multiplayer.tsx` | Firestore sync (200ms), chat, nomes, ghost cleanup |
+| `Bot.tsx` | NPCs autônomos (steering behaviors). API: `window.__jubileuBot` |
+| `physics.ts` | `resolveCollision(circle, walls)` — 3 passes |
+
+### Cenário 3D
+| Arquivo | Função |
+|---------|--------|
+| `Elevator.tsx` | Portas animadas, fachada, interior |
+| `LobbyEnv.tsx` | Lobby 20×20, NPC supervisor, móveis |
+| `HouseEnv.tsx` | Casa exterior+interior, Barney, Shop, Dussekar |
+| `Furniture.tsx` | Sofá, mesa, cama, balcão, barril |
+| `BuildingBlocks.tsx` | Porta, parede, luz, cadeira, planta |
+| `Materials.tsx` | `TextureMaterial` (URL → texture) |
+
+### Interface
+| Arquivo | Função |
+|---------|--------|
+| `MainMenu.tsx` | Tela inicial, animação de portas, input de nome |
+| `UI.tsx` | Joystick visual, dialogue overlay, typewriter |
+| `Settings.tsx` | Quality (low/med/high), volume, sensibilidade, MP, FPS, bot |
+| `ChatSystem.tsx` | Chat estilo Roblox + fallback 2D |
+| `RemotePlayer.tsx` | Avatar remoto (clone GLB + label + balão) |
+
+### Áudio & Atmosfera
+| Arquivo | Função |
+|---------|--------|
+| `AudioEngine.tsx` | Música lobby, tema Barney, sons procedurais, distorção noturna |
+| `Atmosphere.tsx` | CeilingFan, WallClock, ding/hum procedurais |
+| `PostEffects.tsx` | GameEffects (CSS overlay), DustParticles, FluorescentFlicker, NightAmbient |
+
+### Configuração
+| Arquivo | Função |
+|---------|--------|
+| `constants.ts` | URLs de assets, cores, diálogos, paredes, gameplay constants |
+| `design-tokens.ts` | Tipo, espaçamento, cores, radii, sombras, z-index |
+| `index.css` | Tailwind, custom props, animações, glass panels |
+| `firestore.rules` | Regras de segurança (12 campos validados) |
+
+---
+
+## 🎮 Game States
+
+```
+lobby ──► outdoor ──► barney_greet ──► indoor_day
+                            │                │
+                            └──recusar       │
+                                             ▼ (dormir)
+                                        sleep_fade
+                                             │
+                                             ▼
+                                       indoor_night
+                                             │
+                                             ▼
+                                          chase
+                                             │
+                                       ┌─────┴─────┐
+                                       ▼           ▼
+                                    caught       saved
+                                       │           │
+                                       └─reset─────┘
+                                             │
+                                             ▼
+                                          outdoor
+```
+
+---
+
+## 🔑 Conceitos Críticos
+
+### Player ID (sem Firebase Auth)
+- `localStorage.getItem('jubileu_player_id')` → UUID v4
+- Usado como doc ID no Firestore. Cada player só escreve no próprio doc.
+
+### Multiplayer Sync (200ms)
+- Player escreve `{x, y, z, ry, state, name, chatMsg, chatAt, level, ...}` a cada 200ms
+- `onSnapshot` em `worlds/main/players` filtrado por `level`
+- Ghost TTL: 15s (player some se não escreveu nesse intervalo)
+- Chat TTL: 30s
+
+### Quality Profiles (`Settings.tsx::QUALITY_PROFILES`)
+| Flag | low | medium | high |
+|------|-----|--------|------|
+| `dpr` | 0.5–0.75 | 1–1.25 | 1–2 |
+| `far` | 40 | 80 | 120 |
+| `antialias` | ❌ | ❌ | ✅ |
+| `atmosphere` (dust/fans/clock/flicker) | ❌ | ❌ | ✅ |
+| `overlay` (vignette+grain) | ❌ | ❌ | ✅ |
+| `nightLights` | ❌ | ✅ | ✅ |
+| `chatBubbles3D` | ❌ | ✅ | ✅ |
+| `remoteLimit` | 3 | 8 | 30 |
+
+GLBs (avatar, NPC, Dussekar) são carregados em **todos** os modos.
+
+---
+
+## ⚡ Comandos Úteis
+
+```bash
+# Rodar local (dev server)
+cd jubileu && npm install && npm run dev   # porta 3000
+
+# Build reprodutível (USE ISTO, não `npm install` + `npm run build`)
+cd jubileu && npm run build:reproducible
 
 # TypeScript check
-npx tsc --noEmit                             # deve ser limpo
+cd jubileu && npx tsc --noEmit
 
-# Bot API (console do browser)
-window.__jubileuBot.spawn(3)                 # 3 bots
-window.__jubileuBot.follow()                 // todos seguem player
-window.__jubileuBot.tour()                   // tour guiado
-window.__jubileuBot.help()                   // ver comandos
-
-# Git
-gh repo clone Felipe9272727/Jdjdjddj         # clonar
-git log --oneline -10                        // ver commits
+# Bot API (no console do navegador)
+window.__jubileuBot.spawn(3)    # 3 bots
+window.__jubileuBot.follow()    # todos seguem
+window.__jubileuBot.tour()      # tour guiado
+window.__jubileuBot.help()      # listar comandos
 ```
 
 ---
 
 ## 🚨 Armadilhas Conhecidas
 
-```
- ❌  npm install (sem lockfile)
-     │
-     ▼
-     Dependências resolvem versões diferentes
-     │
-     ▼
-     FPS cai de 60 → 29
-     
- ✅  npm ci (respeita lockfile)
-     │
-     ▼
-     Dependências idênticas ao backup
-     │
-     ▼
-     60fps garantidos
-```
-
-```
- ❌  Editar firestore.rules e esquecer de deploy
-     │
-     ▼
-     Rules no repo ≠ Rules no Firebase
-     │
-     ▼
-     Multiplayer não funciona (writes rejeitados)
-     
- ✅  Deploy manual no Firebase Console
-     │
-     ▼
-     Rules ativas = multiplayer funciona
-```
-
-```
- ❌  mexer no index.html canônico direto
-     │
-     ▼
-     Pode quebrar build de 4MB que roda a 60fps
-     
- ✅  Editar jubileu/src/ → rebuild → commit index.html
-     │
-     ▼
-     Build consistente
-```
+| Erro | Por quê | Como evitar |
+|------|---------|-------------|
+| FPS cai 60→29 após rebuild | Rodou `npm install` em vez de `npm ci`; lock pode mudar | `npm run build:reproducible` |
+| Multiplayer não funciona (writes silenciosamente rejeitados) | `firestore.rules` no repo ≠ rules deployadas no Firebase Console | Deploy manual: Firebase Console → Firestore → Rules → colar |
+| `<Html occlude>` mata o FPS | drei faz raycasting da cena toda por frame | **Nunca** use `occlude` em `<Html>` (já removido em Dussekar e RemotePlayer) |
+| GLB grande trava o load inicial | Carga síncrona | Use `useGLTF.preload(URL)` no top-level do arquivo |
+| Source editado mas mudança não aparece no jogo | Esqueceu de rebuildar o `index.html` | **Sempre** rodar `npm run build:reproducible` após editar source |
+| Mudança aparece local mas quebra deploy | Comitou source sem `index.html` (ou vice-versa) | Comite os dois juntos |
 
 ---
 
-## 📋 Checklist para Próxima IA
+## ✅ Checklist Antes de Commitar
 
-```
- □  Leu MAP.md (este arquivo)
- □  Leu MEMORY.md (histórico de mudanças)
- □  Leu AUDIT.md (problemas conhecidos)
- □  Entendeu o fluxo de game states
- □  Sabe que NÃO deve rebuildar sem necessidade
- □  Sabe que deve atualizar MEMORY.md após mudanças
- □  Sabe que TypeScript deve compilar limpo
- □  Sabe que commits devem ser atômicos
- □  Sabe que comunicação é em PT-BR
-```
-
----
-
-## 🎯 Referência Rápida de Constantes
-
-| Constante | Valor | Onde é usada |
-|-----------|-------|--------------|
-| `SPEED` | 4.0 | Velocidade do player |
-| `PR` | 0.5 | Raio de colisão |
-| `BARNEY_CATCH_DIST` | 1.2 | Distância de captura |
-| `DOOR_INTERACT_DIST` | 3.0 | Distância da porta |
-| `NPC_INTERACT_DIST` | 4.0 | Distância do NPC |
-| `BED_INTERACT_DIST` | 3.0 | Distância da cama |
-| `ELEVATOR_ZONE_Z` | -10 | Z do elevador |
-| `ELEVATOR_ZONE_X` | 3.1 | Largura do elevador |
-| `MP_GHOST_TTL_MS` | 15000 | Ghost timeout |
-| `MP_WRITE_INTERVAL` | 200 | Write interval (ms) |
-| `CHAT_TTL_MS` | 30000 | Chat message lifetime |
-| `CHAT_MAX_LEN` | 200 | Max chat chars |
-| `PLAYER_NAME_MAX_LEN` | 20 | Max name chars |
-| `MAX_LEVEL` | 100 | Level máximo |
-
----
-
-## 🎨 Paleta de Cores
-
-```
-  AMBER (principal)          RED (perigo)             GREEN (sucesso)
-  ┌─────────────────┐       ┌─────────────────┐      ┌─────────────────┐
-  │ #FFD54F         │       │ #FF0000         │      │ #66BB6A         │
-  │ #FFC107         │       │ #EF4444         │      │ #4CAF50         │
-  │ #FFB300         │       │ #DC2626         │      │ #2E7D32         │
-  └─────────────────┘       └─────────────────┘      └─────────────────┘
-
-  PURPLE (Barney)            BLUE (noturno)           GRAY (neutro)
-  ┌─────────────────┐       ┌─────────────────┐      ┌─────────────────┐
-  │ #A855F7         │       │ #1E3A5F         │      │ #9E9E9E         │
-  │ #7C3AED         │       │ #1565C0         │      │ #B0BEC5         │
-  │ #6D28D9         │       │ #0D47A1         │      │ #78909C         │
-  └─────────────────┘       └─────────────────┘      └─────────────────┘
-```
+- [ ] Editou `jubileu/src/...`?
+- [ ] Rodou `npm run build:reproducible`?
+- [ ] `git status` mostra `jubileu/src/...` E `index.html` modificados?
+- [ ] `npx tsc --noEmit` passa sem erro?
+- [ ] Atualizou `MEMORY.md` com o que foi feito?
+- [ ] Mensagem de commit segue o padrão `tipo(escopo): descrição`?
+- [ ] Está pushando pra branch certa? (não pra `main` direto sem permissão)
 
 ---
 
 ## 🔗 Assets Externos
 
-```
-  AVATARS                    NPC                      TEXTURES
-  ┌───────────────────┐     ┌───────────────────┐    ┌───────────────────┐
-  │ Walking(1).glb    │     │ npc walking.glb   │    │ lobby floor.png   │
-  │ Idle.glb          │     │ npc idle.glb       │    │ wall panel.png    │
-  │ (Bacon Hair)      │     │ (NPC)              │    │ wall.png          │
-  └───────────────────┘     └───────────────────┘    │ ceiling.jpg       │
-                                                      └───────────────────┘
-  AUDIO                     CHARACTER
-  ┌───────────────────┐     ┌───────────────────┐
-  │ Lobby Time.mp3    │     │ blocky char.glb   │
-  │ (Felipe's GitHub) │     │ (Dussekar)        │
-  │                   │     │                   │
-  │ Barney Theme.mp3  │     │ barney.png        │
-  │ (archive.org)     │     │ (2D sprite)       │
-  └───────────────────┘     └───────────────────┘
+Todos hospedados no GitHub do Felipe (raw.githubusercontent.com):
+
+| Asset | Repo |
+|-------|------|
+| Avatar Walking | `Bancon...../Walking(1).glb` |
+| Avatar Idle | `BACON-PROJETO-FUNCIONALLLLL/Idle.glb` |
+| NPC Walking/Idle | `Npc-test/npc walking.glb` + `npc idle.glb` |
+| Dussekar | `Vers-o-definitiva/blocky character 3d model.glb` |
+| Barney sprite | `For-my-game/1776639536329.png` |
+| Texturas (floor/wall/ceiling) | `Textura-*` (4 repos) |
+| Música lobby | `M-sica-pro-meu-jogo/Lobby Time(MP3_160K).mp3` |
+| Tema Barney | `archive.org/download/barneysgreatesthits/Barney Theme Song.mp3` |
+
+---
+
+## 🆘 Se Tudo Quebrar
+
+```bash
+# Restaurar tudo a partir do backup-v2
+cp -r backup-v2/src/* jubileu/src/
+cp backup-v2/package.json backup-v2/package-lock.json jubileu/
+cp backup-v2/index.html .
+
+# Ou restaurar via branch
+git checkout backup/pre-perf-investigation-2026-04-27 -- .
+
+# Ou só o index.html (versão 60fps original)
+cp backup/index.html .
 ```
 
 ---
 
-> **💡 Dica final:** Se você entendeu este arquivo, entendeu 80% do projeto.
-> Os outros 20% estão no código. Leia com calma.
+## 📚 Próximos Passos da IA
 
-*Última atualização: 2026-04-28 10:15 GMT+8*
+1. Leia este arquivo (`MAP.md`) — você está fazendo isso ✅
+2. Leia `MEMORY.md` — histórico cronológico, mudanças recentes, decisões
+3. Leia `AUDIT.md` — problemas conhecidos
+4. Olhe `git log --oneline -20` — contexto dos últimos commits
+5. Veja qual branch está ativa: `git branch --show-current`
+6. **Só então** comece a editar
+
+---
+
+*Última atualização: 2026-04-28 — alinhado com MEMORY.md (regra "sempre rebuildar"), incorpora descobertas da sessão de FPS (Dussekar `<Html occlude>` removido, `useGLTF.preload`, quality profiles reais).*
