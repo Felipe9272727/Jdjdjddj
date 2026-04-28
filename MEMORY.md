@@ -679,3 +679,29 @@ Review completo de todos os arquivos do código fonte. Identificados 18 problema
 - Código fonte: alterado (18 fixes aplicados)
 - Push: ✅ main atualizado
 
+---
+
+## 🔧 Sessão 2026-04-28: Continuação — Decomposição + Performance (09:57 GMT+8)
+
+### Fixes adicionais
+
+#### Fix #6: World re-render split
+- World component reorganizado: static environment separado de dynamic
+- Lobby/House só re-renderizam no level switch
+- Elevator/Barney/NightAmbient permanecem dinâmicos
+
+#### Fix #11: App.tsx decomposition (770→625 linhas)
+- Novo arquivo `HudComponents.tsx` (232 linhas)
+- Componentes extraídos: `ElevatorHud`, `FloorReveal`, `TopControls`, `ActionButton`, `NightBanner`, `ChaseBanner`, `SavedOverlay`, `BarneyDialogue`
+- Todos `React.memo` wrapped
+- Imports não usados removidos: `TypewriterText`, `BARNEY_DIALOGUE`
+
+### Commits
+- `985414f` — refactor: extract HUD components from App.tsx (770→625 lines)
+
+### Estado final
+- TypeScript: ✅ compila limpo
+- App.tsx: 625 linhas (era 770)
+- HudComponents.tsx: 232 linhas (novo)
+- index.html: NÃO rebuildado
+
