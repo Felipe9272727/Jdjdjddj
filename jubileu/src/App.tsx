@@ -22,7 +22,7 @@ import { Player } from './Player';
 import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
-import { BARNEY_URL, BARNEY_DIALOGUE } from './constants';
+import { BARNEY_URL, BARNEY_DIALOGUE, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES } from './Settings';
@@ -73,7 +73,7 @@ export default function App() {
     return id;
   }, []);
   useEffect(() => () => { pendingTimeoutsRef.current.forEach(clearTimeout); pendingTimeoutsRef.current.clear(); }, []);
-  const [elevatorTimer, setElevatorTimer] = useState<any>(null); const [doorsClosed, setDoorsClosed] = useState(false);
+  const [elevatorTimer, setElevatorTimer] = useState<number | null>(null); const [doorsClosed, setDoorsClosed] = useState(false);
   const [currentLevel, setCurrentLevel] = useState(0); const [overlayOpacity, setOverlayOpacity] = useState(0);
   const [travelPhase, setTravelPhase] = useState('idle');
   const elevatorHumStopRef = useRef<(() => void) | null>(null);
@@ -122,12 +122,13 @@ export default function App() {
       if (gameState !== 'chase') return;
       setNightMode(true);
       const resolved = { current: false };
+      let active = true;
       const interval = setInterval(() => {
-          if (resolved.current) return;
+          if (resolved.current || !active) return;
           const p = sharedPlayerPositionRef.current;
           const b = barneyRef.current;
           const d = Math.sqrt((p.x - b.x) ** 2 + (p.z - b.z) ** 2);
-          if (d < 1.2) {
+          if (d < BARNEY_CATCH_DIST) {
               resolved.current = true;
               setJumpscare(true);
               setGameState('caught');
@@ -141,7 +142,7 @@ export default function App() {
                   setDoorOpenAmount(0);
                   setGameState('outdoor');
               }, 2000);
-          } else if (p.z <= -10 && Math.abs(p.x) <= 3.1) {
+          } else if (p.z <= ELEVATOR_ZONE_Z && Math.abs(p.x) <= ELEVATOR_ZONE_X) {
               resolved.current = true;
               setGameState('saved');
               setDoorsClosed(true);
@@ -158,7 +159,7 @@ export default function App() {
               }, 2500);
           }
       }, 100);
-      return () => clearInterval(interval);
+      return () => { active = false; clearInterval(interval); };
   }, [gameState]);
   
   useEffect(() => {
@@ -167,7 +168,7 @@ export default function App() {
           const p = sharedPlayerPositionRef.current;
           const BED_X = -2.5, BED_Z = 12.5;
           const d = Math.sqrt((p.x - BED_X) ** 2 + (p.z - BED_Z) ** 2);
-          setCanSleepNow(d < 3.0);
+          setCanSleepNow(d < BED_INTERACT_DIST);
       }, 200);
       return () => clearInterval(check);
   }, [gameState, canSleep]);
@@ -198,11 +199,13 @@ export default function App() {
           setHouseDoorOpen(true);
           setDoorOpenAmount(1);
           setBarneyDialogueOpen(false);
+          setBarneyDialogueNode('greet');
           setGameState('indoor_day');
           barneyTargetRef.current = { x: -2, z: 8, scale: 1 };
           scheduleTimeout(() => setCanSleep(true), 1500);
       } else if (next === 'refuse') {
           setBarneyDialogueOpen(false);
+          setBarneyDialogueNode('greet');
           setGameState('outdoor');
           setDoorOpenAmount(0);
           barneyTargetRef.current = { x: 0, z: 6.8, scale: 0 };
@@ -268,7 +271,7 @@ export default function App() {
   useEffect(() => {
     let timerId: any;
     if (elevatorTimer !== null && elevatorTimer > 0) {
-        timerId = setTimeout(() => { setElevatorTimer((prev: any) => (prev !== null ? Math.max(prev - 1, 0) : null)); }, 1000);
+        timerId = setTimeout(() => { setElevatorTimer((prev) => (prev !== null ? Math.max(prev - 1, 0) : null)); }, 1000);
         if (!doorsClosed) {
             setTravelPhase('waiting');
         } else {

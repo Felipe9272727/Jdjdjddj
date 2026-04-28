@@ -82,6 +82,23 @@ export const EZ_START = -10.0;
 export const HOUSE_DOOR_Z = 6;
 export const HOUSE_DOOR_X = 0;
 
+// ─── Gameplay Constants ───────────────────────────────────────────────────
+export const BARNEY_CATCH_DIST = 1.2;       // Distance to trigger jumpscare
+export const DOOR_INTERACT_DIST = 3.0;      // Distance to interact with house door
+export const NPC_INTERACT_DIST = 4.0;       // Distance to interact with lobby NPC
+export const BED_INTERACT_DIST = 3.0;       // Distance to interact with bed
+export const ELEVATOR_ZONE_X = 3.1;         // Half-width of elevator entrance
+export const ELEVATOR_ZONE_Z = -10;         // Z threshold for elevator interior
+export const MP_GHOST_TTL_MS = 15000;       // Ghost player timeout
+export const MP_WRITE_INTERVAL = 200;       // Firestore write interval (ms)
+export const MP_WRITE_THRESHOLD = 0.1;      // Min position change to trigger write
+export const MP_ROTATION_THRESHOLD = 0.1;   // Min rotation change to trigger write
+export const MP_FORCE_WRITE_MS = 2500;      // Force write even if no change
+export const CHAT_TTL_MS = 30000;           // Chat message lifetime
+export const CHAT_MAX_LEN = 200;            // Max chat message length
+export const CHAT_CLEAR_DELAY = 30000;      // Auto-clear chat after this
+export const PLAYER_NAME_MAX_LEN = 20;      // Max player name length
+
 export const LOBBY_W = [[-10,10,10,10],[-10,-10,-10,10],[10,-10,10,10],[-10,-10,-1.3,-10],[1.3,-10,10,-10]];
 export const ELEV_W = [[-3.25,-16,-3.25,-10],[3.25,-16,3.25,-10],[-3.25,-16,3.25,-16]];
 export const HOUSE_EX = [[-4,14,4,14],[4,6,4,14],[-4,6,-4,14],[-4,6,-0.7,6],[0.7,6,4,6]];

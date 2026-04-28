@@ -3,7 +3,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
-import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, ELEV_W, LOBBY_W, DOOR_SEAL, L1_BND, ELEV_BLD, HOUSE_EX, HOUSE_IN, HOUSE_DW } from './constants';
+import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, ELEV_W, LOBBY_W, DOOR_SEAL, L1_BND, ELEV_BLD, HOUSE_EX, HOUSE_IN, HOUSE_DW, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { resolveCollision as _resolve } from './physics';
 
 const Avatar = ({ animation, visible = true }: any) => {
@@ -137,7 +137,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     }
     
     if (onElevatorZoneChange) {
-        const inside = pos.current.z <= -10 && Math.abs(pos.current.x) <= 3.1;
+        const inside = pos.current.z <= ELEVATOR_ZONE_Z && Math.abs(pos.current.x) <= ELEVATOR_ZONE_X;
         if (inside !== prevInsideElevatorRef.current) {
             prevInsideElevatorRef.current = inside;
             onElevatorZoneChange(inside);
@@ -192,8 +192,8 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             if (fp) { charRot.current.y = camAng.current.theta + Math.PI; } else { const a = Math.atan2(mv.x, mv.z); let d = a - charRot.current.y; while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; charRot.current.y += d*10*safeDt; }
             if (pos.current.z < EZ_START - 1 && !elevTriggered.current && currentLevel === 0) { elevTriggered.current = true; onEnterElevator(); }
         }
-        if (currentLevel === 1) { const dx = pos.current.x-HOUSE_DOOR_X; const dz = pos.current.z-HOUSE_DOOR_Z; onInteractionUpdate(Math.sqrt(dx*dx+dz*dz) < 3); } else { onInteractionUpdate(false); }
-        if (currentLevel === 0 && npcPositionRef?.current) { onNpcInteractionUpdate(pos.current.distanceTo(npcPositionRef.current) < 4); } else { onNpcInteractionUpdate(false); }
+        if (currentLevel === 1) { const dx = pos.current.x-HOUSE_DOOR_X; const dz = pos.current.z-HOUSE_DOOR_Z; onInteractionUpdate(Math.sqrt(dx*dx+dz*dz) < DOOR_INTERACT_DIST); } else { onInteractionUpdate(false); }
+        if (currentLevel === 0 && npcPositionRef?.current) { onNpcInteractionUpdate(pos.current.distanceTo(npcPositionRef.current) < NPC_INTERACT_DIST); } else { onNpcInteractionUpdate(false); }
         setAnim(moving ? 'Walking' : 'Idle');
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
         const ly = pos.current.y + HH;

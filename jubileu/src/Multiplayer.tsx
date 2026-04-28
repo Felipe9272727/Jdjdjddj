@@ -3,7 +3,7 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, serverTimestamp, Firestore } from 'firebase/firestore';
 import fallbackConfig from '../firebase-applet-config.json';
 import { Vector3 } from 'three';
-import { MAX_LEVEL } from './constants';
+import { MAX_LEVEL, MP_GHOST_TTL_MS, MP_WRITE_INTERVAL, MP_WRITE_THRESHOLD, MP_ROTATION_THRESHOLD, MP_FORCE_WRITE_MS, CHAT_MAX_LEN, CHAT_CLEAR_DELAY, PLAYER_NAME_MAX_LEN } from './constants';
 
 const clampLevel = (n: number) => {
     const v = Number.isFinite(n) ? Math.floor(n) : 0;
@@ -53,14 +53,14 @@ const DEFAULT_NAMES = ['Player', 'Guest', 'Noob', 'Pro', 'Explorer', 'Wanderer']
 
 export const getPlayerName = (): string => {
     const stored = localStorage.getItem(PLAYER_NAME_KEY);
-    if (stored && stored.trim().length > 0) return stored.trim().slice(0, 20);
+    if (stored && stored.trim().length > 0) return stored.trim().slice(0, PLAYER_NAME_MAX_LEN);
     const random = DEFAULT_NAMES[Math.floor(Math.random() * DEFAULT_NAMES.length)];
     const num = Math.floor(Math.random() * 9999);
     return `${random}${num}`;
 };
 
 export const setPlayerName = (name: string) => {
-    const clean = name.trim().slice(0, 20) || getPlayerName();
+    const clean = name.trim().slice(0, PLAYER_NAME_MAX_LEN) || getPlayerName();
     localStorage.setItem(PLAYER_NAME_KEY, clean);
     return clean;
 };
@@ -106,6 +106,7 @@ export const useMultiplayer = (
     const playerNameRef = useRef(playerName);
     const chatMsgRef = useRef('');
     const chatAtRef = useRef(0);
+    const chatClearTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
     useEffect(() => { playerStateRef.current = playerState; }, [playerState]);
     useEffect(() => { playerNameRef.current = playerName; }, [playerName]);
@@ -127,7 +128,7 @@ export const useMultiplayer = (
             where('isActive', '==', true),
             where('level', '==', clampLevel(level ?? 0))
         );
-        const GHOST_TTL_MS = 15000;
+        const GHOST_TTL_MS = MP_GHOST_TTL_MS;
         const unsub = onSnapshot(q, (snap) => {
             const players: Record<string, MPPlayer> = {};
             const cutoff = Date.now() - GHOST_TTL_MS;
@@ -142,8 +143,7 @@ export const useMultiplayer = (
 
             // Collect chat messages from all players (including ghosts within 30s)
             const msgs: ChatMessage[] = [];
-            const CHAT_TTL = 30000; // 30s for chat messages
-            const chatCutoff = Date.now() - CHAT_TTL;
+            const chatCutoff = Date.now() - CHAT_TTL_MS;
             snap.forEach(d => {
                 const data = d.data();
                 if (data.chatMsg && data.chatAt && data.chatAt > chatCutoff) {
@@ -180,33 +180,34 @@ export const useMultiplayer = (
         const push = async () => {
             if (writeInFlight) { writeQueued = true; return; }
             writeInFlight = true;
-            try {
-                const data: any = {
-                    x: playerPositionRef.current.x,
-                    y: playerPositionRef.current.y,
-                    z: playerPositionRef.current.z,
-                    ry: rotationYRef.current,
-                    updatedAt: serverTimestamp(),
-                    state: playerStateRef.current,
-                    worldId: 'main',
-                    isActive: true,
-                    level: clampLevel(level ?? 0),
-                    name: playerNameRef.current,
-                    chatMsg: chatMsgRef.current,
-                    chatAt: chatAtRef.current,
-                };
-                if (!initialized) {
-                    await setDoc(docRef, data);
-                    initialized = true;
-                } else {
-                    await updateDoc(docRef, data);
+            do {
+                writeQueued = false;
+                try {
+                    const data: any = {
+                        x: playerPositionRef.current.x,
+                        y: playerPositionRef.current.y,
+                        z: playerPositionRef.current.z,
+                        ry: rotationYRef.current,
+                        updatedAt: serverTimestamp(),
+                        state: playerStateRef.current,
+                        worldId: 'main',
+                        isActive: true,
+                        level: clampLevel(level ?? 0),
+                        name: playerNameRef.current,
+                        chatMsg: chatMsgRef.current,
+                        chatAt: chatAtRef.current,
+                    };
+                    if (!initialized) {
+                        await setDoc(docRef, data);
+                        initialized = true;
+                    } else {
+                        await updateDoc(docRef, data);
+                    }
+                } catch (e: any) {
+                    console.error('[MP] Push erro:', e?.code || e?.message || e);
                 }
-            } catch (e: any) {
-                console.error('[MP] Push erro:', e?.code || e?.message || e);
-            } finally {
-                writeInFlight = false;
-                if (writeQueued) { writeQueued = false; push(); }
-            }
+            } while (writeQueued);
+            writeInFlight = false;
         };
 
         push();
@@ -215,13 +216,13 @@ export const useMultiplayer = (
             const p = playerPositionRef.current;
             const r = rotationYRef.current;
             const now = Date.now();
-            if (p.distanceTo(lastPos) > 0.1 || Math.abs(r - lastRot) > 0.1 || now - lastTime > 2500) {
+            if (p.distanceTo(lastPos) > MP_WRITE_THRESHOLD || Math.abs(r - lastRot) > MP_ROTATION_THRESHOLD || now - lastTime > MP_FORCE_WRITE_MS) {
                 push();
                 lastPos.copy(p);
                 lastRot = r;
                 lastTime = now;
             }
-        }, 200); // Write every 200ms (5/sec) instead of 100ms — still smooth, half the Firestore writes
+        }, MP_WRITE_INTERVAL); (5/sec) instead of 100ms — still smooth, half the Firestore writes
 
         const handleUnload = () => {
             updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});
@@ -247,7 +248,7 @@ export const useMultiplayer = (
 
     // Send chat message — with local fallback
     const sendChat = (msg: string) => {
-        const clean = msg.trim().slice(0, 200);
+        const clean = msg.trim().slice(0, CHAT_MAX_LEN);
         if (!clean) return;
         const now = Date.now();
         chatMsgRef.current = clean;
@@ -280,15 +281,25 @@ export const useMultiplayer = (
             console.warn('[MP] Chat Firestore write failed (local fallback active):', e?.code || e?.message);
         });
 
-        // Auto-clear after 30s
-        setTimeout(() => {
+        // Auto-clear after 30s — tracked for cleanup
+        const clearTimer = setTimeout(() => {
+            chatClearTimersRef.current.delete(clearTimer);
             if (chatMsgRef.current === clean) {
                 chatMsgRef.current = '';
                 chatAtRef.current = 0;
                 updateDoc(docRef, { chatMsg: '', chatAt: 0, updatedAt: serverTimestamp() }).catch(() => {});
             }
-        }, 30000);
+        }, CHAT_CLEAR_DELAY);
+        chatClearTimersRef.current.add(clearTimer);
     };
+
+    // Cleanup chat clear timers on unmount
+    useEffect(() => {
+        return () => {
+            chatClearTimersRef.current.forEach(clearTimeout);
+            chatClearTimersRef.current.clear();
+        };
+    }, []);
 
     const login = async (): Promise<string | null> => {
         return playerIdRef.current;
