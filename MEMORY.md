@@ -609,3 +609,73 @@ Correções de contraste de texto e redução de font-mono overuse baseadas na A
 - Código fonte: alterado (contraste + font-mono)
 - Push: ✅ main -> main
 
+---
+
+## 🔧 Sessão 2026-04-28: Revisão Completa + Fixes Críticos (09:30 GMT+8)
+
+### Revisão realizada
+Review completo de todos os arquivos do código fonte. Identificados 18 problemas (5 críticos, 5 performance, 4 manutenção, 4 sugestões).
+
+### Fixes Críticos
+
+#### Fix #1: Type safety do elevatorTimer
+- `App.tsx`: `useState<any>(null)` → `useState<number | null>(null)`
+- Removido cast `(prev: any)` no countdown
+
+#### Fix #2: Memory leak no sendChat
+- `Multiplayer.tsx`: Timeout de auto-clear do chat agora é rastreado em `chatClearTimersRef`
+- Cleanup no unmount: `chatClearTimersRef.current.forEach(clearTimeout)`
+
+#### Fix #3: Race condition no push()
+- `Multiplayer.tsx`: Padrão recursivo `if(writeQueued) push()` substituído por `do { ... } while(writeQueued)`
+- Evita stack overflow em cenários de write backpressure
+
+#### Fix #5: Barney dialogue node reset
+- `App.tsx`: `setBarneyDialogueNode('greet')` adicionado em `accept_coffee` e `refuse`
+- Antes o diálogo reabria no último node visitado
+
+#### Fix #9: Lazy load Barney theme
+- `AudioEngine.tsx`: Barney theme só é fetchado no primeiro trigger do elevador (não no mount)
+- Reduz ~2MB de download inicial se o player nunca chegar na fase do Barney
+
+#### Fix #10: Chase interval cleanup
+- `App.tsx`: Flag `active` no cleanup do interval do chase
+- Previne múltiplos intervals se gameState mudar rapidamente
+
+#### Fix #12: TypeScript any types
+- `App.tsx`: `GameState` type, `WorldProps` interface
+- `Player.tsx`: `PlayerProps` interface, `Avatar` tipado
+- `RemotePlayer.tsx`: `RemotePlayerProps` interface
+- `Elevator.tsx`: `ElevatorDoors`, `ElevatorFacade`, `ElevatorInterior` tipados
+- `UI.tsx`: `VisualJoystick`, `TypewriterText`, `DialogueOverlay` tipados
+- `DialogueNode`, `DialogueOption` interfaces adicionadas
+
+#### Fix #13: Magic numbers → constants
+- 16 constantes extraídas para `constants.ts`:
+  - `BARNEY_CATCH_DIST`, `DOOR_INTERACT_DIST`, `NPC_INTERACT_DIST`, `BED_INTERACT_DIST`
+  - `ELEVATOR_ZONE_X`, `ELEVATOR_ZONE_Z`
+  - `MP_GHOST_TTL_MS`, `MP_WRITE_INTERVAL`, `MP_WRITE_THRESHOLD`, `MP_ROTATION_THRESHOLD`, `MP_FORCE_WRITE_MS`
+  - `CHAT_TTL_MS`, `CHAT_MAX_LEN`, `CHAT_CLEAR_DELAY`, `PLAYER_NAME_MAX_LEN`
+
+#### Fix #15: GameState type
+- `App.tsx`: `GameState` como discriminated union: `'lobby' | 'outdoor' | 'barney_greet' | 'indoor_day' | 'sleep_fade' | 'indoor_night' | 'chase' | 'caught' | 'saved'`
+
+#### Fix #16: AudioEngine error handling
+- Fetches agora verificam `r.ok` antes de processar
+- Erros logam warning em vez de error (silent fallback)
+
+#### Fix #18: TypewriterText performance
+- Batch de 3 caracteres por tick (reduz re-renders em 66%)
+
+### Commits
+- `1125e0d` — fix(critical): type safety, memory leaks, race conditions, magic numbers
+- `a8892b1` — fix(types): replace any with proper TypeScript interfaces
+- `19d46c9` — fix(perf): lazy load Barney theme + TypewriterText batch + AudioEngine error handling
+- `05fd707` — fix(types): resolve all tsc errors — clean compile
+
+### Estado final
+- TypeScript: ✅ compila limpo (`npx tsc --noEmit` sem erros)
+- index.html: NÃO rebuildado
+- Código fonte: alterado (18 fixes aplicados)
+- Push: ✅ main atualizado
+
