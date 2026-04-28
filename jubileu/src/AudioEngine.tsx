@@ -141,7 +141,7 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
                   if (!isMounted || sourceRef.current) return;
                   const source = ctx.createBufferSource(); source.buffer = audioBuf; source.loop = true; source.connect(lobbyGain); source.start(0); sourceRef.current = source; lobbyReadyRef.current = true;
               })
-              .catch(e => { console.warn("[Audio] Lobby music load failed (silent fallback):", e.message); lobbyLoadFailed = true; });
+              .catch(e => { console.warn("[Audio] Lobby music load failed (silent fallback):", e.message); });
       }
       
       // Barney theme: lazy-load on first elevator trigger (not on mount)

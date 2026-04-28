@@ -112,7 +112,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
-  const [anim, setAnim] = useState('Idle');
+  const [anim, setAnim] = useState<'Idle' | 'Walking'>('Idle');
   const elevTriggered = useRef(false); const HH = 1.6;
   const prevInsideElevatorRef = useRef(false);
   const _vRef = useRef<any>(null);

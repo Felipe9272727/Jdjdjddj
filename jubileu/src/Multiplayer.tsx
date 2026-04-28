@@ -3,7 +3,7 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, serverTimestamp, Firestore } from 'firebase/firestore';
 import fallbackConfig from '../firebase-applet-config.json';
 import { Vector3 } from 'three';
-import { MAX_LEVEL, MP_GHOST_TTL_MS, MP_WRITE_INTERVAL, MP_WRITE_THRESHOLD, MP_ROTATION_THRESHOLD, MP_FORCE_WRITE_MS, CHAT_MAX_LEN, CHAT_CLEAR_DELAY, PLAYER_NAME_MAX_LEN } from './constants';
+import { MAX_LEVEL, MP_GHOST_TTL_MS, MP_WRITE_INTERVAL, MP_WRITE_THRESHOLD, MP_ROTATION_THRESHOLD, MP_FORCE_WRITE_MS, CHAT_TTL_MS, CHAT_MAX_LEN, CHAT_CLEAR_DELAY, PLAYER_NAME_MAX_LEN } from './constants';
 
 const clampLevel = (n: number) => {
     const v = Number.isFinite(n) ? Math.floor(n) : 0;
@@ -222,7 +222,7 @@ export const useMultiplayer = (
                 lastRot = r;
                 lastTime = now;
             }
-        }, MP_WRITE_INTERVAL); (5/sec) instead of 100ms — still smooth, half the Firestore writes
+        }, MP_WRITE_INTERVAL); // 5/sec instead of 100ms — still smooth, half the Firestore writes
 
         const handleUnload = () => {
             updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});
