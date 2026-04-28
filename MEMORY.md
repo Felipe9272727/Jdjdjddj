@@ -578,3 +578,34 @@ Vários problemas da AUDIT.md já tinham sido corrigidos no código atual:
 - Código fonte: alterado (aria-labels + imports limpos)
 - Próximo passo: rebuild seguro com `npm ci` quando necessário
 
+---
+
+## 🔧 Sessão 2026-04-28: Fixes de Contraste + Font-mono (09:22 GMT+8)
+
+### O que foi feito
+Correções de contraste de texto e redução de font-mono overuse baseadas na AUDIT.md.
+
+### Fixes aplicados
+
+#### ChatSystem.tsx — Contraste
+- `text-white/30` → `text-white/50` (botão fechar chat mobile)
+- `text-white/40` → `text-white/55` (label "Chat:", separator BubbleChatFallback)
+- `text-white/45` → `text-white/60` (mensagens vazias, separator de nome)
+- `placeholder-white/35` → `placeholder-white/50` (input do chat)
+
+#### MainMenu.tsx — Contraste + Font-mono
+- `text-white/40` → `text-white/55` (rodapé desktop, controles, labels de sistema)
+- `text-white/45` → `text-white/60` (subtítulo do lobby)
+- `text-amber-500/40` → `text-amber-500/55` (tagline "Por favor, permaneça calmo")
+- `placeholder-white/35` → `placeholder-white/50` (input de nome)
+- Removido `font-mono` do botão "Copiar Link de Convite"
+- Removido `font-mono` do label "Andar 03 • Saguão" (agora usa `font-medium`)
+
+### Commits
+- `e26832f` — fix(design): improve text contrast + reduce font-mono overuse
+
+### Estado atual
+- index.html: NÃO rebuildado
+- Código fonte: alterado (contraste + font-mono)
+- Push: ✅ main -> main
+
