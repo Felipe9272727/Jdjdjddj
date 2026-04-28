@@ -135,21 +135,25 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
       
       if (!sourceRef.current) {
           fetch('https://raw.githubusercontent.com/Felipe9272727/M-sica-pro-meu-jogo/main/Lobby%20Time(MP3_160K).mp3')
-              .then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)).then(audioBuf => {
+              .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
+              .then(b => ctx.decodeAudioData(b))
+              .then(audioBuf => {
                   if (!isMounted || sourceRef.current) return;
                   const source = ctx.createBufferSource(); source.buffer = audioBuf; source.loop = true; source.connect(lobbyGain); source.start(0); sourceRef.current = source; lobbyReadyRef.current = true;
-              }).catch(e => console.error("Error loading lobby music:", e));
+              })
+              .catch(e => { console.warn("[Audio] Lobby music load failed (silent fallback):", e.message); lobbyLoadFailed = true; });
       }
       
-      if (!barneyBufferRef.current) {
+      // Barney theme: lazy-load on first elevator trigger (not on mount)
+      if (!barneyBufferRef.current && doorTrigger > 0) {
           fetch('https://archive.org/download/barneysgreatesthits/Barney%20Theme%20Song.mp3')
-              .then(r => r.arrayBuffer())
+              .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
               .then(b => ctx.decodeAudioData(b))
               .then(audioBuf => {
                   if (!isMounted) return;
                   barneyBufferRef.current = audioBuf;
               })
-              .catch(e => console.error("Error loading Barney music:", e));
+              .catch(e => console.warn("[Audio] Barney theme load failed:", e.message));
       }
 
       schedulerTimerRef.current = setInterval(() => {

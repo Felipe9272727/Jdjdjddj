@@ -24,11 +24,12 @@ export const TypewriterText = ({ text, speed = 30 }: { text: string; speed?: num
     setDisplayedText('');
     setIsComplete(false);
     let index = 0;
+    // Batch updates: render every 3 chars to reduce re-renders
+    const BATCH = 3;
     const timer = setInterval(() => {
-      if (index < text.length) {
-        setDisplayedText(text.substring(0, index + 1));
-        index++;
-      } else {
+      index = Math.min(index + BATCH, text.length);
+      setDisplayedText(text.substring(0, index));
+      if (index >= text.length) {
         setIsComplete(true);
         clearInterval(timer);
       }
