@@ -6,7 +6,7 @@ import { ASSETS, COLORS } from './constants';
 import { CallPanel } from './BuildingBlocks';
 import * as THREE from 'three';
 
-export const ElevatorDoors = React.memo(({ closed }: any) => {
+export const ElevatorDoors = React.memo(({ closed }: { closed: boolean }) => {
   const leftRef = useRef<any>(null); const rightRef = useRef<any>(null);
   useFrame((s, dt) => {
       const spd = 5.0 * dt;
@@ -21,7 +21,7 @@ export const ElevatorDoors = React.memo(({ closed }: any) => {
   );
 });
 
-export const ElevatorFacade = React.memo(({ z, height = 4.5, width = 10 }: any) => {
+export const ElevatorFacade = React.memo(({ z, height = 4.5, width = 10 }: { z: number; height?: number; width?: number }) => {
   const W = width; const H = height; const WH = 1.2;
   return (
       <group position={[0, 0, z]}>
@@ -44,7 +44,7 @@ export const ElevatorFacade = React.memo(({ z, height = 4.5, width = 10 }: any) 
   );
 });
 
-export const ElevatorInterior = React.memo(({ timer, doorsClosed, level }: any) => {
+export const ElevatorInterior = React.memo(({ timer, doorsClosed, level }: { timer: number | null; doorsClosed: boolean; level: number }) => {
   const EW = 6.5; const ED = 6.0; const EH = 4.0; const EZ = -13.0; const OW = 3.0;
   const panelText = timer !== null ? String(Math.ceil(timer)).padStart(2, '0') : "--";
   const panelColor = timer !== null ? "#FF0000" : "#00FF00";

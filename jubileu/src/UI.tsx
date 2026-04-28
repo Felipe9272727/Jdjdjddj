@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 import { DIALOGUE_TREE, BARNEY_URL } from './constants';
 
-export const VisualJoystick = ({ x, y, active, origin }: any) => {
+export const VisualJoystick = ({ x, y, active, origin }: { x: number; y: number; active: boolean; origin: { x: number; y: number } | null }) => {
   if (!active || !origin) return null;
   // Tighter max radius and smaller base on small screens — w-32 (128px) was
   // crowding the edge on 360px portrait phones.
@@ -16,7 +16,7 @@ export const VisualJoystick = ({ x, y, active, origin }: any) => {
   );
 };
 
-export const TypewriterText = ({ text, speed = 30 }: any) => {
+export const TypewriterText = ({ text, speed = 30 }: { text: string; speed?: number }) => {
   const [displayedText, setDisplayedText] = useState('');
   const [isComplete, setIsComplete] = useState(false);
   
@@ -44,8 +44,18 @@ export const TypewriterText = ({ text, speed = 30 }: any) => {
   );
 };
 
-export const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }: any) => {
-  const node = DIALOGUE_TREE[nodeKey];
+interface DialogueOption {
+  text: string;
+  next: string | null;
+}
+
+interface DialogueNode {
+  text: string;
+  options: DialogueOption[];
+}
+
+export const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }: { nodeKey: string; onOptionSelect: (next: string) => void; onClose: () => void }) => {
+  const node: DialogueNode | undefined = DIALOGUE_TREE[nodeKey];
   const [showOptions, setShowOptions] = useState(false);
   
   useEffect(() => {

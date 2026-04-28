@@ -34,7 +34,25 @@ import { CeilingFan, WallClock, playArrivalDing, createElevatorHum } from './Atm
 
 const MAX_JOYSTICK_RADIUS = 50;
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount }: any) => (
+// ─── Game State Machine ───────────────────────────────────────────────────
+type GameState = 'lobby' | 'outdoor' | 'barney_greet' | 'indoor_day' | 'sleep_fade' | 'indoor_night' | 'chase' | 'caught' | 'saved';
+
+interface WorldProps {
+  timer: number | null;
+  doorsClosed: boolean;
+  level: number;
+  houseDoorOpen: boolean;
+  npcPositionRef: React.MutableRefObject<Vector3>;
+  isPaused: boolean;
+  playerPositionRef: React.MutableRefObject<Vector3>;
+  gameState: GameState;
+  barneyRef: React.MutableRefObject<Vector3>;
+  barneyTargetRef: React.MutableRefObject<{ x: number; z: number; scale: number }>;
+  nightMode: boolean;
+  doorOpenAmount: number;
+}
+
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount }: WorldProps) => (
   <>
       {level === 0 && <LobbyEnvironment npcPositionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />}
       {level === 0 && <DustParticles count={20} area={16} />}
@@ -82,7 +100,7 @@ export default function App() {
   const lastHandledTimerRef = useRef<number | null>(null);
   const [arrivalPulse, setArrivalPulse] = useState(false);
 
-  const [gameState, setGameState] = useState('lobby');
+  const [gameState, setGameState] = useState<GameState>('lobby');
   const [barneyDialogueOpen, setBarneyDialogueOpen] = useState(false);
   const [barneyDialogueNode, setBarneyDialogueNode] = useState('greet');
   const [canSleep, setCanSleep] = useState(false);

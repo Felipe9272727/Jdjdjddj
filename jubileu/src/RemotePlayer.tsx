@@ -6,7 +6,19 @@ import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL } from './constants';
 import { SkeletonUtils } from 'three-stdlib';
 
-export const RemotePlayer = ({ id, x, y, z, ry, state, name, chatMsg, chatAt }: any) => {
+interface RemotePlayerProps {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  ry: number;
+  state: 'idle' | 'walking';
+  name?: string;
+  chatMsg?: string;
+  chatAt?: number;
+}
+
+export const RemotePlayer = ({ id, x, y, z, ry, state, name, chatMsg, chatAt }: RemotePlayerProps) => {
     const groupRef = useRef<any>(null);
     const hipsRef = useRef<any>(null);
     const hipsBindRef = useRef<Vector3 | null>(null);

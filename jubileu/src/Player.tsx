@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, ELEV_W, LOBBY_W, DOOR_SEAL, L1_BND, ELEV_BLD, HOUSE_EX, HOUSE_IN, HOUSE_DW, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { resolveCollision as _resolve } from './physics';
 
-const Avatar = ({ animation, visible = true }: any) => {
+const Avatar = ({ animation, visible = true }: { animation: 'Idle' | 'Walking'; visible?: boolean }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
   const { actions } = useAnimations(useMemo(() => {
@@ -85,7 +85,30 @@ const Avatar = ({ animation, visible = true }: any) => {
   );
 };
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }: any) => {
+interface PlayerProps {
+  moveInput: React.MutableRefObject<{ x: number; y: number }>;
+  lookInput: React.MutableRefObject<{ x: number; y: number }>;
+  isDesktop: boolean;
+  onEnterElevator: () => void;
+  doorsClosed: boolean;
+  currentLevel: number;
+  onInteractionUpdate: (canInteract: boolean) => void;
+  onNpcInteractionUpdate: (canInteract: boolean) => void;
+  houseDoorOpen: boolean;
+  active: boolean;
+  zoomLevel: number;
+  npcPositionRef: React.MutableRefObject<Vector3>;
+  dialogueTargetRef?: React.MutableRefObject<Vector3>;
+  dialogueOpen: boolean;
+  sharedPositionRef: React.MutableRefObject<Vector3>;
+  sharedRotationYRef: React.MutableRefObject<number>;
+  cameraThetaRef: React.MutableRefObject<number>;
+  cameraShakeRef: React.MutableRefObject<boolean>;
+  positionCmdRef: React.MutableRefObject<{ x: number; y: number; z: number } | null>;
+  onElevatorZoneChange: (inside: boolean) => void;
+}
+
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
