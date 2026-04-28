@@ -17,12 +17,12 @@ class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasErr
 
 import { LiminalAudioEngine } from './AudioEngine';
 import { MainMenu } from './MainMenu';
-import { VisualJoystick, DialogueOverlay, TypewriterText } from './UI';
+import { VisualJoystick, DialogueOverlay } from './UI';
 import { Player } from './Player';
 import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
-import { BARNEY_URL, BARNEY_DIALOGUE, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
+import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES } from './Settings';
@@ -30,6 +30,7 @@ import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
 import { RobloxChat, BubbleChatFallback } from './ChatSystem';
 import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient } from './PostEffects';
 import { CeilingFan, WallClock, playArrivalDing, createElevatorHum } from './Atmosphere';
+import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue } from './HudComponents';
 
 
 const MAX_JOYSTICK_RADIUS = 50;
@@ -54,13 +55,18 @@ interface WorldProps {
 
 const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount }: WorldProps) => (
   <>
+      {/* Static environment — only changes on level switch */}
       {level === 0 && <LobbyEnvironment npcPositionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />}
+      {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
+
+      {/* Atmospheric — renders once per level, internal throttling */}
       {level === 0 && <DustParticles count={20} area={16} />}
       {level === 0 && <FluorescentFlicker intensity={2.8} />}
       {level === 0 && <CeilingFan x={-5} z={0} speed={0.6} />}
       {level === 0 && <CeilingFan x={5} z={-5} speed={0.8} />}
       {level === 0 && <WallClock x={9.5} z={-7} />}
-      {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
+
+      {/* Dynamic — changes every frame or on game state */}
       <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
       <NightAmbient active={nightMode && level === 1} />
@@ -521,115 +527,19 @@ export default function App() {
           should re-add env() inline — the wrapper resolves it once.
           ───────────────────────────────────────────────────────────────────── */}
       {hasStarted && <div className="hud-fixed">
-
-        {/* TOP — elevator status panel. max-w guard so it doesn't overflow on
-            narrow phones. In landscape phones the available height is tiny so
-            we pin closer to the edge. */}
-        <div className="absolute left-1/2 -translate-x-1/2 px-2 max-w-[calc(100%-1rem)] pe-none top-2 landscape:top-1">
-          <div className="relative">
-            <div className={`absolute -inset-2 rounded-2xl blur-xl transition-opacity duration-500 ${(elevatorTimer !== null && elevatorTimer <= 5) ? 'bg-red-500/40 opacity-100' : arrivalPulse ? 'bg-green-400/50 opacity-100' : 'bg-amber-500/20 opacity-70'}`} />
-            <div className="relative bg-gradient-to-b from-black/95 to-black/80 backdrop-blur-xl ring-1 ring-amber-500/40 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
-              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
-              <div className="flex items-stretch divide-x divide-amber-500/20">
-                <div className="px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[56px] sm:min-w-[90px] landscape:min-w-[80px] relative">
-                  <span className="text-amber-500/70 text-[10px] sm:text-xs landscape:text-xs tracking-[0.25em] uppercase mb-0.5">{currentLevel === 0 ? 'Location' : 'Floor'}</span>
-                  {currentLevel === 0 ? (
-                    <span className="text-amber-300 text-base sm:text-xl landscape:text-xl font-black tracking-widest leading-none" style={{ textShadow: '0 0 20px rgba(251,191,36,0.6)' }}>LOBBY</span>
-                  ) : (
-                    <div className="flex items-baseline gap-0.5">
-                      <span className="text-amber-500/50 text-xs sm:text-sm font-bold">▲</span>
-                      <span className="text-amber-300 text-2xl sm:text-3xl font-black font-mono leading-none tabular-nums" style={{ textShadow: '0 0 25px rgba(251,191,36,0.7)' }}>{String(currentLevel).padStart(2, '0')}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[70px] sm:min-w-[115px] landscape:min-w-[96px]">
-                  {elevatorTimer !== null ? (
-                    <>
-                      <span className={`text-[10px] tracking-[0.25em] uppercase mb-0.5 ${(elevatorTimer <= 5 && !doorsClosed) ? 'text-red-400/80' : doorsClosed ? 'text-blue-400/80' : 'text-amber-400/70'}`}>
-                        {doorsClosed ? 'Traveling' : (elevatorTimer <= 5 ? 'Closing!' : 'Departing')}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${(elevatorTimer <= 5 && !doorsClosed) ? 'bg-red-500 animate-ping' : doorsClosed ? 'bg-blue-400' : 'bg-amber-400'}`} />
-                        <span className={`text-lg sm:text-2xl landscape:text-2xl font-black font-mono leading-none tabular-nums ${(elevatorTimer <= 5 && !doorsClosed) ? 'text-red-300' : 'text-white'}`} style={{ textShadow: '0 0 10px rgba(255,255,255,0.3)' }}>{String(elevatorTimer).padStart(2, '0')}</span>
-                        <span className="text-white/40 text-xs font-mono -mb-0.5">s</span>
-                      </div>
-                    </>
-                  ) : arrivalPulse ? (
-                    <>
-                      <span className="text-green-400/90 text-[10px] tracking-[0.25em] uppercase mb-0.5">Arrived</span>
-                      <div className="flex items-center gap-2">
-                        <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                        <span className="text-green-300 text-sm sm:text-base font-bold leading-none">Ding!</span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-amber-400/70 text-[10px] tracking-[0.25em] uppercase mb-0.5">Status</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-amber-400/70 animate-pulse" />
-                        <span className="text-amber-100 text-base font-bold tracking-wide leading-none">Ready</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-              {elevatorTimer !== null && (
-                <div className="h-1 bg-black/60 overflow-hidden">
-                  <div 
-                    className={`h-full transition-all duration-1000 ease-linear ${doorsClosed ? 'bg-gradient-to-r from-blue-500 to-cyan-400' : elevatorTimer <= 5 ? 'bg-gradient-to-r from-red-600 to-red-400' : 'bg-gradient-to-r from-amber-500 to-yellow-400'}`}
-                    style={{ width: `${doorsClosed ? ((20 - elevatorTimer) / 20) * 100 : ((5 - elevatorTimer) / 5) * 100}%` }}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <ElevatorHud currentLevel={currentLevel} elevatorTimer={elevatorTimer} doorsClosed={doorsClosed} arrivalPulse={arrivalPulse} />
       </div>}
 
-      {floorReveal && (
-        <div className="absolute inset-0 z-[45] flex items-center justify-center pointer-events-none px-4">
-          <div className="animate-floor-reveal text-center w-full">
-            <div className="text-amber-500/80 text-xs sm:text-sm tracking-[0.3em] sm:tracking-[0.5em] uppercase mb-2 sm:mb-4 animate-fade-in">Now Arriving</div>
-            <div className="text-white font-black tracking-wider tabular-nums" style={{ fontSize: 'clamp(2rem, 12vw, 5rem)', textShadow: '0 0 60px rgba(251,191,36,0.8), 0 0 30px rgba(255,255,255,0.4)' }}>FLOOR <span className="text-amber-400">{String(currentLevel).padStart(2, '0')}</span></div>
-            <div className="h-[2px] w-32 sm:w-48 mx-auto mt-4 sm:mt-6 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
-          </div>
-        </div>
-      )}
+      {floorReveal && <FloorReveal level={currentLevel} />}
       
       {hasStarted && (
-        <div
-          className="absolute z-50 flex gap-2 pointer-events-auto"
-          style={{
-            top: 'calc(env(safe-area-inset-top, 0px) + 8px)',
-            right: 'calc(env(safe-area-inset-right, 0px) + 8px)',
-          }}
-        >
-          {multiplayerEnabled && (
-            <div className="flex items-center gap-1.5 bg-black/70 backdrop-blur-sm ring-1 ring-white/10 px-2.5 py-1.5 rounded-full" aria-label="Multiplayer ativo">
-              <div className={`w-2 h-2 rounded-full ${Object.keys(otherPlayers).length > 0 ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]' : 'bg-amber-400/70 animate-pulse'}`} />
-              <span className="text-[10px] text-white/60 font-medium tracking-wider">{Object.keys(otherPlayers).length > 0 ? `${Object.keys(otherPlayers).length} online` : 'MP'}</span>
-            </div>
-          )}
-          <button onClick={() => setSettingsOpen(true)} className="relative group" aria-label="Configurações">
-            <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#fbbf24" className="w-6 h-6 landscape:w-6 landscape:h-6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-              </svg>
-            </div>
-          </button>
-          <button onClick={() => setMuted(!muted)} className="relative group" aria-label={muted ? 'Ativar som' : 'Silenciar'}>
-            <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target">
-              {muted ? (
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#f87171" className="w-6 h-6 landscape:w-6 landscape:h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#fbbf24" className="w-6 h-6 landscape:w-6 landscape:h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
-              )}
-            </div>
-          </button>
-        </div>
+        <TopControls
+          multiplayerEnabled={multiplayerEnabled}
+          otherPlayersCount={Object.keys(otherPlayers).length}
+          onSettingsOpen={() => setSettingsOpen(true)}
+          muted={muted}
+          onToggleMute={() => setMuted(!muted)}
+        />
       )}
       {settings.showFps && hasStarted && <FpsCounter />}
       {botEnabled && <BotHud info={botInfo} />}
@@ -661,32 +571,24 @@ export default function App() {
           gesture bar. Horizontal padding is fluid for narrow screens.
           ───────────────────────────────────────────────────────────────── */}
       {hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && (
-        <div
-          className="absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]"
-          
-        >
-          <button onClick={handleOpenDoor} className="group relative tap-target" aria-label="Abrir porta">
-            <div className="absolute -inset-1 bg-gradient-to-r from-amber-400 to-yellow-300 rounded-full blur-md opacity-70 group-hover:opacity-100 animate-pulse" />
-            <div className="relative bg-white text-black px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-amber-200 text-xs sm:text-base">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" /></svg>
-              ABRIR PORTA
-            </div>
-          </button>
-        </div>
+        <ActionButton
+          icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" /></svg>}
+          label="ABRIR PORTA"
+          colorClasses="bg-gradient-to-r from-amber-400 to-yellow-300"
+          ringClasses="bg-white text-black ring-amber-200"
+          onClick={handleOpenDoor}
+          ariaLabel="Abrir porta"
+        />
       )}
       {hasStarted && canInteractNPC && !dialogueOpen && !barneyDialogueOpen && (
-        <div
-          className="absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]"
-          
-        >
-          <button onClick={handleStartDialogue} className="group relative tap-target" aria-label="Falar com NPC">
-            <div className="absolute -inset-1.5 bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 rounded-full blur-md opacity-80 animate-pulse" />
-            <div className="relative bg-gradient-to-b from-yellow-300 to-amber-400 text-black px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-[0.15em] sm:tracking-[0.25em] shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-yellow-200 text-xs sm:text-base">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
-              FALAR
-            </div>
-          </button>
-        </div>
+        <ActionButton
+          icon={<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>}
+          label="FALAR"
+          colorClasses="bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400"
+          ringClasses="bg-gradient-to-b from-yellow-300 to-amber-400 text-black ring-yellow-200"
+          onClick={handleStartDialogue}
+          ariaLabel="Falar com NPC"
+        />
       )}
       {dialogueOpen && ( <DialogueOverlay nodeKey={dialogueNode} onOptionSelect={(next: string) => setDialogueNode(next)} onClose={() => setDialogueOpen(false)} /> )}
       
@@ -702,89 +604,22 @@ export default function App() {
       )}
       
       {hasStarted && canSleepNow && gameState === 'indoor_day' && !dialogueOpen && !barneyDialogueOpen && (
-        <div
-          className="absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]"
-          
-        >
-          <button onClick={handleSleep} className="group relative tap-target" aria-label="Dormir">
-            <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full blur-md opacity-70 animate-pulse" />
-            <div className="relative bg-gradient-to-b from-slate-200 to-slate-300 text-slate-900 px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 ring-blue-200 text-xs sm:text-base">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3C7.03 3 3 7.03 3 12s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z"/></svg>
-              DORMIR
-            </div>
-          </button>
-        </div>
+        <ActionButton
+          icon={<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3C7.03 3 3 7.03 3 12s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z"/></svg>}
+          label="DORMIR"
+          colorClasses="bg-gradient-to-r from-blue-400 to-indigo-400"
+          ringClasses="bg-gradient-to-b from-slate-200 to-slate-300 text-slate-900 ring-blue-200"
+          onClick={handleSleep}
+          ariaLabel="Dormir"
+        />
       )}
       
-      {/* Status banners — positioned below the elevator HUD. Portrait gets
-          ~88px clearance under the elevator panel; landscape phones have far
-          less vertical room so we sit close to the top edge instead. */}
-      {hasStarted && gameState === 'indoor_night' && (
-        <div className={`absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorTimer !== null ? 'top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]' : 'top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]'}`}>
-          <div className="bg-red-950/80 ring-1 ring-red-500/40 text-red-200 px-3 sm:px-4 py-2 rounded-lg font-mono text-[11px] sm:text-sm tracking-wider animate-pulse">Algo não está certo...</div>
-        </div>
-      )}
-      {hasStarted && gameState === 'chase' && (
-        <div className={`absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorTimer !== null ? 'top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]' : 'top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]'}`}>
-          <div className="bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-[11px] sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight">
-            ⚠ CORRA PARA O ELEVADOR ⚠
-          </div>
-        </div>
-      )}
-      {hasStarted && gameState === 'saved' && (
-        <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-6 overflow-hidden">
-          <div className="text-center w-full animate-fade-in">
-            <div className="text-green-400 font-black mb-2" style={{ fontSize: 'clamp(1.5rem, 8vw, 3rem)', textShadow: '0 0 40px rgba(74,222,128,0.5)' }}>VOCÊ SOBREVIVEU</div>
-            <div className="h-[2px] w-24 mx-auto mb-3 bg-gradient-to-r from-transparent via-green-400 to-transparent" />
-            <div className="text-white/50 text-base sm:text-lg font-light tracking-wider">Por enquanto...</div>
-          </div>
-        </div>
-      )}
+      {/* Status banners */}
+      {hasStarted && gameState === 'indoor_night' && <NightBanner elevatorActive={elevatorTimer !== null} />}
+      {hasStarted && gameState === 'chase' && <ChaseBanner elevatorActive={elevatorTimer !== null} />}
+      {hasStarted && gameState === 'saved' && <SavedOverlay />}
       
-      {barneyDialogueOpen && BARNEY_DIALOGUE[barneyDialogueNode] && (
-        <div className="absolute inset-0 z-[55] flex items-end justify-center pointer-events-auto landscape:items-center landscape:py-4 overflow-y-auto" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)' }}>
-          <div className="w-full max-w-2xl mx-4 mb-6 landscape:mb-0 relative animate-barney-dialogue flex-shrink-0">
-            <div className="absolute -inset-1 bg-gradient-to-r from-purple-500/40 via-pink-500/40 to-purple-500/40 rounded-2xl blur-lg barney-glow" />
-            <div className="relative bg-[#0d0411]/98 border-2 border-purple-500/50 rounded-xl p-2.5 sm:p-5 shadow-2xl">
-              <div className="flex items-start gap-3 sm:gap-4 flex-col landscape:flex-row sm:flex-row">
-                {/* Mobile portrait text-only image or smaller image */}
-                <div className="flex items-center gap-3 sm:hidden landscape:hidden w-full border-b border-white/5 pb-2 mb-1">
-                   <div className="w-14 h-14 flex-shrink-0 bg-transparent rounded-none overflow-hidden">
-                     <img src={BARNEY_URL} className="w-full h-full object-contain object-top animate-barney-bounce" alt="" />
-                   </div>
-                   <div className="flex items-center gap-2">
-                     <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
-                     <div className="text-purple-300 text-[11px] font-bold tracking-[0.3em] uppercase">Barney</div>
-                   </div>
-                </div>
-
-                {/* Desktop and landscape image */}
-                <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-transparent rounded-none overflow-hidden self-center sm:self-start hidden sm:block landscape:block">
-                  <img src={BARNEY_URL} className="w-full h-full object-contain object-top animate-barney-bounce" alt="" />
-                </div>
-                
-                <div className="flex-1 min-w-0 w-full">
-                  <div className="hidden sm:flex landscape:flex items-center gap-2 mb-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
-                    <div className="text-purple-300 text-[11px] font-bold tracking-[0.3em] uppercase">Barney</div>
-                  </div>
-                  <div className="text-white/95 text-sm sm:text-base leading-relaxed mb-4 font-serif min-h-[2rem] sm:min-h-[3rem] landscape:min-h-0">
-                    <TypewriterText text={BARNEY_DIALOGUE[barneyDialogueNode].text} speed={28} />
-                  </div>
-                  <div className="flex flex-col gap-2 max-h-[35vh] landscape:max-h-[30vh] overflow-y-auto scrollbar-hide pr-1">
-                    {BARNEY_DIALOGUE[barneyDialogueNode].options.map((opt: any, i: number) => (
-                      <button key={i} onClick={() => handleBarneyResponse(opt.next)} aria-label={opt.text} className="group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-lg text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0">
-                        <span className="text-purple-400/60 group-hover:text-purple-300 transition-colors">▸</span>
-                        <span className="flex-1">{opt.text}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {barneyDialogueOpen && <BarneyDialogue dialogueNode={barneyDialogueNode} onResponse={handleBarneyResponse} />}
     </div>
   );
 }
