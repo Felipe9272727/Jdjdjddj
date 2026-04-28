@@ -120,7 +120,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                         }}
                     >
                         {messages.length === 0 && (
-                            <div className="text-white/45 text-xs text-center py-3 px-4">
+                            <div className="text-white/60 text-xs text-center py-3 px-4">
                                 Pressione <kbd className="px-1 py-0.5 bg-white/10 rounded text-[10px] font-mono">/</kbd> para conversar
                             </div>
                         )}
@@ -140,7 +140,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                                         <span className="font-extrabold" style={{ color: nameColor }}>
                                             {msg.name}
                                         </span>
-                                        <span className="text-white/45 font-normal">: </span>
+                                        <span className="text-white/60 font-normal">: </span>
                                         <span className="text-white/90 font-normal">{msg.text}</span>
                                     </span>
                                 </div>
@@ -169,7 +169,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                                 boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
                             }}
                         >
-                            <span className="text-white/40 text-xs font-bold px-2.5 shrink-0 select-none">Chat:</span>
+                            <span className="text-white/55 text-xs font-bold px-2.5 shrink-0 select-none">Chat:</span>
                             <input
                                 ref={inputRef}
                                 type="text"
@@ -182,7 +182,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                                 }}
                                 placeholder="Type here..." aria-label="Mensagem do chat"
                                 maxLength={200}
-                                className="flex-1 bg-transparent text-white text-[13px] font-normal placeholder-white/35 outline-none py-2.5 pr-3"
+                                className="flex-1 bg-transparent text-white text-[13px] font-normal placeholder-white/50 outline-none py-2.5 pr-3"
                                 style={{ fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }}
                                 autoFocus
                             />
@@ -243,7 +243,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                             </span>
                             <button
                                 onClick={() => { setOpen(false); setInput(''); }}
-                                className="text-white/30 hover:text-white/70 text-lg font-bold leading-none w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 active:bg-white/20 transition-colors"
+                                className="text-white/50 hover:text-white/70 text-lg font-bold leading-none w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 active:bg-white/20 transition-colors"
                             >
                                 ×
                             </button>
@@ -256,7 +256,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                             style={{ maxHeight: 'calc(min(340px, 50dvh) - 90px)' }}
                         >
                             {messages.length === 0 && (
-                                <div className="text-white/45 text-xs text-center py-4">
+                                <div className="text-white/60 text-xs text-center py-4">
                                     Nenhuma mensagem ainda
                                 </div>
                             )}
@@ -269,7 +269,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                                             <span className="font-extrabold" style={{ color: nameColor }}>
                                                 {msg.name}
                                             </span>
-                                            <span className="text-white/45 font-normal">: </span>
+                                            <span className="text-white/60 font-normal">: </span>
                                             <span className="text-white/90 font-normal">{msg.text}</span>
                                         </span>
                                     </div>
@@ -386,7 +386,7 @@ export const BubbleChatFallback = ({ messages, currentUserId }: BubbleChatFallba
                                 <span className="font-extrabold" style={{ color: nameColor }}>
                                     {msg.name}
                                 </span>
-                                <span className="text-white/40 font-normal">: </span>
+                                <span className="text-white/55 font-normal">: </span>
                                 <span className="text-white/85 font-normal">{msg.text}</span>
                             </span>
                         </div>

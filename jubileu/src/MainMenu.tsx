@@ -221,9 +221,9 @@ export const MainMenu = ({ onPlay }: any) => {
                 </div>
               </div>
               
-              <p className="text-white/45 text-center text-xs sm:text-sm max-w-xs leading-relaxed landscape:hidden mb-2">
+              <p className="text-white/60 text-center text-xs sm:text-sm max-w-xs leading-relaxed landscape:hidden mb-2">
                 Uma experiência liminal interativa.<br/>
-                <span className="text-amber-500/40">Por favor, permaneça calmo.</span>
+                <span className="text-amber-500/55">Por favor, permaneça calmo.</span>
               </p>
 
               <div className="hidden landscape:block w-full max-w-xs mt-2">
@@ -245,7 +245,7 @@ export const MainMenu = ({ onPlay }: any) => {
                                   onChange={e => setPlayerNameState(e.target.value.slice(0, 20))}
                                   maxLength={20}
                                   placeholder="Enter your name..."
-                                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/35 outline-none focus:border-amber-500/60 transition-colors"
+                                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/50 outline-none focus:border-amber-500/60 transition-colors"
                               />
                           </div>
                           <button onClick={handleShare} className="mt-1 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2 rounded text-xs text-white hover:bg-white/10 transition-colors">
@@ -296,7 +296,7 @@ export const MainMenu = ({ onPlay }: any) => {
                                  onChange={e => setPlayerNameState(e.target.value.slice(0, 20))}
                                  maxLength={20}
                                  placeholder="Enter your name..."
-                                 className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/35 outline-none focus:border-amber-500/60 transition-colors"
+                                 className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm font-mono placeholder-white/50 outline-none focus:border-amber-500/60 transition-colors"
                              />
                          </div>
                          <button onClick={handleShare} className="mt-1 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2.5 rounded text-sm text-white font-bold hover:bg-white/10 transition-colors">
@@ -325,7 +325,7 @@ export const MainMenu = ({ onPlay }: any) => {
                 </div>
               </button>
               
-              <div className="flex justify-center gap-5 mt-3 text-white/40 text-xs">
+              <div className="flex justify-center gap-5 mt-3 text-white/55 text-xs">
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>
                   Toque
@@ -373,7 +373,7 @@ export const MainMenu = ({ onPlay }: any) => {
               <div className="flex-1 max-w-lg flex flex-col justify-center">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full mb-4 animate-fade-in-up" style={{ animationDelay: '0.7s' }}>
                   <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
-                  <span className="text-amber-400/80 text-xs font-mono uppercase tracking-wider">Andar 03 • Saguão</span>
+                  <span className="text-amber-400/80 text-xs uppercase tracking-wider font-medium">Andar 03 • Saguão</span>
                 </div>
                 <div className="mb-6 animate-fade-in-up" style={{ animationDelay: '0.8s' }}>
                   <p className="text-amber-500/40 text-sm uppercase tracking-[0.5em] mb-2 font-light">Bem-vindo ao</p>
@@ -394,7 +394,7 @@ export const MainMenu = ({ onPlay }: any) => {
                          </button>
                      </div>
                      {multiplayerEnabled && (
-                         <button onClick={handleShare} className="flex items-center justify-center gap-2 border border-white/30 bg-white/10 py-2 rounded-lg text-sm text-white font-mono hover:bg-white/20 transition-all">
+                         <button onClick={handleShare} className="flex items-center justify-center gap-2 border border-white/30 bg-white/10 py-2 rounded-lg text-sm text-white hover:bg-white/20 transition-all">
                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                              {copiedLink ? "Link na Área de Transferência!" : "Copiar Link de Convite"}
                          </button>
@@ -426,14 +426,14 @@ export const MainMenu = ({ onPlay }: any) => {
             </div>
           </div>
           
-          <div className="absolute top-6 left-6 text-white/40 text-xs tracking-wider hidden md:flex items-center gap-2">
+          <div className="absolute top-6 left-6 text-white/55 text-xs tracking-wider hidden md:flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />SISTEMA ATIVO
           </div>
-          <div className="absolute top-6 right-6 text-white/40 text-xs tracking-wider hidden md:flex items-center gap-2">
+          <div className="absolute top-6 right-6 text-white/55 text-xs tracking-wider hidden md:flex items-center gap-2">
             <span className="text-red-500">●</span> REC<span className="ml-4">CAM_01</span>
           </div>
-          <div className="absolute bottom-6 left-6 text-white/40 text-xs tracking-wider hidden md:block">© 2026 LIMINAL SYSTEMS</div>
-          <div className="absolute bottom-6 right-6 text-white/40 text-xs tracking-wider hidden md:block cursor-default select-none" onClick={() => setEasterEgg(p => p + 1)}>
+          <div className="absolute bottom-6 left-6 text-white/55 text-xs tracking-wider hidden md:block">© 2026 LIMINAL SYSTEMS</div>
+          <div className="absolute bottom-6 right-6 text-white/55 text-xs tracking-wider hidden md:block cursor-default select-none" onClick={() => setEasterEgg(p => p + 1)}>
             {easterEgg >= 3 ? (
               <span className="text-amber-400 animate-pulse">🏆 O elevador sabe de tudo...</span>
             ) : 'v1.0.3'}
