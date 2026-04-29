@@ -78824,7 +78824,7 @@ const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, maste
         console.warn("[Audio] Lobby music load failed (silent fallback):", e2.message);
       });
     }
-    if (!barneyBufferRef.current && doorTrigger > 0) {
+    if (!barneyBufferRef.current) {
       fetch("https://archive.org/download/barneysgreatesthits/Barney%20Theme%20Song.mp3").then((r2) => {
         if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
         return r2.arrayBuffer();

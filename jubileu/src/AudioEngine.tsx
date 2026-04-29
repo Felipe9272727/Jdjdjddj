@@ -144,8 +144,9 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
               .catch(e => { console.warn("[Audio] Lobby music load failed (silent fallback):", e.message); });
       }
       
-      // Barney theme: lazy-load on first elevator trigger (not on mount)
-      if (!barneyBufferRef.current && doorTrigger > 0) {
+      // Barney theme: load on mount so it's ready when the chase starts.
+      // The ~2MB file loads in background while the player is in the lobby.
+      if (!barneyBufferRef.current) {
           fetch('https://archive.org/download/barneysgreatesthits/Barney%20Theme%20Song.mp3')
               .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
               .then(b => ctx.decodeAudioData(b))
