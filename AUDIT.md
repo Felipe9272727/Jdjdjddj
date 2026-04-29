@@ -92,7 +92,7 @@
 
 **Problema:** Se o chat estiver aberto e o usuário abrir settings, o input do chat (z-65) fica atrás do overlay de settings (z-100), mas o botão de fechar do chat pode não funcionar por causa do overlay.
 **Fix:** Fechar chat automaticamente quando settings abrir.
-**Status:** 🔴 OPEN — Z-index hierarchy remains unchanged. Chat input (z-65) sits behind settings overlay (z-100). Auto-close behavior not implemented.
+**Status:** ✅ FIXED — forceClose={settingsOpen} already present in App.tsx; ChatSystem.tsx auto-closes chat when settings open.
 
 ### 8. Botão de fullscreen sem feedback visual
 **Arquivo:** `MainMenu.tsx` (linha 132-140)
@@ -157,10 +157,10 @@
 | Severidade | Qtd | Fixados | Restantes |
 |------------|-----|---------|-----------|
 | 🔴 Crítico | 3 | 3 ✅ | 0 |
-| 🟡 Design | 5 | 4 ✅ | 1 (#7 Z-index) |
+| 🟡 Design | 5 | 5 ✅ | 0 |
 | 🟠 Inconsistência | 3 | 0 | 3 |
 | 🔵 Sugestão | 4 | 0 | 4 |
-| **Total** | **15** | **7 fixados** | **8 restantes** |
+| **Total** | **15** | **8 fixados** | **7 restantes** |
 
 ---
 *Auditoria por: assistente AI | 2026-04-28*

@@ -78878,11 +78878,22 @@ const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameS
         console.warn("[Audio] Lobby music load failed (silent fallback):", e2.message);
       });
     }
+    const BARNEY_URLS = [
+      "https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/Barney%20Theme%20Song.mp3",
+      "https://archive.org/download/barneysgreatesthits/Barney%20Theme%20Song.mp3"
+    ];
+    const fetchWithFallback = async (urls) => {
+      for (const url of urls) {
+        try {
+          const r2 = await fetch(url);
+          if (r2.ok) return await r2.arrayBuffer();
+        } catch (e2) {
+        }
+      }
+      throw new Error(`All URLs failed for ${urls[0]}`);
+    };
     if (!barneyBufferRef.current) {
-      fetch("https://archive.org/download/barneysgreatesthits/Barney%20Theme%20Song.mp3").then((r2) => {
-        if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
-        return r2.arrayBuffer();
-      }).then((b2) => ctx.decodeAudioData(b2)).then((audioBuf) => {
+      fetchWithFallback(BARNEY_URLS).then((b2) => ctx.decodeAudioData(b2)).then((audioBuf) => {
         if (!isMounted) return;
         barneyBufferRef.current = audioBuf;
       }).catch((e2) => console.warn("[Audio] Barney theme load failed:", e2.message));
