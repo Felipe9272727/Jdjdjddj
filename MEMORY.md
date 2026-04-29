@@ -999,3 +999,43 @@ Adicionado em `BuildingBlocks.tsx`:
 ---
 
 *Última atualização: 2026-04-29 (sync com main + balconista placeholder)*
+---
+
+## 🔧 Sessão 2026-04-30: Cashier FBX→GLB + Debug (06:49-07:37 GMT+8)
+
+### Problema
+O FBX do balconista (Button Pushing.fbx) não aparecia no jogo.
+
+### Diagnóstico
+1. **FBX não renderizava** — `useFBX` + `SkeletonUtils.clone` falha silenciosamente com Mixamo FBX em versões recentes do drei/fiber.
+2. **Auto-fit bounding box** — `Box3.setFromObject()` incluía ossos/armature no cálculo, resultando em escala microscópica.
+3. **CORS** — `fetch('./button_pushing.glb')` falha ao abrir `index.html` via `file://`.
+
+### Solução
+1. **FBX → GLB** — convertido com `fbx2gltf` (1.38MB, 4509 vértices, textura PNG embutida, 22 joints, 1 animação).
+2. **URL do GitHub** — `https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/button_pushing.glb` (mesmo padrão dos outros GLBs).
+3. **`useGLTF`** em vez de `useFBX` — mais compatível com three.js.
+4. **Escala fixa 5** no grupo, rotação 180° Y, posição z=-1.5 atrás do balcão.
+5. **Cadeira removida** — a que ficava atrás da recepção.
+
+### Commits
+- `7591895` — fix(cashier): convert FBX to GLB for compatibility
+- `f970926` — fix(cashier): use relative path for GLB asset
+- `82fc78e` — fix(cashier): simplify loading — direct GLB render + debug logs
+- `3f8f253` — debug(cashier): add red wireframe box + axes
+- `f429700` — debug(cashier): add fetch test
+- `474a002` — fix(cashier): use raw.githubusercontent.com URL
+- `0e85a1d` — fix(cashier): adjust position, remove chair, clean up debug
+- `62608c0` — fix(cashier): rotate 180° to face the player
+- `1195c26` — fix(cashier): move further back + rotate 180° + scale 5
+
+### Assets
+- `button_pushing.glb` — na raiz do repo + `jubileu/public/`
+- Source: `https://raw.githubusercontent.com/Felipe9272727/Bahh/main/Button Pushing.fbx`
+- Conversão: `fbx2gltf` (FBX2glTF)
+
+### Estado
+- Modelo visível ✅
+- Posição/rotação/escala precisam de ajuste fino (depende do teste do Felipe)
+- MEMORY.md atualizada ✅
+
