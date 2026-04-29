@@ -225,6 +225,14 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
         }
     }, [actions, names]);
 
+    // Debug: verify GLB is fetchable
+    useEffect(() => {
+        fetch('./button_pushing.glb').then(r => {
+            console.log('[Cashier] fetch GLB:', r.status, r.statusText, 'size:', r.headers.get('content-length'));
+            if (!r.ok) console.error('[Cashier] GLB NOT FOUND!');
+        }).catch(e => console.error('[Cashier] fetch error:', e));
+    }, []);
+
     // Debug: log scene info once.
     useEffect(() => {
         if (!gltf.scene) return;

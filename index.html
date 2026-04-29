@@ -96606,6 +96606,12 @@ const Cashier = React.memo(({ position }) => {
     }
   }, [actions, names]);
   reactExports.useEffect(() => {
+    fetch("./button_pushing.glb").then((r2) => {
+      console.log("[Cashier] fetch GLB:", r2.status, r2.statusText, "size:", r2.headers.get("content-length"));
+      if (!r2.ok) console.error("[Cashier] GLB NOT FOUND!");
+    }).catch((e2) => console.error("[Cashier] fetch error:", e2));
+  }, []);
+  reactExports.useEffect(() => {
     if (!gltf.scene) return;
     const box = new Box3().setFromObject(gltf.scene);
     const size = new Vector3();
