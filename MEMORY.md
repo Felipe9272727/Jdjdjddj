@@ -1039,3 +1039,12 @@ O FBX do balconista (Button Pushing.fbx) não aparecia no jogo.
 - Posição/rotação/escala precisam de ajuste fino (depende do teste do Felipe)
 - MEMORY.md atualizada ✅
 
+
+### Sessão 2026-04-30 07:37-07:47 GMT+8: Ajustes de posição/escala
+
+- Escala ajustada de 5x → 2x (pedido do Felipe)
+- Rotação: neutralizada rotação embutida do mesh (90° X) via `child.rotation.set(0,0,0)`
+- Posição Y=0.5 pra alcançar o balcão, Z=-1.5 atrás do balcão
+- Problema: Felipe reporta que mudanças visuais não aparecem — possível cache do browser ou problema no deploy
+- Commits: 2fd980c, bdbf760, 2489214
+
