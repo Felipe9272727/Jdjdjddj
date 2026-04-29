@@ -96013,24 +96013,55 @@ const VisualJoystick = ({ x: x2, y, active, origin: origin2 }) => {
   const py2 = y * maxR;
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute pointer-events-none z-50", style: { left: origin2.x, top: origin2.y, transform: "translate(-50%, -50%)" }, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-20 h-20 sm:w-32 sm:h-32 rounded-full bg-white/10 ring-2 ring-white/20 backdrop-blur-sm flex items-center justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-10 h-10 sm:w-12 sm:h-12 bg-white/80 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.5)]", style: { transform: `translate(${px2}px, ${py2}px)` } }) }) });
 };
-const TypewriterText = ({ text, speed = 30 }) => {
+const TypewriterText = ({ text, speed = 30, voicePitch = 440 }) => {
   const [displayedText, setDisplayedText] = reactExports.useState("");
   const [isComplete, setIsComplete] = reactExports.useState(false);
+  const audioCtxRef = reactExports.useRef(null);
+  const bipIndexRef = reactExports.useRef(0);
+  const playBip = () => {
+    try {
+      if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === "suspended") {
+        ctx.resume();
+      }
+      const t2 = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const jitter = voicePitch * (0.98 + Math.random() * 0.04);
+      osc.frequency.setValueAtTime(jitter, t2);
+      osc.type = "sine";
+      gain.gain.setValueAtTime(0.08, t2);
+      gain.gain.exponentialRampToValueAtTime(1e-3, t2 + 0.06);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t2);
+      osc.stop(t2 + 0.06);
+    } catch {
+    }
+  };
   reactExports.useEffect(() => {
     setDisplayedText("");
     setIsComplete(false);
+    bipIndexRef.current = 0;
     let index = 0;
-    const BATCH = 3;
     const timer2 = setInterval(() => {
-      index = Math.min(index + BATCH, text.length);
+      const prev = index;
+      index = Math.min(index + 3, text.length);
       setDisplayedText(text.substring(0, index));
+      const chunk = text.substring(prev, index);
+      if (chunk && !/^[\s.,!?;:—\-]+$/.test(chunk)) {
+        playBip();
+      }
       if (index >= text.length) {
         setIsComplete(true);
         clearInterval(timer2);
       }
     }, speed);
     return () => clearInterval(timer2);
-  }, [text, speed]);
+  }, [text, speed, voicePitch]);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
     displayedText,
     !isComplete && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "inline-block w-0.5 h-5 md:h-7 bg-yellow-400 ml-1 animate-pulse" })
@@ -96054,7 +96085,7 @@ const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }) => {
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute top-0 left-0 right-0 h-12 md:h-16 bg-gradient-to-b from-black to-transparent pointer-events-none" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-black to-transparent pointer-events-none" }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col flex-1 justify-end pb-4 px-3 md:px-[20%] landscape:pb-2 landscape:px-8 max-h-[100dvh] overflow-hidden", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/80 border-t-2 border-yellow-500/50 p-3 sm:p-4 md:p-6 shadow-2xl pointer-events-auto mb-2 sm:mb-4 rounded-t-xl landscape:mb-2", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-white text-sm sm:text-base font-bold font-serif leading-snug sm:leading-relaxed min-h-[2rem] sm:min-h-[4rem] text-shadow-sm", children: /* @__PURE__ */ jsxRuntimeExports.jsx(TypewriterText, { text: node.text, speed: 30 }) }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/80 border-t-2 border-yellow-500/50 p-3 sm:p-4 md:p-6 shadow-2xl pointer-events-auto mb-2 sm:mb-4 rounded-t-xl landscape:mb-2", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-white text-sm sm:text-base font-bold font-serif leading-snug sm:leading-relaxed min-h-[2rem] sm:min-h-[4rem] text-shadow-sm", children: /* @__PURE__ */ jsxRuntimeExports.jsx(TypewriterText, { text: node.text, speed: 30, voicePitch: 330 }) }) }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `flex flex-col gap-2 mb-3 pointer-events-auto transition-all duration-500 overflow-y-auto max-h-[35vh] sm:max-h-[50vh] landscape:max-h-[55vh] scrollbar-hide ${showOptions ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`, children: node.options.map((opt, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => opt.next ? onOptionSelect(opt.next) : onClose(), className: `group relative w-full text-left overflow-hidden animate-fade-in-up stagger-${i2 + 1} flex-shrink-0`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative px-3 py-2.5 sm:py-3 bg-gray-900 ring-1 ring-white/10 hover:ring-amber-500/50 rounded-xl transition-all duration-300 active:scale-[0.98]", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center text-yellow-400 text-[10px] sm:text-xs font-bold group-hover:bg-yellow-500 group-hover:text-black transition-all", children: i2 + 1 }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-gray-200 group-hover:text-white font-medium text-sm sm:text-base flex-1", children: opt.text })
@@ -98981,7 +99012,7 @@ const BarneyDialogue = ({ dialogueNode, onResponse }) => {
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-purple-300 text-[11px] font-bold tracking-[0.3em] uppercase", children: "Barney" })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/95 text-sm sm:text-base leading-relaxed mb-4 font-serif min-h-[2rem] sm:min-h-[3rem] landscape:min-h-0", children: /* @__PURE__ */ jsxRuntimeExports.jsx(TypewriterText, { text: node.text, speed: 28 }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/95 text-sm sm:text-base leading-relaxed mb-4 font-serif min-h-[2rem] sm:min-h-[3rem] landscape:min-h-0", children: /* @__PURE__ */ jsxRuntimeExports.jsx(TypewriterText, { text: node.text, speed: 28, voicePitch: 660 }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-2 max-h-[35vh] landscape:max-h-[30vh] overflow-y-auto scrollbar-hide pr-1", children: node.options.map((opt, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: () => onResponse(opt.next), "aria-label": opt.text, className: "group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-lg text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-purple-400/60 group-hover:text-purple-300 transition-colors", children: "▸" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "flex-1", children: opt.text })

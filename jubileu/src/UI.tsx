@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 import { DIALOGUE_TREE, BARNEY_URL } from './constants';
 
@@ -16,26 +16,56 @@ export const VisualJoystick = ({ x, y, active, origin }: { x: number; y: number;
   );
 };
 
-export const TypewriterText = ({ text, speed = 30 }: { text: string; speed?: number }) => {
+export const TypewriterText = ({ text, speed = 30, voicePitch = 440 }: { text: string; speed?: number; voicePitch?: number }) => {
   const [displayedText, setDisplayedText] = useState('');
   const [isComplete, setIsComplete] = useState(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const bipIndexRef = useRef(0);
   
+  const playBip = () => {
+      try {
+          if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+              audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+          }
+          const ctx = audioCtxRef.current;
+          if (ctx.state === 'suspended') { ctx.resume(); }
+          const t = ctx.currentTime;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          // Slight pitch variation per character for more organic feel
+          const jitter = voicePitch * (0.98 + Math.random() * 0.04);
+          osc.frequency.setValueAtTime(jitter, t);
+          osc.type = 'sine';
+          gain.gain.setValueAtTime(0.08, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.06);
+      } catch { /* audio not available */ }
+  };
+
   useEffect(() => {
     setDisplayedText('');
     setIsComplete(false);
+    bipIndexRef.current = 0;
     let index = 0;
-    // Batch updates: render every 3 chars to reduce re-renders
-    const BATCH = 3;
     const timer = setInterval(() => {
-      index = Math.min(index + BATCH, text.length);
+      const prev = index;
+      index = Math.min(index + 3, text.length);
       setDisplayedText(text.substring(0, index));
+      // Play bip every 2 characters (skip spaces/punctuation)
+      const chunk = text.substring(prev, index);
+      if (chunk && !/^[\s.,!?;:—\-]+$/.test(chunk)) {
+          playBip();
+      }
       if (index >= text.length) {
         setIsComplete(true);
         clearInterval(timer);
       }
     }, speed);
     return () => clearInterval(timer);
-  }, [text, speed]);
+  }, [text, speed, voicePitch]);
   
   return (
     <span>
@@ -80,7 +110,7 @@ export const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }: { nodeKey:
         {/* Dialogue Text Box */}
         <div className="bg-black/80 border-t-2 border-yellow-500/50 p-3 sm:p-4 md:p-6 shadow-2xl pointer-events-auto mb-2 sm:mb-4 rounded-t-xl landscape:mb-2">
           <p className="text-white text-sm sm:text-base font-bold font-serif leading-snug sm:leading-relaxed min-h-[2rem] sm:min-h-[4rem] text-shadow-sm">
-            <TypewriterText text={node.text} speed={30} />
+            <TypewriterText text={node.text} speed={30} voicePitch={330} />
           </p>
         </div>
 

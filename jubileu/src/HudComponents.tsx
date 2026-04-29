@@ -213,7 +213,7 @@ export const BarneyDialogue = ({ dialogueNode, onResponse }: BarneyDialogueProps
                 <div className="text-purple-300 text-[11px] font-bold tracking-[0.3em] uppercase">Barney</div>
               </div>
               <div className="text-white/95 text-sm sm:text-base leading-relaxed mb-4 font-serif min-h-[2rem] sm:min-h-[3rem] landscape:min-h-0">
-                <TypewriterText text={node.text} speed={28} />
+                <TypewriterText text={node.text} speed={28} voicePitch={660} />
               </div>
               <div className="flex flex-col gap-2 max-h-[35vh] landscape:max-h-[30vh] overflow-y-auto scrollbar-hide pr-1">
                 {node.options.map((opt: any, i: number) => (
