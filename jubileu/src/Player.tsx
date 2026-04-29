@@ -214,7 +214,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             pos.current.x = rx; pos.current.z = rz; pos.current.y = 0;
 
             if (fp) { charRot.current.y = camAng.current.theta + Math.PI; } else { const a = Math.atan2(mv.x, mv.z); let d = a - charRot.current.y; while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; charRot.current.y += d*10*safeDt; }
-            if (pos.current.z < EZ_START - 1 && !elevTriggered.current && currentLevel === 0) { elevTriggered.current = true; onEnterElevator(); }
+            if (pos.current.z < EZ_START - 1 && !elevTriggered.current) { elevTriggered.current = true; onEnterElevator(); }
         }
         if (currentLevel === 1) { const dx = pos.current.x-HOUSE_DOOR_X; const dz = pos.current.z-HOUSE_DOOR_Z; onInteractionUpdate(Math.sqrt(dx*dx+dz*dz) < DOOR_INTERACT_DIST); } else { onInteractionUpdate(false); }
         if (currentLevel === 0 && npcPositionRef?.current) { onNpcInteractionUpdate(pos.current.distanceTo(npcPositionRef.current) < NPC_INTERACT_DIST); } else { onNpcInteractionUpdate(false); }

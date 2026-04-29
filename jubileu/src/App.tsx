@@ -143,7 +143,12 @@ export default function App() {
           setGameState('outdoor');
           playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
       }
-      if (currentLevel === 0 && gameState !== 'lobby') setGameState('lobby');
+      if (currentLevel === 0 && gameState !== 'lobby') {
+          setGameState('lobby');
+          setNightMode(false);
+          setHouseDoorOpen(false);
+          setDoorOpenAmount(0);
+      }
   }, [currentLevel, gameState]);
   
   useEffect(() => {
@@ -201,7 +206,7 @@ export default function App() {
       return () => clearInterval(check);
   }, [gameState, canSleep]);
 
-  const handlePlayerEnterElevator = () => { if (elevatorTimer === null && !doorsClosed && currentLevel === 0) { setElevatorTimer(5); } };
+  const handlePlayerEnterElevator = () => { if (elevatorTimer === null && !doorsClosed) { setElevatorTimer(5); } };
   const handleInteractionUpdate = useCallback((c: boolean) => { setCanInteractDoor(p => p !== c ? c : p); }, []);
   const handleNpcInteractionUpdate = useCallback((c: boolean) => { setCanInteractNPC(p => p !== c ? c : p); }, []);
   const handleOpenDoor = () => {
@@ -236,6 +241,7 @@ export default function App() {
           setBarneyDialogueNode('greet');
           setGameState('outdoor');
           setDoorOpenAmount(0);
+          setHouseDoorOpen(false);
           barneyTargetRef.current = { x: 0, z: 6.8, scale: 0 };
       } else {
           setBarneyDialogueNode(next);
@@ -311,7 +317,10 @@ export default function App() {
             if (elevatorTimer !== lastHandledTimerRef.current) {
                 lastHandledTimerRef.current = elevatorTimer;
                 if (elevatorTimer === 19) { setOverlayOpacity(1); }
-                if (elevatorTimer === 18) { if (currentLevel === 0) { setCurrentLevel(1); setFloorReveal(true); } }
+                if (elevatorTimer === 18) {
+                    if (currentLevel === 0) { setCurrentLevel(1); setFloorReveal(true); }
+                    else { setCurrentLevel(0); setFloorReveal(true); }
+                }
                 if (elevatorTimer === 17) { setOverlayOpacity(0); }
                 if (elevatorTimer === 15 || elevatorTimer === null) { setFloorReveal(false); }
             }

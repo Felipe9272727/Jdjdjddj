@@ -96320,7 +96320,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
           while (d < -Math.PI) d += Math.PI * 2;
           charRot.current.y += d * 10 * safeDt;
         }
-        if (pos.current.z < EZ_START - 1 && !elevTriggered.current && currentLevel === 0) {
+        if (pos.current.z < EZ_START - 1 && !elevTriggered.current) {
           elevTriggered.current = true;
           onEnterElevator();
         }
@@ -99157,7 +99157,12 @@ function App() {
       setGameState("outdoor");
       playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
     }
-    if (currentLevel === 0 && gameState !== "lobby") setGameState("lobby");
+    if (currentLevel === 0 && gameState !== "lobby") {
+      setGameState("lobby");
+      setNightMode(false);
+      setHouseDoorOpen(false);
+      setDoorOpenAmount(0);
+    }
   }, [currentLevel, gameState]);
   reactExports.useEffect(() => {
     if (gameState !== "chase") return;
@@ -99219,7 +99224,7 @@ function App() {
     return () => clearInterval(check);
   }, [gameState, canSleep]);
   const handlePlayerEnterElevator = () => {
-    if (elevatorTimer === null && !doorsClosed && currentLevel === 0) {
+    if (elevatorTimer === null && !doorsClosed) {
       setElevatorTimer(5);
     }
   };
@@ -99268,6 +99273,7 @@ function App() {
       setBarneyDialogueNode("greet");
       setGameState("outdoor");
       setDoorOpenAmount(0);
+      setHouseDoorOpen(false);
       barneyTargetRef.current = { x: 0, z: 6.8, scale: 0 };
     } else {
       setBarneyDialogueNode(next);
@@ -99350,6 +99356,9 @@ function App() {
           if (elevatorTimer === 18) {
             if (currentLevel === 0) {
               setCurrentLevel(1);
+              setFloorReveal(true);
+            } else {
+              setCurrentLevel(0);
               setFloorReveal(true);
             }
           }
