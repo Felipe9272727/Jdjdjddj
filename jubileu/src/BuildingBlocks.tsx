@@ -1,9 +1,17 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Text, useFBX, useAnimations } from '@react-three/drei';
 import { TextureMaterial } from './Materials';
 import { ASSETS, COLORS } from './constants';
 import * as THREE from 'three';
+import { SkeletonUtils } from 'three-stdlib';
+
+// Cashier — Mixamo-rigged FBX hosted at the repo root. The animation in the
+// file is "Button Pushing" but we play it as the cleaning loop. The model is
+// roughly humanoid scale (~1.7 units tall) so it sits naturally behind the
+// reception desk without rescaling.
+const CASHIER_FBX_URL = "https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/Cashier_Cleaning.fbx";
+useFBX.preload(CASHIER_FBX_URL);
 
 export const Door = React.memo(({ x, z, rot }: any) => (
     <group position={[x, 1.1, z]} rotation={[0, rot, 0]}>
@@ -195,83 +203,29 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
     </group>
 ));
 
-// ─── Balconista (Cashier) — Roblox R6-style blocky body ──────────────────
-// Stands behind the reception counter, wipes the top in a slow ellipse.
-// 1 stud = 0.28u; whole body is roughly 5 studs tall (1.4u). Faces +Z.
+// ─── Balconista (Cashier) — Mixamo-rigged FBX with cleaning loop ─────────
+// Stands behind the reception counter playing the embedded animation.
+// FBX comes from Mixamo (~1.7u tall, hips at origin); FBX uses cm by default
+// so we scale 0.01 to bring it to game units. The skeleton is cloned with
+// SkeletonUtils so multiple cashiers — if we ever add more — don't share
+// animation state.
 const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
-    const armRef = useRef<any>(null);
-    const ragRef = useRef<any>(null);
-    useFrame((state) => {
-        if (!armRef.current || !ragRef.current) return;
-        const t = state.clock.elapsedTime * 1.5;
-        // Hand sweeps a small ellipse over the desk top.
-        ragRef.current.position.x = Math.sin(t) * 0.18;
-        ragRef.current.position.z = Math.cos(t) * 0.12;
-        // Arm reaches forward + slight wrist motion.
-        armRef.current.rotation.x = Math.PI * 0.45 + Math.sin(t) * 0.06;
-        armRef.current.rotation.z = Math.cos(t) * 0.15;
-    });
+    const fbx = useFBX(CASHIER_FBX_URL) as any;
+    const clonedScene = useMemo(() => SkeletonUtils.clone(fbx), [fbx]);
+    const animations = useMemo(() => fbx.animations || [], [fbx]);
+    const groupRef = useRef<any>(null);
+    const { actions, names } = useAnimations(animations, groupRef);
+    useEffect(() => {
+        // Mixamo bakes one animation per export — play whichever clip is there
+        // on a loop. Fade-in so the player doesn't see a snap on first mount.
+        const first = names[0];
+        if (first && actions[first]) {
+            actions[first].reset().fadeIn(0.4).play();
+        }
+    }, [actions, names]);
     return (
-        <group position={position}>
-            {/* Legs */}
-            <mesh position={[-0.14, 0.42, 0]}>
-                <boxGeometry args={[0.28, 0.84, 0.28]} />
-                <meshStandardMaterial color="#1B5E20" roughness={0.95} />
-            </mesh>
-            <mesh position={[0.14, 0.42, 0]}>
-                <boxGeometry args={[0.28, 0.84, 0.28]} />
-                <meshStandardMaterial color="#1B5E20" roughness={0.95} />
-            </mesh>
-            {/* Torso + apron */}
-            <mesh position={[0, 1.26, 0]}>
-                <boxGeometry args={[0.56, 0.84, 0.28]} />
-                <meshStandardMaterial color="#1565C0" roughness={0.9} />
-            </mesh>
-            <mesh position={[0, 1.26, 0.146]}>
-                <boxGeometry args={[0.5, 0.74, 0.01]} />
-                <meshStandardMaterial color="#FAFAFA" roughness={0.95} />
-            </mesh>
-            {/* Left arm (still) */}
-            <mesh position={[-0.42, 1.26, 0]}>
-                <boxGeometry args={[0.28, 0.84, 0.28]} />
-                <meshStandardMaterial color="#FFCC80" roughness={0.9} />
-            </mesh>
-            {/* Right arm — wiping. Pivots at the shoulder. */}
-            <group position={[0.42, 1.68, 0]}>
-                <group ref={armRef}>
-                    <mesh position={[0, -0.42, 0]}>
-                        <boxGeometry args={[0.28, 0.84, 0.28]} />
-                        <meshStandardMaterial color="#FFCC80" roughness={0.9} />
-                    </mesh>
-                    <mesh ref={ragRef} position={[0, -0.86, 0]}>
-                        <boxGeometry args={[0.32, 0.04, 0.32]} />
-                        <meshStandardMaterial color="#FFEB3B" roughness={0.85} />
-                    </mesh>
-                </group>
-            </group>
-            {/* Head with simple Roblox face */}
-            <group position={[0, 1.96, 0]}>
-                <mesh>
-                    <boxGeometry args={[0.56, 0.56, 0.56]} />
-                    <meshStandardMaterial color="#FFCC80" roughness={0.9} />
-                </mesh>
-                <mesh position={[-0.12, 0.05, 0.282]}>
-                    <boxGeometry args={[0.07, 0.07, 0.005]} />
-                    <meshBasicMaterial color="#1a1a1a" />
-                </mesh>
-                <mesh position={[0.12, 0.05, 0.282]}>
-                    <boxGeometry args={[0.07, 0.07, 0.005]} />
-                    <meshBasicMaterial color="#1a1a1a" />
-                </mesh>
-                <mesh position={[0, -0.1, 0.282]}>
-                    <boxGeometry args={[0.18, 0.025, 0.005]} />
-                    <meshBasicMaterial color="#1a1a1a" />
-                </mesh>
-                <mesh position={[0, 0.28, 0]}>
-                    <boxGeometry args={[0.58, 0.1, 0.58]} />
-                    <meshStandardMaterial color="#3E2723" roughness={0.95} />
-                </mesh>
-            </group>
+        <group ref={groupRef} position={position}>
+            <primitive object={clonedScene} scale={[0.01, 0.01, 0.01]} />
         </group>
     );
 });
