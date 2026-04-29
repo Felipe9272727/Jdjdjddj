@@ -1,6 +1,7 @@
 # 🔍 Auditoria de Design & Bugs Visuais — The Normal Elevator
 
 > Auditoria realizada em 2026-04-28 sobre o branch `main`.
+> Last updated: 2026-04-29
 
 ---
 
@@ -20,16 +21,19 @@
 
 **Impacto:** Inchaço do bundle CSS (~300 linhas mortas). Em runtime o navegador usa a última definição, o que pode causar comportamento inesperado se as versões diferirem.
 **Fix:** Remover as duplicatas, manter apenas uma definição de cada.
+**Status:** ✅ FIXED (2026-04-29) — Each keyframe now has exactly 1 occurrence (`grep -c` returns 1 for all 5).
 
 ### 2. Botões de ação sem `aria-label`
 **Arquivos:** `App.tsx` (linhas 604, 618, 645)
 **Problema:** Botões ABRIR PORTA, FALAR, DORMIR não têm `aria-label` — leitores de tela não descrevem a ação.
 **Impacto:** Acessibilidade zero para usuários com deficiência visual.
+**Status:** ✅ FIXED (2026-04-29) — `ActionButton` component accepts `ariaLabel` prop. All 3 buttons pass it: `"Abrir porta"`, `"Falar com NPC"`, `"Dormir"`. HudComponents.tsx renders `aria-label={ariaLabel}` on the `<button>`.
 
 ### 3. Chat input sem `aria-label`
 **Arquivo:** `ChatSystem.tsx` (linhas 166-176, 278-284)
 **Problema:** Input do chat não tem label associado nem `aria-label`.
 **Impacto:** Screen readers não identificam o campo.
+**Status:** ✅ FIXED (2026-04-29) — Both chat inputs now have `aria-label="Mensagem do chat"` (lines 184, 294).
 
 ---
 
@@ -51,6 +55,8 @@
 - `text-white/30` → `text-white/45`
 - `placeholder-white/15` → `placeholder-white/30`
 
+**Status:** ✅ FIXED (2026-04-29) — grep for `text-white/1[0-9]\|text-white/2[0-5]` returns no matches across all `.tsx` files. Contrast values were raised to `text-white/40`–`text-white/60` and `placeholder-white/50` in previous sessions.
+
 ### 5. Fontes minúsculas em mobile
 **Arquivo:** `Bot.tsx`
 
@@ -61,11 +67,21 @@
 | `text-[10px]` | linhas 187, 502, 579 | Labels de bot/viewport |
 
 **Fix:** Mínimo `text-[10px]` para mobile, preferir `text-xs` (12px).
+**Status:** ✅ FIXED (2026-04-29) — grep for `text-[8px]` or `text-[9px]` in Bot.tsx returns no matches. Minimum is now `text-[10px]`.
 
 ### 6. Excesso de `font-mono` — identidade visual confusa
 **Arquivo:** `MainMenu.tsx`, `Settings.tsx`
 **Problema:** Tudo é monospace. Labels de config, botões, títulos — parece terminal, não jogo liminal.
 **Fix:** Usar `font-mono` apenas para valores técnicos (FPS, timer, coordenadas). Labels e botões devem usar fonte sans-serif.
+**Status:** ✅ MOSTLY FIXED (2026-04-29) — Remaining `font-mono` uses are all justified technical values:
+  - MainMenu.tsx:177 — Floor number display "03" (decorative monospace)
+  - MainMenu.tsx:188 — Floor indicator "▲ 03" (technical)
+  - MainMenu.tsx:347 — Floor indicator (same pattern)
+  - MainMenu.tsx:402 — Login error message (error text)
+  - MainMenu.tsx:420-421 — Keyboard shortcut labels `<kbd>` (WASD, MOUSE — correctly monospace)
+  - Settings.tsx:283 — FPS counter (technical value, correctly monospace)
+  
+  Removed: labels, titles, buttons, "Copiar Link de Convite", "Andar 03 • Saguão".
 
 ### 7. Z-index overlap — chat pode cobrir settings
 **Arquivo:** `ChatSystem.tsx` vs `Settings.tsx`
@@ -76,11 +92,13 @@
 
 **Problema:** Se o chat estiver aberto e o usuário abrir settings, o input do chat (z-65) fica atrás do overlay de settings (z-100), mas o botão de fechar do chat pode não funcionar por causa do overlay.
 **Fix:** Fechar chat automaticamente quando settings abrir.
+**Status:** 🔴 OPEN — Z-index hierarchy remains unchanged. Chat input (z-65) sits behind settings overlay (z-100). Auto-close behavior not implemented.
 
 ### 8. Botão de fullscreen sem feedback visual
 **Arquivo:** `MainMenu.tsx` (linha 132-140)
 **Problema:** Botão de fullscreen no mobile não mostra se está em fullscreen ou não.
 **Fix:** Trocar ícone entre expand/compress baseado em `document.fullscreenElement`.
+**Status:** ✅ FIXED (2026-04-29) — `isFullscreen` state with `fullscreenchange` event listener (lines 13, 66-68). Icon toggles between expand/compress (line 162). Aria-label dynamically changes: `isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'` (line 159).
 
 ---
 
@@ -136,13 +154,14 @@
 
 ## 📊 Resumo
 
-| Severidade | Qtd |
-|------------|-----|
-| 🔴 Crítico | 3 |
-| 🟡 Design | 5 |
-| 🟠 Inconsistência | 3 |
-| 🔵 Sugestão | 4 |
-| **Total** | **15** |
+| Severidade | Qtd | Fixados | Restantes |
+|------------|-----|---------|-----------|
+| 🔴 Crítico | 3 | 3 ✅ | 0 |
+| 🟡 Design | 5 | 4 ✅ | 1 (#7 Z-index) |
+| 🟠 Inconsistência | 3 | 0 | 3 |
+| 🔵 Sugestão | 4 | 0 | 4 |
+| **Total** | **15** | **7 fixados** | **8 restantes** |
 
 ---
 *Auditoria por: assistente AI | 2026-04-28*
+*Status atualizado: assistente AI | 2026-04-29*
