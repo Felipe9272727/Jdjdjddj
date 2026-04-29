@@ -475,6 +475,18 @@
     visibility: visible;
   }
 
+  .sr-only {
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border-width: 0;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    position: absolute;
+    overflow: hidden;
+  }
+
   .absolute {
     position: absolute;
   }
@@ -98556,9 +98568,11 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
                 }
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border-t border-white/8 px-2 py-1.5 flex items-center gap-1.5", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { htmlFor: "chat-input-mobile", className: "sr-only", children: "Mensagem do chat" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "input",
                   {
+                    id: "chat-input-mobile",
                     ref: inputRef,
                     type: "text",
                     value: input,
