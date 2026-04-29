@@ -856,3 +856,31 @@ trabalha em paralelo. Não fica aquele "travou esperando".
 - Build: ✅ reprodutível (3,950,953 bytes)
 - Push: ✅ main
 
+---
+
+## 🔍 Sessão 2026-04-29: AUDIT.md Review — Status Atualizado (22:33 GMT+8)
+
+### O que foi feito
+Review completo da AUDIT.md — cada item verificado contra o código atual.
+
+### Resultados
+
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | Keyframes duplicados | ✅ FIXED — all 5 keyframes unique (grep -c = 1 each) |
+| 2 | ActionButton aria-labels | ✅ FIXED — all 3 buttons pass `ariaLabel` prop |
+| 3 | Chat input aria-label | ✅ FIXED — both inputs have `aria-label="Mensagem do chat"` |
+| 4 | Contraste insuficiente | ✅ FIXED — no text-white/10-25 found |
+| 5 | Fontes minúsculas (8px/9px) | ✅ FIXED — minimum is now text-[10px] |
+| 6 | Excesso de font-mono | ✅ MOSTLY FIXED — remaining uses are technical (FPS, kbd shortcuts, floor numbers) |
+| 7 | Z-index overlap | 🔴 OPEN — chat z-65 behind settings z-100, no auto-close |
+| 8 | Fullscreen sem feedback | ✅ FIXED — isFullscreen state + icon toggle + aria-label |
+
+**Score: 7/15 fixed (3 críticos todos resolvidos, 1 design issue aberto, 3 inconsistências + 4 sugestões restantes)**
+
+### Commit
+- `55e7c4b` — docs: update AUDIT.md with current fix status
+
+---
+
+*Última atualização: 2026-04-29 22:33 GMT+8*
