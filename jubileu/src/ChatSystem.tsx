@@ -190,7 +190,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                     </div>
                 ) : (
                     <div
-                        className="absolute z-40 pointer-events-auto"
+                        className="absolute z-[58] pointer-events-auto"
                         style={{
                             top: 'calc(env(safe-area-inset-top, 0px) + 8px + min(260px, calc(100dvh - 200px)) + 6px)',
                             left: 'calc(env(safe-area-inset-left, 0px) + 8px)',

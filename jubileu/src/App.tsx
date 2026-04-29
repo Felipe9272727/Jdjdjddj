@@ -23,7 +23,7 @@ import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
-import { useMultiplayer, getPlayerName } from './Multiplayer';
+import { useMultiplayer, getPlayerName, MPPlayer } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES } from './Settings';
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
@@ -77,10 +77,10 @@ export default function App() {
   const { settings, update: updateSettings } = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
-  const [audioCtx, setAudioCtx] = useState<any>(null);
+  const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
   const [muted, setMuted] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(4.0);
-  const prevPinchDist = useRef<any>(null);
+  const prevPinchDist = useRef<number | null>(null);
   const moveInput = useRef({ x: 0, y: 0 }); const lookInput = useRef({ x: 0, y: 0 });
   const keysRef = useRef({ w: false, a: false, s: false, d: false });
   const sharedPlayerPositionRef = useRef(new Vector3(0, 0, 8));
@@ -90,7 +90,7 @@ export default function App() {
   const cameraThetaRef = useRef(Math.PI);
   const playerPositionCmdRef = useRef<any>(null);
   const cameraShakeRef = useRef(false);
-  const pendingTimeoutsRef = useRef<Set<any>>(new Set());
+  const pendingTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const scheduleTimeout = useCallback((fn: () => void, ms: number) => {
     const id = setTimeout(() => { pendingTimeoutsRef.current.delete(id); fn(); }, ms);
     pendingTimeoutsRef.current.add(id);
@@ -293,7 +293,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    let timerId: any;
+    let timerId: ReturnType<typeof setTimeout> | undefined;
     if (elevatorTimer !== null && elevatorTimer > 0) {
         timerId = setTimeout(() => { setElevatorTimer((prev) => (prev !== null ? Math.max(prev - 1, 0) : null)); }, 1000);
         if (!doorsClosed) {
@@ -358,7 +358,7 @@ export default function App() {
       else mql.removeListener(onChange);
     };
   }, []);
-  const activePointers = useRef(new Map());
+  const activePointers = useRef(new Map<number, { type: 'move' | 'look' | 'aux'; startX: number; startY: number; currX: number; currY: number }>());
 
   useEffect(() => {
     if (!dialogueOpen && !barneyDialogueOpen) return;
@@ -370,7 +370,7 @@ export default function App() {
     setJoystickVisual(p => ({ ...p, active: false }));
   }, [dialogueOpen, barneyDialogueOpen]);
 
-  const handlePointerDown = (e: any) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     if (!hasStarted) return;
     if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
     if (dialogueOpen || barneyDialogueOpen) return;
@@ -378,17 +378,17 @@ export default function App() {
     const { pointerId, clientX, clientY } = e; const screenW = window.innerWidth; const screenH = window.innerHeight;
     const isPortrait = screenH > screenW; const zoneLimit = isPortrait ? 0.5 : 0.4;
     if (clientX < screenW * zoneLimit) {
-      const hasMove = Array.from(activePointers.current.values()).some((p: any) => p.type === 'move');
+      const hasMove = Array.from(activePointers.current.values()).some(p => p.type === 'move');
       activePointers.current.set(pointerId, { type: hasMove ? 'aux' : 'move', startX: clientX, startY: clientY, currX: clientX, currY: clientY });
       if (!hasMove) { setJoystickVisual({ active: true, originX: clientX, originY: clientY, currentX: 0, currentY: 0 }); moveInput.current = { x: 0, y: 0 }; }
     } else {
-      const hasLook = Array.from(activePointers.current.values()).some((p: any) => p.type === 'look');
+      const hasLook = Array.from(activePointers.current.values()).some(p => p.type === 'look');
       activePointers.current.set(pointerId, { type: hasLook ? 'aux' : 'look', startX: clientX, startY: clientY, currX: clientX, currY: clientY });
     }
     if (activePointers.current.size === 2) { prevPinchDist.current = null; }
   };
 
-  const handlePointerMove = (e: any) => {
+  const handlePointerMove = (e: React.PointerEvent) => {
     if (!hasStarted) return;
     if (isDesktop) {
       if (document.pointerLockElement === document.body && !dialogueOpen && !barneyDialogueOpen) {
@@ -403,7 +403,7 @@ export default function App() {
     const { pointerId, clientX, clientY } = e; const pointer = activePointers.current.get(pointerId);
     if (pointer) {
       pointer.currX = clientX; pointer.currY = clientY;
-      const types = Array.from(activePointers.current.values()).map((p: any) => p.type);
+      const types = Array.from(activePointers.current.values()).map(p => p.type);
       const isDual = types.includes('move') && types.includes('look');
       const isPinch = activePointers.current.size === 2 && !isDual;
       if (!isPinch) {
@@ -424,7 +424,7 @@ export default function App() {
           }
       }
       if (isPinch && !dialogueOpen && !barneyDialogueOpen) {
-          const pts = Array.from(activePointers.current.values()); const p1: any = pts[0]; const p2: any = pts[1];
+          const pts = Array.from(activePointers.current.values()); const p1 = pts[0]; const p2 = pts[1];
           const dist = Math.sqrt(Math.pow(p1.currX-p2.currX, 2) + Math.pow(p1.currY-p2.currY, 2));
           if (prevPinchDist.current !== null) { const delta = dist - prevPinchDist.current; setZoomLevel(prev => Math.min(Math.max(prev - delta * 0.02, 0), 10)); }
           prevPinchDist.current = dist;
@@ -432,7 +432,7 @@ export default function App() {
     }
   };
 
-  const handlePointerUp = (e: any) => {
+  const handlePointerUp = (e: React.PointerEvent) => {
     if (!hasStarted || isDesktop) return; e.preventDefault();
     const pointer = activePointers.current.get(e.pointerId);
     if (pointer) { if (pointer.type === 'move') { moveInput.current = { x: 0, y: 0 }; setJoystickVisual(p => ({ ...p, active: false })); } activePointers.current.delete(e.pointerId); }
@@ -443,7 +443,7 @@ export default function App() {
     if (!isDesktop || !hasStarted) return;
     if (dialogueOpen || barneyDialogueOpen) { document.exitPointerLock(); return; }
     const upd = () => { const k = keysRef.current; let x=0, y=0; if (k.w) y-=1; if (k.s) y+=1; if (k.a) x-=1; if (k.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
-    const kd = (e: any) => {
+    const kd = (e: KeyboardEvent) => {
       if (dialogueOpen || barneyDialogueOpen) return;
       const k = keysRef.current;
       switch(e.key.toLowerCase()) {
@@ -459,7 +459,7 @@ export default function App() {
       }
       upd();
     };
-    const ku = (e: any) => {
+    const ku = (e: KeyboardEvent) => {
         const k = keysRef.current;
         switch(e.key.toLowerCase()) { case 'w': k.w=false; break; case 'a': k.a=false; break; case 's': k.s=false; break; case 'd': k.d=false; break; }
         upd();
@@ -476,7 +476,7 @@ export default function App() {
   const { info: botInfo } = useBotStore();
 
   return (
-    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: any) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
+    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted} masterVolume={settings.masterVolume} nightMode={nightMode} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
@@ -501,8 +501,8 @@ export default function App() {
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />
             {/* RemotePlayers rendered separately — otherPlayers changes every 100ms from
                 Firestore, would re-render the entire World if passed as prop */}
-            {Object.values(otherPlayers || {}).map((p: any) => (
-                <RemotePlayer key={p.id} id={p.id} x={p.x} y={p.y} z={p.z} ry={p.ry} state={p.state} name={p.name} chatMsg={p.chatMsg} chatAt={p.chatAt} />
+            {Object.values(otherPlayers || {}).map((p: MPPlayer) => (
+                <RemotePlayer key={p.id} id={p.id} x={p.x} y={p.y} z={p.z} ry={p.ry} state={(p.state === 'walking' ? 'walking' : 'idle') as 'idle' | 'walking'} name={p.name} chatMsg={p.chatMsg} chatAt={p.chatAt} />
             ))}
             <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
             {botEnabled && (

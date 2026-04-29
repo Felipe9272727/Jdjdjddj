@@ -6,6 +6,9 @@ import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, ELEV_W, LOBBY_W, DOOR_SEAL, L1_BND, ELEV_BLD, HOUSE_EX, HOUSE_IN, HOUSE_DW, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { resolveCollision as _resolve } from './physics';
 
+useGLTF.preload(WALKING_URL);
+useGLTF.preload(IDLE_URL);
+
 const Avatar = ({ animation, visible = true }: { animation: 'Idle' | 'Walking'; visible?: boolean }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
