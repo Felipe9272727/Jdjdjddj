@@ -1,17 +1,16 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, useFBX, useAnimations } from '@react-three/drei';
+import { Text, useGLTF, useAnimations } from '@react-three/drei';
 import { TextureMaterial } from './Materials';
 import { ASSETS, COLORS } from './constants';
 import * as THREE from 'three';
 import { SkeletonUtils } from 'three-stdlib';
 
-// Cashier — Mixamo-rigged FBX hosted in the Bahh asset repo. The animation
-// in the file is "Button Pushing" but we play it as the cleaning loop. The
-// model is roughly humanoid scale (~1.7 units tall) so it sits naturally
+// Cashier — Mixamo-rigged GLB (converted from Button Pushing.fbx).
+// The model is roughly humanoid scale (~1.7 units tall) so it sits naturally
 // behind the reception desk without rescaling.
-const CASHIER_FBX_URL = "https://raw.githubusercontent.com/Felipe9272727/Bahh/main/Button%20Pushing.fbx";
-useFBX.preload(CASHIER_FBX_URL);
+const CASHIER_GLB_URL = "/button_pushing.glb";
+useGLTF.preload(CASHIER_GLB_URL);
 
 export const Door = React.memo(({ x, z, rot }: any) => (
     <group position={[x, 1.1, z]} rotation={[0, rot, 0]}>
@@ -214,24 +213,19 @@ const CASHIER_FACE_ROT_Y = Math.PI;  // 180° turn so the cashier faces the play
                                      // approaching the desk (desk's +Z is the
                                      // player side after the desk's own rot).
 const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
-    const fbx = useFBX(CASHIER_FBX_URL) as any;
-    const clonedScene = useMemo(() => SkeletonUtils.clone(fbx), [fbx]);
-    const animations = useMemo(() => fbx.animations || [], [fbx]);
+    const gltf = useGLTF(CASHIER_GLB_URL);
+    const clonedScene = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
+    const animations = useMemo(() => gltf.animations || [], [gltf.animations]);
     const groupRef = useRef<any>(null);
     const innerRef = useRef<any>(null);
     const { actions, names } = useAnimations(animations, groupRef);
 
-    // Auto-fit: measure → normalize height → ground-align.
+    // Auto-fit: measure meshes only → normalize height → ground-align.
     useEffect(() => {
         if (!innerRef.current || !clonedScene) return;
-        // First, undo any scale set on previous re-renders so the measurement
-        // reflects the model's native bounds.
         innerRef.current.scale.set(1, 1, 1);
         innerRef.current.position.set(0, 0, 0);
         clonedScene.updateMatrixWorld(true);
-        // Only measure visible meshes — bones/armature extend far beyond the
-        // mesh in Mixamo FBX exports and would inflate the bounding box,
-        // resulting in a tiny scale that makes the model invisible.
         const meshBox = new THREE.Box3();
         clonedScene.traverse((child: any) => {
             if (child.isMesh && child.geometry) {
@@ -243,11 +237,9 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
         });
         const size = new THREE.Vector3();
         meshBox.getSize(size);
-        // Guard against degenerate boxes (model not yet loaded).
         if (!Number.isFinite(size.y) || size.y < 0.0001) return;
         const scale = CASHIER_HEIGHT_M / size.y;
         innerRef.current.scale.setScalar(scale);
-        // Re-measure after scaling to get the new ground offset.
         clonedScene.updateMatrixWorld(true);
         const scaledMeshBox = new THREE.Box3();
         clonedScene.traverse((child: any) => {
@@ -258,14 +250,10 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
                 scaledMeshBox.union(childBox);
             }
         });
-        const groundLift = -scaledMeshBox.min.y;
-        innerRef.current.position.y = groundLift;
-        // One-time debug print so we can sanity-check placement at runtime.
-        // eslint-disable-next-line no-console
+        innerRef.current.position.y = -scaledMeshBox.min.y;
         console.log('[Cashier] auto-fit', {
             rawSize: size.toArray(),
             scaleApplied: scale,
-            groundLift,
             worldPosition: groupRef.current?.getWorldPosition(new THREE.Vector3()).toArray(),
         });
     }, [clonedScene]);
