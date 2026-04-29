@@ -6,11 +6,11 @@ import { ASSETS, COLORS } from './constants';
 import * as THREE from 'three';
 import { SkeletonUtils } from 'three-stdlib';
 
-// Cashier — Mixamo-rigged FBX hosted at the repo root. The animation in the
-// file is "Button Pushing" but we play it as the cleaning loop. The model is
-// roughly humanoid scale (~1.7 units tall) so it sits naturally behind the
-// reception desk without rescaling.
-const CASHIER_FBX_URL = "https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/Cashier_Cleaning.fbx";
+// Cashier — Mixamo-rigged FBX hosted in the Bahh asset repo. The animation
+// in the file is "Button Pushing" but we play it as the cleaning loop. The
+// model is roughly humanoid scale (~1.7 units tall) so it sits naturally
+// behind the reception desk without rescaling.
+const CASHIER_FBX_URL = "https://raw.githubusercontent.com/Felipe9272727/Bahh/main/Button%20Pushing.fbx";
 useFBX.preload(CASHIER_FBX_URL);
 
 export const Door = React.memo(({ x, z, rot }: any) => (
