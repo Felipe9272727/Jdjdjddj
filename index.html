@@ -96574,7 +96574,7 @@ const ReceptionDesk = React.memo(({ x: x2, z, rot = 0 }) => /* @__PURE__ */ jsxR
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#43A047", roughness: 0.9 })
     ] })
   ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Cashier, { position: [0, 0, -1.5] })
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Cashier, { position: [0, 0.5, -1.5] })
 ] }));
 const Cashier = React.memo(({ position }) => {
   const gltf = useGLTF(CASHIER_GLB_URL);
@@ -96593,7 +96593,7 @@ const Cashier = React.memo(({ position }) => {
       actions[first2].reset().fadeIn(0.4).play();
     }
   }, [actions, names]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, rotation: [0, Math.PI, 0], scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, rotation: [0, 0, 0], scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) });
 });
 const ElevatorDoors = React.memo(({ closed }) => {
   const leftRef = reactExports.useRef(null);

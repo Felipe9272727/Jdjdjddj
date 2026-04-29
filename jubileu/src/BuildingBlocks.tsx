@@ -180,7 +180,7 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
             with <primitive object={glbScene} scale=... position=... /> and
             remove the procedural arm-wipe useFrame — the GLB ships its own
             cleaning animation. */}
-        <Cashier position={[0, 0, -1.5]} />
+        <Cashier position={[0, 0.5, -1.5]} />
     </group>
 ));
 
@@ -214,7 +214,7 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
     }, [actions, names]);
 
     return (
-        <group ref={groupRef} position={position} rotation={[0, Math.PI, 0]} scale={[2, 2, 2]}>
+        <group ref={groupRef} position={position} rotation={[0, 0, 0]} scale={[2, 2, 2]}>
             <primitive object={gltf.scene} />
         </group>
     );
