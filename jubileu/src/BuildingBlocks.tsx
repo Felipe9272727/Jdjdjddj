@@ -204,28 +204,65 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 ));
 
 // ─── Balconista (Cashier) — Mixamo-rigged FBX with cleaning loop ─────────
-// Stands behind the reception counter playing the embedded animation.
-// FBX comes from Mixamo (~1.7u tall, hips at origin); FBX uses cm by default
-// so we scale 0.01 to bring it to game units. The skeleton is cloned with
-// SkeletonUtils so multiple cashiers — if we ever add more — don't share
-// animation state.
+// Mixamo's FBX scale varies (sometimes cm, sometimes m, sometimes a custom
+// armature unit). We don't trust the source scale — instead, on mount we
+// measure the model's bounding box and normalize so the body is exactly
+// CASHIER_HEIGHT_M tall, then offset Y so the lowest vertex sits on y=0.
+// Console logs the measured size/scale so we can verify the placement.
+const CASHIER_HEIGHT_M = 1.7;        // target world height — adult-sized
+const CASHIER_FACE_ROT_Y = Math.PI;  // 180° turn so the cashier faces the player
+                                     // approaching the desk (desk's +Z is the
+                                     // player side after the desk's own rot).
 const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const fbx = useFBX(CASHIER_FBX_URL) as any;
     const clonedScene = useMemo(() => SkeletonUtils.clone(fbx), [fbx]);
     const animations = useMemo(() => fbx.animations || [], [fbx]);
     const groupRef = useRef<any>(null);
+    const innerRef = useRef<any>(null);
     const { actions, names } = useAnimations(animations, groupRef);
+
+    // Auto-fit: measure → normalize height → ground-align.
     useEffect(() => {
-        // Mixamo bakes one animation per export — play whichever clip is there
-        // on a loop. Fade-in so the player doesn't see a snap on first mount.
+        if (!innerRef.current || !clonedScene) return;
+        // First, undo any scale set on previous re-renders so the measurement
+        // reflects the model's native bounds.
+        innerRef.current.scale.set(1, 1, 1);
+        innerRef.current.position.set(0, 0, 0);
+        clonedScene.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(clonedScene);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        // Guard against degenerate boxes (model not yet loaded).
+        if (!Number.isFinite(size.y) || size.y < 0.0001) return;
+        const scale = CASHIER_HEIGHT_M / size.y;
+        innerRef.current.scale.setScalar(scale);
+        // Re-measure after scaling to get the new ground offset.
+        clonedScene.updateMatrixWorld(true);
+        const scaledBox = new THREE.Box3().setFromObject(clonedScene);
+        const groundLift = -scaledBox.min.y;
+        innerRef.current.position.y = groundLift;
+        // One-time debug print so we can sanity-check placement at runtime.
+        // eslint-disable-next-line no-console
+        console.log('[Cashier] auto-fit', {
+            rawSize: size.toArray(),
+            scaleApplied: scale,
+            groundLift,
+            worldPosition: groupRef.current?.getWorldPosition(new THREE.Vector3()).toArray(),
+        });
+    }, [clonedScene]);
+
+    useEffect(() => {
         const first = names[0];
         if (first && actions[first]) {
             actions[first].reset().fadeIn(0.4).play();
         }
     }, [actions, names]);
+
     return (
-        <group ref={groupRef} position={position}>
-            <primitive object={clonedScene} scale={[0.01, 0.01, 0.01]} />
+        <group ref={groupRef} position={position} rotation={[0, CASHIER_FACE_ROT_Y, 0]}>
+            <group ref={innerRef}>
+                <primitive object={clonedScene} />
+            </group>
         </group>
     );
 });
