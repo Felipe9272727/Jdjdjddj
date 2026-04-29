@@ -249,6 +249,12 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
     return (
         <group ref={groupRef} position={position} rotation={[0, CASHIER_FACE_ROT_Y, 0]}
                scale={[1.7, 1.7, 1.7]}>
+            {/* Debug: red wireframe box at cashier origin */}
+            <mesh position={[0, 0.5, 0]}>
+                <boxGeometry args={[0.5, 1.0, 0.5]} />
+                <meshBasicMaterial color="red" wireframe />
+            </mesh>
+            <axesHelper args={[1]} />
             <primitive object={gltf.scene} />
         </group>
     );

@@ -96627,14 +96627,21 @@ const Cashier = React.memo(({ position }) => {
       );
     });
   }, [gltf]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "group",
     {
       ref: groupRef,
       position,
       rotation: [0, CASHIER_FACE_ROT_Y, 0],
       scale: [1.7, 1.7, 1.7],
-      children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene })
+      children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.5, 0], children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.5, 1, 0.5] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "red", wireframe: true })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("axesHelper", { args: [1] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene })
+      ]
     }
   );
 });
