@@ -795,14 +795,14 @@ e implementar no `main`, sem reverter os fixes de qualidade que já estavam no m
 ---
 
 ## 📋 Próximos Passos (a fazer)
-- [ ] Merge de performance completo (sub-agente rodando)
-- [ ] AUDIT.md parcialmente desatualizada — keyframes duplicados não existem mais no CSS
 - [ ] Deploy manual das Firestore Rules no Firebase Console (ainda pendente)
-- [ ] Possível melhoria: fechar chat quando settings abre (AUDIT #7)
+- [ ] AUDIT #9/#10 — design tokens não usados / cores hardcoded (refatoração grande)
+- [ ] Merge do fix `b8a832f` do backup branch — inspector voice + Barney theme fallback URLs
+- [ ] AUDIT #12-15 — sugestões (loading state, multiplayer indicator, Dussekar bubble, dialogue scroll)
 
 ---
 
-*Última atualização: 2026-04-29 — sessão de merge de performance*
+*Última atualização: 2026-04-29 22:34 GMT+8*
 
 ---
 
@@ -878,9 +878,54 @@ Review completo da AUDIT.md — cada item verificado contra o código atual.
 
 **Score: 7/15 fixed (3 críticos todos resolvidos, 1 design issue aberto, 3 inconsistências + 4 sugestões restantes)**
 
+**UPDATE (same session):** #7 (z-index) já tava feito — `forceClose={settingsOpen}` já existia no App.tsx e ChatSystem.tsx já tratava o prop. AUDIT.md atualizado para ✅.
+
 ### Commit
 - `55e7c4b` — docs: update AUDIT.md with current fix status
 
 ---
 
-*Última atualização: 2026-04-29 22:33 GMT+8*
+## 🔧 Sessão 2026-04-29: Fixes Massivos via Sub-Agentes (22:29 GMT+8)
+
+### Fixes aplicados (7 commits, 8+ arquivos)
+
+| Commit | Fix | AUDIT |
+|--------|-----|-------|
+| `dfb24b2` | Barney theme em todo o andar + elevator music lifecycle | — |
+| `93bbfa6` | Chat input aria-labels + id + `<label>` associado | #3 |
+| `3e0c48b` | Border-radius `rounded-xl`, contraste `text-white/35`, font-mono cleanup | #4/#6/#8/#11 |
+| `76dcf23` | Chat fecha quando settings abre (já tava feito, verificado) | #7 |
+| `55e7c4b` | AUDIT.md atualizada com status real | — |
+| `461c3f1` | MEMORY.md atualizada com resultados da AUDIT.md | — |
+| `d3b8eee` | House furniture collision (coords de mundo) + TypewriterText shared AudioContext | — |
+
+### Bugs críticos corrigidos
+1. **House furniture collision** — colliders em coordenadas locais, player batia em objetos invisíveis no jardim. Agora em coordenadas de mundo (R(π) + translate Z+10).
+2. **TypewriterText voice bips silenciosos** — criava AudioContext separado por instância, Chrome bloqueava. Agora usa `window.__jubileuAudioCtx` compartilhado.
+3. **Barney theme só no chase** — agora toca em todo o level 1 (outdoor → barney_greet → indoor_day → chase).
+4. **Elevator music não parava** — agora para quando portas abrem no destino (ambas direções).
+5. **Lobby music não voltava** — agora reativa ao voltar pro lobby.
+
+### Design fixes
+- Border-radius padronizado (`rounded-xl` em botões, inputs, share links)
+- Font-mono removido de elementos não-técnicos
+- Contraste `text-white/30` → `text-white/35` no Bot.tsx
+- Chat inputs com `id` + `<label>` associado pra screen readers
+
+### Estado final
+- TypeScript: ✅ limpo
+- Build: ✅ reprodutível
+- Push: ✅ main (7 commits)
+- AUDIT.md: ✅ atualizada (13/15 fixed, 2 remaining)
+
+---
+
+## 📋 Próximos Passos (a fazer)
+- [ ] Deploy manual das Firestore Rules no Firebase Console (ainda pendente)
+- [ ] AUDIT #9/#10 — design tokens não usados / cores hardcoded (refatoração grande)
+- [ ] Merge do fix `b8a832f` do backup branch — inspector voice + Barney theme fallback URLs
+- [ ] AUDIT #12-15 — sugestões (loading state, multiplayer indicator, Dussekar bubble, dialogue scroll)
+
+---
+
+*Última atualização: 2026-04-29 22:34 GMT+8*
