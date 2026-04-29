@@ -169,8 +169,9 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                                 boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
                             }}
                         >
-                            <span className="text-white/55 text-xs font-bold px-2.5 shrink-0 select-none">Chat:</span>
+                            <label htmlFor="chat-input-desktop" className="text-white/55 text-xs font-bold px-2.5 shrink-0 select-none">Chat:</label>
                             <input
+                                id="chat-input-desktop"
                                 ref={inputRef}
                                 type="text"
                                 value={input}
@@ -279,7 +280,9 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
 
                         {/* Input */}
                         <div className="border-t border-white/8 px-2 py-1.5 flex items-center gap-1.5">
+                            <label htmlFor="chat-input-mobile" className="sr-only">Mensagem do chat</label>
                             <input
+                                id="chat-input-mobile"
                                 ref={inputRef}
                                 type="text"
                                 value={input}

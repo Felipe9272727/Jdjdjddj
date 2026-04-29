@@ -98438,10 +98438,11 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
                 boxShadow: "0 4px 20px rgba(0,0,0,0.4)"
               },
               children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/55 text-xs font-bold px-2.5 shrink-0 select-none", children: "Chat:" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { htmlFor: "chat-input-desktop", className: "text-white/55 text-xs font-bold px-2.5 shrink-0 select-none", children: "Chat:" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "input",
                   {
+                    id: "chat-input-desktop",
                     ref: inputRef,
                     type: "text",
                     value: input,
