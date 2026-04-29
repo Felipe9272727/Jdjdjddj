@@ -78617,7 +78617,7 @@ const Instances = /* @__PURE__ */ reactExports.forwardRef(({
     value: api
   }, children));
 });
-const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameState, masterVolume = 1 }) => {
+const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameState, currentLevel = 0, doorsClosed = false, masterVolume = 1 }) => {
   const lobbyGainRef = reactExports.useRef(null);
   const elevatorGainRef = reactExports.useRef(null);
   const masterGainRef = reactExports.useRef(null);
@@ -78719,6 +78719,20 @@ const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameS
       tracksRef.current.elevator.beatCount = 0;
     }
   }, [doorTrigger, audioContext]);
+  reactExports.useEffect(() => {
+    if (!audioContext) return;
+    if (doorsClosed) return;
+    if (!tracksRef.current.elevator.active) return;
+    tracksRef.current.elevator.volume = 0;
+    if (currentLevel === 0) {
+      tracksRef.current.lobby.active = true;
+      tracksRef.current.lobby.volume = 1;
+    }
+    const t2 = setTimeout(() => {
+      tracksRef.current.elevator.active = false;
+    }, 300);
+    return () => clearTimeout(t2);
+  }, [doorsClosed, currentLevel, audioContext]);
   const schedulerRef = reactExports.useRef(null);
   schedulerRef.current = () => {
     const ctx = audioContext;
@@ -78741,7 +78755,7 @@ const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameS
     if (lobbyGainRef.current) lobbyGainRef.current.gain.setTargetAtTime(tracksRef.current.lobby.volume, now2, 0.05);
     if (elevatorGainRef.current) elevatorGainRef.current.gain.setTargetAtTime(tracksRef.current.elevator.volume, now2, 0.05);
     const elevatorTrack = tracksRef.current.elevator;
-    const barneyFloor = gameState === "indoor_night" || gameState === "chase" || gameState === "caught" || gameState === "saved";
+    const barneyFloor = currentLevel === 1;
     if (barneyGainRef.current) {
       barneyGainRef.current.gain.setTargetAtTime(barneyFloor ? 0.7 : 0, now2, 0.3);
     }
@@ -99571,7 +99585,7 @@ function App() {
     if (!hasStarted || dialogueOpen || barneyDialogueOpen) return;
     setZoomLevel((prev) => Math.min(Math.max(prev + e2.deltaY * 0.01, 0), 10));
   }, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx, muted, masterVolume: settings.masterVolume, nightMode, gameState }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx, muted, masterVolume: settings.masterVolume, nightMode, gameState, currentLevel, doorsClosed }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out", style: { opacity: overlayOpacity } }),
     cameraShake && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-20 pointer-events-none traveling-vignette" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(CanvasErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(

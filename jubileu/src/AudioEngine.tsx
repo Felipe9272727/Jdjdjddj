@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameState, masterVolume = 1 }: any) => {
+export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameState, currentLevel = 0, doorsClosed = false, masterVolume = 1 }: any) => {
   const lobbyGainRef = useRef<any>(null);
   const elevatorGainRef = useRef<any>(null);
   const masterGainRef = useRef<any>(null);
@@ -71,6 +71,30 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
      }
   }, [doorTrigger, audioContext]);
 
+  // Stop elevator transition music when the player arrives at a destination
+  // (doors open after having been closed). Drives off `doorsClosed` so it
+  // works in BOTH directions:
+  //   lobby -> Barney floor: elevator stops, Barney theme takes over
+  //   Barney floor -> lobby: elevator stops, lobby music crossfades back in
+  // Setting elevator.volume=0 lets the scheduler's setTargetAtTime ramp the
+  // gain down (~150ms); active=false after 300ms tears down the buffer source
+  // via the existing path (scheduler).
+  useEffect(() => {
+     if (!audioContext) return;
+     if (doorsClosed) return; // doors closed means we're either at start or in transit — keep elevator music
+     if (!tracksRef.current.elevator.active) return;
+     tracksRef.current.elevator.volume = 0;
+     // Coming back to the lobby — bring lobby music back too.
+     if (currentLevel === 0) {
+         tracksRef.current.lobby.active = true;
+         tracksRef.current.lobby.volume = 1.0;
+     }
+     const t = setTimeout(() => {
+         tracksRef.current.elevator.active = false;
+     }, 300);
+     return () => clearTimeout(t);
+  }, [doorsClosed, currentLevel, audioContext]);
+
   const schedulerRef = useRef<any>(null);
   schedulerRef.current = () => {
       const ctx = audioContext; if (!ctx) return;
@@ -86,8 +110,11 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
       if (elevatorGainRef.current) elevatorGainRef.current.gain.setTargetAtTime(tracksRef.current.elevator.volume, now, 0.05);
       
       const elevatorTrack = tracksRef.current.elevator;
-      // Barney theme: plays on Barney's floor (indoor_night/chase), distorted during chase
-      const barneyFloor = gameState === 'indoor_night' || gameState === 'chase' || gameState === 'caught' || gameState === 'saved';
+      // Barney theme is the ambient music for the whole Barney floor (level 1):
+      // outdoor + barney_greet + indoor_day + indoor_night + chase + caught + saved.
+      // Distortion is gated separately on nightMode (only during the chase
+      // sequence), so the early states still hear the clean theme.
+      const barneyFloor = currentLevel === 1;
       if (barneyGainRef.current) {
           barneyGainRef.current.gain.setTargetAtTime(barneyFloor ? 0.7 : 0, now, 0.3);
       }
