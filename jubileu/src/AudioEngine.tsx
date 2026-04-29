@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 
 export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, masterVolume = 1 }: any) => {
   const lobbyGainRef = useRef<any>(null);
+  const elevatorGainRef = useRef<any>(null);
   const masterGainRef = useRef<any>(null);
   const lobbyReadyRef = useRef(false);
   const sourceRef = useRef<any>(null);
+  const elevatorSourceRef = useRef<any>(null);
+  const elevatorBufferRef = useRef<any>(null);
   const barneySourceRef = useRef<any>(null);
   const barneyBufferRef = useRef<any>(null);
   const barneyGainRef = useRef<any>(null);
@@ -80,13 +83,30 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
            else { const t = elapsed / duration; tracksRef.current[from as keyof typeof tracksRef.current].volume = 1 - t; tracksRef.current[to as keyof typeof tracksRef.current].volume = t; }
       }
       if (lobbyGainRef.current) lobbyGainRef.current.gain.setTargetAtTime(tracksRef.current.lobby.volume, now, 0.05);
+      if (elevatorGainRef.current) elevatorGainRef.current.gain.setTargetAtTime(tracksRef.current.elevator.volume, now, 0.05);
       
       const elevatorTrack = tracksRef.current.elevator;
       if (barneyGainRef.current) {
-          barneyGainRef.current.gain.setTargetAtTime(elevatorTrack.active ? elevatorTrack.volume * 0.7 : 0, now, 0.1);
+          barneyGainRef.current.gain.setTargetAtTime(nightMode && elevatorTrack.active ? elevatorTrack.volume * 0.7 : 0, now, 0.1);
       }
       
-      if (elevatorTrack.active && !barneySourceRef.current && barneyBufferRef.current && barneyGainRef.current && barneyFilterRef.current) {
+      // Elevator transition music — plays during normal elevator rides
+      if (elevatorTrack.active && !elevatorSourceRef.current && elevatorBufferRef.current && elevatorGainRef.current) {
+          const src = ctx.createBufferSource();
+          src.buffer = elevatorBufferRef.current;
+          src.loop = true;
+          src.connect(elevatorGainRef.current);
+          src.start(0);
+          elevatorSourceRef.current = src;
+      }
+      if (!elevatorTrack.active && elevatorSourceRef.current) {
+          try { elevatorSourceRef.current.stop(); } catch(e) {}
+          try { elevatorSourceRef.current.disconnect(); } catch(e) {}
+          elevatorSourceRef.current = null;
+      }
+
+      // Barney theme — only during nightMode (chase)
+      if (nightMode && elevatorTrack.active && !barneySourceRef.current && barneyBufferRef.current && barneyGainRef.current && barneyFilterRef.current) {
           const src = ctx.createBufferSource();
           src.buffer = barneyBufferRef.current;
           src.loop = true;
@@ -120,6 +140,7 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
       const reverbInput = setupReverb(ctx, compressor);
       masterGainRef.current = reverbInput;
       const lobbyGain = ctx.createGain(); lobbyGain.gain.value = 1.0; lobbyGain.connect(reverbInput); lobbyGainRef.current = lobbyGain;
+      const elevatorGain = ctx.createGain(); elevatorGain.gain.value = 0; elevatorGain.connect(reverbInput); elevatorGainRef.current = elevatorGain;
       
       const barneyGain = ctx.createGain(); barneyGain.gain.value = 0; 
       const barneyFilter = ctx.createBiquadFilter(); 
@@ -157,6 +178,19 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
               .catch(e => console.warn("[Audio] Barney theme load failed:", e.message));
       }
 
+      // Elevator transition music — "Local Forecast" by Kevin MacLeod (CC BY 4.0)
+      const ELEVATOR_MUSIC_URL = 'https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/Local%20Forecast%20-%20Elevator.mp3';
+      if (!elevatorBufferRef.current) {
+          fetch(ELEVATOR_MUSIC_URL)
+              .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
+              .then(b => ctx.decodeAudioData(b))
+              .then(audioBuf => {
+                  if (!isMounted) return;
+                  elevatorBufferRef.current = audioBuf;
+              })
+              .catch(e => console.warn("[Audio] Elevator music load failed:", e.message));
+      }
+
       schedulerTimerRef.current = setInterval(() => {
           if (schedulerRef.current) schedulerRef.current();
       }, 100);
@@ -164,8 +198,10 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
           isMounted = false;
           if (schedulerTimerRef.current) clearInterval(schedulerTimerRef.current);
           if (sourceRef.current) { try { sourceRef.current.stop(); } catch(e) {} try { sourceRef.current.disconnect(); } catch(e) {} sourceRef.current = null; }
+          if (elevatorSourceRef.current) { try { elevatorSourceRef.current.stop(); } catch(e) {} try { elevatorSourceRef.current.disconnect(); } catch(e) {} elevatorSourceRef.current = null; }
           if (barneySourceRef.current) { try { barneySourceRef.current.stop(); } catch(e) {} try { barneySourceRef.current.disconnect(); } catch(e) {} barneySourceRef.current = null; }
           try { lobbyGain.disconnect(); } catch(e) {}
+          try { elevatorGain.disconnect(); } catch(e) {}
           try { barneyGain.disconnect(); } catch(e) {}
           try { barneyFilter.disconnect(); } catch(e) {}
           try { reverbInput.disconnect(); } catch(e) {}
@@ -173,6 +209,7 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
           try { makeupGain.disconnect(); } catch(e) {}
           masterGainRef.current = null;
           lobbyGainRef.current = null;
+          elevatorGainRef.current = null;
           barneyGainRef.current = null;
           barneyFilterRef.current = null;
       };

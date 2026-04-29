@@ -78619,9 +78619,12 @@ const Instances = /* @__PURE__ */ reactExports.forwardRef(({
 });
 const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, masterVolume = 1 }) => {
   const lobbyGainRef = reactExports.useRef(null);
+  const elevatorGainRef = reactExports.useRef(null);
   const masterGainRef = reactExports.useRef(null);
   const lobbyReadyRef = reactExports.useRef(false);
   const sourceRef = reactExports.useRef(null);
+  const elevatorSourceRef = reactExports.useRef(null);
+  const elevatorBufferRef = reactExports.useRef(null);
   const barneySourceRef = reactExports.useRef(null);
   const barneyBufferRef = reactExports.useRef(null);
   const barneyGainRef = reactExports.useRef(null);
@@ -78736,11 +78739,31 @@ const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, maste
       }
     }
     if (lobbyGainRef.current) lobbyGainRef.current.gain.setTargetAtTime(tracksRef.current.lobby.volume, now2, 0.05);
+    if (elevatorGainRef.current) elevatorGainRef.current.gain.setTargetAtTime(tracksRef.current.elevator.volume, now2, 0.05);
     const elevatorTrack = tracksRef.current.elevator;
     if (barneyGainRef.current) {
-      barneyGainRef.current.gain.setTargetAtTime(elevatorTrack.active ? elevatorTrack.volume * 0.7 : 0, now2, 0.1);
+      barneyGainRef.current.gain.setTargetAtTime(nightMode && elevatorTrack.active ? elevatorTrack.volume * 0.7 : 0, now2, 0.1);
     }
-    if (elevatorTrack.active && !barneySourceRef.current && barneyBufferRef.current && barneyGainRef.current && barneyFilterRef.current) {
+    if (elevatorTrack.active && !elevatorSourceRef.current && elevatorBufferRef.current && elevatorGainRef.current) {
+      const src = ctx.createBufferSource();
+      src.buffer = elevatorBufferRef.current;
+      src.loop = true;
+      src.connect(elevatorGainRef.current);
+      src.start(0);
+      elevatorSourceRef.current = src;
+    }
+    if (!elevatorTrack.active && elevatorSourceRef.current) {
+      try {
+        elevatorSourceRef.current.stop();
+      } catch (e2) {
+      }
+      try {
+        elevatorSourceRef.current.disconnect();
+      } catch (e2) {
+      }
+      elevatorSourceRef.current = null;
+    }
+    if (nightMode && elevatorTrack.active && !barneySourceRef.current && barneyBufferRef.current && barneyGainRef.current && barneyFilterRef.current) {
       const src = ctx.createBufferSource();
       src.buffer = barneyBufferRef.current;
       src.loop = true;
@@ -78796,6 +78819,10 @@ const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, maste
     lobbyGain.gain.value = 1;
     lobbyGain.connect(reverbInput);
     lobbyGainRef.current = lobbyGain;
+    const elevatorGain = ctx.createGain();
+    elevatorGain.gain.value = 0;
+    elevatorGain.connect(reverbInput);
+    elevatorGainRef.current = elevatorGain;
     const barneyGain = ctx.createGain();
     barneyGain.gain.value = 0;
     const barneyFilter = ctx.createBiquadFilter();
@@ -78833,6 +78860,16 @@ const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, maste
         barneyBufferRef.current = audioBuf;
       }).catch((e2) => console.warn("[Audio] Barney theme load failed:", e2.message));
     }
+    const ELEVATOR_MUSIC_URL = "https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/Local%20Forecast%20-%20Elevator.mp3";
+    if (!elevatorBufferRef.current) {
+      fetch(ELEVATOR_MUSIC_URL).then((r2) => {
+        if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
+        return r2.arrayBuffer();
+      }).then((b2) => ctx.decodeAudioData(b2)).then((audioBuf) => {
+        if (!isMounted) return;
+        elevatorBufferRef.current = audioBuf;
+      }).catch((e2) => console.warn("[Audio] Elevator music load failed:", e2.message));
+    }
     schedulerTimerRef.current = setInterval(() => {
       if (schedulerRef.current) schedulerRef.current();
     }, 100);
@@ -78850,6 +78887,17 @@ const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, maste
         }
         sourceRef.current = null;
       }
+      if (elevatorSourceRef.current) {
+        try {
+          elevatorSourceRef.current.stop();
+        } catch (e2) {
+        }
+        try {
+          elevatorSourceRef.current.disconnect();
+        } catch (e2) {
+        }
+        elevatorSourceRef.current = null;
+      }
       if (barneySourceRef.current) {
         try {
           barneySourceRef.current.stop();
@@ -78863,6 +78911,10 @@ const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, maste
       }
       try {
         lobbyGain.disconnect();
+      } catch (e2) {
+      }
+      try {
+        elevatorGain.disconnect();
       } catch (e2) {
       }
       try {
@@ -78887,6 +78939,7 @@ const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, maste
       }
       masterGainRef.current = null;
       lobbyGainRef.current = null;
+      elevatorGainRef.current = null;
       barneyGainRef.current = null;
       barneyFilterRef.current = null;
     };
