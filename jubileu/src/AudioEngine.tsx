@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, masterVolume = 1 }: any) => {
+export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameState, masterVolume = 1 }: any) => {
   const lobbyGainRef = useRef<any>(null);
   const elevatorGainRef = useRef<any>(null);
   const masterGainRef = useRef<any>(null);
@@ -86,8 +86,10 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
       if (elevatorGainRef.current) elevatorGainRef.current.gain.setTargetAtTime(tracksRef.current.elevator.volume, now, 0.05);
       
       const elevatorTrack = tracksRef.current.elevator;
+      // Barney theme: plays on Barney's floor (indoor_night/chase), distorted during chase
+      const barneyFloor = gameState === 'indoor_night' || gameState === 'chase' || gameState === 'caught' || gameState === 'saved';
       if (barneyGainRef.current) {
-          barneyGainRef.current.gain.setTargetAtTime(nightMode && elevatorTrack.active ? elevatorTrack.volume * 0.7 : 0, now, 0.1);
+          barneyGainRef.current.gain.setTargetAtTime(barneyFloor ? 0.7 : 0, now, 0.3);
       }
       
       // Elevator transition music — plays during normal elevator rides
@@ -105,8 +107,8 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
           elevatorSourceRef.current = null;
       }
 
-      // Barney theme — only during nightMode (chase)
-      if (nightMode && elevatorTrack.active && !barneySourceRef.current && barneyBufferRef.current && barneyGainRef.current && barneyFilterRef.current) {
+      // Barney theme — starts on Barney's floor
+      if (barneyFloor && !barneySourceRef.current && barneyBufferRef.current && barneyGainRef.current && barneyFilterRef.current) {
           const src = ctx.createBufferSource();
           src.buffer = barneyBufferRef.current;
           src.loop = true;
@@ -124,7 +126,7 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
           try { barneyFilterRef.current.Q.setTargetAtTime(distorted ? 3 : 1, now, 0.3); } catch(e) {}
       }
       
-      if (!elevatorTrack.active && barneySourceRef.current && barneyGainRef.current && barneyGainRef.current.gain.value < 0.01) {
+      if (!barneyFloor && barneySourceRef.current && barneyGainRef.current && barneyGainRef.current.gain.value < 0.01) {
           try { barneySourceRef.current.stop(); } catch(e) {}
           try { barneySourceRef.current.disconnect(); } catch(e) {}
           barneySourceRef.current = null;
