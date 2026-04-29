@@ -467,6 +467,10 @@
     pointer-events: none;
   }
 
+  .invisible {
+    visibility: hidden;
+  }
+
   .visible {
     visibility: visible;
   }
@@ -841,6 +845,10 @@
 
   .inline-flex {
     display: inline-flex;
+  }
+
+  .table {
+    display: table;
   }
 
   .h-0 {
@@ -95150,6 +95158,36 @@ const fallbackConfig = {
   messagingSenderId,
   measurementId
 };
+const boxCollider = (cx, cz, w, d, rot = 0) => {
+  const c2 = Math.cos(rot), s = Math.sin(rot);
+  const hw = w / 2, hd = d / 2;
+  const local = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]];
+  const world = local.map(([lx, lz]) => [cx + c2 * lx + s * lz, cz - s * lx + c2 * lz]);
+  return [
+    [world[0][0], world[0][1], world[1][0], world[1][1]],
+    [world[1][0], world[1][1], world[2][0], world[2][1]],
+    [world[2][0], world[2][1], world[3][0], world[3][1]],
+    [world[3][0], world[3][1], world[0][0], world[0][1]]
+  ];
+};
+const resolveCollision = (cx, cz, r2, walls) => {
+  let x2 = cx, z = cz;
+  for (let i2 = 0; i2 < 3; i2++) {
+    for (const w of walls) {
+      const dx = w[2] - w[0], dz = w[3] - w[1], l2 = dx * dx + dz * dz;
+      if (l2 < 1e-4) continue;
+      const t2 = Math.max(0, Math.min(1, ((x2 - w[0]) * dx + (z - w[1]) * dz) / l2));
+      const px2 = w[0] + t2 * dx, pz2 = w[1] + t2 * dz, sx = x2 - px2, sz = z - pz2;
+      const d = Math.sqrt(sx * sx + sz * sz);
+      if (d < r2 && d > 1e-4) {
+        const o2 = r2 - d;
+        x2 += sx / d * o2;
+        z += sz / d * o2;
+      }
+    }
+  }
+  return [x2, z];
+};
 const MAX_LEVEL = 100;
 const WALKING_URL = "https://raw.githubusercontent.com/Felipe9272727/Bancon...../main/Walking(1).glb";
 const IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/BACON-PROJETO-FUNCIONALLLLL/main/Idle.glb";
@@ -95235,9 +95273,7 @@ const MP_WRITE_INTERVAL = 200;
 const MP_WRITE_THRESHOLD = 0.1;
 const MP_ROTATION_THRESHOLD = 0.1;
 const MP_FORCE_WRITE_MS = 2500;
-const CHAT_TTL_MS = 3e4;
 const CHAT_MAX_LEN = 200;
-const CHAT_CLEAR_DELAY = 3e4;
 const PLAYER_NAME_MAX_LEN = 20;
 const LOBBY_W = [[-10, 10, 10, 10], [-10, -10, -10, 10], [10, -10, 10, 10], [-10, -10, -1.3, -10], [1.3, -10, 10, -10]];
 const ELEV_W = [[-3.25, -16, -3.25, -10], [3.25, -16, 3.25, -10], [-3.25, -16, 3.25, -16]];
@@ -95247,6 +95283,37 @@ const HOUSE_DW = [-0.7, 6, 0.7, 6];
 const L1_BND = [[-25, -25, 25, -25], [25, -25, 25, 25], [-25, 25, 25, 25], [-25, -25, -25, 25]];
 const ELEV_BLD = [[-5.5, -16.5, 5.5, -16.5], [-5.5, -10, -5.5, -16.5], [5.5, -10, 5.5, -16.5], [-5.5, -10, -1.3, -10], [1.3, -10, 5.5, -10], [-25, -10, -5.5, -10], [5.5, -10, 25, -10]];
 const DOOR_SEAL = [-1.3, -10, 1.3, -10];
+const ARMCHAIR_W = 1.1, ARMCHAIR_D = 1;
+const LOBBY_FURNITURE_W = [
+  ...boxCollider(7, -7.5, 3.5, 0.7, -Math.PI / 2),
+  ...[2, 3.5, -2, -3.5].flatMap((z) => boxCollider(-8.7, z, ARMCHAIR_W, ARMCHAIR_D, Math.PI / 2)),
+  ...[-4, -2.5, 2.5, 4].flatMap((x2) => boxCollider(x2, 8.8, ARMCHAIR_W, ARMCHAIR_D, Math.PI))
+];
+const HOUSE_FURNITURE_W = [
+  ...boxCollider(-2.5, 2.5, 2, 0.9, Math.PI / 4),
+  // sofa
+  ...boxCollider(-2, 1.5, 1.2, 0.8, 0),
+  // coffee table
+  ...boxCollider(-3, -3.5, 1.5, 0.8, 0),
+  // kitchen counter L
+  ...boxCollider(-1, -3.5, 1.5, 0.8, 0),
+  // kitchen counter R
+  ...boxCollider(2.5, -2.5, 1.9, 2.3, 0)
+  // bed (incl. headboard)
+];
+const _LOBBY_BASE = [...ELEV_W, ...LOBBY_W, ...LOBBY_FURNITURE_W];
+const _HOUSE_BASE = [...ELEV_W, ...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN, ...HOUSE_FURNITURE_W];
+const _WALLS_LOBBY_OPEN = _LOBBY_BASE;
+const _WALLS_LOBBY_SEALED = [..._LOBBY_BASE, DOOR_SEAL];
+const _WALLS_HOUSE_OPEN = _HOUSE_BASE;
+const _WALLS_HOUSE_DOOR = [..._HOUSE_BASE, HOUSE_DW];
+const _WALLS_HOUSE_SEALED = [..._HOUSE_BASE, DOOR_SEAL];
+const _WALLS_HOUSE_DOOR_SEALED = [..._HOUSE_BASE, HOUSE_DW, DOOR_SEAL];
+const wallsForState = (level, doorsClosed, houseDoorOpen) => {
+  if (level === 0) return doorsClosed ? _WALLS_LOBBY_SEALED : _WALLS_LOBBY_OPEN;
+  if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
+  return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;
+};
 const clampLevel = (n) => {
   const v5 = Number.isFinite(n) ? Math.floor(n) : 0;
   return Math.min(MAX_LEVEL, Math.max(0, v5));
@@ -95296,14 +95363,15 @@ const setPlayerName = (name2) => {
   return clean;
 };
 const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled, level = 0, playerName = "Player") => {
-  const [otherPlayers, setOtherPlayers] = reactExports.useState({});
+  const otherPlayersDataRef = reactExports.useRef(/* @__PURE__ */ new Map());
+  const [otherPlayerIds, setOtherPlayerIds] = reactExports.useState([]);
+  const otherPlayerIdsRef = reactExports.useRef([]);
   const [chatMessages, setChatMessages] = reactExports.useState([]);
   const playerIdRef = reactExports.useRef(getLocalPlayerId());
   const playerStateRef = reactExports.useRef(playerState);
   const playerNameRef = reactExports.useRef(playerName);
   const chatMsgRef = reactExports.useRef("");
   const chatAtRef = reactExports.useRef(0);
-  const chatClearTimersRef = reactExports.useRef(/* @__PURE__ */ new Set());
   reactExports.useEffect(() => {
     playerStateRef.current = playerState;
   }, [playerState]);
@@ -95311,7 +95379,12 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
     playerNameRef.current = playerName;
   }, [playerName]);
   reactExports.useEffect(() => {
-    if (!isEnabled) return;
+    if (!isEnabled) {
+      otherPlayersDataRef.current = /* @__PURE__ */ new Map();
+      otherPlayerIdsRef.current = [];
+      setOtherPlayerIds([]);
+      return;
+    }
     const db = getDb();
     if (!db) {
       console.warn("[MP] Sem config Firebase — check __FIREBASE_CONFIG__");
@@ -95327,7 +95400,7 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
     );
     const GHOST_TTL_MS = MP_GHOST_TTL_MS;
     const unsub = onSnapshot(q2, (snap) => {
-      const players = {};
+      const newMap = /* @__PURE__ */ new Map();
       const cutoff = Date.now() - GHOST_TTL_MS;
       snap.forEach((d) => {
         var _a, _b2;
@@ -95335,11 +95408,19 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
         const data = d.data();
         const updatedAt = ((_b2 = (_a = data.updatedAt) == null ? void 0 : _a.toMillis) == null ? void 0 : _b2.call(_a)) ?? 0;
         if (updatedAt > 0 && updatedAt < cutoff) return;
-        players[d.id] = { id: d.id, ...data };
+        newMap.set(d.id, { id: d.id, ...data });
       });
-      setOtherPlayers(players);
+      otherPlayersDataRef.current = newMap;
+      const newIds = Array.from(newMap.keys()).sort();
+      const oldIds = otherPlayerIdsRef.current;
+      const idsChanged = newIds.length !== oldIds.length || newIds.some((id, i2) => id !== oldIds[i2]);
+      if (idsChanged) {
+        otherPlayerIdsRef.current = newIds;
+        setOtherPlayerIds(newIds);
+      }
       const msgs = [];
-      const chatCutoff = Date.now() - CHAT_TTL_MS;
+      const CHAT_TTL = 3e4;
+      const chatCutoff = Date.now() - CHAT_TTL;
       snap.forEach((d) => {
         const data = d.data();
         if (data.chatMsg && data.chatAt && data.chatAt > chatCutoff) {
@@ -95352,7 +95433,13 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
         }
       });
       msgs.sort((a2, b2) => a2.timestamp - b2.timestamp);
-      setChatMessages(msgs);
+      setChatMessages((prev) => {
+        if (prev.length !== msgs.length) return msgs;
+        for (let i2 = 0; i2 < msgs.length; i2++) {
+          if (prev[i2].id !== msgs[i2].id || prev[i2].timestamp !== msgs[i2].timestamp) return msgs;
+        }
+        return prev;
+      });
     }, (err) => console.error("[MP] Snapshot erro:", err));
     return () => unsub();
   }, [isEnabled, level]);
@@ -95463,28 +95550,20 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
     }).catch((e2) => {
       console.warn("[MP] Chat Firestore write failed (local fallback active):", (e2 == null ? void 0 : e2.code) || (e2 == null ? void 0 : e2.message));
     });
-    const clearTimer = setTimeout(() => {
-      chatClearTimersRef.current.delete(clearTimer);
+    setTimeout(() => {
       if (chatMsgRef.current === clean) {
         chatMsgRef.current = "";
         chatAtRef.current = 0;
         updateDoc(docRef, { chatMsg: "", chatAt: 0, updatedAt: serverTimestamp() }).catch(() => {
         });
       }
-    }, CHAT_CLEAR_DELAY);
-    chatClearTimersRef.current.add(clearTimer);
+    }, 3e4);
   };
-  reactExports.useEffect(() => {
-    return () => {
-      chatClearTimersRef.current.forEach(clearTimeout);
-      chatClearTimersRef.current.clear();
-    };
-  }, []);
   const login = async () => {
     return playerIdRef.current;
   };
   const user = { uid: playerIdRef.current };
-  return { user, login, otherPlayers, sendChat, chatMessages };
+  return { user, login, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages };
 };
 const MainMenu = ({ onPlay }) => {
   const [doorPosition, setDoorPosition] = reactExports.useState(0);
@@ -95931,24 +96010,6 @@ const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }) => {
     }
   );
 };
-const resolveCollision = (cx, cz, r2, walls) => {
-  let x2 = cx, z = cz;
-  for (let i2 = 0; i2 < 3; i2++) {
-    for (const w of walls) {
-      const dx = w[2] - w[0], dz = w[3] - w[1], l2 = dx * dx + dz * dz;
-      if (l2 < 1e-4) continue;
-      const t2 = Math.max(0, Math.min(1, ((x2 - w[0]) * dx + (z - w[1]) * dz) / l2));
-      const px2 = w[0] + t2 * dx, pz2 = w[1] + t2 * dz, sx = x2 - px2, sz = z - pz2;
-      const d = Math.sqrt(sx * sx + sz * sz);
-      if (d < r2 && d > 1e-4) {
-        const o2 = r2 - d;
-        x2 += sx / d * o2;
-        z += sz / d * o2;
-      }
-    }
-  }
-  return [x2, z];
-};
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
 const Avatar = ({ animation, visible = true }) => {
@@ -96129,15 +96190,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
         const rd = _v.current[4].set(Math.sin(camAng.current.theta - Math.PI / 2), 0, Math.cos(camAng.current.theta - Math.PI / 2));
         const mv = _v.current[5].set(0, 0, 0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * safeDt);
         const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
-        let wl = [...ELEV_W];
-        if (currentLevel === 0) {
-          wl.push(...LOBBY_W);
-          if (doorsClosed) wl.push(DOOR_SEAL);
-        } else {
-          wl.push(...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN);
-          if (!houseDoorOpen) wl.push(HOUSE_DW);
-          if (doorsClosed) wl.push(DOOR_SEAL);
-        }
+        const wl = wallsForState(currentLevel, doorsClosed, houseDoorOpen);
         const [rx, rz] = resolveCollision(nx, nz, PR, wl);
         pos.current.x = rx;
         pos.current.z = rz;
@@ -96348,27 +96401,78 @@ const ReceptionDesk = React.memo(({ x: x2, z, rot = 0 }) => /* @__PURE__ */ jsxR
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [3.4, 0.03, 0.02] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFD54F", metalness: 0.8, roughness: 0.2 })
   ] }),
+  [[-1.65, 0.4], [1.65, 0.4], [-1.65, -0.3], [1.65, -0.3]].map((p2, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [p2[0], 0.05, p2[1]], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.18, 0.1, 0.18] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3E2723", roughness: 0.7 })
+  ] }, i2)),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [1.3, 1.25, 0], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.08, 0.1, 0.04, 8] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#424242", metalness: 0.7 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.12, 0.15, 0.06, 12] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1a", metalness: 0.8, roughness: 0.3 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.15, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.02, 0.02, 0.3, 6] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#424242", metalness: 0.7 })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.25, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.025, 0.025, 0.5, 8] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#212121", metalness: 0.8, roughness: 0.3 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.1, 0.3, 0], rotation: [0, 0, -0.5], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [0.1, 0.15, 8, 1, true] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFD54F", side: DoubleSide, emissive: "#FFE0B2", emissiveIntensity: 0.5 })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.18, 0.5, 0], rotation: [0, 0, -0.7], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [0.18, 0.28, 12, 1, true] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFD54F", side: DoubleSide, emissive: "#FFB300", emissiveIntensity: 1.4, toneMapped: false })
     ] })
   ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [1.3, 1.5, 0], intensity: 0.4, distance: 3, color: "#FFE0B2", decay: 2 }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-1.2, 1.3, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.08, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFC107", metalness: 0.8, roughness: 0.15 })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.1, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFC107", metalness: 0.9, roughness: 0.1 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.3, 1.26, 0.1], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.2, 0.02, 0.28] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.22, 0.025, 0.3] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FAFAFA", roughness: 0.9 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [-0.4, 1.27, 0.1], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.18, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.45, 0.3, 0.04] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1a", roughness: 0.4 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.18, 0.025], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.4, 0.25, 5e-3] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#1565C0", toneMapped: false })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.02, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.12, 0.04, 0.1] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#212121" })
+    ] })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [1.55, 1.26, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.08, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.1, 0.08, 0.16, 10] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037", roughness: 0.7 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.32, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.18, 10, 8] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2E7D32", roughness: 0.9 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.06, 0.45, 0.04], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.1, 8, 8] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#43A047", roughness: 0.9 })
+    ] })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, 0, -0.65], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.04, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.32, 0.32, 0.06, 12] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1a", metalness: 0.5, roughness: 0.5 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.32, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.04, 0.5, 8] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#424242", metalness: 0.7, roughness: 0.3 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.62, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.55, 0.08, 0.5] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#212121", roughness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 1, -0.22], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.55, 0.7, 0.08] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#212121", roughness: 0.8 })
+    ] })
   ] })
 ] }));
 const ElevatorDoors = React.memo(({ closed }) => {
@@ -96638,15 +96742,21 @@ const Barrel = ({ position }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group",
   ] })
 ] });
 useTexture.preload(BARNEY_URL);
+const DUSSEKAR_URL = "https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb";
+useGLTF.preload(DUSSEKAR_URL);
 const DussekarCharacter = ({ position, rotation: rotation2 }) => {
   const [dialogue, setDialogue] = reactExports.useState(null);
-  const { scene } = useGLTF("https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb");
+  const { scene } = useGLTF(DUSSEKAR_URL);
   const clonedScene = reactExports.useMemo(() => scene.clone(true), [scene]);
   const group = reactExports.useRef(null);
   const timeRef = reactExports.useRef(0);
   useFrame((state2, dt2) => {
+    if (!group.current) return;
+    const dx = state2.camera.position.x - position[0];
+    const dz = state2.camera.position.z - position[2];
+    if (dx * dx + dz * dz > 144) return;
     timeRef.current += dt2;
-    if (group.current) group.current.position.y = position[1] + Math.sin(timeRef.current * 0.8) * 0.015;
+    group.current.position.y = position[1] + Math.sin(timeRef.current * 0.8) * 0.015;
   });
   reactExports.useEffect(() => {
     let active = true;
@@ -96676,7 +96786,10 @@ const DussekarCharacter = ({ position, rotation: rotation2 }) => {
   }, []);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: group, position, rotation: rotation2, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene, scale: 3, position: [0, 0, 0] }),
-    dialogue && /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 1, 0], center: true, distanceFactor: 10, occlude: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none select-none whitespace-nowrap speech-bubble", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-white text-black px-4 py-2 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center transform -translate-y-full max-w-[180px]", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs sm:text-sm font-bold font-mono m-0 text-center break-words leading-snug", children: dialogue }) }) }) })
+    dialogue && // No `occlude` here. drei's <Html occlude> raycasts the entire scene
+    // every frame to test visibility — that single prop was the cause of
+    // 5fps drops near the shop. The bubble is fine without it.
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 1, 0], center: true, distanceFactor: 10, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none select-none whitespace-nowrap speech-bubble", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-white text-black px-4 py-2 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center transform -translate-y-full max-w-[180px]", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs sm:text-sm font-bold font-mono m-0 text-center break-words leading-snug", children: dialogue }) }) }) })
   ] });
 };
 const Shop = ({ position }) => {
@@ -97224,7 +97337,9 @@ const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionR
     /* @__PURE__ */ jsxRuntimeExports.jsx(LobbyNPC, { positionRef: npcPositionRef, isPaused, playerPositionRef })
   ] });
 });
-const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2, name: name2, chatMsg, chatAt }) => {
+const CHAT_BUBBLE_TTL_MS = 8e3;
+const TELEPORT_DIST_SQ = 25;
+const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }) => {
   const groupRef = reactExports.useRef(null);
   const hipsRef = reactExports.useRef(null);
   const hipsBindRef = reactExports.useRef(null);
@@ -97242,16 +97357,14 @@ const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2, name: name2, chatMsg
   const [groundY, setGroundY] = reactExports.useState(0);
   reactExports.useEffect(() => {
     clonedScene.traverse((c2) => {
-      if (c2.isMesh) {
-        if (c2.material) {
-          c2.material = c2.material.clone();
-          c2.material.transparent = false;
-          c2.material.depthWrite = true;
-          c2.material.side = DoubleSide;
-          c2.material.metalness = 0;
-          c2.material.roughness = 1;
-          c2.material.needsUpdate = true;
-        }
+      if (c2.isMesh && c2.material) {
+        c2.material = c2.material.clone();
+        c2.material.transparent = false;
+        c2.material.depthWrite = true;
+        c2.material.side = DoubleSide;
+        c2.material.metalness = 0;
+        c2.material.roughness = 1;
+        c2.material.needsUpdate = true;
       }
       if ((c2.isBone || c2.type === "Bone") && !hipsRef.current) {
         const n = c2.name.toLowerCase();
@@ -97268,75 +97381,72 @@ const RemotePlayer = ({ id, x: x2, y, z, ry, state: state2, name: name2, chatMsg
     } catch {
     }
   }, [clonedScene]);
+  const initialData = dataRef.current.get(id);
+  const targetPos = reactExports.useRef(new Vector3((initialData == null ? void 0 : initialData.x) ?? 0, (initialData == null ? void 0 : initialData.y) ?? 0, (initialData == null ? void 0 : initialData.z) ?? 0));
+  const targetRot = reactExports.useRef((initialData == null ? void 0 : initialData.ry) ?? 0);
+  const lastStateRef = reactExports.useRef((initialData == null ? void 0 : initialData.state) ?? "idle");
+  const lastChatAtRef = reactExports.useRef((initialData == null ? void 0 : initialData.chatAt) ?? 0);
   reactExports.useEffect(() => {
-    const walking = state2 === "walking";
-    const a2 = actions[walking ? "Walking" : "Idle"];
-    const o2 = actions[walking ? "Idle" : "Walking"];
-    if (o2) o2.fadeOut(0.2);
-    if (a2) a2.reset().fadeIn(0.2).play();
-  }, [state2, actions]);
-  const targetPos = reactExports.useRef(new Vector3(x2, y, z));
-  const targetRot = reactExports.useRef(ry);
-  reactExports.useEffect(() => {
-    targetPos.current.set(x2, y, z);
-    targetRot.current = ry;
-  }, [x2, y, z, ry]);
-  const lastInitPos = reactExports.useRef(new Vector3(x2, y, z));
-  reactExports.useEffect(() => {
-    if (groupRef.current) {
-      const dx = x2 - lastInitPos.current.x;
-      const dz = z - lastInitPos.current.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-      if (dist > 5) {
-        groupRef.current.position.set(x2, y, z);
-        groupRef.current.rotation.y = ry;
-        targetPos.current.set(x2, y, z);
-        targetRot.current = ry;
-      }
-      lastInitPos.current.set(x2, y, z);
+    if (groupRef.current && initialData) {
+      groupRef.current.position.set(initialData.x, initialData.y, initialData.z);
+      groupRef.current.rotation.y = initialData.ry;
     }
-  }, [x2, y, z, ry]);
+  }, []);
+  const [chatBubble, setChatBubble] = reactExports.useState(null);
   useFrame((_, dt2) => {
     if (!groupRef.current) return;
+    const data = dataRef.current.get(id);
+    if (!data) return;
     if (hipsRef.current && hipsBindRef.current) {
       hipsRef.current.position.x = hipsBindRef.current.x;
       hipsRef.current.position.z = hipsBindRef.current.z;
     }
-    const k2 = Math.min(1, 15 * dt2);
-    groupRef.current.position.lerp(targetPos.current, k2);
-    let d = targetRot.current - groupRef.current.rotation.y;
-    while (d > Math.PI) d -= Math.PI * 2;
-    while (d < -Math.PI) d += Math.PI * 2;
-    groupRef.current.rotation.y += d * k2;
+    const dx = data.x - targetPos.current.x;
+    const dz = data.z - targetPos.current.z;
+    targetPos.current.set(data.x, data.y, data.z);
+    targetRot.current = data.ry;
+    if (dx * dx + dz * dz > TELEPORT_DIST_SQ) {
+      groupRef.current.position.set(data.x, data.y, data.z);
+      groupRef.current.rotation.y = data.ry;
+    } else {
+      const k2 = Math.min(1, 15 * dt2);
+      groupRef.current.position.lerp(targetPos.current, k2);
+      let d = targetRot.current - groupRef.current.rotation.y;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      groupRef.current.rotation.y += d * k2;
+    }
+    if (data.state !== lastStateRef.current) {
+      lastStateRef.current = data.state;
+      const walking = data.state === "walking";
+      const a2 = actions[walking ? "Walking" : "Idle"];
+      const o2 = actions[walking ? "Idle" : "Walking"];
+      if (o2) o2.fadeOut(0.2);
+      if (a2) a2.reset().fadeIn(0.2).play();
+    }
+    if (data.chatMsg && data.chatAt && data.chatAt !== lastChatAtRef.current && Date.now() - data.chatAt < CHAT_BUBBLE_TTL_MS) {
+      lastChatAtRef.current = data.chatAt;
+      setChatBubble({ msg: data.chatMsg, key: data.chatAt });
+    }
   });
-  const [showChat, setShowChat] = reactExports.useState(false);
-  const [chatKey, setChatKey] = reactExports.useState(0);
   reactExports.useEffect(() => {
-    if (!chatMsg || !chatAt) {
-      setShowChat(false);
-      return;
-    }
-    const age = Date.now() - chatAt;
-    if (age > 8e3) {
-      setShowChat(false);
-      return;
-    }
-    setShowChat(true);
-    setChatKey((prev) => prev + 1);
-    const remaining = 8e3 - age;
-    const timer2 = setTimeout(() => setShowChat(false), remaining);
-    return () => clearTimeout(timer2);
-  }, [chatMsg, chatAt]);
-  const displayName = (name2 || "P-" + (id || "").slice(0, 4).toUpperCase()).slice(0, 16);
+    if (!chatBubble) return;
+    const t2 = setTimeout(() => setChatBubble(null), CHAT_BUBBLE_TTL_MS);
+    return () => clearTimeout(t2);
+  }, [chatBubble]);
+  const displayName = reactExports.useMemo(() => {
+    const d = dataRef.current.get(id);
+    return ((d == null ? void 0 : d.name) || "P-" + (id || "").slice(0, 4).toUpperCase()).slice(0, 16);
+  }, [id]);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene, scale: [30, 30, 30], position: [0, groundY, 0] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.3, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none select-none whitespace-nowrap", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/70 text-white px-2.5 py-0.5 rounded-md text-[11px] font-bold font-mono border border-white/20 backdrop-blur-sm tracking-wider text-center shadow-lg", children: displayName }) }) }),
-    showChat && chatMsg && /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.7, 0], center: true, distanceFactor: 8, occlude: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pointer-events-none select-none whitespace-nowrap speech-bubble", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-white text-black px-3 py-1.5 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center max-w-[200px]", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[11px] sm:text-xs font-bold font-mono m-0 text-center break-words leading-snug", children: chatMsg }) }),
+    chatBubbles3D && chatBubble && /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.7, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pointer-events-none select-none whitespace-nowrap speech-bubble", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-white text-black px-3 py-1.5 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center max-w-[200px]", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[11px] sm:text-xs font-bold font-mono m-0 text-center break-words leading-snug", children: chatBubble.msg }) }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex justify-center -mt-0.5", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-black" }) })
-    ] }) }, chatKey)
+    ] }) }, chatBubble.key)
   ] });
-};
+});
 const DEFAULTS = {
   // Mobile-first default. Bumped to 'high' on desktop in loadSettings().
   quality: "medium",
@@ -97392,9 +97502,36 @@ const useSettings = () => {
   return ctx;
 };
 const QUALITY_PROFILES = {
-  low: { dpr: [1, 1], far: 60, antialias: false },
-  medium: { dpr: [1, 1.25], far: 80, antialias: true },
-  high: { dpr: [1, 2], far: 120, antialias: true }
+  low: {
+    dpr: [0.5, 0.75],
+    far: 40,
+    antialias: false,
+    atmosphere: false,
+    overlay: false,
+    nightLights: false,
+    chatBubbles3D: false,
+    remoteLimit: 3
+  },
+  medium: {
+    dpr: [1, 1.25],
+    far: 80,
+    antialias: false,
+    atmosphere: false,
+    overlay: false,
+    nightLights: true,
+    chatBubbles3D: true,
+    remoteLimit: 8
+  },
+  high: {
+    dpr: [1, 2],
+    far: 120,
+    antialias: true,
+    atmosphere: true,
+    overlay: true,
+    nightLights: true,
+    chatBubbles3D: true,
+    remoteLimit: 30
+  }
 };
 const SettingsMenu = ({ open, onClose }) => {
   const { settings, update: update2, reset } = useSettings();
@@ -97595,17 +97732,6 @@ const randomLobbyPos = () => {
   const z = (Math.random() - 0.5) * 14;
   return new Vector3(x2, 0, z);
 };
-const wallsForLevel = (level, doorsClosed, houseDoorOpen) => {
-  if (level === 0) {
-    const w2 = [...ELEV_W, ...LOBBY_W];
-    if (doorsClosed) w2.push(DOOR_SEAL);
-    return w2;
-  }
-  const w = [...ELEV_W, ...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN];
-  if (!houseDoorOpen) w.push(HOUSE_DW);
-  if (doorsClosed) w.push(DOOR_SEAL);
-  return w;
-};
 const BotAvatar = ({ state: state2 }) => {
   const groupRef = reactExports.useRef(null);
   const hipsRef = reactExports.useRef(null);
@@ -97755,7 +97881,7 @@ const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseDoorOpen
   useFrame((_, dtRaw) => {
     if (botsRef.current.length === 0) return;
     const dt2 = Math.min(0.05, dtRaw);
-    const walls = wallsForLevel(currentLevel, doorsClosed, houseDoorOpen);
+    const walls = wallsForState(currentLevel, doorsClosed, houseDoorOpen);
     const player = playerPositionRef.current;
     let mutated = false;
     for (const b2 of botsRef.current) {
@@ -98564,6 +98690,9 @@ const CeilingFan = ({ x: x2 = 0, z = 0, speed = 0.8 }) => {
   const lastUpdateRef = reactExports.useRef(0);
   useFrame((state2) => {
     if (!bladeRef.current) return;
+    const dx = state2.camera.position.x - x2;
+    const dz = state2.camera.position.z - z;
+    if (dx * dx + dz * dz > 196) return;
     const now2 = state2.clock.elapsedTime;
     if (now2 - lastUpdateRef.current < 0.05) return;
     lastUpdateRef.current = now2;
@@ -98639,6 +98768,9 @@ const WallClock = ({ x: x2 = 8, z = -8 }) => {
   const lastUpdateRef = reactExports.useRef(0);
   useFrame((state2) => {
     if (!handRef.current) return;
+    const dx = state2.camera.position.x - x2;
+    const dz = state2.camera.position.z - z;
+    if (dx * dx + dz * dz > 144) return;
     const now2 = state2.clock.elapsedTime;
     if (now2 - lastUpdateRef.current < 0.1) return;
     lastUpdateRef.current = now2;
@@ -98824,17 +98956,18 @@ class CanvasErrorBoundary extends reactExports.Component {
   }
 }
 const MAX_JOYSTICK_RADIUS = 50;
-const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
   level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(LobbyEnvironment, { npcPositionRef, isPaused, playerPositionRef }),
+  level === 0 && !profile.atmosphere && /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 3.8, 0], intensity: 2.8, distance: 22, color: "#FFE0B2", decay: 2 }),
+  level === 0 && profile.atmosphere && /* @__PURE__ */ jsxRuntimeExports.jsx(FluorescentFlicker, { intensity: 2.8 }),
+  level === 0 && profile.atmosphere && /* @__PURE__ */ jsxRuntimeExports.jsx(DustParticles, { count: 20, area: 16 }),
+  level === 0 && profile.atmosphere && /* @__PURE__ */ jsxRuntimeExports.jsx(CeilingFan, { x: -5, z: 0, speed: 0.6 }),
+  level === 0 && profile.atmosphere && /* @__PURE__ */ jsxRuntimeExports.jsx(CeilingFan, { x: 5, z: -5, speed: 0.8 }),
+  level === 0 && profile.atmosphere && /* @__PURE__ */ jsxRuntimeExports.jsx(WallClock, { x: 9.5, z: -7 }),
   level === 1 && /* @__PURE__ */ jsxRuntimeExports.jsx(FlatMapEnvironment, { houseDoorOpen, nightMode, doorOpenAmount }),
-  level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(DustParticles, { count: 20, area: 16 }),
-  level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(FluorescentFlicker, { intensity: 2.8 }),
-  level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(CeilingFan, { x: -5, z: 0, speed: 0.6 }),
-  level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(CeilingFan, { x: 5, z: -5, speed: 0.8 }),
-  level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(WallClock, { x: 9.5, z: -7 }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorInterior, { timer: timer2, doorsClosed, level }),
   level === 1 && /* @__PURE__ */ jsxRuntimeExports.jsx(BarneyActor, { gameState, barneyRef, barneyTargetRef, playerPosRef: playerPositionRef, houseDoorOpen }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(NightAmbient, { active: nightMode && level === 1 })
+  profile.nightLights && /* @__PURE__ */ jsxRuntimeExports.jsx(NightAmbient, { active: nightMode && level === 1 })
 ] }));
 function App() {
   const { settings, update: updateSettings } = useSettings();
@@ -99054,7 +99187,7 @@ function App() {
     }, 250);
     return () => clearInterval(id);
   }, [multiplayerEnabled]);
-  const { user, otherPlayers, sendChat, chatMessages } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel, playerName);
+  const { user, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel, playerName);
   const handleStartDialogue = () => {
     setDialogueNode("start");
     setDialogueOpen(true);
@@ -99294,6 +99427,11 @@ function App() {
       moveInput.current.y = y;
     };
     const kd = (e2) => {
+      if (e2.key === "Escape") {
+        e2.preventDefault();
+        setSettingsOpen((v5) => !v5);
+        return;
+      }
       if (dialogueOpen || barneyDialogueOpen) return;
       const k2 = keysRef.current;
       switch (e2.key.toLowerCase()) {
@@ -99372,8 +99510,8 @@ function App() {
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
           ] })
         ] }) }), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount }),
-          Object.values(otherPlayers || {}).map((p2) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id: p2.id, x: p2.x, y: p2.y, z: p2.z, ry: p2.ry, state: p2.state === "walking" ? "walking" : "idle", name: p2.name, chatMsg: p2.chatMsg, chatAt: p2.chatAt }, p2.id)),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
+          otherPlayerIds.slice(0, QUALITY_PROFILES[settings.quality].remoteLimit).map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
           /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
           botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
             BotSystem,
@@ -99387,7 +99525,7 @@ function App() {
         ] })
       }
     ) }),
-    hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(GameEffects, { nightMode, gameState, currentLevel, quality: settings.quality }),
+    hasStarted && QUALITY_PROFILES[settings.quality].overlay && /* @__PURE__ */ jsxRuntimeExports.jsx(GameEffects, { nightMode, gameState, currentLevel, quality: settings.quality }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Loader2, {}),
     !hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(MainMenu, { onPlay: handleStartGame }),
     hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "hud-fixed", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorHud, { currentLevel, elevatorTimer, doorsClosed, arrivalPulse }) }),
@@ -99396,7 +99534,7 @@ function App() {
       TopControls,
       {
         multiplayerEnabled,
-        otherPlayersCount: Object.keys(otherPlayers).length,
+        otherPlayersCount: otherPlayerIds.length,
         onSettingsOpen: () => setSettingsOpen(true),
         muted,
         onToggleMute: () => setMuted(!muted)

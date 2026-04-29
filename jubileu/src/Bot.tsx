@@ -4,7 +4,7 @@ import { useGLTF, useAnimations, Html } from '@react-three/drei';
 import { Vector3 } from 'three';
 import * as THREE from 'three';
 import { SkeletonUtils } from 'three-stdlib';
-import { WALKING_URL, IDLE_URL, LOBBY_W, ELEV_W, HOUSE_DW, L1_BND, ELEV_BLD, HOUSE_EX, HOUSE_IN, DOOR_SEAL, PR, SPEED } from './constants';
+import { WALKING_URL, IDLE_URL, PR, SPEED, wallsForState } from './constants';
 import { resolveCollision } from './physics';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -74,20 +74,6 @@ const randomLobbyPos = (): Vector3 => {
     const x = (Math.random() - 0.5) * 14;
     const z = (Math.random() - 0.5) * 14;
     return new Vector3(x, 0, z);
-};
-
-// Walls used for bot collision: lobby + elevator entrance + (in level 1) the
-// outdoor/indoor sets so a bot doing a tour doesn't clip through walls.
-const wallsForLevel = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
-    if (level === 0) {
-        const w = [...ELEV_W, ...LOBBY_W];
-        if (doorsClosed) w.push(DOOR_SEAL);
-        return w;
-    }
-    const w = [...ELEV_W, ...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN];
-    if (!houseDoorOpen) w.push(HOUSE_DW);
-    if (doorsClosed) w.push(DOOR_SEAL);
-    return w;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -292,7 +278,7 @@ export const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseD
     useFrame((_, dtRaw) => {
         if (botsRef.current.length === 0) return;
         const dt = Math.min(0.05, dtRaw); // clamp big spikes (tab returning from background)
-        const walls = wallsForLevel(currentLevel, doorsClosed, houseDoorOpen);
+        const walls = wallsForState(currentLevel, doorsClosed, houseDoorOpen);
         const player = playerPositionRef.current;
 
         let mutated = false;

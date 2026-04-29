@@ -23,7 +23,7 @@ import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
-import { useMultiplayer, getPlayerName, MPPlayer } from './Multiplayer';
+import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES } from './Settings';
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
@@ -51,25 +51,29 @@ interface WorldProps {
   barneyTargetRef: React.MutableRefObject<{ x: number; z: number; scale: number }>;
   nightMode: boolean;
   doorOpenAmount: number;
+  profile: any;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile }: WorldProps) => (
   <>
-      {/* Static environment — only changes on level switch */}
+      {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
+          high we replace it with FluorescentFlicker which animates intensity
+          (1 dynamic light = 1 extra per-fragment cost). */}
       {level === 0 && <LobbyEnvironment npcPositionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />}
+      {level === 0 && !profile.atmosphere && (
+          <pointLight position={[0, 3.8, 0]} intensity={2.8} distance={22} color="#FFE0B2" decay={2} />
+      )}
+      {level === 0 && profile.atmosphere && <FluorescentFlicker intensity={2.8} />}
+      {/* Atmosphere stack — high only. Adds ceiling-fan pointLights, dust
+          particles (transparent alpha-blended spheres), and a wall clock. */}
+      {level === 0 && profile.atmosphere && <DustParticles count={20} area={16} />}
+      {level === 0 && profile.atmosphere && <CeilingFan x={-5} z={0} speed={0.6} />}
+      {level === 0 && profile.atmosphere && <CeilingFan x={5} z={-5} speed={0.8} />}
+      {level === 0 && profile.atmosphere && <WallClock x={9.5} z={-7} />}
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
-
-      {/* Atmospheric — renders once per level, internal throttling */}
-      {level === 0 && <DustParticles count={20} area={16} />}
-      {level === 0 && <FluorescentFlicker intensity={2.8} />}
-      {level === 0 && <CeilingFan x={-5} z={0} speed={0.6} />}
-      {level === 0 && <CeilingFan x={5} z={-5} speed={0.8} />}
-      {level === 0 && <WallClock x={9.5} z={-7} />}
-
-      {/* Dynamic — changes every frame or on game state */}
       <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
-      <NightAmbient active={nightMode && level === 1} />
+      {profile.nightLights && <NightAmbient active={nightMode && level === 1} />}
   </>
 ));
 
@@ -274,7 +278,7 @@ export default function App() {
     }, 250);
     return () => clearInterval(id);
   }, [multiplayerEnabled]);
-  const { user, otherPlayers, sendChat, chatMessages } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel, playerName);
+  const { user, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel, playerName);
 
   const handleStartDialogue = () => { setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
   const handleStartGame = (mpEnabled: boolean, name?: string) => {
@@ -444,6 +448,13 @@ export default function App() {
     if (dialogueOpen || barneyDialogueOpen) { document.exitPointerLock(); return; }
     const upd = () => { const k = keysRef.current; let x=0, y=0; if (k.w) y-=1; if (k.s) y+=1; if (k.a) x-=1; if (k.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
     const kd = (e: KeyboardEvent) => {
+      // ESC toggles settings always — even mid-dialogue, so user has an
+      // escape hatch.
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSettingsOpen((v) => !v);
+        return;
+      }
       if (dialogueOpen || barneyDialogueOpen) return;
       const k = keysRef.current;
       switch(e.key.toLowerCase()) {
@@ -498,11 +509,13 @@ export default function App() {
         }}
       >
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />
-            {/* RemotePlayers rendered separately — otherPlayers changes every 100ms from
-                Firestore, would re-render the entire World if passed as prop */}
-            {Object.values(otherPlayers || {}).map((p: MPPlayer) => (
-                <RemotePlayer key={p.id} id={p.id} x={p.x} y={p.y} z={p.z} ry={p.ry} state={(p.state === 'walking' ? 'walking' : 'idle') as 'idle' | 'walking'} name={p.name} chatMsg={p.chatMsg} chatAt={p.chatAt} />
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} />
+            {/* RemotePlayers receive only id + the multiplayer data ref. Position
+                updates flow through the ref + useFrame, so the React tree no
+                longer re-renders every 200ms. The id list only changes when a
+                player joins or leaves. */}
+            {otherPlayerIds.slice(0, QUALITY_PROFILES[settings.quality].remoteLimit).map(id => (
+                <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
             <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
             {botEnabled && (
@@ -516,7 +529,9 @@ export default function App() {
         </Suspense>
       </Canvas>
       </CanvasErrorBoundary>
-      {hasStarted && <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} quality={settings.quality} />}
+      {hasStarted && QUALITY_PROFILES[settings.quality].overlay && (
+          <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} quality={settings.quality} />
+      )}
       <Loader />
       {!hasStarted && <MainMenu onPlay={handleStartGame} />}
       
@@ -535,7 +550,7 @@ export default function App() {
       {hasStarted && (
         <TopControls
           multiplayerEnabled={multiplayerEnabled}
-          otherPlayersCount={Object.keys(otherPlayers).length}
+          otherPlayersCount={otherPlayerIds.length}
           onSettingsOpen={() => setSettingsOpen(true)}
           muted={muted}
           onToggleMute={() => setMuted(!muted)}

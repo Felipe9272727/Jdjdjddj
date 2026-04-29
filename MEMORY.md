@@ -758,3 +758,71 @@ Comite `jubileu/src/...` + `index.html` no MESMO commit.
 - `0377012` — build(test): jubileu/test/index.html (depois removido)
 - (este) — build: rebuild canonical index.html + remove jubileu/test
 
+
+---
+
+## 🔧 Sessão 2026-04-29: Merge de Performance do Branch Backup
+
+### Contexto
+Felipe pediu pra pegar as melhorias de performance do branch `claude/review-memory-backup-6Ua0Z`
+e implementar no `main`, sem reverter os fixes de qualidade que já estavam no main.
+
+### O que tinha de bom no branch backup (performance)
+1. **RemotePlayer com dataRef** — lê posição/estado direto de um Map ref dentro de useFrame,
+   sem causar re-render React a cada 200ms do Firestore
+2. **Multiplayer com otherPlayersDataRef + otherPlayerIds** — Map em ref + array de IDs em state,
+   só re-render quando alguém entra/sai (não a cada update de posição)
+3. **Quality profiles reais** — interface QualityProfile com flags: atmosphere, overlay,
+   nightLights, chatBubbles3D, remoteLimit (low=3, med=8, high=30)
+4. **Distance culling** — CeilingFan (>14u), WallClock (>12u), Dussekar (>12u) skip update
+5. **Pre-built wall lists** — wallsForState() em constants.ts, sem alocação por frame
+6. **Furniture colliders** — boxCollider() em physics.ts + LOBBY_FURNITURE_W / HOUSE_FURNITURE_W
+7. **GameEffects/Atmosphere condicionais** — só renderizam em high quality
+8. **ESC pra Settings** — tecla Escape abre/fecha settings
+
+### O que NÃO pegamos (reversões do branch)
+- Remoção de TypeScript types → main mantém interfaces
+- Deleção de HudComponents.tsx → main mantém componentes extraídos
+- Remoção de named constants → main mantém BARNEY_CATCH_DIST etc.
+- Remoção de error handling no AudioEngine → main mantém r.ok checks
+- Remoção de lazy loading do Barney theme → main mantém lazy load
+- Redução de contraste → main mantém valores corrigidos
+
+### Status
+- Sub-agente trabalhando na implementação
+- Build + TypeScript check + commit + push pendente
+
+---
+
+## 📋 Próximos Passos (a fazer)
+- [ ] Merge de performance completo (sub-agente rodando)
+- [ ] AUDIT.md parcialmente desatualizada — keyframes duplicados não existem mais no CSS
+- [ ] Deploy manual das Firestore Rules no Firebase Console (ainda pendente)
+- [ ] Possível melhoria: fechar chat quando settings abre (AUDIT #7)
+
+---
+
+*Última atualização: 2026-04-29 — sessão de merge de performance*
+
+---
+
+## 🤖 Regra: Use Sub-Agentes pra Trabalho Pesado
+
+Quando a tarefa envolver múltiplos arquivos, builds, testes TypeScript, ou merges
+complexos — **spawna um sub-agente** ao invés de fazer tudo na sessão principal.
+
+### Quando usar
+- Merge de branches com muitos arquivos alterados
+- Refactors que tocam 5+ arquivos
+- Build + test + commit + push (sequência longa)
+- Qualquer coisa que leve mais de 2-3 minutos de processamento
+
+### Quando NÃO usar
+- Mudanças pontuais (1-2 arquivos)
+- Fixes rápidos de CSS/contraste
+- Updates de documentação
+
+### Vantagem
+A sessão principal fica livre pra conversar com o Felipe enquanto o sub-agente
+trabalha em paralelo. Não fica aquele "travou esperando".
+

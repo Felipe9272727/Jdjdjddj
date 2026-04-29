@@ -74,13 +74,15 @@ export interface ChatMessage {
 }
 
 // ─── MP Player Interface ────────────────────────────────────────────────────
+export type AnimState = 'idle' | 'walking';
+
 export interface MPPlayer {
     id: string;
     x: number;
     y: number;
     z: number;
     ry: number;
-    state: string;
+    state: AnimState;
     worldId: string;
     isActive: boolean;
     level: number;
@@ -99,21 +101,32 @@ export const useMultiplayer = (
     level: number = 0,
     playerName: string = 'Player'
 ) => {
-    const [otherPlayers, setOtherPlayers] = useState<Record<string, MPPlayer>>({});
+    // Position/state of every other player kept in a ref so onSnapshot updates
+    // (every ~200ms from Firestore) don't trigger a React re-render. RemotePlayer
+    // reads from this ref inside useFrame for fresh position lerp targets.
+    const otherPlayersDataRef = useRef<Map<string, MPPlayer>>(new Map());
+    // Only the *set* of active ids triggers React. Joins/leaves remount
+    // RemotePlayer; position changes don't.
+    const [otherPlayerIds, setOtherPlayerIds] = useState<string[]>([]);
+    const otherPlayerIdsRef = useRef<string[]>([]);
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     const playerIdRef = useRef(getLocalPlayerId());
     const playerStateRef = useRef(playerState);
     const playerNameRef = useRef(playerName);
     const chatMsgRef = useRef('');
     const chatAtRef = useRef(0);
-    const chatClearTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
     useEffect(() => { playerStateRef.current = playerState; }, [playerState]);
     useEffect(() => { playerNameRef.current = playerName; }, [playerName]);
 
     // Subscribe to other players in the same level
     useEffect(() => {
-        if (!isEnabled) return;
+        if (!isEnabled) {
+            otherPlayersDataRef.current = new Map();
+            otherPlayerIdsRef.current = [];
+            setOtherPlayerIds([]);
+            return;
+        }
         const db = getDb();
         if (!db) {
             console.warn('[MP] Sem config Firebase — check __FIREBASE_CONFIG__');
@@ -130,20 +143,32 @@ export const useMultiplayer = (
         );
         const GHOST_TTL_MS = MP_GHOST_TTL_MS;
         const unsub = onSnapshot(q, (snap) => {
-            const players: Record<string, MPPlayer> = {};
+            const newMap = new Map<string, MPPlayer>();
             const cutoff = Date.now() - GHOST_TTL_MS;
             snap.forEach(d => {
                 if (d.id === uid) return;
                 const data = d.data();
                 const updatedAt = data.updatedAt?.toMillis?.() ?? 0;
                 if (updatedAt > 0 && updatedAt < cutoff) return;
-                players[d.id] = { id: d.id, ...data } as MPPlayer;
+                newMap.set(d.id, { id: d.id, ...data } as MPPlayer);
             });
-            setOtherPlayers(players);
+            otherPlayersDataRef.current = newMap;
 
-            // Collect chat messages from all players (including ghosts within 30s)
+            const newIds = Array.from(newMap.keys()).sort();
+            const oldIds = otherPlayerIdsRef.current;
+            const idsChanged =
+                newIds.length !== oldIds.length ||
+                newIds.some((id, i) => id !== oldIds[i]);
+            if (idsChanged) {
+                otherPlayerIdsRef.current = newIds;
+                setOtherPlayerIds(newIds);
+            }
+
+            // Chat is low-frequency; build the visible message list and only
+            // setState when content actually changed.
             const msgs: ChatMessage[] = [];
-            const chatCutoff = Date.now() - CHAT_TTL_MS;
+            const CHAT_TTL = 30000;
+            const chatCutoff = Date.now() - CHAT_TTL;
             snap.forEach(d => {
                 const data = d.data();
                 if (data.chatMsg && data.chatAt && data.chatAt > chatCutoff) {
@@ -155,9 +180,14 @@ export const useMultiplayer = (
                     });
                 }
             });
-            // Sort by timestamp ascending
             msgs.sort((a, b) => a.timestamp - b.timestamp);
-            setChatMessages(msgs);
+            setChatMessages(prev => {
+                if (prev.length !== msgs.length) return msgs;
+                for (let i = 0; i < msgs.length; i++) {
+                    if (prev[i].id !== msgs[i].id || prev[i].timestamp !== msgs[i].timestamp) return msgs;
+                }
+                return prev;
+            });
         }, (err) => console.error('[MP] Snapshot erro:', err));
         return () => unsub();
     }, [isEnabled, level]);
@@ -281,30 +311,23 @@ export const useMultiplayer = (
             console.warn('[MP] Chat Firestore write failed (local fallback active):', e?.code || e?.message);
         });
 
-        // Auto-clear after 30s — tracked for cleanup
-        const clearTimer = setTimeout(() => {
-            chatClearTimersRef.current.delete(clearTimer);
+        // Auto-clear after 30s
+        setTimeout(() => {
             if (chatMsgRef.current === clean) {
                 chatMsgRef.current = '';
                 chatAtRef.current = 0;
                 updateDoc(docRef, { chatMsg: '', chatAt: 0, updatedAt: serverTimestamp() }).catch(() => {});
             }
-        }, CHAT_CLEAR_DELAY);
-        chatClearTimersRef.current.add(clearTimer);
+        }, 30000);
     };
-
-    // Cleanup chat clear timers on unmount
-    useEffect(() => {
-        return () => {
-            chatClearTimersRef.current.forEach(clearTimeout);
-            chatClearTimersRef.current.clear();
-        };
-    }, []);
 
     const login = async (): Promise<string | null> => {
         return playerIdRef.current;
     };
     const user = { uid: playerIdRef.current };
 
-    return { user, login, otherPlayers, sendChat, chatMessages };
+    return { user, login, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages };
 };
+
+// Convenience type — what App passes to RemotePlayer.
+export type OtherPlayersDataRef = React.MutableRefObject<Map<string, MPPlayer>>;

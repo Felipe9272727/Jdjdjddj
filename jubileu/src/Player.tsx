@@ -3,7 +3,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
-import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, ELEV_W, LOBBY_W, DOOR_SEAL, L1_BND, ELEV_BLD, HOUSE_EX, HOUSE_IN, HOUSE_DW, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
+import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { resolveCollision as _resolve } from './physics';
 
 useGLTF.preload(WALKING_URL);
@@ -209,9 +209,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             const mv = _v.current[5].set(0,0,0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * safeDt);
             const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
 
-            let wl = [...ELEV_W];
-            if (currentLevel === 0) { wl.push(...LOBBY_W); if (doorsClosed) wl.push(DOOR_SEAL); }
-            else { wl.push(...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN); if (!houseDoorOpen) wl.push(HOUSE_DW); if (doorsClosed) wl.push(DOOR_SEAL); }
+            const wl = wallsForState(currentLevel, doorsClosed, houseDoorOpen);
             const [rx, rz] = _resolve(nx, nz, PR, wl);
             pos.current.x = rx; pos.current.z = rz; pos.current.y = 0;
 

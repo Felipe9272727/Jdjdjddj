@@ -84,11 +84,53 @@ export const useSettings = (): Ctx => {
     return ctx;
 };
 
-// Per-quality renderer profile. Read in App.tsx and AudioEngine.tsx.
-export const QUALITY_PROFILES: Record<Quality, { dpr: [number, number]; far: number; antialias: boolean }> = {
-    low: { dpr: [1, 1], far: 60, antialias: false },
-    medium: { dpr: [1, 1.25], far: 80, antialias: true },
-    high: { dpr: [1, 2], far: 120, antialias: true },
+// Per-quality renderer + scene profile. Read across App.tsx, RemotePlayer.tsx,
+// LobbyEnv.tsx, etc. Each flag should map to an actual visible/measurable change
+// so the segmented control isn't cosmetic.
+export interface QualityProfile {
+    // Renderer
+    dpr: [number, number];
+    far: number;
+    antialias: boolean;
+    // Scene features
+    atmosphere: boolean;     // dust particles, ceiling fans, wall clock, fluorescent flicker
+    overlay: boolean;        // GameEffects fullscreen CSS overlay (vignette + grain)
+    nightLights: boolean;    // NightAmbient + the extra moon pointLight in night mode
+    chatBubbles3D: boolean;  // <Html> 3D speech bubbles on remote players + Dussekar
+    remoteLimit: number;     // hard cap on rendered remote players (others are dropped)
+}
+
+export const QUALITY_PROFILES: Record<Quality, QualityProfile> = {
+    low: {
+        dpr: [0.5, 0.75],
+        far: 40,
+        antialias: false,
+        atmosphere: false,
+        overlay: false,
+        nightLights: false,
+        chatBubbles3D: false,
+        remoteLimit: 3,
+    },
+    medium: {
+        dpr: [1, 1.25],
+        far: 80,
+        antialias: false,
+        atmosphere: false,
+        overlay: false,
+        nightLights: true,
+        chatBubbles3D: true,
+        remoteLimit: 8,
+    },
+    high: {
+        dpr: [1, 2],
+        far: 120,
+        antialias: true,
+        atmosphere: true,
+        overlay: true,
+        nightLights: true,
+        chatBubbles3D: true,
+        remoteLimit: 30,
+    },
 };
 
 export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => void }) => {

@@ -113,21 +113,77 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
             <boxGeometry args={[3.4, 0.03, 0.02]} />
             <meshStandardMaterial color="#FFD54F" metalness={0.8} roughness={0.2} />
         </mesh>
+        {[[-1.65, 0.4], [1.65, 0.4], [-1.65, -0.3], [1.65, -0.3]].map((p, i) => (
+            <mesh key={i} position={[p[0], 0.05, p[1]]}>
+                <boxGeometry args={[0.18, 0.1, 0.18]} />
+                <meshStandardMaterial color="#3E2723" roughness={0.7} />
+            </mesh>
+        ))}
         <group position={[1.3, 1.25, 0]}>
-            <mesh><cylinderGeometry args={[0.08, 0.1, 0.04, 8]} /><meshStandardMaterial color="#424242" metalness={0.7} /></mesh>
-            <mesh position={[0, 0.15, 0]}><cylinderGeometry args={[0.02, 0.02, 0.3, 6]} /><meshStandardMaterial color="#424242" metalness={0.7} /></mesh>
-            <mesh position={[0.1, 0.3, 0]} rotation={[0, 0, -0.5]}>
-                <coneGeometry args={[0.1, 0.15, 8, 1, true]} />
-                <meshStandardMaterial color="#FFD54F" side={THREE.DoubleSide} emissive="#FFE0B2" emissiveIntensity={0.5} />
+            <mesh><cylinderGeometry args={[0.12, 0.15, 0.06, 12]} /><meshStandardMaterial color="#1a1a1a" metalness={0.8} roughness={0.3} /></mesh>
+            <mesh position={[0, 0.25, 0]}><cylinderGeometry args={[0.025, 0.025, 0.5, 8]} /><meshStandardMaterial color="#212121" metalness={0.8} roughness={0.3} /></mesh>
+            <mesh position={[0.18, 0.5, 0]} rotation={[0, 0, -0.7]}>
+                <coneGeometry args={[0.18, 0.28, 12, 1, true]} />
+                <meshStandardMaterial color="#FFD54F" side={THREE.DoubleSide} emissive="#FFB300" emissiveIntensity={1.4} toneMapped={false} />
             </mesh>
         </group>
+        <pointLight position={[1.3, 1.5, 0]} intensity={0.4} distance={3} color="#FFE0B2" decay={2} />
         <mesh position={[-1.2, 1.3, 0]}>
-            <sphereGeometry args={[0.08, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
-            <meshStandardMaterial color="#FFC107" metalness={0.8} roughness={0.15} />
+            <sphereGeometry args={[0.1, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2]} />
+            <meshStandardMaterial color="#FFC107" metalness={0.9} roughness={0.1} />
         </mesh>
         <mesh position={[0.3, 1.26, 0.1]}>
-            <boxGeometry args={[0.2, 0.02, 0.28]} />
+            <boxGeometry args={[0.22, 0.025, 0.3]} />
             <meshStandardMaterial color="#FAFAFA" roughness={0.9} />
         </mesh>
+        {/* Computer monitor — emissive screen draws the eye */}
+        <group position={[-0.4, 1.27, 0.1]}>
+            <mesh position={[0, 0.18, 0]}>
+                <boxGeometry args={[0.45, 0.3, 0.04]} />
+                <meshStandardMaterial color="#1a1a1a" roughness={0.4} />
+            </mesh>
+            <mesh position={[0, 0.18, 0.025]}>
+                <boxGeometry args={[0.4, 0.25, 0.005]} />
+                <meshBasicMaterial color="#1565C0" toneMapped={false} />
+            </mesh>
+            <mesh position={[0, 0.02, 0]}>
+                <boxGeometry args={[0.12, 0.04, 0.1]} />
+                <meshStandardMaterial color="#212121" />
+            </mesh>
+        </group>
+        {/* Potted plant on the right edge */}
+        <group position={[1.55, 1.26, 0]}>
+            <mesh position={[0, 0.08, 0]}>
+                <cylinderGeometry args={[0.1, 0.08, 0.16, 10]} />
+                <meshStandardMaterial color="#5D4037" roughness={0.7} />
+            </mesh>
+            <mesh position={[0, 0.32, 0]}>
+                <sphereGeometry args={[0.18, 10, 8]} />
+                <meshStandardMaterial color="#2E7D32" roughness={0.9} />
+            </mesh>
+            <mesh position={[0.06, 0.45, 0.04]}>
+                <sphereGeometry args={[0.1, 8, 8]} />
+                <meshStandardMaterial color="#43A047" roughness={0.9} />
+            </mesh>
+        </group>
+        {/* Waiting chair */}
+        <group position={[0, 0, -0.65]}>
+            <mesh position={[0, 0.04, 0]}>
+                <cylinderGeometry args={[0.32, 0.32, 0.06, 12]} />
+                <meshStandardMaterial color="#1a1a1a" metalness={0.5} roughness={0.5} />
+            </mesh>
+            <mesh position={[0, 0.32, 0]}>
+                <cylinderGeometry args={[0.04, 0.04, 0.5, 8]} />
+                <meshStandardMaterial color="#424242" metalness={0.7} roughness={0.3} />
+            </mesh>
+            <mesh position={[0, 0.62, 0]}>
+                <boxGeometry args={[0.55, 0.08, 0.5]} />
+                <meshStandardMaterial color="#212121" roughness={0.8} />
+            </mesh>
+            <mesh position={[0, 1.0, -0.22]}>
+                <boxGeometry args={[0.55, 0.7, 0.08]} />
+                <meshStandardMaterial color="#212121" roughness={0.8} />
+            </mesh>
+        </group>
     </group>
 ));

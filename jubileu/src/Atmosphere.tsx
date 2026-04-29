@@ -12,6 +12,10 @@ export const CeilingFan = ({ x = 0, z = 0, speed = 0.8 }: { x?: number; z?: numb
 
     useFrame((state) => {
         if (!bladeRef.current) return;
+        // Distance cull first — fan past 14u is far in the lobby; no point spinning it.
+        const dx = state.camera.position.x - x;
+        const dz = state.camera.position.z - z;
+        if (dx * dx + dz * dz > 196) return;
         // Throttle to ~20fps — smooth enough for a spinning fan
         const now = state.clock.elapsedTime;
         if (now - lastUpdateRef.current < 0.05) return;
@@ -121,6 +125,10 @@ export const WallClock = ({ x = 8, z = -8 }: { x?: number; z?: number }) => {
 
     useFrame((state) => {
         if (!handRef.current) return;
+        // Distance cull — clock past 12u is too small to read anyway.
+        const dx = state.camera.position.x - x;
+        const dz = state.camera.position.z - z;
+        if (dx * dx + dz * dz > 144) return;
         // Throttle to ~10fps — a clock hand doesn't need smooth updates
         const now = state.clock.elapsedTime;
         if (now - lastUpdateRef.current < 0.1) return;

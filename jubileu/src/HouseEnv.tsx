@@ -9,15 +9,26 @@ import { ElevatorFacade } from './Elevator';
 import { Sofa, CoffeeTable, Bed, KitchenCounter, Barrel } from './Furniture';
 import * as THREE from 'three';
 
+// Preload Dussekar's GLB at module load so the first time the player walks
+// near the shop we don't fall to 4fps loading it synchronously.
+const DUSSEKAR_URL = "https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb";
+useGLTF.preload(DUSSEKAR_URL);
+
 export const DussekarCharacter = ({ position, rotation }: any) => {
   const [dialogue, setDialogue] = useState<string | null>(null);
-  const { scene } = useGLTF("https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb") as any;
+  const { scene } = useGLTF(DUSSEKAR_URL) as any;
   const clonedScene = useMemo(() => scene.clone(true), [scene]);
   const group = useRef<any>(null);
   const timeRef = useRef(0);
-  useFrame((state, dt) => { 
+  useFrame((state, dt) => {
+      if (!group.current) return;
+      // Distance cull: the float wobble is invisible past ~12 units. Skipping
+      // the math + matrix update when the camera is far is a free win.
+      const dx = state.camera.position.x - position[0];
+      const dz = state.camera.position.z - position[2];
+      if (dx * dx + dz * dz > 144) return;
       timeRef.current += dt;
-      if (group.current) group.current.position.y = position[1] + Math.sin(timeRef.current * 0.8) * 0.015; 
+      group.current.position.y = position[1] + Math.sin(timeRef.current * 0.8) * 0.015;
   });
   useEffect(() => {
       let active = true; let showTimer: any; let hideTimer: any;
@@ -37,7 +48,10 @@ export const DussekarCharacter = ({ position, rotation }: any) => {
       <group ref={group} position={position} rotation={rotation}>
           <primitive object={clonedScene} scale={3} position={[0, 0, 0]} />
            {dialogue && (
-              <Html position={[0, 1.0, 0]} center distanceFactor={10} occlude>
+              // No `occlude` here. drei's <Html occlude> raycasts the entire scene
+              // every frame to test visibility — that single prop was the cause of
+              // 5fps drops near the shop. The bubble is fine without it.
+              <Html position={[0, 1.0, 0]} center distanceFactor={10}>
                   <div className="pointer-events-none select-none whitespace-nowrap speech-bubble">
                       <div className="bg-white text-black px-4 py-2 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center transform -translate-y-full max-w-[180px]">
                           <p className="text-xs sm:text-sm font-bold font-mono m-0 text-center break-words leading-snug">{dialogue}</p>

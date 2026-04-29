@@ -1,4 +1,5 @@
 import { Vector3, Euler } from 'three';
+import { boxCollider } from './physics';
 
 // Keep in sync with `data.level <= MAX_LEVEL` in firestore.rules.
 export const MAX_LEVEL = 100;
@@ -107,3 +108,42 @@ export const HOUSE_DW = [-0.7,6,0.7,6];
 export const L1_BND = [[-25,-25,25,-25],[25,-25,25,25],[-25,25,25,25],[-25,-25,-25,25]];
 export const ELEV_BLD = [[-5.5,-16.5,5.5,-16.5],[-5.5,-10,-5.5,-16.5],[5.5,-10,5.5,-16.5],[-5.5,-10,-1.3,-10],[1.3,-10,5.5,-10],[-25,-10,-5.5,-10],[5.5,-10,25,-10]];
 export const DOOR_SEAL = [-1.3,-10,1.3,-10];
+
+// Furniture colliders — keep positions in sync with LobbyEnv.tsx and HouseEnv.tsx.
+// Sizes carry slight padding so the player doesn't graze the visible geometry.
+const ARMCHAIR_W = 1.1, ARMCHAIR_D = 1.0;
+
+export const LOBBY_FURNITURE_W: number[][] = [
+    ...boxCollider(7, -7.5, 3.5, 0.7, -Math.PI / 2),
+    ...[2, 3.5, -2, -3.5].flatMap(z => boxCollider(-8.7, z, ARMCHAIR_W, ARMCHAIR_D, Math.PI / 2)),
+    ...[-4, -2.5, 2.5, 4].flatMap(x => boxCollider(x, 8.8, ARMCHAIR_W, ARMCHAIR_D, Math.PI)),
+];
+
+export const HOUSE_FURNITURE_W: number[][] = [
+    ...boxCollider(-2.5, 2.5, 2.0, 0.9, Math.PI / 4),    // sofa
+    ...boxCollider(-2.0, 1.5, 1.2, 0.8, 0),              // coffee table
+    ...boxCollider(-3.0, -3.5, 1.5, 0.8, 0),             // kitchen counter L
+    ...boxCollider(-1.0, -3.5, 1.5, 0.8, 0),             // kitchen counter R
+    ...boxCollider(2.5, -2.5, 1.9, 2.3, 0),              // bed (incl. headboard)
+];
+
+// Pre-built per-frame wall lists. Player and Bot pick one of these by
+// (level, doorsClosed, houseDoorOpen) instead of allocating a fresh array
+// every frame. Lobby alone went from 8 to 44 segments after furniture
+// colliders, and wl was being reallocated 60×/sec — this hoists all that.
+const _LOBBY_BASE = [...ELEV_W, ...LOBBY_W, ...LOBBY_FURNITURE_W];
+const _HOUSE_BASE = [...ELEV_W, ...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN, ...HOUSE_FURNITURE_W];
+
+const _WALLS_LOBBY_OPEN          = _LOBBY_BASE;
+const _WALLS_LOBBY_SEALED        = [..._LOBBY_BASE, DOOR_SEAL];
+const _WALLS_HOUSE_OPEN          = _HOUSE_BASE;
+const _WALLS_HOUSE_DOOR          = [..._HOUSE_BASE, HOUSE_DW];
+const _WALLS_HOUSE_SEALED        = [..._HOUSE_BASE, DOOR_SEAL];
+const _WALLS_HOUSE_DOOR_SEALED   = [..._HOUSE_BASE, HOUSE_DW, DOOR_SEAL];
+
+/** Pick the right pre-built wall list. No allocation per frame. */
+export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
+    if (level === 0) return doorsClosed ? _WALLS_LOBBY_SEALED : _WALLS_LOBBY_OPEN;
+    if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
+    return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;
+};
