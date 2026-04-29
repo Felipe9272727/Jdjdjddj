@@ -217,7 +217,7 @@ export const BarneyDialogue = ({ dialogueNode, onResponse }: BarneyDialogueProps
               </div>
               <div className="flex flex-col gap-2 max-h-[35vh] landscape:max-h-[30vh] overflow-y-auto scrollbar-hide pr-1">
                 {node.options.map((opt: any, i: number) => (
-                  <button key={i} onClick={() => onResponse(opt.next)} aria-label={opt.text} className="group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-lg text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0">
+                  <button key={i} onClick={() => onResponse(opt.next)} aria-label={opt.text} className="group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-xl text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0">
                     <span className="text-purple-400/60 group-hover:text-purple-300 transition-colors">▸</span>
                     <span className="flex-1">{opt.text}</span>
                   </button>

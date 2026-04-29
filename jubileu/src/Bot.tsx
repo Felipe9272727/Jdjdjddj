@@ -496,7 +496,7 @@ export const BotHud = ({ info }: { info: { count: number; behaviors: string[]; l
                     <div className="w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse shadow-[0_0_6px_rgba(232,121,249,0.6)]" />
                     <span className="font-bold tracking-widest uppercase text-fuchsia-300 text-xs">BOTS</span>
                 </div>
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ring-1 ${info.count > 0 ? 'bg-green-500/20 text-green-300 ring-green-500/30' : 'bg-white/5 text-white/30 ring-white/10'}`}>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ring-1 ${info.count > 0 ? 'bg-green-500/20 text-green-300 ring-green-500/30' : 'bg-white/5 text-white/35 ring-white/10'}`}>
                     {info.count > 0 ? `${info.count} ON` : 'OFF'}
                 </span>
             </div>

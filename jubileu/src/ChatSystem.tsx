@@ -293,12 +293,12 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                                 }}
                                 placeholder="Type here..." aria-label="Mensagem do chat"
                                 maxLength={200}
-                                className="flex-1 bg-white/6 border border-white/10 rounded-lg px-3 py-2 text-white text-[13px] font-normal placeholder-white/30 outline-none focus:border-white/25 transition-colors"
+                                className="flex-1 bg-white/6 border border-white/10 rounded-xl px-3 py-2 text-white text-[13px] font-normal placeholder-white/30 outline-none focus:border-white/25 transition-colors"
                                 style={{ fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }}
                             />
                             <button
                                 onClick={handleSend}
-                                className="bg-white/12 hover:bg-white/20 text-white/80 hover:text-white font-bold px-3 py-2 rounded-lg text-sm active:scale-95 transition-all shrink-0"
+                                className="bg-white/12 hover:bg-white/20 text-white/80 hover:text-white font-bold px-3 py-2 rounded-xl text-sm active:scale-95 transition-all shrink-0"
                             >
                                 Send
                             </button>

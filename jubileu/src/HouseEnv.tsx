@@ -54,7 +54,7 @@ export const DussekarCharacter = ({ position, rotation }: any) => {
               <Html position={[0, 1.0, 0]} center distanceFactor={10}>
                   <div className="pointer-events-none select-none whitespace-nowrap speech-bubble">
                       <div className="bg-white text-black px-4 py-2 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center transform -translate-y-full max-w-[180px]">
-                          <p className="text-xs sm:text-sm font-bold font-mono m-0 text-center break-words leading-snug">{dialogue}</p>
+                          <p className="text-xs sm:text-sm font-bold m-0 text-center break-words leading-snug">{dialogue}</p>
                       </div>
                   </div>
               </Html>

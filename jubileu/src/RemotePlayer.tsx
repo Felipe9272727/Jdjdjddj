@@ -141,7 +141,7 @@ export const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }: R
             <primitive object={clonedScene} scale={[30, 30, 30]} position={[0, groundY, 0]} />
             <Html position={[0, 2.3, 0]} center distanceFactor={8}>
                 <div className="pointer-events-none select-none whitespace-nowrap">
-                    <div className="bg-black/70 text-white px-2.5 py-0.5 rounded-md text-[11px] font-bold font-mono border border-white/20 backdrop-blur-sm tracking-wider text-center shadow-lg">
+                    <div className="bg-black/70 text-white px-2.5 py-0.5 rounded-md text-[11px] font-bold border border-white/20 backdrop-blur-sm tracking-wider text-center shadow-lg">
                         {displayName}
                     </div>
                 </div>
@@ -150,7 +150,7 @@ export const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }: R
                 <Html key={chatBubble.key} position={[0, 2.7, 0]} center distanceFactor={8}>
                     <div className="pointer-events-none select-none whitespace-nowrap speech-bubble">
                         <div className="bg-white text-black px-3 py-1.5 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center max-w-[200px]">
-                            <p className="text-[11px] sm:text-xs font-bold font-mono m-0 text-center break-words leading-snug">{chatBubble.msg}</p>
+                            <p className="text-[11px] sm:text-xs font-bold m-0 text-center break-words leading-snug">{chatBubble.msg}</p>
                         </div>
                         <div className="flex justify-center -mt-0.5">
                             <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-black" />

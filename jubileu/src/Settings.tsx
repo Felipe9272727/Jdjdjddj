@@ -146,7 +146,7 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                     <h2 className="text-amber-200 tracking-wider text-sm sm:text-base uppercase font-bold">Configurações</h2>
                     <button
                         onClick={onClose}
-                        className="text-amber-200/70 hover:text-amber-100 font-mono text-2xl leading-none w-10 h-10 flex items-center justify-center rounded hover:bg-amber-500/10 active:bg-amber-500/20 transition-colors tap-target"
+                        className="text-amber-200/70 hover:text-amber-100 text-2xl leading-none w-10 h-10 flex items-center justify-center rounded hover:bg-amber-500/10 active:bg-amber-500/20 transition-colors tap-target"
                         aria-label="Fechar"
                     >×</button>
                 </div>
