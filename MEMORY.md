@@ -826,3 +826,33 @@ complexos — **spawna um sub-agente** ao invés de fazer tudo na sessão princi
 A sessão principal fica livre pra conversar com o Felipe enquanto o sub-agente
 trabalha em paralelo. Não fica aquele "travou esperando".
 
+---
+
+## 🔧 Sessão 2026-04-29: Fix — Barney Theme + Elevator Music Lifecycle (22:22 GMT+8)
+
+### Problema
+1. **Barney theme só tocava durante chase/noite** — os estados outdoor, barney_greet e indoor_day no andar do Barney (level 1) ficavam sem música ambiente.
+2. **Música do elevador não parava ao chegar** — ficava tocando por cima da tema do Barney quando o player chegava no andar.
+3. **Lobby music não voltava** — ao retornar do andar do Barney pro lobby, a lobby music não reativava.
+
+### Solução (inspirada no branch `claude/review-memory-backup-6Ua0Z`)
+
+#### AudioEngine.tsx
+- `barneyFloor` mudou de `gameState in {indoor_night, chase, caught, saved}` para `currentLevel === 1`
+- Barney theme agora é a música ambiente de todo o andar (level 1)
+- Distorção continua gated em `nightMode` — estados calmos ouvem tema limpo, chase ouve distorcido
+- Novo effect: quando `doorsClosed` fica `false` (chegou ao destino), para a música do elevador
+- Se voltou pro lobby (`currentLevel === 0`), reativa lobby music
+- Props novas: `currentLevel`, `doorsClosed`
+
+#### App.tsx
+- `<LiminalAudioEngine>` agora recebe `currentLevel={currentLevel}` e `doorsClosed={doorsClosed}`
+
+### Commit
+- `dfb24b2` — fix(audio): Barney theme plays on entire floor + elevator music lifecycle
+
+### Estado
+- TypeScript: ✅ limpo
+- Build: ✅ reprodutível (3,950,953 bytes)
+- Push: ✅ main
+
