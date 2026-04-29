@@ -928,4 +928,74 @@ Review completo da AUDIT.md — cada item verificado contra o código atual.
 
 ---
 
-*Última atualização: 2026-04-29 22:34 GMT+8*
+---
+
+## 🔄 Sessão 2026-04-29 — Sync + balconista placeholder
+
+### O que aconteceu
+A branch `claude/review-memory-backup-6Ua0Z` divergiu do `main` durante uma
+sessão paralela em que o Felipe (e outras IAs) aplicaram fixes equivalentes
+direto no main (collision coords, AudioContext compartilhada, fallback do
+Barney theme, voz do inspetor, design fixes). A branch foi resetada via
+`git reset --hard origin/main` (commit `84724cc`) pra alinhar com o estado
+canônico.
+
+### Estado de áudio (após o reset)
+- Lobby music: ✅ funciona
+- Local Forecast (elevator transit): ✅ funciona
+- Inspector voice bips (TypewriterText): ✅ funciona via `window.__jubileuAudioCtx`
+- Barney theme: ⚠️ só funciona se o MP3 for hospedado em `raw.githubusercontent.com`
+  (archive.org bloqueia CORS no browser do Felipe). **Pendente:** subir
+  `Barney Theme Song.mp3` no root do repo `Jdjdjddj` — o fallback chain do
+  AudioEngine já tenta esse URL primeiro.
+
+---
+
+## 🎯 Próximo Objetivo: Balconista (Cashier)
+
+### Contexto
+O Felipe quer um **balconista** atrás da **recepção** (`ReceptionDesk` em
+`BuildingBlocks.tsx`, posição world `(7, 0, -7.5)` no lobby). NPC ambiente
+que fica limpando o tampo do balcão em loop. Estilo **Roblox R6 obrigatório**
+(corpo blocky, cores chapadas, estética de boneco de Lego). Felipe vai
+fornecer o **GLB animado** depois — animação de "limpar" virá embutida no
+arquivo.
+
+### Implementação atual (placeholder, commit desta sessão)
+Adicionado em `BuildingBlocks.tsx`:
+- Componente `Cashier` renderizado dentro de `ReceptionDesk` (atrás do
+  tampo, posição local `[0, 0, -0.25]`)
+- Corpo R6 procedural: 2 pernas (verde), torso azul com avental branco,
+  2 braços (pele), cabeça cubo (pele) com olhos pretos + boca + cabelo
+- Animação de limpar: `useFrame` move a mão direita numa elipse pequena
+  sobre o tampo (~1.5x por segundo), com pano amarelo seguindo a mão
+- ~5 studs de altura (1.4u), facing +Z local
+
+### O que falta — quando o Felipe entregar o GLB
+1. Adicionar URL do GLB em `constants.ts`:
+   ```ts
+   export const CASHIER_URL = "https://raw.githubusercontent.com/Felipe9272727/.../balconista.glb";
+   ```
+2. Em `BuildingBlocks.tsx` no topo: `useGLTF.preload(CASHIER_URL);`
+3. Substituir o corpo procedural por `<primitive object={glbScene} />`
+   carregado com `useGLTF` + `useAnimations` (a animação vem embutida).
+4. **Remover o `useFrame` da animação procedural** — a animação vem do GLB.
+5. Ajustar `scale` e `position` Y conforme a altura do GLB.
+
+### Constraints do Roblox style (já respeitadas no placeholder)
+- Geometrias **box-only** (sem esferas suaves)
+- Cores **chapadas** (`meshStandardMaterial color=#XXX roughness=0.9`)
+- Proporções **R6** (não R15) — 2 studs largura, 5 studs altura
+- Face desenhada com retângulos pretos finos (não 3D)
+- Cabelo é um cubo achatado em cima da cabeça
+
+### Observações
+- O Felipe enviou um `Button_Pushing.fbx` em `~/.claude/uploads/.../` —
+  é uma animação de exemplo, NÃO é o asset final. Quando o GLB do
+  balconista chegar, ignorar o FBX.
+- A limpeza deve ser **calma e contínua** (não interrompe quando o
+  player chega perto). Sem interação por enquanto.
+
+---
+
+*Última atualização: 2026-04-29 (sync com main + balconista placeholder)*

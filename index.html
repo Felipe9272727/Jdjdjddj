@@ -96589,8 +96589,75 @@ const ReceptionDesk = React.memo(({ x: x2, z, rot = 0 }) => /* @__PURE__ */ jsxR
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.55, 0.7, 0.08] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#212121", roughness: 0.8 })
     ] })
-  ] })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Cashier, { position: [0, 0, -0.25] })
 ] }));
+const Cashier = React.memo(({ position }) => {
+  const armRef = reactExports.useRef(null);
+  const ragRef = reactExports.useRef(null);
+  useFrame((state2) => {
+    if (!armRef.current || !ragRef.current) return;
+    const t2 = state2.clock.elapsedTime * 1.5;
+    ragRef.current.position.x = Math.sin(t2) * 0.18;
+    ragRef.current.position.z = Math.cos(t2) * 0.12;
+    armRef.current.rotation.x = Math.PI * 0.45 + Math.sin(t2) * 0.06;
+    armRef.current.rotation.z = Math.cos(t2) * 0.15;
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-0.14, 0.42, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.28, 0.84, 0.28] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1B5E20", roughness: 0.95 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.14, 0.42, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.28, 0.84, 0.28] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1B5E20", roughness: 0.95 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 1.26, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.56, 0.84, 0.28] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1565C0", roughness: 0.9 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 1.26, 0.146], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.5, 0.74, 0.01] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FAFAFA", roughness: 0.95 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-0.42, 1.26, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.28, 0.84, 0.28] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFCC80", roughness: 0.9 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [0.42, 1.68, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: armRef, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.42, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.28, 0.84, 0.28] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFCC80", roughness: 0.9 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { ref: ragRef, position: [0, -0.86, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.32, 0.04, 0.32] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFEB3B", roughness: 0.85 })
+      ] })
+    ] }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, 1.96, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.56, 0.56, 0.56] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFCC80", roughness: 0.9 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-0.12, 0.05, 0.282], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.07, 0.07, 5e-3] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#1a1a1a" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.12, 0.05, 0.282], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.07, 0.07, 5e-3] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#1a1a1a" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.1, 0.282], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.18, 0.025, 5e-3] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#1a1a1a" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.28, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.58, 0.1, 0.58] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3E2723", roughness: 0.95 })
+      ] })
+    ] })
+  ] });
+});
 const ElevatorDoors = React.memo(({ closed }) => {
   const leftRef = reactExports.useRef(null);
   const rightRef = reactExports.useRef(null);

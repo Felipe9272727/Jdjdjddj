@@ -185,5 +185,93 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
                 <meshStandardMaterial color="#212121" roughness={0.8} />
             </mesh>
         </group>
+        {/* Balconista — Roblox-style placeholder. Stands behind the desk,
+            facing the player (the desk's front is +Z local), wiping the
+            counter top in a slow loop. SWAP TO GLB: replace this <Cashier/>
+            with <primitive object={glbScene} scale=... position=... /> and
+            remove the procedural arm-wipe useFrame — the GLB ships its own
+            cleaning animation. */}
+        <Cashier position={[0, 0, -0.25]} />
     </group>
 ));
+
+// ─── Balconista (Cashier) — Roblox R6-style blocky body ──────────────────
+// Stands behind the reception counter, wipes the top in a slow ellipse.
+// 1 stud = 0.28u; whole body is roughly 5 studs tall (1.4u). Faces +Z.
+const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
+    const armRef = useRef<any>(null);
+    const ragRef = useRef<any>(null);
+    useFrame((state) => {
+        if (!armRef.current || !ragRef.current) return;
+        const t = state.clock.elapsedTime * 1.5;
+        // Hand sweeps a small ellipse over the desk top.
+        ragRef.current.position.x = Math.sin(t) * 0.18;
+        ragRef.current.position.z = Math.cos(t) * 0.12;
+        // Arm reaches forward + slight wrist motion.
+        armRef.current.rotation.x = Math.PI * 0.45 + Math.sin(t) * 0.06;
+        armRef.current.rotation.z = Math.cos(t) * 0.15;
+    });
+    return (
+        <group position={position}>
+            {/* Legs */}
+            <mesh position={[-0.14, 0.42, 0]}>
+                <boxGeometry args={[0.28, 0.84, 0.28]} />
+                <meshStandardMaterial color="#1B5E20" roughness={0.95} />
+            </mesh>
+            <mesh position={[0.14, 0.42, 0]}>
+                <boxGeometry args={[0.28, 0.84, 0.28]} />
+                <meshStandardMaterial color="#1B5E20" roughness={0.95} />
+            </mesh>
+            {/* Torso + apron */}
+            <mesh position={[0, 1.26, 0]}>
+                <boxGeometry args={[0.56, 0.84, 0.28]} />
+                <meshStandardMaterial color="#1565C0" roughness={0.9} />
+            </mesh>
+            <mesh position={[0, 1.26, 0.146]}>
+                <boxGeometry args={[0.5, 0.74, 0.01]} />
+                <meshStandardMaterial color="#FAFAFA" roughness={0.95} />
+            </mesh>
+            {/* Left arm (still) */}
+            <mesh position={[-0.42, 1.26, 0]}>
+                <boxGeometry args={[0.28, 0.84, 0.28]} />
+                <meshStandardMaterial color="#FFCC80" roughness={0.9} />
+            </mesh>
+            {/* Right arm — wiping. Pivots at the shoulder. */}
+            <group position={[0.42, 1.68, 0]}>
+                <group ref={armRef}>
+                    <mesh position={[0, -0.42, 0]}>
+                        <boxGeometry args={[0.28, 0.84, 0.28]} />
+                        <meshStandardMaterial color="#FFCC80" roughness={0.9} />
+                    </mesh>
+                    <mesh ref={ragRef} position={[0, -0.86, 0]}>
+                        <boxGeometry args={[0.32, 0.04, 0.32]} />
+                        <meshStandardMaterial color="#FFEB3B" roughness={0.85} />
+                    </mesh>
+                </group>
+            </group>
+            {/* Head with simple Roblox face */}
+            <group position={[0, 1.96, 0]}>
+                <mesh>
+                    <boxGeometry args={[0.56, 0.56, 0.56]} />
+                    <meshStandardMaterial color="#FFCC80" roughness={0.9} />
+                </mesh>
+                <mesh position={[-0.12, 0.05, 0.282]}>
+                    <boxGeometry args={[0.07, 0.07, 0.005]} />
+                    <meshBasicMaterial color="#1a1a1a" />
+                </mesh>
+                <mesh position={[0.12, 0.05, 0.282]}>
+                    <boxGeometry args={[0.07, 0.07, 0.005]} />
+                    <meshBasicMaterial color="#1a1a1a" />
+                </mesh>
+                <mesh position={[0, -0.1, 0.282]}>
+                    <boxGeometry args={[0.18, 0.025, 0.005]} />
+                    <meshBasicMaterial color="#1a1a1a" />
+                </mesh>
+                <mesh position={[0, 0.28, 0]}>
+                    <boxGeometry args={[0.58, 0.1, 0.58]} />
+                    <meshStandardMaterial color="#3E2723" roughness={0.95} />
+                </mesh>
+            </group>
+        </group>
+    );
+});
