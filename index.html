@@ -95370,16 +95370,16 @@ const LOBBY_FURNITURE_W = [
   ...[-4, -2.5, 2.5, 4].flatMap((x2) => boxCollider(x2, 8.8, ARMCHAIR_W, ARMCHAIR_D, Math.PI))
 ];
 const HOUSE_FURNITURE_W = [
-  ...boxCollider(-2.5, 2.5, 2, 0.9, Math.PI / 4),
-  // sofa
-  ...boxCollider(-2, 1.5, 1.2, 0.8, 0),
-  // coffee table
-  ...boxCollider(-3, -3.5, 1.5, 0.8, 0),
-  // kitchen counter L
-  ...boxCollider(-1, -3.5, 1.5, 0.8, 0),
-  // kitchen counter R
-  ...boxCollider(2.5, -2.5, 1.9, 2.3, 0)
-  // bed (incl. headboard)
+  ...boxCollider(2.5, 7.5, 2, 0.9, Math.PI / 4),
+  // sofa (local -2.5, 2.5)
+  ...boxCollider(2, 8.5, 1.2, 0.8, 0),
+  // coffee table (local -2.0, 1.5)
+  ...boxCollider(3, 13.5, 1.5, 0.8, 0),
+  // kitchen counter L (local -3.0, -3.5)
+  ...boxCollider(1, 13.5, 1.5, 0.8, 0),
+  // kitchen counter R (local -1.0, -3.5)
+  ...boxCollider(-2.5, 12.5, 1.9, 2.3, 0)
+  // bed incl. headboard (local 2.5, -2.5)
 ];
 const _LOBBY_BASE = [...ELEV_W, ...LOBBY_W, ...LOBBY_FURNITURE_W];
 const _HOUSE_BASE = [...ELEV_W, ...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN, ...HOUSE_FURNITURE_W];
@@ -96042,17 +96042,11 @@ const VisualJoystick = ({ x: x2, y, active, origin: origin2 }) => {
 const TypewriterText = ({ text, speed = 30, voicePitch = 440 }) => {
   const [displayedText, setDisplayedText] = reactExports.useState("");
   const [isComplete, setIsComplete] = reactExports.useState(false);
-  const audioCtxRef = reactExports.useRef(null);
   const bipIndexRef = reactExports.useRef(0);
   const playBip = () => {
     try {
-      if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
-        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === "suspended") {
-        ctx.resume();
-      }
+      const ctx = window.__jubileuAudioCtx;
+      if (!ctx || ctx.state !== "running") return;
       const t2 = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -99316,6 +99310,7 @@ function App() {
     ctx.resume().catch(() => {
     });
     setAudioCtx(ctx);
+    window.__jubileuAudioCtx = ctx;
     setHasStarted(true);
     if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
       const req = document.body.requestPointerLock();

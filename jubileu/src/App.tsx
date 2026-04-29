@@ -289,6 +289,7 @@ export default function App() {
     const ctx = new AC();
     ctx.resume().catch(() => {});
     setAudioCtx(ctx);
+    (window as any).__jubileuAudioCtx = ctx;
     setHasStarted(true);
     if (typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches) {
       const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined;

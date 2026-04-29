@@ -119,12 +119,16 @@ export const LOBBY_FURNITURE_W: number[][] = [
     ...[-4, -2.5, 2.5, 4].flatMap(x => boxCollider(x, 8.8, ARMCHAIR_W, ARMCHAIR_D, Math.PI)),
 ];
 
+// Furniture positions in HouseEnv.tsx are LOCAL to the House group, which is
+// itself rendered at world (0, 0, 10) with rotation Y = π. We have to apply
+// that transform here, otherwise the colliders end up in the front yard
+// instead of inside the house. R(π): (lx, lz) -> (-lx, -lz); then +10 on Z.
 export const HOUSE_FURNITURE_W: number[][] = [
-    ...boxCollider(-2.5, 2.5, 2.0, 0.9, Math.PI / 4),    // sofa
-    ...boxCollider(-2.0, 1.5, 1.2, 0.8, 0),              // coffee table
-    ...boxCollider(-3.0, -3.5, 1.5, 0.8, 0),             // kitchen counter L
-    ...boxCollider(-1.0, -3.5, 1.5, 0.8, 0),             // kitchen counter R
-    ...boxCollider(2.5, -2.5, 1.9, 2.3, 0),              // bed (incl. headboard)
+    ...boxCollider( 2.5,  7.5, 2.0, 0.9, Math.PI / 4),   // sofa (local -2.5, 2.5)
+    ...boxCollider( 2.0,  8.5, 1.2, 0.8, 0),             // coffee table (local -2.0, 1.5)
+    ...boxCollider( 3.0, 13.5, 1.5, 0.8, 0),             // kitchen counter L (local -3.0, -3.5)
+    ...boxCollider( 1.0, 13.5, 1.5, 0.8, 0),             // kitchen counter R (local -1.0, -3.5)
+    ...boxCollider(-2.5, 12.5, 1.9, 2.3, 0),             // bed incl. headboard (local 2.5, -2.5)
 ];
 
 // Pre-built per-frame wall lists. Player and Bot pick one of these by

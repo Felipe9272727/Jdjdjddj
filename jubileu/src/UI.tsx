@@ -19,16 +19,12 @@ export const VisualJoystick = ({ x, y, active, origin }: { x: number; y: number;
 export const TypewriterText = ({ text, speed = 30, voicePitch = 440 }: { text: string; speed?: number; voicePitch?: number }) => {
   const [displayedText, setDisplayedText] = useState('');
   const [isComplete, setIsComplete] = useState(false);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const bipIndexRef = useRef(0);
   
   const playBip = () => {
       try {
-          if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-              audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-          }
-          const ctx = audioCtxRef.current;
-          if (ctx.state === 'suspended') { ctx.resume(); }
+          const ctx = (window as any).__jubileuAudioCtx as AudioContext | undefined;
+          if (!ctx || ctx.state !== 'running') return;
           const t = ctx.currentTime;
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
