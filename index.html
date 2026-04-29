@@ -96574,27 +96574,8 @@ const ReceptionDesk = React.memo(({ x: x2, z, rot = 0 }) => /* @__PURE__ */ jsxR
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#43A047", roughness: 0.9 })
     ] })
   ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, 0, -0.65], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.04, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.32, 0.32, 0.06, 12] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1a", metalness: 0.5, roughness: 0.5 })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.32, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.04, 0.5, 8] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#424242", metalness: 0.7, roughness: 0.3 })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.62, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.55, 0.08, 0.5] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#212121", roughness: 0.8 })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 1, -0.22], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.55, 0.7, 0.08] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#212121", roughness: 0.8 })
-    ] })
-  ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Cashier, { position: [0, 0, -0.25] })
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Cashier, { position: [0, 0, -1] })
 ] }));
-const CASHIER_FACE_ROT_Y = Math.PI;
 const Cashier = React.memo(({ position }) => {
   const gltf = useGLTF(CASHIER_GLB_URL);
   const groupRef = reactExports.useRef(null);
@@ -96605,51 +96586,7 @@ const Cashier = React.memo(({ position }) => {
       actions[first2].reset().fadeIn(0.4).play();
     }
   }, [actions, names]);
-  reactExports.useEffect(() => {
-    fetch("./button_pushing.glb").then((r2) => {
-      console.log("[Cashier] fetch GLB:", r2.status, r2.statusText, "size:", r2.headers.get("content-length"));
-      if (!r2.ok) console.error("[Cashier] GLB NOT FOUND!");
-    }).catch((e2) => console.error("[Cashier] fetch error:", e2));
-  }, []);
-  reactExports.useEffect(() => {
-    if (!gltf.scene) return;
-    const box = new Box3().setFromObject(gltf.scene);
-    const size = new Vector3();
-    box.getSize(size);
-    console.log("[Cashier] GLB loaded", {
-      animations: gltf.animations.map((a2) => a2.name),
-      sceneChildren: gltf.scene.children.length,
-      boundingSize: size.toArray()
-    });
-    gltf.scene.traverse((child) => {
-      var _a;
-      console.log(
-        "[Cashier] node:",
-        child.type,
-        child.name,
-        "visible:",
-        child.visible,
-        child.isMesh ? `geometry(${(_a = child.geometry.attributes.position) == null ? void 0 : _a.count} verts)` : ""
-      );
-    });
-  }, [gltf]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-    "group",
-    {
-      ref: groupRef,
-      position,
-      rotation: [0, CASHIER_FACE_ROT_Y, 0],
-      scale: [1.7, 1.7, 1.7],
-      children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.5, 0], children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.5, 1, 0.5] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "red", wireframe: true })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("axesHelper", { args: [1] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene })
-      ]
-    }
-  );
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, scale: [1.7, 1.7, 1.7], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) });
 });
 const ElevatorDoors = React.memo(({ closed }) => {
   const leftRef = reactExports.useRef(null);

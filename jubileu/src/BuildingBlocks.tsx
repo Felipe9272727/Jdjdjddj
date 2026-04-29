@@ -173,32 +173,14 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
                 <meshStandardMaterial color="#43A047" roughness={0.9} />
             </mesh>
         </group>
-        {/* Waiting chair */}
-        <group position={[0, 0, -0.65]}>
-            <mesh position={[0, 0.04, 0]}>
-                <cylinderGeometry args={[0.32, 0.32, 0.06, 12]} />
-                <meshStandardMaterial color="#1a1a1a" metalness={0.5} roughness={0.5} />
-            </mesh>
-            <mesh position={[0, 0.32, 0]}>
-                <cylinderGeometry args={[0.04, 0.04, 0.5, 8]} />
-                <meshStandardMaterial color="#424242" metalness={0.7} roughness={0.3} />
-            </mesh>
-            <mesh position={[0, 0.62, 0]}>
-                <boxGeometry args={[0.55, 0.08, 0.5]} />
-                <meshStandardMaterial color="#212121" roughness={0.8} />
-            </mesh>
-            <mesh position={[0, 1.0, -0.22]}>
-                <boxGeometry args={[0.55, 0.7, 0.08]} />
-                <meshStandardMaterial color="#212121" roughness={0.8} />
-            </mesh>
-        </group>
+
         {/* Balconista — Roblox-style placeholder. Stands behind the desk,
             facing the player (the desk's front is +Z local), wiping the
             counter top in a slow loop. SWAP TO GLB: replace this <Cashier/>
             with <primitive object={glbScene} scale=... position=... /> and
             remove the procedural arm-wipe useFrame — the GLB ships its own
             cleaning animation. */}
-        <Cashier position={[0, 0, -0.25]} />
+        <Cashier position={[0, 0, -1.0]} />
     </group>
 ));
 
@@ -208,16 +190,12 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 // measure the model's bounding box and normalize so the body is exactly
 // CASHIER_HEIGHT_M tall, then offset Y so the lowest vertex sits on y=0.
 // Console logs the measured size/scale so we can verify the placement.
-const CASHIER_HEIGHT_M = 1.7;        // target world height — adult-sized
-const CASHIER_FACE_ROT_Y = Math.PI;  // 180° turn so the cashier faces the player
-                                     // approaching the desk (desk's +Z is the
-                                     // player side after the desk's own rot).
+
 const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
     const groupRef = useRef<any>(null);
     const { actions, names } = useAnimations(gltf.animations, groupRef);
 
-    // Play the first animation on mount.
     useEffect(() => {
         const first = names[0];
         if (first && actions[first]) {
@@ -225,44 +203,8 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
         }
     }, [actions, names]);
 
-    // Debug: verify GLB is fetchable
-    useEffect(() => {
-        fetch('./button_pushing.glb').then(r => {
-            console.log('[Cashier] fetch GLB:', r.status, r.statusText, 'size:', r.headers.get('content-length'));
-            if (!r.ok) console.error('[Cashier] GLB NOT FOUND!');
-        }).catch(e => console.error('[Cashier] fetch error:', e));
-    }, []);
-
-    // Debug: log scene info once.
-    useEffect(() => {
-        if (!gltf.scene) return;
-        const box = new THREE.Box3().setFromObject(gltf.scene);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        console.log('[Cashier] GLB loaded', {
-            animations: gltf.animations.map((a: any) => a.name),
-            sceneChildren: gltf.scene.children.length,
-            boundingSize: size.toArray(),
-        });
-        gltf.scene.traverse((child: any) => {
-            console.log('[Cashier] node:', child.type, child.name, 'visible:', child.visible,
-                child.isMesh ? `geometry(${child.geometry.attributes.position?.count} verts)` : '');
-        });
-    }, [gltf]);
-
-    // The GLB mesh has a 90° X rotation baked in (Mixamo → glTF conversion).
-    // Scale the whole model so it's roughly adult-sized behind the desk.
-    // Vertex range is ~1.0 in local Y, ~0.3 in world Y after rotation.
-    // Use a fixed scale that looks right for a human figure behind the desk.
     return (
-        <group ref={groupRef} position={position} rotation={[0, CASHIER_FACE_ROT_Y, 0]}
-               scale={[1.7, 1.7, 1.7]}>
-            {/* Debug: red wireframe box at cashier origin */}
-            <mesh position={[0, 0.5, 0]}>
-                <boxGeometry args={[0.5, 1.0, 0.5]} />
-                <meshBasicMaterial color="red" wireframe />
-            </mesh>
-            <axesHelper args={[1]} />
+        <group ref={groupRef} position={position} scale={[1.7, 1.7, 1.7]}>
             <primitive object={gltf.scene} />
         </group>
     );
