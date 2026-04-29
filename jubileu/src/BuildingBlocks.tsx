@@ -9,7 +9,7 @@ import { SkeletonUtils } from 'three-stdlib';
 // Cashier — Mixamo-rigged GLB (converted from Button Pushing.fbx).
 // The model is roughly humanoid scale (~1.7 units tall) so it sits naturally
 // behind the reception desk without rescaling.
-const CASHIER_GLB_URL = "/button_pushing.glb";
+const CASHIER_GLB_URL = "./button_pushing.glb";
 useGLTF.preload(CASHIER_GLB_URL);
 
 export const Door = React.memo(({ x, z, rot }: any) => (
