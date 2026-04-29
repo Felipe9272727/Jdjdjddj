@@ -99610,15 +99610,31 @@ const Cashier = React.memo(({ position }) => {
     innerRef.current.scale.set(1, 1, 1);
     innerRef.current.position.set(0, 0, 0);
     clonedScene.updateMatrixWorld(true);
-    const box = new Box3().setFromObject(clonedScene);
+    const meshBox = new Box3();
+    clonedScene.traverse((child) => {
+      if (child.isMesh && child.geometry) {
+        child.geometry.computeBoundingBox();
+        const childBox = child.geometry.boundingBox.clone();
+        childBox.applyMatrix4(child.matrixWorld);
+        meshBox.union(childBox);
+      }
+    });
     const size = new Vector3();
-    box.getSize(size);
+    meshBox.getSize(size);
     if (!Number.isFinite(size.y) || size.y < 1e-4) return;
     const scale2 = CASHIER_HEIGHT_M / size.y;
     innerRef.current.scale.setScalar(scale2);
     clonedScene.updateMatrixWorld(true);
-    const scaledBox = new Box3().setFromObject(clonedScene);
-    const groundLift = -scaledBox.min.y;
+    const scaledMeshBox = new Box3();
+    clonedScene.traverse((child) => {
+      if (child.isMesh && child.geometry) {
+        child.geometry.computeBoundingBox();
+        const childBox = child.geometry.boundingBox.clone();
+        childBox.applyMatrix4(child.matrixWorld);
+        scaledMeshBox.union(childBox);
+      }
+    });
+    const groundLift = -scaledMeshBox.min.y;
     innerRef.current.position.y = groundLift;
     console.log("[Cashier] auto-fit", {
       rawSize: size.toArray(),

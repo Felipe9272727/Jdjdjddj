@@ -229,17 +229,36 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
         innerRef.current.scale.set(1, 1, 1);
         innerRef.current.position.set(0, 0, 0);
         clonedScene.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(clonedScene);
+        // Only measure visible meshes — bones/armature extend far beyond the
+        // mesh in Mixamo FBX exports and would inflate the bounding box,
+        // resulting in a tiny scale that makes the model invisible.
+        const meshBox = new THREE.Box3();
+        clonedScene.traverse((child: any) => {
+            if (child.isMesh && child.geometry) {
+                child.geometry.computeBoundingBox();
+                const childBox = child.geometry.boundingBox!.clone();
+                childBox.applyMatrix4(child.matrixWorld);
+                meshBox.union(childBox);
+            }
+        });
         const size = new THREE.Vector3();
-        box.getSize(size);
+        meshBox.getSize(size);
         // Guard against degenerate boxes (model not yet loaded).
         if (!Number.isFinite(size.y) || size.y < 0.0001) return;
         const scale = CASHIER_HEIGHT_M / size.y;
         innerRef.current.scale.setScalar(scale);
         // Re-measure after scaling to get the new ground offset.
         clonedScene.updateMatrixWorld(true);
-        const scaledBox = new THREE.Box3().setFromObject(clonedScene);
-        const groundLift = -scaledBox.min.y;
+        const scaledMeshBox = new THREE.Box3();
+        clonedScene.traverse((child: any) => {
+            if (child.isMesh && child.geometry) {
+                child.geometry.computeBoundingBox();
+                const childBox = child.geometry.boundingBox!.clone();
+                childBox.applyMatrix4(child.matrixWorld);
+                scaledMeshBox.union(childBox);
+            }
+        });
+        const groundLift = -scaledMeshBox.min.y;
         innerRef.current.position.y = groundLift;
         // One-time debug print so we can sanity-check placement at runtime.
         // eslint-disable-next-line no-console
