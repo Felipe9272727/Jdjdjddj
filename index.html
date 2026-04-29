@@ -96594,59 +96594,49 @@ const ReceptionDesk = React.memo(({ x: x2, z, rot = 0 }) => /* @__PURE__ */ jsxR
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Cashier, { position: [0, 0, -0.25] })
 ] }));
-const CASHIER_HEIGHT_M = 1.7;
 const CASHIER_FACE_ROT_Y = Math.PI;
 const Cashier = React.memo(({ position }) => {
   const gltf = useGLTF(CASHIER_GLB_URL);
-  const clonedScene = reactExports.useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
-  const animations = reactExports.useMemo(() => gltf.animations || [], [gltf.animations]);
   const groupRef = reactExports.useRef(null);
-  const innerRef = reactExports.useRef(null);
-  const { actions, names } = useAnimations(animations, groupRef);
-  reactExports.useEffect(() => {
-    var _a;
-    if (!innerRef.current || !clonedScene) return;
-    innerRef.current.scale.set(1, 1, 1);
-    innerRef.current.position.set(0, 0, 0);
-    clonedScene.updateMatrixWorld(true);
-    const meshBox = new Box3();
-    clonedScene.traverse((child) => {
-      if (child.isMesh && child.geometry) {
-        child.geometry.computeBoundingBox();
-        const childBox = child.geometry.boundingBox.clone();
-        childBox.applyMatrix4(child.matrixWorld);
-        meshBox.union(childBox);
-      }
-    });
-    const size = new Vector3();
-    meshBox.getSize(size);
-    if (!Number.isFinite(size.y) || size.y < 1e-4) return;
-    const scale2 = CASHIER_HEIGHT_M / size.y;
-    innerRef.current.scale.setScalar(scale2);
-    clonedScene.updateMatrixWorld(true);
-    const scaledMeshBox = new Box3();
-    clonedScene.traverse((child) => {
-      if (child.isMesh && child.geometry) {
-        child.geometry.computeBoundingBox();
-        const childBox = child.geometry.boundingBox.clone();
-        childBox.applyMatrix4(child.matrixWorld);
-        scaledMeshBox.union(childBox);
-      }
-    });
-    innerRef.current.position.y = -scaledMeshBox.min.y;
-    console.log("[Cashier] auto-fit", {
-      rawSize: size.toArray(),
-      scaleApplied: scale2,
-      worldPosition: (_a = groupRef.current) == null ? void 0 : _a.getWorldPosition(new Vector3()).toArray()
-    });
-  }, [clonedScene]);
+  const { actions, names } = useAnimations(gltf.animations, groupRef);
   reactExports.useEffect(() => {
     const first2 = names[0];
     if (first2 && actions[first2]) {
       actions[first2].reset().fadeIn(0.4).play();
     }
   }, [actions, names]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, rotation: [0, CASHIER_FACE_ROT_Y, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: innerRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene }) }) });
+  reactExports.useEffect(() => {
+    if (!gltf.scene) return;
+    const box = new Box3().setFromObject(gltf.scene);
+    const size = new Vector3();
+    box.getSize(size);
+    console.log("[Cashier] GLB loaded", {
+      animations: gltf.animations.map((a2) => a2.name),
+      sceneChildren: gltf.scene.children.length,
+      boundingSize: size.toArray()
+    });
+    gltf.scene.traverse((child) => {
+      var _a;
+      console.log(
+        "[Cashier] node:",
+        child.type,
+        child.name,
+        "visible:",
+        child.visible,
+        child.isMesh ? `geometry(${(_a = child.geometry.attributes.position) == null ? void 0 : _a.count} verts)` : ""
+      );
+    });
+  }, [gltf]);
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "group",
+    {
+      ref: groupRef,
+      position,
+      rotation: [0, CASHIER_FACE_ROT_Y, 0],
+      scale: [1.7, 1.7, 1.7],
+      children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene })
+    }
+  );
 });
 const ElevatorDoors = React.memo(({ closed }) => {
   const leftRef = reactExports.useRef(null);

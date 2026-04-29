@@ -214,50 +214,10 @@ const CASHIER_FACE_ROT_Y = Math.PI;  // 180° turn so the cashier faces the play
                                      // player side after the desk's own rot).
 const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
-    const clonedScene = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
-    const animations = useMemo(() => gltf.animations || [], [gltf.animations]);
     const groupRef = useRef<any>(null);
-    const innerRef = useRef<any>(null);
-    const { actions, names } = useAnimations(animations, groupRef);
+    const { actions, names } = useAnimations(gltf.animations, groupRef);
 
-    // Auto-fit: measure meshes only → normalize height → ground-align.
-    useEffect(() => {
-        if (!innerRef.current || !clonedScene) return;
-        innerRef.current.scale.set(1, 1, 1);
-        innerRef.current.position.set(0, 0, 0);
-        clonedScene.updateMatrixWorld(true);
-        const meshBox = new THREE.Box3();
-        clonedScene.traverse((child: any) => {
-            if (child.isMesh && child.geometry) {
-                child.geometry.computeBoundingBox();
-                const childBox = child.geometry.boundingBox!.clone();
-                childBox.applyMatrix4(child.matrixWorld);
-                meshBox.union(childBox);
-            }
-        });
-        const size = new THREE.Vector3();
-        meshBox.getSize(size);
-        if (!Number.isFinite(size.y) || size.y < 0.0001) return;
-        const scale = CASHIER_HEIGHT_M / size.y;
-        innerRef.current.scale.setScalar(scale);
-        clonedScene.updateMatrixWorld(true);
-        const scaledMeshBox = new THREE.Box3();
-        clonedScene.traverse((child: any) => {
-            if (child.isMesh && child.geometry) {
-                child.geometry.computeBoundingBox();
-                const childBox = child.geometry.boundingBox!.clone();
-                childBox.applyMatrix4(child.matrixWorld);
-                scaledMeshBox.union(childBox);
-            }
-        });
-        innerRef.current.position.y = -scaledMeshBox.min.y;
-        console.log('[Cashier] auto-fit', {
-            rawSize: size.toArray(),
-            scaleApplied: scale,
-            worldPosition: groupRef.current?.getWorldPosition(new THREE.Vector3()).toArray(),
-        });
-    }, [clonedScene]);
-
+    // Play the first animation on mount.
     useEffect(() => {
         const first = names[0];
         if (first && actions[first]) {
@@ -265,11 +225,31 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
         }
     }, [actions, names]);
 
+    // Debug: log scene info once.
+    useEffect(() => {
+        if (!gltf.scene) return;
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        console.log('[Cashier] GLB loaded', {
+            animations: gltf.animations.map((a: any) => a.name),
+            sceneChildren: gltf.scene.children.length,
+            boundingSize: size.toArray(),
+        });
+        gltf.scene.traverse((child: any) => {
+            console.log('[Cashier] node:', child.type, child.name, 'visible:', child.visible,
+                child.isMesh ? `geometry(${child.geometry.attributes.position?.count} verts)` : '');
+        });
+    }, [gltf]);
+
+    // The GLB mesh has a 90° X rotation baked in (Mixamo → glTF conversion).
+    // Scale the whole model so it's roughly adult-sized behind the desk.
+    // Vertex range is ~1.0 in local Y, ~0.3 in world Y after rotation.
+    // Use a fixed scale that looks right for a human figure behind the desk.
     return (
-        <group ref={groupRef} position={position} rotation={[0, CASHIER_FACE_ROT_Y, 0]}>
-            <group ref={innerRef}>
-                <primitive object={clonedScene} />
-            </group>
+        <group ref={groupRef} position={position} rotation={[0, CASHIER_FACE_ROT_Y, 0]}
+               scale={[1.7, 1.7, 1.7]}>
+            <primitive object={gltf.scene} />
         </group>
     );
 });
