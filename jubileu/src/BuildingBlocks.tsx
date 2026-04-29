@@ -196,6 +196,16 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
     const groupRef = useRef<any>(null);
     const { actions, names } = useAnimations(gltf.animations, groupRef);
 
+    // Neutralize the baked 90° X rotation on the mesh node,
+    // then apply our own 180° Y so the model faces the player.
+    useEffect(() => {
+        gltf.scene.traverse((child: any) => {
+            if (child.isMesh) {
+                child.rotation.set(0, 0, 0);
+            }
+        });
+    }, [gltf.scene]);
+
     useEffect(() => {
         const first = names[0];
         if (first && actions[first]) {
@@ -204,10 +214,8 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
     }, [actions, names]);
 
     return (
-        <group ref={groupRef} position={position} scale={[2, 2, 2]}>
-            <group rotation={[0, Math.PI, 0]}>
-                <primitive object={gltf.scene} />
-            </group>
+        <group ref={groupRef} position={position} rotation={[0, Math.PI, 0]} scale={[2, 2, 2]}>
+            <primitive object={gltf.scene} />
         </group>
     );
 });

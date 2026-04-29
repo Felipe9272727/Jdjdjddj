@@ -96581,12 +96581,19 @@ const Cashier = React.memo(({ position }) => {
   const groupRef = reactExports.useRef(null);
   const { actions, names } = useAnimations(gltf.animations, groupRef);
   reactExports.useEffect(() => {
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        child.rotation.set(0, 0, 0);
+      }
+    });
+  }, [gltf.scene]);
+  reactExports.useEffect(() => {
     const first2 = names[0];
     if (first2 && actions[first2]) {
       actions[first2].reset().fadeIn(0.4).play();
     }
   }, [actions, names]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("group", { rotation: [0, Math.PI, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, rotation: [0, Math.PI, 0], scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) });
 });
 const ElevatorDoors = React.memo(({ closed }) => {
   const leftRef = reactExports.useRef(null);
