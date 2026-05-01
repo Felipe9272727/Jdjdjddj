@@ -96578,13 +96578,35 @@ const ReceptionDesk = React.memo(({ x: x2, z, rot = 0 }) => /* @__PURE__ */ jsxR
     ] })
   ] })
 ] }));
-const STOOL_HEIGHT = 0.08;
+const STOOL_HEIGHT = 0.45;
 const SEAT_TOP_Y = STOOL_HEIGHT + 0.075;
-const CASHIER_SCALE = 1;
+const CASHIER_SCALE = 1.5;
 const Cashier = React.memo(({ position }) => {
   const gltf = useGLTF(CASHIER_GLB_URL);
   const groupRef = reactExports.useRef(null);
   const { actions, names } = useAnimations(gltf.animations, groupRef);
+  reactExports.useEffect(() => {
+    let attached = false;
+    gltf.scene.traverse((child) => {
+      if (attached || !child.isBone) return;
+      if (!/right.?hand/i.test(child.name)) return;
+      const existing = child.children.find((c2) => {
+        var _a;
+        return (_a = c2.userData) == null ? void 0 : _a.isCleaningCloth;
+      });
+      if (existing) {
+        attached = true;
+        return;
+      }
+      const geom = new BoxGeometry(0.16, 0.012, 0.13);
+      const mat = new MeshStandardMaterial({ color: "#FFF59D", roughness: 0.95 });
+      const cloth = new Mesh(geom, mat);
+      cloth.userData.isCleaningCloth = true;
+      cloth.position.set(0.08, 0, 0);
+      child.add(cloth);
+      attached = true;
+    });
+  }, [gltf.scene]);
   reactExports.useEffect(() => {
     const first2 = names[0];
     if (first2 && actions[first2]) {
