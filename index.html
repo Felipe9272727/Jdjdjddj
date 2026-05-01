@@ -96583,9 +96583,14 @@ const Cashier = React.memo(({ position }) => {
     const clone2 = SkeletonUtils.clone(gltf.scene);
     clone2.traverse((child) => {
       if (child.isMesh) {
+        console.log("[Cashier] mesh:", child.name, "rotation before:", child.rotation.x, child.rotation.y, child.rotation.z);
         child.rotation.set(0, 0, 0);
       }
     });
+    console.log("[Cashier] clone children:", clone2.children.map((c2) => c2.name));
+    console.log("[Cashier] clone position:", clone2.position.x, clone2.position.y, clone2.position.z);
+    console.log("[Cashier] clone rotation:", clone2.rotation.x, clone2.rotation.y, clone2.rotation.z);
+    console.log("[Cashier] clone scale:", clone2.scale.x, clone2.scale.y, clone2.scale.z);
     return clone2;
   }, [gltf.scene]);
   const { actions, names } = useAnimations(gltf.animations, groupRef);
@@ -96595,7 +96600,25 @@ const Cashier = React.memo(({ position }) => {
       actions[first2].reset().fadeIn(0.4).play();
     }
   }, [actions, names]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, rotation: [0, Math.PI, 0], scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene }) });
+  reactExports.useEffect(() => {
+    if (groupRef.current) {
+      const g2 = groupRef.current;
+      g2.updateWorldMatrix(true, false);
+      const euler = new Euler();
+      euler.setFromQuaternion(g2.getWorldQuaternion(new Quaternion()));
+      console.log("[Cashier] GROUP world rotation:", euler.x, euler.y, euler.z);
+      console.log("[Cashier] GROUP local rotation:", g2.rotation.x, g2.rotation.y, g2.rotation.z);
+      console.log("[Cashier] GROUP position:", g2.position.x, g2.position.y, g2.position.z);
+      console.log("[Cashier] GROUP children count:", g2.children.length);
+      g2.children.forEach((c2, i2) => {
+        console.log(`[Cashier] child ${i2}:`, c2.name || "unnamed", "type:", c2.type, "rotation:", c2.rotation.x, c2.rotation.y, c2.rotation.z);
+      });
+    }
+  }, []);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, position, rotation: [0, Math.PI, 0], scale: [2, 2, 2], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("arrowHelper", { args: [new Vector3(0, 0, 1), new Vector3(0, 1.5, 0), 1.5, 16711680] })
+  ] });
 });
 const ElevatorDoors = React.memo(({ closed }) => {
   const leftRef = reactExports.useRef(null);
