@@ -17,7 +17,7 @@ import {
 //   'arrived'   — doors meet, brief darkness with a "ding" highlight
 //   'opening'   — doors slide back out, revealing the shop content
 //   'idle'      — shop interactive, dialog typing, bellhop wiping counter
-//   'exit-close'— doors close again on Esc/Tchau
+//   'exit-close'— doors close again on Esc/Tchau, then unmount
 // Sprites + bg are inlined as base64 (see bellhop-sprites.ts) so the build
 // is self-contained. The bellhop animates via a CSS sprite strip — the
 // `background-position-x` steps through 4 frames.
@@ -125,13 +125,19 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     }
   };
 
+  // ── Door state machine ────────────────────────────────────────────────
+  // 'sliding-in'  → CSS animation drives door from open → closed
+  // 'closed'      → hold at closed (no animation)
+  // 'sliding-out' → CSS transition drives door from closed → open
+  // 'open'        → hold at open (off-screen)
+  // 'closing-exit'→ CSS animation drives door from open → closed (exit)
   const doorsState =
-    phase === 'closing' ? 'sliding-in' :
-    phase === 'arrived' ? 'closed' :
-    phase === 'opening' ? 'sliding-out' :
-    phase === 'idle' ? 'open' :
-    phase === 'exit-close' ? 'sliding-in' :
-    'closed';
+    phase === 'closing' ? 'sliding-in' as const :
+    phase === 'arrived' ? 'closed' as const :
+    phase === 'opening' ? 'sliding-out' as const :
+    phase === 'idle' ? 'open' as const :
+    phase === 'exit-close' ? 'closing-exit' as const :
+    'closed' as const;
 
   const showContent = phase === 'opening' || phase === 'idle';
   const contentOpacity = phase === 'opening' ? 0.85 : phase === 'idle' ? 1 : 0;
@@ -184,24 +190,26 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         }}
       />
 
-      {/* Shop content (sprite + dialog) */}
+      {/* Shop content (sprite + dialog) — sits ABOVE the doors (z-index 3) */}
       <div
         className="absolute inset-0 flex flex-col items-center justify-end"
         style={{
           opacity: contentOpacity,
           transition: 'opacity 500ms ease-out',
           pointerEvents: showContent ? 'auto' : 'none',
+          zIndex: 3,
         }}
         onClick={skipOrAdvance}
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 p-4 pb-6 max-w-3xl w-full">
             {/* Animated bellhop — CSS sprite step animation. Strip switches
-                between cleaning (entry) and talking (idle interaction). */}
+                between cleaning (entry) and talking (idle interaction).
+                No `key` prop to avoid remount flicker — the animation name
+                and strip URL update declaratively. */}
             <div
               className="bellhop-sprite"
               aria-hidden
-              key={useTalk ? 'talk' : 'clean'}
               style={{
                 width: frameW,
                 height: frameH,
@@ -305,11 +313,21 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           from { background-position-x: 0px; }
           to   { background-position-x: -${BELLHOP_TALK_FRAME_W * BELLHOP_TALK_FRAMES}px; }
         }
+        /* Entrance: doors slide from off-screen to center */
         @keyframes shopDoorInLeft {
           from { transform: translateX(-100%); }
           to   { transform: translateX(0%); }
         }
         @keyframes shopDoorInRight {
+          from { transform: translateX(100%); }
+          to   { transform: translateX(0%); }
+        }
+        /* Exit: doors slide from off-screen to center (closing animation) */
+        @keyframes shopDoorCloseLeft {
+          from { transform: translateX(-100%); }
+          to   { transform: translateX(0%); }
+        }
+        @keyframes shopDoorCloseRight {
           from { transform: translateX(100%); }
           to   { transform: translateX(0%); }
         }
@@ -319,26 +337,34 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
 };
 
 // ─── Elevator door panel ─────────────────────────────────────────────────
-type DoorState = 'sliding-in' | 'closed' | 'sliding-out' | 'open';
+type DoorState = 'sliding-in' | 'closed' | 'sliding-out' | 'open' | 'closing-exit';
 
 const ElevatorDoor: React.FC<{ side: 'left' | 'right'; state: DoorState }> = ({ side, state }) => {
   let tx = 0;
   let transition = '';
+  let animation: string | undefined;
+
   if (state === 'sliding-in') {
+    // Entrance: doors slide from off-screen to center via CSS animation
     tx = 0;
-    transition = `transform ${TIMINGS.closing}ms cubic-bezier(0.55, 0.06, 0.68, 0.19)`;
+    animation = `${side === 'left' ? 'shopDoorInLeft' : 'shopDoorInRight'} ${TIMINGS.closing}ms cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards`;
   } else if (state === 'closed') {
+    // Hold at center — no animation, no transition
     tx = 0;
   } else if (state === 'sliding-out') {
+    // Opening: doors slide from center to off-screen via CSS transition
     tx = side === 'left' ? -100 : 100;
     transition = `transform ${TIMINGS.opening}ms cubic-bezier(0.16, 1, 0.3, 1)`;
   } else if (state === 'open') {
+    // Hold at off-screen position
     tx = side === 'left' ? -100 : 100;
+  } else if (state === 'closing-exit') {
+    // Exit: doors slide from off-screen to center via CSS animation
+    // (same as entrance — doors were at -100%/100% from 'open' state,
+    // animation brings them back to 0%)
+    tx = 0;
+    animation = `${side === 'left' ? 'shopDoorCloseLeft' : 'shopDoorCloseRight'} ${TIMINGS.exitClose}ms cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards`;
   }
-
-  const animation = state === 'sliding-in'
-    ? `${side === 'left' ? 'shopDoorInLeft' : 'shopDoorInRight'} ${TIMINGS.closing}ms cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards`
-    : undefined;
 
   const doorBg = `
     repeating-linear-gradient(90deg,
