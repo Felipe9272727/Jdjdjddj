@@ -184,7 +184,7 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 // behind the reception desk regardless of the GLB's native unit system.
 
 const CASHIER_TARGET_HEIGHT = 1.65;
-const STOOL_HEIGHT = 0.22;
+const STOOL_HEIGHT = 0.45; // raised — model feet are higher than expected
 
 export const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
@@ -220,8 +220,8 @@ export const Cashier = React.memo(({ position }: { position: [number, number, nu
             STOOL_HEIGHT - feetY,
             position[2]
         );
-        // Face +X side → model's -Z local (front) faces -X world (toward desk)
-        groupRef.current.rotation.set(0, Math.PI / 2, 0);
+        // Model's -Z local faces -X world (toward desk)
+        groupRef.current.rotation.set(0, -Math.PI / 2, 0);
 
         laid.current = true;
     });
@@ -238,29 +238,29 @@ export const Cashier = React.memo(({ position }: { position: [number, number, nu
 // ─── Stool — standalone at y=0, always on the ground ──────────────────────
 export const Stool = React.memo(({ x, z }: { x: number; z: number }) => (
     <group position={[x, 0, z]}>
-        {/* Seat cushion */}
+        {/* Seat — thick wooden disc */}
         <mesh position={[0, STOOL_HEIGHT, 0]}>
-            <cylinderGeometry args={[0.32, 0.32, 0.06, 16]} />
+            <cylinderGeometry args={[0.38, 0.38, 0.08, 16]} />
             <meshStandardMaterial color="#5D4037" roughness={0.8} />
         </mesh>
-        <mesh position={[0, STOOL_HEIGHT + 0.04, 0]}>
-            <cylinderGeometry args={[0.29, 0.29, 0.04, 16]} />
+        <mesh position={[0, STOOL_HEIGHT + 0.05, 0]}>
+            <cylinderGeometry args={[0.35, 0.35, 0.05, 16]} />
             <meshStandardMaterial color="#8D6E63" roughness={0.95} />
         </mesh>
-        {/* 4 legs — from ground to seat */}
-        {[[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]].map((p, i) => (
+        {/* 4 thick legs */}
+        {[[-0.24, -0.24], [0.24, -0.24], [-0.24, 0.24], [0.24, 0.24]].map((p, i) => (
             <mesh key={i} position={[p[0], STOOL_HEIGHT / 2, p[1]]}>
-                <cylinderGeometry args={[0.025, 0.035, STOOL_HEIGHT, 8]} />
+                <cylinderGeometry args={[0.035, 0.045, STOOL_HEIGHT, 8]} />
                 <meshStandardMaterial color="#3E2723" roughness={0.6} metalness={0.2} />
             </mesh>
         ))}
         {/* Cross brace */}
         <mesh position={[0, STOOL_HEIGHT * 0.35, 0]} rotation={[0, Math.PI / 4, 0]}>
-            <boxGeometry args={[0.38, 0.025, 0.025]} />
+            <boxGeometry args={[0.45, 0.03, 0.03]} />
             <meshStandardMaterial color="#4E342E" roughness={0.7} />
         </mesh>
         <mesh position={[0, STOOL_HEIGHT * 0.35, 0]} rotation={[0, -Math.PI / 4, 0]}>
-            <boxGeometry args={[0.38, 0.025, 0.025]} />
+            <boxGeometry args={[0.45, 0.03, 0.03]} />
             <meshStandardMaterial color="#4E342E" roughness={0.7} />
         </mesh>
     </group>
