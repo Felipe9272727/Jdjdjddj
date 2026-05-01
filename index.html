@@ -96579,12 +96579,12 @@ const ReceptionDesk = React.memo(({ x: x2, z, rot = 0 }) => /* @__PURE__ */ jsxR
   ] })
 ] }));
 const CASHIER_TARGET_HEIGHT = 1.65;
+const STOOL_HEIGHT = 0.22;
 const Cashier = React.memo(({ position }) => {
   const gltf = useGLTF(CASHIER_GLB_URL);
   const groupRef = reactExports.useRef(null);
   const { actions, names } = useAnimations(gltf.animations, groupRef);
   const layoutDone = reactExports.useRef(false);
-  const posRef = reactExports.useRef(position);
   reactExports.useEffect(() => {
     const first2 = names[0];
     if (first2 && actions[first2]) {
@@ -96599,40 +96599,40 @@ const Cashier = React.memo(({ position }) => {
     if (size.y === 0) return;
     const uniformScale = CASHIER_TARGET_HEIGHT / size.y;
     groupRef.current.scale.setScalar(uniformScale);
+    const scaledBox = new Box3().setFromObject(gltf.scene);
+    scaledBox.min.multiplyScalar(uniformScale);
+    scaledBox.max.multiplyScalar(uniformScale);
     groupRef.current.position.set(
       position[0],
-      -box.min.y * uniformScale,
+      STOOL_HEIGHT - scaledBox.min.y,
       position[2]
     );
-    posRef.current = [position[0], -box.min.y * uniformScale, position[2]];
     layoutDone.current = true;
   }, [gltf.scene]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, position, rotation: [0, -Math.PI / 2, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.12, 0], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.35, 0.35, 0.08, 16] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037", roughness: 0.8 })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.17, 0], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.32, 0.32, 0.05, 16] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#8D6E63", roughness: 0.95 })
-      ] }),
-      [[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22]].map((p2, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [p2[0], 0, p2[1]], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.03, 0.04, 0.24, 8] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3E2723", roughness: 0.6, metalness: 0.2 })
-      ] }, i2)),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.04, 0], rotation: [0, Math.PI / 4, 0], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.42, 0.03, 0.03] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4E342E", roughness: 0.7 })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.04, 0], rotation: [0, -Math.PI / 4, 0], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.42, 0.03, 0.03] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4E342E", roughness: 0.7 })
-      ] })
-    ] })
-  ] });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, rotation: [0, -Math.PI / 2, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) });
 });
+const Stool = React.memo(({ x: x2, z }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, 0, z], children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, STOOL_HEIGHT, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.32, 0.32, 0.06, 16] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037", roughness: 0.8 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, STOOL_HEIGHT + 0.04, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.29, 0.29, 0.04, 16] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#8D6E63", roughness: 0.95 })
+  ] }),
+  [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]].map((p2, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [p2[0], STOOL_HEIGHT / 2, p2[1]], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.025, 0.035, STOOL_HEIGHT, 8] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3E2723", roughness: 0.6, metalness: 0.2 })
+  ] }, i2)),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, STOOL_HEIGHT * 0.35, 0], rotation: [0, Math.PI / 4, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.38, 0.025, 0.025] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4E342E", roughness: 0.7 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, STOOL_HEIGHT * 0.35, 0], rotation: [0, -Math.PI / 4, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.38, 0.025, 0.025] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4E342E", roughness: 0.7 })
+  ] })
+] }));
 const ElevatorDoors = React.memo(({ closed }) => {
   const leftRef = reactExports.useRef(null);
   const rightRef = reactExports.useRef(null);
@@ -97468,7 +97468,8 @@ const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionR
     " ",
     /* @__PURE__ */ jsxRuntimeExports.jsx(CeilingLight, { x: 5, z: 3 }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(ReceptionDesk, { x: 7, z: -7.5, rot: -Math.PI / 2 }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Cashier, { position: [8, 0, -7.5] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Stool, { x: 7.5, z: -7.5 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Cashier, { position: [7.5, 0, -7.5] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Armchair, { x: -8.7, z: 2, rot: Math.PI / 2, color: "#4E342E" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Armchair, { x: -8.7, z: 3.5, rot: Math.PI / 2, color: "#4E342E" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Armchair, { x: -8.7, z: -2, rot: Math.PI / 2, color: "#5D4037" }),

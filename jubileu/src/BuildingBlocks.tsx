@@ -184,15 +184,15 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 // behind the reception desk regardless of the GLB's native unit system.
 
 const CASHIER_TARGET_HEIGHT = 1.65; // meters — humanoid height behind desk
+const STOOL_HEIGHT = 0.22;          // seat height — how high the cashier sits
 
 export const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
     const groupRef = useRef<any>(null);
     const { actions, names } = useAnimations(gltf.animations, groupRef);
     const layoutDone = useRef(false);
-    const posRef = useRef(position);
 
-    // Play the first animation (button pushing / idle)
+    // Play the first animation (button pushing / cleaning)
     useEffect(() => {
         const first = names[0];
         if (first && actions[first]) {
@@ -201,8 +201,8 @@ export const Cashier = React.memo(({ position }: { position: [number, number, nu
     }, [actions, names]);
 
     // Normalize height via bounding-box (once, on mount).
-    // Computes uniform scale so model is CASHIER_TARGET_HEIGHT tall,
-    // then offsets Y so the feet sit on y=0.
+    // Scale model to CASHIER_TARGET_HEIGHT, then lift by STOOL_HEIGHT
+    // so the character appears to sit on the stool wiping the counter.
     useEffect(() => {
         if (layoutDone.current || !groupRef.current) return;
         const box = new THREE.Box3().setFromObject(gltf.scene);
@@ -211,54 +211,61 @@ export const Cashier = React.memo(({ position }: { position: [number, number, nu
         if (size.y === 0) return;
 
         const uniformScale = CASHIER_TARGET_HEIGHT / size.y;
-
         groupRef.current.scale.setScalar(uniformScale);
-        // Place model so its lowest vertex (in world) sits at y=0
+
+        // Recalculate box at new scale
+        const scaledBox = new THREE.Box3().setFromObject(gltf.scene);
+        scaledBox.min.multiplyScalar(uniformScale);
+        scaledBox.max.multiplyScalar(uniformScale);
+
+        // Place feet on top of stool: stool seat at STOOL_HEIGHT
         groupRef.current.position.set(
             position[0],
-            -box.min.y * uniformScale,
+            STOOL_HEIGHT - scaledBox.min.y,
             position[2]
         );
-        posRef.current = [position[0], -box.min.y * uniformScale, position[2]];
 
         layoutDone.current = true;
-    }, [gltf.scene]); // removed position dep — only runs once
+    }, [gltf.scene]);
 
     // Model faces -Z in world space after Mixamo bone rotations.
     // Desk front faces -X, so rotate -90° Y to align model with desk.
     return (
         <group ref={groupRef} position={position} rotation={[0, -Math.PI / 2, 0]}>
             <primitive object={gltf.scene} />
-            {/* Stool under the cashier — built-in so they share the same position */}
-            <group position={[0, 0, 0]}>
-                {/* Seat cushion */}
-                <mesh position={[0, 0.12, 0]}>
-                    <cylinderGeometry args={[0.35, 0.35, 0.08, 16]} />
-                    <meshStandardMaterial color="#5D4037" roughness={0.8} />
-                </mesh>
-                <mesh position={[0, 0.17, 0]}>
-                    <cylinderGeometry args={[0.32, 0.32, 0.05, 16]} />
-                    <meshStandardMaterial color="#8D6E63" roughness={0.95} />
-                </mesh>
-                {/* 4 legs */}
-                {[[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22]].map((p, i) => (
-                    <mesh key={i} position={[p[0], 0.0, p[1]]}>
-                        <cylinderGeometry args={[0.03, 0.04, 0.24, 8]} />
-                        <meshStandardMaterial color="#3E2723" roughness={0.6} metalness={0.2} />
-                    </mesh>
-                ))}
-                {/* Cross brace */}
-                <mesh position={[0, -0.04, 0]} rotation={[0, Math.PI / 4, 0]}>
-                    <boxGeometry args={[0.42, 0.03, 0.03]} />
-                    <meshStandardMaterial color="#4E342E" roughness={0.7} />
-                </mesh>
-                <mesh position={[0, -0.04, 0]} rotation={[0, -Math.PI / 4, 0]}>
-                    <boxGeometry args={[0.42, 0.03, 0.03]} />
-                    <meshStandardMaterial color="#4E342E" roughness={0.7} />
-                </mesh>
-            </group>
         </group>
     );
 });
+
+// ─── Stool — standalone at y=0, always on the ground ──────────────────────
+export const Stool = React.memo(({ x, z }: { x: number; z: number }) => (
+    <group position={[x, 0, z]}>
+        {/* Seat cushion */}
+        <mesh position={[0, STOOL_HEIGHT, 0]}>
+            <cylinderGeometry args={[0.32, 0.32, 0.06, 16]} />
+            <meshStandardMaterial color="#5D4037" roughness={0.8} />
+        </mesh>
+        <mesh position={[0, STOOL_HEIGHT + 0.04, 0]}>
+            <cylinderGeometry args={[0.29, 0.29, 0.04, 16]} />
+            <meshStandardMaterial color="#8D6E63" roughness={0.95} />
+        </mesh>
+        {/* 4 legs — from ground to seat */}
+        {[[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]].map((p, i) => (
+            <mesh key={i} position={[p[0], STOOL_HEIGHT / 2, p[1]]}>
+                <cylinderGeometry args={[0.025, 0.035, STOOL_HEIGHT, 8]} />
+                <meshStandardMaterial color="#3E2723" roughness={0.6} metalness={0.2} />
+            </mesh>
+        ))}
+        {/* Cross brace */}
+        <mesh position={[0, STOOL_HEIGHT * 0.35, 0]} rotation={[0, Math.PI / 4, 0]}>
+            <boxGeometry args={[0.38, 0.025, 0.025]} />
+            <meshStandardMaterial color="#4E342E" roughness={0.7} />
+        </mesh>
+        <mesh position={[0, STOOL_HEIGHT * 0.35, 0]} rotation={[0, -Math.PI / 4, 0]}>
+            <boxGeometry args={[0.38, 0.025, 0.025]} />
+            <meshStandardMaterial color="#4E342E" roughness={0.7} />
+        </mesh>
+    </group>
+));
 
 
