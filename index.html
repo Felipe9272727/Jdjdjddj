@@ -96584,32 +96584,31 @@ const Cashier = React.memo(({ position }) => {
   const gltf = useGLTF(CASHIER_GLB_URL);
   const groupRef = reactExports.useRef(null);
   const { actions, names } = useAnimations(gltf.animations, groupRef);
-  const laid = reactExports.useRef(false);
+  const layout = reactExports.useMemo(() => {
+    const box = new Box3().setFromObject(gltf.scene);
+    const size = new Vector3();
+    box.getSize(size);
+    if (size.y < 0.01) return { scale: 1, yPos: STOOL_HEIGHT };
+    const s = CASHIER_TARGET_HEIGHT / size.y;
+    const feetY = box.min.y * s;
+    return { scale: s, yPos: STOOL_HEIGHT - feetY };
+  }, [gltf.scene]);
   reactExports.useEffect(() => {
     const first2 = names[0];
     if (first2 && actions[first2]) {
       actions[first2].reset().fadeIn(0.4).play();
     }
   }, [actions, names]);
-  useFrame(() => {
-    if (laid.current || !groupRef.current) return;
-    const scene = gltf.scene;
-    const box = new Box3().setFromObject(scene);
-    const size = new Vector3();
-    box.getSize(size);
-    if (size.y < 0.01) return;
-    const s = CASHIER_TARGET_HEIGHT / size.y;
-    groupRef.current.scale.setScalar(s);
-    const feetY = box.min.y * s;
-    groupRef.current.position.set(
-      position[0],
-      STOOL_HEIGHT - feetY,
-      position[2]
-    );
-    groupRef.current.rotation.set(0, -Math.PI / 2, 0);
-    laid.current = true;
-  });
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "group",
+    {
+      ref: groupRef,
+      position: [position[0], layout.yPos, position[2]],
+      scale: layout.scale,
+      rotation: [0, -Math.PI / 2, 0],
+      children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene })
+    }
+  );
 });
 const Stool = React.memo(({ x: x2, z }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, 0, z], children: [
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, STOOL_HEIGHT, 0], children: [

@@ -1,5 +1,4 @@
-import React, { useRef, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { Text, useGLTF, useAnimations } from '@react-three/drei';
 import { TextureMaterial } from './Materials';
 import { ASSETS, COLORS } from './constants';
@@ -184,13 +183,23 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 // behind the reception desk regardless of the GLB's native unit system.
 
 const CASHIER_TARGET_HEIGHT = 1.65;
-const STOOL_HEIGHT = 0.45; // raised — model feet are higher than expected
+const STOOL_HEIGHT = 0.45;
 
 export const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
     const groupRef = useRef<any>(null);
     const { actions, names } = useAnimations(gltf.animations, groupRef);
-    const laid = useRef(false);
+
+    // Calculate layout once from bounding box — during render, not in effects
+    const layout = useMemo(() => {
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        if (size.y < 0.01) return { scale: 1, yPos: STOOL_HEIGHT };
+        const s = CASHIER_TARGET_HEIGHT / size.y;
+        const feetY = box.min.y * s;
+        return { scale: s, yPos: STOOL_HEIGHT - feetY };
+    }, [gltf.scene]);
 
     useEffect(() => {
         const first = names[0];
@@ -199,37 +208,13 @@ export const Cashier = React.memo(({ position }: { position: [number, number, nu
         }
     }, [actions, names]);
 
-    // Layout: scale + position — runs once via useFrame to guarantee
-    // it happens AFTER the first render (ref is attached).
-    useFrame(() => {
-        if (laid.current || !groupRef.current) return;
-        const scene = gltf.scene;
-        const box = new THREE.Box3().setFromObject(scene);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        if (size.y < 0.01) return;
-
-        const s = CASHIER_TARGET_HEIGHT / size.y;
-        groupRef.current.scale.setScalar(s);
-
-        // scaled min Y (feet offset from origin)
-        const feetY = box.min.y * s;
-        // Place feet on stool seat
-        groupRef.current.position.set(
-            position[0],
-            STOOL_HEIGHT - feetY,
-            position[2]
-        );
-        // Model's -Z local faces -X world (toward desk)
-        groupRef.current.rotation.set(0, -Math.PI / 2, 0);
-
-        laid.current = true;
-    });
-
-    // Don't pass position/rotation as props — useFrame handles it.
-    // Use a neutral position so the group exists in the scene graph.
     return (
-        <group ref={groupRef}>
+        <group
+            ref={groupRef}
+            position={[position[0], layout.yPos, position[2]]}
+            scale={layout.scale}
+            rotation={[0, -Math.PI / 2, 0]}
+        >
             <primitive object={gltf.scene} />
         </group>
     );
