@@ -1062,3 +1062,17 @@ O balconista (Cashier) estava de costas pro player — rotação `[0, 0, 0]` no 
 
 ### Commit
 - `576094f` — fix(cashier): rotate 180° Y to face the player
+
+### Fix: Cashier Rotation — Clone Scene (08:55 GMT+8)
+
+#### Problema
+A rotação `[0, Math.PI, 0]` no group não funcionava porque `useGLTF` cacheia o scene object. O `traverse` que zerava rotações modificava o objeto cacheado compartilhado, e o `primitive` usava o mesmo objeto — rotação do group era ignorada/overridada.
+
+#### Solução
+- `SkeletonUtils.clone(gltf.scene)` — clone a scene pra cada instância
+- `traverse` pra zerar rotações roda no clone (não no cacheado)
+- `useMemo` com dep `[gltf.scene]` — clona só quando o source muda
+- Group rotation `[0, Math.PI, 0]` agora aplica no clone limpo
+
+#### Commit
+- `28689c9` — fix(cashier): clone scene with SkeletonUtils + neutralize baked rotation on clone
