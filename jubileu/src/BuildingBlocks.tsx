@@ -201,8 +201,6 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
                 child.rotation.set(0, 0, 0);
             }
         });
-        // Rotate the entire scene root to face the player
-        gltf.scene.rotation.set(0, Math.PI / 2, 0);
     }, [gltf.scene]);
 
     useEffect(() => {
@@ -214,7 +212,7 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
 
     return (
         <group ref={groupRef} position={position} scale={[2, 2, 2]}>
-            <primitive object={gltf.scene} />
+            <primitive object={gltf.scene} rotation={[0, Math.PI, 0]} />
         </group>
     );
 });

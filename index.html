@@ -96586,7 +96586,6 @@ const Cashier = React.memo(({ position }) => {
         child.rotation.set(0, 0, 0);
       }
     });
-    gltf.scene.rotation.set(0, Math.PI / 2, 0);
   }, [gltf.scene]);
   reactExports.useEffect(() => {
     const first2 = names[0];
@@ -96594,7 +96593,7 @@ const Cashier = React.memo(({ position }) => {
       actions[first2].reset().fadeIn(0.4).play();
     }
   }, [actions, names]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene, rotation: [0, Math.PI, 0] }) });
 });
 const CashierDebug = React.memo(() => {
   const gltf = useGLTF(CASHIER_GLB_URL);
