@@ -96578,21 +96578,13 @@ const ReceptionDesk = React.memo(({ x: x2, z, rot = 0 }) => /* @__PURE__ */ jsxR
     ] })
   ] })
 ] }));
-const CASHIER_TARGET_HEIGHT = 1.65;
 const STOOL_HEIGHT = 0.08;
+const SEAT_TOP_Y = STOOL_HEIGHT + 0.075;
+const CASHIER_SCALE = 1;
 const Cashier = React.memo(({ position }) => {
   const gltf = useGLTF(CASHIER_GLB_URL);
   const groupRef = reactExports.useRef(null);
   const { actions, names } = useAnimations(gltf.animations, groupRef);
-  const layout = reactExports.useMemo(() => {
-    const box = new Box3().setFromObject(gltf.scene);
-    const size = new Vector3();
-    box.getSize(size);
-    if (size.y < 0.01) return { scale: 1, yPos: STOOL_HEIGHT };
-    const s = CASHIER_TARGET_HEIGHT / size.y;
-    const feetY = box.min.y * s;
-    return { scale: s, yPos: STOOL_HEIGHT - feetY };
-  }, [gltf.scene]);
   reactExports.useEffect(() => {
     const first2 = names[0];
     if (first2 && actions[first2]) {
@@ -96603,8 +96595,8 @@ const Cashier = React.memo(({ position }) => {
     "group",
     {
       ref: groupRef,
-      position: [position[0], layout.yPos, position[2]],
-      scale: layout.scale,
+      position: [position[0], SEAT_TOP_Y, position[2]],
+      scale: CASHIER_SCALE,
       rotation: [0, -Math.PI / 2, 0],
       children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene })
     }

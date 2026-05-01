@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Text, useGLTF, useAnimations } from '@react-three/drei';
 import { TextureMaterial } from './Materials';
 import { ASSETS, COLORS } from './constants';
@@ -179,27 +179,20 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 // ─── Balconista (Cashier) — Mixamo-rigged GLB with button-pushing animation ──
 // Mixamo models have baked rotations (Hips -90°X, mesh node +90°X) that we
 // MUST preserve — they convert Mixamo's Y-up to Three.js conventions.
-// We normalize height via bounding box so the model stands at human scale
-// behind the reception desk regardless of the GLB's native unit system.
+// Position: feet sit on top of the stool seat. We use fixed values instead
+// of `Box3.setFromObject` because the latter returns the UNSKINNED geometry
+// bbox (rotated +π/2 X by the mesh node), which doesn't reflect where the
+// SKINNED model actually renders. The skin matrices undo that rotation at
+// draw time, so the visible model is upright with feet ~y=0 in local space.
 
-const CASHIER_TARGET_HEIGHT = 1.65;
-const STOOL_HEIGHT = 0.08; // low — model origin is near center, feet are well below
+const STOOL_HEIGHT = 0.08;
+const SEAT_TOP_Y = STOOL_HEIGHT + 0.075; // top of stool seat (decorative cylinder)
+const CASHIER_SCALE = 1.0;
 
 export const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
     const groupRef = useRef<any>(null);
     const { actions, names } = useAnimations(gltf.animations, groupRef);
-
-    // Calculate layout once from bounding box — during render, not in effects
-    const layout = useMemo(() => {
-        const box = new THREE.Box3().setFromObject(gltf.scene);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        if (size.y < 0.01) return { scale: 1, yPos: STOOL_HEIGHT };
-        const s = CASHIER_TARGET_HEIGHT / size.y;
-        const feetY = box.min.y * s;
-        return { scale: s, yPos: STOOL_HEIGHT - feetY };
-    }, [gltf.scene]);
 
     useEffect(() => {
         const first = names[0];
@@ -211,8 +204,8 @@ export const Cashier = React.memo(({ position }: { position: [number, number, nu
     return (
         <group
             ref={groupRef}
-            position={[position[0], layout.yPos, position[2]]}
-            scale={layout.scale}
+            position={[position[0], SEAT_TOP_Y, position[2]]}
+            scale={CASHIER_SCALE}
             rotation={[0, -Math.PI / 2, 0]}
         >
             <primitive object={gltf.scene} />

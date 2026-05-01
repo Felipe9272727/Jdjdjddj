@@ -1172,3 +1172,54 @@ O recepcionista (Cashier) no lobby usa o GLB `button_pushing.glb` (Mixamo rig). 
 2. **useFrame não é confiável pra layout one-shot**: Pode não executar se o componente desmonta/remonta.
 3. **useMemo durante render é o mais determinístico**: Calcula antes do paint, passa como prop, R3F aplica corretamente.
 4. **Collision analysis é essencial**: Sem visualizar, é impossível saber se objetos estão sobrepondo. O script `analyze-positions.mjs` resolve isso.
+
+---
+
+## 🔧 Sessão 2026-05-01: Cashier Height Fix — Pés no Banquinho (final)
+
+### Problema
+Mesmo com `STOOL_HEIGHT=0.08`, o cashier continuava flutuando. Sintoma:
+"está flutuando, quero que ele fique em pé em cima do stool".
+
+### Causa raiz
+O `useMemo` que computava `scale`/`yPos` usava `Box3.setFromObject(gltf.scene)`,
+que retorna o bbox da geometria **NÃO-skinada** (em mesh-local space, com a
+rotação `+π/2 X` baked do mesh node). Como a mesh node tá rotacionada 90° em
+X mas as posições reais dos vértices são calculadas pelos bones (que têm
+rotação `-π/2 X` cancelando), o bbox vira "deitado":
+
+- `bbox.min.y ≈ -arm_radius` (em vez de 0 = pés no chão)
+- `bbox.max.y ≈ +arm_radius` (em vez de 1.7 = topo da cabeça)
+- `size.y ≈ chest_depth` (≈ 0.4) — usado como altura do modelo!
+
+Resultado: `scale = 1.65 / 0.4 ≈ 4.1` (modelo gigante) +
+`yPos = STOOL_HEIGHT - bbox.min.y * scale ≈ 0.9` (suspenso 90cm).
+
+### Solução
+Descartado o cálculo bbox. Constantes fixas baseadas em conhecimento do rig
+Mixamo (modelo upright tem pés ~y=0 em local space, ~1.7m de altura):
+
+```ts
+const STOOL_HEIGHT = 0.08;
+const SEAT_TOP_Y = STOOL_HEIGHT + 0.075; // topo do assento decorativo
+const CASHIER_SCALE = 1.0;
+
+// position={[x, SEAT_TOP_Y, z]} scale={CASHIER_SCALE}
+```
+
+### Resultado esperado
+- Pés do cashier exatamente no topo do banquinho (y ≈ 0.155)
+- Modelo em escala natural (1.7m) — cabeça visível ~0.55m acima do balcão
+- `useMemo` removido + `useMemo` import limpo
+
+### Arquivos alterados
+- `jubileu/src/BuildingBlocks.tsx` — Cashier sem bbox calc, valores fixos
+- `index.html` — rebuild reprodutível (3,959,107 bytes)
+
+### ⚠️ Lição aprendida (5)
+**`Box3.setFromObject` é INCORRETO pra SkinnedMesh**. Ele usa o
+`geometry.boundingBox` no mesh-local space (sem skinning); o modelo
+visualmente renderizado depende dos bones, então o bbox calculado não
+reflete a posição real dos pés/cabeça do personagem. Pra calcular bbox
+real de um SkinnedMesh, precisaria iterar bones ou calcular skin positions
+manualmente. Pra Mixamo characters, mais simples usar valores fixos.
