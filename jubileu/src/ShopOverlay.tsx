@@ -4,6 +4,10 @@ import {
   BELLHOP_CLEAN_FRAMES,
   BELLHOP_CLEAN_FRAME_W,
   BELLHOP_CLEAN_FRAME_H,
+  BELLHOP_TALK_STRIP,
+  BELLHOP_TALK_FRAMES,
+  BELLHOP_TALK_FRAME_W,
+  BELLHOP_TALK_FRAME_H,
   HOTEL_BG,
 } from './bellhop-sprites';
 
@@ -132,9 +136,21 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const showContent = phase === 'opening' || phase === 'idle';
   const contentOpacity = phase === 'opening' ? 0.85 : phase === 'idle' ? 1 : 0;
 
-  // Bellhop sprite cycles faster while talking (active gestures), slower
-  // when idle. CSS handles the actual stepping via animation-duration.
-  const cleanCycleMs = isTyping ? 480 : 760;
+  // Two animation modes for the bellhop:
+  //   • CLEAN: shown during the entrance ('opening' phase) — bellhop is
+  //     wiping the counter when the elevator doors open, like he didn't
+  //     notice the player yet.
+  //   • TALK: shown once we hit 'idle' — bellhop is now facing/addressing
+  //     the player. Mouth-open frames cycle to read as speaking.
+  const useTalk = phase === 'idle';
+  const stripUrl = useTalk ? BELLHOP_TALK_STRIP : BELLHOP_CLEAN_STRIP;
+  const frameW = useTalk ? BELLHOP_TALK_FRAME_W : BELLHOP_CLEAN_FRAME_W;
+  const frameH = useTalk ? BELLHOP_TALK_FRAME_H : BELLHOP_CLEAN_FRAME_H;
+  const frameCount = useTalk ? BELLHOP_TALK_FRAMES : BELLHOP_CLEAN_FRAMES;
+  // Cycle faster while text is being typed so the talking animation reads
+  // as actively speaking.
+  const cycleMs = useTalk ? (isTyping ? 280 : 520) : 760;
+  const animName = useTalk ? 'bellhopTalk' : 'bellhopClean';
 
   return (
     <div
@@ -180,22 +196,25 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 p-4 pb-6 max-w-3xl w-full">
-            {/* Animated bellhop — CSS sprite step animation */}
+            {/* Animated bellhop — CSS sprite step animation. Strip switches
+                between cleaning (entry) and talking (idle interaction). */}
             <div
               className="bellhop-sprite"
               aria-hidden
+              key={useTalk ? 'talk' : 'clean'}
               style={{
-                width: BELLHOP_CLEAN_FRAME_W,
-                height: BELLHOP_CLEAN_FRAME_H,
-                backgroundImage: `url(${BELLHOP_CLEAN_STRIP})`,
+                width: frameW,
+                height: frameH,
+                backgroundImage: `url(${stripUrl})`,
                 backgroundRepeat: 'no-repeat',
                 imageRendering: 'pixelated',
-                transform: phase === 'idle' ? 'scale(2.4) translateY(-14px)' : 'scale(2.0) translateY(20px)',
+                transform: phase === 'idle' ? 'scale(1.5) translateY(-6px)' : 'scale(1.35) translateY(20px)',
+                transformOrigin: 'center bottom',
                 opacity: phase === 'idle' ? 1 : 0,
                 transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
-                animation: `bellhopClean ${cleanCycleMs}ms steps(${BELLHOP_CLEAN_FRAMES}) infinite`,
+                animation: `${animName} ${cycleMs}ms steps(${frameCount}) infinite`,
                 filter: 'drop-shadow(0 10px 24px rgba(0,0,0,0.7))',
-                marginBottom: 16,
+                marginBottom: 18,
               }}
             />
 
@@ -281,6 +300,10 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         @keyframes bellhopClean {
           from { background-position-x: 0px; }
           to   { background-position-x: -${BELLHOP_CLEAN_FRAME_W * BELLHOP_CLEAN_FRAMES}px; }
+        }
+        @keyframes bellhopTalk {
+          from { background-position-x: 0px; }
+          to   { background-position-x: -${BELLHOP_TALK_FRAME_W * BELLHOP_TALK_FRAMES}px; }
         }
         @keyframes shopDoorInLeft {
           from { transform: translateX(-100%); }
