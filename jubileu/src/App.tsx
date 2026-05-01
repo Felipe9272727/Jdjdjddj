@@ -31,6 +31,7 @@ import { RobloxChat, BubbleChatFallback } from './ChatSystem';
 import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient } from './PostEffects';
 import { CeilingFan, WallClock, playArrivalDing, createElevatorHum } from './Atmosphere';
 import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue } from './HudComponents';
+import { SceneInspector } from './SceneInspector';
 
 
 const MAX_JOYSTICK_RADIUS = 50;
@@ -536,6 +537,7 @@ export default function App() {
                     houseDoorOpen={houseDoorOpen}
                 />
             )}
+            <SceneInspector />
         </Suspense>
       </Canvas>
       </CanvasErrorBoundary>
