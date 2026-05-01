@@ -202,9 +202,26 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
         }
     }, [actions, names]);
 
+    useEffect(() => {
+        // Force rotation on root bone
+        const hips = gltf.scene.getObjectByName('mixamorigHips');
+        if (hips) {
+            console.log('[Cashier] Hips BEFORE:', hips.rotation.y);
+            hips.rotation.y += Math.PI;
+            console.log('[Cashier] Hips AFTER:', hips.rotation.y);
+        }
+        // Also try rotating the mesh node
+        const mesh = gltf.scene.getObjectByName('tripo_node_b417e236');
+        if (mesh) {
+            console.log('[Cashier] Mesh BEFORE:', mesh.rotation.y);
+            mesh.rotation.y += Math.PI;
+            console.log('[Cashier] Mesh AFTER:', mesh.rotation.y);
+        }
+    }, [gltf.scene]);
+
     return (
         <group ref={groupRef} position={position} scale={[2, 2, 2]}>
-            <primitive key="cashier-rotated" object={gltf.scene} rotation={[0, Math.PI, 0]} />
+            <primitive object={gltf.scene} />
         </group>
     );
 });
