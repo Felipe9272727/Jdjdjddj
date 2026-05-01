@@ -1076,3 +1076,38 @@ A rotação `[0, Math.PI, 0]` no group não funcionava porque `useGLTF` cacheia 
 
 #### Commit
 - `28689c9` — fix(cashier): clone scene with SkeletonUtils + neutralize baked rotation on clone
+
+## 🔧 Sessão 2026-05-01: Cashier Rotation Fix (08:51-09:32 GMT+8)
+
+### Problema
+O balconista (Cashier) não rotacionava — todas as tentativas de girar o modelo falhavam.
+
+### Causa raiz
+O `<primitive>` do R3F gerencia o objeto Three.js internamente e **sobrescreve o transform** a cada frame. Qualquer `gltf.scene.rotation.set()` via `useEffect` era resetado.
+
+### Solução
+Passar `rotation` como **prop do `<primitive>`** em vez de setar no objeto diretamente:
+```tsx
+<primitive object={gltf.scene} rotation={[0, Math.PI / 2, 0]} />
+```
+
+### Por que funciona
+O R3F reconciler aplica props do `<primitive>` declarativamente a cada render — não é um side effect que pode ser resetado. É o jeito certo de rotacionar modelos GLB no React Three Fiber.
+
+### GLB structure (button_pushing.glb)
+- `tripo_node_b417e236` (mesh): rot [π/2, 0, 0] — 90° X baked (deitado)
+- `mixamorig:Hips` (root bone): rot [-π/2, 0, 0] — compensa o mesh
+- 1 animação: "mixamo.com" (21 tracks)
+- Escala: Mixamo default
+
+### Debug overlay (TEMPORÁRIO)
+- `CashierDebug` em `BuildingBlocks.tsx` + `LobbyEnv.tsx`
+- Mostra: URL, animações, rotação/posição da scene, todos os ossos e meshes
+- **REMOVER** quando o ajuste estiver finalizado
+
+### Commits
+- `d4c3dc1` — fix: rotation as prop to <primitive>
+- `8a7fbc4` — fix: rotate 90° Y to face left
+
+### ⚠️ Lição aprendida
+**No R3F, `<primitive object={scene}>` NÃO respeita `scene.rotation.set()` — o reconciler sobrescreve.** Sempre passar rotation/position/scale como props do `<primitive>`.
