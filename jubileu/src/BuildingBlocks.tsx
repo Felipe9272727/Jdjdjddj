@@ -220,8 +220,8 @@ export const Cashier = React.memo(({ position }: { position: [number, number, nu
             STOOL_HEIGHT - feetY,
             position[2]
         );
-        // Face -X (desk front direction)
-        groupRef.current.rotation.set(0, -Math.PI / 2, 0);
+        // Face +X side → model's -Z local (front) faces -X world (toward desk)
+        groupRef.current.rotation.set(0, Math.PI / 2, 0);
 
         laid.current = true;
     });

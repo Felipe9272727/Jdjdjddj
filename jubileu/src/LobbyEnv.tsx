@@ -95,8 +95,8 @@ export const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPo
             <Door x={-W/2+0.35} z={-5} rot={Math.PI/2} /> <Door x={-W/2+0.35} z={5} rot={Math.PI/2} /> <Door x={W/2-0.35} z={-5} rot={-Math.PI/2} /> <WallPanel x={-W/2+0.3} z={0} rot={Math.PI/2} />
             <CeilingLight x={-5} z={-3} /> <CeilingLight x={-5} z={3} /> <CeilingLight x={5} z={-3} /> <CeilingLight x={5} z={3} />
             <ReceptionDesk x={7} z={-7.5} rot={-Math.PI/2} />
-            <Stool x={7.2} z={-7.5} />
-            <Cashier position={[7.2, 0, -7.5]} />
+            <Stool x={7.7} z={-7.5} />
+            <Cashier position={[7.65, 0, -7.5]} />
             <Armchair x={-8.7} z={2} rot={Math.PI/2} color="#4E342E" />
             <Armchair x={-8.7} z={3.5} rot={Math.PI/2} color="#4E342E" />
             <Armchair x={-8.7} z={-2} rot={Math.PI/2} color="#5D4037" />

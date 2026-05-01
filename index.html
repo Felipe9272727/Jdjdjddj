@@ -96606,7 +96606,7 @@ const Cashier = React.memo(({ position }) => {
       STOOL_HEIGHT - feetY,
       position[2]
     );
-    groupRef.current.rotation.set(0, -Math.PI / 2, 0);
+    groupRef.current.rotation.set(0, Math.PI / 2, 0);
     laid.current = true;
   });
   return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) });
@@ -97468,8 +97468,8 @@ const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionR
     " ",
     /* @__PURE__ */ jsxRuntimeExports.jsx(CeilingLight, { x: 5, z: 3 }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(ReceptionDesk, { x: 7, z: -7.5, rot: -Math.PI / 2 }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Stool, { x: 7.2, z: -7.5 }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Cashier, { position: [7.2, 0, -7.5] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Stool, { x: 7.7, z: -7.5 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Cashier, { position: [7.65, 0, -7.5] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Armchair, { x: -8.7, z: 2, rot: Math.PI / 2, color: "#4E342E" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Armchair, { x: -8.7, z: 3.5, rot: Math.PI / 2, color: "#4E342E" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Armchair, { x: -8.7, z: -2, rot: Math.PI / 2, color: "#5D4037" }),
