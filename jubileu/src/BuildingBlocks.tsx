@@ -212,7 +212,7 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
 
     return (
         <group ref={groupRef} position={position} scale={[2, 2, 2]}>
-            <primitive object={gltf.scene} rotation={[0, Math.PI, 0]} />
+            <primitive object={gltf.scene} rotation={[0, Math.PI / 2, 0]} />
         </group>
     );
 });
