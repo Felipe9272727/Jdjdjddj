@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, useGLTF, useAnimations } from '@react-three/drei';
+import { Text, useGLTF, useAnimations, Html } from '@react-three/drei';
 import { TextureMaterial } from './Materials';
 import { ASSETS, COLORS } from './constants';
 import * as THREE from 'three';
@@ -215,6 +215,43 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
     return (
         <group ref={groupRef} position={position} scale={[2, 2, 2]}>
             <primitive object={gltf.scene} />
+        </group>
+    );
+});
+
+// ─── DEBUG: Cashier Model Inspector (TEMPORARY — remove after debugging) ──
+export const CashierDebug = React.memo(() => {
+    const gltf = useGLTF(CASHIER_GLB_URL);
+    const scene = gltf.scene;
+    const nodes: any[] = [];
+    scene.traverse((child: any) => {
+        nodes.push({
+            name: child.name || '(root)',
+            type: child.type,
+            isMesh: child.isMesh,
+            isBone: child.isBone,
+            rot: [child.rotation.x.toFixed(3), child.rotation.y.toFixed(3), child.rotation.z.toFixed(3)],
+            pos: [child.position.x.toFixed(3), child.position.y.toFixed(3), child.position.z.toFixed(3)],
+            scale: [child.scale.x.toFixed(3), child.scale.y.toFixed(3), child.scale.z.toFixed(3)],
+        });
+    });
+    return (
+        <group position={[0, 3, 0]}>
+            <Html center style={{ pointerEvents: 'none', width: '320px' }}>
+                <div style={{ background: 'rgba(0,0,0,0.9)', color: '#0f0', fontFamily: 'monospace', fontSize: '10px', padding: '8px', borderRadius: '6px', lineHeight: '1.4', maxHeight: '400px', overflow: 'auto' }}>
+                    <div style={{ color: '#ff0', fontWeight: 'bold', marginBottom: '4px' }}>🔍 CASHIER DEBUG</div>
+                    <div>URL: {CASHIER_GLB_URL.split('/').pop()}</div>
+                    <div>Animations: {gltf.animations.length} ({gltf.animations.map((a: any) => a.name).join(', ')})</div>
+                    <div>Scene rot: [{scene.rotation.x.toFixed(3)}, {scene.rotation.y.toFixed(3)}, {scene.rotation.z.toFixed(3)}]</div>
+                    <div>Scene pos: [{scene.position.x.toFixed(3)}, {scene.position.y.toFixed(3)}, {scene.position.z.toFixed(3)}]</div>
+                    <hr style={{ borderColor: '#333', margin: '4px 0' }} />
+                    {nodes.filter(n => n.isMesh || n.isBone).map((n, i) => (
+                        <div key={i} style={{ color: n.isBone ? '#0af' : '#0f0' }}>
+                            {n.isBone ? '🦴' : '📦'} {n.name} rot:[{n.rot.join(',')}] pos:[{n.pos.join(',')}]
+                        </div>
+                    ))}
+                </div>
+            </Html>
         </group>
     );
 });

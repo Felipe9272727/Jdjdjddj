@@ -96596,6 +96596,65 @@ const Cashier = React.memo(({ position }) => {
   }, [actions, names]);
   return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) });
 });
+const CashierDebug = React.memo(() => {
+  const gltf = useGLTF(CASHIER_GLB_URL);
+  const scene = gltf.scene;
+  const nodes = [];
+  scene.traverse((child) => {
+    nodes.push({
+      name: child.name || "(root)",
+      type: child.type,
+      isMesh: child.isMesh,
+      isBone: child.isBone,
+      rot: [child.rotation.x.toFixed(3), child.rotation.y.toFixed(3), child.rotation.z.toFixed(3)],
+      pos: [child.position.x.toFixed(3), child.position.y.toFixed(3), child.position.z.toFixed(3)],
+      scale: [child.scale.x.toFixed(3), child.scale.y.toFixed(3), child.scale.z.toFixed(3)]
+    });
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [0, 3, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, style: { pointerEvents: "none", width: "320px" }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { background: "rgba(0,0,0,0.9)", color: "#0f0", fontFamily: "monospace", fontSize: "10px", padding: "8px", borderRadius: "6px", lineHeight: "1.4", maxHeight: "400px", overflow: "auto" }, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { color: "#ff0", fontWeight: "bold", marginBottom: "4px" }, children: "🔍 CASHIER DEBUG" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+      "URL: ",
+      CASHIER_GLB_URL.split("/").pop()
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+      "Animations: ",
+      gltf.animations.length,
+      " (",
+      gltf.animations.map((a2) => a2.name).join(", "),
+      ")"
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+      "Scene rot: [",
+      scene.rotation.x.toFixed(3),
+      ", ",
+      scene.rotation.y.toFixed(3),
+      ", ",
+      scene.rotation.z.toFixed(3),
+      "]"
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+      "Scene pos: [",
+      scene.position.x.toFixed(3),
+      ", ",
+      scene.position.y.toFixed(3),
+      ", ",
+      scene.position.z.toFixed(3),
+      "]"
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("hr", { style: { borderColor: "#333", margin: "4px 0" } }),
+    nodes.filter((n) => n.isMesh || n.isBone).map((n, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { color: n.isBone ? "#0af" : "#0f0" }, children: [
+      n.isBone ? "🦴" : "📦",
+      " ",
+      n.name,
+      " rot:[",
+      n.rot.join(","),
+      "] pos:[",
+      n.pos.join(","),
+      "]"
+    ] }, i2))
+  ] }) }) });
+});
 const ElevatorDoors = React.memo(({ closed }) => {
   const leftRef = reactExports.useRef(null);
   const rightRef = reactExports.useRef(null);
@@ -97431,6 +97490,7 @@ const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionR
     " ",
     /* @__PURE__ */ jsxRuntimeExports.jsx(CeilingLight, { x: 5, z: 3 }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(ReceptionDesk, { x: 7, z: -7.5, rot: -Math.PI / 2 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(CashierDebug, {}),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Armchair, { x: -8.7, z: 2, rot: Math.PI / 2, color: "#4E342E" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Armchair, { x: -8.7, z: 3.5, rot: Math.PI / 2, color: "#4E342E" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Armchair, { x: -8.7, z: -2, rot: Math.PI / 2, color: "#5D4037" }),
