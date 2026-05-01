@@ -196,14 +196,6 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
     const { actions, names } = useAnimations(gltf.animations, groupRef);
 
     useEffect(() => {
-        gltf.scene.traverse((child: any) => {
-            if (child.isMesh) {
-                child.rotation.set(0, 0, 0);
-            }
-        });
-    }, [gltf.scene]);
-
-    useEffect(() => {
         const first = names[0];
         if (first && actions[first]) {
             actions[first].reset().fadeIn(0.4).play();
