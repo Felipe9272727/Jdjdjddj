@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, useGLTF, useAnimations, Html } from '@react-three/drei';
+import { Text, useGLTF, useAnimations } from '@react-three/drei';
 import { TextureMaterial } from './Materials';
 import { ASSETS, COLORS } from './constants';
 import * as THREE from 'three';
@@ -173,28 +173,25 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
             </mesh>
         </group>
 
-        {/* Balconista — Roblox-style placeholder. Stands behind the desk,
-            facing the player (the desk's front is +Z local), wiping the
-            counter top in a slow loop. SWAP TO GLB: replace this <Cashier/>
-            with <primitive object={glbScene} scale=... position=... /> and
-            remove the procedural arm-wipe useFrame — the GLB ships its own
-            cleaning animation. */}
-        <Cashier position={[0, 0.5, -1.5]} />
+        {/* Cashier was here — moved outside desk group for proper world-space positioning */}
     </group>
 ));
 
-// ─── Balconista (Cashier) — Mixamo-rigged FBX with cleaning loop ─────────
-// Mixamo's FBX scale varies (sometimes cm, sometimes m, sometimes a custom
-// armature unit). We don't trust the source scale — instead, on mount we
-// measure the model's bounding box and normalize so the body is exactly
-// CASHIER_HEIGHT_M tall, then offset Y so the lowest vertex sits on y=0.
-// Console logs the measured size/scale so we can verify the placement.
+// ─── Balconista (Cashier) — Mixamo-rigged GLB with button-pushing animation ──
+// Mixamo models have baked rotations (Hips -90°X, mesh node +90°X) that we
+// MUST preserve — they convert Mixamo's Y-up to Three.js conventions.
+// We normalize height via bounding box so the model stands at human scale
+// behind the reception desk regardless of the GLB's native unit system.
 
-const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
+const CASHIER_TARGET_HEIGHT = 1.65; // meters — humanoid height behind desk
+
+export const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
     const groupRef = useRef<any>(null);
     const { actions, names } = useAnimations(gltf.animations, groupRef);
+    const layoutDone = useRef(false);
 
+    // Play the first animation (button pushing / idle)
     useEffect(() => {
         const first = names[0];
         if (first && actions[first]) {
@@ -202,55 +199,36 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
         }
     }, [actions, names]);
 
+    // Normalize height via bounding-box (once, on mount).
+    // Computes uniform scale so model is CASHIER_TARGET_HEIGHT tall,
+    // then offsets Y so the feet sit on y=0.
     useEffect(() => {
-        // Zero ALL baked rotations to see default facing direction
-        gltf.scene.traverse((child: any) => {
-            if (child.isMesh || child.isBone) {
-                child.rotation.set(0, 0, 0);
-            }
-        });
-    }, [gltf.scene]);
+        if (layoutDone.current || !groupRef.current) return;
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        if (size.y === 0) return;
 
+        const uniformScale = CASHIER_TARGET_HEIGHT / size.y;
+
+        groupRef.current.scale.setScalar(uniformScale);
+        // Place model so its lowest vertex (in world) sits at y=0
+        groupRef.current.position.set(
+            position[0],
+            -box.min.y * uniformScale,
+            position[2]
+        );
+
+        layoutDone.current = true;
+    }, [gltf.scene, position]);
+
+    // Model faces -Z in world space after Mixamo bone rotations.
+    // Desk front faces -X, so rotate -90° Y to align model with desk.
     return (
-        <group ref={groupRef} position={position} scale={[2, 2, 2]}>
+        <group ref={groupRef} position={position} rotation={[0, -Math.PI / 2, 0]}>
             <primitive object={gltf.scene} />
         </group>
     );
 });
 
-// ─── DEBUG: Cashier Model Inspector (TEMPORARY — remove after debugging) ──
-export const CashierDebug = React.memo(() => {
-    const gltf = useGLTF(CASHIER_GLB_URL);
-    const scene = gltf.scene;
-    const nodes: any[] = [];
-    scene.traverse((child: any) => {
-        nodes.push({
-            name: child.name || '(root)',
-            type: child.type,
-            isMesh: child.isMesh,
-            isBone: child.isBone,
-            rot: [child.rotation.x.toFixed(3), child.rotation.y.toFixed(3), child.rotation.z.toFixed(3)],
-            pos: [child.position.x.toFixed(3), child.position.y.toFixed(3), child.position.z.toFixed(3)],
-            scale: [child.scale.x.toFixed(3), child.scale.y.toFixed(3), child.scale.z.toFixed(3)],
-        });
-    });
-    return (
-        <group position={[0, 3, 0]}>
-            <Html center style={{ pointerEvents: 'none', width: '320px' }}>
-                <div style={{ background: 'rgba(0,0,0,0.9)', color: '#0f0', fontFamily: 'monospace', fontSize: '10px', padding: '8px', borderRadius: '6px', lineHeight: '1.4', maxHeight: '400px', overflow: 'auto' }}>
-                    <div style={{ color: '#ff0', fontWeight: 'bold', marginBottom: '4px' }}>🔍 CASHIER DEBUG</div>
-                    <div>URL: {CASHIER_GLB_URL.split('/').pop()}</div>
-                    <div>Animations: {gltf.animations.length} ({gltf.animations.map((a: any) => a.name).join(', ')})</div>
-                    <div>Scene rot: [{scene.rotation.x.toFixed(3)}, {scene.rotation.y.toFixed(3)}, {scene.rotation.z.toFixed(3)}]</div>
-                    <div>Scene pos: [{scene.position.x.toFixed(3)}, {scene.position.y.toFixed(3)}, {scene.position.z.toFixed(3)}]</div>
-                    <hr style={{ borderColor: '#333', margin: '4px 0' }} />
-                    {nodes.filter(n => n.isMesh || n.isBone).map((n, i) => (
-                        <div key={i} style={{ color: n.isBone ? '#0af' : '#0f0' }}>
-                            {n.isBone ? '🦴' : '📦'} {n.name} rot:[{n.rot.join(',')}] pos:[{n.pos.join(',')}]
-                        </div>
-                    ))}
-                </div>
-            </Html>
-        </group>
-    );
-});
+
