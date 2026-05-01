@@ -96584,32 +96584,32 @@ const Cashier = React.memo(({ position }) => {
   const gltf = useGLTF(CASHIER_GLB_URL);
   const groupRef = reactExports.useRef(null);
   const { actions, names } = useAnimations(gltf.animations, groupRef);
-  const layoutDone = reactExports.useRef(false);
+  const laid = reactExports.useRef(false);
   reactExports.useEffect(() => {
     const first2 = names[0];
     if (first2 && actions[first2]) {
       actions[first2].reset().fadeIn(0.4).play();
     }
   }, [actions, names]);
-  reactExports.useEffect(() => {
-    if (layoutDone.current || !groupRef.current) return;
-    const box = new Box3().setFromObject(gltf.scene);
+  useFrame(() => {
+    if (laid.current || !groupRef.current) return;
+    const scene = gltf.scene;
+    const box = new Box3().setFromObject(scene);
     const size = new Vector3();
     box.getSize(size);
-    if (size.y === 0) return;
-    const uniformScale = CASHIER_TARGET_HEIGHT / size.y;
-    groupRef.current.scale.setScalar(uniformScale);
-    const scaledBox = new Box3().setFromObject(gltf.scene);
-    scaledBox.min.multiplyScalar(uniformScale);
-    scaledBox.max.multiplyScalar(uniformScale);
+    if (size.y < 0.01) return;
+    const s = CASHIER_TARGET_HEIGHT / size.y;
+    groupRef.current.scale.setScalar(s);
+    const feetY = box.min.y * s;
     groupRef.current.position.set(
       position[0],
-      STOOL_HEIGHT - scaledBox.min.y,
+      STOOL_HEIGHT - feetY,
       position[2]
     );
-    layoutDone.current = true;
-  }, [gltf.scene]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, rotation: [0, -Math.PI / 2, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) });
+    groupRef.current.rotation.set(0, -Math.PI / 2, 0);
+    laid.current = true;
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) });
 });
 const Stool = React.memo(({ x: x2, z }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, 0, z], children: [
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, STOOL_HEIGHT, 0], children: [
@@ -97468,8 +97468,8 @@ const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionR
     " ",
     /* @__PURE__ */ jsxRuntimeExports.jsx(CeilingLight, { x: 5, z: 3 }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(ReceptionDesk, { x: 7, z: -7.5, rot: -Math.PI / 2 }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Stool, { x: 7.5, z: -7.5 }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Cashier, { position: [7.5, 0, -7.5] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Stool, { x: 7.2, z: -7.5 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Cashier, { position: [7.2, 0, -7.5] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Armchair, { x: -8.7, z: 2, rot: Math.PI / 2, color: "#4E342E" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Armchair, { x: -8.7, z: 3.5, rot: Math.PI / 2, color: "#4E342E" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Armchair, { x: -8.7, z: -2, rot: Math.PI / 2, color: "#5D4037" }),

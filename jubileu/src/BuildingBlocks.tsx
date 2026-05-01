@@ -183,16 +183,15 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 // We normalize height via bounding box so the model stands at human scale
 // behind the reception desk regardless of the GLB's native unit system.
 
-const CASHIER_TARGET_HEIGHT = 1.65; // meters — humanoid height behind desk
-const STOOL_HEIGHT = 0.22;          // seat height — how high the cashier sits
+const CASHIER_TARGET_HEIGHT = 1.65;
+const STOOL_HEIGHT = 0.22;
 
 export const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
     const groupRef = useRef<any>(null);
     const { actions, names } = useAnimations(gltf.animations, groupRef);
-    const layoutDone = useRef(false);
+    const laid = useRef(false);
 
-    // Play the first animation (button pushing / cleaning)
     useEffect(() => {
         const first = names[0];
         if (first && actions[first]) {
@@ -200,38 +199,37 @@ export const Cashier = React.memo(({ position }: { position: [number, number, nu
         }
     }, [actions, names]);
 
-    // Normalize height via bounding-box (once, on mount).
-    // Scale model to CASHIER_TARGET_HEIGHT, then lift by STOOL_HEIGHT
-    // so the character appears to sit on the stool wiping the counter.
-    useEffect(() => {
-        if (layoutDone.current || !groupRef.current) return;
-        const box = new THREE.Box3().setFromObject(gltf.scene);
+    // Layout: scale + position — runs once via useFrame to guarantee
+    // it happens AFTER the first render (ref is attached).
+    useFrame(() => {
+        if (laid.current || !groupRef.current) return;
+        const scene = gltf.scene;
+        const box = new THREE.Box3().setFromObject(scene);
         const size = new THREE.Vector3();
         box.getSize(size);
-        if (size.y === 0) return;
+        if (size.y < 0.01) return;
 
-        const uniformScale = CASHIER_TARGET_HEIGHT / size.y;
-        groupRef.current.scale.setScalar(uniformScale);
+        const s = CASHIER_TARGET_HEIGHT / size.y;
+        groupRef.current.scale.setScalar(s);
 
-        // Recalculate box at new scale
-        const scaledBox = new THREE.Box3().setFromObject(gltf.scene);
-        scaledBox.min.multiplyScalar(uniformScale);
-        scaledBox.max.multiplyScalar(uniformScale);
-
-        // Place feet on top of stool: stool seat at STOOL_HEIGHT
+        // scaled min Y (feet offset from origin)
+        const feetY = box.min.y * s;
+        // Place feet on stool seat
         groupRef.current.position.set(
             position[0],
-            STOOL_HEIGHT - scaledBox.min.y,
+            STOOL_HEIGHT - feetY,
             position[2]
         );
+        // Face -X (desk front direction)
+        groupRef.current.rotation.set(0, -Math.PI / 2, 0);
 
-        layoutDone.current = true;
-    }, [gltf.scene]);
+        laid.current = true;
+    });
 
-    // Model faces -Z in world space after Mixamo bone rotations.
-    // Desk front faces -X, so rotate -90° Y to align model with desk.
+    // Don't pass position/rotation as props — useFrame handles it.
+    // Use a neutral position so the group exists in the scene graph.
     return (
-        <group ref={groupRef} position={position} rotation={[0, -Math.PI / 2, 0]}>
+        <group ref={groupRef}>
             <primitive object={gltf.scene} />
         </group>
     );
