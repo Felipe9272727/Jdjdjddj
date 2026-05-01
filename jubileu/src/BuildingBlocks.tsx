@@ -193,26 +193,41 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 
 const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
-    const groupRef = useRef<any>(null);
 
-    // Clone the scene so each instance has its own copy (useGLTF caches the original)
-    const scene = useMemo(() => {
+    // Clone scene + animations so we don't mutate the cached original
+    const { scene: clonedScene, clips } = useMemo(() => {
         const clone = SkeletonUtils.clone(gltf.scene);
-        // Neutralize the baked 90° X rotation on every mesh
+        // Neutralize baked mesh rotations
         clone.traverse((child: any) => {
             if (child.isMesh) {
-                console.log('[Cashier] mesh:', child.name, 'rotation before:', child.rotation.x, child.rotation.y, child.rotation.z);
                 child.rotation.set(0, 0, 0);
             }
         });
-        console.log('[Cashier] clone children:', clone.children.map((c: any) => c.name));
-        console.log('[Cashier] clone position:', clone.position.x, clone.position.y, clone.position.z);
-        console.log('[Cashier] clone rotation:', clone.rotation.x, clone.rotation.y, clone.rotation.z);
-        console.log('[Cashier] clone scale:', clone.scale.x, clone.scale.y, clone.scale.z);
-        return clone;
-    }, [gltf.scene]);
+        // Face the player: rotate the entire clone 180° on Y
+        clone.rotation.set(0, Math.PI, 0);
+        // Rebind animation tracks to cloned node names
+        const clips = gltf.animations.map((clip: any) => {
+            const newClip = clip.clone();
+            newClip.tracks.forEach((track: any) => {
+                // PropertyBinding format: "nodeName.property"
+                const dot = track.name.indexOf('.');
+                if (dot !== -1) {
+                    const nodeName = track.name.substring(0, dot);
+                    const prop = track.name.substring(dot);
+                    // Check if this node exists in the clone
+                    const cloneNode = clone.getObjectByName(nodeName);
+                    if (cloneNode) {
+                        track.name = nodeName + prop; // stays the same, but confirms binding
+                    }
+                }
+            });
+            return newClip;
+        });
+        return { scene: clone, clips };
+    }, [gltf.scene, gltf.animations]);
 
-    const { actions, names } = useAnimations(gltf.animations, groupRef);
+    const groupRef = useRef<any>(null);
+    const { actions, names } = useAnimations(clips, groupRef);
 
     useEffect(() => {
         const first = names[0];
@@ -221,28 +236,9 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
         }
     }, [actions, names]);
 
-    // DEBUG: log group world rotation after mount
-    useEffect(() => {
-        if (groupRef.current) {
-            const g = groupRef.current;
-            g.updateWorldMatrix(true, false);
-            const euler = new THREE.Euler();
-            euler.setFromQuaternion(g.getWorldQuaternion(new THREE.Quaternion()));
-            console.log('[Cashier] GROUP world rotation:', euler.x, euler.y, euler.z);
-            console.log('[Cashier] GROUP local rotation:', g.rotation.x, g.rotation.y, g.rotation.z);
-            console.log('[Cashier] GROUP position:', g.position.x, g.position.y, g.position.z);
-            console.log('[Cashier] GROUP children count:', g.children.length);
-            g.children.forEach((c: any, i: number) => {
-                console.log(`[Cashier] child ${i}:`, c.name || 'unnamed', 'type:', c.type, 'rotation:', c.rotation.x, c.rotation.y, c.rotation.z);
-            });
-        }
-    }, []);
-
     return (
-        <group ref={groupRef} position={position} rotation={[0, Math.PI, 0]} scale={[2, 2, 2]}>
-            <primitive object={scene} />
-            {/* DEBUG: red arrow showing forward direction */}
-            <arrowHelper args={[new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1.5, 0), 1.5, 0xff0000]} />
+        <group ref={groupRef} position={position} scale={[2, 2, 2]}>
+            <primitive object={clonedScene} />
         </group>
     );
 });

@@ -96578,47 +96578,40 @@ const ReceptionDesk = React.memo(({ x: x2, z, rot = 0 }) => /* @__PURE__ */ jsxR
 ] }));
 const Cashier = React.memo(({ position }) => {
   const gltf = useGLTF(CASHIER_GLB_URL);
-  const groupRef = reactExports.useRef(null);
-  const scene = reactExports.useMemo(() => {
+  const { scene: clonedScene, clips } = reactExports.useMemo(() => {
     const clone2 = SkeletonUtils.clone(gltf.scene);
     clone2.traverse((child) => {
       if (child.isMesh) {
-        console.log("[Cashier] mesh:", child.name, "rotation before:", child.rotation.x, child.rotation.y, child.rotation.z);
         child.rotation.set(0, 0, 0);
       }
     });
-    console.log("[Cashier] clone children:", clone2.children.map((c2) => c2.name));
-    console.log("[Cashier] clone position:", clone2.position.x, clone2.position.y, clone2.position.z);
-    console.log("[Cashier] clone rotation:", clone2.rotation.x, clone2.rotation.y, clone2.rotation.z);
-    console.log("[Cashier] clone scale:", clone2.scale.x, clone2.scale.y, clone2.scale.z);
-    return clone2;
-  }, [gltf.scene]);
-  const { actions, names } = useAnimations(gltf.animations, groupRef);
+    clone2.rotation.set(0, Math.PI, 0);
+    const clips2 = gltf.animations.map((clip) => {
+      const newClip = clip.clone();
+      newClip.tracks.forEach((track) => {
+        const dot = track.name.indexOf(".");
+        if (dot !== -1) {
+          const nodeName = track.name.substring(0, dot);
+          const prop = track.name.substring(dot);
+          const cloneNode = clone2.getObjectByName(nodeName);
+          if (cloneNode) {
+            track.name = nodeName + prop;
+          }
+        }
+      });
+      return newClip;
+    });
+    return { scene: clone2, clips: clips2 };
+  }, [gltf.scene, gltf.animations]);
+  const groupRef = reactExports.useRef(null);
+  const { actions, names } = useAnimations(clips, groupRef);
   reactExports.useEffect(() => {
     const first2 = names[0];
     if (first2 && actions[first2]) {
       actions[first2].reset().fadeIn(0.4).play();
     }
   }, [actions, names]);
-  reactExports.useEffect(() => {
-    if (groupRef.current) {
-      const g2 = groupRef.current;
-      g2.updateWorldMatrix(true, false);
-      const euler = new Euler();
-      euler.setFromQuaternion(g2.getWorldQuaternion(new Quaternion()));
-      console.log("[Cashier] GROUP world rotation:", euler.x, euler.y, euler.z);
-      console.log("[Cashier] GROUP local rotation:", g2.rotation.x, g2.rotation.y, g2.rotation.z);
-      console.log("[Cashier] GROUP position:", g2.position.x, g2.position.y, g2.position.z);
-      console.log("[Cashier] GROUP children count:", g2.children.length);
-      g2.children.forEach((c2, i2) => {
-        console.log(`[Cashier] child ${i2}:`, c2.name || "unnamed", "type:", c2.type, "rotation:", c2.rotation.x, c2.rotation.y, c2.rotation.z);
-      });
-    }
-  }, []);
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, position, rotation: [0, Math.PI, 0], scale: [2, 2, 2], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("arrowHelper", { args: [new Vector3(0, 0, 1), new Vector3(0, 1.5, 0), 1.5, 16711680] })
-  ] });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene }) });
 });
 const ElevatorDoors = React.memo(({ closed }) => {
   const leftRef = reactExports.useRef(null);
