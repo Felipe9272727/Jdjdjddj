@@ -194,50 +194,40 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
 
-    // Clone scene + animations so we don't mutate the cached original
-    const { scene: clonedScene, clips } = useMemo(() => {
+    // Clone scene
+    const clonedScene = useMemo(() => {
         const clone = SkeletonUtils.clone(gltf.scene);
-        // Neutralize baked mesh rotations
         clone.traverse((child: any) => {
             if (child.isMesh) {
                 child.rotation.set(0, 0, 0);
             }
         });
-        // Face the player: rotate the entire clone 180° on Y
-        clone.rotation.set(0, Math.PI, 0);
-        // Rebind animation tracks to cloned node names
-        const clips = gltf.animations.map((clip: any) => {
-            const newClip = clip.clone();
-            newClip.tracks.forEach((track: any) => {
-                // PropertyBinding format: "nodeName.property"
-                const dot = track.name.indexOf('.');
-                if (dot !== -1) {
-                    const nodeName = track.name.substring(0, dot);
-                    const prop = track.name.substring(dot);
-                    // Check if this node exists in the clone
-                    const cloneNode = clone.getObjectByName(nodeName);
-                    if (cloneNode) {
-                        track.name = nodeName + prop; // stays the same, but confirms binding
-                    }
-                }
-            });
-            return newClip;
-        });
-        return { scene: clone, clips };
-    }, [gltf.scene, gltf.animations]);
+        return clone;
+    }, [gltf.scene]);
 
-    const groupRef = useRef<any>(null);
-    const { actions, names } = useAnimations(clips, groupRef);
-
+    // Rotate the clone itself
     useEffect(() => {
-        const first = names[0];
-        if (first && actions[first]) {
-            actions[first].reset().fadeIn(0.4).play();
-        }
-    }, [actions, names]);
+        clonedScene.rotation.set(0, Math.PI, 0);
+        console.log('[Cashier] clone rotation set to:', clonedScene.rotation.y);
+        // Verify after 1 second
+        setTimeout(() => {
+            console.log('[Cashier] clone rotation after 1s:', clonedScene.rotation.y);
+            console.log('[Cashier] clone matrix:', clonedScene.matrix.elements);
+        }, 1000);
+    }, [clonedScene]);
+
+    // Animation DISABLED for debugging
+    // const groupRef = useRef<any>(null);
+    // const { actions, names } = useAnimations(gltf.animations, groupRef);
+    // useEffect(() => {
+    //     const first = names[0];
+    //     if (first && actions[first]) {
+    //         actions[first].reset().fadeIn(0.4).play();
+    //     }
+    // }, [actions, names]);
 
     return (
-        <group ref={groupRef} position={position} scale={[2, 2, 2]}>
+        <group position={position} scale={[2, 2, 2]}>
             <primitive object={clonedScene} />
         </group>
     );

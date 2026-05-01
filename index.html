@@ -96578,40 +96578,24 @@ const ReceptionDesk = React.memo(({ x: x2, z, rot = 0 }) => /* @__PURE__ */ jsxR
 ] }));
 const Cashier = React.memo(({ position }) => {
   const gltf = useGLTF(CASHIER_GLB_URL);
-  const { scene: clonedScene, clips } = reactExports.useMemo(() => {
+  const clonedScene = reactExports.useMemo(() => {
     const clone2 = SkeletonUtils.clone(gltf.scene);
     clone2.traverse((child) => {
       if (child.isMesh) {
         child.rotation.set(0, 0, 0);
       }
     });
-    clone2.rotation.set(0, Math.PI, 0);
-    const clips2 = gltf.animations.map((clip) => {
-      const newClip = clip.clone();
-      newClip.tracks.forEach((track) => {
-        const dot = track.name.indexOf(".");
-        if (dot !== -1) {
-          const nodeName = track.name.substring(0, dot);
-          const prop = track.name.substring(dot);
-          const cloneNode = clone2.getObjectByName(nodeName);
-          if (cloneNode) {
-            track.name = nodeName + prop;
-          }
-        }
-      });
-      return newClip;
-    });
-    return { scene: clone2, clips: clips2 };
-  }, [gltf.scene, gltf.animations]);
-  const groupRef = reactExports.useRef(null);
-  const { actions, names } = useAnimations(clips, groupRef);
+    return clone2;
+  }, [gltf.scene]);
   reactExports.useEffect(() => {
-    const first2 = names[0];
-    if (first2 && actions[first2]) {
-      actions[first2].reset().fadeIn(0.4).play();
-    }
-  }, [actions, names]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene }) });
+    clonedScene.rotation.set(0, Math.PI, 0);
+    console.log("[Cashier] clone rotation set to:", clonedScene.rotation.y);
+    setTimeout(() => {
+      console.log("[Cashier] clone rotation after 1s:", clonedScene.rotation.y);
+      console.log("[Cashier] clone matrix:", clonedScene.matrix.elements);
+    }, 1e3);
+  }, [clonedScene]);
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position, scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene }) });
 });
 const ElevatorDoors = React.memo(({ closed }) => {
   const leftRef = reactExports.useRef(null);
