@@ -96578,8 +96578,16 @@ const ReceptionDesk = React.memo(({ x: x2, z, rot = 0 }) => /* @__PURE__ */ jsxR
 ] }));
 const Cashier = React.memo(({ position }) => {
   const gltf = useGLTF(CASHIER_GLB_URL);
-  const clonedScene = reactExports.useMemo(() => gltf.scene.clone(true), [gltf.scene]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position, rotation: [0, Math.PI, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene, scale: 2 }) });
+  const groupRef = reactExports.useRef(null);
+  const clonedScene = reactExports.useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
+  const { actions, names } = useAnimations(gltf.animations, groupRef);
+  reactExports.useEffect(() => {
+    const first2 = names[0];
+    if (first2 && actions[first2]) {
+      actions[first2].reset().fadeIn(0.4).play();
+    }
+  }, [actions, names]);
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, rotation: [0, Math.PI, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene, scale: 2 }) });
 });
 const ElevatorDoors = React.memo(({ closed }) => {
   const leftRef = reactExports.useRef(null);
