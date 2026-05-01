@@ -1,10 +1,9 @@
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text, useGLTF, useAnimations } from '@react-three/drei';
 import { TextureMaterial } from './Materials';
 import { ASSETS, COLORS } from './constants';
 import * as THREE from 'three';
-import { SkeletonUtils } from 'three-stdlib';
 
 // Cashier — Mixamo-rigged GLB (converted from Button Pushing.fbx).
 // The model is roughly humanoid scale (~1.7 units tall) so it sits naturally
@@ -194,12 +193,17 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
     const groupRef = useRef<any>(null);
-
-    // SkeletonUtils.clone for skinned meshes (Mixamo rigs have bones)
-    const clonedScene = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
-
-    // Bind animations to the cloned scene via the group ref
     const { actions, names } = useAnimations(gltf.animations, groupRef);
+
+    useEffect(() => {
+        gltf.scene.traverse((child: any) => {
+            if (child.isMesh) {
+                child.rotation.set(0, 0, 0);
+            }
+        });
+        // Rotate the entire scene root to face the player
+        gltf.scene.rotation.set(0, Math.PI, 0);
+    }, [gltf.scene]);
 
     useEffect(() => {
         const first = names[0];
@@ -209,8 +213,8 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
     }, [actions, names]);
 
     return (
-        <group ref={groupRef} position={position} rotation={[0, Math.PI, 0]}>
-            <primitive object={clonedScene} scale={2} />
+        <group ref={groupRef} position={position} scale={[2, 2, 2]}>
+            <primitive object={gltf.scene} />
         </group>
     );
 });
