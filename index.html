@@ -96579,21 +96579,23 @@ const ReceptionDesk = React.memo(({ x: x2, z, rot = 0 }) => /* @__PURE__ */ jsxR
 const Cashier = React.memo(({ position }) => {
   const gltf = useGLTF(CASHIER_GLB_URL);
   const groupRef = reactExports.useRef(null);
-  const { actions, names } = useAnimations(gltf.animations, groupRef);
-  reactExports.useEffect(() => {
-    gltf.scene.traverse((child) => {
+  const scene = reactExports.useMemo(() => {
+    const clone2 = SkeletonUtils.clone(gltf.scene);
+    clone2.traverse((child) => {
       if (child.isMesh) {
         child.rotation.set(0, 0, 0);
       }
     });
+    return clone2;
   }, [gltf.scene]);
+  const { actions, names } = useAnimations(gltf.animations, groupRef);
   reactExports.useEffect(() => {
     const first2 = names[0];
     if (first2 && actions[first2]) {
       actions[first2].reset().fadeIn(0.4).play();
     }
   }, [actions, names]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, rotation: [0, Math.PI, 0], scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: gltf.scene }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, rotation: [0, Math.PI, 0], scale: [2, 2, 2], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene }) });
 });
 const ElevatorDoors = React.memo(({ closed }) => {
   const leftRef = reactExports.useRef(null);

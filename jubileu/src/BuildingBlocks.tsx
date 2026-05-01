@@ -194,17 +194,20 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
     const groupRef = useRef<any>(null);
-    const { actions, names } = useAnimations(gltf.animations, groupRef);
 
-    // Neutralize the baked 90° X rotation on the mesh node,
-    // then apply our own 180° Y so the model faces the player.
-    useEffect(() => {
-        gltf.scene.traverse((child: any) => {
+    // Clone the scene so each instance has its own copy (useGLTF caches the original)
+    const scene = useMemo(() => {
+        const clone = SkeletonUtils.clone(gltf.scene);
+        // Neutralize the baked 90° X rotation on every mesh
+        clone.traverse((child: any) => {
             if (child.isMesh) {
                 child.rotation.set(0, 0, 0);
             }
         });
+        return clone;
     }, [gltf.scene]);
+
+    const { actions, names } = useAnimations(gltf.animations, groupRef);
 
     useEffect(() => {
         const first = names[0];
@@ -215,7 +218,7 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
 
     return (
         <group ref={groupRef} position={position} rotation={[0, Math.PI, 0]} scale={[2, 2, 2]}>
-            <primitive object={gltf.scene} />
+            <primitive object={scene} />
         </group>
     );
 });
