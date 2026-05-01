@@ -8,19 +8,29 @@ import {
   BELLHOP_TALK_FRAMES,
   BELLHOP_TALK_FRAME_W,
   BELLHOP_TALK_FRAME_H,
+  BELLHOP_IDLE_STRIP,
+  BELLHOP_IDLE_FRAME_W,
+  BELLHOP_IDLE_FRAME_H,
   HOTEL_BG,
 } from './bellhop-sprites';
 
 // ─── Bellhop Shop — Undertale-style overlay with elevator entrance ─────────
-// Phases of the overlay lifecycle:
-//   'closing'   — two elevator doors slide in from the sides toward center
-//   'arrived'   — doors meet, brief darkness with a "ding" highlight
+// Phase chain (open → close):
+//   'closing'   — two elevator doors slide in from the sides (covering screen)
+//   'arrived'   — doors meet, brief darkness with a "DING" highlight
 //   'opening'   — doors slide back out, revealing the shop content
-//   'idle'      — shop interactive, dialog typing, bellhop wiping counter
+//   'idle'      — shop interactive: dialog typewriter + menu buttons
 //   'exit-close'— doors close again on Esc/Tchau, then unmount
-// Sprites + bg are inlined as base64 (see bellhop-sprites.ts) so the build
-// is self-contained. The bellhop animates via a CSS sprite strip — the
-// `background-position-x` steps through 4 frames.
+//
+// Sprite logic:
+//   • CLEAN strip animates only during the entrance reveal — bellhop is
+//     wiping the counter when the elevator opens (he hasn't noticed the
+//     player yet). 4 frames cycling.
+//   • IDLE strip — frame 0 static (mouth CLOSED). Shown when in 'idle' phase
+//     and the dialog is NOT typing. Bellhop is calmly waiting for input.
+//   • TALK strip animates only while text is being typed. Mouth-open frames
+//     cycle to read as active speech.
+// All assets are inlined as base64 (see bellhop-sprites.ts).
 
 type ShopMenu = 'main' | 'talk' | 'bye';
 type Phase = 'closing' | 'arrived' | 'opening' | 'idle' | 'exit-close';
@@ -31,9 +41,9 @@ interface ShopOverlayProps {
 }
 
 const DIALOGUES: Record<ShopMenu, string> = {
-  main: 'Bem-vindo ao The Normal Hotel!\nPosso te ajudar?',
+  main: 'Bem-vindo ao The Normal Hotel.\nPosso te ajudar?',
   talk: 'Tenha uma ótima estadia... e fique calmo se ouvir alguma coisa estranha vindo do andar de cima.',
-  bye: 'Volte sempre! O elevador está sempre aberto.',
+  bye: 'Volte sempre! O elevador está\nsempre aberto.',
 };
 
 const TIMINGS = {
@@ -42,6 +52,12 @@ const TIMINGS = {
   opening: 700,
   exitClose: 600,
 };
+
+// Display target — the bellhop renders at this height in CSS pixels. Width
+// is derived from the active strip's aspect ratio. Using a fixed height
+// (responsive via clamp) keeps the sprite from overflowing the layout box
+// the way `transform: scale(...)` does.
+const SPRITE_H = 'clamp(160px, 28vh, 220px)';
 
 export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const [menu, setMenu] = useState<ShopMenu>('main');
@@ -56,7 +72,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     phaseTimersRef.current = [];
   };
 
-  // Drive entrance phase chain whenever we open
+  // Drive the entrance phase chain whenever we open
   useEffect(() => {
     if (!open) { mountedRef.current = false; clearPhaseTimers(); return; }
     mountedRef.current = true;
@@ -83,7 +99,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     return () => { clearPhaseTimers(); mountedRef.current = false; };
   }, [open]);
 
-  // Typewriter
+  // Typewriter — paints the active dialog one chunk at a time
   useEffect(() => {
     if (!open || phase !== 'idle') return;
     setTyped('');
@@ -93,7 +109,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       if (!mountedRef.current) return;
       i += 2;
       setTyped(text.slice(0, i));
-      if (i < text.length) typingRef.current = window.setTimeout(tick, 28);
+      if (i < text.length) typingRef.current = window.setTimeout(tick, 30);
       else typingRef.current = null;
     };
     tick();
@@ -116,6 +132,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   if (!open) return null;
 
   const isTyping = typed.length < DIALOGUES[menu].length;
+
   const skipOrAdvance = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (phase !== 'idle') return;
@@ -126,11 +143,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   };
 
   // ── Door state machine ────────────────────────────────────────────────
-  // 'sliding-in'  → CSS animation drives door from open → closed
-  // 'closed'      → hold at closed (no animation)
-  // 'sliding-out' → CSS transition drives door from closed → open
-  // 'open'        → hold at open (off-screen)
-  // 'closing-exit'→ CSS animation drives door from open → closed (exit)
   const doorsState =
     phase === 'closing' ? 'sliding-in' as const :
     phase === 'arrived' ? 'closed' as const :
@@ -142,21 +154,43 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const showContent = phase === 'opening' || phase === 'idle';
   const contentOpacity = phase === 'opening' ? 0.85 : phase === 'idle' ? 1 : 0;
 
-  // Two animation modes for the bellhop:
-  //   • CLEAN: shown during the entrance ('opening' phase) — bellhop is
-  //     wiping the counter when the elevator doors open, like he didn't
-  //     notice the player yet.
-  //   • TALK: shown once we hit 'idle' — bellhop is now facing/addressing
-  //     the player. Mouth-open frames cycle to read as speaking.
-  const useTalk = phase === 'idle';
-  const stripUrl = useTalk ? BELLHOP_TALK_STRIP : BELLHOP_CLEAN_STRIP;
-  const frameW = useTalk ? BELLHOP_TALK_FRAME_W : BELLHOP_CLEAN_FRAME_W;
-  const frameH = useTalk ? BELLHOP_TALK_FRAME_H : BELLHOP_CLEAN_FRAME_H;
-  const frameCount = useTalk ? BELLHOP_TALK_FRAMES : BELLHOP_CLEAN_FRAMES;
-  // Cycle faster while text is being typed so the talking animation reads
-  // as actively speaking.
-  const cycleMs = useTalk ? (isTyping ? 280 : 520) : 760;
-  const animName = useTalk ? 'bellhopTalk' : 'bellhopClean';
+  // ── Sprite mode selection ─────────────────────────────────────────────
+  // CLEAN during the reveal; TALK while typing; IDLE (mouth closed,
+  // static) the rest of the time in idle phase.
+  type SpriteMode = 'clean' | 'idle-static' | 'talk';
+  const spriteMode: SpriteMode =
+    phase === 'idle' ? (isTyping ? 'talk' : 'idle-static') :
+    'clean';
+
+  const sprite = (() => {
+    if (spriteMode === 'clean') return {
+      url: BELLHOP_CLEAN_STRIP,
+      frameW: BELLHOP_CLEAN_FRAME_W,
+      frameH: BELLHOP_CLEAN_FRAME_H,
+      frames: BELLHOP_CLEAN_FRAMES,
+      anim: 'bellhopClean',
+      cycle: 720,
+    };
+    if (spriteMode === 'talk') return {
+      url: BELLHOP_TALK_STRIP,
+      frameW: BELLHOP_TALK_FRAME_W,
+      frameH: BELLHOP_TALK_FRAME_H,
+      frames: BELLHOP_TALK_FRAMES,
+      anim: 'bellhopTalk',
+      cycle: 240,
+    };
+    return {
+      url: BELLHOP_IDLE_STRIP,
+      frameW: BELLHOP_IDLE_FRAME_W,
+      frameH: BELLHOP_IDLE_FRAME_H,
+      frames: 1,
+      anim: '',
+      cycle: 0,
+    };
+  })();
+  // Aspect ratio for the *visible* frame (used to compute display width
+  // from the responsive height).
+  const aspect = sprite.frameW / sprite.frameH;
 
   return (
     <div
@@ -166,13 +200,13 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         backgroundColor: '#000',
       }}
     >
-      {/* Hotel lobby backdrop */}
+      {/* Hotel lobby backdrop — pixel-art, sits behind everything */}
       <div
         className="absolute inset-0"
         style={{
           backgroundImage: `url(${HOTEL_BG})`,
           backgroundSize: 'cover',
-          backgroundPosition: 'center 30%',
+          backgroundPosition: 'center 40%',
           imageRendering: 'pixelated',
           opacity: contentOpacity,
           transform: phase === 'idle' ? 'scale(1)' : 'scale(1.04)',
@@ -180,109 +214,197 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           pointerEvents: 'none',
         }}
       />
-      {/* Vignette + warm glow on top of bg */}
+      {/* Vignette + warm glow */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'radial-gradient(ellipse at center, rgba(255,180,100,0.05) 0%, rgba(0,0,0,0.65) 80%)',
+          background:
+            'radial-gradient(ellipse at center, rgba(255,180,100,0.06) 0%, rgba(0,0,0,0.55) 70%, rgba(0,0,0,0.85) 100%)',
           opacity: contentOpacity,
           transition: 'opacity 600ms ease-out',
         }}
       />
 
-      {/* Shop content (sprite + dialog) — sits ABOVE the doors (z-index 3) */}
+      {/* Title bar — shows above the bellhop */}
       <div
-        className="absolute inset-0 flex flex-col items-center justify-end"
+        className="absolute left-1/2 -translate-x-1/2 select-none pointer-events-none"
+        style={{
+          top: 'clamp(20px, 4vh, 48px)',
+          opacity: phase === 'idle' ? 1 : 0,
+          transform: phase === 'idle' ? 'translate(-50%, 0)' : 'translate(-50%, -8px)',
+          transition: 'transform 500ms cubic-bezier(0.2, 0.8, 0.2, 1) 350ms, opacity 500ms ease-out 350ms',
+          zIndex: 4,
+        }}
+      >
+        <div
+          className="px-5 py-2 border-2"
+          style={{
+            background: 'linear-gradient(180deg, #1a0a08 0%, #2a0e0c 100%)',
+            borderColor: '#C99B36',
+            borderRadius: 4,
+            boxShadow:
+              '0 0 0 2px #000, 0 4px 14px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,213,79,0.3)',
+            letterSpacing: '0.3em',
+            color: '#FFD54F',
+            fontSize: 'clamp(11px, 1.7vw, 14px)',
+            fontFamily: '"Determination Mono", "Courier New", monospace',
+            textShadow: '0 0 10px rgba(255,213,79,0.5)',
+            textAlign: 'center',
+          }}
+        >
+          ★ RECEPÇÃO ★
+        </div>
+      </div>
+
+      {/* Shop content (sprite + dialog) — z-index 3, above doors (2) */}
+      <div
+        className="absolute inset-0 flex flex-col items-center justify-end overflow-hidden"
         style={{
           opacity: contentOpacity,
           transition: 'opacity 500ms ease-out',
           pointerEvents: showContent ? 'auto' : 'none',
           zIndex: 3,
+          paddingBottom: 'clamp(16px, 3vh, 32px)',
         }}
         onClick={skipOrAdvance}
       >
         {showContent && (
-          <div className="flex flex-col items-center gap-3 p-4 pb-6 max-w-3xl w-full">
-            {/* Animated bellhop — CSS sprite step animation. Strip switches
-                between cleaning (entry) and talking (idle interaction).
-                No `key` prop to avoid remount flicker — the animation name
-                and strip URL update declaratively. */}
+          <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
+            {/* Animated bellhop — sized in CSS px (no transform:scale) so
+                the layout box matches the visible bounds → no overflow.
+                width auto via aspect-ratio + height. */}
             <div
-              className="bellhop-sprite"
               aria-hidden
               style={{
-                width: frameW,
-                height: frameH,
-                backgroundImage: `url(${stripUrl})`,
+                height: SPRITE_H,
+                aspectRatio: `${sprite.frameW} / ${sprite.frameH}`,
+                backgroundImage: `url(${sprite.url})`,
+                backgroundSize: `${sprite.frames * 100}% 100%`,
                 backgroundRepeat: 'no-repeat',
+                backgroundPosition: '0% 0%',
                 imageRendering: 'pixelated',
-                transform: phase === 'idle' ? 'scale(1.5) translateY(-6px)' : 'scale(1.35) translateY(20px)',
-                transformOrigin: 'center bottom',
+                animation: sprite.anim
+                  ? `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`
+                  : 'none',
+                filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
+                transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: showContent ? 1 : 0,
-                transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms, width 0ms, height 0ms, background-image 0ms',
-                animation: `${animName} ${cycleMs}ms steps(${frameCount}) infinite`,
-                filter: 'drop-shadow(0 10px 24px rgba(0,0,0,0.7))',
-                marginBottom: 18,
+                transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
+                marginBottom: 14,
               }}
             />
 
-            {/* Dialog box (Undertale-style) */}
+            {/* Dialog box — Undertale style: thick white border, gold inner
+                accent, portrait on the left */}
             <div
-              className="w-full max-w-2xl border-4 border-white"
+              className="w-full"
               style={{
-                background: 'rgba(0,0,0,0.92)',
+                background: 'linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(8,4,2,0.95) 100%)',
+                border: '4px solid #ffffff',
                 borderRadius: 6,
-                padding: '20px 24px',
+                padding: '14px 18px',
                 minHeight: 110,
-                boxShadow: '0 0 0 2px #000, 0 0 24px rgba(255,255,255,0.08)',
+                boxShadow:
+                  '0 0 0 2px #000, inset 0 0 0 2px rgba(255,213,79,0.18), 0 8px 24px rgba(0,0,0,0.5)',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: phase === 'idle' ? 1 : 0,
                 transition: 'transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms, opacity 450ms ease-out 320ms',
+                display: 'flex',
+                gap: 14,
               }}
             >
-              <p
-                className="text-white leading-relaxed"
+              {/* Portrait — small mouth-closed / mouth-open head, 64×64 */}
+              <div
+                aria-hidden
                 style={{
-                  fontFamily: '"Determination Mono", "Courier New", monospace',
-                  fontSize: 'clamp(15px, 2.2vw, 19px)',
-                  minHeight: '3.6em',
-                  whiteSpace: 'pre-wrap',
+                  flexShrink: 0,
+                  width: 'clamp(56px, 9vw, 76px)',
+                  aspectRatio: '1 / 1',
+                  backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
+                  backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: '0% 0%',
+                  imageRendering: 'pixelated',
+                  animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
+                  // Crop to head only — show top portion of the sprite
+                  // (background-size with extra height pushes lower body off)
+                  // Easiest: scale up so only head shows.
+                  border: '2px solid #C99B36',
+                  borderRadius: 4,
+                  background: 'linear-gradient(180deg, #2a1a14 0%, #1a0a08 100%)',
+                  boxShadow: 'inset 0 0 6px rgba(0,0,0,0.6)',
+                  // overlay strip via a child for tighter control
+                  overflow: 'hidden',
+                  position: 'relative',
                 }}
               >
-                {typed}
-                {isTyping && <span className="opacity-60 animate-pulse">▍</span>}
-              </p>
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0, left: 0, right: 0,
+                    height: '180%',
+                    backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
+                    backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: '0% 0%',
+                    imageRendering: 'pixelated',
+                    animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
+                    transform: 'translateY(-8%)',
+                  }}
+                />
+              </div>
 
-              {!isTyping && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {menu === 'main' && (
-                    <>
-                      <ShopButton label="Conversar" onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
-                      <ShopButton label="Sair" onClick={(e) => { e.stopPropagation(); setMenu('bye'); }} />
-                    </>
-                  )}
-                  {menu === 'talk' && (
-                    <ShopButton label="Voltar" onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
-                  )}
-                  {menu === 'bye' && (
-                    <ShopButton label="Tchau" onClick={(e) => { e.stopPropagation(); close(); }} />
-                  )}
-                </div>
-              )}
+              {/* Dialog text + menu */}
+              <div className="flex-1 min-w-0">
+                <p
+                  className="text-white"
+                  style={{
+                    fontFamily: '"Determination Mono", "Courier New", monospace',
+                    fontSize: 'clamp(15px, 2.1vw, 19px)',
+                    lineHeight: 1.45,
+                    minHeight: '3.0em',
+                    whiteSpace: 'pre-wrap',
+                    margin: 0,
+                  }}
+                >
+                  {typed}
+                  {isTyping && <span className="typewriter-cursor">▍</span>}
+                </p>
+
+                {!isTyping && (
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                    {menu === 'main' && (
+                      <>
+                        <ShopButton label="Conversar" onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
+                        <ShopButton label="Sair" onClick={(e) => { e.stopPropagation(); setMenu('bye'); }} />
+                      </>
+                    )}
+                    {menu === 'talk' && (
+                      <ShopButton label="Voltar" onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
+                    )}
+                    {menu === 'bye' && (
+                      <ShopButton label="Tchau" onClick={(e) => { e.stopPropagation(); close(); }} />
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <p className="text-white/50 text-xs mt-1 select-none">
-              [ESC] fechar &nbsp;·&nbsp; [Click] avan&ccedil;ar
+            <p
+              className="text-white/55 text-[10px] sm:text-xs select-none mt-1"
+              style={{ letterSpacing: '0.08em' }}
+            >
+              [ESC] FECHAR &nbsp;·&nbsp; [CLICK] AVAN&Ccedil;AR
             </p>
           </div>
         )}
       </div>
 
       {/* Elevator doors — slide in/out */}
-      <ElevatorDoor side="left"  state={doorsState} />
+      <ElevatorDoor side="left" state={doorsState} />
       <ElevatorDoor side="right" state={doorsState} />
 
-      {/* DING flash during arrived state */}
+      {/* DING flash during arrived */}
       {phase === 'arrived' && (
         <div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
@@ -293,6 +415,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
             letterSpacing: '0.3em',
             textShadow: '0 0 16px rgba(255,213,79,0.9), 0 0 32px rgba(255,193,7,0.6)',
             animation: 'shopDing 360ms ease-out forwards',
+            zIndex: 5,
           }}
         >
           DING
@@ -306,14 +429,13 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
         }
         @keyframes bellhopClean {
-          from { background-position-x: 0px; }
-          to   { background-position-x: -${BELLHOP_CLEAN_FRAME_W * BELLHOP_CLEAN_FRAMES}px; }
+          from { background-position-x: 0%; }
+          to   { background-position-x: 100%; }
         }
         @keyframes bellhopTalk {
-          from { background-position-x: 0px; }
-          to   { background-position-x: -${BELLHOP_TALK_FRAME_W * BELLHOP_TALK_FRAMES}px; }
+          from { background-position-x: 0%; }
+          to   { background-position-x: 100%; }
         }
-        /* Entrance: doors slide from off-screen to center */
         @keyframes shopDoorInLeft {
           from { transform: translateX(-100%); }
           to   { transform: translateX(0%); }
@@ -322,7 +444,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           from { transform: translateX(100%); }
           to   { transform: translateX(0%); }
         }
-        /* Exit: doors slide from off-screen to center (closing animation) */
         @keyframes shopDoorCloseLeft {
           from { transform: translateX(-100%); }
           to   { transform: translateX(0%); }
@@ -330,6 +451,45 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         @keyframes shopDoorCloseRight {
           from { transform: translateX(100%); }
           to   { transform: translateX(0%); }
+        }
+        @keyframes typewriterBlink {
+          0%, 60%   { opacity: 0.7; }
+          61%, 100% { opacity: 0; }
+        }
+        .typewriter-cursor {
+          display: inline-block;
+          margin-left: 2px;
+          color: #FFD54F;
+          animation: typewriterBlink 700ms steps(2) infinite;
+        }
+        .shop-button {
+          background: transparent;
+          border: 0;
+          padding: 4px 10px;
+          color: #fff;
+          font-family: "Determination Mono", "Courier New", monospace;
+          font-size: clamp(13px, 1.9vw, 17px);
+          letter-spacing: 0.05em;
+          cursor: pointer;
+          position: relative;
+          transition: color 120ms ease;
+        }
+        .shop-button::before {
+          content: '*';
+          color: #FFD54F;
+          margin-right: 6px;
+          opacity: 0.4;
+          transition: opacity 120ms ease, transform 120ms ease;
+          display: inline-block;
+        }
+        .shop-button:hover, .shop-button:focus-visible {
+          color: #FFD54F;
+          outline: 0;
+        }
+        .shop-button:hover::before, .shop-button:focus-visible::before {
+          content: '►';
+          opacity: 1;
+          transform: translateX(2px);
         }
       `}</style>
     </div>
@@ -345,27 +505,21 @@ const ElevatorDoor: React.FC<{ side: 'left' | 'right'; state: DoorState }> = ({ 
   let animation: string | undefined;
 
   if (state === 'sliding-in') {
-    // Entrance: doors slide from off-screen to center via CSS animation
     tx = 0;
     animation = `${side === 'left' ? 'shopDoorInLeft' : 'shopDoorInRight'} ${TIMINGS.closing}ms cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards`;
   } else if (state === 'closed') {
-    // Hold at center — no animation, no transition
     tx = 0;
   } else if (state === 'sliding-out') {
-    // Opening: doors slide from center to off-screen via CSS transition
     tx = side === 'left' ? -100 : 100;
     transition = `transform ${TIMINGS.opening}ms cubic-bezier(0.16, 1, 0.3, 1)`;
   } else if (state === 'open') {
-    // Hold at off-screen position
     tx = side === 'left' ? -100 : 100;
   } else if (state === 'closing-exit') {
-    // Exit: doors slide from off-screen to center via CSS animation
-    // (same as entrance — doors were at -100%/100% from 'open' state,
-    // animation brings them back to 0%)
     tx = 0;
     animation = `${side === 'left' ? 'shopDoorCloseLeft' : 'shopDoorCloseRight'} ${TIMINGS.exitClose}ms cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards`;
   }
 
+  // Brushed steel + warm gold seam
   const doorBg = `
     repeating-linear-gradient(90deg,
       #2a2a2e 0px,
@@ -397,17 +551,5 @@ const ElevatorDoor: React.FC<{ side: 'left' | 'right'; state: DoorState }> = ({ 
 };
 
 const ShopButton: React.FC<{ label: string; onClick: (e: React.MouseEvent) => void }> = ({ label, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className="px-4 py-2 border-2 border-white text-white bg-black hover:bg-white hover:text-black transition-colors"
-    style={{
-      fontFamily: '"Determination Mono", "Courier New", monospace',
-      fontSize: 'clamp(13px, 1.8vw, 16px)',
-      borderRadius: 4,
-      letterSpacing: '0.04em',
-    }}
-  >
-    * {label}
-  </button>
+  <button type="button" className="shop-button" onClick={onClick}>{label}</button>
 );
