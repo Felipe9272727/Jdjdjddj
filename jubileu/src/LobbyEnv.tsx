@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { ASSETS, COLORS, NPC_WALK_URL, NPC_IDLE_URL } from './constants';
 import { TextureMaterial } from './Materials';
-import { Door, WallPanel, CeilingLight, Armchair, TallPlant, FloorLamp, ReceptionDesk, Cashier, Stool } from './BuildingBlocks';
+import { Door, WallPanel, CeilingLight, Armchair, TallPlant, FloorLamp, ReceptionDesk, Cashier } from './BuildingBlocks';
 import { ElevatorFacade } from './Elevator';
 import { Shop } from './HouseEnv';
 import * as THREE from 'three';
@@ -96,7 +96,6 @@ export const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPo
             <CeilingLight x={-5} z={-3} /> <CeilingLight x={-5} z={3} /> <CeilingLight x={5} z={-3} /> <CeilingLight x={5} z={3} />
             <ReceptionDesk x={7} z={-7.5} rot={-Math.PI/2} />
             <Cashier position={[8.0, 0, -7.5]} />
-            <Stool position={[8.0, 0, -7.5]} />
             <Armchair x={-8.7} z={2} rot={Math.PI/2} color="#4E342E" />
             <Armchair x={-8.7} z={3.5} rot={Math.PI/2} color="#4E342E" />
             <Armchair x={-8.7} z={-2} rot={Math.PI/2} color="#5D4037" />
