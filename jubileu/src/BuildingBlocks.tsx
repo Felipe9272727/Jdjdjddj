@@ -183,7 +183,7 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 // behind the reception desk regardless of the GLB's native unit system.
 
 const CASHIER_TARGET_HEIGHT = 1.65;
-const STOOL_HEIGHT = 0.45;
+const STOOL_HEIGHT = 0.08; // low — model origin is near center, feet are well below
 
 export const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
