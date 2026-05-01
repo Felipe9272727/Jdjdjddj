@@ -96586,7 +96586,7 @@ const Cashier = React.memo(({ position }) => {
         child.rotation.set(0, 0, 0);
       }
     });
-    gltf.scene.rotation.set(0, Math.PI, 0);
+    gltf.scene.rotation.set(0, Math.PI / 2, 0);
   }, [gltf.scene]);
   reactExports.useEffect(() => {
     const first2 = names[0];

@@ -202,7 +202,7 @@ const Cashier = React.memo(({ position }: { position: [number, number, number] }
             }
         });
         // Rotate the entire scene root to face the player
-        gltf.scene.rotation.set(0, Math.PI, 0);
+        gltf.scene.rotation.set(0, Math.PI / 2, 0);
     }, [gltf.scene]);
 
     useEffect(() => {
