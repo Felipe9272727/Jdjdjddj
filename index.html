@@ -145,6 +145,8 @@
     --color-fuchsia-400: oklch(74% .238 322.16);
     --color-fuchsia-500: oklch(66.7% .295 322.15);
     --color-pink-500: oklch(65.6% .241 354.308);
+    --color-rose-200: oklch(89.2% .058 10.001);
+    --color-rose-400: oklch(71.2% .194 13.428);
     --color-slate-200: oklch(92.9% .013 255.508);
     --color-slate-300: oklch(86.9% .022 252.894);
     --color-slate-900: oklch(20.8% .042 265.755);
@@ -159,6 +161,7 @@
     --container-md: 28rem;
     --container-lg: 32rem;
     --container-2xl: 42rem;
+    --container-3xl: 48rem;
     --container-6xl: 72rem;
     --text-xs: .75rem;
     --text-xs--line-height: calc(1 / .75);
@@ -1098,6 +1101,10 @@
     max-width: var(--container-2xl);
   }
 
+  .max-w-3xl {
+    max-width: var(--container-3xl);
+  }
+
   .max-w-6xl {
     max-width: var(--container-6xl);
   }
@@ -1242,6 +1249,10 @@
 
   .flex-col {
     flex-direction: column;
+  }
+
+  .flex-wrap {
+    flex-wrap: wrap;
   }
 
   .items-baseline {
@@ -1551,6 +1562,10 @@
     .border-purple-500\/50 {
       border-color: color-mix(in oklab, var(--color-purple-500) 50%, transparent);
     }
+  }
+
+  .border-white {
+    border-color: var(--color-white);
   }
 
   .border-white\/5 {
@@ -2193,8 +2208,18 @@
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
   }
 
+  .from-red-500 {
+    --tw-gradient-from: var(--color-red-500);
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+
   .from-red-600 {
     --tw-gradient-from: var(--color-red-600);
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+
+  .from-rose-200 {
+    --tw-gradient-from: var(--color-rose-200);
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
   }
 
@@ -2295,6 +2320,12 @@
   }
 
   .via-pink-500\/40 {
+    --tw-gradient-via-stops: var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-via-stops);
+  }
+
+  .via-rose-400 {
+    --tw-gradient-via: var(--color-rose-400);
     --tw-gradient-via-stops: var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position);
     --tw-gradient-stops: var(--tw-gradient-via-stops);
   }
@@ -2467,8 +2498,18 @@
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
   }
 
+  .to-red-300 {
+    --tw-gradient-to: var(--color-red-300);
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+
   .to-red-400 {
     --tw-gradient-to: var(--color-red-400);
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+
+  .to-red-500 {
+    --tw-gradient-to: var(--color-red-500);
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
   }
 
@@ -3073,6 +3114,10 @@
     color: var(--color-red-500);
   }
 
+  .text-red-900 {
+    color: var(--color-red-900);
+  }
+
   .text-slate-900 {
     color: var(--color-slate-900);
   }
@@ -3228,6 +3273,10 @@
 
   .opacity-50 {
     opacity: .5;
+  }
+
+  .opacity-60 {
+    opacity: .6;
   }
 
   .opacity-70 {
@@ -3470,6 +3519,10 @@
     .ring-red-500\/40 {
       --tw-ring-color: color-mix(in oklab, var(--color-red-500) 40%, transparent);
     }
+  }
+
+  .ring-rose-200 {
+    --tw-ring-color: var(--color-rose-200);
   }
 
   .ring-white\/10 {
@@ -3715,6 +3768,10 @@
       }
     }
 
+    .hover\:bg-white:hover {
+      background-color: var(--color-white);
+    }
+
     .hover\:bg-white\/10:hover {
       background-color: #ffffff1a;
     }
@@ -3737,6 +3794,10 @@
 
     .hover\:text-amber-100:hover {
       color: var(--color-amber-100);
+    }
+
+    .hover\:text-black:hover {
+      color: var(--color-black);
     }
 
     .hover\:text-white:hover {
@@ -95359,6 +95420,8 @@ const HOUSE_DOOR_X = 0;
 const BARNEY_CATCH_DIST = 1.2;
 const DOOR_INTERACT_DIST = 3;
 const NPC_INTERACT_DIST = 4;
+const CASHIER_INTERACT_DIST = 2.5;
+const CASHIER_POS = { x: 7.65, z: -7.5 };
 const BED_INTERACT_DIST = 3;
 const ELEVATOR_ZONE_X = 3.1;
 const ELEVATOR_ZONE_Z = -10;
@@ -96129,6 +96192,196 @@ const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }) => {
     }
   );
 };
+const BELLHOP_NEUTRAL_URL = "https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/bellhop-neutral-shop.png";
+const BELLHOP_TALK_URL = "https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/bellhop-talk-shop.png";
+const DIALOGUES = {
+  main: "Bem-vindo ao The Normal Hotel! Posso te ajudar?",
+  talk: "Tenha uma ótima estadia... e fique calmo se ouvir alguma coisa estranha vindo do andar de cima.",
+  bye: "Volte sempre! O elevador está sempre aberto."
+};
+const ShopOverlay = ({ open, onClose }) => {
+  const [menu, setMenu] = reactExports.useState("main");
+  const [typed, setTyped] = reactExports.useState("");
+  const [phase, setPhase] = reactExports.useState("enter");
+  const [talkFrame, setTalkFrame] = reactExports.useState(false);
+  const typingRef = reactExports.useRef(null);
+  const mountedRef = reactExports.useRef(false);
+  reactExports.useEffect(() => {
+    if (open) {
+      setMenu("main");
+      setTyped("");
+      setPhase("enter");
+      mountedRef.current = true;
+      const t2 = window.setTimeout(() => setPhase("idle"), 450);
+      return () => window.clearTimeout(t2);
+    } else {
+      mountedRef.current = false;
+    }
+  }, [open]);
+  reactExports.useEffect(() => {
+    if (!open || phase !== "idle") return;
+    setTyped("");
+    const text = DIALOGUES[menu];
+    let i2 = 0;
+    const tick = () => {
+      if (!mountedRef.current) return;
+      i2 += 2;
+      setTyped(text.slice(0, i2));
+      if (i2 < text.length) {
+        typingRef.current = window.setTimeout(tick, 28);
+      } else {
+        typingRef.current = null;
+      }
+    };
+    tick();
+    return () => {
+      if (typingRef.current !== null) {
+        window.clearTimeout(typingRef.current);
+        typingRef.current = null;
+      }
+    };
+  }, [open, menu, phase]);
+  reactExports.useEffect(() => {
+    if (!open || phase !== "idle") {
+      setTalkFrame(false);
+      return;
+    }
+    const isTyping2 = typed.length < DIALOGUES[menu].length;
+    if (!isTyping2) {
+      setTalkFrame(false);
+      return;
+    }
+    const id = window.setInterval(() => setTalkFrame((v5) => !v5), 110);
+    return () => window.clearInterval(id);
+  }, [open, phase, typed, menu]);
+  const close = () => {
+    setPhase("exit");
+    window.setTimeout(() => onClose(), 300);
+  };
+  if (!open) return null;
+  const isTyping = typed.length < DIALOGUES[menu].length;
+  const skipOrAdvance = () => {
+    if (isTyping) {
+      if (typingRef.current !== null) {
+        window.clearTimeout(typingRef.current);
+        typingRef.current = null;
+      }
+      setTyped(DIALOGUES[menu]);
+    }
+  };
+  const overlayOpacity = phase === "enter" ? 0 : phase === "exit" ? 0 : 1;
+  const spriteTranslate = phase === "enter" ? "translateY(40px)" : phase === "exit" ? "translateY(40px)" : "translateY(0)";
+  const spriteOpacity = phase === "enter" ? 0 : phase === "exit" ? 0 : 1;
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "div",
+    {
+      className: "absolute inset-0 z-[80] flex items-center justify-center",
+      style: {
+        background: "rgba(0,0,0,0.92)",
+        opacity: overlayOpacity,
+        transition: "opacity 350ms ease-out",
+        fontFamily: '"Source Sans 3", "Segoe UI", system-ui, sans-serif'
+      },
+      onClick: skipOrAdvance,
+      children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center gap-4 p-6 max-w-3xl w-full", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: "flex justify-center",
+            style: {
+              transform: spriteTranslate,
+              opacity: spriteOpacity,
+              transition: "transform 350ms ease-out, opacity 350ms ease-out"
+            },
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "img",
+              {
+                src: talkFrame ? BELLHOP_TALK_URL : BELLHOP_NEUTRAL_URL,
+                alt: "Recepcionista",
+                className: "select-none pointer-events-none",
+                style: {
+                  imageRendering: "pixelated",
+                  height: "min(45vh, 360px)",
+                  width: "auto",
+                  filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.6))"
+                }
+              }
+            )
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: "w-full max-w-2xl border-4 border-white bg-black",
+            style: {
+              borderRadius: 6,
+              padding: "20px 24px",
+              minHeight: 120,
+              boxShadow: "0 0 0 2px #000, 0 0 24px rgba(255,255,255,0.08)"
+            },
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                "p",
+                {
+                  className: "text-white text-base leading-relaxed",
+                  style: {
+                    fontFamily: '"Determination Mono", "Courier New", monospace',
+                    fontSize: "clamp(15px, 2.2vw, 19px)",
+                    minHeight: "3.6em",
+                    whiteSpace: "pre-wrap"
+                  },
+                  children: [
+                    typed,
+                    isTyping && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "opacity-60", children: "▍" })
+                  ]
+                }
+              ),
+              !isTyping && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-4 flex flex-wrap gap-2", children: [
+                menu === "main" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Conversar", onClick: (e2) => {
+                    e2.stopPropagation();
+                    setMenu("talk");
+                  } }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Sair", onClick: (e2) => {
+                    e2.stopPropagation();
+                    setMenu("bye");
+                  } })
+                ] }),
+                menu === "talk" && /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Voltar", onClick: (e2) => {
+                  e2.stopPropagation();
+                  setMenu("main");
+                } }),
+                menu === "bye" && /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Tchau", onClick: (e2) => {
+                  e2.stopPropagation();
+                  close();
+                } })
+              ] })
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-white/40 text-xs mt-1 select-none", children: "[ESC] fechar  ·  [Click] avançar" })
+      ] })
+    }
+  );
+};
+const ShopButton = ({ label, onClick }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+  "button",
+  {
+    type: "button",
+    onClick,
+    className: "px-4 py-2 border-2 border-white text-white bg-black hover:bg-white hover:text-black transition-colors",
+    style: {
+      fontFamily: '"Determination Mono", "Courier New", monospace',
+      fontSize: "clamp(13px, 1.8vw, 16px)",
+      borderRadius: 4,
+      letterSpacing: "0.04em"
+    },
+    children: [
+      "* ",
+      label
+    ]
+  }
+);
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
 const Avatar = ({ animation, visible = true }) => {
@@ -96200,7 +96453,7 @@ const Avatar = ({ animation, visible = true }) => {
   }, [animation, actions]);
   return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }) });
 };
-const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }) => {
+const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }) => {
   const { camera, size } = useThree();
   const pos = reactExports.useRef(new Vector3(0, 0, 8));
   const charRot = reactExports.useRef(new Euler(0, Math.PI, 0));
@@ -96339,6 +96592,13 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
         onNpcInteractionUpdate(pos.current.distanceTo(npcPositionRef.current) < NPC_INTERACT_DIST);
       } else {
         onNpcInteractionUpdate(false);
+      }
+      if (currentLevel === 0) {
+        const cdx = pos.current.x - CASHIER_POS.x;
+        const cdz = pos.current.z - CASHIER_POS.z;
+        onCashierInteractionUpdate(Math.sqrt(cdx * cdx + cdz * cdz) < CASHIER_INTERACT_DIST);
+      } else {
+        onCashierInteractionUpdate(false);
       }
       setAnim(moving ? "Walking" : "Idle");
       if (avRef.current) {
@@ -99357,6 +99617,8 @@ function App() {
   const barneyTargetRef = reactExports.useRef({ x: 0, z: 6.8, scale: 0 });
   const npcPositionRef = reactExports.useRef(new Vector3(5, 0, 5));
   const [canInteractNPC, setCanInteractNPC] = reactExports.useState(false);
+  const [canInteractCashier, setCanInteractCashier] = reactExports.useState(false);
+  const [shopOpen, setShopOpen] = reactExports.useState(false);
   const [dialogueOpen, setDialogueOpen] = reactExports.useState(false);
   const [dialogueNode, setDialogueNode] = reactExports.useState("start");
   const [houseDoorOpen, setHouseDoorOpen] = reactExports.useState(false);
@@ -99449,6 +99711,16 @@ function App() {
   }, []);
   const handleNpcInteractionUpdate = reactExports.useCallback((c2) => {
     setCanInteractNPC((p2) => p2 !== c2 ? c2 : p2);
+  }, []);
+  const handleCashierInteractionUpdate = reactExports.useCallback((c2) => {
+    setCanInteractCashier((p2) => p2 !== c2 ? c2 : p2);
+  }, []);
+  const handleOpenShop = reactExports.useCallback(() => {
+    setShopOpen(true);
+    setCanInteractCashier(false);
+  }, []);
+  const handleCloseShop = reactExports.useCallback(() => {
+    setShopOpen(false);
   }, []);
   const handleOpenDoor = () => {
     if (gameState === "outdoor") {
@@ -99659,7 +99931,7 @@ function App() {
       }
       return;
     }
-    if (dialogueOpen || barneyDialogueOpen) return;
+    if (dialogueOpen || barneyDialogueOpen || shopOpen) return;
     e2.preventDefault();
     e2.stopPropagation();
     const { pointerId, clientX, clientY } = e2;
@@ -99757,7 +100029,7 @@ function App() {
   };
   reactExports.useEffect(() => {
     if (!isDesktop || !hasStarted) return;
-    if (dialogueOpen || barneyDialogueOpen) {
+    if (dialogueOpen || barneyDialogueOpen || shopOpen) {
       document.exitPointerLock();
       return;
     }
@@ -99774,10 +100046,14 @@ function App() {
     const kd = (e2) => {
       if (e2.key === "Escape") {
         e2.preventDefault();
+        if (shopOpen) {
+          handleCloseShop();
+          return;
+        }
         setSettingsOpen((v5) => !v5);
         return;
       }
-      if (dialogueOpen || barneyDialogueOpen) return;
+      if (dialogueOpen || barneyDialogueOpen || shopOpen) return;
       const k2 = keysRef.current;
       switch (e2.key.toLowerCase()) {
         case "w":
@@ -99793,7 +100069,8 @@ function App() {
           k2.d = true;
           break;
         case "e":
-          if (canInteractNPC) handleStartDialogue();
+          if (canInteractCashier) handleOpenShop();
+          else if (canInteractNPC) handleStartDialogue();
           else if (canInteractDoor && !houseDoorOpen) handleOpenDoor();
           else if (canSleepNow && gameState === "indoor_day") handleSleep();
           break;
@@ -99824,11 +100101,11 @@ function App() {
       window.removeEventListener("keydown", kd);
       window.removeEventListener("keyup", ku);
     };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, canInteractNPC, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState, handleOpenShop]);
   const botEnabled = settings.botMode && hasStarted;
   const { info: botInfo } = useBotStore();
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full h-full relative overflow-hidden select-none", style: { touchAction: "none", backgroundColor: "#000" }, onPointerDown: handlePointerDown, onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onPointerCancel: handlePointerUp, onPointerLeave: handlePointerUp, onWheel: (e2) => {
-    if (!hasStarted || dialogueOpen || barneyDialogueOpen) return;
+    if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen) return;
     setZoomLevel((prev) => Math.min(Math.max(prev + e2.deltaY * 0.01, 0), 10));
   }, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx, muted, masterVolume: settings.masterVolume, nightMode, gameState, currentLevel, doorsClosed }),
@@ -99855,9 +100132,9 @@ function App() {
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
           ] })
         ] }) }), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
           otherPlayerIds.slice(0, QUALITY_PROFILES[settings.quality].remoteLimit).map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
           botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
             BotSystem,
             {
@@ -99921,6 +100198,17 @@ function App() {
         ariaLabel: "Abrir porta"
       }
     ),
+    hasStarted && canInteractCashier && !canInteractNPC && !dialogueOpen && !barneyDialogueOpen && !shopOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
+      ActionButton,
+      {
+        icon: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M19 6h-2c0-2.76-2.24-5-5-5S7 3.24 7 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-7-3c1.66 0 3 1.34 3 3H9c0-1.66 1.34-3 3-3zM7 10v2h2v-2h6v2h2v-2h2v10H5V10h2z" }) }),
+        label: "ABRIR LOJA",
+        colorClasses: "bg-gradient-to-r from-red-500 via-rose-400 to-red-500",
+        ringClasses: "bg-gradient-to-b from-rose-200 to-red-300 text-red-900 ring-rose-200",
+        onClick: handleOpenShop,
+        ariaLabel: "Abrir loja do recepcionista"
+      }
+    ),
     hasStarted && canInteractNPC && !dialogueOpen && !barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
       ActionButton,
       {
@@ -99952,7 +100240,8 @@ function App() {
     hasStarted && gameState === "indoor_night" && /* @__PURE__ */ jsxRuntimeExports.jsx(NightBanner, { elevatorActive: elevatorTimer !== null }),
     hasStarted && gameState === "chase" && /* @__PURE__ */ jsxRuntimeExports.jsx(ChaseBanner, { elevatorActive: elevatorTimer !== null }),
     hasStarted && gameState === "saved" && /* @__PURE__ */ jsxRuntimeExports.jsx(SavedOverlay, {}),
-    barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(BarneyDialogue, { dialogueNode: barneyDialogueNode, onResponse: handleBarneyResponse })
+    barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(BarneyDialogue, { dialogueNode: barneyDialogueNode, onResponse: handleBarneyResponse }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(ShopOverlay, { open: shopOpen, onClose: handleCloseShop })
   ] });
 }
 clientExports.createRoot(document.getElementById("root")).render(
