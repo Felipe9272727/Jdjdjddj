@@ -177,6 +177,37 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
     </group>
 ));
 
+// ─── Banquinho (Stool) — placed under the Cashier so they don't float ───
+export const Stool = React.memo(({ position }: { position: [number, number, number] }) => (
+    <group position={position}>
+        {/* Seat — padded cushion */}
+        <mesh position={[0, 0.48, 0]}>
+            <cylinderGeometry args={[0.28, 0.28, 0.06, 16]} />
+            <meshStandardMaterial color="#5D4037" roughness={0.8} />
+        </mesh>
+        <mesh position={[0, 0.52, 0]}>
+            <cylinderGeometry args={[0.26, 0.26, 0.04, 16]} />
+            <meshStandardMaterial color="#8D6E63" roughness={0.95} />
+        </mesh>
+        {/* Legs — 4 tapered legs */}
+        {[[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]].map((p, i) => (
+            <mesh key={i} position={[p[0], 0.24, p[1]]}>
+                <cylinderGeometry args={[0.025, 0.035, 0.48, 8]} />
+                <meshStandardMaterial color="#3E2723" roughness={0.6} metalness={0.2} />
+            </mesh>
+        ))}
+        {/* Cross brace */}
+        <mesh position={[0, 0.16, 0]} rotation={[0, Math.PI / 4, 0]}>
+            <boxGeometry args={[0.35, 0.025, 0.025]} />
+            <meshStandardMaterial color="#4E342E" roughness={0.7} />
+        </mesh>
+        <mesh position={[0, 0.16, 0]} rotation={[0, -Math.PI / 4, 0]}>
+            <boxGeometry args={[0.35, 0.025, 0.025]} />
+            <meshStandardMaterial color="#4E342E" roughness={0.7} />
+        </mesh>
+    </group>
+));
+
 // ─── Balconista (Cashier) — Mixamo-rigged GLB with button-pushing animation ──
 // Mixamo models have baked rotations (Hips -90°X, mesh node +90°X) that we
 // MUST preserve — they convert Mixamo's Y-up to Three.js conventions.
