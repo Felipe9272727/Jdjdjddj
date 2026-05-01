@@ -1048,3 +1048,17 @@ O FBX do balconista (Button Pushing.fbx) não aparecia no jogo.
 - Problema: Felipe reporta que mudanças visuais não aparecem — possível cache do browser ou problema no deploy
 - Commits: 2fd980c, bdbf760, 2489214
 
+
+## 🔧 Sessão 2026-05-01: Cashier Rotation Fix (08:51 GMT+8)
+
+### Problema
+O balconista (Cashier) estava de costas pro player — rotação `[0, 0, 0]` no group, mas Mixamo characters ficam de costas por default.
+
+### Solução
+- `BuildingBlocks.tsx`: group rotation alterado de `[0, 0, 0]` para `[0, Math.PI, 0]` (180° Y)
+- Build reprodutível: `npm ci && npm run build && node inline-build.mjs`
+- TypeScript: ✅ limpo
+- Build: ✅ 3,951,451 bytes
+
+### Commit
+- `576094f` — fix(cashier): rotate 180° Y to face the player
