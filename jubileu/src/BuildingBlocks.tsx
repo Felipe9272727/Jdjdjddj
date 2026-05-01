@@ -1,10 +1,9 @@
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, useGLTF, useAnimations } from '@react-three/drei';
+import { Text, useGLTF } from '@react-three/drei';
 import { TextureMaterial } from './Materials';
 import { ASSETS, COLORS } from './constants';
 import * as THREE from 'three';
-import { SkeletonUtils } from 'three-stdlib';
 
 // Cashier — Mixamo-rigged GLB (converted from Button Pushing.fbx).
 // The model is roughly humanoid scale (~1.7 units tall) so it sits naturally
@@ -193,42 +192,11 @@ export const ReceptionDesk = React.memo(({ x, z, rot = 0 }: any) => (
 
 const Cashier = React.memo(({ position }: { position: [number, number, number] }) => {
     const gltf = useGLTF(CASHIER_GLB_URL);
-
-    // Clone scene
-    const clonedScene = useMemo(() => {
-        const clone = SkeletonUtils.clone(gltf.scene);
-        clone.traverse((child: any) => {
-            if (child.isMesh) {
-                child.rotation.set(0, 0, 0);
-            }
-        });
-        return clone;
-    }, [gltf.scene]);
-
-    // Rotate the clone itself
-    useEffect(() => {
-        clonedScene.rotation.set(0, Math.PI, 0);
-        console.log('[Cashier] clone rotation set to:', clonedScene.rotation.y);
-        // Verify after 1 second
-        setTimeout(() => {
-            console.log('[Cashier] clone rotation after 1s:', clonedScene.rotation.y);
-            console.log('[Cashier] clone matrix:', clonedScene.matrix.elements);
-        }, 1000);
-    }, [clonedScene]);
-
-    // Animation DISABLED for debugging
-    // const groupRef = useRef<any>(null);
-    // const { actions, names } = useAnimations(gltf.animations, groupRef);
-    // useEffect(() => {
-    //     const first = names[0];
-    //     if (first && actions[first]) {
-    //         actions[first].reset().fadeIn(0.4).play();
-    //     }
-    // }, [actions, names]);
+    const clonedScene = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
 
     return (
-        <group position={position} scale={[2, 2, 2]}>
-            <primitive object={clonedScene} />
+        <group position={position} rotation={[0, Math.PI, 0]}>
+            <primitive object={clonedScene} scale={2} />
         </group>
     );
 });
