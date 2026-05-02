@@ -1220,3 +1220,42 @@ O recepcionista (Cashier) no lobby usa o GLB `button_pushing.glb` (Mixamo rig). 
 **RECEPÇÃO removido**: Badge e botão removidos da UI. Interação via tecla 'E' perto do cashier permanece.
 
 - Commit `d5f56ed` — fix(shop): proper sprite animation restart via rAF, remove RECEPÇÃO badge
+
+---
+
+## 🔧 Sessão 2026-05-02: Reescrita Total da Animação do Sprite (11:57 GMT+8)
+
+### Problema
+O bug do carrossel persistiu após múltiplas tentativas:
+1. `key={spriteMode}` no mesmo div com transition — não restartava
+2. Two-layer (outer transition + inner com key) — não restartava
+3. useEffect + double rAF (v0 approach) — causava lag, shop não abria
+4. useSpriteAnimation hook com rAF contínuo — lag, shop quebrava
+
+### Causa raiz final
+CSS animation `steps()` é fundamentalmente incompatível com React remounting.
+O browser pode cachear estado da animação mesmo após unmount/remount via `key`.
+E abordagens de forçar restart via DOM manipulation (reflow, rAF) competem com
+o React reconciler que reaplica estilos a cada render.
+
+### Solução: Eliminar CSS animation completamente
+Reescrito o sistema de animação do zero — zero CSS animation, zero `key` hack.
+
+Novo hook `useSpriteAnimation(elRef, url, frames, cycleMs, active)`:
+- Controla `background-position-x` via `requestAnimationFrame`
+- Quando dependências mudam, cleanup cancela o rAF antigo, novo efeito começa do frame 0
+- Restart garantido — não depende de browser CSS animation restart
+- Sem competição com React reconciler — usa ref direto no DOM
+
+### Arquivos alterados
+- `jubileu/src/ShopOverlay.tsx` — hook novo + sprite/portrait usando ref
+
+### Branch
+- `fix/carousel-rAF-v2` — criada a partir de `main`
+
+### Estado
+- TypeScript: ✅ limpo
+- Build: ✅ reprodutível (4,376,636 bytes)
+- Push: ✅ origin/fix/carousel-rAF-v2
+
+*Última atualização: 2026-05-02 11:57 GMT+8*
