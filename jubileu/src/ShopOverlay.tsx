@@ -14,6 +14,53 @@ import {
   HOTEL_BG,
 } from './bellhop-sprites';
 
+// ─── Sprite animation hook — pure JS via requestAnimationFrame ───────────
+// No CSS animation. Drives background-position-x directly on the DOM element.
+// When dependencies change, the effect cleanup cancels the old rAF loop and
+// the new effect starts a fresh loop from frame 0 — guaranteed clean restart.
+function useSpriteAnimation(
+  elRef: React.RefObject<HTMLDivElement | null>,
+  url: string,
+  frames: number,
+  cycleMs: number,
+  active: boolean,
+) {
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+
+    // Set the sprite sheet immediately
+    el.style.backgroundImage = `url(${url})`;
+    el.style.backgroundSize = `${frames * 100}% 100%`;
+    el.style.backgroundRepeat = 'no-repeat';
+    el.style.backgroundPositionX = '0%';
+    el.style.imageRendering = 'pixelated';
+
+    if (!active || frames <= 1 || cycleMs <= 0) {
+      el.style.animation = 'none';
+      return;
+    }
+
+    const frameDuration = cycleMs / frames;
+    let frame = 0;
+    let lastTime = performance.now();
+    let rafId = 0;
+
+    const tick = (now: number) => {
+      const elapsed = now - lastTime;
+      if (elapsed >= frameDuration) {
+        frame = (frame + 1) % frames;
+        el.style.backgroundPositionX = `${(frame / frames) * 100}%`;
+        lastTime = now;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [elRef, url, frames, cycleMs, active]);
+}
+
 // ─── Bellhop Shop — Undertale-style overlay with elevator entrance ─────────
 // Phase chain (open → close):
 //   'closing'   — two elevator doors slide in from the sides (covering screen)
@@ -66,6 +113,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
+  const bellhopRef = useRef<HTMLDivElement>(null);
+  const portraitRef = useRef<HTMLDivElement>(null);
 
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
@@ -192,6 +241,10 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   // from the responsive height).
   const aspect = sprite.frameW / sprite.frameH;
 
+  // JS-driven sprite animation — no CSS animation at all
+  useSpriteAnimation(bellhopRef, sprite.url, sprite.frames, sprite.cycle, !!sprite.anim);
+  useSpriteAnimation(portraitRef, isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP, isTyping ? BELLHOP_TALK_FRAMES : 4, isTyping ? 240 : 0, isTyping);
+
   return (
     <div
       className="absolute inset-0 z-[80] overflow-hidden"
@@ -270,21 +323,13 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — key forces remount on mode change */}
+            {/* Animated bellhop — JS-driven sprite, zero CSS animation */}
             <div
-              key={spriteMode}
+              ref={bellhopRef}
               aria-hidden
               style={{
                 height: SPRITE_H,
                 aspectRatio: `${sprite.frameW} / ${sprite.frameH}`,
-                backgroundImage: `url(${sprite.url})`,
-                backgroundSize: `${sprite.frames * 100}% 100%`,
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: '0% 0%',
-                imageRendering: 'pixelated',
-                animation: sprite.anim
-                  ? `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`
-                  : 'none',
                 filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: showContent ? 1 : 0,
@@ -312,43 +357,27 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 gap: 14,
               }}
             >
-              {/* Portrait — small mouth-closed / mouth-open head, 64×64 */}
+              {/* Portrait — JS-driven sprite, zero CSS animation */}
               <div
+                ref={portraitRef}
                 aria-hidden
                 style={{
                   flexShrink: 0,
                   width: 'clamp(56px, 9vw, 76px)',
                   aspectRatio: '1 / 1',
-                  backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
-                  backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: '0% 0%',
-                  imageRendering: 'pixelated',
-                  animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
-                  // Crop to head only — show top portion of the sprite
-                  // (background-size with extra height pushes lower body off)
-                  // Easiest: scale up so only head shows.
                   border: '2px solid #C99B36',
                   borderRadius: 4,
                   background: 'linear-gradient(180deg, #2a1a14 0%, #1a0a08 100%)',
                   boxShadow: 'inset 0 0 6px rgba(0,0,0,0.6)',
-                  // overlay strip via a child for tighter control
                   overflow: 'hidden',
                   position: 'relative',
                 }}
               >
                 <div
-                  key={isTyping ? 'talk' : 'idle'}
                   style={{
                     position: 'absolute',
                     top: 0, left: 0, right: 0,
                     height: '180%',
-                    backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
-                    backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: '0% 0%',
-                    imageRendering: 'pixelated',
-                    animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
                     transform: 'translateY(-8%)',
                   }}
                 />
@@ -427,14 +456,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
           40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
           100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
-        }
-        @keyframes bellhopClean {
-          from { background-position-x: 0%; }
-          to   { background-position-x: 100%; }
-        }
-        @keyframes bellhopTalk {
-          from { background-position-x: 0%; }
-          to   { background-position-x: 100%; }
         }
         @keyframes shopDoorInLeft {
           from { transform: translateX(-100%); }
