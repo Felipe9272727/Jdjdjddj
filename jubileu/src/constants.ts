@@ -151,3 +151,7 @@ export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen
     if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
     return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;
 };
+
+// ── Cashier / Reception ──────────────────────────────────────────────────
+export const CASHIER_INTERACT_DIST = 2.5;
+export const CASHIER_POS = { x: 7.65, z: -7.5 } as const;

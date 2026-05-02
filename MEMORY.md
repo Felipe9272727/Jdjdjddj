@@ -1172,3 +1172,41 @@ O recepcionista (Cashier) no lobby usa o GLB `button_pushing.glb` (Mixamo rig). 
 2. **useFrame não é confiável pra layout one-shot**: Pode não executar se o componente desmonta/remonta.
 3. **useMemo durante render é o mais determinístico**: Calcula antes do paint, passa como prop, R3F aplica corretamente.
 4. **Collision analysis é essencial**: Sem visualizar, é impossível saber se objetos estão sobrepondo. O script `analyze-positions.mjs` resolve isso.
+
+---
+
+## Sessão 2026-05-02 — ShopOverlay Integration & Sprite Fix
+
+### O que foi feito
+1. **Sprite Carrossel Bug Fix**: O bug onde a animação CSS não reiniciava ao trocar entre modos de sprite (clean → talk → idle-static) foi corrigido:
+   - Adicionado `key={spriteMode}` no div do sprite para forçar React a remontar o componente, reiniciando limpo a animação
+   - Trocado shorthand `animation` por `animation-name`/`animation-duration`/`animation-timing-function`/`animation-iteration-count` separados para controle mais limpo
+   - Mesmo tratamento aplicado ao portrait (cabeça do bellhop)
+
+2. **ShopOverlay integrado ao main**: 
+   - `ShopOverlay.tsx` e `bellhop-sprites.ts` copiados do branch `claude/review-memory-docs-pYpFg`
+   - Estado `shopOpen` e `canInteractCashier` adicionados ao App.tsx
+   - Callback `onCashierInteractionUpdate` adicionado ao Player.tsx
+   - Constantes `CASHIER_INTERACT_DIST` e `CASHIER_POS` adicionadas a constants.ts
+   - Botão "RECEPÇÃO" aparece quando jogador está perto do cashier
+   - Tecla 'E' abre o shop quando interagindo com cashier
+   - ESC fecha o shop
+
+3. **Melhorias visuais no Shop**:
+   - Botão ✕ de fechar no canto superior direito
+   - Efeito de glow sutil na borda do dialog box
+   - Badge "★ RECEPÇÃO ★" com animação de pulse suave
+   - Idle bob animation no bellhop quando em modo idle-static
+   - Opção "Comprar" no menu com placeholder "Em breve..."
+   - Defesa anti-propagação: shopOpen adicionado a todas as verificações de pausa/interação
+
+### Arquivos alterados
+- `jubileu/src/ShopOverlay.tsx` — novo (com todas as correções)
+- `jubileu/src/bellhop-sprites.ts` — novo (sprites base64)
+- `jubileu/src/App.tsx` — integração do shop, estados, handlers
+- `jubileu/src/Player.tsx` — callback onCashierInteractionUpdate
+- `jubileu/src/constants.ts` — CASHIER_INTERACT_DIST, CASHIER_POS
+- `index.html` — rebuild
+
+### Commits
+- Commit único com todas as mudanças acima
