@@ -66,8 +66,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
-  const spriteRef = useRef<HTMLDivElement>(null);
-  const portraitRef = useRef<HTMLDivElement>(null);
 
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
@@ -194,25 +192,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   // from the responsive height).
   const aspect = sprite.frameW / sprite.frameH;
 
-  // ── Force CSS animation restart on sprite mode change ────────────────
-  // The "sprite carrossel" bug: CSS animation doesn't restart when the
-  // animation name changes. Fix: strip animation, force reflow, reapply.
-  useEffect(() => {
-    const el = spriteRef.current;
-    if (!el) return;
-    el.style.animation = 'none';
-    void el.offsetHeight; // force browser reflow
-    el.style.animation = ''; // let inline style take over again
-  }, [spriteMode]);
-
-  useEffect(() => {
-    const el = portraitRef.current;
-    if (!el) return;
-    el.style.animation = 'none';
-    void el.offsetHeight;
-    el.style.animation = '';
-  }, [isTyping]);
-
   return (
     <div
       className="absolute inset-0 z-[80] overflow-hidden"
@@ -291,10 +270,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — key + ref for forced animation restart */}
+            {/* Animated bellhop — key forces remount on mode change */}
             <div
               key={spriteMode}
-              ref={spriteRef}
               aria-hidden
               style={{
                 height: SPRITE_H,
@@ -361,7 +339,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
               >
                 <div
                   key={isTyping ? 'talk' : 'idle'}
-                  ref={portraitRef}
                   style={{
                     position: 'absolute',
                     top: 0, left: 0, right: 0,
