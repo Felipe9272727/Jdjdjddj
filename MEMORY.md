@@ -1210,3 +1210,13 @@ O recepcionista (Cashier) no lobby usa o GLB `button_pushing.glb` (Mixamo rig). 
 
 ### Commits
 - Commit único com todas as mudanças acima
+
+### Fix adicional — mesmo dia
+
+**Problema do carrossel persistia**: A abordagem `key={spriteMode}` não era suficiente porque o React pode fazer batch de unmount/remount e o browser não reinicia a animação CSS corretamente.
+
+**Solução final**: `useEffect` que observa `spriteMode`, seta `animation: 'none'` no DOM element via ref, força reflow com `void el.offsetHeight`, e reaplica a animação em `requestAnimationFrame`. Isso garante que o browser limpa o estado da animação antiga antes de começar a nova.
+
+**RECEPÇÃO removido**: Badge e botão removidos da UI. Interação via tecla 'E' perto do cashier permanece.
+
+- Commit `d5f56ed` — fix(shop): proper sprite animation restart via rAF, remove RECEPÇÃO badge
