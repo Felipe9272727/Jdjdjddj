@@ -66,12 +66,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
-  const spriteRef = useRef<HTMLDivElement>(null);
-  const spriteFrameRef = useRef(0);
-  const spriteIntervalRef = useRef<number | null>(null);
-  const portraitRef = useRef<HTMLDivElement>(null);
-  const portraitFrameRef = useRef(0);
-  const portraitIntervalRef = useRef<number | null>(null);
 
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
@@ -198,66 +192,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   // from the responsive height).
   const aspect = sprite.frameW / sprite.frameH;
 
-  // ── JS-driven sprite animation (no CSS animation) ───────────────────
-  // Like the original shop (c39c82a), we use setInterval to cycle frames.
-  // This avoids the CSS animation restart bug entirely.
-  useEffect(() => {
-    // Clear previous interval
-    if (spriteIntervalRef.current !== null) {
-      clearInterval(spriteIntervalRef.current);
-      spriteIntervalRef.current = null;
-    }
-    const el = spriteRef.current;
-    if (!el) return;
-    // Reset to frame 0
-    spriteFrameRef.current = 0;
-    el.style.backgroundPosition = '0% 0%';
-    // If only 1 frame or no animation needed, stay at frame 0
-    if (!sprite.anim || sprite.frames <= 1) return;
-    const frameMs = sprite.cycle / sprite.frames;
-    spriteIntervalRef.current = window.setInterval(() => {
-      spriteFrameRef.current = (spriteFrameRef.current + 1) % sprite.frames;
-      // backgroundPosition-x: each frame is (100 / (frames-1))% apart
-      // For a strip: frame 0 = 0%, last frame = 100%
-      const pct = sprite.frames > 1
-        ? (spriteFrameRef.current / (sprite.frames - 1)) * 100
-        : 0;
-      el.style.backgroundPosition = `${pct}% 0%`;
-    }, frameMs);
-    return () => {
-      if (spriteIntervalRef.current !== null) {
-        clearInterval(spriteIntervalRef.current);
-        spriteIntervalRef.current = null;
-      }
-    };
-  }, [spriteMode, sprite.anim, sprite.cycle, sprite.frames]);
-
-  // ── JS-driven portrait animation ─────────────────────────────────────
-  useEffect(() => {
-    if (portraitIntervalRef.current !== null) {
-      clearInterval(portraitIntervalRef.current);
-      portraitIntervalRef.current = null;
-    }
-    const el = portraitRef.current;
-    if (!el) return;
-    portraitFrameRef.current = 0;
-    el.style.backgroundPosition = '0% 0%';
-    if (!isTyping) return; // idle — static frame 0
-    const frames = BELLHOP_TALK_FRAMES;
-    const frameMs = 240 / frames;
-    portraitIntervalRef.current = window.setInterval(() => {
-      portraitFrameRef.current = (portraitFrameRef.current + 1) % frames;
-      const pct = frames > 1 ? (portraitFrameRef.current / (frames - 1)) * 100 : 0;
-      el.style.backgroundPosition = `${pct}% 0%`;
-    }, frameMs);
-    return () => {
-      if (portraitIntervalRef.current !== null) {
-        clearInterval(portraitIntervalRef.current);
-        portraitIntervalRef.current = null;
-      }
-    };
-  }, [isTyping]);
-
   return (
     <div
       className="absolute inset-0 z-[80] overflow-hidden"
@@ -336,10 +270,10 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — JS-driven via setInterval (no CSS animation).
-                ref used by useEffect to update backgroundPosition each frame. */}
+            {/* Animated bellhop — key={spriteMode} forces React to remount on
+                mode change, cleanly restarting the CSS animation (fixes carrossel). */}
             <div
-              ref={spriteRef}
+              key={spriteMode}
               aria-hidden
               style={{
                 height: SPRITE_H,
@@ -349,6 +283,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 backgroundRepeat: 'no-repeat',
                 backgroundPosition: '0% 0%',
                 imageRendering: 'pixelated',
+                animation: sprite.anim
+                  ? `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`
+                  : 'none',
                 filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: showContent ? 1 : 0,
@@ -376,23 +313,33 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 gap: 14,
               }}
             >
-              {/* Portrait — JS-driven via setInterval, no CSS animation */}
+              {/* Portrait — small mouth-closed / mouth-open head, 64×64 */}
               <div
                 aria-hidden
                 style={{
                   flexShrink: 0,
                   width: 'clamp(56px, 9vw, 76px)',
                   aspectRatio: '1 / 1',
+                  backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
+                  backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: '0% 0%',
+                  imageRendering: 'pixelated',
+                  animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
+                  // Crop to head only — show top portion of the sprite
+                  // (background-size with extra height pushes lower body off)
+                  // Easiest: scale up so only head shows.
                   border: '2px solid #C99B36',
                   borderRadius: 4,
                   background: 'linear-gradient(180deg, #2a1a14 0%, #1a0a08 100%)',
                   boxShadow: 'inset 0 0 6px rgba(0,0,0,0.6)',
+                  // overlay strip via a child for tighter control
                   overflow: 'hidden',
                   position: 'relative',
                 }}
               >
                 <div
-                  ref={portraitRef}
+                  key={isTyping ? 'talk' : 'idle'}
                   style={{
                     position: 'absolute',
                     top: 0, left: 0, right: 0,
@@ -402,6 +349,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: '0% 0%',
                     imageRendering: 'pixelated',
+                    animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
                     transform: 'translateY(-8%)',
                   }}
                 />
@@ -480,6 +428,14 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
           40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
           100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+        }
+        @keyframes bellhopClean {
+          from { background-position-x: 0%; }
+          to   { background-position-x: 100%; }
+        }
+        @keyframes bellhopTalk {
+          from { background-position-x: 0%; }
+          to   { background-position-x: 100%; }
         }
         @keyframes shopDoorInLeft {
           from { transform: translateX(-100%); }
