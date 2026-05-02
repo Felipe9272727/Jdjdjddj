@@ -32,7 +32,7 @@ import {
 //     cycle to read as active speech.
 // All assets are inlined as base64 (see bellhop-sprites.ts).
 
-type ShopMenu = 'main' | 'talk' | 'bye' | 'comprar';
+type ShopMenu = 'main' | 'talk' | 'bye';
 type Phase = 'closing' | 'arrived' | 'opening' | 'idle' | 'exit-close';
 
 interface ShopOverlayProps {
@@ -44,7 +44,6 @@ const DIALOGUES: Record<ShopMenu, string> = {
   main: 'Bem-vindo ao The Normal Hotel.\nPosso te ajudar?',
   talk: 'Tenha uma ótima estadia... e fique calmo se ouvir alguma coisa estranha vindo do andar de cima.',
   bye: 'Volte sempre! O elevador está\nsempre aberto.',
-  comprar: 'Em breve...',
 };
 
 const TIMINGS = {
@@ -67,8 +66,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
-  const spriteRef = useRef<HTMLDivElement>(null);
-  const prevSpriteModeRef = useRef<string>('');
 
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
@@ -131,16 +128,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     const t = window.setTimeout(() => onClose(), TIMINGS.exitClose);
     phaseTimersRef.current.push(t);
   };
-
-  // Close on ESC
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); close(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, phase]);
 
   if (!open) return null;
 
@@ -205,30 +192,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   // from the responsive height).
   const aspect = sprite.frameW / sprite.frameH;
 
-  // ── Force CSS animation restart on sprite mode change ────────────────
-  // The "sprite carrossel" bug: when spriteMode changes, the browser may
-  // not restart the CSS animation cleanly, causing frame jumps. Fix:
-  // temporarily set animation to 'none', force a repaint via rAF, then
-  // apply the new animation.
-  useEffect(() => {
-    const el = spriteRef.current;
-    if (!el) return;
-    if (prevSpriteModeRef.current === spriteMode) return;
-    prevSpriteModeRef.current = spriteMode;
-    // Strip animation
-    el.style.animation = 'none';
-    // Force browser to acknowledge the style change
-    void el.offsetHeight;
-    // Re-apply in next frame
-    requestAnimationFrame(() => {
-      if (!sprite.anim) {
-        el.style.animation = 'none';
-      } else {
-        el.style.animation = `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`;
-      }
-    });
-  }, [spriteMode, sprite.anim, sprite.cycle, sprite.frames]);
-
   return (
     <div
       className="absolute inset-0 z-[80] overflow-hidden"
@@ -262,27 +225,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         }}
       />
 
-      {/* Close button — top-right */}
-      {phase === 'idle' && (
-        <button
-          onClick={(e) => { e.stopPropagation(); close(); }}
-          aria-label="Fechar loja"
-          className="absolute top-4 right-4 z-[90] w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 hover:scale-110"
-          style={{
-            background: 'rgba(0,0,0,0.6)',
-            border: '2px solid rgba(201,155,54,0.5)',
-            color: '#FFD54F',
-            fontSize: '20px',
-            fontFamily: 'monospace',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-          }}
-        >
-          ✕
-        </button>
-      )}
-
-      {/* Title bar — "★ RECEPÇÃO ★" badge with pulse */}
+      {/* Title bar — shows above the bellhop */}
       <div
         className="absolute left-1/2 -translate-x-1/2 select-none pointer-events-none"
         style={{
@@ -294,7 +237,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         }}
       >
         <div
-          className="px-5 py-2 border-2 reception-badge"
+          className="px-5 py-2 border-2"
           style={{
             background: 'linear-gradient(180deg, #1a0a08 0%, #2a0e0c 100%)',
             borderColor: '#C99B36',
@@ -327,13 +270,11 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — animation restart is handled by a useEffect
-                that strips animation, forces repaint via offsetHeight, then
-                re-applies in rAF. This fixes the "sprite carrossel" bug. */}
+            {/* Animated bellhop — sized in CSS px (no transform:scale) so
+                the layout box matches the visible bounds → no overflow.
+                width auto via aspect-ratio + height. */}
             <div
-              ref={spriteRef}
               aria-hidden
-              className={spriteMode === 'idle-static' ? 'bellhop-idle-bob' : undefined}
               style={{
                 height: SPRITE_H,
                 aspectRatio: `${sprite.frameW} / ${sprite.frameH}`,
@@ -354,9 +295,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
             />
 
             {/* Dialog box — Undertale style: thick white border, gold inner
-                accent, portrait on the left, subtle glow */}
+                accent, portrait on the left */}
             <div
-              className="w-full dialog-glow"
+              className="w-full"
               style={{
                 background: 'linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(8,4,2,0.95) 100%)',
                 border: '4px solid #ffffff',
@@ -364,7 +305,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 padding: '14px 18px',
                 minHeight: 110,
                 boxShadow:
-                  '0 0 0 2px #000, inset 0 0 0 2px rgba(255,213,79,0.18), 0 8px 24px rgba(0,0,0,0.5), 0 0 20px rgba(255,213,79,0.08), 0 0 40px rgba(255,213,79,0.04)',
+                  '0 0 0 2px #000, inset 0 0 0 2px rgba(255,213,79,0.18), 0 8px 24px rgba(0,0,0,0.5)',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: phase === 'idle' ? 1 : 0,
                 transition: 'transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms, opacity 450ms ease-out 320ms',
@@ -379,16 +320,25 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                   flexShrink: 0,
                   width: 'clamp(56px, 9vw, 76px)',
                   aspectRatio: '1 / 1',
+                  backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
+                  backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: '0% 0%',
+                  imageRendering: 'pixelated',
+                  animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
+                  // Crop to head only — show top portion of the sprite
+                  // (background-size with extra height pushes lower body off)
+                  // Easiest: scale up so only head shows.
                   border: '2px solid #C99B36',
                   borderRadius: 4,
                   background: 'linear-gradient(180deg, #2a1a14 0%, #1a0a08 100%)',
                   boxShadow: 'inset 0 0 6px rgba(0,0,0,0.6)',
+                  // overlay strip via a child for tighter control
                   overflow: 'hidden',
                   position: 'relative',
                 }}
               >
                 <div
-                  key={isTyping ? 'talk' : 'idle'}
                   style={{
                     position: 'absolute',
                     top: 0, left: 0, right: 0,
@@ -398,10 +348,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: '0% 0%',
                     imageRendering: 'pixelated',
-                    animationName: isTyping ? 'bellhopTalk' : 'none',
-                    animationDuration: isTyping ? '240ms' : undefined,
-                    animationTimingFunction: isTyping ? `steps(${BELLHOP_TALK_FRAMES})` : undefined,
-                    animationIterationCount: isTyping ? 'infinite' : undefined,
+                    animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
                     transform: 'translateY(-8%)',
                   }}
                 />
@@ -429,14 +376,10 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                     {menu === 'main' && (
                       <>
                         <ShopButton label="Conversar" onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
-                        <ShopButton label="Comprar" onClick={(e) => { e.stopPropagation(); setMenu('comprar'); }} />
                         <ShopButton label="Sair" onClick={(e) => { e.stopPropagation(); setMenu('bye'); }} />
                       </>
                     )}
                     {menu === 'talk' && (
-                      <ShopButton label="Voltar" onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
-                    )}
-                    {menu === 'comprar' && (
                       <ShopButton label="Voltar" onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
                     )}
                     {menu === 'bye' && (
@@ -493,14 +436,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           from { background-position-x: 0%; }
           to   { background-position-x: 100%; }
         }
-        @keyframes bellhopIdleBob {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-4px); }
-        }
-        @keyframes receptionPulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.7; }
-        }
         @keyframes shopDoorInLeft {
           from { transform: translateX(-100%); }
           to   { transform: translateX(0%); }
@@ -526,16 +461,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           margin-left: 2px;
           color: #FFD54F;
           animation: typewriterBlink 700ms steps(2) infinite;
-        }
-        .bellhop-idle-bob {
-          animation: bellhopIdleBob 3s ease-in-out infinite !important;
-        }
-        .reception-badge {
-          animation: receptionPulse 3s ease-in-out infinite;
-        }
-        .dialog-glow {
-          /* Subtle warm glow already in box-shadow via inline style;
-             this class exists for future CSS-only enhancements. */
         }
         .shop-button {
           background: transparent;
