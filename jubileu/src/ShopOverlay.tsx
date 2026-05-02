@@ -66,6 +66,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
+  const spriteRef = useRef<HTMLDivElement>(null);
+  const prevSpriteModeRef = useRef<string>('');
 
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
@@ -192,6 +194,26 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   // from the responsive height).
   const aspect = sprite.frameW / sprite.frameH;
 
+  // ── Force CSS animation restart on sprite mode change ────────────────
+  // The "sprite carrossel" bug: when spriteMode changes, the browser may
+  // not restart the CSS animation cleanly, causing frame jumps.
+  // Fix: strip animation, force layout reflow, re-apply in rAF.
+  useEffect(() => {
+    const el = spriteRef.current;
+    if (!el) return;
+    if (prevSpriteModeRef.current === spriteMode) return;
+    prevSpriteModeRef.current = spriteMode;
+    el.style.animation = 'none';
+    void el.offsetHeight; // force reflow
+    requestAnimationFrame(() => {
+      if (!sprite.anim) {
+        el.style.animation = 'none';
+      } else {
+        el.style.animation = `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`;
+      }
+    });
+  }, [spriteMode, sprite.anim, sprite.cycle, sprite.frames]);
+
   return (
     <div
       className="absolute inset-0 z-[80] overflow-hidden"
@@ -270,10 +292,10 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — sized in CSS px (no transform:scale) so
-                the layout box matches the visible bounds → no overflow.
-                width auto via aspect-ratio + height. */}
+            {/* Animated bellhop — ref={spriteRef} used by useEffect to force
+                CSS animation restart on spriteMode change (fixes carrossel bug). */}
             <div
+              ref={spriteRef}
               aria-hidden
               style={{
                 height: SPRITE_H,
@@ -339,6 +361,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 }}
               >
                 <div
+                  key={isTyping ? 'talk' : 'idle'}
                   style={{
                     position: 'absolute',
                     top: 0, left: 0, right: 0,
