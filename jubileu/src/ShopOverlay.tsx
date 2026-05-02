@@ -67,6 +67,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
+  const spriteRef = useRef<HTMLDivElement>(null);
+  const prevSpriteModeRef = useRef<string>('');
 
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
@@ -203,6 +205,30 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   // from the responsive height).
   const aspect = sprite.frameW / sprite.frameH;
 
+  // ── Force CSS animation restart on sprite mode change ────────────────
+  // The "sprite carrossel" bug: when spriteMode changes, the browser may
+  // not restart the CSS animation cleanly, causing frame jumps. Fix:
+  // temporarily set animation to 'none', force a repaint via rAF, then
+  // apply the new animation.
+  useEffect(() => {
+    const el = spriteRef.current;
+    if (!el) return;
+    if (prevSpriteModeRef.current === spriteMode) return;
+    prevSpriteModeRef.current = spriteMode;
+    // Strip animation
+    el.style.animation = 'none';
+    // Force browser to acknowledge the style change
+    void el.offsetHeight;
+    // Re-apply in next frame
+    requestAnimationFrame(() => {
+      if (!sprite.anim) {
+        el.style.animation = 'none';
+      } else {
+        el.style.animation = `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`;
+      }
+    });
+  }, [spriteMode, sprite.anim, sprite.cycle, sprite.frames]);
+
   return (
     <div
       className="absolute inset-0 z-[80] overflow-hidden"
@@ -301,12 +327,11 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — key={spriteMode} forces React to remount
-                the div on mode change, which restarts the CSS animation cleanly.
-                This fixes the "sprite carrossel" bug where switching between
-                clean → talk → idle-static caused frame jumps. */}
+            {/* Animated bellhop — animation restart is handled by a useEffect
+                that strips animation, forces repaint via offsetHeight, then
+                re-applies in rAF. This fixes the "sprite carrossel" bug. */}
             <div
-              key={spriteMode}
+              ref={spriteRef}
               aria-hidden
               className={spriteMode === 'idle-static' ? 'bellhop-idle-bob' : undefined}
               style={{
@@ -317,10 +342,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 backgroundRepeat: 'no-repeat',
                 backgroundPosition: '0% 0%',
                 imageRendering: 'pixelated',
-                animationName: sprite.anim || 'none',
-                animationDuration: sprite.anim ? `${sprite.cycle}ms` : undefined,
-                animationTimingFunction: sprite.anim ? `steps(${sprite.frames})` : undefined,
-                animationIterationCount: sprite.anim ? 'infinite' : undefined,
+                animation: sprite.anim
+                  ? `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`
+                  : 'none',
                 filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: showContent ? 1 : 0,

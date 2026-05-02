@@ -615,16 +615,6 @@ export default function App() {
           ariaLabel="Abrir porta"
         />
       )}
-      {hasStarted && canInteractCashier && !canInteractNPC && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
-        <ActionButton
-          icon={<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>}
-          label="RECEPÇÃO"
-          colorClasses="bg-gradient-to-r from-amber-500 to-yellow-400"
-          ringClasses="bg-gradient-to-b from-yellow-300 to-amber-500 text-black ring-amber-300"
-          onClick={handleOpenShop}
-          ariaLabel="Abrir recepção"
-        />
-      )}
       {hasStarted && canInteractNPC && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
         <ActionButton
           icon={<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>}
