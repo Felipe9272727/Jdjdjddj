@@ -66,8 +66,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
-  const spriteRef = useRef<HTMLDivElement>(null);
-  const portraitRef = useRef<HTMLDivElement>(null);
 
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
@@ -163,34 +161,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const spriteMode: SpriteMode =
     phase === 'idle' ? (isTyping ? 'talk' : 'idle-static') :
     'clean';
-
-  // Force CSS animation restart when spriteMode changes
-  // Using requestAnimationFrame to safely restart without reflow hack (which caused crash)
-  useEffect(() => {
-    const el = spriteRef.current;
-    if (!el) return;
-    // Remove and re-add animation in next frame to force restart
-    const currentAnim = el.style.animation;
-    el.style.animation = 'none';
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        el.style.animation = currentAnim;
-      });
-    });
-  }, [spriteMode]);
-
-  // Force portrait animation restart when isTyping changes
-  useEffect(() => {
-    const el = portraitRef.current;
-    if (!el) return;
-    const currentAnim = el.style.animation;
-    el.style.animation = 'none';
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        el.style.animation = currentAnim;
-      });
-    });
-  }, [isTyping]);
 
   const sprite = (() => {
     if (spriteMode === 'clean') return {
@@ -300,29 +270,38 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — ref + useEffect forces animation restart on mode change */}
+            {/* Animated bellhop — outer wrapper handles slide/fade transition,
+                inner div handles sprite carousel animation. Separating these
+                avoids transition/animation conflicts and ensures a clean
+                animation restart when spriteMode changes (via key on inner). */}
             <div
-              ref={spriteRef}
-              key={spriteMode}
               aria-hidden
               style={{
                 height: SPRITE_H,
                 aspectRatio: `${sprite.frameW} / ${sprite.frameH}`,
-                backgroundImage: `url(${sprite.url})`,
-                backgroundSize: `${sprite.frames * 100}% 100%`,
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: '0% 0%',
-                imageRendering: 'pixelated',
-                animation: sprite.anim
-                  ? `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`
-                  : 'none',
                 filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: showContent ? 1 : 0,
                 transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
                 marginBottom: 14,
               }}
-            />
+            >
+              <div
+                key={spriteMode}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  backgroundImage: `url(${sprite.url})`,
+                  backgroundSize: `${sprite.frames * 100}% 100%`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: '0% 0%',
+                  imageRendering: 'pixelated',
+                  animation: sprite.anim
+                    ? `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`
+                    : 'none',
+                }}
+              />
+            </div>
 
             {/* Dialog box — Undertale style: thick white border, gold inner
                 accent, portrait on the left */}
@@ -369,7 +348,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 }}
               >
                 <div
-                  ref={portraitRef}
                   key={isTyping ? 'talk' : 'idle'}
                   style={{
                     position: 'absolute',
