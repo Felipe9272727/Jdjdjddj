@@ -28,11 +28,13 @@
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "firebase": "^12.12.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.184.0",
+    "three-stdlib": "^2.36.1",
     "vite": "^6.2.0"
   },
   "devDependencies": {

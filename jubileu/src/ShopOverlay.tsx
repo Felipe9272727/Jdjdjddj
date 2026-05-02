@@ -66,6 +66,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
+  const spriteRef = useRef<HTMLDivElement>(null);
+  const portraitRef = useRef<HTMLDivElement>(null);
 
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
@@ -161,6 +163,34 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const spriteMode: SpriteMode =
     phase === 'idle' ? (isTyping ? 'talk' : 'idle-static') :
     'clean';
+
+  // Force CSS animation restart when spriteMode changes
+  // Using requestAnimationFrame to safely restart without reflow hack (which caused crash)
+  useEffect(() => {
+    const el = spriteRef.current;
+    if (!el) return;
+    // Remove and re-add animation in next frame to force restart
+    const currentAnim = el.style.animation;
+    el.style.animation = 'none';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.style.animation = currentAnim;
+      });
+    });
+  }, [spriteMode]);
+
+  // Force portrait animation restart when isTyping changes
+  useEffect(() => {
+    const el = portraitRef.current;
+    if (!el) return;
+    const currentAnim = el.style.animation;
+    el.style.animation = 'none';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.style.animation = currentAnim;
+      });
+    });
+  }, [isTyping]);
 
   const sprite = (() => {
     if (spriteMode === 'clean') return {
@@ -270,8 +300,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — key forces remount on mode change */}
+            {/* Animated bellhop — ref + useEffect forces animation restart on mode change */}
             <div
+              ref={spriteRef}
               key={spriteMode}
               aria-hidden
               style={{
@@ -338,6 +369,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 }}
               >
                 <div
+                  ref={portraitRef}
                   key={isTyping ? 'talk' : 'idle'}
                   style={{
                     position: 'absolute',
