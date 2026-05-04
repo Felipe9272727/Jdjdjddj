@@ -1,6 +1,81 @@
-import React from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BARNEY_URL, BARNEY_DIALOGUE } from './constants';
 import { TypewriterText } from './UI';
+
+// ─── Procedural Sound Helpers (Web Audio) ────────────────────────────────
+const getAudioCtx = (): AudioContext | undefined => (window as any).__jubileuAudioCtx;
+
+/** Play a dramatic floor arrival sound — deep boom + high chime */
+export const playFloorRevealSound = () => {
+    const ctx = getAudioCtx();
+    if (!ctx || ctx.state !== 'running') return;
+    const t = ctx.currentTime;
+    // Deep sub-bass boom
+    const boom = ctx.createOscillator();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(80, t);
+    boom.frequency.exponentialRampToValueAtTime(30, t + 0.6);
+    const boomGain = ctx.createGain();
+    boomGain.gain.setValueAtTime(0.18, t);
+    boomGain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+    boom.connect(boomGain).connect(ctx.destination);
+    boom.start(t);
+    boom.stop(t + 0.8);
+    // High chime
+    const chime = ctx.createOscillator();
+    chime.type = 'sine';
+    chime.frequency.setValueAtTime(1200, t + 0.05);
+    chime.frequency.exponentialRampToValueAtTime(800, t + 0.5);
+    const chimeGain = ctx.createGain();
+    chimeGain.gain.setValueAtTime(0, t);
+    chimeGain.gain.linearRampToValueAtTime(0.06, t + 0.07);
+    chimeGain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    chime.connect(chimeGain).connect(ctx.destination);
+    chime.start(t + 0.05);
+    chime.stop(t + 0.6);
+};
+
+/** Heartbeat sound — procedural thump-thump for chase sequences */
+export const playHeartbeat = (speed: number = 1.0) => {
+    const ctx = getAudioCtx();
+    if (!ctx || ctx.state !== 'running') return;
+    const t = ctx.currentTime;
+    const interval = 0.25 / speed;
+    for (let i = 0; i < 2; i++) {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(50 - i * 10, t + i * interval);
+        osc.frequency.exponentialRampToValueAtTime(25, t + i * interval + 0.15);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0, t + i * interval);
+        gain.gain.linearRampToValueAtTime(0.15 - i * 0.05, t + i * interval + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + i * interval + 0.2);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t + i * interval);
+        osc.stop(t + i * interval + 0.2);
+    }
+};
+
+/** Distant thud — eerie impact sound for empty lobby */
+export const playDistantThud = () => {
+    const ctx = getAudioCtx();
+    if (!ctx || ctx.state !== 'running') return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(40, t);
+    osc.frequency.exponentialRampToValueAtTime(15, t + 0.4);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.08, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    // Low-pass to make it sound distant
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 120;
+    osc.connect(filter).connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.5);
+};
 
 // ─── Elevator Status HUD ──────────────────────────────────────────────────
 interface ElevatorHudProps {
@@ -72,27 +147,58 @@ export const ElevatorHud = React.memo(({ currentLevel, elevatorTimer, doorsClose
   </div>
 ));
 
-// ─── Floor Reveal Overlay ─────────────────────────────────────────────────
-export const FloorReveal = ({ level }: { level: number }) => (
-  <div className="absolute inset-0 z-[45] flex items-center justify-center pointer-events-none px-4">
-    <div className="animate-floor-reveal text-center w-full">
-      <div className="text-amber-500/80 text-xs sm:text-sm tracking-[0.3em] sm:tracking-[0.5em] uppercase mb-2 sm:mb-4 animate-fade-in">Now Arriving</div>
-      <div className="text-white font-black tracking-wider tabular-nums" style={{ fontSize: 'clamp(2rem, 12vw, 5rem)', textShadow: '0 0 60px rgba(251,191,36,0.8), 0 0 30px rgba(255,255,255,0.4)' }}>FLOOR <span className="text-amber-400">{String(level).padStart(2, '0')}</span></div>
-      <div className="h-[2px] w-32 sm:w-48 mx-auto mt-4 sm:mt-6 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
+// ─── Floor Reveal Overlay (Enhanced — typewriter + shake + sound) ─────────
+export const FloorReveal = ({ level }: { level: number }) => {
+  const [typed, setTyped] = useState('');
+  const [shakeClass, setShakeClass] = useState(false);
+  const label = `FLOOR ${String(level).padStart(2, '0')}`;
+
+  useEffect(() => {
+    setTyped('');
+    setShakeClass(true);
+    playFloorRevealSound();
+    // Subtle screen shake for ~400ms
+    const shakeTimer = setTimeout(() => setShakeClass(false), 400);
+    // Typewriter effect — reveal chars one by one
+    let idx = 0;
+    const typeTimer = setInterval(() => {
+      idx++;
+      setTyped(label.substring(0, idx));
+      if (idx >= label.length) clearInterval(typeTimer);
+    }, 60);
+    return () => { clearTimeout(shakeTimer); clearInterval(typeTimer); };
+  }, [level]);
+
+  return (
+    <div
+      className={`absolute inset-0 z-[45] flex items-center justify-center pointer-events-none px-4 ${shakeClass ? 'floor-reveal-shake' : ''}`}
+    >
+      <div className="animate-floor-reveal text-center w-full">
+        <div className="text-amber-500/80 text-xs sm:text-sm tracking-[0.3em] sm:tracking-[0.5em] uppercase mb-2 sm:mb-4 animate-fade-in">Now Arriving</div>
+        <div
+          className="text-white font-black tracking-wider tabular-nums"
+          style={{ fontSize: 'clamp(2rem, 12vw, 5rem)', textShadow: '0 0 60px rgba(251,191,36,0.8), 0 0 30px rgba(255,255,255,0.4)' }}
+        >
+          <span>{typed}</span>
+          {typed.length < label.length && <span className="inline-block w-[3px] h-[0.8em] bg-amber-400 ml-1 animate-pulse align-middle" />}
+        </div>
+        <div className="h-[2px] w-32 sm:w-48 mx-auto mt-4 sm:mt-6 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ─── Top-right controls (settings + mute) ─────────────────────────────────
 interface TopControlsProps {
   multiplayerEnabled: boolean;
   otherPlayersCount: number;
+  connectionStatus: 'connecting' | 'online' | 'error';
   onSettingsOpen: () => void;
   muted: boolean;
   onToggleMute: () => void;
 }
 
-export const TopControls = React.memo(({ multiplayerEnabled, otherPlayersCount, onSettingsOpen, muted, onToggleMute }: TopControlsProps) => (
+export const TopControls = React.memo(({ multiplayerEnabled, otherPlayersCount, connectionStatus, onSettingsOpen, muted, onToggleMute }: TopControlsProps) => (
   <div
     className="absolute z-50 flex gap-2 pointer-events-auto"
     style={{
@@ -101,9 +207,15 @@ export const TopControls = React.memo(({ multiplayerEnabled, otherPlayersCount, 
     }}
   >
     {multiplayerEnabled && (
-      <div className="flex items-center gap-1.5 bg-black/70 backdrop-blur-sm ring-1 ring-white/10 px-2.5 py-1.5 rounded-full" aria-label="Multiplayer ativo">
-        <div className={`w-2 h-2 rounded-full ${otherPlayersCount > 0 ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]' : 'bg-amber-400/70 animate-pulse'}`} />
-        <span className="text-[10px] text-white/60 font-medium tracking-wider">{otherPlayersCount > 0 ? `${otherPlayersCount} online` : 'MP'}</span>
+      <div
+        className="flex items-center gap-1.5 bg-black/80 backdrop-blur-sm ring-1 ring-white/10 px-2 py-1.5 rounded-md"
+        style={{ fontFamily: '"Courier New", "Source Sans 3", monospace', fontSize: 10, letterSpacing: '0.08em' }}
+        aria-label={`Multiplayer: ${connectionStatus}, ${otherPlayersCount} jogadores`}
+      >
+        <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'online' ? (otherPlayersCount > 0 ? 'bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.5)]' : 'bg-green-400/60') : connectionStatus === 'connecting' ? 'bg-amber-400 animate-pulse' : 'bg-red-400/80'}`} />
+        <span className="text-white/50">
+          {connectionStatus === 'error' ? 'OFFLINE' : connectionStatus === 'connecting' ? 'SYNC...' : otherPlayersCount > 0 ? `${otherPlayersCount} ONLINE` : 'ONLINE'}
+        </span>
       </div>
     )}
     <button onClick={onSettingsOpen} className="relative group" aria-label="Configurações">
@@ -159,20 +271,67 @@ export const NightBanner = ({ elevatorActive }: { elevatorActive: boolean }) => 
   </div>
 );
 
-export const ChaseBanner = ({ elevatorActive }: { elevatorActive: boolean }) => (
-  <div className={`absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorActive ? 'top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]' : 'top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]'}`}>
-    <div className="bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-[11px] sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight">
-      ⚠ CORRA PARA O ELEVADOR ⚠
-    </div>
-  </div>
-);
+export const ChaseBanner = ({ elevatorActive }: { elevatorActive: boolean }) => {
+  const [flashText, setFlashText] = useState('');
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    // Heartbeat sound loop — speed increases over time
+    let beatCount = 0;
+    heartbeatRef.current = setInterval(() => {
+      beatCount++;
+      const speed = Math.min(1.0 + beatCount * 0.03, 2.5);
+      playHeartbeat(speed);
+    }, 700);
+    // Flash "RUN" / "ELEVATOR. NOW." text at intervals
+    const flashMessages = ['RUN', 'ELEVATOR. NOW.', 'RUN', 'DON\'T LOOK BACK'];
+    let flashIdx = 0;
+    const flashInterval = setInterval(() => {
+      setFlashText(flashMessages[flashIdx % flashMessages.length]);
+      flashIdx++;
+      setTimeout(() => setFlashText(''), 800);
+    }, 3000);
+    // Show first flash immediately
+    setFlashText('RUN');
+    const clearFirst = setTimeout(() => setFlashText(''), 1000);
+    return () => {
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+      clearInterval(flashInterval);
+      clearTimeout(clearFirst);
+    };
+  }, []);
+
+  return (
+    <>
+      {/* Red vignette that pulses */}
+      <div className="absolute inset-0 z-[35] pointer-events-none chase-vignette" />
+      {/* Chase banner */}
+      <div className={`absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorActive ? 'top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]' : 'top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]'}`}>
+        <div className="bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-[11px] sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight">
+          ⚠ CORRA PARA O ELEVADOR ⚠
+        </div>
+      </div>
+      {/* Flash text: "RUN" / "ELEVATOR. NOW." */}
+      {flashText && (
+        <div className="absolute inset-0 z-[50] flex items-center justify-center pointer-events-none">
+          <div
+            className="text-red-500 font-black tracking-[0.3em] animate-chase-flash"
+            style={{ fontSize: 'clamp(2rem, 15vw, 6rem)', textShadow: '0 0 40px rgba(239,68,68,0.8), 0 0 80px rgba(239,68,68,0.4)' }}
+          >
+            {flashText}
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
 
 export const SavedOverlay = () => (
   <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-6 overflow-hidden">
     <div className="text-center w-full animate-fade-in">
       <div className="text-green-400 font-black mb-2" style={{ fontSize: 'clamp(1.5rem, 8vw, 3rem)', textShadow: '0 0 40px rgba(74,222,128,0.5)' }}>VOCÊ SOBREVIVEU</div>
       <div className="h-[2px] w-24 mx-auto mb-3 bg-gradient-to-r from-transparent via-green-400 to-transparent" />
-      <div className="text-white/50 text-base sm:text-lg font-light tracking-wider">Por enquanto...</div>
+      <div className="text-white/60 text-base sm:text-lg font-light tracking-wider">Por enquanto...</div>
     </div>
   </div>
 );
@@ -189,9 +348,9 @@ export const BarneyDialogue = ({ dialogueNode, onResponse }: BarneyDialogueProps
 
   return (
     <div className="absolute inset-0 z-[55] flex items-end justify-center pointer-events-auto landscape:items-center landscape:py-4 overflow-y-auto" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)' }}>
-      <div className="w-full max-w-2xl mx-4 mb-6 landscape:mb-0 relative animate-barney-dialogue flex-shrink-0">
+      <div className="w-full max-w-2xl mx-4 mb-6 landscape:mb-0 relative animate-barney-dialogue flex-shrink-0 max-h-[85vh] landscape:max-h-[90vh] overflow-hidden flex flex-col">
         <div className="absolute -inset-1 bg-gradient-to-r from-purple-500/40 via-pink-500/40 to-purple-500/40 rounded-2xl blur-lg barney-glow" />
-        <div className="relative bg-[#0d0411]/98 border-2 border-purple-500/50 rounded-xl p-2.5 sm:p-5 shadow-2xl">
+        <div className="relative bg-[#0d0411]/98 border-2 border-purple-500/50 rounded-xl p-2.5 sm:p-5 shadow-2xl overflow-y-auto scrollbar-hide">
           <div className="flex items-start gap-3 sm:gap-4 flex-col landscape:flex-row sm:flex-row">
             {/* Mobile portrait image */}
             <div className="flex items-center gap-3 sm:hidden landscape:hidden w-full border-b border-white/5 pb-2 mb-1">

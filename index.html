@@ -653,10 +653,6 @@
     bottom: calc(var(--spacing) * 6);
   }
 
-  .bottom-\[calc\(env\(safe-area-inset-bottom\,0px\)\+20px\)\] {
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
-  }
-
   .bottom-\[calc\(env\(safe-area-inset-bottom\,0px\)\+24px\)\] {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
   }
@@ -717,8 +713,24 @@
     z-index: 50;
   }
 
+  .z-\[2\] {
+    z-index: 2;
+  }
+
+  .z-\[3\] {
+    z-index: 3;
+  }
+
+  .z-\[35\] {
+    z-index: 35;
+  }
+
   .z-\[45\] {
     z-index: 45;
+  }
+
+  .z-\[48\] {
+    z-index: 48;
   }
 
   .z-\[50\] {
@@ -949,6 +961,10 @@
     height: calc(var(--spacing) * 96);
   }
 
+  .h-\[0\.8em\] {
+    height: .8em;
+  }
+
   .h-\[2px\] {
     height: 2px;
   }
@@ -979,6 +995,10 @@
 
   .max-h-\[70vh\] {
     max-height: 70vh;
+  }
+
+  .max-h-\[85vh\] {
+    max-height: 85vh;
   }
 
   .max-h-\[100dvh\] {
@@ -1085,6 +1105,10 @@
     width: calc(var(--spacing) * 80);
   }
 
+  .w-\[3px\] {
+    width: 3px;
+  }
+
   .w-\[180px\] {
     width: 180px;
   }
@@ -1135,6 +1159,10 @@
 
   .max-w-lg {
     max-width: var(--container-lg);
+  }
+
+  .max-w-md {
+    max-width: var(--container-md);
   }
 
   .max-w-sm {
@@ -1672,26 +1700,6 @@
     background-color: var(--color-amber-400);
   }
 
-  .bg-amber-400\/30 {
-    background-color: #fcbb004d;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .bg-amber-400\/30 {
-      background-color: color-mix(in oklab, var(--color-amber-400) 30%, transparent);
-    }
-  }
-
-  .bg-amber-400\/60 {
-    background-color: #fcbb0099;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .bg-amber-400\/60 {
-      background-color: color-mix(in oklab, var(--color-amber-400) 60%, transparent);
-    }
-  }
-
   .bg-amber-400\/70 {
     background-color: #fcbb00b3;
   }
@@ -1840,6 +1848,16 @@
     }
   }
 
+  .bg-green-400\/60 {
+    background-color: #05df7299;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-green-400\/60 {
+      background-color: color-mix(in oklab, var(--color-green-400) 60%, transparent);
+    }
+  }
+
   .bg-green-500 {
     background-color: var(--color-green-500);
   }
@@ -1856,6 +1874,16 @@
 
   .bg-purple-400 {
     background-color: var(--color-purple-400);
+  }
+
+  .bg-red-400\/80 {
+    background-color: #ff6568cc;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-red-400\/80 {
+      background-color: color-mix(in oklab, var(--color-red-400) 80%, transparent);
+    }
   }
 
   .bg-red-500 {
@@ -2690,6 +2718,10 @@
     text-align: left;
   }
 
+  .align-middle {
+    vertical-align: middle;
+  }
+
   .font-mono {
     font-family: var(--font-mono);
   }
@@ -2860,6 +2892,10 @@
 
   .break-words {
     overflow-wrap: break-word;
+  }
+
+  .break-all {
+    word-break: break-all;
   }
 
   .whitespace-nowrap {
@@ -3130,6 +3166,16 @@
     color: var(--color-white);
   }
 
+  .text-white\/10 {
+    color: #ffffff1a;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/10 {
+      color: color-mix(in oklab, var(--color-white) 10%, transparent);
+    }
+  }
+
   .text-white\/35 {
     color: #ffffff59;
   }
@@ -3180,6 +3226,16 @@
     }
   }
 
+  .text-white\/65 {
+    color: #ffffffa6;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/65 {
+      color: color-mix(in oklab, var(--color-white) 65%, transparent);
+    }
+  }
+
   .text-white\/70 {
     color: #ffffffb3;
   }
@@ -3187,6 +3243,16 @@
   @supports (color: color-mix(in lab, red, red)) {
     .text-white\/70 {
       color: color-mix(in oklab, var(--color-white) 70%, transparent);
+    }
+  }
+
+  .text-white\/75 {
+    color: #ffffffbf;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/75 {
+      color: color-mix(in oklab, var(--color-white) 75%, transparent);
     }
   }
 
@@ -3238,19 +3304,13 @@
     text-transform: uppercase;
   }
 
+  .italic {
+    font-style: italic;
+  }
+
   .tabular-nums {
     --tw-numeric-spacing: tabular-nums;
     font-variant-numeric: var(--tw-ordinal, ) var(--tw-slashed-zero, ) var(--tw-numeric-figure, ) var(--tw-numeric-spacing, ) var(--tw-numeric-fraction, );
-  }
-
-  .placeholder-white\/30::placeholder {
-    color: #ffffff4d;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .placeholder-white\/30::placeholder {
-      color: color-mix(in oklab, var(--color-white) 30%, transparent);
-    }
   }
 
   .placeholder-white\/50::placeholder {
@@ -3260,6 +3320,26 @@
   @supports (color: color-mix(in lab, red, red)) {
     .placeholder-white\/50::placeholder {
       color: color-mix(in oklab, var(--color-white) 50%, transparent);
+    }
+  }
+
+  .placeholder-white\/55::placeholder {
+    color: #ffffff8c;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .placeholder-white\/55::placeholder {
+      color: color-mix(in oklab, var(--color-white) 55%, transparent);
+    }
+  }
+
+  .placeholder-white\/60::placeholder {
+    color: #fff9;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .placeholder-white\/60::placeholder {
+      color: color-mix(in oklab, var(--color-white) 60%, transparent);
     }
   }
 
@@ -3300,8 +3380,8 @@
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
-  .shadow-\[0_0_6px_rgba\(74\,222\,128\,0\.6\)\] {
-    --tw-shadow: 0 0 6px var(--tw-shadow-color, #4ade8099);
+  .shadow-\[0_0_4px_rgba\(74\,222\,128\,0\.5\)\] {
+    --tw-shadow: 0 0 4px var(--tw-shadow-color, #4ade8080);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
@@ -3797,13 +3877,13 @@
       color: var(--color-white);
     }
 
-    .hover\:text-white\/70:hover {
-      color: #ffffffb3;
+    .hover\:text-white\/80:hover {
+      color: #fffc;
     }
 
     @supports (color: color-mix(in lab, red, red)) {
-      .hover\:text-white\/70:hover {
-        color: color-mix(in oklab, var(--color-white) 70%, transparent);
+      .hover\:text-white\/80:hover {
+        color: color-mix(in oklab, var(--color-white) 80%, transparent);
       }
     }
 
@@ -3848,6 +3928,24 @@
     }
   }
 
+  .focus-visible\:ring-2:focus-visible {
+    --tw-ring-shadow: var(--tw-ring-inset, ) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+
+  .focus-visible\:ring-amber-400:focus-visible {
+    --tw-ring-color: var(--color-amber-400);
+  }
+
+  .focus-visible\:ring-offset-2:focus-visible {
+    --tw-ring-offset-width: 2px;
+    --tw-ring-offset-shadow: var(--tw-ring-inset, ) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+  }
+
+  .focus-visible\:ring-offset-black:focus-visible {
+    --tw-ring-offset-color: var(--color-black);
+  }
+
   .active\:scale-95:active {
     --tw-scale-x: 95%;
     --tw-scale-y: 95%;
@@ -3867,6 +3965,10 @@
     .active\:bg-amber-500\/20:active {
       background-color: color-mix(in oklab, var(--color-amber-500) 20%, transparent);
     }
+  }
+
+  .active\:bg-amber-600:active {
+    background-color: var(--color-amber-600);
   }
 
   .active\:bg-white\/20:active {
@@ -4167,10 +4269,6 @@
       top: calc(env(safe-area-inset-top, 0px) + 64px);
     }
 
-    .landscape\:bottom-\[calc\(env\(safe-area-inset-bottom\,0px\)\+10px\)\] {
-      bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-    }
-
     .landscape\:bottom-\[calc\(env\(safe-area-inset-bottom\,0px\)\+12px\)\] {
       bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
     }
@@ -4209,6 +4307,10 @@
 
     .landscape\:max-h-\[55vh\] {
       max-height: 55vh;
+    }
+
+    .landscape\:max-h-\[90vh\] {
+      max-height: 90vh;
     }
 
     .landscape\:min-h-0 {
@@ -4718,7 +4820,8 @@ button:focus:not(:focus-visible) {
 }
 
 input[type="range"] {
-  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
   background: none;
 }
 
@@ -4727,14 +4830,48 @@ input[type="range"]::-webkit-slider-thumb {
   cursor: pointer;
   background: #fff;
   border-radius: 50%;
-  width: 16px;
-  height: 16px;
-  margin-top: -6px;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  transition: box-shadow .15s;
+  box-shadow: 0 0 0 3px #fbbf2400, 0 1px 4px #0000004d;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 3px #fbbf244d, 0 1px 6px #0006;
+}
+
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px #fbbf2480, 0 1px 6px #0006;
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
   cursor: pointer;
   background: #fff3;
+  border-radius: 2px;
+  width: 100%;
+  height: 4px;
+}
+
+input[type="range"]::-moz-range-thumb {
+  cursor: pointer;
+  background: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  transition: box-shadow .15s;
+  box-shadow: 0 0 0 3px #fbbf2400, 0 1px 4px #0000004d;
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+  box-shadow: 0 0 0 3px #fbbf244d, 0 1px 6px #0006;
+}
+
+input[type="range"]::-moz-range-track {
+  cursor: pointer;
+  background: #fff3;
+  border: none;
   border-radius: 2px;
   width: 100%;
   height: 4px;
@@ -4914,7 +5051,7 @@ input[type="range"]::-webkit-slider-runnable-track {
     animation-iteration-count: 1 !important;
   }
 
-  .animate-pulse, .animate-bounce, .animate-ping, .animate-barney-bounce, .animate-barney-dialogue, .animate-jumpscare, .animate-floor-reveal, .animate-fade-in, .animate-fade-in-up, .animate-glow-pulse, .speech-bubble, .traveling-vignette, .barney-glow {
+  .animate-pulse, .animate-bounce, .animate-ping, .animate-barney-bounce, .animate-barney-dialogue, .animate-jumpscare, .animate-floor-reveal, .animate-fade-in, .animate-fade-in-up, .animate-glow-pulse, .speech-bubble, .traveling-vignette, .barney-glow, .floor-reveal-shake, .chase-vignette, .animate-chase-flash, .animate-chat-slide-in, .animate-empty-flicker {
     animation: none !important;
   }
 }
@@ -4946,6 +5083,168 @@ input[type="range"]::-webkit-slider-runnable-track {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+@keyframes floor-reveal-shake {
+  0%, 100% {
+    transform: translate(0);
+  }
+
+  10% {
+    transform: translate(-3px, 2px);
+  }
+
+  20% {
+    transform: translate(3px, -1px);
+  }
+
+  30% {
+    transform: translate(-2px, -2px);
+  }
+
+  40% {
+    transform: translate(2px, 3px);
+  }
+
+  50% {
+    transform: translate(-3px, 1px);
+  }
+
+  60% {
+    transform: translate(1px, -3px);
+  }
+
+  70% {
+    transform: translate(-1px, 2px);
+  }
+
+  80% {
+    transform: translate(3px, -1px);
+  }
+
+  90% {
+    transform: translate(-2px, 1px);
+  }
+}
+
+.floor-reveal-shake {
+  animation: .4s ease-out floor-reveal-shake;
+}
+
+@keyframes chase-vignette-pulse {
+  0%, 100% {
+    opacity: .7;
+    box-shadow: inset 0 0 120px 30px #b4000059;
+  }
+
+  50% {
+    opacity: 1;
+    box-shadow: inset 0 0 180px 60px #dc00008c;
+  }
+}
+
+.chase-vignette {
+  background: radial-gradient(#0000 30%, #78000066 100%);
+  animation: .8s ease-in-out infinite chase-vignette-pulse;
+}
+
+@keyframes chase-flash {
+  0% {
+    opacity: 0;
+    filter: blur(10px);
+    transform: scale(.5);
+  }
+
+  15% {
+    opacity: 1;
+    filter: blur();
+    transform: scale(1.15);
+  }
+
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    filter: blur(4px);
+    transform: scale(1.05);
+  }
+}
+
+.animate-chase-flash {
+  animation: .8s ease-out forwards chase-flash;
+}
+
+@keyframes chat-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-chat-slide-in {
+  animation: .25s ease-out forwards chat-slide-in;
+}
+
+@keyframes button-glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px #fbbf2433;
+  }
+
+  50% {
+    box-shadow: 0 0 20px #fbbf2480;
+  }
+}
+
+@keyframes wall-text-fade {
+  0% {
+    opacity: 0;
+  }
+
+  15% {
+    opacity: .12;
+  }
+
+  85% {
+    opacity: .12;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes empty-lobby-flicker {
+  0%, 4%, 6%, 8%, 100% {
+    opacity: 1;
+  }
+
+  2% {
+    opacity: .4;
+  }
+
+  5% {
+    opacity: .7;
+  }
+
+  7% {
+    opacity: .3;
+  }
+
+  9% {
+    opacity: .85;
+  }
+}
+
+.animate-empty-flicker {
+  animation: 8s ease-in-out infinite empty-lobby-flicker;
 }
 
 @property --tw-translate-x {
@@ -95428,6 +95727,7 @@ const MP_WRITE_THRESHOLD = 0.1;
 const MP_ROTATION_THRESHOLD = 0.1;
 const MP_FORCE_WRITE_MS = 2500;
 const CHAT_MAX_LEN = 200;
+const CHAT_CLEAR_DELAY = 3e4;
 const PLAYER_NAME_MAX_LEN = 20;
 const LOBBY_W = [[-10, 10, 10, 10], [-10, -10, -10, 10], [10, -10, 10, 10], [-10, -10, -1.3, -10], [1.3, -10, 10, -10]];
 const ELEV_W = [[-3.25, -16, -3.25, -10], [3.25, -16, 3.25, -10], [-3.25, -16, 3.25, -16]];
@@ -95534,16 +95834,19 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
   reactExports.useEffect(() => {
     playerNameRef.current = playerName;
   }, [playerName]);
+  const [connectionStatus, setConnectionStatus] = reactExports.useState(isEnabled ? "connecting" : "error");
   reactExports.useEffect(() => {
     if (!isEnabled) {
       otherPlayersDataRef.current = /* @__PURE__ */ new Map();
       otherPlayerIdsRef.current = [];
       setOtherPlayerIds([]);
+      setConnectionStatus("error");
       return;
     }
     const db = getDb();
     if (!db) {
       console.warn("[MP] Sem config Firebase — check __FIREBASE_CONFIG__");
+      setConnectionStatus("error");
       return;
     }
     const uid = playerIdRef.current;
@@ -95556,6 +95859,7 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
     );
     const GHOST_TTL_MS = MP_GHOST_TTL_MS;
     const unsub = onSnapshot(q2, (snap) => {
+      setConnectionStatus("online");
       const newMap = /* @__PURE__ */ new Map();
       const cutoff = Date.now() - GHOST_TTL_MS;
       snap.forEach((d) => {
@@ -95596,7 +95900,10 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
         }
         return prev;
       });
-    }, (err) => console.error("[MP] Snapshot erro:", err));
+    }, (err) => {
+      console.error("[MP] Snapshot erro:", err);
+      setConnectionStatus("error");
+    });
     return () => unsub();
   }, [isEnabled, level]);
   reactExports.useEffect(() => {
@@ -95679,6 +95986,7 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
     updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {
     });
   }, [isEnabled]);
+  const chatClearTimersRef = reactExports.useRef(/* @__PURE__ */ new Set());
   const sendChat = (msg) => {
     const clean = msg.trim().slice(0, CHAT_MAX_LEN);
     if (!clean) return;
@@ -95706,20 +96014,28 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
     }).catch((e2) => {
       console.warn("[MP] Chat Firestore write failed (local fallback active):", (e2 == null ? void 0 : e2.code) || (e2 == null ? void 0 : e2.message));
     });
-    setTimeout(() => {
+    const clearTimer = setTimeout(() => {
+      chatClearTimersRef.current.delete(clearTimer);
       if (chatMsgRef.current === clean) {
         chatMsgRef.current = "";
         chatAtRef.current = 0;
         updateDoc(docRef, { chatMsg: "", chatAt: 0, updatedAt: serverTimestamp() }).catch(() => {
         });
       }
-    }, 3e4);
+    }, CHAT_CLEAR_DELAY);
+    chatClearTimersRef.current.add(clearTimer);
   };
+  reactExports.useEffect(() => {
+    return () => {
+      chatClearTimersRef.current.forEach(clearTimeout);
+      chatClearTimersRef.current.clear();
+    };
+  }, []);
   const login = async () => {
     return playerIdRef.current;
   };
   const user = { uid: playerIdRef.current };
-  return { user, login, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages };
+  return { user, login, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages, connectionStatus };
 };
 const MainMenu = ({ onPlay }) => {
   const [doorPosition, setDoorPosition] = reactExports.useState(0);
@@ -95754,11 +96070,11 @@ const MainMenu = ({ onPlay }) => {
         console.error(e2);
         setIsLoggingIn(false);
         if (e2.code === "auth/unauthorized-domain") {
-          setLoginError("Erro: Este site não está autorizado no Firebase. Adicione o domínio no painel do Firebase Authentication (Domínios Autorizados).");
+          setLoginError("Connection blocked. This domain isn't authorized in Firebase.");
         } else if (e2.code === "auth/popup-closed-by-user") {
-          setLoginError("Erro: Você fechou a janela de login antes de concluir.");
+          setLoginError("Login cancelled. The door closed before you could enter.");
         } else {
-          setLoginError("Erro ao fazer login: " + e2.message);
+          setLoginError("Could not connect: " + e2.message);
         }
         return;
       }
@@ -95915,11 +96231,11 @@ const MainMenu = ({ onPlay }) => {
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 mb-4 bg-black/50 border border-white/10 rounded-lg p-4", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs tracking-widest uppercase font-medium", children: "Multiplayer" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), className: `w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-5" : "translate-x-0"}` }) })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), "aria-pressed": multiplayerEnabled, "aria-label": multiplayerEnabled ? "Disable multiplayer" : "Enable multiplayer", className: `w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-5" : "translate-x-0"}` }) })
               ] }),
               multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-2", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/60 text-xs tracking-wider mb-1.5 block font-medium", children: "Seu Nome" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/65 text-xs tracking-wider mb-1.5 block font-medium", children: "Your Name" }),
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "input",
                     {
@@ -95934,7 +96250,7 @@ const MainMenu = ({ onPlay }) => {
                 ] }),
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleShare, className: "mt-1 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2 rounded-xl text-xs text-white hover:bg-white/10 transition-colors", children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" }) }),
-                  copiedLink ? "Link Copiado!" : "Copiar Link para Amigo"
+                  copiedLink ? "Link Copied!" : "Copy Invite Link"
                 ] })
               ] }),
               loginError && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-red-400 text-xs mt-2 text-center", children: loginError })
@@ -95963,11 +96279,11 @@ const MainMenu = ({ onPlay }) => {
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 border border-white/10 rounded-lg mb-2 bg-black/50 backdrop-blur-md p-2.5", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs tracking-widest uppercase font-medium", children: "Multiplayer" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), className: `w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-5" : "translate-x-0"}` }) })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), "aria-pressed": multiplayerEnabled, className: `w-12 h-7 min-h-[28px] rounded-full transition-colors relative ring-1 ring-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-1 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-5" : "translate-x-0"}` }) })
             ] }),
             multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-1", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/60 text-xs tracking-wider mb-1.5 block font-medium", children: "Seu Nome" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-white/65 text-xs tracking-wider mb-1.5 block font-medium", children: "Your Name" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "input",
                   {
@@ -95976,13 +96292,14 @@ const MainMenu = ({ onPlay }) => {
                     onChange: (e2) => setPlayerNameState(e2.target.value.slice(0, 20)),
                     maxLength: 20,
                     placeholder: "Enter your name...",
+                    "aria-label": "Your player name",
                     className: "w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white text-sm placeholder-white/50 outline-none focus:border-amber-500/60 transition-colors"
                   }
                 )
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleShare, className: "mt-1 w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2.5 rounded-xl text-sm text-white font-bold hover:bg-white/10 transition-colors", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" }) }),
-                copiedLink ? "COPIADO!" : "COPIAR LINK PRA AMIGO"
+                copiedLink ? "COPIED!" : "COPY INVITE LINK"
               ] })
             ] }),
             loginError && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-red-400 text-xs mt-2 text-center", children: loginError })
@@ -96005,7 +96322,7 @@ const MainMenu = ({ onPlay }) => {
               ]
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-5 mt-3 text-white/55 text-xs", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-5 mt-3 text-white/65 text-xs", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "flex items-center gap-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 1, d: "M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" }) }),
               "Toque"
@@ -96057,12 +96374,12 @@ const MainMenu = ({ onPlay }) => {
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "animate-fade-in-up mt-2", style: { animationDelay: "1s" }, children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-3 p-4 border border-white/10 rounded-xl mb-4 bg-black/50 backdrop-blur-sm max-w-sm", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs tracking-widest uppercase", children: "Modo Multiplayer (Online)" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), className: `w-12 h-6 rounded-full transition-colors relative border border-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-6" : "translate-x-0"}` }) })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/75 text-xs tracking-widest uppercase", children: "Multiplayer (Online)" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setMultiplayerEnabled((m2) => !m2), "aria-pressed": multiplayerEnabled, className: `w-12 h-6 rounded-full transition-colors relative border border-white/20 ${multiplayerEnabled ? "bg-amber-500" : "bg-gray-800"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${multiplayerEnabled ? "translate-x-6" : "translate-x-0"}` }) })
               ] }),
               multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: handleShare, className: "flex items-center justify-center gap-2 border border-white/30 bg-white/10 py-2 rounded-lg text-sm text-white hover:bg-white/20 transition-all", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" }) }),
-                copiedLink ? "Link na Área de Transferência!" : "Copiar Link de Convite"
+                copiedLink ? "Link Copied!" : "Copy Invite Link"
               ] }),
               loginError && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-red-400 text-xs mt-1 text-center font-mono", children: loginError })
             ] }),
@@ -96071,7 +96388,7 @@ const MainMenu = ({ onPlay }) => {
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-xl", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 bg-gradient-to-t from-black/30 to-transparent rounded-xl" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative flex items-center gap-4 px-8 py-4 text-black font-bold text-lg justify-center", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "tracking-[0.2em] group-hover:tracking-[0.3em] transition-all duration-500", children: isLoggingIn ? "CONECTANDO..." : "ENTRAR NO SAGUÃO" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "tracking-[0.2em] group-hover:tracking-[0.3em] transition-all duration-500", children: isLoggingIn ? "CONNECTING..." : "ENTER THE LOBBY" }),
                   !isLoggingIn && /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-6 h-6 group-hover:translate-x-2 transition-transform duration-300", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" }) })
                 ] })
               ] })
@@ -96093,17 +96410,17 @@ const MainMenu = ({ onPlay }) => {
           ] })
         ] })
       ] }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute top-6 left-6 text-white/55 text-xs tracking-wider hidden md:flex items-center gap-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute top-6 left-6 text-white/60 text-xs tracking-wider hidden md:flex items-center gap-2", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 bg-green-500 rounded-full animate-pulse" }),
         "SISTEMA ATIVO"
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute top-6 right-6 text-white/55 text-xs tracking-wider hidden md:flex items-center gap-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute top-6 right-6 text-white/60 text-xs tracking-wider hidden md:flex items-center gap-2", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-red-500", children: "●" }),
         " REC",
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "ml-4", children: "CAM_01" })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 left-6 text-white/55 text-xs tracking-wider hidden md:block", children: "© 2026 LIMINAL SYSTEMS" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 right-6 text-white/55 text-xs tracking-wider hidden md:block cursor-default select-none", onClick: () => setEasterEgg((p2) => p2 + 1), children: easterEgg >= 3 ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400 animate-pulse", children: "🏆 O elevador sabe de tudo..." }) : "v1.0.3" })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 left-6 text-white/60 text-xs tracking-wider hidden md:block", children: "© 2026 LIMINAL SYSTEMS" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 right-6 text-white/60 text-xs tracking-wider hidden md:block cursor-default select-none", onClick: () => setEasterEgg((p2) => p2 + 1), children: easterEgg >= 3 ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400 animate-pulse", children: "🏆 O elevador sabe de tudo..." }) : "v1.0.3" })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 pointer-events-none opacity-[0.02]", style: { backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)" } })
   ] });
@@ -96215,6 +96532,23 @@ const TIMINGS = {
   exitClose: 600
 };
 const SPRITE_H = "clamp(160px, 28vh, 220px)";
+function useSpriteAnimation(elRef, frames, frameW, cycleMs, active) {
+  const frameRef = reactExports.useRef(0);
+  reactExports.useEffect(() => {
+    const el = elRef.current;
+    if (!el || frames <= 1 || !active) {
+      frameRef.current = 0;
+      if (el) el.style.backgroundPositionX = "0px";
+      return;
+    }
+    const intervalMs = Math.max(16, Math.round(cycleMs / frames));
+    const id = setInterval(() => {
+      frameRef.current = (frameRef.current + 1) % frames;
+      el.style.backgroundPositionX = `${-(frameRef.current * frameW)}px`;
+    }, intervalMs);
+    return () => clearInterval(id);
+  }, [elRef, frames, frameW, cycleMs, active]);
+}
 const ShopOverlay = ({ open, onClose }) => {
   const [menu, setMenu] = reactExports.useState("main");
   const [typed, setTyped] = reactExports.useState("");
@@ -96222,6 +96556,8 @@ const ShopOverlay = ({ open, onClose }) => {
   const typingRef = reactExports.useRef(null);
   const phaseTimersRef = reactExports.useRef([]);
   const mountedRef = reactExports.useRef(false);
+  const spriteElRef = reactExports.useRef(null);
+  const portraitElRef = reactExports.useRef(null);
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
     phaseTimersRef.current = [];
@@ -96306,7 +96642,6 @@ const ShopOverlay = ({ open, onClose }) => {
       frameW: BELLHOP_CLEAN_FRAME_W,
       frameH: BELLHOP_CLEAN_FRAME_H,
       frames: BELLHOP_CLEAN_FRAMES,
-      anim: "bellhopClean",
       cycle: 720
     };
     if (spriteMode === "talk") return {
@@ -96314,7 +96649,6 @@ const ShopOverlay = ({ open, onClose }) => {
       frameW: BELLHOP_TALK_FRAME_W,
       frameH: BELLHOP_TALK_FRAME_H,
       frames: BELLHOP_TALK_FRAMES,
-      anim: "bellhopTalk",
       cycle: 240
     };
     return {
@@ -96322,11 +96656,15 @@ const ShopOverlay = ({ open, onClose }) => {
       frameW: BELLHOP_IDLE_FRAME_W,
       frameH: BELLHOP_IDLE_FRAME_H,
       frames: 1,
-      anim: "",
       cycle: 0
     };
   })();
-  sprite.frameW / sprite.frameH;
+  const spriteAnimated = spriteMode !== "idle-static";
+  useSpriteAnimation(spriteElRef, sprite.frames, sprite.frameW, sprite.cycle, spriteAnimated);
+  const portraitFrames = isTyping ? BELLHOP_TALK_FRAMES : 4;
+  const portraitFrameW = isTyping ? BELLHOP_TALK_FRAME_W : BELLHOP_IDLE_FRAME_W;
+  const portraitCycle = isTyping ? 240 : 0;
+  useSpriteAnimation(portraitElRef, portraitFrames, portraitFrameW, portraitCycle, isTyping);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
@@ -96411,6 +96749,7 @@ const ShopOverlay = ({ open, onClose }) => {
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
+                  ref: spriteElRef,
                   "aria-hidden": true,
                   style: {
                     height: SPRITE_H,
@@ -96418,17 +96757,15 @@ const ShopOverlay = ({ open, onClose }) => {
                     backgroundImage: `url(${sprite.url})`,
                     backgroundSize: `${sprite.frames * 100}% 100%`,
                     backgroundRepeat: "no-repeat",
-                    backgroundPosition: "0% 0%",
+                    backgroundPosition: "0px 0%",
                     imageRendering: "pixelated",
-                    animation: sprite.anim ? `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite` : "none",
                     filter: "drop-shadow(0 10px 18px rgba(0,0,0,0.65))",
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
                     opacity: showContent ? 1 : 0,
                     transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms",
                     marginBottom: 14
                   }
-                },
-                spriteMode
+                }
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsxs(
                 "div",
@@ -96456,26 +96793,17 @@ const ShopOverlay = ({ open, onClose }) => {
                           flexShrink: 0,
                           width: "clamp(56px, 9vw, 76px)",
                           aspectRatio: "1 / 1",
-                          backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
-                          backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
-                          backgroundRepeat: "no-repeat",
-                          backgroundPosition: "0% 0%",
-                          imageRendering: "pixelated",
-                          animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : "none",
-                          // Crop to head only — show top portion of the sprite
-                          // (background-size with extra height pushes lower body off)
-                          // Easiest: scale up so only head shows.
                           border: "2px solid #C99B36",
                           borderRadius: 4,
                           background: "linear-gradient(180deg, #2a1a14 0%, #1a0a08 100%)",
                           boxShadow: "inset 0 0 6px rgba(0,0,0,0.6)",
-                          // overlay strip via a child for tighter control
                           overflow: "hidden",
                           position: "relative"
                         },
                         children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                           "div",
                           {
+                            ref: portraitElRef,
                             style: {
                               position: "absolute",
                               top: 0,
@@ -96485,13 +96813,11 @@ const ShopOverlay = ({ open, onClose }) => {
                               backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
                               backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
                               backgroundRepeat: "no-repeat",
-                              backgroundPosition: "0% 0%",
+                              backgroundPosition: "0px 0%",
                               imageRendering: "pixelated",
-                              animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : "none",
                               transform: "translateY(-8%)"
                             }
-                          },
-                          isTyping ? "talk" : "idle"
+                          }
                         )
                       }
                     ),
@@ -96572,14 +96898,6 @@ const ShopOverlay = ({ open, onClose }) => {
           0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
           40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
           100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
-        }
-        @keyframes bellhopClean {
-          from { background-position-x: 0%; }
-          to   { background-position-x: 100%; }
-        }
-        @keyframes bellhopTalk {
-          from { background-position-x: 0%; }
-          to   { background-position-x: 100%; }
         }
         @keyframes shopDoorInLeft {
           from { transform: translateX(-100%); }
@@ -98406,24 +98724,19 @@ const FpsCounter = () => {
     raf = requestAnimationFrame(loop2);
     return () => cancelAnimationFrame(raf);
   }, []);
-  return (
-    // FpsCounter sits above the HUD (z-[91] > settings menu would be 100,
-    // so it's still under modals). top-left so it doesn't fight the
-    // settings/mute buttons in the top-right corner.
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(
-      "div",
-      {
-        className: "fixed z-[91] pointer-events-none px-2 py-1 rounded bg-black/70 ring-1 ring-amber-500/30 text-amber-200 text-[10px] font-mono tabular-nums shadow-[inset_0_1px_0_rgba(255,176,0,0.08)]",
-        style: {
-          top: "calc(env(safe-area-inset-top, 0px) + 12px)",
-          left: "calc(env(safe-area-inset-left, 0px) + 12px)"
-        },
-        children: [
-          fps.toString().padStart(3, " "),
-          " FPS"
-        ]
-      }
-    )
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    "div",
+    {
+      className: "fixed z-[91] pointer-events-none px-2 py-1 rounded bg-black/70 ring-1 ring-amber-500/30 text-amber-200 text-[10px] font-mono tabular-nums shadow-[inset_0_1px_0_rgba(255,176,0,0.08)] tap-target",
+      style: {
+        top: "calc(env(safe-area-inset-top, 0px) + 56px)",
+        right: "calc(env(safe-area-inset-right, 0px) + 8px)"
+      },
+      children: [
+        fps.toString().padStart(3, " "),
+        " FPS"
+      ]
+    }
   );
 };
 useGLTF.preload(WALKING_URL);
@@ -98805,8 +99118,8 @@ const BotHud = ({ info }) => {
     {
       className: "fixed z-[90] pointer-events-none w-[180px] max-w-[calc(100vw-16px)] bg-black/80 ring-1 ring-fuchsia-500/30 rounded-xl backdrop-blur-md px-3 py-2.5 text-[10px] font-mono text-fuchsia-200 shadow-[0_8px_32px_rgba(0,0,0,0.5)]",
       style: {
-        bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
-        left: "calc(env(safe-area-inset-left, 0px) + 8px)"
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+        right: "calc(env(safe-area-inset-right, 0px) + 12px)"
       },
       children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between mb-1.5", children: [
@@ -98843,15 +99156,22 @@ const ViewportDebug = () => {
     const probe = () => {
       const probeEl = document.createElement("div");
       probeEl.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;left:0;top:0;";
-      probeEl.innerHTML = `
-                <span data-k="dvh" style="height:100dvh;display:inline-block"></span>
-                <span data-k="lvh" style="height:100lvh;display:inline-block"></span>
-                <span data-k="svh" style="height:100svh;display:inline-block"></span>
-                <span data-k="sat" style="height:env(safe-area-inset-top, 0px);display:inline-block"></span>
-                <span data-k="sar" style="height:env(safe-area-inset-right, 0px);display:inline-block"></span>
-                <span data-k="sab" style="height:env(safe-area-inset-bottom, 0px);display:inline-block"></span>
-                <span data-k="sal" style="height:env(safe-area-inset-left, 0px);display:inline-block"></span>
-            `;
+      const keys = ["dvh", "lvh", "svh", "sat", "sar", "sab", "sal"];
+      const heights = {
+        dvh: "100dvh",
+        lvh: "100lvh",
+        svh: "100svh",
+        sat: "env(safe-area-inset-top, 0px)",
+        sar: "env(safe-area-inset-right, 0px)",
+        sab: "env(safe-area-inset-bottom, 0px)",
+        sal: "env(safe-area-inset-left, 0px)"
+      };
+      for (const k2 of keys) {
+        const span = document.createElement("span");
+        span.dataset.k = k2;
+        span.style.cssText = `height:${heights[k2]};display:inline-block`;
+        probeEl.appendChild(span);
+      }
       document.body.appendChild(probeEl);
       const get = (k2) => {
         var _a;
@@ -99026,7 +99346,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
                 padding: "6px 0"
               },
               children: [
-                messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-white/60 text-xs text-center py-3 px-4", children: [
+                messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-white/65 text-xs text-center py-3 px-4", children: [
                   "Pressione ",
                   /* @__PURE__ */ jsxRuntimeExports.jsx("kbd", { className: "px-1 py-0.5 bg-white/10 rounded text-[10px] font-mono", children: "/" }),
                   " para conversar"
@@ -99077,7 +99397,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
                 boxShadow: "0 4px 20px rgba(0,0,0,0.4)"
               },
               children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { htmlFor: "chat-input-desktop", className: "text-white/55 text-xs font-bold px-2.5 shrink-0 select-none", children: "Chat:" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("label", { htmlFor: "chat-input-desktop", className: "text-white/65 text-xs font-bold px-2.5 shrink-0 select-none", children: "Chat:" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "input",
                   {
@@ -99097,7 +99417,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
                     placeholder: "Type here...",
                     "aria-label": "Mensagem do chat",
                     maxLength: 200,
-                    className: "flex-1 bg-transparent text-white text-[13px] font-normal placeholder-white/50 outline-none py-2.5 pr-3",
+                    className: "flex-1 bg-transparent text-white text-[13px] font-normal placeholder-white/60 outline-none py-2.5 pr-3",
                     style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' },
                     autoFocus: true
                   }
@@ -99129,7 +99449,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
                 background: "rgba(30, 30, 30, 0.6)",
                 border: "1px solid rgba(255,255,255,0.08)"
               },
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/50 text-xs", children: "Press / to chat" })
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/60 text-xs", children: "Press / to chat" })
             }
           )
         }
@@ -99161,7 +99481,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
             },
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between px-3 py-2 border-b border-white/8", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/50 text-[11px] font-bold tracking-wider uppercase", style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }, children: "Chat" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/60 text-[11px] font-bold tracking-wider uppercase", style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }, children: "Chat" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "button",
                   {
@@ -99169,7 +99489,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
                       setOpen(false);
                       setInput("");
                     },
-                    className: "text-white/50 hover:text-white/70 text-lg font-bold leading-none w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 active:bg-white/20 transition-colors",
+                    className: "text-white/60 hover:text-white/80 text-lg font-bold leading-none w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 active:bg-white/20 transition-colors",
                     children: "×"
                   }
                 )
@@ -99181,7 +99501,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
                   className: "flex-1 overflow-y-auto scrollbar-hide px-2.5 py-1",
                   style: { maxHeight: "calc(min(340px, 50dvh) - 90px)" },
                   children: [
-                    messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/60 text-xs text-center py-4", children: "Nenhuma mensagem ainda" }),
+                    messages.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/65 text-xs text-center py-4", children: "Nenhuma mensagem ainda" }),
                     messages.slice(-30).map((msg, i2) => {
                       const isMe = msg.id === currentUserId;
                       const nameColor = getNameColor(msg.name, isMe);
@@ -99211,7 +99531,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
                     placeholder: "Type here...",
                     "aria-label": "Mensagem do chat",
                     maxLength: 200,
-                    className: "flex-1 bg-white/6 border border-white/10 rounded-xl px-3 py-2 text-white text-[13px] font-normal placeholder-white/30 outline-none focus:border-white/25 transition-colors",
+                    className: "flex-1 bg-white/6 border border-white/10 rounded-xl px-3 py-2 text-white text-[13px] font-normal placeholder-white/55 outline-none focus:border-white/25 transition-colors",
                     style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }
                   }
                 ),
@@ -99275,7 +99595,7 @@ const BubbleChatFallback = ({ messages, currentUserId }) => {
   return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "div",
     {
-      className: "absolute z-[50] pointer-events-none flex flex-col gap-1",
+      className: "absolute z-[48] pointer-events-none flex flex-col gap-1",
       style: {
         top: "calc(env(safe-area-inset-top, 0px) + 8px)",
         right: "calc(env(safe-area-inset-right, 0px) + 8px)",
@@ -99302,7 +99622,7 @@ const BubbleChatFallback = ({ messages, currentUserId }) => {
                 },
                 children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[12px] leading-snug", style: { fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }, children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-extrabold", style: { color: nameColor }, children: msg.name }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/55 font-normal", children: ": " }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/60 font-normal", children: ": " }),
                   /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/85 font-normal", children: msg.text })
                 ] })
               }
@@ -99313,6 +99633,274 @@ const BubbleChatFallback = ({ messages, currentUserId }) => {
       })
     }
   );
+};
+const getAudioCtx = () => window.__jubileuAudioCtx;
+const playFloorRevealSound = () => {
+  const ctx = getAudioCtx();
+  if (!ctx || ctx.state !== "running") return;
+  const t2 = ctx.currentTime;
+  const boom = ctx.createOscillator();
+  boom.type = "sine";
+  boom.frequency.setValueAtTime(80, t2);
+  boom.frequency.exponentialRampToValueAtTime(30, t2 + 0.6);
+  const boomGain = ctx.createGain();
+  boomGain.gain.setValueAtTime(0.18, t2);
+  boomGain.gain.exponentialRampToValueAtTime(1e-3, t2 + 0.8);
+  boom.connect(boomGain).connect(ctx.destination);
+  boom.start(t2);
+  boom.stop(t2 + 0.8);
+  const chime = ctx.createOscillator();
+  chime.type = "sine";
+  chime.frequency.setValueAtTime(1200, t2 + 0.05);
+  chime.frequency.exponentialRampToValueAtTime(800, t2 + 0.5);
+  const chimeGain = ctx.createGain();
+  chimeGain.gain.setValueAtTime(0, t2);
+  chimeGain.gain.linearRampToValueAtTime(0.06, t2 + 0.07);
+  chimeGain.gain.exponentialRampToValueAtTime(1e-3, t2 + 0.6);
+  chime.connect(chimeGain).connect(ctx.destination);
+  chime.start(t2 + 0.05);
+  chime.stop(t2 + 0.6);
+};
+const playHeartbeat = (speed = 1) => {
+  const ctx = getAudioCtx();
+  if (!ctx || ctx.state !== "running") return;
+  const t2 = ctx.currentTime;
+  const interval = 0.25 / speed;
+  for (let i2 = 0; i2 < 2; i2++) {
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(50 - i2 * 10, t2 + i2 * interval);
+    osc.frequency.exponentialRampToValueAtTime(25, t2 + i2 * interval + 0.15);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, t2 + i2 * interval);
+    gain.gain.linearRampToValueAtTime(0.15 - i2 * 0.05, t2 + i2 * interval + 0.02);
+    gain.gain.exponentialRampToValueAtTime(1e-3, t2 + i2 * interval + 0.2);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t2 + i2 * interval);
+    osc.stop(t2 + i2 * interval + 0.2);
+  }
+};
+const playDistantThud = () => {
+  const ctx = getAudioCtx();
+  if (!ctx || ctx.state !== "running") return;
+  const t2 = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(40, t2);
+  osc.frequency.exponentialRampToValueAtTime(15, t2 + 0.4);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.08, t2);
+  gain.gain.exponentialRampToValueAtTime(1e-3, t2 + 0.5);
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 120;
+  osc.connect(filter).connect(gain).connect(ctx.destination);
+  osc.start(t2);
+  osc.stop(t2 + 0.5);
+};
+const ElevatorHud = React.memo(({ currentLevel, elevatorTimer, doorsClosed, arrivalPulse }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute left-1/2 -translate-x-1/2 px-2 max-w-[calc(100%-1rem)] pe-none top-2 landscape:top-1", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative", children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute -inset-2 rounded-2xl blur-xl transition-opacity duration-500 ${elevatorTimer !== null && elevatorTimer <= 5 ? "bg-red-500/40 opacity-100" : arrivalPulse ? "bg-green-400/50 opacity-100" : "bg-amber-500/20 opacity-70"}` }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative bg-gradient-to-b from-black/95 to-black/80 backdrop-blur-xl ring-1 ring-amber-500/40 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-stretch divide-x divide-amber-500/20", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[56px] sm:min-w-[90px] landscape:min-w-[80px] relative", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-500/70 text-[10px] sm:text-xs landscape:text-xs tracking-[0.25em] uppercase mb-0.5", children: currentLevel === 0 ? "Location" : "Floor" }),
+        currentLevel === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-300 text-base sm:text-xl landscape:text-xl font-black tracking-widest leading-none", style: { textShadow: "0 0 20px rgba(251,191,36,0.6)" }, children: "LOBBY" }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-baseline gap-0.5", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-500/50 text-xs sm:text-sm font-bold", children: "▲" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-300 text-2xl sm:text-3xl font-black font-mono leading-none tabular-nums", style: { textShadow: "0 0 25px rgba(251,191,36,0.7)" }, children: String(currentLevel).padStart(2, "0") })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[70px] sm:min-w-[115px] landscape:min-w-[96px]", children: elevatorTimer !== null ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-[10px] tracking-[0.25em] uppercase mb-0.5 ${elevatorTimer <= 5 && !doorsClosed ? "text-red-400/80" : doorsClosed ? "text-blue-400/80" : "text-amber-400/70"}`, children: doorsClosed ? "Traveling" : elevatorTimer <= 5 ? "Closing!" : "Departing" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-2 h-2 rounded-full ${elevatorTimer <= 5 && !doorsClosed ? "bg-red-500 animate-ping" : doorsClosed ? "bg-blue-400" : "bg-amber-400"}` }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-lg sm:text-2xl landscape:text-2xl font-black font-mono leading-none tabular-nums ${elevatorTimer <= 5 && !doorsClosed ? "text-red-300" : "text-white"}`, style: { textShadow: "0 0 10px rgba(255,255,255,0.3)" }, children: String(elevatorTimer).padStart(2, "0") }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/40 text-xs font-mono -mb-0.5", children: "s" })
+        ] })
+      ] }) : arrivalPulse ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-green-400/90 text-[10px] tracking-[0.25em] uppercase mb-0.5", children: "Arrived" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5 text-green-400", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { fillRule: "evenodd", d: "M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z", clipRule: "evenodd" }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-green-300 text-sm sm:text-base font-bold leading-none", children: "Ding!" })
+        ] })
+      ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400/70 text-[10px] tracking-[0.25em] uppercase mb-0.5", children: "Status" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 rounded-full bg-amber-400/70 animate-pulse" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-100 text-base font-bold tracking-wide leading-none", children: "Ready" })
+        ] })
+      ] }) })
+    ] }),
+    elevatorTimer !== null && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-1 bg-black/60 overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: `h-full transition-all duration-1000 ease-linear ${doorsClosed ? "bg-gradient-to-r from-blue-500 to-cyan-400" : elevatorTimer <= 5 ? "bg-gradient-to-r from-red-600 to-red-400" : "bg-gradient-to-r from-amber-500 to-yellow-400"}`,
+        style: { width: `${doorsClosed ? (20 - elevatorTimer) / 20 * 100 : (5 - elevatorTimer) / 5 * 100}%` }
+      }
+    ) })
+  ] })
+] }) }));
+const FloorReveal = ({ level }) => {
+  const [typed, setTyped] = reactExports.useState("");
+  const [shakeClass, setShakeClass] = reactExports.useState(false);
+  const label = `FLOOR ${String(level).padStart(2, "0")}`;
+  reactExports.useEffect(() => {
+    setTyped("");
+    setShakeClass(true);
+    playFloorRevealSound();
+    const shakeTimer = setTimeout(() => setShakeClass(false), 400);
+    let idx = 0;
+    const typeTimer = setInterval(() => {
+      idx++;
+      setTyped(label.substring(0, idx));
+      if (idx >= label.length) clearInterval(typeTimer);
+    }, 60);
+    return () => {
+      clearTimeout(shakeTimer);
+      clearInterval(typeTimer);
+    };
+  }, [level]);
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "div",
+    {
+      className: `absolute inset-0 z-[45] flex items-center justify-center pointer-events-none px-4 ${shakeClass ? "floor-reveal-shake" : ""}`,
+      children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "animate-floor-reveal text-center w-full", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-500/80 text-xs sm:text-sm tracking-[0.3em] sm:tracking-[0.5em] uppercase mb-2 sm:mb-4 animate-fade-in", children: "Now Arriving" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: "text-white font-black tracking-wider tabular-nums",
+            style: { fontSize: "clamp(2rem, 12vw, 5rem)", textShadow: "0 0 60px rgba(251,191,36,0.8), 0 0 30px rgba(255,255,255,0.4)" },
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: typed }),
+              typed.length < label.length && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "inline-block w-[3px] h-[0.8em] bg-amber-400 ml-1 animate-pulse align-middle" })
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-[2px] w-32 sm:w-48 mx-auto mt-4 sm:mt-6 bg-gradient-to-r from-transparent via-amber-400 to-transparent" })
+      ] })
+    }
+  );
+};
+const TopControls = React.memo(({ multiplayerEnabled, otherPlayersCount, connectionStatus, onSettingsOpen, muted, onToggleMute }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+  "div",
+  {
+    className: "absolute z-50 flex gap-2 pointer-events-auto",
+    style: {
+      top: "calc(env(safe-area-inset-top, 0px) + 8px)",
+      right: "calc(env(safe-area-inset-right, 0px) + 8px)"
+    },
+    children: [
+      multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          className: "flex items-center gap-1.5 bg-black/80 backdrop-blur-sm ring-1 ring-white/10 px-2 py-1.5 rounded-md",
+          style: { fontFamily: '"Courier New", "Source Sans 3", monospace', fontSize: 10, letterSpacing: "0.08em" },
+          "aria-label": `Multiplayer: ${connectionStatus}, ${otherPlayersCount} jogadores`,
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-1.5 h-1.5 rounded-full ${connectionStatus === "online" ? otherPlayersCount > 0 ? "bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.5)]" : "bg-green-400/60" : connectionStatus === "connecting" ? "bg-amber-400 animate-pulse" : "bg-red-400/80"}` }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/50", children: connectionStatus === "error" ? "OFFLINE" : connectionStatus === "connecting" ? "SYNC..." : otherPlayersCount > 0 ? `${otherPlayersCount} ONLINE` : "ONLINE" })
+          ]
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: onSettingsOpen, className: "relative group", "aria-label": "Configurações", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#fbbf24", className: "w-6 h-6 landscape:w-6 landscape:h-6", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" })
+        ] }) })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: onToggleMute, className: "relative group", "aria-label": muted ? "Ativar som" : "Silenciar", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target", children: muted ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#f87171", className: "w-6 h-6 landscape:w-6 landscape:h-6", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#fbbf24", className: "w-6 h-6 landscape:w-6 landscape:h-6", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" }) }) })
+      ] })
+    ]
+  }
+));
+const ActionButton = React.memo(({ icon, label, colorClasses, ringClasses, onClick, ariaLabel }) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+  "div",
+  {
+    className: "absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]",
+    children: /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick, className: "group relative tap-target", "aria-label": ariaLabel, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute -inset-1 rounded-full blur-md opacity-70 group-hover:opacity-100 animate-pulse ${colorClasses}` }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `relative px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 text-xs sm:text-base ${ringClasses}`, children: [
+        icon,
+        label
+      ] })
+    ] })
+  }
+));
+const NightBanner = ({ elevatorActive }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorActive ? "top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]" : "top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-red-950/80 ring-1 ring-red-500/40 text-red-200 px-3 sm:px-4 py-2 rounded-lg font-mono text-[11px] sm:text-sm tracking-wider animate-pulse", children: "Algo não está certo..." }) });
+const ChaseBanner = ({ elevatorActive }) => {
+  const [flashText, setFlashText] = reactExports.useState("");
+  const heartbeatRef = reactExports.useRef(null);
+  reactExports.useEffect(() => {
+    let beatCount = 0;
+    heartbeatRef.current = setInterval(() => {
+      beatCount++;
+      const speed = Math.min(1 + beatCount * 0.03, 2.5);
+      playHeartbeat(speed);
+    }, 700);
+    const flashMessages = ["RUN", "ELEVATOR. NOW.", "RUN", "DON'T LOOK BACK"];
+    let flashIdx = 0;
+    const flashInterval = setInterval(() => {
+      setFlashText(flashMessages[flashIdx % flashMessages.length]);
+      flashIdx++;
+      setTimeout(() => setFlashText(""), 800);
+    }, 3e3);
+    setFlashText("RUN");
+    const clearFirst = setTimeout(() => setFlashText(""), 1e3);
+    return () => {
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+      clearInterval(flashInterval);
+      clearTimeout(clearFirst);
+    };
+  }, []);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[35] pointer-events-none chase-vignette" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorActive ? "top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]" : "top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-[11px] sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight", children: "⚠ CORRA PARA O ELEVADOR ⚠" }) }),
+    flashText && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[50] flex items-center justify-center pointer-events-none", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: "text-red-500 font-black tracking-[0.3em] animate-chase-flash",
+        style: { fontSize: "clamp(2rem, 15vw, 6rem)", textShadow: "0 0 40px rgba(239,68,68,0.8), 0 0 80px rgba(239,68,68,0.4)" },
+        children: flashText
+      }
+    ) })
+  ] });
+};
+const SavedOverlay = () => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-6 overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center w-full animate-fade-in", children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-green-400 font-black mb-2", style: { fontSize: "clamp(1.5rem, 8vw, 3rem)", textShadow: "0 0 40px rgba(74,222,128,0.5)" }, children: "VOCÊ SOBREVIVEU" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-[2px] w-24 mx-auto mb-3 bg-gradient-to-r from-transparent via-green-400 to-transparent" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/60 text-base sm:text-lg font-light tracking-wider", children: "Por enquanto..." })
+] }) });
+const BarneyDialogue = ({ dialogueNode, onResponse }) => {
+  const node = BARNEY_DIALOGUE[dialogueNode];
+  if (!node) return null;
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[55] flex items-end justify-center pointer-events-auto landscape:items-center landscape:py-4 overflow-y-auto", style: { background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)" }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full max-w-2xl mx-4 mb-6 landscape:mb-0 relative animate-barney-dialogue flex-shrink-0 max-h-[85vh] landscape:max-h-[90vh] overflow-hidden flex flex-col", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-gradient-to-r from-purple-500/40 via-pink-500/40 to-purple-500/40 rounded-2xl blur-lg barney-glow" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative bg-[#0d0411]/98 border-2 border-purple-500/50 rounded-xl p-2.5 sm:p-5 shadow-2xl overflow-y-auto scrollbar-hide", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-3 sm:gap-4 flex-col landscape:flex-row sm:flex-row", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 sm:hidden landscape:hidden w-full border-b border-white/5 pb-2 mb-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-14 h-14 flex-shrink-0 bg-transparent rounded-none overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: BARNEY_URL, className: "w-full h-full object-contain object-top animate-barney-bounce", alt: "" }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-purple-300 text-[11px] font-bold tracking-[0.3em] uppercase", children: "Barney" })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-transparent rounded-none overflow-hidden self-center sm:self-start hidden sm:block landscape:block", children: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: BARNEY_URL, className: "w-full h-full object-contain object-top animate-barney-bounce", alt: "" }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 min-w-0 w-full", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "hidden sm:flex landscape:flex items-center gap-2 mb-1.5", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-purple-300 text-[11px] font-bold tracking-[0.3em] uppercase", children: "Barney" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/95 text-sm sm:text-base leading-relaxed mb-4 font-serif min-h-[2rem] sm:min-h-[3rem] landscape:min-h-0", children: /* @__PURE__ */ jsxRuntimeExports.jsx(TypewriterText, { text: node.text, speed: 28, voicePitch: 660 }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-2 max-h-[35vh] landscape:max-h-[30vh] overflow-y-auto scrollbar-hide pr-1", children: node.options.map((opt, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: () => onResponse(opt.next), "aria-label": opt.text, className: "group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-xl text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-purple-400/60 group-hover:text-purple-300 transition-colors", children: "▸" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "flex-1", children: opt.text })
+        ] }, i2)) })
+      ] })
+    ] }) })
+  ] }) });
 };
 const GameEffects = ({
   nightMode,
@@ -99331,11 +99919,12 @@ const GameEffects = ({
         inset: 0,
         pointerEvents: "none",
         zIndex: 5,
-        // Vignette via radial gradient
-        background: `radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,${isChase ? 0.6 : isScary ? 0.4 : 0.25}) 100%)`,
+        // Vignette via radial gradient — deeper red tint during chase
+        background: isChase ? `radial-gradient(ellipse at center, transparent 30%, rgba(120,0,0,0.5) 100%)` : `radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,${isScary ? 0.4 : 0.25}) 100%)`,
         // Film grain via CSS animation
-        mixBlendMode: "multiply",
-        opacity: isChase ? 0.15 : isScary ? 0.08 : 0.04
+        mixBlendMode: isChase ? "normal" : "multiply",
+        opacity: isChase ? 0.2 : isScary ? 0.08 : 0.04,
+        animation: isChase ? "chase-vignette-pulse 0.8s ease-in-out infinite" : void 0
       }
     }
   );
@@ -99402,6 +99991,73 @@ const FluorescentFlicker = ({ intensity = 2.8 }) => {
     lightRef.current.intensity = base + flicker + dip + random;
   });
   return /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { ref: lightRef, position: [0, 3.8, 0], intensity, distance: 22, color: "#FFE0B2", decay: 2 });
+};
+const EmptyLobbyAmbience = ({ playerCount }) => {
+  const [wallText, setWallText] = reactExports.useState(false);
+  const thudTimerRef = reactExports.useRef(null);
+  const wallTimerRef = reactExports.useRef(null);
+  reactExports.useEffect(() => {
+    if (playerCount > 0) return;
+    const scheduleThud = () => {
+      const delay = 15e3 + Math.random() * 25e3;
+      thudTimerRef.current = setTimeout(() => {
+        playDistantThud();
+        scheduleThud();
+      }, delay);
+    };
+    scheduleThud();
+    const scheduleWallText = () => {
+      const delay = 2e4 + Math.random() * 3e4;
+      wallTimerRef.current = setTimeout(() => {
+        setWallText(true);
+        setTimeout(() => {
+          setWallText(false);
+          scheduleWallText();
+        }, 4e3);
+      }, delay);
+    };
+    wallTimerRef.current = setTimeout(() => {
+      setWallText(true);
+      setTimeout(() => setWallText(false), 4e3);
+      scheduleWallText();
+    }, 1e4);
+    return () => {
+      if (thudTimerRef.current) clearTimeout(thudTimerRef.current);
+      if (wallTimerRef.current) clearTimeout(wallTimerRef.current);
+    };
+  }, [playerCount]);
+  if (playerCount > 0) return null;
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: "absolute inset-0 z-[3] pointer-events-none animate-empty-flicker",
+        style: {
+          background: "rgba(255,240,200,0.03)",
+          mixBlendMode: "overlay"
+        }
+      }
+    ),
+    wallText && /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: "absolute z-[2] pointer-events-none select-none",
+        style: {
+          bottom: "30%",
+          right: "8%",
+          animation: "wall-text-fade 4s ease-in-out forwards"
+        },
+        children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "span",
+          {
+            className: "text-white/10 font-serif italic",
+            style: { fontSize: "clamp(0.75rem, 1.5vw, 1.2rem)", letterSpacing: "0.1em" },
+            children: "You are not alone"
+          }
+        )
+      }
+    )
+  ] });
 };
 const NightAmbient = ({ active }) => {
   const lightRef = reactExports.useRef(null);
@@ -99551,131 +100207,6 @@ const WallClock = ({ x: x2 = 8, z = -8 }) => {
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#424242" })
     ] })
   ] });
-};
-const ElevatorHud = React.memo(({ currentLevel, elevatorTimer, doorsClosed, arrivalPulse }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute left-1/2 -translate-x-1/2 px-2 max-w-[calc(100%-1rem)] pe-none top-2 landscape:top-1", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative", children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute -inset-2 rounded-2xl blur-xl transition-opacity duration-500 ${elevatorTimer !== null && elevatorTimer <= 5 ? "bg-red-500/40 opacity-100" : arrivalPulse ? "bg-green-400/50 opacity-100" : "bg-amber-500/20 opacity-70"}` }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative bg-gradient-to-b from-black/95 to-black/80 backdrop-blur-xl ring-1 ring-amber-500/40 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-stretch divide-x divide-amber-500/20", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[56px] sm:min-w-[90px] landscape:min-w-[80px] relative", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-500/70 text-[10px] sm:text-xs landscape:text-xs tracking-[0.25em] uppercase mb-0.5", children: currentLevel === 0 ? "Location" : "Floor" }),
-        currentLevel === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-300 text-base sm:text-xl landscape:text-xl font-black tracking-widest leading-none", style: { textShadow: "0 0 20px rgba(251,191,36,0.6)" }, children: "LOBBY" }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-baseline gap-0.5", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-500/50 text-xs sm:text-sm font-bold", children: "▲" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-300 text-2xl sm:text-3xl font-black font-mono leading-none tabular-nums", style: { textShadow: "0 0 25px rgba(251,191,36,0.7)" }, children: String(currentLevel).padStart(2, "0") })
-        ] })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "px-2 sm:px-4 landscape:px-3 py-1.5 sm:py-2.5 landscape:py-2 flex flex-col items-center justify-center min-w-[70px] sm:min-w-[115px] landscape:min-w-[96px]", children: elevatorTimer !== null ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-[10px] tracking-[0.25em] uppercase mb-0.5 ${elevatorTimer <= 5 && !doorsClosed ? "text-red-400/80" : doorsClosed ? "text-blue-400/80" : "text-amber-400/70"}`, children: doorsClosed ? "Traveling" : elevatorTimer <= 5 ? "Closing!" : "Departing" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-2 h-2 rounded-full ${elevatorTimer <= 5 && !doorsClosed ? "bg-red-500 animate-ping" : doorsClosed ? "bg-blue-400" : "bg-amber-400"}` }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-lg sm:text-2xl landscape:text-2xl font-black font-mono leading-none tabular-nums ${elevatorTimer <= 5 && !doorsClosed ? "text-red-300" : "text-white"}`, style: { textShadow: "0 0 10px rgba(255,255,255,0.3)" }, children: String(elevatorTimer).padStart(2, "0") }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/40 text-xs font-mono -mb-0.5", children: "s" })
-        ] })
-      ] }) : arrivalPulse ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-green-400/90 text-[10px] tracking-[0.25em] uppercase mb-0.5", children: "Arrived" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5 text-green-400", fill: "currentColor", viewBox: "0 0 20 20", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { fillRule: "evenodd", d: "M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z", clipRule: "evenodd" }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-green-300 text-sm sm:text-base font-bold leading-none", children: "Ding!" })
-        ] })
-      ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400/70 text-[10px] tracking-[0.25em] uppercase mb-0.5", children: "Status" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 rounded-full bg-amber-400/70 animate-pulse" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-100 text-base font-bold tracking-wide leading-none", children: "Ready" })
-        ] })
-      ] }) })
-    ] }),
-    elevatorTimer !== null && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-1 bg-black/60 overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "div",
-      {
-        className: `h-full transition-all duration-1000 ease-linear ${doorsClosed ? "bg-gradient-to-r from-blue-500 to-cyan-400" : elevatorTimer <= 5 ? "bg-gradient-to-r from-red-600 to-red-400" : "bg-gradient-to-r from-amber-500 to-yellow-400"}`,
-        style: { width: `${doorsClosed ? (20 - elevatorTimer) / 20 * 100 : (5 - elevatorTimer) / 5 * 100}%` }
-      }
-    ) })
-  ] })
-] }) }));
-const FloorReveal = ({ level }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[45] flex items-center justify-center pointer-events-none px-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "animate-floor-reveal text-center w-full", children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-500/80 text-xs sm:text-sm tracking-[0.3em] sm:tracking-[0.5em] uppercase mb-2 sm:mb-4 animate-fade-in", children: "Now Arriving" }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-white font-black tracking-wider tabular-nums", style: { fontSize: "clamp(2rem, 12vw, 5rem)", textShadow: "0 0 60px rgba(251,191,36,0.8), 0 0 30px rgba(255,255,255,0.4)" }, children: [
-    "FLOOR ",
-    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400", children: String(level).padStart(2, "0") })
-  ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-[2px] w-32 sm:w-48 mx-auto mt-4 sm:mt-6 bg-gradient-to-r from-transparent via-amber-400 to-transparent" })
-] }) });
-const TopControls = React.memo(({ multiplayerEnabled, otherPlayersCount, onSettingsOpen, muted, onToggleMute }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
-  "div",
-  {
-    className: "absolute z-50 flex gap-2 pointer-events-auto",
-    style: {
-      top: "calc(env(safe-area-inset-top, 0px) + 8px)",
-      right: "calc(env(safe-area-inset-right, 0px) + 8px)"
-    },
-    children: [
-      multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 bg-black/70 backdrop-blur-sm ring-1 ring-white/10 px-2.5 py-1.5 rounded-full", "aria-label": "Multiplayer ativo", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-2 h-2 rounded-full ${otherPlayersCount > 0 ? "bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]" : "bg-amber-400/70 animate-pulse"}` }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] text-white/60 font-medium tracking-wider", children: otherPlayersCount > 0 ? `${otherPlayersCount} online` : "MP" })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: onSettingsOpen, className: "relative group", "aria-label": "Configurações", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#fbbf24", className: "w-6 h-6 landscape:w-6 landscape:h-6", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" })
-        ] }) })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: onToggleMute, className: "relative group", "aria-label": muted ? "Ativar som" : "Silenciar", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target", children: muted ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#f87171", className: "w-6 h-6 landscape:w-6 landscape:h-6", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#fbbf24", className: "w-6 h-6 landscape:w-6 landscape:h-6", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" }) }) })
-      ] })
-    ]
-  }
-));
-const ActionButton = React.memo(({ icon, label, colorClasses, ringClasses, onClick, ariaLabel }) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-  "div",
-  {
-    className: "absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]",
-    children: /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick, className: "group relative tap-target", "aria-label": ariaLabel, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute -inset-1 rounded-full blur-md opacity-70 group-hover:opacity-100 animate-pulse ${colorClasses}` }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `relative px-4 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 ring-2 text-xs sm:text-base ${ringClasses}`, children: [
-        icon,
-        label
-      ] })
-    ] })
-  }
-));
-const NightBanner = ({ elevatorActive }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorActive ? "top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]" : "top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-red-950/80 ring-1 ring-red-500/40 text-red-200 px-3 sm:px-4 py-2 rounded-lg font-mono text-[11px] sm:text-sm tracking-wider animate-pulse", children: "Algo não está certo..." }) });
-const ChaseBanner = ({ elevatorActive }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorActive ? "top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]" : "top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-[11px] sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight", children: "⚠ CORRA PARA O ELEVADOR ⚠" }) });
-const SavedOverlay = () => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-6 overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center w-full animate-fade-in", children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-green-400 font-black mb-2", style: { fontSize: "clamp(1.5rem, 8vw, 3rem)", textShadow: "0 0 40px rgba(74,222,128,0.5)" }, children: "VOCÊ SOBREVIVEU" }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-[2px] w-24 mx-auto mb-3 bg-gradient-to-r from-transparent via-green-400 to-transparent" }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/50 text-base sm:text-lg font-light tracking-wider", children: "Por enquanto..." })
-] }) });
-const BarneyDialogue = ({ dialogueNode, onResponse }) => {
-  const node = BARNEY_DIALOGUE[dialogueNode];
-  if (!node) return null;
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[55] flex items-end justify-center pointer-events-auto landscape:items-center landscape:py-4 overflow-y-auto", style: { background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, transparent 100%)" }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full max-w-2xl mx-4 mb-6 landscape:mb-0 relative animate-barney-dialogue flex-shrink-0", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-gradient-to-r from-purple-500/40 via-pink-500/40 to-purple-500/40 rounded-2xl blur-lg barney-glow" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative bg-[#0d0411]/98 border-2 border-purple-500/50 rounded-xl p-2.5 sm:p-5 shadow-2xl", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-3 sm:gap-4 flex-col landscape:flex-row sm:flex-row", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 sm:hidden landscape:hidden w-full border-b border-white/5 pb-2 mb-1", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-14 h-14 flex-shrink-0 bg-transparent rounded-none overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: BARNEY_URL, className: "w-full h-full object-contain object-top animate-barney-bounce", alt: "" }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-purple-300 text-[11px] font-bold tracking-[0.3em] uppercase", children: "Barney" })
-        ] })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-transparent rounded-none overflow-hidden self-center sm:self-start hidden sm:block landscape:block", children: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: BARNEY_URL, className: "w-full h-full object-contain object-top animate-barney-bounce", alt: "" }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 min-w-0 w-full", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "hidden sm:flex landscape:flex items-center gap-2 mb-1.5", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-purple-300 text-[11px] font-bold tracking-[0.3em] uppercase", children: "Barney" })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/95 text-sm sm:text-base leading-relaxed mb-4 font-serif min-h-[2rem] sm:min-h-[3rem] landscape:min-h-0", children: /* @__PURE__ */ jsxRuntimeExports.jsx(TypewriterText, { text: node.text, speed: 28, voicePitch: 660 }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-2 max-h-[35vh] landscape:max-h-[30vh] overflow-y-auto scrollbar-hide pr-1", children: node.options.map((opt, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: () => onResponse(opt.next), "aria-label": opt.text, className: "group text-left bg-black/50 hover:bg-purple-900/70 border border-purple-500/30 hover:border-purple-400/70 text-white/70 hover:text-white px-3 py-2.5 rounded-xl text-sm sm:text-base transition-all active:scale-[0.98] flex items-center gap-2 flex-shrink-0", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-purple-400/60 group-hover:text-purple-300 transition-colors", children: "▸" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "flex-1", children: opt.text })
-        ] }, i2)) })
-      ] })
-    ] }) })
-  ] }) });
 };
 function classifySource(obj) {
   var _a;
@@ -99846,15 +100377,109 @@ class CanvasErrorBoundary extends reactExports.Component {
   }
   render() {
     if (this.state.hasError) {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 flex items-center justify-center bg-black", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center px-6", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-lg font-bold mb-2", children: "Algo deu errado" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/50 text-sm font-mono mb-4", children: this.state.error }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => window.location.reload(), "aria-label": "Recarregar página", className: "bg-amber-500 text-black px-4 py-2 rounded-lg font-bold text-sm", children: "Recarregar" })
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 flex items-center justify-center bg-black", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center px-6 max-w-md", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-lg font-bold mb-2", children: "The elevator has stopped responding." }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-white/60 text-sm font-mono mb-4 break-all", children: this.state.error }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => window.location.reload(), "aria-label": "Reload page", className: "bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black px-5 py-2.5 rounded-xl font-bold text-sm transition-colors focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black", children: "Restart" })
       ] }) });
     }
     return this.props.children;
   }
 }
+const ElevatorLoadingScreen = () => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center gap-5 select-none", style: { fontFamily: '"Source Sans 3", "Segoe UI", system-ui, sans-serif' }, children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative overflow-hidden", style: { width: 120, height: 150, border: "3px solid #C99B36", borderRadius: 6, background: "#0a0a08", boxShadow: "0 0 40px rgba(251,191,36,0.15), inset 0 0 30px rgba(0,0,0,0.8)" }, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: "50%",
+          background: "repeating-linear-gradient(90deg, #2a2a2e 0px, #2a2a2e 2px, #353539 2px, #353539 4px)",
+          borderRight: "1px solid #C99B36",
+          animation: "elevatorDoorLeft 2.4s cubic-bezier(0.45,0,0.55,1) infinite"
+        }
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: "50%",
+          background: "repeating-linear-gradient(90deg, #353539 0px, #353539 2px, #2a2a2e 2px, #2a2a2e 4px)",
+          borderLeft: "1px solid #C99B36",
+          animation: "elevatorDoorRight 2.4s cubic-bezier(0.45,0,0.55,1) infinite"
+        }
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: "10%",
+          bottom: "10%",
+          left: "30%",
+          right: "30%",
+          background: "radial-gradient(ellipse at center, rgba(255,213,79,0.3) 0%, transparent 70%)",
+          animation: "elevatorGapGlow 2.4s cubic-bezier(0.45,0,0.55,1) infinite",
+          pointerEvents: "none"
+        }
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: 6,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: 16,
+          height: 16,
+          borderRadius: 2,
+          background: "#1a1a1a",
+          border: "1px solid #C99B36",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        },
+        children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { animation: "floorBlink 1.2s steps(2) infinite", color: "#FFD54F", fontSize: 10, fontWeight: 900, fontFamily: "monospace" }, children: "▲" })
+      }
+    )
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { color: "#C99B36", fontSize: 11, letterSpacing: "0.35em", textTransform: "uppercase", fontWeight: 600 }, children: "The Normal Elevator" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center gap-2", children: [0, 1, 2, 3, 4].map((i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { width: 8, height: 8, borderRadius: 1, background: "#C99B36", opacity: 0.25, animation: `floorDot 1.5s ease-in-out ${i2 * 0.2}s infinite` } }, i2)) }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { color: "rgba(201,155,54,0.5)", fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase", fontFamily: "monospace" }, children: "Entering..." }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("style", { children: `
+      @keyframes elevatorDoorLeft {
+        0%, 100% { transform: translateX(0); }
+        30%, 60% { transform: translateX(-85%); }
+      }
+      @keyframes elevatorDoorRight {
+        0%, 100% { transform: translateX(0); }
+        30%, 60% { transform: translateX(85%); }
+      }
+      @keyframes elevatorGapGlow {
+        0%, 100% { opacity: 0; }
+        30%, 60% { opacity: 1; }
+      }
+      @keyframes floorBlink {
+        0%, 49% { opacity: 1; }
+        50%, 100% { opacity: 0.2; }
+      }
+      @keyframes floorDot {
+        0%, 100% { opacity: 0.2; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.3); }
+      }
+    ` })
+] });
 const MAX_JOYSTICK_RADIUS = 50;
 const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
   level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(LobbyEnvironment, { npcPositionRef, isPaused, playerPositionRef }),
@@ -100105,7 +100730,7 @@ function App() {
     }, 250);
     return () => clearInterval(id);
   }, [multiplayerEnabled]);
-  const { user, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel, playerName);
+  const { user, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages, connectionStatus } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel, playerName);
   const handleStartDialogue = () => {
     setDialogueNode("start");
     setDialogueOpen(true);
@@ -100429,14 +101054,7 @@ function App() {
           toneMapping: ACESFilmicToneMapping,
           outputColorSpace: SRGBColorSpace$1
         },
-        children: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5", children: "The Normal Elevator" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-center gap-1.5", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse", style: { animationDelay: "0.2s" } }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
-          ] })
-        ] }) }), children: [
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorLoadingScreen, {}) }), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
           otherPlayerIds.slice(0, QUALITY_PROFILES[settings.quality].remoteLimit).map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
           /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
@@ -100454,6 +101072,7 @@ function App() {
       }
     ) }),
     hasStarted && QUALITY_PROFILES[settings.quality].overlay && /* @__PURE__ */ jsxRuntimeExports.jsx(GameEffects, { nightMode, gameState, currentLevel, quality: settings.quality }),
+    hasStarted && currentLevel === 0 && gameState === "lobby" && /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyLobbyAmbience, { playerCount: otherPlayerIds.length }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Loader2, {}),
     !hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(MainMenu, { onPlay: handleStartGame }),
     hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "hud-fixed", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorHud, { currentLevel, elevatorTimer, doorsClosed, arrivalPulse }) }),
@@ -100463,6 +101082,7 @@ function App() {
       {
         multiplayerEnabled,
         otherPlayersCount: otherPlayerIds.length,
+        connectionStatus,
         onSettingsOpen: () => setSettingsOpen(true),
         muted,
         onToggleMute: () => setMuted(!muted)

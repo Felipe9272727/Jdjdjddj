@@ -9,7 +9,7 @@ class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasErr
   static getDerivedStateFromError(error: Error) { return { hasError: true, error: error.message }; }
   render() {
     if (this.state.hasError) {
-      return <div className="absolute inset-0 flex items-center justify-center bg-black"><div className="text-center px-6"><div className="text-amber-400 text-lg font-bold mb-2">Algo deu errado</div><div className="text-white/50 text-sm font-mono mb-4">{this.state.error}</div><button onClick={() => window.location.reload()} aria-label="Recarregar página" className="bg-amber-500 text-black px-4 py-2 rounded-lg font-bold text-sm">Recarregar</button></div></div>;
+      return <div className="absolute inset-0 flex items-center justify-center bg-black"><div className="text-center px-6 max-w-md"><div className="text-amber-400 text-lg font-bold mb-2">The elevator has stopped responding.</div><div className="text-white/60 text-sm font-mono mb-4 break-all">{this.state.error}</div><button onClick={() => window.location.reload()} aria-label="Reload page" className="bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black px-5 py-2.5 rounded-xl font-bold text-sm transition-colors focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black">Restart</button></div></div>;
     }
     return this.props.children;
   }
@@ -21,19 +21,99 @@ import { VisualJoystick, DialogueOverlay } from './UI';
 import { ShopOverlay } from './ShopOverlay';
 import { Player } from './Player';
 import { ElevatorInterior } from './Elevator';
-import { LobbyEnvironment } from './LobbyEnv';
+import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
-import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES } from './Settings';
+import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES, type QualityProfile } from './Settings';
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
 import { RobloxChat, BubbleChatFallback } from './ChatSystem';
-import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient } from './PostEffects';
+import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient, EmptyLobbyAmbience } from './PostEffects';
 import { CeilingFan, WallClock, playArrivalDing, createElevatorHum } from './Atmosphere';
 import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue } from './HudComponents';
 import { SceneInspector } from './SceneInspector';
 
+
+// ─── Elevator Loading Screen ──────────────────────────────────────────────
+const ElevatorLoadingScreen = () => (
+  <div className="flex flex-col items-center gap-5 select-none" style={{ fontFamily: '"Source Sans 3", "Segoe UI", system-ui, sans-serif' }}>
+    {/* Elevator door frame */}
+    <div className="relative overflow-hidden" style={{ width: 120, height: 150, border: '3px solid #C99B36', borderRadius: 6, background: '#0a0a08', boxShadow: '0 0 40px rgba(251,191,36,0.15), inset 0 0 30px rgba(0,0,0,0.8)' }}>
+      {/* Left door */}
+      <div
+        style={{
+          position: 'absolute', top: 0, left: 0, bottom: 0, width: '50%',
+          background: 'repeating-linear-gradient(90deg, #2a2a2e 0px, #2a2a2e 2px, #353539 2px, #353539 4px)',
+          borderRight: '1px solid #C99B36',
+          animation: 'elevatorDoorLeft 2.4s cubic-bezier(0.45,0,0.55,1) infinite',
+        }}
+      />
+      {/* Right door */}
+      <div
+        style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: '50%',
+          background: 'repeating-linear-gradient(90deg, #353539 0px, #353539 2px, #2a2a2e 2px, #2a2a2e 4px)',
+          borderLeft: '1px solid #C99B36',
+          animation: 'elevatorDoorRight 2.4s cubic-bezier(0.45,0,0.55,1) infinite',
+        }}
+      />
+      {/* Gap glow (visible when doors open) */}
+      <div
+        style={{
+          position: 'absolute', top: '10%', bottom: '10%', left: '30%', right: '30%',
+          background: 'radial-gradient(ellipse at center, rgba(255,213,79,0.3) 0%, transparent 70%)',
+          animation: 'elevatorGapGlow 2.4s cubic-bezier(0.45,0,0.55,1) infinite',
+          pointerEvents: 'none',
+        }}
+      />
+      {/* Floor indicator light at top */}
+      <div
+        style={{
+          position: 'absolute', top: 6, left: '50%', transform: 'translateX(-50%)',
+          width: 16, height: 16, borderRadius: 2, background: '#1a1a1a',
+          border: '1px solid #C99B36', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <div style={{ animation: 'floorBlink 1.2s steps(2) infinite', color: '#FFD54F', fontSize: 10, fontWeight: 900, fontFamily: 'monospace' }}>▲</div>
+      </div>
+    </div>
+    {/* Title */}
+    <div style={{ color: '#C99B36', fontSize: 11, letterSpacing: '0.35em', textTransform: 'uppercase', fontWeight: 600 }}>The Normal Elevator</div>
+    {/* Floor indicator strip */}
+    <div className="flex items-center gap-2">
+      {[0,1,2,3,4].map(i => (
+        <div key={i} style={{ width: 8, height: 8, borderRadius: 1, background: '#C99B36', opacity: 0.25, animation: `floorDot 1.5s ease-in-out ${i * 0.2}s infinite` }} />
+      ))}
+    </div>
+    {/* Loading text */}
+    <div style={{ color: 'rgba(201,155,54,0.5)', fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', fontFamily: 'monospace' }}>
+      Entering...
+    </div>
+    <style>{`
+      @keyframes elevatorDoorLeft {
+        0%, 100% { transform: translateX(0); }
+        30%, 60% { transform: translateX(-85%); }
+      }
+      @keyframes elevatorDoorRight {
+        0%, 100% { transform: translateX(0); }
+        30%, 60% { transform: translateX(85%); }
+      }
+      @keyframes elevatorGapGlow {
+        0%, 100% { opacity: 0; }
+        30%, 60% { opacity: 1; }
+      }
+      @keyframes floorBlink {
+        0%, 49% { opacity: 1; }
+        50%, 100% { opacity: 0.2; }
+      }
+      @keyframes floorDot {
+        0%, 100% { opacity: 0.2; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.3); }
+      }
+    `}</style>
+  </div>
+);
 
 const MAX_JOYSTICK_RADIUS = 50;
 
@@ -53,7 +133,7 @@ interface WorldProps {
   barneyTargetRef: React.MutableRefObject<{ x: number; z: number; scale: number }>;
   nightMode: boolean;
   doorOpenAmount: number;
-  profile: any;
+  profile: QualityProfile;
 }
 
 const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile }: WorldProps) => (
@@ -291,7 +371,7 @@ export default function App() {
     }, 250);
     return () => clearInterval(id);
   }, [multiplayerEnabled]);
-  const { user, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel, playerName);
+  const { user, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages, connectionStatus } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel, playerName);
 
   const handleStartDialogue = () => { setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
   const handleStartGame = (mpEnabled: boolean, name?: string) => {
@@ -527,7 +607,7 @@ export default function App() {
           outputColorSpace: SRGBColorSpace,
         }}
       >
-        <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
+        <Suspense fallback={<Html center><ElevatorLoadingScreen /></Html>}>
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
@@ -552,6 +632,14 @@ export default function App() {
       {hasStarted && QUALITY_PROFILES[settings.quality].overlay && (
           <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} quality={settings.quality} />
       )}
+      {/* Empty lobby atmospheric touches — thuds, flickers, wall text */}
+      {hasStarted && currentLevel === 0 && gameState === 'lobby' && (
+          <EmptyLobbyAmbience playerCount={otherPlayerIds.length} />
+      )}
+      {/* Easter egg: "Someone is watching" — random creepy text in corner */}
+      {hasStarted && currentLevel === 0 && gameState === 'lobby' && (
+          <WatchingText />
+      )}
       <Loader />
       {!hasStarted && <MainMenu onPlay={handleStartGame} />}
       
@@ -571,6 +659,7 @@ export default function App() {
         <TopControls
           multiplayerEnabled={multiplayerEnabled}
           otherPlayersCount={otherPlayerIds.length}
+          connectionStatus={connectionStatus}
           onSettingsOpen={() => setSettingsOpen(true)}
           muted={muted}
           onToggleMute={() => setMuted(!muted)}

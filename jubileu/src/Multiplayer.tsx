@@ -119,17 +119,22 @@ export const useMultiplayer = (
     useEffect(() => { playerStateRef.current = playerState; }, [playerState]);
     useEffect(() => { playerNameRef.current = playerName; }, [playerName]);
 
+    // Connection status: 'connecting' | 'online' | 'error'
+    const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'online' | 'error'>(isEnabled ? 'connecting' : 'error');
+
     // Subscribe to other players in the same level
     useEffect(() => {
         if (!isEnabled) {
             otherPlayersDataRef.current = new Map();
             otherPlayerIdsRef.current = [];
             setOtherPlayerIds([]);
+            setConnectionStatus('error');
             return;
         }
         const db = getDb();
         if (!db) {
             console.warn('[MP] Sem config Firebase — check __FIREBASE_CONFIG__');
+            setConnectionStatus('error');
             return;
         }
         const uid = playerIdRef.current;
@@ -143,6 +148,7 @@ export const useMultiplayer = (
         );
         const GHOST_TTL_MS = MP_GHOST_TTL_MS;
         const unsub = onSnapshot(q, (snap) => {
+            setConnectionStatus('online');
             const newMap = new Map<string, MPPlayer>();
             const cutoff = Date.now() - GHOST_TTL_MS;
             snap.forEach(d => {
@@ -188,7 +194,7 @@ export const useMultiplayer = (
                 }
                 return prev;
             });
-        }, (err) => console.error('[MP] Snapshot erro:', err));
+        }, (err) => { console.error('[MP] Snapshot erro:', err); setConnectionStatus('error'); });
         return () => unsub();
     }, [isEnabled, level]);
 
@@ -276,6 +282,9 @@ export const useMultiplayer = (
         updateDoc(docRef, { isActive: false, updatedAt: serverTimestamp() }).catch(() => {});
     }, [isEnabled]);
 
+    // Chat clear timers — tracked so we can cancel on unmount
+    const chatClearTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
     // Send chat message — with local fallback
     const sendChat = (msg: string) => {
         const clean = msg.trim().slice(0, CHAT_MAX_LEN);
@@ -311,22 +320,32 @@ export const useMultiplayer = (
             console.warn('[MP] Chat Firestore write failed (local fallback active):', e?.code || e?.message);
         });
 
-        // Auto-clear after 30s
-        setTimeout(() => {
+        // Auto-clear after 30s — tracked in ref for cleanup on unmount
+        const clearTimer = setTimeout(() => {
+            chatClearTimersRef.current.delete(clearTimer);
             if (chatMsgRef.current === clean) {
                 chatMsgRef.current = '';
                 chatAtRef.current = 0;
                 updateDoc(docRef, { chatMsg: '', chatAt: 0, updatedAt: serverTimestamp() }).catch(() => {});
             }
-        }, 30000);
+        }, CHAT_CLEAR_DELAY);
+        chatClearTimersRef.current.add(clearTimer);
     };
+
+    // Cleanup chat clear timers on unmount
+    useEffect(() => {
+        return () => {
+            chatClearTimersRef.current.forEach(clearTimeout);
+            chatClearTimersRef.current.clear();
+        };
+    }, []);
 
     const login = async (): Promise<string | null> => {
         return playerIdRef.current;
     };
     const user = { uid: playerIdRef.current };
 
-    return { user, login, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages };
+    return { user, login, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages, connectionStatus };
 };
 
 // Convenience type — what App passes to RemotePlayer.
