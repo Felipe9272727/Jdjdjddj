@@ -66,6 +66,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
+  const spriteRef = useRef<HTMLDivElement>(null);
+  const portraitRef = useRef<HTMLDivElement>(null);
 
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
@@ -128,6 +130,35 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     const t = window.setTimeout(() => onClose(), TIMINGS.exitClose);
     phaseTimersRef.current.push(t);
   };
+
+  // ── Force CSS animation restart via reflow ───────────────────────────
+  // When spriteMode or isTyping changes, we need to restart the CSS
+  // animation. key={spriteMode} doesn't reliably work because React
+  // batches unmount/remount. Instead: set animation:none, force reflow,
+  // then set the real animation. This guarantees the browser resets.
+  useEffect(() => {
+    const el = spriteRef.current;
+    if (!el) return;
+    el.style.animation = 'none';
+    void el.offsetHeight; // force reflow
+    if (sprite.anim) {
+      el.style.animation = `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`;
+    } else {
+      el.style.animation = 'none';
+    }
+  }, [spriteMode, sprite.anim, sprite.cycle, sprite.frames]);
+
+  useEffect(() => {
+    const el = portraitRef.current;
+    if (!el) return;
+    el.style.animation = 'none';
+    void el.offsetHeight; // force reflow
+    if (isTyping) {
+      el.style.animation = `bellhopTalk 240ms steps(${BELLHOP_TALK_FRAMES}) infinite`;
+    } else {
+      el.style.animation = 'none';
+    }
+  }, [isTyping]);
 
   if (!open) return null;
 
@@ -270,9 +301,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — key forces remount on mode change */}
+            {/* Animated bellhop — animation forced via reflow in useEffect */}
             <div
-              key={spriteMode}
+              ref={spriteRef}
               aria-hidden
               style={{
                 height: SPRITE_H,
@@ -282,9 +313,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 backgroundRepeat: 'no-repeat',
                 backgroundPosition: '0% 0%',
                 imageRendering: 'pixelated',
-                animation: sprite.anim
-                  ? `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`
-                  : 'none',
                 filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: showContent ? 1 : 0,
@@ -328,7 +356,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 }}
               >
                 <div
-                  key={isTyping ? 'talk' : 'idle'}
+                  ref={portraitRef}
                   style={{
                     position: 'absolute',
                     top: 0, left: 0, right: 0,
@@ -338,7 +366,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: '0% 0%',
                     imageRendering: 'pixelated',
-                    animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
                     transform: 'translateY(-8%)',
                   }}
                 />
