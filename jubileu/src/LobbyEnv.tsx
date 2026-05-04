@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGLTF, useAnimations } from '@react-three/drei';
+import { useGLTF, useAnimations, Html } from '@react-three/drei';
 import { ASSETS, COLORS, NPC_WALK_URL, NPC_IDLE_URL } from './constants';
 import { TextureMaterial } from './Materials';
 import { Door, WallPanel, CeilingLight, Armchair, TallPlant, FloorLamp, ReceptionDesk, Cashier, Stool } from './BuildingBlocks';
@@ -8,6 +8,96 @@ import { ElevatorFacade } from './Elevator';
 import { Shop } from './HouseEnv';
 import * as THREE from 'three';
 import { Vector3 } from 'three';
+
+// ─── Easter Egg: Hidden Wall Panel ───────────────────────────────────────
+// A barely-different wall panel in the lobby that reveals a message when clicked.
+const HiddenWallPanel = () => {
+    const [revealed, setRevealed] = useState(false);
+    const [fadeOut, setFadeOut] = useState(false);
+
+    useEffect(() => {
+        if (revealed) {
+            const timer = setTimeout(() => setFadeOut(true), 5000);
+            const hide = setTimeout(() => { setRevealed(false); setFadeOut(false); }, 7000);
+            return () => { clearTimeout(timer); clearTimeout(hide); };
+        }
+    }, [revealed]);
+
+    return (
+        <group position={[-9.7, 1.2, -6]}>
+            {/* The clickable panel — very slightly different shade */}
+            <mesh
+                onClick={() => { if (!revealed) setRevealed(true); }}
+                onPointerOver={(e: any) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+                onPointerOut={() => { document.body.style.cursor = 'default'; }}
+            >
+                <boxGeometry args={[0.12, 1.2, 1.5]} />
+                <meshStandardMaterial color="#C8B8A8" roughness={0.85} />
+            </mesh>
+            {revealed && (
+                <Html position={[0.3, 0, 0]} center distanceFactor={8}>
+                    <div
+                        className="pointer-events-none select-none whitespace-nowrap"
+                        style={{
+                            opacity: fadeOut ? 0 : 0.7,
+                            transition: 'opacity 2s ease-out',
+                        }}
+                    >
+                        <span className="text-white/60 text-xs font-serif italic tracking-wider">
+                            "We were here before the walls."
+                        </span>
+                    </div>
+                </Html>
+            )}
+        </group>
+    );
+};
+
+// ─── Easter Egg: "Someone is Watching" — random creepy text ──────────────
+export const WatchingText = () => {
+    const [visible, setVisible] = useState(false);
+
+    useEffect(() => {
+        const schedule = () => {
+            const delay = 30000 + Math.random() * 60000; // 30-90 seconds
+            return setTimeout(() => {
+                setVisible(true);
+                const hide = setTimeout(() => {
+                    setVisible(false);
+                    schedule();
+                }, 3000);
+                return hide;
+            }, delay);
+        };
+        let hideTimer: ReturnType<typeof setTimeout> | null = null;
+        const showTimer = setTimeout(() => {
+            setVisible(true);
+            hideTimer = setTimeout(() => {
+                setVisible(false);
+                hideTimer = null;
+                schedule();
+            }, 3000);
+        }, 20000); // First appearance at 20s
+        return () => { clearTimeout(showTimer); if (hideTimer) clearTimeout(hideTimer); };
+    }, []);
+
+    if (!visible) return null;
+
+    return (
+        <div
+            className="absolute z-[1] pointer-events-none select-none"
+            style={{
+                top: '15%',
+                right: '5%',
+                animation: 'wall-text-fade 3s ease-in-out forwards',
+            }}
+        >
+            <span className="text-white/8 text-[10px] font-mono tracking-[0.3em] uppercase">
+                someone is watching
+            </span>
+        </div>
+    );
+};
 
 export const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }: any) => {
   const group = useRef<any>(null);
@@ -116,6 +206,7 @@ export const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPo
             <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.012, -2]}><planeGeometry args={[3.5, 14]} /><meshStandardMaterial color="#6A1B9A" roughness={0.95} opacity={0.6} transparent /></mesh>
             <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.013, -2]}><planeGeometry args={[2.8, 13.4]} /><meshStandardMaterial color="#4A148C" roughness={0.95} opacity={0.4} transparent /></mesh>
             <LobbyNPC positionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />
+            <HiddenWallPanel />
         </group>
     );
 });

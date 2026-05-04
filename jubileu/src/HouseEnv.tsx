@@ -20,15 +20,30 @@ export const DussekarCharacter = ({ position, rotation }: any) => {
   const clonedScene = useMemo(() => scene.clone(true), [scene]);
   const group = useRef<any>(null);
   const timeRef = useRef(0);
+  const proximityTimerRef = useRef(0);
+  const secretTriggeredRef = useRef(false);
   useFrame((state, dt) => {
       if (!group.current) return;
       // Distance cull: the float wobble is invisible past ~12 units. Skipping
       // the math + matrix update when the camera is far is a free win.
       const dx = state.camera.position.x - position[0];
       const dz = state.camera.position.z - position[2];
-      if (dx * dx + dz * dz > 144) return;
+      const distSq = dx * dx + dz * dz;
+      if (distSq > 144) return;
       timeRef.current += dt;
       group.current.position.y = position[1] + Math.sin(timeRef.current * 0.8) * 0.015;
+
+      // Easter egg: track proximity for 30-second secret message
+      if (distSq < 9) { // within ~3 units
+          proximityTimerRef.current += dt;
+          if (proximityTimerRef.current >= 30 && !secretTriggeredRef.current) {
+              secretTriggeredRef.current = true;
+              setDialogue("You stayed. They always leave. You are... different.");
+              setTimeout(() => setDialogue(null), 12000);
+          }
+      } else {
+          proximityTimerRef.current = 0;
+      }
   });
   useEffect(() => {
       let active = true; let showTimer: any; let hideTimer: any;
@@ -37,9 +52,11 @@ export const DussekarCharacter = ({ position, rotation }: any) => {
           if (!active) return;
           showTimer = setTimeout(() => {
               if (!active) return;
+              // Don't override the secret message
+              if (secretTriggeredRef.current) return;
               const text = lines[Math.floor(Math.random() * lines.length)];
               setDialogue(text);
-              hideTimer = setTimeout(() => { if (active) { setDialogue(null); runCycle(); } }, 10000);
+              hideTimer = setTimeout(() => { if (active && !secretTriggeredRef.current) { setDialogue(null); runCycle(); } }, 10000);
           }, 5000);
       };
       runCycle(); return () => { active = false; clearTimeout(showTimer); clearTimeout(hideTimer); };

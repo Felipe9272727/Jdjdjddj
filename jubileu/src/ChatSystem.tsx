@@ -120,8 +120,8 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                         }}
                     >
                         {messages.length === 0 && (
-                            <div className="text-white/60 text-xs text-center py-3 px-4">
-                                Pressione <kbd className="px-1 py-0.5 bg-white/10 rounded text-[10px] font-mono">/</kbd> para conversar
+                            <div className="text-white/65 text-xs text-center py-3 px-4">
+                                Press <kbd className="px-1 py-0.5 bg-white/10 rounded text-[10px] font-mono">/</kbd> to chat
                             </div>
                         )}
                         {messages.slice(-30).map((msg, i) => {
@@ -130,10 +130,11 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                             const opacity = fadeOut ? Math.max(0, 1 - (age - 25000) / 5000) : 1;
                             const isMe = msg.id === currentUserId;
                             const nameColor = getNameColor(msg.name, isMe);
+                            const isNew = age < 500;
                             return (
                                 <div
                                     key={`${msg.id}-${msg.timestamp}-${i}`}
-                                    className="px-3 py-[2px] transition-opacity duration-500"
+                                    className={`px-3 py-[2px] transition-opacity duration-500 ${isNew ? 'animate-chat-slide-in' : ''}`}
                                     style={{ opacity }}
                                 >
                                     <span className="text-[13px] leading-snug" style={{ fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }}>
@@ -169,7 +170,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                                 boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
                             }}
                         >
-                            <label htmlFor="chat-input-desktop" className="text-white/55 text-xs font-bold px-2.5 shrink-0 select-none">Chat:</label>
+                            <label htmlFor="chat-input-desktop" className="text-white/65 text-xs font-bold px-2.5 shrink-0 select-none" aria-label="Chat input">Chat:</label>
                             <input
                                 id="chat-input-desktop"
                                 ref={inputRef}
@@ -183,7 +184,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                                 }}
                                 placeholder="Type here..." aria-label="Mensagem do chat"
                                 maxLength={200}
-                                className="flex-1 bg-transparent text-white text-[13px] font-normal placeholder-white/50 outline-none py-2.5 pr-3"
+                                className="flex-1 bg-transparent text-white text-[13px] font-normal placeholder-white/60 outline-none py-2.5 pr-3"
                                 style={{ fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }}
                                 autoFocus
                             />
@@ -205,7 +206,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                                 border: '1px solid rgba(255,255,255,0.08)',
                             }}
                         >
-                            <span className="text-white/50 text-xs">Press / to chat</span>
+                            <span className="text-white/60 text-xs">Press / to chat</span>
                         </button>
                     </div>
                 )}
@@ -239,12 +240,12 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between px-3 py-2 border-b border-white/8">
-                            <span className="text-white/50 text-[11px] font-bold tracking-wider uppercase" style={{ fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }}>
+                            <span className="text-white/60 text-[11px] font-bold tracking-wider uppercase" style={{ fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }}>
                                 Chat
                             </span>
                             <button
                                 onClick={() => { setOpen(false); setInput(''); }}
-                                className="text-white/50 hover:text-white/70 text-lg font-bold leading-none w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 active:bg-white/20 transition-colors"
+                                className="text-white/60 hover:text-white/80 text-lg font-bold leading-none w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 active:bg-white/20 transition-colors"
                             >
                                 ×
                             </button>
@@ -257,8 +258,8 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                             style={{ maxHeight: 'calc(min(340px, 50dvh) - 90px)' }}
                         >
                             {messages.length === 0 && (
-                                <div className="text-white/60 text-xs text-center py-4">
-                                    Nenhuma mensagem ainda
+                                <div className="text-white/65 text-xs text-center py-4">
+                                    No messages yet
                                 </div>
                             )}
                             {messages.slice(-30).map((msg, i) => {
@@ -280,7 +281,7 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
 
                         {/* Input */}
                         <div className="border-t border-white/8 px-2 py-1.5 flex items-center gap-1.5">
-                            <label htmlFor="chat-input-mobile" className="sr-only">Mensagem do chat</label>
+                            <label htmlFor="chat-input-mobile" className="sr-only">Chat message</label>
                             <input
                                 id="chat-input-mobile"
                                 ref={inputRef}
@@ -291,9 +292,9 @@ export const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClos
                                     e.stopPropagation();
                                     if (e.key === 'Enter') handleSend();
                                 }}
-                                placeholder="Type here..." aria-label="Mensagem do chat"
+                                placeholder="Type here..." aria-label="Chat message"
                                 maxLength={200}
-                                className="flex-1 bg-white/6 border border-white/10 rounded-xl px-3 py-2 text-white text-[13px] font-normal placeholder-white/30 outline-none focus:border-white/25 transition-colors"
+                                className="flex-1 bg-white/6 border border-white/10 rounded-xl px-3 py-2 text-white text-[13px] font-normal placeholder-white/55 outline-none focus:border-white/25 transition-colors"
                                 style={{ fontFamily: '"Source Sans 3", "Segoe UI", sans-serif' }}
                             />
                             <button
@@ -359,7 +360,7 @@ export const BubbleChatFallback = ({ messages, currentUserId }: BubbleChatFallba
 
     return (
         <div
-            className="absolute z-[50] pointer-events-none flex flex-col gap-1"
+            className="absolute z-[48] pointer-events-none flex flex-col gap-1"
             style={{
                 top: 'calc(env(safe-area-inset-top, 0px) + 8px)',
                 right: 'calc(env(safe-area-inset-right, 0px) + 8px)',
@@ -389,7 +390,7 @@ export const BubbleChatFallback = ({ messages, currentUserId }: BubbleChatFallba
                                 <span className="font-extrabold" style={{ color: nameColor }}>
                                     {msg.name}
                                 </span>
-                                <span className="text-white/55 font-normal">: </span>
+                                <span className="text-white/60 font-normal">: </span>
                                 <span className="text-white/85 font-normal">{msg.text}</span>
                             </span>
                         </div>

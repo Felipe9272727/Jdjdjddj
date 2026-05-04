@@ -214,11 +214,11 @@ export const TopControls = React.memo(({ multiplayerEnabled, otherPlayersCount, 
       >
         <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'online' ? (otherPlayersCount > 0 ? 'bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.5)]' : 'bg-green-400/60') : connectionStatus === 'connecting' ? 'bg-amber-400 animate-pulse' : 'bg-red-400/80'}`} />
         <span className="text-white/50">
-          {connectionStatus === 'error' ? 'OFFLINE' : connectionStatus === 'connecting' ? 'SYNC...' : otherPlayersCount > 0 ? `${otherPlayersCount} ONLINE` : 'ONLINE'}
+          {connectionStatus === 'error' ? 'NO SIGNAL' : connectionStatus === 'connecting' ? 'SYNCING...' : otherPlayersCount > 0 ? `${otherPlayersCount} CONNECTED` : 'ONLINE'}
         </span>
       </div>
     )}
-    <button onClick={onSettingsOpen} className="relative group" aria-label="Configurações">
+    <button onClick={onSettingsOpen} className="relative group" aria-label="Settings">
       <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
       <div className="relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#fbbf24" className="w-6 h-6 landscape:w-6 landscape:h-6">
@@ -227,7 +227,7 @@ export const TopControls = React.memo(({ multiplayerEnabled, otherPlayersCount, 
         </svg>
       </div>
     </button>
-    <button onClick={onToggleMute} className="relative group" aria-label={muted ? 'Ativar som' : 'Silenciar'}>
+    <button onClick={onToggleMute} className="relative group" aria-label={muted ? 'Unmute' : 'Mute'}>
       <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
       <div className="relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target">
         {muted ? (
@@ -267,7 +267,7 @@ export const ActionButton = React.memo(({ icon, label, colorClasses, ringClasses
 // ─── Status Banners ───────────────────────────────────────────────────────
 export const NightBanner = ({ elevatorActive }: { elevatorActive: boolean }) => (
   <div className={`absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorActive ? 'top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]' : 'top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]'}`}>
-    <div className="bg-red-950/80 ring-1 ring-red-500/40 text-red-200 px-3 sm:px-4 py-2 rounded-lg font-mono text-[11px] sm:text-sm tracking-wider animate-pulse">Algo não está certo...</div>
+    <div className="bg-red-950/80 ring-1 ring-red-500/40 text-red-200 px-3 sm:px-4 py-2 rounded-lg font-mono text-[11px] sm:text-sm tracking-wider animate-pulse">Something isn't right...</div>
   </div>
 );
 
@@ -308,7 +308,7 @@ export const ChaseBanner = ({ elevatorActive }: { elevatorActive: boolean }) => 
       {/* Chase banner */}
       <div className={`absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorActive ? 'top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]' : 'top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]'}`}>
         <div className="bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-[11px] sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight">
-          ⚠ CORRA PARA O ELEVADOR ⚠
+          ⚠ RUN TO THE ELEVATOR ⚠
         </div>
       </div>
       {/* Flash text: "RUN" / "ELEVATOR. NOW." */}
@@ -329,9 +329,9 @@ export const ChaseBanner = ({ elevatorActive }: { elevatorActive: boolean }) => 
 export const SavedOverlay = () => (
   <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-6 overflow-hidden">
     <div className="text-center w-full animate-fade-in">
-      <div className="text-green-400 font-black mb-2" style={{ fontSize: 'clamp(1.5rem, 8vw, 3rem)', textShadow: '0 0 40px rgba(74,222,128,0.5)' }}>VOCÊ SOBREVIVEU</div>
+      <div className="text-green-400 font-black mb-2" style={{ fontSize: 'clamp(1.5rem, 8vw, 3rem)', textShadow: '0 0 40px rgba(74,222,128,0.5)' }}>YOU SURVIVED</div>
       <div className="h-[2px] w-24 mx-auto mb-3 bg-gradient-to-r from-transparent via-green-400 to-transparent" />
-      <div className="text-white/60 text-base sm:text-lg font-light tracking-wider">Por enquanto...</div>
+      <div className="text-white/60 text-base sm:text-lg font-light tracking-wider">For now...</div>
     </div>
   </div>
 );

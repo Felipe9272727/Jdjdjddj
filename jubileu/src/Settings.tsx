@@ -143,22 +143,22 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="px-4 py-2.5 sm:py-3 border-b border-amber-500/30 flex items-center justify-between">
-                    <h2 className="text-amber-200 tracking-wider text-sm sm:text-base uppercase font-bold">Configurações</h2>
+                    <h2 className="text-amber-200 tracking-wider text-sm sm:text-base uppercase font-bold">Settings</h2>
                     <button
                         onClick={onClose}
                         className="text-amber-200/70 hover:text-amber-100 text-2xl leading-none w-10 h-10 flex items-center justify-center rounded hover:bg-amber-500/10 active:bg-amber-500/20 transition-colors tap-target"
-                        aria-label="Fechar"
+                        aria-label="Close settings"
                     >×</button>
                 </div>
 
                 <div className="p-3 sm:p-5 space-y-3 sm:space-y-5 text-amber-100 max-h-[70vh] overflow-y-auto scrollbar-hide">
-                    <Row label="Qualidade gráfica">
+                    <Row label="Graphics Quality">
                         <Segmented
                             value={settings.quality}
                             options={[
-                                { value: 'low', label: 'Baixa' },
-                                { value: 'medium', label: 'Média' },
-                                { value: 'high', label: 'Alta' },
+                                { value: 'low', label: 'Low' },
+                                { value: 'medium', label: 'Medium' },
+                                { value: 'high', label: 'High' },
                             ]}
                             onChange={(v) => update({ quality: v as Quality })}
                         />
@@ -173,7 +173,7 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                         />
                     </Row>
 
-                    <Row label={`Sensibilidade (${settings.sensitivity.toFixed(2)}x)`}>
+                    <Row label={`Sensitivity (${settings.sensitivity.toFixed(2)}x)`}>
                         <input
                             type="range" min={0.5} max={2} step={0.05}
                             value={settings.sensitivity}
@@ -182,7 +182,7 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                         />
                     </Row>
 
-                    <Row label="Inverter eixo Y">
+                    <Row label="Invert Y Axis">
                         <Toggle on={settings.invertY} onChange={(on) => update({ invertY: on })} />
                     </Row>
 
@@ -190,11 +190,11 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                         <Toggle on={settings.multiplayer} onChange={(on) => update({ multiplayer: on })} />
                     </Row>
 
-                    <Row label="Mostrar FPS">
+                    <Row label="Show FPS">
                         <Toggle on={settings.showFps} onChange={(on) => update({ showFps: on })} />
                     </Row>
 
-                    <Row label="Modo bot (auto-teste)">
+                    <Row label="Bot Mode (auto-test)">
                         <Toggle on={settings.botMode} onChange={(on) => update({ botMode: on })} />
                     </Row>
 
@@ -202,11 +202,11 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
                         <button
                             onClick={reset}
                             className="px-3 py-1.5 rounded ring-1 ring-amber-500/30 hover:ring-amber-500/60 text-amber-200/70 hover:text-amber-100 text-xs tracking-wider uppercase"
-                        >Restaurar</button>
+                        >Reset</button>
                         <button
                             onClick={onClose}
                             className="px-4 py-1.5 rounded bg-amber-500/80 hover:bg-amber-400 text-black text-xs tracking-wider uppercase font-bold"
-                        >Pronto</button>
+                        >Done</button>
                     </div>
                 </div>
             </div>
@@ -242,14 +242,14 @@ const Segmented = ({
 const Toggle = ({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) => (
     <button
         onClick={() => onChange(!on)}
-        className={`relative w-12 h-7 min-h-[28px] rounded-full transition-colors ring-1 ${
-            on ? 'bg-amber-500/80 ring-amber-400/60' : 'bg-black/60 ring-amber-500/30'
+        className={`relative w-12 h-7 min-h-[28px] rounded-full transition-all duration-300 ease-in-out ring-1 ${
+            on ? 'bg-amber-500/80 ring-amber-400/60 shadow-[0_0_12px_rgba(251,191,36,0.3)]' : 'bg-black/60 ring-amber-500/30 shadow-none'
         }`}
         aria-pressed={on}
     >
         <span
-            className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform shadow-sm ${
-                on ? 'translate-x-[22px]' : 'translate-x-0.5'
+            className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all duration-300 ease-in-out shadow-sm ${
+                on ? 'translate-x-[22px] shadow-[0_0_6px_rgba(255,255,255,0.4)]' : 'translate-x-0.5'
             }`}
         />
     </button>
@@ -275,15 +275,15 @@ export const FpsCounter = () => {
         raf = requestAnimationFrame(loop);
         return () => cancelAnimationFrame(raf);
     }, []);
+    // Top-right, below the settings/mute buttons. Uses safe-area from
+    // parent .hud-fixed when rendered inside it, so no inline inset needed
+    // beyond the gap offset.
     return (
-        // FpsCounter sits above the HUD (z-[91] > settings menu would be 100,
-        // so it's still under modals). top-left so it doesn't fight the
-        // settings/mute buttons in the top-right corner.
         <div
-            className="fixed z-[91] pointer-events-none px-2 py-1 rounded bg-black/70 ring-1 ring-amber-500/30 text-amber-200 text-[10px] font-mono tabular-nums shadow-[inset_0_1px_0_rgba(255,176,0,0.08)]"
+            className="fixed z-[91] pointer-events-none px-2 py-1 rounded bg-black/70 ring-1 ring-amber-500/30 text-amber-200 text-[10px] font-mono tabular-nums shadow-[inset_0_1px_0_rgba(255,176,0,0.08)] tap-target"
             style={{
-                top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
-                left: 'calc(env(safe-area-inset-left, 0px) + 12px)',
+                top: 'calc(env(safe-area-inset-top, 0px) + 56px)',
+                right: 'calc(env(safe-area-inset-right, 0px) + 8px)',
             }}
         >
             {fps.toString().padStart(3, ' ')} FPS

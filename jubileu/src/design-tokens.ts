@@ -98,13 +98,13 @@ export const COMPONENT = {
   // Action button (ABRIR, FALAR, etc.)
   actionButton: 'px-4 sm:px-6 py-2.5 sm:py-3 rounded-full font-black tracking-wider shadow-2xl active:scale-95 transition-transform flex items-center gap-2 text-xs sm:text-sm',
   // HUD label
-  hudLabel: 'font-mono text-[8px] sm:text-[9px] uppercase tracking-[0.35em] text-amber-500/60',
+  hudLabel: 'font-mono text-[10px] sm:text-xs uppercase tracking-[0.35em] text-amber-500/60',
   // HUD value
   hudValue: 'font-black tracking-widest text-amber-300',
   // Status indicator
   statusDot: 'w-2 h-2 rounded-full animate-pulse',
   // Bottom action anchor (safe-area aware)
-  bottomAction: 'absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+20px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+10px)]',
+  bottomAction: 'absolute left-1/2 -translate-x-1/2 z-50 pointer-events-auto bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]',
 } as const;
 
 // ─── Animation Durations ──────────────────────────────────────────────────

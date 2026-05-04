@@ -35,9 +35,9 @@ interface ShopOverlayProps {
 }
 
 const DIALOGUES: Record<ShopMenu, string> = {
-  main: 'Bem-vindo ao The Normal Hotel.\nPosso te ajudar?',
-  talk: 'Tenha uma ótima estadia... e fique calmo se ouvir alguma coisa estranha vindo do andar de cima.',
-  bye: 'Volte sempre! O elevador está\nsempre aberto.',
+  main: 'Welcome to The Normal Hotel.\nCan I help you with something?',
+  talk: 'Enjoy your stay... and stay calm if you hear something strange from upstairs.',
+  bye: 'Come back anytime! The elevator is\nalways open.',
 };
 
 const TIMINGS = {
@@ -390,15 +390,15 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
                     {menu === 'main' && (
                       <>
-                        <ShopButton label="Conversar" onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
-                        <ShopButton label="Sair" onClick={(e) => { e.stopPropagation(); setMenu('bye'); }} />
+                        <ShopButton label="Talk" onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
+                        <ShopButton label="Leave" onClick={(e) => { e.stopPropagation(); setMenu('bye'); }} />
                       </>
                     )}
                     {menu === 'talk' && (
-                      <ShopButton label="Voltar" onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
+                      <ShopButton label="Back" onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
                     )}
                     {menu === 'bye' && (
-                      <ShopButton label="Tchau" onClick={(e) => { e.stopPropagation(); close(); }} />
+                      <ShopButton label="Goodbye" onClick={(e) => { e.stopPropagation(); close(); }} />
                     )}
                   </div>
                 )}

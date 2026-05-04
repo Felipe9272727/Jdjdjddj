@@ -154,7 +154,7 @@ canvas {
 
 /* ─── Button Micro-interactions (animate skill) ──────────────────────────── */
 button {
-  transition: transform 120ms ease-out, opacity 120ms ease-out;
+  transition: transform 120ms ease-out, opacity 120ms ease-out, box-shadow 200ms ease-in-out;
 }
 button:active {
   transform: scale(0.97);
@@ -162,6 +162,14 @@ button:active {
 @media (hover: hover) {
   button:hover {
     transform: scale(1.02);
+  }
+  /* Subtle glow pulse on hover for themed buttons */
+  .ring-amber-200:hover,
+  .ring-yellow-200:hover,
+  .ring-rose-200:hover,
+  .ring-blue-200:hover,
+  .ring-slate-200:hover {
+    animation: button-glow-pulse 1.5s ease-in-out infinite;
   }
 }
 
@@ -326,17 +334,27 @@ button:focus:not(:focus-visible) {
 
 /* Range Slider Styling */
 input[type=range] {
-  -webkit-appearance: none; 
-  background: transparent; 
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
 }
 input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  height: 16px;
-  width: 16px;
+  height: 18px;
+  width: 18px;
   border-radius: 50%;
   background: #ffffff;
   cursor: pointer;
-  margin-top: -6px; 
+  margin-top: -7px;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0), 0 1px 4px rgba(0,0,0,0.3);
+  transition: box-shadow 150ms ease;
+}
+input[type=range]::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.3), 0 1px 6px rgba(0,0,0,0.4);
+}
+input[type=range]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.5), 0 1px 6px rgba(0,0,0,0.4);
 }
 input[type=range]::-webkit-slider-runnable-track {
   width: 100%;
@@ -344,6 +362,28 @@ input[type=range]::-webkit-slider-runnable-track {
   cursor: pointer;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 2px;
+}
+/* Firefox slider styling */
+input[type=range]::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0), 0 1px 4px rgba(0,0,0,0.3);
+  transition: box-shadow 150ms ease;
+}
+input[type=range]::-moz-range-thumb:hover {
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.3), 0 1px 6px rgba(0,0,0,0.4);
+}
+input[type=range]::-moz-range-track {
+  width: 100%;
+  height: 4px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  border: none;
 }
 
 /* Custom scrollbar for dialogue */
@@ -434,7 +474,12 @@ input[type=range]::-webkit-slider-runnable-track {
   .animate-glow-pulse,
   .speech-bubble,
   .traveling-vignette,
-  .barney-glow {
+  .barney-glow,
+  .floor-reveal-shake,
+  .chase-vignette,
+  .animate-chase-flash,
+  .animate-chat-slide-in,
+  .animate-empty-flicker {
     animation: none !important;
   }
 }
@@ -472,3 +517,74 @@ input[type=range]::-webkit-slider-runnable-track {
   0% { opacity: 0; transform: translateY(8px) scale(0.9); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+/* ─── Delight: Floor Reveal Screen Shake ──────────────────────────────── */
+@keyframes floor-reveal-shake {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-3px, 2px); }
+  20% { transform: translate(3px, -1px); }
+  30% { transform: translate(-2px, -2px); }
+  40% { transform: translate(2px, 3px); }
+  50% { transform: translate(-3px, 1px); }
+  60% { transform: translate(1px, -3px); }
+  70% { transform: translate(-1px, 2px); }
+  80% { transform: translate(3px, -1px); }
+  90% { transform: translate(-2px, 1px); }
+}
+.floor-reveal-shake { animation: floor-reveal-shake 0.4s ease-out; }
+
+/* ─── Delight: Chase Red Vignette (pulsing) ───────────────────────────── */
+@keyframes chase-vignette-pulse {
+  0%, 100% {
+    box-shadow: inset 0 0 120px 30px rgba(180, 0, 0, 0.35);
+    opacity: 0.7;
+  }
+  50% {
+    box-shadow: inset 0 0 180px 60px rgba(220, 0, 0, 0.55);
+    opacity: 1;
+  }
+}
+.chase-vignette {
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(120, 0, 0, 0.4) 100%);
+  animation: chase-vignette-pulse 0.8s ease-in-out infinite;
+}
+
+/* ─── Delight: Chase Flash Text ────────────────────────────────────────── */
+@keyframes chase-flash {
+  0% { opacity: 0; transform: scale(0.5); filter: blur(10px); }
+  15% { opacity: 1; transform: scale(1.15); filter: blur(0); }
+  40% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.05); filter: blur(4px); }
+}
+.animate-chase-flash { animation: chase-flash 0.8s ease-out forwards; }
+
+/* ─── Delight: Chat Message Slide-in ──────────────────────────────────── */
+@keyframes chat-slide-in {
+  0% { opacity: 0; transform: translateX(-12px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+.animate-chat-slide-in { animation: chat-slide-in 0.25s ease-out forwards; }
+
+/* ─── Delight: Button Glow Pulse (hover) ──────────────────────────────── */
+@keyframes button-glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(251, 191, 36, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.5); }
+}
+
+/* ─── Delight: "You Are Not Alone" Wall Text ──────────────────────────── */
+@keyframes wall-text-fade {
+  0% { opacity: 0; }
+  15% { opacity: 0.12; }
+  85% { opacity: 0.12; }
+  100% { opacity: 0; }
+}
+
+/* ─── Delight: Fluorescent Flicker (empty lobby) ──────────────────────── */
+@keyframes empty-lobby-flicker {
+  0%, 4%, 6%, 8%, 100% { opacity: 1; }
+  2% { opacity: 0.4; }
+  5% { opacity: 0.7; }
+  7% { opacity: 0.3; }
+  9% { opacity: 0.85; }
+}
+.animate-empty-flicker { animation: empty-lobby-flicker 8s ease-in-out infinite; }

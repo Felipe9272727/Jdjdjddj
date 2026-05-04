@@ -487,8 +487,8 @@ export const BotHud = ({ info }: { info: { count: number; behaviors: string[]; l
         <div
             className="fixed z-[90] pointer-events-none w-[180px] max-w-[calc(100vw-16px)] bg-black/80 ring-1 ring-fuchsia-500/30 rounded-xl backdrop-blur-md px-3 py-2.5 text-[10px] font-mono text-fuchsia-200 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
             style={{
-                bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
-                left: 'calc(env(safe-area-inset-left, 0px) + 8px)',
+                bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
+                right: 'calc(env(safe-area-inset-right, 0px) + 12px)',
             }}
         >
             <div className="flex items-center justify-between mb-1.5">
@@ -530,15 +530,18 @@ export const ViewportDebug = () => {
         const probe = () => {
             const probeEl = document.createElement('div');
             probeEl.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;left:0;top:0;';
-            probeEl.innerHTML = `
-                <span data-k="dvh" style="height:100dvh;display:inline-block"></span>
-                <span data-k="lvh" style="height:100lvh;display:inline-block"></span>
-                <span data-k="svh" style="height:100svh;display:inline-block"></span>
-                <span data-k="sat" style="height:env(safe-area-inset-top, 0px);display:inline-block"></span>
-                <span data-k="sar" style="height:env(safe-area-inset-right, 0px);display:inline-block"></span>
-                <span data-k="sab" style="height:env(safe-area-inset-bottom, 0px);display:inline-block"></span>
-                <span data-k="sal" style="height:env(safe-area-inset-left, 0px);display:inline-block"></span>
-            `;
+            const keys = ['dvh', 'lvh', 'svh', 'sat', 'sar', 'sab', 'sal'];
+            const heights: Record<string, string> = {
+                dvh: '100dvh', lvh: '100lvh', svh: '100svh',
+                sat: 'env(safe-area-inset-top, 0px)', sar: 'env(safe-area-inset-right, 0px)',
+                sab: 'env(safe-area-inset-bottom, 0px)', sal: 'env(safe-area-inset-left, 0px)',
+            };
+            for (const k of keys) {
+                const span = document.createElement('span');
+                span.dataset.k = k;
+                span.style.cssText = `height:${heights[k]};display:inline-block`;
+                probeEl.appendChild(span);
+            }
             document.body.appendChild(probeEl);
             const get = (k: string) => Math.round((probeEl.querySelector(`[data-k="${k}"]`) as HTMLElement)?.getBoundingClientRect().height ?? 0);
             const orient = window.matchMedia('(orientation: landscape)').matches ? 'land' : 'portrait';

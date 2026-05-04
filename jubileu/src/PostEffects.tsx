@@ -1,6 +1,7 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { playDistantThud } from './HudComponents';
 
 /**
  * Lightweight post-processing via CSS overlay (no EffectComposer = 0 extra render passes).
@@ -30,11 +31,14 @@ export const GameEffects = ({
                 inset: 0,
                 pointerEvents: 'none',
                 zIndex: 5,
-                // Vignette via radial gradient
-                background: `radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,${isChase ? 0.6 : isScary ? 0.4 : 0.25}) 100%)`,
+                // Vignette via radial gradient — deeper red tint during chase
+                background: isChase
+                    ? `radial-gradient(ellipse at center, transparent 30%, rgba(120,0,0,0.5) 100%)`
+                    : `radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,${isScary ? 0.4 : 0.25}) 100%)`,
                 // Film grain via CSS animation
-                mixBlendMode: 'multiply',
-                opacity: isChase ? 0.15 : isScary ? 0.08 : 0.04,
+                mixBlendMode: isChase ? 'normal' : 'multiply',
+                opacity: isChase ? 0.2 : isScary ? 0.08 : 0.04,
+                animation: isChase ? 'chase-vignette-pulse 0.8s ease-in-out infinite' : undefined,
             }}
         />
     );
@@ -117,6 +121,86 @@ export const FluorescentFlicker = ({ intensity = 2.8 }: { intensity?: number }) 
     });
 
     return <pointLight ref={lightRef} position={[0, 3.8, 0]} intensity={intensity} distance={22} color="#FFE0B2" decay={2} />;
+};
+
+/**
+ * Empty lobby ambient — eerie touches when no other players are around.
+ * Occasional fluorescent flicker, distant thuds, and a fading wall message.
+ */
+export const EmptyLobbyAmbience = ({ playerCount }: { playerCount: number }) => {
+    const [wallText, setWallText] = useState(false);
+    const thudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const wallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        if (playerCount > 0) return; // Only when alone
+
+        // Distant thud at random intervals (15-40 seconds)
+        const scheduleThud = () => {
+            const delay = 15000 + Math.random() * 25000;
+            thudTimerRef.current = setTimeout(() => {
+                playDistantThud();
+                scheduleThud();
+            }, delay);
+        };
+        scheduleThud();
+
+        // "You are not alone" wall text at random intervals (20-50 seconds)
+        const scheduleWallText = () => {
+            const delay = 20000 + Math.random() * 30000;
+            wallTimerRef.current = setTimeout(() => {
+                setWallText(true);
+                setTimeout(() => {
+                    setWallText(false);
+                    scheduleWallText();
+                }, 4000);
+            }, delay);
+        };
+        // First appearance after 10 seconds
+        wallTimerRef.current = setTimeout(() => {
+            setWallText(true);
+            setTimeout(() => setWallText(false), 4000);
+            scheduleWallText();
+        }, 10000);
+
+        return () => {
+            if (thudTimerRef.current) clearTimeout(thudTimerRef.current);
+            if (wallTimerRef.current) clearTimeout(wallTimerRef.current);
+        };
+    }, [playerCount]);
+
+    if (playerCount > 0) return null;
+
+    return (
+        <>
+            {/* Occasional fluorescent flicker overlay */}
+            <div
+                className="absolute inset-0 z-[3] pointer-events-none animate-empty-flicker"
+                style={{
+                    background: 'rgba(255,240,200,0.03)',
+                    mixBlendMode: 'overlay',
+                }}
+            />
+            {/* "You are not alone" wall text — subtle, creepy */}
+            {wallText && (
+                <div
+                    className="absolute z-[2] pointer-events-none select-none"
+                    style={{
+                        bottom: '30%',
+                        right: '8%',
+                        animation: 'wall-text-fade 4s ease-in-out forwards',
+                    }}
+                >
+                    <span
+                        className="text-white/10 font-serif italic"
+                        style={{ fontSize: 'clamp(0.75rem, 1.5vw, 1.2rem)', letterSpacing: '0.1em' }}
+                    >
+                        You are not alone
+                    </span>
+                </div>
+            )}
+        </>
+    );
 };
 
 /**
