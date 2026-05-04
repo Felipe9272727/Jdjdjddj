@@ -1258,3 +1258,26 @@ Token `ghp_...` foi compartilhado no chat — deve ser revogado após uso.
 ---
 
 *Última atualização: 2026-05-04 10:00 GMT+8*
+
+---
+
+## 🐛 Sessão 2026-05-04: useSpriteFrame Crash → Reverted (10:04 GMT+8)
+
+### Problema
+O `useSpriteFrame()` hook causava crash preto (black screen) ao abrir o shop. Música parava = app inteiro morria.
+
+### Causa raiz
+O `ShopOverlay` renderiza **fora** do `CanvasErrorBoundary`. Qualquer erro no componente mata o app inteiro sem recovery. O hook `useSpriteFrame` com `setInterval` + `setFrame` causava erro não capturado.
+
+### Solução
+Revertido para a abordagem CSS original com `@keyframes` + `key={spriteMode}` forced remount. Esta era o último estado funcional.
+
+### Lição
+**NÃO usar hooks customizados com setInterval/setState em componentes fora de Error Boundaries.** O ShopOverlay precisa de um Error Boundary próprio antes de tentar abordagens mais complexas.
+
+### Commit
+- `cf03d4f` — revert(shop): restore CSS animation approach
+
+---
+
+*Última atualização: 2026-05-04 10:04 GMT+8*
