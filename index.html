@@ -96201,6 +96201,7 @@ const BELLHOP_CLEAN_FRAME_H = 180;
 const BELLHOP_TALK_FRAMES = 4;
 const BELLHOP_TALK_FRAME_W = 100;
 const BELLHOP_TALK_FRAME_H = 140;
+const BELLHOP_IDLE_FRAMES = 4;
 const BELLHOP_IDLE_FRAME_W = 100;
 const BELLHOP_IDLE_FRAME_H = 140;
 const DIALOGUES = {
@@ -96285,28 +96286,6 @@ const ShopOverlay = ({ open, onClose }) => {
     const t2 = window.setTimeout(() => onClose(), TIMINGS.exitClose);
     phaseTimersRef.current.push(t2);
   };
-  reactExports.useEffect(() => {
-    const el = spriteRef.current;
-    if (!el) return;
-    el.style.animation = "none";
-    void el.offsetHeight;
-    if (sprite.anim) {
-      el.style.animation = `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`;
-    } else {
-      el.style.animation = "none";
-    }
-  }, [spriteMode, sprite.anim, sprite.cycle, sprite.frames]);
-  reactExports.useEffect(() => {
-    const el = portraitRef.current;
-    if (!el) return;
-    el.style.animation = "none";
-    void el.offsetHeight;
-    if (isTyping) {
-      el.style.animation = `bellhopTalk 240ms steps(${BELLHOP_TALK_FRAMES}) infinite`;
-    } else {
-      el.style.animation = "none";
-    }
-  }, [isTyping]);
   if (!open) return null;
   const isTyping = typed.length < DIALOGUES[menu].length;
   const skipOrAdvance = (e2) => {
@@ -96351,6 +96330,28 @@ const ShopOverlay = ({ open, onClose }) => {
     };
   })();
   sprite.frameW / sprite.frameH;
+  reactExports.useEffect(() => {
+    const el = spriteRef.current;
+    if (!el) return;
+    el.style.animation = "none";
+    void el.offsetHeight;
+    if (sprite.anim) {
+      el.style.animation = `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`;
+    } else {
+      el.style.animation = "none";
+    }
+  }, [spriteMode, sprite.anim, sprite.cycle, sprite.frames]);
+  reactExports.useEffect(() => {
+    const el = portraitRef.current;
+    if (!el) return;
+    el.style.animation = "none";
+    void el.offsetHeight;
+    if (isTyping) {
+      el.style.animation = `bellhopTalk 240ms steps(${BELLHOP_TALK_FRAMES}) infinite`;
+    } else {
+      el.style.animation = "none";
+    }
+  }, [isTyping]);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {

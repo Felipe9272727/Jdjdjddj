@@ -9,6 +9,7 @@ import {
   BELLHOP_TALK_FRAME_W,
   BELLHOP_TALK_FRAME_H,
   BELLHOP_IDLE_STRIP,
+  BELLHOP_IDLE_FRAMES,
   BELLHOP_IDLE_FRAME_W,
   BELLHOP_IDLE_FRAME_H,
   HOTEL_BG,
@@ -131,35 +132,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     phaseTimersRef.current.push(t);
   };
 
-  // ── Force CSS animation restart via reflow ───────────────────────────
-  // When spriteMode or isTyping changes, we need to restart the CSS
-  // animation. key={spriteMode} doesn't reliably work because React
-  // batches unmount/remount. Instead: set animation:none, force reflow,
-  // then set the real animation. This guarantees the browser resets.
-  useEffect(() => {
-    const el = spriteRef.current;
-    if (!el) return;
-    el.style.animation = 'none';
-    void el.offsetHeight; // force reflow
-    if (sprite.anim) {
-      el.style.animation = `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`;
-    } else {
-      el.style.animation = 'none';
-    }
-  }, [spriteMode, sprite.anim, sprite.cycle, sprite.frames]);
-
-  useEffect(() => {
-    const el = portraitRef.current;
-    if (!el) return;
-    el.style.animation = 'none';
-    void el.offsetHeight; // force reflow
-    if (isTyping) {
-      el.style.animation = `bellhopTalk 240ms steps(${BELLHOP_TALK_FRAMES}) infinite`;
-    } else {
-      el.style.animation = 'none';
-    }
-  }, [isTyping]);
-
   if (!open) return null;
 
   const isTyping = typed.length < DIALOGUES[menu].length;
@@ -222,6 +194,35 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   // Aspect ratio for the *visible* frame (used to compute display width
   // from the responsive height).
   const aspect = sprite.frameW / sprite.frameH;
+
+  // ── Force CSS animation restart via reflow ───────────────────────────
+  // When spriteMode or isTyping changes, we need to restart the CSS
+  // animation. key={spriteMode} doesn't reliably work because React
+  // batches unmount/remount. Instead: set animation:none, force reflow,
+  // then set the real animation. This guarantees the browser resets.
+  useEffect(() => {
+    const el = spriteRef.current;
+    if (!el) return;
+    el.style.animation = 'none';
+    void el.offsetHeight; // force reflow
+    if (sprite.anim) {
+      el.style.animation = `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`;
+    } else {
+      el.style.animation = 'none';
+    }
+  }, [spriteMode, sprite.anim, sprite.cycle, sprite.frames]);
+
+  useEffect(() => {
+    const el = portraitRef.current;
+    if (!el) return;
+    el.style.animation = 'none';
+    void el.offsetHeight; // force reflow
+    if (isTyping) {
+      el.style.animation = `bellhopTalk 240ms steps(${BELLHOP_TALK_FRAMES}) infinite`;
+    } else {
+      el.style.animation = 'none';
+    }
+  }, [isTyping]);
 
   return (
     <div
