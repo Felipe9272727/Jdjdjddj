@@ -35,86 +35,6 @@ import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, Chase
 import { SceneInspector } from './SceneInspector';
 
 
-// ─── Elevator Loading Screen ──────────────────────────────────────────────
-const ElevatorLoadingScreen = () => (
-  <div className="flex flex-col items-center gap-5 select-none" style={{ fontFamily: '"Source Sans 3", "Segoe UI", system-ui, sans-serif' }}>
-    {/* Elevator door frame */}
-    <div className="relative overflow-hidden" style={{ width: 120, height: 150, border: '3px solid #C99B36', borderRadius: 6, background: '#0a0a08', boxShadow: '0 0 40px rgba(251,191,36,0.15), inset 0 0 30px rgba(0,0,0,0.8)' }}>
-      {/* Left door */}
-      <div
-        style={{
-          position: 'absolute', top: 0, left: 0, bottom: 0, width: '50%',
-          background: 'repeating-linear-gradient(90deg, #2a2a2e 0px, #2a2a2e 2px, #353539 2px, #353539 4px)',
-          borderRight: '1px solid #C99B36',
-          animation: 'elevatorDoorLeft 2.4s cubic-bezier(0.45,0,0.55,1) infinite',
-        }}
-      />
-      {/* Right door */}
-      <div
-        style={{
-          position: 'absolute', top: 0, right: 0, bottom: 0, width: '50%',
-          background: 'repeating-linear-gradient(90deg, #353539 0px, #353539 2px, #2a2a2e 2px, #2a2a2e 4px)',
-          borderLeft: '1px solid #C99B36',
-          animation: 'elevatorDoorRight 2.4s cubic-bezier(0.45,0,0.55,1) infinite',
-        }}
-      />
-      {/* Gap glow (visible when doors open) */}
-      <div
-        style={{
-          position: 'absolute', top: '10%', bottom: '10%', left: '30%', right: '30%',
-          background: 'radial-gradient(ellipse at center, rgba(255,213,79,0.3) 0%, transparent 70%)',
-          animation: 'elevatorGapGlow 2.4s cubic-bezier(0.45,0,0.55,1) infinite',
-          pointerEvents: 'none',
-        }}
-      />
-      {/* Floor indicator light at top */}
-      <div
-        style={{
-          position: 'absolute', top: 6, left: '50%', transform: 'translateX(-50%)',
-          width: 16, height: 16, borderRadius: 2, background: '#1a1a1a',
-          border: '1px solid #C99B36', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        <div style={{ animation: 'floorBlink 1.2s steps(2) infinite', color: '#FFD54F', fontSize: 10, fontWeight: 900, fontFamily: 'monospace' }}>▲</div>
-      </div>
-    </div>
-    {/* Title */}
-    <div style={{ color: '#C99B36', fontSize: 11, letterSpacing: '0.35em', textTransform: 'uppercase', fontWeight: 600 }}>The Normal Elevator</div>
-    {/* Floor indicator strip */}
-    <div className="flex items-center gap-2">
-      {[0,1,2,3,4].map(i => (
-        <div key={i} style={{ width: 8, height: 8, borderRadius: 1, background: '#C99B36', opacity: 0.25, animation: `floorDot 1.5s ease-in-out ${i * 0.2}s infinite` }} />
-      ))}
-    </div>
-    {/* Loading text */}
-    <div style={{ color: 'rgba(201,155,54,0.5)', fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', fontFamily: 'monospace' }}>
-      Entering...
-    </div>
-    <style>{`
-      @keyframes elevatorDoorLeft {
-        0%, 100% { transform: translateX(0); }
-        30%, 60% { transform: translateX(-85%); }
-      }
-      @keyframes elevatorDoorRight {
-        0%, 100% { transform: translateX(0); }
-        30%, 60% { transform: translateX(85%); }
-      }
-      @keyframes elevatorGapGlow {
-        0%, 100% { opacity: 0; }
-        30%, 60% { opacity: 1; }
-      }
-      @keyframes floorBlink {
-        0%, 49% { opacity: 1; }
-        50%, 100% { opacity: 0.2; }
-      }
-      @keyframes floorDot {
-        0%, 100% { opacity: 0.2; transform: scale(1); }
-        50% { opacity: 1; transform: scale(1.3); }
-      }
-    `}</style>
-  </div>
-);
-
 const MAX_JOYSTICK_RADIUS = 50;
 
 // ─── Game State Machine ───────────────────────────────────────────────────
@@ -607,7 +527,7 @@ export default function App() {
           outputColorSpace: SRGBColorSpace,
         }}
       >
-        <Suspense fallback={<Html center><ElevatorLoadingScreen /></Html>}>
+        <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no

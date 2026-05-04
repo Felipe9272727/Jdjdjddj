@@ -1704,6 +1704,26 @@
     background-color: var(--color-amber-400);
   }
 
+  .bg-amber-400\/30 {
+    background-color: #fcbb004d;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-amber-400\/30 {
+      background-color: color-mix(in oklab, var(--color-amber-400) 30%, transparent);
+    }
+  }
+
+  .bg-amber-400\/60 {
+    background-color: #fcbb0099;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-amber-400\/60 {
+      background-color: color-mix(in oklab, var(--color-amber-400) 60%, transparent);
+    }
+  }
+
   .bg-amber-400\/70 {
     background-color: #fcbb00b3;
   }
@@ -96554,9 +96574,9 @@ const BELLHOP_TALK_FRAME_H = 140;
 const BELLHOP_IDLE_FRAME_W = 100;
 const BELLHOP_IDLE_FRAME_H = 140;
 const DIALOGUES = {
-  main: "Welcome to The Normal Hotel.\nCan I help you with something?",
-  talk: "Enjoy your stay... and stay calm if you hear something strange from upstairs.",
-  bye: "Come back anytime! The elevator is\nalways open."
+  main: "Bem-vindo ao The Normal Hotel.\nPosso te ajudar?",
+  talk: "Tenha uma ótima estadia... e fique calmo se ouvir alguma coisa estranha vindo do andar de cima.",
+  bye: "Volte sempre! O elevador está\nsempre aberto."
 };
 const TIMINGS = {
   closing: 700,
@@ -96875,20 +96895,20 @@ const ShopOverlay = ({ open, onClose }) => {
                       ),
                       !isTyping && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 flex flex-wrap gap-x-4 gap-y-1", children: [
                         menu === "main" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                          /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Talk", onClick: (e2) => {
+                          /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Conversar", onClick: (e2) => {
                             e2.stopPropagation();
                             setMenu("talk");
                           } }),
-                          /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Leave", onClick: (e2) => {
+                          /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Sair", onClick: (e2) => {
                             e2.stopPropagation();
                             setMenu("bye");
                           } })
                         ] }),
-                        menu === "talk" && /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Back", onClick: (e2) => {
+                        menu === "talk" && /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Voltar", onClick: (e2) => {
                           e2.stopPropagation();
                           setMenu("main");
                         } }),
-                        menu === "bye" && /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Goodbye", onClick: (e2) => {
+                        menu === "bye" && /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Tchau", onClick: (e2) => {
                           e2.stopPropagation();
                           close();
                         } })
@@ -98275,31 +98295,32 @@ const HiddenWallPanel = () => {
 };
 const WatchingText = () => {
   const [visible, setVisible] = reactExports.useState(false);
+  const timerRef = reactExports.useRef(null);
   reactExports.useEffect(() => {
+    const cleanup = () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
     const schedule = () => {
       const delay = 3e4 + Math.random() * 6e4;
-      return setTimeout(() => {
+      timerRef.current = setTimeout(() => {
         setVisible(true);
-        const hide = setTimeout(() => {
+        timerRef.current = setTimeout(() => {
           setVisible(false);
           schedule();
         }, 3e3);
-        return hide;
       }, delay);
     };
-    let hideTimer = null;
-    const showTimer = setTimeout(() => {
+    timerRef.current = setTimeout(() => {
       setVisible(true);
-      hideTimer = setTimeout(() => {
+      timerRef.current = setTimeout(() => {
         setVisible(false);
-        hideTimer = null;
         schedule();
       }, 3e3);
     }, 2e4);
-    return () => {
-      clearTimeout(showTimer);
-      if (hideTimer) clearTimeout(hideTimer);
-    };
+    return cleanup;
   }, []);
   if (!visible) return null;
   return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -100526,100 +100547,6 @@ class CanvasErrorBoundary extends reactExports.Component {
     return this.props.children;
   }
 }
-const ElevatorLoadingScreen = () => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center gap-5 select-none", style: { fontFamily: '"Source Sans 3", "Segoe UI", system-ui, sans-serif' }, children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative overflow-hidden", style: { width: 120, height: 150, border: "3px solid #C99B36", borderRadius: 6, background: "#0a0a08", boxShadow: "0 0 40px rgba(251,191,36,0.15), inset 0 0 30px rgba(0,0,0,0.8)" }, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: 0,
-          left: 0,
-          bottom: 0,
-          width: "50%",
-          background: "repeating-linear-gradient(90deg, #2a2a2e 0px, #2a2a2e 2px, #353539 2px, #353539 4px)",
-          borderRight: "1px solid #C99B36",
-          animation: "elevatorDoorLeft 2.4s cubic-bezier(0.45,0,0.55,1) infinite"
-        }
-      }
-    ),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: "50%",
-          background: "repeating-linear-gradient(90deg, #353539 0px, #353539 2px, #2a2a2e 2px, #2a2a2e 4px)",
-          borderLeft: "1px solid #C99B36",
-          animation: "elevatorDoorRight 2.4s cubic-bezier(0.45,0,0.55,1) infinite"
-        }
-      }
-    ),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: "10%",
-          bottom: "10%",
-          left: "30%",
-          right: "30%",
-          background: "radial-gradient(ellipse at center, rgba(255,213,79,0.3) 0%, transparent 70%)",
-          animation: "elevatorGapGlow 2.4s cubic-bezier(0.45,0,0.55,1) infinite",
-          pointerEvents: "none"
-        }
-      }
-    ),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: 6,
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 16,
-          height: 16,
-          borderRadius: 2,
-          background: "#1a1a1a",
-          border: "1px solid #C99B36",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center"
-        },
-        children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { animation: "floorBlink 1.2s steps(2) infinite", color: "#FFD54F", fontSize: 10, fontWeight: 900, fontFamily: "monospace" }, children: "▲" })
-      }
-    )
-  ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { color: "#C99B36", fontSize: 11, letterSpacing: "0.35em", textTransform: "uppercase", fontWeight: 600 }, children: "The Normal Elevator" }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center gap-2", children: [0, 1, 2, 3, 4].map((i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { width: 8, height: 8, borderRadius: 1, background: "#C99B36", opacity: 0.25, animation: `floorDot 1.5s ease-in-out ${i2 * 0.2}s infinite` } }, i2)) }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { color: "rgba(201,155,54,0.5)", fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase", fontFamily: "monospace" }, children: "Entering..." }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("style", { children: `
-      @keyframes elevatorDoorLeft {
-        0%, 100% { transform: translateX(0); }
-        30%, 60% { transform: translateX(-85%); }
-      }
-      @keyframes elevatorDoorRight {
-        0%, 100% { transform: translateX(0); }
-        30%, 60% { transform: translateX(85%); }
-      }
-      @keyframes elevatorGapGlow {
-        0%, 100% { opacity: 0; }
-        30%, 60% { opacity: 1; }
-      }
-      @keyframes floorBlink {
-        0%, 49% { opacity: 1; }
-        50%, 100% { opacity: 0.2; }
-      }
-      @keyframes floorDot {
-        0%, 100% { opacity: 0.2; transform: scale(1); }
-        50% { opacity: 1; transform: scale(1.3); }
-      }
-    ` })
-] });
 const MAX_JOYSTICK_RADIUS = 50;
 const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
   level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(LobbyEnvironment, { npcPositionRef, isPaused, playerPositionRef }),
@@ -101194,7 +101121,14 @@ function App() {
           toneMapping: ACESFilmicToneMapping,
           outputColorSpace: SRGBColorSpace$1
         },
-        children: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorLoadingScreen, {}) }), children: [
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5", children: "The Normal Elevator" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-center gap-1.5", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse", style: { animationDelay: "0.2s" } }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
+          ] })
+        ] }) }), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
           otherPlayerIds.slice(0, QUALITY_PROFILES[settings.quality].remoteLimit).map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
           /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),

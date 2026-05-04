@@ -56,29 +56,30 @@ const HiddenWallPanel = () => {
 // ─── Easter Egg: "Someone is Watching" — random creepy text ──────────────
 export const WatchingText = () => {
     const [visible, setVisible] = useState(false);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
+        const cleanup = () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } };
+
         const schedule = () => {
             const delay = 30000 + Math.random() * 60000; // 30-90 seconds
-            return setTimeout(() => {
+            timerRef.current = setTimeout(() => {
                 setVisible(true);
-                const hide = setTimeout(() => {
+                timerRef.current = setTimeout(() => {
                     setVisible(false);
                     schedule();
                 }, 3000);
-                return hide;
             }, delay);
         };
-        let hideTimer: ReturnType<typeof setTimeout> | null = null;
-        const showTimer = setTimeout(() => {
+        // First appearance at 20s
+        timerRef.current = setTimeout(() => {
             setVisible(true);
-            hideTimer = setTimeout(() => {
+            timerRef.current = setTimeout(() => {
                 setVisible(false);
-                hideTimer = null;
                 schedule();
             }, 3000);
-        }, 20000); // First appearance at 20s
-        return () => { clearTimeout(showTimer); if (hideTimer) clearTimeout(hideTimer); };
+        }, 20000);
+        return cleanup;
     }, []);
 
     if (!visible) return null;

@@ -131,42 +131,47 @@ export const EmptyLobbyAmbience = ({ playerCount }: { playerCount: number }) => 
     const [wallText, setWallText] = useState(false);
     const thudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const wallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Track all active timers for complete cleanup
+    const allTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
     useEffect(() => {
         if (playerCount > 0) return; // Only when alone
 
+        const trackTimer = (t: ReturnType<typeof setTimeout>) => { allTimersRef.current.add(t); return t; };
+        const clearAllTimers = () => { allTimersRef.current.forEach(clearTimeout); allTimersRef.current.clear(); };
+
         // Distant thud at random intervals (15-40 seconds)
         const scheduleThud = () => {
             const delay = 15000 + Math.random() * 25000;
-            thudTimerRef.current = setTimeout(() => {
+            thudTimerRef.current = trackTimer(setTimeout(() => {
+                allTimersRef.current.delete(thudTimerRef.current!);
                 playDistantThud();
                 scheduleThud();
-            }, delay);
+            }, delay));
         };
         scheduleThud();
 
         // "You are not alone" wall text at random intervals (20-50 seconds)
         const scheduleWallText = () => {
             const delay = 20000 + Math.random() * 30000;
-            wallTimerRef.current = setTimeout(() => {
+            wallTimerRef.current = trackTimer(setTimeout(() => {
+                allTimersRef.current.delete(wallTimerRef.current!);
                 setWallText(true);
-                setTimeout(() => {
+                trackTimer(setTimeout(() => {
                     setWallText(false);
                     scheduleWallText();
-                }, 4000);
-            }, delay);
+                }, 4000));
+            }, delay));
         };
         // First appearance after 10 seconds
-        wallTimerRef.current = setTimeout(() => {
+        wallTimerRef.current = trackTimer(setTimeout(() => {
+            allTimersRef.current.delete(wallTimerRef.current!);
             setWallText(true);
-            setTimeout(() => setWallText(false), 4000);
+            trackTimer(setTimeout(() => setWallText(false), 4000));
             scheduleWallText();
-        }, 10000);
+        }, 10000));
 
-        return () => {
-            if (thudTimerRef.current) clearTimeout(thudTimerRef.current);
-            if (wallTimerRef.current) clearTimeout(wallTimerRef.current);
-        };
+        return clearAllTimers;
     }, [playerCount]);
 
     if (playerCount > 0) return null;
