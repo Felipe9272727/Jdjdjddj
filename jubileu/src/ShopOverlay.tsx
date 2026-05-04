@@ -22,7 +22,7 @@ import {
 //   'idle'      — shop interactive: dialog typewriter + menu buttons
 //   'exit-close'— doors close again on Esc/Tchau, then unmount
 //
-// Sprite logic:
+// Sprite logic (JS-driven frames — no CSS animation):
 //   • CLEAN strip animates only during the entrance reveal — bellhop is
 //     wiping the counter when the elevator opens (he hasn't noticed the
 //     player yet). 4 frames cycling.
@@ -58,6 +58,42 @@ const TIMINGS = {
 // (responsive via clamp) keeps the sprite from overflowing the layout box
 // the way `transform: scale(...)` does.
 const SPRITE_H = 'clamp(160px, 28vh, 220px)';
+
+// ─── JS-driven sprite frame hook ─────────────────────────────────────────
+// Replaces CSS @keyframes animation for sprite strips. A setInterval ticks
+// through frames at the given cycleMs interval. When the strip URL or frame
+// count changes, the counter resets to frame 0 — no CSS restart issues.
+function useSpriteFrame(
+  stripUrl: string,
+  totalFrames: number,
+  cycleMs: number,
+  active: boolean
+): number {
+  const frameRef = useRef(0);
+  const [frame, setFrame] = useState(0);
+
+  // Reset to frame 0 when strip changes
+  useEffect(() => {
+    frameRef.current = 0;
+    setFrame(0);
+  }, [stripUrl, totalFrames]);
+
+  useEffect(() => {
+    if (!active || totalFrames <= 1 || cycleMs <= 0) {
+      // Single-frame or inactive: stay at frame 0
+      frameRef.current = 0;
+      setFrame(0);
+      return;
+    }
+    const id = window.setInterval(() => {
+      frameRef.current = (frameRef.current + 1) % totalFrames;
+      setFrame(frameRef.current);
+    }, cycleMs);
+    return () => window.clearInterval(id);
+  }, [active, totalFrames, cycleMs, stripUrl]);
+
+  return frame;
+}
 
 export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const [menu, setMenu] = useState<ShopMenu>('main');
@@ -154,7 +190,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const showContent = phase === 'opening' || phase === 'idle';
   const contentOpacity = phase === 'opening' ? 0.85 : phase === 'idle' ? 1 : 0;
 
-  // ── Sprite mode selection ─────────────────────────────────────────────
+  // ── Sprite mode selection (JS-driven) ─────────────────────────────────
   // CLEAN during the reveal; TALK while typing; IDLE (mouth closed,
   // static) the rest of the time in idle phase.
   type SpriteMode = 'clean' | 'idle-static' | 'talk';
@@ -168,7 +204,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       frameW: BELLHOP_CLEAN_FRAME_W,
       frameH: BELLHOP_CLEAN_FRAME_H,
       frames: BELLHOP_CLEAN_FRAMES,
-      anim: 'bellhopClean',
       cycle: 720,
     };
     if (spriteMode === 'talk') return {
@@ -176,7 +211,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       frameW: BELLHOP_TALK_FRAME_W,
       frameH: BELLHOP_TALK_FRAME_H,
       frames: BELLHOP_TALK_FRAMES,
-      anim: 'bellhopTalk',
       cycle: 240,
     };
     return {
@@ -184,10 +218,19 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       frameW: BELLHOP_IDLE_FRAME_W,
       frameH: BELLHOP_IDLE_FRAME_H,
       frames: 1,
-      anim: '',
       cycle: 0,
     };
   })();
+
+  // Drive frame counter via JS — no CSS animation restart issues
+  const spriteFrame = useSpriteFrame(sprite.url, sprite.frames, sprite.cycle, spriteMode !== 'idle-static');
+  // Portrait always uses talk frames when typing, else idle (mouth closed)
+  const portraitFrame = useSpriteFrame(
+    isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP,
+    isTyping ? BELLHOP_TALK_FRAMES : 4,
+    isTyping ? 240 : 0,
+    isTyping
+  );
   // Aspect ratio for the *visible* frame (used to compute display width
   // from the responsive height).
   const aspect = sprite.frameW / sprite.frameH;
@@ -270,9 +313,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — key forces remount on mode change */}
+            {/* Animated bellhop — JS-driven frame, no CSS animation restart issues */}
             <div
-              key={spriteMode}
               aria-hidden
               style={{
                 height: SPRITE_H,
@@ -280,11 +322,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 backgroundImage: `url(${sprite.url})`,
                 backgroundSize: `${sprite.frames * 100}% 100%`,
                 backgroundRepeat: 'no-repeat',
-                backgroundPosition: '0% 0%',
+                backgroundPosition: `${(spriteFrame / Math.max(sprite.frames - 1, 1)) * 100}% 0%`,
                 imageRendering: 'pixelated',
-                animation: sprite.anim
-                  ? `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`
-                  : 'none',
                 filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: showContent ? 1 : 0,
@@ -319,26 +358,15 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                   flexShrink: 0,
                   width: 'clamp(56px, 9vw, 76px)',
                   aspectRatio: '1 / 1',
-                  backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
-                  backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: '0% 0%',
-                  imageRendering: 'pixelated',
-                  animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
-                  // Crop to head only — show top portion of the sprite
-                  // (background-size with extra height pushes lower body off)
-                  // Easiest: scale up so only head shows.
                   border: '2px solid #C99B36',
                   borderRadius: 4,
                   background: 'linear-gradient(180deg, #2a1a14 0%, #1a0a08 100%)',
                   boxShadow: 'inset 0 0 6px rgba(0,0,0,0.6)',
-                  // overlay strip via a child for tighter control
                   overflow: 'hidden',
                   position: 'relative',
                 }}
               >
                 <div
-                  key={isTyping ? 'talk' : 'idle'}
                   style={{
                     position: 'absolute',
                     top: 0, left: 0, right: 0,
@@ -346,9 +374,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                     backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
                     backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
                     backgroundRepeat: 'no-repeat',
-                    backgroundPosition: '0% 0%',
+                    backgroundPosition: `${(portraitFrame / Math.max((isTyping ? BELLHOP_TALK_FRAMES : 4) - 1, 1)) * 100}% 0%`,
                     imageRendering: 'pixelated',
-                    animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
                     transform: 'translateY(-8%)',
                   }}
                 />
@@ -427,14 +454,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
           40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
           100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
-        }
-        @keyframes bellhopClean {
-          from { background-position-x: 0%; }
-          to   { background-position-x: 100%; }
-        }
-        @keyframes bellhopTalk {
-          from { background-position-x: 0%; }
-          to   { background-position-x: 100%; }
         }
         @keyframes shopDoorInLeft {
           from { transform: translateX(-100%); }
