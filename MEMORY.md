@@ -1220,3 +1220,61 @@ O recepcionista (Cashier) no lobby usa o GLB `button_pushing.glb` (Mixamo rig). 
 **RECEPÇÃO removido**: Badge e botão removidos da UI. Interação via tecla 'E' perto do cashier permanece.
 
 - Commit `d5f56ed` — fix(shop): proper sprite animation restart via rAF, remove RECEPÇÃO badge
+
+---
+
+## 🔧 Sessão 2026-05-05: Overhaul Paralelo com 8 Sub-Agentes (06:55-07:08 GMT+8)
+
+### O que foi feito
+Operação paralela com 8 sub-agentes, cada um com uma skill específica do catálogo.
+
+### Agentes e Resultados
+
+| # | Agente | Skill | Resultado |
+|---|--------|-------|-----------|
+| 1 | audit-agent | audit | AUDIT-REPORT.md — 200+ cores hardcoded, design tokens não usados, componente morto |
+| 2 | optimize-agent | optimize | PERFORMANCE-REPORT.md — dependências mortas (~500KB), three-stdlib frágil |
+| 3 | ui-agent | frontend-design | Loading screen, indicador MP, Barney scroll, **carrossel fix** |
+| 4 | polish-agent | polish | Melhorias visuais, contraste, spacing (606 linhas) |
+| 5 | harden-agent | harden | Chat memory leak fix, innerHTML→safe DOM, type safety |
+| 6 | delight-agent | delight | Lobby enrichments, PostEffects atmosphere |
+| 7 | copy-agent | clarify | UX copy improvements |
+| 8 | arrange-agent | arrange | FPS→top-right, BotHud→bottom-right, z-index fixes |
+
+### Bug do Carrossel — RESOLVIDO
+- **Problema:** CSS animation não reiniciava ao trocar sprite mode (clean→talk→idle)
+- **Solução:** `useSpriteAnimation` hook — `setInterval` + ref controlando `background-position-x` diretamente no DOM
+- Removidos `@keyframes bellhopClean` e `@keyframes bellhopTalk`
+- Commit: `106ea99` (ui-agent) + refinamento no commit `c0dbea8`
+
+### Fixes Críticos
+- Chat timeout memory leak (Multiplayer.tsx) — chatClearTimersRef + cleanup
+- innerHTML em Bot.tsx → document.createElement (segurança)
+- WorldProps.profile: any → QualityProfile (type safety)
+- FPSCounter reposicionado (top-left → top-right, conflitava com chat)
+- BotHud reposicionado (bottom-left → bottom-right, conflitava com joystick)
+
+### Build
+- TypeScript: ✅ limpo
+- Build: ✅ 4,398,982 bytes (reprodutível)
+- Commit: `c0dbea8` — 17 arquivos, 2032+, 158-
+- Push: ✅ main
+
+### Skills Usadas
+Todas copiadas pra `.skills/` no workspace (gitignored):
+- `.skills/audit/SKILL.md`
+- `.skills/optimize/SKILL.md`
+- `.skills/frontend-design/SKILL.md`
+- `.skills/polish/SKILL.md`
+- `.skills/harden/SKILL.md`
+- `.skills/delight/SKILL.md`
+- `.skills/clarify/SKILL.md`
+- `.skills/arrange/SKILL.md`
+
+### Lições
+- Limite de 5 sub-agentes simultâno — precisa fazer em lotes
+- Agentes com tarefas grandes (>5 min) estouram timeout
+- Melhor: tarefas mais focadas + menos arquivos por agente
+- polish-agent e ui-agent ambos resolveram o carrossel independentemente (abordagem idêntica)
+
+---
