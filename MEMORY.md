@@ -1220,3 +1220,41 @@ O recepcionista (Cashier) no lobby usa o GLB `button_pushing.glb` (Mixamo rig). 
 **RECEPÇÃO removido**: Badge e botão removidos da UI. Interação via tecla 'E' perto do cashier permanece.
 
 - Commit `d5f56ed` — fix(shop): proper sprite animation restart via rAF, remove RECEPÇÃO badge
+
+---
+
+## 🔧 Sessão 2026-05-04: Sprite Carousel Fix + Audit (09:41-10:00 GMT+8)
+
+### O que foi feito
+1. **Audit completo** do código fonte (code quality, security, performance)
+2. **Fix do sprite carousel** — substituição de CSS animation por JS-driven frame counter
+
+### Audit Results
+| Severidade | Qtd | Principais |
+|---|---|---|
+| 🔴 Crítico | 4 | Firebase API key no repo, Firestore sem auth, GPU memory leak, sem auth real |
+| 🟡 Médio | 6 | 15+ usos de `any`, design tokens não usados, áudio via window.global |
+| 🟢 Baixo | 6 | Sem indicador de conexão, assets sem fallback |
+
+### Sprite Carousel Fix
+**Causa raiz:** CSS @keyframes para `background-position-x` não reinicia de forma confiável quando o componente é remontado via `key={spriteMode}`. O navegador cacheia o estado da animação.
+
+**Solução:** Hook `useSpriteFrame()` que controla frames via `setInterval`. Cada modo de sprite (clean/talk/idle) tem seu próprio contador que reseta para 0 quando o strip muda. Frame index aplicado como porcentagem no `background-position` inline.
+
+**Mudanças:**
+- `useSpriteFrame()` hook adicionado
+- Removidos `key={spriteMode}` e `key={isTyping}` hacks de remount
+- Removidos `@keyframes bellhopClean` e `bellhopTalk` não usados
+- Sprite e portrait agora usam a mesma abordagem JS
+
+### Branch: `refactor/code-quality-audit`
+- `a33eb45` — audit: comprehensive code quality, security, and performance review
+- `0aff7a7` — fix(shop): replace CSS sprite animation with JS-driven frame counter (source)
+- `f5c5cb2` — fix(shop): rebuilt index.html (4,376,883 bytes)
+
+### ⚠️ Token GitHub
+Token `ghp_...` foi compartilhado no chat — deve ser revogado após uso.
+
+---
+
+*Última atualização: 2026-05-04 10:00 GMT+8*
