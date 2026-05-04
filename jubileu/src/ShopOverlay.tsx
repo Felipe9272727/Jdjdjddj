@@ -214,7 +214,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       url: BELLHOP_IDLE_STRIP,
       frameW: BELLHOP_IDLE_FRAME_W,
       frameH: BELLHOP_IDLE_FRAME_H,
-      frames: 1,
+      frames: BELLHOP_IDLE_FRAMES,
       anim: '',
       cycle: 0,
     };
