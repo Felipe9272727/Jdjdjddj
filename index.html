@@ -96892,7 +96892,7 @@ const ShopOverlay = ({ open, onClose }) => {
     pixelated: true,
     scale: 1.8
   };
-  const portraitOffsetY = "-250px";
+  const portraitOffsetY = "-60px";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
@@ -96984,7 +96984,9 @@ const ShopOverlay = ({ open, onClose }) => {
                     transform: phase === "idle" ? "translateY(-250px)" : "translateY(-230px)",
                     opacity: showContent ? 1 : 0,
                     transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms",
-                    marginBottom: isLandscape ? 0 : 14
+                    marginBottom: isLandscape ? 0 : 14,
+                    pointerEvents: "none",
+                    zIndex: 1
                   }
                 },
                 spriteMode
@@ -97005,7 +97007,9 @@ const ShopOverlay = ({ open, onClose }) => {
                     opacity: phase === "idle" ? 1 : 0,
                     transition: "transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms, opacity 450ms ease-out 320ms",
                     display: "flex",
-                    gap: 12
+                    gap: 12,
+                    position: "relative",
+                    zIndex: 2
                   },
                   children: [
                     /* @__PURE__ */ jsxRuntimeExports.jsx(

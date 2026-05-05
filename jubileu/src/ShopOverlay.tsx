@@ -252,7 +252,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   // At scale 1.8: canvas is 180×252px from 100×140 source.
   // Shoulders ≈ 40% of 140 = 56px source → 100px at 1.8x.
   // We want shoulders at y=0 of container, so offset = -100px.
-  const portraitOffsetY = '-250px';
+  const portraitOffsetY = '-60px';
 
   return (
     <div
@@ -343,6 +343,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 opacity: showContent ? 1 : 0,
                 transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
                 marginBottom: isLandscape ? 0 : 14,
+                pointerEvents: 'none',
+                zIndex: 1,
               }}
             />
 
@@ -363,6 +365,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 transition: 'transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms, opacity 450ms ease-out 320ms',
                 display: 'flex',
                 gap: 12,
+                position: 'relative',
+                zIndex: 2,
               }}
             >
               {/* ── Portrait frame — crops to head+torso ─────────────── */}
