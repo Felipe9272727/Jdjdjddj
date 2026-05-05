@@ -221,7 +221,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         loop: true,
         pixelated: true,
         scale: 1.8,
-        cropRegion: { sourceY: 55, sourceHeight: 85 },
+        cropRegion: { sourceY: 75, sourceHeight: 65 },
       }
     : {
         imageUrl: BELLHOP_IDLE_STRIP,
@@ -232,7 +232,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         loop: false,
         pixelated: true,
         scale: 1.8,
-        cropRegion: { sourceY: 55, sourceHeight: 85 },
+        cropRegion: { sourceY: 75, sourceHeight: 65 },
       };
 
   return (
