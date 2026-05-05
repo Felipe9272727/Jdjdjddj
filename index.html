@@ -96573,6 +96573,136 @@ const BELLHOP_TALK_FRAME_W = 100;
 const BELLHOP_TALK_FRAME_H = 140;
 const BELLHOP_IDLE_FRAME_W = 100;
 const BELLHOP_IDLE_FRAME_H = 140;
+function calculateFrames(frameCount, frameWidth, frameHeight) {
+  const frames = [];
+  for (let i2 = 0; i2 < frameCount; i2++) {
+    frames.push({
+      x: i2 * frameWidth,
+      y: 0,
+      w: frameWidth,
+      h: frameHeight
+    });
+  }
+  return frames;
+}
+const SpriteAnimator = ({
+  config,
+  className,
+  style,
+  onCycleComplete,
+  paused = false
+}) => {
+  const canvasRef = reactExports.useRef(null);
+  const imageRef = reactExports.useRef(null);
+  const frameIndexRef = reactExports.useRef(0);
+  const lastFrameTimeRef = reactExports.useRef(0);
+  const rafRef = reactExports.useRef(null);
+  const [imageLoaded, setImageLoaded] = reactExports.useState(false);
+  const {
+    imageUrl,
+    frameCount,
+    frameWidth,
+    frameHeight,
+    cycleMs,
+    loop: loop2 = true,
+    pixelated = true,
+    scale: scale2 = 1
+  } = config;
+  const frames = calculateFrames(frameCount, frameWidth, frameHeight);
+  const frameDuration = cycleMs > 0 ? cycleMs / frameCount : 0;
+  reactExports.useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      imageRef.current = img;
+      setImageLoaded(true);
+    };
+    img.onerror = () => {
+      console.error("[SpriteEngine] Failed to load:", imageUrl.slice(0, 60));
+    };
+    img.src = imageUrl;
+    return () => {
+      imageRef.current = null;
+      setImageLoaded(false);
+    };
+  }, [imageUrl]);
+  reactExports.useEffect(() => {
+    if (!imageLoaded || !imageRef.current || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    canvas.width = frameWidth * scale2;
+    canvas.height = frameHeight * scale2;
+    if (pixelated) {
+      ctx.imageSmoothingEnabled = false;
+    }
+    const drawFrame = (index) => {
+      if (!imageRef.current || !ctx) return;
+      const frame2 = frames[index % frames.length];
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(
+        imageRef.current,
+        frame2.x,
+        frame2.y,
+        frame2.w,
+        frame2.h,
+        0,
+        0,
+        frameWidth * scale2,
+        frameHeight * scale2
+      );
+    };
+    if (frameCount <= 1 || frameDuration === 0) {
+      drawFrame(0);
+      return;
+    }
+    const animate = (timestamp) => {
+      if (paused) {
+        rafRef.current = requestAnimationFrame(animate);
+        return;
+      }
+      if (lastFrameTimeRef.current === 0) {
+        lastFrameTimeRef.current = timestamp;
+      }
+      const elapsed = timestamp - lastFrameTimeRef.current;
+      if (elapsed >= frameDuration) {
+        const framesToAdvance = Math.floor(elapsed / frameDuration);
+        frameIndexRef.current = (frameIndexRef.current + framesToAdvance) % frameCount;
+        lastFrameTimeRef.current = timestamp - elapsed % frameDuration;
+        drawFrame(frameIndexRef.current);
+        if (frameIndexRef.current === 0 && onCycleComplete) {
+          onCycleComplete();
+        }
+        if (!loop2 && frameIndexRef.current === frameCount - 1) {
+          return;
+        }
+      } else {
+        drawFrame(frameIndexRef.current);
+      }
+      rafRef.current = requestAnimationFrame(animate);
+    };
+    drawFrame(0);
+    rafRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      frameIndexRef.current = 0;
+      lastFrameTimeRef.current = 0;
+    };
+  }, [imageLoaded, frameCount, frameWidth, frameHeight, frameDuration, loop2, scale2, pixelated, paused]);
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "canvas",
+    {
+      ref: canvasRef,
+      className,
+      style: {
+        display: "block",
+        ...style
+      }
+    }
+  );
+};
 const DIALOGUES = {
   main: "Bem-vindo ao The Normal Hotel.\nPosso te ajudar?",
   talk: "Tenha uma ótima estadia... e fique calmo se ouvir alguma coisa estranha vindo do andar de cima.",
@@ -96670,33 +96800,36 @@ const ShopOverlay = ({ open, onClose }) => {
   const showContent = phase === "opening" || phase === "idle";
   const contentOpacity = phase === "opening" ? 0.85 : phase === "idle" ? 1 : 0;
   const spriteMode = phase === "idle" ? isTyping ? "talk" : "idle-static" : "clean";
-  const sprite = (() => {
-    if (spriteMode === "clean") return {
-      url: BELLHOP_CLEAN_STRIP,
-      frameW: BELLHOP_CLEAN_FRAME_W,
-      frameH: BELLHOP_CLEAN_FRAME_H,
-      frames: BELLHOP_CLEAN_FRAMES,
-      anim: "bellhopClean",
-      cycle: 720
-    };
-    if (spriteMode === "talk") return {
-      url: BELLHOP_TALK_STRIP,
-      frameW: BELLHOP_TALK_FRAME_W,
-      frameH: BELLHOP_TALK_FRAME_H,
-      frames: BELLHOP_TALK_FRAMES,
-      anim: "bellhopTalk",
-      cycle: 240
-    };
-    return {
-      url: BELLHOP_IDLE_STRIP,
-      frameW: BELLHOP_IDLE_FRAME_W,
-      frameH: BELLHOP_IDLE_FRAME_H,
-      frames: 1,
-      anim: "",
-      cycle: 0
-    };
-  })();
-  sprite.frameW / sprite.frameH;
+  const spriteConfigs = {
+    clean: {
+      imageUrl: BELLHOP_CLEAN_STRIP,
+      frameCount: BELLHOP_CLEAN_FRAMES,
+      frameWidth: BELLHOP_CLEAN_FRAME_W,
+      frameHeight: BELLHOP_CLEAN_FRAME_H,
+      cycleMs: 720,
+      loop: true,
+      pixelated: true
+    },
+    talk: {
+      imageUrl: BELLHOP_TALK_STRIP,
+      frameCount: BELLHOP_TALK_FRAMES,
+      frameWidth: BELLHOP_TALK_FRAME_W,
+      frameHeight: BELLHOP_TALK_FRAME_H,
+      cycleMs: 240,
+      loop: true,
+      pixelated: true
+    },
+    "idle-static": {
+      imageUrl: BELLHOP_IDLE_STRIP,
+      frameCount: 1,
+      frameWidth: BELLHOP_IDLE_FRAME_W,
+      frameHeight: BELLHOP_IDLE_FRAME_H,
+      cycleMs: 0,
+      loop: false,
+      pixelated: true
+    }
+  };
+  const activeSpriteConfig = spriteConfigs[spriteMode];
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
@@ -96779,18 +96912,12 @@ const ShopOverlay = ({ open, onClose }) => {
             onClick: skipOrAdvance,
             children: showContent && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center gap-3 px-4 max-w-2xl w-full", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "div",
+                SpriteAnimator,
                 {
-                  "aria-hidden": true,
+                  config: activeSpriteConfig,
                   style: {
                     height: SPRITE_H,
-                    aspectRatio: `${sprite.frameW} / ${sprite.frameH}`,
-                    backgroundImage: `url(${sprite.url})`,
-                    backgroundSize: `${sprite.frames * 100}% 100%`,
-                    backgroundRepeat: "no-repeat",
-                    backgroundPosition: "0% 0%",
-                    imageRendering: "pixelated",
-                    animation: sprite.anim ? `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite` : "none",
+                    aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
                     filter: "drop-shadow(0 10px 18px rgba(0,0,0,0.65))",
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
                     opacity: showContent ? 1 : 0,
@@ -96826,38 +96953,39 @@ const ShopOverlay = ({ open, onClose }) => {
                           flexShrink: 0,
                           width: "clamp(56px, 9vw, 76px)",
                           aspectRatio: "1 / 1",
-                          backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
-                          backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
-                          backgroundRepeat: "no-repeat",
-                          backgroundPosition: "0% 0%",
-                          imageRendering: "pixelated",
-                          animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : "none",
-                          // Crop to head only — show top portion of the sprite
-                          // (background-size with extra height pushes lower body off)
-                          // Easiest: scale up so only head shows.
                           border: "2px solid #C99B36",
                           borderRadius: 4,
                           background: "linear-gradient(180deg, #2a1a14 0%, #1a0a08 100%)",
                           boxShadow: "inset 0 0 6px rgba(0,0,0,0.6)",
-                          // overlay strip via a child for tighter control
                           overflow: "hidden",
                           position: "relative"
                         },
                         children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                          "div",
+                          SpriteAnimator,
                           {
+                            config: isTyping ? {
+                              imageUrl: BELLHOP_TALK_STRIP,
+                              frameCount: BELLHOP_TALK_FRAMES,
+                              frameWidth: BELLHOP_TALK_FRAME_W,
+                              frameHeight: BELLHOP_TALK_FRAME_H,
+                              cycleMs: 240,
+                              loop: true,
+                              pixelated: true,
+                              scale: 2
+                            } : {
+                              imageUrl: BELLHOP_IDLE_STRIP,
+                              frameCount: 1,
+                              frameWidth: BELLHOP_IDLE_FRAME_W,
+                              frameHeight: BELLHOP_IDLE_FRAME_H,
+                              cycleMs: 0,
+                              loop: false,
+                              pixelated: true,
+                              scale: 2
+                            },
                             style: {
                               position: "absolute",
                               top: 0,
                               left: 0,
-                              right: 0,
-                              height: "180%",
-                              backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
-                              backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
-                              backgroundRepeat: "no-repeat",
-                              backgroundPosition: "0% 0%",
-                              imageRendering: "pixelated",
-                              animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : "none",
                               transform: "translateY(-8%)"
                             }
                           },

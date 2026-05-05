@@ -13,6 +13,7 @@ import {
   BELLHOP_IDLE_FRAME_H,
   HOTEL_BG,
 } from './bellhop-sprites';
+import { SpriteAnimator } from './SpriteEngine';
 
 // ─── Bellhop Shop — Undertale-style overlay with elevator entrance ─────────
 // Phase chain (open → close):
@@ -154,7 +155,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const showContent = phase === 'opening' || phase === 'idle';
   const contentOpacity = phase === 'opening' ? 0.85 : phase === 'idle' ? 1 : 0;
 
-  // ── Sprite mode selection ─────────────────────────────────────────────
+  // ── Sprite mode selection (Canvas-based) ────────────────────────────
   // CLEAN during the reveal; TALK while typing; IDLE (mouth closed,
   // static) the rest of the time in idle phase.
   type SpriteMode = 'clean' | 'idle-static' | 'talk';
@@ -162,35 +163,38 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     phase === 'idle' ? (isTyping ? 'talk' : 'idle-static') :
     'clean';
 
-  const sprite = (() => {
-    if (spriteMode === 'clean') return {
-      url: BELLHOP_CLEAN_STRIP,
-      frameW: BELLHOP_CLEAN_FRAME_W,
-      frameH: BELLHOP_CLEAN_FRAME_H,
-      frames: BELLHOP_CLEAN_FRAMES,
-      anim: 'bellhopClean',
-      cycle: 720,
-    };
-    if (spriteMode === 'talk') return {
-      url: BELLHOP_TALK_STRIP,
-      frameW: BELLHOP_TALK_FRAME_W,
-      frameH: BELLHOP_TALK_FRAME_H,
-      frames: BELLHOP_TALK_FRAMES,
-      anim: 'bellhopTalk',
-      cycle: 240,
-    };
-    return {
-      url: BELLHOP_IDLE_STRIP,
-      frameW: BELLHOP_IDLE_FRAME_W,
-      frameH: BELLHOP_IDLE_FRAME_H,
-      frames: 1,
-      anim: '',
-      cycle: 0,
-    };
-  })();
-  // Aspect ratio for the *visible* frame (used to compute display width
-  // from the responsive height).
-  const aspect = sprite.frameW / sprite.frameH;
+  // Canvas sprite configs — replaces CSS background-position animation
+  const spriteConfigs = {
+    clean: {
+      imageUrl: BELLHOP_CLEAN_STRIP,
+      frameCount: BELLHOP_CLEAN_FRAMES,
+      frameWidth: BELLHOP_CLEAN_FRAME_W,
+      frameHeight: BELLHOP_CLEAN_FRAME_H,
+      cycleMs: 720,
+      loop: true,
+      pixelated: true,
+    },
+    talk: {
+      imageUrl: BELLHOP_TALK_STRIP,
+      frameCount: BELLHOP_TALK_FRAMES,
+      frameWidth: BELLHOP_TALK_FRAME_W,
+      frameHeight: BELLHOP_TALK_FRAME_H,
+      cycleMs: 240,
+      loop: true,
+      pixelated: true,
+    },
+    'idle-static': {
+      imageUrl: BELLHOP_IDLE_STRIP,
+      frameCount: 1,
+      frameWidth: BELLHOP_IDLE_FRAME_W,
+      frameHeight: BELLHOP_IDLE_FRAME_H,
+      cycleMs: 0,
+      loop: false,
+      pixelated: true,
+    },
+  };
+
+  const activeSpriteConfig = spriteConfigs[spriteMode];
 
   return (
     <div
@@ -270,21 +274,13 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — key forces remount on mode change */}
-            <div
+            {/* Animated bellhop — Canvas-based sprite renderer (fixes carousel bug) */}
+            <SpriteAnimator
               key={spriteMode}
-              aria-hidden
+              config={activeSpriteConfig}
               style={{
                 height: SPRITE_H,
-                aspectRatio: `${sprite.frameW} / ${sprite.frameH}`,
-                backgroundImage: `url(${sprite.url})`,
-                backgroundSize: `${sprite.frames * 100}% 100%`,
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: '0% 0%',
-                imageRendering: 'pixelated',
-                animation: sprite.anim
-                  ? `${sprite.anim} ${sprite.cycle}ms steps(${sprite.frames}) infinite`
-                  : 'none',
+                aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
                 filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: showContent ? 1 : 0,
@@ -312,43 +308,46 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 gap: 14,
               }}
             >
-              {/* Portrait — small mouth-closed / mouth-open head, 64×64 */}
+              {/* Portrait — Canvas-based sprite (fixes carousel bug) */}
               <div
                 aria-hidden
                 style={{
                   flexShrink: 0,
                   width: 'clamp(56px, 9vw, 76px)',
                   aspectRatio: '1 / 1',
-                  backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
-                  backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: '0% 0%',
-                  imageRendering: 'pixelated',
-                  animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
-                  // Crop to head only — show top portion of the sprite
-                  // (background-size with extra height pushes lower body off)
-                  // Easiest: scale up so only head shows.
                   border: '2px solid #C99B36',
                   borderRadius: 4,
                   background: 'linear-gradient(180deg, #2a1a14 0%, #1a0a08 100%)',
                   boxShadow: 'inset 0 0 6px rgba(0,0,0,0.6)',
-                  // overlay strip via a child for tighter control
                   overflow: 'hidden',
                   position: 'relative',
                 }}
               >
-                <div
+                <SpriteAnimator
                   key={isTyping ? 'talk' : 'idle'}
+                  config={isTyping ? {
+                    imageUrl: BELLHOP_TALK_STRIP,
+                    frameCount: BELLHOP_TALK_FRAMES,
+                    frameWidth: BELLHOP_TALK_FRAME_W,
+                    frameHeight: BELLHOP_TALK_FRAME_H,
+                    cycleMs: 240,
+                    loop: true,
+                    pixelated: true,
+                    scale: 2,
+                  } : {
+                    imageUrl: BELLHOP_IDLE_STRIP,
+                    frameCount: 1,
+                    frameWidth: BELLHOP_IDLE_FRAME_W,
+                    frameHeight: BELLHOP_IDLE_FRAME_H,
+                    cycleMs: 0,
+                    loop: false,
+                    pixelated: true,
+                    scale: 2,
+                  }}
                   style={{
                     position: 'absolute',
-                    top: 0, left: 0, right: 0,
-                    height: '180%',
-                    backgroundImage: `url(${isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP})`,
-                    backgroundSize: `${(isTyping ? BELLHOP_TALK_FRAMES : 4) * 100}% 100%`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: '0% 0%',
-                    imageRendering: 'pixelated',
-                    animation: isTyping ? `bellhopTalk ${240}ms steps(${BELLHOP_TALK_FRAMES}) infinite` : 'none',
+                    top: 0,
+                    left: 0,
                     transform: 'translateY(-8%)',
                   }}
                 />
