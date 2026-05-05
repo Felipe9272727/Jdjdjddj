@@ -272,7 +272,6 @@ export const NightBanner = ({ elevatorActive }: { elevatorActive: boolean }) => 
 );
 
 export const ChaseBanner = ({ elevatorActive }: { elevatorActive: boolean }) => {
-  const [flashText, setFlashText] = useState('');
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -283,21 +282,8 @@ export const ChaseBanner = ({ elevatorActive }: { elevatorActive: boolean }) => 
       const speed = Math.min(1.0 + beatCount * 0.03, 2.5);
       playHeartbeat(speed);
     }, 700);
-    // Flash "RUN" / "ELEVATOR. NOW." text at intervals
-    const flashMessages = ['RUN', 'ELEVATOR. NOW.', 'RUN', 'DON\'T LOOK BACK'];
-    let flashIdx = 0;
-    const flashInterval = setInterval(() => {
-      setFlashText(flashMessages[flashIdx % flashMessages.length]);
-      flashIdx++;
-      setTimeout(() => setFlashText(''), 800);
-    }, 3000);
-    // Show first flash immediately
-    setFlashText('RUN');
-    const clearFirst = setTimeout(() => setFlashText(''), 1000);
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
-      clearInterval(flashInterval);
-      clearTimeout(clearFirst);
     };
   }, []);
 
@@ -311,17 +297,6 @@ export const ChaseBanner = ({ elevatorActive }: { elevatorActive: boolean }) => 
           ⚠ RUN TO THE ELEVATOR ⚠
         </div>
       </div>
-      {/* Flash text: "RUN" / "ELEVATOR. NOW." */}
-      {flashText && (
-        <div className="absolute inset-0 z-[50] flex items-center justify-center pointer-events-none">
-          <div
-            className="text-red-500 font-black tracking-[0.3em] animate-chase-flash"
-            style={{ fontSize: 'clamp(2rem, 15vw, 6rem)', textShadow: '0 0 40px rgba(239,68,68,0.8), 0 0 80px rgba(239,68,68,0.4)' }}
-          >
-            {flashText}
-          </div>
-        </div>
-      )}
     </>
   );
 };

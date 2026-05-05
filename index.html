@@ -737,10 +737,6 @@
     z-index: 48;
   }
 
-  .z-\[50\] {
-    z-index: 50;
-  }
-
   .z-\[55\] {
     z-index: 55;
   }
@@ -100143,7 +100139,6 @@ const ActionButton = React.memo(({ icon, label, colorClasses, ringClasses, onCli
 ));
 const NightBanner = ({ elevatorActive }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorActive ? "top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]" : "top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-red-950/80 ring-1 ring-red-500/40 text-red-200 px-3 sm:px-4 py-2 rounded-lg font-mono text-[11px] sm:text-sm tracking-wider animate-pulse", children: "Something isn't right..." }) });
 const ChaseBanner = ({ elevatorActive }) => {
-  const [flashText, setFlashText] = reactExports.useState("");
   const heartbeatRef = reactExports.useRef(null);
   reactExports.useEffect(() => {
     let beatCount = 0;
@@ -100152,32 +100147,13 @@ const ChaseBanner = ({ elevatorActive }) => {
       const speed = Math.min(1 + beatCount * 0.03, 2.5);
       playHeartbeat(speed);
     }, 700);
-    const flashMessages = ["RUN", "ELEVATOR. NOW.", "RUN", "DON'T LOOK BACK"];
-    let flashIdx = 0;
-    const flashInterval = setInterval(() => {
-      setFlashText(flashMessages[flashIdx % flashMessages.length]);
-      flashIdx++;
-      setTimeout(() => setFlashText(""), 800);
-    }, 3e3);
-    setFlashText("RUN");
-    const clearFirst = setTimeout(() => setFlashText(""), 1e3);
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
-      clearInterval(flashInterval);
-      clearTimeout(clearFirst);
     };
   }, []);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[35] pointer-events-none chase-vignette" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorActive ? "top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]" : "top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-[11px] sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight", children: "⚠ RUN TO THE ELEVATOR ⚠" }) }),
-    flashText && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[50] flex items-center justify-center pointer-events-none", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "div",
-      {
-        className: "text-red-500 font-black tracking-[0.3em] animate-chase-flash",
-        style: { fontSize: "clamp(2rem, 15vw, 6rem)", textShadow: "0 0 40px rgba(239,68,68,0.8), 0 0 80px rgba(239,68,68,0.4)" },
-        children: flashText
-      }
-    ) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute left-1/2 -translate-x-1/2 z-40 pointer-events-none px-3 max-w-[calc(100%-1.5rem)] landscape:max-w-[70%] ${elevatorActive ? "top-[calc(env(safe-area-inset-top,0px)+100px)] landscape:top-[calc(env(safe-area-inset-top,0px)+64px)]" : "top-[calc(env(safe-area-inset-top,0px)+72px)] landscape:top-[calc(env(safe-area-inset-top,0px)+48px)]"}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-red-900/90 ring-2 ring-red-500 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-black tracking-[0.15em] sm:tracking-widest text-[11px] sm:text-lg animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)] text-center leading-tight", children: "⚠ RUN TO THE ELEVATOR ⚠" }) })
   ] });
 };
 const SavedOverlay = () => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-[70] flex items-center justify-center pointer-events-none bg-black/80 px-6 overflow-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center w-full animate-fade-in", children: [
