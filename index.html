@@ -96772,6 +96772,14 @@ const ShopOverlay = ({ open, onClose }) => {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [open]);
+  const lastTapRef = reactExports.useRef(0);
+  const handlePortraitTap = reactExports.useCallback(() => {
+    const now2 = Date.now();
+    if (now2 - lastTapRef.current < 300) {
+      setDebugPortrait((v5) => !v5);
+    }
+    lastTapRef.current = now2;
+  }, []);
   reactExports.useEffect(() => {
     const mql = window.matchMedia("(orientation: landscape)");
     const handler = (e2) => setIsLandscape(e2.matches);
@@ -97031,6 +97039,8 @@ const ShopOverlay = ({ open, onClose }) => {
                       {
                         ref: portraitContainerRef,
                         "aria-hidden": true,
+                        onTouchEnd: handlePortraitTap,
+                        onClick: handlePortraitTap,
                         style: {
                           flexShrink: 0,
                           width: "clamp(90px, 15vw, 120px)",

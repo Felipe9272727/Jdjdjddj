@@ -90,7 +90,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     phaseTimersRef.current = [];
   };
 
-  // Debug toggle: press 'P' to show portrait position debugger
+  // Debug toggle: 'P' key OR double-tap on portrait container
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -101,6 +101,15 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [open]);
+
+  const lastTapRef = useRef(0);
+  const handlePortraitTap = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      setDebugPortrait(v => !v);
+    }
+    lastTapRef.current = now;
+  }, []);
 
   // Detect landscape orientation
   useEffect(() => {
@@ -388,6 +397,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
               <div
                 ref={portraitContainerRef}
                 aria-hidden
+                onTouchEnd={handlePortraitTap}
+                onClick={handlePortraitTap}
                 style={{
                   flexShrink: 0,
                   width: 'clamp(90px, 15vw, 120px)',
