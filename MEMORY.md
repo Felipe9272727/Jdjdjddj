@@ -1380,3 +1380,23 @@ Aplicadas skills: **bolder** (formas fortes), **colorize** (paleta rica), **deli
 ---
 
 *Última atualização: 2026-05-06 05:20 GMT+8*
+
+---
+
+## 🔧 Sessão 2026-05-06: House Redesign com 5 Agentes (05:29 GMT+8)
+
+### Abordagem
+5 agentes especializados, cada um gerando JSX para uma seção da casa:
+1. **Structure** — fundação, paredes, telhado terracota, chaminé tijolo com fumaça
+2. **Porch & Door** — entrada com 3 degraus, colunas brancas, overhang, lanterna, porta com painéis
+3. **Windows** — 8 janelas com persianas verdes, detalhes de sarrafo, flower boxes com flores
+4. **Garden** — caminho de pedras, 7 canteiros, cerca branca picket, caixa de correio, poste, arbustos, banco
+5. **Interior & Lighting** — tapete camadas, arte abstrata, luminária de mesa, detalhes cozinha, mesa de cabeceira, 5 luzes
+
+### Commits
+- `1239fa3` — feat(house): full redesign with 5 specialized agents
+
+### Arquivos alterados
+- `jubileu/src/HouseEnv.tsx` — House component + HouseWindow com flower boxes
+- `index.html` — rebuildado (4,432,701 bytes)
+
