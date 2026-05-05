@@ -1,80 +1,95 @@
 /**
- * SpriteEngine.ts — Canvas-based sprite animation renderer
- * 
- * Substitui a animação CSS (background-position + steps) por Canvas drawImage().
- * Isso elimina o bug do "carrossel" porque controla exatamente qual frame é exibido.
- * 
- * PROBLEMA ANTERIOR:
- *   CSS animation com steps() causava frames fora de ordem, pulando, ou repetindo.
- *   Browser inconsistencies com background-position em porcentagens.
- * 
- * SOLUÇÃO:
- *   Canvas drawImage() com coordenadas exatas de cada frame.
- *   requestAnimationFrame para timing preciso e consistente.
+ * SpriteEngine.tsx — Canvas-based sprite animator (crash-resistant rewrite)
+ *
+ * Why this rewrite (vs. the previous version):
+ *   • The old version was remounted via `key={spriteMode}` on every mode
+ *     change, which destroyed the canvas + image, ran cleanup, then re-loaded
+ *     and re-decoded the (530KB base64) image. Under fast switches that
+ *     pattern leaked RAF handles and caused intermittent freezes/crashes.
+ *   • We now keep the canvas mounted and just react to config changes:
+ *       - image URL change → reload (cached)
+ *       - frame metadata change → reset animation pointer & redraw
+ *   • A module-level <img> cache means every <SpriteAnimator> using the
+ *     same URL shares one decoded bitmap (no duplicate downloads).
+ *   • RAF is cancelled on cleanup AND before any reschedule. There is at
+ *     most one outstanding handle at any time.
+ *   • If the image fails to load (network blip, CORS), we render a small
+ *     placeholder box instead of throwing — the shop UI still works.
+ *
+ * Frame layout:
+ *   Frames are placed left-to-right starting at (sourceX, sourceY) inside
+ *   the source image. This lets us use a master spritesheet that has many
+ *   animation rows, picking just the row we need.
  */
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 
-interface SpriteAnimationConfig {
+export interface SpriteAnimationConfig {
   imageUrl: string;
   frameCount: number;
   frameWidth: number;
   frameHeight: number;
   cycleMs: number;
+  /** Top-left of the strip inside the source image. Defaults (0, 0). */
+  sourceX?: number;
+  sourceY?: number;
   loop?: boolean;
   pixelated?: boolean;
-  scale?: number;
 }
 
 interface SpriteAnimatorProps {
   config: SpriteAnimationConfig;
   className?: string;
   style?: React.CSSProperties;
-  onCycleComplete?: () => void;
   paused?: boolean;
 }
 
-interface SpriteFrame {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
+// ─── Module-level image cache ─────────────────────────────────────────────
+// One <img> per URL, shared across all SpriteAnimator instances. Status
+// transitions: 'pending' → 'loaded' | 'error'.
+type CacheEntry = {
+  img: HTMLImageElement;
+  status: 'pending' | 'loaded' | 'error';
+  listeners: Set<(status: 'loaded' | 'error') => void>;
+};
+const imageCache = new Map<string, CacheEntry>();
+
+function getCachedImage(url: string): CacheEntry {
+  const existing = imageCache.get(url);
+  if (existing) return existing;
+  const img = new Image();
+  // crossOrigin so canvas drawImage() doesn't taint the canvas if we ever
+  // need to read pixels back. raw.githubusercontent.com sends ACAO:*.
+  img.crossOrigin = 'anonymous';
+  const entry: CacheEntry = { img, status: 'pending', listeners: new Set() };
+  img.onload = () => {
+    entry.status = 'loaded';
+    entry.listeners.forEach((cb) => cb('loaded'));
+    entry.listeners.clear();
+  };
+  img.onerror = () => {
+    entry.status = 'error';
+    entry.listeners.forEach((cb) => cb('error'));
+    entry.listeners.clear();
+  };
+  img.src = url;
+  imageCache.set(url, entry);
+  return entry;
 }
 
-function calculateFrames(
-  frameCount: number,
-  frameWidth: number,
-  frameHeight: number
-): SpriteFrame[] {
-  const frames: SpriteFrame[] = [];
-  for (let i = 0; i < frameCount; i++) {
-    frames.push({
-      x: i * frameWidth,
-      y: 0,
-      w: frameWidth,
-      h: frameHeight,
-    });
-  }
-  return frames;
-}
-
-/**
- * Canvas-based sprite animator.
- * Draws each frame using drawImage() with exact coordinates.
- */
+// ─── Animator ─────────────────────────────────────────────────────────────
 export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
   config,
   className,
   style,
-  onCycleComplete,
   paused = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imageRef = useRef<HTMLImageElement | null>(null);
-  const frameIndexRef = useRef(0);
-  const lastFrameTimeRef = useRef(0);
   const rafRef = useRef<number | null>(null);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const frameIndexRef = useRef(0);
+  const lastTimeRef = useRef(0);
+
+  const [status, setStatus] = useState<'pending' | 'loaded' | 'error'>('pending');
 
   const {
     imageUrl,
@@ -82,106 +97,127 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
     frameWidth,
     frameHeight,
     cycleMs,
+    sourceX = 0,
+    sourceY = 0,
     loop = true,
     pixelated = true,
-    scale = 1,
   } = config;
 
-  const frames = calculateFrames(frameCount, frameWidth, frameHeight);
-  const frameDuration = cycleMs > 0 ? cycleMs / frameCount : 0;
+  const frameDuration = useMemo(
+    () => (cycleMs > 0 && frameCount > 0 ? cycleMs / frameCount : 0),
+    [cycleMs, frameCount]
+  );
 
+  // Subscribe to image load status — never throws, just flips to 'error'
+  // on failure so the placeholder renders.
   useEffect(() => {
-    const img = new Image();
-    img.onload = () => {
-      imageRef.current = img;
-      setImageLoaded(true);
-    };
-    img.onerror = () => {
-      console.error('[SpriteEngine] Failed to load:', imageUrl.slice(0, 60));
-    };
-    img.src = imageUrl;
+    let cancelled = false;
+    const entry = getCachedImage(imageUrl);
+    if (entry.status !== 'pending') {
+      setStatus(entry.status);
+      return;
+    }
+    setStatus('pending');
+    const cb = (s: 'loaded' | 'error') => { if (!cancelled) setStatus(s); };
+    entry.listeners.add(cb);
     return () => {
-      imageRef.current = null;
-      setImageLoaded(false);
+      cancelled = true;
+      entry.listeners.delete(cb);
     };
   }, [imageUrl]);
 
+  // Draw + animate. Whenever ANY of the deps change, cancel current RAF and
+  // restart from frame 0. There is never more than one RAF outstanding.
   useEffect(() => {
-    if (!imageLoaded || !imageRef.current || !canvasRef.current) return;
-
+    if (status !== 'loaded') return;
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    const entry = imageCache.get(imageUrl);
+    if (!entry || entry.status !== 'loaded') return;
+    const img = entry.img;
 
-    canvas.width = frameWidth * scale;
-    canvas.height = frameHeight * scale;
+    canvas.width = frameWidth;
+    canvas.height = frameHeight;
+    if (pixelated) ctx.imageSmoothingEnabled = false;
 
-    if (pixelated) {
-      ctx.imageSmoothingEnabled = false;
-    }
+    frameIndexRef.current = 0;
+    lastTimeRef.current = 0;
 
-    const drawFrame = (index: number) => {
-      if (!imageRef.current || !ctx) return;
-      const frame = frames[index % frames.length];
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(
-        imageRef.current,
-        frame.x, frame.y, frame.w, frame.h,
-        0, 0, frameWidth * scale, frameHeight * scale
-      );
-    };
-
-    // Static sprite (single frame or zero duration)
-    if (frameCount <= 1 || frameDuration === 0) {
-      drawFrame(0);
-      return;
-    }
-
-    const animate = (timestamp: number) => {
-      if (paused) {
-        rafRef.current = requestAnimationFrame(animate);
-        return;
-      }
-
-      if (lastFrameTimeRef.current === 0) {
-        lastFrameTimeRef.current = timestamp;
-      }
-
-      const elapsed = timestamp - lastFrameTimeRef.current;
-
-      if (elapsed >= frameDuration) {
-        const framesToAdvance = Math.floor(elapsed / frameDuration);
-        frameIndexRef.current = (frameIndexRef.current + framesToAdvance) % frameCount;
-        lastFrameTimeRef.current = timestamp - (elapsed % frameDuration);
-
-        drawFrame(frameIndexRef.current);
-
-        if (frameIndexRef.current === 0 && onCycleComplete) {
-          onCycleComplete();
-        }
-
-        if (!loop && frameIndexRef.current === frameCount - 1) {
-          return;
-        }
-      } else {
-        drawFrame(frameIndexRef.current);
-      }
-
-      rafRef.current = requestAnimationFrame(animate);
-    };
-
-    drawFrame(0);
-    rafRef.current = requestAnimationFrame(animate);
-
-    return () => {
+    const cancelRaf = () => {
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      frameIndexRef.current = 0;
-      lastFrameTimeRef.current = 0;
     };
-  }, [imageLoaded, frameCount, frameWidth, frameHeight, frameDuration, loop, scale, pixelated, paused]);
+
+    const drawFrame = (idx: number) => {
+      const safeIdx = ((idx % frameCount) + frameCount) % frameCount;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      try {
+        ctx.drawImage(
+          img,
+          sourceX + safeIdx * frameWidth, sourceY, frameWidth, frameHeight,
+          0, 0, frameWidth, frameHeight
+        );
+      } catch {
+        /* drawImage can throw if image got detached — silent recover */
+      }
+    };
+
+    drawFrame(0);
+
+    // Static sprite — no animation needed.
+    if (frameCount <= 1 || frameDuration <= 0) {
+      return cancelRaf;
+    }
+
+    const tick = (t: number) => {
+      if (paused) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      if (lastTimeRef.current === 0) lastTimeRef.current = t;
+      const elapsed = t - lastTimeRef.current;
+      if (elapsed >= frameDuration) {
+        const advance = Math.floor(elapsed / frameDuration);
+        const next = frameIndexRef.current + advance;
+        const looped = !loop && next >= frameCount;
+        frameIndexRef.current = looped
+          ? frameCount - 1
+          : ((next % frameCount) + frameCount) % frameCount;
+        lastTimeRef.current = t - (elapsed % frameDuration);
+        drawFrame(frameIndexRef.current);
+        if (looped) { rafRef.current = null; return; }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return cancelRaf;
+  }, [status, imageUrl, frameCount, frameWidth, frameHeight, sourceX, sourceY, frameDuration, loop, pixelated, paused]);
+
+  // ── Render ─────────────────────────────────────────────────────────────
+  if (status === 'error') {
+    return (
+      <div
+        className={className}
+        style={{
+          ...style,
+          background: '#1a0a08',
+          border: '2px dashed #C99B36',
+          color: '#C99B36',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 11,
+          letterSpacing: '0.2em',
+        }}
+      >
+        SPRITE OFFLINE
+      </div>
+    );
+  }
 
   return (
     <canvas
@@ -189,21 +225,21 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
       className={className}
       style={{
         display: 'block',
+        imageRendering: pixelated ? 'pixelated' : 'auto',
         ...style,
       }}
     />
   );
 };
 
-/**
- * Static sprite — shows a single frame from a strip.
- */
+// ─── Static single-frame sprite ──────────────────────────────────────────
 export const SpriteStatic: React.FC<{
   imageUrl: string;
   frameWidth: number;
   frameHeight: number;
   frameIndex?: number;
-  scale?: number;
+  sourceX?: number;
+  sourceY?: number;
   pixelated?: boolean;
   className?: string;
   style?: React.CSSProperties;
@@ -212,49 +248,27 @@ export const SpriteStatic: React.FC<{
   frameWidth,
   frameHeight,
   frameIndex = 0,
-  scale = 1,
+  sourceX = 0,
+  sourceY = 0,
   pixelated = true,
   className,
   style,
-}) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const imageRef = useRef<HTMLImageElement | null>(null);
-
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => {
-      imageRef.current = img;
-      setImageLoaded(true);
-    };
-    img.src = imageUrl;
-    return () => { imageRef.current = null; };
-  }, [imageUrl]);
-
-  useEffect(() => {
-    if (!imageLoaded || !canvasRef.current || !imageRef.current) return;
-    const ctx = canvasRef.current.getContext('2d');
-    if (!ctx) return;
-
-    canvasRef.current.width = frameWidth * scale;
-    canvasRef.current.height = frameHeight * scale;
-    if (pixelated) ctx.imageSmoothingEnabled = false;
-
-    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-    ctx.drawImage(
-      imageRef.current,
-      frameIndex * frameWidth, 0, frameWidth, frameHeight,
-      0, 0, frameWidth * scale, frameHeight * scale
-    );
-  }, [imageLoaded, frameIndex, frameWidth, frameHeight, scale, pixelated]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className={className}
-      style={{ display: 'block', ...style }}
-    />
-  );
-};
+}) => (
+  <SpriteAnimator
+    className={className}
+    style={style}
+    config={{
+      imageUrl,
+      frameCount: 1,
+      frameWidth,
+      frameHeight,
+      cycleMs: 0,
+      sourceX: sourceX + frameIndex * frameWidth,
+      sourceY,
+      loop: false,
+      pixelated,
+    }}
+  />
+);
 
 export default SpriteAnimator;

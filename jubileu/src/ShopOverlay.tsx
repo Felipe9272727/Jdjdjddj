@@ -4,13 +4,19 @@ import {
   BELLHOP_CLEAN_FRAMES,
   BELLHOP_CLEAN_FRAME_W,
   BELLHOP_CLEAN_FRAME_H,
+  BELLHOP_CLEAN_SOURCE_X,
+  BELLHOP_CLEAN_SOURCE_Y,
   BELLHOP_TALK_STRIP,
   BELLHOP_TALK_FRAMES,
   BELLHOP_TALK_FRAME_W,
   BELLHOP_TALK_FRAME_H,
+  BELLHOP_TALK_SOURCE_X,
+  BELLHOP_TALK_SOURCE_Y,
   BELLHOP_IDLE_STRIP,
   BELLHOP_IDLE_FRAME_W,
   BELLHOP_IDLE_FRAME_H,
+  BELLHOP_IDLE_SOURCE_X,
+  BELLHOP_IDLE_SOURCE_Y,
   HOTEL_BG,
 } from './bellhop-sprites';
 import { SpriteAnimator } from './SpriteEngine';
@@ -274,6 +280,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       frameCount: BELLHOP_CLEAN_FRAMES,
       frameWidth: BELLHOP_CLEAN_FRAME_W,
       frameHeight: BELLHOP_CLEAN_FRAME_H,
+      sourceX: BELLHOP_CLEAN_SOURCE_X,
+      sourceY: BELLHOP_CLEAN_SOURCE_Y,
       cycleMs: 720,
       loop: true,
       pixelated: true,
@@ -283,7 +291,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       frameCount: BELLHOP_TALK_FRAMES,
       frameWidth: BELLHOP_TALK_FRAME_W,
       frameHeight: BELLHOP_TALK_FRAME_H,
-      cycleMs: 240,
+      sourceX: BELLHOP_TALK_SOURCE_X,
+      sourceY: BELLHOP_TALK_SOURCE_Y,
+      cycleMs: 280,
       loop: true,
       pixelated: true,
     },
@@ -292,6 +302,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       frameCount: 1,
       frameWidth: BELLHOP_IDLE_FRAME_W,
       frameHeight: BELLHOP_IDLE_FRAME_H,
+      sourceX: BELLHOP_IDLE_SOURCE_X,
+      sourceY: BELLHOP_IDLE_SOURCE_Y,
       cycleMs: 0,
       loop: false,
       pixelated: true,
@@ -416,7 +428,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         {showContent && (
           <div className="flex flex-col items-center px-4 max-w-2xl w-full">
             <SpriteAnimator
-              key={spriteMode}
               config={activeSpriteConfig}
               style={{
                 height: isLandscape
