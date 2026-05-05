@@ -211,12 +211,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
 
   const activeSpriteConfig = spriteConfigs[spriteMode];
 
-  // ── Portrait config — crops to head+torso ─────────────────────────────
-  // Sprite strips: 100×140 (idle/talk), 130×180 (clean).
-  // We want mid-torso to head visible. Character head+torso ≈ top 55% of frame.
-  // Scale 1.8x → canvas 180×252. Container ~80px.
-  // Crop at ~55% from top = y≈77px (in source), y≈139px (at 1.8x).
-  // Offset: push canvas UP so mid-torso aligns with container top.
   const portraitConfig = isTyping
     ? {
         imageUrl: BELLHOP_TALK_STRIP,
@@ -227,6 +221,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         loop: true,
         pixelated: true,
         scale: 1.8,
+        cropRegion: { sourceY: 55, sourceHeight: 85 },
       }
     : {
         imageUrl: BELLHOP_IDLE_STRIP,
@@ -237,12 +232,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         loop: false,
         pixelated: true,
         scale: 1.8,
+        cropRegion: { sourceY: 55, sourceHeight: 85 },
       };
-
-  // At scale 1.8: canvas is 180×252px from 100×140 source.
-  // Shoulders ≈ 40% of 140 = 56px source → 100px at 1.8x.
-  // We want shoulders at y=0 of container, so offset = -100px.
-  const portraitOffsetY = '-100px';
 
   return (
     <div
@@ -360,8 +351,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 aria-hidden
                 style={{
                   flexShrink: 0,
-                  width: 'clamp(80px, 14vw, 110px)',
-                  height: 'clamp(80px, 14vw, 110px)',
+                  width: 'clamp(90px, 15vw, 120px)',
+                  height: 'clamp(90px, 15vw, 120px)',
                   border: '3px solid #fff',
                   borderRadius: 0,
                   background: '#000',
@@ -373,10 +364,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                   key={isTyping ? 'talk' : 'idle'}
                   config={portraitConfig}
                   style={{
-                    position: 'absolute',
-                    top: portraitOffsetY,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
+                    display: 'block',
+                    width: '100%',
+                    height: '100%',
                     imageRendering: 'pixelated',
                   }}
                 />

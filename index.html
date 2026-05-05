@@ -781,40 +781,6 @@
     z-index: 100;
   }
 
-  .container {
-    width: 100%;
-  }
-
-  @media (min-width: 40rem) {
-    .container {
-      max-width: 40rem;
-    }
-  }
-
-  @media (min-width: 48rem) {
-    .container {
-      max-width: 48rem;
-    }
-  }
-
-  @media (min-width: 64rem) {
-    .container {
-      max-width: 64rem;
-    }
-  }
-
-  @media (min-width: 80rem) {
-    .container {
-      max-width: 80rem;
-    }
-  }
-
-  @media (min-width: 96rem) {
-    .container {
-      max-width: 96rem;
-    }
-  }
-
   .m-0 {
     margin: calc(var(--spacing) * 0);
   }
@@ -96642,8 +96608,10 @@ const SpriteAnimator = ({
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const cropRegion = config.cropRegion;
+    const canvasHeight = cropRegion ? cropRegion.sourceHeight * scale2 : frameHeight * scale2;
     canvas.width = frameWidth * scale2;
-    canvas.height = frameHeight * scale2;
+    canvas.height = canvasHeight;
     if (pixelated) {
       ctx.imageSmoothingEnabled = false;
     }
@@ -96651,17 +96619,31 @@ const SpriteAnimator = ({
       if (!imageRef.current || !ctx) return;
       const frame2 = frames[index % frames.length];
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(
-        imageRef.current,
-        frame2.x,
-        frame2.y,
-        frame2.w,
-        frame2.h,
-        0,
-        0,
-        frameWidth * scale2,
-        frameHeight * scale2
-      );
+      if (cropRegion) {
+        ctx.drawImage(
+          imageRef.current,
+          frame2.x,
+          frame2.y + cropRegion.sourceY,
+          frame2.w,
+          cropRegion.sourceHeight,
+          0,
+          0,
+          frameWidth * scale2,
+          canvasHeight
+        );
+      } else {
+        ctx.drawImage(
+          imageRef.current,
+          frame2.x,
+          frame2.y,
+          frame2.w,
+          frame2.h,
+          0,
+          0,
+          frameWidth * scale2,
+          frameHeight * scale2
+        );
+      }
     };
     if (frameCount <= 1 || frameDuration === 0) {
       drawFrame(0);
@@ -96702,7 +96684,7 @@ const SpriteAnimator = ({
       frameIndexRef.current = 0;
       lastFrameTimeRef.current = 0;
     };
-  }, [imageLoaded, frameCount, frameWidth, frameHeight, frameDuration, loop2, scale2, pixelated, paused]);
+  }, [imageLoaded, frameCount, frameWidth, frameHeight, frameDuration, loop2, scale2, pixelated, paused, config.cropRegion]);
   return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "canvas",
     {
@@ -96873,7 +96855,8 @@ const ShopOverlay = ({ open, onClose }) => {
     cycleMs: 240,
     loop: true,
     pixelated: true,
-    scale: 1.8
+    scale: 1.8,
+    cropRegion: { sourceY: 55, sourceHeight: 85 }
   } : {
     imageUrl: BELLHOP_IDLE_STRIP,
     frameCount: 1,
@@ -96882,9 +96865,9 @@ const ShopOverlay = ({ open, onClose }) => {
     cycleMs: 0,
     loop: false,
     pixelated: true,
-    scale: 1.8
+    scale: 1.8,
+    cropRegion: { sourceY: 55, sourceHeight: 85 }
   };
-  const portraitOffsetY = "-100px";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
@@ -97006,8 +96989,8 @@ const ShopOverlay = ({ open, onClose }) => {
                         "aria-hidden": true,
                         style: {
                           flexShrink: 0,
-                          width: "clamp(80px, 14vw, 110px)",
-                          height: "clamp(80px, 14vw, 110px)",
+                          width: "clamp(90px, 15vw, 120px)",
+                          height: "clamp(90px, 15vw, 120px)",
                           border: "3px solid #fff",
                           borderRadius: 0,
                           background: "#000",
@@ -97019,10 +97002,9 @@ const ShopOverlay = ({ open, onClose }) => {
                           {
                             config: portraitConfig,
                             style: {
-                              position: "absolute",
-                              top: portraitOffsetY,
-                              left: "50%",
-                              transform: "translateX(-50%)",
+                              display: "block",
+                              width: "100%",
+                              height: "100%",
                               imageRendering: "pixelated"
                             }
                           },

@@ -15,6 +15,13 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 
+interface CropRegion {
+  /** Y offset in source pixels from top of frame */
+  sourceY: number;
+  /** Height in source pixels to draw (from sourceY downward) */
+  sourceHeight: number;
+}
+
 interface SpriteAnimationConfig {
   imageUrl: string;
   frameCount: number;
@@ -24,6 +31,8 @@ interface SpriteAnimationConfig {
   loop?: boolean;
   pixelated?: boolean;
   scale?: number;
+  /** Optional: only draw a portion of each frame */
+  cropRegion?: CropRegion;
 }
 
 interface SpriteAnimatorProps {
@@ -113,8 +122,13 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const cropRegion = config.cropRegion;
+    const canvasHeight = cropRegion
+      ? cropRegion.sourceHeight * scale
+      : frameHeight * scale;
+
     canvas.width = frameWidth * scale;
-    canvas.height = frameHeight * scale;
+    canvas.height = canvasHeight;
 
     if (pixelated) {
       ctx.imageSmoothingEnabled = false;
@@ -124,11 +138,19 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
       if (!imageRef.current || !ctx) return;
       const frame = frames[index % frames.length];
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(
-        imageRef.current,
-        frame.x, frame.y, frame.w, frame.h,
-        0, 0, frameWidth * scale, frameHeight * scale
-      );
+      if (cropRegion) {
+        ctx.drawImage(
+          imageRef.current,
+          frame.x, frame.y + cropRegion.sourceY, frame.w, cropRegion.sourceHeight,
+          0, 0, frameWidth * scale, canvasHeight
+        );
+      } else {
+        ctx.drawImage(
+          imageRef.current,
+          frame.x, frame.y, frame.w, frame.h,
+          0, 0, frameWidth * scale, frameHeight * scale
+        );
+      }
     };
 
     // Static sprite (single frame or zero duration)
@@ -181,7 +203,7 @@ export const SpriteAnimator: React.FC<SpriteAnimatorProps> = ({
       frameIndexRef.current = 0;
       lastFrameTimeRef.current = 0;
     };
-  }, [imageLoaded, frameCount, frameWidth, frameHeight, frameDuration, loop, scale, pixelated, paused]);
+  }, [imageLoaded, frameCount, frameWidth, frameHeight, frameDuration, loop, scale, pixelated, paused, config.cropRegion]);
 
   return (
     <canvas
