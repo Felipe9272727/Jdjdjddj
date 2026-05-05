@@ -1278,3 +1278,39 @@ Todas copiadas pra `.skills/` no workspace (gitignored):
 - polish-agent e ui-agent ambos resolveram o carrossel independentemente (abordagem idêntica)
 
 ---
+
+## 🔧 Fix: Sprite Carousel Bug — Canvas Renderer (2026-05-05)
+
+### Problema
+O sistema de sprites do bellhop (ShopOverlay) usava CSS `background-position-x` com `steps()` pra animar os sprite strips. Isso causava o bug do "carrossel" — frames exibidos fora de ordem, pulando, ou repetindo.
+
+### Causa Raiz
+Browser inconsistencies com CSS `steps()` e `background-position` em porcentagens. Diferentes browsers calculam os stepping points de forma diferente, especialmente quando `background-size` usa múltiplos de 100%.
+
+### Solução
+Substituído completamente a animação CSS por um renderer baseado em Canvas:
+- `SpriteEngine.tsx` — componente `SpriteAnimator` que usa `drawImage()` com coordenadas exatas por frame
+- `requestAnimationFrame` para timing preciso e consistente
+- `imageSmoothingEnabled: false` para preservar pixel art
+
+### Arquivos alterados
+- `jubileu/src/SpriteEngine.tsx` — **novo** — Canvas sprite renderer
+- `jubileu/src/ShopOverlay.tsx` — reescrito para usar `SpriteAnimator`
+- `agents/` — **novo** — 4 agentes especializados:
+  - `agent-canvas-engine.ts` — SpriteAnimator + SpriteStatic
+  - `agent-sprite-parser.ts` — metadados e configs dos sprites
+  - `agent-shop-rewrite.tsx` — BellhopSprite + BellhopPortrait
+  - `agent-verification.ts` — testes automatizados
+
+### O que foi removido
+- `@keyframes bellhopClean` — causava o bug
+- `@keyframes bellhopTalk` — causava o bug
+- CSS `background-position-x` animation em todos os elementos de sprite
+
+### Commits
+- `288c041` — fix(sprite): replace CSS steps() animation with Canvas renderer
+
+### Nota
+Tentativas anteriores (agents polish/ui) resolveram o carrossel com abordagem idêntica — confirma que Canvas é a solução correta. Dessa vez o fix foi aplicado diretamente no source e buildado.
+
+---
