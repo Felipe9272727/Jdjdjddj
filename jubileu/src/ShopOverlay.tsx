@@ -252,7 +252,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   // At scale 1.8: canvas is 180×252px from 100×140 source.
   // Shoulders ≈ 40% of 140 = 56px source → 100px at 1.8x.
   // We want shoulders at y=0 of container, so offset = -100px.
-  const portraitOffsetY = '30px';
+  const portraitOffsetY = '-250px';
 
   return (
     <div
@@ -339,8 +339,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 height: isLandscape ? 'clamp(180px, 45vh, 300px)' : SPRITE_H,
                 aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
                 filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
-                transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
-                marginTop: isLandscape ? '-25vh' : 0,
+                transform: phase === 'idle' ? 'translateY(-250px)' : 'translateY(-230px)',
                 opacity: showContent ? 1 : 0,
                 transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
                 marginBottom: isLandscape ? 0 : 14,
