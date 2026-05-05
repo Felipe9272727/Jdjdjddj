@@ -252,7 +252,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   // At scale 1.8: canvas is 180×252px from 100×140 source.
   // Shoulders ≈ 40% of 140 = 56px source → 100px at 1.8x.
   // We want shoulders at y=0 of container, so offset = -100px.
-  const portraitOffsetY = '-60px';
+  const portraitOffsetY = '50px';
 
   return (
     <div
