@@ -340,6 +340,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
                 filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
+                marginTop: isLandscape ? '-15vh' : 0,
                 opacity: showContent ? 1 : 0,
                 transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
                 marginBottom: isLandscape ? 0 : 14,
