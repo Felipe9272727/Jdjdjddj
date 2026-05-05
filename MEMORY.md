@@ -1314,3 +1314,69 @@ Substituído completamente a animação CSS por um renderer baseado em Canvas:
 Tentativas anteriores (agents polish/ui) resolveram o carrossel com abordagem idêntica — confirma que Canvas é a solução correta. Dessa vez o fix foi aplicado diretamente no source e buildado.
 
 ---
+
+## 🔧 Sessão 2026-05-06: Performance Audit + House Redesign (05:00-05:20 GMT+8)
+
+### Performance Audit — Top 10 Issues
+
+Análise completa de Player.tsx, RemotePlayer.tsx, Bot.tsx, Elevator.tsx, LobbyEnv.tsx, HouseEnv.tsx, App.tsx.
+
+### Fixes aplicados
+
+| # | Arquivo | Problema | Fix |
+|---|---------|----------|-----|
+| 1 | Player.tsx | `setAnim()` chamado todo frame (60fps) | Guard com `animRef` — só setState quando muda |
+| 2 | Player.tsx | `wallsForState()` aloca array novo todo frame | `useMemo` por `[currentLevel, doorsClosed, houseDoorOpen]` |
+| 3 | App.tsx | `handlePlayerEnterElevator` recriado a cada render | `useCallback` com deps `[elevatorTimer, doorsClosed]` |
+| 4 | Bot.tsx | `setBots([...])` no useFrame causava re-render de todos os bots | Animação agora é imperativa via `useFrame` no `BotAvatar` |
+| 5 | HouseEnv.tsx | `pointLight` do BarneyActor montada/desmontada por condicional | Sempre renderizada, `lightRef.current.visible = isScary` |
+| 6 | HouseEnv.tsx | Arrays de árvores (43 coords × 4) recriados inline a cada render | Extraídos para `TREE_COORDS` e `FENCE_DATA` em module scope |
+| 7 | App.tsx | `otherPlayerIds.slice()` recriava array a cada render | `useMemo` sobre o slice limitado |
+| 8 | App.tsx | Import faltando `useMemo` | Adicionado ao import do React |
+
+### House Redesign (Barney)
+
+Aplicadas skills: **bolder** (formas fortes), **colorize** (paleta rica), **delight** (detalhes encantadores), **arrange** (zonas claras), **polish** (materiais consistentes), **overdrive** (animações).
+
+#### Novos componentes
+- `ChimneySmoke` — 3 esferas transparentes animadas com drift + sway via useFrame
+- `HouseWindow` — Vidro + caixilho em cruz + persianas
+- `FlowerBed` — Canteiro com flores coloridas (E91E63, 9C27B0, FF5722, FFC107)
+- `Mailbox` — Caixa de correio vermelha com tampa
+- `PathLantern` — Poste de luz pequeno com pointLight
+
+#### Exterior novo
+- Fundação com base trim (4E342E)
+- Paredes com `TextureMaterial` em vez de cor flat
+- Porche com piso de madeira, escadas, colunas, viga
+- Caminho de pedras (stepping stones)
+- Cerca branca frontal
+- 4 canteiros de flores
+- Caixa de correio
+- 2 luminárias de caminho
+- Chaminé com tampa + fumaça animada
+- Cumeeira no telhado + eave trim
+
+#### Interior novo
+- Tapete na sala (2 camadas, tons marrom)
+- Quadro na parede
+- Azulejo backsplash na cozinha
+- Puxadores na geladeira
+- 3 luzes interiores (sala, quarto, cozinha)
+- Janela lateral e traseira
+
+#### Night mode
+- Luz interior pisca (overdrive)
+- Cor da luz muda: quente (dia) → laranja (noite)
+- Luz externa com cor adaptativa
+
+### Commits
+- `4c7bf74` — perf: fix top 10 performance issues + redesign Barney house
+- `cbaf439` — build: rebuild index.html with perf fixes + house redesign
+
+### ⚠️ Lição reafirmada
+**Regre de ouro #1: SEMPRE rebuilde o `index.html` ao editar source.** Dessa vez esqueci e o Felipe teve que me lembrar. Não vai acontecer de novo.
+
+---
+
+*Última atualização: 2026-05-06 05:20 GMT+8*
