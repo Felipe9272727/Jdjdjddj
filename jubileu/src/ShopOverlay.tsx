@@ -14,6 +14,7 @@ import {
   HOTEL_BG,
 } from './bellhop-sprites';
 import { SpriteAnimator } from './SpriteEngine';
+import { playDoorbell, playBeep, playSelect, playConfirm, createLobbyMusic } from './shop-audio';
 
 // ─── Bellhop Shop — Undertale-style overlay with elevator entrance ─────────
 // Phase chain (open → close):
@@ -63,25 +64,6 @@ const TIMINGS = {
 // between landscape and portrait). The dialog box uses a negative marginTop
 // to overlap the sprite's lower half, Undertale-shop-style.
 
-// ── Typewriter beep (Undertale-style) ─────────────────────────────────────
-// Short procedural beep generated via Web Audio API on every Nth character.
-let audioCtx: AudioContext | null = null;
-function playBeep() {
-  try {
-    if (!audioCtx) audioCtx = new AudioContext();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.type = 'square';
-    osc.frequency.value = 600;
-    gain.gain.value = 0.03;
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
-    osc.start(audioCtx.currentTime);
-    osc.stop(audioCtx.currentTime + 0.04);
-  } catch { /* silent fail */ }
-}
-
 export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const [menu, setMenu] = useState<ShopMenu>('main');
   const [typed, setTyped] = useState('');
@@ -91,6 +73,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
+  const musicRef = useRef<ReturnType<typeof createLobbyMusic> | null>(null);
   const charCountRef = useRef(0);
 
   const clearPhaseTimers = () => {
@@ -119,12 +102,15 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     const t1 = window.setTimeout(() => {
       if (!mountedRef.current) return;
       setPhase('arrived');
+      playDoorbell();
       const t2 = window.setTimeout(() => {
         if (!mountedRef.current) return;
         setPhase('opening');
         const t3 = window.setTimeout(() => {
           if (!mountedRef.current) return;
           setPhase('idle');
+      if (!musicRef.current) musicRef.current = createLobbyMusic();
+      musicRef.current.start();
         }, TIMINGS.opening);
         phaseTimersRef.current.push(t3);
       }, TIMINGS.arrived);
@@ -165,6 +151,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     if (phase === 'exit-close') return;
     clearPhaseTimers();
     setPhase('exit-close');
+    musicRef.current?.stop();
     const t = window.setTimeout(() => onClose(), TIMINGS.exitClose);
     phaseTimersRef.current.push(t);
   }, [phase, onClose]);

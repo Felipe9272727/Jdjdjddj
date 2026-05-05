@@ -96677,6 +96677,147 @@ const SpriteAnimator = ({
     }
   );
 };
+function getCtx() {
+  const w = window;
+  if (w.__jubileuAudioCtx) return w.__jubileuAudioCtx;
+  const ctx = new AudioContext();
+  w.__jubileuAudioCtx = ctx;
+  return ctx;
+}
+function ensureResumed(ctx) {
+  if (ctx.state === "suspended") ctx.resume();
+}
+function playDoorbell() {
+  try {
+    const ctx = getCtx();
+    ensureResumed(ctx);
+    const now2 = ctx.currentTime;
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.type = "sine";
+    osc1.frequency.value = 1200;
+    gain1.gain.setValueAtTime(0.2, now2);
+    gain1.gain.exponentialRampToValueAtTime(1e-3, now2 + 0.6);
+    osc1.start(now2);
+    osc1.stop(now2 + 0.6);
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.type = "sine";
+    osc2.frequency.value = 900;
+    gain2.gain.setValueAtTime(0, now2);
+    gain2.gain.setValueAtTime(0.15, now2 + 0.15);
+    gain2.gain.exponentialRampToValueAtTime(1e-3, now2 + 0.7);
+    osc2.start(now2 + 0.15);
+    osc2.stop(now2 + 0.7);
+  } catch {
+  }
+}
+function playBeep() {
+  try {
+    const ctx = getCtx();
+    ensureResumed(ctx);
+    const now2 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "square";
+    osc.frequency.value = 600;
+    gain.gain.setValueAtTime(0.04, now2);
+    gain.gain.exponentialRampToValueAtTime(1e-3, now2 + 0.03);
+    osc.start(now2);
+    osc.stop(now2 + 0.03);
+  } catch {
+  }
+}
+const LOBBY_MUSIC_URL = "https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/hotel-lobby.mp3";
+let lobbyBuffer = null;
+let lobbyLoadPromise = null;
+async function loadLobbyMusic(ctx) {
+  if (lobbyBuffer) return lobbyBuffer;
+  if (lobbyLoadPromise) return lobbyLoadPromise;
+  lobbyLoadPromise = (async () => {
+    const res = await fetch(LOBBY_MUSIC_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const arrayBuf = await res.arrayBuffer();
+    lobbyBuffer = await ctx.decodeAudioData(arrayBuf);
+    return lobbyBuffer;
+  })();
+  try {
+    return await lobbyLoadPromise;
+  } catch (e2) {
+    lobbyLoadPromise = null;
+    throw e2;
+  }
+}
+function createLobbyMusic() {
+  let source = null;
+  let gainNode = null;
+  let ctx = null;
+  let playing = false;
+  function cleanup() {
+    if (source) {
+      try {
+        source.stop();
+      } catch {
+      }
+      try {
+        source.disconnect();
+      } catch {
+      }
+      source = null;
+    }
+    if (gainNode) {
+      try {
+        gainNode.disconnect();
+      } catch {
+      }
+      gainNode = null;
+    }
+  }
+  return {
+    async start() {
+      if (playing) return;
+      ctx = getCtx();
+      ensureResumed(ctx);
+      playing = true;
+      try {
+        const buffer = await loadLobbyMusic(ctx);
+        if (!playing) return;
+        cleanup();
+        source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+        gainNode = ctx.createGain();
+        gainNode.gain.setValueAtTime(0, ctx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.25, ctx.currentTime + 1.5);
+        source.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        source.start();
+      } catch (e2) {
+        console.warn("[shop-audio] Lobby music failed:", e2);
+        playing = false;
+        cleanup();
+      }
+    },
+    stop() {
+      if (!playing) return;
+      playing = false;
+      if (gainNode && ctx) {
+        try {
+          gainNode.gain.cancelScheduledValues(ctx.currentTime);
+          gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
+        } catch {
+        }
+      }
+      setTimeout(cleanup, 600);
+    }
+  };
+}
 const DIALOGUES = {
   main: "* Bem-vindo ao The Normal Hotel!\n* Como posso ajudá-lo hoje?",
   talk: "* O que você gostaria de saber?",
@@ -96698,23 +96839,6 @@ const TIMINGS = {
   opening: 700,
   exitClose: 600
 };
-let audioCtx = null;
-function playBeep() {
-  try {
-    if (!audioCtx) audioCtx = new AudioContext();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.type = "square";
-    osc.frequency.value = 600;
-    gain.gain.value = 0.03;
-    gain.gain.exponentialRampToValueAtTime(1e-3, audioCtx.currentTime + 0.04);
-    osc.start(audioCtx.currentTime);
-    osc.stop(audioCtx.currentTime + 0.04);
-  } catch {
-  }
-}
 const ShopOverlay = ({ open, onClose }) => {
   const [menu, setMenu] = reactExports.useState("main");
   const [typed, setTyped] = reactExports.useState("");
@@ -96724,6 +96848,7 @@ const ShopOverlay = ({ open, onClose }) => {
   const typingRef = reactExports.useRef(null);
   const phaseTimersRef = reactExports.useRef([]);
   const mountedRef = reactExports.useRef(false);
+  const musicRef = reactExports.useRef(null);
   const charCountRef = reactExports.useRef(0);
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
@@ -96750,12 +96875,15 @@ const ShopOverlay = ({ open, onClose }) => {
     const t1 = window.setTimeout(() => {
       if (!mountedRef.current) return;
       setPhase("arrived");
+      playDoorbell();
       const t2 = window.setTimeout(() => {
         if (!mountedRef.current) return;
         setPhase("opening");
         const t3 = window.setTimeout(() => {
           if (!mountedRef.current) return;
           setPhase("idle");
+          if (!musicRef.current) musicRef.current = createLobbyMusic();
+          musicRef.current.start();
         }, TIMINGS.opening);
         phaseTimersRef.current.push(t3);
       }, TIMINGS.arrived);
@@ -96791,9 +96919,11 @@ const ShopOverlay = ({ open, onClose }) => {
     };
   }, [open, menu, phase]);
   const close = reactExports.useCallback(() => {
+    var _a;
     if (phase === "exit-close") return;
     clearPhaseTimers();
     setPhase("exit-close");
+    (_a = musicRef.current) == null ? void 0 : _a.stop();
     const t2 = window.setTimeout(() => onClose(), TIMINGS.exitClose);
     phaseTimersRef.current.push(t2);
   }, [phase, onClose]);
@@ -100766,7 +100896,7 @@ function App() {
   const { settings, update: updateSettings } = useSettings();
   const [settingsOpen, setSettingsOpen] = reactExports.useState(false);
   const [hasStarted, setHasStarted] = reactExports.useState(false);
-  const [audioCtx2, setAudioCtx] = reactExports.useState(null);
+  const [audioCtx, setAudioCtx] = reactExports.useState(null);
   const [muted, setMuted] = reactExports.useState(false);
   const [zoomLevel, setZoomLevel] = reactExports.useState(4);
   const prevPinchDist = reactExports.useRef(null);
@@ -101005,7 +101135,7 @@ function App() {
     setCanInteractNPC(false);
   };
   const handleStartGame = (mpEnabled, name2) => {
-    if (audioCtx2) return;
+    if (audioCtx) return;
     setMultiplayerEnabled(mpEnabled);
     if (name2) setPlayerName2(name2);
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -101064,7 +101194,7 @@ function App() {
         setTravelPhase("closing");
         lastHandledTimerRef.current = null;
         if (elevatorHumStopRef.current) elevatorHumStopRef.current();
-        elevatorHumStopRef.current = createElevatorHum(audioCtx2);
+        elevatorHumStopRef.current = createElevatorHum(audioCtx);
       } else {
         setDoorsClosed(false);
         setElevatorTimer(null);
@@ -101072,7 +101202,7 @@ function App() {
         setTravelPhase("arriving");
         setCameraShake(false);
         setArrivalPulse(true);
-        playArrivalDing(audioCtx2);
+        playArrivalDing(audioCtx);
         if (elevatorHumStopRef.current) {
           elevatorHumStopRef.current();
           elevatorHumStopRef.current = null;
@@ -101092,10 +101222,10 @@ function App() {
         elevatorHumStopRef.current();
         elevatorHumStopRef.current = null;
       }
-      if (audioCtx2 && audioCtx2.state !== "closed") audioCtx2.close().catch(() => {
+      if (audioCtx && audioCtx.state !== "closed") audioCtx.close().catch(() => {
       });
     };
-  }, [audioCtx2]);
+  }, [audioCtx]);
   const [joystickVisual, setJoystickVisual] = reactExports.useState({ active: false, originX: 0, originY: 0, currentX: 0, currentY: 0 });
   const [isDesktop, setIsDesktop] = reactExports.useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
   reactExports.useEffect(() => {
@@ -101310,7 +101440,7 @@ function App() {
     if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen) return;
     setZoomLevel((prev) => Math.min(Math.max(prev + e2.deltaY * 0.01, 0), 10));
   }, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx2, muted, masterVolume: settings.masterVolume, nightMode, gameState, currentLevel, doorsClosed }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx, muted: muted || shopOpen, masterVolume: settings.masterVolume, nightMode, gameState, currentLevel, doorsClosed }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out", style: { opacity: overlayOpacity } }),
     cameraShake && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-20 pointer-events-none traveling-vignette" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(CanvasErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -101364,7 +101494,7 @@ function App() {
         otherPlayersCount: otherPlayerIds.length,
         connectionStatus,
         onSettingsOpen: () => setSettingsOpen(true),
-        muted,
+        muted: muted || shopOpen,
         onToggleMute: () => setMuted(!muted)
       }
     ),
