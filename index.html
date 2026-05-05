@@ -1279,10 +1279,6 @@
     flex-direction: column;
   }
 
-  .flex-wrap {
-    flex-wrap: wrap;
-  }
-
   .items-baseline {
     align-items: baseline;
   }
@@ -1365,14 +1361,6 @@
     --tw-space-y-reverse: 0;
     margin-block-start: calc(calc(var(--spacing) * 3) * var(--tw-space-y-reverse));
     margin-block-end: calc(calc(var(--spacing) * 3) * calc(1 - var(--tw-space-y-reverse)));
-  }
-
-  .gap-x-4 {
-    column-gap: calc(var(--spacing) * 4);
-  }
-
-  .gap-y-1 {
-    row-gap: calc(var(--spacing) * 1);
   }
 
   :where(.divide-x > :not(:last-child)) {
@@ -3237,16 +3225,6 @@
   @supports (color: color-mix(in lab, red, red)) {
     .text-white\/50 {
       color: color-mix(in oklab, var(--color-white) 50%, transparent);
-    }
-  }
-
-  .text-white\/55 {
-    color: #ffffff8c;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .text-white\/55 {
-      color: color-mix(in oklab, var(--color-white) 55%, transparent);
     }
   }
 
@@ -44442,7 +44420,7 @@ class ImageBitmapLoader extends Loader$1 {
   }
 }
 let _context;
-class AudioContext {
+let AudioContext$1 = class AudioContext2 {
   /**
    * Returns the global native audio context.
    *
@@ -44462,7 +44440,7 @@ class AudioContext {
   static setContext(value) {
     _context = value;
   }
-}
+};
 class AudioLoader extends Loader$1 {
   /**
    * Constructs a new audio loader.
@@ -44491,7 +44469,7 @@ class AudioLoader extends Loader$1 {
     loader.load(url, function(buffer) {
       try {
         const bufferCopy = buffer.slice(0);
-        const context2 = AudioContext.getContext();
+        const context2 = AudioContext$1.getContext();
         const decodeUrl = url + "#decode";
         scope.manager.itemStart(decodeUrl);
         context2.decodeAudioData(bufferCopy, function(audioBuffer) {
@@ -44848,7 +44826,7 @@ class AudioListener extends Object3D {
   constructor() {
     super();
     this.type = "AudioListener";
-    this.context = AudioContext.getContext();
+    this.context = AudioContext$1.getContext();
     this.gain = this.context.createGain();
     this.gain.connect(this.context.destination);
     this.filter = null;
@@ -61312,7 +61290,7 @@ const THREE = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePropert
   AttachedBindMode,
   Audio,
   AudioAnalyser,
-  AudioContext,
+  AudioContext: AudioContext$1,
   AudioListener,
   AudioLoader,
   AxesHelper,
@@ -96704,9 +96682,9 @@ const SpriteAnimator = ({
   );
 };
 const DIALOGUES = {
-  main: "Bem-vindo ao The Normal Hotel.\nPosso te ajudar?",
-  talk: "Tenha uma ótima estadia... e fique calmo se ouvir alguma coisa estranha vindo do andar de cima.",
-  bye: "Volte sempre! O elevador está\nsempre aberto."
+  main: "* Bem-vindo ao The Normal Hotel.\n* Posso te ajudar?",
+  talk: "* Tenha uma ótima estadia...\n* E fique calmo se ouvir alguma\n  coisa estranha vindo do andar\n  de cima.",
+  bye: "* Volte sempre!\n* O elevador está sempre aberto."
 };
 const TIMINGS = {
   closing: 700,
@@ -96715,13 +96693,32 @@ const TIMINGS = {
   exitClose: 600
 };
 const SPRITE_H = "clamp(160px, 28vh, 220px)";
+let audioCtx = null;
+function playBeep() {
+  try {
+    if (!audioCtx) audioCtx = new AudioContext();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = "square";
+    osc.frequency.value = 600;
+    gain.gain.value = 0.03;
+    gain.gain.exponentialRampToValueAtTime(1e-3, audioCtx.currentTime + 0.04);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.04);
+  } catch {
+  }
+}
 const ShopOverlay = ({ open, onClose }) => {
   const [menu, setMenu] = reactExports.useState("main");
   const [typed, setTyped] = reactExports.useState("");
   const [phase, setPhase] = reactExports.useState("closing");
+  const [hoveredBtn, setHoveredBtn] = reactExports.useState(-1);
   const typingRef = reactExports.useRef(null);
   const phaseTimersRef = reactExports.useRef([]);
   const mountedRef = reactExports.useRef(false);
+  const charCountRef = reactExports.useRef(0);
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
     phaseTimersRef.current = [];
@@ -96736,6 +96733,7 @@ const ShopOverlay = ({ open, onClose }) => {
     setMenu("main");
     setTyped("");
     setPhase("closing");
+    setHoveredBtn(-1);
     const t1 = window.setTimeout(() => {
       if (!mountedRef.current) return;
       setPhase("arrived");
@@ -96759,11 +96757,14 @@ const ShopOverlay = ({ open, onClose }) => {
   reactExports.useEffect(() => {
     if (!open || phase !== "idle") return;
     setTyped("");
+    charCountRef.current = 0;
     const text = DIALOGUES[menu];
     let i2 = 0;
     const tick = () => {
       if (!mountedRef.current) return;
       i2 += 2;
+      charCountRef.current += 2;
+      if (charCountRef.current % 3 === 0) playBeep();
       setTyped(text.slice(0, i2));
       if (i2 < text.length) typingRef.current = window.setTimeout(tick, 30);
       else typingRef.current = null;
@@ -96776,13 +96777,13 @@ const ShopOverlay = ({ open, onClose }) => {
       }
     };
   }, [open, menu, phase]);
-  const close = () => {
+  const close = reactExports.useCallback(() => {
     if (phase === "exit-close") return;
     clearPhaseTimers();
     setPhase("exit-close");
     const t2 = window.setTimeout(() => onClose(), TIMINGS.exitClose);
     phaseTimersRef.current.push(t2);
-  };
+  }, [phase, onClose]);
   if (!open) return null;
   const isTyping = typed.length < DIALOGUES[menu].length;
   const skipOrAdvance = (e2) => {
@@ -96830,12 +96831,34 @@ const ShopOverlay = ({ open, onClose }) => {
     }
   };
   const activeSpriteConfig = spriteConfigs[spriteMode];
+  const portraitConfig = isTyping ? {
+    imageUrl: BELLHOP_TALK_STRIP,
+    frameCount: BELLHOP_TALK_FRAMES,
+    frameWidth: BELLHOP_TALK_FRAME_W,
+    frameHeight: BELLHOP_TALK_FRAME_H,
+    cycleMs: 240,
+    loop: true,
+    pixelated: true,
+    // Scale so head fills ~76px: head is ~40% of 140px = 56px.
+    // 76/56 ≈ 1.36 → use 1.4, then offset to center head.
+    scale: 1.4
+  } : {
+    imageUrl: BELLHOP_IDLE_STRIP,
+    frameCount: 1,
+    frameWidth: BELLHOP_IDLE_FRAME_W,
+    frameHeight: BELLHOP_IDLE_FRAME_H,
+    cycleMs: 0,
+    loop: false,
+    pixelated: true,
+    scale: 1.4
+  };
+  const portraitOffsetY = "-2px";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
       className: "absolute inset-0 z-[80] overflow-hidden",
       style: {
-        fontFamily: '"Source Sans 3", "Segoe UI", system-ui, sans-serif',
+        fontFamily: '"Determination Mono", "Courier New", monospace',
         backgroundColor: "#000"
       },
       children: [
@@ -96889,7 +96912,6 @@ const ShopOverlay = ({ open, onClose }) => {
                   letterSpacing: "0.3em",
                   color: "#FFD54F",
                   fontSize: "clamp(11px, 1.7vw, 14px)",
-                  fontFamily: '"Determination Mono", "Courier New", monospace',
                   textShadow: "0 0 10px rgba(255,213,79,0.5)",
                   textAlign: "center"
                 },
@@ -96932,17 +96954,18 @@ const ShopOverlay = ({ open, onClose }) => {
                 {
                   className: "w-full",
                   style: {
-                    background: "linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(8,4,2,0.95) 100%)",
-                    border: "4px solid #ffffff",
-                    borderRadius: 6,
-                    padding: "14px 18px",
-                    minHeight: 110,
-                    boxShadow: "0 0 0 2px #000, inset 0 0 0 2px rgba(255,213,79,0.18), 0 8px 24px rgba(0,0,0,0.5)",
+                    background: "#000",
+                    border: "5px solid #fff",
+                    borderRadius: 0,
+                    // Undertale uses sharp corners
+                    padding: "12px 16px",
+                    minHeight: 120,
+                    boxShadow: "inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.15), 0 8px 24px rgba(0,0,0,0.6)",
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
                     opacity: phase === "idle" ? 1 : 0,
                     transition: "transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms, opacity 450ms ease-out 320ms",
                     display: "flex",
-                    gap: 14
+                    gap: 12
                   },
                   children: [
                     /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -96951,42 +96974,24 @@ const ShopOverlay = ({ open, onClose }) => {
                         "aria-hidden": true,
                         style: {
                           flexShrink: 0,
-                          width: "clamp(56px, 9vw, 76px)",
-                          aspectRatio: "1 / 1",
-                          border: "2px solid #C99B36",
-                          borderRadius: 4,
-                          background: "linear-gradient(180deg, #2a1a14 0%, #1a0a08 100%)",
-                          boxShadow: "inset 0 0 6px rgba(0,0,0,0.6)",
+                          width: "clamp(60px, 10vw, 80px)",
+                          height: "clamp(60px, 10vw, 80px)",
+                          border: "3px solid #fff",
+                          borderRadius: 0,
+                          background: "#000",
                           overflow: "hidden",
                           position: "relative"
                         },
                         children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                           SpriteAnimator,
                           {
-                            config: isTyping ? {
-                              imageUrl: BELLHOP_TALK_STRIP,
-                              frameCount: BELLHOP_TALK_FRAMES,
-                              frameWidth: BELLHOP_TALK_FRAME_W,
-                              frameHeight: BELLHOP_TALK_FRAME_H,
-                              cycleMs: 240,
-                              loop: true,
-                              pixelated: true,
-                              scale: 2
-                            } : {
-                              imageUrl: BELLHOP_IDLE_STRIP,
-                              frameCount: 1,
-                              frameWidth: BELLHOP_IDLE_FRAME_W,
-                              frameHeight: BELLHOP_IDLE_FRAME_H,
-                              cycleMs: 0,
-                              loop: false,
-                              pixelated: true,
-                              scale: 2
-                            },
+                            config: portraitConfig,
                             style: {
                               position: "absolute",
-                              top: 0,
-                              left: 0,
-                              transform: "translateY(-8%)"
+                              top: portraitOffsetY,
+                              left: "50%",
+                              transform: "translateX(-50%)",
+                              imageRendering: "pixelated"
                             }
                           },
                           isTyping ? "talk" : "idle"
@@ -96997,40 +97002,76 @@ const ShopOverlay = ({ open, onClose }) => {
                       /* @__PURE__ */ jsxRuntimeExports.jsxs(
                         "p",
                         {
-                          className: "text-white",
                           style: {
-                            fontFamily: '"Determination Mono", "Courier New", monospace',
-                            fontSize: "clamp(15px, 2.1vw, 19px)",
-                            lineHeight: 1.45,
+                            color: "#fff",
+                            fontSize: "clamp(14px, 2vw, 18px)",
+                            lineHeight: 1.5,
                             minHeight: "3.0em",
                             whiteSpace: "pre-wrap",
-                            margin: 0
+                            margin: 0,
+                            letterSpacing: "0.03em"
                           },
                           children: [
                             typed,
-                            isTyping && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "typewriter-cursor", children: "▍" })
+                            isTyping && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "shop-cursor", children: "▎" })
                           ]
                         }
                       ),
-                      !isTyping && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 flex flex-wrap gap-x-4 gap-y-1", children: [
+                      !isTyping && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 flex flex-col gap-1", children: [
                         menu === "main" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                          /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Conversar", onClick: (e2) => {
-                            e2.stopPropagation();
-                            setMenu("talk");
-                          } }),
-                          /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Sair", onClick: (e2) => {
-                            e2.stopPropagation();
-                            setMenu("bye");
-                          } })
+                          /* @__PURE__ */ jsxRuntimeExports.jsx(
+                            UndertaleButton,
+                            {
+                              label: "Conversar",
+                              index: 0,
+                              hovered: hoveredBtn === 0,
+                              onHover: setHoveredBtn,
+                              onClick: (e2) => {
+                                e2.stopPropagation();
+                                setMenu("talk");
+                              }
+                            }
+                          ),
+                          /* @__PURE__ */ jsxRuntimeExports.jsx(
+                            UndertaleButton,
+                            {
+                              label: "Sair",
+                              index: 1,
+                              hovered: hoveredBtn === 1,
+                              onHover: setHoveredBtn,
+                              onClick: (e2) => {
+                                e2.stopPropagation();
+                                setMenu("bye");
+                              }
+                            }
+                          )
                         ] }),
-                        menu === "talk" && /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Voltar", onClick: (e2) => {
-                          e2.stopPropagation();
-                          setMenu("main");
-                        } }),
-                        menu === "bye" && /* @__PURE__ */ jsxRuntimeExports.jsx(ShopButton, { label: "Tchau", onClick: (e2) => {
-                          e2.stopPropagation();
-                          close();
-                        } })
+                        menu === "talk" && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                          UndertaleButton,
+                          {
+                            label: "Voltar",
+                            index: 0,
+                            hovered: hoveredBtn === 0,
+                            onHover: setHoveredBtn,
+                            onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("main");
+                            }
+                          }
+                        ),
+                        menu === "bye" && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                          UndertaleButton,
+                          {
+                            label: "Tchau",
+                            index: 0,
+                            hovered: hoveredBtn === 0,
+                            onHover: setHoveredBtn,
+                            onClick: (e2) => {
+                              e2.stopPropagation();
+                              close();
+                            }
+                          }
+                        )
                       ] })
                     ] })
                   ]
@@ -97039,9 +97080,9 @@ const ShopOverlay = ({ open, onClose }) => {
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "p",
                 {
-                  className: "text-white/55 text-[10px] sm:text-xs select-none mt-1",
+                  className: "text-white/40 text-[10px] sm:text-xs select-none mt-1",
                   style: { letterSpacing: "0.08em" },
-                  children: "[ESC] FECHAR  ·  [CLICK] AVANÇAR"
+                  children: "[ ESC ] FECHAR  ·  [ CLICK ] AVANÇAR"
                 }
               )
             ] })
@@ -97055,7 +97096,6 @@ const ShopOverlay = ({ open, onClose }) => {
             className: "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none",
             style: {
               color: "#FFD54F",
-              fontFamily: '"Determination Mono", monospace',
               fontSize: "clamp(28px, 5vw, 44px)",
               letterSpacing: "0.3em",
               textShadow: "0 0 16px rgba(255,213,79,0.9), 0 0 32px rgba(255,193,7,0.6)",
@@ -97070,14 +97110,6 @@ const ShopOverlay = ({ open, onClose }) => {
           0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
           40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
           100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
-        }
-        @keyframes bellhopClean {
-          from { background-position-x: 0%; }
-          to   { background-position-x: 100%; }
-        }
-        @keyframes bellhopTalk {
-          from { background-position-x: 0%; }
-          to   { background-position-x: 100%; }
         }
         @keyframes shopDoorInLeft {
           from { transform: translateX(-100%); }
@@ -97095,50 +97127,76 @@ const ShopOverlay = ({ open, onClose }) => {
           from { transform: translateX(100%); }
           to   { transform: translateX(0%); }
         }
-        @keyframes typewriterBlink {
-          0%, 60%   { opacity: 0.7; }
-          61%, 100% { opacity: 0; }
+        @keyframes undertaleBlink {
+          0%, 50%   { opacity: 1; }
+          51%, 100% { opacity: 0; }
         }
-        .typewriter-cursor {
+        .shop-cursor {
           display: inline-block;
-          margin-left: 2px;
-          color: #FFD54F;
-          animation: typewriterBlink 700ms steps(2) infinite;
+          margin-left: 1px;
+          color: #fff;
+          animation: undertaleBlink 600ms steps(1) infinite;
         }
-        .shop-button {
+        .undertale-btn {
           background: transparent;
           border: 0;
-          padding: 4px 10px;
+          padding: 2px 4px 2px 24px;
           color: #fff;
           font-family: "Determination Mono", "Courier New", monospace;
-          font-size: clamp(13px, 1.9vw, 17px);
-          letter-spacing: 0.05em;
+          font-size: clamp(14px, 2vw, 18px);
+          letter-spacing: 0.03em;
           cursor: pointer;
           position: relative;
-          transition: color 120ms ease;
+          text-align: left;
+          transition: color 80ms ease;
+          line-height: 1.5;
         }
-        .shop-button::before {
-          content: '*';
+        .undertale-btn::before {
+          content: '►';
+          position: absolute;
+          left: 4px;
           color: #FFD54F;
-          margin-right: 6px;
-          opacity: 0.4;
-          transition: opacity 120ms ease, transform 120ms ease;
-          display: inline-block;
+          opacity: 0;
+          transition: opacity 80ms ease;
         }
-        .shop-button:hover, .shop-button:focus-visible {
+        .undertale-btn:hover,
+        .undertale-btn:focus-visible {
           color: #FFD54F;
           outline: 0;
         }
-        .shop-button:hover::before, .shop-button:focus-visible::before {
-          content: '►';
+        .undertale-btn:hover::before,
+        .undertale-btn:focus-visible::before {
           opacity: 1;
-          transform: translateX(2px);
+        }
+        .undertale-btn::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 0;
+          background: rgba(255,213,79,0.08);
+          transition: height 80ms ease;
+        }
+        .undertale-btn:hover::after {
+          height: 100%;
         }
       ` })
       ]
     }
   );
 };
+const UndertaleButton = ({ label, index, onHover, onClick }) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+  "button",
+  {
+    type: "button",
+    className: "undertale-btn",
+    onMouseEnter: () => onHover(index),
+    onMouseLeave: () => onHover(-1),
+    onClick,
+    children: label
+  }
+);
 const ElevatorDoor = ({ side, state: state2 }) => {
   let tx = 0;
   let transition = "";
@@ -97184,7 +97242,6 @@ const ElevatorDoor = ({ side, state: state2 }) => {
     }
   );
 };
-const ShopButton = ({ label, onClick }) => /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "shop-button", onClick, children: label });
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
 const Avatar = ({ animation, visible = true }) => {
@@ -100701,7 +100758,7 @@ function App() {
   const { settings, update: updateSettings } = useSettings();
   const [settingsOpen, setSettingsOpen] = reactExports.useState(false);
   const [hasStarted, setHasStarted] = reactExports.useState(false);
-  const [audioCtx, setAudioCtx] = reactExports.useState(null);
+  const [audioCtx2, setAudioCtx] = reactExports.useState(null);
   const [muted, setMuted] = reactExports.useState(false);
   const [zoomLevel, setZoomLevel] = reactExports.useState(4);
   const prevPinchDist = reactExports.useRef(null);
@@ -100940,7 +100997,7 @@ function App() {
     setCanInteractNPC(false);
   };
   const handleStartGame = (mpEnabled, name2) => {
-    if (audioCtx) return;
+    if (audioCtx2) return;
     setMultiplayerEnabled(mpEnabled);
     if (name2) setPlayerName2(name2);
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -100999,7 +101056,7 @@ function App() {
         setTravelPhase("closing");
         lastHandledTimerRef.current = null;
         if (elevatorHumStopRef.current) elevatorHumStopRef.current();
-        elevatorHumStopRef.current = createElevatorHum(audioCtx);
+        elevatorHumStopRef.current = createElevatorHum(audioCtx2);
       } else {
         setDoorsClosed(false);
         setElevatorTimer(null);
@@ -101007,7 +101064,7 @@ function App() {
         setTravelPhase("arriving");
         setCameraShake(false);
         setArrivalPulse(true);
-        playArrivalDing(audioCtx);
+        playArrivalDing(audioCtx2);
         if (elevatorHumStopRef.current) {
           elevatorHumStopRef.current();
           elevatorHumStopRef.current = null;
@@ -101027,10 +101084,10 @@ function App() {
         elevatorHumStopRef.current();
         elevatorHumStopRef.current = null;
       }
-      if (audioCtx && audioCtx.state !== "closed") audioCtx.close().catch(() => {
+      if (audioCtx2 && audioCtx2.state !== "closed") audioCtx2.close().catch(() => {
       });
     };
-  }, [audioCtx]);
+  }, [audioCtx2]);
   const [joystickVisual, setJoystickVisual] = reactExports.useState({ active: false, originX: 0, originY: 0, currentX: 0, currentY: 0 });
   const [isDesktop, setIsDesktop] = reactExports.useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
   reactExports.useEffect(() => {
@@ -101241,7 +101298,7 @@ function App() {
     if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen) return;
     setZoomLevel((prev) => Math.min(Math.max(prev + e2.deltaY * 0.01, 0), 10));
   }, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx, muted, masterVolume: settings.masterVolume, nightMode, gameState, currentLevel, doorsClosed }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx2, muted, masterVolume: settings.masterVolume, nightMode, gameState, currentLevel, doorsClosed }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out", style: { opacity: overlayOpacity } }),
     cameraShake && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-20 pointer-events-none traveling-vignette" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(CanvasErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(

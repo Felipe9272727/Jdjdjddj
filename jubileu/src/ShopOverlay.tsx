@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   BELLHOP_CLEAN_STRIP,
   BELLHOP_CLEAN_FRAMES,
@@ -23,15 +23,10 @@ import { SpriteAnimator } from './SpriteEngine';
 //   'idle'      — shop interactive: dialog typewriter + menu buttons
 //   'exit-close'— doors close again on Esc/Tchau, then unmount
 //
-// Sprite logic:
-//   • CLEAN strip animates only during the entrance reveal — bellhop is
-//     wiping the counter when the elevator opens (he hasn't noticed the
-//     player yet). 4 frames cycling.
-//   • IDLE strip — frame 0 static (mouth CLOSED). Shown when in 'idle' phase
-//     and the dialog is NOT typing. Bellhop is calmly waiting for input.
-//   • TALK strip animates only while text is being typed. Mouth-open frames
-//     cycle to read as active speech.
-// All assets are inlined as base64 (see bellhop-sprites.ts).
+// Sprite logic (Canvas-based — no more CSS steps() carousel bug):
+//   • CLEAN strip animates during the entrance reveal (bellhop wiping counter)
+//   • IDLE strip — frame 0 static (mouth CLOSED) when not typing
+//   • TALK strip animates while text is being typed (mouth-open frames)
 
 type ShopMenu = 'main' | 'talk' | 'bye';
 type Phase = 'closing' | 'arrived' | 'opening' | 'idle' | 'exit-close';
@@ -42,9 +37,9 @@ interface ShopOverlayProps {
 }
 
 const DIALOGUES: Record<ShopMenu, string> = {
-  main: 'Bem-vindo ao The Normal Hotel.\nPosso te ajudar?',
-  talk: 'Tenha uma ótima estadia... e fique calmo se ouvir alguma coisa estranha vindo do andar de cima.',
-  bye: 'Volte sempre! O elevador está\nsempre aberto.',
+  main: '* Bem-vindo ao The Normal Hotel.\n* Posso te ajudar?',
+  talk: '* Tenha uma ótima estadia...\n* E fique calmo se ouvir alguma\n  coisa estranha vindo do andar\n  de cima.',
+  bye: '* Volte sempre!\n* O elevador está sempre aberto.',
 };
 
 const TIMINGS = {
@@ -54,19 +49,37 @@ const TIMINGS = {
   exitClose: 600,
 };
 
-// Display target — the bellhop renders at this height in CSS pixels. Width
-// is derived from the active strip's aspect ratio. Using a fixed height
-// (responsive via clamp) keeps the sprite from overflowing the layout box
-// the way `transform: scale(...)` does.
+// Bellhop renders at this height. Width derived from aspect ratio.
 const SPRITE_H = 'clamp(160px, 28vh, 220px)';
+
+// ── Typewriter beep (Undertale-style) ─────────────────────────────────────
+// Short procedural beep generated via Web Audio API on every Nth character.
+let audioCtx: AudioContext | null = null;
+function playBeep() {
+  try {
+    if (!audioCtx) audioCtx = new AudioContext();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'square';
+    osc.frequency.value = 600;
+    gain.gain.value = 0.03;
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.04);
+  } catch { /* silent fail */ }
+}
 
 export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const [menu, setMenu] = useState<ShopMenu>('main');
   const [typed, setTyped] = useState('');
   const [phase, setPhase] = useState<Phase>('closing');
+  const [hoveredBtn, setHoveredBtn] = useState<number>(-1);
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
+  const charCountRef = useRef(0);
 
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
@@ -80,6 +93,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     setMenu('main');
     setTyped('');
     setPhase('closing');
+    setHoveredBtn(-1);
 
     const t1 = window.setTimeout(() => {
       if (!mountedRef.current) return;
@@ -100,15 +114,19 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     return () => { clearPhaseTimers(); mountedRef.current = false; };
   }, [open]);
 
-  // Typewriter — paints the active dialog one chunk at a time
+  // Typewriter with beep — paints dialog one chunk at a time
   useEffect(() => {
     if (!open || phase !== 'idle') return;
     setTyped('');
+    charCountRef.current = 0;
     const text = DIALOGUES[menu];
     let i = 0;
     const tick = () => {
       if (!mountedRef.current) return;
       i += 2;
+      charCountRef.current += 2;
+      // Beep every 3 characters (Undertale-style)
+      if (charCountRef.current % 3 === 0) playBeep();
       setTyped(text.slice(0, i));
       if (i < text.length) typingRef.current = window.setTimeout(tick, 30);
       else typingRef.current = null;
@@ -122,13 +140,13 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     };
   }, [open, menu, phase]);
 
-  const close = () => {
+  const close = useCallback(() => {
     if (phase === 'exit-close') return;
     clearPhaseTimers();
     setPhase('exit-close');
     const t = window.setTimeout(() => onClose(), TIMINGS.exitClose);
     phaseTimersRef.current.push(t);
-  };
+  }, [phase, onClose]);
 
   if (!open) return null;
 
@@ -156,14 +174,11 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const contentOpacity = phase === 'opening' ? 0.85 : phase === 'idle' ? 1 : 0;
 
   // ── Sprite mode selection (Canvas-based) ────────────────────────────
-  // CLEAN during the reveal; TALK while typing; IDLE (mouth closed,
-  // static) the rest of the time in idle phase.
   type SpriteMode = 'clean' | 'idle-static' | 'talk';
   const spriteMode: SpriteMode =
     phase === 'idle' ? (isTyping ? 'talk' : 'idle-static') :
     'clean';
 
-  // Canvas sprite configs — replaces CSS background-position animation
   const spriteConfigs = {
     clean: {
       imageUrl: BELLHOP_CLEAN_STRIP,
@@ -196,15 +211,51 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
 
   const activeSpriteConfig = spriteConfigs[spriteMode];
 
+  // ── Portrait config — crops to head area ──────────────────────────────
+  // The sprite strips are full-body (100×140 or 130×180).
+  // For the portrait we only want the head (top ~40% of the frame).
+  // We use a scale that makes the head fill the portrait box, then
+  // offset vertically so the head is centered.
+  const portraitConfig = isTyping
+    ? {
+        imageUrl: BELLHOP_TALK_STRIP,
+        frameCount: BELLHOP_TALK_FRAMES,
+        frameWidth: BELLHOP_TALK_FRAME_W,
+        frameHeight: BELLHOP_TALK_FRAME_H,
+        cycleMs: 240,
+        loop: true,
+        pixelated: true,
+        // Scale so head fills ~76px: head is ~40% of 140px = 56px.
+        // 76/56 ≈ 1.36 → use 1.4, then offset to center head.
+        scale: 1.4,
+      }
+    : {
+        imageUrl: BELLHOP_IDLE_STRIP,
+        frameCount: 1,
+        frameWidth: BELLHOP_IDLE_FRAME_W,
+        frameHeight: BELLHOP_IDLE_FRAME_H,
+        cycleMs: 0,
+        loop: false,
+        pixelated: true,
+        scale: 1.4,
+      };
+
+  // Portrait crop offset: at scale 1.4, sprite is 140×196px.
+  // Head area is roughly y=0 to y=56 (40% of 140).
+  // At 1.4x that's y=0 to y=78.
+  // Container is ~76px. We want the head centered:
+  // offset = (76 - 78) / 2 ≈ -1px. Slight negative to keep hat visible.
+  const portraitOffsetY = '-2px';
+
   return (
     <div
       className="absolute inset-0 z-[80] overflow-hidden"
       style={{
-        fontFamily: '"Source Sans 3", "Segoe UI", system-ui, sans-serif',
+        fontFamily: '"Determination Mono", "Courier New", monospace',
         backgroundColor: '#000',
       }}
     >
-      {/* Hotel lobby backdrop — pixel-art, sits behind everything */}
+      {/* Hotel lobby backdrop */}
       <div
         className="absolute inset-0"
         style={{
@@ -218,7 +269,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           pointerEvents: 'none',
         }}
       />
-      {/* Vignette + warm glow */}
+      {/* Vignette */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -229,7 +280,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         }}
       />
 
-      {/* Title bar — shows above the bellhop */}
+      {/* Title bar */}
       <div
         className="absolute left-1/2 -translate-x-1/2 select-none pointer-events-none"
         style={{
@@ -251,7 +302,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
             letterSpacing: '0.3em',
             color: '#FFD54F',
             fontSize: 'clamp(11px, 1.7vw, 14px)',
-            fontFamily: '"Determination Mono", "Courier New", monospace',
             textShadow: '0 0 10px rgba(255,213,79,0.5)',
             textAlign: 'center',
           }}
@@ -260,7 +310,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         </div>
       </div>
 
-      {/* Shop content (sprite + dialog) — z-index 3, above doors (2) */}
+      {/* Shop content (sprite + dialog) */}
       <div
         className="absolute inset-0 flex flex-col items-center justify-end overflow-hidden"
         style={{
@@ -274,7 +324,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — Canvas-based sprite renderer (fixes carousel bug) */}
+            {/* Animated bellhop — Canvas-based sprite renderer */}
             <SpriteAnimator
               key={spriteMode}
               config={activeSpriteConfig}
@@ -289,100 +339,106 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
               }}
             />
 
-            {/* Dialog box — Undertale style: thick white border, gold inner
-                accent, portrait on the left */}
+            {/* ── Dialog box — Undertale style ────────────────────────── */}
+            {/* Thick white border, black interior, portrait left, text right */}
             <div
               className="w-full"
               style={{
-                background: 'linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(8,4,2,0.95) 100%)',
-                border: '4px solid #ffffff',
-                borderRadius: 6,
-                padding: '14px 18px',
-                minHeight: 110,
+                background: '#000',
+                border: '5px solid #fff',
+                borderRadius: 0, // Undertale uses sharp corners
+                padding: '12px 16px',
+                minHeight: 120,
                 boxShadow:
-                  '0 0 0 2px #000, inset 0 0 0 2px rgba(255,213,79,0.18), 0 8px 24px rgba(0,0,0,0.5)',
+                  'inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.15), 0 8px 24px rgba(0,0,0,0.6)',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: phase === 'idle' ? 1 : 0,
                 transition: 'transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms, opacity 450ms ease-out 320ms',
                 display: 'flex',
-                gap: 14,
+                gap: 12,
               }}
             >
-              {/* Portrait — Canvas-based sprite (fixes carousel bug) */}
+              {/* ── Portrait frame — crops to head area ───────────────── */}
               <div
                 aria-hidden
                 style={{
                   flexShrink: 0,
-                  width: 'clamp(56px, 9vw, 76px)',
-                  aspectRatio: '1 / 1',
-                  border: '2px solid #C99B36',
-                  borderRadius: 4,
-                  background: 'linear-gradient(180deg, #2a1a14 0%, #1a0a08 100%)',
-                  boxShadow: 'inset 0 0 6px rgba(0,0,0,0.6)',
+                  width: 'clamp(60px, 10vw, 80px)',
+                  height: 'clamp(60px, 10vw, 80px)',
+                  border: '3px solid #fff',
+                  borderRadius: 0,
+                  background: '#000',
                   overflow: 'hidden',
                   position: 'relative',
                 }}
               >
                 <SpriteAnimator
                   key={isTyping ? 'talk' : 'idle'}
-                  config={isTyping ? {
-                    imageUrl: BELLHOP_TALK_STRIP,
-                    frameCount: BELLHOP_TALK_FRAMES,
-                    frameWidth: BELLHOP_TALK_FRAME_W,
-                    frameHeight: BELLHOP_TALK_FRAME_H,
-                    cycleMs: 240,
-                    loop: true,
-                    pixelated: true,
-                    scale: 2,
-                  } : {
-                    imageUrl: BELLHOP_IDLE_STRIP,
-                    frameCount: 1,
-                    frameWidth: BELLHOP_IDLE_FRAME_W,
-                    frameHeight: BELLHOP_IDLE_FRAME_H,
-                    cycleMs: 0,
-                    loop: false,
-                    pixelated: true,
-                    scale: 2,
-                  }}
+                  config={portraitConfig}
                   style={{
                     position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    transform: 'translateY(-8%)',
+                    top: portraitOffsetY,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    imageRendering: 'pixelated',
                   }}
                 />
               </div>
 
-              {/* Dialog text + menu */}
+              {/* ── Dialog text + menu ───────────────────────────────── */}
               <div className="flex-1 min-w-0">
                 <p
-                  className="text-white"
                   style={{
-                    fontFamily: '"Determination Mono", "Courier New", monospace',
-                    fontSize: 'clamp(15px, 2.1vw, 19px)',
-                    lineHeight: 1.45,
+                    color: '#fff',
+                    fontSize: 'clamp(14px, 2vw, 18px)',
+                    lineHeight: 1.5,
                     minHeight: '3.0em',
                     whiteSpace: 'pre-wrap',
                     margin: 0,
+                    letterSpacing: '0.03em',
                   }}
                 >
                   {typed}
-                  {isTyping && <span className="typewriter-cursor">▍</span>}
+                  {isTyping && <span className="shop-cursor">▎</span>}
                 </p>
 
                 {!isTyping && (
-                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                  <div className="mt-3 flex flex-col gap-1">
                     {menu === 'main' && (
                       <>
-                        <ShopButton label="Conversar" onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
-                        <ShopButton label="Sair" onClick={(e) => { e.stopPropagation(); setMenu('bye'); }} />
+                        <UndertaleButton
+                          label="Conversar"
+                          index={0}
+                          hovered={hoveredBtn === 0}
+                          onHover={setHoveredBtn}
+                          onClick={(e) => { e.stopPropagation(); setMenu('talk'); }}
+                        />
+                        <UndertaleButton
+                          label="Sair"
+                          index={1}
+                          hovered={hoveredBtn === 1}
+                          onHover={setHoveredBtn}
+                          onClick={(e) => { e.stopPropagation(); setMenu('bye'); }}
+                        />
                       </>
                     )}
                     {menu === 'talk' && (
-                      <ShopButton label="Voltar" onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
+                      <UndertaleButton
+                        label="Voltar"
+                        index={0}
+                        hovered={hoveredBtn === 0}
+                        onHover={setHoveredBtn}
+                        onClick={(e) => { e.stopPropagation(); setMenu('main'); }}
+                      />
                     )}
                     {menu === 'bye' && (
-                      <ShopButton label="Tchau" onClick={(e) => { e.stopPropagation(); close(); }} />
+                      <UndertaleButton
+                        label="Tchau"
+                        index={0}
+                        hovered={hoveredBtn === 0}
+                        onHover={setHoveredBtn}
+                        onClick={(e) => { e.stopPropagation(); close(); }}
+                      />
                     )}
                   </div>
                 )}
@@ -390,26 +446,25 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
             </div>
 
             <p
-              className="text-white/55 text-[10px] sm:text-xs select-none mt-1"
+              className="text-white/40 text-[10px] sm:text-xs select-none mt-1"
               style={{ letterSpacing: '0.08em' }}
             >
-              [ESC] FECHAR &nbsp;·&nbsp; [CLICK] AVAN&Ccedil;AR
+              [ ESC ] FECHAR &nbsp;·&nbsp; [ CLICK ] AVANÇAR
             </p>
           </div>
         )}
       </div>
 
-      {/* Elevator doors — slide in/out */}
+      {/* Elevator doors */}
       <ElevatorDoor side="left" state={doorsState} />
       <ElevatorDoor side="right" state={doorsState} />
 
-      {/* DING flash during arrived */}
+      {/* DING flash */}
       {phase === 'arrived' && (
         <div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
           style={{
             color: '#FFD54F',
-            fontFamily: '"Determination Mono", monospace',
             fontSize: 'clamp(28px, 5vw, 44px)',
             letterSpacing: '0.3em',
             textShadow: '0 0 16px rgba(255,213,79,0.9), 0 0 32px rgba(255,193,7,0.6)',
@@ -427,14 +482,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
           100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
         }
-        @keyframes bellhopClean {
-          from { background-position-x: 0%; }
-          to   { background-position-x: 100%; }
-        }
-        @keyframes bellhopTalk {
-          from { background-position-x: 0%; }
-          to   { background-position-x: 100%; }
-        }
         @keyframes shopDoorInLeft {
           from { transform: translateX(-100%); }
           to   { transform: translateX(0%); }
@@ -451,49 +498,84 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           from { transform: translateX(100%); }
           to   { transform: translateX(0%); }
         }
-        @keyframes typewriterBlink {
-          0%, 60%   { opacity: 0.7; }
-          61%, 100% { opacity: 0; }
+        @keyframes undertaleBlink {
+          0%, 50%   { opacity: 1; }
+          51%, 100% { opacity: 0; }
         }
-        .typewriter-cursor {
+        .shop-cursor {
           display: inline-block;
-          margin-left: 2px;
-          color: #FFD54F;
-          animation: typewriterBlink 700ms steps(2) infinite;
+          margin-left: 1px;
+          color: #fff;
+          animation: undertaleBlink 600ms steps(1) infinite;
         }
-        .shop-button {
+        .undertale-btn {
           background: transparent;
           border: 0;
-          padding: 4px 10px;
+          padding: 2px 4px 2px 24px;
           color: #fff;
           font-family: "Determination Mono", "Courier New", monospace;
-          font-size: clamp(13px, 1.9vw, 17px);
-          letter-spacing: 0.05em;
+          font-size: clamp(14px, 2vw, 18px);
+          letter-spacing: 0.03em;
           cursor: pointer;
           position: relative;
-          transition: color 120ms ease;
+          text-align: left;
+          transition: color 80ms ease;
+          line-height: 1.5;
         }
-        .shop-button::before {
-          content: '*';
+        .undertale-btn::before {
+          content: '►';
+          position: absolute;
+          left: 4px;
           color: #FFD54F;
-          margin-right: 6px;
-          opacity: 0.4;
-          transition: opacity 120ms ease, transform 120ms ease;
-          display: inline-block;
+          opacity: 0;
+          transition: opacity 80ms ease;
         }
-        .shop-button:hover, .shop-button:focus-visible {
+        .undertale-btn:hover,
+        .undertale-btn:focus-visible {
           color: #FFD54F;
           outline: 0;
         }
-        .shop-button:hover::before, .shop-button:focus-visible::before {
-          content: '►';
+        .undertale-btn:hover::before,
+        .undertale-btn:focus-visible::before {
           opacity: 1;
-          transform: translateX(2px);
+        }
+        .undertale-btn::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 0;
+          background: rgba(255,213,79,0.08);
+          transition: height 80ms ease;
+        }
+        .undertale-btn:hover::after {
+          height: 100%;
         }
       `}</style>
     </div>
   );
 };
+
+// ─── Undertale-style button ───────────────────────────────────────────────
+// Yellow arrow (►) appears on hover, text turns yellow.
+const UndertaleButton: React.FC<{
+  label: string;
+  index: number;
+  hovered: boolean;
+  onHover: (i: number) => void;
+  onClick: (e: React.MouseEvent) => void;
+}> = ({ label, index, onHover, onClick }) => (
+  <button
+    type="button"
+    className="undertale-btn"
+    onMouseEnter={() => onHover(index)}
+    onMouseLeave={() => onHover(-1)}
+    onClick={onClick}
+  >
+    {label}
+  </button>
+);
 
 // ─── Elevator door panel ─────────────────────────────────────────────────
 type DoorState = 'sliding-in' | 'closed' | 'sliding-out' | 'open' | 'closing-exit';
@@ -518,7 +600,6 @@ const ElevatorDoor: React.FC<{ side: 'left' | 'right'; state: DoorState }> = ({ 
     animation = `${side === 'left' ? 'shopDoorCloseLeft' : 'shopDoorCloseRight'} ${TIMINGS.exitClose}ms cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards`;
   }
 
-  // Brushed steel + warm gold seam
   const doorBg = `
     repeating-linear-gradient(90deg,
       #2a2a2e 0px,
@@ -548,7 +629,3 @@ const ElevatorDoor: React.FC<{ side: 'left' | 'right'; state: DoorState }> = ({ 
     />
   );
 };
-
-const ShopButton: React.FC<{ label: string; onClick: (e: React.MouseEvent) => void }> = ({ label, onClick }) => (
-  <button type="button" className="shop-button" onClick={onClick}>{label}</button>
-);
