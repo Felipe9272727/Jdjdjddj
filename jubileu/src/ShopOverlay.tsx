@@ -364,9 +364,10 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                   key={isTyping ? 'talk' : 'idle'}
                   config={portraitConfig}
                   style={{
-                    display: 'block',
-                    width: '100%',
-                    height: '100%',
+                    position: 'absolute',
+                    top: 0,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
                     imageRendering: 'pixelated',
                   }}
                 />

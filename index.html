@@ -97002,9 +97002,10 @@ const ShopOverlay = ({ open, onClose }) => {
                           {
                             config: portraitConfig,
                             style: {
-                              display: "block",
-                              width: "100%",
-                              height: "100%",
+                              position: "absolute",
+                              top: 0,
+                              left: "50%",
+                              transform: "translateX(-50%)",
                               imageRendering: "pixelated"
                             }
                           },
