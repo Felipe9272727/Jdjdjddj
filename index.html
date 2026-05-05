@@ -781,6 +781,40 @@
     z-index: 100;
   }
 
+  .container {
+    width: 100%;
+  }
+
+  @media (min-width: 40rem) {
+    .container {
+      max-width: 40rem;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .container {
+      max-width: 48rem;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .container {
+      max-width: 64rem;
+    }
+  }
+
+  @media (min-width: 80rem) {
+    .container {
+      max-width: 80rem;
+    }
+  }
+
+  @media (min-width: 96rem) {
+    .container {
+      max-width: 96rem;
+    }
+  }
+
   .m-0 {
     margin: calc(var(--spacing) * 0);
   }
@@ -96839,9 +96873,7 @@ const ShopOverlay = ({ open, onClose }) => {
     cycleMs: 240,
     loop: true,
     pixelated: true,
-    // Scale so head fills ~76px: head is ~40% of 140px = 56px.
-    // 76/56 ≈ 1.36 → use 1.4, then offset to center head.
-    scale: 1.4
+    scale: 1.8
   } : {
     imageUrl: BELLHOP_IDLE_STRIP,
     frameCount: 1,
@@ -96850,9 +96882,9 @@ const ShopOverlay = ({ open, onClose }) => {
     cycleMs: 0,
     loop: false,
     pixelated: true,
-    scale: 1.4
+    scale: 1.8
   };
-  const portraitOffsetY = "-2px";
+  const portraitOffsetY = "-138px";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
@@ -96974,8 +97006,8 @@ const ShopOverlay = ({ open, onClose }) => {
                         "aria-hidden": true,
                         style: {
                           flexShrink: 0,
-                          width: "clamp(60px, 10vw, 80px)",
-                          height: "clamp(60px, 10vw, 80px)",
+                          width: "clamp(80px, 14vw, 110px)",
+                          height: "clamp(80px, 14vw, 110px)",
                           border: "3px solid #fff",
                           borderRadius: 0,
                           background: "#000",
