@@ -899,10 +899,6 @@
     display: flex;
   }
 
-  .grid {
-    display: grid;
-  }
-
   .hidden {
     display: none;
   }
@@ -96730,7 +96726,7 @@ const TIMINGS = {
   opening: 700,
   exitClose: 600
 };
-const SPRITE_H = "clamp(160px, 28vh, 220px)";
+const BELLHOP_CROP_RATIO = 0.55;
 let audioCtx = null;
 function playBeep() {
   try {
@@ -96978,22 +96974,38 @@ const ShopOverlay = ({ open, onClose }) => {
             onClick: skipOrAdvance,
             children: showContent && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center gap-3 px-4 max-w-2xl w-full", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
-                SpriteAnimator,
+                "div",
                 {
-                  config: activeSpriteConfig,
                   style: {
-                    height: isLandscape ? "clamp(180px, 45vh, 300px)" : SPRITE_H,
-                    aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
+                    height: isLandscape ? "clamp(99px, 24.75vh, 165px)" : "clamp(88px, 15.4vh, 121px)",
+                    // 55% of clamp(160,28vh,220)
+                    aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight * BELLHOP_CROP_RATIO}`,
+                    position: "relative",
+                    overflow: "hidden",
                     filter: "drop-shadow(0 10px 18px rgba(0,0,0,0.65))",
-                    transform: phase === "idle" ? "translateY(-250px)" : "translateY(-230px)",
                     opacity: showContent ? 1 : 0,
+                    transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
                     transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms",
                     marginBottom: isLandscape ? 0 : 14,
                     pointerEvents: "none",
                     zIndex: 1
-                  }
-                },
-                spriteMode
+                  },
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    SpriteAnimator,
+                    {
+                      config: activeSpriteConfig,
+                      style: {
+                        height: `calc(100% / ${BELLHOP_CROP_RATIO})`,
+                        aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
+                        position: "absolute",
+                        top: 0,
+                        left: "50%",
+                        transform: "translateX(-50%)"
+                      }
+                    },
+                    spriteMode
+                  )
+                }
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsxs(
                 "div",

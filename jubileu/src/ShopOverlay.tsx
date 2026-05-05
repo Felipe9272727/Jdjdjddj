@@ -51,6 +51,11 @@ const TIMINGS = {
 
 // Bellhop renders at this height. Width derived from aspect ratio.
 const SPRITE_H = 'clamp(160px, 28vh, 220px)';
+// Show only the top portion of the bellhop sprite (head + torso). The
+// dialog box visually covers where the lower body would be, so we clip
+// the sprite at ~55% of its native height via an `overflow: hidden`
+// wrapper. The sprite still renders at full height inside, just clipped.
+const BELLHOP_CROP_RATIO = 0.55;
 
 // ── Typewriter beep (Undertale-style) ─────────────────────────────────────
 // Short procedural beep generated via Web Audio API on every Nth character.
@@ -331,22 +336,42 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — Canvas-based sprite renderer */}
-            <SpriteAnimator
-              key={spriteMode}
-              config={activeSpriteConfig}
+            {/* Animated bellhop — wrapped so only the top portion (head +
+                torso) is visible. The dialog box covers the lower body
+                area visually, so we clip the sprite to ~55% of its full
+                height. The wrapper holds the visible bounds; the sprite
+                renders at its full original height inside, extending below
+                the wrapper and getting clipped by overflow:hidden. */}
+            <div
               style={{
-                height: isLandscape ? 'clamp(180px, 45vh, 300px)' : SPRITE_H,
-                aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
+                height: isLandscape
+                  ? 'clamp(99px, 24.75vh, 165px)'      // 55% of clamp(180,45vh,300)
+                  : 'clamp(88px, 15.4vh, 121px)',      // 55% of clamp(160,28vh,220)
+                aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight * BELLHOP_CROP_RATIO}`,
+                position: 'relative',
+                overflow: 'hidden',
                 filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
-                transform: phase === 'idle' ? 'translateY(-250px)' : 'translateY(-230px)',
                 opacity: showContent ? 1 : 0,
+                transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
                 marginBottom: isLandscape ? 0 : 14,
                 pointerEvents: 'none',
                 zIndex: 1,
               }}
-            />
+            >
+              <SpriteAnimator
+                key={spriteMode}
+                config={activeSpriteConfig}
+                style={{
+                  height: `calc(100% / ${BELLHOP_CROP_RATIO})`,
+                  aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
+                  position: 'absolute',
+                  top: 0,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                }}
+              />
+            </div>
 
             {/* ── Dialog box — Undertale style ────────────────────────── */}
             {/* Thick white border, black interior, portrait left, text right */}
