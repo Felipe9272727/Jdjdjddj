@@ -49,13 +49,9 @@ const TIMINGS = {
   exitClose: 600,
 };
 
-// Bellhop renders at this height. Width derived from aspect ratio.
-const SPRITE_H = 'clamp(160px, 28vh, 220px)';
-// Show only the upper portion of the bellhop sprite (head down to about
-// mid-shin). The dialog box visually covers where the feet would be, so
-// we clip the sprite at ~85% of its native height via an `overflow:
-// hidden` wrapper. The sprite still renders at full height inside.
-const BELLHOP_CROP_RATIO = 0.70;
+// Bellhop sprite display height — set inline at the SpriteAnimator (varies
+// between landscape and portrait). The dialog box uses a negative marginTop
+// to overlap the sprite's lower half, Undertale-shop-style.
 
 // ── Typewriter beep (Undertale-style) ─────────────────────────────────────
 // Short procedural beep generated via Web Audio API on every Nth character.
@@ -226,39 +222,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
 
   const activeSpriteConfig = spriteConfigs[spriteMode];
 
-  // ── Portrait config — crops to head+torso ─────────────────────────────
-  // Sprite strips: 100×140 (idle/talk), 130×180 (clean).
-  // We want mid-torso to head visible. Character head+torso ≈ top 55% of frame.
-  // Scale 1.8x → canvas 180×252. Container ~80px.
-  // Crop at ~55% from top = y≈77px (in source), y≈139px (at 1.8x).
-  // Offset: push canvas UP so mid-torso aligns with container top.
-  const portraitConfig = isTyping
-    ? {
-        imageUrl: BELLHOP_TALK_STRIP,
-        frameCount: BELLHOP_TALK_FRAMES,
-        frameWidth: BELLHOP_TALK_FRAME_W,
-        frameHeight: BELLHOP_TALK_FRAME_H,
-        cycleMs: 240,
-        loop: true,
-        pixelated: true,
-        scale: 1.8,
-      }
-    : {
-        imageUrl: BELLHOP_IDLE_STRIP,
-        frameCount: 1,
-        frameWidth: BELLHOP_IDLE_FRAME_W,
-        frameHeight: BELLHOP_IDLE_FRAME_H,
-        cycleMs: 0,
-        loop: false,
-        pixelated: true,
-        scale: 1.8,
-      };
-
-  // At scale 1.8: canvas is 180×252px from 100×140 source.
-  // Shoulders ≈ 40% of 140 = 56px source → 100px at 1.8x.
-  // We want shoulders at y=0 of container, so offset = -100px.
-  const portraitOffsetY = '-12px';
-
   return (
     <div
       className="absolute inset-0 z-[80] overflow-hidden"
@@ -335,93 +298,60 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         onClick={skipOrAdvance}
       >
         {showContent && (
-          <div className="flex flex-col items-center gap-3 px-4 max-w-2xl w-full">
-            {/* Animated bellhop — wrapped so only the top portion (head +
-                torso) is visible. The dialog box covers the lower body
-                area visually, so we clip the sprite to ~55% of its full
-                height. The wrapper holds the visible bounds; the sprite
-                renders at its full original height inside, extending below
-                the wrapper and getting clipped by overflow:hidden. */}
-            <div
+          <div className="flex flex-col items-center px-4 max-w-2xl w-full">
+            {/* ── Bellhop sprite (big, full body) ───────────────────────
+                Rendered at large Undertale-shop scale. Counter is part
+                of the CLEAN strip so the lower edge already reads as
+                "behind a counter". The dialog box below uses a negative
+                marginTop to pull up over the lower half of the sprite,
+                creating the layered "onion" shop look — sprite extends
+                BEHIND the dialog box (z-index 1 vs 2), not cropped. */}
+            <SpriteAnimator
+              key={spriteMode}
+              config={activeSpriteConfig}
               style={{
                 height: isLandscape
-                  ? 'clamp(126px, 31.5vh, 210px)'      // 70% of clamp(180,45vh,300)
-                  : 'clamp(112px, 19.6vh, 154px)',     // 70% of clamp(160,28vh,220)
-                aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight * BELLHOP_CROP_RATIO}`,
-                position: 'relative',
-                overflow: 'hidden',
-                filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
+                  ? 'clamp(240px, 60vh, 380px)'
+                  : 'clamp(280px, 50vh, 420px)',
+                aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
+                filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.75))',
                 opacity: showContent ? 1 : 0,
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
-                marginBottom: isLandscape ? 0 : 14,
                 pointerEvents: 'none',
+                position: 'relative',
                 zIndex: 1,
               }}
-            >
-              <SpriteAnimator
-                key={spriteMode}
-                config={activeSpriteConfig}
-                style={{
-                  height: `calc(100% / ${BELLHOP_CROP_RATIO})`,
-                  aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
-                  position: 'absolute',
-                  top: 0,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                }}
-              />
-            </div>
+            />
 
-            {/* ── Dialog box — Undertale style ────────────────────────── */}
-            {/* Thick white border, black interior, portrait left, text right */}
+            {/* ── Dialog box — Undertale shop style ──────────────────
+                Negative marginTop pulls the box up so it overlaps the
+                bottom ~45% of the sprite. z-index 2 puts it visually in
+                front; the sprite's legs/feet hide behind the box. */}
             <div
               className="w-full"
               style={{
                 background: '#000',
                 border: '5px solid #fff',
                 borderRadius: 0, // Undertale uses sharp corners
-                padding: '12px 16px',
-                minHeight: 140,
+                padding: '16px 22px',
+                minHeight: 130,
+                marginTop: isLandscape
+                  ? 'clamp(-180px, -28vh, -110px)'
+                  : 'clamp(-200px, -22vh, -130px)',
                 boxShadow:
-                  'inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.15), 0 8px 24px rgba(0,0,0,0.6)',
+                  'inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.18), 0 10px 28px rgba(0,0,0,0.65)',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: phase === 'idle' ? 1 : 0,
                 transition: 'transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms, opacity 450ms ease-out 320ms',
                 display: 'flex',
-                gap: 12,
+                gap: 18,
+                alignItems: 'flex-start',
                 position: 'relative',
                 zIndex: 2,
               }}
             >
-              {/* ── Portrait frame — crops to head+torso ─────────────── */}
-              <div
-                aria-hidden
-                style={{
-                  flexShrink: 0,
-                  width: 'clamp(90px, 15vw, 120px)',
-                  height: 'clamp(90px, 15vw, 120px)',
-                  border: '3px solid #fff',
-                  borderRadius: 0,
-                  background: '#000',
-                  overflow: 'hidden',
-                  position: 'relative',
-                }}
-              >
-                <SpriteAnimator
-                  key={isTyping ? 'talk' : 'idle'}
-                  config={portraitConfig}
-                  style={{
-                    position: 'absolute',
-                    top: portraitOffsetY,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    imageRendering: 'pixelated',
-                  }}
-                />
-              </div>
-
-              {/* ── Dialog text + menu ───────────────────────────────── */}
+              {/* ── Dialog text (left) ───────────────────────────────── */}
               <div className="flex-1 min-w-0">
                 <p
                   style={{
@@ -437,48 +367,52 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                   {typed}
                   {isTyping && <span className="shop-cursor">▎</span>}
                 </p>
-
-                {!isTyping && (
-                  <div className="mt-3 flex flex-col gap-1">
-                    {menu === 'main' && (
-                      <>
-                        <UndertaleButton
-                          label="Conversar"
-                          index={0}
-                          hovered={hoveredBtn === 0}
-                          onHover={setHoveredBtn}
-                          onClick={(e) => { e.stopPropagation(); setMenu('talk'); }}
-                        />
-                        <UndertaleButton
-                          label="Sair"
-                          index={1}
-                          hovered={hoveredBtn === 1}
-                          onHover={setHoveredBtn}
-                          onClick={(e) => { e.stopPropagation(); setMenu('bye'); }}
-                        />
-                      </>
-                    )}
-                    {menu === 'talk' && (
-                      <UndertaleButton
-                        label="Voltar"
-                        index={0}
-                        hovered={hoveredBtn === 0}
-                        onHover={setHoveredBtn}
-                        onClick={(e) => { e.stopPropagation(); setMenu('main'); }}
-                      />
-                    )}
-                    {menu === 'bye' && (
-                      <UndertaleButton
-                        label="Tchau"
-                        index={0}
-                        hovered={hoveredBtn === 0}
-                        onHover={setHoveredBtn}
-                        onClick={(e) => { e.stopPropagation(); close(); }}
-                      />
-                    )}
-                  </div>
-                )}
               </div>
+
+              {/* ── Menu options (right, vertical list) ──────────────── */}
+              {!isTyping && (
+                <div
+                  className="flex-shrink-0 flex flex-col gap-1"
+                  style={{ minWidth: 'clamp(110px, 18vw, 150px)' }}
+                >
+                  {menu === 'main' && (
+                    <>
+                      <UndertaleButton
+                        label="Conversar"
+                        index={0}
+                        hovered={hoveredBtn === 0}
+                        onHover={setHoveredBtn}
+                        onClick={(e) => { e.stopPropagation(); setMenu('talk'); }}
+                      />
+                      <UndertaleButton
+                        label="Sair"
+                        index={1}
+                        hovered={hoveredBtn === 1}
+                        onHover={setHoveredBtn}
+                        onClick={(e) => { e.stopPropagation(); setMenu('bye'); }}
+                      />
+                    </>
+                  )}
+                  {menu === 'talk' && (
+                    <UndertaleButton
+                      label="Voltar"
+                      index={0}
+                      hovered={hoveredBtn === 0}
+                      onHover={setHoveredBtn}
+                      onClick={(e) => { e.stopPropagation(); setMenu('main'); }}
+                    />
+                  )}
+                  {menu === 'bye' && (
+                    <UndertaleButton
+                      label="Tchau"
+                      index={0}
+                      hovered={hoveredBtn === 0}
+                      onHover={setHoveredBtn}
+                      onClick={(e) => { e.stopPropagation(); close(); }}
+                    />
+                  )}
+                </div>
+              )}
             </div>
 
             <p

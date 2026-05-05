@@ -781,40 +781,6 @@
     z-index: 100;
   }
 
-  .container {
-    width: 100%;
-  }
-
-  @media (min-width: 40rem) {
-    .container {
-      max-width: 40rem;
-    }
-  }
-
-  @media (min-width: 48rem) {
-    .container {
-      max-width: 48rem;
-    }
-  }
-
-  @media (min-width: 64rem) {
-    .container {
-      max-width: 64rem;
-    }
-  }
-
-  @media (min-width: 80rem) {
-    .container {
-      max-width: 80rem;
-    }
-  }
-
-  @media (min-width: 96rem) {
-    .container {
-      max-width: 96rem;
-    }
-  }
-
   .m-0 {
     margin: calc(var(--spacing) * 0);
   }
@@ -96726,7 +96692,6 @@ const TIMINGS = {
   opening: 700,
   exitClose: 600
 };
-const BELLHOP_CROP_RATIO = 0.7;
 let audioCtx = null;
 function playBeep() {
   try {
@@ -96873,26 +96838,6 @@ const ShopOverlay = ({ open, onClose }) => {
     }
   };
   const activeSpriteConfig = spriteConfigs[spriteMode];
-  const portraitConfig = isTyping ? {
-    imageUrl: BELLHOP_TALK_STRIP,
-    frameCount: BELLHOP_TALK_FRAMES,
-    frameWidth: BELLHOP_TALK_FRAME_W,
-    frameHeight: BELLHOP_TALK_FRAME_H,
-    cycleMs: 240,
-    loop: true,
-    pixelated: true,
-    scale: 1.8
-  } : {
-    imageUrl: BELLHOP_IDLE_STRIP,
-    frameCount: 1,
-    frameWidth: BELLHOP_IDLE_FRAME_W,
-    frameHeight: BELLHOP_IDLE_FRAME_H,
-    cycleMs: 0,
-    loop: false,
-    pixelated: true,
-    scale: 1.8
-  };
-  const portraitOffsetY = "-12px";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
@@ -96972,40 +96917,24 @@ const ShopOverlay = ({ open, onClose }) => {
               paddingBottom: isLandscape ? "clamp(8px, 1.5vh, 16px)" : "clamp(16px, 3vh, 32px)"
             },
             onClick: skipOrAdvance,
-            children: showContent && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center gap-3 px-4 max-w-2xl w-full", children: [
+            children: showContent && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center px-4 max-w-2xl w-full", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "div",
+                SpriteAnimator,
                 {
+                  config: activeSpriteConfig,
                   style: {
-                    height: isLandscape ? "clamp(126px, 31.5vh, 210px)" : "clamp(112px, 19.6vh, 154px)",
-                    // 70% of clamp(160,28vh,220)
-                    aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight * BELLHOP_CROP_RATIO}`,
-                    position: "relative",
-                    overflow: "hidden",
-                    filter: "drop-shadow(0 10px 18px rgba(0,0,0,0.65))",
+                    height: isLandscape ? "clamp(240px, 60vh, 380px)" : "clamp(280px, 50vh, 420px)",
+                    aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
+                    filter: "drop-shadow(0 12px 24px rgba(0,0,0,0.75))",
                     opacity: showContent ? 1 : 0,
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
                     transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms",
-                    marginBottom: isLandscape ? 0 : 14,
                     pointerEvents: "none",
+                    position: "relative",
                     zIndex: 1
-                  },
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    SpriteAnimator,
-                    {
-                      config: activeSpriteConfig,
-                      style: {
-                        height: `calc(100% / ${BELLHOP_CROP_RATIO})`,
-                        aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
-                        position: "absolute",
-                        top: 0,
-                        left: "50%",
-                        transform: "translateX(-50%)"
-                      }
-                    },
-                    spriteMode
-                  )
-                }
+                  }
+                },
+                spriteMode
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsxs(
                 "div",
@@ -97016,124 +96945,101 @@ const ShopOverlay = ({ open, onClose }) => {
                     border: "5px solid #fff",
                     borderRadius: 0,
                     // Undertale uses sharp corners
-                    padding: "12px 16px",
-                    minHeight: 140,
-                    boxShadow: "inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.15), 0 8px 24px rgba(0,0,0,0.6)",
+                    padding: "16px 22px",
+                    minHeight: 130,
+                    marginTop: isLandscape ? "clamp(-180px, -28vh, -110px)" : "clamp(-200px, -22vh, -130px)",
+                    boxShadow: "inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.18), 0 10px 28px rgba(0,0,0,0.65)",
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
                     opacity: phase === "idle" ? 1 : 0,
                     transition: "transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms, opacity 450ms ease-out 320ms",
                     display: "flex",
-                    gap: 12,
+                    gap: 18,
+                    alignItems: "flex-start",
                     position: "relative",
                     zIndex: 2
                   },
                   children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex-1 min-w-0", children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                      "p",
+                      {
+                        style: {
+                          color: "#fff",
+                          fontSize: "clamp(14px, 2vw, 18px)",
+                          lineHeight: 1.5,
+                          minHeight: "3.0em",
+                          whiteSpace: "pre-wrap",
+                          margin: 0,
+                          letterSpacing: "0.03em"
+                        },
+                        children: [
+                          typed,
+                          isTyping && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "shop-cursor", children: "▎" })
+                        ]
+                      }
+                    ) }),
+                    !isTyping && /* @__PURE__ */ jsxRuntimeExports.jsxs(
                       "div",
                       {
-                        "aria-hidden": true,
-                        style: {
-                          flexShrink: 0,
-                          width: "clamp(90px, 15vw, 120px)",
-                          height: "clamp(90px, 15vw, 120px)",
-                          border: "3px solid #fff",
-                          borderRadius: 0,
-                          background: "#000",
-                          overflow: "hidden",
-                          position: "relative"
-                        },
-                        children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                          SpriteAnimator,
-                          {
-                            config: portraitConfig,
-                            style: {
-                              position: "absolute",
-                              top: portraitOffsetY,
-                              left: "50%",
-                              transform: "translateX(-50%)",
-                              imageRendering: "pixelated"
-                            }
-                          },
-                          isTyping ? "talk" : "idle"
-                        )
-                      }
-                    ),
-                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 min-w-0", children: [
-                      /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                        "p",
-                        {
-                          style: {
-                            color: "#fff",
-                            fontSize: "clamp(14px, 2vw, 18px)",
-                            lineHeight: 1.5,
-                            minHeight: "3.0em",
-                            whiteSpace: "pre-wrap",
-                            margin: 0,
-                            letterSpacing: "0.03em"
-                          },
-                          children: [
-                            typed,
-                            isTyping && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "shop-cursor", children: "▎" })
-                          ]
-                        }
-                      ),
-                      !isTyping && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-3 flex flex-col gap-1", children: [
-                        menu === "main" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                          /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        className: "flex-shrink-0 flex flex-col gap-1",
+                        style: { minWidth: "clamp(110px, 18vw, 150px)" },
+                        children: [
+                          menu === "main" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(
+                              UndertaleButton,
+                              {
+                                label: "Conversar",
+                                index: 0,
+                                hovered: hoveredBtn === 0,
+                                onHover: setHoveredBtn,
+                                onClick: (e2) => {
+                                  e2.stopPropagation();
+                                  setMenu("talk");
+                                }
+                              }
+                            ),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(
+                              UndertaleButton,
+                              {
+                                label: "Sair",
+                                index: 1,
+                                hovered: hoveredBtn === 1,
+                                onHover: setHoveredBtn,
+                                onClick: (e2) => {
+                                  e2.stopPropagation();
+                                  setMenu("bye");
+                                }
+                              }
+                            )
+                          ] }),
+                          menu === "talk" && /* @__PURE__ */ jsxRuntimeExports.jsx(
                             UndertaleButton,
                             {
-                              label: "Conversar",
+                              label: "Voltar",
                               index: 0,
                               hovered: hoveredBtn === 0,
                               onHover: setHoveredBtn,
                               onClick: (e2) => {
                                 e2.stopPropagation();
-                                setMenu("talk");
+                                setMenu("main");
                               }
                             }
                           ),
-                          /* @__PURE__ */ jsxRuntimeExports.jsx(
+                          menu === "bye" && /* @__PURE__ */ jsxRuntimeExports.jsx(
                             UndertaleButton,
                             {
-                              label: "Sair",
-                              index: 1,
-                              hovered: hoveredBtn === 1,
+                              label: "Tchau",
+                              index: 0,
+                              hovered: hoveredBtn === 0,
                               onHover: setHoveredBtn,
                               onClick: (e2) => {
                                 e2.stopPropagation();
-                                setMenu("bye");
+                                close();
                               }
                             }
                           )
-                        ] }),
-                        menu === "talk" && /* @__PURE__ */ jsxRuntimeExports.jsx(
-                          UndertaleButton,
-                          {
-                            label: "Voltar",
-                            index: 0,
-                            hovered: hoveredBtn === 0,
-                            onHover: setHoveredBtn,
-                            onClick: (e2) => {
-                              e2.stopPropagation();
-                              setMenu("main");
-                            }
-                          }
-                        ),
-                        menu === "bye" && /* @__PURE__ */ jsxRuntimeExports.jsx(
-                          UndertaleButton,
-                          {
-                            label: "Tchau",
-                            index: 0,
-                            hovered: hoveredBtn === 0,
-                            onHover: setHoveredBtn,
-                            onClick: (e2) => {
-                              e2.stopPropagation();
-                              close();
-                            }
-                          }
-                        )
-                      ] })
-                    ] })
+                        ]
+                      }
+                    )
                   ]
                 }
               ),
