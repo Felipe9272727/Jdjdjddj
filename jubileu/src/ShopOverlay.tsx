@@ -55,7 +55,7 @@ const SPRITE_H = 'clamp(160px, 28vh, 220px)';
 // mid-shin). The dialog box visually covers where the feet would be, so
 // we clip the sprite at ~85% of its native height via an `overflow:
 // hidden` wrapper. The sprite still renders at full height inside.
-const BELLHOP_CROP_RATIO = 0.85;
+const BELLHOP_CROP_RATIO = 0.70;
 
 // ── Typewriter beep (Undertale-style) ─────────────────────────────────────
 // Short procedural beep generated via Web Audio API on every Nth character.
@@ -345,8 +345,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
             <div
               style={{
                 height: isLandscape
-                  ? 'clamp(153px, 38.25vh, 255px)'     // 85% of clamp(180,45vh,300)
-                  : 'clamp(136px, 23.8vh, 187px)',     // 85% of clamp(160,28vh,220)
+                  ? 'clamp(126px, 31.5vh, 210px)'      // 70% of clamp(180,45vh,300)
+                  : 'clamp(112px, 19.6vh, 154px)',     // 70% of clamp(160,28vh,220)
                 aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight * BELLHOP_CROP_RATIO}`,
                 position: 'relative',
                 overflow: 'hidden',
