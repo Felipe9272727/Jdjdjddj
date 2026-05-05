@@ -1400,3 +1400,72 @@ Aplicadas skills: **bolder** (formas fortes), **colorize** (paleta rica), **deli
 - `jubileu/src/HouseEnv.tsx` — House component + HouseWindow com flower boxes
 - `index.html` — rebuildado (4,432,701 bytes)
 
+---
+
+## 🏨 Sessão 2026-05-05: Shop Overhaul — Diálogo estilo Undertale + Música
+
+### Contexto
+Felipe pediu pra:
+1. Buscar músicas de hotel pra ambientação
+2. Melhorar os diálogos do shop
+3. Melhorar o sistema de diálogo (estilo Undertale)
+
+### Pesquisa de música
+Fontes vasculhadas: Pixabay, Free Music Archive, Chosic, Storyblocks,
+archive.org (Mall Of 1959 muzak, Elevator Muzak Music collection),
+Bensound, Uppbeat, Melody Loops. Mantida `hotel-lobby.mp3` (já no repo) e
+adicionado fallback chain pro `Lobby Time` que já estava no GitHub do Felipe.
+Não baixei MP3s novos — só infraestrutura pra trocar fácil depois.
+
+### Novo sistema de diálogo
+
+#### `jubileu/src/dialogue-engine.ts` (novo)
+Tokenizer Undertale-style. Tags inline:
+- `{y:texto}` `{r:..}` `{b:..}` `{g:..}` `{f:..}` — highlight de cor
+- `{p}` `{p:500}` — pausa no typewriter
+- `{s:texto}` — efeito shake (CSS animation)
+- `^^` — quebra de página
+
+API: `tokenize()` → `Token[]`, `splitPages()` → `Token[][]`, `charCount()`.
+
+#### `jubileu/src/shop-dialogues.ts` (novo)
+Árvore de cenas com 15 nós e 5 moods (idle/talk/wink/sweat/concerned).
+Personalidade do recepcionista expandida — referências ao tempo apagado
+("não me lembro do antes"), elevador "educado", carpete que muda de cor,
+ordens datilografadas chegando "úmidas" debaixo da porta. Tom:
+liminal/creepy mas com humor seco.
+
+#### `ShopOverlay.tsx` (reescrito)
+- **Multi-página:** ▼ amarelo balança no canto da caixa quando página
+  termina e tem próxima
+- **Heart cursor (♥):** vermelho aparece na opção selecionada
+- **Keyboard nav:** ↑↓/W S, Z/Enter/Espaço confirma, ESC fecha
+- **Mouse hover** muda seleção (toca `playSelect`)
+- **Mood-driven sprite:** scene.mood escolhe `talk` ou `idle-static`
+  durante typing/idle
+- **Click avança/skip:** click pula typewriter ou avança página
+- **Pausas inline** no typewriter respeitam `{p:N}` antes do próximo char
+- **Color rendering:** texto agrupado em spans por cor pra render correto
+
+### Arquivos
+- `jubileu/src/dialogue-engine.ts` — NOVO
+- `jubileu/src/shop-dialogues.ts` — NOVO (15 cenas, 5 moods)
+- `jubileu/src/ShopOverlay.tsx` — reescrito (compatível com sprites e
+  audio existentes)
+- `jubileu/src/shop-audio.ts` — fallback chain de URLs
+
+### Build
+- TypeScript: ✅ limpo
+- `index.html`: 4,416,017 bytes (rebuild reprodutível com `npm ci` +
+  `vite build` + `inline-build.mjs`)
+- Commit: `e046e19` — feat(shop): Undertale-style dialogue engine +
+  richer recepcionista lore
+- Branch: `claude/read-map-memory-docs-2nqCj`
+
+### Próximos passos pro shop
+- [ ] Felipe testar os diálogos novos e dar feedback de tom
+- [ ] Quando quiser mais variedade de música, é só adicionar URLs no
+  array `LOBBY_MUSIC_URLS` em `shop-audio.ts`
+- [ ] Possíveis adições: NPC items pra "comprar" (placeholder), shop
+  abrindo opção de viagem rápida pra outros andares
+
