@@ -95674,7 +95674,7 @@ const IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/BACON-PROJETO-
 const NPC_WALK_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20walking.glb";
 const NPC_IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20idle.glb";
 const BARNEY_URL = "https://raw.githubusercontent.com/Felipe9272727/For-my-game/main/1776639536329.png";
-const COLORS = { wall: "#D7CCC8", wood: "#6D4C41", elevTrim: "#3E2723", elevFloor: "#F5F0EB", elevDiamond: "#FFD54F", elevDoor: "#9E9E9E", elevPanel: "#78909C", grass: "#66BB6A", sky: "#81D4FA", houseWall: "#EFEBE9", houseRoof: "#6D4C41", bed: "#1565C0", sofa: "#4E342E" };
+const COLORS = { wall: "#D7CCC8", wood: "#6D4C41", elevTrim: "#3E2723", elevFloor: "#F5F0EB", elevDiamond: "#FFD54F", elevDoor: "#9E9E9E", elevPanel: "#78909C", grass: "#66BB6A", sky: "#81D4FA", houseWall: "#EFEBE9", bed: "#1565C0", sofa: "#4E342E" };
 const ASSETS = { noise: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg", grass: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/terrain/grasslight-big.jpg", wood: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/hardwood2_diffuse.jpg", lobbyFloor: "https://raw.githubusercontent.com/Felipe9272727/Textura-/main/file_00000000febc71f5992f1ccc1b591002.png", wallPanel: "https://raw.githubusercontent.com/Felipe9272727/Textura-amadeirada-/main/file_0000000040e871f59722d8404d631582.png", wall: "https://raw.githubusercontent.com/Felipe9272727/Textura-da-parede/main/file_000000005dc071f5ba34d550bd83847b.png", ceiling: "https://raw.githubusercontent.com/Felipe9272727/Textura-de-teto/refs/heads/main/Screenshot_2026-01-18-12-39-26-946_com.openai.chatgpt-edit.jpg" };
 const BARNEY_DIALOGUE = {
   "greet": {
@@ -97283,6 +97283,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
   const avRef = reactExports.useRef(null);
   const camLookRef = reactExports.useRef(new Vector3());
   const [anim, setAnim] = reactExports.useState("Idle");
+  const animRef = reactExports.useRef("Idle");
   const elevTriggered = reactExports.useRef(false);
   const HH = 1.6;
   const prevInsideElevatorRef = reactExports.useRef(false);
@@ -97292,6 +97293,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
   const timeRef = reactExports.useRef(0);
   const camPosRef = reactExports.useRef(new Vector3(0, 0, 8));
   const camInitRef = reactExports.useRef(false);
+  const walls = reactExports.useMemo(() => wallsForState(currentLevel, doorsClosed, houseDoorOpen), [currentLevel, doorsClosed, houseDoorOpen]);
   reactExports.useEffect(() => {
     elevTriggered.current = false;
   }, [currentLevel]);
@@ -97333,7 +97335,10 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
     const shakeY = (cameraShakeRef == null ? void 0 : cameraShakeRef.current) ? Math.cos(timeRef.current * 22) * 0.012 : 0;
     const dialogueFocusRef = dialogueTargetRef ?? npcPositionRef;
     if (dialogueOpen && (dialogueFocusRef == null ? void 0 : dialogueFocusRef.current)) {
-      setAnim("Idle");
+      if (animRef.current !== "Idle") {
+        animRef.current = "Idle";
+        setAnim("Idle");
+      }
       if (avRef.current) {
         avRef.current.position.copy(pos.current);
         avRef.current.rotation.copy(charRot.current);
@@ -97384,8 +97389,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
         const rd = _v.current[4].set(Math.sin(camAng.current.theta - Math.PI / 2), 0, Math.cos(camAng.current.theta - Math.PI / 2));
         const mv = _v.current[5].set(0, 0, 0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * safeDt);
         const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
-        const wl = wallsForState(currentLevel, doorsClosed, houseDoorOpen);
-        const [rx, rz] = resolveCollision(nx, nz, PR, wl);
+        const [rx, rz] = resolveCollision(nx, nz, PR, walls);
         pos.current.x = rx;
         pos.current.z = rz;
         pos.current.y = 0;
@@ -97422,7 +97426,11 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       } else if (onCashierInteractionUpdate) {
         onCashierInteractionUpdate(false);
       }
-      setAnim(moving ? "Walking" : "Idle");
+      const nextAnim = moving ? "Walking" : "Idle";
+      if (nextAnim !== animRef.current) {
+        animRef.current = nextAnim;
+        setAnim(nextAnim);
+      }
       if (avRef.current) {
         avRef.current.position.copy(pos.current);
         avRef.current.rotation.copy(charRot.current);
@@ -98114,96 +98122,363 @@ const Shop = ({ position }) => {
     /* @__PURE__ */ jsxRuntimeExports.jsx(DussekarCharacter, { position: [2.2, 1.1, 0], rotation: [0, Math.PI, 0] })
   ] });
 };
-const House = React.memo(({ x: x2, z, rot, doorOpen, doorOpenAmount }) => {
+const ChimneySmoke = ({ position }) => {
+  const groupRef = reactExports.useRef(null);
+  const timeRef = reactExports.useRef(0);
+  useFrame((_, dt2) => {
+    if (!groupRef.current) return;
+    timeRef.current += dt2;
+    const t2 = timeRef.current;
+    for (let i2 = 0; i2 < 3; i2++) {
+      const child = groupRef.current.children[i2];
+      if (!child) continue;
+      const phase = (t2 * 0.4 + i2 * 1.2) % 3;
+      const y = phase * 1.5;
+      const sway = Math.sin(t2 * 0.8 + i2 * 2) * 0.15;
+      child.position.set(sway, y, 0);
+      const s = 0.15 + phase * 0.2;
+      child.scale.set(s, s, s);
+      if (child.material) child.material.opacity = Math.max(0, 0.35 - phase * 0.12);
+    }
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position, children: [0, 1, 2].map((i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [1, 6, 6] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#888", transparent: true, opacity: 0.3, depthWrite: false })
+  ] }, i2)) });
+};
+const HouseWindow = ({ position, rotation: rotation2 = [0, 0, 0] }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position, rotation: rotation2, children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [1.2, 1.2] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#B3E5FC", emissive: "#1565C0", emissiveIntensity: 0.05, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.6 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.65, 0.02], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.4, 0.08, 0.06] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3E2723", roughness: 0.7 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.65, 0.02], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.4, 0.08, 0.06] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3E2723", roughness: 0.7 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-0.7, 0, 0.02], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.08, 1.4, 0.06] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3E2723", roughness: 0.7 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.7, 0, 0.02], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.08, 1.4, 0.06] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3E2723", roughness: 0.7 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.03], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.3, 0.05, 0.04] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4E342E", roughness: 0.6 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.03], rotation: [0, 0, Math.PI / 2], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.3, 0.05, 0.04] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4E342E", roughness: 0.6 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-0.85, 0, 0.04], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.2, 1.3, 0.04] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037", roughness: 0.8 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.85, 0, 0.04], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.2, 1.3, 0.04] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037", roughness: 0.8 })
+  ] })
+] });
+const FlowerBed = ({ position, color = "#E91E63" }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position, children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.08, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.5, 0.16, 0.5] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037", roughness: 0.9 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.2, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.3, 0.08, 0.35] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3E2723", roughness: 0.9 })
+  ] }),
+  [-0.5, -0.2, 0.1, 0.4].map((fx, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [fx, 0.3, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.01, 0.01, 0.15, 4] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2E7D32" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.1, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.06, 6, 6] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: i2 % 2 === 0 ? color : "#FF9800", emissive: i2 % 2 === 0 ? color : "#FF9800", emissiveIntensity: 0.2 })
+    ] })
+  ] }, i2))
+] });
+const Mailbox = ({ position }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position, children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.4, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.04, 0.8, 6] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#795548", roughness: 0.8 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.85, 0.08], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.3, 0.2, 0.22] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D32F2F", roughness: 0.4, metalness: 0.1 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.96, 0.08], rotation: [0.3, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.32, 0.03, 0.15] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#B71C1C", roughness: 0.3 })
+  ] })
+] });
+const PathLantern = ({ position }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position, children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.4, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.03, 0.04, 0.8, 6] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#212121", metalness: 0.6, roughness: 0.3 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.85, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.15, 0.2, 0.15] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#212121", metalness: 0.5, roughness: 0.3 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 0.85, 0], intensity: 0.6, distance: 4, color: "#FFE0B2", decay: 2 })
+] });
+const House = React.memo(({ x: x2, z, rot, doorOpen, doorOpenAmount, nightMode }) => {
   const doorRef = reactExports.useRef(null);
+  const interiorLightRef = reactExports.useRef(null);
+  const timeRef = reactExports.useRef(0);
   useFrame((state2, delta) => {
     if (doorRef.current) {
       const target = doorOpenAmount !== void 0 ? -2 * doorOpenAmount : doorOpen ? -2 : 0;
       doorRef.current.rotation.y = MathUtils.lerp(doorRef.current.rotation.y, target, delta * 3);
     }
+    if (interiorLightRef.current) {
+      timeRef.current += delta;
+      const base = nightMode ? 1.5 : 3;
+      const flicker = nightMode ? Math.sin(timeRef.current * 3) * 0.3 + Math.sin(timeRef.current * 7) * 0.1 : 0;
+      interiorLightRef.current.intensity = base + flicker;
+      interiorLightRef.current.color.set(nightMode ? "#FF8A65" : "#FFD54F");
+    }
   });
+  const wallColor = nightMode ? "#8D6E63" : COLORS.houseWall;
+  const trimColor = "#5D4037";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, 0, z], rotation: [0, rot, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.05, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.15, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [8.4, 0.3, 8.4] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4E342E", roughness: 0.9 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.31, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [7.8, 7.8] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.wood, color: COLORS.wood, repeat: [4, 4], roughness: 0.5 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [Math.PI / 2, 0, 0], position: [0, 5.95, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [7.8, 7.8] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFFFFF", roughness: 0.9 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.ceiling, color: "#EFEBE9", repeat: [3, 3], roughness: 0.9 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 3, -4], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 3.15, -4], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [8, 6, 0.2] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.wall, color: wallColor, repeat: [2, 1], roughness: 0.85 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-4, 3, 0], rotation: [0, Math.PI / 2, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-4, 3.15, 0], rotation: [0, Math.PI / 2, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [8, 6, 0.2] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.wall, color: wallColor, repeat: [2, 1], roughness: 0.85 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [4, 3, 0], rotation: [0, Math.PI / 2, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [4, 3.15, 0], rotation: [0, Math.PI / 2, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [8, 6, 0.2] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.wall, color: wallColor, repeat: [2, 1], roughness: 0.85 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-2.35, 3, 4], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-2.35, 3.15, 4], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [3.3, 6, 0.2] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.wall, color: wallColor, repeat: [1, 1], roughness: 0.85 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [2.35, 3, 4], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [2.35, 3.15, 4], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [3.3, 6, 0.2] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.wall, color: wallColor, repeat: [1, 1], roughness: 0.85 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 5.125, 4], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.4, 1.75, 0.2] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.wall, color: wallColor, repeat: [0.5, 0.5], roughness: 0.85 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-2, 3, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [4, 6, 0.2] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-2, 3.15, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [4, 6, 0.15] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.wall, color: "#EFEBE9", repeat: [1, 1], roughness: 0.9 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 3, -2], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.2, 6, 4] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: COLORS.houseWall, roughness: 0.8 })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 3.15, -2], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.15, 6, 4] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.wall, color: "#EFEBE9", repeat: [1, 1], roughness: 0.9 })
     ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.5, -3.9], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [8, 0.15, 0.06] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.7 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-3.9, 0.5, 0], rotation: [0, Math.PI / 2, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [8, 0.15, 0.06] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.7 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [3.9, 0.5, 0], rotation: [0, Math.PI / 2, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [8, 0.15, 0.06] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.7 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(HouseWindow, { position: [-2.5, 3.5, 4.11] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(HouseWindow, { position: [2.5, 3.5, 4.11] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(HouseWindow, { position: [-4.11, 3.5, -2], rotation: [0, -Math.PI / 2, 0] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(HouseWindow, { position: [4.11, 3.5, -2], rotation: [0, Math.PI / 2, 0] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(HouseWindow, { position: [2, 3.5, -4.11], rotation: [0, Math.PI, 0] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [-0.7, 1.5, 4], ref: doorRef, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0.7, 0, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.4, 2.5, 0.1] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4E342E", roughness: 0.6 })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.5, 0.06], children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 0.8, 0.03] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3E2723", roughness: 0.5 })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.5, 0.06], children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 0.8, 0.03] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3E2723", roughness: 0.5 })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.5, 0, 0.08], children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.07, 8, 8] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFD700", metalness: 0.7, roughness: 0.2 })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.7, 0.06], children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.03, 0.03, 0.04, 8], rotation: [Math.PI / 2, 0, 0] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#212121", metalness: 0.8, roughness: 0.2 })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-0.02, 0, -0.05], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.1, 2.7, 0.15] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.7 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [1.42, 0, -0.05], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.1, 2.7, 0.15] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.7 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.7, 1.35, -0.05], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.6, 0.1, 0.15] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.7 })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.32, 5.5], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [4, 3] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(TextureMaterial, { url: ASSETS.wood, color: "#795548", repeat: [2, 2], roughness: 0.6 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.15, 7.1], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [2.5, 0.3, 0.6] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#6D4C41", roughness: 0.7 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.08, 7.5], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [2.8, 0.16, 0.5] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037", roughness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-1.8, 2.2, 6.5], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.08, 0.1, 4, 8] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.6 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [1.8, 2.2, 6.5], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.08, 0.1, 4, 8] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.6 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 4.2, 6.5], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [4, 0.12, 0.12] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.6 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 8.2, 0], rotation: [0, Math.PI / 4, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [7, 4.4, 4] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037", roughness: 0.5, metalness: 0.05 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 10.45, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.15, 0.15, 8] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4E342E", roughness: 0.4, metalness: 0.1 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 6.1, 4.2], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [8.5, 0.12, 0.12] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.6 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 6.1, -4.2], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [8.5, 0.12, 0.12] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.6 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [3, 8.5, -2.5], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.8, 3, 0.8] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#795548", roughness: 0.9 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [3, 10.1, -2.5], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.9, 0.15, 0.9] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037", roughness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(ChimneySmoke, { position: [3, 10.3, -2.5] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Sofa, { x: -2.5, z: 2.5, rot: Math.PI / 4 }),
-    " ",
     /* @__PURE__ */ jsxRuntimeExports.jsx(CoffeeTable, { x: -2, z: 1.5 }),
-    " ",
     /* @__PURE__ */ jsxRuntimeExports.jsx(KitchenCounter, { x: -3, z: -3.5, w: 1.5, d: 0.8 }),
-    " ",
     /* @__PURE__ */ jsxRuntimeExports.jsx(KitchenCounter, { x: -1, z: -3.5, w: 1.5, d: 0.8 }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-3.2, 1.5, -0.5], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.2, 3, 1] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 3, 0.9] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#ECEFF1", metalness: 0.3, roughness: 0.2 })
     ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-3.2, 2.2, -0.05], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.8, 0.03, 0.03] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#B0BEC5", metalness: 0.5, roughness: 0.2 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-3.2, 0.8, -0.05], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.8, 0.03, 0.03] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#B0BEC5", metalness: 0.5, roughness: 0.2 })
+    ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Bed, { x: 2.5, z: -2.5, rot: 0 }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [-0.7, 1.25, 4], ref: doorRef, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0.7, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.4, 2.5, 0.1] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037" })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.5, 0, 0.06], children: [
-        " ",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.08, 8, 8] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFD700" })
-      ] })
-    ] }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 8, 0], rotation: [0, Math.PI / 4, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [7, 4, 4] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: COLORS.houseRoof, roughness: 0.6 })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [-2.2, 0.33, 2], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [3, 2.5] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#8D6E63", roughness: 0.95, opacity: 0.7, transparent: true })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-2.5, 3.5, 4.15], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [1.5, 1.5] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#81D4FA", emissive: "#000000", roughness: 0.2, metalness: 0.8 })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [-2.2, 0.335, 2], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [2.4, 1.9] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#A1887F", roughness: 0.95, opacity: 0.5, transparent: true })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [2.5, 3.5, 4.15], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [1.5, 1.5] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#81D4FA", emissive: "#000000", roughness: 0.2, metalness: 0.8 })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-1.95, 3.5, 0.08], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.2, 0.8, 0.04] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3E2723", roughness: 0.5 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.01, 7], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-1.95, 3.5, 0.1], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [1, 0.6] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037", roughness: 0.8 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-2, 1.3, -3.42], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [3.5, 0.8, 0.04] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFECB3", roughness: 0.3 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { ref: interiorLightRef, position: [0, 5, 0], intensity: 3, distance: 12, color: "#FFD54F", decay: 2 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [2.5, 4, -2.5], intensity: 1.2, distance: 6, color: "#FFE0B2", decay: 2 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [-2, 4.5, -3], intensity: 0.8, distance: 5, color: "#FFF8E1", decay: 2 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.02, 7.5], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [2, 6] }),
-      " ",
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#9E9E9E" })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#9E9E9E", roughness: 0.95 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 5, 0], intensity: 3, distance: 12, color: "#FFD54F" })
+    [6, 7, 8, 9].map((pz2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.025, pz2], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.3, 8] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#BDBDBD", roughness: 0.9 })
+    ] }, pz2)),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(FlowerBed, { position: [-2.5, 0, 5], color: "#E91E63" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(FlowerBed, { position: [2.5, 0, 5], color: "#9C27B0" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(FlowerBed, { position: [-3.5, 0, 6.5], color: "#FF5722" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(FlowerBed, { position: [3.5, 0, 6.5], color: "#FFC107" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Mailbox, { position: [2.2, 0, 9.5] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(PathLantern, { position: [-1.2, 0, 8.5] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(PathLantern, { position: [1.2, 0, 8.5] }),
+    [-3.5, -2.5, -1.5, -0.5].map((fx, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [fx, 0, 9.8], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.35, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.06, 0.7, 0.06] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.25, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 0.04, 0.04] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.55, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 0.04, 0.04] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.8 })
+      ] })
+    ] }, `fl${i2}`)),
+    [0.5, 1.5, 2.5, 3.5].map((fx, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [fx, 0, 9.8], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.35, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.06, 0.7, 0.06] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.25, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 0.04, 0.04] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.55, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 0.04, 0.04] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: trimColor, roughness: 0.8 })
+      ] })
+    ] }, `fr${i2}`)),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 3.5, 4.5], intensity: 1.5, distance: 8, color: nightMode ? "#FF8A65" : "#FFE0B2", decay: 2 })
   ] });
 });
 const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRef, houseDoorOpen }) => {
@@ -98272,6 +98547,7 @@ const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRef, hous
     groupRef.current.rotation.y = Math.atan2(fdx, fdz);
     if (lightRef.current) {
       lightRef.current.position.set(b2.x, 1.5, b2.z);
+      lightRef.current.visible = isScary;
     }
   });
   if (!isVisible && scaleRef.current < 0.01) return null;
@@ -98291,9 +98567,61 @@ const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRef, hous
         }
       )
     ] }) }),
-    isScary && /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { ref: lightRef, intensity: 1.8, distance: 6, color: "#FF1744", decay: 2 })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { ref: lightRef, intensity: 1.8, distance: 6, color: "#FF1744", decay: 2 })
   ] });
 };
+const TREE_COORDS = [
+  [13.06, 0.55, 0.91],
+  [13.76, 6.49, 1.07],
+  [-6.17, 13.14, 0.81],
+  [-12.22, 8.61, 1.02],
+  [-14.72, 1.24, 1.12],
+  [-14.34, -5.65, 1.08],
+  [-7.28, -11.33, 1.18],
+  [13.59, -7.29, 1.09],
+  [19.92, 0.29, 1.09],
+  [17.85, 7.83, 1.21],
+  [11.2, 15.02, 1.25],
+  [9.61, 14.85, 1.04],
+  [2.96, 17.45, 0.95],
+  [-5.66, 18.04, 1.08],
+  [-11.8, 13.1, 1.03],
+  [-18.5, 4.1, 1.2],
+  [-19.02, 2.52, 0.98],
+  [-18.8, -6.74, 1.22],
+  [-13.16, -13.78, 1.32],
+  [16.11, -11.22, 1.06],
+  [17.2, -5.9, 1.36],
+  [21.66, -0.45, 1.15],
+  [19.21, 9.99, 1.35],
+  [10.05, 19.57, 1.13],
+  [-0.54, 22.27, 1.05],
+  [0.04, 21.27, 1.38],
+  [-16.11, 15.06, 1.04],
+  [-20.52, 11.43, 1.32],
+  [-22.51, -5.4, 1.01],
+  [-19.25, -12.04, 1.32],
+  [-16.05, -15.91, 1.07],
+  [-5.63, -21.41, 1.57],
+  [8.68, -19.84, 1.3],
+  [11.42, -20.29, 1.52],
+  [19.27, -11.8, 1.37],
+  [-12.5, 20.34, 1.07],
+  [10.03, 18.71, 0.8],
+  [-6.33, 15.14, 1.26],
+  [13.63, 20.82, 0.95],
+  [-15.91, 21.15, 1.27],
+  [-13.26, -20.06, 0.93],
+  [8.34, -18.94, 0.95],
+  [-0.79, -19.8, 1.01]
+];
+const FENCE_DATA = [
+  [-6, 5, -6, 15],
+  [6, 5, 6, 15],
+  [-6, 15, 6, 15],
+  [-6, 5, -4.5, 5],
+  [4.5, 5, 6, 5]
+];
 const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOpenAmount }) => {
   const bgColor = nightMode ? "#05051a" : "#87CEEB";
   const fogColor = nightMode ? "#05051a" : "#C8E6F0";
@@ -98331,7 +98659,7 @@ const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOpenAmoun
       /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [2.5, 14] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: nightMode ? "#555" : "#9E9E9E", roughness: 0.9 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(House, { x: 0, z: 10, rot: Math.PI, doorOpen: houseDoorOpen, doorOpenAmount }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(House, { x: 0, z: 10, rot: Math.PI, doorOpen: houseDoorOpen, doorOpenAmount, nightMode }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, 0, -10], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorFacade, { z: 0, height: 5, width: 10 }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 2.5, -6.5], children: [
@@ -98354,28 +98682,28 @@ const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOpenAmoun
     /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: 50, range: 50, children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.15, 0.2, 3, 6] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#5D4037", roughness: 0.9 }),
-      [[13.06, 0.55, 0.91], [13.76, 6.49, 1.07], [-6.17, 13.14, 0.81], [-12.22, 8.61, 1.02], [-14.72, 1.24, 1.12], [-14.34, -5.65, 1.08], [-7.28, -11.33, 1.18], [13.59, -7.29, 1.09], [19.92, 0.29, 1.09], [17.85, 7.83, 1.21], [11.2, 15.02, 1.25], [9.61, 14.85, 1.04], [2.96, 17.45, 0.95], [-5.66, 18.04, 1.08], [-11.8, 13.1, 1.03], [-18.5, 4.1, 1.2], [-19.02, 2.52, 0.98], [-18.8, -6.74, 1.22], [-13.16, -13.78, 1.32], [16.11, -11.22, 1.06], [17.2, -5.9, 1.36], [21.66, -0.45, 1.15], [19.21, 9.99, 1.35], [10.05, 19.57, 1.13], [-0.54, 22.27, 1.05], [0.04, 21.27, 1.38], [-16.11, 15.06, 1.04], [-20.52, 11.43, 1.32], [-22.51, -5.4, 1.01], [-19.25, -12.04, 1.32], [-16.05, -15.91, 1.07], [-5.63, -21.41, 1.57], [8.68, -19.84, 1.3], [11.42, -20.29, 1.52], [19.27, -11.8, 1.37], [-12.5, 20.34, 1.07], [10.03, 18.71, 0.8], [-6.33, 15.14, 1.26], [13.63, 20.82, 0.95], [-15.91, 21.15, 1.27], [-13.26, -20.06, 0.93], [8.34, -18.94, 0.95], [-0.79, -19.8, 1.01]].map(([tx, tz, s], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [tx, 1.5 * s, tz], scale: [s, s, s] }, i2))
+      TREE_COORDS.map(([tx, tz, s], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [tx, 1.5 * s, tz], scale: [s, s, s] }, i2))
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: 50, range: 50, children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [1.2, 2, 6] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2E7D32", roughness: 0.85 }),
-      [[13.06, 0.55, 0.91], [13.76, 6.49, 1.07], [-6.17, 13.14, 0.81], [-12.22, 8.61, 1.02], [-14.72, 1.24, 1.12], [-14.34, -5.65, 1.08], [-7.28, -11.33, 1.18], [13.59, -7.29, 1.09], [19.92, 0.29, 1.09], [17.85, 7.83, 1.21], [11.2, 15.02, 1.25], [9.61, 14.85, 1.04], [2.96, 17.45, 0.95], [-5.66, 18.04, 1.08], [-11.8, 13.1, 1.03], [-18.5, 4.1, 1.2], [-19.02, 2.52, 0.98], [-18.8, -6.74, 1.22], [-13.16, -13.78, 1.32], [16.11, -11.22, 1.06], [17.2, -5.9, 1.36], [21.66, -0.45, 1.15], [19.21, 9.99, 1.35], [10.05, 19.57, 1.13], [-0.54, 22.27, 1.05], [0.04, 21.27, 1.38], [-16.11, 15.06, 1.04], [-20.52, 11.43, 1.32], [-22.51, -5.4, 1.01], [-19.25, -12.04, 1.32], [-16.05, -15.91, 1.07], [-5.63, -21.41, 1.57], [8.68, -19.84, 1.3], [11.42, -20.29, 1.52], [19.27, -11.8, 1.37], [-12.5, 20.34, 1.07], [10.03, 18.71, 0.8], [-6.33, 15.14, 1.26], [13.63, 20.82, 0.95], [-15.91, 21.15, 1.27], [-13.26, -20.06, 0.93], [8.34, -18.94, 0.95], [-0.79, -19.8, 1.01]].map(([tx, tz, s], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [tx, 3.5 * s, tz], scale: [s, s, s] }, i2))
+      TREE_COORDS.map(([tx, tz, s], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [tx, 3.5 * s, tz], scale: [s, s, s] }, i2))
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: 50, range: 50, children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [0.9, 1.6, 6] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#388E3C", roughness: 0.85 }),
-      [[13.06, 0.55, 0.91], [13.76, 6.49, 1.07], [-6.17, 13.14, 0.81], [-12.22, 8.61, 1.02], [-14.72, 1.24, 1.12], [-14.34, -5.65, 1.08], [-7.28, -11.33, 1.18], [13.59, -7.29, 1.09], [19.92, 0.29, 1.09], [17.85, 7.83, 1.21], [11.2, 15.02, 1.25], [9.61, 14.85, 1.04], [2.96, 17.45, 0.95], [-5.66, 18.04, 1.08], [-11.8, 13.1, 1.03], [-18.5, 4.1, 1.2], [-19.02, 2.52, 0.98], [-18.8, -6.74, 1.22], [-13.16, -13.78, 1.32], [16.11, -11.22, 1.06], [17.2, -5.9, 1.36], [21.66, -0.45, 1.15], [19.21, 9.99, 1.35], [10.05, 19.57, 1.13], [-0.54, 22.27, 1.05], [0.04, 21.27, 1.38], [-16.11, 15.06, 1.04], [-20.52, 11.43, 1.32], [-22.51, -5.4, 1.01], [-19.25, -12.04, 1.32], [-16.05, -15.91, 1.07], [-5.63, -21.41, 1.57], [8.68, -19.84, 1.3], [11.42, -20.29, 1.52], [19.27, -11.8, 1.37], [-12.5, 20.34, 1.07], [10.03, 18.71, 0.8], [-6.33, 15.14, 1.26], [13.63, 20.82, 0.95], [-15.91, 21.15, 1.27], [-13.26, -20.06, 0.93], [8.34, -18.94, 0.95], [-0.79, -19.8, 1.01]].map(([tx, tz, s], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [tx, 4.3 * s, tz], scale: [s, s, s] }, i2))
+      TREE_COORDS.map(([tx, tz, s], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [tx, 4.3 * s, tz], scale: [s, s, s] }, i2))
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: 50, range: 50, children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [0.6, 1.2, 6] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#43A047", roughness: 0.85 }),
-      [[13.06, 0.55, 0.91], [13.76, 6.49, 1.07], [-6.17, 13.14, 0.81], [-12.22, 8.61, 1.02], [-14.72, 1.24, 1.12], [-14.34, -5.65, 1.08], [-7.28, -11.33, 1.18], [13.59, -7.29, 1.09], [19.92, 0.29, 1.09], [17.85, 7.83, 1.21], [11.2, 15.02, 1.25], [9.61, 14.85, 1.04], [2.96, 17.45, 0.95], [-5.66, 18.04, 1.08], [-11.8, 13.1, 1.03], [-18.5, 4.1, 1.2], [-19.02, 2.52, 0.98], [-18.8, -6.74, 1.22], [-13.16, -13.78, 1.32], [16.11, -11.22, 1.06], [17.2, -5.9, 1.36], [21.66, -0.45, 1.15], [19.21, 9.99, 1.35], [10.05, 19.57, 1.13], [-0.54, 22.27, 1.05], [0.04, 21.27, 1.38], [-16.11, 15.06, 1.04], [-20.52, 11.43, 1.32], [-22.51, -5.4, 1.01], [-19.25, -12.04, 1.32], [-16.05, -15.91, 1.07], [-5.63, -21.41, 1.57], [8.68, -19.84, 1.3], [11.42, -20.29, 1.52], [19.27, -11.8, 1.37], [-12.5, 20.34, 1.07], [10.03, 18.71, 0.8], [-6.33, 15.14, 1.26], [13.63, 20.82, 0.95], [-15.91, 21.15, 1.27], [-13.26, -20.06, 0.93], [8.34, -18.94, 0.95], [-0.79, -19.8, 1.01]].map(([tx, tz, s], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [tx, 4.9 * s, tz], scale: [s, s, s] }, i2))
+      TREE_COORDS.map(([tx, tz, s], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [tx, 4.9 * s, tz], scale: [s, s, s] }, i2))
     ] }),
     !nightMode && [[-15, 22, 10, 3], [10, 25, -5, 4], [20, 23, 15, 2.5], [-5, 24, -15, 3.5], [0, 26, 20, 2]].map(([cx, cy, cz, cr], i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [cx, cy, cz], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [cr, 8, 8] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#FFFFFF", transparent: true, opacity: 0.7 })
     ] }, i2)),
-    [[-6, 5, -6, 15], [6, 5, 6, 15], [-6, 15, 6, 15], [-6, 5, -4.5, 5], [4.5, 5, 6, 5]].map(([x1, z1, x2, z2], i2) => {
+    FENCE_DATA.map(([x1, z1, x2, z2], i2) => {
       const dx = x2 - x1, dz = z2 - z1, len = Math.sqrt(dx * dx + dz * dz), ang = Math.atan2(dx, dz);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [(x1 + x2) / 2, 0.4, (z1 + z2) / 2], rotation: [0, ang, 0], children: [
@@ -99131,13 +99459,17 @@ const BotAvatar = ({ state: state2 }) => {
     } catch {
     }
   }, [clonedScene]);
-  reactExports.useEffect(() => {
-    const walking = state2.anim === "walking";
-    const a2 = actions[walking ? "Walking" : "Idle"];
-    const o2 = actions[walking ? "Idle" : "Walking"];
-    if (o2) o2.fadeOut(0.2);
-    if (a2) a2.reset().fadeIn(0.2).play();
-  }, [state2.anim, actions]);
+  const lastAnimRef = reactExports.useRef(state2.anim);
+  useFrame(() => {
+    if (state2.anim !== lastAnimRef.current) {
+      lastAnimRef.current = state2.anim;
+      const walking = state2.anim === "walking";
+      const a2 = actions[walking ? "Walking" : "Idle"];
+      const o2 = actions[walking ? "Idle" : "Walking"];
+      if (o2) o2.fadeOut(0.2);
+      if (a2) a2.reset().fadeIn(0.2).play();
+    }
+  });
   reactExports.useEffect(() => {
     if (groupRef.current) {
       groupRef.current.position.copy(state2.pos);
@@ -99240,7 +99572,6 @@ const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseDoorOpen
     const dt2 = Math.min(0.05, dtRaw);
     const walls = wallsForState(currentLevel, doorsClosed, houseDoorOpen);
     const player = playerPositionRef.current;
-    let mutated = false;
     for (const b2 of botsRef.current) {
       const prevX = b2.pos.x, prevZ = b2.pos.z;
       let desiredX = 0, desiredZ = 0;
@@ -99334,13 +99665,8 @@ const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseDoorOpen
         while (dRot < -Math.PI) dRot += Math.PI * 2;
         b2.rot += dRot * Math.min(1, 8 * dt2);
       }
-      const nextAnim = moving ? "walking" : "idle";
-      if (nextAnim !== b2.anim) {
-        b2.anim = nextAnim;
-        mutated = true;
-      }
+      b2.anim = moving ? "walking" : "idle";
     }
-    if (mutated) setBots([...botsRef.current]);
   });
   reactExports.useEffect(() => {
     const api = {
@@ -100833,11 +101159,11 @@ function App() {
     }, 200);
     return () => clearInterval(check);
   }, [gameState, canSleep]);
-  const handlePlayerEnterElevator = () => {
+  const handlePlayerEnterElevator = reactExports.useCallback(() => {
     if (elevatorTimer === null && !doorsClosed) {
       setElevatorTimer(5);
     }
-  };
+  }, [elevatorTimer, doorsClosed]);
   const handleInteractionUpdate = reactExports.useCallback((c2) => {
     setCanInteractDoor((p2) => p2 !== c2 ? c2 : p2);
   }, []);
@@ -101234,6 +101560,10 @@ function App() {
       window.removeEventListener("keyup", ku);
     };
   }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
+  const visibleRemotePlayerIds = reactExports.useMemo(
+    () => otherPlayerIds.slice(0, QUALITY_PROFILES[settings.quality].remoteLimit),
+    [otherPlayerIds, settings.quality]
+  );
   const botEnabled = settings.botMode && hasStarted;
   const { info: botInfo } = useBotStore();
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full h-full relative overflow-hidden select-none", style: { touchAction: "none", backgroundColor: "#000" }, onPointerDown: handlePointerDown, onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onPointerCancel: handlePointerUp, onPointerLeave: handlePointerUp, onWheel: (e2) => {
@@ -101265,7 +101595,7 @@ function App() {
           ] })
         ] }) }), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
-          otherPlayerIds.slice(0, QUALITY_PROFILES[settings.quality].remoteLimit).map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
+          visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
           /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
           botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
             BotSystem,
