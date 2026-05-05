@@ -96726,7 +96726,7 @@ const TIMINGS = {
   opening: 700,
   exitClose: 600
 };
-const BELLHOP_CROP_RATIO = 0.55;
+const BELLHOP_CROP_RATIO = 0.85;
 let audioCtx = null;
 function playBeep() {
   try {
@@ -96977,8 +96977,8 @@ const ShopOverlay = ({ open, onClose }) => {
                 "div",
                 {
                   style: {
-                    height: isLandscape ? "clamp(99px, 24.75vh, 165px)" : "clamp(88px, 15.4vh, 121px)",
-                    // 55% of clamp(160,28vh,220)
+                    height: isLandscape ? "clamp(153px, 38.25vh, 255px)" : "clamp(136px, 23.8vh, 187px)",
+                    // 85% of clamp(160,28vh,220)
                     aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight * BELLHOP_CROP_RATIO}`,
                     position: "relative",
                     overflow: "hidden",
