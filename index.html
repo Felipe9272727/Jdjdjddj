@@ -96749,6 +96749,7 @@ const ShopOverlay = ({ open, onClose }) => {
   const [typed, setTyped] = reactExports.useState("");
   const [phase, setPhase] = reactExports.useState("closing");
   const [hoveredBtn, setHoveredBtn] = reactExports.useState(-1);
+  const [isLandscape, setIsLandscape] = reactExports.useState(false);
   const typingRef = reactExports.useRef(null);
   const phaseTimersRef = reactExports.useRef([]);
   const mountedRef = reactExports.useRef(false);
@@ -96757,6 +96758,13 @@ const ShopOverlay = ({ open, onClose }) => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
     phaseTimersRef.current = [];
   };
+  reactExports.useEffect(() => {
+    const mql = window.matchMedia("(orientation: landscape)");
+    const handler = (e2) => setIsLandscape(e2.matches);
+    handler(mql);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
   reactExports.useEffect(() => {
     if (!open) {
       mountedRef.current = false;
@@ -96961,7 +96969,7 @@ const ShopOverlay = ({ open, onClose }) => {
               transition: "opacity 500ms ease-out",
               pointerEvents: showContent ? "auto" : "none",
               zIndex: 3,
-              paddingBottom: "clamp(16px, 3vh, 32px)"
+              paddingBottom: isLandscape ? "clamp(8px, 1.5vh, 16px)" : "clamp(16px, 3vh, 32px)"
             },
             onClick: skipOrAdvance,
             children: showContent && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center gap-3 px-4 max-w-2xl w-full", children: [
@@ -96970,13 +96978,13 @@ const ShopOverlay = ({ open, onClose }) => {
                 {
                   config: activeSpriteConfig,
                   style: {
-                    height: SPRITE_H,
+                    height: isLandscape ? "clamp(180px, 45vh, 300px)" : SPRITE_H,
                     aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
                     filter: "drop-shadow(0 10px 18px rgba(0,0,0,0.65))",
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
                     opacity: showContent ? 1 : 0,
                     transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms",
-                    marginBottom: 14
+                    marginBottom: isLandscape ? 0 : 14
                   }
                 },
                 spriteMode

@@ -76,6 +76,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const [typed, setTyped] = useState('');
   const [phase, setPhase] = useState<Phase>('closing');
   const [hoveredBtn, setHoveredBtn] = useState<number>(-1);
+  const [isLandscape, setIsLandscape] = useState(false);
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
@@ -85,6 +86,15 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
     phaseTimersRef.current = [];
   };
+
+  // Detect landscape orientation
+  useEffect(() => {
+    const mql = window.matchMedia('(orientation: landscape)');
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => setIsLandscape(e.matches);
+    handler(mql);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
 
   // Drive the entrance phase chain whenever we open
   useEffect(() => {
@@ -315,7 +325,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           transition: 'opacity 500ms ease-out',
           pointerEvents: showContent ? 'auto' : 'none',
           zIndex: 3,
-          paddingBottom: 'clamp(16px, 3vh, 32px)',
+          paddingBottom: isLandscape ? 'clamp(8px, 1.5vh, 16px)' : 'clamp(16px, 3vh, 32px)',
         }}
         onClick={skipOrAdvance}
       >
@@ -326,13 +336,13 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
               key={spriteMode}
               config={activeSpriteConfig}
               style={{
-                height: SPRITE_H,
+                height: isLandscape ? 'clamp(180px, 45vh, 300px)' : SPRITE_H,
                 aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
                 filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.65))',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: showContent ? 1 : 0,
                 transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
-                marginBottom: 14,
+                marginBottom: isLandscape ? 0 : 14,
               }}
             />
 
