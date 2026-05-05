@@ -311,8 +311,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
               config={activeSpriteConfig}
               style={{
                 height: isLandscape
-                  ? 'clamp(240px, 60vh, 380px)'
-                  : 'clamp(280px, 50vh, 420px)',
+                  ? 'clamp(300px, 70vh, 460px)'
+                  : 'clamp(340px, 58vh, 500px)',
                 aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
                 filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.75))',
                 opacity: showContent ? 1 : 0,
@@ -337,8 +337,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 padding: '16px 22px',
                 minHeight: 130,
                 marginTop: isLandscape
-                  ? 'clamp(-180px, -28vh, -110px)'
-                  : 'clamp(-200px, -22vh, -130px)',
+                  ? 'clamp(-140px, -22vh, -80px)'
+                  : 'clamp(-160px, -18vh, -100px)',
                 boxShadow:
                   'inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.18), 0 10px 28px rgba(0,0,0,0.65)',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
