@@ -117,7 +117,13 @@ export function playConfirm(): void {
 }
 
 // ── Hotel lobby music: real MP3 from GitHub ───────────────────────────────
-const LOBBY_MUSIC_URL = 'https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/hotel-lobby.mp3';
+// Fallback chain — tries each URL in order until one succeeds. Allows the
+// shop to keep playing music even if the primary track 404s, and gives us
+// room to add seasonal/variant tracks later.
+const LOBBY_MUSIC_URLS = [
+  'https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/hotel-lobby.mp3',
+  'https://raw.githubusercontent.com/Felipe9272727/M-sica-pro-meu-jogo/main/Lobby%20Time(MP3_160K).mp3',
+];
 let lobbyBuffer: AudioBuffer | null = null;
 let lobbyLoadPromise: Promise<AudioBuffer> | null = null;
 
@@ -126,11 +132,21 @@ async function loadLobbyMusic(ctx: AudioContext): Promise<AudioBuffer> {
   if (lobbyLoadPromise) return lobbyLoadPromise;
 
   lobbyLoadPromise = (async () => {
-    const res = await fetch(LOBBY_MUSIC_URL);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const arrayBuf = await res.arrayBuffer();
-    lobbyBuffer = await ctx.decodeAudioData(arrayBuf);
-    return lobbyBuffer;
+    let lastErr: unknown = null;
+    for (const url of LOBBY_MUSIC_URLS) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const arrayBuf = await res.arrayBuffer();
+        const buf = await ctx.decodeAudioData(arrayBuf);
+        lobbyBuffer = buf;
+        return buf;
+      } catch (e) {
+        lastErr = e;
+        // Try next URL in the chain.
+      }
+    }
+    throw lastErr ?? new Error('All lobby music URLs failed');
   })();
 
   try {

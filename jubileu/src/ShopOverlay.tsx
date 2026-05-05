@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   BELLHOP_CLEAN_STRIP,
   BELLHOP_CLEAN_FRAMES,
@@ -15,21 +15,25 @@ import {
 } from './bellhop-sprites';
 import { SpriteAnimator } from './SpriteEngine';
 import { playDoorbell, playBeep, playSelect, playConfirm, createLobbyMusic } from './shop-audio';
+import { tokenize, splitPages, charCount, type Token, type Mood } from './dialogue-engine';
+import { SHOP_SCENES, ROOT_SCENE, CLOSE_SCENE } from './shop-dialogues';
 
 // ─── Bellhop Shop — Undertale-style overlay with elevator entrance ─────────
 // Phase chain (open → close):
-//   'closing'   — two elevator doors slide in from the sides (covering screen)
+//   'closing'   — two elevator doors slide in (covering screen)
 //   'arrived'   — doors meet, brief darkness with a "DING" highlight
 //   'opening'   — doors slide back out, revealing the shop content
 //   'idle'      — shop interactive: dialog typewriter + menu buttons
 //   'exit-close'— doors close again on Esc/Tchau, then unmount
 //
-// Sprite logic (Canvas-based — no more CSS steps() carousel bug):
-//   • CLEAN strip animates during the entrance reveal (bellhop wiping counter)
-//   • IDLE strip — frame 0 static (mouth CLOSED) when not typing
-//   • TALK strip animates while text is being typed (mouth-open frames)
+// Dialogue engine:
+//   • shop-dialogues.ts → scene tree with inline tags ({y:...} {p:N} ^^)
+//   • dialogue-engine.ts → tokenizer + page splitter
+//   • Typewriter walks tokens char-by-char, respecting pauses & color
+//   • Multi-page: ▼ blinks at end of page; Z/Click advances
+//   • Mood per scene → drives bellhop sprite (talk / idle / wink / sweat / concerned)
+//   • Heart ♥ cursor on hovered/keyboard-selected choice (Undertale)
 
-type ShopMenu = 'main' | 'talk' | 'safe' | 'strange' | 'who' | 'services' | 'info' | 'map' | 'tips' | 'about' | 'owner' | 'floors' | 'bye';
 type Phase = 'closing' | 'arrived' | 'opening' | 'idle' | 'exit-close';
 
 interface ShopOverlayProps {
@@ -37,48 +41,46 @@ interface ShopOverlayProps {
   onClose: () => void;
 }
 
-const DIALOGUES: Record<ShopMenu, string> = {
-  main: '* Bem-vindo ao The Normal Hotel!\n* Como posso ajudá-lo hoje?',
-  talk: '* O que você gostaria de saber?',
-  who: '* Eu sou o recepcionista.\n* Trabalho aqui desde... bem,\n  desde sempre, eu acho.\n* Nunca vi ninguém sair\n  do hotel. Mas também\n  nunca vi ninguém reclamar.',
-  safe: '* Seguro?\n* Claro! Temos segurança 24h.\n* Bem... mais ou menos 24h.\n* O segurança às vezes\n  desaparece durante o\n  turno da noite.',
-  strange: '* Coisas estranhas?\n* Bem, tem o elevador.\n* Às vezes ele para em\n  andares que não existem.\n* Os hóspedes que vão\n  pra lá... nem todos\n  voltam iguais.',
-  services: '* Temos vários serviços\n  disponíveis para nossos\n  hóspedes:',
-  info: '* O elevador leva a andares\n  cada vez mais estranhos.\n* Use WASD para se mover.\n* Pressione E para interagir.\n* Scroll para zoom.\n* Não se perca.',
-  map: '* Você está no saguão\n  principal.\n* O elevador está ali atrás.\n* A recepção é onde\n  você está agora.\n* A casa é acessível\n  pelo elevador.',
-  tips: '* Algumas dicas úteis:\n* Fique de olho no andar.\n* Não confie em tudo\n  que você vê.\n* Se ouvir música estranha,\n  é normal.\n* Se parar de ouvir...\n  corra.',
-  about: '* The Normal Hotel.\n* Fundado em... bem.\n* Ninguém sabe ao certo.\n* O hotel sempre esteve\n  aqui.\n* E sempre vai estar.',
-  owner: '* O dono?\n* Nunca vi.\n* Temos ordens que vêm\n  de... algum lugar.\n* As regras mudam\n  de vez em quando.\n* Eu só sigo.',
-  floors: '* Andares?\n* Teoricamente... infinitos.\n* Na prática, o elevador\n  vai aonde quer.\n* Às vezes andares novos\n  aparecem.\n* Às vezes desaparecem.\n* É complicado.',
-  bye: '* Volte sempre!\n* O elevador está sempre aberto.',
-};
-
 const TIMINGS = {
   closing: 700,
   arrived: 360,
   opening: 700,
   exitClose: 600,
+  charDelay: 28,
 };
 
-// Bellhop sprite display height — set inline at the SpriteAnimator (varies
-// between landscape and portrait). The dialog box uses a negative marginTop
-// to overlap the sprite's lower half, Undertale-shop-style.
-
 export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
-  const [menu, setMenu] = useState<ShopMenu>('main');
-  const [typed, setTyped] = useState('');
+  const [sceneId, setSceneId] = useState<string>(ROOT_SCENE);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [revealed, setRevealed] = useState(0);
   const [phase, setPhase] = useState<Phase>('closing');
-  const [hoveredBtn, setHoveredBtn] = useState<number>(-1);
+  const [selectedChoice, setSelectedChoice] = useState(0);
   const [isLandscape, setIsLandscape] = useState(false);
+
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
   const musicRef = useRef<ReturnType<typeof createLobbyMusic> | null>(null);
   const charCountRef = useRef(0);
 
+  const scene = SHOP_SCENES[sceneId] ?? SHOP_SCENES[ROOT_SCENE];
+  const pages = useMemo(() => splitPages(tokenize(scene.text)), [scene.text]);
+  const currentPage: Token[] = pages[pageIndex] ?? [];
+  const pageCharTotal = useMemo(() => charCount(currentPage), [currentPage]);
+  const isPageDone = revealed >= pageCharTotal;
+  const isLastPage = pageIndex >= pages.length - 1;
+  const showChoices = isPageDone && isLastPage;
+
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
     phaseTimersRef.current = [];
+  };
+
+  const clearTyping = () => {
+    if (typingRef.current !== null) {
+      window.clearTimeout(typingRef.current);
+      typingRef.current = null;
+    }
   };
 
   // Detect landscape orientation
@@ -92,12 +94,18 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
 
   // Drive the entrance phase chain whenever we open
   useEffect(() => {
-    if (!open) { mountedRef.current = false; clearPhaseTimers(); return; }
+    if (!open) {
+      mountedRef.current = false;
+      clearPhaseTimers();
+      clearTyping();
+      return;
+    }
     mountedRef.current = true;
-    setMenu('main');
-    setTyped('');
+    setSceneId(ROOT_SCENE);
+    setPageIndex(0);
+    setRevealed(0);
+    setSelectedChoice(0);
     setPhase('closing');
-    setHoveredBtn(-1);
 
     const t1 = window.setTimeout(() => {
       if (!mountedRef.current) return;
@@ -109,8 +117,8 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         const t3 = window.setTimeout(() => {
           if (!mountedRef.current) return;
           setPhase('idle');
-      if (!musicRef.current) musicRef.current = createLobbyMusic();
-      musicRef.current.start();
+          if (!musicRef.current) musicRef.current = createLobbyMusic();
+          musicRef.current.start();
         }, TIMINGS.opening);
         phaseTimersRef.current.push(t3);
       }, TIMINGS.arrived);
@@ -118,56 +126,126 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     }, TIMINGS.closing);
     phaseTimersRef.current.push(t1);
 
-    return () => { clearPhaseTimers(); mountedRef.current = false; };
+    return () => { clearPhaseTimers(); clearTyping(); mountedRef.current = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Typewriter with beep — paints dialog one chunk at a time
+  // Reset typewriter when scene/page changes (only while idle)
   useEffect(() => {
     if (!open || phase !== 'idle') return;
-    setTyped('');
+    setRevealed(0);
     charCountRef.current = 0;
-    const text = DIALOGUES[menu];
-    let i = 0;
+  }, [sceneId, pageIndex, open, phase]);
+
+  // Reset selected choice when scene changes
+  useEffect(() => {
+    setSelectedChoice(0);
+  }, [sceneId]);
+
+  // Typewriter — walks tokens of currentPage one at a time, respecting pauses
+  useEffect(() => {
+    if (!open || phase !== 'idle') return;
+    if (revealed >= pageCharTotal) { clearTyping(); return; }
+
+    // Find the next *character* token starting from `revealed`
+    // We need to walk the page, counting chars to know when to next emit
     const tick = () => {
       if (!mountedRef.current) return;
-      i += 2;
-      charCountRef.current += 2;
-      // Beep every 3 characters (Undertale-style)
-      if (charCountRef.current % 3 === 0) playBeep();
-      setTyped(text.slice(0, i));
-      if (i < text.length) typingRef.current = window.setTimeout(tick, 30);
-      else typingRef.current = null;
+      // Determine next pause before next char
+      let charsSeen = 0;
+      let pendingPause = 0;
+      for (const t of currentPage) {
+        if (t.kind === 'char') {
+          if (charsSeen === revealed) break;
+          charsSeen++;
+        } else if (t.kind === 'pause' && charsSeen === revealed) {
+          pendingPause += t.ms;
+        }
+      }
+      const delay = TIMINGS.charDelay + pendingPause;
+      typingRef.current = window.setTimeout(() => {
+        charCountRef.current += 1;
+        if (charCountRef.current % 3 === 0) playBeep();
+        setRevealed((r) => Math.min(r + 1, pageCharTotal));
+      }, delay);
     };
     tick();
-    return () => {
-      if (typingRef.current !== null) {
-        window.clearTimeout(typingRef.current);
-        typingRef.current = null;
-      }
-    };
-  }, [open, menu, phase]);
+    return clearTyping;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealed, currentPage, pageCharTotal, phase, open]);
+
+  // ── Action handlers ────────────────────────────────────────────────────
+  const advanceOrSkip = useCallback(() => {
+    if (phase !== 'idle') return;
+    // Still typing → reveal whole page instantly
+    if (!isPageDone) {
+      clearTyping();
+      setRevealed(pageCharTotal);
+      return;
+    }
+    // Page complete but more pages → next page
+    if (!isLastPage) {
+      setPageIndex((p) => p + 1);
+      setRevealed(0);
+      playBeep();
+      return;
+    }
+  }, [phase, isPageDone, isLastPage, pageCharTotal]);
 
   const close = useCallback(() => {
     if (phase === 'exit-close') return;
     clearPhaseTimers();
+    clearTyping();
     setPhase('exit-close');
     musicRef.current?.stop();
     const t = window.setTimeout(() => onClose(), TIMINGS.exitClose);
     phaseTimersRef.current.push(t);
   }, [phase, onClose]);
 
+  const pickChoice = useCallback((index: number) => {
+    if (!showChoices) return;
+    const choice = scene.choices[index];
+    if (!choice) return;
+    playConfirm();
+    if (choice.goto === CLOSE_SCENE) { close(); return; }
+    setSceneId(choice.goto);
+    setPageIndex(0);
+    setRevealed(0);
+  }, [showChoices, scene.choices, close]);
+
+  // ── Keyboard navigation ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!open || phase !== 'idle') return;
+    const onKey = (e: KeyboardEvent) => {
+      const k = e.key;
+      if (k === 'Escape') { e.preventDefault(); close(); return; }
+      if (showChoices) {
+        const n = scene.choices.length;
+        if (k === 'ArrowDown' || k === 's' || k === 'S') {
+          e.preventDefault();
+          setSelectedChoice((i) => (i + 1) % n);
+          playSelect();
+        } else if (k === 'ArrowUp' || k === 'w' || k === 'W') {
+          e.preventDefault();
+          setSelectedChoice((i) => (i - 1 + n) % n);
+          playSelect();
+        } else if (k === 'Enter' || k === 'z' || k === 'Z' || k === ' ') {
+          e.preventDefault();
+          pickChoice(selectedChoice);
+        }
+        return;
+      }
+      // Typing or page-done-but-more-pages: advance
+      if (k === 'Enter' || k === 'z' || k === 'Z' || k === ' ') {
+        e.preventDefault();
+        advanceOrSkip();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, phase, showChoices, selectedChoice, scene.choices.length, pickChoice, advanceOrSkip, close]);
+
   if (!open) return null;
-
-  const isTyping = typed.length < DIALOGUES[menu].length;
-
-  const skipOrAdvance = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (phase !== 'idle') return;
-    if (isTyping) {
-      if (typingRef.current !== null) { window.clearTimeout(typingRef.current); typingRef.current = null; }
-      setTyped(DIALOGUES[menu]);
-    }
-  };
 
   // ── Door state machine ────────────────────────────────────────────────
   const doorsState =
@@ -175,17 +253,20 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     phase === 'arrived' ? 'closed' as const :
     phase === 'opening' ? 'sliding-out' as const :
     phase === 'idle' ? 'open' as const :
-    phase === 'exit-close' ? 'closing-exit' as const :
-    'closed' as const;
+    'closing-exit' as const;
 
   const showContent = phase === 'opening' || phase === 'idle';
   const contentOpacity = phase === 'opening' ? 0.85 : phase === 'idle' ? 1 : 0;
 
-  // ── Sprite mode selection (Canvas-based) ────────────────────────────
+  // ── Sprite mood selection ─────────────────────────────────────────────
+  // Bellhop is "talking" while text is still being revealed; otherwise the
+  // mood from the scene controls expression. CLEAN strip plays during the
+  // entrance reveal (counter wipe).
+  const sceneMood: Mood = scene.mood ?? 'idle';
   type SpriteMode = 'clean' | 'idle-static' | 'talk';
-  const spriteMode: SpriteMode =
-    phase === 'idle' ? (isTyping ? 'talk' : 'idle-static') :
-    'clean';
+  const spriteMode: SpriteMode = phase === 'idle'
+    ? (!isPageDone || sceneMood === 'talk' ? 'talk' : 'idle-static')
+    : 'clean';
 
   const spriteConfigs = {
     clean: {
@@ -216,8 +297,46 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       pixelated: true,
     },
   };
-
   const activeSpriteConfig = spriteConfigs[spriteMode];
+
+  // ── Render the visible portion of the current page ────────────────────
+  // Walk tokens, accumulating chars up to `revealed`. Returns React nodes
+  // grouped by color so styled spans render correctly.
+  const renderedNodes = useMemo(() => {
+    const out: React.ReactNode[] = [];
+    let charsSeen = 0;
+    let buf = '';
+    let bufColor: string | undefined;
+    let bufShake = false;
+    const flush = () => {
+      if (!buf) return;
+      out.push(
+        <span
+          key={out.length}
+          className={bufShake ? 'shop-shake' : undefined}
+          style={bufColor ? { color: bufColor } : undefined}
+        >{buf}</span>
+      );
+      buf = '';
+    };
+    for (const t of currentPage) {
+      if (t.kind === 'char') {
+        if (charsSeen >= revealed) break;
+        if (t.color !== bufColor || (!!t.shake) !== bufShake) {
+          flush();
+          bufColor = t.color;
+          bufShake = !!t.shake;
+        }
+        buf += t.ch;
+        charsSeen++;
+      } else if (t.kind === 'newline') {
+        flush();
+        out.push(<br key={out.length} />);
+      }
+    }
+    flush();
+    return out;
+  }, [currentPage, revealed]);
 
   return (
     <div
@@ -292,17 +411,10 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           zIndex: 3,
           paddingBottom: isLandscape ? 'clamp(8px, 1.5vh, 16px)' : 'clamp(16px, 3vh, 32px)',
         }}
-        onClick={skipOrAdvance}
+        onClick={advanceOrSkip}
       >
         {showContent && (
           <div className="flex flex-col items-center px-4 max-w-2xl w-full">
-            {/* ── Bellhop sprite (big, full body) ───────────────────────
-                Rendered at large Undertale-shop scale. Counter is part
-                of the CLEAN strip so the lower edge already reads as
-                "behind a counter". The dialog box below uses a negative
-                marginTop to pull up over the lower half of the sprite,
-                creating the layered "onion" shop look — sprite extends
-                BEHIND the dialog box (z-index 1 vs 2), not cropped. */}
             <SpriteAnimator
               key={spriteMode}
               config={activeSpriteConfig}
@@ -321,16 +433,13 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
               }}
             />
 
-            {/* ── Dialog box — Undertale shop style ──────────────────
-                Negative marginTop pulls the box up so it overlaps the
-                bottom ~45% of the sprite. z-index 2 puts it visually in
-                front; the sprite's legs/feet hide behind the box. */}
+            {/* Dialog box */}
             <div
               className="w-full"
               style={{
                 background: '#000',
                 border: '5px solid #fff',
-                borderRadius: 0, // Undertale uses sharp corners
+                borderRadius: 0,
                 padding: '16px 22px',
                 minHeight: 130,
                 marginTop: isLandscape
@@ -348,97 +457,53 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 zIndex: 2,
               }}
             >
-              {/* ── Dialog text (left) ───────────────────────────────── */}
-              <div className="flex-1 min-w-0">
+              {/* Dialog text (left) */}
+              <div className="flex-1 min-w-0 relative">
                 <p
                   style={{
                     color: '#fff',
                     fontSize: 'clamp(14px, 2vw, 18px)',
                     lineHeight: 1.5,
                     minHeight: '3.0em',
-                    whiteSpace: 'pre-wrap',
                     margin: 0,
                     letterSpacing: '0.03em',
                   }}
                 >
-                  {typed}
-                  {isTyping && <span className="shop-cursor">▎</span>}
+                  {renderedNodes}
+                  {!isPageDone && <span className="shop-cursor">▎</span>}
                 </p>
+
+                {/* Page advance indicator (▼) — appears when current page is
+                    fully revealed but more pages remain. */}
+                {isPageDone && !isLastPage && (
+                  <div className="shop-page-advance" aria-hidden>▼</div>
+                )}
               </div>
 
-              {/* ── Menu options (right, vertical list) ──────────────── */}
-              {!isTyping && (
+              {/* Choices (right) — only on last page once revealed */}
+              {showChoices && (
                 <div
                   className="flex-shrink-0 flex flex-col gap-1"
-                  style={{ minWidth: 'clamp(110px, 18vw, 150px)' }}
+                  style={{ minWidth: 'clamp(120px, 20vw, 160px)' }}
                 >
-                  {menu === 'main' && (
-                    <>
-                      <UndertaleButton label="Conversar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
-                      <UndertaleButton label="Serviços" index={1} hovered={hoveredBtn === 1} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('services'); }} />
-                      <UndertaleButton label="Sobre o hotel" index={2} hovered={hoveredBtn === 2} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('about'); }} />
-                      <UndertaleButton label="Sair" index={3} hovered={hoveredBtn === 3} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('bye'); }} />
-                    </>
-                  )}
-                  {menu === 'talk' && (
-                    <>
-                      <UndertaleButton label="Você quem é?" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('who'); }} />
-                      <UndertaleButton label="O hotel é seguro?" index={1} hovered={hoveredBtn === 1} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('safe'); }} />
-                      <UndertaleButton label="Coisas estranhas" index={2} hovered={hoveredBtn === 2} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('strange'); }} />
-                      <UndertaleButton label="Voltar" index={3} hovered={hoveredBtn === 3} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
-                    </>
-                  )}
-                  {menu === 'who' && (
-                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
-                  )}
-                  {menu === 'safe' && (
-                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
-                  )}
-                  {menu === 'strange' && (
-                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
-                  )}
-                  {menu === 'services' && (
-                    <>
-                      <UndertaleButton label="Informações" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('info'); }} />
-                      <UndertaleButton label="Mapa" index={1} hovered={hoveredBtn === 1} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('map'); }} />
-                      <UndertaleButton label="Dicas" index={2} hovered={hoveredBtn === 2} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('tips'); }} />
-                      <UndertaleButton label="Voltar" index={3} hovered={hoveredBtn === 3} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
-                    </>
-                  )}
-                  {menu === 'info' && (
-                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('services'); }} />
-                  )}
-                  {menu === 'map' && (
-                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('services'); }} />
-                  )}
-                  {menu === 'tips' && (
-                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('services'); }} />
-                  )}
-                  {menu === 'about' && (
-                    <>
-                      <UndertaleButton label="Quem é o dono?" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('owner'); }} />
-                      <UndertaleButton label="Quantos andares?" index={1} hovered={hoveredBtn === 1} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('floors'); }} />
-                      <UndertaleButton label="Voltar" index={2} hovered={hoveredBtn === 2} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
-                    </>
-                  )}
-                  {menu === 'owner' && (
-                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('about'); }} />
-                  )}
-                  {menu === 'floors' && (
-                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('about'); }} />
-                  )}
-                  {menu === 'bye' && (
-                    <UndertaleButton label="Tchau" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); close(); }} />
-                  )}
+                  {scene.choices.map((c, i) => (
+                    <UndertaleButton
+                      key={`${sceneId}:${i}:${c.label}`}
+                      label={c.label}
+                      selected={selectedChoice === i}
+                      onHover={() => { if (selectedChoice !== i) { setSelectedChoice(i); playSelect(); } }}
+                      onClick={(e) => { e.stopPropagation(); pickChoice(i); }}
+                    />
+                  ))}
                 </div>
               )}
             </div>
 
             <p
-              className="text-white/40 text-[10px] sm:text-xs select-none mt-1"
+              className="text-white/45 text-[10px] sm:text-xs select-none mt-2"
               style={{ letterSpacing: '0.08em' }}
             >
-              [ ESC ] FECHAR &nbsp;·&nbsp; [ CLICK ] AVANÇAR
+              [ ↑↓ ] NAVEGAR &nbsp;·&nbsp; [ Z / ENTER ] CONFIRMAR &nbsp;·&nbsp; [ ESC ] FECHAR
             </p>
           </div>
         )}
@@ -491,11 +556,35 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           0%, 50%   { opacity: 1; }
           51%, 100% { opacity: 0; }
         }
+        @keyframes shopShake {
+          0%, 100% { transform: translate(0, 0); }
+          25%      { transform: translate(-1px, 1px); }
+          50%      { transform: translate(1px, -1px); }
+          75%      { transform: translate(-1px, -1px); }
+        }
+        @keyframes shopAdvanceBob {
+          0%, 100% { transform: translateY(0); opacity: 0.85; }
+          50%      { transform: translateY(3px); opacity: 1; }
+        }
         .shop-cursor {
           display: inline-block;
           margin-left: 1px;
           color: #fff;
           animation: undertaleBlink 600ms steps(1) infinite;
+        }
+        .shop-shake {
+          display: inline-block;
+          animation: shopShake 80ms infinite;
+        }
+        .shop-page-advance {
+          position: absolute;
+          right: 0;
+          bottom: -4px;
+          color: #FFD54F;
+          font-size: clamp(14px, 1.8vw, 18px);
+          line-height: 1;
+          animation: shopAdvanceBob 700ms ease-in-out infinite;
+          text-shadow: 0 0 6px rgba(255,213,79,0.5);
         }
         .undertale-btn {
           background: transparent;
@@ -512,54 +601,42 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           line-height: 1.5;
         }
         .undertale-btn::before {
-          content: '►';
+          content: '♥';
           position: absolute;
           left: 4px;
-          color: #FFD54F;
+          color: #FF4747;
           opacity: 0;
           transition: opacity 80ms ease;
+          text-shadow: 0 0 6px rgba(255,71,71,0.6);
         }
-        .undertale-btn:hover,
-        .undertale-btn:focus-visible {
+        .undertale-btn[data-selected="true"] {
           color: #FFD54F;
           outline: 0;
         }
-        .undertale-btn:hover::before,
-        .undertale-btn:focus-visible::before {
+        .undertale-btn[data-selected="true"]::before {
           opacity: 1;
         }
-        .undertale-btn::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          height: 0;
-          background: rgba(255,213,79,0.08);
-          transition: height 80ms ease;
-        }
-        .undertale-btn:hover::after {
-          height: 100%;
+        .undertale-btn:focus-visible {
+          color: #FFD54F;
+          outline: 0;
         }
       `}</style>
     </div>
   );
 };
 
-// ─── Undertale-style button ───────────────────────────────────────────────
-// Yellow arrow (►) appears on hover, text turns yellow.
+// ─── Undertale-style button — heart cursor on selected ────────────────────
 const UndertaleButton: React.FC<{
   label: string;
-  index: number;
-  hovered: boolean;
-  onHover: (i: number) => void;
+  selected: boolean;
+  onHover: () => void;
   onClick: (e: React.MouseEvent) => void;
-}> = ({ label, index, onHover, onClick }) => (
+}> = ({ label, selected, onHover, onClick }) => (
   <button
     type="button"
     className="undertale-btn"
-    onMouseEnter={() => onHover(index)}
-    onMouseLeave={() => onHover(-1)}
+    data-selected={selected}
+    onMouseEnter={onHover}
     onClick={onClick}
   >
     {label}
