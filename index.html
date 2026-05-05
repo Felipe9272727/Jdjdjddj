@@ -96745,19 +96745,33 @@ function playBeep() {
   }
 }
 const ShopOverlay = ({ open, onClose }) => {
+  var _a;
   const [menu, setMenu] = reactExports.useState("main");
   const [typed, setTyped] = reactExports.useState("");
   const [phase, setPhase] = reactExports.useState("closing");
   const [hoveredBtn, setHoveredBtn] = reactExports.useState(-1);
   const [isLandscape, setIsLandscape] = reactExports.useState(false);
+  const [debugPortrait, setDebugPortrait] = reactExports.useState(false);
+  const [portraitY, setPortraitY] = reactExports.useState(50);
   const typingRef = reactExports.useRef(null);
   const phaseTimersRef = reactExports.useRef([]);
   const mountedRef = reactExports.useRef(false);
   const charCountRef = reactExports.useRef(0);
+  const portraitContainerRef = reactExports.useRef(null);
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
     phaseTimersRef.current = [];
   };
+  reactExports.useEffect(() => {
+    if (!open) return;
+    const handler = (e2) => {
+      if (e2.key === "p" || e2.key === "P") {
+        setDebugPortrait((v5) => !v5);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open]);
   reactExports.useEffect(() => {
     const mql = window.matchMedia("(orientation: landscape)");
     const handler = (e2) => setIsLandscape(e2.matches);
@@ -96892,7 +96906,7 @@ const ShopOverlay = ({ open, onClose }) => {
     pixelated: true,
     scale: 1.8
   };
-  const portraitOffsetY = "50px";
+  const portraitOffsetY = `${portraitY}px`;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
@@ -97012,34 +97026,112 @@ const ShopOverlay = ({ open, onClose }) => {
                     zIndex: 2
                   },
                   children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs(
                       "div",
                       {
+                        ref: portraitContainerRef,
                         "aria-hidden": true,
                         style: {
                           flexShrink: 0,
                           width: "clamp(90px, 15vw, 120px)",
                           height: "clamp(90px, 15vw, 120px)",
-                          border: "3px solid #fff",
+                          border: debugPortrait ? "3px solid #0f0" : "3px solid #fff",
                           borderRadius: 0,
                           background: "#000",
                           overflow: "hidden",
                           position: "relative"
                         },
-                        children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                          SpriteAnimator,
-                          {
-                            config: portraitConfig,
-                            style: {
+                        children: [
+                          /* @__PURE__ */ jsxRuntimeExports.jsx(
+                            SpriteAnimator,
+                            {
+                              config: portraitConfig,
+                              style: {
+                                position: "absolute",
+                                top: portraitOffsetY,
+                                left: "50%",
+                                transform: "translateX(-50%)",
+                                imageRendering: "pixelated"
+                              }
+                            },
+                            isTyping ? "talk" : "idle"
+                          ),
+                          debugPortrait && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: {
+                            position: "absolute",
+                            inset: 0,
+                            zIndex: 100,
+                            pointerEvents: "auto"
+                          }, children: [
+                            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: {
                               position: "absolute",
-                              top: portraitOffsetY,
+                              top: "50%",
+                              left: 0,
+                              right: 0,
+                              height: 1,
+                              background: "rgba(255,0,0,0.6)"
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: {
+                              position: "absolute",
                               left: "50%",
-                              transform: "translateX(-50%)",
-                              imageRendering: "pixelated"
-                            }
-                          },
-                          isTyping ? "talk" : "idle"
-                        )
+                              top: 0,
+                              bottom: 0,
+                              width: 1,
+                              background: "rgba(255,0,0,0.6)"
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: {
+                              position: "absolute",
+                              top: portraitY,
+                              left: 0,
+                              right: 0,
+                              height: 1,
+                              background: "rgba(0,255,0,0.8)"
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: {
+                              position: "absolute",
+                              bottom: 2,
+                              left: 2,
+                              right: 2,
+                              background: "rgba(0,0,0,0.85)",
+                              color: "#0f0",
+                              fontSize: 9,
+                              fontFamily: "monospace",
+                              padding: "3px 4px",
+                              lineHeight: 1.3,
+                              pointerEvents: "auto"
+                            }, children: [
+                              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                                "Y: ",
+                                portraitY,
+                                "px"
+                              ] }),
+                              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                                "H: ",
+                                ((_a = portraitContainerRef.current) == null ? void 0 : _a.offsetHeight) ?? "?",
+                                "px"
+                              ] }),
+                              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { display: "flex", gap: 2, marginTop: 3 }, children: [-50, -10, -1, 1, 10, 50].map((d) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+                                "button",
+                                {
+                                  onClick: (e2) => {
+                                    e2.stopPropagation();
+                                    setPortraitY((v5) => v5 + d);
+                                  },
+                                  style: {
+                                    background: "#222",
+                                    color: "#0f0",
+                                    border: "1px solid #0f0",
+                                    fontSize: 9,
+                                    padding: "1px 3px",
+                                    cursor: "pointer",
+                                    fontFamily: "monospace"
+                                  },
+                                  children: d > 0 ? `+${d}` : d
+                                },
+                                d
+                              )) })
+                            ] })
+                          ] })
+                        ]
                       }
                     ),
                     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 min-w-0", children: [

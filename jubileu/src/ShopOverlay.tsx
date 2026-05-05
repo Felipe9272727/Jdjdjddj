@@ -77,15 +77,30 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const [phase, setPhase] = useState<Phase>('closing');
   const [hoveredBtn, setHoveredBtn] = useState<number>(-1);
   const [isLandscape, setIsLandscape] = useState(false);
+  const [debugPortrait, setDebugPortrait] = useState(false);
+  const [portraitY, setPortraitY] = useState(50);
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
   const mountedRef = useRef(false);
   const charCountRef = useRef(0);
+  const portraitContainerRef = useRef<HTMLDivElement>(null);
 
   const clearPhaseTimers = () => {
     phaseTimersRef.current.forEach((id) => window.clearTimeout(id));
     phaseTimersRef.current = [];
   };
+
+  // Debug toggle: press 'P' to show portrait position debugger
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'p' || e.key === 'P') {
+        setDebugPortrait(v => !v);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open]);
 
   // Detect landscape orientation
   useEffect(() => {
@@ -252,7 +267,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   // At scale 1.8: canvas is 180×252px from 100×140 source.
   // Shoulders ≈ 40% of 140 = 56px source → 100px at 1.8x.
   // We want shoulders at y=0 of container, so offset = -100px.
-  const portraitOffsetY = '50px';
+  const portraitOffsetY = `${portraitY}px`;
 
   return (
     <div
@@ -371,12 +386,13 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
             >
               {/* ── Portrait frame — crops to head+torso ─────────────── */}
               <div
+                ref={portraitContainerRef}
                 aria-hidden
                 style={{
                   flexShrink: 0,
                   width: 'clamp(90px, 15vw, 120px)',
                   height: 'clamp(90px, 15vw, 120px)',
-                  border: '3px solid #fff',
+                  border: debugPortrait ? '3px solid #0f0' : '3px solid #fff',
                   borderRadius: 0,
                   background: '#000',
                   overflow: 'hidden',
@@ -394,6 +410,55 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                     imageRendering: 'pixelated',
                   }}
                 />
+                {/* Debug overlay — press P to toggle */}
+                {debugPortrait && (
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    zIndex: 100,
+                    pointerEvents: 'auto',
+                  }}>
+                    {/* Crosshair */}
+                    <div style={{
+                      position: 'absolute', top: '50%', left: 0, right: 0,
+                      height: 1, background: 'rgba(255,0,0,0.6)',
+                    }} />
+                    <div style={{
+                      position: 'absolute', left: '50%', top: 0, bottom: 0,
+                      width: 1, background: 'rgba(255,0,0,0.6)',
+                    }} />
+                    {/* Sprite top edge guide */}
+                    <div style={{
+                      position: 'absolute', top: portraitY, left: 0, right: 0,
+                      height: 1, background: 'rgba(0,255,0,0.8)',
+                    }} />
+                    {/* Info panel */}
+                    <div style={{
+                      position: 'absolute', bottom: 2, left: 2, right: 2,
+                      background: 'rgba(0,0,0,0.85)', color: '#0f0',
+                      fontSize: 9, fontFamily: 'monospace', padding: '3px 4px',
+                      lineHeight: 1.3, pointerEvents: 'auto',
+                    }}>
+                      <div>Y: {portraitY}px</div>
+                      <div>H: {portraitContainerRef.current?.offsetHeight ?? '?'}px</div>
+                      <div style={{ display: 'flex', gap: 2, marginTop: 3 }}>
+                        {[-50, -10, -1, 1, 10, 50].map(d => (
+                          <button
+                            key={d}
+                            onClick={(e) => { e.stopPropagation(); setPortraitY(v => v + d); }}
+                            style={{
+                              background: '#222', color: '#0f0', border: '1px solid #0f0',
+                              fontSize: 9, padding: '1px 3px', cursor: 'pointer',
+                              fontFamily: 'monospace',
+                            }}
+                          >
+                            {d > 0 ? `+${d}` : d}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* ── Dialog text + menu ───────────────────────────────── */}
