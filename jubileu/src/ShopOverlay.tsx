@@ -14,6 +14,7 @@ import {
   HOTEL_BG,
 } from './bellhop-sprites';
 import { SpriteAnimator } from './SpriteEngine';
+import { PortraitTileDebug } from './PortraitTileDebug';
 
 // ─── Bellhop Shop — Undertale-style overlay with elevator entrance ─────────
 // Phase chain (open → close):
@@ -640,6 +641,21 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           height: 100%;
         }
       `}</style>
+
+      {/* Tile Map Debug Overlay — press P or double-tap portrait */}
+      {debugPortrait && (
+        <PortraitTileDebug
+          imageUrl={isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP}
+          frameWidth={isTyping ? BELLHOP_TALK_FRAME_W : BELLHOP_IDLE_FRAME_W}
+          frameHeight={isTyping ? BELLHOP_TALK_FRAME_H : BELLHOP_IDLE_FRAME_H}
+          scale={1.8}
+          containerSize={Math.round(
+            parseFloat(getComputedStyle(document.documentElement).fontSize) * 6.5625
+          ) || 105}
+          initialOffset={portraitY}
+          onOffsetChange={(v) => setPortraitY(v)}
+        />
+      )}
     </div>
   );
 };

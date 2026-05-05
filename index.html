@@ -899,6 +899,10 @@
     display: flex;
   }
 
+  .grid {
+    display: grid;
+  }
+
   .hidden {
     display: none;
   }
@@ -96715,6 +96719,188 @@ const SpriteAnimator = ({
     }
   );
 };
+const PortraitTileDebug = ({
+  imageUrl,
+  frameWidth,
+  frameHeight,
+  scale: scale2,
+  containerSize,
+  onOffsetChange,
+  initialOffset = 0
+}) => {
+  const canvasRef = reactExports.useRef(null);
+  const [offset, setOffset] = reactExports.useState(initialOffset);
+  const [imgLoaded, setImgLoaded] = reactExports.useState(false);
+  const imgRef = reactExports.useRef(null);
+  const scaledW = frameWidth * scale2;
+  const scaledH = frameHeight * scale2;
+  const TILE = 10;
+  reactExports.useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      imgRef.current = img;
+      setImgLoaded(true);
+    };
+    img.src = imageUrl;
+    return () => {
+      imgRef.current = null;
+    };
+  }, [imageUrl]);
+  reactExports.useEffect(() => {
+    if (!imgLoaded || !canvasRef.current || !imgRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const cols = Math.ceil(scaledW / TILE);
+    const rows = Math.ceil(scaledH / TILE);
+    canvas.width = scaledW + 80;
+    canvas.height = scaledH + 20;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const tileScale = TILE / scale2;
+    for (let r2 = 0; r2 < rows; r2++) {
+      for (let c2 = 0; c2 < cols; c2++) {
+        const sx = c2 * tileScale;
+        const sy = r2 * tileScale;
+        const sw = Math.min(tileScale, frameWidth - sx);
+        const sh = Math.min(tileScale, frameHeight - sy);
+        if (sw <= 0 || sh <= 0) continue;
+        ctx.drawImage(
+          imgRef.current,
+          sx,
+          sy,
+          sw,
+          sh,
+          c2 * TILE,
+          r2 * TILE,
+          TILE,
+          TILE
+        );
+        ctx.strokeStyle = "rgba(0,255,0,0.25)";
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(c2 * TILE, r2 * TILE, TILE, TILE);
+      }
+    }
+    const visTop = Math.max(0, -offset);
+    const visBottom = Math.min(scaledH, containerSize - offset);
+    if (visBottom > visTop) {
+      ctx.strokeStyle = "#ff0000";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0, visTop, scaledW, visBottom - visTop);
+      ctx.fillStyle = "rgba(255,0,0,0.15)";
+      ctx.fillRect(0, visTop, scaledW, visBottom - visTop);
+      ctx.fillStyle = "#ff0000";
+      ctx.font = "10px monospace";
+      ctx.fillText(`VISIBLE: ${Math.round(visTop / scale2)}-${Math.round(visBottom / scale2)}px src`, 4, visTop + 12);
+    }
+    ctx.fillStyle = "#0f0";
+    ctx.font = "8px monospace";
+    for (let r2 = 0; r2 < rows; r2 += 3) {
+      const srcY = Math.round(r2 * tileScale);
+      ctx.fillText(`${srcY}`, scaledW + 4, r2 * TILE + 8);
+    }
+    const headBottom = Math.round(rows * 0.25);
+    ctx.strokeStyle = "rgba(0,200,255,0.6)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.strokeRect(0, 0, scaledW, headBottom * TILE);
+    ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(0,200,255,0.8)";
+    ctx.font = "9px monospace";
+    ctx.fillText("HEAD", 4, headBottom * TILE - 4);
+    const torsoBottom = Math.round(rows * 0.6);
+    ctx.strokeStyle = "rgba(255,200,0,0.4)";
+    ctx.setLineDash([3, 3]);
+    ctx.strokeRect(0, headBottom * TILE, scaledW, (torsoBottom - headBottom) * TILE);
+    ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(255,200,0,0.7)";
+    ctx.fillText("TORSO", 4, torsoBottom * TILE - 4);
+    ctx.fillStyle = "#fff";
+    ctx.font = "10px monospace";
+    ctx.fillText(`Offset: ${offset}px`, scaledW + 4, scaledH + 12);
+    ctx.fillText(`Container: ${containerSize}px`, scaledW + 4, scaledH - 4);
+  }, [imgLoaded, offset, scaledW, scaledH, containerSize, scale2, frameWidth, frameHeight]);
+  const adjust = reactExports.useCallback((d) => {
+    setOffset((prev) => {
+      const next = prev + d;
+      onOffsetChange(next);
+      return next;
+    });
+  }, [onOffsetChange]);
+  const autoCalc = reactExports.useCallback(() => {
+    const headTorsoPx = scaledH * 0.55;
+    const centerOfTarget = headTorsoPx / 2;
+    const containerCenter = containerSize / 2;
+    const idealOffset = Math.round(containerCenter - centerOfTarget);
+    setOffset(idealOffset);
+    onOffsetChange(idealOffset);
+  }, [scaledH, containerSize, onOffsetChange]);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: {
+    position: "fixed",
+    top: 10,
+    right: 10,
+    zIndex: 9999,
+    background: "rgba(0,0,0,0.92)",
+    border: "2px solid #0f0",
+    padding: 8,
+    borderRadius: 4,
+    maxWidth: "95vw",
+    overflow: "auto"
+  }, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { color: "#0f0", fontSize: 11, fontFamily: "monospace", marginBottom: 4 }, children: "🗺️ PORTRAIT TILE MAP DEBUG" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("canvas", { ref: canvasRef, style: { display: "block", imageRendering: "pixelated" } }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", gap: 3, marginTop: 6, flexWrap: "wrap" }, children: [
+      [-50, -10, -1, 1, 10, 50].map((d) => /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => adjust(d), style: {
+        background: "#111",
+        color: "#0f0",
+        border: "1px solid #0f0",
+        fontSize: 10,
+        padding: "2px 6px",
+        cursor: "pointer",
+        fontFamily: "monospace"
+      }, children: d > 0 ? `+${d}` : d }, d)),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: autoCalc, style: {
+        background: "#003300",
+        color: "#0f0",
+        border: "1px solid #0f0",
+        fontSize: 10,
+        padding: "2px 8px",
+        cursor: "pointer",
+        fontFamily: "monospace",
+        marginLeft: 8
+      }, children: "AUTO" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { color: "#888", fontSize: 9, fontFamily: "monospace", marginTop: 4 }, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+        "Sprite: ",
+        frameWidth,
+        "×",
+        frameHeight,
+        " @ ",
+        scale2,
+        "x = ",
+        scaledW,
+        "×",
+        scaledH,
+        "px"
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+        "Container: ",
+        containerSize,
+        "px | Offset: ",
+        offset,
+        "px"
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+        "Source visible: ",
+        Math.round(Math.max(0, -offset) / scale2),
+        "–",
+        Math.round(Math.min(scaledH, containerSize - offset) / scale2),
+        "px"
+      ] })
+    ] })
+  ] });
+};
 const DIALOGUES = {
   main: "* Bem-vindo ao The Normal Hotel.\n* Posso te ajudar?",
   talk: "* Tenha uma ótima estadia...\n* E fique calmo se ouvir alguma\n  coisa estranha vindo do andar\n  de cima.",
@@ -97327,7 +97513,21 @@ const ShopOverlay = ({ open, onClose }) => {
         .undertale-btn:hover::after {
           height: 100%;
         }
-      ` })
+      ` }),
+        debugPortrait && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          PortraitTileDebug,
+          {
+            imageUrl: isTyping ? BELLHOP_TALK_STRIP : BELLHOP_IDLE_STRIP,
+            frameWidth: isTyping ? BELLHOP_TALK_FRAME_W : BELLHOP_IDLE_FRAME_W,
+            frameHeight: isTyping ? BELLHOP_TALK_FRAME_H : BELLHOP_IDLE_FRAME_H,
+            scale: 1.8,
+            containerSize: Math.round(
+              parseFloat(getComputedStyle(document.documentElement).fontSize) * 6.5625
+            ) || 105,
+            initialOffset: portraitY,
+            onOffsetChange: (v5) => setPortraitY(v5)
+          }
+        )
       ]
     }
   );
