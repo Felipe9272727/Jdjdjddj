@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense, Component } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, Loader } from '@react-three/drei';
 import { Vector3, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
@@ -210,7 +210,7 @@ export default function App() {
       return () => clearInterval(check);
   }, [gameState, canSleep]);
 
-  const handlePlayerEnterElevator = () => { if (elevatorTimer === null && !doorsClosed) { setElevatorTimer(5); } };
+  const handlePlayerEnterElevator = useCallback(() => { if (elevatorTimer === null && !doorsClosed) { setElevatorTimer(5); } }, [elevatorTimer, doorsClosed]);
   const handleInteractionUpdate = useCallback((c: boolean) => { setCanInteractDoor(p => p !== c ? c : p); }, []);
   const handleNpcInteractionUpdate = useCallback((c: boolean) => { setCanInteractNPC(p => p !== c ? c : p); }, []);
   const handleCashierInteractionUpdate = useCallback((c: boolean) => { setCanInteractCashier(p => p !== c ? c : p); }, []);
@@ -498,6 +498,12 @@ export default function App() {
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
   }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
 
+  // Memoize the sliced remote player id list to avoid re-creating on every render.
+  const visibleRemotePlayerIds = useMemo(
+    () => otherPlayerIds.slice(0, QUALITY_PROFILES[settings.quality].remoteLimit),
+    [otherPlayerIds, settings.quality]
+  );
+
   // Bot mode: spawns autonomous bot avatars in the lobby that move via
   // steering behaviors. The simulation lives inside <BotSystem> (mounted in
   // the Canvas tree, since useFrame requires Canvas context). The HUD reads
@@ -533,7 +539,7 @@ export default function App() {
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
                 player joins or leaves. */}
-            {otherPlayerIds.slice(0, QUALITY_PROFILES[settings.quality].remoteLimit).map(id => (
+            {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
             <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />

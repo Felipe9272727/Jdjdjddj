@@ -117,6 +117,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
   const [anim, setAnim] = useState<'Idle' | 'Walking'>('Idle');
+  const animRef = useRef<'Idle' | 'Walking'>('Idle');
   const elevTriggered = useRef(false); const HH = 1.6;
   const prevInsideElevatorRef = useRef(false);
   const _vRef = useRef<any>(null);
@@ -126,6 +127,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const timeRef = useRef(0);
   const camPosRef = useRef(new Vector3(0, 0, 8)); // smooth camera position
   const camInitRef = useRef(false); // sync camera to player pos on first frame
+  const walls = useMemo(() => wallsForState(currentLevel, doorsClosed, houseDoorOpen), [currentLevel, doorsClosed, houseDoorOpen]);
 
   useEffect(() => { elevTriggered.current = false; }, [currentLevel]);
 
@@ -179,7 +181,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     // existing call sites that don't pass a target still work.
     const dialogueFocusRef = dialogueTargetRef ?? npcPositionRef;
     if (dialogueOpen && dialogueFocusRef?.current) {
-        setAnim('Idle');
+        if (animRef.current !== 'Idle') { animRef.current = 'Idle'; setAnim('Idle'); }
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
         const nP = dialogueFocusRef.current; const pP = pos.current;
         const d2p = _v.current[0].subVectors(pP, nP).normalize(); if (d2p.lengthSq() < 1e-3) d2p.set(0,0,1);
@@ -210,8 +212,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             const mv = _v.current[5].set(0,0,0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * safeDt);
             const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
 
-            const wl = wallsForState(currentLevel, doorsClosed, houseDoorOpen);
-            const [rx, rz] = _resolve(nx, nz, PR, wl);
+            const [rx, rz] = _resolve(nx, nz, PR, walls);
             pos.current.x = rx; pos.current.z = rz; pos.current.y = 0;
 
             if (fp) { charRot.current.y = camAng.current.theta + Math.PI; } else { const a = Math.atan2(mv.x, mv.z); let d = a - charRot.current.y; while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; charRot.current.y += d*10*safeDt; }
@@ -220,7 +221,8 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         if (currentLevel === 1) { const dx = pos.current.x-HOUSE_DOOR_X; const dz = pos.current.z-HOUSE_DOOR_Z; onInteractionUpdate(Math.sqrt(dx*dx+dz*dz) < DOOR_INTERACT_DIST); } else { onInteractionUpdate(false); }
         if (currentLevel === 0 && npcPositionRef?.current) { onNpcInteractionUpdate(pos.current.distanceTo(npcPositionRef.current) < NPC_INTERACT_DIST); } else { onNpcInteractionUpdate(false); }
         if (currentLevel === 0 && onCashierInteractionUpdate) { const cdx = pos.current.x - CASHIER_POS.x; const cdz = pos.current.z - CASHIER_POS.z; onCashierInteractionUpdate(Math.sqrt(cdx*cdx + cdz*cdz) < CASHIER_INTERACT_DIST); } else if (onCashierInteractionUpdate) { onCashierInteractionUpdate(false); }
-        setAnim(moving ? 'Walking' : 'Idle');
+        const nextAnim = moving ? 'Walking' : 'Idle';
+        if (nextAnim !== animRef.current) { animRef.current = nextAnim; setAnim(nextAnim); }
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
         const ly = pos.current.y + HH;
         const nla = _v.current[6].set(pos.current.x, ly, pos.current.z);

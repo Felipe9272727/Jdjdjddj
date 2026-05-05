@@ -125,13 +125,17 @@ const BotAvatar = ({ state }: { state: BotState }) => {
         } catch { /* ignored */ }
     }, [clonedScene]);
 
-    useEffect(() => {
-        const walking = state.anim === 'walking';
-        const a = actions[walking ? 'Walking' : 'Idle'];
-        const o = actions[walking ? 'Idle' : 'Walking'];
-        if (o) o.fadeOut(0.2);
-        if (a) a.reset().fadeIn(0.2).play();
-    }, [state.anim, actions]);
+    const lastAnimRef = useRef<string>(state.anim);
+    useFrame(() => {
+        if (state.anim !== lastAnimRef.current) {
+            lastAnimRef.current = state.anim;
+            const walking = state.anim === 'walking';
+            const a = actions[walking ? 'Walking' : 'Idle'];
+            const o = actions[walking ? 'Idle' : 'Walking'];
+            if (o) o.fadeOut(0.2);
+            if (a) a.reset().fadeIn(0.2).play();
+        }
+    });
 
     // Initialize transform once on mount.
     useEffect(() => {
@@ -281,7 +285,6 @@ export const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseD
         const walls = wallsForState(currentLevel, doorsClosed, houseDoorOpen);
         const player = playerPositionRef.current;
 
-        let mutated = false;
         for (const b of botsRef.current) {
             const prevX = b.pos.x, prevZ = b.pos.z;
             let desiredX = 0, desiredZ = 0;
@@ -378,13 +381,8 @@ export const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseD
                 while (dRot < -Math.PI) dRot += Math.PI * 2;
                 b.rot += dRot * Math.min(1, 8 * dt);
             }
-            const nextAnim = moving ? 'walking' : 'idle';
-            if (nextAnim !== b.anim) {
-                b.anim = nextAnim;
-                mutated = true;
-            }
+            b.anim = moving ? 'walking' : 'idle';
         }
-        if (mutated) setBots([...botsRef.current]); // trigger anim transitions
     });
 
     // ─── Imperative API on window.__jubileuBot ─────────────────────────────
