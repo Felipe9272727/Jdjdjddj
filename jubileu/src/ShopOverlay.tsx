@@ -28,7 +28,7 @@ import { SpriteAnimator } from './SpriteEngine';
 //   • IDLE strip — frame 0 static (mouth CLOSED) when not typing
 //   • TALK strip animates while text is being typed (mouth-open frames)
 
-type ShopMenu = 'main' | 'talk' | 'bye';
+type ShopMenu = 'main' | 'talk' | 'safe' | 'strange' | 'who' | 'services' | 'info' | 'map' | 'tips' | 'about' | 'owner' | 'floors' | 'bye';
 type Phase = 'closing' | 'arrived' | 'opening' | 'idle' | 'exit-close';
 
 interface ShopOverlayProps {
@@ -37,8 +37,18 @@ interface ShopOverlayProps {
 }
 
 const DIALOGUES: Record<ShopMenu, string> = {
-  main: '* Bem-vindo ao The Normal Hotel.\n* Posso te ajudar?',
-  talk: '* Tenha uma ótima estadia...\n* E fique calmo se ouvir alguma\n  coisa estranha vindo do andar\n  de cima.',
+  main: '* Bem-vindo ao The Normal Hotel!\n* Como posso ajudá-lo hoje?',
+  talk: '* O que você gostaria de saber?',
+  who: '* Eu sou o recepcionista.\n* Trabalho aqui desde... bem,\n  desde sempre, eu acho.\n* Nunca vi ninguém sair\n  do hotel. Mas também\n  nunca vi ninguém reclamar.',
+  safe: '* Seguro?\n* Claro! Temos segurança 24h.\n* Bem... mais ou menos 24h.\n* O segurança às vezes\n  desaparece durante o\n  turno da noite.',
+  strange: '* Coisas estranhas?\n* Bem, tem o elevador.\n* Às vezes ele para em\n  andares que não existem.\n* Os hóspedes que vão\n  pra lá... nem todos\n  voltam iguais.',
+  services: '* Temos vários serviços\n  disponíveis para nossos\n  hóspedes:',
+  info: '* O elevador leva a andares\n  cada vez mais estranhos.\n* Use WASD para se mover.\n* Pressione E para interagir.\n* Scroll para zoom.\n* Não se perca.',
+  map: '* Você está no saguão\n  principal.\n* O elevador está ali atrás.\n* A recepção é onde\n  você está agora.\n* A casa é acessível\n  pelo elevador.',
+  tips: '* Algumas dicas úteis:\n* Fique de olho no andar.\n* Não confie em tudo\n  que você vê.\n* Se ouvir música estranha,\n  é normal.\n* Se parar de ouvir...\n  corra.',
+  about: '* The Normal Hotel.\n* Fundado em... bem.\n* Ninguém sabe ao certo.\n* O hotel sempre esteve\n  aqui.\n* E sempre vai estar.',
+  owner: '* O dono?\n* Nunca vi.\n* Temos ordens que vêm\n  de... algum lugar.\n* As regras mudam\n  de vez em quando.\n* Eu só sigo.',
+  floors: '* Andares?\n* Teoricamente... infinitos.\n* Na prática, o elevador\n  vai aonde quer.\n* Às vezes andares novos\n  aparecem.\n* Às vezes desaparecem.\n* É complicado.',
   bye: '* Volte sempre!\n* O elevador está sempre aberto.',
 };
 
@@ -377,39 +387,61 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 >
                   {menu === 'main' && (
                     <>
-                      <UndertaleButton
-                        label="Conversar"
-                        index={0}
-                        hovered={hoveredBtn === 0}
-                        onHover={setHoveredBtn}
-                        onClick={(e) => { e.stopPropagation(); setMenu('talk'); }}
-                      />
-                      <UndertaleButton
-                        label="Sair"
-                        index={1}
-                        hovered={hoveredBtn === 1}
-                        onHover={setHoveredBtn}
-                        onClick={(e) => { e.stopPropagation(); setMenu('bye'); }}
-                      />
+                      <UndertaleButton label="Conversar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
+                      <UndertaleButton label="Serviços" index={1} hovered={hoveredBtn === 1} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('services'); }} />
+                      <UndertaleButton label="Sobre o hotel" index={2} hovered={hoveredBtn === 2} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('about'); }} />
+                      <UndertaleButton label="Sair" index={3} hovered={hoveredBtn === 3} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('bye'); }} />
                     </>
                   )}
                   {menu === 'talk' && (
-                    <UndertaleButton
-                      label="Voltar"
-                      index={0}
-                      hovered={hoveredBtn === 0}
-                      onHover={setHoveredBtn}
-                      onClick={(e) => { e.stopPropagation(); setMenu('main'); }}
-                    />
+                    <>
+                      <UndertaleButton label="Você quem é?" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('who'); }} />
+                      <UndertaleButton label="O hotel é seguro?" index={1} hovered={hoveredBtn === 1} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('safe'); }} />
+                      <UndertaleButton label="Coisas estranhas" index={2} hovered={hoveredBtn === 2} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('strange'); }} />
+                      <UndertaleButton label="Voltar" index={3} hovered={hoveredBtn === 3} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
+                    </>
+                  )}
+                  {menu === 'who' && (
+                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
+                  )}
+                  {menu === 'safe' && (
+                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
+                  )}
+                  {menu === 'strange' && (
+                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('talk'); }} />
+                  )}
+                  {menu === 'services' && (
+                    <>
+                      <UndertaleButton label="Informações" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('info'); }} />
+                      <UndertaleButton label="Mapa" index={1} hovered={hoveredBtn === 1} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('map'); }} />
+                      <UndertaleButton label="Dicas" index={2} hovered={hoveredBtn === 2} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('tips'); }} />
+                      <UndertaleButton label="Voltar" index={3} hovered={hoveredBtn === 3} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
+                    </>
+                  )}
+                  {menu === 'info' && (
+                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('services'); }} />
+                  )}
+                  {menu === 'map' && (
+                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('services'); }} />
+                  )}
+                  {menu === 'tips' && (
+                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('services'); }} />
+                  )}
+                  {menu === 'about' && (
+                    <>
+                      <UndertaleButton label="Quem é o dono?" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('owner'); }} />
+                      <UndertaleButton label="Quantos andares?" index={1} hovered={hoveredBtn === 1} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('floors'); }} />
+                      <UndertaleButton label="Voltar" index={2} hovered={hoveredBtn === 2} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('main'); }} />
+                    </>
+                  )}
+                  {menu === 'owner' && (
+                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('about'); }} />
+                  )}
+                  {menu === 'floors' && (
+                    <UndertaleButton label="Voltar" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); setMenu('about'); }} />
                   )}
                   {menu === 'bye' && (
-                    <UndertaleButton
-                      label="Tchau"
-                      index={0}
-                      hovered={hoveredBtn === 0}
-                      onHover={setHoveredBtn}
-                      onClick={(e) => { e.stopPropagation(); close(); }}
-                    />
+                    <UndertaleButton label="Tchau" index={0} hovered={hoveredBtn === 0} onHover={setHoveredBtn} onClick={(e) => { e.stopPropagation(); close(); }} />
                   )}
                 </div>
               )}

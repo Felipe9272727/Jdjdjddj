@@ -96678,8 +96678,18 @@ const SpriteAnimator = ({
   );
 };
 const DIALOGUES = {
-  main: "* Bem-vindo ao The Normal Hotel.\n* Posso te ajudar?",
-  talk: "* Tenha uma ótima estadia...\n* E fique calmo se ouvir alguma\n  coisa estranha vindo do andar\n  de cima.",
+  main: "* Bem-vindo ao The Normal Hotel!\n* Como posso ajudá-lo hoje?",
+  talk: "* O que você gostaria de saber?",
+  who: "* Eu sou o recepcionista.\n* Trabalho aqui desde... bem,\n  desde sempre, eu acho.\n* Nunca vi ninguém sair\n  do hotel. Mas também\n  nunca vi ninguém reclamar.",
+  safe: "* Seguro?\n* Claro! Temos segurança 24h.\n* Bem... mais ou menos 24h.\n* O segurança às vezes\n  desaparece durante o\n  turno da noite.",
+  strange: "* Coisas estranhas?\n* Bem, tem o elevador.\n* Às vezes ele para em\n  andares que não existem.\n* Os hóspedes que vão\n  pra lá... nem todos\n  voltam iguais.",
+  services: "* Temos vários serviços\n  disponíveis para nossos\n  hóspedes:",
+  info: "* O elevador leva a andares\n  cada vez mais estranhos.\n* Use WASD para se mover.\n* Pressione E para interagir.\n* Scroll para zoom.\n* Não se perca.",
+  map: "* Você está no saguão\n  principal.\n* O elevador está ali atrás.\n* A recepção é onde\n  você está agora.\n* A casa é acessível\n  pelo elevador.",
+  tips: "* Algumas dicas úteis:\n* Fique de olho no andar.\n* Não confie em tudo\n  que você vê.\n* Se ouvir música estranha,\n  é normal.\n* Se parar de ouvir...\n  corra.",
+  about: "* The Normal Hotel.\n* Fundado em... bem.\n* Ninguém sabe ao certo.\n* O hotel sempre esteve\n  aqui.\n* E sempre vai estar.",
+  owner: "* O dono?\n* Nunca vi.\n* Temos ordens que vêm\n  de... algum lugar.\n* As regras mudam\n  de vez em quando.\n* Eu só sigo.",
+  floors: "* Andares?\n* Teoricamente... infinitos.\n* Na prática, o elevador\n  vai aonde quer.\n* Às vezes andares novos\n  aparecem.\n* Às vezes desaparecem.\n* É complicado.",
   bye: "* Volte sempre!\n* O elevador está sempre aberto."
 };
 const TIMINGS = {
@@ -96980,59 +96990,109 @@ const ShopOverlay = ({ open, onClose }) => {
                         style: { minWidth: "clamp(110px, 18vw, 150px)" },
                         children: [
                           menu === "main" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                            /* @__PURE__ */ jsxRuntimeExports.jsx(
-                              UndertaleButton,
-                              {
-                                label: "Conversar",
-                                index: 0,
-                                hovered: hoveredBtn === 0,
-                                onHover: setHoveredBtn,
-                                onClick: (e2) => {
-                                  e2.stopPropagation();
-                                  setMenu("talk");
-                                }
-                              }
-                            ),
-                            /* @__PURE__ */ jsxRuntimeExports.jsx(
-                              UndertaleButton,
-                              {
-                                label: "Sair",
-                                index: 1,
-                                hovered: hoveredBtn === 1,
-                                onHover: setHoveredBtn,
-                                onClick: (e2) => {
-                                  e2.stopPropagation();
-                                  setMenu("bye");
-                                }
-                              }
-                            )
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Conversar", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("talk");
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Serviços", index: 1, hovered: hoveredBtn === 1, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("services");
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Sobre o hotel", index: 2, hovered: hoveredBtn === 2, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("about");
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Sair", index: 3, hovered: hoveredBtn === 3, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("bye");
+                            } })
                           ] }),
-                          menu === "talk" && /* @__PURE__ */ jsxRuntimeExports.jsx(
-                            UndertaleButton,
-                            {
-                              label: "Voltar",
-                              index: 0,
-                              hovered: hoveredBtn === 0,
-                              onHover: setHoveredBtn,
-                              onClick: (e2) => {
-                                e2.stopPropagation();
-                                setMenu("main");
-                              }
-                            }
-                          ),
-                          menu === "bye" && /* @__PURE__ */ jsxRuntimeExports.jsx(
-                            UndertaleButton,
-                            {
-                              label: "Tchau",
-                              index: 0,
-                              hovered: hoveredBtn === 0,
-                              onHover: setHoveredBtn,
-                              onClick: (e2) => {
-                                e2.stopPropagation();
-                                close();
-                              }
-                            }
-                          )
+                          menu === "talk" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Você quem é?", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("who");
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "O hotel é seguro?", index: 1, hovered: hoveredBtn === 1, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("safe");
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Coisas estranhas", index: 2, hovered: hoveredBtn === 2, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("strange");
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Voltar", index: 3, hovered: hoveredBtn === 3, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("main");
+                            } })
+                          ] }),
+                          menu === "who" && /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Voltar", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                            e2.stopPropagation();
+                            setMenu("talk");
+                          } }),
+                          menu === "safe" && /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Voltar", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                            e2.stopPropagation();
+                            setMenu("talk");
+                          } }),
+                          menu === "strange" && /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Voltar", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                            e2.stopPropagation();
+                            setMenu("talk");
+                          } }),
+                          menu === "services" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Informações", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("info");
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Mapa", index: 1, hovered: hoveredBtn === 1, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("map");
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Dicas", index: 2, hovered: hoveredBtn === 2, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("tips");
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Voltar", index: 3, hovered: hoveredBtn === 3, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("main");
+                            } })
+                          ] }),
+                          menu === "info" && /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Voltar", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                            e2.stopPropagation();
+                            setMenu("services");
+                          } }),
+                          menu === "map" && /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Voltar", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                            e2.stopPropagation();
+                            setMenu("services");
+                          } }),
+                          menu === "tips" && /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Voltar", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                            e2.stopPropagation();
+                            setMenu("services");
+                          } }),
+                          menu === "about" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Quem é o dono?", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("owner");
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Quantos andares?", index: 1, hovered: hoveredBtn === 1, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("floors");
+                            } }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Voltar", index: 2, hovered: hoveredBtn === 2, onHover: setHoveredBtn, onClick: (e2) => {
+                              e2.stopPropagation();
+                              setMenu("main");
+                            } })
+                          ] }),
+                          menu === "owner" && /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Voltar", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                            e2.stopPropagation();
+                            setMenu("about");
+                          } }),
+                          menu === "floors" && /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Voltar", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                            e2.stopPropagation();
+                            setMenu("about");
+                          } }),
+                          menu === "bye" && /* @__PURE__ */ jsxRuntimeExports.jsx(UndertaleButton, { label: "Tchau", index: 0, hovered: hoveredBtn === 0, onHover: setHoveredBtn, onClick: (e2) => {
+                            e2.stopPropagation();
+                            close();
+                          } })
                         ]
                       }
                     )
