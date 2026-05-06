@@ -97154,12 +97154,17 @@ const ShopOverlay = ({ open, onClose }) => {
     return () => mql.removeEventListener("change", handler);
   }, []);
   reactExports.useEffect(() => {
+    var _a;
     if (!open) {
       mountedRef.current = false;
       clearPhaseTimers();
       clearTyping();
+      (_a = musicRef.current) == null ? void 0 : _a.stop();
+      musicRef.current = null;
       return;
     }
+    clearPhaseTimers();
+    clearTyping();
     mountedRef.current = true;
     setSceneId(ROOT_SCENE);
     setPageIndex(0);
@@ -97225,7 +97230,7 @@ const ShopOverlay = ({ open, onClose }) => {
     };
     tick();
     return clearTyping;
-  }, [revealed, currentPage, pageCharTotal, phase, open]);
+  }, [revealed, pages, pageIndex, pageCharTotal, phase, open]);
   const advanceOrSkip = reactExports.useCallback(() => {
     if (phase !== "idle") return;
     if (!isPageDone) {
@@ -97296,6 +97301,45 @@ const ShopOverlay = ({ open, onClose }) => {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, phase, showChoices, selectedChoice, scene.choices.length, pickChoice, advanceOrSkip, close]);
+  const renderedNodes = reactExports.useMemo(() => {
+    const out = [];
+    let charsSeen = 0;
+    let buf = "";
+    let bufColor;
+    let bufShake = false;
+    const flush = () => {
+      if (!buf) return;
+      out.push(
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "span",
+          {
+            className: bufShake ? "shop-shake" : void 0,
+            style: bufColor ? { color: bufColor } : void 0,
+            children: buf
+          },
+          out.length
+        )
+      );
+      buf = "";
+    };
+    for (const t2 of currentPage) {
+      if (t2.kind === "char") {
+        if (charsSeen >= revealed) break;
+        if (t2.color !== bufColor || !!t2.shake !== bufShake) {
+          flush();
+          bufColor = t2.color;
+          bufShake = !!t2.shake;
+        }
+        buf += t2.ch;
+        charsSeen++;
+      } else if (t2.kind === "newline") {
+        flush();
+        out.push(/* @__PURE__ */ jsxRuntimeExports.jsx("br", {}, out.length));
+      }
+    }
+    flush();
+    return out;
+  }, [currentPage, revealed]);
   if (!open) return null;
   const doorsState = phase === "closing" ? "sliding-in" : phase === "arrived" ? "closed" : phase === "opening" ? "sliding-out" : phase === "idle" ? "open" : "closing-exit";
   const showContent = phase === "opening" || phase === "idle";
@@ -97338,45 +97382,6 @@ const ShopOverlay = ({ open, onClose }) => {
     }
   };
   const activeSpriteConfig = spriteConfigs[spriteMode];
-  const renderedNodes = reactExports.useMemo(() => {
-    const out = [];
-    let charsSeen = 0;
-    let buf = "";
-    let bufColor;
-    let bufShake = false;
-    const flush = () => {
-      if (!buf) return;
-      out.push(
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "span",
-          {
-            className: bufShake ? "shop-shake" : void 0,
-            style: bufColor ? { color: bufColor } : void 0,
-            children: buf
-          },
-          out.length
-        )
-      );
-      buf = "";
-    };
-    for (const t2 of currentPage) {
-      if (t2.kind === "char") {
-        if (charsSeen >= revealed) break;
-        if (t2.color !== bufColor || !!t2.shake !== bufShake) {
-          flush();
-          bufColor = t2.color;
-          bufShake = !!t2.shake;
-        }
-        buf += t2.ch;
-        charsSeen++;
-      } else if (t2.kind === "newline") {
-        flush();
-        out.push(/* @__PURE__ */ jsxRuntimeExports.jsx("br", {}, out.length));
-      }
-    }
-    flush();
-    return out;
-  }, [currentPage, revealed]);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
@@ -97396,6 +97401,7 @@ const ShopOverlay = ({ open, onClose }) => {
               backgroundPosition: "center 40%",
               imageRendering: "pixelated",
               opacity: contentOpacity,
+              filter: "brightness(0.55) saturate(0.65)",
               transform: phase === "idle" ? "scale(1)" : "scale(1.04)",
               transition: "opacity 600ms ease-out, transform 1400ms cubic-bezier(0.16, 1, 0.3, 1)",
               pointerEvents: "none"
@@ -97407,7 +97413,7 @@ const ShopOverlay = ({ open, onClose }) => {
           {
             className: "absolute inset-0 pointer-events-none",
             style: {
-              background: "radial-gradient(ellipse at center, rgba(255,180,100,0.06) 0%, rgba(0,0,0,0.55) 70%, rgba(0,0,0,0.85) 100%)",
+              background: "radial-gradient(ellipse at center, rgba(255,180,100,0.04) 0%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.92) 100%)",
               opacity: contentOpacity,
               transition: "opacity 600ms ease-out"
             }
@@ -97458,20 +97464,33 @@ const ShopOverlay = ({ open, onClose }) => {
             onClick: advanceOrSkip,
             children: showContent && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center px-4 max-w-2xl w-full", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
-                SpriteAnimator,
+                "div",
                 {
-                  config: activeSpriteConfig,
                   style: {
-                    height: isLandscape ? "clamp(300px, 70vh, 460px)" : "clamp(340px, 58vh, 500px)",
-                    aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
-                    filter: "drop-shadow(0 12px 24px rgba(0,0,0,0.75))",
-                    opacity: showContent ? 1 : 0,
+                    background: "#000",
+                    border: "4px solid #fff",
+                    padding: 6,
+                    marginBottom: 10,
+                    boxShadow: "0 0 0 2px rgba(255,255,255,0.18), 0 8px 22px rgba(0,0,0,0.65)",
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
-                    transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms",
-                    pointerEvents: "none",
+                    opacity: phase === "idle" ? 1 : 0,
+                    transition: "transform 450ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms",
                     position: "relative",
                     zIndex: 1
-                  }
+                  },
+                  className: spriteMode === "idle-static" ? "shop-idle-bob" : void 0,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    SpriteAnimator,
+                    {
+                      config: activeSpriteConfig,
+                      style: {
+                        height: isLandscape ? "clamp(200px, 42vh, 320px)" : "clamp(220px, 36vh, 340px)",
+                        aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
+                        display: "block",
+                        pointerEvents: "none"
+                      }
+                    }
+                  )
                 }
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -97484,7 +97503,6 @@ const ShopOverlay = ({ open, onClose }) => {
                     borderRadius: 0,
                     padding: "16px 22px",
                     minHeight: 130,
-                    marginTop: isLandscape ? "clamp(-140px, -22vh, -80px)" : "clamp(-160px, -18vh, -100px)",
                     boxShadow: "inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.18), 0 10px 28px rgba(0,0,0,0.65)",
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
                     opacity: phase === "idle" ? 1 : 0,
@@ -97608,6 +97626,13 @@ const ShopOverlay = ({ open, onClose }) => {
           0%, 100% { transform: translateY(0); opacity: 0.85; }
           50%      { transform: translateY(3px); opacity: 1; }
         }
+        @keyframes shopIdleBob {
+          0%, 100% { transform: translateY(0); }
+          50%      { transform: translateY(-3px); }
+        }
+        .shop-idle-bob {
+          animation: shopIdleBob 2400ms ease-in-out infinite;
+        }
         .shop-cursor {
           display: inline-block;
           margin-left: 1px;
@@ -97645,11 +97670,13 @@ const ShopOverlay = ({ open, onClose }) => {
         .undertale-btn::before {
           content: '♥';
           position: absolute;
-          left: 4px;
-          color: #FF4747;
+          left: 6px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #FF0000;
+          font-size: 0.9em;
           opacity: 0;
           transition: opacity 80ms ease;
-          text-shadow: 0 0 6px rgba(255,71,71,0.6);
         }
         .undertale-btn[data-selected="true"] {
           color: #FFD54F;
@@ -97673,7 +97700,8 @@ const UndertaleButton = ({ label, selected, onHover, onClick }) => /* @__PURE__ 
     type: "button",
     className: "undertale-btn",
     "data-selected": selected,
-    onMouseEnter: onHover,
+    onPointerEnter: onHover,
+    onFocus: onHover,
     onClick,
     children: label
   }
@@ -97703,6 +97731,7 @@ const ElevatorDoor = ({ side, state: state2 }) => {
       #353539 3px,
       #353539 6px),
     linear-gradient(180deg, #1f1f22 0%, #2a2a2e 50%, #1c1c20 100%)`;
+  const interactive = state2 !== "open";
   return /* @__PURE__ */ jsxRuntimeExports.jsx(
     "div",
     {
@@ -97718,7 +97747,8 @@ const ElevatorDoor = ({ side, state: state2 }) => {
         animation,
         background: doorBg,
         boxShadow: side === "left" ? "inset -3px 0 0 #C99B36, inset -4px 0 0 #6B4F1B, 4px 0 14px rgba(0,0,0,0.7)" : "inset 3px 0 0 #C99B36, inset 4px 0 0 #6B4F1B, -4px 0 14px rgba(0,0,0,0.7)",
-        zIndex: 2
+        zIndex: 2,
+        pointerEvents: interactive ? "auto" : "none"
       }
     }
   );

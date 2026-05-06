@@ -104,8 +104,14 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       mountedRef.current = false;
       clearPhaseTimers();
       clearTyping();
+      // B2: stop music + null out ref so a re-open re-creates it cleanly.
+      musicRef.current?.stop();
+      musicRef.current = null;
       return;
     }
+    // B1: re-opening without first unmounting — wipe any stragglers.
+    clearPhaseTimers();
+    clearTyping();
     mountedRef.current = true;
     setSceneId(ROOT_SCENE);
     setPageIndex(0);
@@ -136,7 +142,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Reset typewriter when scene/page changes (only while idle)
+  // Reset typewriter when scene/page changes (only while idle).
+  // B4: charCountRef is what drives the per-3-chars beep cadence; resetting
+  // it on scene/page change keeps beeps in sync with each new line.
   useEffect(() => {
     if (!open || phase !== 'idle') return;
     setRevealed(0);
@@ -177,8 +185,10 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     };
     tick();
     return clearTyping;
+    // B3: depend on stable `pages` + `pageIndex` (memoised) instead of
+    // `currentPage` (fresh array fallback when pageIndex out of range).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revealed, currentPage, pageCharTotal, phase, open]);
+  }, [revealed, pages, pageIndex, pageCharTotal, phase, open]);
 
   // ── Action handlers ────────────────────────────────────────────────────
   const advanceOrSkip = useCallback(() => {
@@ -251,6 +261,45 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     return () => window.removeEventListener('keydown', onKey);
   }, [open, phase, showChoices, selectedChoice, scene.choices.length, pickChoice, advanceOrSkip, close]);
 
+  // ── Render the visible portion of the current page ────────────────────
+  // IMPORTANT: this useMemo must run on EVERY render (Rules of Hooks),
+  // including when `open` is false. Do not move it past an early return.
+  const renderedNodes = useMemo(() => {
+    const out: React.ReactNode[] = [];
+    let charsSeen = 0;
+    let buf = '';
+    let bufColor: string | undefined;
+    let bufShake = false;
+    const flush = () => {
+      if (!buf) return;
+      out.push(
+        <span
+          key={out.length}
+          className={bufShake ? 'shop-shake' : undefined}
+          style={bufColor ? { color: bufColor } : undefined}
+        >{buf}</span>
+      );
+      buf = '';
+    };
+    for (const t of currentPage) {
+      if (t.kind === 'char') {
+        if (charsSeen >= revealed) break;
+        if (t.color !== bufColor || (!!t.shake) !== bufShake) {
+          flush();
+          bufColor = t.color;
+          bufShake = !!t.shake;
+        }
+        buf += t.ch;
+        charsSeen++;
+      } else if (t.kind === 'newline') {
+        flush();
+        out.push(<br key={out.length} />);
+      }
+    }
+    flush();
+    return out;
+  }, [currentPage, revealed]);
+
   if (!open) return null;
 
   // ── Door state machine ────────────────────────────────────────────────
@@ -311,45 +360,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   };
   const activeSpriteConfig = spriteConfigs[spriteMode];
 
-  // ── Render the visible portion of the current page ────────────────────
-  // Walk tokens, accumulating chars up to `revealed`. Returns React nodes
-  // grouped by color so styled spans render correctly.
-  const renderedNodes = useMemo(() => {
-    const out: React.ReactNode[] = [];
-    let charsSeen = 0;
-    let buf = '';
-    let bufColor: string | undefined;
-    let bufShake = false;
-    const flush = () => {
-      if (!buf) return;
-      out.push(
-        <span
-          key={out.length}
-          className={bufShake ? 'shop-shake' : undefined}
-          style={bufColor ? { color: bufColor } : undefined}
-        >{buf}</span>
-      );
-      buf = '';
-    };
-    for (const t of currentPage) {
-      if (t.kind === 'char') {
-        if (charsSeen >= revealed) break;
-        if (t.color !== bufColor || (!!t.shake) !== bufShake) {
-          flush();
-          bufColor = t.color;
-          bufShake = !!t.shake;
-        }
-        buf += t.ch;
-        charsSeen++;
-      } else if (t.kind === 'newline') {
-        flush();
-        out.push(<br key={out.length} />);
-      }
-    }
-    flush();
-    return out;
-  }, [currentPage, revealed]);
-
   return (
     <div
       className="absolute inset-0 z-[80] overflow-hidden"
@@ -358,7 +368,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         backgroundColor: '#000',
       }}
     >
-      {/* Hotel lobby backdrop */}
+      {/* Hotel lobby backdrop — desaturated/darkened so the bellhop sprite
+          and dialog read clearly against it (Undertale shops keep the BG
+          quiet so it doesn't fight the foreground). */}
       <div
         className="absolute inset-0"
         style={{
@@ -367,6 +379,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           backgroundPosition: 'center 40%',
           imageRendering: 'pixelated',
           opacity: contentOpacity,
+          filter: 'brightness(0.55) saturate(0.65)',
           transform: phase === 'idle' ? 'scale(1)' : 'scale(1.04)',
           transition: 'opacity 600ms ease-out, transform 1400ms cubic-bezier(0.16, 1, 0.3, 1)',
           pointerEvents: 'none',
@@ -377,7 +390,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(ellipse at center, rgba(255,180,100,0.06) 0%, rgba(0,0,0,0.55) 70%, rgba(0,0,0,0.85) 100%)',
+            'radial-gradient(ellipse at center, rgba(255,180,100,0.04) 0%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.92) 100%)',
           opacity: contentOpacity,
           transition: 'opacity 600ms ease-out',
         }}
@@ -427,24 +440,38 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center px-4 max-w-2xl w-full">
-            <SpriteAnimator
-              config={activeSpriteConfig}
+            {/* Sprite frame — Undertale shop convention: shopkeeper sits
+                inside a black box with a thick white border, separate from
+                the dialog box below it. Idle bob gives subtle breathing.  */}
+            <div
               style={{
-                height: isLandscape
-                  ? 'clamp(300px, 70vh, 460px)'
-                  : 'clamp(340px, 58vh, 500px)',
-                aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
-                filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.75))',
-                opacity: showContent ? 1 : 0,
+                background: '#000',
+                border: '4px solid #fff',
+                padding: 6,
+                marginBottom: 10,
+                boxShadow: '0 0 0 2px rgba(255,255,255,0.18), 0 8px 22px rgba(0,0,0,0.65)',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
-                transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
-                pointerEvents: 'none',
+                opacity: phase === 'idle' ? 1 : 0,
+                transition: 'transform 450ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
                 position: 'relative',
                 zIndex: 1,
               }}
-            />
+              className={spriteMode === 'idle-static' ? 'shop-idle-bob' : undefined}
+            >
+              <SpriteAnimator
+                config={activeSpriteConfig}
+                style={{
+                  height: isLandscape
+                    ? 'clamp(200px, 42vh, 320px)'
+                    : 'clamp(220px, 36vh, 340px)',
+                  aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
+                  display: 'block',
+                  pointerEvents: 'none',
+                }}
+              />
+            </div>
 
-            {/* Dialog box */}
+            {/* Dialog box — fully separate, classic Undertale geometry */}
             <div
               className="w-full"
               style={{
@@ -453,9 +480,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 borderRadius: 0,
                 padding: '16px 22px',
                 minHeight: 130,
-                marginTop: isLandscape
-                  ? 'clamp(-140px, -22vh, -80px)'
-                  : 'clamp(-160px, -18vh, -100px)',
                 boxShadow:
                   'inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.18), 0 10px 28px rgba(0,0,0,0.65)',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
@@ -577,6 +601,13 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
           0%, 100% { transform: translateY(0); opacity: 0.85; }
           50%      { transform: translateY(3px); opacity: 1; }
         }
+        @keyframes shopIdleBob {
+          0%, 100% { transform: translateY(0); }
+          50%      { transform: translateY(-3px); }
+        }
+        .shop-idle-bob {
+          animation: shopIdleBob 2400ms ease-in-out infinite;
+        }
         .shop-cursor {
           display: inline-block;
           margin-left: 1px;
@@ -614,11 +645,13 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         .undertale-btn::before {
           content: '♥';
           position: absolute;
-          left: 4px;
-          color: #FF4747;
+          left: 6px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #FF0000;
+          font-size: 0.9em;
           opacity: 0;
           transition: opacity 80ms ease;
-          text-shadow: 0 0 6px rgba(255,71,71,0.6);
         }
         .undertale-btn[data-selected="true"] {
           color: #FFD54F;
@@ -637,6 +670,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
 };
 
 // ─── Undertale-style button — heart cursor on selected ────────────────────
+// onPointerEnter (not onMouseEnter) so touch + stylus also trigger hover.
 const UndertaleButton: React.FC<{
   label: string;
   selected: boolean;
@@ -647,7 +681,8 @@ const UndertaleButton: React.FC<{
     type="button"
     className="undertale-btn"
     data-selected={selected}
-    onMouseEnter={onHover}
+    onPointerEnter={onHover}
+    onFocus={onHover}
     onClick={onClick}
   >
     {label}
@@ -685,6 +720,10 @@ const ElevatorDoor: React.FC<{ side: 'left' | 'right'; state: DoorState }> = ({ 
       #353539 6px),
     linear-gradient(180deg, #1f1f22 0%, #2a2a2e 50%, #1c1c20 100%)`;
 
+  // B6: when the doors are off-screen we make them transparent to events
+  // so taps near the edge fall through to the dialog buttons below.
+  const interactive = state !== 'open';
+
   return (
     <div
       aria-hidden
@@ -702,6 +741,7 @@ const ElevatorDoor: React.FC<{ side: 'left' | 'right'; state: DoorState }> = ({ 
           ? 'inset -3px 0 0 #C99B36, inset -4px 0 0 #6B4F1B, 4px 0 14px rgba(0,0,0,0.7)'
           : 'inset 3px 0 0 #C99B36, inset 4px 0 0 #6B4F1B, -4px 0 14px rgba(0,0,0,0.7)',
         zIndex: 2,
+        pointerEvents: interactive ? 'auto' : 'none',
       }}
     />
   );
