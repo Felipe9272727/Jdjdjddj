@@ -480,11 +480,11 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 borderRadius: 0,
                 padding: '14px 18px',
                 height: isLandscape
-                  ? 'clamp(140px, 24vh, 180px)'
-                  : 'clamp(160px, 26vh, 200px)',
+                  ? 'clamp(160px, 30vh, 220px)'
+                  : 'clamp(180px, 32vh, 240px)',
                 marginTop: isLandscape
-                  ? 'clamp(-110px, -22vh, -64px)'
-                  : 'clamp(-130px, -16vh, -84px)',
+                  ? 'clamp(-110px, -22vh, -70px)'
+                  : 'clamp(-130px, -16vh, -90px)',
                 boxShadow:
                   'inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.18), 0 10px 28px rgba(0,0,0,0.65)',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',

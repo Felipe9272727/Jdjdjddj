@@ -188,7 +188,7 @@ export const FloorReveal = ({ level }: { level: number }) => {
   );
 };
 
-// ─── Top-right controls (settings + mute) ─────────────────────────────────
+// ─── Top-right controls (settings + mute + fullscreen) ───────────────────
 interface TopControlsProps {
   multiplayerEnabled: boolean;
   otherPlayersCount: number;
@@ -197,6 +197,50 @@ interface TopControlsProps {
   muted: boolean;
   onToggleMute: () => void;
 }
+
+// Mobile fullscreen toggle. Hooks into Fullscreen API directly so the
+// whole game (canvas + HUD) goes edge-to-edge. Listens to fullscreenchange
+// so the icon stays in sync if the user exits via the system gesture.
+const FullscreenButton: React.FC = React.memo(() => {
+  const [isFs, setIsFs] = React.useState<boolean>(
+    typeof document !== 'undefined' && !!document.fullscreenElement
+  );
+  React.useEffect(() => {
+    const onChange = () => setIsFs(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const toggle = React.useCallback(() => {
+    if (!document.fullscreenElement) {
+      const req = document.documentElement.requestFullscreen?.();
+      if (req && typeof (req as Promise<void>).catch === 'function') {
+        (req as Promise<void>).catch(() => { /* user denied / unsupported */ });
+      }
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => { /* ok */ });
+    }
+  }, []);
+  return (
+    <button
+      onClick={toggle}
+      className="relative group"
+      aria-label={isFs ? 'Sair da tela cheia' : 'Tela cheia'}
+    >
+      <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target">
+        {isFs ? (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#fbbf24" className="w-6 h-6 landscape:w-6 landscape:h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
+          </svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="#fbbf24" className="w-6 h-6 landscape:w-6 landscape:h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+          </svg>
+        )}
+      </div>
+    </button>
+  );
+});
 
 export const TopControls = React.memo(({ multiplayerEnabled, otherPlayersCount, connectionStatus, onSettingsOpen, muted, onToggleMute }: TopControlsProps) => (
   <div
@@ -237,6 +281,7 @@ export const TopControls = React.memo(({ multiplayerEnabled, otherPlayersCount, 
         )}
       </div>
     </button>
+    <FullscreenButton />
   </div>
 ));
 

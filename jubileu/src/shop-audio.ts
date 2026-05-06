@@ -116,22 +116,219 @@ export function playConfirm(): void {
   } catch { /* silent */ }
 }
 
-// ── Lobby ambient drone (procedural) ─────────────────────────────────────
-// Replaces the previous hotel-lobby.mp3 muzak. The shop's atmosphere is
-// "liminal hotel" — dark, quiet, slightly off — and a drone ambient
-// patch is more on-tone than elevator muzak. Generated entirely with
-// Web Audio API: zero download, deterministic, no CORS surprises.
+// ── Lobby ambient: Rhodes piano with subtle off-tone (procedural) ──────
+// "Hotel reception with a hint of liminal" — slow chord progression on a
+// Rhodes-style EP, low-pass-filtered string pad, light reverb, a few
+// sparse bell tinks. Stays tonal (not dissonant) but with a slow detune
+// shimmer so it never quite settles. Generated entirely with Web Audio
+// API: zero download, no CORS.
 //
-// Patch:
-//   • Sub-bass sine at 50 Hz with very slow detune LFO (±8 cents, 0.07 Hz)
-//   • Mid pad — sawtooth A2 (110 Hz) through a low-pass with slow sweep
-//   • High pad — sawtooth C4-ish (130.8 Hz, minor third), detuned 7 cents
-//   • Reverb-ish: short feedback delay (no convolver — keeps it light)
-//   • Occasional distant "tink" — random metallic ping every ~8s, 30% prob
+// Progression: Am → F → C → Em, 6s per chord, 24s loop. Each chord
+// triad (root + third + fifth) is struck with slight stagger and a
+// long Rhodes-like envelope (soft attack, slow exponential decay).
 //
-// Master gain ramps 0 → 0.18 over 2s on start, fades to 0 over 0.6s on stop.
+// The dark/drone variant from the previous version is still exported
+// as `createDarkDrone` for future use (deeper floors, chase, etc.).
 
-export function createLobbyMusic(): { start: () => void; stop: () => void } {
+interface AmbientHandle { start: () => void; stop: () => void; }
+
+export function createLobbyMusic(): AmbientHandle {
+  let ctx: AudioContext | null = null;
+  let masterGain: GainNode | null = null;
+  let delay: DelayNode | null = null;
+  let scheduler: number | null = null;
+  let bellTimer: number | null = null;
+  let pad: OscillatorNode | null = null;
+  let padFilter: BiquadFilterNode | null = null;
+  let padFilterLfo: OscillatorNode | null = null;
+  let padLfoGain: GainNode | null = null;
+  let chordIndex = 0;
+  let playing = false;
+
+  // Triads — root, third, fifth (Hz). Progression: Am F C Em.
+  const PROGRESSION: { triad: number[]; padRoot: number }[] = [
+    { triad: [220.0,  261.63, 329.63], padRoot: 110.0 }, // A minor (A3 C4 E4) over A2 pad
+    { triad: [174.61, 220.0,  261.63], padRoot: 87.31 }, // F major  (F3 A3 C4) over F2 pad
+    { triad: [261.63, 329.63, 392.0 ], padRoot: 130.81 }, // C major (C4 E4 G4) over C3 pad
+    { triad: [164.81, 196.0,  246.94], padRoot: 82.41 }, // E minor (E3 G3 B3) over E2 pad
+  ];
+  const CHORD_DUR = 6.0;
+
+  function playRhodesNote(freq: number, when: number, dur: number, vel = 0.07) {
+    if (!ctx || !masterGain) return;
+    // Two sines (fundamental + 2nd harmonic) gives a soft Rhodes timbre.
+    const osc1 = ctx.createOscillator();
+    osc1.type = 'sine';
+    osc1.frequency.value = freq;
+    // Slow detune for subtle off-tone shimmer.
+    const det = ctx.createOscillator();
+    det.type = 'sine';
+    det.frequency.value = 0.08 + Math.random() * 0.04;
+    const detGain = ctx.createGain();
+    detGain.gain.value = 4; // ±4 cents
+    det.connect(detGain).connect(osc1.detune);
+
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.value = freq * 2;
+    const harmGain = ctx.createGain();
+    harmGain.gain.value = 0.22;
+    osc2.connect(harmGain);
+
+    const noteGain = ctx.createGain();
+    noteGain.gain.setValueAtTime(0, when);
+    noteGain.gain.linearRampToValueAtTime(vel, when + 0.06);
+    noteGain.gain.exponentialRampToValueAtTime(vel * 0.35, when + dur * 0.45);
+    noteGain.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+
+    osc1.connect(noteGain);
+    harmGain.connect(noteGain);
+    noteGain.connect(masterGain);
+    // Send to delay for ambience
+    if (delay) noteGain.connect(delay);
+
+    osc1.start(when);
+    osc2.start(when);
+    det.start(when);
+    const stopAt = when + dur + 0.15;
+    osc1.stop(stopAt);
+    osc2.stop(stopAt);
+    det.stop(stopAt);
+  }
+
+  function playBell(when: number, freq: number, vel = 0.04) {
+    if (!ctx || !masterGain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(vel, when + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 2.5);
+    osc.connect(g);
+    if (delay) g.connect(delay);
+    g.connect(masterGain);
+    osc.start(when);
+    osc.stop(when + 2.6);
+  }
+
+  function strikeNextChord() {
+    if (!ctx || !masterGain || !playing) return;
+    const t = ctx.currentTime;
+    const c = PROGRESSION[chordIndex];
+    // Triad strike with arpeggiated stagger.
+    playRhodesNote(c.triad[0], t + 0.00, CHORD_DUR, 0.075);
+    playRhodesNote(c.triad[1], t + 0.06, CHORD_DUR, 0.062);
+    playRhodesNote(c.triad[2], t + 0.12, CHORD_DUR, 0.052);
+    // Glide pad to chord root.
+    if (pad) {
+      pad.frequency.cancelScheduledValues(t);
+      pad.frequency.setValueAtTime(pad.frequency.value, t);
+      pad.frequency.linearRampToValueAtTime(c.padRoot, t + 1.5);
+    }
+    chordIndex = (chordIndex + 1) % PROGRESSION.length;
+  }
+
+  function teardown() {
+    if (scheduler !== null) { window.clearInterval(scheduler); scheduler = null; }
+    if (bellTimer !== null) { window.clearInterval(bellTimer); bellTimer = null; }
+    [pad, padFilterLfo].forEach((o) => { try { o?.stop(); } catch { /* ok */ } });
+    [pad, padFilter, padFilterLfo, padLfoGain, masterGain, delay].forEach((n) => {
+      try { n?.disconnect(); } catch { /* ok */ }
+    });
+    pad = null;
+    padFilter = null;
+    padFilterLfo = null;
+    padLfoGain = null;
+    masterGain = null;
+    delay = null;
+    chordIndex = 0;
+  }
+
+  return {
+    start() {
+      if (playing) return;
+      ctx = getCtx();
+      ensureResumed(ctx);
+      playing = true;
+      const now = ctx.currentTime;
+
+      try {
+        masterGain = ctx.createGain();
+        masterGain.gain.setValueAtTime(0, now);
+        masterGain.gain.linearRampToValueAtTime(0.22, now + 1.6);
+        masterGain.connect(ctx.destination);
+
+        // Pseudo-reverb: feedback delay
+        delay = ctx.createDelay(1.2);
+        delay.delayTime.value = 0.42;
+        const fb = ctx.createGain();
+        fb.gain.value = 0.32;
+        const wet = ctx.createGain();
+        wet.gain.value = 0.45;
+        delay.connect(fb).connect(delay);
+        delay.connect(wet).connect(masterGain);
+
+        // Sustained pad — sawtooth low-passed, glides between chord roots.
+        pad = ctx.createOscillator();
+        pad.type = 'sawtooth';
+        pad.frequency.value = PROGRESSION[0].padRoot;
+        padFilter = ctx.createBiquadFilter();
+        padFilter.type = 'lowpass';
+        padFilter.frequency.value = 320;
+        padFilter.Q.value = 4;
+        const padGain = ctx.createGain();
+        padGain.gain.value = 0.06;
+        pad.connect(padFilter).connect(padGain).connect(masterGain);
+        padGain.connect(delay);
+        // Slow filter sweep keeps it from getting static.
+        padFilterLfo = ctx.createOscillator();
+        padFilterLfo.type = 'sine';
+        padFilterLfo.frequency.value = 0.05;
+        padLfoGain = ctx.createGain();
+        padLfoGain.gain.value = 120;
+        padFilterLfo.connect(padLfoGain).connect(padFilter.frequency);
+        pad.start();
+        padFilterLfo.start();
+
+        // Strike first chord immediately, then every CHORD_DUR seconds.
+        strikeNextChord();
+        scheduler = window.setInterval(strikeNextChord, CHORD_DUR * 1000);
+
+        // Sparse high bell — that "ding" you hear in a quiet hotel lobby.
+        bellTimer = window.setInterval(() => {
+          if (!ctx || !playing) return;
+          if (Math.random() > 0.18) return;
+          const t = ctx.currentTime;
+          const bellFreqs = [880, 1108.73, 1318.51, 1760]; // A5, C#6, E6, A6
+          playBell(t, bellFreqs[Math.floor(Math.random() * bellFreqs.length)], 0.025);
+        }, 12000);
+      } catch (e) {
+        console.warn('[shop-audio] Lobby music failed:', e);
+        playing = false;
+        teardown();
+      }
+    },
+    stop() {
+      if (!playing) return;
+      playing = false;
+      if (masterGain && ctx) {
+        try {
+          const t = ctx.currentTime;
+          masterGain.gain.cancelScheduledValues(t);
+          masterGain.gain.setValueAtTime(masterGain.gain.value, t);
+          masterGain.gain.linearRampToValueAtTime(0, t + 0.8);
+        } catch { /* ok */ }
+      }
+      window.setTimeout(teardown, 900);
+    },
+  };
+}
+
+// ── Dark drone (saved for future use: deeper floors, chase scenes) ─────
+// Same patch the shop used in the previous iteration — kept exported so
+// other parts of the game can pull this when they need a heavier mood.
+export function createDarkDrone(): AmbientHandle {
   let nodes: AudioNode[] = [];
   let oscs: OscillatorNode[] = [];
   let masterGain: GainNode | null = null;
@@ -160,12 +357,10 @@ export function createLobbyMusic(): { start: () => void; stop: () => void } {
       const now = ctx.currentTime;
 
       try {
-        // Master bus + soft fade in
         masterGain = ctx.createGain();
         masterGain.gain.setValueAtTime(0, now);
         masterGain.gain.linearRampToValueAtTime(0.18, now + 2.0);
 
-        // Light pseudo-reverb via short feedback delay (cheaper than convolver)
         const delay = ctx.createDelay(1.0);
         delay.delayTime.value = 0.32;
         const fb = ctx.createGain();
@@ -177,7 +372,6 @@ export function createLobbyMusic(): { start: () => void; stop: () => void } {
         masterGain.connect(ctx.destination);
         nodes.push(masterGain, delay, fb, wet);
 
-        // Helper to create LFO and route to a target AudioParam
         const lfo = (freq: number, depth: number, target: AudioParam) => {
           const o = ctx!.createOscillator();
           o.type = 'sine';
@@ -190,7 +384,6 @@ export function createLobbyMusic(): { start: () => void; stop: () => void } {
           nodes.push(g);
         };
 
-        // ── Sub-bass drone — sine 50Hz with slow detune ──
         const sub = ctx.createOscillator();
         sub.type = 'sine';
         sub.frequency.value = 50;
@@ -200,9 +393,8 @@ export function createLobbyMusic(): { start: () => void; stop: () => void } {
         sub.start();
         oscs.push(sub);
         nodes.push(subGain);
-        lfo(0.07, 8, sub.detune); // ±8 cents, 14s period
+        lfo(0.07, 8, sub.detune);
 
-        // ── Mid pad — sawtooth A2 through filtered low-pass ──
         const pad = ctx.createOscillator();
         pad.type = 'sawtooth';
         pad.frequency.value = 110;
@@ -213,17 +405,15 @@ export function createLobbyMusic(): { start: () => void; stop: () => void } {
         const padGain = ctx.createGain();
         padGain.gain.value = 0.13;
         pad.connect(padFilter).connect(padGain).connect(masterGain);
-        // Also send to delay for ambience
         padGain.connect(delay);
         pad.start();
         oscs.push(pad);
         nodes.push(padFilter, padGain);
-        lfo(0.04, 220, padFilter.frequency); // slow filter sweep ±220 Hz
+        lfo(0.04, 220, padFilter.frequency);
 
-        // ── High pad — minor third above A2, detuned ──
         const padHi = ctx.createOscillator();
         padHi.type = 'sawtooth';
-        padHi.frequency.value = 110 * Math.pow(2, 3 / 12); // ~130.8 Hz
+        padHi.frequency.value = 110 * Math.pow(2, 3 / 12);
         padHi.detune.value = 7;
         const padHiFilter = ctx.createBiquadFilter();
         padHiFilter.type = 'lowpass';
@@ -236,9 +426,8 @@ export function createLobbyMusic(): { start: () => void; stop: () => void } {
         padHi.start();
         oscs.push(padHi);
         nodes.push(padHiFilter, padHiGain);
-        lfo(0.029, 8, padHi.detune); // pitch shimmer
+        lfo(0.029, 8, padHi.detune);
 
-        // ── Distant metallic tinks — random, sparse ──
         creakInterval = window.setInterval(() => {
           if (!ctx || !masterGain || !playing) return;
           if (Math.random() > 0.3) return;
@@ -253,7 +442,6 @@ export function createLobbyMusic(): { start: () => void; stop: () => void } {
           tink.connect(tinkGain).connect(delay);
           tink.start(t);
           tink.stop(t + 1.7);
-          // these short oscs aren't pushed to oscs[] — they self-stop
         }, 8000);
       } catch (e) {
         console.warn('[shop-audio] Drone failed:', e);
@@ -264,8 +452,6 @@ export function createLobbyMusic(): { start: () => void; stop: () => void } {
     stop() {
       if (!playing) return;
       playing = false;
-
-      // Fade out the master bus, then tear down.
       if (masterGain && ctx) {
         try {
           const now = ctx.currentTime;

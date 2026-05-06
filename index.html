@@ -96821,32 +96821,119 @@ function playConfirm() {
   }
 }
 function createLobbyMusic() {
-  let nodes = [];
-  let oscs = [];
-  let masterGain = null;
   let ctx = null;
-  let creakInterval = null;
+  let masterGain = null;
+  let delay = null;
+  let scheduler2 = null;
+  let bellTimer = null;
+  let pad = null;
+  let padFilter = null;
+  let padFilterLfo = null;
+  let padLfoGain = null;
+  let chordIndex = 0;
   let playing = false;
-  function teardown() {
-    if (creakInterval !== null) {
-      window.clearInterval(creakInterval);
-      creakInterval = null;
+  const PROGRESSION = [
+    { triad: [220, 261.63, 329.63], padRoot: 110 },
+    // A minor (A3 C4 E4) over A2 pad
+    { triad: [174.61, 220, 261.63], padRoot: 87.31 },
+    // F major  (F3 A3 C4) over F2 pad
+    { triad: [261.63, 329.63, 392], padRoot: 130.81 },
+    // C major (C4 E4 G4) over C3 pad
+    { triad: [164.81, 196, 246.94], padRoot: 82.41 }
+    // E minor (E3 G3 B3) over E2 pad
+  ];
+  const CHORD_DUR = 6;
+  function playRhodesNote(freq, when, dur, vel = 0.07) {
+    if (!ctx || !masterGain) return;
+    const osc1 = ctx.createOscillator();
+    osc1.type = "sine";
+    osc1.frequency.value = freq;
+    const det = ctx.createOscillator();
+    det.type = "sine";
+    det.frequency.value = 0.08 + Math.random() * 0.04;
+    const detGain = ctx.createGain();
+    detGain.gain.value = 4;
+    det.connect(detGain).connect(osc1.detune);
+    const osc2 = ctx.createOscillator();
+    osc2.type = "sine";
+    osc2.frequency.value = freq * 2;
+    const harmGain = ctx.createGain();
+    harmGain.gain.value = 0.22;
+    osc2.connect(harmGain);
+    const noteGain = ctx.createGain();
+    noteGain.gain.setValueAtTime(0, when);
+    noteGain.gain.linearRampToValueAtTime(vel, when + 0.06);
+    noteGain.gain.exponentialRampToValueAtTime(vel * 0.35, when + dur * 0.45);
+    noteGain.gain.exponentialRampToValueAtTime(1e-4, when + dur);
+    osc1.connect(noteGain);
+    harmGain.connect(noteGain);
+    noteGain.connect(masterGain);
+    if (delay) noteGain.connect(delay);
+    osc1.start(when);
+    osc2.start(when);
+    det.start(when);
+    const stopAt = when + dur + 0.15;
+    osc1.stop(stopAt);
+    osc2.stop(stopAt);
+    det.stop(stopAt);
+  }
+  function playBell(when, freq, vel = 0.04) {
+    if (!ctx || !masterGain) return;
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    const g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0, when);
+    g2.gain.linearRampToValueAtTime(vel, when + 0.01);
+    g2.gain.exponentialRampToValueAtTime(1e-4, when + 2.5);
+    osc.connect(g2);
+    if (delay) g2.connect(delay);
+    g2.connect(masterGain);
+    osc.start(when);
+    osc.stop(when + 2.6);
+  }
+  function strikeNextChord() {
+    if (!ctx || !masterGain || !playing) return;
+    const t2 = ctx.currentTime;
+    const c2 = PROGRESSION[chordIndex];
+    playRhodesNote(c2.triad[0], t2 + 0, CHORD_DUR, 0.075);
+    playRhodesNote(c2.triad[1], t2 + 0.06, CHORD_DUR, 0.062);
+    playRhodesNote(c2.triad[2], t2 + 0.12, CHORD_DUR, 0.052);
+    if (pad) {
+      pad.frequency.cancelScheduledValues(t2);
+      pad.frequency.setValueAtTime(pad.frequency.value, t2);
+      pad.frequency.linearRampToValueAtTime(c2.padRoot, t2 + 1.5);
     }
-    oscs.forEach((o2) => {
+    chordIndex = (chordIndex + 1) % PROGRESSION.length;
+  }
+  function teardown() {
+    if (scheduler2 !== null) {
+      window.clearInterval(scheduler2);
+      scheduler2 = null;
+    }
+    if (bellTimer !== null) {
+      window.clearInterval(bellTimer);
+      bellTimer = null;
+    }
+    [pad, padFilterLfo].forEach((o2) => {
       try {
-        o2.stop();
+        o2 == null ? void 0 : o2.stop();
       } catch {
       }
     });
-    nodes.forEach((n) => {
+    [pad, padFilter, padFilterLfo, padLfoGain, masterGain, delay].forEach((n) => {
       try {
-        n.disconnect();
+        n == null ? void 0 : n.disconnect();
       } catch {
       }
     });
-    oscs = [];
-    nodes = [];
+    pad = null;
+    padFilter = null;
+    padFilterLfo = null;
+    padLfoGain = null;
     masterGain = null;
+    delay = null;
+    chordIndex = 0;
   }
   return {
     start() {
@@ -96858,86 +96945,46 @@ function createLobbyMusic() {
       try {
         masterGain = ctx.createGain();
         masterGain.gain.setValueAtTime(0, now2);
-        masterGain.gain.linearRampToValueAtTime(0.18, now2 + 2);
-        const delay = ctx.createDelay(1);
-        delay.delayTime.value = 0.32;
+        masterGain.gain.linearRampToValueAtTime(0.22, now2 + 1.6);
+        masterGain.connect(ctx.destination);
+        delay = ctx.createDelay(1.2);
+        delay.delayTime.value = 0.42;
         const fb = ctx.createGain();
-        fb.gain.value = 0.4;
+        fb.gain.value = 0.32;
         const wet = ctx.createGain();
-        wet.gain.value = 0.5;
+        wet.gain.value = 0.45;
         delay.connect(fb).connect(delay);
         delay.connect(wet).connect(masterGain);
-        masterGain.connect(ctx.destination);
-        nodes.push(masterGain, delay, fb, wet);
-        const lfo = (freq, depth, target) => {
-          const o2 = ctx.createOscillator();
-          o2.type = "sine";
-          o2.frequency.value = freq;
-          const g2 = ctx.createGain();
-          g2.gain.value = depth;
-          o2.connect(g2).connect(target);
-          o2.start();
-          oscs.push(o2);
-          nodes.push(g2);
-        };
-        const sub = ctx.createOscillator();
-        sub.type = "sine";
-        sub.frequency.value = 50;
-        const subGain = ctx.createGain();
-        subGain.gain.value = 0.55;
-        sub.connect(subGain).connect(masterGain);
-        sub.start();
-        oscs.push(sub);
-        nodes.push(subGain);
-        lfo(0.07, 8, sub.detune);
-        const pad = ctx.createOscillator();
+        pad = ctx.createOscillator();
         pad.type = "sawtooth";
-        pad.frequency.value = 110;
-        const padFilter = ctx.createBiquadFilter();
+        pad.frequency.value = PROGRESSION[0].padRoot;
+        padFilter = ctx.createBiquadFilter();
         padFilter.type = "lowpass";
-        padFilter.frequency.value = 380;
-        padFilter.Q.value = 6;
+        padFilter.frequency.value = 320;
+        padFilter.Q.value = 4;
         const padGain = ctx.createGain();
-        padGain.gain.value = 0.13;
+        padGain.gain.value = 0.06;
         pad.connect(padFilter).connect(padGain).connect(masterGain);
         padGain.connect(delay);
+        padFilterLfo = ctx.createOscillator();
+        padFilterLfo.type = "sine";
+        padFilterLfo.frequency.value = 0.05;
+        padLfoGain = ctx.createGain();
+        padLfoGain.gain.value = 120;
+        padFilterLfo.connect(padLfoGain).connect(padFilter.frequency);
         pad.start();
-        oscs.push(pad);
-        nodes.push(padFilter, padGain);
-        lfo(0.04, 220, padFilter.frequency);
-        const padHi = ctx.createOscillator();
-        padHi.type = "sawtooth";
-        padHi.frequency.value = 110 * Math.pow(2, 3 / 12);
-        padHi.detune.value = 7;
-        const padHiFilter = ctx.createBiquadFilter();
-        padHiFilter.type = "lowpass";
-        padHiFilter.frequency.value = 600;
-        padHiFilter.Q.value = 4;
-        const padHiGain = ctx.createGain();
-        padHiGain.gain.value = 0.07;
-        padHi.connect(padHiFilter).connect(padHiGain).connect(masterGain);
-        padHiGain.connect(delay);
-        padHi.start();
-        oscs.push(padHi);
-        nodes.push(padHiFilter, padHiGain);
-        lfo(0.029, 8, padHi.detune);
-        creakInterval = window.setInterval(() => {
-          if (!ctx || !masterGain || !playing) return;
-          if (Math.random() > 0.3) return;
+        padFilterLfo.start();
+        strikeNextChord();
+        scheduler2 = window.setInterval(strikeNextChord, CHORD_DUR * 1e3);
+        bellTimer = window.setInterval(() => {
+          if (!ctx || !playing) return;
+          if (Math.random() > 0.18) return;
           const t2 = ctx.currentTime;
-          const tink = ctx.createOscillator();
-          tink.type = "sine";
-          tink.frequency.value = 900 + Math.random() * 700;
-          const tinkGain = ctx.createGain();
-          tinkGain.gain.setValueAtTime(0, t2);
-          tinkGain.gain.linearRampToValueAtTime(0.04, t2 + 0.01);
-          tinkGain.gain.exponentialRampToValueAtTime(1e-3, t2 + 1.6);
-          tink.connect(tinkGain).connect(delay);
-          tink.start(t2);
-          tink.stop(t2 + 1.7);
-        }, 8e3);
+          const bellFreqs = [880, 1108.73, 1318.51, 1760];
+          playBell(t2, bellFreqs[Math.floor(Math.random() * bellFreqs.length)], 0.025);
+        }, 12e3);
       } catch (e2) {
-        console.warn("[shop-audio] Drone failed:", e2);
+        console.warn("[shop-audio] Lobby music failed:", e2);
         playing = false;
         teardown();
       }
@@ -96947,14 +96994,14 @@ function createLobbyMusic() {
       playing = false;
       if (masterGain && ctx) {
         try {
-          const now2 = ctx.currentTime;
-          masterGain.gain.cancelScheduledValues(now2);
-          masterGain.gain.setValueAtTime(masterGain.gain.value, now2);
-          masterGain.gain.linearRampToValueAtTime(0, now2 + 0.6);
+          const t2 = ctx.currentTime;
+          masterGain.gain.cancelScheduledValues(t2);
+          masterGain.gain.setValueAtTime(masterGain.gain.value, t2);
+          masterGain.gain.linearRampToValueAtTime(0, t2 + 0.8);
         } catch {
         }
       }
-      window.setTimeout(teardown, 700);
+      window.setTimeout(teardown, 900);
     }
   };
 }
@@ -97020,13 +97067,38 @@ function tokenize(text) {
   }
   return tokens;
 }
-function splitPages(tokens) {
-  const pages = [[]];
-  for (const t2 of tokens) {
-    if (t2.kind === "page") pages.push([]);
-    else pages[pages.length - 1].push(t2);
+const MAX_NEWLINES_PER_PAGE = 5;
+function paginateByNewlines(page, maxNl) {
+  const out = [];
+  let current = [];
+  let nls = 0;
+  for (const t2 of page) {
+    current.push(t2);
+    if (t2.kind === "newline") {
+      nls++;
+      if (nls >= maxNl) {
+        if (current[current.length - 1].kind === "newline") current.pop();
+        out.push(current);
+        current = [];
+        nls = 0;
+      }
+    }
   }
-  return pages.filter((p2) => p2.length > 0);
+  if (current.length > 0) out.push(current);
+  return out;
+}
+function splitPages(tokens) {
+  const explicit = [[]];
+  for (const t2 of tokens) {
+    if (t2.kind === "page") explicit.push([]);
+    else explicit[explicit.length - 1].push(t2);
+  }
+  const out = [];
+  for (const p2 of explicit) {
+    if (p2.length === 0) continue;
+    out.push(...paginateByNewlines(p2, MAX_NEWLINES_PER_PAGE));
+  }
+  return out.filter((p2) => p2.length > 0);
 }
 function charCount(page) {
   return page.filter((t2) => t2.kind === "char").length;
@@ -97621,8 +97693,8 @@ const ShopOverlay = ({ open, onClose }) => {
                     border: "5px solid #fff",
                     borderRadius: 0,
                     padding: "14px 18px",
-                    height: isLandscape ? "clamp(140px, 24vh, 180px)" : "clamp(160px, 26vh, 200px)",
-                    marginTop: isLandscape ? "clamp(-110px, -22vh, -64px)" : "clamp(-130px, -16vh, -84px)",
+                    height: isLandscape ? "clamp(160px, 30vh, 220px)" : "clamp(180px, 32vh, 240px)",
+                    marginTop: isLandscape ? "clamp(-110px, -22vh, -70px)" : "clamp(-130px, -16vh, -90px)",
                     boxShadow: "inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.18), 0 10px 28px rgba(0,0,0,0.65)",
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
                     opacity: phase === "idle" ? 1 : 0,
@@ -100784,6 +100856,41 @@ const FloorReveal = ({ level }) => {
     }
   );
 };
+const FullscreenButton = React.memo(() => {
+  const [isFs, setIsFs] = React.useState(
+    typeof document !== "undefined" && !!document.fullscreenElement
+  );
+  React.useEffect(() => {
+    const onChange = () => setIsFs(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  const toggle = React.useCallback(() => {
+    var _a, _b2;
+    if (!document.fullscreenElement) {
+      const req = (_b2 = (_a = document.documentElement).requestFullscreen) == null ? void 0 : _b2.call(_a);
+      if (req && typeof req.catch === "function") {
+        req.catch(() => {
+        });
+      }
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {
+      });
+    }
+  }, []);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    "button",
+    {
+      onClick: toggle,
+      className: "relative group",
+      "aria-label": isFs ? "Sair da tela cheia" : "Tela cheia",
+      children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target", children: isFs ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#fbbf24", className: "w-6 h-6 landscape:w-6 landscape:h-6", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#fbbf24", className: "w-6 h-6 landscape:w-6 landscape:h-6", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" }) }) })
+      ]
+    }
+  );
+});
 const TopControls = React.memo(({ multiplayerEnabled, otherPlayersCount, connectionStatus, onSettingsOpen, muted, onToggleMute }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
   "div",
   {
@@ -100815,7 +100922,8 @@ const TopControls = React.memo(({ multiplayerEnabled, otherPlayersCount, connect
       /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { onClick: onToggleMute, className: "relative group", "aria-label": muted ? "Unmute" : "Mute", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -inset-1 bg-amber-500/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative bg-black/70 backdrop-blur-sm ring-1 ring-white/10 group-hover:ring-amber-500/40 p-2 sm:p-2.5 rounded-full transition-all group-active:scale-95 tap-target", children: muted ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#f87171", className: "w-6 h-6 landscape:w-6 landscape:h-6", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "#fbbf24", className: "w-6 h-6 landscape:w-6 landscape:h-6", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" }) }) })
-      ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(FullscreenButton, {})
     ]
   }
 ));

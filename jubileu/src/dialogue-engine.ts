@@ -101,14 +101,50 @@ export function tokenize(text: string): Token[] {
   return tokens;
 }
 
-/** Split a token stream into pages (separated by page tokens). */
-export function splitPages(tokens: Token[]): Token[][] {
-  const pages: Token[][] = [[]];
-  for (const t of tokens) {
-    if (t.kind === 'page') pages.push([]);
-    else pages[pages.length - 1].push(t);
+/** Split a token stream into pages.
+ *
+ * Two passes:
+ *   1. Honor explicit `^^` page tokens.
+ *   2. Auto-paginate any page that has too many newlines so it can't
+ *      overflow the fixed-height dialog box. Splits at newline
+ *      boundaries to avoid breaking mid-sentence.
+ */
+const MAX_NEWLINES_PER_PAGE = 5;
+
+function paginateByNewlines(page: Token[], maxNl: number): Token[][] {
+  const out: Token[][] = [];
+  let current: Token[] = [];
+  let nls = 0;
+  for (const t of page) {
+    current.push(t);
+    if (t.kind === 'newline') {
+      nls++;
+      if (nls >= maxNl) {
+        // Drop a trailing newline at the page break — the next page
+        // already starts on a new line visually.
+        if (current[current.length - 1].kind === 'newline') current.pop();
+        out.push(current);
+        current = [];
+        nls = 0;
+      }
+    }
   }
-  return pages.filter((p) => p.length > 0);
+  if (current.length > 0) out.push(current);
+  return out;
+}
+
+export function splitPages(tokens: Token[]): Token[][] {
+  const explicit: Token[][] = [[]];
+  for (const t of tokens) {
+    if (t.kind === 'page') explicit.push([]);
+    else explicit[explicit.length - 1].push(t);
+  }
+  const out: Token[][] = [];
+  for (const p of explicit) {
+    if (p.length === 0) continue;
+    out.push(...paginateByNewlines(p, MAX_NEWLINES_PER_PAGE));
+  }
+  return out.filter((p) => p.length > 0);
 }
 
 /** Count "real" characters in a page (excluding pauses/newlines) for completion check. */
