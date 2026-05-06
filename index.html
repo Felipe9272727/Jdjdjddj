@@ -97105,15 +97105,58 @@ function charCount(page) {
 }
 const SHOP_SCENES = {
   // ── ENTRY ─────────────────────────────────────────────────────────────
+  // Top-level menu mirrors Undertale shop tabs: Comprar / Conversar / Sair,
+  // plus extra "Sobre" tab for the lore-heavy hotel branch.
   main: {
     mood: "talk",
     text: "* Bem-vindo ao {y:Normal Hotel}!{p}\n* Eu sou o recepcionista.{p:200}\n* Em que posso te ajudar?\n^^* (Ele te encara{p} sem piscar.){p:300}\n* (O sorriso dele não{p} chega aos olhos.)",
     choices: [
-      { label: "Posso te fazer algumas perguntas?", goto: "talk" },
-      { label: "Preciso de informações sobre o hotel.", goto: "services" },
-      { label: "O que é esse lugar, exatamente?", goto: "about" },
-      { label: "Acho que vou indo.", goto: "bye" }
+      { label: "Comprar", goto: "buy" },
+      { label: "Conversar", goto: "talk" },
+      { label: "Sobre o hotel", goto: "about" },
+      { label: "Sair", goto: "bye" }
     ]
+  },
+  // ── COMPRAR ───────────────────────────────────────────────────────────
+  // Undertale shop tabs work as a fixed list of items. The "currency"
+  // here is intentionally absurd — the joke is that nothing in the
+  // hotel has a real price, but the recepcionista keeps a straight face.
+  buy: {
+    mood: "talk",
+    text: "* {y:Loja da Recepção.}{p:300}\n* Tudo que oferecemos é\n  {y:gratuito}.{p}\n* Só não tente sair com\n  nada na bolsa.",
+    choices: [
+      { label: "Café da casa  -  0G", goto: "buy_coffee" },
+      { label: "Biscoito      -  0G", goto: "buy_cookie" },
+      { label: "Chave reserva -  ?G", goto: "buy_key" },
+      { label: "Um andar a +  -  ∞G", goto: "buy_floor" },
+      { label: "Lembrança     - 1?G", goto: "buy_memory" },
+      { label: "Voltar", goto: "main" }
+    ]
+  },
+  buy_coffee: {
+    mood: "wink",
+    text: "* {y:Café da casa.}{p}\n* Sempre quente.{p:200}\n* Sempre amargo.\n^^* (Ele te entrega uma\n  xícara de porcelana.){p:400}\n* A xícara está {f:vazia}.{p:300}\n* Mas você sente o calor\n  dela mesmo assim.\n^^* * Você bebeu o {y:Café\n  da casa}.{p:200}\n* Algo dentro de você\n  ficou um pouco mais\n  acordado.",
+    choices: [{ label: "Voltar.", goto: "buy" }]
+  },
+  buy_cookie: {
+    mood: "idle",
+    text: "* {y:Biscoito.}{p:200}\n* Sempre fresco.{p}\n* Independente de quando\n  foi feito.\n^^* (Ele tira um biscoito de\n  baixo do balcão.){p:300}\n* O biscoito {f:lembra} um\n  formato.{p:200}\n* Talvez de coração.{p}\n* Talvez não.\n^^* * Você guardou o biscoito\n  no bolso.{p:200}\n* Vai ficar fresco até\n  você esquecer dele.",
+    choices: [{ label: "Voltar.", goto: "buy" }]
+  },
+  buy_key: {
+    mood: "sweat",
+    text: "* {y:Chave reserva.}{p:300}\n* ...{p:400}\n* De qual quarto?\n^^* (Ele encara você por\n  tempo demais.){p:400}\n* Não posso vender uma\n  chave {y:vazia}.{p:300}\n* Algumas portas levam\n  esse tipo de coisa\n  a sério.",
+    choices: [{ label: "Voltar.", goto: "buy" }]
+  },
+  buy_floor: {
+    mood: "concerned",
+    text: "* Um {y:andar a mais}.{p:400}\n* Esse é caro.\n^^* O preço não é dinheiro.{p:300}\n* Você teria que dar\n  algo {y:proporcional}.{p:200}\n* Uma memória de infância,\n  por exemplo.{p}\n* Ou o nome da sua mãe.\n^^* (Ele dá um sorriso\n  de quem já viu isso\n  acontecer.){p:400}\n* Talvez na próxima visita.",
+    choices: [{ label: "Voltar.", goto: "buy" }]
+  },
+  buy_memory: {
+    mood: "wink",
+    text: "* Uma {y:lembrança} do hotel.{p:300}\n* Nossa especialidade.\n^^* (Ele coloca uma caixinha\n  de fósforo na sua mão.){p:300}\n* Tem o logo do hotel\n  na tampa.{p:200}\n* O logo {f:muda} quando\n  você não está olhando.\n^^* * Você ganhou uma\n  {y:Lembrança}.{p:200}\n* Não acende fósforos\n  com ela.{p:300}\n* Por favor.",
+    choices: [{ label: "Voltar.", goto: "buy" }]
   },
   // ── CONVERSAR ─────────────────────────────────────────────────────────
   talk: {
@@ -97548,8 +97591,7 @@ const ShopOverlay = ({ open, onClose }) => {
   const doorsState = phase === "closing" ? "sliding-in" : phase === "arrived" ? "closed" : phase === "opening" ? "sliding-out" : phase === "idle" ? "open" : "closing-exit";
   const showContent = phase === "opening" || phase === "idle";
   const contentOpacity = phase === "opening" ? 0.85 : phase === "idle" ? 1 : 0;
-  const sceneMood = scene.mood ?? "idle";
-  const spriteMode = phase === "idle" ? !isPageDone || sceneMood === "talk" ? "talk" : "idle-static" : "clean";
+  const spriteMode = phase === "idle" ? !isPageDone ? "talk" : "idle-static" : "clean";
   const spriteConfigs = {
     clean: {
       imageUrl: BELLHOP_CLEAN_STRIP,

@@ -15,7 +15,7 @@ import {
 } from './bellhop-sprites';
 import { SpriteAnimator } from './SpriteEngine';
 import { playDoorbell, playBeep, playSelect, playConfirm, createLobbyMusic } from './shop-audio';
-import { tokenize, splitPages, charCount, type Token, type Mood } from './dialogue-engine';
+import { tokenize, splitPages, charCount, type Token } from './dialogue-engine';
 import { SHOP_SCENES, ROOT_SCENE, CLOSE_SCENE } from './shop-dialogues';
 
 // ─── Bellhop Shop — Undertale-style overlay with elevator entrance ─────────
@@ -307,14 +307,17 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
   const showContent = phase === 'opening' || phase === 'idle';
   const contentOpacity = phase === 'opening' ? 0.85 : phase === 'idle' ? 1 : 0;
 
-  // ── Sprite mood selection ─────────────────────────────────────────────
-  // Bellhop is "talking" while text is still being revealed; otherwise the
-  // mood from the scene controls expression. CLEAN strip plays during the
-  // entrance reveal (counter wipe).
-  const sceneMood: Mood = scene.mood ?? 'idle';
+  // ── Sprite mode selection ─────────────────────────────────────────────
+  // CLEAN strip plays during the entrance reveal (counter wipe).
+  // While in idle phase: TALK (mouth animating) while text is still being
+  // revealed, IDLE (mouth closed) the moment the page is fully shown.
+  // The previous logic also forced TALK on scenes flagged mood='talk',
+  // which left the bellhop yapping with no text on screen — the bug
+  // Felipe reported. Mood is reserved for future expression sprites
+  // (wink/sweat/concerned) that need their own static frames.
   type SpriteMode = 'clean' | 'idle-static' | 'talk';
   const spriteMode: SpriteMode = phase === 'idle'
-    ? (!isPageDone || sceneMood === 'talk' ? 'talk' : 'idle-static')
+    ? (!isPageDone ? 'talk' : 'idle-static')
     : 'clean';
 
   // Each strip is its own pre-cut spritesheet (base64 in bellhop-sprites.ts),
