@@ -1,6 +1,9 @@
 /**
  * shop-dialogues.ts — Hotel reception dialogue tree.
  *
+ * Player choices are FULL sentences (not single words like "Mapa"),
+ * mirroring the lobby supervisor's tone in DIALOGUE_TREE in constants.ts.
+ *
  * Style notes:
  *   • Asterisk-prefixed lines (Undertale convention).
  *   • Inline tags: {y:...} highlight, {p}/{p:N} pause, ^^ page break, {s:...} shake.
@@ -29,28 +32,35 @@ export const SHOP_SCENES: Record<string, Scene> = {
     text:
       '* Bem-vindo ao {y:Normal Hotel}!{p}\n' +
       '* Eu sou o recepcionista.{p:200}\n' +
-      '* Posso ajudar?\n' +
+      '* Em que posso te ajudar?\n' +
       '^^' +
       '* (Ele te encara{p} sem piscar.){p:300}\n' +
       '* (O sorriso dele não{p} chega aos olhos.)',
     choices: [
-      { label: 'Conversar', goto: 'talk' },
-      { label: 'Hospedagem', goto: 'services' },
-      { label: 'Sobre o hotel', goto: 'about' },
-      { label: 'Sair', goto: 'bye' },
+      { label: 'Posso te fazer algumas perguntas?', goto: 'talk' },
+      { label: 'Preciso de informações sobre o hotel.', goto: 'services' },
+      { label: 'O que é esse lugar, exatamente?', goto: 'about' },
+      { label: 'Acho que vou indo.', goto: 'bye' },
     ],
   },
 
   // ── CONVERSAR ─────────────────────────────────────────────────────────
   talk: {
     mood: 'idle',
-    text: '* Sobre o que você quer\n  conversar?',
+    text:
+      '* Claro.{p}\n' +
+      '* Pergunte o que quiser.{p:200}\n' +
+      '* Eu respondo o que puder.\n' +
+      '^^' +
+      '* (Ele coloca as mãos no\n  balcão.){p:300}\n' +
+      '* (Os dedos dele são{p} um\n  pouco compridos demais.)',
     choices: [
-      { label: 'Você quem é?', goto: 'who' },
-      { label: 'O hotel é seguro?', goto: 'safe' },
-      { label: 'Coisas estranhas', goto: 'strange' },
-      { label: 'O elevador', goto: 'elevator' },
-      { label: 'Voltar', goto: 'main' },
+      { label: 'Quem é você, afinal?', goto: 'who' },
+      { label: 'Esse hotel é mesmo seguro?', goto: 'safe' },
+      { label: 'Vi coisas estranhas por aqui.', goto: 'strange' },
+      { label: 'Esse elevador me dá calafrios.', goto: 'elevator' },
+      { label: 'Falei com alguém parecido com você lá no saguão...', goto: 'monitor' },
+      { label: 'Deixa pra lá, voltar.', goto: 'main' },
     ],
   },
 
@@ -66,7 +76,28 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* Não me lembro do {f:antes}.{p:500}\n' +
       '* Mas o uniforme serve\n  perfeitamente.{p}\n' +
       '* Então deve estar tudo\n  certo.',
-    choices: [{ label: 'Voltar', goto: 'talk' }],
+    choices: [
+      { label: 'Você nasceu aqui?', goto: 'who_born' },
+      { label: 'Tem outros como você?', goto: 'monitor' },
+      { label: 'Voltar.', goto: 'talk' },
+    ],
+  },
+
+  who_born: {
+    mood: 'sweat',
+    text:
+      '* {y:Nasci?}{p:300}\n' +
+      '* É...{p:400}\n' +
+      '* Essa é uma palavra forte.\n' +
+      '^^' +
+      '* Eu acordei aqui.{p:200}\n' +
+      '* Já com o uniforme vestido.{p:200}\n' +
+      '* Já com o nome no crachá.{p}\n' +
+      '* Já sabendo dizer\n  "{y:bem-vindo}".\n' +
+      '^^' +
+      '* Se isso conta como nascer,\n  sim.{p:400}\n' +
+      '* Eu nasci aqui.',
+    choices: [{ label: 'Voltar.', goto: 'talk' }],
   },
 
   safe: {
@@ -84,7 +115,22 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* Mas sempre aparece\n  alguém {y:novo} no dia\n  seguinte.{p}\n' +
       '* Com o mesmo nome.{p:300}\n' +
       '* É reconfortante.',
-    choices: [{ label: 'Voltar', goto: 'talk' }],
+    choices: [
+      { label: 'Você está me tranquilizando ou me ameaçando?', goto: 'safe_threat' },
+      { label: 'Voltar.', goto: 'talk' },
+    ],
+  },
+
+  safe_threat: {
+    mood: 'concerned',
+    text:
+      '* (Ele inclina a cabeça.){p:300}\n' +
+      '* Eu não sei a diferença.{p:400}\n' +
+      '* Sinceramente.\n' +
+      '^^' +
+      '* As duas coisas saem\n  com o mesmo {y:tom de voz}.{p:300}\n' +
+      '* O {y:treinamento} foi\n  muito específico\n  sobre isso.',
+    choices: [{ label: 'Voltar.', goto: 'talk' }],
   },
 
   strange: {
@@ -100,8 +146,8 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* Mas isso é {f:normal}.{p:400}\n' +
       '* Esse é o nome do\n  hotel, afinal.',
     choices: [
-      { label: 'Andares?', goto: 'floors' },
-      { label: 'Voltar', goto: 'talk' },
+      { label: 'E se um andar desses aparecer pra mim?', goto: 'floors' },
+      { label: 'Voltar.', goto: 'talk' },
     ],
   },
 
@@ -118,26 +164,102 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '^^' +
       '* Se as portas demorarem\n  pra abrir...{p:500}\n' +
       '* ...{s:não aperte de novo}.',
-    choices: [{ label: 'Voltar', goto: 'talk' }],
+    choices: [
+      { label: 'O que acontece se eu apertar de novo?', goto: 'elevator_press' },
+      { label: 'Voltar.', goto: 'talk' },
+    ],
+  },
+
+  elevator_press: {
+    mood: 'sweat',
+    text:
+      '* (Ele desvia o olhar pela\n  primeira vez.){p:500}\n' +
+      '* É melhor não saber.\n' +
+      '^^' +
+      '* O {y:último hóspede} que\n  apertou duas vezes...{p:400}\n' +
+      '* ...ainda está apertando.{p:300}\n' +
+      '* Em algum lugar.',
+    choices: [{ label: 'Voltar.', goto: 'talk' }],
+  },
+
+  // ── MONITOR / SUPERVISOR (nova cena) ─────────────────────────────────
+  monitor: {
+    mood: 'concerned',
+    text:
+      '* (O sorriso dele {f:vacila}\n  por meio segundo.){p:400}\n' +
+      '* O {y:Supervisor do Saguão}.\n' +
+      '^^' +
+      '* Sim.{p:200}\n' +
+      '* Nós somos... {y:parentes}.{p:300}\n' +
+      '* Mais ou menos.\n' +
+      '^^' +
+      '* Ele veio antes de mim.{p:200}\n' +
+      '* O treinamento dele foi\n  o {y:protótipo}.{p:300}\n' +
+      '* O meu foi a {y:versão\n  refinada}.\n' +
+      '^^' +
+      '* Por isso ele fala daquele\n  jeito.{p}\n' +
+      '* "Memórias são tijolos."{p:200}\n' +
+      '* "As partes que sobram\n  também são bem tratadas."',
+    choices: [
+      { label: 'Ele te assusta também?', goto: 'monitor_scare' },
+      { label: 'Quem fez o treinamento?', goto: 'monitor_training' },
+      { label: 'Voltar.', goto: 'talk' },
+    ],
+  },
+
+  monitor_scare: {
+    mood: 'sweat',
+    text:
+      '* (Pausa longa.){p:600}\n' +
+      '* Eu não tenho permissão\n  pra sentir medo.\n' +
+      '^^' +
+      '* Mas se tivesse...{p:400}\n' +
+      '* ...sim.{p:300}\n' +
+      '* Ele teria.\n' +
+      '^^' +
+      '* O {y:Supervisor} sabe coisas\n  que eu fui {f:configurado}\n  pra esquecer.{p:300}\n' +
+      '* Isso é desconfortável.',
+    choices: [{ label: 'Voltar.', goto: 'talk' }],
+  },
+
+  monitor_training: {
+    mood: 'idle',
+    text:
+      '* {y:Quem} fez o treinamento?{p:400}\n' +
+      '* Boa pergunta.\n' +
+      '^^' +
+      '* Eu não conheci.{p:200}\n' +
+      '* Só recebi o manual.{p:200}\n' +
+      '* Em três volumes.{p}\n' +
+      '* Sem capa.\n' +
+      '^^' +
+      '* O Supervisor diz que\n  conheceu.{p:300}\n' +
+      '* Diz que era uma {y:figura\n  alta}.{p:200}\n' +
+      '* Que falava devagar.{p}\n' +
+      '* Sempre olhando pro\n  {f:teto}.',
+    choices: [{ label: 'Voltar.', goto: 'talk' }],
   },
 
   // ── SERVIÇOS ──────────────────────────────────────────────────────────
   services: {
     mood: 'talk',
-    text: '* Como posso te servir?',
+    text:
+      '* Informações.{p}\n' +
+      '* Posso ajudar com isso.{p:200}\n' +
+      '* O que você precisa saber?',
     choices: [
-      { label: 'Quarto', goto: 'room' },
-      { label: 'Cardápio', goto: 'menu' },
-      { label: 'Mapa', goto: 'map' },
-      { label: 'Dicas', goto: 'tips' },
-      { label: 'Voltar', goto: 'main' },
+      { label: 'Como é que funciona o meu quarto?', goto: 'room' },
+      { label: 'Vocês servem alguma coisa pra comer?', goto: 'menu' },
+      { label: 'Onde eu estou exatamente no hotel?', goto: 'map' },
+      { label: 'Tem alguma coisa que eu deveria evitar?', goto: 'tips' },
+      { label: 'Voltar.', goto: 'main' },
     ],
   },
 
   room: {
     mood: 'sweat',
     text:
-      '* Você quer um {y:quarto}?{p:300}\n' +
+      '* O seu {y:quarto}.{p:300}\n' +
       '* ...{p:500}\n' +
       '* Você já tem um.\n' +
       '^^' +
@@ -146,7 +268,23 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* É só apertar o botão\n  certo no elevador.\n' +
       '^^' +
       '* (Ele sorri{p} mas o sorriso\n  parece {f:emprestado}.)',
-    choices: [{ label: 'Voltar', goto: 'services' }],
+    choices: [
+      { label: 'E se eu apertar o botão errado?', goto: 'room_wrong' },
+      { label: 'Voltar.', goto: 'services' },
+    ],
+  },
+
+  room_wrong: {
+    mood: 'wink',
+    text:
+      '* Aí você dorme {y:em outro\n  quarto} essa noite.{p:300}\n' +
+      '* Acontece.\n' +
+      '^^' +
+      '* (Ele dá uma risada baixa.){p:400}\n' +
+      '* Não se preocupe.{p:200}\n' +
+      '* Os outros quartos também\n  são {y:confortáveis}.{p:300}\n' +
+      '* A maioria.',
+    choices: [{ label: 'Voltar.', goto: 'services' }],
   },
 
   menu: {
@@ -161,7 +299,24 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* Tudo grátis!{p:300}\n' +
       '* Ninguém nunca cobra\n  nada aqui.{p:400}\n' +
       '* Eu também não sei\n  por quê.',
-    choices: [{ label: 'Voltar', goto: 'services' }],
+    choices: [
+      { label: 'Variável como?', goto: 'menu_soup' },
+      { label: 'Voltar.', goto: 'services' },
+    ],
+  },
+
+  menu_soup: {
+    mood: 'concerned',
+    text:
+      '* A sopa muda.{p:300}\n' +
+      '* Todo dia.\n' +
+      '^^' +
+      '* Às vezes é de {y:tomate}.{p}\n' +
+      '* Às vezes é de {y:abóbora}.{p}\n' +
+      '* Às vezes é de {f:algo que\n  não tem nome ainda}.\n' +
+      '^^' +
+      '* O cozinheiro nunca sai\n  da cozinha pra explicar.',
+    choices: [{ label: 'Voltar.', goto: 'services' }],
   },
 
   map: {
@@ -175,7 +330,23 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* O resto do hotel\n  fica {f:atrás} do elevador.{p:400}\n' +
       '* Não literalmente.{p}\n' +
       '* Não literalmente atrás.',
-    choices: [{ label: 'Voltar', goto: 'services' }],
+    choices: [
+      { label: 'Atrás como, então?', goto: 'map_behind' },
+      { label: 'Voltar.', goto: 'services' },
+    ],
+  },
+
+  map_behind: {
+    mood: 'sweat',
+    text:
+      '* Atrás como em...{p:400}\n' +
+      '* ...{p:400}\n' +
+      '* Mais {y:profundo}.\n' +
+      '^^' +
+      '* O elevador tem o tamanho\n  que você vê.{p:300}\n' +
+      '* O hotel tem o tamanho\n  que ele {f:precisa ter}.{p:200}\n' +
+      '* Os dois números nem\n  sempre coincidem.',
+    choices: [{ label: 'Voltar.', goto: 'services' }],
   },
 
   tips: {
@@ -191,20 +362,41 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* {s:corra}.\n' +
       '^^' +
       '* (Ele pisca rápido.){p:300}\n' +
-      '* * Mas não se preocupe!{p}\n' +
+      '* Mas não se preocupe!{p}\n' +
       '* É raro.',
-    choices: [{ label: 'Voltar', goto: 'services' }],
+    choices: [
+      { label: 'Já aconteceu com alguém?', goto: 'tips_who' },
+      { label: 'Voltar.', goto: 'services' },
+    ],
+  },
+
+  tips_who: {
+    mood: 'sweat',
+    text:
+      '* (Pausa.){p:400}\n' +
+      '* Já.\n' +
+      '^^' +
+      '* O hóspede do {y:quarto 304}.{p:300}\n' +
+      '* Faz... três anos?{p:200}\n' +
+      '* Quatro?\n' +
+      '^^' +
+      '* O quarto ainda está\n  reservado pra ele.{p:300}\n' +
+      '* A gente troca os lençóis\n  toda quarta-feira.{p}\n' +
+      '* Por garantia.',
+    choices: [{ label: 'Voltar.', goto: 'services' }],
   },
 
   // ── SOBRE O HOTEL ─────────────────────────────────────────────────────
   about: {
     mood: 'talk',
-    text: '* O que você quer saber?',
+    text:
+      '* O hotel.{p:200}\n' +
+      '* O que você quer saber\n  sobre ele?',
     choices: [
-      { label: 'Quem é o dono?', goto: 'owner' },
-      { label: 'Quantos andares?', goto: 'floors' },
-      { label: 'História', goto: 'history' },
-      { label: 'Voltar', goto: 'main' },
+      { label: 'Quem manda nesse lugar?', goto: 'owner' },
+      { label: 'Quantos andares tem, na real?', goto: 'floors' },
+      { label: 'Há quanto tempo isso aqui existe?', goto: 'history' },
+      { label: 'Voltar.', goto: 'main' },
     ],
   },
 
@@ -221,7 +413,24 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* As regras mudam de vez\n  em quando.{p:300}\n' +
       '* Eu só sigo.{p}\n' +
       '* É mais simples assim.',
-    choices: [{ label: 'Voltar', goto: 'about' }],
+    choices: [
+      { label: 'O que acontece se você desobedece?', goto: 'owner_disobey' },
+      { label: 'Voltar.', goto: 'about' },
+    ],
+  },
+
+  owner_disobey: {
+    mood: 'concerned',
+    text:
+      '* (Silêncio.){p:600}\n' +
+      '* Não sei.\n' +
+      '^^' +
+      '* Eu não fui {f:configurado}\n  pra desobedecer.{p:300}\n' +
+      '* Não acho que isso seja\n  uma opção que eu tenho.\n' +
+      '^^' +
+      '* (Ele sorri de novo.){p:300}\n' +
+      '* Mas é uma ótima pergunta!',
+    choices: [{ label: 'Voltar.', goto: 'about' }],
   },
 
   floors: {
@@ -238,7 +447,22 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* Já tive um quarto\n  no 17º andar.{p:400}\n' +
       '* Hoje o 17º andar não\n  está disponível.{p:300}\n' +
       '* Não foi nada pessoal.',
-    choices: [{ label: 'Voltar', goto: 'about' }],
+    choices: [
+      { label: 'O que acontece com os hóspedes desses andares?', goto: 'floors_guests' },
+      { label: 'Voltar.', goto: 'about' },
+    ],
+  },
+
+  floors_guests: {
+    mood: 'sweat',
+    text:
+      '* (Ele dá um sorrisinho.){p:300}\n' +
+      '* Eles {y:viajam}.\n' +
+      '^^' +
+      '* Pelo menos é isso que\n  o relatório diz.{p:300}\n' +
+      '* Eu não pergunto detalhes.{p:200}\n' +
+      '* Os detalhes são\n  {f:desconfortáveis}.',
+    choices: [{ label: 'Voltar.', goto: 'about' }],
   },
 
   history: {
@@ -254,7 +478,7 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* O hotel sempre esteve\n  aqui.{p:200}\n' +
       '* E sempre vai estar.{p:300}\n' +
       '* É bonito, de certa forma.',
-    choices: [{ label: 'Voltar', goto: 'about' }],
+    choices: [{ label: 'Voltar.', goto: 'about' }],
   },
 
   // ── DESPEDIDA ─────────────────────────────────────────────────────────
@@ -266,7 +490,10 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '^^' +
       '* O elevador está {y:sempre}\n  aberto.{p:400}\n' +
       '* Sempre {f:te esperando}.',
-    choices: [{ label: 'Tchau', goto: '__close__' }],
+    choices: [
+      { label: 'Tchau.', goto: '__close__' },
+      { label: 'Esquece, deixa eu perguntar mais uma coisa.', goto: 'main' },
+    ],
   },
 };
 
