@@ -1197,6 +1197,10 @@
     flex: 1;
   }
 
+  .flex-shrink {
+    flex-shrink: 1;
+  }
+
   .flex-shrink-0, .shrink-0 {
     flex-shrink: 0;
   }
@@ -96816,99 +96820,141 @@ function playConfirm() {
   } catch {
   }
 }
-const LOBBY_MUSIC_URLS = [
-  "https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/hotel-lobby.mp3",
-  "https://raw.githubusercontent.com/Felipe9272727/M-sica-pro-meu-jogo/main/Lobby%20Time(MP3_160K).mp3"
-];
-let lobbyBuffer = null;
-let lobbyLoadPromise = null;
-async function loadLobbyMusic(ctx) {
-  if (lobbyBuffer) return lobbyBuffer;
-  if (lobbyLoadPromise) return lobbyLoadPromise;
-  lobbyLoadPromise = (async () => {
-    let lastErr = null;
-    for (const url of LOBBY_MUSIC_URLS) {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const arrayBuf = await res.arrayBuffer();
-        const buf = await ctx.decodeAudioData(arrayBuf);
-        lobbyBuffer = buf;
-        return buf;
-      } catch (e2) {
-        lastErr = e2;
-      }
-    }
-    throw lastErr ?? new Error("All lobby music URLs failed");
-  })();
-  try {
-    return await lobbyLoadPromise;
-  } catch (e2) {
-    lobbyLoadPromise = null;
-    throw e2;
-  }
-}
 function createLobbyMusic() {
-  let source = null;
-  let gainNode = null;
+  let nodes = [];
+  let oscs = [];
+  let masterGain = null;
   let ctx = null;
+  let creakInterval = null;
   let playing = false;
-  function cleanup() {
-    if (source) {
-      try {
-        source.stop();
-      } catch {
-      }
-      try {
-        source.disconnect();
-      } catch {
-      }
-      source = null;
+  function teardown() {
+    if (creakInterval !== null) {
+      window.clearInterval(creakInterval);
+      creakInterval = null;
     }
-    if (gainNode) {
+    oscs.forEach((o2) => {
       try {
-        gainNode.disconnect();
+        o2.stop();
       } catch {
       }
-      gainNode = null;
-    }
+    });
+    nodes.forEach((n) => {
+      try {
+        n.disconnect();
+      } catch {
+      }
+    });
+    oscs = [];
+    nodes = [];
+    masterGain = null;
   }
   return {
-    async start() {
+    start() {
       if (playing) return;
       ctx = getCtx();
       ensureResumed(ctx);
       playing = true;
+      const now2 = ctx.currentTime;
       try {
-        const buffer = await loadLobbyMusic(ctx);
-        if (!playing) return;
-        cleanup();
-        source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.loop = true;
-        gainNode = ctx.createGain();
-        gainNode.gain.setValueAtTime(0, ctx.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.25, ctx.currentTime + 1.5);
-        source.connect(gainNode);
-        gainNode.connect(ctx.destination);
-        source.start();
+        masterGain = ctx.createGain();
+        masterGain.gain.setValueAtTime(0, now2);
+        masterGain.gain.linearRampToValueAtTime(0.18, now2 + 2);
+        const delay = ctx.createDelay(1);
+        delay.delayTime.value = 0.32;
+        const fb = ctx.createGain();
+        fb.gain.value = 0.4;
+        const wet = ctx.createGain();
+        wet.gain.value = 0.5;
+        delay.connect(fb).connect(delay);
+        delay.connect(wet).connect(masterGain);
+        masterGain.connect(ctx.destination);
+        nodes.push(masterGain, delay, fb, wet);
+        const lfo = (freq, depth, target) => {
+          const o2 = ctx.createOscillator();
+          o2.type = "sine";
+          o2.frequency.value = freq;
+          const g2 = ctx.createGain();
+          g2.gain.value = depth;
+          o2.connect(g2).connect(target);
+          o2.start();
+          oscs.push(o2);
+          nodes.push(g2);
+        };
+        const sub = ctx.createOscillator();
+        sub.type = "sine";
+        sub.frequency.value = 50;
+        const subGain = ctx.createGain();
+        subGain.gain.value = 0.55;
+        sub.connect(subGain).connect(masterGain);
+        sub.start();
+        oscs.push(sub);
+        nodes.push(subGain);
+        lfo(0.07, 8, sub.detune);
+        const pad = ctx.createOscillator();
+        pad.type = "sawtooth";
+        pad.frequency.value = 110;
+        const padFilter = ctx.createBiquadFilter();
+        padFilter.type = "lowpass";
+        padFilter.frequency.value = 380;
+        padFilter.Q.value = 6;
+        const padGain = ctx.createGain();
+        padGain.gain.value = 0.13;
+        pad.connect(padFilter).connect(padGain).connect(masterGain);
+        padGain.connect(delay);
+        pad.start();
+        oscs.push(pad);
+        nodes.push(padFilter, padGain);
+        lfo(0.04, 220, padFilter.frequency);
+        const padHi = ctx.createOscillator();
+        padHi.type = "sawtooth";
+        padHi.frequency.value = 110 * Math.pow(2, 3 / 12);
+        padHi.detune.value = 7;
+        const padHiFilter = ctx.createBiquadFilter();
+        padHiFilter.type = "lowpass";
+        padHiFilter.frequency.value = 600;
+        padHiFilter.Q.value = 4;
+        const padHiGain = ctx.createGain();
+        padHiGain.gain.value = 0.07;
+        padHi.connect(padHiFilter).connect(padHiGain).connect(masterGain);
+        padHiGain.connect(delay);
+        padHi.start();
+        oscs.push(padHi);
+        nodes.push(padHiFilter, padHiGain);
+        lfo(0.029, 8, padHi.detune);
+        creakInterval = window.setInterval(() => {
+          if (!ctx || !masterGain || !playing) return;
+          if (Math.random() > 0.3) return;
+          const t2 = ctx.currentTime;
+          const tink = ctx.createOscillator();
+          tink.type = "sine";
+          tink.frequency.value = 900 + Math.random() * 700;
+          const tinkGain = ctx.createGain();
+          tinkGain.gain.setValueAtTime(0, t2);
+          tinkGain.gain.linearRampToValueAtTime(0.04, t2 + 0.01);
+          tinkGain.gain.exponentialRampToValueAtTime(1e-3, t2 + 1.6);
+          tink.connect(tinkGain).connect(delay);
+          tink.start(t2);
+          tink.stop(t2 + 1.7);
+        }, 8e3);
       } catch (e2) {
-        console.warn("[shop-audio] Lobby music failed:", e2);
+        console.warn("[shop-audio] Drone failed:", e2);
         playing = false;
-        cleanup();
+        teardown();
       }
     },
     stop() {
       if (!playing) return;
       playing = false;
-      if (gainNode && ctx) {
+      if (masterGain && ctx) {
         try {
-          gainNode.gain.cancelScheduledValues(ctx.currentTime);
-          gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
+          const now2 = ctx.currentTime;
+          masterGain.gain.cancelScheduledValues(now2);
+          masterGain.gain.setValueAtTime(masterGain.gain.value, now2);
+          masterGain.gain.linearRampToValueAtTime(0, now2 + 0.6);
         } catch {
         }
       }
-      setTimeout(cleanup, 600);
+      window.setTimeout(teardown, 700);
     }
   };
 }
@@ -97574,46 +97620,70 @@ const ShopOverlay = ({ open, onClose }) => {
                     background: "#000",
                     border: "5px solid #fff",
                     borderRadius: 0,
-                    padding: "16px 22px",
-                    minHeight: 130,
-                    marginTop: isLandscape ? "clamp(-140px, -22vh, -80px)" : "clamp(-160px, -18vh, -100px)",
+                    padding: "14px 18px",
+                    height: isLandscape ? "clamp(140px, 24vh, 180px)" : "clamp(160px, 26vh, 200px)",
+                    marginTop: isLandscape ? "clamp(-110px, -22vh, -64px)" : "clamp(-130px, -16vh, -84px)",
                     boxShadow: "inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.18), 0 10px 28px rgba(0,0,0,0.65)",
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
                     opacity: phase === "idle" ? 1 : 0,
                     transition: "transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms, opacity 450ms ease-out 320ms",
                     display: "flex",
-                    gap: 18,
-                    alignItems: "flex-start",
+                    gap: 14,
+                    alignItems: "stretch",
                     position: "relative",
-                    zIndex: 2
+                    zIndex: 2,
+                    boxSizing: "border-box"
                   },
                   children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 min-w-0 relative", children: [
-                      /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                        "p",
-                        {
-                          style: {
-                            color: "#fff",
-                            fontSize: "clamp(14px, 2vw, 18px)",
-                            lineHeight: 1.5,
-                            minHeight: "3.0em",
-                            margin: 0,
-                            letterSpacing: "0.03em"
-                          },
-                          children: [
-                            renderedNodes,
-                            !isPageDone && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "shop-cursor", children: "▎" })
-                          ]
-                        }
-                      ),
-                      isPageDone && !isLastPage && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "shop-page-advance", "aria-hidden": true, children: "▼" })
-                    ] }),
-                    showChoices && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs(
                       "div",
                       {
-                        className: "flex-shrink-0 flex flex-col gap-1",
-                        style: { minWidth: "clamp(120px, 20vw, 160px)" },
-                        children: scene.choices.map((c2, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        style: {
+                          flex: 1,
+                          minWidth: 0,
+                          position: "relative",
+                          overflow: "hidden",
+                          display: "flex",
+                          flexDirection: "column"
+                        },
+                        children: [
+                          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                            "p",
+                            {
+                              style: {
+                                color: "#fff",
+                                fontSize: "clamp(13px, 1.55vw, 15px)",
+                                lineHeight: 1.45,
+                                margin: 0,
+                                letterSpacing: "0.02em",
+                                flex: 1,
+                                overflow: "hidden",
+                                textOverflow: "clip"
+                              },
+                              children: [
+                                renderedNodes,
+                                !isPageDone && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "shop-cursor", children: "▎" })
+                              ]
+                            }
+                          ),
+                          isPageDone && !isLastPage && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "shop-page-advance", "aria-hidden": true, children: "▼" })
+                        ]
+                      }
+                    ),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      "div",
+                      {
+                        style: {
+                          flexShrink: 0,
+                          width: "clamp(130px, 22vw, 170px)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 2,
+                          overflowY: "auto",
+                          overflowX: "hidden",
+                          paddingRight: 2
+                        },
+                        children: showChoices && scene.choices.map((c2, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
                           UndertaleButton,
                           {
                             label: c2.label,
@@ -97723,16 +97793,19 @@ const ShopOverlay = ({ open, onClose }) => {
         .undertale-btn {
           background: transparent;
           border: 0;
-          padding: 2px 4px 2px 24px;
+          padding: 1px 4px 1px 22px;
           color: #fff;
           font-family: "Determination Mono", "Courier New", monospace;
-          font-size: clamp(14px, 2vw, 18px);
-          letter-spacing: 0.03em;
+          font-size: clamp(11px, 1.4vw, 14px);
+          letter-spacing: 0.02em;
           cursor: pointer;
           position: relative;
           text-align: left;
           transition: color 80ms ease;
-          line-height: 1.5;
+          line-height: 1.35;
+          white-space: normal;
+          word-wrap: break-word;
+          flex-shrink: 0;
         }
         .undertale-btn::before {
           content: '♥';

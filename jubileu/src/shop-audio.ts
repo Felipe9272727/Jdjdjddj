@@ -116,109 +116,165 @@ export function playConfirm(): void {
   } catch { /* silent */ }
 }
 
-// ── Hotel lobby music: real MP3 from GitHub ───────────────────────────────
-// Fallback chain — tries each URL in order until one succeeds. Allows the
-// shop to keep playing music even if the primary track 404s, and gives us
-// room to add seasonal/variant tracks later.
-const LOBBY_MUSIC_URLS = [
-  'https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/hotel-lobby.mp3',
-  'https://raw.githubusercontent.com/Felipe9272727/M-sica-pro-meu-jogo/main/Lobby%20Time(MP3_160K).mp3',
-];
-let lobbyBuffer: AudioBuffer | null = null;
-let lobbyLoadPromise: Promise<AudioBuffer> | null = null;
-
-async function loadLobbyMusic(ctx: AudioContext): Promise<AudioBuffer> {
-  if (lobbyBuffer) return lobbyBuffer;
-  if (lobbyLoadPromise) return lobbyLoadPromise;
-
-  lobbyLoadPromise = (async () => {
-    let lastErr: unknown = null;
-    for (const url of LOBBY_MUSIC_URLS) {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const arrayBuf = await res.arrayBuffer();
-        const buf = await ctx.decodeAudioData(arrayBuf);
-        lobbyBuffer = buf;
-        return buf;
-      } catch (e) {
-        lastErr = e;
-        // Try next URL in the chain.
-      }
-    }
-    throw lastErr ?? new Error('All lobby music URLs failed');
-  })();
-
-  try {
-    return await lobbyLoadPromise;
-  } catch (e) {
-    lobbyLoadPromise = null; // allow retry
-    throw e;
-  }
-}
+// ── Lobby ambient drone (procedural) ─────────────────────────────────────
+// Replaces the previous hotel-lobby.mp3 muzak. The shop's atmosphere is
+// "liminal hotel" — dark, quiet, slightly off — and a drone ambient
+// patch is more on-tone than elevator muzak. Generated entirely with
+// Web Audio API: zero download, deterministic, no CORS surprises.
+//
+// Patch:
+//   • Sub-bass sine at 50 Hz with very slow detune LFO (±8 cents, 0.07 Hz)
+//   • Mid pad — sawtooth A2 (110 Hz) through a low-pass with slow sweep
+//   • High pad — sawtooth C4-ish (130.8 Hz, minor third), detuned 7 cents
+//   • Reverb-ish: short feedback delay (no convolver — keeps it light)
+//   • Occasional distant "tink" — random metallic ping every ~8s, 30% prob
+//
+// Master gain ramps 0 → 0.18 over 2s on start, fades to 0 over 0.6s on stop.
 
 export function createLobbyMusic(): { start: () => void; stop: () => void } {
-  let source: AudioBufferSourceNode | null = null;
-  let gainNode: GainNode | null = null;
+  let nodes: AudioNode[] = [];
+  let oscs: OscillatorNode[] = [];
+  let masterGain: GainNode | null = null;
   let ctx: AudioContext | null = null;
+  let creakInterval: number | null = null;
   let playing = false;
 
-  function cleanup() {
-    if (source) {
-      try { source.stop(); } catch { /* ok */ }
-      try { source.disconnect(); } catch { /* ok */ }
-      source = null;
+  function teardown() {
+    if (creakInterval !== null) {
+      window.clearInterval(creakInterval);
+      creakInterval = null;
     }
-    if (gainNode) {
-      try { gainNode.disconnect(); } catch { /* ok */ }
-      gainNode = null;
-    }
+    oscs.forEach((o) => { try { o.stop(); } catch { /* ok */ } });
+    nodes.forEach((n) => { try { n.disconnect(); } catch { /* ok */ } });
+    oscs = [];
+    nodes = [];
+    masterGain = null;
   }
 
   return {
-    async start() {
+    start() {
       if (playing) return;
       ctx = getCtx();
-      ensureResumed(ctx!);
+      ensureResumed(ctx);
       playing = true;
+      const now = ctx.currentTime;
 
       try {
-        const buffer = await loadLobbyMusic(ctx!);
-        if (!playing) return; // stopped while loading
+        // Master bus + soft fade in
+        masterGain = ctx.createGain();
+        masterGain.gain.setValueAtTime(0, now);
+        masterGain.gain.linearRampToValueAtTime(0.18, now + 2.0);
 
-        cleanup(); // clear any previous instance
+        // Light pseudo-reverb via short feedback delay (cheaper than convolver)
+        const delay = ctx.createDelay(1.0);
+        delay.delayTime.value = 0.32;
+        const fb = ctx.createGain();
+        fb.gain.value = 0.4;
+        const wet = ctx.createGain();
+        wet.gain.value = 0.5;
+        delay.connect(fb).connect(delay);
+        delay.connect(wet).connect(masterGain);
+        masterGain.connect(ctx.destination);
+        nodes.push(masterGain, delay, fb, wet);
 
-        source = ctx!.createBufferSource();
-        source.buffer = buffer;
-        source.loop = true;
+        // Helper to create LFO and route to a target AudioParam
+        const lfo = (freq: number, depth: number, target: AudioParam) => {
+          const o = ctx!.createOscillator();
+          o.type = 'sine';
+          o.frequency.value = freq;
+          const g = ctx!.createGain();
+          g.gain.value = depth;
+          o.connect(g).connect(target);
+          o.start();
+          oscs.push(o);
+          nodes.push(g);
+        };
 
-        gainNode = ctx!.createGain();
-        gainNode.gain.setValueAtTime(0, ctx!.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.25, ctx!.currentTime + 1.5);
+        // ── Sub-bass drone — sine 50Hz with slow detune ──
+        const sub = ctx.createOscillator();
+        sub.type = 'sine';
+        sub.frequency.value = 50;
+        const subGain = ctx.createGain();
+        subGain.gain.value = 0.55;
+        sub.connect(subGain).connect(masterGain);
+        sub.start();
+        oscs.push(sub);
+        nodes.push(subGain);
+        lfo(0.07, 8, sub.detune); // ±8 cents, 14s period
 
-        source.connect(gainNode);
-        gainNode.connect(ctx!.destination);
-        source.start();
+        // ── Mid pad — sawtooth A2 through filtered low-pass ──
+        const pad = ctx.createOscillator();
+        pad.type = 'sawtooth';
+        pad.frequency.value = 110;
+        const padFilter = ctx.createBiquadFilter();
+        padFilter.type = 'lowpass';
+        padFilter.frequency.value = 380;
+        padFilter.Q.value = 6;
+        const padGain = ctx.createGain();
+        padGain.gain.value = 0.13;
+        pad.connect(padFilter).connect(padGain).connect(masterGain);
+        // Also send to delay for ambience
+        padGain.connect(delay);
+        pad.start();
+        oscs.push(pad);
+        nodes.push(padFilter, padGain);
+        lfo(0.04, 220, padFilter.frequency); // slow filter sweep ±220 Hz
+
+        // ── High pad — minor third above A2, detuned ──
+        const padHi = ctx.createOscillator();
+        padHi.type = 'sawtooth';
+        padHi.frequency.value = 110 * Math.pow(2, 3 / 12); // ~130.8 Hz
+        padHi.detune.value = 7;
+        const padHiFilter = ctx.createBiquadFilter();
+        padHiFilter.type = 'lowpass';
+        padHiFilter.frequency.value = 600;
+        padHiFilter.Q.value = 4;
+        const padHiGain = ctx.createGain();
+        padHiGain.gain.value = 0.07;
+        padHi.connect(padHiFilter).connect(padHiGain).connect(masterGain);
+        padHiGain.connect(delay);
+        padHi.start();
+        oscs.push(padHi);
+        nodes.push(padHiFilter, padHiGain);
+        lfo(0.029, 8, padHi.detune); // pitch shimmer
+
+        // ── Distant metallic tinks — random, sparse ──
+        creakInterval = window.setInterval(() => {
+          if (!ctx || !masterGain || !playing) return;
+          if (Math.random() > 0.3) return;
+          const t = ctx.currentTime;
+          const tink = ctx.createOscillator();
+          tink.type = 'sine';
+          tink.frequency.value = 900 + Math.random() * 700;
+          const tinkGain = ctx.createGain();
+          tinkGain.gain.setValueAtTime(0, t);
+          tinkGain.gain.linearRampToValueAtTime(0.04, t + 0.01);
+          tinkGain.gain.exponentialRampToValueAtTime(0.001, t + 1.6);
+          tink.connect(tinkGain).connect(delay);
+          tink.start(t);
+          tink.stop(t + 1.7);
+          // these short oscs aren't pushed to oscs[] — they self-stop
+        }, 8000);
       } catch (e) {
-        console.warn('[shop-audio] Lobby music failed:', e);
+        console.warn('[shop-audio] Drone failed:', e);
         playing = false;
-        cleanup();
+        teardown();
       }
     },
     stop() {
       if (!playing) return;
       playing = false;
 
-      // Fade out then cleanup
-      if (gainNode && ctx) {
+      // Fade out the master bus, then tear down.
+      if (masterGain && ctx) {
         try {
-          gainNode.gain.cancelScheduledValues(ctx.currentTime);
-          gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
+          const now = ctx.currentTime;
+          masterGain.gain.cancelScheduledValues(now);
+          masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+          masterGain.gain.linearRampToValueAtTime(0, now + 0.6);
         } catch { /* ok */ }
       }
-
-      // Cleanup after fade
-      setTimeout(cleanup, 600);
+      window.setTimeout(teardown, 700);
     },
   };
 }

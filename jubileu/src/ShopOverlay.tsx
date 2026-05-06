@@ -466,70 +466,98 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
               }}
             />
 
-            {/* ── Dialog box (overlaps sprite bottom — Undertale shop) ── */}
+            {/* ── Dialog box ────────────────────────────────────────────
+                FIXED height (not minHeight). The text area has its own
+                fixed height and clips overflow — long text MUST be split
+                via `^^` page breaks in shop-dialogues.ts. The choices
+                column is always rendered with a reserved width slot, so
+                the buttons never get pushed off-screen by long text. */}
             <div
               className="w-full"
               style={{
                 background: '#000',
                 border: '5px solid #fff',
                 borderRadius: 0,
-                padding: '16px 22px',
-                minHeight: 130,
+                padding: '14px 18px',
+                height: isLandscape
+                  ? 'clamp(140px, 24vh, 180px)'
+                  : 'clamp(160px, 26vh, 200px)',
                 marginTop: isLandscape
-                  ? 'clamp(-140px, -22vh, -80px)'
-                  : 'clamp(-160px, -18vh, -100px)',
+                  ? 'clamp(-110px, -22vh, -64px)'
+                  : 'clamp(-130px, -16vh, -84px)',
                 boxShadow:
                   'inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.18), 0 10px 28px rgba(0,0,0,0.65)',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
                 opacity: phase === 'idle' ? 1 : 0,
                 transition: 'transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms, opacity 450ms ease-out 320ms',
                 display: 'flex',
-                gap: 18,
-                alignItems: 'flex-start',
+                gap: 14,
+                alignItems: 'stretch',
                 position: 'relative',
                 zIndex: 2,
+                boxSizing: 'border-box',
               }}
             >
-              {/* Dialog text (left) */}
-              <div className="flex-1 min-w-0 relative">
+              {/* Dialog text (left) — fixed height, clipped overflow */}
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
                 <p
                   style={{
                     color: '#fff',
-                    fontSize: 'clamp(14px, 2vw, 18px)',
-                    lineHeight: 1.5,
-                    minHeight: '3.0em',
+                    fontSize: 'clamp(13px, 1.55vw, 15px)',
+                    lineHeight: 1.45,
                     margin: 0,
-                    letterSpacing: '0.03em',
+                    letterSpacing: '0.02em',
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'clip',
                   }}
                 >
                   {renderedNodes}
                   {!isPageDone && <span className="shop-cursor">▎</span>}
                 </p>
 
-                {/* Page advance indicator (▼) — appears when current page is
-                    fully revealed but more pages remain. */}
+                {/* Page advance indicator (▼) — current page revealed,
+                    more pages remain. Bottom of the text column. */}
                 {isPageDone && !isLastPage && (
                   <div className="shop-page-advance" aria-hidden>▼</div>
                 )}
               </div>
 
-              {/* Choices (right) — only on last page once revealed */}
-              {showChoices && (
-                <div
-                  className="flex-shrink-0 flex flex-col gap-1"
-                  style={{ minWidth: 'clamp(120px, 20vw, 160px)' }}
-                >
-                  {scene.choices.map((c, i) => (
-                    <UndertaleButton
-                      key={`${sceneId}:${i}:${c.label}`}
-                      label={c.label}
-                      selected={selectedChoice === i}
-                      onHover={() => { if (selectedChoice !== i) { setSelectedChoice(i); playSelect(); } }}
-                      onClick={(e) => { e.stopPropagation(); pickChoice(i); }}
-                    />
-                  ))}
-                </div>
-              )}
+              {/* Choices (right) — slot is always reserved at this width
+                  even before choices appear, so layout doesn't reflow when
+                  the typewriter finishes. Buttons render only on the last
+                  page once text is complete. */}
+              <div
+                style={{
+                  flexShrink: 0,
+                  width: 'clamp(130px, 22vw, 170px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  paddingRight: 2,
+                }}
+              >
+                {showChoices && scene.choices.map((c, i) => (
+                  <UndertaleButton
+                    key={`${sceneId}:${i}:${c.label}`}
+                    label={c.label}
+                    selected={selectedChoice === i}
+                    onHover={() => { if (selectedChoice !== i) { setSelectedChoice(i); playSelect(); } }}
+                    onClick={(e) => { e.stopPropagation(); pickChoice(i); }}
+                  />
+                ))}
+              </div>
             </div>
 
             <p
@@ -622,16 +650,19 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         .undertale-btn {
           background: transparent;
           border: 0;
-          padding: 2px 4px 2px 24px;
+          padding: 1px 4px 1px 22px;
           color: #fff;
           font-family: "Determination Mono", "Courier New", monospace;
-          font-size: clamp(14px, 2vw, 18px);
-          letter-spacing: 0.03em;
+          font-size: clamp(11px, 1.4vw, 14px);
+          letter-spacing: 0.02em;
           cursor: pointer;
           position: relative;
           text-align: left;
           transition: color 80ms ease;
-          line-height: 1.5;
+          line-height: 1.35;
+          white-space: normal;
+          word-wrap: break-word;
+          flex-shrink: 0;
         }
         .undertale-btn::before {
           content: '♥';
