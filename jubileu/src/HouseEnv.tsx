@@ -310,3 +310,52 @@ export const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOp
     </group>
     );
 });
+
+// ── Level 2 ────────────────────────────────────────────────────────────
+// Base plana — placeholder for the next floor that the player reaches
+// after surviving the chase. Intentionally empty (a void plane + elevator
+// shell back) so we have a clean canvas to fill in. Felipe will iterate
+// on what populates this floor.
+export const Level2Environment = React.memo(() => (
+    <group>
+        <color attach="background" args={['#0a0a0e']} />
+        <fog attach="fog" args={['#0a0a0e', 12, 50]} />
+        <ambientLight intensity={0.35} color="#cfd8dc" />
+        <hemisphereLight intensity={0.25} color="#90a4ae" groundColor="#1a1a20" />
+        <directionalLight position={[10, 18, 8]} intensity={0.6} color="#e0e7ff" />
+        {/* Distant ceiling — gives the void a sense of enclosure without
+            actually boxing the player in. */}
+        <mesh position={[0, 18, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[120, 120]} />
+            <meshStandardMaterial color="#15151c" roughness={1} side={THREE.DoubleSide} />
+        </mesh>
+        {/* The flat floor itself — a wide off-white plane with a faint
+            grid texture (no asset, just colored planes for stripes). */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+            <planeGeometry args={[80, 80]} />
+            <meshStandardMaterial color="#e8e4d8" roughness={0.85} />
+        </mesh>
+        {/* Faint floor seams for scale reference (5 stud spacing). */}
+        {[-20, -10, 0, 10, 20].map((z) => (
+            <mesh key={`seam-z-${z}`} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, z]}>
+                <planeGeometry args={[80, 0.04]} />
+                <meshBasicMaterial color="#c4c0b6" />
+            </mesh>
+        ))}
+        {[-20, -10, 0, 10, 20].map((x) => (
+            <mesh key={`seam-x-${x}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.005, 0]}>
+                <planeGeometry args={[0.04, 80]} />
+                <meshBasicMaterial color="#c4c0b6" />
+            </mesh>
+        ))}
+        {/* Elevator shell at z=-10 so the player can ride back. Mirrors
+            the lobby/level1 placement. */}
+        <group position={[0, 0, -10]}>
+            <ElevatorFacade z={0} height={5} width={10} />
+            <mesh position={[0, 2.5, -6.5]}><boxGeometry args={[11, 5, 1]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+            <mesh position={[-5, 2.5, -3.25]}><boxGeometry args={[1, 5, 7.5]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+            <mesh position={[5, 2.5, -3.25]}><boxGeometry args={[1, 5, 7.5]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+            <mesh position={[0, 5.25, -3.25]}><boxGeometry args={[11, 0.5, 7.5]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+        </group>
+    </group>
+));

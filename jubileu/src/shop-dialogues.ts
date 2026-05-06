@@ -581,6 +581,92 @@ export const SHOP_SCENES: Record<string, Scene> = {
     choices: [{ label: 'Voltar.', goto: 'about' }],
   },
 
+  // ── PÓS-MORTE ─────────────────────────────────────────────────────────
+  // Auto-opened by the shop when the player dies to Barney and the
+  // elevator drops them back at the lobby. The recepcionista cuts in
+  // BEFORE the player can do anything — he's the one who starts the
+  // conversation. Tone: he's pretending nothing happened, but he keeps
+  // catching himself half-staring. He doesn't know exactly what changed,
+  // and that bothers him.
+  post_death: {
+    mood: 'concerned',
+    text:
+      '* (O elevador para.){p:400}\n' +
+      '* (As portas abrem.){p:600}\n' +
+      '* (O recepcionista está\n  esperando você.)\n' +
+      '^^' +
+      '* Ah.{p:400}\n' +
+      '* Você voltou.{p:300}\n' +
+      '* Que {y:bom}.\n' +
+      '^^' +
+      '* (Ele te encara por tempo\n  demais.){p:500}\n' +
+      '* Tem alguma coisa...{p:400}\n' +
+      '* {f:diferente} em você.\n' +
+      '^^' +
+      '* Eu não sei dizer o quê.{p:300}\n' +
+      '* O uniforme não foi treinado\n  pra esse tipo de\n  observação.\n' +
+      '^^' +
+      '* (Ele pisca uma vez.){p:300}\n' +
+      '* Duas vezes.{p:200}\n' +
+      '* Três.\n' +
+      '^^' +
+      '* * Algo em você {y:não voltou}\n  inteiro.{p:400}\n' +
+      '* Mas também não dá pra\n  dizer que {f:falta}.{p:300}\n' +
+      '* É mais como se você\n  estivesse trazendo {y:algo\n  a mais}.',
+    choices: [
+      { label: 'O que você quer dizer com isso?', goto: 'post_death_what' },
+      { label: 'Me deixa em paz.', goto: 'post_death_leave' },
+      { label: '(Ficar em silêncio.)', goto: 'post_death_silence' },
+    ],
+  },
+
+  post_death_what: {
+    mood: 'sweat',
+    text:
+      '* (Ele abre a boca pra\n  responder.){p:500}\n' +
+      '* (E fecha.)\n' +
+      '^^' +
+      '* Eu não tenho a palavra.{p:400}\n' +
+      '* Acho que ela ainda não\n  foi {y:inventada}.\n' +
+      '^^' +
+      '* (Ele dá um sorriso curto.){p:300}\n' +
+      '* Não se preocupe.{p:400}\n' +
+      '* Vai passar.{p:400}\n' +
+      '* {f:Provavelmente}.',
+    choices: [{ label: 'Voltar.', goto: 'main' }],
+  },
+
+  post_death_leave: {
+    mood: 'idle',
+    text:
+      '* (Ele inclina a cabeça\n  pro lado, devagar.){p:500}\n' +
+      '* Claro.\n' +
+      '^^' +
+      '* Mas eu queria registrar\n  uma coisa, antes.{p:400}\n' +
+      '* O elevador te trouxe\n  {y:de volta}.{p:300}\n' +
+      '* Geralmente ele só\n  {f:traz}.\n' +
+      '^^' +
+      '* (Pausa.){p:400}\n' +
+      '* Você é o primeiro hóspede\n  que ele {y:devolveu}.{p:200}\n' +
+      '* Em muito tempo.',
+    choices: [{ label: 'Voltar.', goto: 'main' }],
+  },
+
+  post_death_silence: {
+    mood: 'concerned',
+    text:
+      '* (Ele aceita o silêncio.){p:600}\n' +
+      '* Tudo bem.\n' +
+      '^^' +
+      '* Algumas coisas{p}\n  não pedem palavras.{p:400}\n' +
+      '* Algumas coisas {f:fogem}\n  delas.\n' +
+      '^^' +
+      '* (Ele volta a olhar pro\n  balcão.){p:400}\n' +
+      '* Quando você quiser falar,\n  vou estar {y:aqui}.{p:300}\n' +
+      '* Onde mais eu estaria?',
+    choices: [{ label: 'Voltar.', goto: 'main' }],
+  },
+
   // ── DESPEDIDA ─────────────────────────────────────────────────────────
   bye: {
     mood: 'wink',

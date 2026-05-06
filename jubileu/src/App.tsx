@@ -22,7 +22,7 @@ import { ShopOverlay } from './ShopOverlay';
 import { Player } from './Player';
 import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment, WatchingText } from './LobbyEnv';
-import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
+import { FlatMapEnvironment, BarneyActor, Level2Environment } from './HouseEnv';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -73,6 +73,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 0 && profile.atmosphere && <CeilingFan x={5} z={-5} speed={0.8} />}
       {level === 0 && profile.atmosphere && <WallClock x={9.5} z={-7} />}
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
+      {level === 2 && <Level2Environment />}
       <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
       {profile.nightLights && <NightAmbient active={nightMode && level === 1} />}
@@ -132,6 +133,13 @@ export default function App() {
   const [dialogueNode, setDialogueNode] = useState('start');
   const [canInteractCashier, setCanInteractCashier] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  // Initial scene when the shop opens. 'main' for normal use; 'post_death'
+  // is set automatically when the player gets caught by Barney and is
+  // dropped back at the lobby — the recepcionista pulls them aside.
+  const [shopInitialScene, setShopInitialScene] = useState<string>('main');
+  // Set to true when caught — drives the auto-open of the shop with
+  // post_death once the player arrives back at the lobby.
+  const [pendingPostDeathDialogue, setPendingPostDeathDialogue] = useState(false);
   const [houseDoorOpen, setHouseDoorOpen] = useState(false); 
   const [canInteractDoor, setCanInteractDoor] = useState(false); 
   const [doorSoundTrigger, setDoorSoundTrigger] = useState(0);
@@ -145,6 +153,15 @@ export default function App() {
   useEffect(() => {
       if (currentLevel === 1 && gameState === 'lobby') {
           setGameState('outdoor');
+          playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+      }
+      if (currentLevel === 2 && gameState !== 'outdoor') {
+          // Level 2 reuses the 'outdoor' game state (no special chase/sleep
+          // logic for now — it's a flat placeholder floor).
+          setGameState('outdoor');
+          setNightMode(false);
+          setHouseDoorOpen(false);
+          setDoorOpenAmount(0);
           playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
       }
       if (currentLevel === 0 && gameState !== 'lobby') {
@@ -166,6 +183,10 @@ export default function App() {
           const b = barneyRef.current;
           const d = Math.sqrt((p.x - b.x) ** 2 + (p.z - b.z) ** 2);
           if (d < BARNEY_CATCH_DIST) {
+              // CAUGHT — Barney got the player. Jumpscare, then ride the
+              // elevator back down to the lobby (level 0). When the player
+              // arrives, the recepcionista opens the shop automatically with
+              // the `post_death` scene (see pendingPostDeathDialogue below).
               resolved.current = true;
               setJumpscare(true);
               setGameState('caught');
@@ -177,9 +198,13 @@ export default function App() {
                   setNightMode(false);
                   setHouseDoorOpen(false);
                   setDoorOpenAmount(0);
-                  setGameState('outdoor');
+                  setPendingPostDeathDialogue(true);
+                  setCurrentLevel(0);
+                  setFloorReveal(true);
               }, 2000);
           } else if (p.z <= ELEVATOR_ZONE_Z && Math.abs(p.x) <= ELEVATOR_ZONE_X) {
+              // SAVED — player made it inside the elevator before Barney.
+              // Take them up to level 2 (the new flat placeholder floor).
               resolved.current = true;
               setGameState('saved');
               setDoorsClosed(true);
@@ -190,7 +215,8 @@ export default function App() {
                   setHouseDoorOpen(false);
                   setDoorOpenAmount(0);
                   setDoorsClosed(false);
-                  setGameState('outdoor');
+                  setCurrentLevel(2);
+                  setFloorReveal(true);
                   barneyRef.current.set(0, 0, 6.5);
                   barneyTargetRef.current = { x: 0, z: 6.8, scale: 0 };
               }, 2500);
@@ -214,8 +240,23 @@ export default function App() {
   const handleInteractionUpdate = useCallback((c: boolean) => { setCanInteractDoor(p => p !== c ? c : p); }, []);
   const handleNpcInteractionUpdate = useCallback((c: boolean) => { setCanInteractNPC(p => p !== c ? c : p); }, []);
   const handleCashierInteractionUpdate = useCallback((c: boolean) => { setCanInteractCashier(p => p !== c ? c : p); }, []);
-  const handleOpenShop = useCallback(() => { setShopOpen(true); setCanInteractCashier(false); }, []);
-  const handleCloseShop = useCallback(() => { setShopOpen(false); }, []);
+  const handleOpenShop = useCallback(() => { setShopInitialScene('main'); setShopOpen(true); setCanInteractCashier(false); }, []);
+  const handleCloseShop = useCallback(() => { setShopOpen(false); setShopInitialScene('main'); }, []);
+
+  // Post-death dialogue trigger: after the elevator brings the player back
+  // to the lobby, wait for the doors to fully reopen, then auto-open the
+  // shop with the recepcionista's enigmatic post-death scene.
+  useEffect(() => {
+    if (!pendingPostDeathDialogue) return;
+    if (currentLevel !== 0) return;
+    if (doorsClosed) return; // wait for the lobby doors to open
+    const t = setTimeout(() => {
+      setShopInitialScene('post_death');
+      setShopOpen(true);
+      setPendingPostDeathDialogue(false);
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [pendingPostDeathDialogue, currentLevel, doorsClosed]);
   const handleOpenDoor = () => {
       if (gameState === 'outdoor') {
           setGameState('barney_greet');
@@ -680,7 +721,7 @@ export default function App() {
       {hasStarted && gameState === 'saved' && <SavedOverlay />}
       
       {barneyDialogueOpen && <BarneyDialogue dialogueNode={barneyDialogueNode} onResponse={handleBarneyResponse} />}
-      <ShopOverlay open={shopOpen} onClose={handleCloseShop} />
+      <ShopOverlay open={shopOpen} onClose={handleCloseShop} initialScene={shopInitialScene} />
     </div>
   );
 }

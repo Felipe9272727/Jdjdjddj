@@ -39,6 +39,10 @@ type Phase = 'closing' | 'arrived' | 'opening' | 'idle' | 'exit-close';
 interface ShopOverlayProps {
   open: boolean;
   onClose: () => void;
+  /** Scene id to start at — defaults to ROOT_SCENE ('main'). The post-death
+   *  trigger passes 'post_death' so the recepcionista opens the conversation
+   *  himself when the player respawns from the chase. */
+  initialScene?: string;
 }
 
 const TIMINGS = {
@@ -49,8 +53,8 @@ const TIMINGS = {
   charDelay: 28,
 };
 
-export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
-  const [sceneId, setSceneId] = useState<string>(ROOT_SCENE);
+export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initialScene = ROOT_SCENE }) => {
+  const [sceneId, setSceneId] = useState<string>(initialScene);
   const [pageIndex, setPageIndex] = useState(0);
   const [revealed, setRevealed] = useState(0);
   const [phase, setPhase] = useState<Phase>('closing');
@@ -107,7 +111,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
     clearPhaseTimers();
     clearTyping();
     mountedRef.current = true;
-    setSceneId(ROOT_SCENE);
+    setSceneId(initialScene);
     setPageIndex(0);
     setRevealed(0);
     setSelectedChoice(0);

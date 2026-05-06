@@ -76,23 +76,47 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
   // works in BOTH directions:
   //   lobby -> Barney floor: elevator stops, Barney theme takes over
   //   Barney floor -> lobby: elevator stops, lobby music crossfades back in
-  // Setting elevator.volume=0 lets the scheduler's setTargetAtTime ramp the
-  // gain down (~150ms); active=false after 300ms tears down the buffer source
-  // via the existing path (scheduler).
+  //
+  // Felipe reported the elevator track and the Barney theme overlapping
+  // briefly on arrival at level 1. Old code rampe d the elevator gain to 0
+  // (~150ms TAU on setTargetAtTime) and only stopped the buffer source 300ms
+  // later in the scheduler pass — so during that window both tracks were
+  // audible at the same time. Now: hard ramp the gain to 0 over 120ms via
+  // linearRampToValueAtTime AND stop+disconnect the source straight away.
+  // Cuts the overlap to a clean cross-cut.
   useEffect(() => {
      if (!audioContext) return;
-     if (doorsClosed) return; // doors closed means we're either at start or in transit — keep elevator music
+     if (doorsClosed) return; // doors closed = at start or in transit — keep elevator music
      if (!tracksRef.current.elevator.active) return;
+
+     const now = audioContext.currentTime;
      tracksRef.current.elevator.volume = 0;
+
+     // Hard ramp the elevator gain to 0 right now.
+     if (elevatorGainRef.current) {
+         try {
+             elevatorGainRef.current.gain.cancelScheduledValues(now);
+             elevatorGainRef.current.gain.setValueAtTime(elevatorGainRef.current.gain.value, now);
+             elevatorGainRef.current.gain.linearRampToValueAtTime(0, now + 0.12);
+         } catch(e) {}
+     }
+
+     // Stop the buffer source immediately so it can't bleed into the next
+     // track. Schedule a stop 130ms out (just after the gain ramp ends) so
+     // we don't get a click from cutting mid-sample.
+     if (elevatorSourceRef.current) {
+         try { elevatorSourceRef.current.stop(now + 0.13); } catch(e) {}
+         const dyingSource = elevatorSourceRef.current;
+         elevatorSourceRef.current = null;
+         setTimeout(() => { try { dyingSource.disconnect(); } catch(e) {} }, 200);
+     }
+     tracksRef.current.elevator.active = false;
+
      // Coming back to the lobby — bring lobby music back too.
      if (currentLevel === 0) {
          tracksRef.current.lobby.active = true;
          tracksRef.current.lobby.volume = 1.0;
      }
-     const t = setTimeout(() => {
-         tracksRef.current.elevator.active = false;
-     }, 300);
-     return () => clearTimeout(t);
   }, [doorsClosed, currentLevel, audioContext]);
 
   const schedulerRef = useRef<any>(null);
