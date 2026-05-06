@@ -1469,3 +1469,89 @@ liminal/creepy mas com humor seco.
 - [ ] Possíveis adições: NPC items pra "comprar" (placeholder), shop
   abrindo opção de viagem rápida pra outros andares
 
+---
+
+## 🐛 Sessão 2026-05-06: Shop Crash Fix + Undertale Fidelity Pass
+
+### Crash diagnosticado
+Felipe reportou crash ao abrir a recepção. Causa raiz: **violação de
+Rules of Hooks** no `ShopOverlay.tsx`. O `useMemo` de `renderedNodes`
+ficava DEPOIS do `if (!open) return null` (linha 254). Quando o shop
+abria, o número de hooks mudava entre renders → React lançava
+"Rendered more hooks than during the previous render".
+
+**Fix:** Mover o useMemo para ANTES do early return. Todos os hooks
+rodam em todo render.
+
+### PNGs do main como fonte
+Ao mesmo tempo, troquei o `bellhop-sprites.ts` (que tinha 530KB de
+base64 inflado) para apontar pros PNGs já no main:
+- `1777606191600.png` (1264×843) — bellhop spritesheet (top row =
+  4 frames, NEUTRAL × 2 + TALK × 2)
+- `file_00000000418c71fba698b68adb12948b.png` (1536×1024) — lobby do
+  hotel como `HOTEL_BG` (visualmente bem mais bonito que o anterior)
+- `file_000000001f0471fb83f59c727e8bd30c.png` (1366×1152) —
+  spritesheet completo, disponível mas ainda não mapeado por região
+
+### SpriteEngine reescrito (sem crash)
+- **Cache global** de imagens por URL — todos os SpriteAnimator
+  compartilham o mesmo `<img>` decodificado
+- **RAF cleanup robusto** — no máximo um RAF outstanding por vez,
+  cancel roda no cleanup E antes de qualquer reschedule
+- **Sem `key={spriteMode}` remount** — canvas fica montado e reage
+  via props (causa do crash original)
+- **Fallback "SPRITE OFFLINE"** se imagem 404 ao invés de canvas vazio
+- **`sourceX`/`sourceY` na config** — permite ler uma linha específica
+  do spritesheet master sem fatiar arquivos
+
+### Fidelidade Undertale aplicada
+1. **Sprite separado do dialog box.** No Undertale clássico
+   (Snowdin/Tem Shop/Bratty&Catty), o shopkeeper fica numa janela
+   emoldurada ACIMA, separada do dialog. Removido `marginTop`
+   negativo. Agora sprite está em frame box black-with-white-border,
+   com dialog box separado abaixo.
+2. **Heart cursor (♥) canônico:** cor `#FF0000`, centralizado
+   verticalmente ao lado da opção selecionada.
+3. **Background desaturado/escurecido:** `filter: brightness(0.55)
+   saturate(0.65)` + vignette mais agressivo, para o sprite e dialog
+   lerem claros sobre o lobby.
+4. **Idle bob:** shopkeeper "respira" (translateY ±3px, 2.4s) quando
+   não falando.
+5. **UndertaleButton com `onPointerEnter`** (mouse + touch + stylus)
+   + `onFocus` ao invés de `onMouseEnter` (mouse-only).
+
+### Bug fixes da auditoria
+- **B1:** re-abrir o shop sem desmontar primeiro agora limpa timers e
+  typing state no topo do effect.
+- **B2:** ao fechar (`open=false`), música é parada E `musicRef.current`
+  é nulificado para re-aberturas criarem instância fresca (sem leak).
+- **B3:** typewriter useEffect depende de `pages` + `pageIndex`
+  estáveis, não de `currentPage` (fallback `?? []` cria nova ref).
+- **B6:** portas do elevador ficam `pointer-events:none` quando
+  abertas para toques na borda chegarem aos botões do dialog.
+
+### Arquivos
+- `jubileu/src/ShopOverlay.tsx` — crash fix + fidelity pass
+- `jubileu/src/SpriteEngine.tsx` — reescrito (cache global, RAF
+  defensivo, error fallback, sourceX/Y)
+- `jubileu/src/bellhop-sprites.ts` — URLs de PNG ao invés de base64
+  (-390KB do bundle)
+
+### Build
+- TypeScript: ✅ limpo
+- `index.html`: 4,025,862 bytes (era 4,416,017 antes do PNG swap)
+- Commits:
+  - `b9d6b79` — fix(shop): use main-branch PNGs + crash-resistant
+    SpriteEngine
+  - `b619224` — fix(shop): crash on open + Undertale fidelity pass
+- Branch: `claude/read-map-memory-docs-2nqCj`
+
+### Itens do plano de auditoria ainda em aberto
+- Carregar fonte Undertale real (Determination/8-bit Operator) — hoje
+  cai pra Courier
+- Mapear PNG 2 (1366×1152) com regiões para mais variedade de mood
+  (idle/talk/wink/sweat/concerned/cleaning/waving) — coordenadas
+  precisam ser calibradas no editor de imagem
+- Beep variation por mood (Sans-grave, Papyrus-staccato, etc.)
+- Sistema de gold counter / inventory caso o shop vire comercial
+
