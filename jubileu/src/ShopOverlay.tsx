@@ -319,6 +319,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
 
   // Each strip is its own pre-cut spritesheet (base64 in bellhop-sprites.ts),
   // so frames start at (0, 0) and SpriteEngine reads sourceX/Y as 0 by default.
+  // Timings kept identical to the working `437441c` version on main.
   const spriteConfigs = {
     clean: {
       imageUrl: BELLHOP_CLEAN_STRIP,
@@ -334,7 +335,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       frameCount: BELLHOP_TALK_FRAMES,
       frameWidth: BELLHOP_TALK_FRAME_W,
       frameHeight: BELLHOP_TALK_FRAME_H,
-      cycleMs: 280,
+      cycleMs: 240,
       loop: true,
       pixelated: true,
     },
@@ -430,38 +431,42 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
       >
         {showContent && (
           <div className="flex flex-col items-center px-4 max-w-2xl w-full">
-            {/* Sprite frame — Undertale shop convention: shopkeeper sits
-                inside a black box with a thick white border, separate from
-                the dialog box below it. Idle bob gives subtle breathing.  */}
-            <div
+            {/* ── Bellhop sprite ────────────────────────────────────────
+                Layout from the working `437441c` version on main: the
+                sprite is rendered tall, and the dialog box below uses a
+                negative marginTop to overlap the bottom ~45% of the
+                sprite (sprite z-index 1, dialog z-index 2). The CLEAN
+                strip already includes the counter, so the bottom edge
+                reads as "behind a counter".
+
+                key={spriteMode} forces a fresh canvas instance per mode
+                — combined with the SpriteEngine's module-level image
+                cache, the bitmap is decoded ONCE and reused across
+                remounts. */}
+            <SpriteAnimator
+              key={spriteMode}
+              config={activeSpriteConfig}
               style={{
-                background: '#000',
-                border: '4px solid #fff',
-                padding: 6,
-                marginBottom: 10,
-                boxShadow: '0 0 0 2px rgba(255,255,255,0.18), 0 8px 22px rgba(0,0,0,0.65)',
+                // Values copied verbatim from the working `437441c`
+                // version on main. The dialog box's negative marginTop
+                // pulls up to overlap the bottom ~45% of the sprite,
+                // so the visible "above-counter" portion fits the
+                // viewport even when the overall sprite is tall.
+                height: isLandscape
+                  ? 'clamp(300px, 70vh, 460px)'
+                  : 'clamp(340px, 58vh, 500px)',
+                aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
+                filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.75))',
+                opacity: showContent ? 1 : 0,
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
-                opacity: phase === 'idle' ? 1 : 0,
-                transition: 'transform 450ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
+                transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
+                pointerEvents: 'none',
                 position: 'relative',
                 zIndex: 1,
               }}
-              className={spriteMode === 'idle-static' ? 'shop-idle-bob' : undefined}
-            >
-              <SpriteAnimator
-                config={activeSpriteConfig}
-                style={{
-                  height: isLandscape
-                    ? 'clamp(200px, 42vh, 320px)'
-                    : 'clamp(220px, 36vh, 340px)',
-                  aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
-                  display: 'block',
-                  pointerEvents: 'none',
-                }}
-              />
-            </div>
+            />
 
-            {/* Dialog box — fully separate, classic Undertale geometry */}
+            {/* ── Dialog box (overlaps sprite bottom — Undertale shop) ── */}
             <div
               className="w-full"
               style={{
@@ -470,6 +475,9 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
                 borderRadius: 0,
                 padding: '16px 22px',
                 minHeight: 130,
+                marginTop: isLandscape
+                  ? 'clamp(-140px, -22vh, -80px)'
+                  : 'clamp(-160px, -18vh, -100px)',
                 boxShadow:
                   'inset 0 0 0 3px #000, 0 0 0 3px rgba(255,255,255,0.18), 0 10px 28px rgba(0,0,0,0.65)',
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
@@ -590,13 +598,6 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose }) => {
         @keyframes shopAdvanceBob {
           0%, 100% { transform: translateY(0); opacity: 0.85; }
           50%      { transform: translateY(3px); opacity: 1; }
-        }
-        @keyframes shopIdleBob {
-          0%, 100% { transform: translateY(0); }
-          50%      { transform: translateY(-3px); }
-        }
-        .shop-idle-bob {
-          animation: shopIdleBob 2400ms ease-in-out infinite;
         }
         .shop-cursor {
           display: inline-block;
