@@ -98153,7 +98153,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
   const camInitRef = reactExports.useRef(false);
   const walls = reactExports.useMemo(() => wallsForState(currentLevel, doorsClosed, houseDoorOpen), [currentLevel, doorsClosed, houseDoorOpen]);
   reactExports.useEffect(() => {
-    elevTriggered.current = false;
+    elevTriggered.current = pos.current.z < EZ_START - 1;
   }, [currentLevel]);
   useFrame((state2, dt2) => {
     if (!active) return;
@@ -98163,6 +98163,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       pos.current.set(positionCmdRef.current.x, positionCmdRef.current.y, positionCmdRef.current.z);
       positionCmdRef.current = null;
       camInitRef.current = false;
+      if (pos.current.z < EZ_START - 1) elevTriggered.current = true;
     }
     const fp = zoomLevel < 0.5;
     if (sharedPositionRef) sharedPositionRef.current.copy(pos.current);
@@ -98260,7 +98261,8 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
           while (d < -Math.PI) d += Math.PI * 2;
           charRot.current.y += d * 10 * safeDt;
         }
-        if (pos.current.z < EZ_START - 1 && !elevTriggered.current) {
+        if (pos.current.z >= EZ_START - 1) elevTriggered.current = false;
+        else if (!elevTriggered.current) {
           elevTriggered.current = true;
           onEnterElevator();
         }
@@ -101698,6 +101700,7 @@ function App() {
   const [shopOpen, setShopOpen] = reactExports.useState(false);
   const [shopInitialScene, setShopInitialScene] = reactExports.useState("main");
   const [pendingPostDeathDialogue, setPendingPostDeathDialogue] = reactExports.useState(false);
+  const [nextElevatorDestination, setNextElevatorDestination] = reactExports.useState(null);
   const [houseDoorOpen, setHouseDoorOpen] = reactExports.useState(false);
   const [canInteractDoor, setCanInteractDoor] = reactExports.useState(false);
   const [doorSoundTrigger, setDoorSoundTrigger] = reactExports.useState(0);
@@ -101742,7 +101745,7 @@ function App() {
         setGameState("caught");
         scheduleTimeout(() => {
           setJumpscare(false);
-          playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+          playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
           barneyRef.current.set(0, 0, 6.5);
           barneyTargetRef.current = { x: 0, z: 6.8, scale: 0 };
           setNightMode(false);
@@ -101758,16 +101761,18 @@ function App() {
         setDoorsClosed(true);
         setDoorSoundTrigger((prev) => prev + 1);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+        setNextElevatorDestination(2);
+        setElevatorTimer(20);
+        setTravelPhase("closing");
+        if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+        elevatorHumStopRef.current = createElevatorHum(audioCtx);
         scheduleTimeout(() => {
           setNightMode(false);
           setHouseDoorOpen(false);
           setDoorOpenAmount(0);
-          setDoorsClosed(false);
-          setCurrentLevel(2);
-          setFloorReveal(true);
           barneyRef.current.set(0, 0, 6.5);
           barneyTargetRef.current = { x: 0, z: 6.8, scale: 0 };
-        }, 2500);
+        }, 800);
       }
     }, 100);
     return () => {
@@ -101788,11 +101793,12 @@ function App() {
     }, 200);
     return () => clearInterval(check);
   }, [gameState, canSleep]);
+  const elevatorStateRef = reactExports.useRef({ elevatorTimer, doorsClosed });
+  elevatorStateRef.current = { elevatorTimer, doorsClosed };
   const handlePlayerEnterElevator = reactExports.useCallback(() => {
-    if (elevatorTimer === null && !doorsClosed) {
-      setElevatorTimer(5);
-    }
-  }, [elevatorTimer, doorsClosed]);
+    const { elevatorTimer: t2, doorsClosed: d } = elevatorStateRef.current;
+    if (t2 === null && !d) setElevatorTimer(5);
+  }, []);
   const handleInteractionUpdate = reactExports.useCallback((c2) => {
     setCanInteractDoor((p2) => p2 !== c2 ? c2 : p2);
   }, []);
@@ -101942,13 +101948,15 @@ function App() {
             setOverlayOpacity(1);
           }
           if (elevatorTimer === 18) {
-            if (currentLevel === 0) {
+            if (nextElevatorDestination !== null) {
+              setCurrentLevel(nextElevatorDestination);
+              setNextElevatorDestination(null);
+            } else if (currentLevel === 0) {
               setCurrentLevel(1);
-              setFloorReveal(true);
             } else {
               setCurrentLevel(0);
-              setFloorReveal(true);
             }
+            setFloorReveal(true);
           }
           if (elevatorTimer === 17) {
             setOverlayOpacity(0);
@@ -101987,7 +101995,7 @@ function App() {
       }
     }
     return () => clearTimeout(timerId);
-  }, [elevatorTimer, doorsClosed, currentLevel]);
+  }, [elevatorTimer, doorsClosed, currentLevel, nextElevatorDestination]);
   reactExports.useEffect(() => {
     return () => {
       if (elevatorHumStopRef.current) {

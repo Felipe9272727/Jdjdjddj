@@ -139,7 +139,14 @@ export default function App() {
   const [shopInitialScene, setShopInitialScene] = useState<string>('main');
   // Set to true when caught — drives the auto-open of the shop with
   // post_death once the player arrives back at the lobby.
+  // Set to true when caught — drives the auto-open of the shop with
+  // post_death once the player arrives back at the lobby.
   const [pendingPostDeathDialogue, setPendingPostDeathDialogue] = useState(false);
+  // When the elevator travel sequence reaches its destination beat
+  // (timer===18), this overrides the default lobby⇄Barney toggle. Used by
+  // saved → level 2: we want the survivor to ride a real 20-second trip up
+  // to floor 2 instead of being instantly teleported.
+  const [nextElevatorDestination, setNextElevatorDestination] = useState<number | null>(null);
   const [houseDoorOpen, setHouseDoorOpen] = useState(false); 
   const [canInteractDoor, setCanInteractDoor] = useState(false); 
   const [doorSoundTrigger, setDoorSoundTrigger] = useState(0);
@@ -183,16 +190,20 @@ export default function App() {
           const b = barneyRef.current;
           const d = Math.sqrt((p.x - b.x) ** 2 + (p.z - b.z) ** 2);
           if (d < BARNEY_CATCH_DIST) {
-              // CAUGHT — Barney got the player. Jumpscare, then ride the
-              // elevator back down to the lobby (level 0). When the player
-              // arrives, the recepcionista opens the shop automatically with
-              // the `post_death` scene (see pendingPostDeathDialogue below).
+              // CAUGHT — Barney got the player. Jumpscare, then drop them
+              // back at a FIXED spot in the lobby (centro, fora do elevador)
+              // so the recepcionista can open `post_death` immediately.
+              // No 20s travel here — the jumpscare IS the transition.
               resolved.current = true;
               setJumpscare(true);
               setGameState('caught');
               scheduleTimeout(() => {
                   setJumpscare(false);
-                  playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+                  // Spawn point inside the lobby, facing the reception desk.
+                  // x=0 centers the player; z=-5 puts them well outside the
+                  // elevator zone (which sits at z<=-10), so the elevator
+                  // trigger doesn't fire on respawn.
+                  playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
                   barneyRef.current.set(0, 0, 6.5);
                   barneyTargetRef.current = { x: 0, z: 6.8, scale: 0 };
                   setNightMode(false);
@@ -204,22 +215,31 @@ export default function App() {
               }, 2000);
           } else if (p.z <= ELEVATOR_ZONE_Z && Math.abs(p.x) <= ELEVATOR_ZONE_X) {
               // SAVED — player made it inside the elevator before Barney.
-              // Take them up to level 2 (the new flat placeholder floor).
+              // Don't teleport them straight to level 2; trigger a real
+              // 20-second elevator trip up to floor 2 so they have time
+              // to walk around the cabin, hear the elevator music, etc.
               resolved.current = true;
               setGameState('saved');
               setDoorsClosed(true);
               setDoorSoundTrigger(prev => prev + 1);
               playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+              // Reset chase props but KEEP doorsClosed=true so the existing
+              // elevator-timer effect treats this as in-transit. timer=20
+              // starts the travel phase; at timer===18 the world swaps to
+              // currentLevel=nextElevatorDestination=2; at timer===0 the
+              // doors open and the player steps out into level 2.
+              setNextElevatorDestination(2);
+              setElevatorTimer(20);
+              setTravelPhase('closing');
+              if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+              elevatorHumStopRef.current = createElevatorHum(audioCtx);
               scheduleTimeout(() => {
                   setNightMode(false);
                   setHouseDoorOpen(false);
                   setDoorOpenAmount(0);
-                  setDoorsClosed(false);
-                  setCurrentLevel(2);
-                  setFloorReveal(true);
                   barneyRef.current.set(0, 0, 6.5);
                   barneyTargetRef.current = { x: 0, z: 6.8, scale: 0 };
-              }, 2500);
+              }, 800);
           }
       }, 100);
       return () => { active = false; clearInterval(interval); };
@@ -236,7 +256,17 @@ export default function App() {
       return () => clearInterval(check);
   }, [gameState, canSleep]);
 
-  const handlePlayerEnterElevator = useCallback(() => { if (elevatorTimer === null && !doorsClosed) { setElevatorTimer(5); } }, [elevatorTimer, doorsClosed]);
+  // Stabilize the enter-elevator handler. The previous version had
+  // [elevatorTimer, doorsClosed] in its deps, so the callback identity
+  // changed every second during a ride — which forced <Player/> to
+  // re-render once per tick. Reading the latest values via a ref keeps
+  // the function ref stable across renders.
+  const elevatorStateRef = useRef({ elevatorTimer, doorsClosed });
+  elevatorStateRef.current = { elevatorTimer, doorsClosed };
+  const handlePlayerEnterElevator = useCallback(() => {
+    const { elevatorTimer: t, doorsClosed: d } = elevatorStateRef.current;
+    if (t === null && !d) setElevatorTimer(5);
+  }, []);
   const handleInteractionUpdate = useCallback((c: boolean) => { setCanInteractDoor(p => p !== c ? c : p); }, []);
   const handleNpcInteractionUpdate = useCallback((c: boolean) => { setCanInteractNPC(p => p !== c ? c : p); }, []);
   const handleCashierInteractionUpdate = useCallback((c: boolean) => { setCanInteractCashier(p => p !== c ? c : p); }, []);
@@ -366,8 +396,18 @@ export default function App() {
                 lastHandledTimerRef.current = elevatorTimer;
                 if (elevatorTimer === 19) { setOverlayOpacity(1); }
                 if (elevatorTimer === 18) {
-                    if (currentLevel === 0) { setCurrentLevel(1); setFloorReveal(true); }
-                    else { setCurrentLevel(0); setFloorReveal(true); }
+                    if (nextElevatorDestination !== null) {
+                        // Override (e.g. saved → level 2). Consume it.
+                        setCurrentLevel(nextElevatorDestination);
+                        setNextElevatorDestination(null);
+                    } else if (currentLevel === 0) {
+                        setCurrentLevel(1);
+                    } else {
+                        // Default toggle: any non-lobby floor goes back to
+                        // the lobby on a normal elevator press.
+                        setCurrentLevel(0);
+                    }
+                    setFloorReveal(true);
                 }
                 if (elevatorTimer === 17) { setOverlayOpacity(0); }
                 if (elevatorTimer === 15 || elevatorTimer === null) { setFloorReveal(false); }
@@ -398,7 +438,7 @@ export default function App() {
         }
     }
     return () => clearTimeout(timerId);
-  }, [elevatorTimer, doorsClosed, currentLevel]);
+  }, [elevatorTimer, doorsClosed, currentLevel, nextElevatorDestination]);
 
   useEffect(() => {
     return () => {

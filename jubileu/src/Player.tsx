@@ -129,7 +129,15 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const camInitRef = useRef(false); // sync camera to player pos on first frame
   const walls = useMemo(() => wallsForState(currentLevel, doorsClosed, houseDoorOpen), [currentLevel, doorsClosed, houseDoorOpen]);
 
-  useEffect(() => { elevTriggered.current = false; }, [currentLevel]);
+  useEffect(() => {
+    // When the level changes, only re-arm the elevator trigger if the
+    // player will actually be OUTSIDE the elevator zone after the level
+    // transition. Otherwise (e.g. caught/saved teleports the player to
+    // z=-13 inside the elevator) we'd immediately fire onEnterElevator
+    // and start a new countdown right after arrival. That manifested as
+    // "level 2 auto-teleports back to lobby after 5s".
+    elevTriggered.current = pos.current.z < EZ_START - 1;
+  }, [currentLevel]);
 
   useFrame((state, dt) => {
     if (!active) return;
@@ -141,6 +149,11 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         pos.current.set(positionCmdRef.current.x, positionCmdRef.current.y, positionCmdRef.current.z);
         positionCmdRef.current = null;
         camInitRef.current = false; // force camera re-sync after teleport
+        // If the teleport drops the player inside the elevator zone (e.g.
+        // post-chase respawn), arm the trigger so the countdown only fires
+        // when they LATER walk in on their own. Without this, the next
+        // frame's z-check below would auto-start a ride to the lobby.
+        if (pos.current.z < EZ_START - 1) elevTriggered.current = true;
     }
     
     const fp = zoomLevel < 0.5;
@@ -216,7 +229,12 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             pos.current.x = rx; pos.current.z = rz; pos.current.y = 0;
 
             if (fp) { charRot.current.y = camAng.current.theta + Math.PI; } else { const a = Math.atan2(mv.x, mv.z); let d = a - charRot.current.y; while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; charRot.current.y += d*10*safeDt; }
-            if (pos.current.z < EZ_START - 1 && !elevTriggered.current) { elevTriggered.current = true; onEnterElevator(); }
+            // Re-arm when player walks back out of the elevator zone, so a
+            // later re-entry can fire onEnterElevator. Combined with the
+            // teleport-aware setter at line ~152, the trigger only fires on
+            // GENUINE walk-ins (never on respawn teleports).
+            if (pos.current.z >= EZ_START - 1) elevTriggered.current = false;
+            else if (!elevTriggered.current) { elevTriggered.current = true; onEnterElevator(); }
         }
         if (currentLevel === 1) { const dx = pos.current.x-HOUSE_DOOR_X; const dz = pos.current.z-HOUSE_DOOR_Z; onInteractionUpdate(Math.sqrt(dx*dx+dz*dz) < DOOR_INTERACT_DIST); } else { onInteractionUpdate(false); }
         if (currentLevel === 0 && npcPositionRef?.current) { onNpcInteractionUpdate(pos.current.distanceTo(npcPositionRef.current) < NPC_INTERACT_DIST); } else { onNpcInteractionUpdate(false); }
