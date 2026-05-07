@@ -43,6 +43,7 @@ interface ShopOverlayProps {
    *  trigger passes 'post_death' so the recepcionista opens the conversation
    *  himself when the player respawns from the chase. */
   initialScene?: string;
+  onBuyItem?: (itemId: string) => void;
 }
 
 const TIMINGS = {
@@ -53,7 +54,7 @@ const TIMINGS = {
   charDelay: 28,
 };
 
-export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initialScene = ROOT_SCENE }) => {
+export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) => {
   const [sceneId, setSceneId] = useState<string>(initialScene);
   const [pageIndex, setPageIndex] = useState(0);
   const [revealed, setRevealed] = useState(0);
@@ -221,11 +222,14 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
     const choice = scene.choices[index];
     if (!choice) return;
     playConfirm();
+    // Track which scenes give items
+    if (choice.goto === 'buy_flashlight' && onBuyItem) onBuyItem('flashlight');
+    if (choice.goto === 'buy_cookie' && onBuyItem) onBuyItem('cookie');
     if (choice.goto === CLOSE_SCENE) { close(); return; }
     setSceneId(choice.goto);
     setPageIndex(0);
     setRevealed(0);
-  }, [showChoices, scene.choices, close]);
+  }, [showChoices, scene.choices, close, onBuyItem]);
 
   // ── Keyboard navigation ────────────────────────────────────────────────
   useEffect(() => {

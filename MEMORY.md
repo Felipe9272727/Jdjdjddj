@@ -1555,3 +1555,26 @@ base64 inflado) para apontar pros PNGs já no main:
 - Beep variation por mood (Sans-grave, Papyrus-staccato, etc.)
 - Sistema de gold counter / inventory caso o shop vire comercial
 
+
+---
+
+## 🔧 Sessão 2026-05-08: Sistema de Inventário + Lanterna + Cookie
+
+### O que foi feito
+Implementação do sistema de inventário com itens funcionais integrados ao shop.
+
+### Novos arquivos
+- `jubileu/src/InventorySystem.tsx` — Hook `useInventory` (localStorage persistence) + componente `InventoryHUD`
+- `jubileu/src/FlashlightLight.tsx` — Sistema de luz `FlashlightLight` (SpotLight que segue o player) + `FPHand` (mão procedural em 1ª pessoa)
+
+### Arquivos alterados
+- `jubileu/src/App.tsx` — integração do inventário, tecla F para lanterna, luz no Canvas, HUD
+- `jubileu/src/ShopOverlay.tsx` — prop `onBuyItem` para adicionar itens ao inventário ao comprar
+- `jubileu/src/shop-dialogues.ts` — novo item "Lanterna" na loja, reordenação do menu
+
+### Funcionalidades
+1. **Lanterna**: item gratuito do shop, SpotLight funcional que segue o player e câmera, tecla F para toggle, ícone no HUD
+2. **Cookie**: consumível gratuito, efeito visual ao usar, contador no HUD
+3. **Inventário HUD**: aparece só quando o jogador tem itens, ícones compactos canto inferior esquerdo
+4. **Mão procedural em 1ª pessoa**: braço + item segurado visível em primeira pessoa, bob ao andar
+5. **Persistência**: inventário salvo em localStorage

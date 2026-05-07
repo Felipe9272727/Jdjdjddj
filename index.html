@@ -204,6 +204,7 @@
     --ease-in-out: cubic-bezier(.4, 0, .2, 1);
     --animate-ping: ping 1s cubic-bezier(0, 0, .2, 1) infinite;
     --animate-pulse: pulse 2s cubic-bezier(.4, 0, .6, 1) infinite;
+    --animate-bounce: bounce 1s infinite;
     --blur-sm: 8px;
     --blur-md: 12px;
     --blur-lg: 16px;
@@ -545,6 +546,14 @@
     inset-inline-end: var(--spacing);
   }
 
+  .-top-1 {
+    top: calc(var(--spacing) * -1);
+  }
+
+  .-top-1\.5 {
+    top: calc(var(--spacing) * -1.5);
+  }
+
   .top-0 {
     top: calc(var(--spacing) * 0);
   }
@@ -591,6 +600,14 @@
 
   .top-\[calc\(env\(safe-area-inset-top\,0px\)\+100px\)\] {
     top: calc(env(safe-area-inset-top, 0px) + 100px);
+  }
+
+  .-right-1 {
+    right: calc(var(--spacing) * -1);
+  }
+
+  .-right-1\.5 {
+    right: calc(var(--spacing) * -1.5);
   }
 
   .-right-2 {
@@ -735,6 +752,10 @@
 
   .z-\[48\] {
     z-index: 48;
+  }
+
+  .z-\[50\] {
+    z-index: 50;
   }
 
   .z-\[55\] {
@@ -1181,6 +1202,10 @@
     min-width: calc(var(--spacing) * 0);
   }
 
+  .min-w-\[18px\] {
+    min-width: 18px;
+  }
+
   .min-w-\[48px\] {
     min-width: 48px;
   }
@@ -1261,6 +1286,10 @@
 
   .transform {
     transform: var(--tw-rotate-x, ) var(--tw-rotate-y, ) var(--tw-rotate-z, ) var(--tw-skew-x, ) var(--tw-skew-y, );
+  }
+
+  .animate-bounce {
+    animation: var(--animate-bounce);
   }
 
   .animate-ping {
@@ -2785,6 +2814,10 @@
     font-size: 8px;
   }
 
+  .text-\[9px\] {
+    font-size: 9px;
+  }
+
   .text-\[10px\] {
     font-size: 10px;
   }
@@ -3746,6 +3779,11 @@
     transition-property: transform, translate, scale, rotate;
     transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
     transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
+
+  .duration-150 {
+    --tw-duration: .15s;
+    transition-duration: .15s;
   }
 
   .duration-300 {
@@ -5689,6 +5727,18 @@ input[type="range"]::-moz-range-track {
 @keyframes pulse {
   50% {
     opacity: .5;
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    animation-timing-function: cubic-bezier(.8, 0, 1, 1);
+    transform: translateY(-25%);
+  }
+
+  50% {
+    animation-timing-function: cubic-bezier(0, 0, .2, 1);
+    transform: none;
   }
 }
 </style>
@@ -97153,13 +97203,19 @@ const SHOP_SCENES = {
     mood: "talk",
     text: "* {y:Loja da Recepção.}{p:300}\n* Tudo que oferecemos é\n  {y:gratuito}.{p}\n* Só não tente sair com\n  nada na bolsa.",
     choices: [
-      { label: "Café da casa  -  0G", goto: "buy_coffee" },
+      { label: "Lanterna      -  0G", goto: "buy_flashlight" },
       { label: "Biscoito      -  0G", goto: "buy_cookie" },
+      { label: "Café da casa  -  0G", goto: "buy_coffee" },
       { label: "Chave reserva -  ?G", goto: "buy_key" },
       { label: "Um andar a +  -  ∞G", goto: "buy_floor" },
       { label: "Lembrança     - 1?G", goto: "buy_memory" },
       { label: "Voltar", goto: "main" }
     ]
+  },
+  buy_flashlight: {
+    mood: "wink",
+    text: "* {y:Lanterna.}{p}\n* A escuridão deste hotel\n  é... {y:persistente}.{p:200}\n* Esta lanterna vai te ajudar.\n^^* (Ele te entrega uma lanterna\n  velha.){p:300}\n* O metal está {y:frio}.{p:200}\n* Mas a luz funciona.\n^^* * Você guardou a {y:Lanterna}.{p:200}\n* Aperte {y:F} para ligar.\n* Ou toque no ícone no canto.",
+    choices: [{ label: "Voltar.", goto: "buy" }]
   },
   buy_coffee: {
     mood: "wink",
@@ -97423,7 +97479,7 @@ const TIMINGS = {
   exitClose: 600,
   charDelay: 28
 };
-const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE }) => {
+const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) => {
   const [sceneId, setSceneId] = reactExports.useState(initialScene);
   const [pageIndex, setPageIndex] = reactExports.useState(0);
   const [revealed, setRevealed] = reactExports.useState(0);
@@ -97566,6 +97622,8 @@ const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE }) => {
     const choice = scene.choices[index];
     if (!choice) return;
     playConfirm();
+    if (choice.goto === "buy_flashlight" && onBuyItem) onBuyItem("flashlight");
+    if (choice.goto === "buy_cookie" && onBuyItem) onBuyItem("cookie");
     if (choice.goto === CLOSE_SCENE) {
       close();
       return;
@@ -97573,7 +97631,7 @@ const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE }) => {
     setSceneId(choice.goto);
     setPageIndex(0);
     setRevealed(0);
-  }, [showChoices, scene.choices, close]);
+  }, [showChoices, scene.choices, close, onBuyItem]);
   reactExports.useEffect(() => {
     if (!open || phase !== "idle") return;
     const onKey = (e2) => {
@@ -99733,14 +99791,14 @@ const DEFAULTS = {
   showFps: false,
   botMode: false
 };
-const STORAGE_KEY = "jubileu_settings_v1";
+const STORAGE_KEY$1 = "jubileu_settings_v1";
 const isMobile = () => {
   if (typeof navigator === "undefined") return false;
   return /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent || "");
 };
 const loadSettings = () => {
   try {
-    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(STORAGE_KEY$1) : null;
     if (raw) {
       const parsed = JSON.parse(raw);
       return { ...DEFAULTS, ...parsed };
@@ -99751,7 +99809,7 @@ const loadSettings = () => {
 };
 const saveSettings = (s) => {
   try {
-    if (typeof localStorage !== "undefined") localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    if (typeof localStorage !== "undefined") localStorage.setItem(STORAGE_KEY$1, JSON.stringify(s));
   } catch {
   }
 };
@@ -101611,6 +101669,352 @@ function getDepth(obj) {
   }
   return d;
 }
+const DEFAULT_INVENTORY = {
+  flashlight: { owned: false, active: false },
+  cookie: { count: 0 }
+};
+const STORAGE_KEY = "jubileu_inventory";
+function loadInventory() {
+  var _a, _b2, _c;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_INVENTORY };
+    const parsed = JSON.parse(raw);
+    return {
+      flashlight: { owned: ((_a = parsed.flashlight) == null ? void 0 : _a.owned) ?? false, active: ((_b2 = parsed.flashlight) == null ? void 0 : _b2.active) ?? false },
+      cookie: { count: ((_c = parsed.cookie) == null ? void 0 : _c.count) ?? 0 }
+    };
+  } catch {
+    return { ...DEFAULT_INVENTORY };
+  }
+}
+function saveInventory(inv) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(inv));
+}
+function useInventory() {
+  const [inventory, setInventory] = reactExports.useState(loadInventory);
+  const inventoryRef = reactExports.useRef(inventory);
+  inventoryRef.current = inventory;
+  reactExports.useEffect(() => {
+    saveInventory(inventory);
+  }, [inventory]);
+  const addItem = reactExports.useCallback((itemId) => {
+    setInventory((prev) => {
+      const next = { ...prev };
+      if (itemId === "flashlight") {
+        next.flashlight = { owned: true, active: prev.flashlight.active };
+      } else if (itemId === "cookie") {
+        next.cookie = { count: prev.cookie.count + 1 };
+      }
+      return next;
+    });
+  }, []);
+  const toggleFlashlight = reactExports.useCallback(() => {
+    setInventory((prev) => {
+      if (!prev.flashlight.owned) return prev;
+      return { ...prev, flashlight: { owned: true, active: !prev.flashlight.active } };
+    });
+  }, []);
+  const useCookie = reactExports.useCallback(() => {
+    if (inventoryRef.current.cookie.count <= 0) return false;
+    setInventory((prev) => {
+      if (prev.cookie.count <= 0) return prev;
+      return { ...prev, cookie: { count: prev.cookie.count - 1 } };
+    });
+    return true;
+  }, []);
+  const hasAnyItem = inventory.flashlight.owned || inventory.cookie.count > 0;
+  return { inventory, inventoryRef, addItem, toggleFlashlight, useCookie, hasAnyItem };
+}
+const InventoryHUD = ({
+  inventory,
+  onToggleFlashlight,
+  onUseCookie,
+  hasAnyItem
+}) => {
+  const [cookieEffect, setCookieEffect] = reactExports.useState(false);
+  if (!hasAnyItem) return null;
+  const handleUseCookie = () => {
+    const used = onUseCookie();
+    if (used) {
+      setCookieEffect(true);
+      setTimeout(() => setCookieEffect(false), 1500);
+    }
+  };
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+    cookieEffect && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 pointer-events-none z-[55] flex items-center justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: "text-4xl animate-bounce",
+        style: {
+          animation: "cookieMunch 1.5s ease-out forwards",
+          textShadow: "0 0 20px rgba(255,193,7,0.6)"
+        },
+        children: "🍪"
+      }
+    ) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "div",
+      {
+        className: "fixed z-[50] flex gap-2 items-end pointer-events-none",
+        style: {
+          bottom: "max(calc(env(safe-area-inset-bottom, 0px) + 80px), 80px)",
+          left: "max(calc(env(safe-area-inset-left, 0px) + 12px), 12px)"
+        },
+        children: [
+          inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              onClick: onToggleFlashlight,
+              className: "pointer-events-auto tap-target relative flex items-center justify-center rounded-xl transition-all duration-150",
+              style: {
+                width: 48,
+                height: 48,
+                background: inventory.flashlight.active ? "linear-gradient(135deg, rgba(255,235,59,0.25), rgba(255,193,7,0.15))" : "rgba(0,0,0,0.6)",
+                border: inventory.flashlight.active ? "1.5px solid rgba(255,235,59,0.6)" : "1.5px solid rgba(255,255,255,0.15)",
+                boxShadow: inventory.flashlight.active ? "0 0 16px rgba(255,235,59,0.3), inset 0 0 8px rgba(255,235,59,0.1)" : "0 4px 12px rgba(0,0,0,0.4)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)"
+              },
+              "aria-label": inventory.flashlight.active ? "Desligar lanterna" : "Ligar lanterna",
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  "svg",
+                  {
+                    width: "24",
+                    height: "24",
+                    viewBox: "0 0 24 24",
+                    fill: "none",
+                    stroke: inventory.flashlight.active ? "#FFEB3B" : "#ffffff",
+                    strokeWidth: "2",
+                    strokeLinecap: "round",
+                    strokeLinejoin: "round",
+                    style: {
+                      filter: inventory.flashlight.active ? "drop-shadow(0 0 4px rgba(255,235,59,0.8))" : "none",
+                      transition: "all 150ms"
+                    },
+                    children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M18 6L6 18", opacity: "0" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M9 18h6" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M10 22h4" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M12 2v1" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M12 6a4 4 0 0 1 4 4v4a4 4 0 0 1-8 0v-4a4 4 0 0 1 4-4z" }),
+                      inventory.flashlight.active && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "12", y1: "2", x2: "12", y2: "6", stroke: "#FFEB3B", strokeWidth: "2" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "6", y1: "4", x2: "8", y2: "6", stroke: "#FFEB3B", strokeWidth: "1.5", opacity: "0.7" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "18", y1: "4", x2: "16", y2: "6", stroke: "#FFEB3B", strokeWidth: "1.5", opacity: "0.7" })
+                      ] })
+                    ]
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "span",
+                  {
+                    className: "absolute -top-1 -right-1 text-[9px] font-mono font-bold px-1 rounded",
+                    style: {
+                      background: "rgba(0,0,0,0.8)",
+                      color: inventory.flashlight.active ? "#FFEB3B" : "rgba(255,255,255,0.5)",
+                      border: "1px solid rgba(255,255,255,0.1)"
+                    },
+                    children: "F"
+                  }
+                )
+              ]
+            }
+          ),
+          inventory.cookie.count > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              onClick: handleUseCookie,
+              className: "pointer-events-auto tap-target relative flex items-center justify-center rounded-xl transition-all duration-150",
+              style: {
+                width: 48,
+                height: 48,
+                background: "rgba(0,0,0,0.6)",
+                border: "1.5px solid rgba(255,255,255,0.15)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)"
+              },
+              "aria-label": "Comer biscoito",
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "22", height: "22", viewBox: "0 0 24 24", fill: "none", stroke: "#D4A574", strokeWidth: "1.5", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "12", cy: "12", r: "9", fill: "#C68B59", stroke: "#A0724A" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "9", cy: "9", r: "1.2", fill: "#6D4C30" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "14", cy: "8", r: "1", fill: "#6D4C30" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "11", cy: "14", r: "1.3", fill: "#6D4C30" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "15", cy: "13", r: "0.9", fill: "#6D4C30" })
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "span",
+                  {
+                    className: "absolute -top-1.5 -right-1.5 text-[10px] font-bold min-w-[18px] text-center rounded-full",
+                    style: {
+                      background: "linear-gradient(135deg, #FF8A65, #D4A574)",
+                      color: "#fff",
+                      padding: "1px 4px",
+                      boxShadow: "0 2px 6px rgba(0,0,0,0.3)"
+                    },
+                    children: inventory.cookie.count
+                  }
+                )
+              ]
+            }
+          )
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("style", { children: `
+        @keyframes cookieMunch {
+          0% { transform: scale(0.5) rotate(-10deg); opacity: 0; }
+          30% { transform: scale(1.3) rotate(5deg); opacity: 1; }
+          60% { transform: scale(1) rotate(-2deg); opacity: 1; }
+          100% { transform: scale(1.5) rotate(0deg); opacity: 0; }
+        }
+      ` })
+  ] });
+};
+const FlashlightLight = ({
+  active,
+  playerPositionRef,
+  cameraThetaRef,
+  zoomLevel,
+  nightMode
+}) => {
+  const lightRef = reactExports.useRef(null);
+  const targetRef = reactExports.useRef(null);
+  const flashlightGroupRef = reactExports.useRef(null);
+  const { camera } = useThree();
+  const intensity = active ? nightMode ? 8 : 3 : 0;
+  const fp = zoomLevel < 0.5;
+  useFrame(() => {
+    if (!lightRef.current || !targetRef.current || !flashlightGroupRef.current) return;
+    if (!active) {
+      lightRef.current.intensity = MathUtils.lerp(lightRef.current.intensity, 0, 0.15);
+      flashlightGroupRef.current.visible = false;
+      return;
+    }
+    lightRef.current.intensity = MathUtils.lerp(lightRef.current.intensity, intensity, 0.12);
+    flashlightGroupRef.current.visible = true;
+    const p2 = playerPositionRef.current;
+    const headY = p2.y + 1.5;
+    lightRef.current.position.set(p2.x, headY, p2.z);
+    const theta = cameraThetaRef.current;
+    const dist = 5;
+    targetRef.current.position.set(
+      p2.x - Math.sin(theta) * dist,
+      headY - 0.5,
+      p2.z - Math.cos(theta) * dist
+    );
+    if (!fp) {
+      const handOffsetX = -Math.sin(theta + 0.5) * 0.5;
+      const handOffsetZ = -Math.cos(theta + 0.5) * 0.5;
+      flashlightGroupRef.current.position.set(
+        p2.x + handOffsetX,
+        headY - 0.4,
+        p2.z + handOffsetZ
+      );
+      flashlightGroupRef.current.rotation.y = theta + Math.PI;
+    } else {
+      flashlightGroupRef.current.visible = false;
+    }
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "spotLight",
+      {
+        ref: lightRef,
+        angle: 0.45,
+        penumbra: 0.5,
+        decay: 2,
+        distance: nightMode ? 25 : 15,
+        color: "#FFF9C4",
+        intensity: 0,
+        castShadow: false,
+        target: targetRef.current || void 0
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("object3D", { ref: targetRef }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: flashlightGroupRef, visible: false, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.15, -0.05, 0.1], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.03, 0.035, 0.2, 8] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#333333", roughness: 0.3, metalness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.15, 0.08, 0.1], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.05, 0.03, 0.08, 8] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#444444", roughness: 0.2, metalness: 0.9 })
+      ] }),
+      active && /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.15, 0.12, 0.1], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.04, 16] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#FFF9C4", toneMapped: false })
+      ] })
+    ] })
+  ] });
+};
+const FPHand = ({ active, walking, item }) => {
+  const groupRef = reactExports.useRef(null);
+  const timeRef = reactExports.useRef(0);
+  const { camera } = useThree();
+  useFrame((_, dt2) => {
+    if (!groupRef.current) return;
+    if (!active || !item) {
+      groupRef.current.visible = false;
+      return;
+    }
+    groupRef.current.visible = true;
+    timeRef.current += dt2;
+    const cam = camera;
+    const dir = new Vector3();
+    cam.getWorldDirection(dir);
+    const right = new Vector3();
+    right.crossVectors(dir, cam.up).normalize();
+    const offset = new Vector3().copy(cam.position).addScaledVector(dir, 0.5).addScaledVector(right, 0.25).add(new Vector3(0, -0.3, 0));
+    const bobX = walking ? Math.sin(timeRef.current * 8) * 8e-3 : 0;
+    const bobY = walking ? Math.abs(Math.sin(timeRef.current * 8)) * 6e-3 : 0;
+    groupRef.current.position.copy(offset).add(new Vector3(bobX, bobY, 0));
+    groupRef.current.quaternion.copy(cam.quaternion);
+    groupRef.current.rotateX(-0.3);
+    groupRef.current.rotateY(0.2);
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, visible: false, children: [
+    item === "flashlight" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.08, -0.12], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.025, 0.03, 0.25, 8] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFCCAA", roughness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.02, -0.02], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.06, 0.04, 0.08] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFCCAA", roughness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.02, 0.06], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.025, 0.03, 0.18, 8] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#333333", roughness: 0.3, metalness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.02, 0.16], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.025, 0.06, 8] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#444444", roughness: 0.2, metalness: 0.9 })
+      ] }),
+      active && /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.02, 0.19], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.035, 16] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#FFF9C4", toneMapped: false })
+      ] })
+    ] }),
+    item === "cookie" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.08, -0.12], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.025, 0.03, 0.25, 8] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFCCAA", roughness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.02, -0.02], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.06, 0.04, 0.08] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFCCAA", roughness: 0.8 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.04, 0.03], rotation: [Math.PI / 2, 0, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.04, 0.012, 16] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#C68B59", roughness: 0.9 })
+      ] })
+    ] })
+  ] });
+};
 class CanvasErrorBoundary extends reactExports.Component {
   constructor() {
     super(...arguments);
@@ -101708,6 +102112,15 @@ function App() {
   const [houseDoorOpen, setHouseDoorOpen] = reactExports.useState(false);
   const [canInteractDoor, setCanInteractDoor] = reactExports.useState(false);
   const [doorSoundTrigger, setDoorSoundTrigger] = reactExports.useState(0);
+  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
+  const [isWalking, setIsWalking] = reactExports.useState(false);
+  reactExports.useEffect(() => {
+    const id = setInterval(() => {
+      const moving = moveInput.current.x !== 0 || moveInput.current.y !== 0;
+      setIsWalking((prev) => prev !== moving ? moving : prev);
+    }, 200);
+    return () => clearInterval(id);
+  }, []);
   const handleElevatorZoneChange = reactExports.useCallback((inside) => {
     setInsideElevator(inside);
   }, []);
@@ -102186,6 +102599,9 @@ function App() {
           else if (canInteractDoor && !houseDoorOpen) handleOpenDoor();
           else if (canSleepNow && gameState === "indoor_day") handleSleep();
           break;
+        case "f":
+          toggleFlashlight();
+          break;
       }
       upd();
     };
@@ -102251,6 +102667,9 @@ function App() {
           /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
           visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
           /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
+          hasStarted && inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightLight, { active: inventory.flashlight.active, playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, zoomLevel, nightMode }),
+          hasStarted && zoomLevel < 0.5 && inventory.flashlight.active && /* @__PURE__ */ jsxRuntimeExports.jsx(FPHand, { active: inventory.flashlight.active, walking: isWalking, item: "flashlight" }),
+          hasStarted && zoomLevel < 0.5 && inventory.cookie.count > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(FPHand, { active: true, walking: isWalking, item: "cookie" }),
           botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
             BotSystem,
             {
@@ -102304,6 +102723,7 @@ function App() {
         }
       )
     ] }),
+    hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(InventoryHUD, { inventory, onToggleFlashlight: toggleFlashlight, onUseCookie: useCookie, hasAnyItem }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsMenu, { open: settingsOpen, onClose: () => setSettingsOpen(false) }),
     hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(VisualJoystick, { active: joystickVisual.active, x: joystickVisual.currentX, y: joystickVisual.currentY, origin: { x: joystickVisual.originX, y: joystickVisual.originY } }),
     hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && !shopOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -102360,7 +102780,7 @@ function App() {
     hasStarted && gameState === "chase" && /* @__PURE__ */ jsxRuntimeExports.jsx(ChaseBanner, { elevatorActive: elevatorTimer !== null }),
     hasStarted && gameState === "saved" && /* @__PURE__ */ jsxRuntimeExports.jsx(SavedOverlay, {}),
     barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(BarneyDialogue, { dialogueNode: barneyDialogueNode, onResponse: handleBarneyResponse }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(ShopOverlay, { open: shopOpen, onClose: handleCloseShop, initialScene: shopInitialScene })
+    /* @__PURE__ */ jsxRuntimeExports.jsx(ShopOverlay, { open: shopOpen, onClose: handleCloseShop, initialScene: shopInitialScene, onBuyItem: inventoryAddItem })
   ] });
 }
 clientExports.createRoot(document.getElementById("root")).render(

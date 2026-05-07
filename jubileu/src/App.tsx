@@ -33,6 +33,8 @@ import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient, EmptyLobb
 import { CeilingFan, WallClock, playArrivalDing, createElevatorHum } from './Atmosphere';
 import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue } from './HudComponents';
 import { SceneInspector } from './SceneInspector';
+import { useInventory, InventoryHUD } from './InventorySystem';
+import { FlashlightLight, FPHand } from './FlashlightLight';
 
 
 const MAX_JOYSTICK_RADIUS = 50;
@@ -150,6 +152,16 @@ export default function App() {
   const [houseDoorOpen, setHouseDoorOpen] = useState(false); 
   const [canInteractDoor, setCanInteractDoor] = useState(false); 
   const [doorSoundTrigger, setDoorSoundTrigger] = useState(0);
+
+  const { inventory, inventoryRef, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
+  const [isWalking, setIsWalking] = useState(false);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const moving = moveInput.current.x !== 0 || moveInput.current.y !== 0;
+      setIsWalking(prev => prev !== moving ? moving : prev);
+    }, 200);
+    return () => clearInterval(id);
+  }, []);
 
   const handleElevatorZoneChange = useCallback((inside: boolean) => {
       setInsideElevator(inside);
@@ -567,6 +579,9 @@ export default function App() {
           else if (canInteractDoor && !houseDoorOpen) handleOpenDoor();
           else if (canSleepNow && gameState === 'indoor_day') handleSleep();
           break;
+        case 'f':
+          toggleFlashlight();
+          break;
       }
       upd();
     };
@@ -624,6 +639,9 @@ export default function App() {
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
             <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
+            {hasStarted && inventory.flashlight.owned && <FlashlightLight active={inventory.flashlight.active} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} zoomLevel={zoomLevel} nightMode={nightMode} />}
+            {hasStarted && zoomLevel < 0.5 && inventory.flashlight.active && <FPHand active={inventory.flashlight.active} walking={isWalking} item="flashlight" />}
+            {hasStarted && zoomLevel < 0.5 && inventory.cookie.count > 0 && <FPHand active={true} walking={isWalking} item="cookie" />}
             {botEnabled && (
                 <BotSystem
                     playerPositionRef={sharedPlayerPositionRef}
@@ -693,6 +711,7 @@ export default function App() {
           </>
       )}
 
+      {hasStarted && <InventoryHUD inventory={inventory} onToggleFlashlight={toggleFlashlight} onUseCookie={useCookie} hasAnyItem={hasAnyItem} />}
       <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
       {/* ─── Bottom-center action buttons ─────────────────────────────────
@@ -761,7 +780,7 @@ export default function App() {
       {hasStarted && gameState === 'saved' && <SavedOverlay />}
       
       {barneyDialogueOpen && <BarneyDialogue dialogueNode={barneyDialogueNode} onResponse={handleBarneyResponse} />}
-      <ShopOverlay open={shopOpen} onClose={handleCloseShop} initialScene={shopInitialScene} />
+      <ShopOverlay open={shopOpen} onClose={handleCloseShop} initialScene={shopInitialScene} onBuyItem={inventoryAddItem} />
     </div>
   );
 }
