@@ -1555,3 +1555,69 @@ base64 inflado) para apontar pros PNGs já no main:
 - Beep variation por mood (Sans-grave, Papyrus-staccato, etc.)
 - Sistema de gold counter / inventory caso o shop vire comercial
 
+
+---
+
+## 🔦 Sessão 2026-05-08: Sistema de Inventário V2 — Lanterna + Cookie
+
+### Problema da versão anterior
+O primeiro inventário (branch `claude/inventory-system-flashlight-cookie`) tinha problemas:
+1. Lanterna não funcionava com o GLB do player (não se integrava ao Bacon Hair avatar)
+2. Inventário em posição ruim pra mobile (não considerava portrait/landscape)
+3. Visual feio e poluído
+
+### O que foi feito
+Reescrita completa do sistema de inventário no branch `claude/inventory-v2-clean`.
+
+#### InventorySystem.tsx — Novo arquivo
+- `useInventory` hook — gerencia `flashlight: { owned, active }` e `cookie: { count }`
+- Persistência em `localStorage` key `jubileu_inventory`
+- `inventoryRef` para leitura sem re-render no lado Three.js
+- `InventoryHUD` — só renderiza quando `hasAnyItem` é true
+  - Portrait: bottom-center, acima dos action buttons, safe-area aware
+  - Landscape: bottom-right (action buttons ficam no centro)
+  - Botões glass-morphism (`bg-black/60 backdrop-blur-md border-white/15 rounded-xl`)
+  - Flashlight: ícone SVG, borda amarela quando ativa, glow pulsante
+  - Cookie: ícone SVG, badge de count, animação "+1" ao usar
+  - 44x44px portrait / 40x40px landscape
+
+#### FlashlightLight.tsx — Novo arquivo
+- `FlashlightLight` — SpotLight que segue player + câmera
+  - Intensidade: 8 (noite) / 3 (dia) / 0 (desligada) com lerp suave
+  - Cor "#FFF9C4", angle=0.45, penumbra=0.5, decay=2, sem castShadow
+  - Target segue cameraThetaRef
+- `FlashlightModel3D` — modelo 3D da lanterna em 3ª pessoa
+  - Posicionado perto da mão direita do player (offset por cameraThetaRef)
+  - Esconde em 1ª pessoa (zoomLevel < 0.5)
+  - Corpo escuro metálico, cabeça refletora, lente emissiva
+- `FPFlashlightHand` — braço + lanterna em 1ª pessoa
+  - Braço procedural (cor de pele) + lanterna detalhada
+  - Detalhes: grip ridges, rubber section, switch button, glow ring
+  - Walking bob: sin(time*8) horizontal + abs(sin(time*8)) vertical
+  - Posição: 0.25 right, -0.3 down, 0.5 forward da câmera
+
+#### shop-dialogues.ts — Modificado
+- Adicionado "Lanterna - 0G" como primeiro item no menu de compra
+- Nova cena `buy_flashlight` com diálogo atmosférico
+- Instruções: "Aperte F para ligar" ou "toque no ícone no inventário"
+
+#### ShopOverlay.tsx — Modificado
+- Novo prop `onBuyItem?: (itemId: string) => void`
+- Dispara `onBuyItem("flashlight")` e `onBuyItem("cookie")` nas escolhas correspondentes
+
+#### App.tsx — Modificado
+- Hook `useInventory()` integrado
+- FlashlightLight + FPFlashlightHand no Canvas após Player
+- Tecla "F" para toggle lanterna (no keyboard handler)
+- InventoryHUD renderizado após SettingsMenu
+- ShopOverlay recebe `onBuyItem={inventoryAddItem}`
+
+### Commits
+- `6cd6317` — feat(inventory): lantern + cookie items, flashlight light system, responsive HUD
+
+### Estado
+- Branch: `claude/inventory-v2-clean`
+- TypeScript: ✅ compila limpo
+- Build: ✅ reprodutível (4,461,726 bytes)
+- Push: pendente
+
