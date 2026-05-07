@@ -105,7 +105,7 @@ export default function App() {
   useEffect(() => () => { pendingTimeoutsRef.current.forEach(clearTimeout); pendingTimeoutsRef.current.clear(); }, []);
   const [elevatorTimer, setElevatorTimer] = useState<number | null>(null); const [doorsClosed, setDoorsClosed] = useState(false);
   const [currentLevel, setCurrentLevel] = useState(0); const [overlayOpacity, setOverlayOpacity] = useState(0);
-  const [travelPhase, setTravelPhase] = useState('idle');
+  const [travelPhase, setTravelPhase] = useState<'idle' | 'waiting' | 'traveling' | 'closing' | 'arriving'>('idle');
   const elevatorHumStopRef = useRef<(() => void) | null>(null);
   const [floorReveal, setFloorReveal] = useState(false);
   const [cameraShake, setCameraShake] = useState(false);

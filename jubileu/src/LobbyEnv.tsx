@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations, Html } from '@react-three/drei';
-import { ASSETS, COLORS, NPC_WALK_URL, NPC_IDLE_URL } from './constants';
+import { ASSETS, COLORS, NPC_WALK_URL, NPC_IDLE_URL, LOBBY_W, ELEV_W, LOBBY_FURNITURE_W, DOOR_SEAL } from './constants';
+import { resolveCollision } from './physics';
 import { TextureMaterial } from './Materials';
 import { Door, WallPanel, CeilingLight, Armchair, TallPlant, FloorLamp, ReceptionDesk, Cashier, Stool } from './BuildingBlocks';
 import { ElevatorFacade } from './Elevator';
@@ -111,6 +112,8 @@ export const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }: any) => {
   }, [walkAnims, idleAnims]), group);
   const aiState = useRef({ state: 'Idle', target: new Vector3(0, 0, 0), timer: 2 + Math.random() * 3 });
   const _nDir = useRef(new Vector3());
+  // Pre-built wall list for NPC collision (lobby layout — same walls the player uses)
+  const npcWalls = useMemo(() => [...ELEV_W, ...LOBBY_W, ...LOBBY_FURNITURE_W, DOOR_SEAL], []);
   useEffect(() => {
       scene.traverse((child: any) => { if (child.isMesh) { if (child.material) { child.material.side = THREE.DoubleSide; child.material.transparent = false; child.material.alphaTest = 0.5; } } });
       if(actions['Idle']) actions['Idle'].play();
@@ -149,7 +152,12 @@ export const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }: any) => {
               const walkAction = actions['Walking']; const idleAction = actions['Idle'];
               if (idleAction) { idleAction.reset().fadeIn(0.5).play(); walkAction?.fadeOut(0.5); }
           } else {
-              direction.normalize(); const moveSpeed = 2.0 * delta; pos.addScaledVector(direction, moveSpeed);
+              direction.normalize(); const moveSpeed = 2.0 * delta;
+              const nx = pos.x + direction.x * moveSpeed;
+              const nz = pos.z + direction.z * moveSpeed;
+              // Apply collision so the NPC doesn't walk through walls/furniture
+              const [rx, rz] = resolveCollision(nx, nz, 0.5, npcWalls);
+              pos.x = rx; pos.z = rz;
               const targetRotation = Math.atan2(direction.x, direction.z); const currentRotation = group.current.rotation.y;
               let diff = targetRotation - currentRotation; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
               group.current.rotation.y += diff * 5 * delta;

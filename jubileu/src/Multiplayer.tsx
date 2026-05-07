@@ -340,7 +340,10 @@ export const useMultiplayer = (
         };
     }, []);
 
-    const login = async (): Promise<string | null> => {
+    const login = async (): Promise<string> => {
+        // No Firebase Auth — just return the localStorage UUID.
+        // Kept for backward-compat with MainMenu.tsx which calls it when
+        // multiplayer is enabled (it used to trigger anonymous sign-in).
         return playerIdRef.current;
     };
     const user = { uid: playerIdRef.current };

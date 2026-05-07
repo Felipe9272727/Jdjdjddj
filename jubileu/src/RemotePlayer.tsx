@@ -130,11 +130,22 @@ export const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }: R
         return () => clearTimeout(t);
     }, [chatBubble]);
 
-    const displayName = useMemo(() => {
+    // Re-derive displayName when the underlying data changes.
+    // Previously this was a useMemo([id]) that never re-evaluated after
+    // mount, so a remote player's name was stuck at whatever it was when
+    // they first appeared.
+    const [displayName, setDisplayName] = useState(() => {
         const d = dataRef.current.get(id);
         return ((d?.name) || 'P-' + (id || '').slice(0, 4).toUpperCase()).slice(0, 16);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [id]);
+    });
+    useFrame(() => {
+        if (!groupRef.current) return;
+        const data = dataRef.current.get(id);
+        if (!data) return;
+        // Update display name reactively from multiplayer data
+        const newName = ((data.name) || 'P-' + (id || '').slice(0, 4).toUpperCase()).slice(0, 16);
+        if (newName !== displayName) setDisplayName(newName);
+    });
 
     return (
         <group ref={groupRef}>

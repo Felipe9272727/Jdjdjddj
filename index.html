@@ -95673,6 +95673,7 @@ const WALKING_URL = "https://raw.githubusercontent.com/Felipe9272727/Bancon.....
 const IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/BACON-PROJETO-FUNCIONALLLLL/main/Idle.glb";
 const NPC_WALK_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20walking.glb";
 const NPC_IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20idle.glb";
+const DUSSEKAR_URL = "https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb";
 const BARNEY_URL = "https://raw.githubusercontent.com/Felipe9272727/For-my-game/main/1776639536329.png";
 const COLORS = { wall: "#D7CCC8", wood: "#6D4C41", elevTrim: "#3E2723", elevFloor: "#F5F0EB", elevDiamond: "#FFD54F", elevDoor: "#9E9E9E", elevPanel: "#78909C", grass: "#66BB6A", sky: "#81D4FA", houseWall: "#EFEBE9", houseRoof: "#6D4C41", bed: "#1565C0", sofa: "#4E342E" };
 const ASSETS = { noise: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg", grass: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/terrain/grasslight-big.jpg", wood: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/hardwood2_diffuse.jpg", lobbyFloor: "https://raw.githubusercontent.com/Felipe9272727/Textura-/main/file_00000000febc71f5992f1ccc1b591002.png", wallPanel: "https://raw.githubusercontent.com/Felipe9272727/Textura-amadeirada-/main/file_0000000040e871f59722d8404d631582.png", wall: "https://raw.githubusercontent.com/Felipe9272727/Textura-da-parede/main/file_000000005dc071f5ba34d550bd83847b.png", ceiling: "https://raw.githubusercontent.com/Felipe9272727/Textura-de-teto/refs/heads/main/Screenshot_2026-01-18-12-39-26-946_com.openai.chatgpt-edit.jpg" };
@@ -98193,7 +98194,6 @@ const Barrel = ({ position }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group",
   ] })
 ] });
 useTexture.preload(BARNEY_URL);
-const DUSSEKAR_URL = "https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb";
 useGLTF.preload(DUSSEKAR_URL);
 const DussekarCharacter = ({ position, rotation: rotation2 }) => {
   const [dialogue, setDialogue] = reactExports.useState(null);
@@ -98203,6 +98203,7 @@ const DussekarCharacter = ({ position, rotation: rotation2 }) => {
   const timeRef = reactExports.useRef(0);
   const proximityTimerRef = reactExports.useRef(0);
   const secretTriggeredRef = reactExports.useRef(false);
+  const secretDialogueTimerRef = reactExports.useRef(null);
   useFrame((state2, dt2) => {
     if (!group.current) return;
     const dx = state2.camera.position.x - position[0];
@@ -98216,7 +98217,8 @@ const DussekarCharacter = ({ position, rotation: rotation2 }) => {
       if (proximityTimerRef.current >= 30 && !secretTriggeredRef.current) {
         secretTriggeredRef.current = true;
         setDialogue("You stayed. They always leave. You are... different.");
-        setTimeout(() => setDialogue(null), 12e3);
+        const tid = window.setTimeout(() => setDialogue(null), 12e3);
+        secretDialogueTimerRef.current = tid;
       }
     } else {
       proximityTimerRef.current = 0;
@@ -98247,6 +98249,7 @@ const DussekarCharacter = ({ position, rotation: rotation2 }) => {
       active = false;
       clearTimeout(showTimer);
       clearTimeout(hideTimer);
+      if (secretDialogueTimerRef.current) clearTimeout(secretDialogueTimerRef.current);
     };
   }, []);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: group, position, rotation: rotation2, children: [
@@ -98699,6 +98702,7 @@ const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }) => {
   }, [walkAnims, idleAnims]), group);
   const aiState = reactExports.useRef({ state: "Idle", target: new Vector3(0, 0, 0), timer: 2 + Math.random() * 3 });
   const _nDir = reactExports.useRef(new Vector3());
+  const npcWalls = reactExports.useMemo(() => [...ELEV_W, ...LOBBY_W, ...LOBBY_FURNITURE_W, DOOR_SEAL], []);
   reactExports.useEffect(() => {
     scene.traverse((child) => {
       if (child.isMesh) {
@@ -98770,7 +98774,11 @@ const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }) => {
       } else {
         direction.normalize();
         const moveSpeed = 2 * delta;
-        pos.addScaledVector(direction, moveSpeed);
+        const nx = pos.x + direction.x * moveSpeed;
+        const nz = pos.z + direction.z * moveSpeed;
+        const [rx, rz] = resolveCollision(nx, nz, 0.5, npcWalls);
+        pos.x = rx;
+        pos.z = rz;
         const targetRotation = Math.atan2(direction.x, direction.z);
         const currentRotation = group.current.rotation.y;
         let diff = targetRotation - currentRotation;
@@ -98994,10 +99002,17 @@ const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }) => {
     const t2 = setTimeout(() => setChatBubble(null), CHAT_BUBBLE_TTL_MS);
     return () => clearTimeout(t2);
   }, [chatBubble]);
-  const displayName = reactExports.useMemo(() => {
+  const [displayName, setDisplayName] = reactExports.useState(() => {
     const d = dataRef.current.get(id);
     return ((d == null ? void 0 : d.name) || "P-" + (id || "").slice(0, 4).toUpperCase()).slice(0, 16);
-  }, [id]);
+  });
+  useFrame(() => {
+    if (!groupRef.current) return;
+    const data = dataRef.current.get(id);
+    if (!data) return;
+    const newName = (data.name || "P-" + (id || "").slice(0, 4).toUpperCase()).slice(0, 16);
+    if (newName !== displayName) setDisplayName(newName);
+  });
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene, scale: [30, 30, 30], position: [0, groundY, 0] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.3, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none select-none whitespace-nowrap", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/70 text-white px-2.5 py-0.5 rounded-md text-[11px] font-bold border border-white/20 backdrop-blur-sm tracking-wider text-center shadow-lg", children: displayName }) }) }),
@@ -99273,6 +99288,7 @@ const BOT_PROFILES = [
   { color: "#fb923c", name: "BLAZE", speed: 3.2, jitter: 3 }
   // chaotic
 ];
+const BOT_SPEED_MULT = 1;
 const PATROL_WAYPOINTS = [
   [-8, 8],
   [8, 8],
@@ -99389,7 +99405,8 @@ const makeBot = (i2) => {
     wanderTheta: Math.random() * Math.PI * 2,
     target: null,
     tourIdx: 0,
-    color: profile.color
+    color: profile.color,
+    speed: profile.speed * BOT_SPEED_MULT
   };
 };
 let _storeBots = [];
@@ -99521,11 +99538,11 @@ const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseDoorOpen
       }
       const moving = Math.abs(desiredX) + Math.abs(desiredZ) > 0.05;
       if (moving) {
-        const nx = b2.pos.x + desiredX * SPEED * dt2;
-        const nz = b2.pos.z + desiredZ * SPEED * dt2;
+        const nx = b2.pos.x + desiredX * b2.speed * dt2;
+        const nz = b2.pos.z + desiredZ * b2.speed * dt2;
         const [rx, rz] = resolveCollision(nx, nz, PR, walls);
         const moved = Math.hypot(rx - prevX, rz - prevZ);
-        if (moved < SPEED * dt2 * 0.2 && (b2.behavior === "wander" || b2.behavior === "patrol")) {
+        if (moved < b2.speed * dt2 * 0.2 && (b2.behavior === "wander" || b2.behavior === "patrol")) {
           b2.wanderTheta = Math.random() * Math.PI * 2;
         }
         b2.pos.x = rx;
@@ -99777,7 +99794,7 @@ const RobloxChat = ({ messages, currentUserId, onSend, enabled, forceClose }) =>
       setOpen(false);
       setInput("");
     }
-  }, [forceClose]);
+  }, [forceClose, open]);
   const scrollRef = reactExports.useRef(null);
   const [isDesktop, setIsDesktop] = reactExports.useState(
     () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches

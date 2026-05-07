@@ -1400,3 +1400,58 @@ Aplicadas skills: **bolder** (formas fortes), **colorize** (paleta rica), **deli
 - `jubileu/src/HouseEnv.tsx` — House component + HouseWindow com flower boxes
 - `index.html` — rebuildado (4,432,701 bytes)
 
+---
+
+## 🔧 Sessão 2026-05-08: Bug Fixes + Melhorias Gerais (branch fix/improvements-bugfixes)
+
+### Abordagem
+Análise completa do código-fonte, identificação e correção de bugs e melhorias em branch separada.
+
+### Bugs corrigidos
+
+#### Fix #1: Bot ignorava velocidade do perfil individual
+- **Problema:** `Bot.tsx` usava `SPEED` (constante fixa 4.0) para todos os bots, ignorando as velocidades definidas nos `BOT_PROFILES` (2.2, 3.0, 1.8, etc.)
+- **Solução:** Adicionado campo `speed` ao `BotState`, cada bot recebe `profile.speed * BOT_SPEED_MULT`. Movimento usa `b.speed` em vez de `SPEED`.
+- **Arquivo:** `Bot.tsx`
+
+#### Fix #2: DUSSEKAR_URL duplicado
+- **Problema:** `HouseEnv.tsx` redefinia `DUSSEKAR_URL` localmente em vez de importar de `constants.ts`. Se a URL mudasse, precisaria atualizar em dois lugares.
+- **Solução:** Removida definição local, importado `DUSSEKAR_URL` de `constants.ts`.
+- **Arquivo:** `HouseEnv.tsx`
+
+#### Fix #3: RemotePlayer displayName nunca atualizava
+- **Problema:** `displayName` era calculado com `useMemo([id])` que só avaliava no mount. Se o nome do jogador remoto mudasse, ficava travado no nome original.
+- **Solução:** Substituído por `useState` + `useFrame` que verifica mudanças de nome a cada frame.
+- **Arquivo:** `RemotePlayer.tsx`
+
+#### Fix #4: LobbyNPC atravessava paredes e móveis
+- **Problema:** O NPC do lobby andava livremente sem colisão, atravessando paredes, móveis e portas do elevador.
+- **Solução:** Adicionado `resolveCollision` do `physics.ts` no movimento do NPC, usando a mesma lista de paredes que o jogador usa (`ELEV_W + LOBBY_W + LOBBY_FURNITURE_W + DOOR_SEAL`).
+- **Arquivo:** `LobbyEnv.tsx`
+
+#### Fix #5: Memory leak no DussekarCharacter
+- **Problema:** `setTimeout(() => setDialogue(null), 12000)` no useFrame não era rastreado — se o componente desmontasse, o timer continuava rodando.
+- **Solução:** Adicionado `secretDialogueTimerRef` para rastrear o timer, com cleanup no `useEffect` de ciclo de diálogos.
+- **Arquivo:** `HouseEnv.tsx`
+
+#### Fix #6: ChatSystem forceClose effect sem dependência completa
+- **Problema:** `useEffect` que força o fechamento do chat quando settings abre tinha `[forceClose]` como deps, faltando `open`.
+- **Solução:** Adicionado `open` ao array de dependências.
+- **Arquivo:** `ChatSystem.tsx`
+
+### Melhorias
+
+#### Melhoria #1: Tipagem forte para travelPhase
+- **Antes:** `useState('idle')` (tipo `string`)
+- **Depois:** `useState<'idle' | 'waiting' | 'traveling' | 'closing' | 'arriving'>('idle')`
+- **Arquivo:** `App.tsx`
+
+#### Melhoria #2: Documentação do login() no Multiplayer
+- A função `login()` foi mantida com comentário explicando que é compatibilidade com MainMenu.tsx (não usa mais Firebase Auth).
+- **Arquivo:** `Multiplayer.tsx`
+
+### Estado final
+- TypeScript: ✅ compila limpo (`tsc --noEmit` sem erros)
+- Build: ✅ reprodutível via `npm run build:reproducible` (4,411,645 bytes)
+- Branch: `fix/improvements-bugfixes`
+
