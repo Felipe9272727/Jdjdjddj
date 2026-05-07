@@ -57,6 +57,7 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* Tudo que oferecemos é\n  {y:gratuito}.{p}\n' +
       '* Só não tente sair com\n  nada na bolsa.',
     choices: [
+      { label: 'Lanterna      -  0G', goto: 'buy_flashlight' },
       { label: 'Café da casa  -  0G', goto: 'buy_coffee' },
       { label: 'Biscoito      -  0G', goto: 'buy_cookie' },
       { label: 'Chave reserva -  ?G', goto: 'buy_key' },
@@ -64,6 +65,23 @@ export const SHOP_SCENES: Record<string, Scene> = {
       { label: 'Lembrança     - 1?G', goto: 'buy_memory' },
       { label: 'Voltar', goto: 'main' },
     ],
+  },
+
+  buy_flashlight: {
+    mood: 'wink',
+    text:
+      '* {y:Lanterna.}{p}\n' +
+      '* A escuridão deste hotel\n  é... {y:persistente}.{p:200}\n' +
+      '* Esta lanterna vai te ajudar.\n' +
+      '^^' +
+      '* (Ele te entrega uma lanterna\n  velha.){p:300}\n' +
+      '* O metal está {y:frio}.{p:200}\n' +
+      '* Mas a luz funciona.\n' +
+      '^^' +
+      '* * Você guardou a {y:Lanterna}.{p:200}\n' +
+      '* Aperte {y:F} para ligar.\n' +
+      '* Ou toque no ícone no inventário.',
+    choices: [{ label: 'Voltar.', goto: 'buy' }],
   },
 
   buy_coffee: {

@@ -33,6 +33,8 @@ import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient, EmptyLobb
 import { CeilingFan, WallClock, playArrivalDing, createElevatorHum } from './Atmosphere';
 import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue } from './HudComponents';
 import { SceneInspector } from './SceneInspector';
+import { useInventory, InventoryHUD } from './InventorySystem';
+import { FlashlightLight, FPFlashlightHand } from './FlashlightLight';
 
 
 const MAX_JOYSTICK_RADIUS = 50;
@@ -150,6 +152,9 @@ export default function App() {
   const [houseDoorOpen, setHouseDoorOpen] = useState(false); 
   const [canInteractDoor, setCanInteractDoor] = useState(false); 
   const [doorSoundTrigger, setDoorSoundTrigger] = useState(0);
+
+  // ─── Inventory ─────────────────────────────────────────────────────────
+  const { inventory, inventoryRef, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
 
   const handleElevatorZoneChange = useCallback((inside: boolean) => {
       setInsideElevator(inside);
@@ -567,6 +572,7 @@ export default function App() {
           else if (canInteractDoor && !houseDoorOpen) handleOpenDoor();
           else if (canSleepNow && gameState === 'indoor_day') handleSleep();
           break;
+        case 'f': toggleFlashlight(); break;
       }
       upd();
     };
@@ -577,7 +583,7 @@ export default function App() {
     };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState, toggleFlashlight]);
 
   // Memoize the sliced remote player id list to avoid re-creating on every render.
   const visibleRemotePlayerIds = useMemo(
@@ -624,6 +630,9 @@ export default function App() {
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
             <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
+            {/* ─── Flashlight 3D ─────────────────────────────────────── */}
+            {hasStarted && inventory.flashlight.owned && <FlashlightLight active={inventory.flashlight.active} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} zoomLevel={zoomLevel} nightMode={nightMode} />}
+            {hasStarted && zoomLevel < 0.5 && inventory.flashlight.owned && inventory.flashlight.active && <FPFlashlightHand walking={playerAnimState === 'walking'} />}
             {botEnabled && (
                 <BotSystem
                     playerPositionRef={sharedPlayerPositionRef}
@@ -694,6 +703,7 @@ export default function App() {
       )}
 
       <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {hasStarted && <InventoryHUD inventory={inventory} onToggleFlashlight={toggleFlashlight} onUseCookie={useCookie} hasAnyItem={hasAnyItem} />}
       {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
       {/* ─── Bottom-center action buttons ─────────────────────────────────
           ABRIR/FALAR/DORMIR are mutually exclusive by game state, so they
@@ -761,7 +771,7 @@ export default function App() {
       {hasStarted && gameState === 'saved' && <SavedOverlay />}
       
       {barneyDialogueOpen && <BarneyDialogue dialogueNode={barneyDialogueNode} onResponse={handleBarneyResponse} />}
-      <ShopOverlay open={shopOpen} onClose={handleCloseShop} initialScene={shopInitialScene} />
+      <ShopOverlay open={shopOpen} onClose={handleCloseShop} initialScene={shopInitialScene} onBuyItem={inventoryAddItem} />
     </div>
   );
 }
