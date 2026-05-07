@@ -173,8 +173,7 @@ export const useMultiplayer = (
             // Chat is low-frequency; build the visible message list and only
             // setState when content actually changed.
             const msgs: ChatMessage[] = [];
-            const CHAT_TTL = 30000;
-            const chatCutoff = Date.now() - CHAT_TTL;
+            const chatCutoff = Date.now() - CHAT_TTL_MS;
             snap.forEach(d => {
                 const data = d.data();
                 if (data.chatMsg && data.chatAt && data.chatAt > chatCutoff) {

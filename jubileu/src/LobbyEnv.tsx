@@ -93,7 +93,7 @@ export const WatchingText = () => {
                 animation: 'wall-text-fade 3s ease-in-out forwards',
             }}
         >
-            <span className="text-white/8 text-[10px] font-mono tracking-[0.3em] uppercase">
+            <span className="text-white/15 text-[10px] font-mono tracking-[0.3em] uppercase">
                 someone is watching
             </span>
         </div>

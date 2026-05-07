@@ -106,7 +106,6 @@ export default function App() {
   useEffect(() => () => { pendingTimeoutsRef.current.forEach(clearTimeout); pendingTimeoutsRef.current.clear(); }, []);
   const [elevatorTimer, setElevatorTimer] = useState<number | null>(null); const [doorsClosed, setDoorsClosed] = useState(false);
   const [currentLevel, setCurrentLevel] = useState(0); const [overlayOpacity, setOverlayOpacity] = useState(0);
-  const [travelPhase, setTravelPhase] = useState('idle');
   const elevatorHumStopRef = useRef<(() => void) | null>(null);
   const [floorReveal, setFloorReveal] = useState(false);
   const [cameraShake, setCameraShake] = useState(false);
@@ -137,8 +136,6 @@ export default function App() {
   // is set automatically when the player gets caught by Barney and is
   // dropped back at the lobby — the recepcionista pulls them aside.
   const [shopInitialScene, setShopInitialScene] = useState<string>('main');
-  // Set to true when caught — drives the auto-open of the shop with
-  // post_death once the player arrives back at the lobby.
   // Set to true when caught — drives the auto-open of the shop with
   // post_death once the player arrives back at the lobby.
   const [pendingPostDeathDialogue, setPendingPostDeathDialogue] = useState(false);
@@ -230,7 +227,6 @@ export default function App() {
               // doors open and the player steps out into level 2.
               setNextElevatorDestination(2);
               setElevatorTimer(20);
-              setTravelPhase('closing');
               if (elevatorHumStopRef.current) elevatorHumStopRef.current();
               elevatorHumStopRef.current = createElevatorHum(audioCtx);
               scheduleTimeout(() => {
@@ -385,11 +381,8 @@ export default function App() {
     let timerId: ReturnType<typeof setTimeout> | undefined;
     if (elevatorTimer !== null && elevatorTimer > 0) {
         timerId = setTimeout(() => { setElevatorTimer((prev) => (prev !== null ? Math.max(prev - 1, 0) : null)); }, 1000);
-        if (!doorsClosed) {
-            setTravelPhase('waiting');
-        } else {
+        if (doorsClosed) {
             if (elevatorTimer <= 19) {
-                setTravelPhase('traveling');
                 setCameraShake(true);
             }
             if (elevatorTimer !== lastHandledTimerRef.current) {
@@ -418,7 +411,6 @@ export default function App() {
             setDoorsClosed(true);
             setElevatorTimer(20);
             setDoorSoundTrigger(prev => prev + 1);
-            setTravelPhase('closing');
             lastHandledTimerRef.current = null;
             // Start elevator hum during travel
             if (elevatorHumStopRef.current) elevatorHumStopRef.current();
@@ -427,14 +419,13 @@ export default function App() {
             setDoorsClosed(false);
             setElevatorTimer(null);
             setOverlayOpacity(0);
-            setTravelPhase('arriving');
             setCameraShake(false);
             setArrivalPulse(true);
             playArrivalDing(audioCtx);
             // Stop elevator hum on arrival
             if (elevatorHumStopRef.current) { elevatorHumStopRef.current(); elevatorHumStopRef.current = null; }
             lastHandledTimerRef.current = null;
-            scheduleTimeout(() => { setArrivalPulse(false); setTravelPhase('idle'); }, 1500);
+            scheduleTimeout(() => { setArrivalPulse(false); }, 1500);
         }
     }
     return () => clearTimeout(timerId);

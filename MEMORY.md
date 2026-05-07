@@ -1555,3 +1555,71 @@ base64 inflado) para apontar pros PNGs já no main:
 - Beep variation por mood (Sans-grave, Papyrus-staccato, etc.)
 - Sistema de gold counter / inventory caso o shop vire comercial
 
+
+## 🔧 Sessão 2026-05-08: Bug Fixes + Melhorias (branch fix/bugs-and-improvements)
+
+### Contexto
+Felipe indicou que a versão nova do projeto estava na branch `claude/read-map-memory-docs-2nqCj` (não no main). Clonou o repo nessa branch e criou branch `fix/bugs-and-improvements` para trabalhar.
+
+### Análise do codebase
+Review completo de todos os arquivos fonte (~25 arquivos). TypeScript compila limpo na branch base. Identificados 6 bugs e 2 melhorias.
+
+### Bugs corrigidos
+
+1. **Bot speed ignorava perfil individual** (`Bot.tsx`)
+   - Todos os bots usavam `SPEED` (4.0 da constant) em vez da velocidade do próprio perfil (ECHO=2.2, GLITCH=3.0, BLAZE=3.2 etc.)
+   - Adicionado campo `speed: number` ao `BotState` interface
+   - `makeBot()` agora seta `speed: profile.speed`
+   - useFrame usa `b.speed` em vez de `SPEED`
+   - Removido `SPEED` do import (não usado mais no arquivo)
+
+2. **DUSSEKAR_URL duplicado** (`HouseEnv.tsx`)
+   - URL do Dussekar definida localmente em vez de importar de constants.ts
+   - Removida definição local, importado de `./constants`
+
+3. **CHAT_TTL hardcoded vs constante** (`Multiplayer.tsx`)
+   - `const CHAT_TTL = 30000` dentro do onSnapshot callback em vez de usar `CHAT_TTL_MS` já importado
+   - Removida definição local, substituído por `CHAT_TTL_MS`
+
+4. **Level 2 sem paredes de fronteira** (`constants.ts`)
+   - Level2Environment tem piso 80×80 mas nenhuma parede ao redor — player pode caminhar pro infinito
+   - Adicionado `L2_BND` com 4 segmentos de parede formando quadrado ±40
+   - Incluído `...L2_BND` em `_LEVEL2_BASE`
+
+5. **Comentário duplicado** (`App.tsx`)
+   - Comentário sobre `pendingPostDeathDialogue` aparecia duas vezes seguidas
+   - Removida duplicata
+
+6. **Contraste baixo em easter egg** (`LobbyEnv.tsx`)
+   - `text-white/8` (8% opacidade) praticamente invisível
+   - Mudado para `text-white/15`
+
+### Melhorias aplicadas
+
+1. **ShopOverlay CSS inline → index.css** (`ShopOverlay.tsx` + `index.css`)
+   - Componente renderizava tag `<style>` inline a cada render, duplicando CSS no DOM
+   - Movidos todos os keyframes e classes (.shop-cursor, .shop-shake, .shop-page-advance, .undertale-btn etc.) para `index.css`
+   - Removido bloco `<style>` do componente
+
+2. **Estado morto `travelPhase` removido** (`App.tsx`)
+   - `travelPhase` era setado pra vários valores mas nunca lido — estado morto causando re-renders desnecessários
+   - Removida declaração do useState e todos os setTravelPhase calls
+   - Limpeza do bloco `if (!doorsClosed) { } else { ... }` → `if (doorsClosed) { ... }`
+
+### Arquivos alterados
+- `jubileu/src/App.tsx` — comentário duplicado + travelPhase removido
+- `jubileu/src/Bot.tsx` — speed por perfil
+- `jubileu/src/HouseEnv.tsx` — DUSSEKAR_URL import
+- `jubileu/src/LobbyEnv.tsx` — contraste
+- `jubileu/src/Multiplayer.tsx` — CHAT_TTL_MS
+- `jubileu/src/ShopOverlay.tsx` — CSS movido
+- `jubileu/src/constants.ts` — L2_BND walls
+- `jubileu/src/index.css` — ShopOverlay CSS adicionado
+- `index.html` — rebuildado (4,442,891 bytes)
+
+### Estado final
+- TypeScript: ✅ compila limpo
+- Build: ✅ reprodutível (npm run build:reproducible)
+- Branch: `fix/bugs-and-improvements` (base: `claude/read-map-memory-docs-2nqCj`)
+
+*Última atualização: 2026-05-08 GMT-3*
