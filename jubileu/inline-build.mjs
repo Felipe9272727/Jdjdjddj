@@ -43,6 +43,6 @@ if (cssMatch) {
   html = html.replace(cssMatch[0], () => `<style>${inlinedCss}</style>`);
 }
 
-const outPath = path.join(scriptDir, '..', 'index.html');
+const outPath = path.join(scriptDir, '..', process.env.OUT || 'index.html');
 fs.writeFileSync(outPath, html);
 console.log('Wrote', outPath, 'size:', html.length);
