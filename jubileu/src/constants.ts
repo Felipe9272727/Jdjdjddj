@@ -145,9 +145,21 @@ const _WALLS_HOUSE_DOOR          = [..._HOUSE_BASE, HOUSE_DW];
 const _WALLS_HOUSE_SEALED        = [..._HOUSE_BASE, DOOR_SEAL];
 const _WALLS_HOUSE_DOOR_SEALED   = [..._HOUSE_BASE, HOUSE_DW, DOOR_SEAL];
 
+// Level 2 (placeholder flat floor): just the elevator shell, no house walls.
+// Without an explicit case here the function fell through to the level-1
+// branch and the player collided with INVISIBLE Barney-house walls all
+// over level 2 — which (combined with collision response pushing them
+// back) made it look like they were being teleported around. ELEV_BLD
+// reproduces the exterior of the elevator structure so the player still
+// can't walk through the elevator's back wall on this floor.
+const _LEVEL2_BASE = [...ELEV_W, ...ELEV_BLD];
+const _WALLS_LEVEL2_OPEN          = _LEVEL2_BASE;
+const _WALLS_LEVEL2_SEALED        = [..._LEVEL2_BASE, DOOR_SEAL];
+
 /** Pick the right pre-built wall list. No allocation per frame. */
 export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
     if (level === 0) return doorsClosed ? _WALLS_LOBBY_SEALED : _WALLS_LOBBY_OPEN;
+    if (level === 2) return doorsClosed ? _WALLS_LEVEL2_SEALED : _WALLS_LEVEL2_OPEN;
     if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
     return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;
 };
