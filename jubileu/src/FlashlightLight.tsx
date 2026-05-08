@@ -2,7 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
-// ─── FlashlightLight: SpotLight that follows player + camera direction ────
+// ─── FlashlightLight: SpotLight + volumetric cone ─────────────────────────
 interface FlashlightLightProps {
   active: boolean;
   playerPositionRef: React.MutableRefObject<THREE.Vector3>;
@@ -20,7 +20,9 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
 }) => {
   const spotRef = useRef<THREE.SpotLight>(null);
   const targetRef = useRef<THREE.Object3D>(null);
+  const coneRef = useRef<THREE.Mesh>(null);
   const intensityRef = useRef(0);
+  const coneOpacityRef = useRef(0);
 
   const targetIntensity = active ? (nightMode ? 8 : 3) : 0;
   const targetDistance = active ? (nightMode ? 25 : 15) : 0;
@@ -32,6 +34,7 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
   useFrame((_, dt) => {
     const spot = spotRef.current;
     const target = targetRef.current;
+    const cone = coneRef.current;
     if (!spot || !target) return;
 
     // Smooth intensity lerp
@@ -54,6 +57,26 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
     _targetPos.set(pp.x + _dir.x * lookDist, headY + _dir.y * lookDist, pp.z + _dir.z * lookDist);
     target.position.copy(_targetPos);
     spot.target = target;
+
+    // Update volumetric cone
+    if (cone) {
+      const targetOp = active ? (nightMode ? 0.08 : 0.04) : 0;
+      coneOpacityRef.current = THREE.MathUtils.lerp(coneOpacityRef.current, targetOp, lerpSpeed);
+      (cone.material as THREE.MeshBasicMaterial).opacity = coneOpacityRef.current;
+      cone.visible = coneOpacityRef.current > 0.005;
+
+      // Position cone at player head, pointing in camera direction
+      const coneLen = nightMode ? 8 : 5;
+      cone.position.set(
+        pp.x + _dir.x * (coneLen * 0.5),
+        headY + _dir.y * (coneLen * 0.5),
+        pp.z + _dir.z * (coneLen * 0.5),
+      );
+      cone.lookAt(_targetPos);
+      // Scale the cone to match the spotlight spread
+      const coneRadius = coneLen * Math.tan(0.45) * 0.8;
+      cone.scale.set(coneRadius, coneRadius, coneLen);
+    }
   });
 
   return (
@@ -69,6 +92,18 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
         position={[0, 1.6, 0]}
       />
       <object3D ref={targetRef} position={[0, 1.6, -5]} />
+      {/* Volumetric light cone — translucent mesh */}
+      <mesh ref={coneRef} visible={false}>
+        <coneGeometry args={[1, 1, 16, 1, true]} />
+        <meshBasicMaterial
+          color="#FFF9C4"
+          transparent
+          opacity={0}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
     </>
   );
 };
@@ -145,11 +180,35 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
           toneMapped={false}
         />
       </mesh>
+      {/* Glow ring around lens */}
+      <mesh position={[0, 0, -0.213]} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.03, 0.04, 16]} />
+        <meshStandardMaterial
+          color="#FFE082"
+          emissive="#FFE082"
+          emissiveIntensity={active ? 1.5 : 0}
+          transparent
+          opacity={active ? 0.7 : 0.15}
+          toneMapped={false}
+        />
+      </mesh>
+      {/* Light beam glow (billboard sprite) */}
+      {active && (
+        <sprite position={[0, 0, -0.35]} scale={[0.15, 0.15, 1]}>
+          <spriteMaterial
+            color="#FFF9C4"
+            transparent
+            opacity={0.4}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </sprite>
+      )}
     </group>
   );
 };
 
-// ─── FPFlashlightHand: 1st-person arm + flashlight ───────────────────────
+// ─── FPFlashlightHand: 1st-person arm + flashlight with procedural anim ──
 interface FPFlashlightHandProps {
   walking: boolean;
   active: boolean;
@@ -164,14 +223,21 @@ export const FPFlashlightHand: React.FC<FPFlashlightHandProps> = ({ walking, act
     const g = groupRef.current;
     if (!g) return;
 
+    const t = timeRef.current;
+
     if (walking) {
-      const t = timeRef.current;
-      g.position.x = 0.25 + Math.sin(t * 8) * 0.008;
-      g.position.y = -0.3 + Math.abs(Math.sin(t * 8)) * 0.006;
+      // Walking: rhythmic bob + slight sway
+      const bobFreq = 8;
+      g.position.x = 0.25 + Math.sin(t * bobFreq) * 0.012;
+      g.position.y = -0.3 + Math.abs(Math.sin(t * bobFreq)) * 0.008;
+      g.position.z = -0.5 + Math.sin(t * bobFreq * 0.5) * 0.004;
+      g.rotation.z = Math.sin(t * bobFreq) * 0.03;
     } else {
-      // Smoothly return to default
-      g.position.x = THREE.MathUtils.lerp(g.position.x, 0.25, 5 * dt);
-      g.position.y = THREE.MathUtils.lerp(g.position.y, -0.3, 5 * dt);
+      // Idle: subtle breathing sway
+      g.position.x = THREE.MathUtils.lerp(g.position.x, 0.25 + Math.sin(t * 1.2) * 0.003, 4 * dt);
+      g.position.y = THREE.MathUtils.lerp(g.position.y, -0.3 + Math.sin(t * 0.8) * 0.002, 4 * dt);
+      g.position.z = THREE.MathUtils.lerp(g.position.z, -0.5, 4 * dt);
+      g.rotation.z = THREE.MathUtils.lerp(g.rotation.z, Math.sin(t * 1.0) * 0.01, 4 * dt);
     }
   });
 

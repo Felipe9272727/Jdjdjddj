@@ -154,7 +154,7 @@ export default function App() {
   const [doorSoundTrigger, setDoorSoundTrigger] = useState(0);
 
   // ─── Inventory ─────────────────────────────────────────────────────────
-  const { inventory, inventoryRef, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
+  const { inventory, inventoryRef, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect } = useInventory();
 
   const handleElevatorZoneChange = useCallback((inside: boolean) => {
       setInsideElevator(inside);
@@ -704,7 +704,7 @@ export default function App() {
       )}
 
       <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      {hasStarted && <InventoryHUD inventory={inventory} onToggleFlashlight={toggleFlashlight} onUseCookie={useCookie} hasAnyItem={hasAnyItem} />}
+      {hasStarted && <InventoryHUD inventory={inventory} onToggleFlashlight={toggleFlashlight} onUseCookie={useCookie} hasAnyItem={hasAnyItem} notification={notification} cookieEffect={cookieEffect} />}
       {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
       {/* ─── Bottom-center action buttons ─────────────────────────────────
           ABRIR/FALAR/DORMIR are mutually exclusive by game state, so they

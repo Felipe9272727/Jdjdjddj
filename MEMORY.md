@@ -1742,3 +1742,38 @@ Reescrita completa do sistema de inventário no branch `claude/inventory-v2-clea
 - Usar sub-agentes com skills específicas (full-stack-developer, frontend-styling-expert) para trabalho paralelo funciona bem
 - Sempre verificar se componentes definidos mas nunca renderizados são o causa de bugs visuais
 - O sistema de aquisição de itens deve ter uma ÚNICA porta de entrada (shop) — pickups físicos bypassam a economia
+
+---
+
+## 🔧 Sessão 2026-05-09: Inventory Polish + Flashlight Cone + Cookie Effect (05:04 GMT+8)
+
+### O que foi feito
+Melhorias no sistema de inventário existente — flashlight, cookie e visual effects.
+
+### Mudanças
+
+#### InventorySystem.tsx — Enhanced
+- **Notification toast**: mostra "🔦 Lanterna obtida!" ou "🍪 Biscoito obtido!" quando compra item no shop
+- **Cookie heal effect**: overlay verde radial com pulse animation quando consome biscoito
+- Toast desaparece em 2.5s, efeito de cookie dura 1.8s
+- `useInventory()` agora retorna `notification` e `cookieEffect`
+- HUD só aparece quando tem items (comportamento preservado)
+
+#### FlashlightLight.tsx — Enhanced
+- **Volumetric light cone**: mesh cone translúcido com additive blending que segue a direção da câmera
+- Cone adaptativo: maior/mais visível no night mode, sutil no modo normal
+- **3rd-person glow**: sprite de brilho + anel de lens melhorado no modelo 3D
+- **FP animation melhorada**: breathing sway no idle, bob rítmico + rotação sutil no walking
+- Mantida a Spotlight original (funcional)
+
+#### App.tsx — Updated
+- Passa `notification` e `cookieEffect` para `InventoryHUD`
+
+### Arquivos alterados
+- `jubileu/src/InventorySystem.tsx` — notification + cookieEffect
+- `jubileu/src/FlashlightLight.tsx` — cone volumétrico + glow + animação melhorada
+- `jubileu/src/App.tsx` — props atualizadas
+- `index.html` — rebuildado (4,472,390 bytes)
+
+### Commits
+- `TBD` — feat(inventory): notification toast, cookie heal effect, flashlight volumetric cone, procedural animation polish

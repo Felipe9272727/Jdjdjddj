@@ -673,6 +673,10 @@
     bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
   }
 
+  .bottom-\[calc\(env\(safe-area-inset-bottom\,0px\)\+160px\)\] {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 160px);
+  }
+
   .-left-2 {
     left: calc(var(--spacing) * -2);
   }
@@ -753,6 +757,10 @@
     z-index: 48;
   }
 
+  .z-\[51\] {
+    z-index: 51;
+  }
+
   .z-\[52\] {
     z-index: 52;
   }
@@ -795,40 +803,6 @@
 
   .z-\[100\] {
     z-index: 100;
-  }
-
-  .container {
-    width: 100%;
-  }
-
-  @media (min-width: 40rem) {
-    .container {
-      max-width: 40rem;
-    }
-  }
-
-  @media (min-width: 48rem) {
-    .container {
-      max-width: 48rem;
-    }
-  }
-
-  @media (min-width: 64rem) {
-    .container {
-      max-width: 64rem;
-    }
-  }
-
-  @media (min-width: 80rem) {
-    .container {
-      max-width: 80rem;
-    }
-  }
-
-  @media (min-width: 96rem) {
-    .container {
-      max-width: 96rem;
-    }
   }
 
   .m-0 {
@@ -3562,6 +3536,11 @@
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
+  .shadow-\[0_4px_20px_rgba\(0\,0\,0\,0\.5\)\] {
+    --tw-shadow: 0 4px 20px var(--tw-shadow-color, #00000080);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+
   .shadow-\[0_4px_24px_rgba\(0\,0\,0\,0\.4\)\] {
     --tw-shadow: 0 4px 24px var(--tw-shadow-color, #0006);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -4437,6 +4416,10 @@
 
     .landscape\:top-\[calc\(env\(safe-area-inset-top\,0px\)\+48px\)\] {
       top: calc(env(safe-area-inset-top, 0px) + 48px);
+    }
+
+    .landscape\:top-\[calc\(env\(safe-area-inset-top\,0px\)\+60px\)\] {
+      top: calc(env(safe-area-inset-top, 0px) + 60px);
     }
 
     .landscape\:top-\[calc\(env\(safe-area-inset-top\,0px\)\+64px\)\] {
@@ -101801,18 +101784,32 @@ function useInventory() {
   const [inventory, setInventory] = reactExports.useState(loadInventory);
   const inventoryRef = reactExports.useRef(inventory);
   inventoryRef.current = inventory;
+  const [notification, setNotification] = reactExports.useState(null);
+  const notifTimerRef = reactExports.useRef(null);
+  const showNotification = reactExports.useCallback((msg) => {
+    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+    setNotification(msg);
+    notifTimerRef.current = setTimeout(() => setNotification(null), 2500);
+  }, []);
+  reactExports.useEffect(() => () => {
+    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+  }, []);
   const addItem = reactExports.useCallback((itemId) => {
     setInventory((prev) => {
       const next = { ...prev };
       if (itemId === "flashlight" && !prev.flashlight.owned) {
         next.flashlight = { owned: true, active: false };
+        showNotification("🔦 Lanterna obtida!");
       }
       if (itemId === "cookie") {
         next.cookie = { count: prev.cookie.count + 1 };
+        showNotification("🍪 Biscoito obtido!");
       }
       return next;
     });
-  }, []);
+  }, [showNotification]);
+  const [cookieEffect, setCookieEffect] = reactExports.useState(false);
+  const cookieTimerRef = reactExports.useRef(null);
   const toggleFlashlight = reactExports.useCallback(() => {
     setInventory((prev) => {
       if (!prev.flashlight.owned) return prev;
@@ -101829,10 +101826,19 @@ function useInventory() {
       success = true;
       return { ...prev, cookie: { count: prev.cookie.count - 1 } };
     });
+    if (success) {
+      if (cookieTimerRef.current) clearTimeout(cookieTimerRef.current);
+      setCookieEffect(true);
+      cookieTimerRef.current = setTimeout(() => setCookieEffect(false), 1800);
+      showNotification("🍪 Biscoito consumido!");
+    }
     return success;
+  }, [showNotification]);
+  reactExports.useEffect(() => () => {
+    if (cookieTimerRef.current) clearTimeout(cookieTimerRef.current);
   }, []);
   const hasAnyItem = inventory.flashlight.owned || inventory.cookie.count > 0;
-  return { inventory, inventoryRef, addItem, toggleFlashlight, useCookie, hasAnyItem };
+  return { inventory, inventoryRef, addItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect };
 }
 const CookieBadge = ({ count, onUse }) => {
   const [anim, setAnim] = reactExports.useState(false);
@@ -101872,7 +101878,9 @@ const InventoryHUD = ({
   inventory,
   onToggleFlashlight,
   onUseCookie,
-  hasAnyItem
+  hasAnyItem,
+  notification,
+  cookieEffect
 }) => {
   const [prevOwned, setPrevOwned] = reactExports.useState({ flashlight: false, cookie: false });
   const [flashNew, setFlashNew] = reactExports.useState(false);
@@ -101895,37 +101903,35 @@ const InventoryHUD = ({
   reactExports.useEffect(() => {
     if (hasAnyItem && !mounted) setMounted(true);
   }, [hasAnyItem, mounted]);
-  if (!hasAnyItem) return null;
+  if (!hasAnyItem && !notification && !cookieEffect) return null;
   const { flashlight, cookie } = inventory;
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-    "div",
-    {
-      className: `
-        fixed z-[52] pointer-events-auto
-        /* ── Portrait: bottom-center, above ActionButton ── */
-        bottom-[calc(env(safe-area-inset-bottom,0px)+96px)]
-        left-1/2 -translate-x-1/2
-        /* ── Landscape: right side, vertically centered ── */
-        landscape:bottom-auto
-        landscape:right-[calc(env(safe-area-inset-right,0px)+14px)]
-        landscape:left-auto landscape:translate-x-0
-        landscape:top-1/2 landscape:-translate-y-1/2
-        ${mounted ? "animate-inventory-enter" : ""}
-      `,
-      children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "\n        flex items-center gap-3\n        landscape:flex-col landscape:gap-3\n        bg-black/40 backdrop-blur-xl\n        border border-white/10\n        rounded-2xl\n        px-3 py-2\n        landscape:px-2 landscape:py-3\n        shadow-[0_4px_24px_rgba(0,0,0,0.4)]\n      ", children: [
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+    hasAnyItem && /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: `
+            fixed z-[52] pointer-events-auto
+            bottom-[calc(env(safe-area-inset-bottom,0px)+96px)]
+            left-1/2 -translate-x-1/2
+            landscape:bottom-auto
+            landscape:right-[calc(env(safe-area-inset-right,0px)+14px)]
+            landscape:left-auto landscape:translate-x-0
+            landscape:top-1/2 landscape:-translate-y-1/2
+            ${mounted ? "animate-inventory-enter" : ""}
+          `,
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "\n            flex items-center gap-3\n            landscape:flex-col landscape:gap-3\n            bg-black/40 backdrop-blur-xl\n            border border-white/10\n            rounded-2xl\n            px-3 py-2\n            landscape:px-2 landscape:py-3\n            shadow-[0_4px_24px_rgba(0,0,0,0.4)]\n          ", children: [
           flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "button",
             {
               type: "button",
               onClick: onToggleFlashlight,
               className: `
-              relative w-12 h-12 flex items-center justify-center
-              bg-black/50 backdrop-blur-md rounded-xl
-              active:scale-90 transition-all touch-manipulation
-              ${flashlight.active ? "border-2 border-amber-400/80 shadow-[0_0_14px_rgba(251,191,36,0.45)]" : "border border-white/15"}
-              ${flashNew ? "animate-item-appear" : ""}
-            `,
+                  relative w-12 h-12 flex items-center justify-center
+                  bg-black/50 backdrop-blur-md rounded-xl
+                  active:scale-90 transition-all touch-manipulation
+                  ${flashlight.active ? "border-2 border-amber-400/80 shadow-[0_0_14px_rgba(251,191,36,0.45)]" : "border border-white/15"}
+                  ${flashNew ? "animate-item-appear" : ""}
+                `,
               "aria-label": flashlight.active ? "Desligar lanterna" : "Ligar lanterna",
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "22", height: "22", viewBox: "0 0 24 24", fill: "none", children: [
@@ -101967,25 +101973,40 @@ const InventoryHUD = ({
             }
           ),
           cookie.count > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: cookieNew ? "animate-item-appear" : "", children: /* @__PURE__ */ jsxRuntimeExports.jsx(CookieBadge, { count: cookie.count, onUse: onUseCookie }) })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("style", { children: `
+        ] })
+      }
+    ),
+    notification && /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: "fixed z-[55] left-1/2 -translate-x-1/2 pointer-events-none\n                     bottom-[calc(env(safe-area-inset-bottom,0px)+160px)]\n                     landscape:bottom-auto landscape:top-[calc(env(safe-area-inset-top,0px)+60px)]",
+        style: { animation: "notifSlideIn 300ms ease-out forwards" },
+        children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/70 backdrop-blur-xl border border-amber-500/30 rounded-xl\n                          px-4 py-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.5)]\n                          text-amber-200 text-sm font-medium tracking-wide\n                          whitespace-nowrap", children: notification })
+      }
+    ),
+    cookieEffect && /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: "fixed inset-0 z-[51] pointer-events-none",
+        style: {
+          background: "radial-gradient(ellipse at center, rgba(74,222,128,0.2) 0%, rgba(74,222,128,0.05) 50%, transparent 80%)",
+          animation: "cookieHealPulse 1800ms ease-out forwards"
+        }
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("style", { children: `
         @keyframes cookieUse {
           0%   { opacity: 1; transform: translate(-50%, 0) scale(1); }
           100% { opacity: 0; transform: translate(-50%, -16px) scale(1.2); }
         }
-        .animate-cookie-use {
-          animation: cookieUse 600ms ease-out forwards;
-        }
+        .animate-cookie-use { animation: cookieUse 600ms ease-out forwards; }
         @keyframes itemAppear {
           0%   { opacity: 0; transform: scale(0.3); filter: brightness(3); }
           50%  { opacity: 1; transform: scale(1.15); filter: brightness(2); }
           75%  { transform: scale(0.95); filter: brightness(1.2); }
           100% { transform: scale(1); filter: brightness(1); }
         }
-        .animate-item-appear {
-          animation: itemAppear 800ms ease-out forwards;
-        }
-        /* HUD container enter animation — portrait slides up, landscape slides from right */
+        .animate-item-appear { animation: itemAppear 800ms ease-out forwards; }
         @keyframes inventoryEnterPortrait {
           0%   { opacity: 0; transform: translateX(-50%) translateY(20px); }
           100% { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -101998,14 +102019,20 @@ const InventoryHUD = ({
           animation: inventoryEnterPortrait 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
         @media (orientation: landscape) {
-          .animate-inventory-enter {
-            animation-name: inventoryEnterLandscape;
-          }
+          .animate-inventory-enter { animation-name: inventoryEnterLandscape; }
+        }
+        @keyframes notifSlideIn {
+          0%   { opacity: 0; transform: translateY(12px) scale(0.95); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes cookieHealPulse {
+          0%   { opacity: 0; }
+          15%  { opacity: 0.18; }
+          40%  { opacity: 0.12; }
+          100% { opacity: 0; }
         }
       ` })
-      ]
-    }
-  );
+  ] });
 };
 const FlashlightLight = ({
   active,
@@ -102016,7 +102043,9 @@ const FlashlightLight = ({
 }) => {
   const spotRef = reactExports.useRef(null);
   const targetRef = reactExports.useRef(null);
+  const coneRef = reactExports.useRef(null);
   const intensityRef = reactExports.useRef(0);
+  const coneOpacityRef = reactExports.useRef(0);
   const targetIntensity = active ? nightMode ? 8 : 3 : 0;
   const targetDistance = active ? nightMode ? 25 : 15 : 0;
   const _dir = reactExports.useMemo(() => new Vector3(), []);
@@ -102024,6 +102053,7 @@ const FlashlightLight = ({
   useFrame((_, dt2) => {
     const spot = spotRef.current;
     const target = targetRef.current;
+    const cone = coneRef.current;
     if (!spot || !target) return;
     const lerpSpeed = 5 * dt2;
     intensityRef.current = MathUtils.lerp(intensityRef.current, targetIntensity, lerpSpeed);
@@ -102038,6 +102068,21 @@ const FlashlightLight = ({
     _targetPos.set(pp.x + _dir.x * lookDist, headY + _dir.y * lookDist, pp.z + _dir.z * lookDist);
     target.position.copy(_targetPos);
     spot.target = target;
+    if (cone) {
+      const targetOp = active ? nightMode ? 0.08 : 0.04 : 0;
+      coneOpacityRef.current = MathUtils.lerp(coneOpacityRef.current, targetOp, lerpSpeed);
+      cone.material.opacity = coneOpacityRef.current;
+      cone.visible = coneOpacityRef.current > 5e-3;
+      const coneLen = nightMode ? 8 : 5;
+      cone.position.set(
+        pp.x + _dir.x * (coneLen * 0.5),
+        headY + _dir.y * (coneLen * 0.5),
+        pp.z + _dir.z * (coneLen * 0.5)
+      );
+      cone.lookAt(_targetPos);
+      const coneRadius = coneLen * Math.tan(0.45) * 0.8;
+      cone.scale.set(coneRadius, coneRadius, coneLen);
+    }
   });
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -102053,7 +102098,21 @@ const FlashlightLight = ({
         position: [0, 1.6, 0]
       }
     ),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("object3D", { ref: targetRef, position: [0, 1.6, -5] })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("object3D", { ref: targetRef, position: [0, 1.6, -5] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { ref: coneRef, visible: false, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [1, 1, 16, 1, true] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "meshBasicMaterial",
+        {
+          color: "#FFF9C4",
+          transparent: true,
+          opacity: 0,
+          side: DoubleSide,
+          depthWrite: false,
+          blending: AdditiveBlending
+        }
+      )
+    ] })
   ] });
 };
 const FlashlightModel3D = ({
@@ -102107,7 +102166,31 @@ const FlashlightModel3D = ({
           toneMapped: false
         }
       )
-    ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, -0.213], rotation: [Math.PI / 2, 0, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("ringGeometry", { args: [0.03, 0.04, 16] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "meshStandardMaterial",
+        {
+          color: "#FFE082",
+          emissive: "#FFE082",
+          emissiveIntensity: active ? 1.5 : 0,
+          transparent: true,
+          opacity: active ? 0.7 : 0.15,
+          toneMapped: false
+        }
+      )
+    ] }),
+    active && /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { position: [0, 0, -0.35], scale: [0.15, 0.15, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "spriteMaterial",
+      {
+        color: "#FFF9C4",
+        transparent: true,
+        opacity: 0.4,
+        blending: AdditiveBlending,
+        depthWrite: false
+      }
+    ) })
   ] });
 };
 const FPFlashlightHand = ({ walking, active }) => {
@@ -102117,13 +102200,18 @@ const FPFlashlightHand = ({ walking, active }) => {
     timeRef.current += dt2;
     const g2 = groupRef.current;
     if (!g2) return;
+    const t2 = timeRef.current;
     if (walking) {
-      const t2 = timeRef.current;
-      g2.position.x = 0.25 + Math.sin(t2 * 8) * 8e-3;
-      g2.position.y = -0.3 + Math.abs(Math.sin(t2 * 8)) * 6e-3;
+      const bobFreq = 8;
+      g2.position.x = 0.25 + Math.sin(t2 * bobFreq) * 0.012;
+      g2.position.y = -0.3 + Math.abs(Math.sin(t2 * bobFreq)) * 8e-3;
+      g2.position.z = -0.5 + Math.sin(t2 * bobFreq * 0.5) * 4e-3;
+      g2.rotation.z = Math.sin(t2 * bobFreq) * 0.03;
     } else {
-      g2.position.x = MathUtils.lerp(g2.position.x, 0.25, 5 * dt2);
-      g2.position.y = MathUtils.lerp(g2.position.y, -0.3, 5 * dt2);
+      g2.position.x = MathUtils.lerp(g2.position.x, 0.25 + Math.sin(t2 * 1.2) * 3e-3, 4 * dt2);
+      g2.position.y = MathUtils.lerp(g2.position.y, -0.3 + Math.sin(t2 * 0.8) * 2e-3, 4 * dt2);
+      g2.position.z = MathUtils.lerp(g2.position.z, -0.5, 4 * dt2);
+      g2.rotation.z = MathUtils.lerp(g2.rotation.z, Math.sin(t2 * 1) * 0.01, 4 * dt2);
     }
   });
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, position: [0.25, -0.3, -0.5], rotation: [0.2, -0.3, 0], children: [
@@ -102282,7 +102370,7 @@ function App() {
   const [houseDoorOpen, setHouseDoorOpen] = reactExports.useState(false);
   const [canInteractDoor, setCanInteractDoor] = reactExports.useState(false);
   const [doorSoundTrigger, setDoorSoundTrigger] = reactExports.useState(0);
-  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
+  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect } = useInventory();
   const handleElevatorZoneChange = reactExports.useCallback((inside) => {
     setInsideElevator(inside);
   }, []);
@@ -102886,7 +102974,7 @@ function App() {
       )
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsMenu, { open: settingsOpen, onClose: () => setSettingsOpen(false) }),
-    hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(InventoryHUD, { inventory, onToggleFlashlight: toggleFlashlight, onUseCookie: useCookie, hasAnyItem }),
+    hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(InventoryHUD, { inventory, onToggleFlashlight: toggleFlashlight, onUseCookie: useCookie, hasAnyItem, notification, cookieEffect }),
     hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(VisualJoystick, { active: joystickVisual.active, x: joystickVisual.currentX, y: joystickVisual.currentY, origin: { x: joystickVisual.originX, y: joystickVisual.originY } }),
     hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && !shopOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
       ActionButton,
