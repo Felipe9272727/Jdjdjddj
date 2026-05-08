@@ -1857,3 +1857,39 @@ Animação procedural de braço ao pegar items + feedback visual no sprite do re
 - `jubileu/src/Player.tsx` — onAvatarScene prop + Avatar onSceneReady
 - `jubileu/src/App.tsx` — handleAvatarScene memo + PickupArmAnimator
 - `index.html` — rebuildado (4,476,457 bytes)
+
+---
+
+## 🔧 Sessão 2026-05-09: Tela Preta + Debug Agents (05:46-05:56 GMT+8)
+
+### Problema
+Após os 5 sub-agentes refazerem o sistema de inventário, o jogo ficou **completamente preto** — áudio e movimento funcionavam, mas nada era visível.
+
+### Causa Raiz (encontrada por `fix-black-screen`)
+Flashlight components (FlashlightLight, FlashlightModel3D, FPFlashlightHand) foram mudados pra "always mounted" pelo agent-3. Isso causava:
+- SpotLight com `distance={0}` (range infinito) sempre na cena
+- Cone mesh com AdditiveBlending sempre no scene graph
+- FPFlashlightHand geometry sempre renderizada
+
+### Fix
+Voltou pra **renderização condicional** — componentes só montam quando `flashlight.owned === true`.
+
+### Commit
+- `a33bfb4` — fix(player): prevent avatar disappearing on flashlight purchase
+
+### Sub-agentes de debug (3 ainda rodando quando deu push)
+| Agente | Status | O que deveria fazer |
+|--------|--------|-------------------|
+| `fix-avatar-black` | ⏳ Não terminou | Verificar se bone manipulation do Avatar quebrou rendering |
+| `fix-canvas-black` | ⏳ Não terminou | Verificar Canvas/Suspense/App.tsx rendering |
+| `fix-lighting-black` | ⏳ Não terminou | Verificar PostEffects/LobbyEnv/iluminação |
+
+### ⚠️ PENDENTE: Verificar se os 3 agentes encontraram mais problemas
+- Checar quando completarem se fizeram commits adicionais
+- Se encontraram mais bugs, aplicar os fixes
+- O fix principal (conditional rendering) já resolveu o problema principal
+
+### Lição FINAL da sessão
+- **"Always mounted" NÃO é sempre melhor** em Three.js — SpotLight e meshes com blending podem causar black screen
+- **Conditional rendering é mais seguro** pra componentes de luz
+- **SEMPRE usar sub-agentes** — não tentar fazer tudo sozinho
