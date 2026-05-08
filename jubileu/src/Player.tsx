@@ -85,6 +85,11 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }: 
   // Procedural arm ref (fallback when no arm bones found)
   const procArmRef = useRef<THREE.Group>(null);
 
+  // Ref mirror of `visible` prop so useFrame always reads the latest value
+  // without depending on the closure being fresh.
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+
   useEffect(() => {
      const meshes: any[] = [];
      const boneNames: string[] = [];
@@ -136,11 +141,17 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }: 
      } catch { /* ignored */ }
   }, [scene]);
 
-  // Notify parent when scene is ready (for bone manipulation)
+  // Notify parent when scene is ready (for bone manipulation).
+  // Use a ref for the callback so this effect only depends on [scene].
+  // This prevents the effect from thrashing (set→null→set) if the callback
+  // identity ever changes across re-renders — which was the original cause
+  // of the avatar disappearing when buying items in the shop.
+  const onSceneReadyRef = useRef(onSceneReady);
+  onSceneReadyRef.current = onSceneReady;
   useEffect(() => {
-    if (onSceneReady && scene) onSceneReady(scene);
-    return () => { if (onSceneReady) onSceneReady(null); };
-  }, [scene, onSceneReady]);
+    if (onSceneReadyRef.current && scene) onSceneReadyRef.current(scene);
+    return () => { if (onSceneReadyRef.current) onSceneReadyRef.current(null); };
+  }, [scene]);
 
   // ── Detect pickup trigger changes ──
   useEffect(() => {
@@ -213,7 +224,7 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }: 
           hipsRef.current.position.x = hipsBindRef.current.x;
           hipsRef.current.position.z = hipsBindRef.current.z;
       }
-      const tgt = visible ? 1 : 0; opRef.current = THREE.MathUtils.lerp(opRef.current, tgt, 8 * dt);
+      const tgt = visibleRef.current ? 1 : 0; opRef.current = THREE.MathUtils.lerp(opRef.current, tgt, 8 * dt);
       const op = opRef.current;
       const visibleMesh = op > 0.01;
       const meshes = meshesRef.current;

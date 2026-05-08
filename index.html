@@ -200,7 +200,6 @@
     --radius-lg: .5rem;
     --radius-xl: .75rem;
     --radius-2xl: 1rem;
-    --ease-in: cubic-bezier(.4, 0, 1, 1);
     --ease-out: cubic-bezier(0, 0, .2, 1);
     --ease-in-out: cubic-bezier(.4, 0, .2, 1);
     --animate-ping: ping 1s cubic-bezier(0, 0, .2, 1) infinite;
@@ -3857,11 +3856,6 @@
   .duration-\[2500ms\] {
     --tw-duration: 2.5s;
     transition-duration: 2.5s;
-  }
-
-  .ease-in {
-    --tw-ease: var(--ease-in);
-    transition-timing-function: var(--ease-in);
   }
 
   .ease-in-out {
@@ -98318,6 +98312,8 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) 
   const pickupTimeRef = reactExports.useRef(-1);
   const lastPickupTriggerRef = reactExports.useRef(0);
   const procArmRef = reactExports.useRef(null);
+  const visibleRef = reactExports.useRef(visible);
+  visibleRef.current = visible;
   reactExports.useEffect(() => {
     const meshes = [];
     const boneNames = [];
@@ -98371,12 +98367,14 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) 
     } catch {
     }
   }, [scene]);
+  const onSceneReadyRef = reactExports.useRef(onSceneReady);
+  onSceneReadyRef.current = onSceneReady;
   reactExports.useEffect(() => {
-    if (onSceneReady && scene) onSceneReady(scene);
+    if (onSceneReadyRef.current && scene) onSceneReadyRef.current(scene);
     return () => {
-      if (onSceneReady) onSceneReady(null);
+      if (onSceneReadyRef.current) onSceneReadyRef.current(null);
     };
-  }, [scene, onSceneReady]);
+  }, [scene]);
   reactExports.useEffect(() => {
     if (pickupTrigger !== lastPickupTriggerRef.current && pickupTrigger > 0) {
       lastPickupTriggerRef.current = pickupTrigger;
@@ -98423,7 +98421,7 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) 
       hipsRef.current.position.x = hipsBindRef.current.x;
       hipsRef.current.position.z = hipsBindRef.current.z;
     }
-    const tgt = visible ? 1 : 0;
+    const tgt = visibleRef.current ? 1 : 0;
     opRef.current = MathUtils.lerp(opRef.current, tgt, 8 * dt2);
     const op = opRef.current;
     const visibleMesh = op > 0.01;
