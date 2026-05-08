@@ -152,9 +152,10 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
 // ─── FPFlashlightHand: 1st-person arm + flashlight ───────────────────────
 interface FPFlashlightHandProps {
   walking: boolean;
+  active: boolean;
 }
 
-export const FPFlashlightHand: React.FC<FPFlashlightHandProps> = ({ walking }) => {
+export const FPFlashlightHand: React.FC<FPFlashlightHandProps> = ({ walking, active }) => {
   const groupRef = useRef<THREE.Group>(null);
   const timeRef = useRef(0);
 
@@ -215,13 +216,13 @@ export const FPFlashlightHand: React.FC<FPFlashlightHandProps> = ({ walking }) =
           <boxGeometry args={[0.01, 0.008, 0.025]} />
           <meshStandardMaterial color="#555" metalness={0.5} roughness={0.4} />
         </mesh>
-        {/* Lens (glowing) */}
+        {/* Lens */}
         <mesh position={[0, 0, -0.128]} rotation={[Math.PI / 2, 0, 0]}>
           <circleGeometry args={[0.03, 12]} />
           <meshStandardMaterial
-            color="#FFF9C4"
-            emissive="#FFF9C4"
-            emissiveIntensity={3}
+            color={active ? '#FFF9C4' : '#555'}
+            emissive={active ? '#FFF9C4' : '#000'}
+            emissiveIntensity={active ? 3 : 0}
             toneMapped={false}
           />
         </mesh>
@@ -231,9 +232,9 @@ export const FPFlashlightHand: React.FC<FPFlashlightHandProps> = ({ walking }) =
           <meshStandardMaterial
             color="#FFE082"
             emissive="#FFE082"
-            emissiveIntensity={1}
+            emissiveIntensity={active ? 1 : 0}
             transparent
-            opacity={0.6}
+            opacity={active ? 0.6 : 0.2}
             toneMapped={false}
           />
         </mesh>

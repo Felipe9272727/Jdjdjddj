@@ -6,36 +6,19 @@ export interface InventoryState {
   cookie: { count: number };
 }
 
-const STORAGE_KEY = 'jubileu_inventory';
-
 const defaultInventory: InventoryState = {
   flashlight: { owned: false, active: false },
   cookie: { count: 0 },
 };
 
+// Inventory is session-only — never persisted across page reloads.
+// In a horror game the player should always start empty-handed.
 function loadInventory(): InventoryState {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return {
-        flashlight: {
-          owned: !!parsed?.flashlight?.owned,
-          active: !!parsed?.flashlight?.active,
-        },
-        cookie: {
-          count: typeof parsed?.cookie?.count === 'number' ? parsed.cookie.count : 0,
-        },
-      };
-    }
-  } catch { /* ignored */ }
   return { ...defaultInventory };
 }
 
-function saveInventory(inv: InventoryState) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(inv));
-  } catch { /* ignored */ }
+function saveInventory(_inv: InventoryState) {
+  // No-op: inventory does not persist across sessions.
 }
 
 // ─── useInventory Hook ────────────────────────────────────────────────────
@@ -46,10 +29,8 @@ export function useInventory() {
   const inventoryRef = useRef(inventory);
   inventoryRef.current = inventory;
 
-  // Persist on change
-  useEffect(() => {
-    saveInventory(inventory);
-  }, [inventory]);
+  // No persistence — inventory resets every session.
+  // (saveInventory is a no-op; kept for API compatibility.)
 
   const addItem = useCallback((itemId: string) => {
     setInventory(prev => {
@@ -116,7 +97,7 @@ const CookieBadge: React.FC<{ count: number; onUse: () => void }> = ({ count, on
       type="button"
       onClick={onUse}
       disabled={count <= 0}
-      className="relative w-11 h-11 landscape:w-10 landscape:h-10 flex items-center justify-center
+      className="relative w-12 h-12 landscape:w-10 landscape:h-10 flex items-center justify-center
                  bg-black/60 backdrop-blur-md border border-white/15 rounded-xl
                  active:scale-90 transition-transform touch-manipulation"
       aria-label={`Usar biscoito (${count})`}
@@ -154,6 +135,26 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
   onUseCookie,
   hasAnyItem,
 }) => {
+  const [prevOwned, setPrevOwned] = useState({ flashlight: false, cookie: false });
+  const [flashNew, setFlashNew] = useState(false);
+  const [cookieNew, setCookieNew] = useState(false);
+
+  // Detect first-time item acquisition for flash/glow animation
+  useEffect(() => {
+    if (inventory.flashlight.owned && !prevOwned.flashlight) {
+      setFlashNew(true);
+      const t = setTimeout(() => setFlashNew(false), 800);
+      setPrevOwned(p => ({ ...p, flashlight: true }));
+      return () => clearTimeout(t);
+    }
+    if (inventory.cookie.count > 0 && !prevOwned.cookie) {
+      setCookieNew(true);
+      const t = setTimeout(() => setCookieNew(false), 800);
+      setPrevOwned(p => ({ ...p, cookie: true }));
+      return () => clearTimeout(t);
+    }
+  }, [inventory.flashlight.owned, inventory.cookie.count, prevOwned]);
+
   if (!hasAnyItem) return null;
 
   const { flashlight, cookie } = inventory;
@@ -161,11 +162,11 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
   return (
     <div
       className="fixed z-[52] pointer-events-auto
+                 bottom-[calc(env(safe-area-inset-bottom,0px)+80px)]
                  left-1/2 -translate-x-1/2
-                 bottom-[calc(env(safe-area-inset-bottom,0px)+72px)]
-                 landscape:left-auto landscape:right-[calc(env(safe-area-inset-right,0px)+12px)]
-                 landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]
-                 landscape:-translate-x-0 landscape:translate-x-0"
+                 landscape:bottom-[calc(env(safe-area-inset-bottom,0px)+14px)]
+                 landscape:right-[calc(env(safe-area-inset-right,0px)+14px)]
+                 landscape:left-auto landscape:translate-x-0"
     >
       <div className="flex items-center gap-2 landscape:gap-1.5">
         {/* Flashlight button */}
@@ -174,12 +175,13 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
             type="button"
             onClick={onToggleFlashlight}
             className={`
-              relative w-11 h-11 landscape:w-10 landscape:h-10 flex items-center justify-center
+              relative w-12 h-12 landscape:w-10 landscape:h-10 flex items-center justify-center
               bg-black/60 backdrop-blur-md rounded-xl
               active:scale-90 transition-all touch-manipulation
               ${flashlight.active
                 ? 'border-2 border-amber-400/80 shadow-[0_0_12px_rgba(251,191,36,0.4)]'
                 : 'border border-white/15'}
+              ${flashNew ? 'animate-item-appear' : ''}
             `}
             aria-label={flashlight.active ? 'Desligar lanterna' : 'Ligar lanterna'}
           >
@@ -210,7 +212,9 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
 
         {/* Cookie button */}
         {cookie.count > 0 && (
-          <CookieBadge count={cookie.count} onUse={onUseCookie} />
+          <div className={cookieNew ? 'animate-item-appear' : ''}>
+            <CookieBadge count={cookie.count} onUse={onUseCookie} />
+          </div>
         )}
       </div>
 
@@ -222,6 +226,15 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
         }
         .animate-cookie-use {
           animation: cookieUse 600ms ease-out forwards;
+        }
+        @keyframes itemAppear {
+          0%   { opacity: 0; transform: scale(0.3); filter: brightness(3); }
+          50%  { opacity: 1; transform: scale(1.15); filter: brightness(2); }
+          75%  { transform: scale(0.95); filter: brightness(1.2); }
+          100% { transform: scale(1); filter: brightness(1); }
+        }
+        .animate-item-appear {
+          animation: itemAppear 800ms ease-out forwards;
         }
       `}</style>
     </div>

@@ -1379,7 +1379,77 @@ Aplicadas skills: **bolder** (formas fortes), **colorize** (paleta rica), **deli
 
 ---
 
-*Última atualização: 2026-05-06 05:20 GMT+8*
+*Última atualização: 2026-05-08 00:20 GMT+8*
+
+---
+
+## 🔧 Sessão 2026-05-08: Inventário v3 — Fix Completo (00:20 GMT+8)
+
+### Problemas relatados pelo Felipe
+1. **Lanterna aparecendo antes de comprar** — o inventário persistia via localStorage, então a lanterna ficava "owned" de sessões anteriores
+2. **GLB não funcionava pra pegar a lanterna** — não existia pickup 3D da lanterna no lobby, só via diálogo da loja
+3. **Inventário mal posicionado** — não funcionava bem em vertical/horizontal no mobile e desktop
+
+### Fixes aplicados
+
+#### A. InventorySystem.tsx — Removida persistência localStorage
+- `loadInventory()` agora SEMPRE retorna inventário vazio (session-only)
+- `saveInventory()` é no-op (mantida pra compatibilidade de API)
+- Removido `STORAGE_KEY` e `useEffect` de persistência
+- Jogador sempre começa sem itens a cada sessão
+
+#### B. FlashlightLight.tsx — FPFlashlightHand com prop `active`
+- Adicionado `active: boolean` ao `FPFlashlightHandProps`
+- Lens agora é condicional: brilha quando `active=true`, escuro quando `false`
+- Glow ring também condicional: `emissiveIntensity={active ? 1 : 0}`, `opacity={active ? 0.6 : 0.2}`
+- Antes a lanterna em 1ª pessoa SEMPRE brilhava, mesmo desligada
+
+#### C. App.tsx — Passado `active` pro FPFlashlightHand
+- `<FPFlashlightHand walking={...} active={inventory.flashlight.active} />`
+
+#### D. LobbyEnv.tsx — Adicionado FlashlightPickup 3D
+- Novo componente `FlashlightPickup` — modelo 3D da lanterna (cilindro corpo, cilindro cabeça, lente âmbar com glow sutil)
+- Posição: `[7.0, 0.85, -6.0]` na mesa de recepção, rotação `[0, 0.3π, π/2]`
+- Só renderiza quando `!flashlightOwned`
+- `LobbyEnvironment` agora aceita prop `flashlightOwned`
+
+#### E. App.tsx — Pickup de lanterna por proximidade
+- Novo estado: `canInteractFlashlight`
+- `useEffect` com `setInterval(200ms)` que checa distância do player ao `FLASHLIGHT_POS`
+- Handler: `handlePickupFlashlight` → chama `inventoryAddItem('flashlight')`
+- Tecla E: adicionado `canInteractFlashlight && !inventory.flashlight.owned` entre NPC e porta
+- Botão mobile: "PEGAR LANTERNA" com gradiente âmbar/amarelo, ícone SVG de lanterna
+- `WorldProps` + `World` recebem `flashlightOwned` e passam ao `LobbyEnvironment`
+
+#### F. constants.ts — Novas constantes
+- `FLASHLIGHT_INTERACT_DIST = 2.5`
+- `FLASHLIGHT_POS = { x: 7.0, z: -6.0 }`
+
+#### G. InventorySystem.tsx — HUD responsivo melhorado
+- Portrait: `bottom-[calc(env(safe-area-inset-bottom)+80px)]` + `left-1/2 -translate-x-1/2` (centro, acima dos botões de ação)
+- Landscape: `bottom-[calc(env(safe-area-inset-bottom)+14px)]` + `right-[calc(env(safe-area-inset-right)+14px)]` (canto inferior direito, longe do joystick)
+- Botões maiores em portrait: `w-12 h-12` (48px — guideline mobile)
+- Animação de aparição: `animate-item-appear` (scale 0.3→1.15→0.95→1.0 com flash de brightness, 800ms)
+
+### Arquivos alterados
+- `jubileu/src/InventorySystem.tsx` — sem persistência, HUD responsivo, animação de aparição
+- `jubileu/src/FlashlightLight.tsx` — FPFlashlightHand com prop `active`
+- `jubileu/src/App.tsx` — pickup por proximidade, botão mobile, prop `active`, `flashlightOwned`
+- `jubileu/src/LobbyEnv.tsx` — componente FlashlightPickup, prop `flashlightOwned`
+- `jubileu/src/constants.ts` — FLASHLIGHT_INTERACT_DIST, FLASHLIGHT_POS
+
+### Fluxo do jogador
+1. Entra no lobby → vê lanterna 3D na mesa de recepção
+2. Aproxima (2.5 unidades) → botão "PEGAR LANTERNA" aparece
+3. Pressiona E / toca botão → lanterna adicionada ao inventário, modelo 3D some
+4. Pressiona F / toca ícone → lanterna liga/desliga
+5. Loja continua funcionando como alternativa pra comprar lanterna
+
+### Estado
+- TypeScript: ✅ limpo
+- Build: ✅ reprodutível (4,468,473 bytes)
+- Branch: `claude/read-map-memory-docs-2nqCj`
+- Push: pendente
 
 ---
 

@@ -167,3 +167,7 @@ export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen
 // ── Cashier / Reception ──────────────────────────────────────────────────
 export const CASHIER_INTERACT_DIST = 2.5;
 export const CASHIER_POS = { x: 7.65, z: -7.5 } as const;
+
+// ── Flashlight Pickup ────────────────────────────────────────────────────
+export const FLASHLIGHT_INTERACT_DIST = 2.5;
+export const FLASHLIGHT_POS = { x: 7.0, z: -6.0 } as const;

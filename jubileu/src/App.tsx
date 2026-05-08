@@ -23,7 +23,7 @@ import { Player } from './Player';
 import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor, Level2Environment } from './HouseEnv';
-import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
+import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, FLASHLIGHT_INTERACT_DIST, FLASHLIGHT_POS } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES, type QualityProfile } from './Settings';
@@ -56,14 +56,15 @@ interface WorldProps {
   nightMode: boolean;
   doorOpenAmount: number;
   profile: QualityProfile;
+  flashlightOwned: boolean;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, flashlightOwned }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
           (1 dynamic light = 1 extra per-fragment cost). */}
-      {level === 0 && <LobbyEnvironment npcPositionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />}
+      {level === 0 && <LobbyEnvironment npcPositionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} flashlightOwned={flashlightOwned} />}
       {level === 0 && !profile.atmosphere && (
           <pointLight position={[0, 3.8, 0]} intensity={2.8} distance={22} color="#FFE0B2" decay={2} />
       )}
@@ -134,6 +135,7 @@ export default function App() {
   const [dialogueOpen, setDialogueOpen] = useState(false); 
   const [dialogueNode, setDialogueNode] = useState('start');
   const [canInteractCashier, setCanInteractCashier] = useState(false);
+  const [canInteractFlashlight, setCanInteractFlashlight] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   // Initial scene when the shop opens. 'main' for normal use; 'post_death'
   // is set automatically when the player gets caught by Barney and is
@@ -261,6 +263,20 @@ export default function App() {
       return () => clearInterval(check);
   }, [gameState, canSleep]);
 
+  // ─── Flashlight pickup proximity check ──────────────────────────────────
+  useEffect(() => {
+    if (currentLevel !== 0 || inventory.flashlight.owned) {
+      setCanInteractFlashlight(false);
+      return;
+    }
+    const check = setInterval(() => {
+      const p = sharedPlayerPositionRef.current;
+      const d = Math.sqrt((p.x - FLASHLIGHT_POS.x) ** 2 + (p.z - FLASHLIGHT_POS.z) ** 2);
+      setCanInteractFlashlight(d < FLASHLIGHT_INTERACT_DIST);
+    }, 200);
+    return () => clearInterval(check);
+  }, [currentLevel, inventory.flashlight.owned]);
+
   // Stabilize the enter-elevator handler. The previous version had
   // [elevatorTimer, doorsClosed] in its deps, so the callback identity
   // changed every second during a ride — which forced <Player/> to
@@ -275,6 +291,11 @@ export default function App() {
   const handleInteractionUpdate = useCallback((c: boolean) => { setCanInteractDoor(p => p !== c ? c : p); }, []);
   const handleNpcInteractionUpdate = useCallback((c: boolean) => { setCanInteractNPC(p => p !== c ? c : p); }, []);
   const handleCashierInteractionUpdate = useCallback((c: boolean) => { setCanInteractCashier(p => p !== c ? c : p); }, []);
+  const handlePickupFlashlight = useCallback(() => {
+    if (!inventory.flashlight.owned) {
+      inventoryAddItem('flashlight');
+    }
+  }, [inventory.flashlight.owned, inventoryAddItem]);
   const handleOpenShop = useCallback(() => { setShopInitialScene('main'); setShopOpen(true); setCanInteractCashier(false); }, []);
   const handleCloseShop = useCallback(() => { setShopOpen(false); setShopInitialScene('main'); }, []);
 
@@ -569,6 +590,7 @@ export default function App() {
         case 'e':
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
+          else if (canInteractFlashlight && !inventory.flashlight.owned) handlePickupFlashlight();
           else if (canInteractDoor && !houseDoorOpen) handleOpenDoor();
           else if (canSleepNow && gameState === 'indoor_day') handleSleep();
           break;
@@ -583,7 +605,7 @@ export default function App() {
     };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState, toggleFlashlight]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractFlashlight, inventory.flashlight.owned, canInteractDoor, houseDoorOpen, canSleepNow, gameState, toggleFlashlight, handlePickupFlashlight]);
 
   // Memoize the sliced remote player id list to avoid re-creating on every render.
   const visibleRemotePlayerIds = useMemo(
@@ -621,7 +643,7 @@ export default function App() {
         }}
       >
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} />
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} flashlightOwned={inventory.flashlight.owned} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -632,7 +654,7 @@ export default function App() {
             <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
             {/* ─── Flashlight 3D ─────────────────────────────────────── */}
             {hasStarted && inventory.flashlight.owned && <FlashlightLight active={inventory.flashlight.active} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} zoomLevel={zoomLevel} nightMode={nightMode} />}
-            {hasStarted && zoomLevel < 0.5 && inventory.flashlight.owned && inventory.flashlight.active && <FPFlashlightHand walking={playerAnimState === 'walking'} />}
+            {hasStarted && zoomLevel < 0.5 && inventory.flashlight.owned && inventory.flashlight.active && <FPFlashlightHand walking={playerAnimState === 'walking'} active={inventory.flashlight.active} />}
             {botEnabled && (
                 <BotSystem
                     playerPositionRef={sharedPlayerPositionRef}
@@ -729,6 +751,16 @@ export default function App() {
           ringClasses="bg-gradient-to-b from-rose-200 to-red-300 text-red-900 ring-rose-200"
           onClick={handleOpenShop}
           ariaLabel="Abrir loja do recepcionista"
+        />
+      )}
+      {hasStarted && canInteractFlashlight && !inventory.flashlight.owned && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
+        <ActionButton
+          icon={<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 2h8l1 4H7l1-4zm-2 6h12v2H6V8zm1 3h10v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9zm3 2v5h4v-5h-4z"/></svg>}
+          label="PEGAR LANTERNA"
+          colorClasses="bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500"
+          ringClasses="bg-gradient-to-b from-yellow-200 to-amber-300 text-amber-900 ring-yellow-300"
+          onClick={handlePickupFlashlight}
+          ariaLabel="Pegar lanterna"
         />
       )}
       {hasStarted && canInteractNPC && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
