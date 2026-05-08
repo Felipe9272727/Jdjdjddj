@@ -102543,6 +102543,19 @@ const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, np
   level === 1 && /* @__PURE__ */ jsxRuntimeExports.jsx(BarneyActor, { gameState, barneyRef, barneyTargetRef, playerPosRef: playerPositionRef, houseDoorOpen }),
   profile.nightLights && /* @__PURE__ */ jsxRuntimeExports.jsx(NightAmbient, { active: nightMode && level === 1 })
 ] }));
+// SUSPENSE GIRL FIX: LoadingFallback component
+function LoadingFallback() {
+  var showTimeout = false;
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { background: "rgba(0,0,0,0.95)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: "16px", padding: "24px 32px", textAlign: "center", maxWidth: "320px", zIndex: 999 }, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { color: "#fbbf24", fontSize: "13px", fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", marginBottom: "12px" }, children: "The Normal Elevator" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", justifyContent: "center", gap: "8px" }, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { width: 8, height: 8, borderRadius: "50%", background: "#fbbf24", animation: "pulse 1.5s infinite" } }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { width: 8, height: 8, borderRadius: "50%", background: "rgba(251,191,36,0.6)", animation: "pulse 1.5s infinite 0.2s" } }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { width: 8, height: 8, borderRadius: "50%", background: "rgba(251,191,36,0.3)", animation: "pulse 1.5s infinite 0.4s" } })
+    ] })
+  ] }) });
+}
+
 function App() {
   const { settings, update: updateSettings } = useSettings();
   const [settingsOpen, setSettingsOpen] = reactExports.useState(false);
@@ -103159,14 +103172,12 @@ function App() {
           toneMapping: ACESFilmicToneMapping,
           outputColorSpace: SRGBColorSpace$1
         },
-        children: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5", children: "The Normal Elevator" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-center gap-1.5", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse", style: { animationDelay: "0.2s" } }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
-          ] })
-        ] }) }), children: [
+        children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("color", { attach: "background", args: ["#1a1410"] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("fog", { attach: "fog", args: ["#1a1410", 8, 28] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.45, color: "#FFE0B2" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 3.8, 0], intensity: 2.8, distance: 22, color: "#FFE0B2", decay: 2 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(LoadingFallback, {}), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
           visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
           /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger }),
