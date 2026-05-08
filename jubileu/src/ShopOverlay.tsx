@@ -457,27 +457,46 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
                 — combined with the SpriteEngine's module-level image
                 cache, the bitmap is decoded ONCE and reused across
                 remounts. */}
-            <SpriteAnimator
-              key={spriteMode}
-              config={activeSpriteConfig}
-              style={{
-                height: isLandscape
-                  ? 'clamp(300px, 70vh, 460px)'
-                  : 'clamp(340px, 58vh, 500px)',
-                aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
-                filter: blink
-                  ? 'drop-shadow(0 12px 24px rgba(0,0,0,0.75)) brightness(3) saturate(0.3)'
-                  : 'drop-shadow(0 12px 24px rgba(0,0,0,0.75))',
-                opacity: showContent ? 1 : 0,
-                transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
-                transition: blink
-                  ? 'filter 80ms ease-out'
-                  : 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms, filter 400ms ease-out',
-                pointerEvents: 'none',
-                position: 'relative',
-                zIndex: 1,
-              }}
-            />
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <SpriteAnimator
+                key={spriteMode}
+                config={activeSpriteConfig}
+                style={{
+                  height: isLandscape
+                    ? 'clamp(300px, 70vh, 460px)'
+                    : 'clamp(340px, 58vh, 500px)',
+                  aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
+                  filter: blink
+                    ? 'drop-shadow(0 12px 24px rgba(0,0,0,0.75)) brightness(4) saturate(0.1)'
+                    : 'drop-shadow(0 12px 24px rgba(0,0,0,0.75))',
+                  opacity: showContent ? 1 : 0,
+                  transform: phase === 'idle'
+                    ? (blink ? 'translateY(0) scale(1.03)' : 'translateY(0)')
+                    : 'translateY(20px)',
+                  transition: blink
+                    ? 'filter 60ms ease-out, transform 60ms ease-out'
+                    : 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms, filter 300ms ease-out, transform 300ms ease-out',
+                  pointerEvents: 'none',
+                  position: 'relative',
+                  zIndex: 1,
+                }}
+              />
+              {/* White flash overlay on top of the sprite */}
+              {blink && (
+                <div
+                  className="shop-blink-flash"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.9) 0%, rgba(255,230,150,0.5) 50%, transparent 80%)',
+                    pointerEvents: 'none',
+                    zIndex: 2,
+                    animation: 'shopBlinkFlash 600ms ease-out forwards',
+                    borderRadius: 4,
+                  }}
+                />
+              )}
+            </div>
 
             {/* ── Dialog box ────────────────────────────────────────────
                 FIXED height (not minHeight). The text area has its own
@@ -639,6 +658,13 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
         @keyframes shopAdvanceBob {
           0%, 100% { transform: translateY(0); opacity: 0.85; }
           50%      { transform: translateY(3px); opacity: 1; }
+        }
+        @keyframes shopBlinkFlash {
+          0%       { opacity: 1; }
+          15%      { opacity: 0.95; }
+          30%      { opacity: 0.7; }
+          60%      { opacity: 0.3; }
+          100%     { opacity: 0; }
         }
         .shop-cursor {
           display: inline-block;
