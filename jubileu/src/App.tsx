@@ -7,6 +7,7 @@ import { Vector3, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
   state = { hasError: false, error: '' };
   static getDerivedStateFromError(error: Error) { return { hasError: true, error: error.message }; }
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) { console.error('[CanvasErrorBoundary]', error, errorInfo); }
   render() {
     if (this.state.hasError) {
       return <div className="absolute inset-0 flex items-center justify-center bg-black"><div className="text-center px-6 max-w-md"><div className="text-amber-400 text-lg font-bold mb-2">The elevator has stopped responding.</div><div className="text-white/60 text-sm font-mono mb-4 break-all">{this.state.error}</div><button onClick={() => window.location.reload()} aria-label="Reload page" className="bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black px-5 py-2.5 rounded-xl font-bold text-sm transition-colors focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black">Restart</button></div></div>;
@@ -109,6 +110,13 @@ export default function App() {
   useEffect(() => () => { pendingTimeoutsRef.current.forEach(clearTimeout); pendingTimeoutsRef.current.clear(); }, []);
   const [elevatorTimer, setElevatorTimer] = useState<number | null>(null); const [doorsClosed, setDoorsClosed] = useState(false);
   const [currentLevel, setCurrentLevel] = useState(0); const [overlayOpacity, setOverlayOpacity] = useState(0);
+  // Safety: if overlayOpacity gets stuck > 0 (elevator timer race condition), force reset after 5s
+  useEffect(() => {
+    if (overlayOpacity > 0) {
+      const safety = setTimeout(() => { console.warn('[safety] overlayOpacity stuck — forcing reset'); setOverlayOpacity(0); setCameraShake(false); }, 5000);
+      return () => clearTimeout(safety);
+    }
+  }, [overlayOpacity]);
   const [travelPhase, setTravelPhase] = useState('idle');
   const elevatorHumStopRef = useRef<(() => void) | null>(null);
   const [floorReveal, setFloorReveal] = useState(false);
@@ -642,10 +650,14 @@ export default function App() {
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
             <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} />
-            {/* ─── Flashlight 3D (always mounted; components self-hide via `owned`) ─── */}
-            <FlashlightLight active={inventory.flashlight.active} owned={hasStarted && inventory.flashlight.owned} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} zoomLevel={zoomLevel} nightMode={nightMode} />
-            <FlashlightModel3D playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} active={inventory.flashlight.active} owned={hasStarted && inventory.flashlight.owned} zoomLevel={zoomLevel} />
-            <FPFlashlightHand walking={playerAnimState === 'walking'} active={inventory.flashlight.active} owned={hasStarted && inventory.flashlight.owned} />
+            {/* ─── Flashlight 3D (conditional: only mount when owned to avoid black screen) ─── */}
+            {hasStarted && inventory.flashlight.owned && (
+              <>
+                <FlashlightLight active={inventory.flashlight.active} owned={true} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} zoomLevel={zoomLevel} nightMode={nightMode} />
+                <FlashlightModel3D playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} active={inventory.flashlight.active} owned={true} zoomLevel={zoomLevel} />
+                <FPFlashlightHand walking={playerAnimState === 'walking'} active={inventory.flashlight.active} owned={true} />
+              </>
+            )}
             {botEnabled && (
                 <BotSystem
                     playerPositionRef={sharedPlayerPositionRef}

@@ -102514,6 +102514,9 @@ class CanvasErrorBoundary extends reactExports.Component {
   static getDerivedStateFromError(error2) {
     return { hasError: true, error: error2.message };
   }
+  componentDidCatch(error2, errorInfo) {
+    console.error("[CanvasErrorBoundary]", error2, errorInfo);
+  }
   render() {
     if (this.state.hasError) {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 flex items-center justify-center bg-black", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center px-6 max-w-md", children: [
@@ -102573,6 +102576,16 @@ function App() {
   const [doorsClosed, setDoorsClosed] = reactExports.useState(false);
   const [currentLevel, setCurrentLevel] = reactExports.useState(0);
   const [overlayOpacity, setOverlayOpacity] = reactExports.useState(0);
+  reactExports.useEffect(() => {
+    if (overlayOpacity > 0) {
+      const safety = setTimeout(() => {
+        console.warn("[safety] overlayOpacity stuck — forcing reset");
+        setOverlayOpacity(0);
+        setCameraShake(false);
+      }, 5e3);
+      return () => clearTimeout(safety);
+    }
+  }, [overlayOpacity]);
   const [travelPhase, setTravelPhase] = reactExports.useState("idle");
   const elevatorHumStopRef = reactExports.useRef(null);
   const [floorReveal, setFloorReveal] = reactExports.useState(false);
@@ -103157,9 +103170,11 @@ function App() {
           /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
           visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
           /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightLight, { active: inventory.flashlight.active, owned: hasStarted && inventory.flashlight.owned, playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, zoomLevel, nightMode }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightModel3D, { playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, active: inventory.flashlight.active, owned: hasStarted && inventory.flashlight.owned, zoomLevel }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(FPFlashlightHand, { walking: playerAnimState === "walking", active: inventory.flashlight.active, owned: hasStarted && inventory.flashlight.owned }),
+          hasStarted && inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightLight, { active: inventory.flashlight.active, owned: true, playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, zoomLevel, nightMode }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightModel3D, { playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, active: inventory.flashlight.active, owned: true, zoomLevel }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(FPFlashlightHand, { walking: playerAnimState === "walking", active: inventory.flashlight.active, owned: true })
+          ] }),
           botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
             BotSystem,
             {
