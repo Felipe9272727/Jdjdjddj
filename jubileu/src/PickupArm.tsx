@@ -1,48 +1,90 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-// ─── PickupArm: Procedural arm extension for item pickup ──────────────────
-// Renders inside the Player's avatar group. When `trigger` increments, the
-// arm extends forward (reaching animation), holds, then retracts.
-// Does NOT interfere with existing GLB animations — it's a separate mesh
-// layered on top of the avatar.
-
-interface PickupArmProps {
-  /** Increment this value to trigger the pickup animation */
-  trigger: number;
-  /** Camera theta for arm direction */
-  cameraThetaRef: React.MutableRefObject<number>;
-  /** Item type — controls hand color/pose */
-  itemType?: 'flashlight' | 'cookie' | null;
+// ─── findBone: Search skeleton for a bone by partial name match ──────────
+function findBone(root: THREE.Object3D, ...patterns: string[]): THREE.Bone | null {
+  let found: THREE.Bone | null = null;
+  root.traverse((c) => {
+    if (found) return;
+    if ((c as any).isBone || c.type === 'Bone') {
+      const name = c.name.toLowerCase();
+      for (const p of patterns) {
+        if (name.includes(p.toLowerCase())) {
+          found = c as THREE.Bone;
+          return;
+        }
+      }
+    }
+  });
+  return found;
 }
 
-// Animation phases:
-// 0.0 - 0.3s  → extend arm forward
-// 0.3 - 0.8s  → hold (grab item)
-// 0.8 - 1.2s  → retract arm back
-const PHASE_EXTEND_END = 0.3;
-const PHASE_HOLD_END = 0.8;
-const PHASE_RETRACT_END = 1.2;
+// ─── PickupArmAnimator: Procedural arm bone manipulation ─────────────────
+// Finds the right arm bones in the GLB skeleton and rotates them to create
+// a reaching/grabbing animation when `trigger` increments.
+// Does NOT replace existing animations — it overrides bone transforms
+// AFTER the animation system runs via useFrame ordering.
 
-export const PickupArm: React.FC<PickupArmProps> = ({ trigger, cameraThetaRef, itemType }) => {
-  const groupRef = useRef<THREE.Group>(null);
-  const armRef = useRef<THREE.Group>(null);
-  const handRef = useRef<THREE.Mesh>(null);
+interface PickupArmAnimatorProps {
+  /** Increment to trigger the pickup animation */
+  trigger: number;
+  /** The avatar's scene object (GLB) */
+  avatarScene: THREE.Object3D | null;
+  /** Camera theta for arm direction */
+  cameraThetaRef: React.MutableRefObject<number>;
+  /** Callback when animation completes */
+  onComplete?: () => void;
+}
+
+// Animation timing
+const PHASE_EXTEND = 0.35;    // arm extends forward
+const PHASE_HOLD = 0.5;       // grab hold
+const PHASE_RETRACT = 0.35;   // arm returns
+const TOTAL_DURATION = PHASE_EXTEND + PHASE_HOLD + PHASE_RETRACT;
+
+export const PickupArmAnimator: React.FC<PickupArmAnimatorProps> = ({
+  trigger,
+  avatarScene,
+  cameraThetaRef,
+  onComplete,
+}) => {
+  const armBoneRef = useRef<THREE.Bone | null>(null);
+  const forearmBoneRef = useRef<THREE.Bone | null>(null);
+  const handBoneRef = useRef<THREE.Bone | null>(null);
+  const bonesFoundRef = useRef(false);
+
+  // Store original rotations to restore after animation
+  const origArmRotRef = useRef(new THREE.Euler());
+  const origForearmRotRef = useRef(new THREE.Euler());
+
   const progressRef = useRef(-1); // -1 = idle, 0..1 = animating
   const lastTriggerRef = useRef(0);
   const timeRef = useRef(0);
+  const completeCbRef = useRef(onComplete);
+  completeCbRef.current = onComplete;
 
-  // Hand color based on item type
-  const handColor = itemType === 'cookie' ? '#D2A06B' : '#888';
-  const handEmissive = itemType === 'cookie' ? '#6B3E1F' : '#444';
+  // Find arm bones when avatar scene changes
+  useEffect(() => {
+    if (!avatarScene) return;
+    // Try common bone naming conventions
+    const arm = findBone(avatarScene, 'rightarm', 'right_arm', 'arm_r', 'upperarm_r', 'upperarmr');
+    const forearm = findBone(avatarScene, 'rightforearm', 'right_forearm', 'forearm_r', 'lowerarm_r', 'lowerarmr');
+    const hand = findBone(avatarScene, 'righthand', 'right_hand', 'hand_r', 'handr');
 
-  useFrame((_, dt) => {
-    const group = groupRef.current;
-    const arm = armRef.current;
-    const hand = handRef.current;
-    if (!group || !arm || !hand) return;
+    if (arm) {
+      armBoneRef.current = arm;
+      origArmRotRef.current.copy(arm.rotation);
+    }
+    if (forearm) {
+      forearmBoneRef.current = forearm;
+      origForearmRotRef.current.copy(forearm.rotation);
+    }
+    handBoneRef.current = hand;
+    bonesFoundRef.current = !!(arm || forearm);
+  }, [avatarScene]);
 
+  useFrame(() => {
     // Detect new trigger
     if (trigger !== lastTriggerRef.current) {
       lastTriggerRef.current = trigger;
@@ -50,94 +92,53 @@ export const PickupArm: React.FC<PickupArmProps> = ({ trigger, cameraThetaRef, i
       timeRef.current = 0;
     }
 
-    // Idle state — hide everything
-    if (progressRef.current < 0) {
-      group.visible = false;
-      return;
-    }
+    // Idle — nothing to do
+    if (progressRef.current < 0) return;
 
-    group.visible = true;
-    timeRef.current += dt;
+    timeRef.current += 1 / 60; // approximate dt for consistency
     const t = timeRef.current;
 
-    // Calculate arm extension (0 = rest, 1 = fully extended)
+    // Calculate extension factor (0 = rest, 1 = fully extended)
     let extension = 0;
-    if (t < PHASE_EXTEND_END) {
+    if (t < PHASE_EXTEND) {
       // Ease-out extend
-      const p = t / PHASE_EXTEND_END;
+      const p = t / PHASE_EXTEND;
       extension = 1 - Math.pow(1 - p, 3);
-    } else if (t < PHASE_HOLD_END) {
+    } else if (t < PHASE_EXTEND + PHASE_HOLD) {
       extension = 1;
-    } else if (t < PHASE_RETRACT_END) {
+    } else if (t < TOTAL_DURATION) {
       // Ease-in retract
-      const p = (t - PHASE_HOLD_END) / (PHASE_RETRACT_END - PHASE_HOLD_END);
+      const p = (t - PHASE_EXTEND - PHASE_HOLD) / PHASE_RETRACT;
       extension = 1 - p;
     } else {
-      // Animation complete
+      // Animation complete — restore original rotations
+      extension = 0;
       progressRef.current = -1;
-      group.visible = false;
+      if (armBoneRef.current) {
+        armBoneRef.current.rotation.copy(origArmRotRef.current);
+      }
+      if (forearmBoneRef.current) {
+        forearmBoneRef.current.rotation.copy(origForearmRotRef.current);
+      }
+      completeCbRef.current?.();
       return;
     }
 
-    // Arm extends forward relative to player facing direction
-    // The arm pivot is at the right shoulder
-    const reachDist = 0.6 * extension; // how far forward the hand reaches
-    const reachUp = 0.15 * extension;  // slight upward reach
-    const elbowBend = 0.3 * (1 - extension); // elbow bends when extending
+    // Apply procedural rotation to arm bones
+    // Shoulder: rotate forward (negative X in most rigs = forward bend)
+    if (armBoneRef.current) {
+      const orig = origArmRotRef.current;
+      armBoneRef.current.rotation.x = orig.x - extension * 1.2; // reach forward
+      armBoneRef.current.rotation.z = orig.z - extension * 0.15; // slight outward
+    }
 
-    // Position the forearm + hand
-    arm.position.set(0, 0, 0);
-    arm.rotation.x = -extension * 0.8; // rotate arm forward
-    arm.rotation.z = -0.15; // slight outward angle
-
-    // Hand opens when extended, closes when retracting
-    if (hand) {
-      (hand.material as THREE.MeshStandardMaterial).emissiveIntensity =
-        extension > 0.5 ? 1.5 : 0.3;
+    // Elbow: bend slightly when extending
+    if (forearmBoneRef.current) {
+      const orig = origForearmRotRef.current;
+      forearmBoneRef.current.rotation.x = orig.x - extension * 0.6;
     }
   });
 
-  return (
-    // Positioned at right shoulder relative to player center
-    <group ref={groupRef} position={[0.3, 1.2, 0]} visible={false}>
-      {/* Upper arm (from shoulder) */}
-      <group ref={armRef}>
-        {/* Upper arm mesh */}
-        <mesh position={[0, -0.12, -0.08]} rotation={[0.3, 0, 0]}>
-          <cylinderGeometry args={[0.035, 0.03, 0.25, 8]} />
-          <meshStandardMaterial color="#E8B88A" roughness={0.9} metalness={0} />
-        </mesh>
-        {/* Forearm */}
-        <mesh position={[0, -0.05, -0.25]} rotation={[0.6, 0, 0]}>
-          <cylinderGeometry args={[0.03, 0.028, 0.22, 8]} />
-          <meshStandardMaterial color="#E8B88A" roughness={0.9} metalness={0} />
-        </mesh>
-        {/* Hand */}
-        <mesh ref={handRef} position={[0, 0.02, -0.4]}>
-          <sphereGeometry args={[0.04, 8, 6]} />
-          <meshStandardMaterial
-            color={handColor}
-            emissive={handEmissive}
-            emissiveIntensity={0.3}
-            roughness={0.8}
-          />
-        </mesh>
-        {/* Fingers (simplified as small cylinders) */}
-        {[0, 1, 2, 3].map(i => (
-          <mesh
-            key={i}
-            position={[
-              (i - 1.5) * 0.015,
-              0.02,
-              -0.45
-            ]}
-            rotation={[0.4, 0, 0]}
-          >
-            <cylinderGeometry args={[0.008, 0.008, 0.04, 4]} />
-            <meshStandardMaterial color="#E8B88A" roughness={0.9} metalness={0} />
-          </mesh>
-        ))}
-      </group>
-    </group>
-  );
+  // This component doesn't render anything — it just manipulates bones
+  return null;
 };

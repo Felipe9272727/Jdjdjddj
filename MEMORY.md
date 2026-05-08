@@ -1819,3 +1819,41 @@ Animação procedural de braço ao pegar items + feedback visual no sprite do re
 
 ### Branch
 - `feat/inventory-polish-v3` — criada a partir de `claude/read-map-memory-docs-2nqCj`
+
+---
+
+## 🔧 Sessão 2026-05-09: GLB Bone Manipulation + Bug Fix Character Disappearing (05:20 GMT+8)
+
+### Bugs corrigidos
+
+#### Bug: Character disappears when buying flashlight
+- **Causa raiz**: `onAvatarScene` callback não era memoizado — mudava a cada render, causando o useEffect do Avatar a disparar repetidamente (set scene → cleanup → set null → set scene)
+- **Fix**: `useCallback` no `handleAvatarScene` para estabilizar a referência
+- Também movido `PickupArmAnimator` para dentro do Canvas como componente separado
+
+### Mudanças
+
+#### PickupArm.tsx — REESCRITO
+- Antes: mesh separado (braço 3D) que não afetava o GLB
+- Agora: `PickupArmAnimator` — manipula os bones do esqueleto do GLB diretamente
+- Encontra bones do braço direito por nome (RightArm, right_arm, arm_r, etc.)
+- Rotaciona shoulder (-1.2 rad forward) + elbow (-0.6 rad bend)
+- Salva/restaura rotações originais após animação
+- Não renderiza nada — só manipula transforms dos bones existentes
+- Animação: extend 0.35s (ease-out) → hold 0.5s → retract 0.35s (ease-in)
+
+#### Player.tsx — Avatar Scene Exposure
+- Prop `onAvatarScene?: (scene: Object3D | null) => void` adicionada
+- Avatar chama `onSceneReady` quando GLB carrega
+- Cleanup no unmount chama `onSceneReady(null)`
+
+#### App.tsx — Integration
+- `handleAvatarScene` memoizado com `useCallback` (corrige bug de desaparecimento)
+- `PickupArmAnimator` renderizado dentro do Canvas (depois do Player)
+- `avatarScene` state passado para o animator
+
+### Arquivos alterados
+- `jubileu/src/PickupArm.tsx` — REESCRITO (bone manipulation)
+- `jubileu/src/Player.tsx` — onAvatarScene prop + Avatar onSceneReady
+- `jubileu/src/App.tsx` — handleAvatarScene memo + PickupArmAnimator
+- `index.html` — rebuildado (4,476,457 bytes)

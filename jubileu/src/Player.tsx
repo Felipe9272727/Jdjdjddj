@@ -9,7 +9,7 @@ import { resolveCollision as _resolve } from './physics';
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
 
-const Avatar = ({ animation, visible = true }: { animation: 'Idle' | 'Walking'; visible?: boolean }) => {
+const Avatar = ({ animation, visible = true, onSceneReady }: { animation: 'Idle' | 'Walking'; visible?: boolean; onSceneReady?: (scene: THREE.Object3D | null) => void }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
   const { actions } = useAnimations(useMemo(() => {
@@ -56,6 +56,13 @@ const Avatar = ({ animation, visible = true }: { animation: 'Idle' | 'Walking'; 
        if (Number.isFinite(box.min.y)) setGroundY(-box.min.y);
      } catch { /* ignored */ }
   }, [scene]);
+
+  // Notify parent when scene is ready (for bone manipulation)
+  useEffect(() => {
+    if (onSceneReady && scene) onSceneReady(scene);
+    return () => { if (onSceneReady) onSceneReady(null); };
+  }, [scene, onSceneReady]);
+
   useFrame((s, dt) => {
       // Reset only X/Z of the hips bone — keep Y so the natural walking bob
       // (vertical motion baked into the animation) plays through. Zeroing Y
@@ -110,11 +117,11 @@ interface PlayerProps {
   cameraShakeRef: React.MutableRefObject<boolean>;
   positionCmdRef: React.MutableRefObject<{ x: number; y: number; z: number } | null>;
   onElevatorZoneChange: (inside: boolean) => void;
-  /** Optional pickup arm to render inside the avatar group */
-  pickupArm?: React.ReactNode;
+  /** Called when avatar GLB scene is loaded, for bone manipulation */
+  onAvatarScene?: (scene: THREE.Object3D | null) => void;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupArm }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, onAvatarScene }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -274,5 +281,5 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
     }
   });
-  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} />{pickupArm}</group>);
+  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} onSceneReady={onAvatarScene} /></group>);
 };

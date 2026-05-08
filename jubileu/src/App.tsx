@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, Loader } from '@react-three/drei';
-import { Vector3, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
+import { Vector3, Object3D, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 
 // ─── Error Boundary for Canvas ─────────────────────────────────────────────
 class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
@@ -35,7 +35,7 @@ import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, Chase
 import { SceneInspector } from './SceneInspector';
 import { useInventory, InventoryHUD } from './InventorySystem';
 import { FlashlightLight, FlashlightModel3D, FPFlashlightHand } from './FlashlightLight';
-import { PickupArm } from './PickupArm';
+import { PickupArmAnimator } from './PickupArm';
 
 
 const MAX_JOYSTICK_RADIUS = 50;
@@ -161,6 +161,8 @@ export default function App() {
   const [pickupTrigger, setPickupTrigger] = useState(0);
   const [pickupItemType, setPickupItemType] = useState<'flashlight' | 'cookie' | null>(null);
   const [shopBlink, setShopBlink] = useState(false);
+  const [avatarScene, setAvatarScene] = useState<Object3D | null>(null);
+  const handleAvatarScene = useCallback((scene: Object3D | null) => setAvatarScene(scene), []);
 
   const handleBuyItem = useCallback((itemId: string) => {
     inventoryAddItem(itemId);
@@ -645,9 +647,9 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange}
-              pickupArm={<PickupArm trigger={pickupTrigger} cameraThetaRef={cameraThetaRef} itemType={pickupItemType} />}
-            />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} onAvatarScene={handleAvatarScene} />
+            {/* Pickup arm animation — manipulates GLB skeleton bones */}
+            <PickupArmAnimator trigger={pickupTrigger} avatarScene={avatarScene} cameraThetaRef={cameraThetaRef} />
             {/* ─── Flashlight 3D ─────────────────────────────────────── */}
             {hasStarted && inventory.flashlight.owned && <FlashlightLight active={inventory.flashlight.active} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} zoomLevel={zoomLevel} nightMode={nightMode} />}
             {hasStarted && inventory.flashlight.owned && zoomLevel >= 0.5 && <FlashlightModel3D playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} active={inventory.flashlight.active} zoomLevel={zoomLevel} />}
