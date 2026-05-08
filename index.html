@@ -545,14 +545,6 @@
     inset-inline-end: var(--spacing);
   }
 
-  .-top-1\.5 {
-    top: calc(var(--spacing) * -1.5);
-  }
-
-  .-top-3 {
-    top: calc(var(--spacing) * -3);
-  }
-
   .top-0 {
     top: calc(var(--spacing) * 0);
   }
@@ -599,10 +591,6 @@
 
   .top-\[calc\(env\(safe-area-inset-top\,0px\)\+100px\)\] {
     top: calc(env(safe-area-inset-top, 0px) + 100px);
-  }
-
-  .-right-1\.5 {
-    right: calc(var(--spacing) * -1.5);
   }
 
   .-right-2 {
@@ -667,14 +655,6 @@
 
   .bottom-\[calc\(env\(safe-area-inset-bottom\,0px\)\+24px\)\] {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
-  }
-
-  .bottom-\[calc\(env\(safe-area-inset-bottom\,0px\)\+96px\)\] {
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
-  }
-
-  .bottom-\[calc\(env\(safe-area-inset-bottom\,0px\)\+160px\)\] {
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 160px);
   }
 
   .-left-2 {
@@ -755,14 +735,6 @@
 
   .z-\[48\] {
     z-index: 48;
-  }
-
-  .z-\[51\] {
-    z-index: 51;
-  }
-
-  .z-\[52\] {
-    z-index: 52;
   }
 
   .z-\[55\] {
@@ -1001,10 +973,6 @@
     height: 2px;
   }
 
-  .h-\[18px\] {
-    height: 18px;
-  }
-
   .h-\[60\%\] {
     height: 60%;
   }
@@ -1213,10 +1181,6 @@
     min-width: calc(var(--spacing) * 0);
   }
 
-  .min-w-\[18px\] {
-    min-width: 18px;
-  }
-
   .min-w-\[48px\] {
     min-width: 48px;
   }
@@ -1309,10 +1273,6 @@
 
   .cursor-default {
     cursor: default;
-  }
-
-  .touch-manipulation {
-    touch-action: manipulation;
   }
 
   .resize {
@@ -1578,16 +1538,6 @@
     border-color: #2a2a2a;
   }
 
-  .border-amber-400\/80 {
-    border-color: #fcbb00cc;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .border-amber-400\/80 {
-      border-color: color-mix(in oklab, var(--color-amber-400) 80%, transparent);
-    }
-  }
-
   .border-amber-500\/20 {
     border-color: #f99c0033;
   }
@@ -1672,16 +1622,6 @@
     }
   }
 
-  .border-white\/15 {
-    border-color: #ffffff26;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .border-white\/15 {
-      border-color: color-mix(in oklab, var(--color-white) 15%, transparent);
-    }
-  }
-
   .border-white\/20 {
     border-color: #fff3;
   }
@@ -1754,16 +1694,6 @@
 
   .bg-amber-400 {
     background-color: var(--color-amber-400);
-  }
-
-  .bg-amber-400\/10 {
-    background-color: #fcbb001a;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .bg-amber-400\/10 {
-      background-color: color-mix(in oklab, var(--color-amber-400) 10%, transparent);
-    }
   }
 
   .bg-amber-400\/30 {
@@ -3486,11 +3416,6 @@
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
-  .shadow-\[0_0_6px_rgba\(245\,158\,11\,0\.5\)\] {
-    --tw-shadow: 0 0 6px var(--tw-shadow-color, #f59e0b80);
-    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-  }
-
   .shadow-\[0_0_6px_rgba\(255\,255\,255\,0\.4\)\] {
     --tw-shadow: 0 0 6px var(--tw-shadow-color, #fff6);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -3503,11 +3428,6 @@
 
   .shadow-\[0_0_12px_rgba\(251\,191\,36\,0\.3\)\] {
     --tw-shadow: 0 0 12px var(--tw-shadow-color, #fbbf244d);
-    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-  }
-
-  .shadow-\[0_0_14px_rgba\(251\,191\,36\,0\.45\)\] {
-    --tw-shadow: 0 0 14px var(--tw-shadow-color, #fbbf2473);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
@@ -3533,16 +3453,6 @@
 
   .shadow-\[0_0_30px_rgba\(239\,68\,68\,0\.5\)\] {
     --tw-shadow: 0 0 30px var(--tw-shadow-color, #ef444480);
-    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-  }
-
-  .shadow-\[0_4px_20px_rgba\(0\,0\,0\,0\.5\)\] {
-    --tw-shadow: 0 4px 20px var(--tw-shadow-color, #00000080);
-    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-  }
-
-  .shadow-\[0_4px_24px_rgba\(0\,0\,0\,0\.4\)\] {
-    --tw-shadow: 0 4px 24px var(--tw-shadow-color, #0006);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
@@ -4077,13 +3987,6 @@
     --tw-ring-offset-color: var(--color-black);
   }
 
-  .active\:scale-90:active {
-    --tw-scale-x: 90%;
-    --tw-scale-y: 90%;
-    --tw-scale-z: 90%;
-    scale: var(--tw-scale-x) var(--tw-scale-y);
-  }
-
   .active\:scale-95:active {
     --tw-scale-x: 95%;
     --tw-scale-y: 95%;
@@ -4117,17 +4020,6 @@
     .active\:bg-white\/20:active {
       background-color: color-mix(in oklab, var(--color-white) 20%, transparent);
     }
-  }
-
-  .disabled\:opacity-40:disabled {
-    opacity: .4;
-  }
-
-  .disabled\:active\:scale-100:disabled:active {
-    --tw-scale-x: 100%;
-    --tw-scale-y: 100%;
-    --tw-scale-z: 100%;
-    scale: var(--tw-scale-x) var(--tw-scale-y);
   }
 
   @media (min-width: 40rem) {
@@ -4410,36 +4302,16 @@
       top: calc(var(--spacing) * 1);
     }
 
-    .landscape\:top-1\/2 {
-      top: 50%;
-    }
-
     .landscape\:top-\[calc\(env\(safe-area-inset-top\,0px\)\+48px\)\] {
       top: calc(env(safe-area-inset-top, 0px) + 48px);
-    }
-
-    .landscape\:top-\[calc\(env\(safe-area-inset-top\,0px\)\+60px\)\] {
-      top: calc(env(safe-area-inset-top, 0px) + 60px);
     }
 
     .landscape\:top-\[calc\(env\(safe-area-inset-top\,0px\)\+64px\)\] {
       top: calc(env(safe-area-inset-top, 0px) + 64px);
     }
 
-    .landscape\:right-\[calc\(env\(safe-area-inset-right\,0px\)\+14px\)\] {
-      right: calc(env(safe-area-inset-right, 0px) + 14px);
-    }
-
     .landscape\:bottom-\[calc\(env\(safe-area-inset-bottom\,0px\)\+12px\)\] {
       bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
-    }
-
-    .landscape\:bottom-auto {
-      bottom: auto;
-    }
-
-    .landscape\:left-auto {
-      left: auto;
     }
 
     .landscape\:mb-0 {
@@ -4502,20 +4374,6 @@
       min-width: 96px;
     }
 
-    .landscape\:translate-x-0 {
-      --tw-translate-x: calc(var(--spacing) * 0);
-      translate: var(--tw-translate-x) var(--tw-translate-y);
-    }
-
-    .landscape\:-translate-y-1\/2 {
-      --tw-translate-y: calc(calc(1 / 2 * 100%) * -1);
-      translate: var(--tw-translate-x) var(--tw-translate-y);
-    }
-
-    .landscape\:flex-col {
-      flex-direction: column;
-    }
-
     .landscape\:flex-row {
       flex-direction: row;
     }
@@ -4528,14 +4386,6 @@
       justify-content: center;
     }
 
-    .landscape\:gap-3 {
-      gap: calc(var(--spacing) * 3);
-    }
-
-    .landscape\:px-2 {
-      padding-inline: calc(var(--spacing) * 2);
-    }
-
     .landscape\:px-3 {
       padding-inline: calc(var(--spacing) * 3);
     }
@@ -4546,10 +4396,6 @@
 
     .landscape\:py-2 {
       padding-block: calc(var(--spacing) * 2);
-    }
-
-    .landscape\:py-3 {
-      padding-block: calc(var(--spacing) * 3);
     }
 
     .landscape\:py-4 {
@@ -97307,7 +97153,6 @@ const SHOP_SCENES = {
     mood: "talk",
     text: "* {y:Loja da Recepção.}{p:300}\n* Tudo que oferecemos é\n  {y:gratuito}.{p}\n* Só não tente sair com\n  nada na bolsa.",
     choices: [
-      { label: "Lanterna      -  0G", goto: "buy_flashlight" },
       { label: "Café da casa  -  0G", goto: "buy_coffee" },
       { label: "Biscoito      -  0G", goto: "buy_cookie" },
       { label: "Chave reserva -  ?G", goto: "buy_key" },
@@ -97315,11 +97160,6 @@ const SHOP_SCENES = {
       { label: "Lembrança     - 1?G", goto: "buy_memory" },
       { label: "Voltar", goto: "main" }
     ]
-  },
-  buy_flashlight: {
-    mood: "wink",
-    text: "* {y:Lanterna.}{p}\n* A escuridão deste hotel\n  é... {y:persistente}.{p:200}\n* Esta lanterna vai te ajudar.\n^^* (Ele te entrega uma lanterna\n  velha.){p:300}\n* O metal está {y:frio}.{p:200}\n* Mas a luz funciona.\n^^* * Você guardou a {y:Lanterna}.{p:200}\n* Aperte {y:F} para ligar.\n* Ou toque no ícone no inventário.",
-    choices: [{ label: "Voltar.", goto: "buy" }]
   },
   buy_coffee: {
     mood: "wink",
@@ -97583,7 +97423,7 @@ const TIMINGS = {
   exitClose: 600,
   charDelay: 28
 };
-const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) => {
+const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE }) => {
   const [sceneId, setSceneId] = reactExports.useState(initialScene);
   const [pageIndex, setPageIndex] = reactExports.useState(0);
   const [revealed, setRevealed] = reactExports.useState(0);
@@ -97730,12 +97570,10 @@ const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) =>
       close();
       return;
     }
-    if (choice.goto === "buy_flashlight" && onBuyItem) onBuyItem("flashlight");
-    if (choice.goto === "buy_cookie" && onBuyItem) onBuyItem("cookie");
     setSceneId(choice.goto);
     setPageIndex(0);
     setRevealed(0);
-  }, [showChoices, scene.choices, close, onBuyItem]);
+  }, [showChoices, scene.choices, close]);
   reactExports.useEffect(() => {
     if (!open || phase !== "idle") return;
     const onKey = (e2) => {
@@ -97924,24 +97762,29 @@ const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) =>
             },
             onClick: advanceOrSkip,
             children: showContent && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center px-4 max-w-2xl w-full", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { position: "relative", display: "inline-block" }, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
                 SpriteAnimator,
                 {
                   config: activeSpriteConfig,
                   style: {
+                    // Values copied verbatim from the working `437441c`
+                    // version on main. The dialog box's negative marginTop
+                    // pulls up to overlap the bottom ~45% of the sprite,
+                    // so the visible "above-counter" portion fits the
+                    // viewport even when the overall sprite is tall.
                     height: isLandscape ? "clamp(300px, 70vh, 460px)" : "clamp(340px, 58vh, 500px)",
                     aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
                     filter: "drop-shadow(0 12px 24px rgba(0,0,0,0.75))",
                     opacity: showContent ? 1 : 0,
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
-                    transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms, filter 300ms ease-out, transform 300ms ease-out",
+                    transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms",
                     pointerEvents: "none",
                     position: "relative",
                     zIndex: 1
                   }
                 },
                 spriteMode
-              ) }),
+              ),
               /* @__PURE__ */ jsxRuntimeExports.jsxs(
                 "div",
                 {
@@ -98100,13 +97943,6 @@ const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) =>
           0%, 100% { transform: translateY(0); opacity: 0.85; }
           50%      { transform: translateY(3px); opacity: 1; }
         }
-        @keyframes shopBlinkFlash {
-          0%       { opacity: 1; }
-          15%      { opacity: 0.95; }
-          30%      { opacity: 0.7; }
-          60%      { opacity: 0.3; }
-          100%     { opacity: 0; }
-        }
         .shop-cursor {
           display: inline-block;
           margin-left: 1px;
@@ -98232,63 +98068,7 @@ const ElevatorDoor = ({ side, state: state2 }) => {
 };
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
-const RIGHT_ARM_PATTERNS = [
-  "mixamorig:rightarm",
-  "rightarm",
-  "right_arm",
-  "arm_r",
-  "upperarm_r",
-  "upperarmright",
-  "r_upperarm",
-  "rupperarm",
-  "upperarm.r",
-  "bip01_r_upperarm"
-];
-const RIGHT_FOREARM_PATTERNS = [
-  "mixamorig:rightforearm",
-  "rightforearm",
-  "right_forearm",
-  "forearm_r",
-  "lowerarm_r",
-  "lowerarmright",
-  "r_forearm",
-  "rforearm",
-  "forearm.r",
-  "lowerarm.r",
-  "bip01_r_forearm"
-];
-const RIGHT_HAND_PATTERNS = [
-  "mixamorig:righthand",
-  "righthand",
-  "right_hand",
-  "hand_r",
-  "handright",
-  "r_hand",
-  "rhand",
-  "hand.r",
-  "bip01_r_hand"
-];
-function findBoneByPatterns(root, patterns) {
-  let found = null;
-  root.traverse((c2) => {
-    if (found) return;
-    if (c2.isBone || c2.type === "Bone") {
-      const name2 = c2.name.toLowerCase();
-      for (const p2 of patterns) {
-        if (name2.includes(p2)) {
-          found = c2;
-          return;
-        }
-      }
-    }
-  });
-  return found;
-}
-const PICKUP_EXTEND = 0.3;
-const PICKUP_HOLD = 0.5;
-const PICKUP_RETRACT = 0.4;
-const PICKUP_TOTAL = PICKUP_EXTEND + PICKUP_HOLD + PICKUP_RETRACT;
-const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) => {
+const Avatar = ({ animation, visible = true }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL);
   const { animations: idleAnims } = useGLTF(IDLE_URL);
   const { actions } = useAnimations(reactExports.useMemo(() => {
@@ -98303,20 +98083,8 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) 
   const opRef = reactExports.useRef(1);
   const meshesRef = reactExports.useRef([]);
   const [groundY, setGroundY] = reactExports.useState(0);
-  const armBoneRef = reactExports.useRef(null);
-  const forearmBoneRef = reactExports.useRef(null);
-  const handBoneRef = reactExports.useRef(null);
-  const armOrigRotRef = reactExports.useRef(new Euler());
-  const forearmOrigRotRef = reactExports.useRef(new Euler());
-  const [hasArmBones, setHasArmBones] = reactExports.useState(false);
-  const pickupTimeRef = reactExports.useRef(-1);
-  const lastPickupTriggerRef = reactExports.useRef(0);
-  const procArmRef = reactExports.useRef(null);
-  const visibleRef = reactExports.useRef(visible);
-  visibleRef.current = visible;
   reactExports.useEffect(() => {
     const meshes = [];
-    const boneNames = [];
     scene.traverse((c2) => {
       if (c2.isMesh) {
         if (c2.material) {
@@ -98336,30 +98104,8 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) 
           hipsBindRef.current = c2.position.clone();
         }
       }
-      if (c2.isBone || c2.type === "Bone") {
-        boneNames.push(c2.name);
-      }
     });
     meshesRef.current = meshes;
-    console.log("[Avatar] All bones found:", boneNames);
-    const arm = findBoneByPatterns(scene, RIGHT_ARM_PATTERNS);
-    const forearm = findBoneByPatterns(scene, RIGHT_FOREARM_PATTERNS);
-    const hand = findBoneByPatterns(scene, RIGHT_HAND_PATTERNS);
-    armBoneRef.current = arm;
-    forearmBoneRef.current = forearm;
-    handBoneRef.current = hand;
-    const found = !!(arm || forearm);
-    setHasArmBones(found);
-    if (arm) {
-      armOrigRotRef.current.copy(arm.rotation);
-      console.log("[Avatar] Found upper arm bone:", arm.name);
-    }
-    if (forearm) {
-      forearmOrigRotRef.current.copy(forearm.rotation);
-      console.log("[Avatar] Found forearm bone:", forearm.name);
-    }
-    if (hand) console.log("[Avatar] Found hand bone:", hand.name);
-    if (!found) console.warn("[Avatar] No arm bones found — will use procedural arm fallback");
     try {
       scene.updateMatrixWorld(true);
       const box = new Box3().setFromObject(scene);
@@ -98367,61 +98113,12 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) 
     } catch {
     }
   }, [scene]);
-  const onSceneReadyRef = reactExports.useRef(onSceneReady);
-  onSceneReadyRef.current = onSceneReady;
-  reactExports.useEffect(() => {
-    if (onSceneReadyRef.current && scene) onSceneReadyRef.current(scene);
-    return () => {
-      if (onSceneReadyRef.current) onSceneReadyRef.current(null);
-    };
-  }, [scene]);
-  reactExports.useEffect(() => {
-    if (pickupTrigger !== lastPickupTriggerRef.current && pickupTrigger > 0) {
-      lastPickupTriggerRef.current = pickupTrigger;
-      pickupTimeRef.current = 0;
-    }
-  }, [pickupTrigger]);
-  useFrame((_, dt2) => {
-    if (pickupTimeRef.current < 0) return;
-    const safeDt = Math.min(dt2, 0.05);
-    pickupTimeRef.current += safeDt;
-    const t2 = pickupTimeRef.current;
-    if (t2 >= PICKUP_TOTAL) {
-      pickupTimeRef.current = -1;
-      if (armBoneRef.current) {
-        armBoneRef.current.rotation.copy(armOrigRotRef.current);
-      }
-      if (forearmBoneRef.current) {
-        forearmBoneRef.current.rotation.copy(forearmOrigRotRef.current);
-      }
-      return;
-    }
-    let ext = 0;
-    if (t2 < PICKUP_EXTEND) {
-      const p2 = t2 / PICKUP_EXTEND;
-      ext = 1 - Math.pow(1 - p2, 3);
-    } else if (t2 < PICKUP_EXTEND + PICKUP_HOLD) {
-      ext = 1;
-    } else {
-      const p2 = (t2 - PICKUP_EXTEND - PICKUP_HOLD) / PICKUP_RETRACT;
-      ext = 1 - p2 * p2;
-    }
-    if (armBoneRef.current) {
-      const orig = armOrigRotRef.current;
-      armBoneRef.current.rotation.x = orig.x - ext * 1.2;
-      armBoneRef.current.rotation.z = orig.z - ext * 0.15;
-    }
-    if (forearmBoneRef.current) {
-      const orig = forearmOrigRotRef.current;
-      forearmBoneRef.current.rotation.x = orig.x - ext * 0.6;
-    }
-  }, 1);
   useFrame((s, dt2) => {
     if (hipsRef.current && hipsBindRef.current) {
       hipsRef.current.position.x = hipsBindRef.current.x;
       hipsRef.current.position.z = hipsBindRef.current.z;
     }
-    const tgt = visibleRef.current ? 1 : 0;
+    const tgt = visible ? 1 : 0;
     opRef.current = MathUtils.lerp(opRef.current, tgt, 8 * dt2);
     const op = opRef.current;
     const visibleMesh = op > 0.01;
@@ -98431,27 +98128,6 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) 
       if (m2.material) m2.material.opacity = op;
       m2.visible = visibleMesh;
     }
-    if (!hasArmBones && procArmRef.current) {
-      const g2 = procArmRef.current;
-      const t2 = pickupTimeRef.current;
-      if (t2 < 0) {
-        g2.visible = false;
-      } else {
-        g2.visible = true;
-        let ext = 0;
-        if (t2 < PICKUP_EXTEND) {
-          const p2 = t2 / PICKUP_EXTEND;
-          ext = 1 - Math.pow(1 - p2, 3);
-        } else if (t2 < PICKUP_EXTEND + PICKUP_HOLD) {
-          ext = 1;
-        } else if (t2 < PICKUP_TOTAL) {
-          const p2 = (t2 - PICKUP_EXTEND - PICKUP_HOLD) / PICKUP_RETRACT;
-          ext = 1 - p2 * p2;
-        }
-        g2.position.set(0.35, 1.35, 0);
-        g2.rotation.x = -ext * 0.8;
-      }
-    }
   });
   reactExports.useEffect(() => {
     const a2 = actions[animation === "Walking" ? "Walking" : "Idle"];
@@ -98459,32 +98135,9 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) 
     if (o2) o2.fadeOut(0.2);
     if (a2) a2.reset().fadeIn(0.2).play();
   }, [animation, actions]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }),
-    !hasArmBones && /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: procArmRef, visible: false, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.14], rotation: [Math.PI / 2, 0, 0], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.05, 0.3, 8] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.02, 0.35], rotation: [Math.PI / 2 + 0.15, 0, 0], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.035, 0.04, 0.28, 8] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.04, 0.5], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.045, 8, 6] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
-      ] }),
-      [0, 1, 2, 3].map((i2) => {
-        const angle = (i2 - 1.5) * 0.2;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [Math.sin(angle) * 0.03, -0.04, 0.56], rotation: [0.3, 0, angle * 0.5], children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.012, 0.01, 0.06, 6] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
-        ] }, i2);
-      })
-    ] })
-  ] });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }) });
 };
-const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, onAvatarScene, pickupTrigger }) => {
+const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }) => {
   const { camera, size } = useThree();
   const pos = reactExports.useRef(new Vector3(0, 0, 8));
   const charRot = reactExports.useRef(new Euler(0, Math.PI, 0));
@@ -98674,7 +98327,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       }
     }
   });
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Avatar, { animation: anim, visible: !dialogueOpen, onSceneReady: onAvatarScene, pickupTrigger }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Avatar, { animation: anim, visible: !dialogueOpen }) });
 };
 const TextureMaterial = React.memo(({ url, color = "#ffffff", repeat: repeat2 = [1, 1], roughness = 0.8, metalness = 0, bumpScale = 0, transparent = false, opacity = 1, rotation: rotation2 = 0 }) => {
   const rawTexture = useTexture(url);
@@ -101958,507 +101611,6 @@ function getDepth(obj) {
   }
   return d;
 }
-const defaultInventory = {
-  flashlight: { owned: false, active: false },
-  cookie: { count: 0 }
-};
-function useInventory() {
-  const [inventory, setInventory] = reactExports.useState(defaultInventory);
-  const addItem = reactExports.useCallback((itemId) => {
-    setInventory((prev) => {
-      if (itemId === "flashlight" && !prev.flashlight.owned) {
-        return { ...prev, flashlight: { owned: true, active: false } };
-      }
-      if (itemId === "cookie") {
-        return { ...prev, cookie: { count: prev.cookie.count + 1 } };
-      }
-      return prev;
-    });
-  }, []);
-  const toggleFlashlight = reactExports.useCallback(() => {
-    setInventory((prev) => {
-      if (!prev.flashlight.owned) return prev;
-      return { ...prev, flashlight: { ...prev.flashlight, active: !prev.flashlight.active } };
-    });
-  }, []);
-  const useCookie = reactExports.useCallback(() => {
-    let success = false;
-    setInventory((prev) => {
-      if (prev.cookie.count <= 0) return prev;
-      success = true;
-      return { ...prev, cookie: { count: prev.cookie.count - 1 } };
-    });
-    return success;
-  }, []);
-  const hasAnyItem = inventory.flashlight.owned || inventory.cookie.count > 0;
-  return { inventory, addItem, toggleFlashlight, useCookie, hasAnyItem };
-}
-const CookieBadge = ({ count, onUse }) => {
-  const [anim, setAnim] = reactExports.useState(false);
-  const prevCount = reactExports.useRef(count);
-  if (count < prevCount.current && !anim) {
-    setAnim(true);
-    setTimeout(() => setAnim(false), 600);
-  }
-  prevCount.current = count;
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-    "button",
-    {
-      type: "button",
-      onClick: onUse,
-      disabled: count <= 0,
-      className: "relative w-12 h-12 flex items-center justify-center\n                 bg-black/50 backdrop-blur-md border border-white/15 rounded-xl\n                 active:scale-90 transition-all touch-manipulation\n                 disabled:opacity-40 disabled:active:scale-100",
-      "aria-label": `Usar biscoito (${count})`,
-      children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "22", height: "22", viewBox: "0 0 24 24", fill: "none", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "12", cy: "12", r: "10", fill: "#D2A06B", stroke: "#A0744B", strokeWidth: "1.2" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "8.5", cy: "9", r: "1.4", fill: "#6B3E1F" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "14", cy: "8", r: "1.2", fill: "#6B3E1F" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "11", cy: "14", r: "1.3", fill: "#6B3E1F" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "16", cy: "13.5", r: "1", fill: "#6B3E1F" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M3.5 11a10 10 0 0 1 4-7", stroke: "#E8C99B", strokeWidth: "1", strokeLinecap: "round" })
-        ] }),
-        count > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center\n                         bg-amber-500 text-black text-[10px] font-bold rounded-full px-1 leading-none\n                         shadow-[0_0_6px_rgba(245,158,11,0.5)]", children: count }),
-        anim && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "absolute -top-3 left-1/2 -translate-x-1/2 text-amber-300 text-xs font-bold\n                         animate-cookie-use pointer-events-none", children: "+1" })
-      ]
-    }
-  );
-};
-const InventoryHUD = ({
-  inventory,
-  onToggleFlashlight,
-  onUseCookie,
-  hasAnyItem
-}) => {
-  const [notification, setNotification] = reactExports.useState(null);
-  const [cookieEffect, setCookieEffect] = reactExports.useState(false);
-  const [mounted, setMounted] = reactExports.useState(false);
-  const prevFlashlight = reactExports.useRef(inventory.flashlight.owned);
-  const prevCookies = reactExports.useRef(inventory.cookie.count);
-  const [flashNew, setFlashNew] = reactExports.useState(false);
-  const [cookieNew, setCookieNew] = reactExports.useState(false);
-  if (inventory.flashlight.owned && !prevFlashlight.current) {
-    prevFlashlight.current = true;
-    setFlashNew(true);
-    setTimeout(() => setFlashNew(false), 800);
-    setNotification("🔦 Lanterna obtida!");
-    setTimeout(() => setNotification(null), 2500);
-  }
-  if (inventory.cookie.count > prevCookies.current) {
-    setCookieNew(true);
-    setTimeout(() => setCookieNew(false), 800);
-    setNotification("🍪 Biscoito obtido!");
-    setTimeout(() => setNotification(null), 2500);
-  }
-  prevCookies.current = inventory.cookie.count;
-  if (hasAnyItem && !mounted) setMounted(true);
-  const handleUseCookie = () => {
-    if (onUseCookie()) {
-      setCookieEffect(true);
-      setTimeout(() => setCookieEffect(false), 1800);
-      setNotification("🍪 Biscoito consumido!");
-      setTimeout(() => setNotification(null), 2500);
-    }
-  };
-  if (!hasAnyItem && !notification && !cookieEffect) return null;
-  const { flashlight, cookie } = inventory;
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-    hasAnyItem && /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "div",
-      {
-        className: `
-            fixed z-[52] pointer-events-auto
-            bottom-[calc(env(safe-area-inset-bottom,0px)+96px)]
-            left-1/2 -translate-x-1/2
-            landscape:bottom-auto
-            landscape:right-[calc(env(safe-area-inset-right,0px)+14px)]
-            landscape:left-auto landscape:translate-x-0
-            landscape:top-1/2 landscape:-translate-y-1/2
-            ${mounted ? "animate-inventory-enter" : ""}
-          `,
-        children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "\n            flex items-center gap-3\n            landscape:flex-col landscape:gap-3\n            bg-black/40 backdrop-blur-xl\n            border border-white/10\n            rounded-2xl\n            px-3 py-2\n            landscape:px-2 landscape:py-3\n            shadow-[0_4px_24px_rgba(0,0,0,0.4)]\n          ", children: [
-          flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsxs(
-            "button",
-            {
-              type: "button",
-              onClick: onToggleFlashlight,
-              className: `
-                  relative w-12 h-12 flex items-center justify-center
-                  bg-black/50 backdrop-blur-md rounded-xl
-                  active:scale-90 transition-all touch-manipulation
-                  ${flashlight.active ? "border-2 border-amber-400/80 shadow-[0_0_14px_rgba(251,191,36,0.45)]" : "border border-white/15"}
-                  ${flashNew ? "animate-item-appear" : ""}
-                `,
-              "aria-label": flashlight.active ? "Desligar lanterna" : "Ligar lanterna",
-              children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "22", height: "22", viewBox: "0 0 24 24", fill: "none", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "rect",
-                    {
-                      x: "10",
-                      y: "2",
-                      width: "4",
-                      height: "8",
-                      rx: "1",
-                      fill: flashlight.active ? "#FFD54F" : "#888",
-                      stroke: flashlight.active ? "#FFA000" : "#666",
-                      strokeWidth: "0.8"
-                    }
-                  ),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "rect",
-                    {
-                      x: "8",
-                      y: "10",
-                      width: "8",
-                      height: "6",
-                      rx: "1.5",
-                      fill: flashlight.active ? "#555" : "#444",
-                      stroke: "#333",
-                      strokeWidth: "0.8"
-                    }
-                  ),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("rect", { x: "9", y: "16", width: "6", height: "3", rx: "1", fill: flashlight.active ? "#444" : "#333" }),
-                  flashlight.active && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "12", y1: "2", x2: "12", y2: "0", stroke: "#FFD54F", strokeWidth: "1.5", strokeLinecap: "round", opacity: "0.7" }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "8", y1: "3", x2: "6", y2: "1.5", stroke: "#FFD54F", strokeWidth: "1", strokeLinecap: "round", opacity: "0.5" }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "16", y1: "3", x2: "18", y2: "1.5", stroke: "#FFD54F", strokeWidth: "1", strokeLinecap: "round", opacity: "0.5" })
-                  ] })
-                ] }),
-                flashlight.active && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 rounded-xl bg-amber-400/10 animate-pulse pointer-events-none" })
-              ]
-            }
-          ),
-          cookie.count > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: cookieNew ? "animate-item-appear" : "", children: /* @__PURE__ */ jsxRuntimeExports.jsx(CookieBadge, { count: cookie.count, onUse: handleUseCookie }) })
-        ] })
-      }
-    ),
-    notification && /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "div",
-      {
-        className: "fixed z-[55] left-1/2 -translate-x-1/2 pointer-events-none\n                     bottom-[calc(env(safe-area-inset-bottom,0px)+160px)]\n                     landscape:bottom-auto landscape:top-[calc(env(safe-area-inset-top,0px)+60px)]",
-        style: { animation: "notifSlideIn 300ms ease-out forwards" },
-        children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/70 backdrop-blur-xl border border-amber-500/30 rounded-xl\n                          px-4 py-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.5)]\n                          text-amber-200 text-sm font-medium tracking-wide\n                          whitespace-nowrap", children: notification })
-      }
-    ),
-    cookieEffect && /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "div",
-      {
-        className: "fixed inset-0 z-[51] pointer-events-none",
-        style: {
-          background: "radial-gradient(ellipse at center, rgba(74,222,128,0.2) 0%, rgba(74,222,128,0.05) 50%, transparent 80%)",
-          animation: "cookieHealPulse 1800ms ease-out forwards"
-        }
-      }
-    ),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("style", { children: `
-        @keyframes cookieUse {
-          0%   { opacity: 1; transform: translate(-50%, 0) scale(1); }
-          100% { opacity: 0; transform: translate(-50%, -16px) scale(1.2); }
-        }
-        .animate-cookie-use { animation: cookieUse 600ms ease-out forwards; }
-        @keyframes itemAppear {
-          0%   { opacity: 0; transform: scale(0.3); filter: brightness(3); }
-          50%  { opacity: 1; transform: scale(1.15); filter: brightness(2); }
-          75%  { transform: scale(0.95); filter: brightness(1.2); }
-          100% { transform: scale(1); filter: brightness(1); }
-        }
-        .animate-item-appear { animation: itemAppear 800ms ease-out forwards; }
-        @keyframes inventoryEnterPortrait {
-          0%   { opacity: 0; transform: translateX(-50%) translateY(20px); }
-          100% { opacity: 1; transform: translateX(-50%) translateY(0); }
-        }
-        @keyframes inventoryEnterLandscape {
-          0%   { opacity: 0; transform: translateY(-50%) translateX(20px); }
-          100% { opacity: 1; transform: translateY(-50%) translateX(0); }
-        }
-        .animate-inventory-enter {
-          animation: inventoryEnterPortrait 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        @media (orientation: landscape) {
-          .animate-inventory-enter { animation-name: inventoryEnterLandscape; }
-        }
-        @keyframes notifSlideIn {
-          0%   { opacity: 0; transform: translateY(12px) scale(0.95); }
-          100% { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes cookieHealPulse {
-          0%   { opacity: 0; }
-          15%  { opacity: 0.18; }
-          40%  { opacity: 0.12; }
-          100% { opacity: 0; }
-        }
-      ` })
-  ] });
-};
-const FlashlightLight = ({
-  active,
-  owned,
-  playerPositionRef,
-  cameraThetaRef,
-  zoomLevel,
-  nightMode
-}) => {
-  const spotRef = reactExports.useRef(null);
-  const targetRef = reactExports.useRef(null);
-  const coneRef = reactExports.useRef(null);
-  const intensityRef = reactExports.useRef(0);
-  const coneOpacityRef = reactExports.useRef(0);
-  const targetIntensity = active && owned ? nightMode ? 8 : 3 : 0;
-  const targetDistance = active && owned ? nightMode ? 25 : 15 : 0;
-  const _dir = reactExports.useMemo(() => new Vector3(), []);
-  const _targetPos = reactExports.useMemo(() => new Vector3(), []);
-  useFrame((_, dt2) => {
-    const spot = spotRef.current;
-    const target = targetRef.current;
-    const cone = coneRef.current;
-    if (!spot || !target) return;
-    if (!owned) {
-      if (intensityRef.current > 1e-3 || coneOpacityRef.current > 1e-3) {
-        intensityRef.current = 0;
-        coneOpacityRef.current = 0;
-        spot.intensity = 0;
-        spot.distance = 0;
-        if (cone) {
-          cone.visible = false;
-          cone.material.opacity = 0;
-        }
-      }
-      return;
-    }
-    const lerpSpeed = 5 * dt2;
-    intensityRef.current = MathUtils.lerp(intensityRef.current, targetIntensity, lerpSpeed);
-    spot.intensity = intensityRef.current;
-    spot.distance = MathUtils.lerp(spot.distance, targetDistance, lerpSpeed);
-    const pp = playerPositionRef.current;
-    const headY = 1.6;
-    spot.position.set(pp.x, headY, pp.z);
-    const theta = cameraThetaRef.current;
-    const lookDist = 5;
-    _dir.set(-Math.sin(theta), -0.15, -Math.cos(theta)).normalize();
-    _targetPos.set(pp.x + _dir.x * lookDist, headY + _dir.y * lookDist, pp.z + _dir.z * lookDist);
-    target.position.copy(_targetPos);
-    spot.target = target;
-    if (cone) {
-      const targetOp = active ? nightMode ? 0.08 : 0.04 : 0;
-      coneOpacityRef.current = MathUtils.lerp(coneOpacityRef.current, targetOp, lerpSpeed);
-      cone.material.opacity = coneOpacityRef.current;
-      cone.visible = coneOpacityRef.current > 5e-3;
-      const coneLen = nightMode ? 8 : 5;
-      cone.position.set(
-        pp.x + _dir.x * (coneLen * 0.5),
-        headY + _dir.y * (coneLen * 0.5),
-        pp.z + _dir.z * (coneLen * 0.5)
-      );
-      cone.lookAt(_targetPos);
-      const coneRadius = coneLen * Math.tan(0.45) * 0.8;
-      cone.scale.set(coneRadius, coneRadius, coneLen);
-    }
-  });
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "spotLight",
-      {
-        ref: spotRef,
-        color: "#FFF9C4",
-        angle: 0.45,
-        penumbra: 0.5,
-        decay: 2,
-        distance: 0,
-        intensity: 0,
-        position: [0, 1.6, 0]
-      }
-    ),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("object3D", { ref: targetRef, position: [0, 1.6, -5] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { ref: coneRef, visible: false, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [1, 1, 16, 1, true] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "meshBasicMaterial",
-        {
-          color: "#FFF9C4",
-          transparent: true,
-          opacity: 0,
-          side: DoubleSide,
-          depthWrite: false,
-          blending: AdditiveBlending
-        }
-      )
-    ] })
-  ] });
-};
-const FlashlightModel3D = ({
-  playerPositionRef,
-  cameraThetaRef,
-  active,
-  owned,
-  zoomLevel
-}) => {
-  const groupRef = reactExports.useRef(null);
-  const _offset2 = reactExports.useMemo(() => new Vector3(), []);
-  const _pos = reactExports.useMemo(() => new Vector3(), []);
-  useFrame(() => {
-    const g2 = groupRef.current;
-    if (!g2) return;
-    if (!owned || zoomLevel < 0.5) {
-      g2.visible = false;
-      return;
-    }
-    g2.visible = true;
-    const pp = playerPositionRef.current;
-    const theta = cameraThetaRef.current;
-    const rightAngle = theta - Math.PI / 2;
-    const sideDist = 0.35;
-    const fwdDist = 0.2;
-    _offset2.set(
-      -Math.sin(theta) * fwdDist + Math.sin(rightAngle) * sideDist,
-      0.75,
-      -Math.cos(theta) * fwdDist + Math.cos(rightAngle) * sideDist
-    );
-    _pos.copy(pp).add(_offset2);
-    g2.position.copy(_pos);
-    g2.rotation.y = theta + Math.PI;
-  });
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, -0.05], rotation: [Math.PI / 2, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.025, 0.025, 0.2, 8] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2a2a2e", metalness: 0.8, roughness: 0.2 })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, -0.18], rotation: [Math.PI / 2, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.035, 0.028, 0.06, 8] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a3a3e", metalness: 0.7, roughness: 0.25 })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, -0.215], rotation: [Math.PI / 2, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.032, 12] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "meshStandardMaterial",
-        {
-          color: active ? "#FFF9C4" : "#333",
-          emissive: active ? "#FFF9C4" : "#000",
-          emissiveIntensity: active ? 2 : 0,
-          toneMapped: false
-        }
-      )
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, -0.213], rotation: [Math.PI / 2, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("ringGeometry", { args: [0.03, 0.04, 16] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "meshStandardMaterial",
-        {
-          color: "#FFE082",
-          emissive: "#FFE082",
-          emissiveIntensity: active ? 1.5 : 0,
-          transparent: true,
-          opacity: active ? 0.7 : 0.15,
-          toneMapped: false
-        }
-      )
-    ] }),
-    active && /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { position: [0, 0, -0.35], scale: [0.15, 0.15, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "spriteMaterial",
-      {
-        color: "#FFF9C4",
-        transparent: true,
-        opacity: 0.4,
-        blending: AdditiveBlending,
-        depthWrite: false
-      }
-    ) })
-  ] });
-};
-const FP_BASE = { x: 0.25, y: -0.3, z: -0.5 };
-const FPFlashlightHand = ({ walking, active, owned }) => {
-  const groupRef = reactExports.useRef(null);
-  const timeRef = reactExports.useRef(0);
-  useFrame((_, dt2) => {
-    const g2 = groupRef.current;
-    if (!g2) return;
-    if (!owned || !active) {
-      g2.visible = false;
-      return;
-    }
-    g2.visible = true;
-    timeRef.current += dt2;
-    const t2 = timeRef.current;
-    const lerpFactor = walking ? 12 * dt2 : 4 * dt2;
-    if (walking) {
-      const bobFreq = 8;
-      const targetX = FP_BASE.x + Math.sin(t2 * bobFreq) * 0.012;
-      const targetY = FP_BASE.y + Math.abs(Math.sin(t2 * bobFreq)) * 8e-3;
-      const targetZ = FP_BASE.z + Math.sin(t2 * bobFreq * 0.5) * 4e-3;
-      const targetRotZ = Math.sin(t2 * bobFreq) * 0.03;
-      g2.position.x = MathUtils.lerp(g2.position.x, targetX, lerpFactor);
-      g2.position.y = MathUtils.lerp(g2.position.y, targetY, lerpFactor);
-      g2.position.z = MathUtils.lerp(g2.position.z, targetZ, lerpFactor);
-      g2.rotation.z = MathUtils.lerp(g2.rotation.z, targetRotZ, lerpFactor);
-    } else {
-      const targetX = FP_BASE.x + Math.sin(t2 * 1.2) * 3e-3;
-      const targetY = FP_BASE.y + Math.sin(t2 * 0.8) * 2e-3;
-      const targetRotZ = Math.sin(t2 * 1) * 0.01;
-      g2.position.x = MathUtils.lerp(g2.position.x, targetX, lerpFactor);
-      g2.position.y = MathUtils.lerp(g2.position.y, targetY, lerpFactor);
-      g2.position.z = MathUtils.lerp(g2.position.z, FP_BASE.z, lerpFactor);
-      g2.rotation.z = MathUtils.lerp(g2.rotation.z, targetRotZ, lerpFactor);
-    }
-  });
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, position: [FP_BASE.x, FP_BASE.y, FP_BASE.z], rotation: [0.2, -0.3, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.08, 0.12], rotation: [0.3, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.028, 0.035, 0.32, 8] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#E8B88A", roughness: 0.9, metalness: 0 })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.04, -0.03], rotation: [0.3, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.04, 8, 6] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#E8B88A", roughness: 0.9, metalness: 0 })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, 0.01, -0.05], rotation: [0.4, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.022, 0.022, 0.18, 8] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2a2a2e", metalness: 0.85, roughness: 0.15 })
-      ] }),
-      [0.03, 0.05, 0.07].map((z, i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, z], rotation: [0, 0, 0], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.024, 0.024, 0.012, 8] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1e", metalness: 0.6, roughness: 0.5 })
-      ] }, i2)),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.055], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.024, 0.024, 0.06, 8] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1e", metalness: 0.3, roughness: 0.8 })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, -0.1], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.032, 0.024, 0.05, 8] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a3a3e", metalness: 0.75, roughness: 0.2 })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.024, 0, 0.02], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.01, 8e-3, 0.025] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#555", metalness: 0.5, roughness: 0.4 })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, -0.128], rotation: [Math.PI / 2, 0, 0], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.03, 12] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "meshStandardMaterial",
-          {
-            color: active ? "#FFF9C4" : "#555",
-            emissive: active ? "#FFF9C4" : "#000",
-            emissiveIntensity: active ? 3 : 0,
-            toneMapped: false
-          }
-        )
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, -0.126], rotation: [Math.PI / 2, 0, 0], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("ringGeometry", { args: [0.028, 0.035, 12] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "meshStandardMaterial",
-          {
-            color: "#FFE082",
-            emissive: "#FFE082",
-            emissiveIntensity: active ? 1 : 0,
-            transparent: true,
-            opacity: active ? 0.6 : 0.2,
-            toneMapped: false
-          }
-        )
-      ] })
-    ] })
-  ] });
-};
 class CanvasErrorBoundary extends reactExports.Component {
   constructor() {
     super(...arguments);
@@ -102556,14 +101708,6 @@ function App() {
   const [houseDoorOpen, setHouseDoorOpen] = reactExports.useState(false);
   const [canInteractDoor, setCanInteractDoor] = reactExports.useState(false);
   const [doorSoundTrigger, setDoorSoundTrigger] = reactExports.useState(0);
-  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
-  const [pickupTrigger, setPickupTrigger] = reactExports.useState(0);
-  const [pickupItemType, setPickupItemType] = reactExports.useState(null);
-  const handleBuyItem = reactExports.useCallback((itemId) => {
-    inventoryAddItem(itemId);
-    setPickupItemType(itemId);
-    setPickupTrigger((prev) => prev + 1);
-  }, [inventoryAddItem]);
   const handleElevatorZoneChange = reactExports.useCallback((inside) => {
     setInsideElevator(inside);
   }, []);
@@ -103042,9 +102186,6 @@ function App() {
           else if (canInteractDoor && !houseDoorOpen) handleOpenDoor();
           else if (canSleepNow && gameState === "indoor_day") handleSleep();
           break;
-        case "f":
-          toggleFlashlight();
-          break;
       }
       upd();
     };
@@ -103072,7 +102213,7 @@ function App() {
       window.removeEventListener("keydown", kd);
       window.removeEventListener("keyup", ku);
     };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState, toggleFlashlight]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
   const visibleRemotePlayerIds = reactExports.useMemo(
     () => otherPlayerIds.slice(0, QUALITY_PROFILES[settings.quality].remoteLimit),
     [otherPlayerIds, settings.quality]
@@ -103109,10 +102250,7 @@ function App() {
         ] }) }), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
           visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightLight, { active: inventory.flashlight.active, owned: hasStarted && inventory.flashlight.owned, playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, zoomLevel, nightMode }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightModel3D, { playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, active: inventory.flashlight.active, owned: hasStarted && inventory.flashlight.owned, zoomLevel }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(FPFlashlightHand, { walking: playerAnimState === "walking", active: inventory.flashlight.active, owned: hasStarted && inventory.flashlight.owned }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
           botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
             BotSystem,
             {
@@ -103167,7 +102305,6 @@ function App() {
       )
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsMenu, { open: settingsOpen, onClose: () => setSettingsOpen(false) }),
-    hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(InventoryHUD, { inventory, onToggleFlashlight: toggleFlashlight, onUseCookie: useCookie, hasAnyItem }),
     hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(VisualJoystick, { active: joystickVisual.active, x: joystickVisual.currentX, y: joystickVisual.currentY, origin: { x: joystickVisual.originX, y: joystickVisual.originY } }),
     hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && !shopOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
       ActionButton,
@@ -103223,7 +102360,7 @@ function App() {
     hasStarted && gameState === "chase" && /* @__PURE__ */ jsxRuntimeExports.jsx(ChaseBanner, { elevatorActive: elevatorTimer !== null }),
     hasStarted && gameState === "saved" && /* @__PURE__ */ jsxRuntimeExports.jsx(SavedOverlay, {}),
     barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(BarneyDialogue, { dialogueNode: barneyDialogueNode, onResponse: handleBarneyResponse }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(ShopOverlay, { open: shopOpen, onClose: handleCloseShop, initialScene: shopInitialScene, onBuyItem: handleBuyItem })
+    /* @__PURE__ */ jsxRuntimeExports.jsx(ShopOverlay, { open: shopOpen, onClose: handleCloseShop, initialScene: shopInitialScene })
   ] });
 }
 clientExports.createRoot(document.getElementById("root")).render(
