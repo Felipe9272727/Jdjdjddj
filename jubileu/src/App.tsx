@@ -41,6 +41,56 @@ import { FlashlightLight, FlashlightModel3D, FPFlashlightHand } from './Flashlig
 
 const MAX_JOYSTICK_RADIUS = 50;
 
+// ─── Loading Fallback (SUSPENSE GIRL fix) ─────────────────────────────────
+// Visible loading indicator with timeout warning. Replaces the tiny dots that
+// were nearly invisible on a black background.
+const LoadingFallback = () => {
+  const [showTimeout, setShowTimeout] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setShowTimeout(true), 12000);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <Html center>
+      <div style={{
+        background: 'rgba(0,0,0,0.95)',
+        border: '1px solid rgba(251,191,36,0.3)',
+        borderRadius: '16px',
+        padding: '24px 32px',
+        textAlign: 'center',
+        backdropFilter: 'blur(20px)',
+        maxWidth: '320px',
+        zIndex: 999,
+      }}>
+        <div style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', marginBottom: '12px' }}>
+          The Normal Elevator
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: showTimeout ? '16px' : 0 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fbbf24', animation: 'pulse 1.5s infinite' }} />
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(251,191,36,0.6)', animation: 'pulse 1.5s infinite 0.2s' }} />
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(251,191,36,0.3)', animation: 'pulse 1.5s infinite 0.4s' }} />
+        </div>
+        {showTimeout && (
+          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '11px', marginTop: '12px', lineHeight: 1.6 }}>
+            Loading is taking longer than expected...<br />
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                marginTop: '10px', background: '#fbbf24', color: '#000',
+                border: 'none', borderRadius: '10px', padding: '8px 20px',
+                fontWeight: 800, fontSize: '12px', cursor: 'pointer',
+                letterSpacing: '0.05em',
+              }}
+            >
+              RELOAD
+            </button>
+          </div>
+        )}
+      </div>
+    </Html>
+  );
+};
+
 // ─── Game State Machine ───────────────────────────────────────────────────
 type GameState = 'lobby' | 'outdoor' | 'barney_greet' | 'indoor_day' | 'sleep_fade' | 'indoor_night' | 'chase' | 'caught' | 'saved';
 
@@ -117,6 +167,13 @@ export default function App() {
       return () => clearTimeout(safety);
     }
   }, [overlayOpacity]);
+  // Safety: if sleepFadeOpacity gets stuck > 0 (timeout race condition), force reset
+  useEffect(() => {
+    if (sleepFadeOpacity > 0) {
+      const safety = setTimeout(() => { console.warn('[safety] sleepFadeOpacity stuck — forcing reset'); setSleepFadeOpacity(0); }, 8000);
+      return () => clearTimeout(safety);
+    }
+  }, [sleepFadeOpacity]);
   const [travelPhase, setTravelPhase] = useState('idle');
   const elevatorHumStopRef = useRef<(() => void) | null>(null);
   const [floorReveal, setFloorReveal] = useState(false);
@@ -625,6 +682,18 @@ export default function App() {
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
       <CanvasErrorBoundary>
       <Canvas
+        // ✅ PIPELINE FIX: Detect WebGL context loss/restoration
+        onCreated={(state) => {
+          const canvas = state.gl.domElement;
+          canvas.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault();
+            console.error('[WebGL] Context lost — GPU may have crashed or tab was suspended');
+          });
+          canvas.addEventListener('webglcontextrestored', () => {
+            console.warn('[WebGL] Context restored — scene should re-render');
+            state.gl.setClearColor('#1a1410');
+          });
+        }}
         // NOTE: no `key` here. Re-keying on settings change would unmount/remount
         // the entire scene (and reload every GLB!), which is what was causing the
         // visible "cut/flash" mid-game. dpr is reactive in r3f; antialias change
@@ -640,7 +709,15 @@ export default function App() {
           outputColorSpace: SRGBColorSpace,
         }}
       >
-        <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
+        {/* ✅ SHADOW FIX: Background + base lighting OUTSIDE Suspense.
+            These don't depend on any assets — they guarantee the scene is never
+            pitch-black even if GLBs/textures are still loading. */}
+        <color attach="background" args={['#1a1410']} />
+        <fog attach="fog" args={['#1a1410', 8, 28]} />
+        <ambientLight intensity={0.45} color="#FFE0B2" />
+        <pointLight position={[0, 3.8, 0]} intensity={2.8} distance={22} color="#FFE0B2" decay={2} />
+
+        <Suspense fallback={<LoadingFallback />}>
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]}  />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no

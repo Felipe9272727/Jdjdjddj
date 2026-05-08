@@ -167,6 +167,11 @@ export const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPo
             <fog attach="fog" args={['#1a1410', 8, 28]} />
             <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0, 0]}><planeGeometry args={[W, L]} /><TextureMaterial url={ASSETS.lobbyFloor} repeat={[8, 8]} roughness={0.4} metalness={0.05} /></mesh>
             <mesh rotation={[Math.PI/2, 0, 0]} position={[0, H, 0]}><planeGeometry args={[W, L]} /><TextureMaterial url={ASSETS.ceiling} repeat={[6, 6]} roughness={0.9} /></mesh>
+            {/* SHADOW FIX: ambientLight restored here AND in App.tsx Canvas level.
+                The outside-Suspense one guarantees light during loading; this one
+                takes over once Suspense resolves. R3F merges lights additively,
+                but since both use the same intensity (0.45) the combined 0.9 is
+                acceptable — brighter during load is better than pitch black. */}
             <ambientLight intensity={0.45} color="#FFE0B2" />
             {/* Main lobby light handled by FluorescentFlicker in App.tsx (flicker effect) */}
             <pointLight position={[0, 3, -6]} intensity={1.5} distance={12} color="#FFF8E1" decay={2} />
