@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 
 // ─── Inventory Types ──────────────────────────────────────────────────────
 export interface InventoryState {
@@ -11,58 +11,27 @@ const defaultInventory: InventoryState = {
   cookie: { count: 0 },
 };
 
-// Inventory is session-only — never persisted across page reloads.
-// In a horror game the player should always start empty-handed.
-function loadInventory(): InventoryState {
-  return { ...defaultInventory };
-}
-
 // ─── useInventory Hook ────────────────────────────────────────────────────
+// Session-only — never persisted. The player always starts empty-handed.
 export function useInventory() {
-  const [inventory, setInventory] = useState<InventoryState>(loadInventory);
-  // A ref mirror so canvas-side components (FlashlightLight) can read state
-  // without causing re-renders in the Three.js tree.
-  const inventoryRef = useRef(inventory);
-  inventoryRef.current = inventory;
-
-  // Notification state for item acquisition toasts
-  const [notification, setNotification] = useState<string | null>(null);
-  const notifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showNotification = useCallback((msg: string) => {
-    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
-    setNotification(msg);
-    notifTimerRef.current = setTimeout(() => setNotification(null), 2500);
-  }, []);
-
-  useEffect(() => () => { if (notifTimerRef.current) clearTimeout(notifTimerRef.current); }, []);
+  const [inventory, setInventory] = useState<InventoryState>(defaultInventory);
 
   const addItem = useCallback((itemId: string) => {
     setInventory(prev => {
-      const next = { ...prev };
       if (itemId === 'flashlight' && !prev.flashlight.owned) {
-        next.flashlight = { owned: true, active: false };
-        showNotification('🔦 Lanterna obtida!');
+        return { ...prev, flashlight: { owned: true, active: false } };
       }
       if (itemId === 'cookie') {
-        next.cookie = { count: prev.cookie.count + 1 };
-        showNotification('🍪 Biscoito obtido!');
+        return { ...prev, cookie: { count: prev.cookie.count + 1 } };
       }
-      return next;
+      return prev;
     });
-  }, [showNotification]);
-
-  // Cookie consume visual effect state
-  const [cookieEffect, setCookieEffect] = useState(false);
-  const cookieTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  }, []);
 
   const toggleFlashlight = useCallback(() => {
     setInventory(prev => {
       if (!prev.flashlight.owned) return prev;
-      return {
-        ...prev,
-        flashlight: { ...prev.flashlight, active: !prev.flashlight.active },
-      };
+      return { ...prev, flashlight: { ...prev.flashlight, active: !prev.flashlight.active } };
     });
   }, []);
 
@@ -73,46 +42,32 @@ export function useInventory() {
       success = true;
       return { ...prev, cookie: { count: prev.cookie.count - 1 } };
     });
-    if (success) {
-      // Trigger the visual effect
-      if (cookieTimerRef.current) clearTimeout(cookieTimerRef.current);
-      setCookieEffect(true);
-      cookieTimerRef.current = setTimeout(() => setCookieEffect(false), 1800);
-      showNotification('🍪 Biscoito consumido!');
-    }
     return success;
-  }, [showNotification]);
-
-  useEffect(() => () => { if (cookieTimerRef.current) clearTimeout(cookieTimerRef.current); }, []);
+  }, []);
 
   const hasAnyItem = inventory.flashlight.owned || inventory.cookie.count > 0;
 
-  return { inventory, inventoryRef, addItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect };
+  return { inventory, addItem, toggleFlashlight, useCookie, hasAnyItem };
 }
 
 // ─── InventoryHUD Component ───────────────────────────────────────────────
+// Self-contained: manages its own notifications and visual effects.
 interface InventoryHUDProps {
   inventory: InventoryState;
   onToggleFlashlight: () => void;
   onUseCookie: () => boolean;
   hasAnyItem: boolean;
-  notification?: string | null;
-  cookieEffect?: boolean;
 }
 
-// Cookie "+1" animation state (local to the module so the HUD can trigger it)
 const CookieBadge: React.FC<{ count: number; onUse: () => void }> = ({ count, onUse }) => {
   const [anim, setAnim] = useState(false);
   const prevCount = useRef(count);
 
-  useEffect(() => {
-    if (count < prevCount.current) {
-      setAnim(true);
-      const t = setTimeout(() => setAnim(false), 600);
-      return () => clearTimeout(t);
-    }
-    prevCount.current = count;
-  }, [count]);
+  if (count < prevCount.current && !anim) {
+    setAnim(true);
+    setTimeout(() => setAnim(false), 600);
+  }
+  prevCount.current = count;
 
   return (
     <button
@@ -125,7 +80,6 @@ const CookieBadge: React.FC<{ count: number; onUse: () => void }> = ({ count, on
                  disabled:opacity-40 disabled:active:scale-100"
       aria-label={`Usar biscoito (${count})`}
     >
-      {/* Cookie SVG icon */}
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
         <circle cx="12" cy="12" r="10" fill="#D2A06B" stroke="#A0744B" strokeWidth="1.2"/>
         <circle cx="8.5" cy="9" r="1.4" fill="#6B3E1F"/>
@@ -134,7 +88,6 @@ const CookieBadge: React.FC<{ count: number; onUse: () => void }> = ({ count, on
         <circle cx="16" cy="13.5" r="1" fill="#6B3E1F"/>
         <path d="M3.5 11a10 10 0 0 1 4-7" stroke="#E8C99B" strokeWidth="1" strokeLinecap="round"/>
       </svg>
-      {/* Count badge */}
       {count > 0 && (
         <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center
                          bg-amber-500 text-black text-[10px] font-bold rounded-full px-1 leading-none
@@ -142,7 +95,6 @@ const CookieBadge: React.FC<{ count: number; onUse: () => void }> = ({ count, on
           {count}
         </span>
       )}
-      {/* "+1" animation on use */}
       {anim && (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-amber-300 text-xs font-bold
                          animate-cookie-use pointer-events-none">
@@ -158,34 +110,44 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
   onToggleFlashlight,
   onUseCookie,
   hasAnyItem,
-  notification,
-  cookieEffect,
 }) => {
-  const [prevOwned, setPrevOwned] = useState({ flashlight: false, cookie: false });
+  const [notification, setNotification] = useState<string | null>(null);
+  const [cookieEffect, setCookieEffect] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const prevFlashlight = useRef(inventory.flashlight.owned);
+  const prevCookies = useRef(inventory.cookie.count);
+
   const [flashNew, setFlashNew] = useState(false);
   const [cookieNew, setCookieNew] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
-  // Detect first-time item acquisition for flash/glow animation
-  useEffect(() => {
-    if (inventory.flashlight.owned && !prevOwned.flashlight) {
-      setFlashNew(true);
-      const t = setTimeout(() => setFlashNew(false), 800);
-      setPrevOwned(p => ({ ...p, flashlight: true }));
-      return () => clearTimeout(t);
-    }
-    if (inventory.cookie.count > 0 && !prevOwned.cookie) {
-      setCookieNew(true);
-      const t = setTimeout(() => setCookieNew(false), 800);
-      setPrevOwned(p => ({ ...p, cookie: true }));
-      return () => clearTimeout(t);
-    }
-  }, [inventory.flashlight.owned, inventory.cookie.count, prevOwned]);
+  // Detect first-time flashlight acquisition
+  if (inventory.flashlight.owned && !prevFlashlight.current) {
+    prevFlashlight.current = true;
+    setFlashNew(true);
+    setTimeout(() => setFlashNew(false), 800);
+    setNotification('🔦 Lanterna obtida!');
+    setTimeout(() => setNotification(null), 2500);
+  }
 
-  // Trigger enter animation once when HUD first appears
-  useEffect(() => {
-    if (hasAnyItem && !mounted) setMounted(true);
-  }, [hasAnyItem, mounted]);
+  // Detect new cookie
+  if (inventory.cookie.count > prevCookies.current) {
+    setCookieNew(true);
+    setTimeout(() => setCookieNew(false), 800);
+    setNotification('🍪 Biscoito obtido!');
+    setTimeout(() => setNotification(null), 2500);
+  }
+  prevCookies.current = inventory.cookie.count;
+
+  if (hasAnyItem && !mounted) setMounted(true);
+
+  const handleUseCookie = () => {
+    if (onUseCookie()) {
+      setCookieEffect(true);
+      setTimeout(() => setCookieEffect(false), 1800);
+      setNotification('🍪 Biscoito consumido!');
+      setTimeout(() => setNotification(null), 2500);
+    }
+  };
 
   if (!hasAnyItem && !notification && !cookieEffect) return null;
 
@@ -193,7 +155,6 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
 
   return (
     <>
-      {/* Inventory HUD buttons */}
       {hasAnyItem && (
         <div
           className={`
@@ -254,14 +215,13 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
 
             {cookie.count > 0 && (
               <div className={cookieNew ? 'animate-item-appear' : ''}>
-                <CookieBadge count={cookie.count} onUse={onUseCookie} />
+                <CookieBadge count={cookie.count} onUse={handleUseCookie} />
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Item acquisition notification toast */}
       {notification && (
         <div
           className="fixed z-[55] left-1/2 -translate-x-1/2 pointer-events-none
@@ -278,7 +238,6 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
         </div>
       )}
 
-      {/* Cookie heal effect — green vignette pulse */}
       {cookieEffect && (
         <div
           className="fixed inset-0 z-[51] pointer-events-none"

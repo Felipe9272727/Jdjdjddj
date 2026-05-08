@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
@@ -9,7 +9,48 @@ import { resolveCollision as _resolve } from './physics';
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
 
-const Avatar = ({ animation, visible = true, onSceneReady }: { animation: 'Idle' | 'Walking'; visible?: boolean; onSceneReady?: (scene: THREE.Object3D | null) => void }) => {
+// ─── Arm bone naming patterns (comprehensive) ───────────────────────────
+// Covers Mixamo, Unity, Unreal, and generic naming conventions
+const RIGHT_ARM_PATTERNS = [
+  'mixamorig:rightarm', 'rightarm', 'right_arm', 'arm_r', 'upperarm_r',
+  'upperarmright', 'r_upperarm', 'rupperarm', 'upperarm.r', 'bip01_r_upperarm',
+];
+const RIGHT_FOREARM_PATTERNS = [
+  'mixamorig:rightforearm', 'rightforearm', 'right_forearm', 'forearm_r',
+  'lowerarm_r', 'lowerarmright', 'r_forearm', 'rforearm', 'forearm.r',
+  'lowerarm.r', 'bip01_r_forearm',
+];
+const RIGHT_HAND_PATTERNS = [
+  'mixamorig:righthand', 'righthand', 'right_hand', 'hand_r', 'handright',
+  'r_hand', 'rhand', 'hand.r', 'bip01_r_hand',
+];
+
+function findBoneByPatterns(root: THREE.Object3D, patterns: string[]): THREE.Bone | null {
+  let found: THREE.Bone | null = null;
+  root.traverse((c) => {
+    if (found) return;
+    if ((c as any).isBone || c.type === 'Bone') {
+      const name = c.name.toLowerCase();
+      for (const p of patterns) {
+        if (name.includes(p)) { found = c as THREE.Bone; return; }
+      }
+    }
+  });
+  return found;
+}
+
+// Pickup animation timing (seconds)
+const PICKUP_EXTEND = 0.3;
+const PICKUP_HOLD = 0.5;   // 0.3 → 0.8
+const PICKUP_RETRACT = 0.4; // 0.8 → 1.2
+const PICKUP_TOTAL = PICKUP_EXTEND + PICKUP_HOLD + PICKUP_RETRACT;
+
+const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }: {
+  animation: 'Idle' | 'Walking';
+  visible?: boolean;
+  onSceneReady?: (scene: THREE.Object3D | null) => void;
+  pickupTrigger?: number;
+}) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
   const { actions } = useAnimations(useMemo(() => {
@@ -28,8 +69,25 @@ const Avatar = ({ animation, visible = true, onSceneReady }: { animation: 'Idle'
   // (which only worked for the original GLB; updated assets had different
   // origin offsets and made the avatar visibly float).
   const [groundY, setGroundY] = useState(0);
+
+  // ─── Arm bone refs for procedural pickup animation ───────────────────
+  const armBoneRef = useRef<THREE.Bone | null>(null);
+  const forearmBoneRef = useRef<THREE.Bone | null>(null);
+  const handBoneRef = useRef<THREE.Bone | null>(null);
+  const armOrigRotRef = useRef(new Euler());
+  const forearmOrigRotRef = useRef(new Euler());
+  const [hasArmBones, setHasArmBones] = useState(false);
+
+  // Pickup animation state
+  const pickupTimeRef = useRef(-1); // -1 = idle, >=0 = animating
+  const lastPickupTriggerRef = useRef(0);
+
+  // Procedural arm ref (fallback when no arm bones found)
+  const procArmRef = useRef<THREE.Group>(null);
+
   useEffect(() => {
      const meshes: any[] = [];
+     const boneNames: string[] = [];
      scene.traverse((c: any) => {
        if (c.isMesh) {
            if (c.material) {
@@ -45,8 +103,29 @@ const Avatar = ({ animation, visible = true, onSceneReady }: { animation: 'Idle'
                hipsBindRef.current = c.position.clone();
            }
        }
+       if (c.isBone || c.type === 'Bone') {
+           boneNames.push(c.name);
+       }
      });
      meshesRef.current = meshes;
+     console.log('[Avatar] All bones found:', boneNames);
+
+     // Find right arm bones with comprehensive pattern matching
+     const arm = findBoneByPatterns(scene, RIGHT_ARM_PATTERNS);
+     const forearm = findBoneByPatterns(scene, RIGHT_FOREARM_PATTERNS);
+     const hand = findBoneByPatterns(scene, RIGHT_HAND_PATTERNS);
+
+     armBoneRef.current = arm;
+     forearmBoneRef.current = forearm;
+     handBoneRef.current = hand;
+     const found = !!(arm || forearm);
+     setHasArmBones(found);
+
+     if (arm) { armOrigRotRef.current.copy(arm.rotation); console.log('[Avatar] Found upper arm bone:', arm.name); }
+     if (forearm) { forearmOrigRotRef.current.copy(forearm.rotation); console.log('[Avatar] Found forearm bone:', forearm.name); }
+     if (hand) console.log('[Avatar] Found hand bone:', hand.name);
+     if (!found) console.warn('[Avatar] No arm bones found — will use procedural arm fallback');
+
      // Bounding box in scene-local space (before our scale={[30,30,30]} multiplier).
      // We want the lowest visible point at world Y=0, so the primitive lift in
      // primitive-local units = -bbox.min.y.
@@ -63,6 +142,68 @@ const Avatar = ({ animation, visible = true, onSceneReady }: { animation: 'Idle'
     return () => { if (onSceneReady) onSceneReady(null); };
   }, [scene, onSceneReady]);
 
+  // ── Detect pickup trigger changes ──
+  useEffect(() => {
+    if (pickupTrigger !== lastPickupTriggerRef.current && pickupTrigger > 0) {
+      lastPickupTriggerRef.current = pickupTrigger;
+      pickupTimeRef.current = 0;
+    }
+  }, [pickupTrigger]);
+
+  // ── Pickup bone animation: HIGH PRIORITY (runs AFTER AnimationMixer) ──
+  // useFrame priority 1 ensures this runs after useAnimations' mixer.update()
+  // which happens at default priority 0. This is critical — if we ran at the
+  // same priority, the mixer would overwrite our bone rotations next frame.
+  useFrame((_, dt) => {
+    if (pickupTimeRef.current < 0) return;
+
+    const safeDt = Math.min(dt, 0.05);
+    pickupTimeRef.current += safeDt;
+    const t = pickupTimeRef.current;
+
+    if (t >= PICKUP_TOTAL) {
+      // Animation complete — restore original rotations
+      pickupTimeRef.current = -1;
+      if (armBoneRef.current) {
+        armBoneRef.current.rotation.copy(armOrigRotRef.current);
+      }
+      if (forearmBoneRef.current) {
+        forearmBoneRef.current.rotation.copy(forearmOrigRotRef.current);
+      }
+      return;
+    }
+
+    // Calculate extension factor (0 = rest, 1 = fully extended)
+    let ext = 0;
+    if (t < PICKUP_EXTEND) {
+      // Phase 1: Ease-out extend
+      const p = t / PICKUP_EXTEND;
+      ext = 1 - Math.pow(1 - p, 3);
+    } else if (t < PICKUP_EXTEND + PICKUP_HOLD) {
+      // Phase 2: Hold extended
+      ext = 1;
+    } else {
+      // Phase 3: Ease-in retract
+      const p = (t - PICKUP_EXTEND - PICKUP_HOLD) / PICKUP_RETRACT;
+      ext = 1 - p * p;
+    }
+
+    // Apply bone rotations (override what the AnimationMixer set)
+    if (armBoneRef.current) {
+      const orig = armOrigRotRef.current;
+      // Rotate upper arm forward (shoulder flexion)
+      armBoneRef.current.rotation.x = orig.x - ext * 1.2;
+      // Slight lateral rotation for natural look
+      armBoneRef.current.rotation.z = orig.z - ext * 0.15;
+    }
+    if (forearmBoneRef.current) {
+      const orig = forearmOrigRotRef.current;
+      // Bend elbow
+      forearmBoneRef.current.rotation.x = orig.x - ext * 0.6;
+    }
+  }, 1); // Priority 1: runs AFTER AnimationMixer at priority 0
+
+  // ── Visibility / opacity + procedural arm fallback (priority 0) ──
   useFrame((s, dt) => {
       // Reset only X/Z of the hips bone — keep Y so the natural walking bob
       // (vertical motion baked into the animation) plays through. Zeroing Y
@@ -81,7 +222,35 @@ const Avatar = ({ animation, visible = true, onSceneReady }: { animation: 'Idle'
           if (m.material) m.material.opacity = op;
           m.visible = visibleMesh;
       }
+
+      // ── Procedural arm fallback positioning ──
+      if (!hasArmBones && procArmRef.current) {
+        const g = procArmRef.current;
+        const t = pickupTimeRef.current;
+        if (t < 0) {
+          g.visible = false;
+        } else {
+          g.visible = true;
+          let ext = 0;
+          if (t < PICKUP_EXTEND) {
+            const p = t / PICKUP_EXTEND;
+            ext = 1 - Math.pow(1 - p, 3);
+          } else if (t < PICKUP_EXTEND + PICKUP_HOLD) {
+            ext = 1;
+          } else if (t < PICKUP_TOTAL) {
+            const p = (t - PICKUP_EXTEND - PICKUP_HOLD) / PICKUP_RETRACT;
+            ext = 1 - p * p;
+          }
+          // Position: the procedural arm lives in the avatar's group space.
+          // The primitive is at scale [30,30,30], so we need to work in the
+          // group-local coordinate system.
+          g.position.set(0.35, 1.35, 0); // right shoulder offset
+          // Tilt forward based on extension
+          g.rotation.x = -ext * 0.8;
+        }
+      }
   });
+
   useEffect(() => {
      const a = actions[animation === 'Walking' ? 'Walking' : 'Idle']; const o = actions[animation === 'Walking' ? 'Idle' : 'Walking'];
      if (o) o.fadeOut(0.2); if (a) a.reset().fadeIn(0.2).play();
@@ -91,6 +260,36 @@ const Avatar = ({ animation, visible = true, onSceneReady }: { animation: 'Idle'
   return (
     <group>
       <primitive object={scene} scale={[30, 30, 30]} position={[0, groundY, 0]} />
+      {/* Procedural arm fallback — only rendered when no arm bones found */}
+      {!hasArmBones && (
+        <group ref={procArmRef} visible={false}>
+          {/* Upper arm */}
+          <mesh position={[0, 0, 0.14]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.04, 0.05, 0.3, 8]} />
+            <meshStandardMaterial color="#D4A574" roughness={0.9} metalness={0} />
+          </mesh>
+          {/* Forearm */}
+          <mesh position={[0, -0.02, 0.35]} rotation={[Math.PI / 2 + 0.15, 0, 0]}>
+            <cylinderGeometry args={[0.035, 0.04, 0.28, 8]} />
+            <meshStandardMaterial color="#D4A574" roughness={0.9} metalness={0} />
+          </mesh>
+          {/* Hand */}
+          <mesh position={[0, -0.04, 0.5]}>
+            <sphereGeometry args={[0.045, 8, 6]} />
+            <meshStandardMaterial color="#D4A574" roughness={0.9} metalness={0} />
+          </mesh>
+          {/* Fingers (simplified) */}
+          {[0, 1, 2, 3].map(i => {
+            const angle = (i - 1.5) * 0.2;
+            return (
+              <mesh key={i} position={[Math.sin(angle) * 0.03, -0.04, 0.56]} rotation={[0.3, 0, angle * 0.5]}>
+                <cylinderGeometry args={[0.012, 0.01, 0.06, 6]} />
+                <meshStandardMaterial color="#D4A574" roughness={0.9} metalness={0} />
+              </mesh>
+            );
+          })}
+        </group>
+      )}
     </group>
   );
 };
@@ -119,9 +318,11 @@ interface PlayerProps {
   onElevatorZoneChange: (inside: boolean) => void;
   /** Called when avatar GLB scene is loaded, for bone manipulation */
   onAvatarScene?: (scene: THREE.Object3D | null) => void;
+  /** Increment to trigger pickup arm animation */
+  pickupTrigger?: number;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, onAvatarScene }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, onAvatarScene, pickupTrigger }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -281,5 +482,5 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
     }
   });
-  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} onSceneReady={onAvatarScene} /></group>);
+  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} onSceneReady={onAvatarScene} pickupTrigger={pickupTrigger} /></group>);
 };

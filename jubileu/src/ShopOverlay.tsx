@@ -45,8 +45,6 @@ interface ShopOverlayProps {
   initialScene?: string;
   /** Called when the player buys an item (e.g. 'flashlight', 'cookie'). */
   onBuyItem?: (itemId: string) => void;
-  /** When true, the bellhop sprite flashes (item purchase feedback) */
-  blink?: boolean;
 }
 
 const TIMINGS = {
@@ -57,7 +55,7 @@ const TIMINGS = {
   charDelay: 28,
 };
 
-export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem, blink }) => {
+export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) => {
   const [sceneId, setSceneId] = useState<string>(initialScene);
   const [pageIndex, setPageIndex] = useState(0);
   const [revealed, setRevealed] = useState(0);
@@ -466,36 +464,15 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
                     ? 'clamp(300px, 70vh, 460px)'
                     : 'clamp(340px, 58vh, 500px)',
                   aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
-                  filter: blink
-                    ? 'drop-shadow(0 12px 24px rgba(0,0,0,0.75)) brightness(4) saturate(0.1)'
-                    : 'drop-shadow(0 12px 24px rgba(0,0,0,0.75))',
+                  filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.75))',
                   opacity: showContent ? 1 : 0,
-                  transform: phase === 'idle'
-                    ? (blink ? 'translateY(0) scale(1.03)' : 'translateY(0)')
-                    : 'translateY(20px)',
-                  transition: blink
-                    ? 'filter 60ms ease-out, transform 60ms ease-out'
-                    : 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms, filter 300ms ease-out, transform 300ms ease-out',
+                  transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
+                  transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms, filter 300ms ease-out, transform 300ms ease-out',
                   pointerEvents: 'none',
                   position: 'relative',
                   zIndex: 1,
                 }}
               />
-              {/* White flash overlay on top of the sprite */}
-              {blink && (
-                <div
-                  className="shop-blink-flash"
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.9) 0%, rgba(255,230,150,0.5) 50%, transparent 80%)',
-                    pointerEvents: 'none',
-                    zIndex: 2,
-                    animation: 'shopBlinkFlash 600ms ease-out forwards',
-                    borderRadius: 4,
-                  }}
-                />
-              )}
             </div>
 
             {/* ── Dialog box ────────────────────────────────────────────

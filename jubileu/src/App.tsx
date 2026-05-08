@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, Loader } from '@react-three/drei';
-import { Vector3, Object3D, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
+import { Vector3, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 
 // ─── Error Boundary for Canvas ─────────────────────────────────────────────
 class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
@@ -35,7 +35,7 @@ import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, Chase
 import { SceneInspector } from './SceneInspector';
 import { useInventory, InventoryHUD } from './InventorySystem';
 import { FlashlightLight, FlashlightModel3D, FPFlashlightHand } from './FlashlightLight';
-import { PickupArmAnimator } from './PickupArm';
+
 
 
 const MAX_JOYSTICK_RADIUS = 50;
@@ -155,23 +155,17 @@ export default function App() {
   const [doorSoundTrigger, setDoorSoundTrigger] = useState(0);
 
   // ─── Inventory ─────────────────────────────────────────────────────────
-  const { inventory, inventoryRef, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect } = useInventory();
+  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
 
   // ─── Pickup animation state ────────────────────────────────────────────
   const [pickupTrigger, setPickupTrigger] = useState(0);
   const [pickupItemType, setPickupItemType] = useState<'flashlight' | 'cookie' | null>(null);
-  const [shopBlink, setShopBlink] = useState(false);
-  const [avatarScene, setAvatarScene] = useState<Object3D | null>(null);
-  const handleAvatarScene = useCallback((scene: Object3D | null) => setAvatarScene(scene), []);
 
   const handleBuyItem = useCallback((itemId: string) => {
     inventoryAddItem(itemId);
     // Trigger arm extension animation
     setPickupItemType(itemId as 'flashlight' | 'cookie');
     setPickupTrigger(prev => prev + 1);
-    // Trigger shop sprite blink
-    setShopBlink(true);
-    setTimeout(() => setShopBlink(false), 600);
   }, [inventoryAddItem]);
 
   const handleElevatorZoneChange = useCallback((inside: boolean) => {
@@ -647,13 +641,11 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} onAvatarScene={handleAvatarScene} />
-            {/* Pickup arm animation — manipulates GLB skeleton bones */}
-            <PickupArmAnimator trigger={pickupTrigger} avatarScene={avatarScene} cameraThetaRef={cameraThetaRef} playerPositionRef={sharedPlayerPositionRef} />
-            {/* ─── Flashlight 3D ─────────────────────────────────────── */}
-            {hasStarted && inventory.flashlight.owned && <FlashlightLight active={inventory.flashlight.active} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} zoomLevel={zoomLevel} nightMode={nightMode} />}
-            {hasStarted && inventory.flashlight.owned && zoomLevel >= 0.5 && <FlashlightModel3D playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} active={inventory.flashlight.active} zoomLevel={zoomLevel} />}
-            {hasStarted && zoomLevel < 0.5 && inventory.flashlight.owned && inventory.flashlight.active && <FPFlashlightHand walking={playerAnimState === 'walking'} active={inventory.flashlight.active} />}
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} />
+            {/* ─── Flashlight 3D (always mounted; components self-hide via `owned`) ─── */}
+            <FlashlightLight active={inventory.flashlight.active} owned={hasStarted && inventory.flashlight.owned} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} zoomLevel={zoomLevel} nightMode={nightMode} />
+            <FlashlightModel3D playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} active={inventory.flashlight.active} owned={hasStarted && inventory.flashlight.owned} zoomLevel={zoomLevel} />
+            <FPFlashlightHand walking={playerAnimState === 'walking'} active={inventory.flashlight.active} owned={hasStarted && inventory.flashlight.owned} />
             {botEnabled && (
                 <BotSystem
                     playerPositionRef={sharedPlayerPositionRef}
@@ -724,7 +716,7 @@ export default function App() {
       )}
 
       <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      {hasStarted && <InventoryHUD inventory={inventory} onToggleFlashlight={toggleFlashlight} onUseCookie={useCookie} hasAnyItem={hasAnyItem} notification={notification} cookieEffect={cookieEffect} />}
+      {hasStarted && <InventoryHUD inventory={inventory} onToggleFlashlight={toggleFlashlight} onUseCookie={useCookie} hasAnyItem={hasAnyItem} />}
       {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
       {/* ─── Bottom-center action buttons ─────────────────────────────────
           ABRIR/FALAR/DORMIR are mutually exclusive by game state, so they
@@ -793,7 +785,7 @@ export default function App() {
       {hasStarted && gameState === 'saved' && <SavedOverlay />}
       
       {barneyDialogueOpen && <BarneyDialogue dialogueNode={barneyDialogueNode} onResponse={handleBarneyResponse} />}
-      <ShopOverlay open={shopOpen} onClose={handleCloseShop} initialScene={shopInitialScene} onBuyItem={handleBuyItem} blink={shopBlink} />
+      <ShopOverlay open={shopOpen} onClose={handleCloseShop} initialScene={shopInitialScene} onBuyItem={handleBuyItem} />
     </div>
   );
 }

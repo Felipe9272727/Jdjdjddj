@@ -97589,7 +97589,7 @@ const TIMINGS = {
   exitClose: 600,
   charDelay: 28
 };
-const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem, blink }) => {
+const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) => {
   const [sceneId, setSceneId] = reactExports.useState(initialScene);
   const [pageIndex, setPageIndex] = reactExports.useState(0);
   const [revealed, setRevealed] = reactExports.useState(0);
@@ -97930,41 +97930,24 @@ const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem, blin
             },
             onClick: advanceOrSkip,
             children: showContent && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center px-4 max-w-2xl w-full", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { position: "relative", display: "inline-block" }, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  SpriteAnimator,
-                  {
-                    config: activeSpriteConfig,
-                    style: {
-                      height: isLandscape ? "clamp(300px, 70vh, 460px)" : "clamp(340px, 58vh, 500px)",
-                      aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
-                      filter: blink ? "drop-shadow(0 12px 24px rgba(0,0,0,0.75)) brightness(4) saturate(0.1)" : "drop-shadow(0 12px 24px rgba(0,0,0,0.75))",
-                      opacity: showContent ? 1 : 0,
-                      transform: phase === "idle" ? blink ? "translateY(0) scale(1.03)" : "translateY(0)" : "translateY(20px)",
-                      transition: blink ? "filter 60ms ease-out, transform 60ms ease-out" : "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms, filter 300ms ease-out, transform 300ms ease-out",
-                      pointerEvents: "none",
-                      position: "relative",
-                      zIndex: 1
-                    }
-                  },
-                  spriteMode
-                ),
-                blink && /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "div",
-                  {
-                    className: "shop-blink-flash",
-                    style: {
-                      position: "absolute",
-                      inset: 0,
-                      background: "radial-gradient(ellipse at center, rgba(255,255,255,0.9) 0%, rgba(255,230,150,0.5) 50%, transparent 80%)",
-                      pointerEvents: "none",
-                      zIndex: 2,
-                      animation: "shopBlinkFlash 600ms ease-out forwards",
-                      borderRadius: 4
-                    }
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { position: "relative", display: "inline-block" }, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                SpriteAnimator,
+                {
+                  config: activeSpriteConfig,
+                  style: {
+                    height: isLandscape ? "clamp(300px, 70vh, 460px)" : "clamp(340px, 58vh, 500px)",
+                    aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
+                    filter: "drop-shadow(0 12px 24px rgba(0,0,0,0.75))",
+                    opacity: showContent ? 1 : 0,
+                    transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
+                    transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms, filter 300ms ease-out, transform 300ms ease-out",
+                    pointerEvents: "none",
+                    position: "relative",
+                    zIndex: 1
                   }
-                )
-              ] }),
+                },
+                spriteMode
+              ) }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs(
                 "div",
                 {
@@ -98255,7 +98238,63 @@ const ElevatorDoor = ({ side, state: state2 }) => {
 };
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
-const Avatar = ({ animation, visible = true, onSceneReady }) => {
+const RIGHT_ARM_PATTERNS = [
+  "mixamorig:rightarm",
+  "rightarm",
+  "right_arm",
+  "arm_r",
+  "upperarm_r",
+  "upperarmright",
+  "r_upperarm",
+  "rupperarm",
+  "upperarm.r",
+  "bip01_r_upperarm"
+];
+const RIGHT_FOREARM_PATTERNS = [
+  "mixamorig:rightforearm",
+  "rightforearm",
+  "right_forearm",
+  "forearm_r",
+  "lowerarm_r",
+  "lowerarmright",
+  "r_forearm",
+  "rforearm",
+  "forearm.r",
+  "lowerarm.r",
+  "bip01_r_forearm"
+];
+const RIGHT_HAND_PATTERNS = [
+  "mixamorig:righthand",
+  "righthand",
+  "right_hand",
+  "hand_r",
+  "handright",
+  "r_hand",
+  "rhand",
+  "hand.r",
+  "bip01_r_hand"
+];
+function findBoneByPatterns(root, patterns) {
+  let found = null;
+  root.traverse((c2) => {
+    if (found) return;
+    if (c2.isBone || c2.type === "Bone") {
+      const name2 = c2.name.toLowerCase();
+      for (const p2 of patterns) {
+        if (name2.includes(p2)) {
+          found = c2;
+          return;
+        }
+      }
+    }
+  });
+  return found;
+}
+const PICKUP_EXTEND = 0.3;
+const PICKUP_HOLD = 0.5;
+const PICKUP_RETRACT = 0.4;
+const PICKUP_TOTAL = PICKUP_EXTEND + PICKUP_HOLD + PICKUP_RETRACT;
+const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL);
   const { animations: idleAnims } = useGLTF(IDLE_URL);
   const { actions } = useAnimations(reactExports.useMemo(() => {
@@ -98270,8 +98309,18 @@ const Avatar = ({ animation, visible = true, onSceneReady }) => {
   const opRef = reactExports.useRef(1);
   const meshesRef = reactExports.useRef([]);
   const [groundY, setGroundY] = reactExports.useState(0);
+  const armBoneRef = reactExports.useRef(null);
+  const forearmBoneRef = reactExports.useRef(null);
+  const handBoneRef = reactExports.useRef(null);
+  const armOrigRotRef = reactExports.useRef(new Euler());
+  const forearmOrigRotRef = reactExports.useRef(new Euler());
+  const [hasArmBones, setHasArmBones] = reactExports.useState(false);
+  const pickupTimeRef = reactExports.useRef(-1);
+  const lastPickupTriggerRef = reactExports.useRef(0);
+  const procArmRef = reactExports.useRef(null);
   reactExports.useEffect(() => {
     const meshes = [];
+    const boneNames = [];
     scene.traverse((c2) => {
       if (c2.isMesh) {
         if (c2.material) {
@@ -98291,8 +98340,30 @@ const Avatar = ({ animation, visible = true, onSceneReady }) => {
           hipsBindRef.current = c2.position.clone();
         }
       }
+      if (c2.isBone || c2.type === "Bone") {
+        boneNames.push(c2.name);
+      }
     });
     meshesRef.current = meshes;
+    console.log("[Avatar] All bones found:", boneNames);
+    const arm = findBoneByPatterns(scene, RIGHT_ARM_PATTERNS);
+    const forearm = findBoneByPatterns(scene, RIGHT_FOREARM_PATTERNS);
+    const hand = findBoneByPatterns(scene, RIGHT_HAND_PATTERNS);
+    armBoneRef.current = arm;
+    forearmBoneRef.current = forearm;
+    handBoneRef.current = hand;
+    const found = !!(arm || forearm);
+    setHasArmBones(found);
+    if (arm) {
+      armOrigRotRef.current.copy(arm.rotation);
+      console.log("[Avatar] Found upper arm bone:", arm.name);
+    }
+    if (forearm) {
+      forearmOrigRotRef.current.copy(forearm.rotation);
+      console.log("[Avatar] Found forearm bone:", forearm.name);
+    }
+    if (hand) console.log("[Avatar] Found hand bone:", hand.name);
+    if (!found) console.warn("[Avatar] No arm bones found — will use procedural arm fallback");
     try {
       scene.updateMatrixWorld(true);
       const box = new Box3().setFromObject(scene);
@@ -98306,6 +98377,47 @@ const Avatar = ({ animation, visible = true, onSceneReady }) => {
       if (onSceneReady) onSceneReady(null);
     };
   }, [scene, onSceneReady]);
+  reactExports.useEffect(() => {
+    if (pickupTrigger !== lastPickupTriggerRef.current && pickupTrigger > 0) {
+      lastPickupTriggerRef.current = pickupTrigger;
+      pickupTimeRef.current = 0;
+    }
+  }, [pickupTrigger]);
+  useFrame((_, dt2) => {
+    if (pickupTimeRef.current < 0) return;
+    const safeDt = Math.min(dt2, 0.05);
+    pickupTimeRef.current += safeDt;
+    const t2 = pickupTimeRef.current;
+    if (t2 >= PICKUP_TOTAL) {
+      pickupTimeRef.current = -1;
+      if (armBoneRef.current) {
+        armBoneRef.current.rotation.copy(armOrigRotRef.current);
+      }
+      if (forearmBoneRef.current) {
+        forearmBoneRef.current.rotation.copy(forearmOrigRotRef.current);
+      }
+      return;
+    }
+    let ext = 0;
+    if (t2 < PICKUP_EXTEND) {
+      const p2 = t2 / PICKUP_EXTEND;
+      ext = 1 - Math.pow(1 - p2, 3);
+    } else if (t2 < PICKUP_EXTEND + PICKUP_HOLD) {
+      ext = 1;
+    } else {
+      const p2 = (t2 - PICKUP_EXTEND - PICKUP_HOLD) / PICKUP_RETRACT;
+      ext = 1 - p2 * p2;
+    }
+    if (armBoneRef.current) {
+      const orig = armOrigRotRef.current;
+      armBoneRef.current.rotation.x = orig.x - ext * 1.2;
+      armBoneRef.current.rotation.z = orig.z - ext * 0.15;
+    }
+    if (forearmBoneRef.current) {
+      const orig = forearmOrigRotRef.current;
+      forearmBoneRef.current.rotation.x = orig.x - ext * 0.6;
+    }
+  }, 1);
   useFrame((s, dt2) => {
     if (hipsRef.current && hipsBindRef.current) {
       hipsRef.current.position.x = hipsBindRef.current.x;
@@ -98321,6 +98433,27 @@ const Avatar = ({ animation, visible = true, onSceneReady }) => {
       if (m2.material) m2.material.opacity = op;
       m2.visible = visibleMesh;
     }
+    if (!hasArmBones && procArmRef.current) {
+      const g2 = procArmRef.current;
+      const t2 = pickupTimeRef.current;
+      if (t2 < 0) {
+        g2.visible = false;
+      } else {
+        g2.visible = true;
+        let ext = 0;
+        if (t2 < PICKUP_EXTEND) {
+          const p2 = t2 / PICKUP_EXTEND;
+          ext = 1 - Math.pow(1 - p2, 3);
+        } else if (t2 < PICKUP_EXTEND + PICKUP_HOLD) {
+          ext = 1;
+        } else if (t2 < PICKUP_TOTAL) {
+          const p2 = (t2 - PICKUP_EXTEND - PICKUP_HOLD) / PICKUP_RETRACT;
+          ext = 1 - p2 * p2;
+        }
+        g2.position.set(0.35, 1.35, 0);
+        g2.rotation.x = -ext * 0.8;
+      }
+    }
   });
   reactExports.useEffect(() => {
     const a2 = actions[animation === "Walking" ? "Walking" : "Idle"];
@@ -98328,9 +98461,32 @@ const Avatar = ({ animation, visible = true, onSceneReady }) => {
     if (o2) o2.fadeOut(0.2);
     if (a2) a2.reset().fadeIn(0.2).play();
   }, [animation, actions]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }),
+    !hasArmBones && /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: procArmRef, visible: false, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.14], rotation: [Math.PI / 2, 0, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.05, 0.3, 8] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.02, 0.35], rotation: [Math.PI / 2 + 0.15, 0, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.035, 0.04, 0.28, 8] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.04, 0.5], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.045, 8, 6] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
+      ] }),
+      [0, 1, 2, 3].map((i2) => {
+        const angle = (i2 - 1.5) * 0.2;
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [Math.sin(angle) * 0.03, -0.04, 0.56], rotation: [0.3, 0, angle * 0.5], children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.012, 0.01, 0.06, 6] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
+        ] }, i2);
+      })
+    ] })
+  ] });
 };
-const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, onAvatarScene }) => {
+const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, onAvatarScene, pickupTrigger }) => {
   const { camera, size } = useThree();
   const pos = reactExports.useRef(new Vector3(0, 0, 8));
   const charRot = reactExports.useRef(new Euler(0, Math.PI, 0));
@@ -98520,7 +98676,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       }
     }
   });
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Avatar, { animation: anim, visible: !dialogueOpen, onSceneReady: onAvatarScene }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Avatar, { animation: anim, visible: !dialogueOpen, onSceneReady: onAvatarScene, pickupTrigger }) });
 };
 const TextureMaterial = React.memo(({ url, color = "#ffffff", repeat: repeat2 = [1, 1], roughness = 0.8, metalness = 0, bumpScale = 0, transparent = false, opacity = 1, rotation: rotation2 = 0 }) => {
   const rawTexture = useTexture(url);
@@ -101808,46 +101964,23 @@ const defaultInventory = {
   flashlight: { owned: false, active: false },
   cookie: { count: 0 }
 };
-function loadInventory() {
-  return { ...defaultInventory };
-}
 function useInventory() {
-  const [inventory, setInventory] = reactExports.useState(loadInventory);
-  const inventoryRef = reactExports.useRef(inventory);
-  inventoryRef.current = inventory;
-  const [notification, setNotification] = reactExports.useState(null);
-  const notifTimerRef = reactExports.useRef(null);
-  const showNotification = reactExports.useCallback((msg) => {
-    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
-    setNotification(msg);
-    notifTimerRef.current = setTimeout(() => setNotification(null), 2500);
-  }, []);
-  reactExports.useEffect(() => () => {
-    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
-  }, []);
+  const [inventory, setInventory] = reactExports.useState(defaultInventory);
   const addItem = reactExports.useCallback((itemId) => {
     setInventory((prev) => {
-      const next = { ...prev };
       if (itemId === "flashlight" && !prev.flashlight.owned) {
-        next.flashlight = { owned: true, active: false };
-        showNotification("🔦 Lanterna obtida!");
+        return { ...prev, flashlight: { owned: true, active: false } };
       }
       if (itemId === "cookie") {
-        next.cookie = { count: prev.cookie.count + 1 };
-        showNotification("🍪 Biscoito obtido!");
+        return { ...prev, cookie: { count: prev.cookie.count + 1 } };
       }
-      return next;
+      return prev;
     });
-  }, [showNotification]);
-  const [cookieEffect, setCookieEffect] = reactExports.useState(false);
-  const cookieTimerRef = reactExports.useRef(null);
+  }, []);
   const toggleFlashlight = reactExports.useCallback(() => {
     setInventory((prev) => {
       if (!prev.flashlight.owned) return prev;
-      return {
-        ...prev,
-        flashlight: { ...prev.flashlight, active: !prev.flashlight.active }
-      };
+      return { ...prev, flashlight: { ...prev.flashlight, active: !prev.flashlight.active } };
     });
   }, []);
   const useCookie = reactExports.useCallback(() => {
@@ -101857,31 +101990,19 @@ function useInventory() {
       success = true;
       return { ...prev, cookie: { count: prev.cookie.count - 1 } };
     });
-    if (success) {
-      if (cookieTimerRef.current) clearTimeout(cookieTimerRef.current);
-      setCookieEffect(true);
-      cookieTimerRef.current = setTimeout(() => setCookieEffect(false), 1800);
-      showNotification("🍪 Biscoito consumido!");
-    }
     return success;
-  }, [showNotification]);
-  reactExports.useEffect(() => () => {
-    if (cookieTimerRef.current) clearTimeout(cookieTimerRef.current);
   }, []);
   const hasAnyItem = inventory.flashlight.owned || inventory.cookie.count > 0;
-  return { inventory, inventoryRef, addItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect };
+  return { inventory, addItem, toggleFlashlight, useCookie, hasAnyItem };
 }
 const CookieBadge = ({ count, onUse }) => {
   const [anim, setAnim] = reactExports.useState(false);
   const prevCount = reactExports.useRef(count);
-  reactExports.useEffect(() => {
-    if (count < prevCount.current) {
-      setAnim(true);
-      const t2 = setTimeout(() => setAnim(false), 600);
-      return () => clearTimeout(t2);
-    }
-    prevCount.current = count;
-  }, [count]);
+  if (count < prevCount.current && !anim) {
+    setAnim(true);
+    setTimeout(() => setAnim(false), 600);
+  }
+  prevCount.current = count;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "button",
     {
@@ -101909,31 +102030,38 @@ const InventoryHUD = ({
   inventory,
   onToggleFlashlight,
   onUseCookie,
-  hasAnyItem,
-  notification,
-  cookieEffect
+  hasAnyItem
 }) => {
-  const [prevOwned, setPrevOwned] = reactExports.useState({ flashlight: false, cookie: false });
+  const [notification, setNotification] = reactExports.useState(null);
+  const [cookieEffect, setCookieEffect] = reactExports.useState(false);
+  const [mounted, setMounted] = reactExports.useState(false);
+  const prevFlashlight = reactExports.useRef(inventory.flashlight.owned);
+  const prevCookies = reactExports.useRef(inventory.cookie.count);
   const [flashNew, setFlashNew] = reactExports.useState(false);
   const [cookieNew, setCookieNew] = reactExports.useState(false);
-  const [mounted, setMounted] = reactExports.useState(false);
-  reactExports.useEffect(() => {
-    if (inventory.flashlight.owned && !prevOwned.flashlight) {
-      setFlashNew(true);
-      const t2 = setTimeout(() => setFlashNew(false), 800);
-      setPrevOwned((p2) => ({ ...p2, flashlight: true }));
-      return () => clearTimeout(t2);
+  if (inventory.flashlight.owned && !prevFlashlight.current) {
+    prevFlashlight.current = true;
+    setFlashNew(true);
+    setTimeout(() => setFlashNew(false), 800);
+    setNotification("🔦 Lanterna obtida!");
+    setTimeout(() => setNotification(null), 2500);
+  }
+  if (inventory.cookie.count > prevCookies.current) {
+    setCookieNew(true);
+    setTimeout(() => setCookieNew(false), 800);
+    setNotification("🍪 Biscoito obtido!");
+    setTimeout(() => setNotification(null), 2500);
+  }
+  prevCookies.current = inventory.cookie.count;
+  if (hasAnyItem && !mounted) setMounted(true);
+  const handleUseCookie = () => {
+    if (onUseCookie()) {
+      setCookieEffect(true);
+      setTimeout(() => setCookieEffect(false), 1800);
+      setNotification("🍪 Biscoito consumido!");
+      setTimeout(() => setNotification(null), 2500);
     }
-    if (inventory.cookie.count > 0 && !prevOwned.cookie) {
-      setCookieNew(true);
-      const t2 = setTimeout(() => setCookieNew(false), 800);
-      setPrevOwned((p2) => ({ ...p2, cookie: true }));
-      return () => clearTimeout(t2);
-    }
-  }, [inventory.flashlight.owned, inventory.cookie.count, prevOwned]);
-  reactExports.useEffect(() => {
-    if (hasAnyItem && !mounted) setMounted(true);
-  }, [hasAnyItem, mounted]);
+  };
   if (!hasAnyItem && !notification && !cookieEffect) return null;
   const { flashlight, cookie } = inventory;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
@@ -102003,7 +102131,7 @@ const InventoryHUD = ({
               ]
             }
           ),
-          cookie.count > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: cookieNew ? "animate-item-appear" : "", children: /* @__PURE__ */ jsxRuntimeExports.jsx(CookieBadge, { count: cookie.count, onUse: onUseCookie }) })
+          cookie.count > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: cookieNew ? "animate-item-appear" : "", children: /* @__PURE__ */ jsxRuntimeExports.jsx(CookieBadge, { count: cookie.count, onUse: handleUseCookie }) })
         ] })
       }
     ),
@@ -102067,6 +102195,7 @@ const InventoryHUD = ({
 };
 const FlashlightLight = ({
   active,
+  owned,
   playerPositionRef,
   cameraThetaRef,
   zoomLevel,
@@ -102077,8 +102206,8 @@ const FlashlightLight = ({
   const coneRef = reactExports.useRef(null);
   const intensityRef = reactExports.useRef(0);
   const coneOpacityRef = reactExports.useRef(0);
-  const targetIntensity = active ? nightMode ? 8 : 3 : 0;
-  const targetDistance = active ? nightMode ? 25 : 15 : 0;
+  const targetIntensity = active && owned ? nightMode ? 8 : 3 : 0;
+  const targetDistance = active && owned ? nightMode ? 25 : 15 : 0;
   const _dir = reactExports.useMemo(() => new Vector3(), []);
   const _targetPos = reactExports.useMemo(() => new Vector3(), []);
   useFrame((_, dt2) => {
@@ -102086,6 +102215,19 @@ const FlashlightLight = ({
     const target = targetRef.current;
     const cone = coneRef.current;
     if (!spot || !target) return;
+    if (!owned) {
+      if (intensityRef.current > 1e-3 || coneOpacityRef.current > 1e-3) {
+        intensityRef.current = 0;
+        coneOpacityRef.current = 0;
+        spot.intensity = 0;
+        spot.distance = 0;
+        if (cone) {
+          cone.visible = false;
+          cone.material.opacity = 0;
+        }
+      }
+      return;
+    }
     const lerpSpeed = 5 * dt2;
     intensityRef.current = MathUtils.lerp(intensityRef.current, targetIntensity, lerpSpeed);
     spot.intensity = intensityRef.current;
@@ -102150,6 +102292,7 @@ const FlashlightModel3D = ({
   playerPositionRef,
   cameraThetaRef,
   active,
+  owned,
   zoomLevel
 }) => {
   const groupRef = reactExports.useRef(null);
@@ -102158,7 +102301,7 @@ const FlashlightModel3D = ({
   useFrame(() => {
     const g2 = groupRef.current;
     if (!g2) return;
-    if (zoomLevel < 0.5) {
+    if (!owned || zoomLevel < 0.5) {
       g2.visible = false;
       return;
     }
@@ -102224,28 +102367,42 @@ const FlashlightModel3D = ({
     ) })
   ] });
 };
-const FPFlashlightHand = ({ walking, active }) => {
+const FP_BASE = { x: 0.25, y: -0.3, z: -0.5 };
+const FPFlashlightHand = ({ walking, active, owned }) => {
   const groupRef = reactExports.useRef(null);
   const timeRef = reactExports.useRef(0);
   useFrame((_, dt2) => {
-    timeRef.current += dt2;
     const g2 = groupRef.current;
     if (!g2) return;
+    if (!owned || !active) {
+      g2.visible = false;
+      return;
+    }
+    g2.visible = true;
+    timeRef.current += dt2;
     const t2 = timeRef.current;
+    const lerpFactor = walking ? 12 * dt2 : 4 * dt2;
     if (walking) {
       const bobFreq = 8;
-      g2.position.x = 0.25 + Math.sin(t2 * bobFreq) * 0.012;
-      g2.position.y = -0.3 + Math.abs(Math.sin(t2 * bobFreq)) * 8e-3;
-      g2.position.z = -0.5 + Math.sin(t2 * bobFreq * 0.5) * 4e-3;
-      g2.rotation.z = Math.sin(t2 * bobFreq) * 0.03;
+      const targetX = FP_BASE.x + Math.sin(t2 * bobFreq) * 0.012;
+      const targetY = FP_BASE.y + Math.abs(Math.sin(t2 * bobFreq)) * 8e-3;
+      const targetZ = FP_BASE.z + Math.sin(t2 * bobFreq * 0.5) * 4e-3;
+      const targetRotZ = Math.sin(t2 * bobFreq) * 0.03;
+      g2.position.x = MathUtils.lerp(g2.position.x, targetX, lerpFactor);
+      g2.position.y = MathUtils.lerp(g2.position.y, targetY, lerpFactor);
+      g2.position.z = MathUtils.lerp(g2.position.z, targetZ, lerpFactor);
+      g2.rotation.z = MathUtils.lerp(g2.rotation.z, targetRotZ, lerpFactor);
     } else {
-      g2.position.x = MathUtils.lerp(g2.position.x, 0.25 + Math.sin(t2 * 1.2) * 3e-3, 4 * dt2);
-      g2.position.y = MathUtils.lerp(g2.position.y, -0.3 + Math.sin(t2 * 0.8) * 2e-3, 4 * dt2);
-      g2.position.z = MathUtils.lerp(g2.position.z, -0.5, 4 * dt2);
-      g2.rotation.z = MathUtils.lerp(g2.rotation.z, Math.sin(t2 * 1) * 0.01, 4 * dt2);
+      const targetX = FP_BASE.x + Math.sin(t2 * 1.2) * 3e-3;
+      const targetY = FP_BASE.y + Math.sin(t2 * 0.8) * 2e-3;
+      const targetRotZ = Math.sin(t2 * 1) * 0.01;
+      g2.position.x = MathUtils.lerp(g2.position.x, targetX, lerpFactor);
+      g2.position.y = MathUtils.lerp(g2.position.y, targetY, lerpFactor);
+      g2.position.z = MathUtils.lerp(g2.position.z, FP_BASE.z, lerpFactor);
+      g2.rotation.z = MathUtils.lerp(g2.rotation.z, targetRotZ, lerpFactor);
     }
   });
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, position: [0.25, -0.3, -0.5], rotation: [0.2, -0.3, 0], children: [
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, position: [FP_BASE.x, FP_BASE.y, FP_BASE.z], rotation: [0.2, -0.3, 0], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.08, 0.12], rotation: [0.3, 0, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.028, 0.035, 0.32, 8] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#E8B88A", roughness: 0.9, metalness: 0 })
@@ -102302,196 +102459,6 @@ const FPFlashlightHand = ({ walking, active }) => {
         )
       ] })
     ] })
-  ] });
-};
-function findBone(root, ...patterns) {
-  let found = null;
-  root.traverse((c2) => {
-    if (found) return;
-    if (c2.isBone || c2.type === "Bone") {
-      const name2 = c2.name.toLowerCase();
-      for (const p2 of patterns) {
-        if (name2.includes(p2.toLowerCase())) {
-          found = c2;
-          return;
-        }
-      }
-    }
-  });
-  return found;
-}
-const RIGHT_ARM_PATTERNS = [
-  "rightarm",
-  "right_arm",
-  "arm_r",
-  "upperarm_r",
-  "upperarmright",
-  "r_upperarm",
-  "rupperarm",
-  "upperarm.r",
-  "bip01_r_upperarm",
-  // Mixamo specific (the colon is stripped by includes)
-  "mixamorig:rightarm"
-];
-const RIGHT_FOREARM_PATTERNS = [
-  "rightforearm",
-  "right_forearm",
-  "forearm_r",
-  "lowerarm_r",
-  "lowerarmright",
-  "r_forearm",
-  "rforearm",
-  "forearm.r",
-  "lowerarm.r",
-  "bip01_r_forearm",
-  "mixamorig:rightforearm"
-];
-const RIGHT_HAND_PATTERNS = [
-  "righthand",
-  "right_hand",
-  "hand_r",
-  "handright",
-  "r_hand",
-  "rhand",
-  "hand.r",
-  "bip01_r_hand",
-  "mixamorig:righthand"
-];
-const PHASE_EXTEND = 0.35;
-const PHASE_HOLD = 0.5;
-const PHASE_RETRACT = 0.35;
-const TOTAL_DURATION = PHASE_EXTEND + PHASE_HOLD + PHASE_RETRACT;
-const PickupArmAnimator = ({
-  trigger,
-  avatarScene,
-  cameraThetaRef,
-  playerPositionRef,
-  onComplete
-}) => {
-  const armBoneRef = reactExports.useRef(null);
-  const forearmBoneRef = reactExports.useRef(null);
-  const handBoneRef = reactExports.useRef(null);
-  const bonesFoundRef = reactExports.useRef(false);
-  const origArmRotRef = reactExports.useRef(new Euler());
-  const origForearmRotRef = reactExports.useRef(new Euler());
-  const progressRef = reactExports.useRef(-1);
-  const lastTriggerRef = reactExports.useRef(0);
-  const timeRef = reactExports.useRef(0);
-  const completeCbRef = reactExports.useRef(onComplete);
-  completeCbRef.current = onComplete;
-  const procGroupRef = reactExports.useRef(null);
-  const procExtensionRef = reactExports.useRef(0);
-  reactExports.useEffect(() => {
-    if (!avatarScene) {
-      bonesFoundRef.current = false;
-      return;
-    }
-    const arm = findBone(avatarScene, ...RIGHT_ARM_PATTERNS);
-    const forearm = findBone(avatarScene, ...RIGHT_FOREARM_PATTERNS);
-    const hand = findBone(avatarScene, ...RIGHT_HAND_PATTERNS);
-    if (arm) {
-      armBoneRef.current = arm;
-      origArmRotRef.current.copy(arm.rotation);
-    }
-    if (forearm) {
-      forearmBoneRef.current = forearm;
-      origForearmRotRef.current.copy(forearm.rotation);
-    }
-    handBoneRef.current = hand;
-    bonesFoundRef.current = !!(arm || forearm);
-  }, [avatarScene]);
-  useFrame((_, dt2) => {
-    var _a;
-    if (trigger !== lastTriggerRef.current) {
-      lastTriggerRef.current = trigger;
-      progressRef.current = 0;
-      timeRef.current = 0;
-    }
-    if (progressRef.current < 0) {
-      if (procGroupRef.current) procGroupRef.current.visible = false;
-      return;
-    }
-    const safeDt = Math.min(dt2, 0.05);
-    timeRef.current += safeDt;
-    const t2 = timeRef.current;
-    let extension = 0;
-    if (t2 < PHASE_EXTEND) {
-      const p2 = t2 / PHASE_EXTEND;
-      extension = 1 - Math.pow(1 - p2, 3);
-    } else if (t2 < PHASE_EXTEND + PHASE_HOLD) {
-      extension = 1;
-    } else if (t2 < TOTAL_DURATION) {
-      const p2 = (t2 - PHASE_EXTEND - PHASE_HOLD) / PHASE_RETRACT;
-      extension = 1 - p2 * p2;
-    } else {
-      extension = 0;
-      progressRef.current = -1;
-      if (armBoneRef.current) {
-        armBoneRef.current.rotation.copy(origArmRotRef.current);
-      }
-      if (forearmBoneRef.current) {
-        forearmBoneRef.current.rotation.copy(origForearmRotRef.current);
-      }
-      if (procGroupRef.current) procGroupRef.current.visible = false;
-      procExtensionRef.current = 0;
-      (_a = completeCbRef.current) == null ? void 0 : _a.call(completeCbRef);
-      return;
-    }
-    procExtensionRef.current = extension;
-    if (bonesFoundRef.current) {
-      if (armBoneRef.current) {
-        const orig = origArmRotRef.current;
-        armBoneRef.current.rotation.x = orig.x - extension * 1.2;
-        armBoneRef.current.rotation.z = orig.z - extension * 0.15;
-      }
-      if (forearmBoneRef.current) {
-        const orig = origForearmRotRef.current;
-        forearmBoneRef.current.rotation.x = orig.x - extension * 0.6;
-      }
-    }
-    if (procGroupRef.current) {
-      const g2 = procGroupRef.current;
-      if (!bonesFoundRef.current) {
-        g2.visible = true;
-      }
-      const pp = playerPositionRef.current;
-      const theta = cameraThetaRef.current;
-      const rightAngle = theta - Math.PI / 2;
-      const shoulderX = pp.x + Math.sin(rightAngle) * 0.35;
-      const shoulderZ = pp.z + Math.cos(rightAngle) * 0.35;
-      const shoulderY = pp.y + 1.35;
-      const fwdX = -Math.sin(theta);
-      const fwdZ = -Math.cos(theta);
-      g2.position.set(
-        shoulderX + fwdX * extension * 0.6,
-        shoulderY - extension * 0.15,
-        // slight downward reach
-        shoulderZ + fwdZ * extension * 0.6
-      );
-      g2.rotation.y = theta + Math.PI;
-      g2.rotation.x = -extension * 0.8;
-    }
-  });
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: procGroupRef, visible: false, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.14], rotation: [Math.PI / 2, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.05, 0.3, 8] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.02, 0.35], rotation: [Math.PI / 2 + 0.15, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.035, 0.04, 0.28, 8] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.04, 0.5], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.045, 8, 6] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
-    ] }),
-    [0, 1, 2, 3].map((i2) => {
-      const angle = (i2 - 1.5) * 0.2;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [Math.sin(angle) * 0.03, -0.04, 0.56], rotation: [0.3, 0, angle * 0.5], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.012, 0.01, 0.06, 6] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
-      ] }, i2);
-    })
   ] });
 };
 class CanvasErrorBoundary extends reactExports.Component {
@@ -102591,18 +102558,13 @@ function App() {
   const [houseDoorOpen, setHouseDoorOpen] = reactExports.useState(false);
   const [canInteractDoor, setCanInteractDoor] = reactExports.useState(false);
   const [doorSoundTrigger, setDoorSoundTrigger] = reactExports.useState(0);
-  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect } = useInventory();
+  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
   const [pickupTrigger, setPickupTrigger] = reactExports.useState(0);
   const [pickupItemType, setPickupItemType] = reactExports.useState(null);
-  const [shopBlink, setShopBlink] = reactExports.useState(false);
-  const [avatarScene, setAvatarScene] = reactExports.useState(null);
-  const handleAvatarScene = reactExports.useCallback((scene) => setAvatarScene(scene), []);
   const handleBuyItem = reactExports.useCallback((itemId) => {
     inventoryAddItem(itemId);
     setPickupItemType(itemId);
     setPickupTrigger((prev) => prev + 1);
-    setShopBlink(true);
-    setTimeout(() => setShopBlink(false), 600);
   }, [inventoryAddItem]);
   const handleElevatorZoneChange = reactExports.useCallback((inside) => {
     setInsideElevator(inside);
@@ -103149,11 +103111,10 @@ function App() {
         ] }) }), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
           visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, onAvatarScene: handleAvatarScene }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(PickupArmAnimator, { trigger: pickupTrigger, avatarScene, cameraThetaRef, playerPositionRef: sharedPlayerPositionRef }),
-          hasStarted && inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightLight, { active: inventory.flashlight.active, playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, zoomLevel, nightMode }),
-          hasStarted && inventory.flashlight.owned && zoomLevel >= 0.5 && /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightModel3D, { playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, active: inventory.flashlight.active, zoomLevel }),
-          hasStarted && zoomLevel < 0.5 && inventory.flashlight.owned && inventory.flashlight.active && /* @__PURE__ */ jsxRuntimeExports.jsx(FPFlashlightHand, { walking: playerAnimState === "walking", active: inventory.flashlight.active }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightLight, { active: inventory.flashlight.active, owned: hasStarted && inventory.flashlight.owned, playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, zoomLevel, nightMode }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightModel3D, { playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, active: inventory.flashlight.active, owned: hasStarted && inventory.flashlight.owned, zoomLevel }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(FPFlashlightHand, { walking: playerAnimState === "walking", active: inventory.flashlight.active, owned: hasStarted && inventory.flashlight.owned }),
           botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
             BotSystem,
             {
@@ -103208,7 +103169,7 @@ function App() {
       )
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsMenu, { open: settingsOpen, onClose: () => setSettingsOpen(false) }),
-    hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(InventoryHUD, { inventory, onToggleFlashlight: toggleFlashlight, onUseCookie: useCookie, hasAnyItem, notification, cookieEffect }),
+    hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(InventoryHUD, { inventory, onToggleFlashlight: toggleFlashlight, onUseCookie: useCookie, hasAnyItem }),
     hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(VisualJoystick, { active: joystickVisual.active, x: joystickVisual.currentX, y: joystickVisual.currentY, origin: { x: joystickVisual.originX, y: joystickVisual.originY } }),
     hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && !shopOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
       ActionButton,
@@ -103264,7 +103225,7 @@ function App() {
     hasStarted && gameState === "chase" && /* @__PURE__ */ jsxRuntimeExports.jsx(ChaseBanner, { elevatorActive: elevatorTimer !== null }),
     hasStarted && gameState === "saved" && /* @__PURE__ */ jsxRuntimeExports.jsx(SavedOverlay, {}),
     barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(BarneyDialogue, { dialogueNode: barneyDialogueNode, onResponse: handleBarneyResponse }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(ShopOverlay, { open: shopOpen, onClose: handleCloseShop, initialScene: shopInitialScene, onBuyItem: handleBuyItem, blink: shopBlink })
+    /* @__PURE__ */ jsxRuntimeExports.jsx(ShopOverlay, { open: shopOpen, onClose: handleCloseShop, initialScene: shopInitialScene, onBuyItem: handleBuyItem })
   ] });
 }
 clientExports.createRoot(document.getElementById("root")).render(

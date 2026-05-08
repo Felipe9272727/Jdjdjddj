@@ -1,10 +1,11 @@
 import React, { useRef, useMemo } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 // ─── FlashlightLight: SpotLight + volumetric cone ─────────────────────────
 interface FlashlightLightProps {
   active: boolean;
+  owned: boolean;
   playerPositionRef: React.MutableRefObject<THREE.Vector3>;
   cameraThetaRef: React.MutableRefObject<number>;
   zoomLevel: number;
@@ -13,6 +14,7 @@ interface FlashlightLightProps {
 
 export const FlashlightLight: React.FC<FlashlightLightProps> = ({
   active,
+  owned,
   playerPositionRef,
   cameraThetaRef,
   zoomLevel,
@@ -24,8 +26,8 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
   const intensityRef = useRef(0);
   const coneOpacityRef = useRef(0);
 
-  const targetIntensity = active ? (nightMode ? 8 : 3) : 0;
-  const targetDistance = active ? (nightMode ? 25 : 15) : 0;
+  const targetIntensity = active && owned ? (nightMode ? 8 : 3) : 0;
+  const targetDistance = active && owned ? (nightMode ? 25 : 15) : 0;
 
   // Reuse vector objects to avoid GC
   const _dir = useMemo(() => new THREE.Vector3(), []);
@@ -36,6 +38,21 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
     const target = targetRef.current;
     const cone = coneRef.current;
     if (!spot || !target) return;
+
+    // When not owned, kill everything and bail
+    if (!owned) {
+      if (intensityRef.current > 0.001 || coneOpacityRef.current > 0.001) {
+        intensityRef.current = 0;
+        coneOpacityRef.current = 0;
+        spot.intensity = 0;
+        spot.distance = 0;
+        if (cone) {
+          cone.visible = false;
+          (cone.material as THREE.MeshBasicMaterial).opacity = 0;
+        }
+      }
+      return;
+    }
 
     // Smooth intensity lerp
     const lerpSpeed = 5 * dt;
@@ -113,6 +130,7 @@ interface FlashlightModel3DProps {
   playerPositionRef: React.MutableRefObject<THREE.Vector3>;
   cameraThetaRef: React.MutableRefObject<number>;
   active: boolean;
+  owned: boolean;
   zoomLevel: number;
 }
 
@@ -120,6 +138,7 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
   playerPositionRef,
   cameraThetaRef,
   active,
+  owned,
   zoomLevel,
 }) => {
   const groupRef = useRef<THREE.Group>(null);
@@ -132,8 +151,8 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
     const g = groupRef.current;
     if (!g) return;
 
-    // Hide in 1st person
-    if (zoomLevel < 0.5) {
+    // Hide when not owned or in 1st person
+    if (!owned || zoomLevel < 0.5) {
       g.visible = false;
       return;
     }
@@ -212,37 +231,59 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
 interface FPFlashlightHandProps {
   walking: boolean;
   active: boolean;
+  owned: boolean;
 }
 
-export const FPFlashlightHand: React.FC<FPFlashlightHandProps> = ({ walking, active }) => {
+const FP_BASE = { x: 0.25, y: -0.3, z: -0.5 };
+
+export const FPFlashlightHand: React.FC<FPFlashlightHandProps> = ({ walking, active, owned }) => {
   const groupRef = useRef<THREE.Group>(null);
   const timeRef = useRef(0);
 
   useFrame((_, dt) => {
-    timeRef.current += dt;
     const g = groupRef.current;
     if (!g) return;
 
+    // Hide when not owned or flashlight is off
+    if (!owned || !active) {
+      g.visible = false;
+      return;
+    }
+    g.visible = true;
+
+    timeRef.current += dt;
     const t = timeRef.current;
+
+    // Always lerp for smooth walk ↔ idle transitions (no snapping)
+    const lerpFactor = walking ? 12 * dt : 4 * dt;
 
     if (walking) {
       // Walking: rhythmic bob + slight sway
       const bobFreq = 8;
-      g.position.x = 0.25 + Math.sin(t * bobFreq) * 0.012;
-      g.position.y = -0.3 + Math.abs(Math.sin(t * bobFreq)) * 0.008;
-      g.position.z = -0.5 + Math.sin(t * bobFreq * 0.5) * 0.004;
-      g.rotation.z = Math.sin(t * bobFreq) * 0.03;
+      const targetX = FP_BASE.x + Math.sin(t * bobFreq) * 0.012;
+      const targetY = FP_BASE.y + Math.abs(Math.sin(t * bobFreq)) * 0.008;
+      const targetZ = FP_BASE.z + Math.sin(t * bobFreq * 0.5) * 0.004;
+      const targetRotZ = Math.sin(t * bobFreq) * 0.03;
+
+      g.position.x = THREE.MathUtils.lerp(g.position.x, targetX, lerpFactor);
+      g.position.y = THREE.MathUtils.lerp(g.position.y, targetY, lerpFactor);
+      g.position.z = THREE.MathUtils.lerp(g.position.z, targetZ, lerpFactor);
+      g.rotation.z = THREE.MathUtils.lerp(g.rotation.z, targetRotZ, lerpFactor);
     } else {
       // Idle: subtle breathing sway
-      g.position.x = THREE.MathUtils.lerp(g.position.x, 0.25 + Math.sin(t * 1.2) * 0.003, 4 * dt);
-      g.position.y = THREE.MathUtils.lerp(g.position.y, -0.3 + Math.sin(t * 0.8) * 0.002, 4 * dt);
-      g.position.z = THREE.MathUtils.lerp(g.position.z, -0.5, 4 * dt);
-      g.rotation.z = THREE.MathUtils.lerp(g.rotation.z, Math.sin(t * 1.0) * 0.01, 4 * dt);
+      const targetX = FP_BASE.x + Math.sin(t * 1.2) * 0.003;
+      const targetY = FP_BASE.y + Math.sin(t * 0.8) * 0.002;
+      const targetRotZ = Math.sin(t * 1.0) * 0.01;
+
+      g.position.x = THREE.MathUtils.lerp(g.position.x, targetX, lerpFactor);
+      g.position.y = THREE.MathUtils.lerp(g.position.y, targetY, lerpFactor);
+      g.position.z = THREE.MathUtils.lerp(g.position.z, FP_BASE.z, lerpFactor);
+      g.rotation.z = THREE.MathUtils.lerp(g.rotation.z, targetRotZ, lerpFactor);
     }
   });
 
   return (
-    <group ref={groupRef} position={[0.25, -0.3, -0.5]} rotation={[0.2, -0.3, 0]}>
+    <group ref={groupRef} position={[FP_BASE.x, FP_BASE.y, FP_BASE.z]} rotation={[0.2, -0.3, 0]}>
       {/* Arm */}
       <mesh position={[0, -0.08, 0.12]} rotation={[0.3, 0, 0]}>
         <cylinderGeometry args={[0.028, 0.035, 0.32, 8]} />
