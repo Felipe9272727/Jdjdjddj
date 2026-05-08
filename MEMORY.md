@@ -1691,3 +1691,54 @@ Reescrita completa do sistema de inventário no branch `claude/inventory-v2-clea
 - Build: ✅ reprodutível (4,461,726 bytes)
 - Push: pendente
 
+
+---
+
+## 🔧 Sessão 2026-05-08: Fix — Lanterna só por compra no Shop + FlashlightModel3D + UI Inventário Responsiva
+
+### Problemas relatados pelo Felipe
+1. **Lanterna aparecia antes de ser comprada** — existia um `FlashlightPickup` físico na mesa do lobby que permitia pegar a lanterna com E sem comprar na loja, bypassando o shop inteiro.
+2. **GLB não funciona com lanterna** — o componente `FlashlightModel3D` (3ª pessoa) existia em `FlashlightLight.tsx` mas nunca era renderizado no App.tsx. Em 3ª pessoa, o jogador via o avatar GLB mas sem lanterna na mão.
+3. **UI do inventário mal posicionada** — positioning ruim para mobile/desktop em portrait e landscape.
+
+### Solução
+
+#### Fix 1: FlashlightPickup removido — shop é a ÚNICA forma de adquirir lanterna
+- Removido `FlashlightPickup` component de `LobbyEnv.tsx` (modelo 3D na mesa)
+- Removido `canInteractFlashlight` state, proximity check, e `handlePickupFlashlight` callback de `App.tsx`
+- Removido ActionButton para pickup da lanterna
+- Removido `flashlightOwned` prop de `WorldProps` e `LobbyEnvironment`
+- Removido `FLASHLIGHT_INTERACT_DIST` e `FLASHLIGHT_POS` de `constants.ts`
+
+#### Fix 2: FlashlightModel3D adicionado ao rendering (3ª pessoa)
+- Importado `FlashlightModel3D` em `App.tsx`
+- Renderizado quando `hasStarted && inventory.flashlight.owned && zoomLevel >= 0.5`
+- Agora em 3ª pessoa, o jogador vê a lanterna na mão do avatar
+
+#### Fix 3: InventoryHUD redesign responsivo
+- **Portrait**: horizontal strip, bottom-center, acima do ActionButton (96px offset)
+- **Landscape**: vertical column, right-side, verticalmente centrado
+- Touch targets: 48px (w-12 h-12) em TODAS orientações (antes era 40px em landscape)
+- Glassmorphism container unificado com `bg-black/40 backdrop-blur-xl`
+- Animação orientation-aware: slide-up em portrait, slide-from-right em landscape
+- CookieBadge e flashlight button com styling melhorado
+
+### Arquivos alterados
+- `jubileu/src/App.tsx` — removido pickup, adicionado FlashlightModel3D
+- `jubileu/src/LobbyEnv.tsx` — removido FlashlightPickup e flashlightOwned prop
+- `jubileu/src/InventorySystem.tsx` — redesign completo do InventoryHUD
+- `jubileu/src/constants.ts` — removido FLASHLIGHT_INTERACT_DIST e FLASHLIGHT_POS
+
+### Commit
+- `252d8c5` — fix: lanterna só por compra no shop + FlashlightModel3D 3ª pessoa + UI inventário responsiva
+
+### Estado
+- TypeScript: ✅ compila limpo (zero erros)
+- Build: ✅ reprodutível (npm run build:reproducible)
+- Push: ✅ claude/read-map-memory-docs-2nqCj
+- index.html: ✅ rebuildado e commitado junto com source
+
+### Lição aprendida
+- Usar sub-agentes com skills específicas (full-stack-developer, frontend-styling-expert) para trabalho paralelo funciona bem
+- Sempre verificar se componentes definidos mas nunca renderizados são o causa de bugs visuais
+- O sistema de aquisição de itens deve ter uma ÚNICA porta de entrada (shop) — pickups físicos bypassam a economia
