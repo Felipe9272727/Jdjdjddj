@@ -93,7 +93,7 @@ export const WatchingText = () => {
                 animation: 'wall-text-fade 3s ease-in-out forwards',
             }}
         >
-            <span className="text-white/8 text-[10px] font-mono tracking-[0.3em] uppercase">
+            <span className="text-white/15 text-[10px] font-mono tracking-[0.3em] uppercase">
                 someone is watching
             </span>
         </div>
@@ -158,7 +158,6 @@ export const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }: any) => {
   });
   return (<group ref={group} position={[5, 0, 5]}><primitive object={scene} scale={[1, 1, 1]} /></group>);
 };
-
 
 export const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionRef }: any) => {
     const W = 20; const L = 20; const H = 4.5; const WH = 1.2;
