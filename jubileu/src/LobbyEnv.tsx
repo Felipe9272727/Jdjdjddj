@@ -159,36 +159,8 @@ export const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }: any) => {
   return (<group ref={group} position={[5, 0, 5]}><primitive object={scene} scale={[1, 1, 1]} /></group>);
 };
 
-// ─── Flashlight Pickup (3D model lying on the reception desk) ────────────
-const FlashlightPickup: React.FC<{ owned: boolean }> = ({ owned }) => {
-    if (owned) return null;
-    return (
-        <group position={[7.0, 0.85, -6.0]} rotation={[0, Math.PI * 0.3, Math.PI / 2]}>
-            {/* Flashlight body */}
-            <mesh position={[0, 0, 0]}>
-                <cylinderGeometry args={[0.03, 0.03, 0.25, 8]} />
-                <meshStandardMaterial color="#2a2a2e" metalness={0.85} roughness={0.15} />
-            </mesh>
-            {/* Flashlight head */}
-            <mesh position={[0, -0.14, 0]}>
-                <cylinderGeometry args={[0.045, 0.035, 0.07, 8]} />
-                <meshStandardMaterial color="#3a3a3e" metalness={0.75} roughness={0.2} />
-            </mesh>
-            {/* Lens (subtle glow) */}
-            <mesh position={[0, -0.18, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                <circleGeometry args={[0.04, 12]} />
-                <meshStandardMaterial
-                    color="#FFF9C4"
-                    emissive="#FFF9C4"
-                    emissiveIntensity={0.3}
-                    toneMapped={false}
-                />
-            </mesh>
-        </group>
-    );
-};
 
-export const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionRef, flashlightOwned }: any) => {
+export const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionRef }: any) => {
     const W = 20; const L = 20; const H = 4.5; const WH = 1.2;
     return (
         <group>
@@ -236,7 +208,6 @@ export const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPo
             <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.012, -2]}><planeGeometry args={[3.5, 14]} /><meshStandardMaterial color="#6A1B9A" roughness={0.95} opacity={0.6} transparent /></mesh>
             <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.013, -2]}><planeGeometry args={[2.8, 13.4]} /><meshStandardMaterial color="#4A148C" roughness={0.95} opacity={0.4} transparent /></mesh>
             <LobbyNPC positionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />
-            <FlashlightPickup owned={flashlightOwned} />
             <HiddenWallPanel />
         </group>
     );
