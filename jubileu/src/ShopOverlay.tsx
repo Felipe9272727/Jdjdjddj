@@ -45,6 +45,8 @@ interface ShopOverlayProps {
   initialScene?: string;
   /** Called when the player buys an item (e.g. 'flashlight', 'cookie'). */
   onBuyItem?: (itemId: string) => void;
+  /** When true, the bellhop sprite flashes (item purchase feedback) */
+  blink?: boolean;
 }
 
 const TIMINGS = {
@@ -55,7 +57,7 @@ const TIMINGS = {
   charDelay: 28,
 };
 
-export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) => {
+export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem, blink }) => {
   const [sceneId, setSceneId] = useState<string>(initialScene);
   const [pageIndex, setPageIndex] = useState(0);
   const [revealed, setRevealed] = useState(0);
@@ -459,19 +461,18 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
               key={spriteMode}
               config={activeSpriteConfig}
               style={{
-                // Values copied verbatim from the working `437441c`
-                // version on main. The dialog box's negative marginTop
-                // pulls up to overlap the bottom ~45% of the sprite,
-                // so the visible "above-counter" portion fits the
-                // viewport even when the overall sprite is tall.
                 height: isLandscape
                   ? 'clamp(300px, 70vh, 460px)'
                   : 'clamp(340px, 58vh, 500px)',
                 aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
-                filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.75))',
+                filter: blink
+                  ? 'drop-shadow(0 12px 24px rgba(0,0,0,0.75)) brightness(3) saturate(0.3)'
+                  : 'drop-shadow(0 12px 24px rgba(0,0,0,0.75))',
                 opacity: showContent ? 1 : 0,
                 transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
-                transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
+                transition: blink
+                  ? 'filter 80ms ease-out'
+                  : 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms, filter 400ms ease-out',
                 pointerEvents: 'none',
                 position: 'relative',
                 zIndex: 1,

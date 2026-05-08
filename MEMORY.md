@@ -1777,3 +1777,45 @@ Melhorias no sistema de inventário existente — flashlight, cookie e visual ef
 
 ### Commits
 - `TBD` — feat(inventory): notification toast, cookie heal effect, flashlight volumetric cone, procedural animation polish
+
+---
+
+## 🔧 Sessão 2026-05-09: PickupArm + Shop Blink + Branch feat/inventory-polish-v3 (05:13 GMT+8)
+
+### O que foi feito
+Animação procedural de braço ao pegar items + feedback visual no sprite do recepcionista.
+
+### Mudanças
+
+#### PickupArm.tsx — NOVO
+- Componente de braço procedural que estende o braço do player ao pegar um item
+- Animação em 3 fases: extend (0.3s) → hold (0.5s) → retract (0.4s) = 1.2s total
+- Ease-out no extend, ease-in no retract
+- Posicionado no ombro direito do avatar
+- Cor da mão muda conforme o tipo de item (cookie = marrom, flashlight = cinza)
+- Não interfere com as animações GLB existentes (idle/walking)
+- Renderizado dentro do grupo do avatar para seguir posição/rotação do player
+
+#### ShopOverlay.tsx — Sprite Blink
+- Prop `blink` adicionada
+- Quando `blink=true`, sprite do recepcionista pisca com `brightness(3) saturate(0.3)`
+- Transição suave de 80ms no blink, 400ms na volta
+
+#### App.tsx — Integration
+- `handleBuyItem` callback: chama `inventoryAddItem` + trigger PickupArm + trigger shop blink
+- Passa `pickupArm={<PickupArm>}` para o Player
+- Passa `blink={shopBlink}` para ShopOverlay
+
+#### Player.tsx — PickupArm Support
+- Prop `pickupArm?: React.ReactNode` adicionada
+- Renderiza `{pickupArm}` dentro do grupo do avatar
+
+### Arquivos alterados
+- `jubileu/src/PickupArm.tsx` — NOVO
+- `jubileu/src/ShopOverlay.tsx` — blink prop
+- `jubileu/src/App.tsx` — handleBuyItem + pickupArm + shopBlink
+- `jubileu/src/Player.tsx` — pickupArm prop
+- `index.html` — rebuildado (4,476,838 bytes)
+
+### Branch
+- `feat/inventory-polish-v3` — criada a partir de `claude/read-map-memory-docs-2nqCj`

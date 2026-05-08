@@ -97583,7 +97583,7 @@ const TIMINGS = {
   exitClose: 600,
   charDelay: 28
 };
-const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) => {
+const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem, blink }) => {
   const [sceneId, setSceneId] = reactExports.useState(initialScene);
   const [pageIndex, setPageIndex] = reactExports.useState(0);
   const [revealed, setRevealed] = reactExports.useState(0);
@@ -97929,17 +97929,12 @@ const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) =>
                 {
                   config: activeSpriteConfig,
                   style: {
-                    // Values copied verbatim from the working `437441c`
-                    // version on main. The dialog box's negative marginTop
-                    // pulls up to overlap the bottom ~45% of the sprite,
-                    // so the visible "above-counter" portion fits the
-                    // viewport even when the overall sprite is tall.
                     height: isLandscape ? "clamp(300px, 70vh, 460px)" : "clamp(340px, 58vh, 500px)",
                     aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
-                    filter: "drop-shadow(0 12px 24px rgba(0,0,0,0.75))",
+                    filter: blink ? "drop-shadow(0 12px 24px rgba(0,0,0,0.75)) brightness(3) saturate(0.3)" : "drop-shadow(0 12px 24px rgba(0,0,0,0.75))",
                     opacity: showContent ? 1 : 0,
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
-                    transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms",
+                    transition: blink ? "filter 80ms ease-out" : "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms, filter 400ms ease-out",
                     pointerEvents: "none",
                     position: "relative",
                     zIndex: 1
@@ -98299,7 +98294,7 @@ const Avatar = ({ animation, visible = true }) => {
   }, [animation, actions]);
   return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }) });
 };
-const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }) => {
+const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupArm }) => {
   const { camera, size } = useThree();
   const pos = reactExports.useRef(new Vector3(0, 0, 8));
   const charRot = reactExports.useRef(new Euler(0, Math.PI, 0));
@@ -98489,7 +98484,10 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       }
     }
   });
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Avatar, { animation: anim, visible: !dialogueOpen }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Avatar, { animation: anim, visible: !dialogueOpen }),
+    pickupArm
+  ] });
 };
 const TextureMaterial = React.memo(({ url, color = "#ffffff", repeat: repeat2 = [1, 1], roughness = 0.8, metalness = 0, bumpScale = 0, transparent = false, opacity = 1, rotation: rotation2 = 0 }) => {
   const rawTexture = useTexture(url);
@@ -102273,6 +102271,98 @@ const FPFlashlightHand = ({ walking, active }) => {
     ] })
   ] });
 };
+const PHASE_EXTEND_END = 0.3;
+const PHASE_HOLD_END = 0.8;
+const PHASE_RETRACT_END = 1.2;
+const PickupArm = ({ trigger, cameraThetaRef, itemType }) => {
+  const groupRef = reactExports.useRef(null);
+  const armRef = reactExports.useRef(null);
+  const handRef = reactExports.useRef(null);
+  const progressRef = reactExports.useRef(-1);
+  const lastTriggerRef = reactExports.useRef(0);
+  const timeRef = reactExports.useRef(0);
+  const handColor = itemType === "cookie" ? "#D2A06B" : "#888";
+  const handEmissive = itemType === "cookie" ? "#6B3E1F" : "#444";
+  useFrame((_, dt2) => {
+    const group = groupRef.current;
+    const arm = armRef.current;
+    const hand = handRef.current;
+    if (!group || !arm || !hand) return;
+    if (trigger !== lastTriggerRef.current) {
+      lastTriggerRef.current = trigger;
+      progressRef.current = 0;
+      timeRef.current = 0;
+    }
+    if (progressRef.current < 0) {
+      group.visible = false;
+      return;
+    }
+    group.visible = true;
+    timeRef.current += dt2;
+    const t2 = timeRef.current;
+    let extension = 0;
+    if (t2 < PHASE_EXTEND_END) {
+      const p2 = t2 / PHASE_EXTEND_END;
+      extension = 1 - Math.pow(1 - p2, 3);
+    } else if (t2 < PHASE_HOLD_END) {
+      extension = 1;
+    } else if (t2 < PHASE_RETRACT_END) {
+      const p2 = (t2 - PHASE_HOLD_END) / (PHASE_RETRACT_END - PHASE_HOLD_END);
+      extension = 1 - p2;
+    } else {
+      progressRef.current = -1;
+      group.visible = false;
+      return;
+    }
+    arm.position.set(0, 0, 0);
+    arm.rotation.x = -extension * 0.8;
+    arm.rotation.z = -0.15;
+    if (hand) {
+      hand.material.emissiveIntensity = extension > 0.5 ? 1.5 : 0.3;
+    }
+  });
+  return (
+    // Positioned at right shoulder relative to player center
+    /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position: [0.3, 1.2, 0], visible: false, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: armRef, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.12, -0.08], rotation: [0.3, 0, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.035, 0.03, 0.25, 8] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#E8B88A", roughness: 0.9, metalness: 0 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.05, -0.25], rotation: [0.6, 0, 0], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.03, 0.028, 0.22, 8] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#E8B88A", roughness: 0.9, metalness: 0 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { ref: handRef, position: [0, 0.02, -0.4], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.04, 8, 6] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "meshStandardMaterial",
+          {
+            color: handColor,
+            emissive: handEmissive,
+            emissiveIntensity: 0.3,
+            roughness: 0.8
+          }
+        )
+      ] }),
+      [0, 1, 2, 3].map((i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "mesh",
+        {
+          position: [
+            (i2 - 1.5) * 0.015,
+            0.02,
+            -0.45
+          ],
+          rotation: [0.4, 0, 0],
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [8e-3, 8e-3, 0.04, 4] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#E8B88A", roughness: 0.9, metalness: 0 })
+          ]
+        },
+        i2
+      ))
+    ] }) })
+  );
+};
 class CanvasErrorBoundary extends reactExports.Component {
   constructor() {
     super(...arguments);
@@ -102371,6 +102461,16 @@ function App() {
   const [canInteractDoor, setCanInteractDoor] = reactExports.useState(false);
   const [doorSoundTrigger, setDoorSoundTrigger] = reactExports.useState(0);
   const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect } = useInventory();
+  const [pickupTrigger, setPickupTrigger] = reactExports.useState(0);
+  const [pickupItemType, setPickupItemType] = reactExports.useState(null);
+  const [shopBlink, setShopBlink] = reactExports.useState(false);
+  const handleBuyItem = reactExports.useCallback((itemId) => {
+    inventoryAddItem(itemId);
+    setPickupItemType(itemId);
+    setPickupTrigger((prev) => prev + 1);
+    setShopBlink(true);
+    setTimeout(() => setShopBlink(false), 600);
+  }, [inventoryAddItem]);
   const handleElevatorZoneChange = reactExports.useCallback((inside) => {
     setInsideElevator(inside);
   }, []);
@@ -102916,7 +103016,33 @@ function App() {
         ] }) }), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
           visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            Player,
+            {
+              active: hasStarted,
+              moveInput,
+              lookInput,
+              isDesktop,
+              onEnterElevator: handlePlayerEnterElevator,
+              doorsClosed,
+              currentLevel,
+              onInteractionUpdate: handleInteractionUpdate,
+              onNpcInteractionUpdate: handleNpcInteractionUpdate,
+              onCashierInteractionUpdate: handleCashierInteractionUpdate,
+              houseDoorOpen,
+              zoomLevel,
+              npcPositionRef,
+              dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef,
+              dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen,
+              sharedPositionRef: sharedPlayerPositionRef,
+              sharedRotationYRef,
+              cameraThetaRef,
+              cameraShakeRef,
+              positionCmdRef: playerPositionCmdRef,
+              onElevatorZoneChange: handleElevatorZoneChange,
+              pickupArm: /* @__PURE__ */ jsxRuntimeExports.jsx(PickupArm, { trigger: pickupTrigger, cameraThetaRef, itemType: pickupItemType })
+            }
+          ),
           hasStarted && inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightLight, { active: inventory.flashlight.active, playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, zoomLevel, nightMode }),
           hasStarted && inventory.flashlight.owned && zoomLevel >= 0.5 && /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightModel3D, { playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, active: inventory.flashlight.active, zoomLevel }),
           hasStarted && zoomLevel < 0.5 && inventory.flashlight.owned && inventory.flashlight.active && /* @__PURE__ */ jsxRuntimeExports.jsx(FPFlashlightHand, { walking: playerAnimState === "walking", active: inventory.flashlight.active }),
@@ -103030,7 +103156,7 @@ function App() {
     hasStarted && gameState === "chase" && /* @__PURE__ */ jsxRuntimeExports.jsx(ChaseBanner, { elevatorActive: elevatorTimer !== null }),
     hasStarted && gameState === "saved" && /* @__PURE__ */ jsxRuntimeExports.jsx(SavedOverlay, {}),
     barneyDialogueOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(BarneyDialogue, { dialogueNode: barneyDialogueNode, onResponse: handleBarneyResponse }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(ShopOverlay, { open: shopOpen, onClose: handleCloseShop, initialScene: shopInitialScene, onBuyItem: inventoryAddItem })
+    /* @__PURE__ */ jsxRuntimeExports.jsx(ShopOverlay, { open: shopOpen, onClose: handleCloseShop, initialScene: shopInitialScene, onBuyItem: handleBuyItem, blink: shopBlink })
   ] });
 }
 clientExports.createRoot(document.getElementById("root")).render(
