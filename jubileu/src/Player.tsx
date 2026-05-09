@@ -158,6 +158,7 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }: 
     if (pickupTrigger !== lastPickupTriggerRef.current && pickupTrigger > 0) {
       lastPickupTriggerRef.current = pickupTrigger;
       pickupTimeRef.current = 0;
+      console.log('[Avatar] Pickup triggered:', pickupTrigger, '| Animation started');
     }
   }, [pickupTrigger]);
 
@@ -181,6 +182,7 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }: 
       if (forearmBoneRef.current) {
         forearmBoneRef.current.rotation.copy(forearmOrigRotRef.current);
       }
+      console.log('[Avatar] Pickup animation complete');
       return;
     }
 
@@ -211,6 +213,9 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }: 
       const orig = forearmOrigRotRef.current;
       // Bend elbow
       forearmBoneRef.current.rotation.x = orig.x - ext * 0.6;
+    }
+    if (t < 0.05) {
+      console.log('[Avatar] Bone animation frame:', { t: t.toFixed(3), ext: ext.toFixed(3), hasArm: !!armBoneRef.current, hasForearm: !!forearmBoneRef.current });
     }
   }, 1); // Priority 1: runs AFTER AnimationMixer at priority 0
 

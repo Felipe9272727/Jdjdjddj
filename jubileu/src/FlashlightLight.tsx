@@ -104,7 +104,7 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
         angle={0.45}
         penumbra={0.5}
         decay={2}
-        distance={0}
+        distance={owned ? 0 : 0.1}
         intensity={0}
         position={[0, 1.6, 0]}
       />
