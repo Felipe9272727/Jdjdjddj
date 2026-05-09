@@ -1893,3 +1893,62 @@ Voltou pra **renderização condicional** — componentes só montam quando `fla
 - **"Always mounted" NÃO é sempre melhor** em Three.js — SpotLight e meshes com blending podem causar black screen
 - **Conditional rendering é mais seguro** pra componentes de luz
 - **SEMPRE usar sub-agentes** — não tentar fazer tudo sozinho
+
+---
+
+## 🔄 Sessão 2026-05-10 — Black Screen Fix + Pickup Debug Logs
+
+### Problema Relatado
+O jogo ficava com **tela preta** quando o jogador comprava um item da loja (lanterna ou biscoito).
+
+### Causa Raiz Identificada
+No `FlashlightLight.tsx`, o `spotLight` tinha `distance={0}` no JSX inicial. No Three.js, `distance=0` significa **alcance infinito** — a luz ficava no scene graph mesmo quando o jogador não tinha comprado a lanterna, causando a tela preta.
+
+### Correções Aplicadas
+
+#### 1. FlashlightLight.tsx (linha 107)
+```tsx
+// ANTES (BUG)
+distance={0}
+
+// DEPOIS (CORRIGIDO)
+distance={owned ? 0 : 0.1}
+```
+Quando `owned=false`, a luz tem alcance mínimo (0.1), não afetando a cena.
+
+#### 2. Player.tsx — Console logs de debug
+Adicionados logs pra diagnosticar o sistema de pickup:
+- `[Avatar] Pickup triggered:` — quando trigger é detectado
+- `[Avatar] Bone animation frame:` — cada frame da animação (primeiros 50ms)
+- `[Avatar] Pickup animation complete:` — quando termina
+
+### Comando Executado
+```bash
+cd jubileu && npm ci && npm run build && node inline-build.mjs
+```
+Build: 4.35MB → 4.48MB (index.html)
+
+### Commit
+- Branch: `fix/pickup-black-screen-2026-05-10` → merge para `main`
+- SHA: `09032dd`
+- Mensagem: `fix(black-screen): distance=0.1 when not owned + pickup debug logs`
+
+### Como Testar
+1. Abra o jogo: https://jdjdjddj-five.vercel.app
+2. Vá até o recepcionista e abra a loja
+3. Compre um item (lanterna ou biscoito)
+4. **Antes do fix**: tela preta ao fechar a loja
+5. **Depois do fix**: loja fecha, jogo continua normalmente
+
+### Console Logs de Debug
+Se a animação do braço não funcionar, verifique o console:
+- `[Avatar] All bones found:` — lista todos os bones do modelo
+- `[Avatar] Found upper arm bone:` / `[Avatar] Found forearm bone:` — bones detectados
+- `[Avatar] No arm bones found — will use procedural arm fallback` — fallback usado
+- `[Avatar] Pickup triggered:` — trigger detectado (confirma se o problema é upstream)
+
+### Próximos Passos (se ainda houver problema)
+1. Verificar no console se os bones estão sendo encontrados
+2. Se usar fallback procedural, o braço é renderizado como mesh simples
+3. Considerar naming patterns alternativos para bones do Bacon Hair GLB
+
