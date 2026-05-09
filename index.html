@@ -21,7 +21,7 @@
       };
     </script>
     
-    <style>/*! tailwindcss v4.2.2 | MIT License | https://tailwindcss.com */
+    <style>/*! tailwindcss v4.3.0 | MIT License | https://tailwindcss.com */
 @layer properties {
   @supports (((-webkit-hyphens: none)) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color: rgb(from red r g b)))) {
     *, :before, :after, ::backdrop {
@@ -67,6 +67,7 @@
       --tw-ring-offset-width: 0px;
       --tw-ring-offset-color: #fff;
       --tw-ring-offset-shadow: 0 0 #0000;
+      --tw-outline-style: solid;
       --tw-blur: initial;
       --tw-brightness: initial;
       --tw-contrast: initial;
@@ -534,14 +535,6 @@
 
   .inset-4 {
     inset: calc(var(--spacing) * 4);
-  }
-
-  .start {
-    inset-inline-start: var(--spacing);
-  }
-
-  .end {
-    inset-inline-end: var(--spacing);
   }
 
   .-top-1\.5 {
@@ -1236,6 +1229,10 @@
     flex: 1;
   }
 
+  .flex-shrink {
+    flex-shrink: 1;
+  }
+
   .flex-shrink-0, .shrink-0 {
     flex-shrink: 0;
   }
@@ -1758,6 +1755,26 @@
   @supports (color: color-mix(in lab, red, red)) {
     .bg-amber-400\/10 {
       background-color: color-mix(in oklab, var(--color-amber-400) 10%, transparent);
+    }
+  }
+
+  .bg-amber-400\/30 {
+    background-color: #fcbb004d;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-amber-400\/30 {
+      background-color: color-mix(in oklab, var(--color-amber-400) 30%, transparent);
+    }
+  }
+
+  .bg-amber-400\/60 {
+    background-color: #fcbb0099;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-amber-400\/60 {
+      background-color: color-mix(in oklab, var(--color-amber-400) 60%, transparent);
     }
   }
 
@@ -3227,6 +3244,16 @@
     color: var(--color-white);
   }
 
+  .text-white\/8 {
+    color: #ffffff14;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/8 {
+      color: color-mix(in oklab, var(--color-white) 8%, transparent);
+    }
+  }
+
   .text-white\/10 {
     color: #ffffff1a;
   }
@@ -3234,16 +3261,6 @@
   @supports (color: color-mix(in lab, red, red)) {
     .text-white\/10 {
       color: color-mix(in oklab, var(--color-white) 10%, transparent);
-    }
-  }
-
-  .text-white\/15 {
-    color: #ffffff26;
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .text-white\/15 {
-      color: color-mix(in oklab, var(--color-white) 15%, transparent);
     }
   }
 
@@ -3729,6 +3746,11 @@
 
   .ring-yellow-200 {
     --tw-ring-color: var(--color-yellow-200);
+  }
+
+  .outline {
+    outline-style: var(--tw-outline-style);
+    outline-width: 1px;
   }
 
   .blur {
@@ -5416,170 +5438,6 @@ input[type="range"]::-moz-range-track {
   animation: 8s ease-in-out infinite empty-lobby-flicker;
 }
 
-@keyframes shopDing {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(.7);
-  }
-
-  40% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1.05);
-  }
-
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(1);
-  }
-}
-
-@keyframes shopDoorInLeft {
-  from {
-    transform: translateX(-100%);
-  }
-
-  to {
-    transform: translateX(0%);
-  }
-}
-
-@keyframes shopDoorInRight {
-  from {
-    transform: translateX(100%);
-  }
-
-  to {
-    transform: translateX(0%);
-  }
-}
-
-@keyframes shopDoorCloseLeft {
-  from {
-    transform: translateX(-100%);
-  }
-
-  to {
-    transform: translateX(0%);
-  }
-}
-
-@keyframes shopDoorCloseRight {
-  from {
-    transform: translateX(100%);
-  }
-
-  to {
-    transform: translateX(0%);
-  }
-}
-
-@keyframes undertaleBlink {
-  0%, 50% {
-    opacity: 1;
-  }
-
-  51%, 100% {
-    opacity: 0;
-  }
-}
-
-@keyframes shopShake {
-  0%, 100% {
-    transform: translate(0);
-  }
-
-  25% {
-    transform: translate(-1px, 1px);
-  }
-
-  50% {
-    transform: translate(1px, -1px);
-  }
-
-  75% {
-    transform: translate(-1px, -1px);
-  }
-}
-
-@keyframes shopAdvanceBob {
-  0%, 100% {
-    opacity: .85;
-    transform: translateY(0);
-  }
-
-  50% {
-    opacity: 1;
-    transform: translateY(3px);
-  }
-}
-
-.shop-cursor {
-  color: #fff;
-  margin-left: 1px;
-  animation: .6s step-end infinite undertaleBlink;
-  display: inline-block;
-}
-
-.shop-shake {
-  animation: 80ms infinite shopShake;
-  display: inline-block;
-}
-
-.shop-page-advance {
-  color: #ffd54f;
-  text-shadow: 0 0 6px #ffd54f80;
-  font-size: clamp(14px, 1.8vw, 18px);
-  line-height: 1;
-  animation: .7s ease-in-out infinite shopAdvanceBob;
-  position: absolute;
-  bottom: -4px;
-  right: 0;
-}
-
-.undertale-btn {
-  color: #fff;
-  letter-spacing: .02em;
-  cursor: pointer;
-  text-align: left;
-  white-space: normal;
-  word-wrap: break-word;
-  background: none;
-  border: 0;
-  flex-shrink: 0;
-  padding: 1px 4px 1px 22px;
-  font-family: Determination Mono, Courier New, monospace;
-  font-size: clamp(11px, 1.4vw, 14px);
-  line-height: 1.35;
-  transition: color 80ms;
-  position: relative;
-}
-
-.undertale-btn:before {
-  content: "♥";
-  color: red;
-  opacity: 0;
-  font-size: .9em;
-  transition: opacity 80ms;
-  position: absolute;
-  top: 50%;
-  left: 6px;
-  transform: translateY(-50%);
-}
-
-.undertale-btn[data-selected="true"] {
-  color: #ffd54f;
-  outline: 0;
-}
-
-.undertale-btn[data-selected="true"]:before {
-  opacity: 1;
-}
-
-.undertale-btn:focus-visible {
-  color: #ffd54f;
-  outline: 0;
-}
-
 @property --tw-translate-x {
   syntax: "*";
   inherits: false;
@@ -5809,6 +5667,12 @@ input[type="range"]::-moz-range-track {
   syntax: "*";
   inherits: false;
   initial-value: 0 0 #0000;
+}
+
+@property --tw-outline-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
 }
 
 @property --tw-blur {
@@ -6066,283 +5930,6 @@ function requireJsxRuntime() {
   return jsxRuntime.exports;
 }
 var jsxRuntimeExports = requireJsxRuntime();
-var client = { exports: {} };
-var reactDomClient_production = {};
-var scheduler = { exports: {} };
-var scheduler_production = {};
-/**
- * @license React
- * scheduler.production.js
- *
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
-var hasRequiredScheduler_production;
-function requireScheduler_production() {
-  if (hasRequiredScheduler_production) return scheduler_production;
-  hasRequiredScheduler_production = 1;
-  (function(exports$1) {
-    function push(heap, node) {
-      var index = heap.length;
-      heap.push(node);
-      a: for (; 0 < index; ) {
-        var parentIndex = index - 1 >>> 1, parent = heap[parentIndex];
-        if (0 < compare(parent, node))
-          heap[parentIndex] = node, heap[index] = parent, index = parentIndex;
-        else break a;
-      }
-    }
-    function peek(heap) {
-      return 0 === heap.length ? null : heap[0];
-    }
-    function pop(heap) {
-      if (0 === heap.length) return null;
-      var first2 = heap[0], last = heap.pop();
-      if (last !== first2) {
-        heap[0] = last;
-        a: for (var index = 0, length = heap.length, halfLength = length >>> 1; index < halfLength; ) {
-          var leftIndex = 2 * (index + 1) - 1, left = heap[leftIndex], rightIndex = leftIndex + 1, right = heap[rightIndex];
-          if (0 > compare(left, last))
-            rightIndex < length && 0 > compare(right, left) ? (heap[index] = right, heap[rightIndex] = last, index = rightIndex) : (heap[index] = left, heap[leftIndex] = last, index = leftIndex);
-          else if (rightIndex < length && 0 > compare(right, last))
-            heap[index] = right, heap[rightIndex] = last, index = rightIndex;
-          else break a;
-        }
-      }
-      return first2;
-    }
-    function compare(a2, b2) {
-      var diff = a2.sortIndex - b2.sortIndex;
-      return 0 !== diff ? diff : a2.id - b2.id;
-    }
-    exports$1.unstable_now = void 0;
-    if ("object" === typeof performance && "function" === typeof performance.now) {
-      var localPerformance = performance;
-      exports$1.unstable_now = function() {
-        return localPerformance.now();
-      };
-    } else {
-      var localDate = Date, initialTime = localDate.now();
-      exports$1.unstable_now = function() {
-        return localDate.now() - initialTime;
-      };
-    }
-    var taskQueue = [], timerQueue = [], taskIdCounter = 1, currentTask = null, currentPriorityLevel = 3, isPerformingWork = false, isHostCallbackScheduled = false, isHostTimeoutScheduled = false, needsPaint = false, localSetTimeout = "function" === typeof setTimeout ? setTimeout : null, localClearTimeout = "function" === typeof clearTimeout ? clearTimeout : null, localSetImmediate = "undefined" !== typeof setImmediate ? setImmediate : null;
-    function advanceTimers(currentTime) {
-      for (var timer2 = peek(timerQueue); null !== timer2; ) {
-        if (null === timer2.callback) pop(timerQueue);
-        else if (timer2.startTime <= currentTime)
-          pop(timerQueue), timer2.sortIndex = timer2.expirationTime, push(taskQueue, timer2);
-        else break;
-        timer2 = peek(timerQueue);
-      }
-    }
-    function handleTimeout(currentTime) {
-      isHostTimeoutScheduled = false;
-      advanceTimers(currentTime);
-      if (!isHostCallbackScheduled)
-        if (null !== peek(taskQueue))
-          isHostCallbackScheduled = true, isMessageLoopRunning || (isMessageLoopRunning = true, schedulePerformWorkUntilDeadline());
-        else {
-          var firstTimer = peek(timerQueue);
-          null !== firstTimer && requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime);
-        }
-    }
-    var isMessageLoopRunning = false, taskTimeoutID = -1, frameInterval = 5, startTime = -1;
-    function shouldYieldToHost() {
-      return needsPaint ? true : exports$1.unstable_now() - startTime < frameInterval ? false : true;
-    }
-    function performWorkUntilDeadline() {
-      needsPaint = false;
-      if (isMessageLoopRunning) {
-        var currentTime = exports$1.unstable_now();
-        startTime = currentTime;
-        var hasMoreWork = true;
-        try {
-          a: {
-            isHostCallbackScheduled = false;
-            isHostTimeoutScheduled && (isHostTimeoutScheduled = false, localClearTimeout(taskTimeoutID), taskTimeoutID = -1);
-            isPerformingWork = true;
-            var previousPriorityLevel = currentPriorityLevel;
-            try {
-              b: {
-                advanceTimers(currentTime);
-                for (currentTask = peek(taskQueue); null !== currentTask && !(currentTask.expirationTime > currentTime && shouldYieldToHost()); ) {
-                  var callback = currentTask.callback;
-                  if ("function" === typeof callback) {
-                    currentTask.callback = null;
-                    currentPriorityLevel = currentTask.priorityLevel;
-                    var continuationCallback = callback(
-                      currentTask.expirationTime <= currentTime
-                    );
-                    currentTime = exports$1.unstable_now();
-                    if ("function" === typeof continuationCallback) {
-                      currentTask.callback = continuationCallback;
-                      advanceTimers(currentTime);
-                      hasMoreWork = true;
-                      break b;
-                    }
-                    currentTask === peek(taskQueue) && pop(taskQueue);
-                    advanceTimers(currentTime);
-                  } else pop(taskQueue);
-                  currentTask = peek(taskQueue);
-                }
-                if (null !== currentTask) hasMoreWork = true;
-                else {
-                  var firstTimer = peek(timerQueue);
-                  null !== firstTimer && requestHostTimeout(
-                    handleTimeout,
-                    firstTimer.startTime - currentTime
-                  );
-                  hasMoreWork = false;
-                }
-              }
-              break a;
-            } finally {
-              currentTask = null, currentPriorityLevel = previousPriorityLevel, isPerformingWork = false;
-            }
-            hasMoreWork = void 0;
-          }
-        } finally {
-          hasMoreWork ? schedulePerformWorkUntilDeadline() : isMessageLoopRunning = false;
-        }
-      }
-    }
-    var schedulePerformWorkUntilDeadline;
-    if ("function" === typeof localSetImmediate)
-      schedulePerformWorkUntilDeadline = function() {
-        localSetImmediate(performWorkUntilDeadline);
-      };
-    else if ("undefined" !== typeof MessageChannel) {
-      var channel = new MessageChannel(), port = channel.port2;
-      channel.port1.onmessage = performWorkUntilDeadline;
-      schedulePerformWorkUntilDeadline = function() {
-        port.postMessage(null);
-      };
-    } else
-      schedulePerformWorkUntilDeadline = function() {
-        localSetTimeout(performWorkUntilDeadline, 0);
-      };
-    function requestHostTimeout(callback, ms) {
-      taskTimeoutID = localSetTimeout(function() {
-        callback(exports$1.unstable_now());
-      }, ms);
-    }
-    exports$1.unstable_IdlePriority = 5;
-    exports$1.unstable_ImmediatePriority = 1;
-    exports$1.unstable_LowPriority = 4;
-    exports$1.unstable_NormalPriority = 3;
-    exports$1.unstable_Profiling = null;
-    exports$1.unstable_UserBlockingPriority = 2;
-    exports$1.unstable_cancelCallback = function(task) {
-      task.callback = null;
-    };
-    exports$1.unstable_forceFrameRate = function(fps) {
-      0 > fps || 125 < fps ? console.error(
-        "forceFrameRate takes a positive int between 0 and 125, forcing frame rates higher than 125 fps is not supported"
-      ) : frameInterval = 0 < fps ? Math.floor(1e3 / fps) : 5;
-    };
-    exports$1.unstable_getCurrentPriorityLevel = function() {
-      return currentPriorityLevel;
-    };
-    exports$1.unstable_next = function(eventHandler) {
-      switch (currentPriorityLevel) {
-        case 1:
-        case 2:
-        case 3:
-          var priorityLevel = 3;
-          break;
-        default:
-          priorityLevel = currentPriorityLevel;
-      }
-      var previousPriorityLevel = currentPriorityLevel;
-      currentPriorityLevel = priorityLevel;
-      try {
-        return eventHandler();
-      } finally {
-        currentPriorityLevel = previousPriorityLevel;
-      }
-    };
-    exports$1.unstable_requestPaint = function() {
-      needsPaint = true;
-    };
-    exports$1.unstable_runWithPriority = function(priorityLevel, eventHandler) {
-      switch (priorityLevel) {
-        case 1:
-        case 2:
-        case 3:
-        case 4:
-        case 5:
-          break;
-        default:
-          priorityLevel = 3;
-      }
-      var previousPriorityLevel = currentPriorityLevel;
-      currentPriorityLevel = priorityLevel;
-      try {
-        return eventHandler();
-      } finally {
-        currentPriorityLevel = previousPriorityLevel;
-      }
-    };
-    exports$1.unstable_scheduleCallback = function(priorityLevel, callback, options) {
-      var currentTime = exports$1.unstable_now();
-      "object" === typeof options && null !== options ? (options = options.delay, options = "number" === typeof options && 0 < options ? currentTime + options : currentTime) : options = currentTime;
-      switch (priorityLevel) {
-        case 1:
-          var timeout = -1;
-          break;
-        case 2:
-          timeout = 250;
-          break;
-        case 5:
-          timeout = 1073741823;
-          break;
-        case 4:
-          timeout = 1e4;
-          break;
-        default:
-          timeout = 5e3;
-      }
-      timeout = options + timeout;
-      priorityLevel = {
-        id: taskIdCounter++,
-        callback,
-        priorityLevel,
-        startTime: options,
-        expirationTime: timeout,
-        sortIndex: -1
-      };
-      options > currentTime ? (priorityLevel.sortIndex = options, push(timerQueue, priorityLevel), null === peek(taskQueue) && priorityLevel === peek(timerQueue) && (isHostTimeoutScheduled ? (localClearTimeout(taskTimeoutID), taskTimeoutID = -1) : isHostTimeoutScheduled = true, requestHostTimeout(handleTimeout, options - currentTime))) : (priorityLevel.sortIndex = timeout, push(taskQueue, priorityLevel), isHostCallbackScheduled || isPerformingWork || (isHostCallbackScheduled = true, isMessageLoopRunning || (isMessageLoopRunning = true, schedulePerformWorkUntilDeadline())));
-      return priorityLevel;
-    };
-    exports$1.unstable_shouldYield = shouldYieldToHost;
-    exports$1.unstable_wrapCallback = function(callback) {
-      var parentPriorityLevel = currentPriorityLevel;
-      return function() {
-        var previousPriorityLevel = currentPriorityLevel;
-        currentPriorityLevel = parentPriorityLevel;
-        try {
-          return callback.apply(this, arguments);
-        } finally {
-          currentPriorityLevel = previousPriorityLevel;
-        }
-      };
-    };
-  })(scheduler_production);
-  return scheduler_production;
-}
-var hasRequiredScheduler;
-function requireScheduler() {
-  if (hasRequiredScheduler) return scheduler.exports;
-  hasRequiredScheduler = 1;
-  {
-    scheduler.exports = requireScheduler_production();
-  }
-  return scheduler.exports;
-}
 var react = { exports: {} };
 var react_production = {};
 /**
@@ -6775,7 +6362,7 @@ function requireReact_production() {
   react_production.useTransition = function() {
     return ReactSharedInternals.H.useTransition();
   };
-  react_production.version = "19.2.5";
+  react_production.version = "19.2.6";
   return react_production;
 }
 var hasRequiredReact;
@@ -6786,6 +6373,285 @@ function requireReact() {
     react.exports = requireReact_production();
   }
   return react.exports;
+}
+var reactExports = requireReact();
+const React = /* @__PURE__ */ getDefaultExportFromCjs(reactExports);
+var client = { exports: {} };
+var reactDomClient_production = {};
+var scheduler = { exports: {} };
+var scheduler_production = {};
+/**
+ * @license React
+ * scheduler.production.js
+ *
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+var hasRequiredScheduler_production;
+function requireScheduler_production() {
+  if (hasRequiredScheduler_production) return scheduler_production;
+  hasRequiredScheduler_production = 1;
+  (function(exports) {
+    function push(heap, node) {
+      var index = heap.length;
+      heap.push(node);
+      a: for (; 0 < index; ) {
+        var parentIndex = index - 1 >>> 1, parent = heap[parentIndex];
+        if (0 < compare(parent, node))
+          heap[parentIndex] = node, heap[index] = parent, index = parentIndex;
+        else break a;
+      }
+    }
+    function peek(heap) {
+      return 0 === heap.length ? null : heap[0];
+    }
+    function pop(heap) {
+      if (0 === heap.length) return null;
+      var first2 = heap[0], last = heap.pop();
+      if (last !== first2) {
+        heap[0] = last;
+        a: for (var index = 0, length = heap.length, halfLength = length >>> 1; index < halfLength; ) {
+          var leftIndex = 2 * (index + 1) - 1, left = heap[leftIndex], rightIndex = leftIndex + 1, right = heap[rightIndex];
+          if (0 > compare(left, last))
+            rightIndex < length && 0 > compare(right, left) ? (heap[index] = right, heap[rightIndex] = last, index = rightIndex) : (heap[index] = left, heap[leftIndex] = last, index = leftIndex);
+          else if (rightIndex < length && 0 > compare(right, last))
+            heap[index] = right, heap[rightIndex] = last, index = rightIndex;
+          else break a;
+        }
+      }
+      return first2;
+    }
+    function compare(a2, b2) {
+      var diff = a2.sortIndex - b2.sortIndex;
+      return 0 !== diff ? diff : a2.id - b2.id;
+    }
+    exports.unstable_now = void 0;
+    if ("object" === typeof performance && "function" === typeof performance.now) {
+      var localPerformance = performance;
+      exports.unstable_now = function() {
+        return localPerformance.now();
+      };
+    } else {
+      var localDate = Date, initialTime = localDate.now();
+      exports.unstable_now = function() {
+        return localDate.now() - initialTime;
+      };
+    }
+    var taskQueue = [], timerQueue = [], taskIdCounter = 1, currentTask = null, currentPriorityLevel = 3, isPerformingWork = false, isHostCallbackScheduled = false, isHostTimeoutScheduled = false, needsPaint = false, localSetTimeout = "function" === typeof setTimeout ? setTimeout : null, localClearTimeout = "function" === typeof clearTimeout ? clearTimeout : null, localSetImmediate = "undefined" !== typeof setImmediate ? setImmediate : null;
+    function advanceTimers(currentTime) {
+      for (var timer2 = peek(timerQueue); null !== timer2; ) {
+        if (null === timer2.callback) pop(timerQueue);
+        else if (timer2.startTime <= currentTime)
+          pop(timerQueue), timer2.sortIndex = timer2.expirationTime, push(taskQueue, timer2);
+        else break;
+        timer2 = peek(timerQueue);
+      }
+    }
+    function handleTimeout(currentTime) {
+      isHostTimeoutScheduled = false;
+      advanceTimers(currentTime);
+      if (!isHostCallbackScheduled)
+        if (null !== peek(taskQueue))
+          isHostCallbackScheduled = true, isMessageLoopRunning || (isMessageLoopRunning = true, schedulePerformWorkUntilDeadline());
+        else {
+          var firstTimer = peek(timerQueue);
+          null !== firstTimer && requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime);
+        }
+    }
+    var isMessageLoopRunning = false, taskTimeoutID = -1, frameInterval = 5, startTime = -1;
+    function shouldYieldToHost() {
+      return needsPaint ? true : exports.unstable_now() - startTime < frameInterval ? false : true;
+    }
+    function performWorkUntilDeadline() {
+      needsPaint = false;
+      if (isMessageLoopRunning) {
+        var currentTime = exports.unstable_now();
+        startTime = currentTime;
+        var hasMoreWork = true;
+        try {
+          a: {
+            isHostCallbackScheduled = false;
+            isHostTimeoutScheduled && (isHostTimeoutScheduled = false, localClearTimeout(taskTimeoutID), taskTimeoutID = -1);
+            isPerformingWork = true;
+            var previousPriorityLevel = currentPriorityLevel;
+            try {
+              b: {
+                advanceTimers(currentTime);
+                for (currentTask = peek(taskQueue); null !== currentTask && !(currentTask.expirationTime > currentTime && shouldYieldToHost()); ) {
+                  var callback = currentTask.callback;
+                  if ("function" === typeof callback) {
+                    currentTask.callback = null;
+                    currentPriorityLevel = currentTask.priorityLevel;
+                    var continuationCallback = callback(
+                      currentTask.expirationTime <= currentTime
+                    );
+                    currentTime = exports.unstable_now();
+                    if ("function" === typeof continuationCallback) {
+                      currentTask.callback = continuationCallback;
+                      advanceTimers(currentTime);
+                      hasMoreWork = true;
+                      break b;
+                    }
+                    currentTask === peek(taskQueue) && pop(taskQueue);
+                    advanceTimers(currentTime);
+                  } else pop(taskQueue);
+                  currentTask = peek(taskQueue);
+                }
+                if (null !== currentTask) hasMoreWork = true;
+                else {
+                  var firstTimer = peek(timerQueue);
+                  null !== firstTimer && requestHostTimeout(
+                    handleTimeout,
+                    firstTimer.startTime - currentTime
+                  );
+                  hasMoreWork = false;
+                }
+              }
+              break a;
+            } finally {
+              currentTask = null, currentPriorityLevel = previousPriorityLevel, isPerformingWork = false;
+            }
+            hasMoreWork = void 0;
+          }
+        } finally {
+          hasMoreWork ? schedulePerformWorkUntilDeadline() : isMessageLoopRunning = false;
+        }
+      }
+    }
+    var schedulePerformWorkUntilDeadline;
+    if ("function" === typeof localSetImmediate)
+      schedulePerformWorkUntilDeadline = function() {
+        localSetImmediate(performWorkUntilDeadline);
+      };
+    else if ("undefined" !== typeof MessageChannel) {
+      var channel = new MessageChannel(), port = channel.port2;
+      channel.port1.onmessage = performWorkUntilDeadline;
+      schedulePerformWorkUntilDeadline = function() {
+        port.postMessage(null);
+      };
+    } else
+      schedulePerformWorkUntilDeadline = function() {
+        localSetTimeout(performWorkUntilDeadline, 0);
+      };
+    function requestHostTimeout(callback, ms) {
+      taskTimeoutID = localSetTimeout(function() {
+        callback(exports.unstable_now());
+      }, ms);
+    }
+    exports.unstable_IdlePriority = 5;
+    exports.unstable_ImmediatePriority = 1;
+    exports.unstable_LowPriority = 4;
+    exports.unstable_NormalPriority = 3;
+    exports.unstable_Profiling = null;
+    exports.unstable_UserBlockingPriority = 2;
+    exports.unstable_cancelCallback = function(task) {
+      task.callback = null;
+    };
+    exports.unstable_forceFrameRate = function(fps) {
+      0 > fps || 125 < fps ? console.error(
+        "forceFrameRate takes a positive int between 0 and 125, forcing frame rates higher than 125 fps is not supported"
+      ) : frameInterval = 0 < fps ? Math.floor(1e3 / fps) : 5;
+    };
+    exports.unstable_getCurrentPriorityLevel = function() {
+      return currentPriorityLevel;
+    };
+    exports.unstable_next = function(eventHandler) {
+      switch (currentPriorityLevel) {
+        case 1:
+        case 2:
+        case 3:
+          var priorityLevel = 3;
+          break;
+        default:
+          priorityLevel = currentPriorityLevel;
+      }
+      var previousPriorityLevel = currentPriorityLevel;
+      currentPriorityLevel = priorityLevel;
+      try {
+        return eventHandler();
+      } finally {
+        currentPriorityLevel = previousPriorityLevel;
+      }
+    };
+    exports.unstable_requestPaint = function() {
+      needsPaint = true;
+    };
+    exports.unstable_runWithPriority = function(priorityLevel, eventHandler) {
+      switch (priorityLevel) {
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+          break;
+        default:
+          priorityLevel = 3;
+      }
+      var previousPriorityLevel = currentPriorityLevel;
+      currentPriorityLevel = priorityLevel;
+      try {
+        return eventHandler();
+      } finally {
+        currentPriorityLevel = previousPriorityLevel;
+      }
+    };
+    exports.unstable_scheduleCallback = function(priorityLevel, callback, options) {
+      var currentTime = exports.unstable_now();
+      "object" === typeof options && null !== options ? (options = options.delay, options = "number" === typeof options && 0 < options ? currentTime + options : currentTime) : options = currentTime;
+      switch (priorityLevel) {
+        case 1:
+          var timeout = -1;
+          break;
+        case 2:
+          timeout = 250;
+          break;
+        case 5:
+          timeout = 1073741823;
+          break;
+        case 4:
+          timeout = 1e4;
+          break;
+        default:
+          timeout = 5e3;
+      }
+      timeout = options + timeout;
+      priorityLevel = {
+        id: taskIdCounter++,
+        callback,
+        priorityLevel,
+        startTime: options,
+        expirationTime: timeout,
+        sortIndex: -1
+      };
+      options > currentTime ? (priorityLevel.sortIndex = options, push(timerQueue, priorityLevel), null === peek(taskQueue) && priorityLevel === peek(timerQueue) && (isHostTimeoutScheduled ? (localClearTimeout(taskTimeoutID), taskTimeoutID = -1) : isHostTimeoutScheduled = true, requestHostTimeout(handleTimeout, options - currentTime))) : (priorityLevel.sortIndex = timeout, push(taskQueue, priorityLevel), isHostCallbackScheduled || isPerformingWork || (isHostCallbackScheduled = true, isMessageLoopRunning || (isMessageLoopRunning = true, schedulePerformWorkUntilDeadline())));
+      return priorityLevel;
+    };
+    exports.unstable_shouldYield = shouldYieldToHost;
+    exports.unstable_wrapCallback = function(callback) {
+      var parentPriorityLevel = currentPriorityLevel;
+      return function() {
+        var previousPriorityLevel = currentPriorityLevel;
+        currentPriorityLevel = parentPriorityLevel;
+        try {
+          return callback.apply(this, arguments);
+        } finally {
+          currentPriorityLevel = previousPriorityLevel;
+        }
+      };
+    };
+  })(scheduler_production);
+  return scheduler_production;
+}
+var hasRequiredScheduler;
+function requireScheduler() {
+  if (hasRequiredScheduler) return scheduler.exports;
+  hasRequiredScheduler = 1;
+  {
+    scheduler.exports = requireScheduler_production();
+  }
+  return scheduler.exports;
 }
 var reactDom = { exports: {} };
 var reactDom_production = {};
@@ -6942,7 +6808,7 @@ function requireReactDom_production() {
   reactDom_production.useFormStatus = function() {
     return ReactSharedInternals.H.useHostTransitionStatus();
   };
-  reactDom_production.version = "19.2.5";
+  reactDom_production.version = "19.2.6";
   return reactDom_production;
 }
 var hasRequiredReactDom;
@@ -18395,12 +18261,12 @@ function requireReactDomClient_production() {
     }
   };
   var isomorphicReactPackageVersion$jscomp$inline_1840 = React2.version;
-  if ("19.2.5" !== isomorphicReactPackageVersion$jscomp$inline_1840)
+  if ("19.2.6" !== isomorphicReactPackageVersion$jscomp$inline_1840)
     throw Error(
       formatProdErrorMessage(
         527,
         isomorphicReactPackageVersion$jscomp$inline_1840,
-        "19.2.5"
+        "19.2.6"
       )
     );
   ReactDOMSharedInternals.findDOMNode = function(componentOrElement) {
@@ -18418,10 +18284,10 @@ function requireReactDomClient_production() {
   };
   var internals$jscomp$inline_2347 = {
     bundleType: 0,
-    version: "19.2.5",
+    version: "19.2.6",
     rendererPackageName: "react-dom",
     currentDispatcherRef: ReactSharedInternals,
-    reconcilerVersion: "19.2.5"
+    reconcilerVersion: "19.2.6"
   };
   if ("undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__) {
     var hook$jscomp$inline_2348 = __REACT_DEVTOOLS_GLOBAL_HOOK__;
@@ -18488,7 +18354,7 @@ function requireReactDomClient_production() {
     listenToAllSupportedEvents(container);
     return new ReactDOMHydrationRoot(initialChildren);
   };
-  reactDomClient_production.version = "19.2.5";
+  reactDomClient_production.version = "19.2.6";
   return reactDomClient_production;
 }
 var hasRequiredClient;
@@ -18512,8 +18378,6 @@ function requireClient() {
   return client.exports;
 }
 var clientExports = requireClient();
-var reactExports = requireReact();
-const React = /* @__PURE__ */ getDefaultExportFromCjs(reactExports);
 /**
  * @license
  * Copyright 2010-2026 Three.js Authors
@@ -62715,6 +62579,35 @@ function releaseInternalPointerCapture(capturedMap, obj, captures, pointerId) {
     }
   }
 }
+function swapInteractivity(store, object, newObject) {
+  const {
+    internal
+  } = store.getState();
+  for (let i2 = 0; i2 < internal.interaction.length; i2++) {
+    if (internal.interaction[i2] === object) internal.interaction[i2] = newObject;
+  }
+  for (let i2 = 0; i2 < internal.initialHits.length; i2++) {
+    if (internal.initialHits[i2] === object) internal.initialHits[i2] = newObject;
+  }
+  internal.hovered.forEach((value, key) => {
+    if (value.eventObject === object || value.object === object) {
+      internal.hovered.delete(key);
+      const next = {
+        ...value,
+        eventObject: value.eventObject === object ? newObject : value.eventObject,
+        object: value.object === object ? newObject : value.object
+      };
+      internal.hovered.set(makeId(next), next);
+    }
+  });
+  internal.capturedMap.forEach((captures) => {
+    const captureData = captures.get(object);
+    if (captureData) {
+      captures.delete(object);
+      captures.set(newObject, captureData);
+    }
+  });
+}
 function removeInteractivity(store, object) {
   const {
     internal
@@ -63287,7 +63180,7 @@ useLoader.clear = function(loader, input) {
  */
 const t = 1, o = 8, r = 32, e = 2;
 var packageData = {
-  version: "9.6.0"
+  version: "9.6.1"
 };
 function Xb(Tt2) {
   return Tt2 && Tt2.__esModule && Object.prototype.hasOwnProperty.call(Tt2, "default") ? Tt2.default : Tt2;
@@ -68547,9 +68440,11 @@ function swapInstances() {
     if (parent) {
       var _instance$props$objec, _instance$props$args;
       const target = catalogue[toPascalCase(instance.type)];
+      const prevObject = instance.object;
       instance.object = (_instance$props$objec = instance.props.object) != null ? _instance$props$objec : new target(...(_instance$props$args = instance.props.args) != null ? _instance$props$args : []);
       instance.object.__r3f = instance;
       setFiberRef(fiber, instance.object);
+      swapInteractivity(findInitialRoot(instance), prevObject, instance.object);
       applyProps(instance.object, instance.props);
       if (instance.props.attach) {
         attach(parent, instance);
@@ -73771,7 +73666,7 @@ function callWorker(workerId, action, data) {
   });
 }
 function SDFGenerator() {
-  var exports$1 = (function(exports$12) {
+  var exports = (function(exports2) {
     function pointOnQuadraticBezier(x0, y0, x1, y1, x2, y2, t2, pointOut) {
       var t22 = 1 - t2;
       pointOut.x = t22 * t22 * x0 + 2 * t22 * t2 * x1 + t2 * t2 * x2;
@@ -74373,20 +74268,20 @@ function SDFGenerator() {
         return generateIntoCanvas$2.apply(javascript, arguments);
       }
     }
-    exports$12.forEachPathCommand = forEachPathCommand;
-    exports$12.generate = generate;
-    exports$12.generateIntoCanvas = generateIntoCanvas;
-    exports$12.javascript = javascript;
-    exports$12.pathToLineSegments = pathToLineSegments;
-    exports$12.webgl = webgl;
-    exports$12.webglUtils = webglUtils;
-    Object.defineProperty(exports$12, "__esModule", { value: true });
-    return exports$12;
+    exports2.forEachPathCommand = forEachPathCommand;
+    exports2.generate = generate;
+    exports2.generateIntoCanvas = generateIntoCanvas;
+    exports2.javascript = javascript;
+    exports2.pathToLineSegments = pathToLineSegments;
+    exports2.webgl = webgl;
+    exports2.webglUtils = webglUtils;
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    return exports2;
   })({});
-  return exports$1;
+  return exports;
 }
 function bidiFactory() {
-  var bidi = (function(exports$1) {
+  var bidi = (function(exports) {
     var DATA2 = {
       "R": "13k,1a,2,3,3,2+1j,ch+16,a+1,5+2,2+n,5,a,4,6+16,4+3,h+1b,4mo,179q,2+9,2+11,2i9+7y,2+68,4,3+4,5+13,4+3,2+4k,3+29,8+cf,1t+7z,w+17,3+3m,1t+3z,16o1+5r,8+30,8+mc,29+1r,29+4v,75+73",
       "EN": "1c+9,3d+1,6,187+9,513,4+5,7+9,sf+j,175h+9,qw+q,161f+1d,4xt+a,25i+9",
@@ -75133,19 +75028,19 @@ function bidiFactory() {
       });
       return indices;
     }
-    exports$1.closingToOpeningBracket = closingToOpeningBracket;
-    exports$1.getBidiCharType = getBidiCharType;
-    exports$1.getBidiCharTypeName = getBidiCharTypeName;
-    exports$1.getCanonicalBracket = getCanonicalBracket;
-    exports$1.getEmbeddingLevels = getEmbeddingLevels;
-    exports$1.getMirroredCharacter = getMirroredCharacter;
-    exports$1.getMirroredCharactersMap = getMirroredCharactersMap;
-    exports$1.getReorderSegments = getReorderSegments;
-    exports$1.getReorderedIndices = getReorderedIndices;
-    exports$1.getReorderedString = getReorderedString;
-    exports$1.openingToClosingBracket = openingToClosingBracket;
-    Object.defineProperty(exports$1, "__esModule", { value: true });
-    return exports$1;
+    exports.closingToOpeningBracket = closingToOpeningBracket;
+    exports.getBidiCharType = getBidiCharType;
+    exports.getBidiCharTypeName = getBidiCharTypeName;
+    exports.getCanonicalBracket = getCanonicalBracket;
+    exports.getEmbeddingLevels = getEmbeddingLevels;
+    exports.getMirroredCharacter = getMirroredCharacter;
+    exports.getMirroredCharactersMap = getMirroredCharactersMap;
+    exports.getReorderSegments = getReorderSegments;
+    exports.getReorderedIndices = getReorderedIndices;
+    exports.getReorderedString = getReorderedString;
+    exports.openingToClosingBracket = openingToClosingBracket;
+    Object.defineProperty(exports, "__esModule", { value: true });
+    return exports;
   })({});
   return bidi;
 }
@@ -81062,7 +80957,7 @@ function isVersionServiceProvider(provider) {
   return (component == null ? void 0 : component.type) === "VERSION";
 }
 const name$q = "@firebase/app";
-const version$1 = "0.14.11";
+const version$1 = "0.14.12";
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -81106,7 +81001,7 @@ const name$3 = "@firebase/firestore";
 const name$2 = "@firebase/ai";
 const name$1 = "@firebase/firestore-compat";
 const name$r = "firebase";
-const version$2 = "12.12.0";
+const version$2 = "12.13.0";
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -81775,7 +81670,7 @@ function registerCoreComponents(variant) {
 }
 registerCoreComponents("");
 var name = "firebase";
-var version = "12.12.0";
+var version = "12.13.0";
 /**
  * @license
  * Copyright 2020 Google LLC
@@ -84341,7 +84236,7 @@ User.GOOGLE_CREDENTIALS = new User("google-credentials-uid"), User.FIRST_PARTY =
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-let b = "12.12.0";
+let b = "12.13.0";
 function __PRIVATE_setSDKVersion(e2) {
   b = e2;
 }
@@ -87388,9 +87283,9 @@ class __PRIVATE_QueryImpl {
    * Path must currently be empty if this is a collection group query.
    */
   constructor(e2, t2 = null, n = [], r2 = [], i2 = null, s = "F", o2 = null, _ = null) {
-    this.path = e2, this.collectionGroup = t2, this.explicitOrderBy = n, this.filters = r2, this.limit = i2, this.limitType = s, this.startAt = o2, this.endAt = _, this.Ee = null, // The corresponding `Target` of this `Query` instance, for use with
+    this.path = e2, this.collectionGroup = t2, this.explicitOrderBy = n, this.filters = r2, this.limit = i2, this.limitType = s, this.startAt = o2, this.endAt = _, this.Ie = null, // The corresponding `Target` of this `Query` instance, for use with
     // non-aggregate queries.
-    this.Ie = null, // The corresponding `Target` of this `Query` instance, for use with
+    this.Ee = null, // The corresponding `Target` of this `Query` instance, for use with
     // aggregate queries. Unlike targets for non-aggregate queries,
     // aggregate query targets do not contain normalized order-bys, they only
     // contain explicit order-bys.
@@ -87414,10 +87309,10 @@ function __PRIVATE_isCollectionGroupQuery(e2) {
 }
 function __PRIVATE_queryNormalizedOrderBy(e2) {
   const t2 = __PRIVATE_debugCast(e2);
-  if (null === t2.Ee) {
-    t2.Ee = [];
+  if (null === t2.Ie) {
+    t2.Ie = [];
     const e3 = /* @__PURE__ */ new Set();
-    for (const n2 of t2.explicitOrderBy) t2.Ee.push(n2), e3.add(n2.field.canonicalString());
+    for (const n2 of t2.explicitOrderBy) t2.Ie.push(n2), e3.add(n2.field.canonicalString());
     const n = t2.explicitOrderBy.length > 0 ? t2.explicitOrderBy[t2.explicitOrderBy.length - 1].dir : "asc", r2 = (function __PRIVATE_getInequalityFilterFields(e4) {
       let t3 = new SortedSet(FieldPath$1.comparator);
       return e4.filters.forEach(((e5) => {
@@ -87427,15 +87322,15 @@ function __PRIVATE_queryNormalizedOrderBy(e2) {
       })), t3;
     })(t2);
     r2.forEach(((r3) => {
-      e3.has(r3.canonicalString()) || r3.isKeyField() || t2.Ee.push(new OrderBy(r3, n));
+      e3.has(r3.canonicalString()) || r3.isKeyField() || t2.Ie.push(new OrderBy(r3, n));
     })), // Add the document key field to the last if it is not explicitly ordered.
-    e3.has(FieldPath$1.keyField().canonicalString()) || t2.Ee.push(new OrderBy(FieldPath$1.keyField(), n));
+    e3.has(FieldPath$1.keyField().canonicalString()) || t2.Ie.push(new OrderBy(FieldPath$1.keyField(), n));
   }
-  return t2.Ee;
+  return t2.Ie;
 }
 function __PRIVATE_queryToTarget(e2) {
   const t2 = __PRIVATE_debugCast(e2);
-  return t2.Ie || (t2.Ie = __PRIVATE__queryToTarget(t2, __PRIVATE_queryNormalizedOrderBy(e2))), t2.Ie;
+  return t2.Ee || (t2.Ee = __PRIVATE__queryToTarget(t2, __PRIVATE_queryNormalizedOrderBy(e2))), t2.Ee;
 }
 function __PRIVATE__queryToTarget(e2, t2) {
   if ("F" === e2.limitType) return __PRIVATE_newTarget(e2.path, e2.collectionGroup, t2, e2.filters, e2.limit, e2.startAt, e2.endAt);
@@ -88476,10 +88371,10 @@ class __PRIVATE_TargetState {
   /**
    * Resets the document changes and sets `hasPendingChanges` to false.
    */
-  qe() {
+  Ke() {
     this.Oe = false, this.Fe = __PRIVATE_snapshotChangesMap();
   }
-  Ke(e2, t2) {
+  qe(e2, t2) {
     this.Oe = true, this.Fe = this.Fe.insert(e2, t2);
   }
   Ue(e2) {
@@ -88528,7 +88423,7 @@ class __PRIVATE_WatchChangeAggregator {
           n.We(), n.Ne || // We have a freshly added target, so we need to reset any state
           // that we had previously. This can happen e.g. when remove and add
           // back a target for existence filter mismatches.
-          n.qe(), n.Le(e2.resumeToken);
+          n.Ke(), n.Le(e2.resumeToken);
           break;
         case 2:
           n.We(), n.Ne || this.removeTarget(t2);
@@ -88644,9 +88539,9 @@ class __PRIVATE_WatchChangeAggregator {
       if (i2) {
         if (n2.current && __PRIVATE_targetIsDocumentTarget(i2.target)) {
           const t3 = new DocumentKey(i2.target.path);
-          this.Et(t3).has(r3) || this.It(r3, t3) || this.et(r3, t3, MutableDocument.newNoDocument(t3, e2));
+          this.It(t3).has(r3) || this.Et(r3, t3) || this.et(r3, t3, MutableDocument.newNoDocument(t3, e2));
         }
-        n2.Be && (t2.set(r3, n2.ke()), n2.qe());
+        n2.Be && (t2.set(r3, n2.ke()), n2.Ke());
       }
     }));
     let n = __PRIVATE_documentKeySet();
@@ -88667,8 +88562,8 @@ class __PRIVATE_WatchChangeAggregator {
   // Visible for testing.
   Ye(e2, t2) {
     if (!this.rt(e2)) return;
-    const n = this.It(e2, t2.key) ? 2 : 0;
-    this.nt(e2).Ke(t2.key, n), this.je = this.je.insert(t2.key, t2), this.Je = this.Je.insert(t2.key, this.Et(t2.key).add(e2)), this.He = this.He.insert(t2.key, this.Rt(t2.key).add(e2));
+    const n = this.Et(e2, t2.key) ? 2 : 0;
+    this.nt(e2).qe(t2.key, n), this.je = this.je.insert(t2.key, t2), this.Je = this.Je.insert(t2.key, this.It(t2.key).add(e2)), this.He = this.He.insert(t2.key, this.Rt(t2.key).add(e2));
   }
   /**
    * Removes the provided document from the target mapping. If the
@@ -88681,7 +88576,7 @@ class __PRIVATE_WatchChangeAggregator {
   et(e2, t2, n) {
     if (!this.rt(e2)) return;
     const r2 = this.nt(e2);
-    this.It(e2, t2) ? r2.Ke(
+    this.Et(e2, t2) ? r2.qe(
       t2,
       1
       /* ChangeType.Removed */
@@ -88718,7 +88613,7 @@ class __PRIVATE_WatchChangeAggregator {
     let t2 = this.He.get(e2);
     return t2 || (t2 = new SortedSet(__PRIVATE_primitiveComparator), this.He = this.He.insert(e2, t2)), t2;
   }
-  Et(e2) {
+  It(e2) {
     let t2 = this.Je.get(e2);
     return t2 || (t2 = new SortedSet(__PRIVATE_primitiveComparator), this.Je = this.Je.insert(e2, t2)), t2;
   }
@@ -88759,7 +88654,7 @@ class __PRIVATE_WatchChangeAggregator {
    * Returns whether the LocalStore considers the document to be part of the
    * specified target.
    */
-  It(e2, t2) {
+  Et(e2, t2) {
     return this.Ge.getRemoteKeysForTarget(e2).has(t2);
   }
 }
@@ -89539,11 +89434,11 @@ class __PRIVATE_RollingSequenceNumberBuffer {
   constructor(e2) {
     this.Pr = e2, this.buffer = new SortedSet(__PRIVATE_bufferEntryComparator), this.Tr = 0;
   }
-  Er() {
+  Ir() {
     return ++this.Tr;
   }
-  Ir(e2) {
-    const t2 = [e2, this.Er()];
+  Er(e2) {
+    const t2 = [e2, this.Ir()];
     if (this.buffer.size < this.Pr) this.buffer = this.buffer.add(t2);
     else {
       const e3 = this.buffer.last();
@@ -89589,7 +89484,7 @@ class __PRIVATE_LruGarbageCollectorImpl {
   nthSequenceNumber(e2, t2) {
     if (0 === t2) return PersistencePromise.resolve(__PRIVATE_ListenSequence.ce);
     const n = new __PRIVATE_RollingSequenceNumberBuffer(t2);
-    return this.Vr.forEachTarget(e2, ((e3) => n.Ir(e3.sequenceNumber))).next((() => this.Vr.mr(e2, ((e3) => n.Ir(e3))))).next((() => n.maxValue));
+    return this.Vr.forEachTarget(e2, ((e3) => n.Er(e3.sequenceNumber))).next((() => this.Vr.mr(e2, ((e3) => n.Er(e3))))).next((() => n.maxValue));
   }
   removeTargets(e2, t2, n) {
     return this.Vr.removeTargets(e2, t2, n);
@@ -90138,8 +90033,8 @@ class __PRIVATE_MemoryGlobalsCache {
  */
 class __PRIVATE_ReferenceSet {
   constructor() {
-    this.kr = new SortedSet(__PRIVATE_DocReference.qr), // A set of outstanding references to a document sorted by target id.
-    this.Kr = new SortedSet(__PRIVATE_DocReference.Ur);
+    this.kr = new SortedSet(__PRIVATE_DocReference.Kr), // A set of outstanding references to a document sorted by target id.
+    this.qr = new SortedSet(__PRIVATE_DocReference.Ur);
   }
   /** Returns true if the reference set contains no references. */
   isEmpty() {
@@ -90148,7 +90043,7 @@ class __PRIVATE_ReferenceSet {
   /** Adds a reference to the given document key for the given ID. */
   addReference(e2, t2) {
     const n = new __PRIVATE_DocReference(e2, t2);
-    this.kr = this.kr.add(n), this.Kr = this.Kr.add(n);
+    this.kr = this.kr.add(n), this.qr = this.qr.add(n);
   }
   /** Add references to the given document keys for the given ID. */
   $r(e2, t2) {
@@ -90170,7 +90065,7 @@ class __PRIVATE_ReferenceSet {
    */
   Gr(e2) {
     const t2 = new DocumentKey(new ResourcePath([])), n = new __PRIVATE_DocReference(t2, e2), r2 = new __PRIVATE_DocReference(t2, e2 + 1), i2 = [];
-    return this.Kr.forEachInRange([n, r2], ((e3) => {
+    return this.qr.forEachInRange([n, r2], ((e3) => {
       this.Wr(e3), i2.push(e3.key);
     })), i2;
   }
@@ -90178,12 +90073,12 @@ class __PRIVATE_ReferenceSet {
     this.kr.forEach(((e2) => this.Wr(e2)));
   }
   Wr(e2) {
-    this.kr = this.kr.delete(e2), this.Kr = this.Kr.delete(e2);
+    this.kr = this.kr.delete(e2), this.qr = this.qr.delete(e2);
   }
   jr(e2) {
     const t2 = new DocumentKey(new ResourcePath([])), n = new __PRIVATE_DocReference(t2, e2), r2 = new __PRIVATE_DocReference(t2, e2 + 1);
     let i2 = __PRIVATE_documentKeySet();
-    return this.Kr.forEachInRange([n, r2], ((e3) => {
+    return this.qr.forEachInRange([n, r2], ((e3) => {
       i2 = i2.add(e3.key);
     })), i2;
   }
@@ -90197,7 +90092,7 @@ class __PRIVATE_DocReference {
     this.key = e2, this.Jr = t2;
   }
   /** Compare by key then by ID */
-  static qr(e2, t2) {
+  static Kr(e2, t2) {
     return DocumentKey.comparator(e2.key, t2.key) || __PRIVATE_primitiveComparator(e2.Jr, t2.Jr);
   }
   /** Compare by ID then by key */
@@ -90229,7 +90124,7 @@ class __PRIVATE_MemoryMutationQueue {
      */
     this.mutationQueue = [], /** Next value to use when assigning sequential IDs to each mutation batch. */
     this.Yn = 1, /** An ordered mapping between documents and the mutations batch IDs. */
-    this.Hr = new SortedSet(__PRIVATE_DocReference.qr);
+    this.Hr = new SortedSet(__PRIVATE_DocReference.Kr);
   }
   checkEmpty(e2) {
     return PersistencePromise.resolve(0 === this.mutationQueue.length);
@@ -90616,9 +90511,9 @@ class __PRIVATE_MemoryPersistence {
   runTransaction(e2, t2, n) {
     __PRIVATE_logDebug("MemoryPersistence", "Starting transaction:", e2);
     const r2 = new __PRIVATE_MemoryTransaction(this.ai.next());
-    return this.referenceDelegate.Ti(), n(r2).next(((e3) => this.referenceDelegate.Ei(r2).next((() => e3)))).toPromise().then(((e3) => (r2.raiseOnCommittedEvent(), e3)));
+    return this.referenceDelegate.Ti(), n(r2).next(((e3) => this.referenceDelegate.Ii(r2).next((() => e3)))).toPromise().then(((e3) => (r2.raiseOnCommittedEvent(), e3)));
   }
-  Ii(e2, t2) {
+  Ei(e2, t2) {
     return PersistencePromise.or(Object.values(this._i).map(((n) => () => n.containsKey(e2, t2))));
   }
 }
@@ -90659,7 +90554,7 @@ class __PRIVATE_MemoryEagerDelegate {
   Ti() {
     this.Ai = /* @__PURE__ */ new Set();
   }
-  Ei(e2) {
+  Ii(e2) {
     const t2 = this.persistence.getRemoteDocumentCache().newChangeBuffer();
     return PersistencePromise.forEach(this.di, ((n) => {
       const r2 = DocumentKey.fromPath(n);
@@ -90677,7 +90572,7 @@ class __PRIVATE_MemoryEagerDelegate {
     return 0;
   }
   mi(e2, t2) {
-    return PersistencePromise.or([() => PersistencePromise.resolve(this.Ri.containsKey(t2)), () => this.persistence.getTargetCache().containsKey(e2, t2), () => this.persistence.Ii(e2, t2)]);
+    return PersistencePromise.or([() => PersistencePromise.resolve(this.Ri.containsKey(t2)), () => this.persistence.getTargetCache().containsKey(e2, t2), () => this.persistence.Ei(e2, t2)]);
   }
 }
 class __PRIVATE_MemoryLruDelegate {
@@ -90691,7 +90586,7 @@ class __PRIVATE_MemoryLruDelegate {
   // it has.
   Ti() {
   }
-  Ei(e2) {
+  Ii(e2) {
     return PersistencePromise.resolve();
   }
   forEachTarget(e2, t2) {
@@ -90741,7 +90636,7 @@ class __PRIVATE_MemoryLruDelegate {
     return e2.isFoundDocument() && (t2 += __PRIVATE_estimateByteSize(e2.data.value)), t2;
   }
   wr(e2, t2, n) {
-    return PersistencePromise.or([() => this.persistence.Ii(e2, t2), () => this.persistence.getTargetCache().containsKey(e2, t2), () => {
+    return PersistencePromise.or([() => this.persistence.Ei(e2, t2), () => this.persistence.getTargetCache().containsKey(e2, t2), () => {
       const e3 = this.fi.get(t2);
       return PersistencePromise.resolve(void 0 !== e3 && e3 > n);
     }]);
@@ -90768,9 +90663,9 @@ class __PRIVATE_MemoryLruDelegate {
  */
 class __PRIVATE_LocalViewChanges {
   constructor(e2, t2, n, r2) {
-    this.targetId = e2, this.fromCache = t2, this.Ts = n, this.Es = r2;
+    this.targetId = e2, this.fromCache = t2, this.Ts = n, this.Is = r2;
   }
-  static Is(e2, t2) {
+  static Es(e2, t2) {
     let n = __PRIVATE_documentKeySet(), r2 = __PRIVATE_documentKeySet();
     for (const e3 of t2.docChanges) switch (e3.type) {
       case 0:
@@ -91363,13 +91258,13 @@ const Wt = "RestConnection", Qt = {
   ExecutePipeline: "executePipeline"
 };
 class __PRIVATE_RestConnection {
-  get qo() {
+  get Ko() {
     return false;
   }
   constructor(e2) {
     this.databaseInfo = e2, this.databaseId = e2.databaseId;
     const t2 = e2.ssl ? "https" : "http", n = encodeURIComponent(this.databaseId.projectId), r2 = encodeURIComponent(this.databaseId.database);
-    this.Ko = t2 + "://" + e2.host, this.Uo = `projects/${n}/databases/${r2}`, this.$o = this.databaseId.database === it ? `project_id=${n}` : `project_id=${n}&database_id=${r2}`;
+    this.qo = t2 + "://" + e2.host, this.Uo = `projects/${n}/databases/${r2}`, this.$o = this.databaseId.database === it ? `project_id=${n}` : `project_id=${n}&database_id=${r2}`;
   }
   Wo(e2, t2, n, r2, i2) {
     const s = __PRIVATE_generateUniqueDebugId(), o2 = this.Qo(e2, t2.toUriEncodedString());
@@ -91404,7 +91299,7 @@ class __PRIVATE_RestConnection {
   }
   Qo(e2, t2) {
     const n = Qt[e2];
-    let r2 = `${this.Ko}/v1/${t2}:${n}`;
+    let r2 = `${this.qo}/v1/${t2}:${n}`;
     return this.databaseInfo.apiKey && (r2 = `${r2}?key=${encodeURIComponent(this.databaseInfo.apiKey)}`), r2;
   }
   /**
@@ -91557,7 +91452,7 @@ class __PRIVATE_WebChannelConnection extends __PRIVATE_RestConnection {
     }));
   }
   T_(e2, t2, n) {
-    const r2 = __PRIVATE_generateUniqueDebugId(), i2 = [this.Ko, "/", "google.firestore.v1.Firestore", "/", e2, "/channel"], s = this.createWebChannelTransport(), o2 = {
+    const r2 = __PRIVATE_generateUniqueDebugId(), i2 = [this.qo, "/", "google.firestore.v1.Firestore", "/", e2, "/channel"], s = this.createWebChannelTransport(), o2 = {
       // Required for backend stickiness, routing behavior is based on this
       // parameter.
       httpSessionIdParam: "gsessionid",
@@ -91594,7 +91489,7 @@ class __PRIVATE_WebChannelConnection extends __PRIVATE_RestConnection {
     const a2 = i2.join("");
     __PRIVATE_logDebug(Gt, `Creating RPC '${e2}' stream ${r2}: ${a2}`, o2);
     const u = s.createWebChannel(a2, o2);
-    this.E_(u);
+    this.I_(u);
     let c2 = false, l2 = false;
     const h2 = new __PRIVATE_StreamBridge({
       Jo: (t3) => {
@@ -91605,7 +91500,7 @@ class __PRIVATE_WebChannelConnection extends __PRIVATE_RestConnection {
     return __PRIVATE_unguardedEventListen(u, WebChannel.EventType.OPEN, (() => {
       l2 || (__PRIVATE_logDebug(Gt, `RPC '${e2}' stream ${r2} transport opened.`), h2.i_());
     })), __PRIVATE_unguardedEventListen(u, WebChannel.EventType.CLOSE, (() => {
-      l2 || (l2 = true, __PRIVATE_logDebug(Gt, `RPC '${e2}' stream ${r2} transport closed`), h2.o_(), this.I_(u));
+      l2 || (l2 = true, __PRIVATE_logDebug(Gt, `RPC '${e2}' stream ${r2} transport closed`), h2.o_(), this.E_(u));
     })), __PRIVATE_unguardedEventListen(u, WebChannel.EventType.ERROR, ((t3) => {
       l2 || (l2 = true, __PRIVATE_logWarn(Gt, `RPC '${e2}' stream ${r2} transport errored. Name:`, t3.name, "Message:", t3.message), h2.o_(new FirestoreError(D.UNAVAILABLE, "The operation could not be completed")));
     })), __PRIVATE_unguardedEventListen(u, WebChannel.EventType.MESSAGE, ((t3) => {
@@ -91648,14 +91543,14 @@ class __PRIVATE_WebChannelConnection extends __PRIVATE_RestConnection {
    * Add a WebChannel instance to the collection of open instances.
    * @param webChannel
    */
-  E_(e2) {
+  I_(e2) {
     this.a_.push(e2);
   }
   /**
    * Remove a WebChannel instance from the collection of open instances.
    * @param webChannel
    */
-  I_(e2) {
+  E_(e2) {
     this.a_ = this.a_.filter(((t2) => t2 === e2));
   }
   /**
@@ -91874,8 +91769,8 @@ class __PRIVATE_PersistentStream {
     this.O_() && null === this.C_ && (this.C_ = this.Ci.enqueueAfterDelay(this.S_, 6e4, (() => this.k_())));
   }
   /** Sends a message to the underlying stream. */
-  q_(e2) {
-    this.K_(), this.stream.send(e2);
+  K_(e2) {
+    this.q_(), this.stream.send(e2);
   }
   /** Called by the idle timer when the stream should close due to inactivity. */
   async k_() {
@@ -91886,7 +91781,7 @@ class __PRIVATE_PersistentStream {
       );
   }
   /** Marks the stream as active again. */
-  K_() {
+  q_() {
     this.C_ && (this.C_.cancel(), this.C_ = null);
   }
   /** Cancels the health check delayed operation. */
@@ -91907,7 +91802,7 @@ class __PRIVATE_PersistentStream {
    * @param error - the error the connection was closed with.
    */
   async close(e2, t2) {
-    this.K_(), this.U_(), this.M_.cancel(), // Invalidates any stream-related callbacks (e.g. from auth or the
+    this.q_(), this.U_(), this.M_.cancel(), // Invalidates any stream-related callbacks (e.g. from auth or the
     // underlying stream), guaranteeing they won't execute.
     this.D_++, 4 !== e2 ? (
       // If this is an intentional close ensure we don't delay our next connection attempt.
@@ -92027,7 +91922,7 @@ class __PRIVATE_PersistentListenStream extends __PRIVATE_PersistentStream {
       return n2;
     })(this.serializer, e2);
     const n = __PRIVATE_toListenRequestLabels(this.serializer, e2);
-    n && (t2.labels = n), this.q_(t2);
+    n && (t2.labels = n), this.K_(t2);
   }
   /**
    * Unregisters interest in the results of the target associated with the
@@ -92035,7 +91930,7 @@ class __PRIVATE_PersistentListenStream extends __PRIVATE_PersistentStream {
    */
   X_(e2) {
     const t2 = {};
-    t2.database = __PRIVATE_getEncodedDatabaseId(this.serializer), t2.removeTarget = e2, this.q_(t2);
+    t2.database = __PRIVATE_getEncodedDatabaseId(this.serializer), t2.removeTarget = e2, this.K_(t2);
   }
 }
 class __PRIVATE_PersistentWriteStream extends __PRIVATE_PersistentStream {
@@ -92078,7 +91973,7 @@ class __PRIVATE_PersistentWriteStream extends __PRIVATE_PersistentStream {
    */
   ra() {
     const e2 = {};
-    e2.database = __PRIVATE_getEncodedDatabaseId(this.serializer), this.q_(e2);
+    e2.database = __PRIVATE_getEncodedDatabaseId(this.serializer), this.K_(e2);
   }
   /** Sends a group of mutations to the Firestore backend to apply. */
   ea(e2) {
@@ -92086,7 +91981,7 @@ class __PRIVATE_PersistentWriteStream extends __PRIVATE_PersistentStream {
       streamToken: this.lastStreamToken,
       writes: e2.map(((e3) => toMutation(this.serializer, e3)))
     };
-    this.q_(t2);
+    this.K_(t2);
   }
 }
 /**
@@ -92253,110 +92148,140 @@ class __PRIVATE_RemoteStoreImpl {
      * to the server. The targets removed with unlistens are removed eagerly
      * without waiting for confirmation from the listen stream.
      */
-    this.Ea = /* @__PURE__ */ new Map(), /**
+    this.Ia = /* @__PURE__ */ new Map(), this.Ea = /* @__PURE__ */ new Map(), this.Ra = /* @__PURE__ */ new Map(), this.Aa = new __PRIVATE_TargetIdGenerator(1e3), this.Va = new __PRIVATE_TargetIdGenerator(1001), /**
      * A set of reasons for why the RemoteStore may be offline. If empty, the
      * RemoteStore may start its network connections.
      */
-    this.Ia = /* @__PURE__ */ new Set(), /**
+    this.da = /* @__PURE__ */ new Set(), /**
      * Event handlers that get called when the network is disabled or enabled.
      *
      * PORTING NOTE: These functions are used on the Web client to create the
      * underlying streams (to support tree-shakeable streams). On Android and iOS,
      * the streams are created during construction of RemoteStore.
      */
-    this.Ra = [], this.Aa = i2, this.Aa.Mo(((e3) => {
+    this.ma = [], this.fa = i2, this.fa.Mo(((e3) => {
       n.enqueueAndForget((async () => {
         __PRIVATE_canUseNetwork(this) && (__PRIVATE_logDebug(jt, "Restarting streams for network reachability change."), await (async function __PRIVATE_restartNetwork(e4) {
           const t3 = __PRIVATE_debugCast(e4);
-          t3.Ia.add(
+          t3.da.add(
             4
             /* OfflineCause.ConnectivityChange */
-          ), await __PRIVATE_disableNetworkInternal(t3), t3.Va.set(
+          ), await __PRIVATE_disableNetworkInternal(t3), t3.ga.set(
             "Unknown"
             /* OnlineState.Unknown */
-          ), t3.Ia.delete(
+          ), t3.da.delete(
             4
             /* OfflineCause.ConnectivityChange */
           ), await __PRIVATE_enableNetworkInternal(t3);
         })(this));
       }));
-    })), this.Va = new __PRIVATE_OnlineStateTracker(n, r2);
+    })), this.ga = new __PRIVATE_OnlineStateTracker(n, r2);
   }
 }
 async function __PRIVATE_enableNetworkInternal(e2) {
-  if (__PRIVATE_canUseNetwork(e2)) for (const t2 of e2.Ra) await t2(
+  if (__PRIVATE_canUseNetwork(e2)) for (const t2 of e2.ma) await t2(
     /* enabled= */
     true
   );
 }
 async function __PRIVATE_disableNetworkInternal(e2) {
-  for (const t2 of e2.Ra) await t2(
+  for (const t2 of e2.ma) await t2(
     /* enabled= */
     false
   );
 }
+function __PRIVATE_getRemoteTargetId(e2, t2) {
+  return e2.Ea.get(t2) || void 0;
+}
 function __PRIVATE_remoteStoreListen(e2, t2) {
-  const n = __PRIVATE_debugCast(e2);
-  n.Ea.has(t2.targetId) || // Mark this as something the client is currently listening for.
-  (n.Ea.set(t2.targetId, t2), __PRIVATE_shouldStartWatchStream(n) ? (
+  const n = __PRIVATE_debugCast(e2), r2 = __PRIVATE_getRemoteTargetId(n, t2.targetId);
+  if (void 0 !== r2 && n.Ia.has(r2)) return;
+  const i2 = (
+    /**
+    * Generate a new remote target ID for the given SDK target ID.
+    * Re-map the given SDK to the new remote ID.
+    * Delete any mapping of the old remote ID, if given.
+    * @param remoteStoreImpl
+    * @param sdkTargetId
+    * @return The new remote ID.
+    */
+    (function __PRIVATE_allocateRemoteTargetId(e3, t3) {
+      const n2 = __PRIVATE_getRemoteTargetId(e3, t3);
+      void 0 !== n2 && // If there was an existing remote target ID mapped to that SDK target ID, forget about the old remote ID.
+      e3.Ra.delete(n2);
+      const r3 = (function __PRIVATE_generateRemoteTargetId(e4, t4) {
+        return t4 % 2 != 0 ? e4.Va.next() : e4.Aa.next();
+      })(e3, t3);
+      return e3.Ea.set(t3, r3), e3.Ra.set(r3, t3), r3;
+    })(n, t2.targetId)
+  );
+  __PRIVATE_logDebug(jt, "remoteStoreListen mapping SDK target ID to remote", t2.targetId, i2);
+  const s = new TargetData(t2.target, i2, t2.purpose, t2.sequenceNumber, t2.snapshotVersion, t2.lastLimboFreeSnapshotVersion, t2.resumeToken);
+  n.Ia.set(i2, s), __PRIVATE_shouldStartWatchStream(n) ? (
     // The listen will be sent in onWatchStreamOpen
     __PRIVATE_startWatchStream(n)
-  ) : __PRIVATE_ensureWatchStream(n).O_() && __PRIVATE_sendWatchRequest(n, t2));
+  ) : __PRIVATE_ensureWatchStream(n).O_() && __PRIVATE_sendWatchRequest(n, s);
 }
 function __PRIVATE_remoteStoreUnlisten(e2, t2) {
-  const n = __PRIVATE_debugCast(e2), r2 = __PRIVATE_ensureWatchStream(n);
-  n.Ea.delete(t2), r2.O_() && __PRIVATE_sendUnwatchRequest(n, t2), 0 === n.Ea.size && (r2.O_() ? r2.L_() : __PRIVATE_canUseNetwork(n) && // Revert to OnlineState.Unknown if the watch stream is not open and we
+  const n = __PRIVATE_debugCast(e2), r2 = __PRIVATE_ensureWatchStream(n), i2 = __PRIVATE_getRemoteTargetId(n, t2);
+  __PRIVATE_logDebug(jt, "remoteStoreUnlisten removing mapping of SDK target ID to remote", t2, i2), n.Ia.delete(i2), n.Ea.delete(t2), n.Ra.delete(i2), r2.O_() && __PRIVATE_sendUnwatchRequest(n, i2), 0 === n.Ia.size && (r2.O_() ? r2.L_() : __PRIVATE_canUseNetwork(n) && // Revert to OnlineState.Unknown if the watch stream is not open and we
   // have no listeners, since without any listens to send we cannot
   // confirm if the stream is healthy and upgrade to OnlineState.Online.
-  n.Va.set(
+  n.ga.set(
     "Unknown"
     /* OnlineState.Unknown */
   ));
 }
 function __PRIVATE_sendWatchRequest(e2, t2) {
-  if (e2.da.$e(t2.targetId), t2.resumeToken.approximateByteSize() > 0 || t2.snapshotVersion.compareTo(SnapshotVersion.min()) > 0) {
-    const n = e2.remoteSyncer.getRemoteKeysForTarget(t2.targetId).size;
-    t2 = t2.withExpectedCount(n);
+  if (e2.pa.$e(t2.targetId), t2.resumeToken.approximateByteSize() > 0 || t2.snapshotVersion.compareTo(SnapshotVersion.min()) > 0) {
+    const n = e2.Ra.get(t2.targetId);
+    if (void 0 === n)
+      return void __PRIVATE_logDebug(jt, "SDK target ID not found for remote ID: " + t2.targetId);
+    const r2 = e2.remoteSyncer.getRemoteKeysForTarget(n).size;
+    t2 = t2.withExpectedCount(r2);
   }
   __PRIVATE_ensureWatchStream(e2).Z_(t2);
 }
 function __PRIVATE_sendUnwatchRequest(e2, t2) {
-  e2.da.$e(t2), __PRIVATE_ensureWatchStream(e2).X_(t2);
+  e2.pa.$e(t2), __PRIVATE_ensureWatchStream(e2).X_(t2);
 }
 function __PRIVATE_startWatchStream(e2) {
-  e2.da = new __PRIVATE_WatchChangeAggregator({
-    getRemoteKeysForTarget: (t2) => e2.remoteSyncer.getRemoteKeysForTarget(t2),
-    At: (t2) => e2.Ea.get(t2) || null,
+  e2.pa = new __PRIVATE_WatchChangeAggregator({
+    getRemoteKeysForTarget: (t2) => {
+      const n = e2.Ra.get(t2);
+      return void 0 !== n ? e2.remoteSyncer.getRemoteKeysForTarget(n) : __PRIVATE_documentKeySet();
+    },
+    At: (t2) => e2.Ia.get(t2) || null,
     ht: () => e2.datastore.serializer.databaseId
-  }), __PRIVATE_ensureWatchStream(e2).start(), e2.Va.ua();
+  }), __PRIVATE_ensureWatchStream(e2).start(), e2.ga.ua();
 }
 function __PRIVATE_shouldStartWatchStream(e2) {
-  return __PRIVATE_canUseNetwork(e2) && !__PRIVATE_ensureWatchStream(e2).x_() && e2.Ea.size > 0;
+  return __PRIVATE_canUseNetwork(e2) && !__PRIVATE_ensureWatchStream(e2).x_() && e2.Ia.size > 0;
 }
 function __PRIVATE_canUseNetwork(e2) {
-  return 0 === __PRIVATE_debugCast(e2).Ia.size;
+  return 0 === __PRIVATE_debugCast(e2).da.size;
 }
 function __PRIVATE_cleanUpWatchStreamState(e2) {
-  e2.da = void 0;
+  e2.pa = void 0;
 }
 async function __PRIVATE_onWatchStreamConnected(e2) {
-  e2.Va.set(
+  e2.ga.set(
     "Online"
     /* OnlineState.Online */
   );
 }
 async function __PRIVATE_onWatchStreamOpen(e2) {
-  e2.Ea.forEach(((t2, n) => {
+  e2.Ia.forEach(((t2, n) => {
     __PRIVATE_sendWatchRequest(e2, t2);
   }));
 }
 async function __PRIVATE_onWatchStreamClose(e2, t2) {
   __PRIVATE_cleanUpWatchStreamState(e2), // If we still need the watch stream, retry the connection.
-  __PRIVATE_shouldStartWatchStream(e2) ? (e2.Va.ha(t2), __PRIVATE_startWatchStream(e2)) : (
+  __PRIVATE_shouldStartWatchStream(e2) ? (e2.ga.ha(t2), __PRIVATE_startWatchStream(e2)) : (
     // No need to restart watch stream because there are no active targets.
     // The online state is set to unknown because there is no active attempt
     // at establishing a connection
-    e2.Va.set(
+    e2.ga.set(
       "Unknown"
       /* OnlineState.Unknown */
     )
@@ -92365,7 +92290,7 @@ async function __PRIVATE_onWatchStreamClose(e2, t2) {
 async function __PRIVATE_onWatchStreamChange(e2, t2, n) {
   if (
     // Mark the client as online since we got a message from the server
-    e2.Va.set(
+    e2.ga.set(
       "Online"
       /* OnlineState.Online */
     ), t2 instanceof __PRIVATE_WatchTargetChange && 2 === t2.state && t2.cause
@@ -92373,13 +92298,18 @@ async function __PRIVATE_onWatchStreamChange(e2, t2, n) {
     try {
       await (async function __PRIVATE_handleTargetError(e3, t3) {
         const n2 = t3.cause;
-        for (const r2 of t3.targetIds)
-          e3.Ea.has(r2) && (await e3.remoteSyncer.rejectListen(r2, n2), e3.Ea.delete(r2), e3.da.removeTarget(r2));
+        for (const r2 of t3.targetIds) {
+          if (e3.Ia.has(r2)) {
+            const t4 = e3.Ra.get(r2);
+            void 0 !== t4 && (await e3.remoteSyncer.rejectListen(t4, n2), e3.Ea.delete(t4), e3.Ra.delete(r2)), e3.Ia.delete(r2);
+          }
+          e3.pa.removeTarget(r2);
+        }
       })(e2, t2);
     } catch (n2) {
       __PRIVATE_logDebug(jt, "Failed to remove targets %s: %s ", t2.targetIds.join(","), n2), await __PRIVATE_disableNetworkUntilRecovery(e2, n2);
     }
-  else if (t2 instanceof __PRIVATE_DocumentWatchChange ? e2.da.Xe(t2) : t2 instanceof __PRIVATE_ExistenceFilterChange ? e2.da.st(t2) : e2.da.tt(t2), !n.isEqual(SnapshotVersion.min())) try {
+  else if (t2 instanceof __PRIVATE_DocumentWatchChange ? e2.pa.Xe(t2) : t2 instanceof __PRIVATE_ExistenceFilterChange ? e2.pa.st(t2) : e2.pa.tt(t2), !n.isEqual(SnapshotVersion.min())) try {
     const t3 = await __PRIVATE_localStoreGetLastRemoteSnapshotVersion(e2.localStore);
     n.compareTo(t3) >= 0 && // We have received a target change with a global snapshot if the snapshot
     // version is not equal to SnapshotVersion.min().
@@ -92389,24 +92319,49 @@ async function __PRIVATE_onWatchStreamChange(e2, t2, n) {
     * SyncEngine.
     */
     await (function __PRIVATE_raiseWatchSnapshot(e3, t4) {
-      const n2 = e3.da.Tt(t4);
-      return n2.targetChanges.forEach(((n3, r2) => {
+      const n2 = e3.pa.Tt(t4);
+      n2.targetChanges.forEach(((n3, r3) => {
         if (n3.resumeToken.approximateByteSize() > 0) {
-          const i2 = e3.Ea.get(r2);
-          i2 && e3.Ea.set(r2, i2.withResumeToken(n3.resumeToken, t4));
+          const i2 = e3.Ia.get(r3);
+          i2 && e3.Ia.set(r3, i2.withResumeToken(n3.resumeToken, t4));
         }
       })), // Re-establish listens for the targets that have been invalidated by
       // existence filter mismatches.
       n2.targetMismatches.forEach(((t5, n3) => {
-        const r2 = e3.Ea.get(t5);
-        if (!r2)
+        const r3 = e3.Ia.get(t5);
+        if (!r3)
           return;
-        e3.Ea.set(t5, r2.withResumeToken(ByteString.EMPTY_BYTE_STRING, r2.snapshotVersion)), // Cause a hard reset by unwatching and rewatching immediately, but
+        e3.Ia.set(t5, r3.withResumeToken(ByteString.EMPTY_BYTE_STRING, r3.snapshotVersion)), // Cause a hard reset by unwatching and rewatching immediately, but
         // deliberately don't send a resume token so that we get a full update.
         __PRIVATE_sendUnwatchRequest(e3, t5);
-        const i2 = new TargetData(r2.target, t5, n3, r2.sequenceNumber);
+        const i2 = new TargetData(r3.target, t5, n3, r3.sequenceNumber);
         __PRIVATE_sendWatchRequest(e3, i2);
-      })), e3.remoteSyncer.applyRemoteEvent(n2);
+      }));
+      const r2 = (
+        /**
+        * Convert a RemoteEvent with remote IDs to a RemoteEvent with
+        * SDK IDs and dropped updates
+        * for any targets we no longer track.
+        *
+        * @param remoteStoreImpl
+        * @param remoteEvent
+        * @return a new RemoteEvent with SDK IDs and dropped updates
+        * for any targets we no longer track.
+        */
+        (function __PRIVATE_toSdkRemoteEvent(e4, t5) {
+          const n3 = /* @__PURE__ */ new Map();
+          t5.targetChanges.forEach(((t6, r4) => {
+            const i2 = e4.Ra.get(r4);
+            void 0 !== i2 && n3.set(i2, t6);
+          }));
+          let r3 = new SortedMap(__PRIVATE_primitiveComparator);
+          return t5.targetMismatches.forEach(((t6, n4) => {
+            const i2 = e4.Ra.get(t6);
+            void 0 !== i2 && (r3 = r3.insert(i2, n4));
+          })), new RemoteEvent(t5.snapshotVersion, n3, r3, t5.documentUpdates, t5.resolvedLimboDocuments);
+        })(e3, n2)
+      );
+      return e3.remoteSyncer.applyRemoteEvent(r2);
     })(e2, n);
   } catch (t3) {
     __PRIVATE_logDebug(jt, "Failed to raise snapshot:", t3), await __PRIVATE_disableNetworkUntilRecovery(e2, t3);
@@ -92414,11 +92369,11 @@ async function __PRIVATE_onWatchStreamChange(e2, t2, n) {
 }
 async function __PRIVATE_disableNetworkUntilRecovery(e2, t2, n) {
   if (!__PRIVATE_isIndexedDbTransactionError(t2)) throw t2;
-  e2.Ia.add(
+  e2.da.add(
     1
     /* OfflineCause.IndexedDbFailed */
   ), // Disable network and raise offline snapshots
-  await __PRIVATE_disableNetworkInternal(e2), e2.Va.set(
+  await __PRIVATE_disableNetworkInternal(e2), e2.ga.set(
     "Offline"
     /* OnlineState.Offline */
   ), n || // Use a simple read operation to determine if IndexedDB recovered.
@@ -92426,7 +92381,7 @@ async function __PRIVATE_disableNetworkUntilRecovery(e2, t2, n) {
   // RemoteStore only has access to persistence through LocalStore.
   (n = () => __PRIVATE_localStoreGetLastRemoteSnapshotVersion(e2.localStore)), // Probe IndexedDB periodically and re-enable network
   e2.asyncQueue.enqueueRetryable((async () => {
-    __PRIVATE_logDebug(jt, "Retrying IndexedDB access"), await n(), e2.Ia.delete(
+    __PRIVATE_logDebug(jt, "Retrying IndexedDB access"), await n(), e2.da.delete(
       1
       /* OfflineCause.IndexedDbFailed */
     ), await __PRIVATE_enableNetworkInternal(e2);
@@ -92496,34 +92451,34 @@ async function __PRIVATE_remoteStoreHandleCredentialChange(e2, t2) {
   const n = __PRIVATE_debugCast(e2);
   n.asyncQueue.verifyOperationInProgress(), __PRIVATE_logDebug(jt, "RemoteStore received new credentials");
   const r2 = __PRIVATE_canUseNetwork(n);
-  n.Ia.add(
+  n.da.add(
     3
     /* OfflineCause.CredentialChange */
   ), await __PRIVATE_disableNetworkInternal(n), r2 && // Don't set the network status to Unknown if we are offline.
-  n.Va.set(
+  n.ga.set(
     "Unknown"
     /* OnlineState.Unknown */
-  ), await n.remoteSyncer.handleCredentialChange(t2), n.Ia.delete(
+  ), await n.remoteSyncer.handleCredentialChange(t2), n.da.delete(
     3
     /* OfflineCause.CredentialChange */
   ), await __PRIVATE_enableNetworkInternal(n);
 }
 async function __PRIVATE_remoteStoreApplyPrimaryState(e2, t2) {
   const n = __PRIVATE_debugCast(e2);
-  t2 ? (n.Ia.delete(
+  t2 ? (n.da.delete(
     2
     /* OfflineCause.IsSecondary */
-  ), await __PRIVATE_enableNetworkInternal(n)) : t2 || (n.Ia.add(
+  ), await __PRIVATE_enableNetworkInternal(n)) : t2 || (n.da.add(
     2
     /* OfflineCause.IsSecondary */
-  ), await __PRIVATE_disableNetworkInternal(n), n.Va.set(
+  ), await __PRIVATE_disableNetworkInternal(n), n.ga.set(
     "Unknown"
     /* OnlineState.Unknown */
   ));
 }
 function __PRIVATE_ensureWatchStream(e2) {
-  return e2.ma || // Create stream (but note that it is not started yet).
-  (e2.ma = (function __PRIVATE_newPersistentWatchStream(e3, t2, n) {
+  return e2.ya || // Create stream (but note that it is not started yet).
+  (e2.ya = (function __PRIVATE_newPersistentWatchStream(e3, t2, n) {
     const r2 = __PRIVATE_debugCast(e3);
     return r2.sa(), new __PRIVATE_PersistentListenStream(t2, r2.connection, r2.authCredentials, r2.appCheckCredentials, r2.serializer, n);
   })(e2.datastore, e2.asyncQueue, {
@@ -92531,16 +92486,16 @@ function __PRIVATE_ensureWatchStream(e2) {
     Yo: __PRIVATE_onWatchStreamOpen.bind(null, e2),
     t_: __PRIVATE_onWatchStreamClose.bind(null, e2),
     H_: __PRIVATE_onWatchStreamChange.bind(null, e2)
-  }), e2.Ra.push((async (t2) => {
-    t2 ? (e2.ma.B_(), __PRIVATE_shouldStartWatchStream(e2) ? __PRIVATE_startWatchStream(e2) : e2.Va.set(
+  }), e2.ma.push((async (t2) => {
+    t2 ? (e2.ya.B_(), __PRIVATE_shouldStartWatchStream(e2) ? __PRIVATE_startWatchStream(e2) : e2.ga.set(
       "Unknown"
       /* OnlineState.Unknown */
-    )) : (await e2.ma.stop(), __PRIVATE_cleanUpWatchStreamState(e2));
-  }))), e2.ma;
+    )) : (await e2.ya.stop(), __PRIVATE_cleanUpWatchStreamState(e2));
+  }))), e2.ya;
 }
 function __PRIVATE_ensureWriteStream(e2) {
-  return e2.fa || // Create stream (but note that it is not started yet).
-  (e2.fa = (function __PRIVATE_newPersistentWriteStream(e3, t2, n) {
+  return e2.wa || // Create stream (but note that it is not started yet).
+  (e2.wa = (function __PRIVATE_newPersistentWriteStream(e3, t2, n) {
     const r2 = __PRIVATE_debugCast(e3);
     return r2.sa(), new __PRIVATE_PersistentWriteStream(t2, r2.connection, r2.authCredentials, r2.appCheckCredentials, r2.serializer, n);
   })(e2.datastore, e2.asyncQueue, {
@@ -92549,10 +92504,10 @@ function __PRIVATE_ensureWriteStream(e2) {
     t_: __PRIVATE_onWriteStreamClose.bind(null, e2),
     ta: __PRIVATE_onWriteHandshakeComplete.bind(null, e2),
     na: __PRIVATE_onMutationResult.bind(null, e2)
-  }), e2.Ra.push((async (t2) => {
-    t2 ? (e2.fa.B_(), // This will start the write stream if necessary.
-    await __PRIVATE_fillWritePipeline(e2)) : (await e2.fa.stop(), e2.Ta.length > 0 && (__PRIVATE_logDebug(jt, `Stopping write stream with ${e2.Ta.length} pending writes`), e2.Ta = []));
-  }))), e2.fa;
+  }), e2.ma.push((async (t2) => {
+    t2 ? (e2.wa.B_(), // This will start the write stream if necessary.
+    await __PRIVATE_fillWritePipeline(e2)) : (await e2.wa.stop(), e2.Ta.length > 0 && (__PRIVATE_logDebug(jt, `Stopping write stream with ${e2.Ta.length} pending writes`), e2.Ta = []));
+  }))), e2.wa;
 }
 /**
  * @license
@@ -92741,25 +92696,25 @@ class DocumentSet {
  */
 class __PRIVATE_DocumentChangeSet {
   constructor() {
-    this.ga = new SortedMap(DocumentKey.comparator);
+    this.Sa = new SortedMap(DocumentKey.comparator);
   }
   track(e2) {
-    const t2 = e2.doc.key, n = this.ga.get(t2);
+    const t2 = e2.doc.key, n = this.Sa.get(t2);
     n ? (
       // Merge the new change with the existing change.
-      0 !== e2.type && 3 === n.type ? this.ga = this.ga.insert(t2, e2) : 3 === e2.type && 1 !== n.type ? this.ga = this.ga.insert(t2, {
+      0 !== e2.type && 3 === n.type ? this.Sa = this.Sa.insert(t2, e2) : 3 === e2.type && 1 !== n.type ? this.Sa = this.Sa.insert(t2, {
         type: n.type,
         doc: e2.doc
-      }) : 2 === e2.type && 2 === n.type ? this.ga = this.ga.insert(t2, {
+      }) : 2 === e2.type && 2 === n.type ? this.Sa = this.Sa.insert(t2, {
         type: 2,
         doc: e2.doc
-      }) : 2 === e2.type && 0 === n.type ? this.ga = this.ga.insert(t2, {
+      }) : 2 === e2.type && 0 === n.type ? this.Sa = this.Sa.insert(t2, {
         type: 0,
         doc: e2.doc
-      }) : 1 === e2.type && 0 === n.type ? this.ga = this.ga.remove(t2) : 1 === e2.type && 2 === n.type ? this.ga = this.ga.insert(t2, {
+      }) : 1 === e2.type && 0 === n.type ? this.Sa = this.Sa.remove(t2) : 1 === e2.type && 2 === n.type ? this.Sa = this.Sa.insert(t2, {
         type: 1,
         doc: n.doc
-      }) : 0 === e2.type && 1 === n.type ? this.ga = this.ga.insert(t2, {
+      }) : 0 === e2.type && 1 === n.type ? this.Sa = this.Sa.insert(t2, {
         type: 2,
         doc: e2.doc
       }) : (
@@ -92772,14 +92727,14 @@ class __PRIVATE_DocumentChangeSet {
         // Removed->Metadata
         fail(63341, {
           Vt: e2,
-          pa: n
+          ba: n
         })
       )
-    ) : this.ga = this.ga.insert(t2, e2);
+    ) : this.Sa = this.Sa.insert(t2, e2);
   }
-  ya() {
+  Da() {
     const e2 = [];
-    return this.ga.inorderTraversal(((t2, n) => {
+    return this.Sa.inorderTraversal(((t2, n) => {
       e2.push(n);
     })), e2;
   }
@@ -92839,22 +92794,22 @@ class ViewSnapshot {
  */
 class __PRIVATE_QueryListenersInfo {
   constructor() {
-    this.wa = void 0, this.Sa = [];
+    this.Ca = void 0, this.va = [];
   }
   // Helper methods that checks if the query has listeners that listening to remote store
-  ba() {
-    return this.Sa.some(((e2) => e2.Da()));
+  Fa() {
+    return this.va.some(((e2) => e2.Ma()));
   }
 }
 class __PRIVATE_EventManagerImpl {
   constructor() {
-    this.queries = __PRIVATE_newQueriesObjectMap(), this.onlineState = "Unknown", this.Ca = /* @__PURE__ */ new Set();
+    this.queries = __PRIVATE_newQueriesObjectMap(), this.onlineState = "Unknown", this.xa = /* @__PURE__ */ new Set();
   }
   terminate() {
     !(function __PRIVATE_errorAllTargets(e2, t2) {
       const n = __PRIVATE_debugCast(e2), r2 = n.queries;
       n.queries = __PRIVATE_newQueriesObjectMap(), r2.forEach(((e3, n2) => {
-        for (const e4 of n2.Sa) e4.onError(t2);
+        for (const e4 of n2.va) e4.onError(t2);
       }));
     })(this, new FirestoreError(D.ABORTED, "Firestore shutting down"));
   }
@@ -92867,19 +92822,19 @@ async function __PRIVATE_eventManagerListen(e2, t2) {
   let r2 = 3;
   const i2 = t2.query;
   let s = n.queries.get(i2);
-  s ? !s.ba() && t2.Da() && // Query has been listening to local cache, and tries to add a new listener sourced from watch.
-  (r2 = 2) : (s = new __PRIVATE_QueryListenersInfo(), r2 = t2.Da() ? 0 : 1);
+  s ? !s.Fa() && t2.Ma() && // Query has been listening to local cache, and tries to add a new listener sourced from watch.
+  (r2 = 2) : (s = new __PRIVATE_QueryListenersInfo(), r2 = t2.Ma() ? 0 : 1);
   try {
     switch (r2) {
       case 0:
-        s.wa = await n.onListen(
+        s.Ca = await n.onListen(
           i2,
           /** enableRemoteListen= */
           true
         );
         break;
       case 1:
-        s.wa = await n.onListen(
+        s.Ca = await n.onListen(
           i2,
           /** enableRemoteListen= */
           false
@@ -92892,9 +92847,9 @@ async function __PRIVATE_eventManagerListen(e2, t2) {
     const n2 = __PRIVATE_wrapInUserErrorIfRecoverable(e3, `Initialization of query '${__PRIVATE_stringifyQuery(t2.query)}' failed`);
     return void t2.onError(n2);
   }
-  if (n.queries.set(i2, s), s.Sa.push(t2), // Run global snapshot listeners if a consistent snapshot has been emitted.
-  t2.va(n.onlineState), s.wa) {
-    t2.Fa(s.wa) && __PRIVATE_raiseSnapshotsInSyncEvent(n);
+  if (n.queries.set(i2, s), s.va.push(t2), // Run global snapshot listeners if a consistent snapshot has been emitted.
+  t2.Oa(n.onlineState), s.Ca) {
+    t2.Na(s.Ca) && __PRIVATE_raiseSnapshotsInSyncEvent(n);
   }
 }
 async function __PRIVATE_eventManagerUnlisten(e2, t2) {
@@ -92902,8 +92857,8 @@ async function __PRIVATE_eventManagerUnlisten(e2, t2) {
   let i2 = 3;
   const s = n.queries.get(r2);
   if (s) {
-    const e3 = s.Sa.indexOf(t2);
-    e3 >= 0 && (s.Sa.splice(e3, 1), 0 === s.Sa.length ? i2 = t2.Da() ? 0 : 1 : !s.ba() && t2.Da() && // The removed listener is the last one that sourced from watch.
+    const e3 = s.va.indexOf(t2);
+    e3 >= 0 && (s.va.splice(e3, 1), 0 === s.va.length ? i2 = t2.Ma() ? 0 : 1 : !s.Fa() && t2.Ma() && // The removed listener is the last one that sourced from watch.
     (i2 = 2));
   }
   switch (i2) {
@@ -92931,32 +92886,32 @@ function __PRIVATE_eventManagerOnWatchChange(e2, t2) {
   for (const e3 of t2) {
     const t3 = e3.query, i2 = n.queries.get(t3);
     if (i2) {
-      for (const t4 of i2.Sa) t4.Fa(e3) && (r2 = true);
-      i2.wa = e3;
+      for (const t4 of i2.va) t4.Na(e3) && (r2 = true);
+      i2.Ca = e3;
     }
   }
   r2 && __PRIVATE_raiseSnapshotsInSyncEvent(n);
 }
 function __PRIVATE_eventManagerOnWatchError(e2, t2, n) {
   const r2 = __PRIVATE_debugCast(e2), i2 = r2.queries.get(t2);
-  if (i2) for (const e3 of i2.Sa) e3.onError(n);
+  if (i2) for (const e3 of i2.va) e3.onError(n);
   r2.queries.delete(t2);
 }
 function __PRIVATE_raiseSnapshotsInSyncEvent(e2) {
-  e2.Ca.forEach(((e3) => {
+  e2.xa.forEach(((e3) => {
     e3.next();
   }));
 }
 var Ht$1, Jt;
-(Jt = Ht$1 || (Ht$1 = {})).Ma = "default", /** Listen to changes in cache only */
+(Jt = Ht$1 || (Ht$1 = {})).Ba = "default", /** Listen to changes in cache only */
 Jt.Cache = "cache";
 class __PRIVATE_QueryListener {
   constructor(e2, t2, n) {
-    this.query = e2, this.xa = t2, /**
+    this.query = e2, this.La = t2, /**
      * Initial snapshots (e.g. from cache) may not be propagated to the wrapped
      * observer. This flag is set to true once we've actually raised an event.
      */
-    this.Oa = false, this.Na = null, this.onlineState = "Unknown", this.options = n || {};
+    this.ka = false, this.Ka = null, this.onlineState = "Unknown", this.options = n || {};
   }
   /**
    * Applies the new ViewSnapshot to this listener, raising a user-facing event
@@ -92964,7 +92919,7 @@ class __PRIVATE_QueryListener {
    * metadata-only changes, etc.). Returns true if a user-facing event was
    * indeed raised.
    */
-  Fa(e2) {
+  Na(e2) {
     if (!this.options.includeMetadataChanges) {
       const t3 = [];
       for (const n of e2.docChanges) 3 !== n.type && t3.push(n);
@@ -92982,32 +92937,32 @@ class __PRIVATE_QueryListener {
       );
     }
     let t2 = false;
-    return this.Oa ? this.Ba(e2) && (this.xa.next(e2), t2 = true) : this.La(e2, this.onlineState) && (this.ka(e2), t2 = true), this.Na = e2, t2;
+    return this.ka ? this.qa(e2) && (this.La.next(e2), t2 = true) : this.Ua(e2, this.onlineState) && (this.$a(e2), t2 = true), this.Ka = e2, t2;
   }
   onError(e2) {
-    this.xa.error(e2);
+    this.La.error(e2);
   }
   /** Returns whether a snapshot was raised. */
-  va(e2) {
+  Oa(e2) {
     this.onlineState = e2;
     let t2 = false;
-    return this.Na && !this.Oa && this.La(this.Na, e2) && (this.ka(this.Na), t2 = true), t2;
+    return this.Ka && !this.ka && this.Ua(this.Ka, e2) && (this.$a(this.Ka), t2 = true), t2;
   }
-  La(e2, t2) {
+  Ua(e2, t2) {
     if (!e2.fromCache) return true;
-    if (!this.Da()) return true;
+    if (!this.Ma()) return true;
     const n = "Offline" !== t2;
-    return (!this.options.qa || !n) && (!e2.docs.isEmpty() || e2.hasCachedResults || "Offline" === t2);
+    return (!this.options.Wa || !n) && (!e2.docs.isEmpty() || e2.hasCachedResults || "Offline" === t2);
   }
-  Ba(e2) {
+  qa(e2) {
     if (e2.docChanges.length > 0) return true;
-    const t2 = this.Na && this.Na.hasPendingWrites !== e2.hasPendingWrites;
+    const t2 = this.Ka && this.Ka.hasPendingWrites !== e2.hasPendingWrites;
     return !(!e2.syncStateChanged && !t2) && true === this.options.includeMetadataChanges;
   }
-  ka(e2) {
-    e2 = ViewSnapshot.fromInitialDocuments(e2.query, e2.docs, e2.mutatedKeys, e2.fromCache, e2.hasCachedResults), this.Oa = true, this.xa.next(e2);
+  $a(e2) {
+    e2 = ViewSnapshot.fromInitialDocuments(e2.query, e2.docs, e2.mutatedKeys, e2.fromCache, e2.hasCachedResults), this.ka = true, this.La.next(e2);
   }
-  Da() {
+  Ma() {
     return this.options.source !== Ht$1.Cache;
   }
 }
@@ -93039,22 +92994,22 @@ class __PRIVATE_RemovedLimboDocument {
 }
 class __PRIVATE_View {
   constructor(e2, t2) {
-    this.query = e2, this.Za = t2, this.Xa = null, this.hasCachedResults = false, /**
+    this.query = e2, this.tu = t2, this.nu = null, this.hasCachedResults = false, /**
      * A flag whether the view is current with the backend. A view is considered
      * current after it has seen the current flag from the backend and did not
      * lose consistency within the watch stream (e.g. because of an existence
      * filter mismatch).
      */
     this.current = false, /** Documents in the view but not in the remote target */
-    this.Ya = __PRIVATE_documentKeySet(), /** Document Keys that have local changes */
-    this.mutatedKeys = __PRIVATE_documentKeySet(), this.eu = __PRIVATE_newQueryComparator(e2), this.tu = new DocumentSet(this.eu);
+    this.ru = __PRIVATE_documentKeySet(), /** Document Keys that have local changes */
+    this.mutatedKeys = __PRIVATE_documentKeySet(), this.iu = __PRIVATE_newQueryComparator(e2), this.su = new DocumentSet(this.iu);
   }
   /**
    * The set of remote documents that the server has told us belongs to the target associated with
    * this view.
    */
-  get nu() {
-    return this.Za;
+  get ou() {
+    return this.tu;
   }
   /**
    * Iterates over a set of doc changes, applies the query limit, and computes
@@ -93066,8 +93021,8 @@ class __PRIVATE_View {
    *        with this set of docs and changes instead of the current view.
    * @returns a new set of docs, changes, and refill flag.
    */
-  ru(e2, t2) {
-    const n = t2 ? t2.iu : new __PRIVATE_DocumentChangeSet(), r2 = t2 ? t2.tu : this.tu;
+  _u(e2, t2) {
+    const n = t2 ? t2.au : new __PRIVATE_DocumentChangeSet(), r2 = t2 ? t2.su : this.su;
     let i2 = t2 ? t2.mutatedKeys : this.mutatedKeys, s = r2, o2 = false;
     const _ = "F" === this.query.limitType && r2.size === this.query.limit ? r2.last() : null, a2 = "L" === this.query.limitType && r2.size === this.query.limit ? r2.first() : null;
     if (e2.inorderTraversal(((e3, t3) => {
@@ -93079,10 +93034,10 @@ class __PRIVATE_View {
         u.data.isEqual(c2.data) ? l2 !== h2 && (n.track({
           type: 3,
           doc: c2
-        }), P = true) : this.su(u, c2) || (n.track({
+        }), P = true) : this.uu(u, c2) || (n.track({
           type: 2,
           doc: c2
-        }), P = true, (_ && this.eu(c2, _) > 0 || a2 && this.eu(c2, a2) < 0) && // This doc moved from inside the limit to outside the limit.
+        }), P = true, (_ && this.iu(c2, _) > 0 || a2 && this.iu(c2, a2) < 0) && // This doc moved from inside the limit to outside the limit.
         // That means there may be some other doc in the local cache
         // that should be included instead.
         (o2 = true));
@@ -93105,13 +93060,13 @@ class __PRIVATE_View {
       });
     }
     return {
-      tu: s,
-      iu: n,
+      su: s,
+      au: n,
       bs: o2,
       mutatedKeys: i2
     };
   }
-  su(e2, t2) {
+  uu(e2, t2) {
     return e2.hasLocalMutations && t2.hasCommittedMutations && !t2.hasLocalMutations;
   }
   /**
@@ -93129,9 +93084,9 @@ class __PRIVATE_View {
    */
   // PORTING NOTE: The iOS/Android clients always compute limbo document changes.
   applyChanges(e2, t2, n, r2) {
-    const i2 = this.tu;
-    this.tu = e2.tu, this.mutatedKeys = e2.mutatedKeys;
-    const s = e2.iu.ya();
+    const i2 = this.su;
+    this.su = e2.su, this.mutatedKeys = e2.mutatedKeys;
+    const s = e2.au.Da();
     s.sort(((e3, t3) => (function __PRIVATE_compareChangeType(e4, t4) {
       const order = (e5) => {
         switch (e5) {
@@ -93149,13 +93104,13 @@ class __PRIVATE_View {
         }
       };
       return order(e4) - order(t4);
-    })(e3.type, t3.type) || this.eu(e3.doc, t3.doc))), this.ou(n), r2 = r2 ?? false;
-    const o2 = t2 && !r2 ? this._u() : [], _ = 0 === this.Ya.size && this.current && !r2 ? 1 : 0, a2 = _ !== this.Xa;
-    if (this.Xa = _, 0 !== s.length || a2) {
+    })(e3.type, t3.type) || this.iu(e3.doc, t3.doc))), this.cu(n), r2 = r2 ?? false;
+    const o2 = t2 && !r2 ? this.lu() : [], _ = 0 === this.ru.size && this.current && !r2 ? 1 : 0, a2 = _ !== this.nu;
+    if (this.nu = _, 0 !== s.length || a2) {
       return {
         snapshot: new ViewSnapshot(
           this.query,
-          e2.tu,
+          e2.su,
           i2,
           s,
           e2.mutatedKeys,
@@ -93165,18 +93120,18 @@ class __PRIVATE_View {
           false,
           !!n && n.resumeToken.approximateByteSize() > 0
         ),
-        au: o2
+        hu: o2
       };
     }
     return {
-      au: o2
+      hu: o2
     };
   }
   /**
    * Applies an OnlineState change to the view, potentially generating a
    * ViewChange if the view's syncState changes as a result.
    */
-  va(e2) {
+  Oa(e2) {
     return this.current && "Offline" === e2 ? (
       // If we're offline, set `current` to false and then call applyChanges()
       // to refresh our syncState and generate a ViewChange as appropriate. We
@@ -93184,8 +93139,8 @@ class __PRIVATE_View {
       // true once the client is back online.
       (this.current = false, this.applyChanges(
         {
-          tu: this.tu,
-          iu: new __PRIVATE_DocumentChangeSet(),
+          su: this.su,
+          au: new __PRIVATE_DocumentChangeSet(),
           mutatedKeys: this.mutatedKeys,
           bs: false
         },
@@ -93193,34 +93148,34 @@ class __PRIVATE_View {
         false
       ))
     ) : {
-      au: []
+      hu: []
     };
   }
   /**
    * Returns whether the doc for the given key should be in limbo.
    */
-  uu(e2) {
-    return !this.Za.has(e2) && // The local store doesn't think it's a result, so it shouldn't be in limbo.
-    (!!this.tu.has(e2) && !this.tu.get(e2).hasLocalMutations);
+  Pu(e2) {
+    return !this.tu.has(e2) && // The local store doesn't think it's a result, so it shouldn't be in limbo.
+    (!!this.su.has(e2) && !this.su.get(e2).hasLocalMutations);
   }
   /**
    * Updates syncedDocuments, current, and limbo docs based on the given change.
    * Returns the list of changes to which docs are in limbo.
    */
-  ou(e2) {
-    e2 && (e2.addedDocuments.forEach(((e3) => this.Za = this.Za.add(e3))), e2.modifiedDocuments.forEach(((e3) => {
-    })), e2.removedDocuments.forEach(((e3) => this.Za = this.Za.delete(e3))), this.current = e2.current);
+  cu(e2) {
+    e2 && (e2.addedDocuments.forEach(((e3) => this.tu = this.tu.add(e3))), e2.modifiedDocuments.forEach(((e3) => {
+    })), e2.removedDocuments.forEach(((e3) => this.tu = this.tu.delete(e3))), this.current = e2.current);
   }
-  _u() {
+  lu() {
     if (!this.current) return [];
-    const e2 = this.Ya;
-    this.Ya = __PRIVATE_documentKeySet(), this.tu.forEach(((e3) => {
-      this.uu(e3.key) && (this.Ya = this.Ya.add(e3.key));
+    const e2 = this.ru;
+    this.ru = __PRIVATE_documentKeySet(), this.su.forEach(((e3) => {
+      this.Pu(e3.key) && (this.ru = this.ru.add(e3.key));
     }));
     const t2 = [];
     return e2.forEach(((e3) => {
-      this.Ya.has(e3) || t2.push(new __PRIVATE_RemovedLimboDocument(e3));
-    })), this.Ya.forEach(((n) => {
+      this.ru.has(e3) || t2.push(new __PRIVATE_RemovedLimboDocument(e3));
+    })), this.ru.forEach(((n) => {
       e2.has(n) || t2.push(new __PRIVATE_AddedLimboDocument(n));
     })), t2;
   }
@@ -93244,9 +93199,9 @@ class __PRIVATE_View {
    * @returns The ViewChange that resulted from this synchronization.
    */
   // PORTING NOTE: Multi-tab only.
-  cu(e2) {
-    this.Za = e2.ks, this.Ya = __PRIVATE_documentKeySet();
-    const t2 = this.ru(e2.documents);
+  Tu(e2) {
+    this.tu = e2.ks, this.ru = __PRIVATE_documentKeySet();
+    const t2 = this._u(e2.documents);
     return this.applyChanges(
       t2,
       /* limboResolutionEnabled= */
@@ -93259,8 +93214,8 @@ class __PRIVATE_View {
    * `hasPendingWrites` status of the already established view.
    */
   // PORTING NOTE: Multi-tab only.
-  lu() {
-    return ViewSnapshot.fromInitialDocuments(this.query, this.tu, this.mutatedKeys, 0 === this.Xa, this.hasCachedResults);
+  Iu() {
+    return ViewSnapshot.fromInitialDocuments(this.query, this.su, this.mutatedKeys, 0 === this.nu, this.hasCachedResults);
   }
 }
 const Zt = "SyncEngine";
@@ -93277,12 +93232,12 @@ class LimboResolution {
      * decide whether it needs to manufacture a delete event for the target once
      * the target is CURRENT.
      */
-    this.hu = false;
+    this.Eu = false;
   }
 }
 class __PRIVATE_SyncEngineImpl {
   constructor(e2, t2, n, r2, i2, s) {
-    this.localStore = e2, this.remoteStore = t2, this.eventManager = n, this.sharedClientState = r2, this.currentUser = i2, this.maxConcurrentLimboResolutions = s, this.Pu = {}, this.Tu = new ObjectMap(((e3) => __PRIVATE_canonifyQuery(e3)), __PRIVATE_queryEquals), this.Eu = /* @__PURE__ */ new Map(), /**
+    this.localStore = e2, this.remoteStore = t2, this.eventManager = n, this.sharedClientState = r2, this.currentUser = i2, this.maxConcurrentLimboResolutions = s, this.Ru = {}, this.Au = new ObjectMap(((e3) => __PRIVATE_canonifyQuery(e3)), __PRIVATE_queryEquals), this.Vu = /* @__PURE__ */ new Map(), /**
      * The keys of documents that are in limbo for which we haven't yet started a
      * limbo resolution query. The strings in this set are the result of calling
      * `key.path.canonicalString()` where `key` is a `DocumentKey` object.
@@ -93291,29 +93246,29 @@ class __PRIVATE_SyncEngineImpl {
      * of arbitrary elements and it also maintains insertion order, providing the
      * desired queue-like FIFO semantics.
      */
-    this.Iu = /* @__PURE__ */ new Set(), /**
+    this.du = /* @__PURE__ */ new Set(), /**
      * Keeps track of the target ID for each document that is in limbo with an
      * active target.
      */
-    this.Ru = new SortedMap(DocumentKey.comparator), /**
+    this.mu = new SortedMap(DocumentKey.comparator), /**
      * Keeps track of the information about an active limbo resolution for each
      * active target ID that was started for the purpose of limbo resolution.
      */
-    this.Au = /* @__PURE__ */ new Map(), this.Vu = new __PRIVATE_ReferenceSet(), /** Stores user completion handlers, indexed by User and BatchId. */
-    this.du = {}, /** Stores user callbacks waiting for all pending writes to be acknowledged. */
-    this.mu = /* @__PURE__ */ new Map(), this.fu = __PRIVATE_TargetIdGenerator.ar(), this.onlineState = "Unknown", // The primary state is set to `true` or `false` immediately after Firestore
+    this.fu = /* @__PURE__ */ new Map(), this.gu = new __PRIVATE_ReferenceSet(), /** Stores user completion handlers, indexed by User and BatchId. */
+    this.pu = {}, /** Stores user callbacks waiting for all pending writes to be acknowledged. */
+    this.yu = /* @__PURE__ */ new Map(), this.wu = __PRIVATE_TargetIdGenerator.ar(), this.onlineState = "Unknown", // The primary state is set to `true` or `false` immediately after Firestore
     // startup. In the interim, a client should only be considered primary if
     // `isPrimary` is true.
-    this.gu = void 0;
+    this.Su = void 0;
   }
   get isPrimaryClient() {
-    return true === this.gu;
+    return true === this.Su;
   }
 }
 async function __PRIVATE_syncEngineListen(e2, t2, n = true) {
   const r2 = __PRIVATE_ensureWatchCallbacks(e2);
   let i2;
-  const s = r2.Tu.get(t2);
+  const s = r2.Au.get(t2);
   return s ? (
     // PORTING NOTE: With Multi-Tab Web, it is possible that a query view
     // already exists when EventManager calls us for the first time. This
@@ -93321,7 +93276,7 @@ async function __PRIVATE_syncEngineListen(e2, t2, n = true) {
     // behalf of another tab and the user of the primary also starts listening
     // to the query. EventManager will not have an assigned target ID in this
     // case and calls `listen` to obtain this ID.
-    (r2.sharedClientState.addLocalQueryTarget(s.targetId), i2 = s.view.lu())
+    (r2.sharedClientState.addLocalQueryTarget(s.targetId), i2 = s.view.Iu())
   ) : i2 = await __PRIVATE_allocateTargetAndMaybeListen(
     r2,
     t2,
@@ -93347,8 +93302,8 @@ async function __PRIVATE_allocateTargetAndMaybeListen(e2, t2, n, r2) {
   return r2 && (_ = await __PRIVATE_initializeViewAndComputeSnapshot(e2, t2, s, "current" === o2, i2.resumeToken)), e2.isPrimaryClient && n && __PRIVATE_remoteStoreListen(e2.remoteStore, i2), _;
 }
 async function __PRIVATE_initializeViewAndComputeSnapshot(e2, t2, n, r2, i2) {
-  e2.pu = (t3, n2, r3) => (async function __PRIVATE_applyDocChanges(e3, t4, n3, r4) {
-    let i3 = t4.view.ru(n3);
+  e2.bu = (t3, n2, r3) => (async function __PRIVATE_applyDocChanges(e3, t4, n3, r4) {
+    let i3 = t4.view._u(n3);
     i3.bs && // The query has a limit and some docs were removed, so we need
     // to re-run the query against the local store to make sure we
     // didn't lose any good docs that had been past the limit.
@@ -93357,7 +93312,7 @@ async function __PRIVATE_initializeViewAndComputeSnapshot(e2, t2, n, r2, i2) {
       t4.query,
       /* usePreviousResults= */
       false
-    ).then((({ documents: e4 }) => t4.view.ru(e4, i3))));
+    ).then((({ documents: e4 }) => t4.view._u(e4, i3))));
     const s2 = r4 && r4.targetChanges.get(t4.targetId), o3 = r4 && null != r4.targetMismatches.get(t4.targetId), _2 = t4.view.applyChanges(
       i3,
       /* limboResolutionEnabled= */
@@ -93365,26 +93320,26 @@ async function __PRIVATE_initializeViewAndComputeSnapshot(e2, t2, n, r2, i2) {
       s2,
       o3
     );
-    return __PRIVATE_updateTrackedLimbos(e3, t4.targetId, _2.au), _2.snapshot;
+    return __PRIVATE_updateTrackedLimbos(e3, t4.targetId, _2.hu), _2.snapshot;
   })(e2, t3, n2, r3);
   const s = await __PRIVATE_localStoreExecuteQuery(
     e2.localStore,
     t2,
     /* usePreviousResults= */
     true
-  ), o2 = new __PRIVATE_View(t2, s.ks), _ = o2.ru(s.documents), a2 = TargetChange.createSynthesizedTargetChangeForCurrentChange(n, r2 && "Offline" !== e2.onlineState, i2), u = o2.applyChanges(
+  ), o2 = new __PRIVATE_View(t2, s.ks), _ = o2._u(s.documents), a2 = TargetChange.createSynthesizedTargetChangeForCurrentChange(n, r2 && "Offline" !== e2.onlineState, i2), u = o2.applyChanges(
     _,
     /* limboResolutionEnabled= */
     e2.isPrimaryClient,
     a2
   );
-  __PRIVATE_updateTrackedLimbos(e2, n, u.au);
+  __PRIVATE_updateTrackedLimbos(e2, n, u.hu);
   const c2 = new __PRIVATE_QueryView(t2, n, o2);
-  return e2.Tu.set(t2, c2), e2.Eu.has(n) ? e2.Eu.get(n).push(t2) : e2.Eu.set(n, [t2]), u.snapshot;
+  return e2.Au.set(t2, c2), e2.Vu.has(n) ? e2.Vu.get(n).push(t2) : e2.Vu.set(n, [t2]), u.snapshot;
 }
 async function __PRIVATE_syncEngineUnlisten(e2, t2, n) {
-  const r2 = __PRIVATE_debugCast(e2), i2 = r2.Tu.get(t2), s = r2.Eu.get(i2.targetId);
-  if (s.length > 1) return r2.Eu.set(i2.targetId, s.filter(((e3) => !__PRIVATE_queryEquals(e3, t2)))), void r2.Tu.delete(t2);
+  const r2 = __PRIVATE_debugCast(e2), i2 = r2.Au.get(t2), s = r2.Vu.get(i2.targetId);
+  if (s.length > 1) return r2.Vu.set(i2.targetId, s.filter(((e3) => !__PRIVATE_queryEquals(e3, t2)))), void r2.Au.delete(t2);
   if (r2.isPrimaryClient) {
     r2.sharedClientState.removeLocalQueryTarget(i2.targetId);
     r2.sharedClientState.isActiveQueryTarget(i2.targetId) || await __PRIVATE_localStoreReleaseTarget(
@@ -93403,7 +93358,7 @@ async function __PRIVATE_syncEngineUnlisten(e2, t2, n) {
   );
 }
 async function __PRIVATE_triggerRemoteStoreUnlisten(e2, t2) {
-  const n = __PRIVATE_debugCast(e2), r2 = n.Tu.get(t2), i2 = n.Eu.get(r2.targetId);
+  const n = __PRIVATE_debugCast(e2), r2 = n.Au.get(t2), i2 = n.Vu.get(r2.targetId);
   n.isPrimaryClient && 1 === i2.length && // PORTING NOTE: Unregister the target ID with local Firestore client as
   // watch target.
   (n.sharedClientState.removeLocalQueryTarget(r2.targetId), __PRIVATE_remoteStoreUnlisten(n.remoteStore, r2.targetId));
@@ -93442,9 +93397,9 @@ async function __PRIVATE_syncEngineWrite(e2, t2, n) {
       })));
     })(r2.localStore, t2);
     r2.sharedClientState.addPendingMutation(e3.batchId), (function __PRIVATE_addMutationCallback(e4, t3, n2) {
-      let r3 = e4.du[e4.currentUser.toKey()];
+      let r3 = e4.pu[e4.currentUser.toKey()];
       r3 || (r3 = new SortedMap(__PRIVATE_primitiveComparator));
-      r3 = r3.insert(t3, n2), e4.du[e4.currentUser.toKey()] = r3;
+      r3 = r3.insert(t3, n2), e4.pu[e4.currentUser.toKey()] = r3;
     })(r2, e3.batchId, n), await __PRIVATE_syncEngineEmitNewSnapsAndNotifyLocalStore(r2, e3.changes), await __PRIVATE_fillWritePipeline(r2.remoteStore);
   } catch (e3) {
     const t3 = __PRIVATE_wrapInUserErrorIfRecoverable(e3, "Failed to persist write");
@@ -93456,10 +93411,10 @@ async function __PRIVATE_syncEngineApplyRemoteEvent(e2, t2) {
   try {
     const e3 = await __PRIVATE_localStoreApplyRemoteEventToLocalCache(n.localStore, t2);
     t2.targetChanges.forEach(((e4, t3) => {
-      const r2 = n.Au.get(t3);
+      const r2 = n.fu.get(t3);
       r2 && // Since this is a limbo resolution lookup, it's for a single document
       // and it could be added, modified, or removed, but not a combination.
-      (__PRIVATE_hardAssert(e4.addedDocuments.size + e4.modifiedDocuments.size + e4.removedDocuments.size <= 1, 22616), e4.addedDocuments.size > 0 ? r2.hu = true : e4.modifiedDocuments.size > 0 ? __PRIVATE_hardAssert(r2.hu, 14607) : e4.removedDocuments.size > 0 && (__PRIVATE_hardAssert(r2.hu, 42227), r2.hu = false));
+      (__PRIVATE_hardAssert(e4.addedDocuments.size + e4.modifiedDocuments.size + e4.removedDocuments.size <= 1, 22616), e4.addedDocuments.size > 0 ? r2.Eu = true : e4.modifiedDocuments.size > 0 ? __PRIVATE_hardAssert(r2.Eu, 14607) : e4.removedDocuments.size > 0 && (__PRIVATE_hardAssert(r2.Eu, 42227), r2.Eu = false));
     })), await __PRIVATE_syncEngineEmitNewSnapsAndNotifyLocalStore(n, e3, t2);
   } catch (e3) {
     await __PRIVATE_ignoreIfPrimaryLeaseLoss(e3);
@@ -93469,24 +93424,24 @@ function __PRIVATE_syncEngineApplyOnlineStateChange(e2, t2, n) {
   const r2 = __PRIVATE_debugCast(e2);
   if (r2.isPrimaryClient && 0 === n || !r2.isPrimaryClient && 1 === n) {
     const e3 = [];
-    r2.Tu.forEach(((n2, r3) => {
-      const i2 = r3.view.va(t2);
+    r2.Au.forEach(((n2, r3) => {
+      const i2 = r3.view.Oa(t2);
       i2.snapshot && e3.push(i2.snapshot);
     })), (function __PRIVATE_eventManagerOnOnlineStateChange(e4, t3) {
       const n2 = __PRIVATE_debugCast(e4);
       n2.onlineState = t3;
       let r3 = false;
       n2.queries.forEach(((e5, n3) => {
-        for (const e6 of n3.Sa)
-          e6.va(t3) && (r3 = true);
+        for (const e6 of n3.va)
+          e6.Oa(t3) && (r3 = true);
       })), r3 && __PRIVATE_raiseSnapshotsInSyncEvent(n2);
-    })(r2.eventManager, t2), e3.length && r2.Pu.H_(e3), r2.onlineState = t2, r2.isPrimaryClient && r2.sharedClientState.setOnlineState(t2);
+    })(r2.eventManager, t2), e3.length && r2.Ru.H_(e3), r2.onlineState = t2, r2.isPrimaryClient && r2.sharedClientState.setOnlineState(t2);
   }
 }
 async function __PRIVATE_syncEngineRejectListen(e2, t2, n) {
   const r2 = __PRIVATE_debugCast(e2);
   r2.sharedClientState.updateQueryState(t2, "rejected", n);
-  const i2 = r2.Au.get(t2), s = i2 && i2.key;
+  const i2 = r2.fu.get(t2), s = i2 && i2.key;
   if (s) {
     let e3 = new SortedMap(DocumentKey.comparator);
     e3 = e3.insert(s, MutableDocument.newNoDocument(s, SnapshotVersion.min()));
@@ -93504,7 +93459,7 @@ async function __PRIVATE_syncEngineRejectListen(e2, t2, n) {
     // RemoteEvent. If `applyRemoteEvent()` throws, we want to re-listen to
     // this query when the RemoteStore restarts the Watch stream, which should
     // re-trigger the target failure.
-    r2.Ru = r2.Ru.remove(s), r2.Au.delete(t2), __PRIVATE_pumpEnqueuedLimboResolutions(r2);
+    r2.mu = r2.mu.remove(s), r2.fu.delete(t2), __PRIVATE_pumpEnqueuedLimboResolutions(r2);
   } else await __PRIVATE_localStoreReleaseTarget(
     r2.localStore,
     t2,
@@ -93542,59 +93497,59 @@ async function __PRIVATE_syncEngineRejectFailedWrite(e2, t2, n) {
   }
 }
 function __PRIVATE_triggerPendingWritesCallbacks(e2, t2) {
-  (e2.mu.get(t2) || []).forEach(((e3) => {
+  (e2.yu.get(t2) || []).forEach(((e3) => {
     e3.resolve();
-  })), e2.mu.delete(t2);
+  })), e2.yu.delete(t2);
 }
 function __PRIVATE_processUserCallback(e2, t2, n) {
   const r2 = __PRIVATE_debugCast(e2);
-  let i2 = r2.du[r2.currentUser.toKey()];
+  let i2 = r2.pu[r2.currentUser.toKey()];
   if (i2) {
     const e3 = i2.get(t2);
-    e3 && (n ? e3.reject(n) : e3.resolve(), i2 = i2.remove(t2)), r2.du[r2.currentUser.toKey()] = i2;
+    e3 && (n ? e3.reject(n) : e3.resolve(), i2 = i2.remove(t2)), r2.pu[r2.currentUser.toKey()] = i2;
   }
 }
 function __PRIVATE_removeAndCleanupTarget(e2, t2, n = null) {
   e2.sharedClientState.removeLocalQueryTarget(t2);
-  for (const r2 of e2.Eu.get(t2)) e2.Tu.delete(r2), n && e2.Pu.yu(r2, n);
-  if (e2.Eu.delete(t2), e2.isPrimaryClient) {
-    e2.Vu.Gr(t2).forEach(((t3) => {
-      e2.Vu.containsKey(t3) || // We removed the last reference for this key
+  for (const r2 of e2.Vu.get(t2)) e2.Au.delete(r2), n && e2.Ru.Du(r2, n);
+  if (e2.Vu.delete(t2), e2.isPrimaryClient) {
+    e2.gu.Gr(t2).forEach(((t3) => {
+      e2.gu.containsKey(t3) || // We removed the last reference for this key
       __PRIVATE_removeLimboTarget(e2, t3);
     }));
   }
 }
 function __PRIVATE_removeLimboTarget(e2, t2) {
-  e2.Iu.delete(t2.path.canonicalString());
-  const n = e2.Ru.get(t2);
-  null !== n && (__PRIVATE_remoteStoreUnlisten(e2.remoteStore, n), e2.Ru = e2.Ru.remove(t2), e2.Au.delete(n), __PRIVATE_pumpEnqueuedLimboResolutions(e2));
+  e2.du.delete(t2.path.canonicalString());
+  const n = e2.mu.get(t2);
+  null !== n && (__PRIVATE_remoteStoreUnlisten(e2.remoteStore, n), e2.mu = e2.mu.remove(t2), e2.fu.delete(n), __PRIVATE_pumpEnqueuedLimboResolutions(e2));
 }
 function __PRIVATE_updateTrackedLimbos(e2, t2, n) {
-  for (const r2 of n) if (r2 instanceof __PRIVATE_AddedLimboDocument) e2.Vu.addReference(r2.key, t2), __PRIVATE_trackLimboChange(e2, r2);
+  for (const r2 of n) if (r2 instanceof __PRIVATE_AddedLimboDocument) e2.gu.addReference(r2.key, t2), __PRIVATE_trackLimboChange(e2, r2);
   else if (r2 instanceof __PRIVATE_RemovedLimboDocument) {
-    __PRIVATE_logDebug(Zt, "Document no longer in limbo: " + r2.key), e2.Vu.removeReference(r2.key, t2);
-    e2.Vu.containsKey(r2.key) || // We removed the last reference for this key
+    __PRIVATE_logDebug(Zt, "Document no longer in limbo: " + r2.key), e2.gu.removeReference(r2.key, t2);
+    e2.gu.containsKey(r2.key) || // We removed the last reference for this key
     __PRIVATE_removeLimboTarget(e2, r2.key);
   } else fail(19791, {
-    wu: r2
+    Cu: r2
   });
 }
 function __PRIVATE_trackLimboChange(e2, t2) {
   const n = t2.key, r2 = n.path.canonicalString();
-  e2.Ru.get(n) || e2.Iu.has(r2) || (__PRIVATE_logDebug(Zt, "New document in limbo: " + n), e2.Iu.add(r2), __PRIVATE_pumpEnqueuedLimboResolutions(e2));
+  e2.mu.get(n) || e2.du.has(r2) || (__PRIVATE_logDebug(Zt, "New document in limbo: " + n), e2.du.add(r2), __PRIVATE_pumpEnqueuedLimboResolutions(e2));
 }
 function __PRIVATE_pumpEnqueuedLimboResolutions(e2) {
-  for (; e2.Iu.size > 0 && e2.Ru.size < e2.maxConcurrentLimboResolutions; ) {
-    const t2 = e2.Iu.values().next().value;
-    e2.Iu.delete(t2);
-    const n = new DocumentKey(ResourcePath.fromString(t2)), r2 = e2.fu.next();
-    e2.Au.set(r2, new LimboResolution(n)), e2.Ru = e2.Ru.insert(n, r2), __PRIVATE_remoteStoreListen(e2.remoteStore, new TargetData(__PRIVATE_queryToTarget(__PRIVATE_newQueryForPath(n.path)), r2, "TargetPurposeLimboResolution", __PRIVATE_ListenSequence.ce));
+  for (; e2.du.size > 0 && e2.mu.size < e2.maxConcurrentLimboResolutions; ) {
+    const t2 = e2.du.values().next().value;
+    e2.du.delete(t2);
+    const n = new DocumentKey(ResourcePath.fromString(t2)), r2 = e2.wu.next();
+    e2.fu.set(r2, new LimboResolution(n)), e2.mu = e2.mu.insert(n, r2), __PRIVATE_remoteStoreListen(e2.remoteStore, new TargetData(__PRIVATE_queryToTarget(__PRIVATE_newQueryForPath(n.path)), r2, "TargetPurposeLimboResolution", __PRIVATE_ListenSequence.ce));
   }
 }
 async function __PRIVATE_syncEngineEmitNewSnapsAndNotifyLocalStore(e2, t2, n) {
   const r2 = __PRIVATE_debugCast(e2), i2 = [], s = [], o2 = [];
-  r2.Tu.isEmpty() || (r2.Tu.forEach(((e3, _) => {
-    o2.push(r2.pu(_, t2, n).then(((e4) => {
+  r2.Au.isEmpty() || (r2.Au.forEach(((e3, _) => {
+    o2.push(r2.bu(_, t2, n).then(((e4) => {
       var _a;
       if ((e4 || n) && r2.isPrimaryClient) {
         const t3 = e4 ? !e4.fromCache : (_a = n == null ? void 0 : n.targetChanges.get(_.targetId)) == null ? void 0 : _a.current;
@@ -93602,14 +93557,14 @@ async function __PRIVATE_syncEngineEmitNewSnapsAndNotifyLocalStore(e2, t2, n) {
       }
       if (e4) {
         i2.push(e4);
-        const t3 = __PRIVATE_LocalViewChanges.Is(_.targetId, e4);
+        const t3 = __PRIVATE_LocalViewChanges.Es(_.targetId, e4);
         s.push(t3);
       }
     })));
-  })), await Promise.all(o2), r2.Pu.H_(i2), await (async function __PRIVATE_localStoreNotifyLocalViewChanges(e3, t3) {
+  })), await Promise.all(o2), r2.Ru.H_(i2), await (async function __PRIVATE_localStoreNotifyLocalViewChanges(e3, t3) {
     const n2 = __PRIVATE_debugCast(e3);
     try {
-      await n2.persistence.runTransaction("notifyLocalViewChanges", "readwrite", ((e4) => PersistencePromise.forEach(t3, ((t4) => PersistencePromise.forEach(t4.Ts, ((r3) => n2.persistence.referenceDelegate.addReference(e4, t4.targetId, r3))).next((() => PersistencePromise.forEach(t4.Es, ((r3) => n2.persistence.referenceDelegate.removeReference(e4, t4.targetId, r3)))))))));
+      await n2.persistence.runTransaction("notifyLocalViewChanges", "readwrite", ((e4) => PersistencePromise.forEach(t3, ((t4) => PersistencePromise.forEach(t4.Ts, ((r3) => n2.persistence.referenceDelegate.addReference(e4, t4.targetId, r3))).next((() => PersistencePromise.forEach(t4.Is, ((r3) => n2.persistence.referenceDelegate.removeReference(e4, t4.targetId, r3)))))))));
     } catch (e4) {
       if (!__PRIVATE_isIndexedDbTransactionError(e4)) throw e4;
       __PRIVATE_logDebug(Nt, "Failed to update sequence numbers: " + e4);
@@ -93630,32 +93585,32 @@ async function __PRIVATE_syncEngineHandleCredentialChange(e2, t2) {
     const e3 = await __PRIVATE_localStoreHandleUserChange(n.localStore, t2);
     n.currentUser = t2, // Fails tasks waiting for pending writes requested by previous user.
     (function __PRIVATE_rejectOutstandingPendingWritesCallbacks(e4, t3) {
-      e4.mu.forEach(((e5) => {
+      e4.yu.forEach(((e5) => {
         e5.forEach(((e6) => {
           e6.reject(new FirestoreError(D.CANCELLED, t3));
         }));
-      })), e4.mu.clear();
+      })), e4.yu.clear();
     })(n, "'waitForPendingWrites' promise is rejected due to a user change."), // TODO(b/114226417): Consider calling this only in the primary tab.
     n.sharedClientState.handleUserChange(t2, e3.removedBatchIds, e3.addedBatchIds), await __PRIVATE_syncEngineEmitNewSnapsAndNotifyLocalStore(n, e3.Ns);
   }
 }
 function __PRIVATE_syncEngineGetRemoteKeysForTarget(e2, t2) {
-  const n = __PRIVATE_debugCast(e2), r2 = n.Au.get(t2);
-  if (r2 && r2.hu) return __PRIVATE_documentKeySet().add(r2.key);
+  const n = __PRIVATE_debugCast(e2), r2 = n.fu.get(t2);
+  if (r2 && r2.Eu) return __PRIVATE_documentKeySet().add(r2.key);
   {
     let e3 = __PRIVATE_documentKeySet();
-    const r3 = n.Eu.get(t2);
+    const r3 = n.Vu.get(t2);
     if (!r3) return e3;
     for (const t3 of r3) {
-      const r4 = n.Tu.get(t3);
-      e3 = e3.unionWith(r4.view.nu);
+      const r4 = n.Au.get(t3);
+      e3 = e3.unionWith(r4.view.ou);
     }
     return e3;
   }
 }
 function __PRIVATE_ensureWatchCallbacks(e2) {
   const t2 = __PRIVATE_debugCast(e2);
-  return t2.remoteStore.remoteSyncer.applyRemoteEvent = __PRIVATE_syncEngineApplyRemoteEvent.bind(null, t2), t2.remoteStore.remoteSyncer.getRemoteKeysForTarget = __PRIVATE_syncEngineGetRemoteKeysForTarget.bind(null, t2), t2.remoteStore.remoteSyncer.rejectListen = __PRIVATE_syncEngineRejectListen.bind(null, t2), t2.Pu.H_ = __PRIVATE_eventManagerOnWatchChange.bind(null, t2.eventManager), t2.Pu.yu = __PRIVATE_eventManagerOnWatchError.bind(null, t2.eventManager), t2;
+  return t2.remoteStore.remoteSyncer.applyRemoteEvent = __PRIVATE_syncEngineApplyRemoteEvent.bind(null, t2), t2.remoteStore.remoteSyncer.getRemoteKeysForTarget = __PRIVATE_syncEngineGetRemoteKeysForTarget.bind(null, t2), t2.remoteStore.remoteSyncer.rejectListen = __PRIVATE_syncEngineRejectListen.bind(null, t2), t2.Ru.H_ = __PRIVATE_eventManagerOnWatchChange.bind(null, t2.eventManager), t2.Ru.Du = __PRIVATE_eventManagerOnWatchError.bind(null, t2.eventManager), t2;
 }
 function __PRIVATE_syncEngineEnsureWriteCallbacks(e2) {
   const t2 = __PRIVATE_debugCast(e2);
@@ -93666,21 +93621,21 @@ class __PRIVATE_MemoryOfflineComponentProvider {
     this.kind = "memory", this.synchronizeTabs = false;
   }
   async initialize(e2) {
-    this.serializer = __PRIVATE_newSerializer(e2.databaseInfo.databaseId), this.sharedClientState = this.Du(e2), this.persistence = this.Cu(e2), await this.persistence.start(), this.localStore = this.vu(e2), this.gcScheduler = this.Fu(e2, this.localStore), this.indexBackfillerScheduler = this.Mu(e2, this.localStore);
+    this.serializer = __PRIVATE_newSerializer(e2.databaseInfo.databaseId), this.sharedClientState = this.Mu(e2), this.persistence = this.xu(e2), await this.persistence.start(), this.localStore = this.Ou(e2), this.gcScheduler = this.Nu(e2, this.localStore), this.indexBackfillerScheduler = this.Bu(e2, this.localStore);
   }
-  Fu(e2, t2) {
+  Nu(e2, t2) {
     return null;
   }
-  Mu(e2, t2) {
+  Bu(e2, t2) {
     return null;
   }
-  vu(e2) {
+  Ou(e2) {
     return __PRIVATE_newLocalStore(this.persistence, new __PRIVATE_QueryEngine(), e2.initialUser, this.serializer);
   }
-  Cu(e2) {
+  xu(e2) {
     return new __PRIVATE_MemoryPersistence(__PRIVATE_MemoryEagerDelegate.Vi, this.serializer);
   }
-  Du(e2) {
+  Mu(e2) {
     return new __PRIVATE_MemorySharedClientState();
   }
   async terminate() {
@@ -93695,12 +93650,12 @@ class __PRIVATE_LruGcMemoryOfflineComponentProvider extends __PRIVATE_MemoryOffl
   constructor(e2) {
     super(), this.cacheSizeBytes = e2;
   }
-  Fu(e2, t2) {
+  Nu(e2, t2) {
     __PRIVATE_hardAssert(this.persistence.referenceDelegate instanceof __PRIVATE_MemoryLruDelegate, 46915);
     const n = this.persistence.referenceDelegate.garbageCollector;
     return new __PRIVATE_LruScheduler(n, e2.asyncQueue, t2);
   }
-  Cu(e2) {
+  xu(e2) {
     const t2 = void 0 !== this.cacheSizeBytes ? LruParams.withCacheSize(this.cacheSizeBytes) : LruParams.DEFAULT;
     return new __PRIVATE_MemoryPersistence(((e3) => __PRIVATE_MemoryLruDelegate.Vi(e3, t2)), this.serializer);
   }
@@ -93742,19 +93697,19 @@ class OnlineComponentProvider {
   createSyncEngine(e2, t2) {
     return (function __PRIVATE_newSyncEngine(e3, t3, n, r2, i2, s, o2) {
       const _ = new __PRIVATE_SyncEngineImpl(e3, t3, n, r2, i2, s);
-      return o2 && (_.gu = true), _;
+      return o2 && (_.Su = true), _;
     })(this.localStore, this.remoteStore, this.eventManager, this.sharedClientState, e2.initialUser, e2.maxConcurrentLimboResolutions, t2);
   }
   async terminate() {
     var _a, _b2;
     await (async function __PRIVATE_remoteStoreShutdown(e2) {
       const t2 = __PRIVATE_debugCast(e2);
-      __PRIVATE_logDebug(jt, "RemoteStore shutting down."), t2.Ia.add(
+      __PRIVATE_logDebug(jt, "RemoteStore shutting down."), t2.da.add(
         5
         /* OfflineCause.Shutdown */
-      ), await __PRIVATE_disableNetworkInternal(t2), t2.Aa.shutdown(), // Set the OnlineState to Unknown (rather than Offline) to avoid potentially
+      ), await __PRIVATE_disableNetworkInternal(t2), t2.fa.shutdown(), // Set the OnlineState to Unknown (rather than Offline) to avoid potentially
       // triggering spurious listener events with cached data, etc.
-      t2.Va.set(
+      t2.ga.set(
         "Unknown"
         /* OnlineState.Unknown */
       );
@@ -93805,15 +93760,15 @@ class __PRIVATE_AsyncObserver {
     this.muted = false;
   }
   next(e2) {
-    this.muted || this.observer.next && this.Ou(this.observer.next, e2);
+    this.muted || this.observer.next && this.ku(this.observer.next, e2);
   }
   error(e2) {
-    this.muted || (this.observer.error ? this.Ou(this.observer.error, e2) : __PRIVATE_logError("Uncaught Error in snapshot listener:", e2.toString()));
+    this.muted || (this.observer.error ? this.ku(this.observer.error, e2) : __PRIVATE_logError("Uncaught Error in snapshot listener:", e2.toString()));
   }
-  Nu() {
+  Ku() {
     this.muted = true;
   }
-  Ou(e2, t2) {
+  ku(e2, t2) {
     setTimeout((() => {
       this.muted || e2(t2);
     }), 0);
@@ -93926,7 +93881,7 @@ async function __PRIVATE_getEventManager(e2) {
 function __PRIVATE_firestoreClientListen(e2, t2, n, r2) {
   const i2 = new __PRIVATE_AsyncObserver(r2), s = new __PRIVATE_QueryListener(t2, i2, n);
   return e2.asyncQueue.enqueueAndForget((async () => __PRIVATE_eventManagerListen(await __PRIVATE_getEventManager(e2), s))), () => {
-    i2.Nu(), e2.asyncQueue.enqueueAndForget((async () => __PRIVATE_eventManagerUnlisten(await __PRIVATE_getEventManager(e2), s)));
+    i2.Ku(), e2.asyncQueue.enqueueAndForget((async () => __PRIVATE_eventManagerUnlisten(await __PRIVATE_getEventManager(e2), s)));
   };
 }
 function __PRIVATE_firestoreClientWrite(e2, t2) {
@@ -94292,16 +94247,16 @@ function doc(e2, t2, ...n) {
 const rn = "AsyncQueue";
 class __PRIVATE_AsyncQueueImpl {
   constructor(e2 = Promise.resolve()) {
-    this.Yu = [], // Is this AsyncQueue being shut down? Once it is set to true, it will not
+    this.rc = [], // Is this AsyncQueue being shut down? Once it is set to true, it will not
     // be changed again.
-    this.ec = false, // Operations scheduled to be queued in the future. Operations are
+    this.sc = false, // Operations scheduled to be queued in the future. Operations are
     // automatically removed after they are run or canceled.
-    this.tc = [], // visible for testing
-    this.nc = null, // Flag set while there's an outstanding AsyncQueue operation, used for
+    this.oc = [], // visible for testing
+    this._c = null, // Flag set while there's an outstanding AsyncQueue operation, used for
     // assertion sanity-checks.
-    this.rc = false, // Enabled during shutdown on Safari to prevent future access to IndexedDB.
-    this.sc = false, // List of TimerIds to fast-forward delays for.
-    this.oc = [], // Backoff timer used to schedule retries for retryable operations
+    this.ac = false, // Enabled during shutdown on Safari to prevent future access to IndexedDB.
+    this.uc = false, // List of TimerIds to fast-forward delays for.
+    this.cc = [], // Backoff timer used to schedule retries for retryable operations
     this.M_ = new __PRIVATE_ExponentialBackoff(
       this,
       "async_queue_retry"
@@ -94309,15 +94264,15 @@ class __PRIVATE_AsyncQueueImpl {
     ), // Visibility handler that triggers an immediate retry of all retryable
     // operations. Meant to speed up recovery when we regain file system access
     // after page comes into foreground.
-    this._c = () => {
+    this.lc = () => {
       const e3 = getDocument();
       e3 && __PRIVATE_logDebug(rn, "Visibility state changed to " + e3.visibilityState), this.M_.w_();
-    }, this.ac = e2;
+    }, this.hc = e2;
     const t2 = getDocument();
-    t2 && "function" == typeof t2.addEventListener && t2.addEventListener("visibilitychange", this._c);
+    t2 && "function" == typeof t2.addEventListener && t2.addEventListener("visibilitychange", this.lc);
   }
   get isShuttingDown() {
-    return this.ec;
+    return this.sc;
   }
   /**
    * Adds a new operation to the queue without waiting for it to complete (i.e.
@@ -94327,39 +94282,39 @@ class __PRIVATE_AsyncQueueImpl {
     this.enqueue(e2);
   }
   enqueueAndForgetEvenWhileRestricted(e2) {
-    this.uc(), // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    this.cc(e2);
+    this.Pc(), // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    this.Tc(e2);
   }
   enterRestrictedMode(e2) {
-    if (!this.ec) {
-      this.ec = true, this.sc = e2 || false;
+    if (!this.sc) {
+      this.sc = true, this.uc = e2 || false;
       const t2 = getDocument();
-      t2 && "function" == typeof t2.removeEventListener && t2.removeEventListener("visibilitychange", this._c);
+      t2 && "function" == typeof t2.removeEventListener && t2.removeEventListener("visibilitychange", this.lc);
     }
   }
   enqueue(e2) {
-    if (this.uc(), this.ec)
+    if (this.Pc(), this.sc)
       return new Promise((() => {
       }));
     const t2 = new __PRIVATE_Deferred();
-    return this.cc((() => this.ec && this.sc ? Promise.resolve() : (e2().then(t2.resolve, t2.reject), t2.promise))).then((() => t2.promise));
+    return this.Tc((() => this.sc && this.uc ? Promise.resolve() : (e2().then(t2.resolve, t2.reject), t2.promise))).then((() => t2.promise));
   }
   enqueueRetryable(e2) {
-    this.enqueueAndForget((() => (this.Yu.push(e2), this.lc())));
+    this.enqueueAndForget((() => (this.rc.push(e2), this.Ic())));
   }
   /**
    * Runs the next operation from the retryable queue. If the operation fails,
    * reschedules with backoff.
    */
-  async lc() {
-    if (0 !== this.Yu.length) {
+  async Ic() {
+    if (0 !== this.rc.length) {
       try {
-        await this.Yu[0](), this.Yu.shift(), this.M_.reset();
+        await this.rc[0](), this.rc.shift(), this.M_.reset();
       } catch (e2) {
         if (!__PRIVATE_isIndexedDbTransactionError(e2)) throw e2;
         __PRIVATE_logDebug(rn, "Operation failed with retryable error: " + e2);
       }
-      this.Yu.length > 0 && // If there are additional operations, we re-schedule `retryNextOp()`.
+      this.rc.length > 0 && // If there are additional operations, we re-schedule `retryNextOp()`.
       // This is necessary to run retryable operations that failed during
       // their initial attempt since we don't know whether they are already
       // enqueued. If, for example, `op1`, `op2`, `op3` are enqueued and `op1`
@@ -94369,25 +94324,25 @@ class __PRIVATE_AsyncQueueImpl {
       // Since `backoffAndRun()` cancels an existing backoff and schedules a
       // new backoff on every call, there is only ever a single additional
       // operation in the queue.
-      this.M_.p_((() => this.lc()));
+      this.M_.p_((() => this.Ic()));
     }
   }
-  cc(e2) {
-    const t2 = this.ac.then((() => (this.rc = true, e2().catch(((e3) => {
-      this.nc = e3, this.rc = false;
+  Tc(e2) {
+    const t2 = this.hc.then((() => (this.ac = true, e2().catch(((e3) => {
+      this._c = e3, this.ac = false;
       throw __PRIVATE_logError("INTERNAL UNHANDLED ERROR: ", __PRIVATE_getMessageOrStack(e3)), e3;
-    })).then(((e3) => (this.rc = false, e3))))));
-    return this.ac = t2, t2;
+    })).then(((e3) => (this.ac = false, e3))))));
+    return this.hc = t2, t2;
   }
   enqueueAfterDelay(e2, t2, n) {
-    this.uc(), // Fast-forward delays for timerIds that have been overridden.
-    this.oc.indexOf(e2) > -1 && (t2 = 0);
-    const r2 = DelayedOperation.createAndSchedule(this, e2, t2, n, ((e3) => this.hc(e3)));
-    return this.tc.push(r2), r2;
+    this.Pc(), // Fast-forward delays for timerIds that have been overridden.
+    this.cc.indexOf(e2) > -1 && (t2 = 0);
+    const r2 = DelayedOperation.createAndSchedule(this, e2, t2, n, ((e3) => this.Ec(e3)));
+    return this.oc.push(r2), r2;
   }
-  uc() {
-    this.nc && fail(47125, {
-      Pc: __PRIVATE_getMessageOrStack(this.nc)
+  Pc() {
+    this._c && fail(47125, {
+      Rc: __PRIVATE_getMessageOrStack(this._c)
     });
   }
   verifyOperationInProgress() {
@@ -94396,18 +94351,18 @@ class __PRIVATE_AsyncQueueImpl {
    * Waits until all currently queued tasks are finished executing. Delayed
    * operations are not run.
    */
-  async Tc() {
+  async Ac() {
     let e2;
     do {
-      e2 = this.ac, await e2;
-    } while (e2 !== this.ac);
+      e2 = this.hc, await e2;
+    } while (e2 !== this.hc);
   }
   /**
    * For Tests: Determine if a delayed operation with a particular TimerId
    * exists.
    */
-  Ec(e2) {
-    for (const t2 of this.tc) if (t2.timerId === e2) return true;
+  Vc(e2) {
+    for (const t2 of this.oc) if (t2.timerId === e2) return true;
     return false;
   }
   /**
@@ -94417,23 +94372,23 @@ class __PRIVATE_AsyncQueueImpl {
    * will be drained. Pass TimerId.All to run all delayed operations.
    * @returns a Promise that resolves once all operations have been run.
    */
-  Ic(e2) {
-    return this.Tc().then((() => {
-      this.tc.sort(((e3, t2) => e3.targetTimeMs - t2.targetTimeMs));
-      for (const t2 of this.tc) if (t2.skipDelay(), "all" !== e2 && t2.timerId === e2) break;
-      return this.Tc();
+  dc(e2) {
+    return this.Ac().then((() => {
+      this.oc.sort(((e3, t2) => e3.targetTimeMs - t2.targetTimeMs));
+      for (const t2 of this.oc) if (t2.skipDelay(), "all" !== e2 && t2.timerId === e2) break;
+      return this.Ac();
     }));
   }
   /**
    * For Tests: Skip all subsequent delays for a timer id.
    */
-  Rc(e2) {
-    this.oc.push(e2);
+  mc(e2) {
+    this.cc.push(e2);
   }
   /** Called once a DelayedOperation is run or canceled. */
-  hc(e2) {
-    const t2 = this.tc.indexOf(e2);
-    this.tc.splice(t2, 1);
+  Ec(e2) {
+    const t2 = this.oc.indexOf(e2);
+    this.oc.splice(t2, 1);
   }
 }
 function __PRIVATE_getMessageOrStack(e2) {
@@ -94871,7 +94826,7 @@ class __PRIVATE_ParseContextImpl {
   constructor(e2, t2, n, r2, i2, s) {
     this.settings = e2, this.databaseId = t2, this.serializer = n, this.ignoreUndefinedProperties = r2, // Minor hack: If fieldTransforms is undefined, we assume this is an
     // external call and we need to validate the entire path.
-    void 0 === i2 && this.Ac(), this.fieldTransforms = i2 || [], this.fieldMask = s || [];
+    void 0 === i2 && this.fc(), this.fieldTransforms = i2 || [], this.fieldMask = s || [];
   }
   get path() {
     return this.settings.path;
@@ -94886,41 +94841,41 @@ class __PRIVATE_ParseContextImpl {
       ...e2
     }, this.databaseId, this.serializer, this.ignoreUndefinedProperties, this.fieldTransforms, this.fieldMask);
   }
-  dc(e2) {
+  yc(e2) {
     var _a;
     const t2 = (_a = this.path) == null ? void 0 : _a.child(e2), n = this.i({
       path: t2,
       arrayElement: false
     });
-    return n.mc(e2), n;
+    return n.wc(e2), n;
   }
-  fc(e2) {
+  Sc(e2) {
     var _a;
     const t2 = (_a = this.path) == null ? void 0 : _a.child(e2), n = this.i({
       path: t2,
       arrayElement: false
     });
-    return n.Ac(), n;
+    return n.fc(), n;
   }
-  gc(e2) {
+  bc(e2) {
     return this.i({
       path: void 0,
       arrayElement: true
     });
   }
-  yc(e2) {
+  Dc(e2) {
     return __PRIVATE_createError(e2, this.settings.methodName, this.settings.hasConverter || false, this.path, this.settings.targetDoc);
   }
   /** Returns 'true' if 'fieldPath' was traversed when creating this context. */
   contains(e2) {
     return void 0 !== this.fieldMask.find(((t2) => e2.isPrefixOf(t2))) || void 0 !== this.fieldTransforms.find(((t2) => e2.isPrefixOf(t2.field)));
   }
-  Ac() {
-    if (this.path) for (let e2 = 0; e2 < this.path.length; e2++) this.mc(this.path.get(e2));
+  fc() {
+    if (this.path) for (let e2 = 0; e2 < this.path.length; e2++) this.wc(this.path.get(e2));
   }
-  mc(e2) {
-    if (0 === e2.length) throw this.yc("Document fields must not be empty");
-    if (__PRIVATE_isWrite(this.dataSource) && on.test(e2)) throw this.yc('Document fields cannot begin and end with "__"');
+  wc(e2) {
+    if (0 === e2.length) throw this.Dc("Document fields must not be empty");
+    if (__PRIVATE_isWrite(this.dataSource) && on.test(e2)) throw this.Dc('Document fields cannot begin and end with "__"');
   }
 }
 class __PRIVATE_UserDataReader {
@@ -94928,7 +94883,7 @@ class __PRIVATE_UserDataReader {
     this.databaseId = e2, this.ignoreUndefinedProperties = t2, this.serializer = n || __PRIVATE_newSerializer(e2);
   }
   /** Creates a new top-level parse context. */
-  I(e2, t2, n, r2 = false) {
+  V(e2, t2, n, r2 = false) {
     return new __PRIVATE_ParseContextImpl({
       dataSource: e2,
       methodName: t2,
@@ -94944,7 +94899,7 @@ function __PRIVATE_newUserDataReader(e2) {
   return new __PRIVATE_UserDataReader(e2._databaseId, !!t2.ignoreUndefinedProperties, n);
 }
 function __PRIVATE_parseSetData(e2, t2, n, r2, i2, s = {}) {
-  const o2 = e2.I(s.merge || s.mergeFields ? 2 : 0, t2, n, i2);
+  const o2 = e2.V(s.merge || s.mergeFields ? 2 : 0, t2, n, i2);
   __PRIVATE_validatePlainObject("Data must be an object, but it was:", o2, r2);
   const _ = __PRIVATE_parseObject(r2, o2);
   let a2, u;
@@ -94962,7 +94917,7 @@ function __PRIVATE_parseSetData(e2, t2, n, r2, i2, s = {}) {
 }
 class __PRIVATE_DeleteFieldValueImpl extends FieldValue {
   _toFieldTransform(e2) {
-    if (2 !== e2.dataSource) throw 1 === e2.dataSource ? e2.yc(`${this._methodName}() can only appear at the top level of your update data`) : e2.yc(`${this._methodName}() cannot be used with set() unless you pass {merge:true}`);
+    if (2 !== e2.dataSource) throw 1 === e2.dataSource ? e2.Dc(`${this._methodName}() can only appear at the top level of your update data`) : e2.Dc(`${this._methodName}() cannot be used with set() unless you pass {merge:true}`);
     return e2.fieldMask.push(e2.path), null;
   }
   isEqual(e2) {
@@ -94978,13 +94933,13 @@ class __PRIVATE_ServerTimestampFieldValueImpl extends FieldValue {
   }
 }
 function __PRIVATE_parseUpdateData(e2, t2, n, r2) {
-  const i2 = e2.I(1, t2, n);
+  const i2 = e2.V(1, t2, n);
   __PRIVATE_validatePlainObject("Data must be an object, but it was:", i2, r2);
   const s = [], o2 = ObjectValue.empty();
   forEach(r2, ((e3, r3) => {
     const _2 = __PRIVATE_fieldPathFromDotSeparatedString(t2, e3, n);
     r3 = getModularInstance(r3);
-    const a2 = i2.fc(_2);
+    const a2 = i2.Sc(_2);
     if (r3 instanceof __PRIVATE_DeleteFieldValueImpl)
       s.push(_2);
     else {
@@ -94996,7 +94951,7 @@ function __PRIVATE_parseUpdateData(e2, t2, n, r2) {
   return new ParsedUpdateData(o2, _, i2.fieldTransforms);
 }
 function __PRIVATE_parseUpdateVarargs(e2, t2, n, r2, i2, s) {
-  const o2 = e2.I(1, t2, n), _ = [__PRIVATE_fieldPathFromArgument(t2, r2, n)], a2 = [i2];
+  const o2 = e2.V(1, t2, n), _ = [__PRIVATE_fieldPathFromArgument(t2, r2, n)], a2 = [i2];
   if (s.length % 2 != 0) throw new FirestoreError(D.INVALID_ARGUMENT, `Function ${t2}() needs to be called with an even number of arguments that alternate between field names and values.`);
   for (let e3 = 0; e3 < s.length; e3 += 2) _.push(__PRIVATE_fieldPathFromArgument(t2, s[e3])), a2.push(s[e3 + 1]);
   const u = [], c2 = ObjectValue.empty();
@@ -95004,7 +94959,7 @@ function __PRIVATE_parseUpdateVarargs(e2, t2, n, r2, i2, s) {
     const t3 = _[e3];
     let n2 = a2[e3];
     n2 = getModularInstance(n2);
-    const r3 = o2.fc(t3);
+    const r3 = o2.Sc(t3);
     if (n2 instanceof __PRIVATE_DeleteFieldValueImpl)
       u.push(t3);
     else {
@@ -95016,7 +94971,7 @@ function __PRIVATE_parseUpdateVarargs(e2, t2, n, r2, i2, s) {
   return new ParsedUpdateData(c2, l2, o2.fieldTransforms);
 }
 function __PRIVATE_parseQueryValue(e2, t2, n, r2 = false) {
-  return __PRIVATE_parseData(n, e2.I(r2 ? 4 : 3, t2));
+  return __PRIVATE_parseData(n, e2.V(r2 ? 4 : 3, t2));
 }
 function __PRIVATE_parseData(e2, t2) {
   if (__PRIVATE_looksLikeJsonObject(
@@ -95026,8 +94981,8 @@ function __PRIVATE_parseData(e2, t2) {
   )) return __PRIVATE_validatePlainObject("Unsupported field value:", t2, e2), __PRIVATE_parseObject(e2, t2);
   if (e2 instanceof FieldValue)
     return (function __PRIVATE_parseSentinelFieldValue(e3, t3) {
-      if (!__PRIVATE_isWrite(t3.dataSource)) throw t3.yc(`${e3._methodName}() can only be used with update() and set()`);
-      if (!t3.path) throw t3.yc(`${e3._methodName}() is not currently supported inside arrays`);
+      if (!__PRIVATE_isWrite(t3.dataSource)) throw t3.Dc(`${e3._methodName}() can only be used with update() and set()`);
+      if (!t3.path) throw t3.Dc(`${e3._methodName}() is not currently supported inside arrays`);
       const n = e3._toFieldTransform(t3);
       n && t3.fieldTransforms.push(n);
     })(e2, t2), null;
@@ -95038,12 +94993,12 @@ function __PRIVATE_parseData(e2, t2) {
     // field mask paths more granular than the top-level array.
     t2.path && t2.fieldMask.push(t2.path), e2 instanceof Array
   ) {
-    if (t2.settings.arrayElement && 4 !== t2.dataSource) throw t2.yc("Nested arrays are not supported");
+    if (t2.settings.arrayElement && 4 !== t2.dataSource) throw t2.Dc("Nested arrays are not supported");
     return (function __PRIVATE_parseArray(e3, t3) {
       const n = [];
       let r2 = 0;
       for (const i2 of e3) {
-        let e4 = __PRIVATE_parseData(i2, t3.gc(r2));
+        let e4 = __PRIVATE_parseData(i2, t3.bc(r2));
         null == e4 && // Just include nulls in the array for fields being replaced with a
         // sentinel.
         (e4 = {
@@ -95091,7 +95046,7 @@ function __PRIVATE_parseData(e2, t2) {
     };
     if (e3 instanceof DocumentReference) {
       const n = t3.databaseId, r2 = e3.firestore._databaseId;
-      if (!r2.isEqual(n)) throw t3.yc(`Document reference is for database ${r2.projectId}/${r2.database} but should be for database ${n.projectId}/${n.database}`);
+      if (!r2.isEqual(n)) throw t3.Dc(`Document reference is for database ${r2.projectId}/${r2.database} but should be for database ${n.projectId}/${n.database}`);
       return {
         referenceValue: __PRIVATE_toResourceName(e3.firestore._databaseId || t3.databaseId, e3._key.path)
       };
@@ -95106,7 +95061,7 @@ function __PRIVATE_parseData(e2, t2) {
             [ut]: {
               arrayValue: {
                 values: n.map(((e5) => {
-                  if ("number" != typeof e5) throw t4.yc("VectorValues must only contain numeric values.");
+                  if ("number" != typeof e5) throw t4.Dc("VectorValues must only contain numeric values.");
                   return __PRIVATE_toDouble(t4.serializer, e5);
                 }))
               }
@@ -95118,7 +95073,7 @@ function __PRIVATE_parseData(e2, t2) {
         };
       })(e3, t3);
     if (__PRIVATE_isProtoValueSerializable(e3)) return e3._toProto(t3.serializer);
-    throw t3.yc(`Unsupported field value: ${__PRIVATE_valueDescription(e3)}`);
+    throw t3.Dc(`Unsupported field value: ${__PRIVATE_valueDescription(e3)}`);
   })(e2, t2);
 }
 function __PRIVATE_parseObject(e2, t2) {
@@ -95128,7 +95083,7 @@ function __PRIVATE_parseObject(e2, t2) {
     // mask to ensure that the server creates a map entry.
     t2.path && t2.path.length > 0 && t2.fieldMask.push(t2.path)
   ) : forEach(e2, ((e3, r2) => {
-    const i2 = __PRIVATE_parseData(r2, t2.dc(e3));
+    const i2 = __PRIVATE_parseData(r2, t2.yc(e3));
     null != i2 && (n[e3] = i2);
   })), {
     mapValue: {
@@ -95142,7 +95097,7 @@ function __PRIVATE_looksLikeJsonObject(e2) {
 function __PRIVATE_validatePlainObject(e2, t2, n) {
   if (!__PRIVATE_looksLikeJsonObject(n) || !__PRIVATE_isPlainObject(n)) {
     const r2 = __PRIVATE_valueDescription(n);
-    throw "an object" === r2 ? t2.yc(e2 + " a custom object") : t2.yc(e2 + " " + r2);
+    throw "an object" === r2 ? t2.Dc(e2 + " a custom object") : t2.Dc(e2 + " " + r2);
   }
 }
 function __PRIVATE_fieldPathFromArgument(e2, t2, n) {
@@ -95333,7 +95288,7 @@ class __PRIVATE_ExpUserDataWriter extends AbstractUserDataWriter {
 function serverTimestamp() {
   return new __PRIVATE_ServerTimestampFieldValueImpl("serverTimestamp");
 }
-const Ut = "@firebase/firestore", Ht = "4.14.0";
+const Ut = "@firebase/firestore", Ht = "4.14.1";
 /**
  * @license
  * Copyright 2017 Google LLC
@@ -95993,7 +95948,6 @@ const WALKING_URL = "https://raw.githubusercontent.com/Felipe9272727/Bancon.....
 const IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/BACON-PROJETO-FUNCIONALLLLL/main/Idle.glb";
 const NPC_WALK_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20walking.glb";
 const NPC_IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20idle.glb";
-const DUSSEKAR_URL = "https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb";
 const BARNEY_URL = "https://raw.githubusercontent.com/Felipe9272727/For-my-game/main/1776639536329.png";
 const COLORS = { wall: "#D7CCC8", wood: "#6D4C41", elevTrim: "#3E2723", elevFloor: "#F5F0EB", elevDiamond: "#FFD54F", elevDoor: "#9E9E9E", elevPanel: "#78909C", grass: "#66BB6A", sky: "#81D4FA", houseWall: "#EFEBE9", houseRoof: "#6D4C41", bed: "#1565C0", sofa: "#4E342E" };
 const ASSETS = { noise: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg", grass: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/terrain/grasslight-big.jpg", wood: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/hardwood2_diffuse.jpg", lobbyFloor: "https://raw.githubusercontent.com/Felipe9272727/Textura-/main/file_00000000febc71f5992f1ccc1b591002.png", wallPanel: "https://raw.githubusercontent.com/Felipe9272727/Textura-amadeirada-/main/file_0000000040e871f59722d8404d631582.png", wall: "https://raw.githubusercontent.com/Felipe9272727/Textura-da-parede/main/file_000000005dc071f5ba34d550bd83847b.png", ceiling: "https://raw.githubusercontent.com/Felipe9272727/Textura-de-teto/refs/heads/main/Screenshot_2026-01-18-12-39-26-946_com.openai.chatgpt-edit.jpg" };
@@ -96074,7 +96028,6 @@ const MP_WRITE_INTERVAL = 200;
 const MP_WRITE_THRESHOLD = 0.1;
 const MP_ROTATION_THRESHOLD = 0.1;
 const MP_FORCE_WRITE_MS = 2500;
-const CHAT_TTL_MS = 3e4;
 const CHAT_MAX_LEN = 200;
 const CHAT_CLEAR_DELAY = 3e4;
 const PLAYER_NAME_MAX_LEN = 20;
@@ -96084,7 +96037,6 @@ const HOUSE_EX = [[-4, 14, 4, 14], [4, 6, 4, 14], [-4, 6, -4, 14], [-4, 6, -0.7,
 const HOUSE_IN = [[0, 10, 4, 10], [0, 10, 0, 14]];
 const HOUSE_DW = [-0.7, 6, 0.7, 6];
 const L1_BND = [[-25, -25, 25, -25], [25, -25, 25, 25], [-25, 25, 25, 25], [-25, -25, -25, 25]];
-const L2_BND = [[-40, -40, 40, -40], [40, -40, 40, 40], [-40, 40, 40, 40], [-40, -40, -40, 40]];
 const ELEV_BLD = [[-5.5, -16.5, 5.5, -16.5], [-5.5, -10, -5.5, -16.5], [5.5, -10, 5.5, -16.5], [-5.5, -10, -1.3, -10], [1.3, -10, 5.5, -10], [-25, -10, -5.5, -10], [5.5, -10, 25, -10]];
 const DOOR_SEAL = [-1.3, -10, 1.3, -10];
 const ARMCHAIR_W = 1.1, ARMCHAIR_D = 1;
@@ -96113,7 +96065,7 @@ const _WALLS_HOUSE_OPEN = _HOUSE_BASE;
 const _WALLS_HOUSE_DOOR = [..._HOUSE_BASE, HOUSE_DW];
 const _WALLS_HOUSE_SEALED = [..._HOUSE_BASE, DOOR_SEAL];
 const _WALLS_HOUSE_DOOR_SEALED = [..._HOUSE_BASE, HOUSE_DW, DOOR_SEAL];
-const _LEVEL2_BASE = [...ELEV_W, ...ELEV_BLD, ...L2_BND];
+const _LEVEL2_BASE = [...ELEV_W, ...ELEV_BLD];
 const _WALLS_LEVEL2_OPEN = _LEVEL2_BASE;
 const _WALLS_LEVEL2_SEALED = [..._LEVEL2_BASE, DOOR_SEAL];
 const wallsForState = (level, doorsClosed, houseDoorOpen) => {
@@ -96233,7 +96185,8 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
         setOtherPlayerIds(newIds);
       }
       const msgs = [];
-      const chatCutoff = Date.now() - CHAT_TTL_MS;
+      const CHAT_TTL = 3e4;
+      const chatCutoff = Date.now() - CHAT_TTL;
       snap.forEach((d) => {
         const data = d.data();
         if (data.chatMsg && data.chatAt && data.chatAt > chatCutoff) {
@@ -97437,7 +97390,6 @@ const SHOP_SCENES = {
     mood: "talk",
     text: "* {y:Loja da Recepção.}{p:300}\n* Tudo que oferecemos é\n  {y:gratuito}.{p}\n* Só não tente sair com\n  nada na bolsa.",
     choices: [
-      { label: "Lanterna      -  0G", goto: "buy_flashlight" },
       { label: "Café da casa  -  0G", goto: "buy_coffee" },
       { label: "Biscoito      -  0G", goto: "buy_cookie" },
       { label: "Chave reserva -  ?G", goto: "buy_key" },
@@ -97445,11 +97397,6 @@ const SHOP_SCENES = {
       { label: "Lembrança     - 1?G", goto: "buy_memory" },
       { label: "Voltar", goto: "main" }
     ]
-  },
-  buy_flashlight: {
-    mood: "wink",
-    text: "* {y:Lanterna.}{p}\n* A escuridão deste hotel\n  é... {y:persistente}.{p:200}\n* Esta lanterna vai te ajudar.\n^^* (Ele te entrega uma lanterna\n  velha.){p:300}\n* O metal está {y:frio}.{p:200}\n* Mas a luz funciona.\n^^* * Você guardou a {y:Lanterna}.{p:200}\n* Aperte {y:F} para ligar.\n* Ou toque no ícone no inventário.",
-    choices: [{ label: "Voltar.", goto: "buy" }]
   },
   buy_coffee: {
     mood: "wink",
@@ -98054,24 +98001,29 @@ const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) =>
             },
             onClick: advanceOrSkip,
             children: showContent && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center px-4 max-w-2xl w-full", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { position: "relative", display: "inline-block" }, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
                 SpriteAnimator,
                 {
                   config: activeSpriteConfig,
                   style: {
+                    // Values copied verbatim from the working `437441c`
+                    // version on main. The dialog box's negative marginTop
+                    // pulls up to overlap the bottom ~45% of the sprite,
+                    // so the visible "above-counter" portion fits the
+                    // viewport even when the overall sprite is tall.
                     height: isLandscape ? "clamp(300px, 70vh, 460px)" : "clamp(340px, 58vh, 500px)",
                     aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
                     filter: "drop-shadow(0 12px 24px rgba(0,0,0,0.75))",
                     opacity: showContent ? 1 : 0,
                     transform: phase === "idle" ? "translateY(0)" : "translateY(20px)",
-                    transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms, filter 300ms ease-out, transform 300ms ease-out",
+                    transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms",
                     pointerEvents: "none",
                     position: "relative",
                     zIndex: 1
                   }
                 },
                 spriteMode
-              ) }),
+              ),
               /* @__PURE__ */ jsxRuntimeExports.jsxs(
                 "div",
                 {
@@ -98193,7 +98145,103 @@ const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) =>
             },
             children: "DING"
           }
-        )
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("style", { children: `
+        @keyframes shopDing {
+          0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+          40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+          100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+        }
+        @keyframes shopDoorInLeft {
+          from { transform: translateX(-100%); }
+          to   { transform: translateX(0%); }
+        }
+        @keyframes shopDoorInRight {
+          from { transform: translateX(100%); }
+          to   { transform: translateX(0%); }
+        }
+        @keyframes shopDoorCloseLeft {
+          from { transform: translateX(-100%); }
+          to   { transform: translateX(0%); }
+        }
+        @keyframes shopDoorCloseRight {
+          from { transform: translateX(100%); }
+          to   { transform: translateX(0%); }
+        }
+        @keyframes undertaleBlink {
+          0%, 50%   { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+        @keyframes shopShake {
+          0%, 100% { transform: translate(0, 0); }
+          25%      { transform: translate(-1px, 1px); }
+          50%      { transform: translate(1px, -1px); }
+          75%      { transform: translate(-1px, -1px); }
+        }
+        @keyframes shopAdvanceBob {
+          0%, 100% { transform: translateY(0); opacity: 0.85; }
+          50%      { transform: translateY(3px); opacity: 1; }
+        }
+        .shop-cursor {
+          display: inline-block;
+          margin-left: 1px;
+          color: #fff;
+          animation: undertaleBlink 600ms steps(1) infinite;
+        }
+        .shop-shake {
+          display: inline-block;
+          animation: shopShake 80ms infinite;
+        }
+        .shop-page-advance {
+          position: absolute;
+          right: 0;
+          bottom: -4px;
+          color: #FFD54F;
+          font-size: clamp(14px, 1.8vw, 18px);
+          line-height: 1;
+          animation: shopAdvanceBob 700ms ease-in-out infinite;
+          text-shadow: 0 0 6px rgba(255,213,79,0.5);
+        }
+        .undertale-btn {
+          background: transparent;
+          border: 0;
+          padding: 1px 4px 1px 22px;
+          color: #fff;
+          font-family: "Determination Mono", "Courier New", monospace;
+          font-size: clamp(11px, 1.4vw, 14px);
+          letter-spacing: 0.02em;
+          cursor: pointer;
+          position: relative;
+          text-align: left;
+          transition: color 80ms ease;
+          line-height: 1.35;
+          white-space: normal;
+          word-wrap: break-word;
+          flex-shrink: 0;
+        }
+        .undertale-btn::before {
+          content: '♥';
+          position: absolute;
+          left: 6px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #FF0000;
+          font-size: 0.9em;
+          opacity: 0;
+          transition: opacity 80ms ease;
+        }
+        .undertale-btn[data-selected="true"] {
+          color: #FFD54F;
+          outline: 0;
+        }
+        .undertale-btn[data-selected="true"]::before {
+          opacity: 1;
+        }
+        .undertale-btn:focus-visible {
+          color: #FFD54F;
+          outline: 0;
+        }
+      ` })
       ]
     }
   );
@@ -98284,17 +98332,6 @@ const RIGHT_FOREARM_PATTERNS = [
   "lowerarm.r",
   "bip01_r_forearm"
 ];
-const RIGHT_HAND_PATTERNS = [
-  "mixamorig:righthand",
-  "righthand",
-  "right_hand",
-  "hand_r",
-  "handright",
-  "r_hand",
-  "rhand",
-  "hand.r",
-  "bip01_r_hand"
-];
 function findBoneByPatterns(root, patterns) {
   let found = null;
   root.traverse((c2) => {
@@ -98311,11 +98348,7 @@ function findBoneByPatterns(root, patterns) {
   });
   return found;
 }
-const PICKUP_EXTEND = 0.3;
-const PICKUP_HOLD = 0.5;
-const PICKUP_RETRACT = 0.4;
-const PICKUP_TOTAL = PICKUP_EXTEND + PICKUP_HOLD + PICKUP_RETRACT;
-const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) => {
+const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL);
   const { animations: idleAnims } = useGLTF(IDLE_URL);
   const { actions } = useAnimations(reactExports.useMemo(() => {
@@ -98330,20 +98363,18 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) 
   const opRef = reactExports.useRef(1);
   const meshesRef = reactExports.useRef([]);
   const [groundY, setGroundY] = reactExports.useState(0);
-  const armBoneRef = reactExports.useRef(null);
-  const forearmBoneRef = reactExports.useRef(null);
-  const handBoneRef = reactExports.useRef(null);
-  const armOrigRotRef = reactExports.useRef(new Euler());
-  const forearmOrigRotRef = reactExports.useRef(new Euler());
-  const [hasArmBones, setHasArmBones] = reactExports.useState(false);
   const pickupTimeRef = reactExports.useRef(-1);
   const lastPickupTriggerRef = reactExports.useRef(0);
-  const procArmRef = reactExports.useRef(null);
-  const visibleRef = reactExports.useRef(visible);
-  visibleRef.current = visible;
+  const armBoneRef = reactExports.useRef(null);
+  const forearmBoneRef = reactExports.useRef(null);
+  const armOrigRotRef = reactExports.useRef(new Euler());
+  const forearmOrigRotRef = reactExports.useRef(new Euler());
+  const PICKUP_EXTEND = 0.3;
+  const PICKUP_HOLD = 0.5;
+  const PICKUP_RETRACT = 0.4;
+  const PICKUP_TOTAL = PICKUP_EXTEND + PICKUP_HOLD + PICKUP_RETRACT;
   reactExports.useEffect(() => {
     const meshes = [];
-    const boneNames = [];
     scene.traverse((c2) => {
       if (c2.isMesh) {
         if (c2.material) {
@@ -98363,30 +98394,8 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) 
           hipsBindRef.current = c2.position.clone();
         }
       }
-      if (c2.isBone || c2.type === "Bone") {
-        boneNames.push(c2.name);
-      }
     });
     meshesRef.current = meshes;
-    console.log("[Avatar] All bones found:", boneNames);
-    const arm = findBoneByPatterns(scene, RIGHT_ARM_PATTERNS);
-    const forearm = findBoneByPatterns(scene, RIGHT_FOREARM_PATTERNS);
-    const hand = findBoneByPatterns(scene, RIGHT_HAND_PATTERNS);
-    armBoneRef.current = arm;
-    forearmBoneRef.current = forearm;
-    handBoneRef.current = hand;
-    const found = !!(arm || forearm);
-    setHasArmBones(found);
-    if (arm) {
-      armOrigRotRef.current.copy(arm.rotation);
-      console.log("[Avatar] Found upper arm bone:", arm.name);
-    }
-    if (forearm) {
-      forearmOrigRotRef.current.copy(forearm.rotation);
-      console.log("[Avatar] Found forearm bone:", forearm.name);
-    }
-    if (hand) console.log("[Avatar] Found hand bone:", hand.name);
-    if (!found) console.warn("[Avatar] No arm bones found — will use procedural arm fallback");
     try {
       scene.updateMatrixWorld(true);
       const box = new Box3().setFromObject(scene);
@@ -98394,34 +98403,56 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) 
     } catch {
     }
   }, [scene]);
-  const onSceneReadyRef = reactExports.useRef(onSceneReady);
-  onSceneReadyRef.current = onSceneReady;
   reactExports.useEffect(() => {
-    if (onSceneReadyRef.current && scene) onSceneReadyRef.current(scene);
-    return () => {
-      if (onSceneReadyRef.current) onSceneReadyRef.current(null);
-    };
+    const arm = findBoneByPatterns(scene, RIGHT_ARM_PATTERNS);
+    const forearm = findBoneByPatterns(scene, RIGHT_FOREARM_PATTERNS);
+    armBoneRef.current = arm;
+    forearmBoneRef.current = forearm;
+    if (arm) {
+      armOrigRotRef.current.copy(arm.rotation);
+      console.log("[Avatar] Found arm bone:", arm.name);
+    }
+    if (forearm) {
+      forearmOrigRotRef.current.copy(forearm.rotation);
+    }
   }, [scene]);
   reactExports.useEffect(() => {
     if (pickupTrigger !== lastPickupTriggerRef.current && pickupTrigger > 0) {
       lastPickupTriggerRef.current = pickupTrigger;
       pickupTimeRef.current = 0;
-      console.log("[Avatar] Pickup triggered:", pickupTrigger, "| Animation started");
+      console.log("[Avatar] Pickup triggered:", pickupTrigger);
     }
   }, [pickupTrigger]);
+  useFrame((s, dt2) => {
+    if (hipsRef.current && hipsBindRef.current) {
+      hipsRef.current.position.x = hipsBindRef.current.x;
+      hipsRef.current.position.z = hipsBindRef.current.z;
+    }
+    const tgt = visible ? 1 : 0;
+    opRef.current = MathUtils.lerp(opRef.current, tgt, 8 * dt2);
+    const op = opRef.current;
+    const visibleMesh = op > 0.01;
+    const meshes = meshesRef.current;
+    for (let i2 = 0; i2 < meshes.length; i2++) {
+      const m2 = meshes[i2];
+      if (m2.material) m2.material.opacity = op;
+      m2.visible = visibleMesh;
+    }
+  });
+  reactExports.useEffect(() => {
+    const a2 = actions[animation === "Walking" ? "Walking" : "Idle"];
+    const o2 = actions[animation === "Walking" ? "Idle" : "Walking"];
+    if (o2) o2.fadeOut(0.2);
+    if (a2) a2.reset().fadeIn(0.2).play();
+  }, [animation, actions]);
   useFrame((_, dt2) => {
     if (pickupTimeRef.current < 0) return;
-    const safeDt = Math.min(dt2, 0.05);
-    pickupTimeRef.current += safeDt;
+    pickupTimeRef.current += Math.min(dt2, 0.05);
     const t2 = pickupTimeRef.current;
     if (t2 >= PICKUP_TOTAL) {
       pickupTimeRef.current = -1;
-      if (armBoneRef.current) {
-        armBoneRef.current.rotation.copy(armOrigRotRef.current);
-      }
-      if (forearmBoneRef.current) {
-        forearmBoneRef.current.rotation.copy(forearmOrigRotRef.current);
-      }
+      if (armBoneRef.current) armBoneRef.current.rotation.copy(armOrigRotRef.current);
+      if (forearmBoneRef.current) forearmBoneRef.current.rotation.copy(forearmOrigRotRef.current);
       console.log("[Avatar] Pickup animation complete");
       return;
     }
@@ -98436,87 +98467,16 @@ const Avatar = ({ animation, visible = true, onSceneReady, pickupTrigger = 0 }) 
       ext = 1 - p2 * p2;
     }
     if (armBoneRef.current) {
-      const orig = armOrigRotRef.current;
-      armBoneRef.current.rotation.x = orig.x - ext * 1.2;
-      armBoneRef.current.rotation.z = orig.z - ext * 0.15;
+      armBoneRef.current.rotation.x = armOrigRotRef.current.x - ext * 1.2;
+      armBoneRef.current.rotation.z = armOrigRotRef.current.z - ext * 0.15;
     }
     if (forearmBoneRef.current) {
-      const orig = forearmOrigRotRef.current;
-      forearmBoneRef.current.rotation.x = orig.x - ext * 0.6;
-    }
-    if (t2 < 0.05) {
-      console.log("[Avatar] Bone animation frame:", { t: t2.toFixed(3), ext: ext.toFixed(3), hasArm: !!armBoneRef.current, hasForearm: !!forearmBoneRef.current });
+      forearmBoneRef.current.rotation.x = forearmOrigRotRef.current.x - ext * 0.6;
     }
   }, 1);
-  useFrame((s, dt2) => {
-    if (hipsRef.current && hipsBindRef.current) {
-      hipsRef.current.position.x = hipsBindRef.current.x;
-      hipsRef.current.position.z = hipsBindRef.current.z;
-    }
-    const tgt = visibleRef.current ? 1 : 0;
-    opRef.current = MathUtils.lerp(opRef.current, tgt, 8 * dt2);
-    const op = opRef.current;
-    const visibleMesh = op > 0.01;
-    const meshes = meshesRef.current;
-    for (let i2 = 0; i2 < meshes.length; i2++) {
-      const m2 = meshes[i2];
-      if (m2.material) m2.material.opacity = op;
-      m2.visible = visibleMesh;
-    }
-    if (!hasArmBones && procArmRef.current) {
-      const g2 = procArmRef.current;
-      const t2 = pickupTimeRef.current;
-      if (t2 < 0) {
-        g2.visible = false;
-      } else {
-        g2.visible = true;
-        let ext = 0;
-        if (t2 < PICKUP_EXTEND) {
-          const p2 = t2 / PICKUP_EXTEND;
-          ext = 1 - Math.pow(1 - p2, 3);
-        } else if (t2 < PICKUP_EXTEND + PICKUP_HOLD) {
-          ext = 1;
-        } else if (t2 < PICKUP_TOTAL) {
-          const p2 = (t2 - PICKUP_EXTEND - PICKUP_HOLD) / PICKUP_RETRACT;
-          ext = 1 - p2 * p2;
-        }
-        g2.position.set(0.35, 1.35, 0);
-        g2.rotation.x = -ext * 0.8;
-      }
-    }
-  });
-  reactExports.useEffect(() => {
-    const a2 = actions[animation === "Walking" ? "Walking" : "Idle"];
-    const o2 = actions[animation === "Walking" ? "Idle" : "Walking"];
-    if (o2) o2.fadeOut(0.2);
-    if (a2) a2.reset().fadeIn(0.2).play();
-  }, [animation, actions]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }),
-    !hasArmBones && /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: procArmRef, visible: false, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.14], rotation: [Math.PI / 2, 0, 0], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.05, 0.3, 8] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.02, 0.35], rotation: [Math.PI / 2 + 0.15, 0, 0], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.035, 0.04, 0.28, 8] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.04, 0.5], children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.045, 8, 6] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
-      ] }),
-      [0, 1, 2, 3].map((i2) => {
-        const angle = (i2 - 1.5) * 0.2;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [Math.sin(angle) * 0.03, -0.04, 0.56], rotation: [0.3, 0, angle * 0.5], children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.012, 0.01, 0.06, 6] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D4A574", roughness: 0.9, metalness: 0 })
-        ] }, i2);
-      })
-    ] })
-  ] });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }) });
 };
-const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, onAvatarScene, pickupTrigger }) => {
+const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0 }) => {
   const { camera, size } = useThree();
   const pos = reactExports.useRef(new Vector3(0, 0, 8));
   const charRot = reactExports.useRef(new Euler(0, Math.PI, 0));
@@ -98706,7 +98666,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       }
     }
   });
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Avatar, { animation: anim, visible: !dialogueOpen, onSceneReady: onAvatarScene, pickupTrigger }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Avatar, { animation: anim, visible: !dialogueOpen, pickupTrigger }) });
 };
 const TextureMaterial = React.memo(({ url, color = "#ffffff", repeat: repeat2 = [1, 1], roughness = 0.8, metalness = 0, bumpScale = 0, transparent = false, opacity = 1, rotation: rotation2 = 0 }) => {
   const rawTexture = useTexture(url);
@@ -99246,6 +99206,7 @@ const Barrel = ({ position }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group",
   ] })
 ] });
 useTexture.preload(BARNEY_URL);
+const DUSSEKAR_URL = "https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb";
 useGLTF.preload(DUSSEKAR_URL);
 const DussekarCharacter = ({ position, rotation: rotation2 }) => {
   const [dialogue, setDialogue] = reactExports.useState(null);
@@ -99770,7 +99731,7 @@ const WatchingText = () => {
         right: "5%",
         animation: "wall-text-fade 3s ease-in-out forwards"
       },
-      children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/15 text-[10px] font-mono tracking-[0.3em] uppercase", children: "someone is watching" })
+      children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/8 text-[10px] font-mono tracking-[0.3em] uppercase", children: "someone is watching" })
     }
   );
 };
@@ -100483,8 +100444,7 @@ const makeBot = (i2) => {
     wanderTheta: Math.random() * Math.PI * 2,
     target: null,
     tourIdx: 0,
-    color: profile.color,
-    speed: profile.speed
+    color: profile.color
   };
 };
 let _storeBots = [];
@@ -100616,11 +100576,11 @@ const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseDoorOpen
       }
       const moving = Math.abs(desiredX) + Math.abs(desiredZ) > 0.05;
       if (moving) {
-        const nx = b2.pos.x + desiredX * b2.speed * dt2;
-        const nz = b2.pos.z + desiredZ * b2.speed * dt2;
+        const nx = b2.pos.x + desiredX * SPEED * dt2;
+        const nz = b2.pos.z + desiredZ * SPEED * dt2;
         const [rx, rz] = resolveCollision(nx, nz, PR, walls);
         const moved = Math.hypot(rx - prevX, rz - prevZ);
-        if (moved < b2.speed * dt2 * 0.2 && (b2.behavior === "wander" || b2.behavior === "patrol")) {
+        if (moved < SPEED * dt2 * 0.2 && (b2.behavior === "wander" || b2.behavior === "patrol")) {
           b2.wanderTheta = Math.random() * Math.PI * 2;
         }
         b2.pos.x = rx;
@@ -102499,9 +102459,6 @@ class CanvasErrorBoundary extends reactExports.Component {
   static getDerivedStateFromError(error2) {
     return { hasError: true, error: error2.message };
   }
-  componentDidCatch(error2, errorInfo) {
-    console.error("[CanvasErrorBoundary]", error2, errorInfo);
-  }
   render() {
     if (this.state.hasError) {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 flex items-center justify-center bg-black", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center px-6 max-w-md", children: [
@@ -102514,53 +102471,6 @@ class CanvasErrorBoundary extends reactExports.Component {
   }
 }
 const MAX_JOYSTICK_RADIUS = 50;
-const LoadingFallback = () => {
-  const [showTimeout, setShowTimeout] = reactExports.useState(false);
-  reactExports.useEffect(() => {
-    const timer2 = setTimeout(() => setShowTimeout(true), 12e3);
-    return () => clearTimeout(timer2);
-  }, []);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: {
-    background: "rgba(0,0,0,0.95)",
-    border: "1px solid rgba(251,191,36,0.3)",
-    borderRadius: "16px",
-    padding: "24px 32px",
-    textAlign: "center",
-    backdropFilter: "blur(20px)",
-    maxWidth: "320px",
-    zIndex: 999
-  }, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { color: "#fbbf24", fontSize: "13px", fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", marginBottom: "12px" }, children: "The Normal Elevator" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", justifyContent: "center", gap: "8px", marginBottom: showTimeout ? "16px" : 0 }, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { width: 8, height: 8, borderRadius: "50%", background: "#fbbf24", animation: "pulse 1.5s infinite" } }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { width: 8, height: 8, borderRadius: "50%", background: "rgba(251,191,36,0.6)", animation: "pulse 1.5s infinite 0.2s" } }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { width: 8, height: 8, borderRadius: "50%", background: "rgba(251,191,36,0.3)", animation: "pulse 1.5s infinite 0.4s" } })
-    ] }),
-    showTimeout && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { color: "rgba(255,255,255,0.5)", fontSize: "11px", marginTop: "12px", lineHeight: 1.6 }, children: [
-      "Loading is taking longer than expected...",
-      /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "button",
-        {
-          onClick: () => window.location.reload(),
-          style: {
-            marginTop: "10px",
-            background: "#fbbf24",
-            color: "#000",
-            border: "none",
-            borderRadius: "10px",
-            padding: "8px 20px",
-            fontWeight: 800,
-            fontSize: "12px",
-            cursor: "pointer",
-            letterSpacing: "0.05em"
-          },
-          children: "RELOAD"
-        }
-      )
-    ] })
-  ] }) });
-};
 const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
   level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(LobbyEnvironment, { npcPositionRef, isPaused, playerPositionRef }),
   level === 0 && !profile.atmosphere && /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 3.8, 0], intensity: 2.8, distance: 22, color: "#FFE0B2", decay: 2 }),
@@ -102608,25 +102518,6 @@ function App() {
   const [doorsClosed, setDoorsClosed] = reactExports.useState(false);
   const [currentLevel, setCurrentLevel] = reactExports.useState(0);
   const [overlayOpacity, setOverlayOpacity] = reactExports.useState(0);
-  reactExports.useEffect(() => {
-    if (overlayOpacity > 0) {
-      const safety = setTimeout(() => {
-        console.warn("[safety] overlayOpacity stuck — forcing reset");
-        setOverlayOpacity(0);
-        setCameraShake(false);
-      }, 5e3);
-      return () => clearTimeout(safety);
-    }
-  }, [overlayOpacity]);
-  reactExports.useEffect(() => {
-    if (sleepFadeOpacity > 0) {
-      const safety = setTimeout(() => {
-        console.warn("[safety] sleepFadeOpacity stuck — forcing reset");
-        setSleepFadeOpacity(0);
-      }, 8e3);
-      return () => clearTimeout(safety);
-    }
-  }, [sleepFadeOpacity]);
   const [travelPhase, setTravelPhase] = reactExports.useState("idle");
   const elevatorHumStopRef = reactExports.useRef(null);
   const [floorReveal, setFloorReveal] = reactExports.useState(false);
@@ -102643,6 +102534,12 @@ function App() {
   const [jumpscare, setJumpscare] = reactExports.useState(false);
   const [doorOpenAmount, setDoorOpenAmount] = reactExports.useState(0);
   const [insideElevator, setInsideElevator] = reactExports.useState(false);
+  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
+  const [pickupTrigger, setPickupTrigger] = reactExports.useState(0);
+  const handleBuyItem = reactExports.useCallback((itemId) => {
+    inventoryAddItem(itemId);
+    setPickupTrigger((prev) => prev + 1);
+  }, [inventoryAddItem]);
   const barneyRef = reactExports.useRef(new Vector3(0, 0, 0));
   const barneyTargetRef = reactExports.useRef({ x: 0, z: 6.8, scale: 0 });
   const npcPositionRef = reactExports.useRef(new Vector3(5, 0, 5));
@@ -102657,14 +102554,6 @@ function App() {
   const [houseDoorOpen, setHouseDoorOpen] = reactExports.useState(false);
   const [canInteractDoor, setCanInteractDoor] = reactExports.useState(false);
   const [doorSoundTrigger, setDoorSoundTrigger] = reactExports.useState(0);
-  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
-  const [pickupTrigger, setPickupTrigger] = reactExports.useState(0);
-  const [pickupItemType, setPickupItemType] = reactExports.useState(null);
-  const handleBuyItem = reactExports.useCallback((itemId) => {
-    inventoryAddItem(itemId);
-    setPickupItemType(itemId);
-    setPickupTrigger((prev) => prev + 1);
-  }, [inventoryAddItem]);
   const handleElevatorZoneChange = reactExports.useCallback((inside) => {
     setInsideElevator(inside);
   }, []);
@@ -103137,14 +103026,14 @@ function App() {
         case "d":
           k2.d = true;
           break;
+        case "f":
+          toggleFlashlight();
+          break;
         case "e":
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
           else if (canInteractDoor && !houseDoorOpen) handleOpenDoor();
           else if (canSleepNow && gameState === "indoor_day") handleSleep();
-          break;
-        case "f":
-          toggleFlashlight();
           break;
       }
       upd();
@@ -103173,7 +103062,7 @@ function App() {
       window.removeEventListener("keydown", kd);
       window.removeEventListener("keyup", ku);
     };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState, toggleFlashlight]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
   const visibleRemotePlayerIds = reactExports.useMemo(
     () => otherPlayerIds.slice(0, QUALITY_PROFILES[settings.quality].remoteLimit),
     [otherPlayerIds, settings.quality]
@@ -103187,20 +103076,9 @@ function App() {
     /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx, muted: muted || shopOpen, masterVolume: settings.masterVolume, nightMode, gameState, currentLevel, doorsClosed }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out", style: { opacity: overlayOpacity } }),
     cameraShake && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-20 pointer-events-none traveling-vignette" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(CanvasErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    /* @__PURE__ */ jsxRuntimeExports.jsx(CanvasErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       Canvas,
       {
-        onCreated: (state2) => {
-          const canvas = state2.gl.domElement;
-          canvas.addEventListener("webglcontextlost", (e2) => {
-            e2.preventDefault();
-            console.error("[WebGL] Context lost — GPU may have crashed or tab was suspended");
-          });
-          canvas.addEventListener("webglcontextrestored", () => {
-            console.warn("[WebGL] Context restored — scene should re-render");
-            state2.gl.setClearColor("#1a1410");
-          });
-        },
         camera: { fov: 75, near: 0.1, far: QUALITY_PROFILES[settings.quality].far },
         dpr: QUALITY_PROFILES[settings.quality].dpr,
         gl: {
@@ -103211,32 +103089,59 @@ function App() {
           toneMapping: ACESFilmicToneMapping,
           outputColorSpace: SRGBColorSpace$1
         },
-        children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("color", { attach: "background", args: ["#1a1410"] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("fog", { attach: "fog", args: ["#1a1410", 8, 28] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.45, color: "#FFE0B2" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 3.8, 0], intensity: 2.8, distance: 22, color: "#FFE0B2", decay: 2 }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(LoadingFallback, {}), children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
-            visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger }),
-            hasStarted && inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightLight, { active: inventory.flashlight.active, owned: true, playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, zoomLevel, nightMode }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightModel3D, { playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, active: inventory.flashlight.active, owned: true, zoomLevel }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(FPFlashlightHand, { walking: playerAnimState === "walking", active: inventory.flashlight.active, owned: true })
-            ] }),
-            botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
-              BotSystem,
+        children: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5", children: "The Normal Elevator" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-center gap-1.5", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse", style: { animationDelay: "0.2s" } }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
+          ] })
+        ] }) }), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
+          visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger }),
+          hasStarted && inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              FlashlightLight,
               {
+                active: inventory.flashlight.active,
+                owned: true,
                 playerPositionRef: sharedPlayerPositionRef,
-                currentLevel,
-                doorsClosed,
-                houseDoorOpen
+                cameraThetaRef,
+                zoomLevel,
+                nightMode
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(SceneInspector, {})
-          ] })
-        ]
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              FlashlightModel3D,
+              {
+                playerPositionRef: sharedPlayerPositionRef,
+                cameraThetaRef,
+                active: inventory.flashlight.active,
+                owned: true,
+                zoomLevel
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              FPFlashlightHand,
+              {
+                walking: playerAnimState === "walking",
+                active: inventory.flashlight.active,
+                owned: true
+              }
+            )
+          ] }),
+          botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            BotSystem,
+            {
+              playerPositionRef: sharedPlayerPositionRef,
+              currentLevel,
+              doorsClosed,
+              houseDoorOpen
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(SceneInspector, {})
+        ] })
       }
     ) }),
     hasStarted && QUALITY_PROFILES[settings.quality].overlay && /* @__PURE__ */ jsxRuntimeExports.jsx(GameEffects, { nightMode, gameState, currentLevel, quality: settings.quality }),
@@ -103340,7 +103245,7 @@ function App() {
   ] });
 }
 clientExports.createRoot(document.getElementById("root")).render(
-  /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsProvider, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, {}) })
+  /* @__PURE__ */ jsxRuntimeExports.jsx(reactExports.StrictMode, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsProvider, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, {}) }) })
 );
 </script>
   </body>

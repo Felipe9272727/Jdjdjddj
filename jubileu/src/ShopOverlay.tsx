@@ -43,7 +43,7 @@ interface ShopOverlayProps {
    *  trigger passes 'post_death' so the recepcionista opens the conversation
    *  himself when the player respawns from the chase. */
   initialScene?: string;
-  /** Called when the player buys an item (e.g. 'flashlight', 'cookie'). */
+  /** Called when an item is purchased */
   onBuyItem?: (itemId: string) => void;
 }
 
@@ -455,25 +455,28 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
                 — combined with the SpriteEngine's module-level image
                 cache, the bitmap is decoded ONCE and reused across
                 remounts. */}
-            <div style={{ position: 'relative', display: 'inline-block' }}>
-              <SpriteAnimator
-                key={spriteMode}
-                config={activeSpriteConfig}
-                style={{
-                  height: isLandscape
-                    ? 'clamp(300px, 70vh, 460px)'
-                    : 'clamp(340px, 58vh, 500px)',
-                  aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
-                  filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.75))',
-                  opacity: showContent ? 1 : 0,
-                  transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
-                  transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms, filter 300ms ease-out, transform 300ms ease-out',
-                  pointerEvents: 'none',
-                  position: 'relative',
-                  zIndex: 1,
-                }}
-              />
-            </div>
+            <SpriteAnimator
+              key={spriteMode}
+              config={activeSpriteConfig}
+              style={{
+                // Values copied verbatim from the working `437441c`
+                // version on main. The dialog box's negative marginTop
+                // pulls up to overlap the bottom ~45% of the sprite,
+                // so the visible "above-counter" portion fits the
+                // viewport even when the overall sprite is tall.
+                height: isLandscape
+                  ? 'clamp(300px, 70vh, 460px)'
+                  : 'clamp(340px, 58vh, 500px)',
+                aspectRatio: `${activeSpriteConfig.frameWidth} / ${activeSpriteConfig.frameHeight}`,
+                filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.75))',
+                opacity: showContent ? 1 : 0,
+                transform: phase === 'idle' ? 'translateY(0)' : 'translateY(20px)',
+                transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms, opacity 500ms ease-out 200ms',
+                pointerEvents: 'none',
+                position: 'relative',
+                zIndex: 1,
+              }}
+            />
 
             {/* ── Dialog box ────────────────────────────────────────────
                 FIXED height (not minHeight). The text area has its own
@@ -600,6 +603,102 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
         </div>
       )}
 
+      <style>{`
+        @keyframes shopDing {
+          0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+          40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+          100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+        }
+        @keyframes shopDoorInLeft {
+          from { transform: translateX(-100%); }
+          to   { transform: translateX(0%); }
+        }
+        @keyframes shopDoorInRight {
+          from { transform: translateX(100%); }
+          to   { transform: translateX(0%); }
+        }
+        @keyframes shopDoorCloseLeft {
+          from { transform: translateX(-100%); }
+          to   { transform: translateX(0%); }
+        }
+        @keyframes shopDoorCloseRight {
+          from { transform: translateX(100%); }
+          to   { transform: translateX(0%); }
+        }
+        @keyframes undertaleBlink {
+          0%, 50%   { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+        @keyframes shopShake {
+          0%, 100% { transform: translate(0, 0); }
+          25%      { transform: translate(-1px, 1px); }
+          50%      { transform: translate(1px, -1px); }
+          75%      { transform: translate(-1px, -1px); }
+        }
+        @keyframes shopAdvanceBob {
+          0%, 100% { transform: translateY(0); opacity: 0.85; }
+          50%      { transform: translateY(3px); opacity: 1; }
+        }
+        .shop-cursor {
+          display: inline-block;
+          margin-left: 1px;
+          color: #fff;
+          animation: undertaleBlink 600ms steps(1) infinite;
+        }
+        .shop-shake {
+          display: inline-block;
+          animation: shopShake 80ms infinite;
+        }
+        .shop-page-advance {
+          position: absolute;
+          right: 0;
+          bottom: -4px;
+          color: #FFD54F;
+          font-size: clamp(14px, 1.8vw, 18px);
+          line-height: 1;
+          animation: shopAdvanceBob 700ms ease-in-out infinite;
+          text-shadow: 0 0 6px rgba(255,213,79,0.5);
+        }
+        .undertale-btn {
+          background: transparent;
+          border: 0;
+          padding: 1px 4px 1px 22px;
+          color: #fff;
+          font-family: "Determination Mono", "Courier New", monospace;
+          font-size: clamp(11px, 1.4vw, 14px);
+          letter-spacing: 0.02em;
+          cursor: pointer;
+          position: relative;
+          text-align: left;
+          transition: color 80ms ease;
+          line-height: 1.35;
+          white-space: normal;
+          word-wrap: break-word;
+          flex-shrink: 0;
+        }
+        .undertale-btn::before {
+          content: '♥';
+          position: absolute;
+          left: 6px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #FF0000;
+          font-size: 0.9em;
+          opacity: 0;
+          transition: opacity 80ms ease;
+        }
+        .undertale-btn[data-selected="true"] {
+          color: #FFD54F;
+          outline: 0;
+        }
+        .undertale-btn[data-selected="true"]::before {
+          opacity: 1;
+        }
+        .undertale-btn:focus-visible {
+          color: #FFD54F;
+          outline: 0;
+        }
+      `}</style>
     </div>
   );
 };

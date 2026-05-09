@@ -106,7 +106,6 @@ export const HOUSE_EX = [[-4,14,4,14],[4,6,4,14],[-4,6,-4,14],[-4,6,-0.7,6],[0.7
 export const HOUSE_IN = [[0,10,4,10],[0,10,0,14]];
 export const HOUSE_DW = [-0.7,6,0.7,6];
 export const L1_BND = [[-25,-25,25,-25],[25,-25,25,25],[-25,25,25,25],[-25,-25,-25,25]];
-export const L2_BND = [[-40,-40,40,-40],[40,-40,40,40],[-40,40,40,40],[-40,-40,-40,40]]; // Paredes de contorno do nível 2 (80×80)
 export const ELEV_BLD = [[-5.5,-16.5,5.5,-16.5],[-5.5,-10,-5.5,-16.5],[5.5,-10,5.5,-16.5],[-5.5,-10,-1.3,-10],[1.3,-10,5.5,-10],[-25,-10,-5.5,-10],[5.5,-10,25,-10]];
 export const DOOR_SEAL = [-1.3,-10,1.3,-10];
 
@@ -153,7 +152,7 @@ const _WALLS_HOUSE_DOOR_SEALED   = [..._HOUSE_BASE, HOUSE_DW, DOOR_SEAL];
 // back) made it look like they were being teleported around. ELEV_BLD
 // reproduces the exterior of the elevator structure so the player still
 // can't walk through the elevator's back wall on this floor.
-const _LEVEL2_BASE = [...ELEV_W, ...ELEV_BLD, ...L2_BND];
+const _LEVEL2_BASE = [...ELEV_W, ...ELEV_BLD];
 const _WALLS_LEVEL2_OPEN          = _LEVEL2_BASE;
 const _WALLS_LEVEL2_SEALED        = [..._LEVEL2_BASE, DOOR_SEAL];
 

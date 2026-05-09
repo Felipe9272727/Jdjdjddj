@@ -4,7 +4,7 @@ import { useGLTF, useAnimations, Html } from '@react-three/drei';
 import { Vector3 } from 'three';
 import * as THREE from 'three';
 import { SkeletonUtils } from 'three-stdlib';
-import { WALKING_URL, IDLE_URL, PR, wallsForState } from './constants';
+import { WALKING_URL, IDLE_URL, PR, SPEED, wallsForState } from './constants';
 import { resolveCollision } from './physics';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,7 +40,6 @@ export interface BotState {
     target: Vector3 | null;     // for seek/follow/tour
     tourIdx: number;            // for tour
     color: string;              // tint for the name label
-    speed: number;              // velocidade por perfil (ex: ECHO=2.2, BLAZE=3.2)
 }
 
 const TOUR_WAYPOINTS: [number, number][] = [
@@ -219,7 +218,6 @@ const makeBot = (i: number): BotState => {
         target: null,
         tourIdx: 0,
         color: profile.color,
-        speed: profile.speed,
     };
 };
 
@@ -364,14 +362,14 @@ export const BotSystem = ({ playerPositionRef, currentLevel, doorsClosed, houseD
 
             const moving = Math.abs(desiredX) + Math.abs(desiredZ) > 0.05;
             if (moving) {
-                const nx = b.pos.x + desiredX * b.speed * dt;
-                const nz = b.pos.z + desiredZ * b.speed * dt;
+                const nx = b.pos.x + desiredX * SPEED * dt;
+                const nz = b.pos.z + desiredZ * SPEED * dt;
                 const [rx, rz] = resolveCollision(nx, nz, PR, walls);
 
                 // Stuck detection: if collision pushed us back to ~same place,
                 // randomize wander angle so we can escape corners.
                 const moved = Math.hypot(rx - prevX, rz - prevZ);
-                if (moved < b.speed * dt * 0.2 && (b.behavior === 'wander' || b.behavior === 'patrol')) {
+                if (moved < SPEED * dt * 0.2 && (b.behavior === 'wander' || b.behavior === 'patrol')) {
                     b.wanderTheta = Math.random() * Math.PI * 2;
                 }
 

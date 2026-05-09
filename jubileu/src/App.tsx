@@ -7,7 +7,6 @@ import { Vector3, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
   state = { hasError: false, error: '' };
   static getDerivedStateFromError(error: Error) { return { hasError: true, error: error.message }; }
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) { console.error('[CanvasErrorBoundary]', error, errorInfo); }
   render() {
     if (this.state.hasError) {
       return <div className="absolute inset-0 flex items-center justify-center bg-black"><div className="text-center px-6 max-w-md"><div className="text-amber-400 text-lg font-bold mb-2">The elevator has stopped responding.</div><div className="text-white/60 text-sm font-mono mb-4 break-all">{this.state.error}</div><button onClick={() => window.location.reload()} aria-label="Reload page" className="bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black px-5 py-2.5 rounded-xl font-bold text-sm transition-colors focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black">Restart</button></div></div>;
@@ -38,58 +37,7 @@ import { useInventory, InventoryHUD } from './InventorySystem';
 import { FlashlightLight, FlashlightModel3D, FPFlashlightHand } from './FlashlightLight';
 
 
-
 const MAX_JOYSTICK_RADIUS = 50;
-
-// ─── Loading Fallback (SUSPENSE GIRL fix) ─────────────────────────────────
-// Visible loading indicator with timeout warning. Replaces the tiny dots that
-// were nearly invisible on a black background.
-const LoadingFallback = () => {
-  const [showTimeout, setShowTimeout] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setShowTimeout(true), 12000);
-    return () => clearTimeout(timer);
-  }, []);
-  return (
-    <Html center>
-      <div style={{
-        background: 'rgba(0,0,0,0.95)',
-        border: '1px solid rgba(251,191,36,0.3)',
-        borderRadius: '16px',
-        padding: '24px 32px',
-        textAlign: 'center',
-        backdropFilter: 'blur(20px)',
-        maxWidth: '320px',
-        zIndex: 999,
-      }}>
-        <div style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', marginBottom: '12px' }}>
-          The Normal Elevator
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: showTimeout ? '16px' : 0 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fbbf24', animation: 'pulse 1.5s infinite' }} />
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(251,191,36,0.6)', animation: 'pulse 1.5s infinite 0.2s' }} />
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(251,191,36,0.3)', animation: 'pulse 1.5s infinite 0.4s' }} />
-        </div>
-        {showTimeout && (
-          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '11px', marginTop: '12px', lineHeight: 1.6 }}>
-            Loading is taking longer than expected...<br />
-            <button
-              onClick={() => window.location.reload()}
-              style={{
-                marginTop: '10px', background: '#fbbf24', color: '#000',
-                border: 'none', borderRadius: '10px', padding: '8px 20px',
-                fontWeight: 800, fontSize: '12px', cursor: 'pointer',
-                letterSpacing: '0.05em',
-              }}
-            >
-              RELOAD
-            </button>
-          </div>
-        )}
-      </div>
-    </Html>
-  );
-};
 
 // ─── Game State Machine ───────────────────────────────────────────────────
 type GameState = 'lobby' | 'outdoor' | 'barney_greet' | 'indoor_day' | 'sleep_fade' | 'indoor_night' | 'chase' | 'caught' | 'saved';
@@ -160,20 +108,6 @@ export default function App() {
   useEffect(() => () => { pendingTimeoutsRef.current.forEach(clearTimeout); pendingTimeoutsRef.current.clear(); }, []);
   const [elevatorTimer, setElevatorTimer] = useState<number | null>(null); const [doorsClosed, setDoorsClosed] = useState(false);
   const [currentLevel, setCurrentLevel] = useState(0); const [overlayOpacity, setOverlayOpacity] = useState(0);
-  // Safety: if overlayOpacity gets stuck > 0 (elevator timer race condition), force reset after 5s
-  useEffect(() => {
-    if (overlayOpacity > 0) {
-      const safety = setTimeout(() => { console.warn('[safety] overlayOpacity stuck — forcing reset'); setOverlayOpacity(0); setCameraShake(false); }, 5000);
-      return () => clearTimeout(safety);
-    }
-  }, [overlayOpacity]);
-  // Safety: if sleepFadeOpacity gets stuck > 0 (timeout race condition), force reset
-  useEffect(() => {
-    if (sleepFadeOpacity > 0) {
-      const safety = setTimeout(() => { console.warn('[safety] sleepFadeOpacity stuck — forcing reset'); setSleepFadeOpacity(0); }, 8000);
-      return () => clearTimeout(safety);
-    }
-  }, [sleepFadeOpacity]);
   const [travelPhase, setTravelPhase] = useState('idle');
   const elevatorHumStopRef = useRef<(() => void) | null>(null);
   const [floorReveal, setFloorReveal] = useState(false);
@@ -191,7 +125,18 @@ export default function App() {
   const [jumpscare, setJumpscare] = useState(false);
   const [doorOpenAmount, setDoorOpenAmount] = useState(0);
   const [insideElevator, setInsideElevator] = useState(false);
-  
+
+  // ─── Inventory ─────────────────────────────────────────────────────────
+  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
+
+  // ─── Pickup animation state ────────────────────────────────────────────
+  const [pickupTrigger, setPickupTrigger] = useState(0);
+
+  const handleBuyItem = useCallback((itemId: string) => {
+    inventoryAddItem(itemId);
+    setPickupTrigger(prev => prev + 1);
+  }, [inventoryAddItem]);
+
   const barneyRef = useRef(new Vector3(0, 0, 0));
   const barneyTargetRef = useRef({ x: 0, z: 6.8, scale: 0 });
   
@@ -218,20 +163,6 @@ export default function App() {
   const [houseDoorOpen, setHouseDoorOpen] = useState(false); 
   const [canInteractDoor, setCanInteractDoor] = useState(false); 
   const [doorSoundTrigger, setDoorSoundTrigger] = useState(0);
-
-  // ─── Inventory ─────────────────────────────────────────────────────────
-  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
-
-  // ─── Pickup animation state ────────────────────────────────────────────
-  const [pickupTrigger, setPickupTrigger] = useState(0);
-  const [pickupItemType, setPickupItemType] = useState<'flashlight' | 'cookie' | null>(null);
-
-  const handleBuyItem = useCallback((itemId: string) => {
-    inventoryAddItem(itemId);
-    // Trigger arm extension animation
-    setPickupItemType(itemId as 'flashlight' | 'cookie');
-    setPickupTrigger(prev => prev + 1);
-  }, [inventoryAddItem]);
 
   const handleElevatorZoneChange = useCallback((inside: boolean) => {
       setInsideElevator(inside);
@@ -643,13 +574,13 @@ export default function App() {
         case 'a': k.a=true; break;
         case 's': k.s=true; break;
         case 'd': k.d=true; break;
+        case 'f': toggleFlashlight(); break;
         case 'e':
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
           else if (canInteractDoor && !houseDoorOpen) handleOpenDoor();
           else if (canSleepNow && gameState === 'indoor_day') handleSleep();
           break;
-        case 'f': toggleFlashlight(); break;
       }
       upd();
     };
@@ -660,7 +591,7 @@ export default function App() {
     };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState, toggleFlashlight]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
 
   // Memoize the sliced remote player id list to avoid re-creating on every render.
   const visibleRemotePlayerIds = useMemo(
@@ -682,18 +613,6 @@ export default function App() {
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
       <CanvasErrorBoundary>
       <Canvas
-        // ✅ PIPELINE FIX: Detect WebGL context loss/restoration
-        onCreated={(state) => {
-          const canvas = state.gl.domElement;
-          canvas.addEventListener('webglcontextlost', (e) => {
-            e.preventDefault();
-            console.error('[WebGL] Context lost — GPU may have crashed or tab was suspended');
-          });
-          canvas.addEventListener('webglcontextrestored', () => {
-            console.warn('[WebGL] Context restored — scene should re-render');
-            state.gl.setClearColor('#1a1410');
-          });
-        }}
         // NOTE: no `key` here. Re-keying on settings change would unmount/remount
         // the entire scene (and reload every GLB!), which is what was causing the
         // visible "cut/flash" mid-game. dpr is reactive in r3f; antialias change
@@ -709,16 +628,8 @@ export default function App() {
           outputColorSpace: SRGBColorSpace,
         }}
       >
-        {/* ✅ SHADOW FIX: Background + base lighting OUTSIDE Suspense.
-            These don't depend on any assets — they guarantee the scene is never
-            pitch-black even if GLBs/textures are still loading. */}
-        <color attach="background" args={['#1a1410']} />
-        <fog attach="fog" args={['#1a1410', 8, 28]} />
-        <ambientLight intensity={0.45} color="#FFE0B2" />
-        <pointLight position={[0, 3.8, 0]} intensity={2.8} distance={22} color="#FFE0B2" decay={2} />
-
-        <Suspense fallback={<LoadingFallback />}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]}  />
+        <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -727,12 +638,29 @@ export default function App() {
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
             <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} />
-            {/* ─── Flashlight 3D (conditional: only mount when owned to avoid black screen) ─── */}
+            {/* ─── Flashlight 3D (conditional: only mount when owned) ─── */}
             {hasStarted && inventory.flashlight.owned && (
               <>
-                <FlashlightLight active={inventory.flashlight.active} owned={true} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} zoomLevel={zoomLevel} nightMode={nightMode} />
-                <FlashlightModel3D playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} active={inventory.flashlight.active} owned={true} zoomLevel={zoomLevel} />
-                <FPFlashlightHand walking={playerAnimState === 'walking'} active={inventory.flashlight.active} owned={true} />
+                <FlashlightLight
+                  active={inventory.flashlight.active}
+                  owned={true}
+                  playerPositionRef={sharedPlayerPositionRef}
+                  cameraThetaRef={cameraThetaRef}
+                  zoomLevel={zoomLevel}
+                  nightMode={nightMode}
+                />
+                <FlashlightModel3D
+                  playerPositionRef={sharedPlayerPositionRef}
+                  cameraThetaRef={cameraThetaRef}
+                  active={inventory.flashlight.active}
+                  owned={true}
+                  zoomLevel={zoomLevel}
+                />
+                <FPFlashlightHand
+                  walking={playerAnimState === 'walking'}
+                  active={inventory.flashlight.active}
+                  owned={true}
+                />
               </>
             )}
             {botEnabled && (
@@ -833,7 +761,6 @@ export default function App() {
           ariaLabel="Abrir loja do recepcionista"
         />
       )}
-
       {hasStarted && canInteractNPC && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
         <ActionButton
           icon={<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>}

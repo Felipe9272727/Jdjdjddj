@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF, Instances, Instance, useTexture } from '@react-three/drei';
-import { ASSETS, COLORS, BARNEY_URL, DUSSEKAR_URL } from './constants';
+import { ASSETS, COLORS, BARNEY_URL } from './constants';
 import { TextureMaterial } from './Materials';
 
 useTexture.preload(BARNEY_URL);
@@ -11,6 +11,7 @@ import * as THREE from 'three';
 
 // Preload Dussekar's GLB at module load so the first time the player walks
 // near the shop we don't fall to 4fps loading it synchronously.
+const DUSSEKAR_URL = "https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb";
 useGLTF.preload(DUSSEKAR_URL);
 
 export const DussekarCharacter = ({ position, rotation }: any) => {
