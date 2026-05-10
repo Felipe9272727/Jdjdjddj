@@ -9,8 +9,11 @@ import { resolveCollision as _resolve } from './physics';
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
 
-const ARM_BONE_PATTERNS = ['mixamorig:rightarm', 'rightarm', 'right_arm', 'arm_r', 'upperarm_r'];
-const FOREARM_BONE_PATTERNS = ['mixamorig:rightforearm', 'rightforearm', 'right_forearm', 'forearm_r', 'lowerarm_r'];
+// ─── Bone patterns — exact match first, then substring fallback ────────
+const ARM_BONE_EXACT = ['mixamorig:rightarm', 'rightarm', 'right_arm', 'arm_r', 'upperarm_r', 'r_upperarm', 'rupperarm'];
+const ARM_BONE_SUBSTR = ['rightarm', 'upperarm.r', 'bip01_r_upperarm'];
+const FOREARM_BONE_EXACT = ['mixamorig:rightforearm', 'rightforearm', 'right_forearm', 'forearm_r', 'lowerarm_r', 'r_forearm', 'rforearm'];
+const FOREARM_BONE_SUBSTR = ['rightforearm', 'forearm.r', 'bip01_r_forearm'];
 
 function findArmBones(scene: THREE.Object3D) {
   let rightArm: THREE.Bone | null = null;
@@ -18,8 +21,12 @@ function findArmBones(scene: THREE.Object3D) {
   scene.traverse((child: any) => {
     if (!child.isBone) return;
     const name = child.name.toLowerCase();
-    if (!rightArm && ARM_BONE_PATTERNS.some(p => name.includes(p))) rightArm = child;
-    if (!rightForeArm && FOREARM_BONE_PATTERNS.some(p => name.includes(p))) rightForeArm = child;
+    // Exact match priority (avoids RightArmTwist, RightArmHelper, etc.)
+    if (!rightArm && ARM_BONE_EXACT.includes(name)) { rightArm = child; return; }
+    if (!rightForeArm && FOREARM_BONE_EXACT.includes(name)) { rightForeArm = child; return; }
+    // Substring fallback
+    if (!rightArm && ARM_BONE_SUBSTR.some(p => name.includes(p))) rightArm = child;
+    if (!rightForeArm && FOREARM_BONE_SUBSTR.some(p => name.includes(p))) rightForeArm = child;
   });
   return { rightArm, rightForeArm };
 }
@@ -44,15 +51,22 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
   const meshesRef = useRef<any[]>([]);
   const [groundY, setGroundY] = useState(0);
 
-  // Pickup animation state
+  // Pickup animation state — pre-allocated to avoid GC pressure
   const pickupRef = useRef({
     active: false,
     elapsed: 0,
-    totalDuration: 1.2, // 0.3 extend + 0.5 hold + 0.4 retract
+    totalDuration: 1.2,
     armBone: null as THREE.Bone | null,
     foreArmBone: null as THREE.Bone | null,
     bonesFound: false,
     lastTrigger: 0,
+    // Pre-allocated quaternions (M3 fix — no .clone() per frame)
+    mixerArmQuat: new THREE.Quaternion(),
+    mixerForeArmQuat: new THREE.Quaternion(),
+    armDelta: new THREE.Quaternion(),
+    foreArmDelta: new THREE.Quaternion(),
+    armEuler: new THREE.Euler(),
+    foreArmEuler: new THREE.Euler(),
   });
 
   // Find bones once when scene loads
@@ -67,9 +81,14 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
     }
   }, [scene]);
 
-  // Detect pickupTrigger changes and start animation
+  // Detect pickupTrigger changes and start animation (M2: ignore if already animating)
   useEffect(() => {
     if (pickupTrigger > 0 && pickupTrigger !== pickupRef.current.lastTrigger) {
+      // If animation is already active, just update lastTrigger to avoid teleport
+      if (pickupRef.current.active) {
+        pickupRef.current.lastTrigger = pickupTrigger;
+        return;
+      }
       pickupRef.current.lastTrigger = pickupTrigger;
       pickupRef.current.active = true;
       pickupRef.current.elapsed = 0;
@@ -126,26 +145,27 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
     }
 
     // Rotate arm forward: pitch the RightArm bone around local X axis
-    // At progress=1, rotate ~80 degrees forward (slightly less than full reach)
-    const maxAngle = -Math.PI * 0.44; // ~-80 degrees (negative X = forward for Mixamo)
+    const maxAngle = -Math.PI * 0.44; // ~-80 degrees
     const armAngle = maxAngle * progress;
-    const foreArmAngle = maxAngle * 0.3 * progress; // slight forearm bend
+    const foreArmAngle = maxAngle * 0.3 * progress;
 
-    // Apply rotation as a delta on top of the mixer's current quaternion
     const armBone = p.armBone;
     const foreArmBone = p.foreArmBone;
 
-    // Store the mixer's current quaternion (set by animation system)
-    const mixerArmQuat = armBone.quaternion.clone();
-    const mixerForeArmQuat = foreArmBone.quaternion.clone();
+    // M3 fix: use pre-allocated quaternions — zero GC pressure
+    // Capture mixer's current quaternion (set by animation system at priority 0)
+    p.mixerArmQuat.copy(armBone.quaternion);
+    p.mixerForeArmQuat.copy(foreArmBone.quaternion);
 
-    // Create rotation deltas
-    const armDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(armAngle, 0, 0));
-    const foreArmDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(foreArmAngle, 0, 0));
+    // Create rotation deltas using pre-allocated Euler + Quaternion
+    p.armEuler.set(armAngle, 0, 0);
+    p.foreArmEuler.set(foreArmAngle, 0, 0);
+    p.armDelta.setFromEuler(p.armEuler);
+    p.foreArmDelta.setFromEuler(p.foreArmEuler);
 
-    // Multiply: mixer result * our delta (post-multiply = local space rotation)
-    armBone.quaternion.copy(mixerArmQuat).multiply(armDelta);
-    foreArmBone.quaternion.copy(mixerForeArmQuat).multiply(foreArmDelta);
+    // Post-multiply = local space rotation (applied after mixer's transform)
+    armBone.quaternion.copy(p.mixerArmQuat).multiply(p.armDelta);
+    foreArmBone.quaternion.copy(p.mixerForeArmQuat).multiply(p.foreArmDelta);
   }, 1); // Priority 1 = runs after animation mixer (priority 0)
 
   useFrame((s, dt) => {

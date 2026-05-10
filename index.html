@@ -5930,6 +5930,283 @@ function requireJsxRuntime() {
   return jsxRuntime.exports;
 }
 var jsxRuntimeExports = requireJsxRuntime();
+var client = { exports: {} };
+var reactDomClient_production = {};
+var scheduler = { exports: {} };
+var scheduler_production = {};
+/**
+ * @license React
+ * scheduler.production.js
+ *
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+var hasRequiredScheduler_production;
+function requireScheduler_production() {
+  if (hasRequiredScheduler_production) return scheduler_production;
+  hasRequiredScheduler_production = 1;
+  (function(exports) {
+    function push(heap, node) {
+      var index = heap.length;
+      heap.push(node);
+      a: for (; 0 < index; ) {
+        var parentIndex = index - 1 >>> 1, parent = heap[parentIndex];
+        if (0 < compare(parent, node))
+          heap[parentIndex] = node, heap[index] = parent, index = parentIndex;
+        else break a;
+      }
+    }
+    function peek(heap) {
+      return 0 === heap.length ? null : heap[0];
+    }
+    function pop(heap) {
+      if (0 === heap.length) return null;
+      var first2 = heap[0], last = heap.pop();
+      if (last !== first2) {
+        heap[0] = last;
+        a: for (var index = 0, length = heap.length, halfLength = length >>> 1; index < halfLength; ) {
+          var leftIndex = 2 * (index + 1) - 1, left = heap[leftIndex], rightIndex = leftIndex + 1, right = heap[rightIndex];
+          if (0 > compare(left, last))
+            rightIndex < length && 0 > compare(right, left) ? (heap[index] = right, heap[rightIndex] = last, index = rightIndex) : (heap[index] = left, heap[leftIndex] = last, index = leftIndex);
+          else if (rightIndex < length && 0 > compare(right, last))
+            heap[index] = right, heap[rightIndex] = last, index = rightIndex;
+          else break a;
+        }
+      }
+      return first2;
+    }
+    function compare(a2, b2) {
+      var diff = a2.sortIndex - b2.sortIndex;
+      return 0 !== diff ? diff : a2.id - b2.id;
+    }
+    exports.unstable_now = void 0;
+    if ("object" === typeof performance && "function" === typeof performance.now) {
+      var localPerformance = performance;
+      exports.unstable_now = function() {
+        return localPerformance.now();
+      };
+    } else {
+      var localDate = Date, initialTime = localDate.now();
+      exports.unstable_now = function() {
+        return localDate.now() - initialTime;
+      };
+    }
+    var taskQueue = [], timerQueue = [], taskIdCounter = 1, currentTask = null, currentPriorityLevel = 3, isPerformingWork = false, isHostCallbackScheduled = false, isHostTimeoutScheduled = false, needsPaint = false, localSetTimeout = "function" === typeof setTimeout ? setTimeout : null, localClearTimeout = "function" === typeof clearTimeout ? clearTimeout : null, localSetImmediate = "undefined" !== typeof setImmediate ? setImmediate : null;
+    function advanceTimers(currentTime) {
+      for (var timer2 = peek(timerQueue); null !== timer2; ) {
+        if (null === timer2.callback) pop(timerQueue);
+        else if (timer2.startTime <= currentTime)
+          pop(timerQueue), timer2.sortIndex = timer2.expirationTime, push(taskQueue, timer2);
+        else break;
+        timer2 = peek(timerQueue);
+      }
+    }
+    function handleTimeout(currentTime) {
+      isHostTimeoutScheduled = false;
+      advanceTimers(currentTime);
+      if (!isHostCallbackScheduled)
+        if (null !== peek(taskQueue))
+          isHostCallbackScheduled = true, isMessageLoopRunning || (isMessageLoopRunning = true, schedulePerformWorkUntilDeadline());
+        else {
+          var firstTimer = peek(timerQueue);
+          null !== firstTimer && requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime);
+        }
+    }
+    var isMessageLoopRunning = false, taskTimeoutID = -1, frameInterval = 5, startTime = -1;
+    function shouldYieldToHost() {
+      return needsPaint ? true : exports.unstable_now() - startTime < frameInterval ? false : true;
+    }
+    function performWorkUntilDeadline() {
+      needsPaint = false;
+      if (isMessageLoopRunning) {
+        var currentTime = exports.unstable_now();
+        startTime = currentTime;
+        var hasMoreWork = true;
+        try {
+          a: {
+            isHostCallbackScheduled = false;
+            isHostTimeoutScheduled && (isHostTimeoutScheduled = false, localClearTimeout(taskTimeoutID), taskTimeoutID = -1);
+            isPerformingWork = true;
+            var previousPriorityLevel = currentPriorityLevel;
+            try {
+              b: {
+                advanceTimers(currentTime);
+                for (currentTask = peek(taskQueue); null !== currentTask && !(currentTask.expirationTime > currentTime && shouldYieldToHost()); ) {
+                  var callback = currentTask.callback;
+                  if ("function" === typeof callback) {
+                    currentTask.callback = null;
+                    currentPriorityLevel = currentTask.priorityLevel;
+                    var continuationCallback = callback(
+                      currentTask.expirationTime <= currentTime
+                    );
+                    currentTime = exports.unstable_now();
+                    if ("function" === typeof continuationCallback) {
+                      currentTask.callback = continuationCallback;
+                      advanceTimers(currentTime);
+                      hasMoreWork = true;
+                      break b;
+                    }
+                    currentTask === peek(taskQueue) && pop(taskQueue);
+                    advanceTimers(currentTime);
+                  } else pop(taskQueue);
+                  currentTask = peek(taskQueue);
+                }
+                if (null !== currentTask) hasMoreWork = true;
+                else {
+                  var firstTimer = peek(timerQueue);
+                  null !== firstTimer && requestHostTimeout(
+                    handleTimeout,
+                    firstTimer.startTime - currentTime
+                  );
+                  hasMoreWork = false;
+                }
+              }
+              break a;
+            } finally {
+              currentTask = null, currentPriorityLevel = previousPriorityLevel, isPerformingWork = false;
+            }
+            hasMoreWork = void 0;
+          }
+        } finally {
+          hasMoreWork ? schedulePerformWorkUntilDeadline() : isMessageLoopRunning = false;
+        }
+      }
+    }
+    var schedulePerformWorkUntilDeadline;
+    if ("function" === typeof localSetImmediate)
+      schedulePerformWorkUntilDeadline = function() {
+        localSetImmediate(performWorkUntilDeadline);
+      };
+    else if ("undefined" !== typeof MessageChannel) {
+      var channel = new MessageChannel(), port = channel.port2;
+      channel.port1.onmessage = performWorkUntilDeadline;
+      schedulePerformWorkUntilDeadline = function() {
+        port.postMessage(null);
+      };
+    } else
+      schedulePerformWorkUntilDeadline = function() {
+        localSetTimeout(performWorkUntilDeadline, 0);
+      };
+    function requestHostTimeout(callback, ms) {
+      taskTimeoutID = localSetTimeout(function() {
+        callback(exports.unstable_now());
+      }, ms);
+    }
+    exports.unstable_IdlePriority = 5;
+    exports.unstable_ImmediatePriority = 1;
+    exports.unstable_LowPriority = 4;
+    exports.unstable_NormalPriority = 3;
+    exports.unstable_Profiling = null;
+    exports.unstable_UserBlockingPriority = 2;
+    exports.unstable_cancelCallback = function(task) {
+      task.callback = null;
+    };
+    exports.unstable_forceFrameRate = function(fps) {
+      0 > fps || 125 < fps ? console.error(
+        "forceFrameRate takes a positive int between 0 and 125, forcing frame rates higher than 125 fps is not supported"
+      ) : frameInterval = 0 < fps ? Math.floor(1e3 / fps) : 5;
+    };
+    exports.unstable_getCurrentPriorityLevel = function() {
+      return currentPriorityLevel;
+    };
+    exports.unstable_next = function(eventHandler) {
+      switch (currentPriorityLevel) {
+        case 1:
+        case 2:
+        case 3:
+          var priorityLevel = 3;
+          break;
+        default:
+          priorityLevel = currentPriorityLevel;
+      }
+      var previousPriorityLevel = currentPriorityLevel;
+      currentPriorityLevel = priorityLevel;
+      try {
+        return eventHandler();
+      } finally {
+        currentPriorityLevel = previousPriorityLevel;
+      }
+    };
+    exports.unstable_requestPaint = function() {
+      needsPaint = true;
+    };
+    exports.unstable_runWithPriority = function(priorityLevel, eventHandler) {
+      switch (priorityLevel) {
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+          break;
+        default:
+          priorityLevel = 3;
+      }
+      var previousPriorityLevel = currentPriorityLevel;
+      currentPriorityLevel = priorityLevel;
+      try {
+        return eventHandler();
+      } finally {
+        currentPriorityLevel = previousPriorityLevel;
+      }
+    };
+    exports.unstable_scheduleCallback = function(priorityLevel, callback, options) {
+      var currentTime = exports.unstable_now();
+      "object" === typeof options && null !== options ? (options = options.delay, options = "number" === typeof options && 0 < options ? currentTime + options : currentTime) : options = currentTime;
+      switch (priorityLevel) {
+        case 1:
+          var timeout = -1;
+          break;
+        case 2:
+          timeout = 250;
+          break;
+        case 5:
+          timeout = 1073741823;
+          break;
+        case 4:
+          timeout = 1e4;
+          break;
+        default:
+          timeout = 5e3;
+      }
+      timeout = options + timeout;
+      priorityLevel = {
+        id: taskIdCounter++,
+        callback,
+        priorityLevel,
+        startTime: options,
+        expirationTime: timeout,
+        sortIndex: -1
+      };
+      options > currentTime ? (priorityLevel.sortIndex = options, push(timerQueue, priorityLevel), null === peek(taskQueue) && priorityLevel === peek(timerQueue) && (isHostTimeoutScheduled ? (localClearTimeout(taskTimeoutID), taskTimeoutID = -1) : isHostTimeoutScheduled = true, requestHostTimeout(handleTimeout, options - currentTime))) : (priorityLevel.sortIndex = timeout, push(taskQueue, priorityLevel), isHostCallbackScheduled || isPerformingWork || (isHostCallbackScheduled = true, isMessageLoopRunning || (isMessageLoopRunning = true, schedulePerformWorkUntilDeadline())));
+      return priorityLevel;
+    };
+    exports.unstable_shouldYield = shouldYieldToHost;
+    exports.unstable_wrapCallback = function(callback) {
+      var parentPriorityLevel = currentPriorityLevel;
+      return function() {
+        var previousPriorityLevel = currentPriorityLevel;
+        currentPriorityLevel = parentPriorityLevel;
+        try {
+          return callback.apply(this, arguments);
+        } finally {
+          currentPriorityLevel = previousPriorityLevel;
+        }
+      };
+    };
+  })(scheduler_production);
+  return scheduler_production;
+}
+var hasRequiredScheduler;
+function requireScheduler() {
+  if (hasRequiredScheduler) return scheduler.exports;
+  hasRequiredScheduler = 1;
+  {
+    scheduler.exports = requireScheduler_production();
+  }
+  return scheduler.exports;
+}
 var react = { exports: {} };
 var react_production = {};
 /**
@@ -6373,285 +6650,6 @@ function requireReact() {
     react.exports = requireReact_production();
   }
   return react.exports;
-}
-var reactExports = requireReact();
-const React = /* @__PURE__ */ getDefaultExportFromCjs(reactExports);
-var client = { exports: {} };
-var reactDomClient_production = {};
-var scheduler = { exports: {} };
-var scheduler_production = {};
-/**
- * @license React
- * scheduler.production.js
- *
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
-var hasRequiredScheduler_production;
-function requireScheduler_production() {
-  if (hasRequiredScheduler_production) return scheduler_production;
-  hasRequiredScheduler_production = 1;
-  (function(exports) {
-    function push(heap, node) {
-      var index = heap.length;
-      heap.push(node);
-      a: for (; 0 < index; ) {
-        var parentIndex = index - 1 >>> 1, parent = heap[parentIndex];
-        if (0 < compare(parent, node))
-          heap[parentIndex] = node, heap[index] = parent, index = parentIndex;
-        else break a;
-      }
-    }
-    function peek(heap) {
-      return 0 === heap.length ? null : heap[0];
-    }
-    function pop(heap) {
-      if (0 === heap.length) return null;
-      var first2 = heap[0], last = heap.pop();
-      if (last !== first2) {
-        heap[0] = last;
-        a: for (var index = 0, length = heap.length, halfLength = length >>> 1; index < halfLength; ) {
-          var leftIndex = 2 * (index + 1) - 1, left = heap[leftIndex], rightIndex = leftIndex + 1, right = heap[rightIndex];
-          if (0 > compare(left, last))
-            rightIndex < length && 0 > compare(right, left) ? (heap[index] = right, heap[rightIndex] = last, index = rightIndex) : (heap[index] = left, heap[leftIndex] = last, index = leftIndex);
-          else if (rightIndex < length && 0 > compare(right, last))
-            heap[index] = right, heap[rightIndex] = last, index = rightIndex;
-          else break a;
-        }
-      }
-      return first2;
-    }
-    function compare(a2, b2) {
-      var diff = a2.sortIndex - b2.sortIndex;
-      return 0 !== diff ? diff : a2.id - b2.id;
-    }
-    exports.unstable_now = void 0;
-    if ("object" === typeof performance && "function" === typeof performance.now) {
-      var localPerformance = performance;
-      exports.unstable_now = function() {
-        return localPerformance.now();
-      };
-    } else {
-      var localDate = Date, initialTime = localDate.now();
-      exports.unstable_now = function() {
-        return localDate.now() - initialTime;
-      };
-    }
-    var taskQueue = [], timerQueue = [], taskIdCounter = 1, currentTask = null, currentPriorityLevel = 3, isPerformingWork = false, isHostCallbackScheduled = false, isHostTimeoutScheduled = false, needsPaint = false, localSetTimeout = "function" === typeof setTimeout ? setTimeout : null, localClearTimeout = "function" === typeof clearTimeout ? clearTimeout : null, localSetImmediate = "undefined" !== typeof setImmediate ? setImmediate : null;
-    function advanceTimers(currentTime) {
-      for (var timer2 = peek(timerQueue); null !== timer2; ) {
-        if (null === timer2.callback) pop(timerQueue);
-        else if (timer2.startTime <= currentTime)
-          pop(timerQueue), timer2.sortIndex = timer2.expirationTime, push(taskQueue, timer2);
-        else break;
-        timer2 = peek(timerQueue);
-      }
-    }
-    function handleTimeout(currentTime) {
-      isHostTimeoutScheduled = false;
-      advanceTimers(currentTime);
-      if (!isHostCallbackScheduled)
-        if (null !== peek(taskQueue))
-          isHostCallbackScheduled = true, isMessageLoopRunning || (isMessageLoopRunning = true, schedulePerformWorkUntilDeadline());
-        else {
-          var firstTimer = peek(timerQueue);
-          null !== firstTimer && requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime);
-        }
-    }
-    var isMessageLoopRunning = false, taskTimeoutID = -1, frameInterval = 5, startTime = -1;
-    function shouldYieldToHost() {
-      return needsPaint ? true : exports.unstable_now() - startTime < frameInterval ? false : true;
-    }
-    function performWorkUntilDeadline() {
-      needsPaint = false;
-      if (isMessageLoopRunning) {
-        var currentTime = exports.unstable_now();
-        startTime = currentTime;
-        var hasMoreWork = true;
-        try {
-          a: {
-            isHostCallbackScheduled = false;
-            isHostTimeoutScheduled && (isHostTimeoutScheduled = false, localClearTimeout(taskTimeoutID), taskTimeoutID = -1);
-            isPerformingWork = true;
-            var previousPriorityLevel = currentPriorityLevel;
-            try {
-              b: {
-                advanceTimers(currentTime);
-                for (currentTask = peek(taskQueue); null !== currentTask && !(currentTask.expirationTime > currentTime && shouldYieldToHost()); ) {
-                  var callback = currentTask.callback;
-                  if ("function" === typeof callback) {
-                    currentTask.callback = null;
-                    currentPriorityLevel = currentTask.priorityLevel;
-                    var continuationCallback = callback(
-                      currentTask.expirationTime <= currentTime
-                    );
-                    currentTime = exports.unstable_now();
-                    if ("function" === typeof continuationCallback) {
-                      currentTask.callback = continuationCallback;
-                      advanceTimers(currentTime);
-                      hasMoreWork = true;
-                      break b;
-                    }
-                    currentTask === peek(taskQueue) && pop(taskQueue);
-                    advanceTimers(currentTime);
-                  } else pop(taskQueue);
-                  currentTask = peek(taskQueue);
-                }
-                if (null !== currentTask) hasMoreWork = true;
-                else {
-                  var firstTimer = peek(timerQueue);
-                  null !== firstTimer && requestHostTimeout(
-                    handleTimeout,
-                    firstTimer.startTime - currentTime
-                  );
-                  hasMoreWork = false;
-                }
-              }
-              break a;
-            } finally {
-              currentTask = null, currentPriorityLevel = previousPriorityLevel, isPerformingWork = false;
-            }
-            hasMoreWork = void 0;
-          }
-        } finally {
-          hasMoreWork ? schedulePerformWorkUntilDeadline() : isMessageLoopRunning = false;
-        }
-      }
-    }
-    var schedulePerformWorkUntilDeadline;
-    if ("function" === typeof localSetImmediate)
-      schedulePerformWorkUntilDeadline = function() {
-        localSetImmediate(performWorkUntilDeadline);
-      };
-    else if ("undefined" !== typeof MessageChannel) {
-      var channel = new MessageChannel(), port = channel.port2;
-      channel.port1.onmessage = performWorkUntilDeadline;
-      schedulePerformWorkUntilDeadline = function() {
-        port.postMessage(null);
-      };
-    } else
-      schedulePerformWorkUntilDeadline = function() {
-        localSetTimeout(performWorkUntilDeadline, 0);
-      };
-    function requestHostTimeout(callback, ms) {
-      taskTimeoutID = localSetTimeout(function() {
-        callback(exports.unstable_now());
-      }, ms);
-    }
-    exports.unstable_IdlePriority = 5;
-    exports.unstable_ImmediatePriority = 1;
-    exports.unstable_LowPriority = 4;
-    exports.unstable_NormalPriority = 3;
-    exports.unstable_Profiling = null;
-    exports.unstable_UserBlockingPriority = 2;
-    exports.unstable_cancelCallback = function(task) {
-      task.callback = null;
-    };
-    exports.unstable_forceFrameRate = function(fps) {
-      0 > fps || 125 < fps ? console.error(
-        "forceFrameRate takes a positive int between 0 and 125, forcing frame rates higher than 125 fps is not supported"
-      ) : frameInterval = 0 < fps ? Math.floor(1e3 / fps) : 5;
-    };
-    exports.unstable_getCurrentPriorityLevel = function() {
-      return currentPriorityLevel;
-    };
-    exports.unstable_next = function(eventHandler) {
-      switch (currentPriorityLevel) {
-        case 1:
-        case 2:
-        case 3:
-          var priorityLevel = 3;
-          break;
-        default:
-          priorityLevel = currentPriorityLevel;
-      }
-      var previousPriorityLevel = currentPriorityLevel;
-      currentPriorityLevel = priorityLevel;
-      try {
-        return eventHandler();
-      } finally {
-        currentPriorityLevel = previousPriorityLevel;
-      }
-    };
-    exports.unstable_requestPaint = function() {
-      needsPaint = true;
-    };
-    exports.unstable_runWithPriority = function(priorityLevel, eventHandler) {
-      switch (priorityLevel) {
-        case 1:
-        case 2:
-        case 3:
-        case 4:
-        case 5:
-          break;
-        default:
-          priorityLevel = 3;
-      }
-      var previousPriorityLevel = currentPriorityLevel;
-      currentPriorityLevel = priorityLevel;
-      try {
-        return eventHandler();
-      } finally {
-        currentPriorityLevel = previousPriorityLevel;
-      }
-    };
-    exports.unstable_scheduleCallback = function(priorityLevel, callback, options) {
-      var currentTime = exports.unstable_now();
-      "object" === typeof options && null !== options ? (options = options.delay, options = "number" === typeof options && 0 < options ? currentTime + options : currentTime) : options = currentTime;
-      switch (priorityLevel) {
-        case 1:
-          var timeout = -1;
-          break;
-        case 2:
-          timeout = 250;
-          break;
-        case 5:
-          timeout = 1073741823;
-          break;
-        case 4:
-          timeout = 1e4;
-          break;
-        default:
-          timeout = 5e3;
-      }
-      timeout = options + timeout;
-      priorityLevel = {
-        id: taskIdCounter++,
-        callback,
-        priorityLevel,
-        startTime: options,
-        expirationTime: timeout,
-        sortIndex: -1
-      };
-      options > currentTime ? (priorityLevel.sortIndex = options, push(timerQueue, priorityLevel), null === peek(taskQueue) && priorityLevel === peek(timerQueue) && (isHostTimeoutScheduled ? (localClearTimeout(taskTimeoutID), taskTimeoutID = -1) : isHostTimeoutScheduled = true, requestHostTimeout(handleTimeout, options - currentTime))) : (priorityLevel.sortIndex = timeout, push(taskQueue, priorityLevel), isHostCallbackScheduled || isPerformingWork || (isHostCallbackScheduled = true, isMessageLoopRunning || (isMessageLoopRunning = true, schedulePerformWorkUntilDeadline())));
-      return priorityLevel;
-    };
-    exports.unstable_shouldYield = shouldYieldToHost;
-    exports.unstable_wrapCallback = function(callback) {
-      var parentPriorityLevel = currentPriorityLevel;
-      return function() {
-        var previousPriorityLevel = currentPriorityLevel;
-        currentPriorityLevel = parentPriorityLevel;
-        try {
-          return callback.apply(this, arguments);
-        } finally {
-          currentPriorityLevel = previousPriorityLevel;
-        }
-      };
-    };
-  })(scheduler_production);
-  return scheduler_production;
-}
-var hasRequiredScheduler;
-function requireScheduler() {
-  if (hasRequiredScheduler) return scheduler.exports;
-  hasRequiredScheduler = 1;
-  {
-    scheduler.exports = requireScheduler_production();
-  }
-  return scheduler.exports;
 }
 var reactDom = { exports: {} };
 var reactDom_production = {};
@@ -18378,6 +18376,8 @@ function requireClient() {
   return client.exports;
 }
 var clientExports = requireClient();
+var reactExports = requireReact();
+const React = /* @__PURE__ */ getDefaultExportFromCjs(reactExports);
 /**
  * @license
  * Copyright 2010-2026 Three.js Authors
@@ -98314,16 +98314,26 @@ const ElevatorDoor = ({ side, state: state2 }) => {
 };
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
-const ARM_BONE_PATTERNS = ["mixamorig:rightarm", "rightarm", "right_arm", "arm_r", "upperarm_r"];
-const FOREARM_BONE_PATTERNS = ["mixamorig:rightforearm", "rightforearm", "right_forearm", "forearm_r", "lowerarm_r"];
+const ARM_BONE_EXACT = ["mixamorig:rightarm", "rightarm", "right_arm", "arm_r", "upperarm_r", "r_upperarm", "rupperarm"];
+const ARM_BONE_SUBSTR = ["rightarm", "upperarm.r", "bip01_r_upperarm"];
+const FOREARM_BONE_EXACT = ["mixamorig:rightforearm", "rightforearm", "right_forearm", "forearm_r", "lowerarm_r", "r_forearm", "rforearm"];
+const FOREARM_BONE_SUBSTR = ["rightforearm", "forearm.r", "bip01_r_forearm"];
 function findArmBones(scene) {
   let rightArm = null;
   let rightForeArm = null;
   scene.traverse((child) => {
     if (!child.isBone) return;
     const name2 = child.name.toLowerCase();
-    if (!rightArm && ARM_BONE_PATTERNS.some((p2) => name2.includes(p2))) rightArm = child;
-    if (!rightForeArm && FOREARM_BONE_PATTERNS.some((p2) => name2.includes(p2))) rightForeArm = child;
+    if (!rightArm && ARM_BONE_EXACT.includes(name2)) {
+      rightArm = child;
+      return;
+    }
+    if (!rightForeArm && FOREARM_BONE_EXACT.includes(name2)) {
+      rightForeArm = child;
+      return;
+    }
+    if (!rightArm && ARM_BONE_SUBSTR.some((p2) => name2.includes(p2))) rightArm = child;
+    if (!rightForeArm && FOREARM_BONE_SUBSTR.some((p2) => name2.includes(p2))) rightForeArm = child;
   });
   return { rightArm, rightForeArm };
 }
@@ -98350,11 +98360,17 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
     active: false,
     elapsed: 0,
     totalDuration: 1.2,
-    // 0.3 extend + 0.5 hold + 0.4 retract
     armBone: null,
     foreArmBone: null,
     bonesFound: false,
-    lastTrigger: 0
+    lastTrigger: 0,
+    // Pre-allocated quaternions (M3 fix — no .clone() per frame)
+    mixerArmQuat: new Quaternion(),
+    mixerForeArmQuat: new Quaternion(),
+    armDelta: new Quaternion(),
+    foreArmDelta: new Quaternion(),
+    armEuler: new Euler(),
+    foreArmEuler: new Euler()
   });
   reactExports.useEffect(() => {
     const { rightArm, rightForeArm } = findArmBones(scene);
@@ -98368,6 +98384,10 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
   }, [scene]);
   reactExports.useEffect(() => {
     if (pickupTrigger > 0 && pickupTrigger !== pickupRef.current.lastTrigger) {
+      if (pickupRef.current.active) {
+        pickupRef.current.lastTrigger = pickupTrigger;
+        return;
+      }
       pickupRef.current.lastTrigger = pickupTrigger;
       pickupRef.current.active = true;
       pickupRef.current.elapsed = 0;
@@ -98422,12 +98442,14 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
     const foreArmAngle = maxAngle * 0.3 * progress;
     const armBone = p2.armBone;
     const foreArmBone = p2.foreArmBone;
-    const mixerArmQuat = armBone.quaternion.clone();
-    const mixerForeArmQuat = foreArmBone.quaternion.clone();
-    const armDelta = new Quaternion().setFromEuler(new Euler(armAngle, 0, 0));
-    const foreArmDelta = new Quaternion().setFromEuler(new Euler(foreArmAngle, 0, 0));
-    armBone.quaternion.copy(mixerArmQuat).multiply(armDelta);
-    foreArmBone.quaternion.copy(mixerForeArmQuat).multiply(foreArmDelta);
+    p2.mixerArmQuat.copy(armBone.quaternion);
+    p2.mixerForeArmQuat.copy(foreArmBone.quaternion);
+    p2.armEuler.set(armAngle, 0, 0);
+    p2.foreArmEuler.set(foreArmAngle, 0, 0);
+    p2.armDelta.setFromEuler(p2.armEuler);
+    p2.foreArmDelta.setFromEuler(p2.foreArmEuler);
+    armBone.quaternion.copy(p2.mixerArmQuat).multiply(p2.armDelta);
+    foreArmBone.quaternion.copy(p2.mixerForeArmQuat).multiply(p2.foreArmDelta);
   }, 1);
   useFrame((s, dt2) => {
     const tgt = visible ? 1 : 0;
@@ -102497,6 +102519,24 @@ function App() {
   const [cameraShake, setCameraShake] = reactExports.useState(false);
   const lastHandledTimerRef = reactExports.useRef(null);
   const [arrivalPulse, setArrivalPulse] = reactExports.useState(false);
+  const overlayWentOpaqueAt = reactExports.useRef(null);
+  reactExports.useEffect(() => {
+    if (overlayOpacity >= 0.99) {
+      if (overlayWentOpaqueAt.current === null) overlayWentOpaqueAt.current = Date.now();
+    } else {
+      overlayWentOpaqueAt.current = null;
+    }
+  }, [overlayOpacity]);
+  reactExports.useEffect(() => {
+    const id = setInterval(() => {
+      if (overlayWentOpaqueAt.current !== null && Date.now() - overlayWentOpaqueAt.current > 6e3) {
+        console.warn("[BlackScreen Failsafe] overlayOpacity stuck at 1 for >6s — force resetting");
+        setOverlayOpacity(0);
+        overlayWentOpaqueAt.current = null;
+      }
+    }, 1e3);
+    return () => clearInterval(id);
+  }, []);
   const [gameState, setGameState] = reactExports.useState("lobby");
   const [barneyDialogueOpen, setBarneyDialogueOpen] = reactExports.useState(false);
   const [barneyDialogueNode, setBarneyDialogueNode] = reactExports.useState("greet");
@@ -102505,6 +102545,24 @@ function App() {
   const [nightMode, setNightMode] = reactExports.useState(false);
   const [sleepFadeOpacity, setSleepFadeOpacity] = reactExports.useState(0);
   const [jumpscare, setJumpscare] = reactExports.useState(false);
+  const sleepFadeWentOpaqueAt = reactExports.useRef(null);
+  reactExports.useEffect(() => {
+    if (sleepFadeOpacity >= 0.99) {
+      if (sleepFadeWentOpaqueAt.current === null) sleepFadeWentOpaqueAt.current = Date.now();
+    } else {
+      sleepFadeWentOpaqueAt.current = null;
+    }
+  }, [sleepFadeOpacity]);
+  reactExports.useEffect(() => {
+    const id = setInterval(() => {
+      if (sleepFadeWentOpaqueAt.current !== null && Date.now() - sleepFadeWentOpaqueAt.current > 8e3) {
+        console.warn("[BlackScreen Failsafe] sleepFadeOpacity stuck at 1 for >8s — force resetting");
+        setSleepFadeOpacity(0);
+        sleepFadeWentOpaqueAt.current = null;
+      }
+    }, 1e3);
+    return () => clearInterval(id);
+  }, []);
   const [doorOpenAmount, setDoorOpenAmount] = reactExports.useState(0);
   const [insideElevator, setInsideElevator] = reactExports.useState(false);
   const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
@@ -103218,7 +103276,7 @@ function App() {
   ] });
 }
 clientExports.createRoot(document.getElementById("root")).render(
-  /* @__PURE__ */ jsxRuntimeExports.jsx(reactExports.StrictMode, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsProvider, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, {}) }) })
+  /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsProvider, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, {}) })
 );
 </script>
   </body>
