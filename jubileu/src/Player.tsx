@@ -36,7 +36,7 @@ function easeOutCubic(t: number) { return 1 - Math.pow(1 - t, 3); }
 function easeInCubic(t: number) { return t * t * t; }
 
 // ─── Programmatic pickup AnimationClip ────────────────────────────────
-// Created once, reused forever. No per-frame bone manipulation needed.
+// Created once, reused forever. Mixer handles all interpolation.
 function createPickupClip(armBoneName: string, foreArmBoneName: string): THREE.AnimationClip {
   const times = [0, 0.3, 0.8, 1.2];
 
@@ -46,19 +46,23 @@ function createPickupClip(armBoneName: string, foreArmBoneName: string): THREE.A
   const foreArmExtended = new THREE.Quaternion()
     .setFromEuler(new THREE.Euler(-Math.PI * 0.13, 0, 0)); // slight bend
 
-  // Flatten quaternions to arrays for the track
-  const q = (quat: THREE.Quaternion) => quat.toArray() as unknown as number;
+  // Flatten quaternions to a single Float32Array for the track
+  const flatQuats = (...quats: THREE.Quaternion[]): Float32Array => {
+    const arr = new Float32Array(quats.length * 4);
+    quats.forEach((q, i) => { arr.set(q.toArray(), i * 4); });
+    return arr;
+  };
 
   return new THREE.AnimationClip('Pickup', 1.2, [
     new THREE.QuaternionKeyframeTrack(
       `${armBoneName}.quaternion`,
       times,
-      [...q(identity), ...q(extended), ...q(extended), ...q(identity)],
+      flatQuats(identity, extended, extended, identity),
     ),
     new THREE.QuaternionKeyframeTrack(
       `${foreArmBoneName}.quaternion`,
       times,
-      [...q(identity), ...q(foreArmExtended), ...q(foreArmExtended), ...q(identity)],
+      flatQuats(identity, foreArmExtended, foreArmExtended, identity),
     ),
   ]);
 }
@@ -70,7 +74,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
 }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
-  const { actions, mixer } = useAnimations(useMemo(() => {
+  const { actions } = useAnimations(useMemo(() => {
       const w = walkAnims.map((a: any) => a.clone(true)); const i = idleAnims.map((a: any) => a.clone(true));
       if (w[0]) w[0].name = "Walking"; if (i[0]) i[0].name = "Idle";
       return [...i, ...w];
@@ -79,14 +83,15 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
   const meshesRef = useRef<any[]>([]);
   const [groundY, setGroundY] = useState(0);
 
-  // Pickup state — just the action and lastTrigger, no manual bone refs
-  const pickupStateRef = useRef({
+  // Pickup state — separate mixer + action for the arm animation
+  const pickupRef = useRef({
+    mixer: null as THREE.AnimationMixer | null,
     action: null as THREE.AnimationAction | null,
     lastTrigger: 0,
-    ready: false,
+    active: false,
   });
 
-  // Find bones and create programmatic pickup clip + action
+  // Find bones and create programmatic pickup clip with its own mixer
   useEffect(() => {
     const { rightArm, rightForeArm } = findArmBones(scene);
     if (!rightArm || !rightForeArm) {
@@ -94,28 +99,38 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
       return;
     }
 
-    // Create the programmatic clip using the exact bone names from the scene
+    // Separate mixer for pickup — controls only the arm bones
+    // It runs AFTER the main mixer, so it overwrites the arm poses during pickup
+    const pMixer = new THREE.AnimationMixer(scene);
     const clip = createPickupClip(rightArm.name, rightForeArm.name);
-
-    // Create action on layer 1 (overlays layer 0 = Idle/Walking)
-    const action = mixer.clipAction(clip);
-    action.setLayer(1);
-    action.setLoop(THREE.LoopOnce);
+    const action = pMixer.clipAction(clip);
+    action.setLoop(THREE.LoopOnce, 1);
     action.clampWhenFinished = true;
 
-    pickupStateRef.current.action = action;
-    pickupStateRef.current.ready = true;
-  }, [scene, mixer]);
+    pickupRef.current.mixer = pMixer;
+    pickupRef.current.action = action;
+  }, [scene]);
 
   // Detect pickupTrigger changes and play animation
   useEffect(() => {
-    const p = pickupStateRef.current;
-    if (pickupTrigger > 0 && pickupTrigger !== p.lastTrigger && p.ready && p.action) {
+    const p = pickupRef.current;
+    if (pickupTrigger > 0 && pickupTrigger !== p.lastTrigger && p.action) {
       p.lastTrigger = pickupTrigger;
-      // fadeIn for smooth start, mixer handles everything from here
       p.action.reset().fadeIn(0.1).play();
+      p.active = true;
     }
   }, [pickupTrigger]);
+
+  // Update pickup mixer (runs after main mixer, overwrites arm bones)
+  useFrame((_, dt) => {
+    const p = pickupRef.current;
+    if (!p.active || !p.mixer) return;
+    p.mixer.update(Math.min(dt, 0.05));
+    // Stop updating once the action finishes
+    if (p.action && !p.action.isRunning()) {
+      p.active = false;
+    }
+  }, 1); // Priority 1 = runs after main mixer (priority 0)
 
   useEffect(() => {
      const meshes: any[] = [];
