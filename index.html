@@ -92513,30 +92513,11 @@ function findArmBones(scene) {
   });
   return { rightArm, rightForeArm };
 }
-function createPickupClip(armBoneName, foreArmBoneName) {
-  const times = [0, 0.3, 0.8, 1.2];
-  const identity2 = new Quaternion();
-  const extended = new Quaternion().setFromEuler(new Euler(-Math.PI * 0.44, 0, 0));
-  const foreArmExtended = new Quaternion().setFromEuler(new Euler(-Math.PI * 0.13, 0, 0));
-  const flatQuats = (...quats) => {
-    const arr = new Float32Array(quats.length * 4);
-    quats.forEach((q2, i2) => {
-      arr.set(q2.toArray(), i2 * 4);
-    });
-    return arr;
-  };
-  return new AnimationClip("Pickup", 1.2, [
-    new QuaternionKeyframeTrack(
-      `${armBoneName}.quaternion`,
-      times,
-      flatQuats(identity2, extended, extended, identity2)
-    ),
-    new QuaternionKeyframeTrack(
-      `${foreArmBoneName}.quaternion`,
-      times,
-      flatQuats(identity2, foreArmExtended, foreArmExtended, identity2)
-    )
-  ]);
+function easeOutCubic(t2) {
+  return 1 - Math.pow(1 - t2, 3);
+}
+function easeInCubic(t2) {
+  return t2 * t2 * t2;
 }
 const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL);
@@ -92552,41 +92533,39 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
   const meshesRef = reactExports.useRef([]);
   const [groundY, setGroundY] = reactExports.useState(0);
   const pickupRef = reactExports.useRef({
-    mixer: null,
-    action: null,
+    active: false,
+    elapsed: 0,
+    armBone: null,
+    foreArmBone: null,
+    bonesFound: false,
     lastTrigger: 0,
-    active: false
+    // Pre-allocated objects — reused every frame, never cloned
+    armQuat: new Quaternion(),
+    foreArmQuat: new Quaternion(),
+    armDelta: new Quaternion(),
+    foreArmDelta: new Quaternion(),
+    armEuler: new Euler(),
+    foreArmEuler: new Euler()
   });
   reactExports.useEffect(() => {
     const { rightArm, rightForeArm } = findArmBones(scene);
-    if (!rightArm || !rightForeArm) {
-      console.warn("[Avatar] Could not find arm bones for pickup animation. Found:", { rightArm: !!rightArm, rightForeArm: !!rightForeArm });
-      return;
+    if (rightArm && rightForeArm) {
+      pickupRef.current.armBone = rightArm;
+      pickupRef.current.foreArmBone = rightForeArm;
+      pickupRef.current.bonesFound = true;
+    } else {
+      console.warn("[Avatar] Could not find arm bones. Found:", { rightArm: !!rightArm, rightForeArm: !!rightForeArm });
     }
-    const pMixer = new AnimationMixer(scene);
-    const clip = createPickupClip(rightArm.name, rightForeArm.name);
-    const action = pMixer.clipAction(clip);
-    action.setLoop(LoopOnce, 1);
-    action.clampWhenFinished = true;
-    pickupRef.current.mixer = pMixer;
-    pickupRef.current.action = action;
   }, [scene]);
   reactExports.useEffect(() => {
-    const p2 = pickupRef.current;
-    if (pickupTrigger > 0 && pickupTrigger !== p2.lastTrigger && p2.action) {
-      p2.lastTrigger = pickupTrigger;
-      p2.action.reset().fadeIn(0.1).play();
-      p2.active = true;
+    if (pickupTrigger > 0 && pickupTrigger !== pickupRef.current.lastTrigger) {
+      pickupRef.current.lastTrigger = pickupTrigger;
+      if (!pickupRef.current.active) {
+        pickupRef.current.active = true;
+        pickupRef.current.elapsed = 0;
+      }
     }
   }, [pickupTrigger]);
-  useFrame((_, dt2) => {
-    const p2 = pickupRef.current;
-    if (!p2.active || !p2.mixer) return;
-    p2.mixer.update(Math.min(dt2, 0.05));
-    if (p2.action && !p2.action.isRunning()) {
-      p2.active = false;
-    }
-  }, 1);
   reactExports.useEffect(() => {
     const meshes = [];
     scene.traverse((c2) => {
@@ -92611,6 +92590,37 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
     } catch {
     }
   }, [scene]);
+  useFrame((_, dt2) => {
+    const p2 = pickupRef.current;
+    if (!p2.active || !p2.bonesFound || !p2.armBone || !p2.foreArmBone) return;
+    const safeDt = Math.min(dt2, 0.05);
+    p2.elapsed += safeDt;
+    const EXTEND_END = 0.3;
+    const HOLD_END = 0.8;
+    const RETRACT_END = 1.2;
+    let progress;
+    if (p2.elapsed < EXTEND_END) {
+      progress = easeOutCubic(p2.elapsed / EXTEND_END);
+    } else if (p2.elapsed < HOLD_END) {
+      progress = 1;
+    } else if (p2.elapsed < RETRACT_END) {
+      progress = 1 - easeInCubic((p2.elapsed - HOLD_END) / (RETRACT_END - HOLD_END));
+    } else {
+      p2.active = false;
+      progress = 0;
+    }
+    const maxAngle = -Math.PI * 0.44;
+    const armAngle = maxAngle * progress;
+    const foreArmAngle = maxAngle * 0.3 * progress;
+    p2.armQuat.copy(p2.armBone.quaternion);
+    p2.foreArmQuat.copy(p2.foreArmBone.quaternion);
+    p2.armEuler.set(armAngle, 0, 0);
+    p2.foreArmEuler.set(foreArmAngle, 0, 0);
+    p2.armDelta.setFromEuler(p2.armEuler);
+    p2.foreArmDelta.setFromEuler(p2.foreArmEuler);
+    p2.armBone.quaternion.copy(p2.armQuat).multiply(p2.armDelta);
+    p2.foreArmBone.quaternion.copy(p2.foreArmQuat).multiply(p2.foreArmDelta);
+  }, 1);
   useFrame((s, dt2) => {
     const tgt = visible ? 1 : 0;
     opRef.current = MathUtils.lerp(opRef.current, tgt, 8 * dt2);
