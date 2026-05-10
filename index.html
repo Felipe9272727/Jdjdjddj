@@ -98314,6 +98314,25 @@ const ElevatorDoor = ({ side, state: state2 }) => {
 };
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
+const ARM_BONE_PATTERNS = ["mixamorig:rightarm", "rightarm", "right_arm", "arm_r", "upperarm_r"];
+const FOREARM_BONE_PATTERNS = ["mixamorig:rightforearm", "rightforearm", "right_forearm", "forearm_r", "lowerarm_r"];
+function findArmBones(scene) {
+  let rightArm = null;
+  let rightForeArm = null;
+  scene.traverse((child) => {
+    if (!child.isBone) return;
+    const name2 = child.name.toLowerCase();
+    if (!rightArm && ARM_BONE_PATTERNS.some((p2) => name2.includes(p2))) rightArm = child;
+    if (!rightForeArm && FOREARM_BONE_PATTERNS.some((p2) => name2.includes(p2))) rightForeArm = child;
+  });
+  return { rightArm, rightForeArm };
+}
+function easeOutCubic(t2) {
+  return 1 - Math.pow(1 - t2, 3);
+}
+function easeInCubic(t2) {
+  return t2 * t2 * t2;
+}
 const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL);
   const { animations: idleAnims } = useGLTF(IDLE_URL);
@@ -98327,6 +98346,33 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
   const opRef = reactExports.useRef(1);
   const meshesRef = reactExports.useRef([]);
   const [groundY, setGroundY] = reactExports.useState(0);
+  const pickupRef = reactExports.useRef({
+    active: false,
+    elapsed: 0,
+    totalDuration: 1.2,
+    // 0.3 extend + 0.5 hold + 0.4 retract
+    armBone: null,
+    foreArmBone: null,
+    bonesFound: false,
+    lastTrigger: 0
+  });
+  reactExports.useEffect(() => {
+    const { rightArm, rightForeArm } = findArmBones(scene);
+    if (rightArm && rightForeArm) {
+      pickupRef.current.armBone = rightArm;
+      pickupRef.current.foreArmBone = rightForeArm;
+      pickupRef.current.bonesFound = true;
+    } else {
+      console.warn("[Avatar] Could not find arm bones for pickup animation. Found:", { rightArm: !!rightArm, rightForeArm: !!rightForeArm });
+    }
+  }, [scene]);
+  reactExports.useEffect(() => {
+    if (pickupTrigger > 0 && pickupTrigger !== pickupRef.current.lastTrigger) {
+      pickupRef.current.lastTrigger = pickupTrigger;
+      pickupRef.current.active = true;
+      pickupRef.current.elapsed = 0;
+    }
+  }, [pickupTrigger]);
   reactExports.useEffect(() => {
     const meshes = [];
     scene.traverse((c2) => {
@@ -98351,6 +98397,38 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
     } catch {
     }
   }, [scene]);
+  useFrame((_, dt2) => {
+    const p2 = pickupRef.current;
+    if (!p2.active || !p2.bonesFound || !p2.armBone || !p2.foreArmBone) return;
+    const safeDt = Math.min(dt2, 0.05);
+    p2.elapsed += safeDt;
+    const EXTEND_END = 0.3;
+    const HOLD_END = 0.8;
+    const RETRACT_END = 1.2;
+    let progress;
+    if (p2.elapsed < EXTEND_END) {
+      progress = easeOutCubic(p2.elapsed / EXTEND_END);
+    } else if (p2.elapsed < HOLD_END) {
+      progress = 1;
+    } else if (p2.elapsed < RETRACT_END) {
+      const t2 = (p2.elapsed - HOLD_END) / (RETRACT_END - HOLD_END);
+      progress = 1 - easeInCubic(t2);
+    } else {
+      p2.active = false;
+      progress = 0;
+    }
+    const maxAngle = -Math.PI * 0.44;
+    const armAngle = maxAngle * progress;
+    const foreArmAngle = maxAngle * 0.3 * progress;
+    const armBone = p2.armBone;
+    const foreArmBone = p2.foreArmBone;
+    const mixerArmQuat = armBone.quaternion.clone();
+    const mixerForeArmQuat = foreArmBone.quaternion.clone();
+    const armDelta = new Quaternion().setFromEuler(new Euler(armAngle, 0, 0));
+    const foreArmDelta = new Quaternion().setFromEuler(new Euler(foreArmAngle, 0, 0));
+    armBone.quaternion.copy(mixerArmQuat).multiply(armDelta);
+    foreArmBone.quaternion.copy(mixerForeArmQuat).multiply(foreArmDelta);
+  }, 1);
   useFrame((s, dt2) => {
     const tgt = visible ? 1 : 0;
     opRef.current = MathUtils.lerp(opRef.current, tgt, 8 * dt2);
