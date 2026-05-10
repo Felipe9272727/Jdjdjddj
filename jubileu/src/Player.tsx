@@ -35,6 +35,34 @@ function findArmBones(scene: THREE.Object3D) {
 function easeOutCubic(t: number) { return 1 - Math.pow(1 - t, 3); }
 function easeInCubic(t: number) { return t * t * t; }
 
+// ─── Programmatic pickup AnimationClip ────────────────────────────────
+// Created once, reused forever. No per-frame bone manipulation needed.
+function createPickupClip(armBoneName: string, foreArmBoneName: string): THREE.AnimationClip {
+  const times = [0, 0.3, 0.8, 1.2];
+
+  const identity = new THREE.Quaternion(); // neutral pose
+  const extended = new THREE.Quaternion()
+    .setFromEuler(new THREE.Euler(-Math.PI * 0.44, 0, 0)); // ~-80° forward
+  const foreArmExtended = new THREE.Quaternion()
+    .setFromEuler(new THREE.Euler(-Math.PI * 0.13, 0, 0)); // slight bend
+
+  // Flatten quaternions to arrays for the track
+  const q = (quat: THREE.Quaternion) => quat.toArray() as unknown as number;
+
+  return new THREE.AnimationClip('Pickup', 1.2, [
+    new THREE.QuaternionKeyframeTrack(
+      `${armBoneName}.quaternion`,
+      times,
+      [...q(identity), ...q(extended), ...q(extended), ...q(identity)],
+    ),
+    new THREE.QuaternionKeyframeTrack(
+      `${foreArmBoneName}.quaternion`,
+      times,
+      [...q(identity), ...q(foreArmExtended), ...q(foreArmExtended), ...q(identity)],
+    ),
+  ]);
+}
+
 const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
   animation: 'Idle' | 'Walking';
   visible?: boolean;
@@ -42,7 +70,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
 }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
-  const { actions } = useAnimations(useMemo(() => {
+  const { actions, mixer } = useAnimations(useMemo(() => {
       const w = walkAnims.map((a: any) => a.clone(true)); const i = idleAnims.map((a: any) => a.clone(true));
       if (w[0]) w[0].name = "Walking"; if (i[0]) i[0].name = "Idle";
       return [...i, ...w];
@@ -51,47 +79,41 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
   const meshesRef = useRef<any[]>([]);
   const [groundY, setGroundY] = useState(0);
 
-  // Pickup animation state — pre-allocated to avoid GC pressure
-  const pickupRef = useRef({
-    active: false,
-    elapsed: 0,
-    totalDuration: 1.2,
-    armBone: null as THREE.Bone | null,
-    foreArmBone: null as THREE.Bone | null,
-    bonesFound: false,
+  // Pickup state — just the action and lastTrigger, no manual bone refs
+  const pickupStateRef = useRef({
+    action: null as THREE.AnimationAction | null,
     lastTrigger: 0,
-    // Pre-allocated quaternions (M3 fix — no .clone() per frame)
-    mixerArmQuat: new THREE.Quaternion(),
-    mixerForeArmQuat: new THREE.Quaternion(),
-    armDelta: new THREE.Quaternion(),
-    foreArmDelta: new THREE.Quaternion(),
-    armEuler: new THREE.Euler(),
-    foreArmEuler: new THREE.Euler(),
+    ready: false,
   });
 
-  // Find bones once when scene loads
+  // Find bones and create programmatic pickup clip + action
   useEffect(() => {
     const { rightArm, rightForeArm } = findArmBones(scene);
-    if (rightArm && rightForeArm) {
-      pickupRef.current.armBone = rightArm;
-      pickupRef.current.foreArmBone = rightForeArm;
-      pickupRef.current.bonesFound = true;
-    } else {
+    if (!rightArm || !rightForeArm) {
       console.warn('[Avatar] Could not find arm bones for pickup animation. Found:', { rightArm: !!rightArm, rightForeArm: !!rightForeArm });
+      return;
     }
-  }, [scene]);
 
-  // Detect pickupTrigger changes and start animation (M2: ignore if already animating)
+    // Create the programmatic clip using the exact bone names from the scene
+    const clip = createPickupClip(rightArm.name, rightForeArm.name);
+
+    // Create action on layer 1 (overlays layer 0 = Idle/Walking)
+    const action = mixer.clipAction(clip);
+    action.setLayer(1);
+    action.setLoop(THREE.LoopOnce);
+    action.clampWhenFinished = true;
+
+    pickupStateRef.current.action = action;
+    pickupStateRef.current.ready = true;
+  }, [scene, mixer]);
+
+  // Detect pickupTrigger changes and play animation
   useEffect(() => {
-    if (pickupTrigger > 0 && pickupTrigger !== pickupRef.current.lastTrigger) {
-      // If animation is already active, just update lastTrigger to avoid teleport
-      if (pickupRef.current.active) {
-        pickupRef.current.lastTrigger = pickupTrigger;
-        return;
-      }
-      pickupRef.current.lastTrigger = pickupTrigger;
-      pickupRef.current.active = true;
-      pickupRef.current.elapsed = 0;
+    const p = pickupStateRef.current;
+    if (pickupTrigger > 0 && pickupTrigger !== p.lastTrigger && p.ready && p.action) {
+      p.lastTrigger = pickupTrigger;
+      // fadeIn for smooth start, mixer handles everything from here
+      p.action.reset().fadeIn(0.1).play();
     }
   }, [pickupTrigger]);
 
@@ -115,59 +137,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
      } catch { /* ignored */ }
   }, [scene]);
 
-  // Pickup arm animation — runs at priority 1 (after mixer at priority 0)
-  useFrame((_, dt) => {
-    const p = pickupRef.current;
-    if (!p.active || !p.bonesFound || !p.armBone || !p.foreArmBone) return;
-
-    const safeDt = Math.min(dt, 0.05);
-    p.elapsed += safeDt;
-
-    const EXTEND_END = 0.3;
-    const HOLD_END = 0.8; // 0.3 + 0.5
-    const RETRACT_END = 1.2; // 0.8 + 0.4
-
-    let progress: number; // 0 = neutral, 1 = fully extended
-    if (p.elapsed < EXTEND_END) {
-      // Extend phase — ease out
-      progress = easeOutCubic(p.elapsed / EXTEND_END);
-    } else if (p.elapsed < HOLD_END) {
-      // Hold phase — stay extended
-      progress = 1;
-    } else if (p.elapsed < RETRACT_END) {
-      // Retract phase — ease in
-      const t = (p.elapsed - HOLD_END) / (RETRACT_END - HOLD_END);
-      progress = 1 - easeInCubic(t);
-    } else {
-      // Animation complete
-      p.active = false;
-      progress = 0;
-    }
-
-    // Rotate arm forward: pitch the RightArm bone around local X axis
-    const maxAngle = -Math.PI * 0.44; // ~-80 degrees
-    const armAngle = maxAngle * progress;
-    const foreArmAngle = maxAngle * 0.3 * progress;
-
-    const armBone = p.armBone;
-    const foreArmBone = p.foreArmBone;
-
-    // M3 fix: use pre-allocated quaternions — zero GC pressure
-    // Capture mixer's current quaternion (set by animation system at priority 0)
-    p.mixerArmQuat.copy(armBone.quaternion);
-    p.mixerForeArmQuat.copy(foreArmBone.quaternion);
-
-    // Create rotation deltas using pre-allocated Euler + Quaternion
-    p.armEuler.set(armAngle, 0, 0);
-    p.foreArmEuler.set(foreArmAngle, 0, 0);
-    p.armDelta.setFromEuler(p.armEuler);
-    p.foreArmDelta.setFromEuler(p.foreArmEuler);
-
-    // Post-multiply = local space rotation (applied after mixer's transform)
-    armBone.quaternion.copy(p.mixerArmQuat).multiply(p.armDelta);
-    foreArmBone.quaternion.copy(p.mixerForeArmQuat).multiply(p.foreArmDelta);
-  }, 1); // Priority 1 = runs after animation mixer (priority 0)
-
+  // Opacity fade animation (still needs useFrame for smooth lerp)
   useFrame((s, dt) => {
       const tgt = visible ? 1 : 0; opRef.current = THREE.MathUtils.lerp(opRef.current, tgt, 8 * dt);
       const op = opRef.current;
