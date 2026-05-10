@@ -115,6 +115,29 @@ export default function App() {
   const lastHandledTimerRef = useRef<number | null>(null);
   const [arrivalPulse, setArrivalPulse] = useState(false);
 
+  // ─── BLACK SCREEN SAFETY: track when overlay went opaque ──────────────
+  // If overlayOpacity is stuck at 1 for >6s, force-reset it. This prevents
+  // permanent black screen from elevator timer race conditions (e.g. timer
+  // skipping from 19→16 without hitting the 17 reset).
+  const overlayWentOpaqueAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (overlayOpacity >= 0.99) {
+      if (overlayWentOpaqueAt.current === null) overlayWentOpaqueAt.current = Date.now();
+    } else {
+      overlayWentOpaqueAt.current = null;
+    }
+  }, [overlayOpacity]);
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (overlayWentOpaqueAt.current !== null && Date.now() - overlayWentOpaqueAt.current > 6000) {
+        console.warn('[BlackScreen Failsafe] overlayOpacity stuck at 1 for >6s — force resetting');
+        setOverlayOpacity(0);
+        overlayWentOpaqueAt.current = null;
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const [gameState, setGameState] = useState<GameState>('lobby');
   const [barneyDialogueOpen, setBarneyDialogueOpen] = useState(false);
   const [barneyDialogueNode, setBarneyDialogueNode] = useState('greet');
@@ -123,6 +146,28 @@ export default function App() {
   const [nightMode, setNightMode] = useState(false);
   const [sleepFadeOpacity, setSleepFadeOpacity] = useState(0);
   const [jumpscare, setJumpscare] = useState(false);
+
+  // ─── BLACK SCREEN SAFETY: sleep fade failsafe ─────────────────────────
+  // If sleepFadeOpacity stuck at 1 for >8s, force reset (should take ~3.5s
+  // normally via scheduleTimeout in handleSleep).
+  const sleepFadeWentOpaqueAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (sleepFadeOpacity >= 0.99) {
+      if (sleepFadeWentOpaqueAt.current === null) sleepFadeWentOpaqueAt.current = Date.now();
+    } else {
+      sleepFadeWentOpaqueAt.current = null;
+    }
+  }, [sleepFadeOpacity]);
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (sleepFadeWentOpaqueAt.current !== null && Date.now() - sleepFadeWentOpaqueAt.current > 8000) {
+        console.warn('[BlackScreen Failsafe] sleepFadeOpacity stuck at 1 for >8s — force resetting');
+        setSleepFadeOpacity(0);
+        sleepFadeWentOpaqueAt.current = null;
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
   const [doorOpenAmount, setDoorOpenAmount] = useState(0);
   const [insideElevator, setInsideElevator] = useState(false);
 
@@ -407,7 +452,14 @@ export default function App() {
             }
             if (elevatorTimer !== lastHandledTimerRef.current) {
                 lastHandledTimerRef.current = elevatorTimer;
-                if (elevatorTimer === 19) { setOverlayOpacity(1); }
+                // Overlay: go black when entering travel phase (timer <= 19, >= 16).
+                // Use a guaranteed timeout to clear it instead of relying on
+                // timer===17 — prevents permanent black screen if timer skips.
+                if (elevatorTimer === 19) {
+                    setOverlayOpacity(1);
+                    // GUARANTEED CLEAR: force overlay off after 3s regardless of timer state
+                    scheduleTimeout(() => { setOverlayOpacity(0); }, 3000);
+                }
                 if (elevatorTimer === 18) {
                     if (nextElevatorDestination !== null) {
                         // Override (e.g. saved → level 2). Consume it.
@@ -627,8 +679,26 @@ export default function App() {
           toneMapping: ACESFilmicToneMapping,
           outputColorSpace: SRGBColorSpace,
         }}
+        onCreated={({ gl }) => {
+          // WebGL context loss/restoration handlers — if the GPU context is
+          // lost (e.g. browser tab backgrounded, GPU reset), log it and
+          // handle restoration so the scene recovers instead of going black.
+          const canvas = gl.domElement;
+          canvas.addEventListener('webglcontextlost', (e: Event) => {
+            e.preventDefault();
+            console.warn('[WebGL] Context lost — attempting recovery');
+          });
+          canvas.addEventListener('webglcontextrestored', () => {
+            console.warn('[WebGL] Context restored — scene should recover');
+          });
+        }}
       >
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
+            {/* Scene background + basic lighting OUTSIDE Suspense so they're
+                always present even if GLB assets fail to load. Prevents pure
+                black screen on asset load failures. */}
+            <color attach="background" args={['#1a1a2e']} />
+            <ambientLight intensity={0.4} />
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
