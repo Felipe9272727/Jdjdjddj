@@ -57,8 +57,9 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* Tudo que oferecemos é\n  {y:gratuito}.{p}\n' +
       '* Só não tente sair com\n  nada na bolsa.',
     choices: [
+      { label: 'Comprar Lanterna - 0G', goto: 'buy_flashlight' },
+      { label: 'Comprar Biscoito - 0G', goto: 'buy_cookie' },
       { label: 'Café da casa  -  0G', goto: 'buy_coffee' },
-      { label: 'Biscoito      -  0G', goto: 'buy_cookie' },
       { label: 'Chave reserva -  ?G', goto: 'buy_key' },
       { label: 'Um andar a +  -  ∞G', goto: 'buy_floor' },
       { label: 'Lembrança     - 1?G', goto: 'buy_memory' },
@@ -96,6 +97,23 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '^^' +
       '* * Você guardou o biscoito\n  no bolso.{p:200}\n' +
       '* Vai ficar fresco até\n  você esquecer dele.',
+    choices: [{ label: 'Voltar.', goto: 'buy' }],
+  },
+
+  buy_flashlight: {
+    mood: 'wink',
+    text:
+      '* {y:Lanterna.}{p:200}\n' +
+      '* Essencial para hóspedes\n  curiosos.{p}\n' +
+      '* Ou azarados.\n' +
+      '^^' +
+      '* (Ele te entrega um tubo\n  metálico pesado.){p:300}\n' +
+      '* As pilhas já vêm\n  {y:inclusas}.{p:200}\n' +
+      '* Mas a luz...{p}\n' +
+      '* A luz tem vontade\n  própria.\n' +
+      '^^' +
+      '* * Você pegou a {y:Lanterna}.{p:200}\n' +
+      '* Não aponte para cantos\n  onde não quer ver\n  nada.',
     choices: [{ label: 'Voltar.', goto: 'buy' }],
   },
 

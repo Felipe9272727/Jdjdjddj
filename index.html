@@ -97390,8 +97390,9 @@ const SHOP_SCENES = {
     mood: "talk",
     text: "* {y:Loja da Recepção.}{p:300}\n* Tudo que oferecemos é\n  {y:gratuito}.{p}\n* Só não tente sair com\n  nada na bolsa.",
     choices: [
+      { label: "Comprar Lanterna - 0G", goto: "buy_flashlight" },
+      { label: "Comprar Biscoito - 0G", goto: "buy_cookie" },
       { label: "Café da casa  -  0G", goto: "buy_coffee" },
-      { label: "Biscoito      -  0G", goto: "buy_cookie" },
       { label: "Chave reserva -  ?G", goto: "buy_key" },
       { label: "Um andar a +  -  ∞G", goto: "buy_floor" },
       { label: "Lembrança     - 1?G", goto: "buy_memory" },
@@ -97406,6 +97407,11 @@ const SHOP_SCENES = {
   buy_cookie: {
     mood: "idle",
     text: "* {y:Biscoito.}{p:200}\n* Sempre fresco.{p}\n* Independente de quando\n  foi feito.\n^^* (Ele tira um biscoito de\n  baixo do balcão.){p:300}\n* O biscoito {f:lembra} um\n  formato.{p:200}\n* Talvez de coração.{p}\n* Talvez não.\n^^* * Você guardou o biscoito\n  no bolso.{p:200}\n* Vai ficar fresco até\n  você esquecer dele.",
+    choices: [{ label: "Voltar.", goto: "buy" }]
+  },
+  buy_flashlight: {
+    mood: "wink",
+    text: "* {y:Lanterna.}{p:200}\n* Essencial para hóspedes\n  curiosos.{p}\n* Ou azarados.\n^^* (Ele te entrega um tubo\n  metálico pesado.){p:300}\n* As pilhas já vêm\n  {y:inclusas}.{p:200}\n* Mas a luz...{p}\n* A luz tem vontade\n  própria.\n^^* * Você pegou a {y:Lanterna}.{p:200}\n* Não aponte para cantos\n  onde não quer ver\n  nada.",
     choices: [{ label: "Voltar.", goto: "buy" }]
   },
   buy_key: {
@@ -97667,6 +97673,7 @@ const ShopOverlay = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) =>
   const [phase, setPhase] = reactExports.useState("closing");
   const [selectedChoice, setSelectedChoice] = reactExports.useState(0);
   const [isLandscape, setIsLandscape] = reactExports.useState(false);
+  const [toastMessage, setToastMessage] = reactExports.useState(null);
   const typingRef = reactExports.useRef(null);
   const phaseTimersRef = reactExports.useRef([]);
   const mountedRef = reactExports.useRef(false);
@@ -98307,47 +98314,6 @@ const ElevatorDoor = ({ side, state: state2 }) => {
 };
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
-const RIGHT_ARM_PATTERNS = [
-  "mixamorig:rightarm",
-  "rightarm",
-  "right_arm",
-  "arm_r",
-  "upperarm_r",
-  "upperarmright",
-  "r_upperarm",
-  "rupperarm",
-  "upperarm.r",
-  "bip01_r_upperarm"
-];
-const RIGHT_FOREARM_PATTERNS = [
-  "mixamorig:rightforearm",
-  "rightforearm",
-  "right_forearm",
-  "forearm_r",
-  "lowerarm_r",
-  "lowerarmright",
-  "r_forearm",
-  "rforearm",
-  "forearm.r",
-  "lowerarm.r",
-  "bip01_r_forearm"
-];
-function findBoneByPatterns(root, patterns) {
-  let found = null;
-  root.traverse((c2) => {
-    if (found) return;
-    if (c2.isBone || c2.type === "Bone") {
-      const name2 = c2.name.toLowerCase();
-      for (const p2 of patterns) {
-        if (name2.includes(p2)) {
-          found = c2;
-          return;
-        }
-      }
-    }
-  });
-  return found;
-}
 const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL);
   const { animations: idleAnims } = useGLTF(IDLE_URL);
@@ -98358,21 +98324,9 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
     if (i2[0]) i2[0].name = "Idle";
     return [...i2, ...w];
   }, [walkAnims, idleAnims]), scene);
-  const hipsRef = reactExports.useRef(null);
-  const hipsBindRef = reactExports.useRef(null);
   const opRef = reactExports.useRef(1);
   const meshesRef = reactExports.useRef([]);
   const [groundY, setGroundY] = reactExports.useState(0);
-  const pickupTimeRef = reactExports.useRef(-1);
-  const lastPickupTriggerRef = reactExports.useRef(0);
-  const armBoneRef = reactExports.useRef(null);
-  const forearmBoneRef = reactExports.useRef(null);
-  const armOrigRotRef = reactExports.useRef(new Euler());
-  const forearmOrigRotRef = reactExports.useRef(new Euler());
-  const PICKUP_EXTEND = 0.3;
-  const PICKUP_HOLD = 0.5;
-  const PICKUP_RETRACT = 0.4;
-  const PICKUP_TOTAL = PICKUP_EXTEND + PICKUP_HOLD + PICKUP_RETRACT;
   reactExports.useEffect(() => {
     const meshes = [];
     scene.traverse((c2) => {
@@ -98388,12 +98342,6 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
         }
         meshes.push(c2);
       }
-      if ((c2.isBone || c2.type === "Bone") && !hipsRef.current) {
-        if (c2.name.toLowerCase().includes("hips") || c2.name.toLowerCase().includes("root")) {
-          hipsRef.current = c2;
-          hipsBindRef.current = c2.position.clone();
-        }
-      }
     });
     meshesRef.current = meshes;
     try {
@@ -98403,31 +98351,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
     } catch {
     }
   }, [scene]);
-  reactExports.useEffect(() => {
-    const arm = findBoneByPatterns(scene, RIGHT_ARM_PATTERNS);
-    const forearm = findBoneByPatterns(scene, RIGHT_FOREARM_PATTERNS);
-    armBoneRef.current = arm;
-    forearmBoneRef.current = forearm;
-    if (arm) {
-      armOrigRotRef.current.copy(arm.rotation);
-      console.log("[Avatar] Found arm bone:", arm.name);
-    }
-    if (forearm) {
-      forearmOrigRotRef.current.copy(forearm.rotation);
-    }
-  }, [scene]);
-  reactExports.useEffect(() => {
-    if (pickupTrigger !== lastPickupTriggerRef.current && pickupTrigger > 0) {
-      lastPickupTriggerRef.current = pickupTrigger;
-      pickupTimeRef.current = 0;
-      console.log("[Avatar] Pickup triggered:", pickupTrigger);
-    }
-  }, [pickupTrigger]);
   useFrame((s, dt2) => {
-    if (hipsRef.current && hipsBindRef.current) {
-      hipsRef.current.position.x = hipsBindRef.current.x;
-      hipsRef.current.position.z = hipsBindRef.current.z;
-    }
     const tgt = visible ? 1 : 0;
     opRef.current = MathUtils.lerp(opRef.current, tgt, 8 * dt2);
     const op = opRef.current;
@@ -98445,35 +98369,6 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
     if (o2) o2.fadeOut(0.2);
     if (a2) a2.reset().fadeIn(0.2).play();
   }, [animation, actions]);
-  useFrame((_, dt2) => {
-    if (pickupTimeRef.current < 0) return;
-    pickupTimeRef.current += Math.min(dt2, 0.05);
-    const t2 = pickupTimeRef.current;
-    if (t2 >= PICKUP_TOTAL) {
-      pickupTimeRef.current = -1;
-      if (armBoneRef.current) armBoneRef.current.rotation.copy(armOrigRotRef.current);
-      if (forearmBoneRef.current) forearmBoneRef.current.rotation.copy(forearmOrigRotRef.current);
-      console.log("[Avatar] Pickup animation complete");
-      return;
-    }
-    let ext = 0;
-    if (t2 < PICKUP_EXTEND) {
-      const p2 = t2 / PICKUP_EXTEND;
-      ext = 1 - Math.pow(1 - p2, 3);
-    } else if (t2 < PICKUP_EXTEND + PICKUP_HOLD) {
-      ext = 1;
-    } else {
-      const p2 = (t2 - PICKUP_EXTEND - PICKUP_HOLD) / PICKUP_RETRACT;
-      ext = 1 - p2 * p2;
-    }
-    if (armBoneRef.current) {
-      armBoneRef.current.rotation.x = armOrigRotRef.current.x - ext * 1.2;
-      armBoneRef.current.rotation.z = armOrigRotRef.current.z - ext * 0.15;
-    }
-    if (forearmBoneRef.current) {
-      forearmBoneRef.current.rotation.x = forearmOrigRotRef.current.x - ext * 0.6;
-    }
-  }, 1);
   return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }) });
 };
 const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0 }) => {

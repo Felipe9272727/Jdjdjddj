@@ -62,6 +62,7 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
   const [phase, setPhase] = useState<Phase>('closing');
   const [selectedChoice, setSelectedChoice] = useState(0);
   const [isLandscape, setIsLandscape] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const typingRef = useRef<number | null>(null);
   const phaseTimersRef = useRef<number[]>([]);
