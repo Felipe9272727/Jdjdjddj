@@ -33,8 +33,6 @@ import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient, EmptyLobb
 import { CeilingFan, WallClock, playArrivalDing, createElevatorHum } from './Atmosphere';
 import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue } from './HudComponents';
 import { SceneInspector } from './SceneInspector';
-import { useInventory, InventoryHUD } from './InventorySystem';
-import { FlashlightLight, FlashlightModel3D, FPFlashlightHand } from './FlashlightLight';
 
 
 const MAX_JOYSTICK_RADIUS = 50;
@@ -115,29 +113,6 @@ export default function App() {
   const lastHandledTimerRef = useRef<number | null>(null);
   const [arrivalPulse, setArrivalPulse] = useState(false);
 
-  // ─── BLACK SCREEN SAFETY: track when overlay went opaque ──────────────
-  // If overlayOpacity is stuck at 1 for >6s, force-reset it. This prevents
-  // permanent black screen from elevator timer race conditions (e.g. timer
-  // skipping from 19→16 without hitting the 17 reset).
-  const overlayWentOpaqueAt = useRef<number | null>(null);
-  useEffect(() => {
-    if (overlayOpacity >= 0.99) {
-      if (overlayWentOpaqueAt.current === null) overlayWentOpaqueAt.current = Date.now();
-    } else {
-      overlayWentOpaqueAt.current = null;
-    }
-  }, [overlayOpacity]);
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (overlayWentOpaqueAt.current !== null && Date.now() - overlayWentOpaqueAt.current > 6000) {
-        console.warn('[BlackScreen Failsafe] overlayOpacity stuck at 1 for >6s — force resetting');
-        setOverlayOpacity(0);
-        overlayWentOpaqueAt.current = null;
-      }
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
-
   const [gameState, setGameState] = useState<GameState>('lobby');
   const [barneyDialogueOpen, setBarneyDialogueOpen] = useState(false);
   const [barneyDialogueNode, setBarneyDialogueNode] = useState('greet');
@@ -146,67 +121,9 @@ export default function App() {
   const [nightMode, setNightMode] = useState(false);
   const [sleepFadeOpacity, setSleepFadeOpacity] = useState(0);
   const [jumpscare, setJumpscare] = useState(false);
-
-  // ─── BLACK SCREEN SAFETY: sleep fade failsafe ─────────────────────────
-  // If sleepFadeOpacity stuck at 1 for >8s, force reset (should take ~3.5s
-  // normally via scheduleTimeout in handleSleep).
-  const sleepFadeWentOpaqueAt = useRef<number | null>(null);
-  useEffect(() => {
-    if (sleepFadeOpacity >= 0.99) {
-      if (sleepFadeWentOpaqueAt.current === null) sleepFadeWentOpaqueAt.current = Date.now();
-    } else {
-      sleepFadeWentOpaqueAt.current = null;
-    }
-  }, [sleepFadeOpacity]);
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (sleepFadeWentOpaqueAt.current !== null && Date.now() - sleepFadeWentOpaqueAt.current > 8000) {
-        console.warn('[BlackScreen Failsafe] sleepFadeOpacity stuck at 1 for >8s — force resetting');
-        setSleepFadeOpacity(0);
-        sleepFadeWentOpaqueAt.current = null;
-      }
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
   const [doorOpenAmount, setDoorOpenAmount] = useState(0);
   const [insideElevator, setInsideElevator] = useState(false);
-
-  // ─── Inventory ─────────────────────────────────────────────────────────
-  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
-
-  // ─── Pickup animation state ────────────────────────────────────────────
-  const [pickupTrigger, setPickupTrigger] = useState(0);
-  const [pickupItem, setPickupItem] = useState<'flashlight' | 'cookie' | null>(null);
-
-  const triggerPickup = useCallback((item: 'flashlight' | 'cookie') => {
-    setPickupItem(item);
-    setPickupTrigger(prev => prev + 1);
-  }, []);
-
-  const handleBuyItem = useCallback((itemId: string) => {
-    inventoryAddItem(itemId);
-    if (itemId === 'flashlight' || itemId === 'cookie') {
-      triggerPickup(itemId);
-    }
-  }, [inventoryAddItem, triggerPickup]);
-
-  // Wrap toggleFlashlight: animate the arm only when EQUIPPING (turning on),
-  // not when stowing it away.
-  const handleToggleFlashlight = useCallback(() => {
-    if (inventory.flashlight.owned && !inventory.flashlight.active) {
-      triggerPickup('flashlight');
-    }
-    toggleFlashlight();
-  }, [inventory.flashlight.owned, inventory.flashlight.active, toggleFlashlight, triggerPickup]);
-
-  // Wrap useCookie: animate the arm when eating one.
-  const handleUseCookie = useCallback((): boolean => {
-    if (inventory.cookie.count > 0) {
-      triggerPickup('cookie');
-    }
-    return useCookie();
-  }, [inventory.cookie.count, useCookie, triggerPickup]);
-
+  
   const barneyRef = useRef(new Vector3(0, 0, 0));
   const barneyTargetRef = useRef({ x: 0, z: 6.8, scale: 0 });
   
@@ -477,14 +394,7 @@ export default function App() {
             }
             if (elevatorTimer !== lastHandledTimerRef.current) {
                 lastHandledTimerRef.current = elevatorTimer;
-                // Overlay: go black when entering travel phase (timer <= 19, >= 16).
-                // Use a guaranteed timeout to clear it instead of relying on
-                // timer===17 — prevents permanent black screen if timer skips.
-                if (elevatorTimer === 19) {
-                    setOverlayOpacity(1);
-                    // GUARANTEED CLEAR: force overlay off after 3s regardless of timer state
-                    scheduleTimeout(() => { setOverlayOpacity(0); }, 3000);
-                }
+                if (elevatorTimer === 19) { setOverlayOpacity(1); }
                 if (elevatorTimer === 18) {
                     if (nextElevatorDestination !== null) {
                         // Override (e.g. saved → level 2). Consume it.
@@ -651,7 +561,6 @@ export default function App() {
         case 'a': k.a=true; break;
         case 's': k.s=true; break;
         case 'd': k.d=true; break;
-        case 'f': handleToggleFlashlight(); break;
         case 'e':
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
@@ -704,26 +613,8 @@ export default function App() {
           toneMapping: ACESFilmicToneMapping,
           outputColorSpace: SRGBColorSpace,
         }}
-        onCreated={({ gl }) => {
-          // WebGL context loss/restoration handlers — if the GPU context is
-          // lost (e.g. browser tab backgrounded, GPU reset), log it and
-          // handle restoration so the scene recovers instead of going black.
-          const canvas = gl.domElement;
-          canvas.addEventListener('webglcontextlost', (e: Event) => {
-            e.preventDefault();
-            console.warn('[WebGL] Context lost — attempting recovery');
-          });
-          canvas.addEventListener('webglcontextrestored', () => {
-            console.warn('[WebGL] Context restored — scene should recover');
-          });
-        }}
       >
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            {/* Scene background + basic lighting OUTSIDE Suspense so they're
-                always present even if GLB assets fail to load. Prevents pure
-                black screen on asset load failures. */}
-            <color attach="background" args={['#1a1a2e']} />
-            <ambientLight intensity={0.4} />
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
@@ -732,32 +623,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} />
-            {/* ─── Flashlight 3D (conditional: only mount when owned) ─── */}
-            {hasStarted && inventory.flashlight.owned && (
-              <>
-                <FlashlightLight
-                  active={inventory.flashlight.active}
-                  owned={true}
-                  playerPositionRef={sharedPlayerPositionRef}
-                  cameraThetaRef={cameraThetaRef}
-                  zoomLevel={zoomLevel}
-                  nightMode={nightMode}
-                />
-                <FlashlightModel3D
-                  playerPositionRef={sharedPlayerPositionRef}
-                  cameraThetaRef={cameraThetaRef}
-                  active={inventory.flashlight.active}
-                  owned={true}
-                  zoomLevel={zoomLevel}
-                />
-                <FPFlashlightHand
-                  walking={playerAnimState === 'walking'}
-                  active={inventory.flashlight.active}
-                  owned={true}
-                />
-              </>
-            )}
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
             {botEnabled && (
                 <BotSystem
                     playerPositionRef={sharedPlayerPositionRef}
@@ -828,7 +694,6 @@ export default function App() {
       )}
 
       <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      {hasStarted && <InventoryHUD inventory={inventory} onToggleFlashlight={handleToggleFlashlight} onUseCookie={handleUseCookie} hasAnyItem={hasAnyItem} />}
       {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
       {/* ─── Bottom-center action buttons ─────────────────────────────────
           ABRIR/FALAR/DORMIR are mutually exclusive by game state, so they
@@ -896,7 +761,7 @@ export default function App() {
       {hasStarted && gameState === 'saved' && <SavedOverlay />}
       
       {barneyDialogueOpen && <BarneyDialogue dialogueNode={barneyDialogueNode} onResponse={handleBarneyResponse} />}
-      <ShopOverlay open={shopOpen} onClose={handleCloseShop} initialScene={shopInitialScene} onBuyItem={handleBuyItem} />
+      <ShopOverlay open={shopOpen} onClose={handleCloseShop} initialScene={shopInitialScene} />
     </div>
   );
 }

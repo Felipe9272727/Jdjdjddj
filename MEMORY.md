@@ -2068,3 +2068,58 @@ useFrame((_, dt) => {
 
 **Sistema de inventário:** estável, completo (lanterna + cookie), com pickup animation funcional.
 
+---
+
+## 🔄 Sessão 2026-05-12: Revert Total para `87da1a9` (index.html 4.44MB)
+
+### Contexto
+A famosa tela preta voltou em pleno LOBBY (FPS counter rodando, HUD visível, canvas todo preto). Felipe testou no celular — confirmou.
+
+### Causa raiz identificada
+`useFrame(..., 1)` (priority 1) reintroduzido em `14dc029` para rodar a rotação dos bones DEPOIS do AnimationMixer. R3F v9 desativa o auto-render do canvas quando qualquer `useFrame` tem priority não-zero:
+
+> "If you've set a priority anywhere in the application, the render-loop won't update automatically, you must call invalidate() and / or gl.render() yourself."
+
+Resultado: FPS counter continua rodando (callbacks executam), mas nada é desenhado → tela preta clássica.
+
+### Tentativa de fix (commits `66ba98c`, `42c9338`)
+1. `66ba98c` — trocou `createPortal` por sync via `matrixWorld` (para não tocar na hierarquia do esqueleto)
+2. `42c9338` — removeu `, 1)` do useFrame (priority volta a 0)
+
+**Não resolveu.** Felipe pediu pra fazer do zero a partir do build de 4.44MB que ele lembrava funcionar.
+
+### Ação: revert total para `87da1a9` (commit `fix(level2): add explicit wall list for floor 2`)
+- `git rm` dos arquivos adicionados depois (AGENT_CONTEXT.md, ARM-FORUM.md, assets/, FlashlightLight.tsx, InventorySystem.tsx, dist/, etc.)
+- `git checkout 87da1a9 -- .` — trouxe TUDO daquele commit
+- `MEMORY.md` e `AGENT_CONTEXT.md` preservados em `/tmp` e restaurados (mantêm histórico documentado)
+- `index.html` final: **4,444,052 bytes** ✅ (exatamente o que o Felipe pediu)
+
+### O que foi PERDIDO neste revert
+- ❌ Sistema de inventário (lanterna + cookie) — `InventorySystem.tsx`
+- ❌ Flashlight 3D + spotlight — `FlashlightLight.tsx`
+- ❌ Shop overhaul Undertale-style com dialogue engine
+- ❌ Pickup arm animation (manual bone manipulation)
+- ❌ Toda a evolução do shop (cashier, sprite, blink, etc.) DEPOIS de `87da1a9`
+- ❌ ARM-FORUM.md (discussão dos 4 agentes)
+- ❌ Vários reports (LAYOUT, AUDIT-REPORT, HARDEN, PERFORMANCE, UI-CHANGES) — não, esses foram mantidos porque estavam no `87da1a9`
+- ❌ Plugin `vite-plugin-singlefile` no `vite.config.ts` — voltou pra config antiga
+
+### O que CONTINUA
+- ✅ Lobby completo, NPC Supervisor, Dussekar, móveis
+- ✅ HouseEnv, Barney Actor, level 2
+- ✅ Multiplayer, chat, bots
+- ✅ Audio engine, atmosphere effects
+- ✅ Settings, quality profiles
+- ✅ MEMORY.md, MAP.md, AUDIT.md (preservados)
+
+### Próximos passos (Felipe vai pedir mais)
+O Felipe disse "vc vai ter que fazer mais pedi" — significa que vai pedir as features pra adicionar de volta uma por uma. Provavelmente:
+1. Sistema de inventário simples (lanterna + cookie)
+2. Shop melhorado
+3. Pickup arm animation — mas SEM `useFrame(..., 1)` e SEM mexer em hierarquia de esqueleto
+
+### Lição CRÍTICA (anotar pra próxima sessão)
+- **NUNCA** usar `useFrame(..., priority != 0)` neste projeto. R3F v9 desativa auto-render.
+- **NUNCA** anexar meshes diretamente em bones do esqueleto via `createPortal` ou `bone.add()` — interfere com skinning.
+- Bone manipulation em `useFrame` priority 0 está OK, **desde que** o useAnimations seja chamado antes (a ordem dos hooks garante mixer roda primeiro).
+
