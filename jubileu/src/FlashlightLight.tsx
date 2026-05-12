@@ -45,16 +45,21 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
     // Smooth distance lerp
     spot.distance = THREE.MathUtils.lerp(spot.distance, targetDistance, lerpSpeed);
 
-    // Position the spotlight at the player's head
+    // Origin: world position of the right-hand bone (published by the
+    // avatar each frame). Falls back to the player's center if that
+    // hasn't been populated yet — only happens for the first frame or
+    // two before the GLTF skeleton finishes loading.
     const pp = playerPositionRef.current;
-    const headY = 1.6;
-    spot.position.set(pp.x, headY, pp.z);
+    const px = pp.x;
+    const py = pp.y > 0.05 ? pp.y : 1.2; // bone Y is real-world; default if zero
+    const pz = pp.z;
+    spot.position.set(px, py, pz);
 
     // Target follows camera direction
     const theta = cameraThetaRef.current;
     const lookDist = 5;
     _dir.set(-Math.sin(theta), -0.15, -Math.cos(theta)).normalize();
-    _targetPos.set(pp.x + _dir.x * lookDist, headY + _dir.y * lookDist, pp.z + _dir.z * lookDist);
+    _targetPos.set(px + _dir.x * lookDist, py + _dir.y * lookDist, pz + _dir.z * lookDist);
     target.position.copy(_targetPos);
     spot.target = target;
 
@@ -65,12 +70,12 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
       (cone.material as THREE.MeshBasicMaterial).opacity = coneOpacityRef.current;
       cone.visible = coneOpacityRef.current > 0.005;
 
-      // Position cone at player head, pointing in camera direction
+      // Position cone at the hand, pointing in camera direction
       const coneLen = nightMode ? 8 : 5;
       cone.position.set(
-        pp.x + _dir.x * (coneLen * 0.5),
-        headY + _dir.y * (coneLen * 0.5),
-        pp.z + _dir.z * (coneLen * 0.5),
+        px + _dir.x * (coneLen * 0.5),
+        py + _dir.y * (coneLen * 0.5),
+        pz + _dir.z * (coneLen * 0.5),
       );
       cone.lookAt(_targetPos);
       // Scale the cone to match the spotlight spread

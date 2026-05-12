@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, Loader } from '@react-three/drei';
-import { Vector3, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
+import { Vector3, Quaternion, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 
 // ─── Error Boundary for Canvas ─────────────────────────────────────────────
 class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
@@ -34,7 +34,7 @@ import { CeilingFan, WallClock, playArrivalDing, createElevatorHum } from './Atm
 import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue } from './HudComponents';
 import { SceneInspector } from './SceneInspector';
 import { useInventory, InventoryHUD } from './InventorySystem';
-import { FlashlightLight, FlashlightModel3D, FPFlashlightHand } from './FlashlightLight';
+import { FlashlightLight, FPFlashlightHand } from './FlashlightLight';
 import { PickupAnimator } from './PickupAnimation';
 
 
@@ -95,6 +95,11 @@ export default function App() {
   const keysRef = useRef({ w: false, a: false, s: false, d: false });
   const sharedPlayerPositionRef = useRef(new Vector3(0, 0, 8));
   const sharedRotationYRef = useRef(0);
+  // The avatar publishes its right-hand bone's world transform each frame
+  // here so the flashlight system can sample the actual hand position
+  // instead of approximating with player+offset.
+  const rightHandWorldPosRef = useRef(new Vector3());
+  const rightHandWorldQuatRef = useRef(new Quaternion());
   // Camera azimuth (theta) populated by Player every frame; used by the bot to
   // convert world-space targets into camera-relative moveInput.
   const cameraThetaRef = useRef(Math.PI);
@@ -156,6 +161,14 @@ export default function App() {
 
   // ─── Inventory ─────────────────────────────────────────────────────────
   const { inventory, inventoryRef, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect, pickupAnim, clearPickupAnim } = useInventory();
+  // What the avatar's right hand should be holding RIGHT NOW. During the
+  // pickup animation we keep the hand empty so the floating PickupAnimator
+  // mesh is the only visible item; once the lerp finishes (pickupAnim is
+  // nulled), the bone-attached version takes over.
+  const heldItem: 'flashlight' | 'cookie' | null =
+    pickupAnim ? null :
+    inventory.flashlight.owned ? 'flashlight' :
+    null;
 
   const handleElevatorZoneChange = useCallback((inside: boolean) => {
       setInsideElevator(inside);
@@ -630,13 +643,17 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} heldItem={heldItem} flashlightOn={inventory.flashlight.active} rightHandWorldPosRef={rightHandWorldPosRef} rightHandWorldQuatRef={rightHandWorldQuatRef} />
             {/* ─── Flashlight 3D ─────────────────────────────────────── */}
-            {hasStarted && inventory.flashlight.owned && <FlashlightLight active={inventory.flashlight.active} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} zoomLevel={zoomLevel} nightMode={nightMode} />}
-            {/* Hide the static held flashlight model while the pickup
-                animation is flying the item INTO the hand — otherwise we'd
-                render two flashlights for a moment. */}
-            {hasStarted && inventory.flashlight.owned && zoomLevel >= 0.5 && !pickupAnim && <FlashlightModel3D playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} active={inventory.flashlight.active} zoomLevel={zoomLevel} />}
+            {/* SpotLight emits from the hand's world position (not the
+                player's center) — the avatar publishes that each frame.
+                Uses cameraThetaRef for aim direction so the cone always
+                follows the look vector. */}
+            {hasStarted && inventory.flashlight.owned && !pickupAnim && <FlashlightLight active={inventory.flashlight.active} playerPositionRef={rightHandWorldPosRef} cameraThetaRef={cameraThetaRef} zoomLevel={zoomLevel} nightMode={nightMode} />}
+            {/* The previous FlashlightModel3D approximation is replaced
+                by a mesh attached to the avatar's right-hand bone (see
+                Player.tsx Avatar). That moves naturally with the
+                walking/idle animation — the floating problem is gone. */}
             {hasStarted && zoomLevel < 0.5 && inventory.flashlight.owned && inventory.flashlight.active && <FPFlashlightHand walking={playerAnimState === 'walking'} active={inventory.flashlight.active} />}
             {/* Procedural pickup: item floats from in front of the player
                 to their right hand over ~1.1s. Lives in the Canvas tree so
