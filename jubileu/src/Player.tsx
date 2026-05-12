@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { useThree, useFrame } from '@react-three/fiber';
+import { useThree, useFrame, createPortal } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
@@ -9,36 +9,77 @@ import { resolveCollision as _resolve } from './physics';
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
 
+export type PickupItemType = 'flashlight' | 'cookie' | null;
+
 // ─── Bone patterns — exact match first, then substring fallback ────────
 const ARM_BONE_EXACT = ['mixamorig:rightarm', 'rightarm', 'right_arm', 'arm_r', 'upperarm_r', 'r_upperarm', 'rupperarm'];
 const ARM_BONE_SUBSTR = ['rightarm', 'upperarm.r', 'bip01_r_upperarm'];
 const FOREARM_BONE_EXACT = ['mixamorig:rightforearm', 'rightforearm', 'right_forearm', 'forearm_r', 'lowerarm_r', 'r_forearm', 'rforearm'];
 const FOREARM_BONE_SUBSTR = ['rightforearm', 'forearm.r', 'bip01_r_forearm'];
+const HAND_BONE_EXACT = ['mixamorig:righthand', 'righthand', 'right_hand', 'hand_r', 'r_hand', 'rhand'];
+const HAND_BONE_SUBSTR = ['righthand', 'hand.r', 'bip01_r_hand'];
 
 function findArmBones(scene: THREE.Object3D) {
   let rightArm: THREE.Bone | null = null;
   let rightForeArm: THREE.Bone | null = null;
+  let rightHand: THREE.Bone | null = null;
   scene.traverse((child: any) => {
     if (!child.isBone) return;
     const name = child.name.toLowerCase();
     // Exact match priority (avoids RightArmTwist, RightArmHelper, etc.)
     if (!rightArm && ARM_BONE_EXACT.includes(name)) { rightArm = child; return; }
     if (!rightForeArm && FOREARM_BONE_EXACT.includes(name)) { rightForeArm = child; return; }
+    if (!rightHand && HAND_BONE_EXACT.includes(name)) { rightHand = child; return; }
     // Substring fallback
     if (!rightArm && ARM_BONE_SUBSTR.some(p => name.includes(p))) rightArm = child;
     if (!rightForeArm && FOREARM_BONE_SUBSTR.some(p => name.includes(p))) rightForeArm = child;
+    if (!rightHand && HAND_BONE_SUBSTR.some(p => name.includes(p))) rightHand = child;
   });
-  return { rightArm, rightForeArm };
+  return { rightArm, rightForeArm, rightHand };
 }
+
+// ─── HeldItem: tiny 3D model that lives inside the RightHand bone ───────
+// Scale is divided by the GLB's outer scale (30) so it renders at "world size".
+const HAND_LOCAL_SCALE = 1 / 30;
+const HeldFlashlight: React.FC<{ visible: boolean }> = ({ visible }) => (
+  <group visible={visible} scale={HAND_LOCAL_SCALE} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+    <mesh position={[0, 0, 0]}>
+      <cylinderGeometry args={[0.025, 0.025, 0.16, 10]} />
+      <meshStandardMaterial color="#2a2a2e" metalness={0.85} roughness={0.2} />
+    </mesh>
+    <mesh position={[0, 0.1, 0]}>
+      <cylinderGeometry args={[0.035, 0.028, 0.05, 10]} />
+      <meshStandardMaterial color="#3a3a3e" metalness={0.7} roughness={0.25} />
+    </mesh>
+    <mesh position={[0, 0.13, 0]}>
+      <circleGeometry args={[0.032, 12]} />
+      <meshStandardMaterial color="#FFF9C4" emissive="#FFF9C4" emissiveIntensity={1.5} toneMapped={false} />
+    </mesh>
+  </group>
+);
+const HeldCookie: React.FC<{ visible: boolean }> = ({ visible }) => (
+  <group visible={visible} scale={HAND_LOCAL_SCALE} position={[0, 0.04, 0]}>
+    <mesh>
+      <cylinderGeometry args={[0.05, 0.05, 0.018, 16]} />
+      <meshStandardMaterial color="#D2A06B" roughness={0.85} />
+    </mesh>
+    {/* chocolate chips */}
+    <mesh position={[0.022, 0.012, 0]}><sphereGeometry args={[0.008, 8, 6]} /><meshStandardMaterial color="#4A2310" roughness={0.7} /></mesh>
+    <mesh position={[-0.018, 0.012, 0.018]}><sphereGeometry args={[0.007, 8, 6]} /><meshStandardMaterial color="#4A2310" roughness={0.7} /></mesh>
+    <mesh position={[0.005, 0.012, -0.022]}><sphereGeometry args={[0.0075, 8, 6]} /><meshStandardMaterial color="#4A2310" roughness={0.7} /></mesh>
+    <mesh position={[-0.025, 0.012, -0.01]}><sphereGeometry args={[0.006, 8, 6]} /><meshStandardMaterial color="#4A2310" roughness={0.7} /></mesh>
+  </group>
+);
 
 // Easing functions
 function easeOutCubic(t: number) { return 1 - Math.pow(1 - t, 3); }
 function easeInCubic(t: number) { return t * t * t; }
 
-const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
+const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = null }: {
   animation: 'Idle' | 'Walking';
   visible?: boolean;
   pickupTrigger?: number;
+  pickupItem?: PickupItemType;
 }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
@@ -50,6 +91,8 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
   const opRef = useRef(1.0);
   const meshesRef = useRef<any[]>([]);
   const [groundY, setGroundY] = useState(0);
+  const [handBone, setHandBone] = useState<THREE.Bone | null>(null);
+  const [showHandItem, setShowHandItem] = useState(false);
 
   // Pickup state — pre-allocated quaternions, zero GC pressure
   const pickupRef = useRef({
@@ -70,7 +113,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
 
   // Find bones once when scene loads
   useEffect(() => {
-    const { rightArm, rightForeArm } = findArmBones(scene);
+    const { rightArm, rightForeArm, rightHand } = findArmBones(scene);
     if (rightArm && rightForeArm) {
       pickupRef.current.armBone = rightArm;
       pickupRef.current.foreArmBone = rightForeArm;
@@ -78,6 +121,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
     } else {
       console.warn('[Avatar] Could not find arm bones. Found:', { rightArm: !!rightArm, rightForeArm: !!rightForeArm });
     }
+    if (rightHand) setHandBone(rightHand);
   }, [scene]);
 
   // Detect pickupTrigger changes — ignore if already animating
@@ -87,6 +131,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
       if (!pickupRef.current.active) {
         pickupRef.current.active = true;
         pickupRef.current.elapsed = 0;
+        setShowHandItem(true);
       }
     }
   }, [pickupTrigger]);
@@ -134,6 +179,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
     } else {
       p.active = false;
       progress = 0;
+      setShowHandItem(false);
     }
 
     const maxAngle = -Math.PI * 0.44;
@@ -176,6 +222,13 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: {
   return (
     <group>
       <primitive object={scene} scale={[30, 30, 30]} position={[0, groundY, 0]} />
+      {handBone && createPortal(
+        <>
+          <HeldFlashlight visible={showHandItem && pickupItem === 'flashlight'} />
+          <HeldCookie visible={showHandItem && pickupItem === 'cookie'} />
+        </>,
+        handBone
+      )}
     </group>
   );
 };
@@ -203,9 +256,10 @@ interface PlayerProps {
   positionCmdRef: React.MutableRefObject<{ x: number; y: number; z: number } | null>;
   onElevatorZoneChange: (inside: boolean) => void;
   pickupTrigger?: number;
+  pickupItem?: PickupItemType;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0 }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, pickupItem = null }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -337,5 +391,5 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
     }
   });
-  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} /></group>);
+  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} pickupItem={pickupItem} /></group>);
 };

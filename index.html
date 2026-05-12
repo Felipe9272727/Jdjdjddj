@@ -63168,6 +63168,89 @@ function unmountComponentAtNode(canvas, callback) {
     });
   }
 }
+function createPortal(children, container, state2) {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(Portal, {
+    children,
+    container,
+    state: state2
+  });
+}
+function Portal({
+  state: state2 = {},
+  children,
+  container
+}) {
+  const {
+    events,
+    size,
+    ...rest
+  } = state2;
+  const previousRoot = useStore$1();
+  const [raycaster] = reactExports.useState(() => new Raycaster());
+  const [pointer] = reactExports.useState(() => new Vector2());
+  const inject = useMutableCallback((rootState, injectState) => {
+    let viewport = void 0;
+    if (injectState.camera && size) {
+      const camera = injectState.camera;
+      viewport = rootState.viewport.getCurrentViewport(camera, new Vector3(), size);
+      if (camera !== rootState.camera) updateCamera(camera, size);
+    }
+    return {
+      // The intersect consists of the previous root state
+      ...rootState,
+      ...injectState,
+      // Portals have their own scene, which forms the root, a raycaster and a pointer
+      scene: container,
+      raycaster,
+      pointer,
+      mouse: pointer,
+      // Their previous root is the layer before it
+      previousRoot,
+      // Events, size and viewport can be overridden by the inject layer
+      events: {
+        ...rootState.events,
+        ...injectState.events,
+        ...events
+      },
+      size: {
+        ...rootState.size,
+        ...size
+      },
+      viewport: {
+        ...rootState.viewport,
+        ...viewport
+      },
+      // Layers are allowed to override events
+      setEvents: (events2) => injectState.set((state3) => ({
+        ...state3,
+        events: {
+          ...state3.events,
+          ...events2
+        }
+      }))
+    };
+  });
+  const usePortalStore = reactExports.useMemo(() => {
+    const store = createWithEqualityFn((set, get) => ({
+      ...rest,
+      set,
+      get
+    }));
+    const onMutate = (prev) => store.setState((state3) => inject.current(prev, state3));
+    onMutate(previousRoot.getState());
+    previousRoot.subscribe(onMutate);
+    return store;
+  }, [previousRoot, container]);
+  return (
+    // @ts-ignore, reconciler types are not maintained
+    /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, {
+      children: reconciler.createPortal(/* @__PURE__ */ jsxRuntimeExports.jsx(context.Provider, {
+        value: usePortalStore,
+        children
+      }), usePortalStore, null)
+    })
+  );
+}
 const globalEffects = /* @__PURE__ */ new Set();
 const globalAfterEffects = /* @__PURE__ */ new Set();
 const globalTailEffects = /* @__PURE__ */ new Set();
@@ -92494,9 +92577,12 @@ const ARM_BONE_EXACT = ["mixamorig:rightarm", "rightarm", "right_arm", "arm_r", 
 const ARM_BONE_SUBSTR = ["rightarm", "upperarm.r", "bip01_r_upperarm"];
 const FOREARM_BONE_EXACT = ["mixamorig:rightforearm", "rightforearm", "right_forearm", "forearm_r", "lowerarm_r", "r_forearm", "rforearm"];
 const FOREARM_BONE_SUBSTR = ["rightforearm", "forearm.r", "bip01_r_forearm"];
+const HAND_BONE_EXACT = ["mixamorig:righthand", "righthand", "right_hand", "hand_r", "r_hand", "rhand"];
+const HAND_BONE_SUBSTR = ["righthand", "hand.r", "bip01_r_hand"];
 function findArmBones(scene) {
   let rightArm = null;
   let rightForeArm = null;
+  let rightHand = null;
   scene.traverse((child) => {
     if (!child.isBone) return;
     const name2 = child.name.toLowerCase();
@@ -92508,18 +92594,60 @@ function findArmBones(scene) {
       rightForeArm = child;
       return;
     }
+    if (!rightHand && HAND_BONE_EXACT.includes(name2)) {
+      rightHand = child;
+      return;
+    }
     if (!rightArm && ARM_BONE_SUBSTR.some((p2) => name2.includes(p2))) rightArm = child;
     if (!rightForeArm && FOREARM_BONE_SUBSTR.some((p2) => name2.includes(p2))) rightForeArm = child;
+    if (!rightHand && HAND_BONE_SUBSTR.some((p2) => name2.includes(p2))) rightHand = child;
   });
-  return { rightArm, rightForeArm };
+  return { rightArm, rightForeArm, rightHand };
 }
+const HAND_LOCAL_SCALE = 1 / 30;
+const HeldFlashlight = ({ visible }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { visible, scale: HAND_LOCAL_SCALE, rotation: [Math.PI / 2, 0, 0], position: [0, 0.05, 0], children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.025, 0.025, 0.16, 10] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2a2a2e", metalness: 0.85, roughness: 0.2 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.1, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.035, 0.028, 0.05, 10] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a3a3e", metalness: 0.7, roughness: 0.25 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.13, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.032, 12] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFF9C4", emissive: "#FFF9C4", emissiveIntensity: 1.5, toneMapped: false })
+  ] })
+] });
+const HeldCookie = ({ visible }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { visible, scale: HAND_LOCAL_SCALE, position: [0, 0.04, 0], children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.05, 0.05, 0.018, 16] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D2A06B", roughness: 0.85 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.022, 0.012, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [8e-3, 8, 6] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4A2310", roughness: 0.7 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-0.018, 0.012, 0.018], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [7e-3, 8, 6] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4A2310", roughness: 0.7 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [5e-3, 0.012, -0.022], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [75e-4, 8, 6] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4A2310", roughness: 0.7 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-0.025, 0.012, -0.01], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [6e-3, 8, 6] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4A2310", roughness: 0.7 })
+  ] })
+] });
 function easeOutCubic(t2) {
   return 1 - Math.pow(1 - t2, 3);
 }
 function easeInCubic(t2) {
   return t2 * t2 * t2;
 }
-const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
+const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = null }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL);
   const { animations: idleAnims } = useGLTF(IDLE_URL);
   const { actions } = useAnimations(reactExports.useMemo(() => {
@@ -92532,6 +92660,8 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
   const opRef = reactExports.useRef(1);
   const meshesRef = reactExports.useRef([]);
   const [groundY, setGroundY] = reactExports.useState(0);
+  const [handBone, setHandBone] = reactExports.useState(null);
+  const [showHandItem, setShowHandItem] = reactExports.useState(false);
   const pickupRef = reactExports.useRef({
     active: false,
     elapsed: 0,
@@ -92548,7 +92678,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
     foreArmEuler: new Euler()
   });
   reactExports.useEffect(() => {
-    const { rightArm, rightForeArm } = findArmBones(scene);
+    const { rightArm, rightForeArm, rightHand } = findArmBones(scene);
     if (rightArm && rightForeArm) {
       pickupRef.current.armBone = rightArm;
       pickupRef.current.foreArmBone = rightForeArm;
@@ -92556,6 +92686,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
     } else {
       console.warn("[Avatar] Could not find arm bones. Found:", { rightArm: !!rightArm, rightForeArm: !!rightForeArm });
     }
+    if (rightHand) setHandBone(rightHand);
   }, [scene]);
   reactExports.useEffect(() => {
     if (pickupTrigger > 0 && pickupTrigger !== pickupRef.current.lastTrigger) {
@@ -92563,6 +92694,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
       if (!pickupRef.current.active) {
         pickupRef.current.active = true;
         pickupRef.current.elapsed = 0;
+        setShowHandItem(true);
       }
     }
   }, [pickupTrigger]);
@@ -92608,6 +92740,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
     } else {
       p2.active = false;
       progress = 0;
+      setShowHandItem(false);
     }
     const maxAngle = -Math.PI * 0.44;
     const armAngle = maxAngle * progress;
@@ -92639,9 +92772,18 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }) => {
     if (o2) o2.fadeOut(0.2);
     if (a2) a2.reset().fadeIn(0.2).play();
   }, [animation, actions]);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }),
+    handBone && createPortal(
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(HeldFlashlight, { visible: showHandItem && pickupItem === "flashlight" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(HeldCookie, { visible: showHandItem && pickupItem === "cookie" })
+      ] }),
+      handBone
+    )
+  ] });
 };
-const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0 }) => {
+const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, pickupItem = null }) => {
   const { camera, size } = useThree();
   const pos = reactExports.useRef(new Vector3(0, 0, 8));
   const charRot = reactExports.useRef(new Euler(0, Math.PI, 0));
@@ -92831,7 +92973,7 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       }
     }
   });
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Avatar, { animation: anim, visible: !dialogueOpen, pickupTrigger }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Avatar, { animation: anim, visible: !dialogueOpen, pickupTrigger, pickupItem }) });
 };
 const TextureMaterial = React.memo(({ url, color = "#ffffff", repeat: repeat2 = [1, 1], roughness = 0.8, metalness = 0, bumpScale = 0, transparent = false, opacity = 1, rotation: rotation2 = 0 }) => {
   const rawTexture = useTexture(url);
@@ -96737,10 +96879,29 @@ function App() {
   const [insideElevator, setInsideElevator] = reactExports.useState(false);
   const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem } = useInventory();
   const [pickupTrigger, setPickupTrigger] = reactExports.useState(0);
+  const [pickupItem, setPickupItem] = reactExports.useState(null);
+  const triggerPickup = reactExports.useCallback((item) => {
+    setPickupItem(item);
+    setPickupTrigger((prev) => prev + 1);
+  }, []);
   const handleBuyItem = reactExports.useCallback((itemId) => {
     inventoryAddItem(itemId);
-    setPickupTrigger((prev) => prev + 1);
-  }, [inventoryAddItem]);
+    if (itemId === "flashlight" || itemId === "cookie") {
+      triggerPickup(itemId);
+    }
+  }, [inventoryAddItem, triggerPickup]);
+  const handleToggleFlashlight = reactExports.useCallback(() => {
+    if (inventory.flashlight.owned && !inventory.flashlight.active) {
+      triggerPickup("flashlight");
+    }
+    toggleFlashlight();
+  }, [inventory.flashlight.owned, inventory.flashlight.active, toggleFlashlight, triggerPickup]);
+  const handleUseCookie = reactExports.useCallback(() => {
+    if (inventory.cookie.count > 0) {
+      triggerPickup("cookie");
+    }
+    return useCookie();
+  }, [inventory.cookie.count, useCookie, triggerPickup]);
   const barneyRef = reactExports.useRef(new Vector3(0, 0, 0));
   const barneyTargetRef = reactExports.useRef({ x: 0, z: 6.8, scale: 0 });
   const npcPositionRef = reactExports.useRef(new Vector3(5, 0, 5));
@@ -97231,7 +97392,7 @@ function App() {
           k2.d = true;
           break;
         case "f":
-          toggleFlashlight();
+          handleToggleFlashlight();
           break;
         case "e":
           if (canInteractCashier) handleOpenShop();
@@ -97315,7 +97476,7 @@ function App() {
           /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.4 }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
           visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger, pickupItem }),
           hasStarted && inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               FlashlightLight,
@@ -97401,7 +97562,7 @@ function App() {
       )
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsMenu, { open: settingsOpen, onClose: () => setSettingsOpen(false) }),
-    hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(InventoryHUD, { inventory, onToggleFlashlight: toggleFlashlight, onUseCookie: useCookie, hasAnyItem }),
+    hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(InventoryHUD, { inventory, onToggleFlashlight: handleToggleFlashlight, onUseCookie: handleUseCookie, hasAnyItem }),
     hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(VisualJoystick, { active: joystickVisual.active, x: joystickVisual.currentX, y: joystickVisual.currentY, origin: { x: joystickVisual.originX, y: joystickVisual.originY } }),
     hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && !shopOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
       ActionButton,

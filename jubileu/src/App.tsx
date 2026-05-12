@@ -176,11 +176,36 @@ export default function App() {
 
   // ─── Pickup animation state ────────────────────────────────────────────
   const [pickupTrigger, setPickupTrigger] = useState(0);
+  const [pickupItem, setPickupItem] = useState<'flashlight' | 'cookie' | null>(null);
+
+  const triggerPickup = useCallback((item: 'flashlight' | 'cookie') => {
+    setPickupItem(item);
+    setPickupTrigger(prev => prev + 1);
+  }, []);
 
   const handleBuyItem = useCallback((itemId: string) => {
     inventoryAddItem(itemId);
-    setPickupTrigger(prev => prev + 1);
-  }, [inventoryAddItem]);
+    if (itemId === 'flashlight' || itemId === 'cookie') {
+      triggerPickup(itemId);
+    }
+  }, [inventoryAddItem, triggerPickup]);
+
+  // Wrap toggleFlashlight: animate the arm only when EQUIPPING (turning on),
+  // not when stowing it away.
+  const handleToggleFlashlight = useCallback(() => {
+    if (inventory.flashlight.owned && !inventory.flashlight.active) {
+      triggerPickup('flashlight');
+    }
+    toggleFlashlight();
+  }, [inventory.flashlight.owned, inventory.flashlight.active, toggleFlashlight, triggerPickup]);
+
+  // Wrap useCookie: animate the arm when eating one.
+  const handleUseCookie = useCallback((): boolean => {
+    if (inventory.cookie.count > 0) {
+      triggerPickup('cookie');
+    }
+    return useCookie();
+  }, [inventory.cookie.count, useCookie, triggerPickup]);
 
   const barneyRef = useRef(new Vector3(0, 0, 0));
   const barneyTargetRef = useRef({ x: 0, z: 6.8, scale: 0 });
@@ -626,7 +651,7 @@ export default function App() {
         case 'a': k.a=true; break;
         case 's': k.s=true; break;
         case 'd': k.d=true; break;
-        case 'f': toggleFlashlight(); break;
+        case 'f': handleToggleFlashlight(); break;
         case 'e':
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
@@ -707,7 +732,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} />
             {/* ─── Flashlight 3D (conditional: only mount when owned) ─── */}
             {hasStarted && inventory.flashlight.owned && (
               <>
@@ -803,7 +828,7 @@ export default function App() {
       )}
 
       <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      {hasStarted && <InventoryHUD inventory={inventory} onToggleFlashlight={toggleFlashlight} onUseCookie={useCookie} hasAnyItem={hasAnyItem} />}
+      {hasStarted && <InventoryHUD inventory={inventory} onToggleFlashlight={handleToggleFlashlight} onUseCookie={handleUseCookie} hasAnyItem={hasAnyItem} />}
       {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
       {/* ─── Bottom-center action buttons ─────────────────────────────────
           ABRIR/FALAR/DORMIR are mutually exclusive by game state, so they
