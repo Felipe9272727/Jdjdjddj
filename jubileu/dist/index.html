@@ -92649,7 +92649,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
       p2.localMat.decompose(item.position, item.quaternion, item.scale);
       item.visible = true;
     }
-  }, 1);
+  });
   useFrame((s, dt2) => {
     const tgt = visible ? 1 : 0;
     opRef.current = MathUtils.lerp(opRef.current, tgt, 8 * dt2);

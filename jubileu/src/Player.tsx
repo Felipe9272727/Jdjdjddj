@@ -191,7 +191,11 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
       p.localMat.decompose(item.position, item.quaternion, item.scale);
       item.visible = true;
     }
-  }, 1); // Priority 1 = runs after animation mixer (priority 0)
+  });
+  // Priority 0 (default). R3F v9: any useFrame with priority != 0 disables
+  // auto-render, causing a black screen. Order is preserved because the
+  // useAnimations hook (which drives the mixer) is registered earlier in
+  // this component, so its internal useFrame runs first.
 
   // Opacity fade animation (still needs useFrame for smooth lerp)
   useFrame((s, dt) => {
