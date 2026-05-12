@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { useThree, useFrame, createPortal } from '@react-three/fiber';
+import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
@@ -26,11 +26,9 @@ function findArmBones(scene: THREE.Object3D) {
   scene.traverse((child: any) => {
     if (!child.isBone) return;
     const name = child.name.toLowerCase();
-    // Exact match priority (avoids RightArmTwist, RightArmHelper, etc.)
     if (!rightArm && ARM_BONE_EXACT.includes(name)) { rightArm = child; return; }
     if (!rightForeArm && FOREARM_BONE_EXACT.includes(name)) { rightForeArm = child; return; }
     if (!rightHand && HAND_BONE_EXACT.includes(name)) { rightHand = child; return; }
-    // Substring fallback
     if (!rightArm && ARM_BONE_SUBSTR.some(p => name.includes(p))) rightArm = child;
     if (!rightForeArm && FOREARM_BONE_SUBSTR.some(p => name.includes(p))) rightForeArm = child;
     if (!rightHand && HAND_BONE_SUBSTR.some(p => name.includes(p))) rightHand = child;
@@ -38,38 +36,10 @@ function findArmBones(scene: THREE.Object3D) {
   return { rightArm, rightForeArm, rightHand };
 }
 
-// ─── HeldItem: tiny 3D model that lives inside the RightHand bone ───────
-// Scale is divided by the GLB's outer scale (30) so it renders at "world size".
-const HAND_LOCAL_SCALE = 1 / 30;
-const HeldFlashlight: React.FC<{ visible: boolean }> = ({ visible }) => (
-  <group visible={visible} scale={HAND_LOCAL_SCALE} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
-    <mesh position={[0, 0, 0]}>
-      <cylinderGeometry args={[0.025, 0.025, 0.16, 10]} />
-      <meshStandardMaterial color="#2a2a2e" metalness={0.85} roughness={0.2} />
-    </mesh>
-    <mesh position={[0, 0.1, 0]}>
-      <cylinderGeometry args={[0.035, 0.028, 0.05, 10]} />
-      <meshStandardMaterial color="#3a3a3e" metalness={0.7} roughness={0.25} />
-    </mesh>
-    <mesh position={[0, 0.13, 0]}>
-      <circleGeometry args={[0.032, 12]} />
-      <meshStandardMaterial color="#FFF9C4" emissive="#FFF9C4" emissiveIntensity={1.5} toneMapped={false} />
-    </mesh>
-  </group>
-);
-const HeldCookie: React.FC<{ visible: boolean }> = ({ visible }) => (
-  <group visible={visible} scale={HAND_LOCAL_SCALE} position={[0, 0.04, 0]}>
-    <mesh>
-      <cylinderGeometry args={[0.05, 0.05, 0.018, 16]} />
-      <meshStandardMaterial color="#D2A06B" roughness={0.85} />
-    </mesh>
-    {/* chocolate chips */}
-    <mesh position={[0.022, 0.012, 0]}><sphereGeometry args={[0.008, 8, 6]} /><meshStandardMaterial color="#4A2310" roughness={0.7} /></mesh>
-    <mesh position={[-0.018, 0.012, 0.018]}><sphereGeometry args={[0.007, 8, 6]} /><meshStandardMaterial color="#4A2310" roughness={0.7} /></mesh>
-    <mesh position={[0.005, 0.012, -0.022]}><sphereGeometry args={[0.0075, 8, 6]} /><meshStandardMaterial color="#4A2310" roughness={0.7} /></mesh>
-    <mesh position={[-0.025, 0.012, -0.01]}><sphereGeometry args={[0.006, 8, 6]} /><meshStandardMaterial color="#4A2310" roughness={0.7} /></mesh>
-  </group>
-);
+// ─── Held item meshes are rendered as siblings of the avatar group and
+// follow the right-hand bone via matrixWorld copy (no portal/bone.add).
+// This avoids interfering with the GLB skeleton hierarchy that caused a
+// black-screen regression when meshes were portaled inside the bone.
 
 // Easing functions
 function easeOutCubic(t: number) { return 1 - Math.pow(1 - t, 3); }
@@ -91,8 +61,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
   const opRef = useRef(1.0);
   const meshesRef = useRef<any[]>([]);
   const [groundY, setGroundY] = useState(0);
-  const [handBone, setHandBone] = useState<THREE.Bone | null>(null);
-  const [showHandItem, setShowHandItem] = useState(false);
+  const heldItemRef = useRef<THREE.Group>(null);
 
   // Pickup state — pre-allocated quaternions, zero GC pressure
   const pickupRef = useRef({
@@ -100,6 +69,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
     elapsed: 0,
     armBone: null as THREE.Bone | null,
     foreArmBone: null as THREE.Bone | null,
+    handBone: null as THREE.Bone | null,
     bonesFound: false,
     lastTrigger: 0,
     // Pre-allocated objects — reused every frame, never cloned
@@ -109,6 +79,11 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
     foreArmDelta: new THREE.Quaternion(),
     armEuler: new THREE.Euler(),
     foreArmEuler: new THREE.Euler(),
+    handPos: new THREE.Vector3(),
+    handQuat: new THREE.Quaternion(),
+    handScale: new THREE.Vector3(),
+    parentInv: new THREE.Matrix4(),
+    localMat: new THREE.Matrix4(),
   });
 
   // Find bones once when scene loads
@@ -121,7 +96,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
     } else {
       console.warn('[Avatar] Could not find arm bones. Found:', { rightArm: !!rightArm, rightForeArm: !!rightForeArm });
     }
-    if (rightHand) setHandBone(rightHand);
+    pickupRef.current.handBone = rightHand;
   }, [scene]);
 
   // Detect pickupTrigger changes — ignore if already animating
@@ -131,7 +106,6 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
       if (!pickupRef.current.active) {
         pickupRef.current.active = true;
         pickupRef.current.elapsed = 0;
-        setShowHandItem(true);
       }
     }
   }, [pickupTrigger]);
@@ -160,7 +134,12 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
   // Reads the mixer's pose, applies rotation delta on top
   useFrame((_, dt) => {
     const p = pickupRef.current;
-    if (!p.active || !p.bonesFound || !p.armBone || !p.foreArmBone) return;
+    const item = heldItemRef.current;
+
+    if (!p.active || !p.bonesFound || !p.armBone || !p.foreArmBone) {
+      if (item && item.visible) item.visible = false;
+      return;
+    }
 
     const safeDt = Math.min(dt, 0.05);
     p.elapsed += safeDt;
@@ -179,7 +158,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
     } else {
       p.active = false;
       progress = 0;
-      setShowHandItem(false);
+      if (item) item.visible = false;
     }
 
     const maxAngle = -Math.PI * 0.44;
@@ -199,6 +178,19 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
     // Post-multiply: mixer_pose × delta = local space rotation
     p.armBone.quaternion.copy(p.armQuat).multiply(p.armDelta);
     p.foreArmBone.quaternion.copy(p.foreArmQuat).multiply(p.foreArmDelta);
+
+    // Sync held item to hand bone. Item is a sibling of the GLB, not a
+    // child of the bone — avoids touching the skeleton hierarchy. Convert
+    // bone.matrixWorld → item.parent local space so it renders where the
+    // hand is in world coordinates.
+    if (item && p.handBone && pickupItem && item.parent) {
+      p.handBone.updateMatrixWorld(true);
+      item.parent.updateMatrixWorld(true);
+      p.parentInv.copy(item.parent.matrixWorld).invert();
+      p.localMat.multiplyMatrices(p.parentInv, p.handBone.matrixWorld);
+      p.localMat.decompose(item.position, item.quaternion, item.scale);
+      item.visible = true;
+    }
   }, 1); // Priority 1 = runs after animation mixer (priority 0)
 
   // Opacity fade animation (still needs useFrame for smooth lerp)
@@ -222,13 +214,31 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
   return (
     <group>
       <primitive object={scene} scale={[30, 30, 30]} position={[0, groundY, 0]} />
-      {handBone && createPortal(
-        <>
-          <HeldFlashlight visible={showHandItem && pickupItem === 'flashlight'} />
-          <HeldCookie visible={showHandItem && pickupItem === 'cookie'} />
-        </>,
-        handBone
-      )}
+      {/* Held item — rendered as sibling, transform driven by useFrame from RightHand bone */}
+      <group ref={heldItemRef} visible={false}>
+        {pickupItem === 'flashlight' && (
+          <group rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.05]}>
+            <mesh>
+              <cylinderGeometry args={[0.025, 0.025, 0.16, 10]} />
+              <meshStandardMaterial color="#2a2a2e" metalness={0.85} roughness={0.2} />
+            </mesh>
+            <mesh position={[0, 0.1, 0]}>
+              <cylinderGeometry args={[0.035, 0.028, 0.05, 10]} />
+              <meshStandardMaterial color="#3a3a3e" metalness={0.7} roughness={0.25} />
+            </mesh>
+            <mesh position={[0, 0.13, 0]}>
+              <circleGeometry args={[0.032, 12]} />
+              <meshStandardMaterial color="#FFF9C4" emissive="#FFF9C4" emissiveIntensity={1.2} toneMapped={false} />
+            </mesh>
+          </group>
+        )}
+        {pickupItem === 'cookie' && (
+          <mesh position={[0, 0, 0.04]}>
+            <cylinderGeometry args={[0.05, 0.05, 0.018, 16]} />
+            <meshStandardMaterial color="#D2A06B" roughness={0.85} />
+          </mesh>
+        )}
+      </group>
     </group>
   );
 };

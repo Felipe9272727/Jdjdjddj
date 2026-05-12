@@ -63168,89 +63168,6 @@ function unmountComponentAtNode(canvas, callback) {
     });
   }
 }
-function createPortal(children, container, state2) {
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(Portal, {
-    children,
-    container,
-    state: state2
-  });
-}
-function Portal({
-  state: state2 = {},
-  children,
-  container
-}) {
-  const {
-    events,
-    size,
-    ...rest
-  } = state2;
-  const previousRoot = useStore$1();
-  const [raycaster] = reactExports.useState(() => new Raycaster());
-  const [pointer] = reactExports.useState(() => new Vector2());
-  const inject = useMutableCallback((rootState, injectState) => {
-    let viewport = void 0;
-    if (injectState.camera && size) {
-      const camera = injectState.camera;
-      viewport = rootState.viewport.getCurrentViewport(camera, new Vector3(), size);
-      if (camera !== rootState.camera) updateCamera(camera, size);
-    }
-    return {
-      // The intersect consists of the previous root state
-      ...rootState,
-      ...injectState,
-      // Portals have their own scene, which forms the root, a raycaster and a pointer
-      scene: container,
-      raycaster,
-      pointer,
-      mouse: pointer,
-      // Their previous root is the layer before it
-      previousRoot,
-      // Events, size and viewport can be overridden by the inject layer
-      events: {
-        ...rootState.events,
-        ...injectState.events,
-        ...events
-      },
-      size: {
-        ...rootState.size,
-        ...size
-      },
-      viewport: {
-        ...rootState.viewport,
-        ...viewport
-      },
-      // Layers are allowed to override events
-      setEvents: (events2) => injectState.set((state3) => ({
-        ...state3,
-        events: {
-          ...state3.events,
-          ...events2
-        }
-      }))
-    };
-  });
-  const usePortalStore = reactExports.useMemo(() => {
-    const store = createWithEqualityFn((set, get) => ({
-      ...rest,
-      set,
-      get
-    }));
-    const onMutate = (prev) => store.setState((state3) => inject.current(prev, state3));
-    onMutate(previousRoot.getState());
-    previousRoot.subscribe(onMutate);
-    return store;
-  }, [previousRoot, container]);
-  return (
-    // @ts-ignore, reconciler types are not maintained
-    /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, {
-      children: reconciler.createPortal(/* @__PURE__ */ jsxRuntimeExports.jsx(context.Provider, {
-        value: usePortalStore,
-        children
-      }), usePortalStore, null)
-    })
-  );
-}
 const globalEffects = /* @__PURE__ */ new Set();
 const globalAfterEffects = /* @__PURE__ */ new Set();
 const globalTailEffects = /* @__PURE__ */ new Set();
@@ -92604,43 +92521,6 @@ function findArmBones(scene) {
   });
   return { rightArm, rightForeArm, rightHand };
 }
-const HAND_LOCAL_SCALE = 1 / 30;
-const HeldFlashlight = ({ visible }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { visible, scale: HAND_LOCAL_SCALE, rotation: [Math.PI / 2, 0, 0], position: [0, 0.05, 0], children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.025, 0.025, 0.16, 10] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2a2a2e", metalness: 0.85, roughness: 0.2 })
-  ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.1, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.035, 0.028, 0.05, 10] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a3a3e", metalness: 0.7, roughness: 0.25 })
-  ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.13, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.032, 12] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFF9C4", emissive: "#FFF9C4", emissiveIntensity: 1.5, toneMapped: false })
-  ] })
-] });
-const HeldCookie = ({ visible }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { visible, scale: HAND_LOCAL_SCALE, position: [0, 0.04, 0], children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.05, 0.05, 0.018, 16] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D2A06B", roughness: 0.85 })
-  ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.022, 0.012, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [8e-3, 8, 6] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4A2310", roughness: 0.7 })
-  ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-0.018, 0.012, 0.018], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [7e-3, 8, 6] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4A2310", roughness: 0.7 })
-  ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [5e-3, 0.012, -0.022], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [75e-4, 8, 6] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4A2310", roughness: 0.7 })
-  ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-0.025, 0.012, -0.01], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [6e-3, 8, 6] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4A2310", roughness: 0.7 })
-  ] })
-] });
 function easeOutCubic(t2) {
   return 1 - Math.pow(1 - t2, 3);
 }
@@ -92660,13 +92540,13 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
   const opRef = reactExports.useRef(1);
   const meshesRef = reactExports.useRef([]);
   const [groundY, setGroundY] = reactExports.useState(0);
-  const [handBone, setHandBone] = reactExports.useState(null);
-  const [showHandItem, setShowHandItem] = reactExports.useState(false);
+  const heldItemRef = reactExports.useRef(null);
   const pickupRef = reactExports.useRef({
     active: false,
     elapsed: 0,
     armBone: null,
     foreArmBone: null,
+    handBone: null,
     bonesFound: false,
     lastTrigger: 0,
     // Pre-allocated objects — reused every frame, never cloned
@@ -92675,7 +92555,12 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
     armDelta: new Quaternion(),
     foreArmDelta: new Quaternion(),
     armEuler: new Euler(),
-    foreArmEuler: new Euler()
+    foreArmEuler: new Euler(),
+    handPos: new Vector3(),
+    handQuat: new Quaternion(),
+    handScale: new Vector3(),
+    parentInv: new Matrix4(),
+    localMat: new Matrix4()
   });
   reactExports.useEffect(() => {
     const { rightArm, rightForeArm, rightHand } = findArmBones(scene);
@@ -92686,7 +92571,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
     } else {
       console.warn("[Avatar] Could not find arm bones. Found:", { rightArm: !!rightArm, rightForeArm: !!rightForeArm });
     }
-    if (rightHand) setHandBone(rightHand);
+    pickupRef.current.handBone = rightHand;
   }, [scene]);
   reactExports.useEffect(() => {
     if (pickupTrigger > 0 && pickupTrigger !== pickupRef.current.lastTrigger) {
@@ -92694,7 +92579,6 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
       if (!pickupRef.current.active) {
         pickupRef.current.active = true;
         pickupRef.current.elapsed = 0;
-        setShowHandItem(true);
       }
     }
   }, [pickupTrigger]);
@@ -92724,7 +92608,11 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
   }, [scene]);
   useFrame((_, dt2) => {
     const p2 = pickupRef.current;
-    if (!p2.active || !p2.bonesFound || !p2.armBone || !p2.foreArmBone) return;
+    const item = heldItemRef.current;
+    if (!p2.active || !p2.bonesFound || !p2.armBone || !p2.foreArmBone) {
+      if (item && item.visible) item.visible = false;
+      return;
+    }
     const safeDt = Math.min(dt2, 0.05);
     p2.elapsed += safeDt;
     const EXTEND_END = 0.3;
@@ -92740,7 +92628,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
     } else {
       p2.active = false;
       progress = 0;
-      setShowHandItem(false);
+      if (item) item.visible = false;
     }
     const maxAngle = -Math.PI * 0.44;
     const armAngle = maxAngle * progress;
@@ -92753,6 +92641,14 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
     p2.foreArmDelta.setFromEuler(p2.foreArmEuler);
     p2.armBone.quaternion.copy(p2.armQuat).multiply(p2.armDelta);
     p2.foreArmBone.quaternion.copy(p2.foreArmQuat).multiply(p2.foreArmDelta);
+    if (item && p2.handBone && pickupItem && item.parent) {
+      p2.handBone.updateMatrixWorld(true);
+      item.parent.updateMatrixWorld(true);
+      p2.parentInv.copy(item.parent.matrixWorld).invert();
+      p2.localMat.multiplyMatrices(p2.parentInv, p2.handBone.matrixWorld);
+      p2.localMat.decompose(item.position, item.quaternion, item.scale);
+      item.visible = true;
+    }
   }, 1);
   useFrame((s, dt2) => {
     const tgt = visible ? 1 : 0;
@@ -92774,13 +92670,26 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, pickupItem = nul
   }, [animation, actions]);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }),
-    handBone && createPortal(
-      /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(HeldFlashlight, { visible: showHandItem && pickupItem === "flashlight" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(HeldCookie, { visible: showHandItem && pickupItem === "cookie" })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: heldItemRef, visible: false, children: [
+      pickupItem === "flashlight" && /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { rotation: [Math.PI / 2, 0, 0], position: [0, 0, 0.05], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.025, 0.025, 0.16, 10] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2a2a2e", metalness: 0.85, roughness: 0.2 })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.1, 0], children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.035, 0.028, 0.05, 10] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a3a3e", metalness: 0.7, roughness: 0.25 })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.13, 0], children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.032, 12] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFF9C4", emissive: "#FFF9C4", emissiveIntensity: 1.2, toneMapped: false })
+        ] })
       ] }),
-      handBone
-    )
+      pickupItem === "cookie" && /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.04], children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.05, 0.05, 0.018, 16] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#D2A06B", roughness: 0.85 })
+      ] })
+    ] })
   ] });
 };
 const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, pickupItem = null }) => {
