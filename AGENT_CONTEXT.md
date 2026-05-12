@@ -16,26 +16,38 @@ Three.js + React Three Fiber horror game. Source: `jubileu/src/`
 The GLB models use Mixamo-style skeleton. Bone names likely have `mixamorig:` prefix.
 The Avatar component already finds hips bones: `c.name.toLowerCase().includes('hips')`.
 
-## Current Bugs
-1. When buying flashlight, player avatar disappears for a few milliseconds
-2. PickupArm bone manipulation doesn't work (bones not found)
-3. The previous AI added a "shop sprite blink" feature that wasn't requested — it's a visual enhancement, not a bug fix
+## Current Bugs — Status (atualizado 2026-05-12)
+1. ✅ **RESOLVIDO** — Avatar disappearing on flashlight purchase
+   - Fix: `useCallback` no `handleAvatarScene` em `App.tsx` (commit `a33bfb4`)
+   - Reforço: 5 defensive measures contra black screen (commit `8e80d1d`)
+2. ✅ **RESOLVIDO** — PickupArm bone manipulation
+   - Bone matching: exact match + substring fallback (commit `bebadd3`)
+   - Spam guard: ignora `pickupTrigger` durante animação ativa
+   - Pre-allocated quaternions/eulers: zero GC pressure (commit `14dc029`)
+3. ⚠️ **MANTIDO** — Shop sprite blink: leve, sem custo perceptível, ficou no código
 
-## What We Need
-1. Player arm extends procedurally when picking up items (WITHOUT breaking existing walk/idle GLB animations)
-2. Character doesn't disappear when buying items
-3. Clean, working inventory system
+## Implementação Atual (Player.tsx)
+A solução vencedora — depois de um experimento falho com AnimationClip + `setLayer(1)` que descobriu-se não estar disponível nessa versão do Three.js:
 
-## Technical Approach for Arm Animation
-The THREE.js animation system runs AnimationMixer.update() each frame. To add procedural bone manipulation ON TOP of existing animations:
-1. Let the mixer update normally (applies walk/idle)
-2. AFTER mixer update, find arm bones and override their rotation
-3. Use `useFrame` with proper ordering — procedural override must happen AFTER the animation system
+```ts
+useFrame((_, dt) => {
+  // ... 3-phase timing: extend (0.3s ease-out) → hold (0.5s) → retract (0.4s ease-in)
+  p.armQuat.copy(p.armBone.quaternion);              // lê pose do mixer
+  p.armEuler.set(armAngle, 0, 0);
+  p.armDelta.setFromEuler(p.armEuler);
+  p.armBone.quaternion.copy(p.armQuat).multiply(p.armDelta);  // post-multiply
+}, 1); // Priority 1 = depois do mixer (priority 0)
+```
 
-To find bones: `scene.traverse(c => { if (c.isBone && c.name.toLowerCase().includes('arm')) ... })`
+**Bones detectados**: `mixamorig:RightArm`, `mixamorig:RightForeArm`.
+**Max angle**: `-π × 0.44` no shoulder, 30% disso no forearm.
+
+## ARM-FORUM.md
+Documentação completa da discussão entre 4 agentes (VETERANO, OSSÁRIO, GAMBIARRA, AUDITORK) que produziu os fixes acima. A solução proposta (AnimationClip programática em layer 1) falhou em runtime — `setLayer()` não existia na versão do Three.js. As lições do fórum (pre-alloc, exact match, spam guard) ficaram.
 
 ## Build
 ```bash
-cd jubileu && npm run build && node inline-build.mjs
-# Then commit + push to feat/inventory-polish-v3
+cd jubileu && npm run build:reproducible
+# index.html é regerado pelo inline-build.mjs / vite-plugin-singlefile
+# Commitar source + index.html juntos
 ```

@@ -1952,3 +1952,119 @@ Se a animação do braço não funcionar, verifique o console:
 2. Se usar fallback procedural, o braço é renderizado como mesh simples
 3. Considerar naming patterns alternativos para bones do Bacon Hair GLB
 
+---
+
+## 🔧 Sessão 2026-05-10: Shop System + Inventory + Pickup Animation Rebuild
+
+### O que foi feito
+Reconstrução completa do sistema de loja com inventário e animação de pickup, mais limpeza de manipulação de bones legada.
+
+### Commits relevantes
+- `9aec52a` — fix: complete bone manipulation removal from Player.tsx
+- `2c0f8dd` — feat: implement shop system with inventory, flashlight and pickup animation
+- `96adb27` — feat: add arm pickup animation using post-mixer bone rotation
+
+### Mudanças principais (96adb27)
+- Detecta bones do Mixamo (RightArm, RightForeArm) percorrendo a cena
+- `useFrame` priority 1 aplica rotação dos bones **depois** do animation mixer
+- Animação suave em 3 fases: extend (0.3s ease-out) → hold (0.5s) → retract (0.4s ease-in)
+- Rotação como quaternion delta sobre o transform atual do mixer
+- Fallback gracioso se bones não forem encontrados (warning, sem crash)
+- Não quebra as animações Idle/Walking existentes
+
+---
+
+## 🧠 Sessão 2026-05-10: ARM-FORUM — 4 Agentes Debatem Solução do Braço
+
+### Contexto
+A primeira tentativa de animar o braço falhou em casos limite. Em vez de tentar mais hacks, foi montado um **fórum entre 4 sub-agentes** com personalidades distintas para debater a melhor abordagem.
+
+### Participantes
+| Agente | Personalidade | Foco |
+|--------|--------------|------|
+| 🔴 **VETERANO** | Pragmático, anti-frescura | Performance, código de produção, GC pressure |
+| 🦴 **OSSÁRIO** | Técnico raiz Three.js | Por dentro do PropertyBinding, mixer, skeleton |
+| 🤪 **GAMBIARRA** | Criativo, simples | Workarounds, alternativas (overlay 2D, GLB extra) |
+| 🔍 **AUDITORK** | Auditor | Verifica claims contra código real |
+
+### Conclusões do fórum (ver `ARM-FORUM.md`)
+**Solução escolhida (na teoria):** `AnimationClip` programática com `setLayer(1)`
+- Layer 1 sobrepõe Idle/Walking (layer 0) sem conflito
+- Zero manipulação manual por frame
+- `QuaternionKeyframeTrack` para RightArm + RightForeArm
+- `LoopOnce + clampWhenFinished + fadeIn(0.1)`
+
+### Fixes aplicados (bebadd3 — antes do experimento de layer)
+- **M1**: bone matching exato primeiro, substring como fallback (evita `RightArmTwist`/`RightArmHelper`)
+- **M2**: spam guard — ignora `pickupTrigger` durante animação ativa
+- **M3**: quaternions pré-alocados (`armQuat`, `foreArmQuat`, `armDelta`, `foreArmDelta`, `armEuler`, `foreArmEuler`) — zero `.clone()` por frame
+
+### Black-Screen fix paralelo (8e80d1d)
+4 agentes (Detetive, Engenheiro, Designer, Arquiteto) — 5 medidas defensivas:
+1. Remover `StrictMode` (causa double-mount WebGL bugs)
+2. Garantir clear do overlay do elevador via timeout 3s
+3. Failsafe — se `overlayOpacity` ficar em 1 por >6s, força reset
+4. Failsafe — se `sleepFadeOpacity` ficar em 1 por >8s, força reset
+5. WebGL context loss/restore handlers no Canvas
+6. `<color>` e `<ambientLight>` fora do `<Suspense>` (background sempre presente)
+
+---
+
+## 🔧 Sessão 2026-05-11: AnimationClip Layer → REVERT pra Manual
+
+### Tentativa: AnimationClip programática (44086b1)
+- Criado `createPickupClip()` com `QuaternionKeyframeTrack` para RightArm/RightForeArm
+- `AnimationAction` em layer 1, blendando sobre Idle/Walking em layer 0
+- Removidas ~50 linhas de manipulação manual de bones
+- **Promessa**: zero GC, mixer cuida de tudo
+
+### Por que falhou (23e325c → 14dc029)
+- `setLayer()` **não existe** nessa versão do Three.js usada no projeto
+- Tentativa intermediária: **mixer separado** apenas pro pickup
+- Falhou com **PropertyBinding path mismatch** — o mixer separado não consegue resolver os bones do scene graph original
+- AUDITORK havia avisado: claim do OSSÁRIO de que `setLayer()` funciona no drei era falsa **nessa versão**
+
+### Solução final (14dc029) — Manual com lições do fórum
+Voltou para manipulação manual de bones via `useFrame` priority 1, mas com os 3 fixes do fórum mantidos:
+1. ✅ Bone matching exato + substring fallback
+2. ✅ Spam guard (`isAnimating` flag)
+3. ✅ Quaternions/eulers pré-alocados — zero GC pressure
+4. ✅ Post-multiply `mixer_pose × delta` = rotação em espaço local do bone
+
+### Arquivo final
+`jubileu/src/Player.tsx`:
+```ts
+// Pre-allocated objects — reused every frame, never cloned
+armQuat, foreArmQuat, armDelta, foreArmDelta, armEuler, foreArmEuler
+
+useFrame((_, dt) => {
+  // ... 3-phase animation timing ...
+  p.armEuler.set(armAngle, 0, 0);
+  p.armDelta.setFromEuler(p.armEuler);
+  p.armBone.quaternion.copy(p.armQuat).multiply(p.armDelta);  // post-multiply
+}, 1); // Priority 1 = runs after animation mixer (priority 0)
+```
+
+### Build/Deploy
+- Builds inline rebuildados: `b0b71ed`, `9b31e46`, `989d304`
+- Plugin novo: `vite-plugin-singlefile` (substitui `inline-build.mjs` manual em alguns pontos)
+- index.html final: ~4.5MB
+
+### Lição aprendida
+- ❌ Confiar em APIs sem verificar na versão exata do package (Three.js evolui rápido)
+- ✅ O fórum gerou ideias **boas** (pre-alloc, exact match, spam guard) mesmo quando a ideia principal não foi viável
+- ✅ AUDITORK estava certo em desconfiar: sempre verifique claims em **runtime**
+- 🎯 Manual com cuidado > AnimationClip mal-suportada
+
+---
+
+## 📋 Status dos Bugs Listados em `AGENT_CONTEXT.md`
+
+| # | Bug | Status | Commit que resolveu |
+|---|-----|--------|---------------------|
+| 1 | Avatar somia ao comprar lanterna | ✅ Resolvido | `a33bfb4` (useCallback no `onAvatarScene`) + `8e80d1d` (5 defensive measures) |
+| 2 | PickupArm não animava (bones não encontrados) | ✅ Resolvido | `bebadd3` (M1: exact match) + `14dc029` (final manual implementation) |
+| 3 | Shop sprite blink não solicitado | ⚠️ Mantido | Permaneceu no código — leve, sem custo |
+
+**Sistema de inventário:** estável, completo (lanterna + cookie), com pickup animation funcional.
+
