@@ -29,6 +29,12 @@ export function useInventory() {
   const [notification, setNotification] = useState<string | null>(null);
   const notifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Pickup animation state — drives the item-floats-into-hand effect in
+  // PickupAnimator. Cleared by the animator itself once the lerp finishes
+  // (see onComplete wiring in App.tsx).
+  const [pickupAnim, setPickupAnim] = useState<{ itemId: 'flashlight' | 'cookie'; startedAt: number } | null>(null);
+  const clearPickupAnim = useCallback(() => setPickupAnim(null), []);
+
   const showNotification = useCallback((msg: string) => {
     if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
     setNotification(msg);
@@ -38,18 +44,26 @@ export function useInventory() {
   useEffect(() => () => { if (notifTimerRef.current) clearTimeout(notifTimerRef.current); }, []);
 
   const addItem = useCallback((itemId: string) => {
+    let fired = false;
     setInventory(prev => {
       const next = { ...prev };
       if (itemId === 'flashlight' && !prev.flashlight.owned) {
         next.flashlight = { owned: true, active: false };
         showNotification('🔦 Lanterna obtida!');
+        fired = true;
       }
       if (itemId === 'cookie') {
         next.cookie = { count: prev.cookie.count + 1 };
         showNotification('🍪 Biscoito obtido!');
+        fired = true;
       }
       return next;
     });
+    // Kick off the "item floats into hand" animation. The animator nulls
+    // it on completion via clearPickupAnim.
+    if (fired && (itemId === 'flashlight' || itemId === 'cookie')) {
+      setPickupAnim({ itemId, startedAt: performance.now() });
+    }
   }, [showNotification]);
 
   // Cookie consume visual effect state
@@ -87,7 +101,7 @@ export function useInventory() {
 
   const hasAnyItem = inventory.flashlight.owned || inventory.cookie.count > 0;
 
-  return { inventory, inventoryRef, addItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect };
+  return { inventory, inventoryRef, addItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect, pickupAnim, clearPickupAnim };
 }
 
 // ─── InventoryHUD Component ───────────────────────────────────────────────

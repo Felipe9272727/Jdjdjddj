@@ -35,6 +35,7 @@ import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, Chase
 import { SceneInspector } from './SceneInspector';
 import { useInventory, InventoryHUD } from './InventorySystem';
 import { FlashlightLight, FlashlightModel3D, FPFlashlightHand } from './FlashlightLight';
+import { PickupAnimator } from './PickupAnimation';
 
 
 const MAX_JOYSTICK_RADIUS = 50;
@@ -154,7 +155,7 @@ export default function App() {
   const [doorSoundTrigger, setDoorSoundTrigger] = useState(0);
 
   // ─── Inventory ─────────────────────────────────────────────────────────
-  const { inventory, inventoryRef, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect } = useInventory();
+  const { inventory, inventoryRef, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect, pickupAnim, clearPickupAnim } = useInventory();
 
   const handleElevatorZoneChange = useCallback((inside: boolean) => {
       setInsideElevator(inside);
@@ -632,8 +633,15 @@ export default function App() {
             <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
             {/* ─── Flashlight 3D ─────────────────────────────────────── */}
             {hasStarted && inventory.flashlight.owned && <FlashlightLight active={inventory.flashlight.active} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} zoomLevel={zoomLevel} nightMode={nightMode} />}
-            {hasStarted && inventory.flashlight.owned && zoomLevel >= 0.5 && <FlashlightModel3D playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} active={inventory.flashlight.active} zoomLevel={zoomLevel} />}
+            {/* Hide the static held flashlight model while the pickup
+                animation is flying the item INTO the hand — otherwise we'd
+                render two flashlights for a moment. */}
+            {hasStarted && inventory.flashlight.owned && zoomLevel >= 0.5 && !pickupAnim && <FlashlightModel3D playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} active={inventory.flashlight.active} zoomLevel={zoomLevel} />}
             {hasStarted && zoomLevel < 0.5 && inventory.flashlight.owned && inventory.flashlight.active && <FPFlashlightHand walking={playerAnimState === 'walking'} active={inventory.flashlight.active} />}
+            {/* Procedural pickup: item floats from in front of the player
+                to their right hand over ~1.1s. Lives in the Canvas tree so
+                it can read player position / camera angle each frame. */}
+            <PickupAnimator pickup={pickupAnim} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} onComplete={clearPickupAnim} />
             {botEnabled && (
                 <BotSystem
                     playerPositionRef={sharedPlayerPositionRef}

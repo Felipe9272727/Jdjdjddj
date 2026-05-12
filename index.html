@@ -101786,6 +101786,8 @@ function useInventory() {
   inventoryRef.current = inventory;
   const [notification, setNotification] = reactExports.useState(null);
   const notifTimerRef = reactExports.useRef(null);
+  const [pickupAnim, setPickupAnim] = reactExports.useState(null);
+  const clearPickupAnim = reactExports.useCallback(() => setPickupAnim(null), []);
   const showNotification = reactExports.useCallback((msg) => {
     if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
     setNotification(msg);
@@ -101795,18 +101797,24 @@ function useInventory() {
     if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
   }, []);
   const addItem = reactExports.useCallback((itemId) => {
+    let fired = false;
     setInventory((prev) => {
       const next = { ...prev };
       if (itemId === "flashlight" && !prev.flashlight.owned) {
         next.flashlight = { owned: true, active: false };
         showNotification("🔦 Lanterna obtida!");
+        fired = true;
       }
       if (itemId === "cookie") {
         next.cookie = { count: prev.cookie.count + 1 };
         showNotification("🍪 Biscoito obtido!");
+        fired = true;
       }
       return next;
     });
+    if (fired && (itemId === "flashlight" || itemId === "cookie")) {
+      setPickupAnim({ itemId, startedAt: performance.now() });
+    }
   }, [showNotification]);
   const [cookieEffect, setCookieEffect] = reactExports.useState(false);
   const cookieTimerRef = reactExports.useRef(null);
@@ -101838,7 +101846,7 @@ function useInventory() {
     if (cookieTimerRef.current) clearTimeout(cookieTimerRef.current);
   }, []);
   const hasAnyItem = inventory.flashlight.owned || inventory.cookie.count > 0;
-  return { inventory, inventoryRef, addItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect };
+  return { inventory, inventoryRef, addItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect, pickupAnim, clearPickupAnim };
 }
 const CookieBadge = ({ count, onUse }) => {
   const [anim, setAnim] = reactExports.useState(false);
@@ -102273,6 +102281,91 @@ const FPFlashlightHand = ({ walking, active }) => {
     ] })
   ] });
 };
+const DURATION_MS = 1100;
+const PickupAnimator = ({
+  pickup,
+  playerPositionRef,
+  cameraThetaRef,
+  onComplete
+}) => {
+  const groupRef = reactExports.useRef(null);
+  const completedRef = reactExports.useRef(false);
+  const start = reactExports.useMemo(() => new Vector3(), []);
+  const end = reactExports.useMemo(() => new Vector3(), []);
+  const cur = reactExports.useMemo(() => new Vector3(), []);
+  useFrame(() => {
+    if (!pickup || !groupRef.current) return;
+    const t2 = Math.min(1, (performance.now() - pickup.startedAt) / DURATION_MS);
+    const eased = 1 - Math.pow(1 - t2, 3);
+    const pp = playerPositionRef.current;
+    const theta = cameraThetaRef.current;
+    const fx = -Math.sin(theta);
+    const fz = -Math.cos(theta);
+    const rx = Math.sin(theta - Math.PI / 2);
+    const rz = Math.cos(theta - Math.PI / 2);
+    start.set(pp.x + fx * 1.5, 1.3, pp.z + fz * 1.5);
+    end.set(pp.x + rx * 0.32 + fx * 0.18, 0.85, pp.z + rz * 0.32 + fz * 0.18);
+    cur.lerpVectors(start, end, eased);
+    const g2 = groupRef.current;
+    g2.position.copy(cur);
+    g2.rotation.y = theta + Math.PI;
+    const wobble = (1 - eased) * 0.6;
+    g2.rotation.x = Math.sin(t2 * 8) * wobble;
+    g2.rotation.z = t2 * Math.PI * 1.5;
+    const s = MathUtils.lerp(0.4, 1, eased);
+    g2.scale.setScalar(s);
+    if (t2 >= 1 && !completedRef.current) {
+      completedRef.current = true;
+      onComplete();
+    }
+  });
+  React.useEffect(() => {
+    completedRef.current = false;
+  }, [pickup == null ? void 0 : pickup.startedAt]);
+  if (!pickup) return null;
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, children: [
+    pickup.itemId === "flashlight" && /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightPickupMesh, {}),
+    pickup.itemId === "cookie" && /* @__PURE__ */ jsxRuntimeExports.jsx(CookiePickupMesh, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { color: "#FFE082", intensity: 1.6, distance: 2.4, decay: 2 })
+  ] });
+};
+const FlashlightPickupMesh = () => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { rotation: [Math.PI / 2, 0, 0], children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.05, 0.05, 0.26, 12] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1e", metalness: 0.7, roughness: 0.25 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.12, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.066, 0.066, 0.025, 16] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#9aa0a6", metalness: 0.85, roughness: 0.2 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.16, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [0.075, 0.05, 16] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "meshStandardMaterial",
+      {
+        color: "#FFF6D8",
+        emissive: "#FFF6D8",
+        emissiveIntensity: 3.2,
+        toneMapped: false
+      }
+    )
+  ] })
+] });
+const CookiePickupMesh = () => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { rotation: [Math.PI / 2, 0, 0], children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.12, 0.12, 0.04, 20] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#A66B2D", roughness: 0.95 })
+  ] }),
+  [
+    [0.05, 0.022, 0.02],
+    [-0.04, 0.022, 0.05],
+    [0.02, 0.022, -0.05],
+    [-0.05, 0.022, -0.02]
+  ].map(([x2, y, z], i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [x2, y, z], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.022, 6, 4] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2C1B12", roughness: 0.7 })
+  ] }, i2))
+] });
 class CanvasErrorBoundary extends reactExports.Component {
   constructor() {
     super(...arguments);
@@ -102370,7 +102463,7 @@ function App() {
   const [houseDoorOpen, setHouseDoorOpen] = reactExports.useState(false);
   const [canInteractDoor, setCanInteractDoor] = reactExports.useState(false);
   const [doorSoundTrigger, setDoorSoundTrigger] = reactExports.useState(0);
-  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect } = useInventory();
+  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie, hasAnyItem, notification, cookieEffect, pickupAnim, clearPickupAnim } = useInventory();
   const handleElevatorZoneChange = reactExports.useCallback((inside) => {
     setInsideElevator(inside);
   }, []);
@@ -102918,8 +103011,9 @@ function App() {
           visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
           /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange }),
           hasStarted && inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightLight, { active: inventory.flashlight.active, playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, zoomLevel, nightMode }),
-          hasStarted && inventory.flashlight.owned && zoomLevel >= 0.5 && /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightModel3D, { playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, active: inventory.flashlight.active, zoomLevel }),
+          hasStarted && inventory.flashlight.owned && zoomLevel >= 0.5 && !pickupAnim && /* @__PURE__ */ jsxRuntimeExports.jsx(FlashlightModel3D, { playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, active: inventory.flashlight.active, zoomLevel }),
           hasStarted && zoomLevel < 0.5 && inventory.flashlight.owned && inventory.flashlight.active && /* @__PURE__ */ jsxRuntimeExports.jsx(FPFlashlightHand, { walking: playerAnimState === "walking", active: inventory.flashlight.active }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(PickupAnimator, { pickup: pickupAnim, playerPositionRef: sharedPlayerPositionRef, cameraThetaRef, onComplete: clearPickupAnim }),
           botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
             BotSystem,
             {
