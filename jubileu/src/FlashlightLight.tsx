@@ -75,6 +75,11 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
 };
 
 // ─── 3rd-person flashlight model (right-hand area, offset-based) ──────────
+// Position math:
+//   - Player is ~1.7m tall; right hand sits around y=1.3 when neutral.
+//   - When the arm is extended (flashlight on / mid-pickup) we shift the
+//     model further forward (extendOffset) so it tracks the hand.
+//   - Side offset puts it to the player's right (relative to camera facing).
 interface FlashlightModel3DProps {
   playerPositionRef: React.MutableRefObject<THREE.Vector3>;
   cameraThetaRef: React.MutableRefObject<number>;
@@ -100,40 +105,58 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
 
     const pp = playerPositionRef.current;
     const theta = cameraThetaRef.current;
-    // Right-hand offset: player facing direction + side offset
-    const rightAngle = theta - Math.PI / 2;
-    const sideDist = 0.32;
-    const fwdDist = 0.18;
+
+    // Right-hand offset. Player faces away from camera, so forward direction
+    // for the player is theta+π → (sin(theta+π), cos(theta+π)) = (-sin, -cos).
+    const fwdX = -Math.sin(theta);
+    const fwdZ = -Math.cos(theta);
+    const rightX = -Math.cos(theta);  // 90° clockwise from forward
+    const rightZ =  Math.sin(theta);
+
+    // When flashlight is on, arm is extended — push the model further out front.
+    const sideDist = 0.30;
+    const fwdDist = active ? 0.55 : 0.22;
+    const yOffset = active ? 1.35 : 1.20;
+
     g.position.set(
-      pp.x + (-Math.sin(theta) * fwdDist) + Math.sin(rightAngle) * sideDist,
-      pp.y + 1.05,
-      pp.z + (-Math.cos(theta) * fwdDist) + Math.cos(rightAngle) * sideDist,
+      pp.x + fwdX * fwdDist + rightX * sideDist,
+      pp.y + yOffset,
+      pp.z + fwdZ * fwdDist + rightZ * sideDist,
     );
-    g.rotation.y = theta + Math.PI;
+    // Point the flashlight body forward (same direction as the player's facing).
+    g.rotation.y = Math.atan2(fwdX, fwdZ);
   });
 
   return (
     <group ref={groupRef} visible={false}>
-      {/* Body */}
-      <mesh position={[0, 0, -0.04]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.025, 0.025, 0.17, 10]} />
-        <meshStandardMaterial color="#2a2a2e" metalness={0.85} roughness={0.2} />
+      {/* Body — cylinder lying along +Z (rotated from default +Y orientation) */}
+      <mesh position={[0, 0, 0.05]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.04, 0.04, 0.22, 12]} />
+        <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} />
       </mesh>
-      {/* Head */}
-      <mesh position={[0, 0, -0.16]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.035, 0.028, 0.05, 10]} />
-        <meshStandardMaterial color="#3a3a3e" metalness={0.7} roughness={0.25} />
+      {/* Head (wider) */}
+      <mesh position={[0, 0, 0.20]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.055, 0.04, 0.07, 12]} />
+        <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} />
       </mesh>
-      {/* Lens */}
-      <mesh position={[0, 0, -0.19]} rotation={[Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.032, 16]} />
+      {/* Lens — visible disc on the front */}
+      <mesh position={[0, 0, 0.235]} rotation={[Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.05, 16]} />
         <meshStandardMaterial
-          color={active ? '#FFF3CC' : '#222'}
-          emissive={active ? '#FFF3CC' : '#000'}
-          emissiveIntensity={active ? 1.6 : 0}
+          color={active ? '#FFF3CC' : '#888'}
+          emissive={active ? '#FFF3CC' : '#222'}
+          emissiveIntensity={active ? 2.0 : 0.15}
           toneMapped={false}
         />
       </mesh>
+      {/* Outer rim */}
+      <mesh position={[0, 0, 0.236]} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.05, 0.058, 16]} />
+        <meshStandardMaterial color="#444" metalness={0.9} roughness={0.2} />
+      </mesh>
+      {active && (
+        <pointLight position={[0, 0, 0.27]} intensity={0.2} distance={0.4} color="#FFF3CC" />
+      )}
     </group>
   );
 };

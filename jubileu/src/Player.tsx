@@ -3,6 +3,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
+import { SkeletonUtils } from 'three-stdlib';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { resolveCollision as _resolve } from './physics';
 
@@ -32,7 +33,7 @@ function findArmBones(scene: THREE.Object3D): { arm: THREE.Bone | null; forearm:
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInCubic = (t: number) => t * t * t;
 
-const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: { animation: 'Idle' | 'Walking'; visible?: boolean; pickupTrigger?: number }) => {
+const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = false }: { animation: 'Idle' | 'Walking'; visible?: boolean; pickupTrigger?: number; armExtended?: boolean }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
   const { actions } = useAnimations(useMemo(() => {
@@ -127,16 +128,24 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: { animation: '
 
   useFrame((_, dt) => {
     const p = pickupRef.current;
-    if (!p.active || !p.found || !p.arm || !p.forearm) return;
-    const safeDt = Math.min(dt, 0.05);
-    p.elapsed += safeDt;
+    if (!p.found || !p.arm || !p.forearm) return;
 
-    const EXTEND = 0.3, HOLD = 0.8, RETRACT = 1.2;
     let progress: number;
-    if (p.elapsed < EXTEND) progress = easeOutCubic(p.elapsed / EXTEND);
-    else if (p.elapsed < HOLD) progress = 1;
-    else if (p.elapsed < RETRACT) progress = 1 - easeInCubic((p.elapsed - HOLD) / (RETRACT - HOLD));
-    else { p.active = false; return; }
+    if (armExtended) {
+      // Flashlight is ON (or another sustained-extend state). Hold the arm
+      // fully extended without timing — until armExtended flips back to false.
+      progress = 1;
+    } else if (p.active) {
+      const safeDt = Math.min(dt, 0.05);
+      p.elapsed += safeDt;
+      const EXTEND = 0.3, HOLD = 0.8, RETRACT = 1.2;
+      if (p.elapsed < EXTEND) progress = easeOutCubic(p.elapsed / EXTEND);
+      else if (p.elapsed < HOLD) progress = 1;
+      else if (p.elapsed < RETRACT) progress = 1 - easeInCubic((p.elapsed - HOLD) / (RETRACT - HOLD));
+      else { p.active = false; return; }
+    } else {
+      return;  // no animation, no sustained extend
+    }
 
     const maxAngle = -Math.PI * 0.44;
     const armAngle = maxAngle * progress;
@@ -210,9 +219,10 @@ interface PlayerProps {
   positionCmdRef: React.MutableRefObject<{ x: number; y: number; z: number } | null>;
   onElevatorZoneChange: (inside: boolean) => void;
   pickupTrigger?: number;
+  armExtended?: boolean;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0 }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -372,5 +382,167 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
     }
   });
-  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} /></group>);
+  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} /></group>);
+};
+
+// ─── FPArmModel: first-person viewmodel built by cloning the player GLB ──
+//
+// Strategy: SkeletonUtils.clone() produces an independent skinned mesh with
+// its own bone hierarchy. We collapse every bone OUTSIDE the right-arm chain
+// to scale ≈ 0 — the SkinnedMesh deforms around those bones to a single point
+// which renders to essentially nothing. What survives visible is the right
+// shoulder → arm → forearm → hand chain, exactly what we want for a 1st-person
+// viewmodel.
+//
+// Animation: a private useAnimations() on the clone drives the same Idle/Walking
+// clips, so the arm sways with the walk cycle. The pickup arm-extension logic
+// is replicated locally so the FP view also extends when flashlight is on.
+//
+// Positioning: attached to a group placed at the camera position each frame,
+// in camera-local space (handled by setting position relative to camera + a
+// camera-facing rotation). Renders only when zoomLevel < 0.5 (1st-person).
+//
+// IMPORTANT: still uses useFrame priority 0 — never priority != 0 (black screen).
+
+const RIGHT_ARM_CHAIN_KEYWORDS = ['rightshoulder', 'rightarm', 'rightforearm', 'righthand', 'shoulder.r', 'arm.r', 'forearm.r', 'hand.r', 'r_shoulder', 'r_arm', 'r_forearm', 'r_hand'];
+
+function isInRightArmChain(boneName: string): boolean {
+  const n = boneName.toLowerCase();
+  return RIGHT_ARM_CHAIN_KEYWORDS.some(k => n.includes(k));
+}
+
+interface FPArmModelProps {
+  zoomLevel: number;
+  armExtended: boolean;
+  pickupTrigger: number;
+  active: boolean;  // whether the player is in the world (not menu)
+}
+
+export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, pickupTrigger, active }) => {
+  const { camera } = useThree();
+  const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
+  const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
+
+  // Independent clone — own bones, own SkinnedMesh, own skeleton.
+  const cloned = useMemo(() => {
+    const c = SkeletonUtils.clone(scene) as THREE.Object3D;
+    // Collapse every bone OUTSIDE the right-arm chain to a tiny scale.
+    // The mesh deforms toward those bones' positions → invisible blob.
+    c.traverse((child: any) => {
+      if ((child.isBone || child.type === 'Bone') && !isInRightArmChain(child.name)) {
+        child.scale.set(0.0001, 0.0001, 0.0001);
+      }
+      if (child.isMesh && child.material) {
+        // Clone material so we don't mutate the cached scene's material.
+        child.material = child.material.clone();
+        child.material.side = THREE.DoubleSide;
+        child.frustumCulled = false;  // viewmodel can be very close to camera
+      }
+    });
+    return c;
+  }, [scene]);
+
+  // Drive idle / walking animation on the clone independently of the main avatar.
+  // Looks ok to just keep it on Idle — the arm bobs subtly anyway.
+  const { actions } = useAnimations(useMemo(() => {
+    const i = idleAnims.map((a: any) => a.clone(true));
+    if (i[0]) i[0].name = 'Idle';
+    return i;
+  }, [idleAnims]), cloned);
+
+  useEffect(() => {
+    const idle = actions['Idle'];
+    if (idle) idle.reset().fadeIn(0.2).play();
+  }, [actions]);
+
+  // Local pickup-arm state (mirrors Avatar's logic so the FP view extends too).
+  const fp = useRef({
+    active: false,
+    elapsed: 0,
+    arm: null as THREE.Bone | null,
+    forearm: null as THREE.Bone | null,
+    found: false,
+    lastTrigger: 0,
+    armQuat: new THREE.Quaternion(),
+    forearmQuat: new THREE.Quaternion(),
+    armDelta: new THREE.Quaternion(),
+    forearmDelta: new THREE.Quaternion(),
+    armEuler: new THREE.Euler(),
+    forearmEuler: new THREE.Euler(),
+  });
+
+  useEffect(() => {
+    const { arm, forearm } = findArmBones(cloned);
+    fp.current.arm = arm;
+    fp.current.forearm = forearm;
+    fp.current.found = !!(arm && forearm);
+  }, [cloned]);
+
+  useEffect(() => {
+    if (pickupTrigger > 0 && pickupTrigger !== fp.current.lastTrigger) {
+      fp.current.lastTrigger = pickupTrigger;
+      if (!fp.current.active) { fp.current.active = true; fp.current.elapsed = 0; }
+    }
+  }, [pickupTrigger]);
+
+  // The viewmodel group — positioned in camera-local space each frame.
+  const vmRef = useRef<THREE.Group>(null);
+
+  useFrame((_, dt) => {
+    const g = vmRef.current;
+    if (!g) return;
+
+    const fpView = zoomLevel < 0.5;
+    g.visible = active && fpView;
+    if (!g.visible) return;
+
+    // Place the group at the camera position and orient it to match the camera.
+    g.position.copy(camera.position);
+    g.quaternion.copy(camera.quaternion);
+
+    // Pickup arm rotation on the clone (same math as Avatar's useFrame).
+    const p = fp.current;
+    if (!p.found || !p.arm || !p.forearm) return;
+
+    let progress: number;
+    if (armExtended) {
+      progress = 1;
+    } else if (p.active) {
+      const safeDt = Math.min(dt, 0.05);
+      p.elapsed += safeDt;
+      const EXTEND = 0.3, HOLD = 0.8, RETRACT = 1.2;
+      if (p.elapsed < EXTEND) progress = easeOutCubic(p.elapsed / EXTEND);
+      else if (p.elapsed < HOLD) progress = 1;
+      else if (p.elapsed < RETRACT) progress = 1 - easeInCubic((p.elapsed - HOLD) / (RETRACT - HOLD));
+      else { p.active = false; return; }
+    } else {
+      return;
+    }
+
+    const maxAngle = -Math.PI * 0.44;
+    const armAngle = maxAngle * progress;
+    const forearmAngle = maxAngle * 0.3 * progress;
+    p.armQuat.copy(p.arm.quaternion);
+    p.forearmQuat.copy(p.forearm.quaternion);
+    p.armEuler.set(armAngle, 0, 0);
+    p.forearmEuler.set(forearmAngle, 0, 0);
+    p.armDelta.setFromEuler(p.armEuler);
+    p.forearmDelta.setFromEuler(p.forearmEuler);
+    p.arm.quaternion.copy(p.armQuat).multiply(p.armDelta);
+    p.forearm.quaternion.copy(p.forearmQuat).multiply(p.forearmDelta);
+  });
+
+  // The clone is positioned inside vmRef. The avatar is built for a ~1.7m world
+  // figure, so we offset it down/back so the right arm sticks into view from
+  // the bottom-right of the camera's FOV. Numbers tuned empirically.
+  return (
+    <group ref={vmRef} visible={false} renderOrder={999}>
+      <primitive
+        object={cloned}
+        scale={[30, 30, 30]}
+        position={[0.35, -1.45, -0.20]}
+        rotation={[0, Math.PI, 0]}
+      />
+    </group>
+  );
 };

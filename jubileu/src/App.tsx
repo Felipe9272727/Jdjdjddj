@@ -19,9 +19,9 @@ import { LiminalAudioEngine } from './AudioEngine';
 import { MainMenu } from './MainMenu';
 import { VisualJoystick, DialogueOverlay } from './UI';
 import { ShopOverlay } from './ShopOverlay';
-import { Player } from './Player';
+import { Player, FPArmModel } from './Player';
 import { useInventory, InventoryHUD } from './InventorySystem';
-import { FlashlightLight, FlashlightModel3D, FPFlashlightHand } from './FlashlightLight';
+import { FlashlightLight, FlashlightModel3D } from './FlashlightLight';
 import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor, Level2Environment } from './HouseEnv';
@@ -645,7 +645,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} armExtended={inventory.flashlight.owned && inventory.flashlight.active} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -662,6 +662,14 @@ export default function App() {
                     zoomLevel={zoomLevel}
                   />
                 </>
+            )}
+            {hasStarted && (
+                <FPArmModel
+                  zoomLevel={zoomLevel}
+                  armExtended={inventory.flashlight.owned && inventory.flashlight.active}
+                  pickupTrigger={pickupTrigger}
+                  active={hasStarted}
+                />
             )}
             {botEnabled && (
                 <BotSystem
@@ -694,13 +702,6 @@ export default function App() {
           onToggleFlashlight={handleToggleFlashlight}
           onUseCookie={handleUseCookie}
           hasAnyItem={hasAnyItem}
-        />
-      )}
-      {hasStarted && inventory.flashlight.owned && (
-        <FPFlashlightHand
-          active={inventory.flashlight.active}
-          owned={inventory.flashlight.owned}
-          zoomLevel={zoomLevel}
         />
       )}
       
