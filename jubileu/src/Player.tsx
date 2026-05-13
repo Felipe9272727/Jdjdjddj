@@ -3,7 +3,6 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
-import { SkeletonUtils } from 'three-stdlib';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { resolveCollision as _resolve } from './physics';
 
@@ -15,25 +14,30 @@ const ARM_EXACT = ['mixamorig:rightarm', 'rightarm', 'right_arm', 'arm_r', 'uppe
 const ARM_SUBSTR = ['rightarm', 'upperarm.r'];
 const FOREARM_EXACT = ['mixamorig:rightforearm', 'rightforearm', 'right_forearm', 'forearm_r', 'lowerarm_r', 'r_forearm'];
 const FOREARM_SUBSTR = ['rightforearm', 'forearm.r'];
+const HAND_EXACT = ['mixamorig:righthand', 'righthand', 'right_hand', 'hand_r', 'r_hand'];
+const HAND_SUBSTR = ['righthand', 'hand.r'];
 
-function findArmBones(scene: THREE.Object3D): { arm: THREE.Bone | null; forearm: THREE.Bone | null } {
+function findArmBones(scene: THREE.Object3D): { arm: THREE.Bone | null; forearm: THREE.Bone | null; hand: THREE.Bone | null } {
   let arm: THREE.Bone | null = null;
   let forearm: THREE.Bone | null = null;
+  let hand: THREE.Bone | null = null;
   scene.traverse((c: any) => {
     if (!c.isBone && c.type !== 'Bone') return;
     const n = c.name.toLowerCase();
     if (!arm && ARM_EXACT.includes(n)) { arm = c; return; }
     if (!forearm && FOREARM_EXACT.includes(n)) { forearm = c; return; }
+    if (!hand && HAND_EXACT.includes(n)) { hand = c; return; }
     if (!arm && ARM_SUBSTR.some(p => n.includes(p))) arm = c;
     if (!forearm && FOREARM_SUBSTR.some(p => n.includes(p))) forearm = c;
+    if (!hand && HAND_SUBSTR.some(p => n.includes(p))) hand = c;
   });
-  return { arm, forearm };
+  return { arm, forearm, hand };
 }
 
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInCubic = (t: number) => t * t * t;
 
-const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = false }: { animation: 'Idle' | 'Walking'; visible?: boolean; pickupTrigger?: number; armExtended?: boolean }) => {
+const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = false, onHandBone }: { animation: 'Idle' | 'Walking'; visible?: boolean; pickupTrigger?: number; armExtended?: boolean; onHandBone?: (b: THREE.Bone | null) => void }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
   const { actions } = useAnimations(useMemo(() => {
@@ -90,13 +94,18 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = fa
   //
   // NEVER use priority != 0 here — it disables R3F v9's auto-render and
   // produces the historical black-screen bug.
+  // Two independent states:
+  //  - timed:     the 1.2s pickup animation (extend → hold → retract). Driven
+  //               by pickupTrigger ticks.
+  //  - sustained: held at full extension while a prop wants it (armExtended).
+  //               When armExtended flips false, we jump the timed animation
+  //               directly into the retract phase so the arm comes down smooth.
   const pickupRef = useRef({
-    active: false,
-    elapsed: 0,
+    timed: { active: false, elapsed: 0, lastTrigger: 0 },
+    sustained: false,
     arm: null as THREE.Bone | null,
     forearm: null as THREE.Bone | null,
     found: false,
-    lastTrigger: 0,
     armQuat: new THREE.Quaternion(),
     forearmQuat: new THREE.Quaternion(),
     armDelta: new THREE.Quaternion(),
@@ -106,43 +115,55 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = fa
   });
 
   useEffect(() => {
-    const { arm, forearm } = findArmBones(scene);
+    const { arm, forearm, hand } = findArmBones(scene);
     pickupRef.current.arm = arm;
     pickupRef.current.forearm = forearm;
     pickupRef.current.found = !!(arm && forearm);
     if (!pickupRef.current.found) {
       console.warn('[Avatar] Right arm bones not found — pickup animation disabled.', { arm: !!arm, forearm: !!forearm });
     }
-  }, [scene]);
+    if (onHandBone) onHandBone(hand);
+  }, [scene, onHandBone]);
 
-  // Drive animation start from the trigger prop
+  // Drive the TIMED animation from the trigger prop
   useEffect(() => {
-    if (pickupTrigger > 0 && pickupTrigger !== pickupRef.current.lastTrigger) {
-      pickupRef.current.lastTrigger = pickupTrigger;
-      if (!pickupRef.current.active) {
-        pickupRef.current.active = true;
-        pickupRef.current.elapsed = 0;
-      }
+    if (pickupTrigger > 0 && pickupTrigger !== pickupRef.current.timed.lastTrigger) {
+      pickupRef.current.timed.lastTrigger = pickupTrigger;
+      pickupRef.current.timed.active = true;
+      pickupRef.current.timed.elapsed = 0;
     }
   }, [pickupTrigger]);
+
+  // React to armExtended changes: rising edge → just set sustained=true.
+  // Falling edge → start retract phase of the timed animation so the arm
+  // returns smoothly instead of snapping or looping.
+  useEffect(() => {
+    if (armExtended) {
+      pickupRef.current.sustained = true;
+    } else if (pickupRef.current.sustained) {
+      pickupRef.current.sustained = false;
+      // Skip the timed animation forward to the start of the retract phase
+      pickupRef.current.timed.active = true;
+      pickupRef.current.timed.elapsed = 0.8;  // HOLD ends here, RETRACT starts
+    }
+  }, [armExtended]);
 
   useFrame((_, dt) => {
     const p = pickupRef.current;
     if (!p.found || !p.arm || !p.forearm) return;
 
     let progress: number;
-    if (armExtended) {
-      // Flashlight is ON (or another sustained-extend state). Hold the arm
-      // fully extended without timing — until armExtended flips back to false.
+    if (p.sustained) {
+      // Held fully extended — no timing.
       progress = 1;
-    } else if (p.active) {
+    } else if (p.timed.active) {
       const safeDt = Math.min(dt, 0.05);
-      p.elapsed += safeDt;
+      p.timed.elapsed += safeDt;
       const EXTEND = 0.3, HOLD = 0.8, RETRACT = 1.2;
-      if (p.elapsed < EXTEND) progress = easeOutCubic(p.elapsed / EXTEND);
-      else if (p.elapsed < HOLD) progress = 1;
-      else if (p.elapsed < RETRACT) progress = 1 - easeInCubic((p.elapsed - HOLD) / (RETRACT - HOLD));
-      else { p.active = false; return; }
+      if (p.timed.elapsed < EXTEND) progress = easeOutCubic(p.timed.elapsed / EXTEND);
+      else if (p.timed.elapsed < HOLD) progress = 1;
+      else if (p.timed.elapsed < RETRACT) progress = 1 - easeInCubic((p.timed.elapsed - HOLD) / (RETRACT - HOLD));
+      else { p.timed.active = false; return; }
     } else {
       return;  // no animation, no sustained extend
     }
@@ -220,9 +241,10 @@ interface PlayerProps {
   onElevatorZoneChange: (inside: boolean) => void;
   pickupTrigger?: number;
   armExtended?: boolean;
+  onRightHandBone?: (b: THREE.Bone | null) => void;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, onRightHandBone }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -382,167 +404,173 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
     }
   });
-  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} /></group>);
+  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} onHandBone={onRightHandBone} /></group>);
 };
 
-// ─── FPArmModel: first-person viewmodel built by cloning the player GLB ──
+// ─── FPArmModel: first-person viewmodel — simple 3D arm in camera space ──
 //
-// Strategy: SkeletonUtils.clone() produces an independent skinned mesh with
-// its own bone hierarchy. We collapse every bone OUTSIDE the right-arm chain
-// to scale ≈ 0 — the SkinnedMesh deforms around those bones to a single point
-// which renders to essentially nothing. What survives visible is the right
-// shoulder → arm → forearm → hand chain, exactly what we want for a 1st-person
-// viewmodel.
+// The GLB-clone approach didn't work: collapsing non-right-arm bones via
+// scale shrinks ancestors of the right-arm too (RightShoulder is descended
+// from Hips → Spine), so the right arm vanished as well. Worse, the head
+// and torso meshes (regular Meshes attached to bones) kept rendering since
+// scale-collapse only affects skinned vertices.
 //
-// Animation: a private useAnimations() on the clone drives the same Idle/Walking
-// clips, so the arm sways with the walk cycle. The pickup arm-extension logic
-// is replicated locally so the FP view also extends when flashlight is on.
+// This implementation draws a simple arm with primitives anchored to the
+// camera. Two cylinders (upper + lower arm), a sphere (hand), and the
+// flashlight body integrated on the hand. Animation is local: idle bob
+// when at rest, sustain-extend while armExtended, and a 1.2s pickup
+// retract/extend timed by pickupTrigger.
 //
-// Positioning: attached to a group placed at the camera position each frame,
-// in camera-local space (handled by setting position relative to camera + a
-// camera-facing rotation). Renders only when zoomLevel < 0.5 (1st-person).
-//
-// IMPORTANT: still uses useFrame priority 0 — never priority != 0 (black screen).
-
-const RIGHT_ARM_CHAIN_KEYWORDS = ['rightshoulder', 'rightarm', 'rightforearm', 'righthand', 'shoulder.r', 'arm.r', 'forearm.r', 'hand.r', 'r_shoulder', 'r_arm', 'r_forearm', 'r_hand'];
-
-function isInRightArmChain(boneName: string): boolean {
-  const n = boneName.toLowerCase();
-  return RIGHT_ARM_CHAIN_KEYWORDS.some(k => n.includes(k));
-}
+// Still uses useFrame priority 0 (never != 0 — black screen).
 
 interface FPArmModelProps {
   zoomLevel: number;
   armExtended: boolean;
   pickupTrigger: number;
-  active: boolean;  // whether the player is in the world (not menu)
+  active: boolean;
+  flashlightActive: boolean;
+  flashlightOwned: boolean;
 }
 
-export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, pickupTrigger, active }) => {
+export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightActive, flashlightOwned }) => {
   const { camera } = useThree();
-  const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
-  const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
+  const groupRef = useRef<THREE.Group>(null);
+  const armPivotRef = useRef<THREE.Group>(null);
 
-  // Independent clone — own bones, own SkinnedMesh, own skeleton.
-  const cloned = useMemo(() => {
-    const c = SkeletonUtils.clone(scene) as THREE.Object3D;
-    // Collapse every bone OUTSIDE the right-arm chain to a tiny scale.
-    // The mesh deforms toward those bones' positions → invisible blob.
-    c.traverse((child: any) => {
-      if ((child.isBone || child.type === 'Bone') && !isInRightArmChain(child.name)) {
-        child.scale.set(0.0001, 0.0001, 0.0001);
-      }
-      if (child.isMesh && child.material) {
-        // Clone material so we don't mutate the cached scene's material.
-        child.material = child.material.clone();
-        child.material.side = THREE.DoubleSide;
-        child.frustumCulled = false;  // viewmodel can be very close to camera
-      }
-    });
-    return c;
-  }, [scene]);
-
-  // Drive idle / walking animation on the clone independently of the main avatar.
-  // Looks ok to just keep it on Idle — the arm bobs subtly anyway.
-  const { actions } = useAnimations(useMemo(() => {
-    const i = idleAnims.map((a: any) => a.clone(true));
-    if (i[0]) i[0].name = 'Idle';
-    return i;
-  }, [idleAnims]), cloned);
-
-  useEffect(() => {
-    const idle = actions['Idle'];
-    if (idle) idle.reset().fadeIn(0.2).play();
-  }, [actions]);
-
-  // Local pickup-arm state (mirrors Avatar's logic so the FP view extends too).
-  const fp = useRef({
-    active: false,
-    elapsed: 0,
-    arm: null as THREE.Bone | null,
-    forearm: null as THREE.Bone | null,
-    found: false,
-    lastTrigger: 0,
-    armQuat: new THREE.Quaternion(),
-    forearmQuat: new THREE.Quaternion(),
-    armDelta: new THREE.Quaternion(),
-    forearmDelta: new THREE.Quaternion(),
-    armEuler: new THREE.Euler(),
-    forearmEuler: new THREE.Euler(),
+  // Pickup state — same timed/sustained split as Avatar
+  const state = useRef({
+    timed: { active: false, elapsed: 0, lastTrigger: 0 },
+    sustained: false,
+    timeSec: 0,
   });
 
   useEffect(() => {
-    const { arm, forearm } = findArmBones(cloned);
-    fp.current.arm = arm;
-    fp.current.forearm = forearm;
-    fp.current.found = !!(arm && forearm);
-  }, [cloned]);
-
-  useEffect(() => {
-    if (pickupTrigger > 0 && pickupTrigger !== fp.current.lastTrigger) {
-      fp.current.lastTrigger = pickupTrigger;
-      if (!fp.current.active) { fp.current.active = true; fp.current.elapsed = 0; }
+    if (pickupTrigger > 0 && pickupTrigger !== state.current.timed.lastTrigger) {
+      state.current.timed.lastTrigger = pickupTrigger;
+      state.current.timed.active = true;
+      state.current.timed.elapsed = 0;
     }
   }, [pickupTrigger]);
 
-  // The viewmodel group — positioned in camera-local space each frame.
-  const vmRef = useRef<THREE.Group>(null);
+  useEffect(() => {
+    if (armExtended) {
+      state.current.sustained = true;
+    } else if (state.current.sustained) {
+      state.current.sustained = false;
+      state.current.timed.active = true;
+      state.current.timed.elapsed = 0.8;  // jump into retract phase
+    }
+  }, [armExtended]);
 
   useFrame((_, dt) => {
-    const g = vmRef.current;
-    if (!g) return;
+    const g = groupRef.current;
+    const pivot = armPivotRef.current;
+    if (!g || !pivot) return;
 
     const fpView = zoomLevel < 0.5;
     g.visible = active && fpView;
     if (!g.visible) return;
 
-    // Place the group at the camera position and orient it to match the camera.
     g.position.copy(camera.position);
     g.quaternion.copy(camera.quaternion);
 
-    // Pickup arm rotation on the clone (same math as Avatar's useFrame).
-    const p = fp.current;
-    if (!p.found || !p.arm || !p.forearm) return;
+    const s = state.current;
+    s.timeSec += dt;
 
+    // Progress: 0 = arm relaxed at side, 1 = fully extended forward
     let progress: number;
-    if (armExtended) {
+    if (s.sustained) {
       progress = 1;
-    } else if (p.active) {
+    } else if (s.timed.active) {
       const safeDt = Math.min(dt, 0.05);
-      p.elapsed += safeDt;
+      s.timed.elapsed += safeDt;
       const EXTEND = 0.3, HOLD = 0.8, RETRACT = 1.2;
-      if (p.elapsed < EXTEND) progress = easeOutCubic(p.elapsed / EXTEND);
-      else if (p.elapsed < HOLD) progress = 1;
-      else if (p.elapsed < RETRACT) progress = 1 - easeInCubic((p.elapsed - HOLD) / (RETRACT - HOLD));
-      else { p.active = false; return; }
+      if (s.timed.elapsed < EXTEND) progress = easeOutCubic(s.timed.elapsed / EXTEND);
+      else if (s.timed.elapsed < HOLD) progress = 1;
+      else if (s.timed.elapsed < RETRACT) progress = 1 - easeInCubic((s.timed.elapsed - HOLD) / (RETRACT - HOLD));
+      else { s.timed.active = false; progress = 0; }
     } else {
-      return;
+      progress = 0;
     }
 
-    const maxAngle = -Math.PI * 0.44;
-    const armAngle = maxAngle * progress;
-    const forearmAngle = maxAngle * 0.3 * progress;
-    p.armQuat.copy(p.arm.quaternion);
-    p.forearmQuat.copy(p.forearm.quaternion);
-    p.armEuler.set(armAngle, 0, 0);
-    p.forearmEuler.set(forearmAngle, 0, 0);
-    p.armDelta.setFromEuler(p.armEuler);
-    p.forearmDelta.setFromEuler(p.forearmEuler);
-    p.arm.quaternion.copy(p.armQuat).multiply(p.armDelta);
-    p.forearm.quaternion.copy(p.forearmQuat).multiply(p.forearmDelta);
+    // Idle bob (very subtle vertical motion to feel alive)
+    const bob = Math.sin(s.timeSec * 1.8) * 0.008 * (1 - progress * 0.7);
+
+    // Rotate the arm pivot:
+    //   relaxed (progress 0): arm hangs ~down/back-ish, out of view
+    //   extended (progress 1): arm points forward, into view
+    const restX = 0.6, extX = -0.05;   // pitch (around X)
+    const restZ = 0.2, extZ = 0.0;     // roll (around Z)
+    pivot.rotation.x = restX + (extX - restX) * progress;
+    pivot.rotation.z = restZ + (extZ - restZ) * progress;
+    pivot.position.y = -0.05 + bob;
   });
 
-  // The clone is positioned inside vmRef. The avatar is built for a ~1.7m world
-  // figure, so we offset it down/back so the right arm sticks into view from
-  // the bottom-right of the camera's FOV. Numbers tuned empirically.
+  // Skin tone + flashlight colors
+  const SKIN = '#D9B58F';
+  const SLEEVE = '#3a2e26';
+
   return (
-    <group ref={vmRef} visible={false} renderOrder={999}>
-      <primitive
-        object={cloned}
-        scale={[30, 30, 30]}
-        position={[0.35, -1.45, -0.20]}
-        rotation={[0, Math.PI, 0]}
-      />
+    <group ref={groupRef} visible={false} renderOrder={999}>
+      {/* Anchor at the camera's "right shoulder": right + slight forward + down */}
+      <group position={[0.18, -0.18, -0.18]}>
+        <group ref={armPivotRef}>
+          {/* Upper arm — cylinder along -Y from the shoulder pivot */}
+          <mesh position={[0, -0.13, 0]} renderOrder={999}>
+            <cylinderGeometry args={[0.045, 0.040, 0.26, 14]} />
+            <meshStandardMaterial color={SLEEVE} roughness={0.85} />
+          </mesh>
+          {/* Elbow */}
+          <mesh position={[0, -0.26, 0]} renderOrder={999}>
+            <sphereGeometry args={[0.045, 14, 10]} />
+            <meshStandardMaterial color={SLEEVE} roughness={0.85} />
+          </mesh>
+          {/* Forearm */}
+          <mesh position={[0, -0.39, 0]} renderOrder={999}>
+            <cylinderGeometry args={[0.040, 0.038, 0.24, 14]} />
+            <meshStandardMaterial color={SKIN} roughness={0.95} />
+          </mesh>
+          {/* Wrist */}
+          <mesh position={[0, -0.51, 0]} renderOrder={999}>
+            <sphereGeometry args={[0.040, 12, 10]} />
+            <meshStandardMaterial color={SKIN} roughness={0.95} />
+          </mesh>
+          {/* Hand (palm) */}
+          <mesh position={[0, -0.57, 0]} renderOrder={999}>
+            <boxGeometry args={[0.075, 0.10, 0.05]} />
+            <meshStandardMaterial color={SKIN} roughness={0.95} />
+          </mesh>
+
+          {/* Flashlight gripped by the hand — only when owned */}
+          {flashlightOwned && (
+            <group position={[0, -0.60, -0.08]} rotation={[Math.PI / 2, 0, 0]}>
+              {/* Body */}
+              <mesh renderOrder={999}>
+                <cylinderGeometry args={[0.035, 0.035, 0.18, 14]} />
+                <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} />
+              </mesh>
+              {/* Head */}
+              <mesh position={[0, 0.10, 0]} renderOrder={999}>
+                <cylinderGeometry args={[0.048, 0.038, 0.05, 14]} />
+                <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} />
+              </mesh>
+              {/* Lens */}
+              <mesh position={[0, 0.125, 0]} renderOrder={999}>
+                <circleGeometry args={[0.042, 16]} />
+                <meshStandardMaterial
+                  color={flashlightActive ? '#FFF3CC' : '#888'}
+                  emissive={flashlightActive ? '#FFF3CC' : '#222'}
+                  emissiveIntensity={flashlightActive ? 2.4 : 0.15}
+                  toneMapped={false}
+                />
+              </mesh>
+              {flashlightActive && (
+                <pointLight position={[0, 0.16, 0]} intensity={0.15} distance={0.4} color="#FFF3CC" />
+              )}
+            </group>
+          )}
+        </group>
+      </group>
     </group>
   );
 };

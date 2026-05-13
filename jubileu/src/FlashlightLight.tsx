@@ -74,15 +74,18 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
   );
 };
 
-// ─── 3rd-person flashlight model (right-hand area, offset-based) ──────────
-// Position math:
-//   - Player is ~1.7m tall; right hand sits around y=1.3 when neutral.
-//   - When the arm is extended (flashlight on / mid-pickup) we shift the
-//     model further forward (extendOffset) so it tracks the hand.
-//   - Side offset puts it to the player's right (relative to camera facing).
+// ─── 3rd-person flashlight model — follows the RightHand bone ─────────────
+// When the bone is provided, the model copies bone.matrixWorld so it sticks
+// to the hand even while the pickup animation rotates the arm. Falls back to
+// math offset when the bone isn't ready yet (first frame after avatar mount).
+//
+// IMPORTANT: the model is a sibling of the GLB in the React tree — NEVER a
+// child of the bone. Attaching to the skeleton hierarchy reproduces the
+// historical black-screen bug.
 interface FlashlightModel3DProps {
   playerPositionRef: React.MutableRefObject<THREE.Vector3>;
   cameraThetaRef: React.MutableRefObject<number>;
+  rightHandBoneRef?: React.MutableRefObject<THREE.Bone | null>;
   active: boolean;
   owned: boolean;
   zoomLevel: number;
@@ -91,11 +94,16 @@ interface FlashlightModel3DProps {
 export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
   playerPositionRef,
   cameraThetaRef,
+  rightHandBoneRef,
   active,
   owned,
   zoomLevel,
 }) => {
   const groupRef = useRef<THREE.Group>(null);
+  // Pre-allocated decompose targets — zero GC per frame.
+  const _pos = useRef(new THREE.Vector3());
+  const _quat = useRef(new THREE.Quaternion());
+  const _scl = useRef(new THREE.Vector3());
 
   useFrame(() => {
     const g = groupRef.current;
@@ -103,60 +111,74 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
     if (!owned || zoomLevel < 0.5) { g.visible = false; return; }
     g.visible = true;
 
+    const handBone = rightHandBoneRef?.current ?? null;
+    if (handBone) {
+      // Follow the right-hand bone. matrixWorld is already in world space
+      // (the GLB's scale={[30,30,30]} is baked in), so decompose and copy.
+      handBone.updateMatrixWorld(true);
+      handBone.matrixWorld.decompose(_pos.current, _quat.current, _scl.current);
+      g.position.copy(_pos.current);
+      g.quaternion.copy(_quat.current);
+      // The bone is scaled with the GLB. Cancel that so our model renders at
+      // its mesh-level dimensions (radii of 4cm etc., not 30× of them).
+      g.scale.set(1, 1, 1);
+      return;
+    }
+
+    // Fallback: math offset from player position + camera azimuth.
     const pp = playerPositionRef.current;
     const theta = cameraThetaRef.current;
-
-    // Right-hand offset. Player faces away from camera, so forward direction
-    // for the player is theta+π → (sin(theta+π), cos(theta+π)) = (-sin, -cos).
     const fwdX = -Math.sin(theta);
     const fwdZ = -Math.cos(theta);
-    const rightX = -Math.cos(theta);  // 90° clockwise from forward
+    const rightX = -Math.cos(theta);
     const rightZ =  Math.sin(theta);
-
-    // When flashlight is on, arm is extended — push the model further out front.
     const sideDist = 0.30;
     const fwdDist = active ? 0.55 : 0.22;
     const yOffset = active ? 1.35 : 1.20;
-
     g.position.set(
       pp.x + fwdX * fwdDist + rightX * sideDist,
       pp.y + yOffset,
       pp.z + fwdZ * fwdDist + rightZ * sideDist,
     );
-    // Point the flashlight body forward (same direction as the player's facing).
-    g.rotation.y = Math.atan2(fwdX, fwdZ);
+    g.rotation.set(0, Math.atan2(fwdX, fwdZ), 0);
+    g.scale.set(1, 1, 1);
   });
 
+  // The Mixamo RightHand bone's local Y points along the hand toward the
+  // fingers. When we follow the bone via matrixWorld, the inner group's
+  // +Y becomes "out of the palm". We rotate the model so its flashlight
+  // axis aligns with that direction (and offset it slightly into the palm
+  // so it visually sits ON the hand, not floating).
   return (
     <group ref={groupRef} visible={false}>
-      {/* Body — cylinder lying along +Z (rotated from default +Y orientation) */}
-      <mesh position={[0, 0, 0.05]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.04, 0.04, 0.22, 12]} />
-        <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} />
-      </mesh>
-      {/* Head (wider) */}
-      <mesh position={[0, 0, 0.20]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.055, 0.04, 0.07, 12]} />
-        <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} />
-      </mesh>
-      {/* Lens — visible disc on the front */}
-      <mesh position={[0, 0, 0.235]} rotation={[Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.05, 16]} />
-        <meshStandardMaterial
-          color={active ? '#FFF3CC' : '#888'}
-          emissive={active ? '#FFF3CC' : '#222'}
-          emissiveIntensity={active ? 2.0 : 0.15}
-          toneMapped={false}
-        />
-      </mesh>
-      {/* Outer rim */}
-      <mesh position={[0, 0, 0.236]} rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.05, 0.058, 16]} />
-        <meshStandardMaterial color="#444" metalness={0.9} roughness={0.2} />
-      </mesh>
-      {active && (
-        <pointLight position={[0, 0, 0.27]} intensity={0.2} distance={0.4} color="#FFF3CC" />
-      )}
+      <group position={[0, 0.03, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        {/* Body — cylinder along +Z after the parent rotation maps it to
+            the hand's +Y direction. */}
+        <mesh position={[0, 0, 0.05]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.04, 0.04, 0.22, 12]} />
+          <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} />
+        </mesh>
+        <mesh position={[0, 0, 0.20]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.055, 0.04, 0.07, 12]} />
+          <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} />
+        </mesh>
+        <mesh position={[0, 0, 0.235]} rotation={[Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.05, 16]} />
+          <meshStandardMaterial
+            color={active ? '#FFF3CC' : '#888'}
+            emissive={active ? '#FFF3CC' : '#222'}
+            emissiveIntensity={active ? 2.0 : 0.15}
+            toneMapped={false}
+          />
+        </mesh>
+        <mesh position={[0, 0, 0.236]} rotation={[Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.05, 0.058, 16]} />
+          <meshStandardMaterial color="#444" metalness={0.9} roughness={0.2} />
+        </mesh>
+        {active && (
+          <pointLight position={[0, 0, 0.27]} intensity={0.2} distance={0.4} color="#FFF3CC" />
+        )}
+      </group>
     </group>
   );
 };

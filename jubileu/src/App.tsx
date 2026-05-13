@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, Loader } from '@react-three/drei';
-import { Vector3, ACESFilmicToneMapping, SRGBColorSpace } from 'three';
+import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Bone } from 'three';
 
 // ─── Error Boundary for Canvas ─────────────────────────────────────────────
 class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
@@ -140,6 +140,10 @@ export default function App() {
   const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie: consumeCookie, hasAnyItem } = useInventory();
   const [pickupTrigger, setPickupTrigger] = useState(0);
   const triggerPickup = useCallback(() => setPickupTrigger((n) => n + 1), []);
+  // Ref to the player's right-hand bone so the 3rd-person flashlight model
+  // can stick to it. Populated by Player via onRightHandBone callback.
+  const rightHandBoneRef = useRef<Bone | null>(null);
+  const handleRightHandBone = useCallback((b: Bone | null) => { rightHandBoneRef.current = b; }, []);
   const handleBuyItem = useCallback((itemId: 'flashlight' | 'cookie') => {
     inventoryAddItem(itemId);
     triggerPickup();
@@ -645,7 +649,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} armExtended={inventory.flashlight.owned && inventory.flashlight.active} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandBone={handleRightHandBone} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -657,6 +661,7 @@ export default function App() {
                   <FlashlightModel3D
                     playerPositionRef={sharedPlayerPositionRef}
                     cameraThetaRef={cameraThetaRef}
+                    rightHandBoneRef={rightHandBoneRef}
                     active={inventory.flashlight.active}
                     owned={inventory.flashlight.owned}
                     zoomLevel={zoomLevel}
@@ -669,6 +674,8 @@ export default function App() {
                   armExtended={inventory.flashlight.owned && inventory.flashlight.active}
                   pickupTrigger={pickupTrigger}
                   active={hasStarted}
+                  flashlightActive={inventory.flashlight.active}
+                  flashlightOwned={inventory.flashlight.owned}
                 />
             )}
             {botEnabled && (

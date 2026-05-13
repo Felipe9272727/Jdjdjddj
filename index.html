@@ -473,10 +473,6 @@
     pointer-events: none;
   }
 
-  .collapse {
-    visibility: collapse;
-  }
-
   .invisible {
     visibility: hidden;
   }
@@ -98339,9 +98335,12 @@ const ARM_EXACT = ["mixamorig:rightarm", "rightarm", "right_arm", "arm_r", "uppe
 const ARM_SUBSTR = ["rightarm", "upperarm.r"];
 const FOREARM_EXACT = ["mixamorig:rightforearm", "rightforearm", "right_forearm", "forearm_r", "lowerarm_r", "r_forearm"];
 const FOREARM_SUBSTR = ["rightforearm", "forearm.r"];
+const HAND_EXACT = ["mixamorig:righthand", "righthand", "right_hand", "hand_r", "r_hand"];
+const HAND_SUBSTR = ["righthand", "hand.r"];
 function findArmBones(scene) {
   let arm = null;
   let forearm = null;
+  let hand = null;
   scene.traverse((c2) => {
     if (!c2.isBone && c2.type !== "Bone") return;
     const n = c2.name.toLowerCase();
@@ -98353,14 +98352,19 @@ function findArmBones(scene) {
       forearm = c2;
       return;
     }
+    if (!hand && HAND_EXACT.includes(n)) {
+      hand = c2;
+      return;
+    }
     if (!arm && ARM_SUBSTR.some((p2) => n.includes(p2))) arm = c2;
     if (!forearm && FOREARM_SUBSTR.some((p2) => n.includes(p2))) forearm = c2;
+    if (!hand && HAND_SUBSTR.some((p2) => n.includes(p2))) hand = c2;
   });
-  return { arm, forearm };
+  return { arm, forearm, hand };
 }
 const easeOutCubic = (t2) => 1 - Math.pow(1 - t2, 3);
 const easeInCubic = (t2) => t2 * t2 * t2;
-const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = false }) => {
+const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = false, onHandBone }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL);
   const { animations: idleAnims } = useGLTF(IDLE_URL);
   const { actions } = useAnimations(reactExports.useMemo(() => {
@@ -98406,12 +98410,11 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = fa
     }
   }, [scene]);
   const pickupRef = reactExports.useRef({
-    active: false,
-    elapsed: 0,
+    timed: { active: false, elapsed: 0, lastTrigger: 0 },
+    sustained: false,
     arm: null,
     forearm: null,
     found: false,
-    lastTrigger: 0,
     armQuat: new Quaternion(),
     forearmQuat: new Quaternion(),
     armDelta: new Quaternion(),
@@ -98420,38 +98423,46 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = fa
     forearmEuler: new Euler()
   });
   reactExports.useEffect(() => {
-    const { arm, forearm } = findArmBones(scene);
+    const { arm, forearm, hand } = findArmBones(scene);
     pickupRef.current.arm = arm;
     pickupRef.current.forearm = forearm;
     pickupRef.current.found = !!(arm && forearm);
     if (!pickupRef.current.found) {
       console.warn("[Avatar] Right arm bones not found — pickup animation disabled.", { arm: !!arm, forearm: !!forearm });
     }
-  }, [scene]);
+    if (onHandBone) onHandBone(hand);
+  }, [scene, onHandBone]);
   reactExports.useEffect(() => {
-    if (pickupTrigger > 0 && pickupTrigger !== pickupRef.current.lastTrigger) {
-      pickupRef.current.lastTrigger = pickupTrigger;
-      if (!pickupRef.current.active) {
-        pickupRef.current.active = true;
-        pickupRef.current.elapsed = 0;
-      }
+    if (pickupTrigger > 0 && pickupTrigger !== pickupRef.current.timed.lastTrigger) {
+      pickupRef.current.timed.lastTrigger = pickupTrigger;
+      pickupRef.current.timed.active = true;
+      pickupRef.current.timed.elapsed = 0;
     }
   }, [pickupTrigger]);
+  reactExports.useEffect(() => {
+    if (armExtended) {
+      pickupRef.current.sustained = true;
+    } else if (pickupRef.current.sustained) {
+      pickupRef.current.sustained = false;
+      pickupRef.current.timed.active = true;
+      pickupRef.current.timed.elapsed = 0.8;
+    }
+  }, [armExtended]);
   useFrame((_, dt2) => {
     const p2 = pickupRef.current;
     if (!p2.found || !p2.arm || !p2.forearm) return;
     let progress;
-    if (armExtended) {
+    if (p2.sustained) {
       progress = 1;
-    } else if (p2.active) {
+    } else if (p2.timed.active) {
       const safeDt = Math.min(dt2, 0.05);
-      p2.elapsed += safeDt;
+      p2.timed.elapsed += safeDt;
       const EXTEND = 0.3, HOLD = 0.8, RETRACT = 1.2;
-      if (p2.elapsed < EXTEND) progress = easeOutCubic(p2.elapsed / EXTEND);
-      else if (p2.elapsed < HOLD) progress = 1;
-      else if (p2.elapsed < RETRACT) progress = 1 - easeInCubic((p2.elapsed - HOLD) / (RETRACT - HOLD));
+      if (p2.timed.elapsed < EXTEND) progress = easeOutCubic(p2.timed.elapsed / EXTEND);
+      else if (p2.timed.elapsed < HOLD) progress = 1;
+      else if (p2.timed.elapsed < RETRACT) progress = 1 - easeInCubic((p2.timed.elapsed - HOLD) / (RETRACT - HOLD));
       else {
-        p2.active = false;
+        p2.timed.active = false;
         return;
       }
     } else {
@@ -98493,7 +98504,7 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = fa
   }, [animation, actions]);
   return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: scene, scale: [30, 30, 30], position: [0, groundY, 0] }) });
 };
-const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false }) => {
+const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, onRightHandBone }) => {
   const { camera, size } = useThree();
   const pos = reactExports.useRef(new Vector3(0, 0, 8));
   const charRot = reactExports.useRef(new Euler(0, Math.PI, 0));
@@ -98683,118 +98694,115 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       }
     }
   });
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Avatar, { animation: anim, visible: !dialogueOpen, pickupTrigger, armExtended }) });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: avRef, visible: !(zoomLevel < 0.5), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Avatar, { animation: anim, visible: !dialogueOpen, pickupTrigger, armExtended, onHandBone: onRightHandBone }) });
 };
-const RIGHT_ARM_CHAIN_KEYWORDS = ["rightshoulder", "rightarm", "rightforearm", "righthand", "shoulder.r", "arm.r", "forearm.r", "hand.r", "r_shoulder", "r_arm", "r_forearm", "r_hand"];
-function isInRightArmChain(boneName) {
-  const n = boneName.toLowerCase();
-  return RIGHT_ARM_CHAIN_KEYWORDS.some((k2) => n.includes(k2));
-}
-const FPArmModel = ({ zoomLevel, armExtended, pickupTrigger, active }) => {
+const FPArmModel = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightActive, flashlightOwned }) => {
   const { camera } = useThree();
-  const { scene, animations: walkAnims } = useGLTF(WALKING_URL);
-  const { animations: idleAnims } = useGLTF(IDLE_URL);
-  const cloned = reactExports.useMemo(() => {
-    const c2 = SkeletonUtils.clone(scene);
-    c2.traverse((child) => {
-      if ((child.isBone || child.type === "Bone") && !isInRightArmChain(child.name)) {
-        child.scale.set(1e-4, 1e-4, 1e-4);
-      }
-      if (child.isMesh && child.material) {
-        child.material = child.material.clone();
-        child.material.side = DoubleSide;
-        child.frustumCulled = false;
-      }
-    });
-    return c2;
-  }, [scene]);
-  const { actions } = useAnimations(reactExports.useMemo(() => {
-    const i2 = idleAnims.map((a2) => a2.clone(true));
-    if (i2[0]) i2[0].name = "Idle";
-    return i2;
-  }, [idleAnims]), cloned);
-  reactExports.useEffect(() => {
-    const idle = actions["Idle"];
-    if (idle) idle.reset().fadeIn(0.2).play();
-  }, [actions]);
-  const fp = reactExports.useRef({
-    active: false,
-    elapsed: 0,
-    arm: null,
-    forearm: null,
-    found: false,
-    lastTrigger: 0,
-    armQuat: new Quaternion(),
-    forearmQuat: new Quaternion(),
-    armDelta: new Quaternion(),
-    forearmDelta: new Quaternion(),
-    armEuler: new Euler(),
-    forearmEuler: new Euler()
+  const groupRef = reactExports.useRef(null);
+  const armPivotRef = reactExports.useRef(null);
+  const state2 = reactExports.useRef({
+    timed: { active: false, elapsed: 0, lastTrigger: 0 },
+    sustained: false,
+    timeSec: 0
   });
   reactExports.useEffect(() => {
-    const { arm, forearm } = findArmBones(cloned);
-    fp.current.arm = arm;
-    fp.current.forearm = forearm;
-    fp.current.found = !!(arm && forearm);
-  }, [cloned]);
-  reactExports.useEffect(() => {
-    if (pickupTrigger > 0 && pickupTrigger !== fp.current.lastTrigger) {
-      fp.current.lastTrigger = pickupTrigger;
-      if (!fp.current.active) {
-        fp.current.active = true;
-        fp.current.elapsed = 0;
-      }
+    if (pickupTrigger > 0 && pickupTrigger !== state2.current.timed.lastTrigger) {
+      state2.current.timed.lastTrigger = pickupTrigger;
+      state2.current.timed.active = true;
+      state2.current.timed.elapsed = 0;
     }
   }, [pickupTrigger]);
-  const vmRef = reactExports.useRef(null);
+  reactExports.useEffect(() => {
+    if (armExtended) {
+      state2.current.sustained = true;
+    } else if (state2.current.sustained) {
+      state2.current.sustained = false;
+      state2.current.timed.active = true;
+      state2.current.timed.elapsed = 0.8;
+    }
+  }, [armExtended]);
   useFrame((_, dt2) => {
-    const g2 = vmRef.current;
-    if (!g2) return;
+    const g2 = groupRef.current;
+    const pivot = armPivotRef.current;
+    if (!g2 || !pivot) return;
     const fpView = zoomLevel < 0.5;
     g2.visible = active && fpView;
     if (!g2.visible) return;
     g2.position.copy(camera.position);
     g2.quaternion.copy(camera.quaternion);
-    const p2 = fp.current;
-    if (!p2.found || !p2.arm || !p2.forearm) return;
+    const s = state2.current;
+    s.timeSec += dt2;
     let progress;
-    if (armExtended) {
+    if (s.sustained) {
       progress = 1;
-    } else if (p2.active) {
+    } else if (s.timed.active) {
       const safeDt = Math.min(dt2, 0.05);
-      p2.elapsed += safeDt;
+      s.timed.elapsed += safeDt;
       const EXTEND = 0.3, HOLD = 0.8, RETRACT = 1.2;
-      if (p2.elapsed < EXTEND) progress = easeOutCubic(p2.elapsed / EXTEND);
-      else if (p2.elapsed < HOLD) progress = 1;
-      else if (p2.elapsed < RETRACT) progress = 1 - easeInCubic((p2.elapsed - HOLD) / (RETRACT - HOLD));
+      if (s.timed.elapsed < EXTEND) progress = easeOutCubic(s.timed.elapsed / EXTEND);
+      else if (s.timed.elapsed < HOLD) progress = 1;
+      else if (s.timed.elapsed < RETRACT) progress = 1 - easeInCubic((s.timed.elapsed - HOLD) / (RETRACT - HOLD));
       else {
-        p2.active = false;
-        return;
+        s.timed.active = false;
+        progress = 0;
       }
     } else {
-      return;
+      progress = 0;
     }
-    const maxAngle = -Math.PI * 0.44;
-    const armAngle = maxAngle * progress;
-    const forearmAngle = maxAngle * 0.3 * progress;
-    p2.armQuat.copy(p2.arm.quaternion);
-    p2.forearmQuat.copy(p2.forearm.quaternion);
-    p2.armEuler.set(armAngle, 0, 0);
-    p2.forearmEuler.set(forearmAngle, 0, 0);
-    p2.armDelta.setFromEuler(p2.armEuler);
-    p2.forearmDelta.setFromEuler(p2.forearmEuler);
-    p2.arm.quaternion.copy(p2.armQuat).multiply(p2.armDelta);
-    p2.forearm.quaternion.copy(p2.forearmQuat).multiply(p2.forearmDelta);
+    const bob = Math.sin(s.timeSec * 1.8) * 8e-3 * (1 - progress * 0.7);
+    const restX = 0.6, extX = -0.05;
+    const restZ = 0.2, extZ = 0;
+    pivot.rotation.x = restX + (extX - restX) * progress;
+    pivot.rotation.z = restZ + (extZ - restZ) * progress;
+    pivot.position.y = -0.05 + bob;
   });
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: vmRef, visible: false, renderOrder: 999, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-    "primitive",
-    {
-      object: cloned,
-      scale: [30, 30, 30],
-      position: [0.35, -1.45, -0.2],
-      rotation: [0, Math.PI, 0]
-    }
-  ) });
+  const SKIN = "#D9B58F";
+  const SLEEVE = "#3a2e26";
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, visible: false, renderOrder: 999, children: /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [0.18, -0.18, -0.18], children: /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: armPivotRef, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.13, 0], renderOrder: 999, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.045, 0.04, 0.26, 14] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SLEEVE, roughness: 0.85 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.26, 0], renderOrder: 999, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.045, 14, 10] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SLEEVE, roughness: 0.85 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.39, 0], renderOrder: 999, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.038, 0.24, 14] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SKIN, roughness: 0.95 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.51, 0], renderOrder: 999, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.04, 12, 10] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SKIN, roughness: 0.95 })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.57, 0], renderOrder: 999, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.075, 0.1, 0.05] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SKIN, roughness: 0.95 })
+    ] }),
+    flashlightOwned && /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, -0.6, -0.08], rotation: [Math.PI / 2, 0, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { renderOrder: 999, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.035, 0.035, 0.18, 14] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1e", metalness: 0.85, roughness: 0.25 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.1, 0], renderOrder: 999, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.048, 0.038, 0.05, 14] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2a2a2e", metalness: 0.75, roughness: 0.3 })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.125, 0], renderOrder: 999, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.042, 16] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "meshStandardMaterial",
+          {
+            color: flashlightActive ? "#FFF3CC" : "#888",
+            emissive: flashlightActive ? "#FFF3CC" : "#222",
+            emissiveIntensity: flashlightActive ? 2.4 : 0.15,
+            toneMapped: false
+          }
+        )
+      ] }),
+      flashlightActive && /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 0.16, 0], intensity: 0.15, distance: 0.4, color: "#FFF3CC" })
+    ] })
+  ] }) }) });
 };
 const EMPTY = {
   flashlight: { owned: false, active: false },
@@ -99035,11 +99043,15 @@ const FlashlightLight = ({
 const FlashlightModel3D = ({
   playerPositionRef,
   cameraThetaRef,
+  rightHandBoneRef,
   active,
   owned,
   zoomLevel
 }) => {
   const groupRef = reactExports.useRef(null);
+  const _pos = reactExports.useRef(new Vector3());
+  const _quat = reactExports.useRef(new Quaternion());
+  const _scl = reactExports.useRef(new Vector3());
   useFrame(() => {
     const g2 = groupRef.current;
     if (!g2) return;
@@ -99048,6 +99060,15 @@ const FlashlightModel3D = ({
       return;
     }
     g2.visible = true;
+    const handBone = (rightHandBoneRef == null ? void 0 : rightHandBoneRef.current) ?? null;
+    if (handBone) {
+      handBone.updateMatrixWorld(true);
+      handBone.matrixWorld.decompose(_pos.current, _quat.current, _scl.current);
+      g2.position.copy(_pos.current);
+      g2.quaternion.copy(_quat.current);
+      g2.scale.set(1, 1, 1);
+      return;
+    }
     const pp = playerPositionRef.current;
     const theta = cameraThetaRef.current;
     const fwdX = -Math.sin(theta);
@@ -99062,9 +99083,10 @@ const FlashlightModel3D = ({
       pp.y + yOffset,
       pp.z + fwdZ * fwdDist + rightZ * sideDist
     );
-    g2.rotation.y = Math.atan2(fwdX, fwdZ);
+    g2.rotation.set(0, Math.atan2(fwdX, fwdZ), 0);
+    g2.scale.set(1, 1, 1);
   });
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, visible: false, children: [
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, visible: false, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, 0.03, 0], rotation: [Math.PI / 2, 0, 0], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.05], rotation: [Math.PI / 2, 0, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.04, 0.22, 12] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1e", metalness: 0.85, roughness: 0.25 })
@@ -99090,7 +99112,7 @@ const FlashlightModel3D = ({
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#444", metalness: 0.9, roughness: 0.2 })
     ] }),
     active && /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 0, 0.27], intensity: 0.2, distance: 0.4, color: "#FFF3CC" })
-  ] });
+  ] }) });
 };
 const TextureMaterial = React.memo(({ url, color = "#ffffff", repeat: repeat2 = [1, 1], roughness = 0.8, metalness = 0, bumpScale = 0, transparent = false, opacity = 1, rotation: rotation2 = 0 }) => {
   const rawTexture = useTexture(url);
@@ -102468,6 +102490,10 @@ function App() {
   const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie: consumeCookie, hasAnyItem } = useInventory();
   const [pickupTrigger, setPickupTrigger] = reactExports.useState(0);
   const triggerPickup = reactExports.useCallback(() => setPickupTrigger((n) => n + 1), []);
+  const rightHandBoneRef = reactExports.useRef(null);
+  const handleRightHandBone = reactExports.useCallback((b2) => {
+    rightHandBoneRef.current = b2;
+  }, []);
   const handleBuyItem = reactExports.useCallback((itemId) => {
     inventoryAddItem(itemId);
     triggerPickup();
@@ -103031,7 +103057,7 @@ function App() {
         ] }) }), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
           visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger, armExtended: inventory.flashlight.owned && inventory.flashlight.active }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger, armExtended: inventory.flashlight.owned && inventory.flashlight.active, onRightHandBone: handleRightHandBone }),
           hasStarted && inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               FlashlightLight,
@@ -103047,6 +103073,7 @@ function App() {
               {
                 playerPositionRef: sharedPlayerPositionRef,
                 cameraThetaRef,
+                rightHandBoneRef,
                 active: inventory.flashlight.active,
                 owned: inventory.flashlight.owned,
                 zoomLevel
@@ -103059,7 +103086,9 @@ function App() {
               zoomLevel,
               armExtended: inventory.flashlight.owned && inventory.flashlight.active,
               pickupTrigger,
-              active: hasStarted
+              active: hasStarted,
+              flashlightActive: inventory.flashlight.active,
+              flashlightOwned: inventory.flashlight.owned
             }
           ),
           botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
