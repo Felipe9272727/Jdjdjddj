@@ -436,6 +436,7 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
   const { camera } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   const armPivotRef = useRef<THREE.Group>(null);
+  const flashlightRef = useRef<THREE.Group>(null);
 
   // Pickup state — same timed/sustained split as Avatar
   const state = useRef({
@@ -507,6 +508,20 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
     pivot.rotation.x = restX + (extX - restX) * progress;
     pivot.rotation.z = sway * 0.5;
     pivot.position.y = -0.02 + bob;
+
+    // Flashlight: NOT a child of the pivot. It sits in the anchor space with
+    // a fixed forward-pointing rotation. We interpolate its position to follow
+    // where the hand should be (computed from the same progress curve).
+    const fl = flashlightRef.current;
+    if (fl && flashlightOwned) {
+      // Hand position in pivot-local: roughly (0, -0.60, 0). Apply pivot's
+      // X rotation: (0, -0.60, 0) → (0, -0.60*cos(rotX), -0.60*sin(rotX) * -1)
+      const rotX = pivot.rotation.x;
+      const handY = -0.60 * Math.cos(rotX);
+      const handZ = +0.60 * Math.sin(rotX);
+      // Then add anchor offset. Anchor is at [0.28, -0.20, -0.30] in groupRef.
+      fl.position.set(0.28, -0.20 + handY + bob, -0.30 + handZ);
+    }
   });
 
   // Skin tone + flashlight colors
@@ -548,33 +563,39 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
             <meshStandardMaterial color={SKIN} roughness={0.95} depthTest={false} />
           </mesh>
 
-          {flashlightOwned && (
-            <group position={[0, -0.62, -0.06]} rotation={[Math.PI / 2, 0, 0]}>
-              <mesh renderOrder={999} frustumCulled={false}>
-                <cylinderGeometry args={[0.035, 0.035, 0.20, 14]} />
-                <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} depthTest={false} />
-              </mesh>
-              <mesh position={[0, 0.12, 0]} renderOrder={999} frustumCulled={false}>
-                <cylinderGeometry args={[0.050, 0.038, 0.06, 14]} />
-                <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} depthTest={false} />
-              </mesh>
-              <mesh position={[0, 0.155, 0]} renderOrder={999} frustumCulled={false}>
-                <circleGeometry args={[0.045, 16]} />
-                <meshStandardMaterial
-                  color={flashlightActive ? '#FFF3CC' : '#888'}
-                  emissive={flashlightActive ? '#FFF3CC' : '#222'}
-                  emissiveIntensity={flashlightActive ? 2.4 : 0.15}
-                  toneMapped={false}
-                  depthTest={false}
-                />
-              </mesh>
-              {flashlightActive && (
-                <pointLight position={[0, 0.20, 0]} intensity={0.15} distance={0.4} color="#FFF3CC" />
-              )}
-            </group>
-          )}
         </group>
       </group>
+
+      {/* Flashlight: SIBLING of the anchor (lives in groupRef-local =
+          camera-local). Position is driven by useFrame from the same arm
+          progress. Rotation is FIXED so the lens always points forward
+          (-Z camera-local). Pulling it out of the arm pivot avoids the
+          dual-rotation bug where the body ended up pointing 180° off. */}
+      {flashlightOwned && (
+        <group ref={flashlightRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={999}>
+          <mesh position={[0, 0.10, 0]} renderOrder={999} frustumCulled={false}>
+            <cylinderGeometry args={[0.035, 0.035, 0.20, 14]} />
+            <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} depthTest={false} />
+          </mesh>
+          <mesh position={[0, 0.225, 0]} renderOrder={999} frustumCulled={false}>
+            <cylinderGeometry args={[0.050, 0.038, 0.06, 14]} />
+            <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} depthTest={false} />
+          </mesh>
+          <mesh position={[0, 0.260, 0]} renderOrder={999} frustumCulled={false}>
+            <circleGeometry args={[0.045, 16]} />
+            <meshStandardMaterial
+              color={flashlightActive ? '#FFF3CC' : '#888'}
+              emissive={flashlightActive ? '#FFF3CC' : '#222'}
+              emissiveIntensity={flashlightActive ? 2.4 : 0.15}
+              toneMapped={false}
+              depthTest={false}
+            />
+          </mesh>
+          {flashlightActive && (
+            <pointLight position={[0, 0.30, 0]} intensity={0.15} distance={0.4} color="#FFF3CC" />
+          )}
+        </group>
+      )}
     </group>
   );
 };

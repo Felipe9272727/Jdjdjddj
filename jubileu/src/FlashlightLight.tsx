@@ -85,6 +85,10 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
 interface FlashlightModel3DProps {
   playerPositionRef: React.MutableRefObject<THREE.Vector3>;
   cameraThetaRef: React.MutableRefObject<number>;
+  /** The avatar's body rotation Y (charRot.y in Player.tsx). In third person
+   *  this lerps toward movement direction, NOT the camera azimuth, so using
+   *  cameraTheta makes the flashlight orbit while the avatar stands still. */
+  playerRotationYRef?: React.MutableRefObject<number>;
   rightHandBoneRef?: React.MutableRefObject<THREE.Bone | null>;
   active: boolean;
   owned: boolean;
@@ -94,6 +98,7 @@ interface FlashlightModel3DProps {
 export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
   playerPositionRef,
   cameraThetaRef,
+  playerRotationYRef,
   rightHandBoneRef,
   active,
   owned,
@@ -112,10 +117,18 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
     g.visible = true;
 
     const handBone = rightHandBoneRef?.current ?? null;
-    const theta = cameraThetaRef.current;
-    // Player faces away from the camera (idle pose). The forward direction
-    // in world XZ is therefore (-sin(theta), -cos(theta)).
-    const facing = Math.atan2(-Math.sin(theta), -Math.cos(theta));
+    // Prefer playerRotationY (where the AVATAR faces) over cameraTheta.
+    // In 3rd person these diverge: the camera orbits but the body keeps
+    // its heading from movement, so we want the body's heading.
+    let facing: number;
+    if (playerRotationYRef && Number.isFinite(playerRotationYRef.current)) {
+      // charRot.y is the avatar's local Y rotation. Player forward in world
+      // matches the same Y rotation when applied to the group.
+      facing = playerRotationYRef.current;
+    } else {
+      const theta = cameraThetaRef.current;
+      facing = Math.atan2(-Math.sin(theta), -Math.cos(theta));
+    }
 
     if (handBone) {
       // Position from the bone, BUT rotation from the camera/player facing.
@@ -132,12 +145,12 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
       return;
     }
 
-    // Fallback: math offset from player position + camera azimuth.
+    // Fallback: math offset from player position + facing direction.
     const pp = playerPositionRef.current;
-    const fwdX = -Math.sin(theta);
-    const fwdZ = -Math.cos(theta);
-    const rightX = -Math.cos(theta);
-    const rightZ =  Math.sin(theta);
+    const fwdX = -Math.sin(facing);
+    const fwdZ = -Math.cos(facing);
+    const rightX = -Math.cos(facing);
+    const rightZ =  Math.sin(facing);
     const sideDist = 0.30;
     const fwdDist = active ? 0.55 : 0.22;
     const yOffset = active ? 1.35 : 1.20;

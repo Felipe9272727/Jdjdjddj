@@ -661,6 +661,7 @@ export default function App() {
                   <FlashlightModel3D
                     playerPositionRef={sharedPlayerPositionRef}
                     cameraThetaRef={cameraThetaRef}
+                    playerRotationYRef={sharedRotationYRef}
                     rightHandBoneRef={rightHandBoneRef}
                     active={inventory.flashlight.active}
                     owned={inventory.flashlight.owned}
