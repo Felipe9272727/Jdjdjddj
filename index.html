@@ -98749,58 +98749,60 @@ const FPArmModel = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightA
     } else {
       progress = 0;
     }
-    const bob = Math.sin(s.timeSec * 1.8) * 8e-3 * (1 - progress * 0.7);
-    const restX = 0.6, extX = -0.05;
-    const restZ = 0.2, extZ = 0;
+    const bob = Math.sin(s.timeSec * 1.8) * 0.012;
+    const sway = Math.cos(s.timeSec * 1.3) * 8e-3;
+    const restX = 1.1;
+    const extX = 1.55;
     pivot.rotation.x = restX + (extX - restX) * progress;
-    pivot.rotation.z = restZ + (extZ - restZ) * progress;
-    pivot.position.y = -0.05 + bob;
+    pivot.rotation.z = sway * 0.5;
+    pivot.position.y = -0.02 + bob;
   });
   const SKIN = "#D9B58F";
   const SLEEVE = "#3a2e26";
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, visible: false, renderOrder: 999, children: /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [0.18, -0.18, -0.18], children: /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: armPivotRef, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.13, 0], renderOrder: 999, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.045, 0.04, 0.26, 14] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SLEEVE, roughness: 0.85 })
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, visible: false, renderOrder: 999, children: /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [0.28, -0.2, -0.3], children: /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: armPivotRef, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.13, 0], renderOrder: 999, frustumCulled: false, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.05, 0.045, 0.26, 14] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SLEEVE, roughness: 0.85, depthTest: false })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.26, 0], renderOrder: 999, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.045, 14, 10] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SLEEVE, roughness: 0.85 })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.26, 0], renderOrder: 999, frustumCulled: false, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.05, 14, 10] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SLEEVE, roughness: 0.85, depthTest: false })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.39, 0], renderOrder: 999, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.038, 0.24, 14] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SKIN, roughness: 0.95 })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.39, 0], renderOrder: 999, frustumCulled: false, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.045, 0.042, 0.24, 14] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SKIN, roughness: 0.95, depthTest: false })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.51, 0], renderOrder: 999, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.04, 12, 10] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SKIN, roughness: 0.95 })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.51, 0], renderOrder: 999, frustumCulled: false, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.045, 12, 10] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SKIN, roughness: 0.95, depthTest: false })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.57, 0], renderOrder: 999, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.075, 0.1, 0.05] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SKIN, roughness: 0.95 })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, -0.57, 0], renderOrder: 999, frustumCulled: false, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.085, 0.1, 0.06] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: SKIN, roughness: 0.95, depthTest: false })
     ] }),
-    flashlightOwned && /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, -0.6, -0.08], rotation: [Math.PI / 2, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { renderOrder: 999, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.035, 0.035, 0.18, 14] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1e", metalness: 0.85, roughness: 0.25 })
+    flashlightOwned && /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, -0.62, -0.06], rotation: [Math.PI / 2, 0, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { renderOrder: 999, frustumCulled: false, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.035, 0.035, 0.2, 14] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1e", metalness: 0.85, roughness: 0.25, depthTest: false })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.1, 0], renderOrder: 999, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.048, 0.038, 0.05, 14] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2a2a2e", metalness: 0.75, roughness: 0.3 })
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.12, 0], renderOrder: 999, frustumCulled: false, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.05, 0.038, 0.06, 14] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2a2a2e", metalness: 0.75, roughness: 0.3, depthTest: false })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.125, 0], renderOrder: 999, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.042, 16] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.155, 0], renderOrder: 999, frustumCulled: false, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.045, 16] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "meshStandardMaterial",
           {
             color: flashlightActive ? "#FFF3CC" : "#888",
             emissive: flashlightActive ? "#FFF3CC" : "#222",
             emissiveIntensity: flashlightActive ? 2.4 : 0.15,
-            toneMapped: false
+            toneMapped: false,
+            depthTest: false
           }
         )
       ] }),
-      flashlightActive && /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 0.16, 0], intensity: 0.15, distance: 0.4, color: "#FFF3CC" })
+      flashlightActive && /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 0.2, 0], intensity: 0.15, distance: 0.4, color: "#FFF3CC" })
     ] })
   ] }) }) });
 };
@@ -99061,16 +99063,17 @@ const FlashlightModel3D = ({
     }
     g2.visible = true;
     const handBone = (rightHandBoneRef == null ? void 0 : rightHandBoneRef.current) ?? null;
+    const theta = cameraThetaRef.current;
+    const facing = Math.atan2(-Math.sin(theta), -Math.cos(theta));
     if (handBone) {
       handBone.updateMatrixWorld(true);
       handBone.matrixWorld.decompose(_pos.current, _quat.current, _scl.current);
       g2.position.copy(_pos.current);
-      g2.quaternion.copy(_quat.current);
+      g2.rotation.set(0, facing, 0);
       g2.scale.set(1, 1, 1);
       return;
     }
     const pp = playerPositionRef.current;
-    const theta = cameraThetaRef.current;
     const fwdX = -Math.sin(theta);
     const fwdZ = -Math.cos(theta);
     const rightX = -Math.cos(theta);
@@ -99083,19 +99086,19 @@ const FlashlightModel3D = ({
       pp.y + yOffset,
       pp.z + fwdZ * fwdDist + rightZ * sideDist
     );
-    g2.rotation.set(0, Math.atan2(fwdX, fwdZ), 0);
+    g2.rotation.set(0, facing, 0);
     g2.scale.set(1, 1, 1);
   });
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, visible: false, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, 0.03, 0], rotation: [Math.PI / 2, 0, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.05], rotation: [Math.PI / 2, 0, 0], children: [
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, visible: false, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0.05, 0.02, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.12], rotation: [Math.PI / 2, 0, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.04, 0.22, 12] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1e", metalness: 0.85, roughness: 0.25 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.2], rotation: [Math.PI / 2, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.26], rotation: [Math.PI / 2, 0, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.055, 0.04, 0.07, 12] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2a2a2e", metalness: 0.75, roughness: 0.3 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.235], rotation: [Math.PI / 2, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.295], rotation: [Math.PI / 2, 0, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.05, 16] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(
         "meshStandardMaterial",
@@ -99107,11 +99110,11 @@ const FlashlightModel3D = ({
         }
       )
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.236], rotation: [Math.PI / 2, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.296], rotation: [Math.PI / 2, 0, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("ringGeometry", { args: [0.05, 0.058, 16] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#444", metalness: 0.9, roughness: 0.2 })
     ] }),
-    active && /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 0, 0.27], intensity: 0.2, distance: 0.4, color: "#FFF3CC" })
+    active && /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 0, 0.32], intensity: 0.2, distance: 0.4, color: "#FFF3CC" })
   ] }) });
 };
 const TextureMaterial = React.memo(({ url, color = "#ffffff", repeat: repeat2 = [1, 1], roughness = 0.8, metalness = 0, bumpScale = 0, transparent = false, opacity = 1, rotation: rotation2 = 0 }) => {

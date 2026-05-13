@@ -493,79 +493,83 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
       progress = 0;
     }
 
-    // Idle bob (very subtle vertical motion to feel alive)
-    const bob = Math.sin(s.timeSec * 1.8) * 0.008 * (1 - progress * 0.7);
+    // Idle bob (subtle vertical motion + slight side sway, feels alive)
+    const bob = Math.sin(s.timeSec * 1.8) * 0.012;
+    const sway = Math.cos(s.timeSec * 1.3) * 0.008;
 
-    // Rotate the arm pivot:
-    //   relaxed (progress 0): arm hangs ~down/back-ish, out of view
-    //   extended (progress 1): arm points forward, into view
-    const restX = 0.6, extX = -0.05;   // pitch (around X)
-    const restZ = 0.2, extZ = 0.0;     // roll (around Z)
+    // Rotate the arm pivot. The "shoulder" is at the pivot origin; arm parts
+    // hang along -Y (default cylinder axis). To point forward, we pitch the
+    // pivot ~+90° (rotation.x → Math.PI/2 maps -Y to -Z = camera forward).
+    //   relaxed (progress 0): arm is angled down-forward, visible at bottom-right
+    //   extended (progress 1): arm fully forward, hand reaches toward center
+    const restX = 1.10;   // ~63°: pointing forward & slightly down
+    const extX  = 1.55;   // ~89°: nearly straight forward
     pivot.rotation.x = restX + (extX - restX) * progress;
-    pivot.rotation.z = restZ + (extZ - restZ) * progress;
-    pivot.position.y = -0.05 + bob;
+    pivot.rotation.z = sway * 0.5;
+    pivot.position.y = -0.02 + bob;
   });
 
   // Skin tone + flashlight colors
   const SKIN = '#D9B58F';
   const SLEEVE = '#3a2e26';
 
+  // depthTest=false on every material → the FP arm always renders over the
+  // scene, like a classic FPS viewmodel. renderOrder=999 enforces draw order.
   return (
     <group ref={groupRef} visible={false} renderOrder={999}>
-      {/* Anchor at the camera's "right shoulder": right + slight forward + down */}
-      <group position={[0.18, -0.18, -0.18]}>
+      {/* Anchor a bit to the right of the camera, below center, and pushed
+          into the scene by 30cm so the arm sticks out from behind the
+          camera frustum's near plane (default ~0.1). */}
+      <group position={[0.28, -0.20, -0.30]}>
         <group ref={armPivotRef}>
-          {/* Upper arm — cylinder along -Y from the shoulder pivot */}
-          <mesh position={[0, -0.13, 0]} renderOrder={999}>
-            <cylinderGeometry args={[0.045, 0.040, 0.26, 14]} />
-            <meshStandardMaterial color={SLEEVE} roughness={0.85} />
+          {/* Upper arm */}
+          <mesh position={[0, -0.13, 0]} renderOrder={999} frustumCulled={false}>
+            <cylinderGeometry args={[0.050, 0.045, 0.26, 14]} />
+            <meshStandardMaterial color={SLEEVE} roughness={0.85} depthTest={false} />
           </mesh>
           {/* Elbow */}
-          <mesh position={[0, -0.26, 0]} renderOrder={999}>
-            <sphereGeometry args={[0.045, 14, 10]} />
-            <meshStandardMaterial color={SLEEVE} roughness={0.85} />
+          <mesh position={[0, -0.26, 0]} renderOrder={999} frustumCulled={false}>
+            <sphereGeometry args={[0.050, 14, 10]} />
+            <meshStandardMaterial color={SLEEVE} roughness={0.85} depthTest={false} />
           </mesh>
           {/* Forearm */}
-          <mesh position={[0, -0.39, 0]} renderOrder={999}>
-            <cylinderGeometry args={[0.040, 0.038, 0.24, 14]} />
-            <meshStandardMaterial color={SKIN} roughness={0.95} />
+          <mesh position={[0, -0.39, 0]} renderOrder={999} frustumCulled={false}>
+            <cylinderGeometry args={[0.045, 0.042, 0.24, 14]} />
+            <meshStandardMaterial color={SKIN} roughness={0.95} depthTest={false} />
           </mesh>
           {/* Wrist */}
-          <mesh position={[0, -0.51, 0]} renderOrder={999}>
-            <sphereGeometry args={[0.040, 12, 10]} />
-            <meshStandardMaterial color={SKIN} roughness={0.95} />
+          <mesh position={[0, -0.51, 0]} renderOrder={999} frustumCulled={false}>
+            <sphereGeometry args={[0.045, 12, 10]} />
+            <meshStandardMaterial color={SKIN} roughness={0.95} depthTest={false} />
           </mesh>
           {/* Hand (palm) */}
-          <mesh position={[0, -0.57, 0]} renderOrder={999}>
-            <boxGeometry args={[0.075, 0.10, 0.05]} />
-            <meshStandardMaterial color={SKIN} roughness={0.95} />
+          <mesh position={[0, -0.57, 0]} renderOrder={999} frustumCulled={false}>
+            <boxGeometry args={[0.085, 0.10, 0.06]} />
+            <meshStandardMaterial color={SKIN} roughness={0.95} depthTest={false} />
           </mesh>
 
-          {/* Flashlight gripped by the hand — only when owned */}
           {flashlightOwned && (
-            <group position={[0, -0.60, -0.08]} rotation={[Math.PI / 2, 0, 0]}>
-              {/* Body */}
-              <mesh renderOrder={999}>
-                <cylinderGeometry args={[0.035, 0.035, 0.18, 14]} />
-                <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} />
+            <group position={[0, -0.62, -0.06]} rotation={[Math.PI / 2, 0, 0]}>
+              <mesh renderOrder={999} frustumCulled={false}>
+                <cylinderGeometry args={[0.035, 0.035, 0.20, 14]} />
+                <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} depthTest={false} />
               </mesh>
-              {/* Head */}
-              <mesh position={[0, 0.10, 0]} renderOrder={999}>
-                <cylinderGeometry args={[0.048, 0.038, 0.05, 14]} />
-                <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} />
+              <mesh position={[0, 0.12, 0]} renderOrder={999} frustumCulled={false}>
+                <cylinderGeometry args={[0.050, 0.038, 0.06, 14]} />
+                <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} depthTest={false} />
               </mesh>
-              {/* Lens */}
-              <mesh position={[0, 0.125, 0]} renderOrder={999}>
-                <circleGeometry args={[0.042, 16]} />
+              <mesh position={[0, 0.155, 0]} renderOrder={999} frustumCulled={false}>
+                <circleGeometry args={[0.045, 16]} />
                 <meshStandardMaterial
                   color={flashlightActive ? '#FFF3CC' : '#888'}
                   emissive={flashlightActive ? '#FFF3CC' : '#222'}
                   emissiveIntensity={flashlightActive ? 2.4 : 0.15}
                   toneMapped={false}
+                  depthTest={false}
                 />
               </mesh>
               {flashlightActive && (
-                <pointLight position={[0, 0.16, 0]} intensity={0.15} distance={0.4} color="#FFF3CC" />
+                <pointLight position={[0, 0.20, 0]} intensity={0.15} distance={0.4} color="#FFF3CC" />
               )}
             </group>
           )}

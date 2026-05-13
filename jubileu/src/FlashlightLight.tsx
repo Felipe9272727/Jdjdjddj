@@ -112,22 +112,28 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
     g.visible = true;
 
     const handBone = rightHandBoneRef?.current ?? null;
+    const theta = cameraThetaRef.current;
+    // Player faces away from the camera (idle pose). The forward direction
+    // in world XZ is therefore (-sin(theta), -cos(theta)).
+    const facing = Math.atan2(-Math.sin(theta), -Math.cos(theta));
+
     if (handBone) {
-      // Follow the right-hand bone. matrixWorld is already in world space
-      // (the GLB's scale={[30,30,30]} is baked in), so decompose and copy.
+      // Position from the bone, BUT rotation from the camera/player facing.
+      // Reason: the Mixamo hand bone has a local axis orientation that we
+      // can't reason about reliably from a name — copying the bone's
+      // quaternion makes the flashlight point sideways/backwards (Felipe's
+      // screenshot). Decoupling position from rotation gives a stable model
+      // that always points where the player looks.
       handBone.updateMatrixWorld(true);
       handBone.matrixWorld.decompose(_pos.current, _quat.current, _scl.current);
       g.position.copy(_pos.current);
-      g.quaternion.copy(_quat.current);
-      // The bone is scaled with the GLB. Cancel that so our model renders at
-      // its mesh-level dimensions (radii of 4cm etc., not 30× of them).
+      g.rotation.set(0, facing, 0);
       g.scale.set(1, 1, 1);
       return;
     }
 
     // Fallback: math offset from player position + camera azimuth.
     const pp = playerPositionRef.current;
-    const theta = cameraThetaRef.current;
     const fwdX = -Math.sin(theta);
     const fwdZ = -Math.cos(theta);
     const rightX = -Math.cos(theta);
@@ -140,29 +146,31 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
       pp.y + yOffset,
       pp.z + fwdZ * fwdDist + rightZ * sideDist,
     );
-    g.rotation.set(0, Math.atan2(fwdX, fwdZ), 0);
+    g.rotation.set(0, facing, 0);
     g.scale.set(1, 1, 1);
   });
 
-  // The Mixamo RightHand bone's local Y points along the hand toward the
-  // fingers. When we follow the bone via matrixWorld, the inner group's
-  // +Y becomes "out of the palm". We rotate the model so its flashlight
-  // axis aligns with that direction (and offset it slightly into the palm
-  // so it visually sits ON the hand, not floating).
+  // The outer group is positioned at the hand and rotated so its +Z points
+  // in the player's facing direction. We just need to lay the model along
+  // that axis. Cylinders default to lying along +Y, so each gets a 90°
+  // pitch rotation. A tiny right/up offset (in player-local space) places
+  // the model on top of the hand instead of inside the wrist.
   return (
     <group ref={groupRef} visible={false}>
-      <group position={[0, 0.03, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        {/* Body — cylinder along +Z after the parent rotation maps it to
-            the hand's +Y direction. */}
-        <mesh position={[0, 0, 0.05]} rotation={[Math.PI / 2, 0, 0]}>
+      <group position={[0.05, 0.02, 0]}>
+        {/* Body — cylinder lying along +Z (forward), centered just ahead
+            of the hand position. */}
+        <mesh position={[0, 0, 0.12]} rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.04, 0.04, 0.22, 12]} />
           <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} />
         </mesh>
-        <mesh position={[0, 0, 0.20]} rotation={[Math.PI / 2, 0, 0]}>
+        {/* Head (slightly wider) */}
+        <mesh position={[0, 0, 0.26]} rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.055, 0.04, 0.07, 12]} />
           <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} />
         </mesh>
-        <mesh position={[0, 0, 0.235]} rotation={[Math.PI / 2, 0, 0]}>
+        {/* Lens — front face */}
+        <mesh position={[0, 0, 0.295]} rotation={[Math.PI / 2, 0, 0]}>
           <circleGeometry args={[0.05, 16]} />
           <meshStandardMaterial
             color={active ? '#FFF3CC' : '#888'}
@@ -171,12 +179,12 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
             toneMapped={false}
           />
         </mesh>
-        <mesh position={[0, 0, 0.236]} rotation={[Math.PI / 2, 0, 0]}>
+        <mesh position={[0, 0, 0.296]} rotation={[Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.05, 0.058, 16]} />
           <meshStandardMaterial color="#444" metalness={0.9} roughness={0.2} />
         </mesh>
         {active && (
-          <pointLight position={[0, 0, 0.27]} intensity={0.2} distance={0.4} color="#FFF3CC" />
+          <pointLight position={[0, 0, 0.32]} intensity={0.2} distance={0.4} color="#FFF3CC" />
         )}
       </group>
     </group>
