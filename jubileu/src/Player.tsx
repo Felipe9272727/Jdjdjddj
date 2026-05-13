@@ -514,11 +514,14 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
     // where the hand should be (computed from the same progress curve).
     const fl = flashlightRef.current;
     if (fl && flashlightOwned) {
-      // Hand position in pivot-local: roughly (0, -0.60, 0). Apply pivot's
-      // X rotation: (0, -0.60, 0) → (0, -0.60*cos(rotX), -0.60*sin(rotX) * -1)
+      // Hand offset in pivot-local: (0, -0.60, 0). After R_x(rotX):
+      //   x' = 0
+      //   y' = cos(rotX)*(-0.60) - sin(rotX)*0 = -0.60 * cos(rotX)
+      //   z' = sin(rotX)*(-0.60) + cos(rotX)*0 = -0.60 * sin(rotX)
+      // With rotX ∈ [1.10, 1.55], sin(rotX) > 0, so handZ < 0 (forward camera).
       const rotX = pivot.rotation.x;
       const handY = -0.60 * Math.cos(rotX);
-      const handZ = +0.60 * Math.sin(rotX);
+      const handZ = -0.60 * Math.sin(rotX);
       // Then add anchor offset. Anchor is at [0.28, -0.20, -0.30] in groupRef.
       fl.position.set(0.28, -0.20 + handY + bob, -0.30 + handZ);
     }

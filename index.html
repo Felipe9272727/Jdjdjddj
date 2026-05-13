@@ -98761,7 +98761,7 @@ const FPArmModel = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightA
     if (fl && flashlightOwned) {
       const rotX = pivot.rotation.x;
       const handY = -0.6 * Math.cos(rotX);
-      const handZ = 0.6 * Math.sin(rotX);
+      const handZ = -0.6 * Math.sin(rotX);
       fl.position.set(0.28, -0.2 + handY + bob, -0.3 + handZ);
     }
   });
@@ -99082,10 +99082,10 @@ const FlashlightModel3D = ({
       facing = Math.atan2(-Math.sin(theta), -Math.cos(theta));
     }
     if (handBone) {
-      handBone.updateMatrixWorld(true);
+      handBone.updateWorldMatrix(true, false);
       handBone.matrixWorld.decompose(_pos.current, _quat.current, _scl.current);
       g2.position.copy(_pos.current);
-      g2.rotation.set(0, facing, 0);
+      g2.rotation.set(0, facing + Math.PI, 0);
       g2.scale.set(1, 1, 1);
       return;
     }
@@ -99102,19 +99102,19 @@ const FlashlightModel3D = ({
       pp.y + yOffset,
       pp.z + fwdZ * fwdDist + rightZ * sideDist
     );
-    g2.rotation.set(0, facing, 0);
+    g2.rotation.set(0, facing + Math.PI, 0);
     g2.scale.set(1, 1, 1);
   });
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, visible: false, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0.05, 0.02, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.12], rotation: [Math.PI / 2, 0, 0], children: [
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, visible: false, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.15], rotation: [Math.PI / 2, 0, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.04, 0.22, 12] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a1e", metalness: 0.85, roughness: 0.25 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.26], rotation: [Math.PI / 2, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.29], rotation: [Math.PI / 2, 0, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.055, 0.04, 0.07, 12] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2a2a2e", metalness: 0.75, roughness: 0.3 })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.295], rotation: [Math.PI / 2, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.325], rotation: [Math.PI / 2, 0, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.05, 16] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(
         "meshStandardMaterial",
@@ -99126,12 +99126,12 @@ const FlashlightModel3D = ({
         }
       )
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.296], rotation: [Math.PI / 2, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0, 0.326], rotation: [Math.PI / 2, 0, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("ringGeometry", { args: [0.05, 0.058, 16] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#444", metalness: 0.9, roughness: 0.2 })
     ] }),
-    active && /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 0, 0.32], intensity: 0.2, distance: 0.4, color: "#FFF3CC" })
-  ] }) });
+    active && /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 0, 0.36], intensity: 0.2, distance: 0.4, color: "#FFF3CC" })
+  ] });
 };
 const TextureMaterial = React.memo(({ url, color = "#ffffff", repeat: repeat2 = [1, 1], roughness = 0.8, metalness = 0, bumpScale = 0, transparent = false, opacity = 1, rotation: rotation2 = 0 }) => {
   const rawTexture = useTexture(url);

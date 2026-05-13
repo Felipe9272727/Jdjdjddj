@@ -131,16 +131,17 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
     }
 
     if (handBone) {
-      // Position from the bone, BUT rotation from the camera/player facing.
-      // Reason: the Mixamo hand bone has a local axis orientation that we
-      // can't reason about reliably from a name — copying the bone's
-      // quaternion makes the flashlight point sideways/backwards (Felipe's
-      // screenshot). Decoupling position from rotation gives a stable model
-      // that always points where the player looks.
-      handBone.updateMatrixWorld(true);
+      // Position from the bone, rotation from player facing (decoupled).
+      // updateWorldMatrix walks UP the parent chain, ensuring the bone's
+      // matrixWorld reflects this-frame avatar position/rotation set by
+      // Player.useFrame. (updateMatrixWorld only walks down.)
+      handBone.updateWorldMatrix(true, false);
       handBone.matrixWorld.decompose(_pos.current, _quat.current, _scl.current);
       g.position.copy(_pos.current);
-      g.rotation.set(0, facing, 0);
+      // +π because the model's lens points to +Z in inner-local, but the
+      // avatar's forward direction maps to world (-sin θ, 0, -cos θ).
+      // R_y(facing+π) maps +Z to (-sin θ, 0, -cos θ) → lens points forward.
+      g.rotation.set(0, facing + Math.PI, 0);
       g.scale.set(1, 1, 1);
       return;
     }
@@ -159,7 +160,8 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
       pp.y + yOffset,
       pp.z + fwdZ * fwdDist + rightZ * sideDist,
     );
-    g.rotation.set(0, facing, 0);
+    // Same +π as the bone path — lens points forward instead of backward.
+    g.rotation.set(0, facing + Math.PI, 0);
     g.scale.set(1, 1, 1);
   });
 
@@ -168,38 +170,40 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
   // that axis. Cylinders default to lying along +Y, so each gets a 90°
   // pitch rotation. A tiny right/up offset (in player-local space) places
   // the model on top of the hand instead of inside the wrist.
+  // The outer groupRef is placed at the bone position with rotation
+  // (facing + π) — that maps +Z (inner-local) to player forward in world.
+  // Body starts a tiny bit ahead of the bone (~5cm = "where the grip ends
+  // and the body begins") and the lens is at +Z=0.30 (~30cm in front of
+  // the hand) — visible past the wrist.
   return (
     <group ref={groupRef} visible={false}>
-      <group position={[0.05, 0.02, 0]}>
-        {/* Body — cylinder lying along +Z (forward), centered just ahead
-            of the hand position. */}
-        <mesh position={[0, 0, 0.12]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.04, 0.04, 0.22, 12]} />
-          <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} />
-        </mesh>
-        {/* Head (slightly wider) */}
-        <mesh position={[0, 0, 0.26]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.055, 0.04, 0.07, 12]} />
-          <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} />
-        </mesh>
-        {/* Lens — front face */}
-        <mesh position={[0, 0, 0.295]} rotation={[Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[0.05, 16]} />
-          <meshStandardMaterial
-            color={active ? '#FFF3CC' : '#888'}
-            emissive={active ? '#FFF3CC' : '#222'}
-            emissiveIntensity={active ? 2.0 : 0.15}
-            toneMapped={false}
-          />
-        </mesh>
-        <mesh position={[0, 0, 0.296]} rotation={[Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.05, 0.058, 16]} />
-          <meshStandardMaterial color="#444" metalness={0.9} roughness={0.2} />
-        </mesh>
-        {active && (
-          <pointLight position={[0, 0, 0.32]} intensity={0.2} distance={0.4} color="#FFF3CC" />
-        )}
-      </group>
+      {/* Body — cylinder lying along +Z (forward) */}
+      <mesh position={[0, 0, 0.15]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.04, 0.04, 0.22, 12]} />
+        <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} />
+      </mesh>
+      {/* Head (slightly wider) */}
+      <mesh position={[0, 0, 0.29]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.055, 0.04, 0.07, 12]} />
+        <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} />
+      </mesh>
+      {/* Lens — front face */}
+      <mesh position={[0, 0, 0.325]} rotation={[Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.05, 16]} />
+        <meshStandardMaterial
+          color={active ? '#FFF3CC' : '#888'}
+          emissive={active ? '#FFF3CC' : '#222'}
+          emissiveIntensity={active ? 2.0 : 0.15}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh position={[0, 0, 0.326]} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.05, 0.058, 16]} />
+        <meshStandardMaterial color="#444" metalness={0.9} roughness={0.2} />
+      </mesh>
+      {active && (
+        <pointLight position={[0, 0, 0.36]} intensity={0.2} distance={0.4} color="#FFF3CC" />
+      )}
     </group>
   );
 };
