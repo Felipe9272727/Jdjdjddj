@@ -123,28 +123,29 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = fa
       console.warn('[Avatar] Right arm bones not found — pickup animation disabled.', { arm: !!arm, forearm: !!forearm });
     }
 
-    // ─── Skeleton scanner (logs once per scene load) ──────────────────────
-    // Lists every bone with its local position so we can see how the GLB is
-    // built — names, hierarchy depths, where the right hand actually is.
-    const bones: { name: string; pos: string; parent: string }[] = [];
-    scene.traverse((c: any) => {
-      if (c.isBone || c.type === 'Bone') {
-        const p = c.position;
-        bones.push({
-          name: c.name,
-          pos: `(${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`,
-          parent: c.parent?.name ?? '(root)',
-        });
+    // Skeleton scanner — gated behind window.__SKELETON_SCAN__ so it only
+    // runs when manually triggered from the console (no perf hit in prod).
+    // Usage in DevTools: `window.__SKELETON_SCAN__ = true; location.reload()`
+    if (typeof window !== 'undefined' && (window as any).__SKELETON_SCAN__) {
+      const bones: { name: string; pos: string; parent: string }[] = [];
+      scene.traverse((c: any) => {
+        if (c.isBone || c.type === 'Bone') {
+          const p = c.position;
+          bones.push({
+            name: c.name,
+            pos: `(${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`,
+            parent: c.parent?.name ?? '(root)',
+          });
+        }
+      });
+      console.log('[Avatar] Skeleton scan —', bones.length, 'bones found:');
+      console.table(bones);
+      if (hand) {
+        hand.updateWorldMatrix(true, false);
+        const wp = new THREE.Vector3();
+        hand.getWorldPosition(wp);
+        console.log('[Avatar] RightHand world position:', wp.toArray());
       }
-    });
-    console.log('[Avatar] Skeleton scan —', bones.length, 'bones found:');
-    console.table(bones);
-    if (hand) {
-      hand.updateWorldMatrix(true, false);
-      const wp = new THREE.Vector3();
-      hand.getWorldPosition(wp);
-      console.log('[Avatar] RightHand world position:', wp.toArray());
-      console.log('[Avatar] RightHand local position:', hand.position.toArray());
     }
 
     // ─── handAnchor: an empty Object3D child of the RightHand bone ────────
@@ -517,13 +518,23 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
     const pivot = armPivotRef.current;
     if (!g || !pivot) return;
 
+    const s = state.current;
+    s.timeSec += dt;
+
+    // ADVANCE the timed animation EVERY frame — even when the arm is
+    // invisible. If we only advanced while visible, entering FP mid-
+    // animation would restart it (elapsed never moved while in 3rd
+    // person). Now state stays in lockstep with the 3rd-person Avatar.
+    if (s.timed.active) {
+      const safeDt = Math.min(dt, 0.05);
+      s.timed.elapsed += safeDt;
+      if (s.timed.elapsed >= 1.2) s.timed.active = false;
+    }
+
     // Hide the FP arm unless the player is actively holding something:
     //   - armExtended  → sustained hold (flashlight on)
-    //   - state.timed.active → mid pickup-or-use animation (buy, cookie)
-    // Otherwise the arm hangs in the bottom-right corner all the time and
-    // becomes visual noise. This matches the user request: "só apareça
-    // quando estiver segurando alguma coisa".
-    const holdingSomething = armExtended || state.current.timed.active;
+    //   - s.timed.active → mid pickup-or-use animation (buy, cookie)
+    const holdingSomething = armExtended || s.timed.active;
     const fpView = zoomLevel < 0.5;
     g.visible = active && fpView && holdingSomething;
     if (!g.visible) return;
@@ -531,21 +542,18 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
     g.position.copy(camera.position);
     g.quaternion.copy(camera.quaternion);
 
-    const s = state.current;
-    s.timeSec += dt;
-
-    // Progress: 0 = arm relaxed at side, 1 = fully extended forward
+    // Progress: 0 = arm relaxed at side, 1 = fully extended forward.
+    // Uses the elapsed advanced above (which works whether or not the arm
+    // was visible during the animation).
     let progress: number;
     if (s.sustained) {
       progress = 1;
     } else if (s.timed.active) {
-      const safeDt = Math.min(dt, 0.05);
-      s.timed.elapsed += safeDt;
       const EXTEND = 0.3, HOLD = 0.8, RETRACT = 1.2;
       if (s.timed.elapsed < EXTEND) progress = easeOutCubic(s.timed.elapsed / EXTEND);
       else if (s.timed.elapsed < HOLD) progress = 1;
       else if (s.timed.elapsed < RETRACT) progress = 1 - easeInCubic((s.timed.elapsed - HOLD) / (RETRACT - HOLD));
-      else { s.timed.active = false; progress = 0; }
+      else progress = 0;
     } else {
       progress = 0;
     }
@@ -554,31 +562,17 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
     const bob = Math.sin(s.timeSec * 1.8) * 0.012;
     const sway = Math.cos(s.timeSec * 1.3) * 0.008;
 
-    // Rotate the arm pivot. The "shoulder" is at the pivot origin; arm parts
-    // hang along -Y (default cylinder axis). To point forward, we pitch the
-    // pivot ~+90° (rotation.x → Math.PI/2 maps -Y to -Z = camera forward).
-    //   relaxed (progress 0): arm is angled down-forward, visible at bottom-right
-    //   extended (progress 1): arm fully forward, hand reaches toward center
-    const restX = 1.10;   // ~63°: pointing forward & slightly down
-    const extX  = 1.55;   // ~89°: nearly straight forward
+    const restX = 1.10;
+    const extX  = 1.55;
     pivot.rotation.x = restX + (extX - restX) * progress;
     pivot.rotation.z = sway * 0.5;
     pivot.position.y = -0.02 + bob;
 
-    // Flashlight: NOT a child of the pivot. It sits in the anchor space with
-    // a fixed forward-pointing rotation. We interpolate its position to follow
-    // where the hand should be (computed from the same progress curve).
     const fl = flashlightRef.current;
     if (fl && flashlightOwned) {
-      // Hand offset in pivot-local: (0, -0.60, 0). After R_x(rotX):
-      //   x' = 0
-      //   y' = cos(rotX)*(-0.60) - sin(rotX)*0 = -0.60 * cos(rotX)
-      //   z' = sin(rotX)*(-0.60) + cos(rotX)*0 = -0.60 * sin(rotX)
-      // With rotX ∈ [1.10, 1.55], sin(rotX) > 0, so handZ < 0 (forward camera).
       const rotX = pivot.rotation.x;
       const handY = -0.60 * Math.cos(rotX);
       const handZ = -0.60 * Math.sin(rotX);
-      // Then add anchor offset. Anchor is at [0.28, -0.20, -0.30] in groupRef.
       fl.position.set(0.28, -0.20 + handY + bob, -0.30 + handZ);
     }
   });

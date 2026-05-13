@@ -36,10 +36,28 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
 }) => {
   const lightRef = useRef<THREE.SpotLight>(null);
   const targetRef = useRef<THREE.Object3D>(null);
+  const coneRef = useRef<THREE.Mesh>(null);
+  // Memoize geometry/material for the volumetric cone — recreating these
+  // each render would churn GPU resources.
+  const coneGeo = useMemo(() => {
+    // ConeGeometry has its apex at +Y/2 and base at -Y/2 by default.
+    // We want the apex pointing forward (-Z after rotation in JSX).
+    return new THREE.ConeGeometry(1.4, 6, 24, 1, true);
+  }, []);
+  const coneMat = useMemo(() => new THREE.MeshBasicMaterial({
+    color: 0xFFE9A8,
+    transparent: true,
+    opacity: 0.07,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  }), []);
 
   useFrame(() => {
     const light = lightRef.current;
     const target = targetRef.current;
+    const cone = coneRef.current;
     if (!light || !target) return;
 
     const pp = playerPositionRef.current;
@@ -47,11 +65,24 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
 
     // Light origin near the player's head/hand, pointing where the camera looks.
     light.position.set(pp.x, pp.y + 1.45, pp.z);
-    // theta is camera azimuth; player faces away from camera (+Math.PI elsewhere)
     const fwdX = -Math.sin(theta);
     const fwdZ = -Math.cos(theta);
     target.position.set(pp.x + fwdX * 5, pp.y + 1.0, pp.z + fwdZ * 5);
     target.updateMatrixWorld();
+
+    // Position the volumetric cone: apex at the light origin, axis along
+    // the same direction as the spotlight.
+    if (cone) {
+      cone.visible = active;
+      if (active) {
+        cone.position.set(pp.x + fwdX * 3, pp.y + 1.2, pp.z + fwdZ * 3);
+        // Point the cone's local -Y (base→apex direction) toward (-fwd).
+        // lookAt orients local -Z toward the target, so we look "away from"
+        // the light and then add a 90° pitch to align local axes.
+        cone.lookAt(pp.x + fwdX * 6, pp.y + 0.5, pp.z + fwdZ * 6);
+        cone.rotateX(Math.PI / 2);
+      }
+    }
   });
 
   if (!owned) return null;
@@ -70,6 +101,9 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
         target={targetRef.current ?? undefined}
       />
       <object3D ref={targetRef} />
+      {/* Volumetric cone — additive translucent mesh that fakes the
+          "dust in the air" beam without a real volumetric shader. */}
+      <mesh ref={coneRef} geometry={coneGeo} material={coneMat} visible={false} renderOrder={500} />
     </>
   );
 };
@@ -171,40 +205,73 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
   // that axis. Cylinders default to lying along +Y, so each gets a 90°
   // pitch rotation. A tiny right/up offset (in player-local space) places
   // the model on top of the hand instead of inside the wrist.
-  // Model is built along +Y axis (cylinder default). When using the anchor
-  // path (primary), the group inherits the bone's orientation — Mixamo
-  // RightHand bone's +Y points along the hand toward the fingertips, so
-  // cylinder Y aligns with finger direction → lens points where the
-  // fingers point. The body extends from the grip (y≈0, where the anchor
-  // is) toward the lens (y≈+0.30).
+  // Model is built along +Y axis (cylinder default). With the handAnchor
+  // path, the group inherits the bone's orientation — Mixamo RightHand
+  // bone's +Y points toward the fingertips, so cylinder Y aligns with
+  // finger direction. The body extends from the grip (y≈0, in the palm)
+  // toward the lens (y≈+0.30, past the fingertips).
+  //
+  // Detailing (matches the project's liminal/horror tone):
+  //  - Matte black grip (knurled look via a darker ring)
+  //  - Brushed metal head (slightly wider, brighter)
+  //  - Glass lens with strong emissive when on, slight ambient sheen when off
+  //  - Halo sprite when on, for that "dust catching the beam" feel
   return (
     <group ref={groupRef} visible={false}>
-      {/* Grip / body — centered 10cm above the anchor */}
+      {/* Grip — slightly tapered, darker rubbery feel */}
       <mesh position={[0, 0.10, 0]}>
-        <cylinderGeometry args={[0.04, 0.04, 0.22, 12]} />
-        <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} />
+        <cylinderGeometry args={[0.038, 0.042, 0.18, 16]} />
+        <meshStandardMaterial color="#15151a" metalness={0.25} roughness={0.85} />
       </mesh>
-      {/* Head — slightly wider, just above the body */}
-      <mesh position={[0, 0.24, 0]}>
-        <cylinderGeometry args={[0.055, 0.04, 0.07, 12]} />
-        <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} />
+      {/* Knurl ring — visual texture without UVs */}
+      <mesh position={[0, 0.04, 0]}>
+        <cylinderGeometry args={[0.0425, 0.0425, 0.015, 24]} />
+        <meshStandardMaterial color="#000" metalness={0.6} roughness={0.4} />
       </mesh>
-      {/* Lens — at the tip of the head, facing +Y (fingers direction) */}
-      <mesh position={[0, 0.276, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.05, 16]} />
+      <mesh position={[0, 0.16, 0]}>
+        <cylinderGeometry args={[0.043, 0.043, 0.015, 24]} />
+        <meshStandardMaterial color="#000" metalness={0.6} roughness={0.4} />
+      </mesh>
+      {/* Body — brushed steel section, slightly wider */}
+      <mesh position={[0, 0.22, 0]}>
+        <cylinderGeometry args={[0.046, 0.044, 0.06, 16]} />
+        <meshStandardMaterial color="#2a2a2e" metalness={0.85} roughness={0.30} />
+      </mesh>
+      {/* Head bezel — widest part, satin */}
+      <mesh position={[0, 0.265, 0]}>
+        <cylinderGeometry args={[0.060, 0.048, 0.04, 18]} />
+        <meshStandardMaterial color="#3a3a3e" metalness={0.85} roughness={0.25} />
+      </mesh>
+      {/* Lens — the bright disc */}
+      <mesh position={[0, 0.286, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.054, 24]} />
         <meshStandardMaterial
-          color={active ? '#FFF3CC' : '#888'}
-          emissive={active ? '#FFF3CC' : '#222'}
-          emissiveIntensity={active ? 2.0 : 0.15}
+          color={active ? '#FFF3CC' : '#3a3a3a'}
+          emissive={active ? '#FFF3CC' : '#1a1a1a'}
+          emissiveIntensity={active ? 2.5 : 0.10}
           toneMapped={false}
         />
       </mesh>
-      <mesh position={[0, 0.277, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.05, 0.058, 16]} />
-        <meshStandardMaterial color="#444" metalness={0.9} roughness={0.2} />
+      {/* Outer rim ring — gives the lens a finished bezel */}
+      <mesh position={[0, 0.287, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.054, 0.062, 24]} />
+        <meshStandardMaterial color="#1a1a1a" metalness={0.95} roughness={0.18} />
       </mesh>
+      {/* Halo billboard — soft glow that catches the camera */}
       {active && (
-        <pointLight position={[0, 0.32, 0]} intensity={0.2} distance={0.4} color="#FFF3CC" />
+        <sprite position={[0, 0.30, 0]} scale={[0.4, 0.4, 1]}>
+          <spriteMaterial
+            color="#FFE9A8"
+            transparent
+            opacity={0.55}
+            depthWrite={false}
+            toneMapped={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </sprite>
+      )}
+      {active && (
+        <pointLight position={[0, 0.34, 0]} intensity={0.25} distance={0.5} color="#FFF3CC" />
       )}
     </group>
   );
