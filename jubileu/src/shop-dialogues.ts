@@ -17,6 +17,9 @@ import type { Mood } from './dialogue-engine';
 export interface Choice {
   label: string;
   goto: string;
+  /** Optional side-effect fired when the choice is picked. ShopOverlay
+   *  reads this and calls onBuyItem(action) before navigating to `goto`. */
+  action?: 'buy_flashlight' | 'buy_cookie';
 }
 
 export interface Scene {
@@ -57,8 +60,9 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '* Tudo que oferecemos é\n  {y:gratuito}.{p}\n' +
       '* Só não tente sair com\n  nada na bolsa.',
     choices: [
+      { label: 'Lanterna      -  0G', goto: 'buy_flashlight', action: 'buy_flashlight' },
+      { label: 'Biscoito      -  0G', goto: 'buy_cookie', action: 'buy_cookie' },
       { label: 'Café da casa  -  0G', goto: 'buy_coffee' },
-      { label: 'Biscoito      -  0G', goto: 'buy_cookie' },
       { label: 'Chave reserva -  ?G', goto: 'buy_key' },
       { label: 'Um andar a +  -  ∞G', goto: 'buy_floor' },
       { label: 'Lembrança     - 1?G', goto: 'buy_memory' },
@@ -79,6 +83,21 @@ export const SHOP_SCENES: Record<string, Scene> = {
       '^^' +
       '* * Você bebeu o {y:Café\n  da casa}.{p:200}\n' +
       '* Algo dentro de você\n  ficou um pouco mais\n  acordado.',
+    choices: [{ label: 'Voltar.', goto: 'buy' }],
+  },
+
+  buy_flashlight: {
+    mood: 'talk',
+    text:
+      '* {y:Lanterna.}{p:200}\n' +
+      '* Para os corredores\n  que ainda não chegaram.\n' +
+      '^^' +
+      '* (Ele desliza a lanterna\n  pela bancada.){p:300}\n' +
+      '* A luz pisca uma vez{p}\n' +
+      '  antes de você tocar nela.\n' +
+      '^^' +
+      '* * Você equipou a {y:Lanterna}.{p:200}\n' +
+      '* Use o botão no canto\n  da tela para acender.',
     choices: [{ label: 'Voltar.', goto: 'buy' }],
   },
 

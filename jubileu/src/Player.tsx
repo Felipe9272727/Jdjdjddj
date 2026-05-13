@@ -9,7 +9,30 @@ import { resolveCollision as _resolve } from './physics';
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
 
-const Avatar = ({ animation, visible = true }: { animation: 'Idle' | 'Walking'; visible?: boolean }) => {
+// ─── Bone patterns for the right arm (Mixamo + common conventions) ────────
+const ARM_EXACT = ['mixamorig:rightarm', 'rightarm', 'right_arm', 'arm_r', 'upperarm_r', 'r_upperarm'];
+const ARM_SUBSTR = ['rightarm', 'upperarm.r'];
+const FOREARM_EXACT = ['mixamorig:rightforearm', 'rightforearm', 'right_forearm', 'forearm_r', 'lowerarm_r', 'r_forearm'];
+const FOREARM_SUBSTR = ['rightforearm', 'forearm.r'];
+
+function findArmBones(scene: THREE.Object3D): { arm: THREE.Bone | null; forearm: THREE.Bone | null } {
+  let arm: THREE.Bone | null = null;
+  let forearm: THREE.Bone | null = null;
+  scene.traverse((c: any) => {
+    if (!c.isBone && c.type !== 'Bone') return;
+    const n = c.name.toLowerCase();
+    if (!arm && ARM_EXACT.includes(n)) { arm = c; return; }
+    if (!forearm && FOREARM_EXACT.includes(n)) { forearm = c; return; }
+    if (!arm && ARM_SUBSTR.some(p => n.includes(p))) arm = c;
+    if (!forearm && FOREARM_SUBSTR.some(p => n.includes(p))) forearm = c;
+  });
+  return { arm, forearm };
+}
+
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+const easeInCubic = (t: number) => t * t * t;
+
+const Avatar = ({ animation, visible = true, pickupTrigger = 0 }: { animation: 'Idle' | 'Walking'; visible?: boolean; pickupTrigger?: number }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
   const { actions } = useAnimations(useMemo(() => {
@@ -56,6 +79,82 @@ const Avatar = ({ animation, visible = true }: { animation: 'Idle' | 'Walking'; 
        if (Number.isFinite(box.min.y)) setGroundY(-box.min.y);
      } catch { /* ignored */ }
   }, [scene]);
+
+  // ─── Pickup arm animation ────────────────────────────────────────────────
+  // Runs at priority 0 (default). useAnimations is called BEFORE this hook in
+  // the same component, so its internal mixer useFrame is registered first
+  // and runs first within the same priority queue. That guarantees:
+  //   [mixer.update()] writes the idle/walking pose to the bone quaternions
+  //   [our useFrame]   reads that pose and post-multiplies a rotation delta
+  //
+  // NEVER use priority != 0 here — it disables R3F v9's auto-render and
+  // produces the historical black-screen bug.
+  const pickupRef = useRef({
+    active: false,
+    elapsed: 0,
+    arm: null as THREE.Bone | null,
+    forearm: null as THREE.Bone | null,
+    found: false,
+    lastTrigger: 0,
+    armQuat: new THREE.Quaternion(),
+    forearmQuat: new THREE.Quaternion(),
+    armDelta: new THREE.Quaternion(),
+    forearmDelta: new THREE.Quaternion(),
+    armEuler: new THREE.Euler(),
+    forearmEuler: new THREE.Euler(),
+  });
+
+  useEffect(() => {
+    const { arm, forearm } = findArmBones(scene);
+    pickupRef.current.arm = arm;
+    pickupRef.current.forearm = forearm;
+    pickupRef.current.found = !!(arm && forearm);
+    if (!pickupRef.current.found) {
+      console.warn('[Avatar] Right arm bones not found — pickup animation disabled.', { arm: !!arm, forearm: !!forearm });
+    }
+  }, [scene]);
+
+  // Drive animation start from the trigger prop
+  useEffect(() => {
+    if (pickupTrigger > 0 && pickupTrigger !== pickupRef.current.lastTrigger) {
+      pickupRef.current.lastTrigger = pickupTrigger;
+      if (!pickupRef.current.active) {
+        pickupRef.current.active = true;
+        pickupRef.current.elapsed = 0;
+      }
+    }
+  }, [pickupTrigger]);
+
+  useFrame((_, dt) => {
+    const p = pickupRef.current;
+    if (!p.active || !p.found || !p.arm || !p.forearm) return;
+    const safeDt = Math.min(dt, 0.05);
+    p.elapsed += safeDt;
+
+    const EXTEND = 0.3, HOLD = 0.8, RETRACT = 1.2;
+    let progress: number;
+    if (p.elapsed < EXTEND) progress = easeOutCubic(p.elapsed / EXTEND);
+    else if (p.elapsed < HOLD) progress = 1;
+    else if (p.elapsed < RETRACT) progress = 1 - easeInCubic((p.elapsed - HOLD) / (RETRACT - HOLD));
+    else { p.active = false; return; }
+
+    const maxAngle = -Math.PI * 0.44;
+    const armAngle = maxAngle * progress;
+    const forearmAngle = maxAngle * 0.3 * progress;
+
+    // Read mixer's pose (written at priority 0, earlier in this frame)
+    p.armQuat.copy(p.arm.quaternion);
+    p.forearmQuat.copy(p.forearm.quaternion);
+    // Build delta on pre-allocated objects — zero GC
+    p.armEuler.set(armAngle, 0, 0);
+    p.forearmEuler.set(forearmAngle, 0, 0);
+    p.armDelta.setFromEuler(p.armEuler);
+    p.forearmDelta.setFromEuler(p.forearmEuler);
+    // Post-multiply mixer_pose × delta = rotation in bone-local space
+    p.arm.quaternion.copy(p.armQuat).multiply(p.armDelta);
+    p.forearm.quaternion.copy(p.forearmQuat).multiply(p.forearmDelta);
+  });
+
   useFrame((s, dt) => {
       // Reset only X/Z of the hips bone — keep Y so the natural walking bob
       // (vertical motion baked into the animation) plays through. Zeroing Y
@@ -110,9 +209,10 @@ interface PlayerProps {
   cameraShakeRef: React.MutableRefObject<boolean>;
   positionCmdRef: React.MutableRefObject<{ x: number; y: number; z: number } | null>;
   onElevatorZoneChange: (inside: boolean) => void;
+  pickupTrigger?: number;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0 }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -272,5 +372,5 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
     }
   });
-  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} /></group>);
+  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} /></group>);
 };

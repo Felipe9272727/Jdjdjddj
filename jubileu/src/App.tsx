@@ -20,6 +20,8 @@ import { MainMenu } from './MainMenu';
 import { VisualJoystick, DialogueOverlay } from './UI';
 import { ShopOverlay } from './ShopOverlay';
 import { Player } from './Player';
+import { useInventory, InventoryHUD } from './InventorySystem';
+import { FlashlightLight, FlashlightModel3D, FPFlashlightHand } from './FlashlightLight';
 import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor, Level2Environment } from './HouseEnv';
@@ -133,6 +135,25 @@ export default function App() {
   const [dialogueNode, setDialogueNode] = useState('start');
   const [canInteractCashier, setCanInteractCashier] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+
+  // ─── Inventory + pickup animation ─────────────────────────────────────
+  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie: consumeCookie, hasAnyItem } = useInventory();
+  const [pickupTrigger, setPickupTrigger] = useState(0);
+  const triggerPickup = useCallback(() => setPickupTrigger((n) => n + 1), []);
+  const handleBuyItem = useCallback((itemId: 'flashlight' | 'cookie') => {
+    inventoryAddItem(itemId);
+    triggerPickup();
+  }, [inventoryAddItem, triggerPickup]);
+  const handleToggleFlashlight = useCallback(() => {
+    // Trigger pickup animation only when EQUIPPING (turning on), not stowing.
+    if (inventory.flashlight.owned && !inventory.flashlight.active) triggerPickup();
+    toggleFlashlight();
+  }, [inventory.flashlight.owned, inventory.flashlight.active, toggleFlashlight, triggerPickup]);
+  const handleUseCookie = useCallback((): boolean => {
+    if (inventory.cookie.count > 0) triggerPickup();
+    return consumeCookie();
+  }, [inventory.cookie.count, consumeCookie, triggerPickup]);
+
   // Initial scene when the shop opens. 'main' for normal use; 'post_death'
   // is set automatically when the player gets caught by Barney and is
   // dropped back at the lobby — the recepcionista pulls them aside.
@@ -561,6 +582,7 @@ export default function App() {
         case 'a': k.a=true; break;
         case 's': k.s=true; break;
         case 'd': k.d=true; break;
+        case 'f': if (inventory.flashlight.owned) handleToggleFlashlight(); break;
         case 'e':
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
@@ -623,7 +645,24 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} />
+            {hasStarted && inventory.flashlight.owned && (
+                <>
+                  <FlashlightLight
+                    playerPositionRef={sharedPlayerPositionRef}
+                    cameraThetaRef={cameraThetaRef}
+                    active={inventory.flashlight.active}
+                    owned={inventory.flashlight.owned}
+                  />
+                  <FlashlightModel3D
+                    playerPositionRef={sharedPlayerPositionRef}
+                    cameraThetaRef={cameraThetaRef}
+                    active={inventory.flashlight.active}
+                    owned={inventory.flashlight.owned}
+                    zoomLevel={zoomLevel}
+                  />
+                </>
+            )}
             {botEnabled && (
                 <BotSystem
                     playerPositionRef={sharedPlayerPositionRef}
@@ -649,6 +688,21 @@ export default function App() {
       )}
       <Loader />
       {!hasStarted && <MainMenu onPlay={handleStartGame} />}
+      {hasStarted && (
+        <InventoryHUD
+          inventory={inventory}
+          onToggleFlashlight={handleToggleFlashlight}
+          onUseCookie={handleUseCookie}
+          hasAnyItem={hasAnyItem}
+        />
+      )}
+      {hasStarted && inventory.flashlight.owned && (
+        <FPFlashlightHand
+          active={inventory.flashlight.active}
+          owned={inventory.flashlight.owned}
+          zoomLevel={zoomLevel}
+        />
+      )}
       
       {/* ─────────────────────────────────────────────────────────────────────
           HUD layer: ONE safe-area boundary. Every element inside positions
@@ -761,7 +815,7 @@ export default function App() {
       {hasStarted && gameState === 'saved' && <SavedOverlay />}
       
       {barneyDialogueOpen && <BarneyDialogue dialogueNode={barneyDialogueNode} onResponse={handleBarneyResponse} />}
-      <ShopOverlay open={shopOpen} onClose={handleCloseShop} initialScene={shopInitialScene} />
+      <ShopOverlay open={shopOpen} onClose={handleCloseShop} initialScene={shopInitialScene} onBuyItem={handleBuyItem} />
     </div>
   );
 }

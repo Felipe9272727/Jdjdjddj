@@ -43,6 +43,10 @@ interface ShopOverlayProps {
    *  trigger passes 'post_death' so the recepcionista opens the conversation
    *  himself when the player respawns from the chase. */
   initialScene?: string;
+  /** Fired when a choice with a side-effect action is picked. The shop only
+   *  reports the action — the App decides what to do (add to inventory,
+   *  play pickup animation, etc.). */
+  onBuyItem?: (itemId: 'flashlight' | 'cookie') => void;
 }
 
 const TIMINGS = {
@@ -53,7 +57,7 @@ const TIMINGS = {
   charDelay: 28,
 };
 
-export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initialScene = ROOT_SCENE }) => {
+export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initialScene = ROOT_SCENE, onBuyItem }) => {
   const [sceneId, setSceneId] = useState<string>(initialScene);
   const [pageIndex, setPageIndex] = useState(0);
   const [revealed, setRevealed] = useState(0);
@@ -221,11 +225,15 @@ export const ShopOverlay: React.FC<ShopOverlayProps> = ({ open, onClose, initial
     const choice = scene.choices[index];
     if (!choice) return;
     playConfirm();
+    // Side-effect first: fire buy action so the App can add to inventory
+    // and trigger the pickup animation before the scene transition.
+    if (choice.action === 'buy_flashlight') onBuyItem?.('flashlight');
+    else if (choice.action === 'buy_cookie') onBuyItem?.('cookie');
     if (choice.goto === CLOSE_SCENE) { close(); return; }
     setSceneId(choice.goto);
     setPageIndex(0);
     setRevealed(0);
-  }, [showChoices, scene.choices, close]);
+  }, [showChoices, scene.choices, close, onBuyItem]);
 
   // ── Keyboard navigation ────────────────────────────────────────────────
   useEffect(() => {
