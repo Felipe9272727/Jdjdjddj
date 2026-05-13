@@ -62915,7 +62915,7 @@ function createEvents(store) {
   };
 }
 const isRenderer = (def) => !!(def != null && def.render);
-const context = /* @__PURE__ */ reactExports.createContext(null);
+const context$1 = /* @__PURE__ */ reactExports.createContext(null);
 const createStore = (invalidate2, advance2) => {
   const rootStore = createWithEqualityFn((set, get) => {
     const position = new Vector3();
@@ -63134,7 +63134,7 @@ const createStore = (invalidate2, advance2) => {
   return rootStore;
 };
 function useStore$1() {
-  const store = reactExports.useContext(context);
+  const store = reactExports.useContext(context$1);
   if (!store) throw new Error("R3F: Hooks can only be used within the Canvas component!");
   return store;
 }
@@ -68980,7 +68980,7 @@ function Provider$1({
     if (onCreated) onCreated(state2);
     if (!store.getState().events.connected) state2.events.connect == null ? void 0 : state2.events.connect(rootElement);
   }, []);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(context.Provider, {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(context$1.Provider, {
     value: store,
     children
   });
@@ -79231,6 +79231,109 @@ const Instances = /* @__PURE__ */ reactExports.forwardRef(({
     value: api
   }, children));
 });
+function AdaptiveDpr({
+  pixelated
+}) {
+  const gl = useThree((state2) => state2.gl);
+  const active = useThree((state2) => state2.internal.active);
+  const current = useThree((state2) => state2.performance.current);
+  const initialDpr = useThree((state2) => state2.viewport.initialDpr);
+  const setDpr = useThree((state2) => state2.setDpr);
+  reactExports.useEffect(() => {
+    const domElement = gl.domElement;
+    return () => {
+      if (active) setDpr(initialDpr);
+      if (pixelated && domElement) domElement.style.imageRendering = "auto";
+    };
+  }, []);
+  reactExports.useEffect(() => {
+    setDpr(current * initialDpr);
+    if (pixelated && gl.domElement) gl.domElement.style.imageRendering = current === 1 ? "auto" : "pixelated";
+  }, [current]);
+  return null;
+}
+const context = /* @__PURE__ */ reactExports.createContext(null);
+function PerformanceMonitor({
+  iterations = 10,
+  ms = 250,
+  threshold = 0.75,
+  step = 0.1,
+  factor: _factor = 0.5,
+  flipflops = Infinity,
+  bounds = (refreshrate) => refreshrate > 100 ? [60, 100] : [40, 60],
+  onIncline,
+  onDecline,
+  onChange,
+  onFallback,
+  children
+}) {
+  const decimalPlacesRatio = Math.pow(10, 0);
+  const [api, _] = reactExports.useState(() => ({
+    fps: 0,
+    index: 0,
+    factor: _factor,
+    flipped: 0,
+    refreshrate: 0,
+    fallback: false,
+    frames: [],
+    averages: [],
+    subscriptions: /* @__PURE__ */ new Map(),
+    subscribe: (ref) => {
+      const key = Symbol();
+      api.subscriptions.set(key, ref.current);
+      return () => void api.subscriptions.delete(key);
+    }
+  }));
+  let lastFactor = 0;
+  useFrame(() => {
+    const {
+      frames,
+      averages
+    } = api;
+    if (api.fallback) return;
+    if (averages.length < iterations) {
+      frames.push(performance.now());
+      const msPassed = frames[frames.length - 1] - frames[0];
+      if (msPassed >= ms) {
+        api.fps = Math.round(frames.length / msPassed * 1e3 * decimalPlacesRatio) / decimalPlacesRatio;
+        api.refreshrate = Math.max(api.refreshrate, api.fps);
+        averages[api.index++ % iterations] = api.fps;
+        if (averages.length === iterations) {
+          const [lower, upper] = bounds(api.refreshrate);
+          const upperBounds = averages.filter((value) => value >= upper);
+          const lowerBounds = averages.filter((value) => value < lower);
+          if (upperBounds.length > iterations * threshold) {
+            api.factor = Math.min(1, api.factor + step);
+            api.flipped++;
+            if (onIncline) onIncline(api);
+            api.subscriptions.forEach((value) => value.onIncline && value.onIncline(api));
+          }
+          if (lowerBounds.length > iterations * threshold) {
+            api.factor = Math.max(0, api.factor - step);
+            api.flipped++;
+            if (onDecline) onDecline(api);
+            api.subscriptions.forEach((value) => value.onDecline && value.onDecline(api));
+          }
+          if (lastFactor !== api.factor) {
+            lastFactor = api.factor;
+            if (onChange) onChange(api);
+            api.subscriptions.forEach((value) => value.onChange && value.onChange(api));
+          }
+          if (api.flipped > flipflops && !api.fallback) {
+            api.fallback = true;
+            if (onFallback) onFallback(api);
+            api.subscriptions.forEach((value) => value.onFallback && value.onFallback(api));
+          }
+          api.averages = [];
+        }
+        api.frames = [];
+      }
+    }
+  });
+  return /* @__PURE__ */ reactExports.createElement(context.Provider, {
+    value: api
+  }, children);
+}
 const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameState, currentLevel = 0, doorsClosed = false, masterVolume = 1 }) => {
   const lobbyGainRef = reactExports.useRef(null);
   const elevatorGainRef = reactExports.useRef(null);
@@ -100499,6 +100602,9 @@ const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionR
 });
 const CHAT_BUBBLE_TTL_MS = 8e3;
 const TELEPORT_DIST_SQ = 25;
+const NEAR_FULL_SQ = 100;
+const FAR_HALF_SQ = 900;
+const FAR_CULL_SQ = 2500;
 const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }) => {
   const groupRef = reactExports.useRef(null);
   const hipsRef = reactExports.useRef(null);
@@ -100553,10 +100659,25 @@ const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }) => {
     }
   }, []);
   const [chatBubble, setChatBubble] = reactExports.useState(null);
-  useFrame((_, dt2) => {
+  const frameCounter = reactExports.useRef(0);
+  const lastFarUpdateRef = reactExports.useRef(0);
+  const { camera } = useThree();
+  useFrame((state2, dt2) => {
     if (!groupRef.current) return;
     const data = dataRef.current.get(id);
     if (!data) return;
+    const dxCam = data.x - camera.position.x;
+    const dzCam = data.z - camera.position.z;
+    const distSq = dxCam * dxCam + dzCam * dzCam;
+    if (distSq > FAR_CULL_SQ) {
+      const now2 = state2.clock.elapsedTime;
+      if (now2 - lastFarUpdateRef.current < 1) return;
+      lastFarUpdateRef.current = now2;
+    }
+    if (distSq > NEAR_FULL_SQ && distSq <= FAR_HALF_SQ) {
+      frameCounter.current = frameCounter.current + 1 & 1;
+      if (frameCounter.current === 0) return;
+    }
     if (hipsRef.current && hipsBindRef.current) {
       hipsRef.current.position.x = hipsBindRef.current.x;
       hipsRef.current.position.z = hipsBindRef.current.z;
@@ -100887,12 +101008,18 @@ const randomLobbyPos = () => {
   const z = (Math.random() - 0.5) * 14;
   return new Vector3(x2, 0, z);
 };
+const BOT_NEAR_FULL_SQ = 100;
+const BOT_FAR_HALF_SQ = 900;
+const BOT_FAR_CULL_SQ = 2500;
 const BotAvatar = ({ state: state2 }) => {
   const groupRef = reactExports.useRef(null);
   const hipsRef = reactExports.useRef(null);
   const hipsBindRef = reactExports.useRef(null);
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL);
   const { animations: idleAnims } = useGLTF(IDLE_URL);
+  const { camera } = useThree();
+  const frameCounter = reactExports.useRef(0);
+  const lastFarUpdateRef = reactExports.useRef(0);
   const clonedScene = reactExports.useMemo(() => SkeletonUtils.clone(scene), [scene]);
   const anims = reactExports.useMemo(() => {
     const w = walkAnims.map((a2) => a2.clone(true));
@@ -100946,8 +101073,20 @@ const BotAvatar = ({ state: state2 }) => {
       groupRef.current.rotation.y = state2.rot;
     }
   }, []);
-  useFrame((_, dt2) => {
+  useFrame((threeState, dt2) => {
     if (!groupRef.current) return;
+    const dxCam = state2.pos.x - camera.position.x;
+    const dzCam = state2.pos.z - camera.position.z;
+    const distSq = dxCam * dxCam + dzCam * dzCam;
+    if (distSq > BOT_FAR_CULL_SQ) {
+      const now2 = threeState.clock.elapsedTime;
+      if (now2 - lastFarUpdateRef.current < 1) return;
+      lastFarUpdateRef.current = now2;
+    }
+    if (distSq > BOT_NEAR_FULL_SQ && distSq <= BOT_FAR_HALF_SQ) {
+      frameCounter.current = frameCounter.current + 1 & 1;
+      if (frameCounter.current === 0) return;
+    }
     if (hipsRef.current && hipsBindRef.current) {
       hipsRef.current.position.x = hipsBindRef.current.x;
       hipsRef.current.position.z = hipsBindRef.current.z;
@@ -103133,7 +103272,7 @@ function App() {
     /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx, muted: muted || shopOpen, masterVolume: settings.masterVolume, nightMode, gameState, currentLevel, doorsClosed }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out", style: { opacity: overlayOpacity } }),
     cameraShake && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 z-20 pointer-events-none traveling-vignette" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(CanvasErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    /* @__PURE__ */ jsxRuntimeExports.jsx(CanvasErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
       Canvas,
       {
         camera: { fov: 75, near: 0.1, far: QUALITY_PROFILES[settings.quality].far },
@@ -103146,62 +103285,77 @@ function App() {
           toneMapping: ACESFilmicToneMapping,
           outputColorSpace: SRGBColorSpace$1
         },
-        children: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5", children: "The Normal Elevator" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-center gap-1.5", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse", style: { animationDelay: "0.2s" } }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
-          ] })
-        ] }) }), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
-          visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger, armExtended: inventory.flashlight.owned && inventory.flashlight.active, onRightHandAnchor: handleRightHandAnchor }),
-          hasStarted && inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              FlashlightLight,
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            PerformanceMonitor,
+            {
+              onDecline: () => {
+                if (typeof window !== "undefined") window.__lowPerf = true;
+              },
+              onIncline: () => {
+                if (typeof window !== "undefined") window.__lowPerf = false;
+              },
+              flipflops: 3
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(AdaptiveDpr, { pixelated: true }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { center: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5", children: "The Normal Elevator" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-center gap-1.5", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse", style: { animationDelay: "0.2s" } }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
+            ] })
+          ] }) }), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
+            visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger, armExtended: inventory.flashlight.owned && inventory.flashlight.active, onRightHandAnchor: handleRightHandAnchor }),
+            hasStarted && inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                FlashlightLight,
+                {
+                  playerPositionRef: sharedPlayerPositionRef,
+                  cameraThetaRef,
+                  active: inventory.flashlight.active,
+                  owned: inventory.flashlight.owned
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                FlashlightModel3D,
+                {
+                  playerPositionRef: sharedPlayerPositionRef,
+                  cameraThetaRef,
+                  playerRotationYRef: sharedRotationYRef,
+                  rightHandAnchorRef,
+                  active: inventory.flashlight.active,
+                  owned: inventory.flashlight.owned,
+                  zoomLevel
+                }
+              )
+            ] }),
+            hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(
+              FPArmModel,
               {
-                playerPositionRef: sharedPlayerPositionRef,
-                cameraThetaRef,
-                active: inventory.flashlight.active,
-                owned: inventory.flashlight.owned
+                zoomLevel,
+                armExtended: inventory.flashlight.owned && inventory.flashlight.active,
+                pickupTrigger,
+                active: hasStarted,
+                flashlightActive: inventory.flashlight.active,
+                flashlightOwned: inventory.flashlight.owned
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              FlashlightModel3D,
+            botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
+              BotSystem,
               {
                 playerPositionRef: sharedPlayerPositionRef,
-                cameraThetaRef,
-                playerRotationYRef: sharedRotationYRef,
-                rightHandAnchorRef,
-                active: inventory.flashlight.active,
-                owned: inventory.flashlight.owned,
-                zoomLevel
+                currentLevel,
+                doorsClosed,
+                houseDoorOpen
               }
-            )
-          ] }),
-          hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(
-            FPArmModel,
-            {
-              zoomLevel,
-              armExtended: inventory.flashlight.owned && inventory.flashlight.active,
-              pickupTrigger,
-              active: hasStarted,
-              flashlightActive: inventory.flashlight.active,
-              flashlightOwned: inventory.flashlight.owned
-            }
-          ),
-          botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(
-            BotSystem,
-            {
-              playerPositionRef: sharedPlayerPositionRef,
-              currentLevel,
-              doorsClosed,
-              houseDoorOpen
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(SceneInspector, {})
-        ] })
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(SceneInspector, {})
+          ] })
+        ]
       }
     ) }),
     hasStarted && QUALITY_PROFILES[settings.quality].overlay && /* @__PURE__ */ jsxRuntimeExports.jsx(GameEffects, { nightMode, gameState, currentLevel, quality: settings.quality }),

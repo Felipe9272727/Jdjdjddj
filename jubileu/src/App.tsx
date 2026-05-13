@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Html, Loader } from '@react-three/drei';
+import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
 import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
 
 // ─── Error Boundary for Canvas ─────────────────────────────────────────────
@@ -641,6 +641,16 @@ export default function App() {
           outputColorSpace: SRGBColorSpace,
         }}
       >
+        {/* PerformanceMonitor watches the frame rate. When it sees sustained
+            slowdowns it calls onDecline → we drop dpr a notch. AdaptiveDpr
+            wires that up to the renderer automatically. Keeps the game
+            playable on weaker phones without us having to detect anything. */}
+        <PerformanceMonitor
+          onDecline={() => { if (typeof window !== 'undefined') (window as any).__lowPerf = true; }}
+          onIncline={() => { if (typeof window !== 'undefined') (window as any).__lowPerf = false; }}
+          flipflops={3}
+        />
+        <AdaptiveDpr pixelated />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position

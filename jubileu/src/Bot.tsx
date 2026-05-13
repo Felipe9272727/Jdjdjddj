@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, useAnimations, Html } from '@react-three/drei';
 import { Vector3 } from 'three';
 import * as THREE from 'three';
@@ -81,12 +81,21 @@ const randomLobbyPos = (): Vector3 => {
 // skeleton so multiple bots don't share animation state.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Same distance-band throttling as RemotePlayer — bots far from the camera
+// don't need 60fps lerp; once-per-second is plenty for invisible/distant ones.
+const BOT_NEAR_FULL_SQ = 100;
+const BOT_FAR_HALF_SQ  = 900;
+const BOT_FAR_CULL_SQ  = 2500;
+
 const BotAvatar = ({ state }: { state: BotState }) => {
     const groupRef = useRef<any>(null);
     const hipsRef = useRef<any>(null);
     const hipsBindRef = useRef<Vector3 | null>(null);
     const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
     const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
+    const { camera } = useThree();
+    const frameCounter = useRef(0);
+    const lastFarUpdateRef = useRef(0);
 
     const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
     const anims = useMemo(() => {
@@ -146,8 +155,23 @@ const BotAvatar = ({ state }: { state: BotState }) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    useFrame((_, dt) => {
+    useFrame((threeState, dt) => {
         if (!groupRef.current) return;
+
+        // Distance-band throttling — same scheme as RemotePlayer.
+        const dxCam = state.pos.x - camera.position.x;
+        const dzCam = state.pos.z - camera.position.z;
+        const distSq = dxCam * dxCam + dzCam * dzCam;
+        if (distSq > BOT_FAR_CULL_SQ) {
+            const now = threeState.clock.elapsedTime;
+            if (now - lastFarUpdateRef.current < 1.0) return;
+            lastFarUpdateRef.current = now;
+        }
+        if (distSq > BOT_NEAR_FULL_SQ && distSq <= BOT_FAR_HALF_SQ) {
+            frameCounter.current = (frameCounter.current + 1) & 1;
+            if (frameCounter.current === 0) return;
+        }
+
         // Lock hips X/Z to bind (kill lateral root drift, keep natural Y bob).
         if (hipsRef.current && hipsBindRef.current) {
             hipsRef.current.position.x = hipsBindRef.current.x;

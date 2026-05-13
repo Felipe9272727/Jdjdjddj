@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, useAnimations, Html } from '@react-three/drei';
 import { Vector3 } from 'three';
 import * as THREE from 'three';
@@ -9,6 +9,12 @@ import type { OtherPlayersDataRef } from './Multiplayer';
 
 const CHAT_BUBBLE_TTL_MS = 8000;
 const TELEPORT_DIST_SQ = 25;
+// Distance bands for adaptive update rate. Past FAR_CULL_SQ we still render
+// (Three.js handles frustum culling on its own) but skip lerp/animation
+// updates entirely — distant remote players don't need 60fps motion.
+const NEAR_FULL_SQ = 100;    // within 10m → update every frame
+const FAR_HALF_SQ  = 900;    // within 30m → update every other frame
+const FAR_CULL_SQ  = 2500;   // beyond 50m → update once per second, no anim crossfade
 
 interface RemotePlayerProps {
     id: string;
@@ -81,11 +87,32 @@ export const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }: R
     }, []);
 
     const [chatBubble, setChatBubble] = useState<{ msg: string; key: number } | null>(null);
+    const frameCounter = useRef(0);
+    const lastFarUpdateRef = useRef(0);
+    const { camera } = useThree();
 
-    useFrame((_, dt) => {
+    useFrame((state, dt) => {
         if (!groupRef.current) return;
         const data = dataRef.current.get(id);
         if (!data) return;
+
+        // Distance-band throttling. Reading squared distance avoids a sqrt.
+        const dxCam = data.x - camera.position.x;
+        const dzCam = data.z - camera.position.z;
+        const distSq = dxCam * dxCam + dzCam * dzCam;
+
+        // Beyond FAR_CULL_SQ, only refresh once per second. Animation x-fades
+        // and chat-bubble pop-ins still fire, but lerp is skipped.
+        if (distSq > FAR_CULL_SQ) {
+            const now = state.clock.elapsedTime;
+            if (now - lastFarUpdateRef.current < 1.0) return;
+            lastFarUpdateRef.current = now;
+        }
+        // Between NEAR_FULL_SQ and FAR_HALF_SQ, update on every other frame.
+        if (distSq > NEAR_FULL_SQ && distSq <= FAR_HALF_SQ) {
+            frameCounter.current = (frameCounter.current + 1) & 1;
+            if (frameCounter.current === 0) return;
+        }
 
         if (hipsRef.current && hipsBindRef.current) {
             hipsRef.current.position.x = hipsBindRef.current.x;
