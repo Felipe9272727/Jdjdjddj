@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, Loader } from '@react-three/drei';
-import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Bone } from 'three';
+import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
 
 // ─── Error Boundary for Canvas ─────────────────────────────────────────────
 class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
@@ -140,10 +140,11 @@ export default function App() {
   const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie: consumeCookie, hasAnyItem } = useInventory();
   const [pickupTrigger, setPickupTrigger] = useState(0);
   const triggerPickup = useCallback(() => setPickupTrigger((n) => n + 1), []);
-  // Ref to the player's right-hand bone so the 3rd-person flashlight model
-  // can stick to it. Populated by Player via onRightHandBone callback.
-  const rightHandBoneRef = useRef<Bone | null>(null);
-  const handleRightHandBone = useCallback((b: Bone | null) => { rightHandBoneRef.current = b; }, []);
+  // Ref to an Object3D anchor inside the player's RightHand bone. The
+  // 3rd-person flashlight reads its matrixWorld each frame → perfect
+  // position + rotation, including pickup-arm rotation.
+  const rightHandAnchorRef = useRef<Object3D | null>(null);
+  const handleRightHandAnchor = useCallback((a: Object3D | null) => { rightHandAnchorRef.current = a; }, []);
   const handleBuyItem = useCallback((itemId: 'flashlight' | 'cookie') => {
     inventoryAddItem(itemId);
     triggerPickup();
@@ -649,7 +650,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandBone={handleRightHandBone} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -662,7 +663,7 @@ export default function App() {
                     playerPositionRef={sharedPlayerPositionRef}
                     cameraThetaRef={cameraThetaRef}
                     playerRotationYRef={sharedRotationYRef}
-                    rightHandBoneRef={rightHandBoneRef}
+                    rightHandAnchorRef={rightHandAnchorRef}
                     active={inventory.flashlight.active}
                     owned={inventory.flashlight.owned}
                     zoomLevel={zoomLevel}

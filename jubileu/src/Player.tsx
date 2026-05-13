@@ -37,7 +37,7 @@ function findArmBones(scene: THREE.Object3D): { arm: THREE.Bone | null; forearm:
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInCubic = (t: number) => t * t * t;
 
-const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = false, onHandBone }: { animation: 'Idle' | 'Walking'; visible?: boolean; pickupTrigger?: number; armExtended?: boolean; onHandBone?: (b: THREE.Bone | null) => void }) => {
+const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = false, onHandAnchor }: { animation: 'Idle' | 'Walking'; visible?: boolean; pickupTrigger?: number; armExtended?: boolean; onHandAnchor?: (a: THREE.Object3D | null) => void }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
   const { actions } = useAnimations(useMemo(() => {
@@ -122,8 +122,57 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = fa
     if (!pickupRef.current.found) {
       console.warn('[Avatar] Right arm bones not found — pickup animation disabled.', { arm: !!arm, forearm: !!forearm });
     }
-    if (onHandBone) onHandBone(hand);
-  }, [scene, onHandBone]);
+
+    // ─── Skeleton scanner (logs once per scene load) ──────────────────────
+    // Lists every bone with its local position so we can see how the GLB is
+    // built — names, hierarchy depths, where the right hand actually is.
+    const bones: { name: string; pos: string; parent: string }[] = [];
+    scene.traverse((c: any) => {
+      if (c.isBone || c.type === 'Bone') {
+        const p = c.position;
+        bones.push({
+          name: c.name,
+          pos: `(${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`,
+          parent: c.parent?.name ?? '(root)',
+        });
+      }
+    });
+    console.log('[Avatar] Skeleton scan —', bones.length, 'bones found:');
+    console.table(bones);
+    if (hand) {
+      hand.updateWorldMatrix(true, false);
+      const wp = new THREE.Vector3();
+      hand.getWorldPosition(wp);
+      console.log('[Avatar] RightHand world position:', wp.toArray());
+      console.log('[Avatar] RightHand local position:', hand.position.toArray());
+    }
+
+    // ─── handAnchor: an empty Object3D child of the RightHand bone ────────
+    // Renders nothing on its own, but lives in the bone's local frame. Its
+    // matrixWorld reflects the bone's current world transform (including
+    // skeleton animation + pickup arm rotation). Consumers (the flashlight)
+    // can read this anchor's matrixWorld for position AND rotation in one
+    // step — no need to compute facing from another ref.
+    //
+    // The local offset adjusts where on the hand the held item attaches.
+    // Tune empirically: Mixamo RightHand bone origin is at the wrist;
+    // moving forward along the bone's local axis puts the item in the palm.
+    let anchor: THREE.Object3D | null = null;
+    if (hand) {
+      anchor = new THREE.Object3D();
+      anchor.name = '__flashlight_anchor';
+      // Mixamo RightHand local +Y points along the hand toward the fingers.
+      // 5cm out from the wrist origin = roughly the grip position.
+      anchor.position.set(0, 0.05, 0);
+      hand.add(anchor);
+    }
+    if (onHandAnchor) onHandAnchor(anchor);
+
+    return () => {
+      if (anchor && anchor.parent) anchor.parent.remove(anchor);
+      if (onHandAnchor) onHandAnchor(null);
+    };
+  }, [scene, onHandAnchor]);
 
   // Drive the TIMED animation from the trigger prop
   useEffect(() => {
@@ -241,10 +290,10 @@ interface PlayerProps {
   onElevatorZoneChange: (inside: boolean) => void;
   pickupTrigger?: number;
   armExtended?: boolean;
-  onRightHandBone?: (b: THREE.Bone | null) => void;
+  onRightHandAnchor?: (a: THREE.Object3D | null) => void;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, onRightHandBone }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, onRightHandAnchor }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -404,7 +453,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
     }
   });
-  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} onHandBone={onRightHandBone} /></group>);
+  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} onHandAnchor={onRightHandAnchor} /></group>);
 };
 
 // ─── FPArmModel: first-person viewmodel — simple 3D arm in camera space ──
@@ -468,8 +517,15 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
     const pivot = armPivotRef.current;
     if (!g || !pivot) return;
 
+    // Hide the FP arm unless the player is actively holding something:
+    //   - armExtended  → sustained hold (flashlight on)
+    //   - state.timed.active → mid pickup-or-use animation (buy, cookie)
+    // Otherwise the arm hangs in the bottom-right corner all the time and
+    // becomes visual noise. This matches the user request: "só apareça
+    // quando estiver segurando alguma coisa".
+    const holdingSomething = armExtended || state.current.timed.active;
     const fpView = zoomLevel < 0.5;
-    g.visible = active && fpView;
+    g.visible = active && fpView && holdingSomething;
     if (!g.visible) return;
 
     g.position.copy(camera.position);
@@ -540,29 +596,29 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
           camera frustum's near plane (default ~0.1). */}
       <group position={[0.28, -0.20, -0.30]}>
         <group ref={armPivotRef}>
-          {/* Upper arm */}
+          {/* Upper arm — thicker for a chunky Roblox-style look */}
           <mesh position={[0, -0.13, 0]} renderOrder={999} frustumCulled={false}>
-            <cylinderGeometry args={[0.050, 0.045, 0.26, 14]} />
+            <cylinderGeometry args={[0.085, 0.075, 0.26, 14]} />
             <meshStandardMaterial color={SLEEVE} roughness={0.85} depthTest={false} />
           </mesh>
           {/* Elbow */}
           <mesh position={[0, -0.26, 0]} renderOrder={999} frustumCulled={false}>
-            <sphereGeometry args={[0.050, 14, 10]} />
+            <sphereGeometry args={[0.080, 14, 10]} />
             <meshStandardMaterial color={SLEEVE} roughness={0.85} depthTest={false} />
           </mesh>
           {/* Forearm */}
           <mesh position={[0, -0.39, 0]} renderOrder={999} frustumCulled={false}>
-            <cylinderGeometry args={[0.045, 0.042, 0.24, 14]} />
+            <cylinderGeometry args={[0.075, 0.072, 0.24, 14]} />
             <meshStandardMaterial color={SKIN} roughness={0.95} depthTest={false} />
           </mesh>
           {/* Wrist */}
           <mesh position={[0, -0.51, 0]} renderOrder={999} frustumCulled={false}>
-            <sphereGeometry args={[0.045, 12, 10]} />
+            <sphereGeometry args={[0.075, 12, 10]} />
             <meshStandardMaterial color={SKIN} roughness={0.95} depthTest={false} />
           </mesh>
-          {/* Hand (palm) */}
-          <mesh position={[0, -0.57, 0]} renderOrder={999} frustumCulled={false}>
-            <boxGeometry args={[0.085, 0.10, 0.06]} />
+          {/* Hand (palm) — chunky block, Roblox style */}
+          <mesh position={[0, -0.59, 0]} renderOrder={999} frustumCulled={false}>
+            <boxGeometry args={[0.14, 0.13, 0.10]} />
             <meshStandardMaterial color={SKIN} roughness={0.95} depthTest={false} />
           </mesh>
 

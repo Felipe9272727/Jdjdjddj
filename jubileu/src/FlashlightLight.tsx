@@ -86,10 +86,13 @@ interface FlashlightModel3DProps {
   playerPositionRef: React.MutableRefObject<THREE.Vector3>;
   cameraThetaRef: React.MutableRefObject<number>;
   /** The avatar's body rotation Y (charRot.y in Player.tsx). In third person
-   *  this lerps toward movement direction, NOT the camera azimuth, so using
-   *  cameraTheta makes the flashlight orbit while the avatar stands still. */
+   *  this lerps toward movement direction, NOT the camera azimuth. Used as
+   *  fallback when no handAnchor is wired. */
   playerRotationYRef?: React.MutableRefObject<number>;
-  rightHandBoneRef?: React.MutableRefObject<THREE.Bone | null>;
+  /** Object3D anchor attached as a child of the RightHand bone inside the
+   *  avatar's skeleton. Its matrixWorld gives us position + rotation in one
+   *  shot — perfectly tracks the hand even during the pickup arm rotation. */
+  rightHandAnchorRef?: React.MutableRefObject<THREE.Object3D | null>;
   active: boolean;
   owned: boolean;
   zoomLevel: number;
@@ -99,7 +102,7 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
   playerPositionRef,
   cameraThetaRef,
   playerRotationYRef,
-  rightHandBoneRef,
+  rightHandAnchorRef,
   active,
   owned,
   zoomLevel,
@@ -116,34 +119,32 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
     if (!owned || zoomLevel < 0.5) { g.visible = false; return; }
     g.visible = true;
 
-    const handBone = rightHandBoneRef?.current ?? null;
-    // Prefer playerRotationY (where the AVATAR faces) over cameraTheta.
-    // In 3rd person these diverge: the camera orbits but the body keeps
-    // its heading from movement, so we want the body's heading.
+    const anchor = rightHandAnchorRef?.current ?? null;
+    if (anchor) {
+      // Anchor is an Object3D living inside the RightHand bone. Its
+      // matrixWorld already encodes the full transform: position (where
+      // the hand is in world) + rotation (how the hand is oriented).
+      // updateWorldMatrix walks UP through the bone chain → avatar → player
+      // group, so the matrix reflects this frame's animation + pickup.
+      anchor.updateWorldMatrix(true, false);
+      anchor.matrixWorld.decompose(_pos.current, _quat.current, _scl.current);
+      g.position.copy(_pos.current);
+      g.quaternion.copy(_quat.current);
+      // Bone scale (the GLB primitive uses scale 30) is encoded too. The
+      // flashlight model is sized in real-world meters, so cancel the
+      // inherited scale.
+      g.scale.set(1, 1, 1);
+      return;
+    }
+
+    // Fallback path — only when the anchor hasn't been wired yet (first
+    // frames after avatar mount). Uses player rotation if available.
     let facing: number;
     if (playerRotationYRef && Number.isFinite(playerRotationYRef.current)) {
-      // charRot.y is the avatar's local Y rotation. Player forward in world
-      // matches the same Y rotation when applied to the group.
       facing = playerRotationYRef.current;
     } else {
       const theta = cameraThetaRef.current;
       facing = Math.atan2(-Math.sin(theta), -Math.cos(theta));
-    }
-
-    if (handBone) {
-      // Position from the bone, rotation from player facing (decoupled).
-      // updateWorldMatrix walks UP the parent chain, ensuring the bone's
-      // matrixWorld reflects this-frame avatar position/rotation set by
-      // Player.useFrame. (updateMatrixWorld only walks down.)
-      handBone.updateWorldMatrix(true, false);
-      handBone.matrixWorld.decompose(_pos.current, _quat.current, _scl.current);
-      g.position.copy(_pos.current);
-      // +π because the model's lens points to +Z in inner-local, but the
-      // avatar's forward direction maps to world (-sin θ, 0, -cos θ).
-      // R_y(facing+π) maps +Z to (-sin θ, 0, -cos θ) → lens points forward.
-      g.rotation.set(0, facing + Math.PI, 0);
-      g.scale.set(1, 1, 1);
-      return;
     }
 
     // Fallback: math offset from player position + facing direction.
@@ -170,25 +171,26 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
   // that axis. Cylinders default to lying along +Y, so each gets a 90°
   // pitch rotation. A tiny right/up offset (in player-local space) places
   // the model on top of the hand instead of inside the wrist.
-  // The outer groupRef is placed at the bone position with rotation
-  // (facing + π) — that maps +Z (inner-local) to player forward in world.
-  // Body starts a tiny bit ahead of the bone (~5cm = "where the grip ends
-  // and the body begins") and the lens is at +Z=0.30 (~30cm in front of
-  // the hand) — visible past the wrist.
+  // Model is built along +Y axis (cylinder default). When using the anchor
+  // path (primary), the group inherits the bone's orientation — Mixamo
+  // RightHand bone's +Y points along the hand toward the fingertips, so
+  // cylinder Y aligns with finger direction → lens points where the
+  // fingers point. The body extends from the grip (y≈0, where the anchor
+  // is) toward the lens (y≈+0.30).
   return (
     <group ref={groupRef} visible={false}>
-      {/* Body — cylinder lying along +Z (forward) */}
-      <mesh position={[0, 0, 0.15]} rotation={[Math.PI / 2, 0, 0]}>
+      {/* Grip / body — centered 10cm above the anchor */}
+      <mesh position={[0, 0.10, 0]}>
         <cylinderGeometry args={[0.04, 0.04, 0.22, 12]} />
         <meshStandardMaterial color="#1a1a1e" metalness={0.85} roughness={0.25} />
       </mesh>
-      {/* Head (slightly wider) */}
-      <mesh position={[0, 0, 0.29]} rotation={[Math.PI / 2, 0, 0]}>
+      {/* Head — slightly wider, just above the body */}
+      <mesh position={[0, 0.24, 0]}>
         <cylinderGeometry args={[0.055, 0.04, 0.07, 12]} />
         <meshStandardMaterial color="#2a2a2e" metalness={0.75} roughness={0.3} />
       </mesh>
-      {/* Lens — front face */}
-      <mesh position={[0, 0, 0.325]} rotation={[Math.PI / 2, 0, 0]}>
+      {/* Lens — at the tip of the head, facing +Y (fingers direction) */}
+      <mesh position={[0, 0.276, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.05, 16]} />
         <meshStandardMaterial
           color={active ? '#FFF3CC' : '#888'}
@@ -197,12 +199,12 @@ export const FlashlightModel3D: React.FC<FlashlightModel3DProps> = ({
           toneMapped={false}
         />
       </mesh>
-      <mesh position={[0, 0, 0.326]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh position={[0, 0.277, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.05, 0.058, 16]} />
         <meshStandardMaterial color="#444" metalness={0.9} roughness={0.2} />
       </mesh>
       {active && (
-        <pointLight position={[0, 0, 0.36]} intensity={0.2} distance={0.4} color="#FFF3CC" />
+        <pointLight position={[0, 0.32, 0]} intensity={0.2} distance={0.4} color="#FFF3CC" />
       )}
     </group>
   );
