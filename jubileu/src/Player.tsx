@@ -521,6 +521,15 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         // ─── Y axis handling (runs every frame, even when standing still) ──
         // Default: feet on the floor.
         if (currentLevel === 2) {
+            // Hard XZ clamp as a last-resort barrier. The cave-wall colliders
+            // in constants.ts handle 99% of the cases, but a fast input spike
+            // or a corner of two segments can occasionally let the player
+            // slip 0.1m past the resolve. This clamp guarantees we stay
+            // inside the visible 60x60 cave footprint.
+            if (pos.current.x < -29) pos.current.x = -29;
+            if (pos.current.x >  29) pos.current.x =  29;
+            if (pos.current.z < -29) pos.current.z = -29;
+            if (pos.current.z >  29) pos.current.z =  29;
             // Floor 2: gradual fall when standing inside the hole. Gives a
             // brief "tipping over the edge" moment rather than an instant
             // snap; ends when Y < SWIM_THRESHOLD_Y → next frame swim mode.

@@ -68,9 +68,11 @@ const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);
 const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5);
 const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
 
-// ─── Cave dressing — rocky outcrops along the walls ────────────────────
+// ─── Cave boulders — multiple cohorts for color variation ─────────────
 type Boulder = readonly [number, number, number, number, number]; // x,y,z,s,ry
-const CAVE_ROCKS: readonly Boulder[] = [
+
+// "Dark" group — wall-hugging, deep stone color
+const CAVE_ROCKS_DARK: readonly Boulder[] = [
     [-22, 0,  20, 2.4, 0.3],
     [ 24, 0,  18, 2.1, 1.2],
     [-25, 0, -15, 2.8, 0.6],
@@ -79,12 +81,55 @@ const CAVE_ROCKS: readonly Boulder[] = [
     [-19, 0,   8, 1.8, 2.1],
     [  6, 0,  25, 1.5, 1.0],
     [-12, 0, -25, 2.0, 0.7],
-    // Smaller mid-area pebbles for texture
+    [-27, 0,  -2, 2.2, 0.9],
+    [ 26, 0,   8, 1.9, 1.5],
+    [-24, 0,  25, 2.0, 0.4],
+    [ 27, 0, -10, 2.3, 1.1],
+] as const;
+
+// "Mid" group — mid-area, slightly lighter
+const CAVE_ROCKS_MID: readonly Boulder[] = [
     [-15, 0,  15, 1.0, 2.3],
     [ 14, 0, -10, 0.9, 0.5],
     [-20, 0,   0, 1.2, 1.7],
     [ 19, 0,  14, 1.1, 0.8],
+    [-17, 0, -18, 1.3, 0.2],
+    [ 12, 0,  18, 0.8, 1.4],
+    [-10, 0,  -3, 1.1, 1.9],
+    [ 16, 0, -20, 1.2, 0.6],
+    [-13, 0,  22, 1.0, 1.1],
+    [ 20, 0, -14, 1.1, 0.7],
 ] as const;
+
+// "Light" group — scattered small bright stones, near crystal lights
+const CAVE_ROCKS_LIGHT: readonly Boulder[] = [
+    [-26,  0,   6, 0.7, 0.3],
+    [ 26,  0,  -4, 0.6, 1.2],
+    [ -8,  0,  26, 0.7, 0.6],
+    [ 10,  0, -26, 0.8, 1.9],
+    [-26,  0, -18, 0.7, 0.4],
+    [ 26,  0,  20, 0.6, 1.5],
+] as const;
+
+// ─── Pool rim — large boulders forming the edge of the water pit ──────
+// Arranged in a circle around HOLE_CENTER at radius HOLE_RADIUS + 0.8.
+// 14 stones at decreasing-then-increasing scale so the rim feels organic,
+// not stamped. Heights vary so the silhouette isn't flat.
+const POOL_RIM: readonly Boulder[] = (() => {
+    const r = HOLE_RADIUS + 0.8;
+    const result: Boulder[] = [];
+    for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2;
+        const jitter = 0.85 + (Math.sin(i * 13.7) * 0.5 + 0.5) * 0.35;
+        const x = HOLE_CENTER_X + Math.cos(a) * r * jitter;
+        const z = HOLE_CENTER_Z + Math.sin(a) * r * jitter;
+        const s = 0.7 + (Math.sin(i * 7.3) * 0.5 + 0.5) * 0.7; // 0.7-1.4
+        const ry = a + Math.sin(i * 3.1) * 0.4;
+        // Boulder centers at ground level — base at Y=0
+        result.push([x, 0, z, s, ry] as const);
+    }
+    return result;
+})();
 
 // ─── Stalagmites (cones from the floor up) ─────────────────────────────
 // Hand-placed so they don't block the elevator path or the hole.
@@ -127,27 +172,115 @@ const CRYSTAL_GEO = new THREE.OctahedronGeometry(0.35, 0);
 
 const CrystalCluster: React.FC<{ x: number; y: number; z: number; color: string }> = ({ x, y, z, color }) => (
     <group position={[x, y, z]}>
-        <mesh geometry={CRYSTAL_GEO} rotation={[0.3, 0.8, 0]}>
+        <mesh geometry={CRYSTAL_GEO} rotation={[0.3, 0.8, 0]} scale={1.4}>
             <meshStandardMaterial
                 color={color}
                 emissive={color}
-                emissiveIntensity={1.4}
+                emissiveIntensity={2.2}
                 metalness={0.55}
                 roughness={0.15}
                 toneMapped={false}
             />
         </mesh>
-        <mesh geometry={CRYSTAL_GEO} scale={0.55} position={[0.35, -0.15, 0.15]} rotation={[0.6, 1.2, 0.3]}>
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.2} metalness={0.5} roughness={0.18} toneMapped={false} />
+        <mesh geometry={CRYSTAL_GEO} scale={0.75} position={[0.45, -0.20, 0.15]} rotation={[0.6, 1.2, 0.3]}>
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.9} metalness={0.5} roughness={0.18} toneMapped={false} />
         </mesh>
-        <mesh geometry={CRYSTAL_GEO} scale={0.4} position={[-0.32, -0.2, -0.05]} rotation={[-0.4, 0.5, 0.7]}>
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.0} metalness={0.5} roughness={0.2} toneMapped={false} />
+        <mesh geometry={CRYSTAL_GEO} scale={0.55} position={[-0.42, -0.25, -0.05]} rotation={[-0.4, 0.5, 0.7]}>
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.7} metalness={0.5} roughness={0.2} toneMapped={false} />
         </mesh>
-        {/* Soft pool of colored light. distance=5 so 6 crystals = 6 small
-            local pools, never overlapping for shader cost. */}
-        <pointLight intensity={0.9} distance={5} decay={1.6} color={color} />
+        <mesh geometry={CRYSTAL_GEO} scale={0.4} position={[0.0, 0.35, -0.15]} rotation={[0.2, 0.2, 1.4]}>
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.4} metalness={0.5} roughness={0.2} toneMapped={false} />
+        </mesh>
+        {/* Strong pool of colored light — distance bumped from 5 → 9 so
+            each crystal actually illuminates a real area, not just itself. */}
+        <pointLight intensity={2.4} distance={9} decay={1.4} color={color} />
+        {/* Halo sprite for camera glow */}
+        <sprite scale={[1.8, 1.8, 1]}>
+            <spriteMaterial color={color} transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+        </sprite>
     </group>
 );
+
+// ─── Central torches — warm wall-mounted flames around the cave ───────
+// Positioned high on the walls. Provide warm fill-light that lifts the
+// whole space out of pitch black. Each is a small emissive cone + a
+// pulsing pointLight so the cave "breathes" visually.
+const TORCH_POSITIONS: readonly (readonly [number, number, number])[] = [
+    [-29.5, 5.5,   0],
+    [ 29.5, 5.5,   0],
+    [   0, 5.5, -29.5],
+    [   0, 5.5,  29.5],
+    [-21,  6.0, -21],
+    [ 21,  6.0,  21],
+];
+
+const Torch: React.FC<{ x: number; y: number; z: number; seed: number }> = ({ x, y, z, seed }) => {
+    const lightRef = useRef<THREE.PointLight>(null);
+    useFrame((state) => {
+        const l = lightRef.current;
+        if (!l) return;
+        // Subtle flame flicker — combination of fast random and slow drift.
+        const t = state.clock.elapsedTime;
+        const flicker = 0.85 + Math.sin(t * 9 + seed) * 0.05 + Math.sin(t * 23 + seed * 1.3) * 0.04 + Math.random() * 0.03;
+        l.intensity = 3.5 * flicker;
+    });
+    return (
+        <group position={[x, y, z]}>
+            <mesh>
+                <coneGeometry args={[0.18, 0.4, 8]} />
+                <meshStandardMaterial color="#FFA850" emissive="#FFB060" emissiveIntensity={3.5} toneMapped={false} />
+            </mesh>
+            <sprite scale={[2.2, 2.2, 1]}>
+                <spriteMaterial color="#FFC080" transparent opacity={0.6} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+            </sprite>
+            <pointLight ref={lightRef} intensity={3.5} distance={16} decay={1.4} color="#FFB070" />
+        </group>
+    );
+};
+
+// ─── Dust motes — drifting in the air, catching light ─────────────────
+const DUST_COUNT = 40;
+const DustMotes: React.FC = () => {
+    const positions = useRef(
+        Array.from({ length: DUST_COUNT }, () => ({
+            x: (Math.random() - 0.5) * 56,
+            y: 1 + Math.random() * 6,
+            z: (Math.random() - 0.5) * 56,
+            vx: (Math.random() - 0.5) * 0.05,
+            vy: 0.02 + Math.random() * 0.03,
+            vz: (Math.random() - 0.5) * 0.05,
+            seed: Math.random() * 10,
+        }))
+    );
+    const refs = useRef<(THREE.Object3D | null)[]>(new Array(DUST_COUNT).fill(null));
+    useFrame((state, dt) => {
+        const safeDt = Math.min(dt, 0.05);
+        const t = state.clock.elapsedTime;
+        const pos = positions.current;
+        for (let i = 0; i < DUST_COUNT; i++) {
+            const p = pos[i];
+            // Gentle Brownian drift + small sine wobble
+            p.x += (p.vx + Math.sin(t * 0.6 + p.seed) * 0.02) * safeDt;
+            p.y += p.vy * safeDt;
+            p.z += (p.vz + Math.cos(t * 0.5 + p.seed) * 0.02) * safeDt;
+            if (p.y > 7.5) {
+                p.y = 0.5;
+                p.x = (Math.random() - 0.5) * 56;
+                p.z = (Math.random() - 0.5) * 56;
+            }
+            const r = refs.current[i];
+            if (r) r.position.set(p.x, p.y, p.z);
+        }
+    });
+    return (
+        <Instances limit={DUST_COUNT} range={DUST_COUNT} geometry={BUBBLE_GEO}>
+            <meshBasicMaterial color="#FFE0B8" transparent opacity={0.55} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+            {Array.from({ length: DUST_COUNT }, (_, i) => (
+                <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} scale={0.018 + Math.random() * 0.022} />
+            ))}
+        </Instances>
+    );
+};
 
 // ─── Underwater terrain ────────────────────────────────────────────────
 const UW_BOULDERS: readonly Boulder[] = [
@@ -392,51 +525,93 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     onCollectShard,
 }) => (
     <group>
-        {/* Cold deep-water palette + heavy fog. The fog reaches into the
-            cave too so the room feels damp / oppressive. */}
-        <color attach="background" args={['#0a1820']} />
-        <fog attach="fog" args={['#0a1820', 6, 30]} />
+        {/* Warmer cave palette — fog is now warm-tinted to read as "torch-lit
+            interior", and the start distance is pushed out so the player can
+            actually see the cave dressing. Most of the perceptual lift is
+            from buffing ambient + adding torches, not from the bg color. */}
+        <color attach="background" args={['#0e0a08']} />
+        <fog attach="fog" args={['#0e0a08', 14, 55]} />
 
-        {/* Cave lighting — dim with a faint warm hint to read as "cave",
-            not the underwater blue tint. */}
-        <ambientLight intensity={0.22} color="#a8b8c0" />
-        <hemisphereLight intensity={0.18} color="#7090a0" groundColor="#1a2530" />
-        <directionalLight position={[0, 30, 0]} intensity={0.35} color="#9ec0d0" />
+        {/* Cave lighting — much stronger than before. Felipe was getting a
+            pitch-black room. ambient 0.22→0.65, hemisphere 0.18→0.5,
+            directional 0.35→0.7. Plus 6 torches with flicker do the rest. */}
+        <ambientLight intensity={0.65} color="#d8c0a0" />
+        <hemisphereLight intensity={0.5} color="#c8a888" groundColor="#1a1612" />
+        <directionalLight position={[5, 20, 5]} intensity={0.7} color="#ffe8c0" />
 
-        {/* ─── CAVE (above water, Y=0..8) ───────────────────────────── */}
+        {/* ─── CAVE FLOOR with hole ─────────────────────────────────── */}
         <mesh
             geometry={CAVE_FLOOR_GEO}
             rotation={[-Math.PI / 2, 0, 0]}
             position={[0, 0, 0]}
         >
-            <meshStandardMaterial color="#34302c" roughness={0.95} flatShading />
+            <meshStandardMaterial color="#4a3e2e" roughness={0.95} flatShading />
         </mesh>
 
         {/* Cave ceiling */}
         <mesh position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <planeGeometry args={[60, 60]} />
-            <meshStandardMaterial color="#1e1c1a" roughness={1} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#2a221c" roughness={1} side={THREE.DoubleSide} />
         </mesh>
 
-        {/* Cave walls — 4 slabs around radius 25 */}
-        <mesh position={[0, 4, -30]}><boxGeometry args={[60, 8, 0.5]} /><meshStandardMaterial color="#2a2620" roughness={1} /></mesh>
-        <mesh position={[0, 4,  30]}><boxGeometry args={[60, 8, 0.5]} /><meshStandardMaterial color="#2a2620" roughness={1} /></mesh>
-        <mesh position={[-30, 4, 0]}><boxGeometry args={[0.5, 8, 60]} /><meshStandardMaterial color="#2a2620" roughness={1} /></mesh>
-        <mesh position={[ 30, 4, 0]}><boxGeometry args={[0.5, 8, 60]} /><meshStandardMaterial color="#2a2620" roughness={1} /></mesh>
+        {/* CAVE WALLS — built as multiple offset boxes per side so the
+            silhouette reads as natural stone rather than a flat sheet. Each
+            "wall" is 3 vertically-stacked, slightly-offset boxes with
+            varying colors. Far cheaper than real geometry; visually:
+            chunky rock instead of cardboard panel. */}
+        {/* North wall (z = -30) */}
+        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 1.0]} /><meshStandardMaterial color="#3a2f24" roughness={1} flatShading /></mesh>
+        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 1.2]} /><meshStandardMaterial color="#43372a" roughness={1} flatShading /></mesh>
+        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 0.6]} /><meshStandardMaterial color="#352b21" roughness={1} flatShading /></mesh>
+        {/* South wall (z = 30) */}
+        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 1.0]} /><meshStandardMaterial color="#3c3025" roughness={1} flatShading /></mesh>
+        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 1.2]} /><meshStandardMaterial color="#45382b" roughness={1} flatShading /></mesh>
+        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 0.6]} /><meshStandardMaterial color="#352b21" roughness={1} flatShading /></mesh>
+        {/* West wall (x = -30) */}
+        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[1.0, 5.2, 28]} /><meshStandardMaterial color="#3a2f24" roughness={1} flatShading /></mesh>
+        <mesh position={[-29.4, 3.4,  -12]}><boxGeometry args={[1.2, 6.8, 18]} /><meshStandardMaterial color="#43372a" roughness={1} flatShading /></mesh>
+        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[0.6, 3.6, 60]} /><meshStandardMaterial color="#352b21" roughness={1} flatShading /></mesh>
+        {/* East wall (x = 30) */}
+        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[1.0, 5, 22]} /><meshStandardMaterial color="#3c3025" roughness={1} flatShading /></mesh>
+        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[1.2, 7.2, 20]} /><meshStandardMaterial color="#45382b" roughness={1} flatShading /></mesh>
+        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[0.6, 4, 60]} /><meshStandardMaterial color="#352b21" roughness={1} flatShading /></mesh>
 
-        {/* Cave rock outcrops (instances) */}
-        <Instances limit={CAVE_ROCKS.length} range={CAVE_ROCKS.length} geometry={BOULDER_GEO}>
-            <meshStandardMaterial color="#3a342e" roughness={0.95} flatShading />
-            {CAVE_ROCKS.map(([x, y, z, s, ry], i) => (
+        {/* Cave boulders — 3 cohorts in different tones */}
+        <Instances limit={CAVE_ROCKS_DARK.length} range={CAVE_ROCKS_DARK.length} geometry={BOULDER_GEO}>
+            <meshStandardMaterial color="#322820" roughness={0.95} flatShading />
+            {CAVE_ROCKS_DARK.map(([x, y, z, s, ry], i) => (
                 <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.8, s]} rotation={[0, ry, 0]} />
             ))}
         </Instances>
+        <Instances limit={CAVE_ROCKS_MID.length} range={CAVE_ROCKS_MID.length} geometry={BOULDER_GEO}>
+            <meshStandardMaterial color="#564335" roughness={0.9} flatShading />
+            {CAVE_ROCKS_MID.map(([x, y, z, s, ry], i) => (
+                <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.8, s]} rotation={[0, ry, 0]} />
+            ))}
+        </Instances>
+        <Instances limit={CAVE_ROCKS_LIGHT.length} range={CAVE_ROCKS_LIGHT.length} geometry={PEBBLE_GEO}>
+            <meshStandardMaterial color="#6a5544" roughness={0.85} flatShading />
+            {CAVE_ROCKS_LIGHT.map(([x, y, z, s, ry], i) => (
+                <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]} />
+            ))}
+        </Instances>
 
-        {/* Stalagmites — cones rising from the floor. Random-ish heights. */}
+        {/* POOL RIM — large boulders forming the circular edge of the
+            water hole. Look + collision: even though Player.tsx falls
+            through the hole by XZ-radius check, the rim makes it visually
+            obvious where the pool is, even from across the cave. */}
+        <Instances limit={POOL_RIM.length} range={POOL_RIM.length} geometry={BOULDER_GEO}>
+            <meshStandardMaterial color="#3e3026" roughness={0.92} flatShading />
+            {POOL_RIM.map(([x, y, z, s, ry], i) => (
+                <Instance key={i} position={[x, y + s * 0.45, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]} />
+            ))}
+        </Instances>
+
+        {/* Stalagmites — cones rising from the floor */}
         {STALAGMITES.map(([x, z, h, r], i) => (
             <mesh key={`stalagmite-${i}`} position={[x, h / 2, z]}>
                 <coneGeometry args={[r, h, 6]} />
-                <meshStandardMaterial color="#2e2820" roughness={1} flatShading />
+                <meshStandardMaterial color="#3a3024" roughness={1} flatShading />
             </mesh>
         ))}
 
@@ -444,7 +619,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {STALACTITES.map(([x, z, h, r], i) => (
             <mesh key={`stalactite-${i}`} position={[x, 8 - h / 2, z]} rotation={[Math.PI, 0, 0]}>
                 <coneGeometry args={[r, h, 6]} />
-                <meshStandardMaterial color="#26221c" roughness={1} flatShading />
+                <meshStandardMaterial color="#322a1f" roughness={1} flatShading />
             </mesh>
         ))}
 
@@ -452,6 +627,14 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {CRYSTALS.map(([x, y, z, color], i) => (
             <CrystalCluster key={`crystal-${i}`} x={x} y={y} z={z} color={color} />
         ))}
+
+        {/* Wall-mounted torches with flicker */}
+        {TORCH_POSITIONS.map(([x, y, z], i) => (
+            <Torch key={`torch-${i}`} x={x} y={y} z={z} seed={i * 7.3} />
+        ))}
+
+        {/* Floating dust motes catching the warm light */}
+        <DustMotes />
 
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
         <WaterSurface />
