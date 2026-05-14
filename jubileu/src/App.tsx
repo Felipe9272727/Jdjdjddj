@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
-import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
+import { Html, Loader, AdaptiveDpr, PerformanceMonitor, Environment } from '@react-three/drei';
+import { EffectComposer, Bloom, Vignette, ChromaticAberration } from '@react-three/postprocessing';
+import { BlendFunction, KernelSize } from 'postprocessing';
+import { Vector3, Vector2, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
 
 // ─── Error Boundary for Canvas ─────────────────────────────────────────────
 class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
@@ -139,7 +141,14 @@ export default function App() {
   // ─── Inventory + pickup animation ─────────────────────────────────────
   const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie: consumeCookie, hasAnyItem } = useInventory();
   const [pickupTrigger, setPickupTrigger] = useState(0);
-  const triggerPickup = useCallback(() => setPickupTrigger((n) => n + 1), []);
+  const [pickupItem, setPickupItem] = useState<'flashlight' | 'cookie' | null>(null);
+  // Trigger the pickup animation, tagging which item is being held. The
+  // Avatar reads pickupItem to pick a different bone pose (flashlight =
+  // arm extends forward; cookie = elbow folds toward the mouth).
+  const triggerPickup = useCallback((item: 'flashlight' | 'cookie') => {
+    setPickupItem(item);
+    setPickupTrigger((n) => n + 1);
+  }, []);
   // Ref to an Object3D anchor inside the player's RightHand bone. The
   // 3rd-person flashlight reads its matrixWorld each frame → perfect
   // position + rotation, including pickup-arm rotation.
@@ -147,15 +156,15 @@ export default function App() {
   const handleRightHandAnchor = useCallback((a: Object3D | null) => { rightHandAnchorRef.current = a; }, []);
   const handleBuyItem = useCallback((itemId: 'flashlight' | 'cookie') => {
     inventoryAddItem(itemId);
-    triggerPickup();
+    triggerPickup(itemId);
   }, [inventoryAddItem, triggerPickup]);
   const handleToggleFlashlight = useCallback(() => {
     // Trigger pickup animation only when EQUIPPING (turning on), not stowing.
-    if (inventory.flashlight.owned && !inventory.flashlight.active) triggerPickup();
+    if (inventory.flashlight.owned && !inventory.flashlight.active) triggerPickup('flashlight');
     toggleFlashlight();
   }, [inventory.flashlight.owned, inventory.flashlight.active, toggleFlashlight, triggerPickup]);
   const handleUseCookie = useCallback((): boolean => {
-    if (inventory.cookie.count > 0) triggerPickup();
+    if (inventory.cookie.count > 0) triggerPickup('cookie');
     return consumeCookie();
   }, [inventory.cookie.count, consumeCookie, triggerPickup]);
 
@@ -660,7 +669,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -685,6 +694,7 @@ export default function App() {
                   zoomLevel={zoomLevel}
                   armExtended={inventory.flashlight.owned && inventory.flashlight.active}
                   pickupTrigger={pickupTrigger}
+                  pickupItem={pickupItem}
                   active={hasStarted}
                   flashlightActive={inventory.flashlight.active}
                   flashlightOwned={inventory.flashlight.owned}
@@ -699,7 +709,44 @@ export default function App() {
                 />
             )}
             <SceneInspector />
+            {/* Environment HDRI as a tiny env map (no background change, just
+                provides reflection samples for metals — flashlight body, kitchen
+                counter, brushed steel ceiling panels, etc.). Lightweight built-in
+                preset, no network fetch. */}
+            {QUALITY_PROFILES[settings.quality].atmosphere && (
+                <Environment preset="apartment" environmentIntensity={0.35} />
+            )}
         </Suspense>
+        {/* Post-processing stack — cinematic look. Quality-gated: low quality
+            skips it entirely (saves a render pass). Medium gets Bloom only,
+            High gets the full chain. Bloom catches every emissive material:
+            flashlight lens, ceiling lights, lamp bulbs, glow sprites. */}
+        {hasStarted && settings.quality !== 'low' && (
+            <EffectComposer multisampling={0} enableNormalPass={false}>
+                <Bloom
+                    intensity={settings.quality === 'high' ? 0.8 : 0.5}
+                    luminanceThreshold={0.7}
+                    luminanceSmoothing={0.5}
+                    mipmapBlur
+                    kernelSize={KernelSize.LARGE}
+                />
+                {settings.quality === 'high' && (
+                    <Vignette
+                        offset={0.25}
+                        darkness={nightMode ? 0.8 : 0.45}
+                        blendFunction={BlendFunction.NORMAL}
+                    />
+                )}
+                {settings.quality === 'high' && nightMode && (
+                    <ChromaticAberration
+                        blendFunction={BlendFunction.NORMAL}
+                        offset={new Vector2(0.0008, 0.0008)}
+                        radialModulation
+                        modulationOffset={0.5}
+                    />
+                )}
+            </EffectComposer>
+        )}
       </Canvas>
       </CanvasErrorBoundary>
       {hasStarted && QUALITY_PROFILES[settings.quality].overlay && (

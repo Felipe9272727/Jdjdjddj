@@ -37,7 +37,9 @@ function findArmBones(scene: THREE.Object3D): { arm: THREE.Bone | null; forearm:
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInCubic = (t: number) => t * t * t;
 
-const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = false, onHandAnchor }: { animation: 'Idle' | 'Walking'; visible?: boolean; pickupTrigger?: number; armExtended?: boolean; onHandAnchor?: (a: THREE.Object3D | null) => void }) => {
+export type PickupItem = 'flashlight' | 'cookie' | null;
+
+const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = false, pickupItem = null, onHandAnchor }: { animation: 'Idle' | 'Walking'; visible?: boolean; pickupTrigger?: number; armExtended?: boolean; pickupItem?: PickupItem; onHandAnchor?: (a: THREE.Object3D | null) => void }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
   const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
   const { actions } = useAnimations(useMemo(() => {
@@ -218,16 +220,34 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = fa
       return;  // no animation, no sustained extend
     }
 
-    const maxAngle = -Math.PI * 0.44;
-    const armAngle = maxAngle * progress;
-    const forearmAngle = maxAngle * 0.3 * progress;
+    // Two distinct poses based on what the player is holding:
+    //   - flashlight: shoulder rotates forward (-π·0.44 X), elbow follows
+    //     for a horizontal "pointing the light" extension.
+    //   - cookie: shoulder rotates LESS (forward but lower), elbow folds
+    //     HARD to bring the hand up toward the mouth — that's the visual
+    //     of eating a cookie, not aiming a flashlight.
+    let armAngleX = 0, armAngleY = 0;
+    let foreArmAngleX = 0;
+    if (pickupItem === 'cookie') {
+      // Cookie: smaller shoulder rotation + tight elbow flexion.
+      // X negative = arm raises forward; elbow X positive = forearm folds up
+      // (Mixamo elbow flexion axis). Net effect: hand lands near the face.
+      armAngleX = -Math.PI * 0.30 * progress;
+      armAngleY = -Math.PI * 0.10 * progress;  // bring hand a bit toward midline
+      foreArmAngleX = Math.PI * 0.85 * progress;  // strong elbow fold
+    } else {
+      // Flashlight (default): straight-forward extension.
+      const maxAngle = -Math.PI * 0.44;
+      armAngleX = maxAngle * progress;
+      foreArmAngleX = maxAngle * 0.3 * progress;
+    }
 
     // Read mixer's pose (written at priority 0, earlier in this frame)
     p.armQuat.copy(p.arm.quaternion);
     p.forearmQuat.copy(p.forearm.quaternion);
     // Build delta on pre-allocated objects — zero GC
-    p.armEuler.set(armAngle, 0, 0);
-    p.forearmEuler.set(forearmAngle, 0, 0);
+    p.armEuler.set(armAngleX, armAngleY, 0);
+    p.forearmEuler.set(foreArmAngleX, 0, 0);
     p.armDelta.setFromEuler(p.armEuler);
     p.forearmDelta.setFromEuler(p.forearmEuler);
     // Post-multiply mixer_pose × delta = rotation in bone-local space
@@ -291,10 +311,11 @@ interface PlayerProps {
   onElevatorZoneChange: (inside: boolean) => void;
   pickupTrigger?: number;
   armExtended?: boolean;
+  pickupItem?: PickupItem;
   onRightHandAnchor?: (a: THREE.Object3D | null) => void;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, onRightHandAnchor }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -454,7 +475,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
     }
   });
-  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} onHandAnchor={onRightHandAnchor} /></group>);
+  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} pickupItem={pickupItem} onHandAnchor={onRightHandAnchor} /></group>);
 };
 
 // ─── FPArmModel: first-person viewmodel — simple 3D arm in camera space ──
@@ -480,13 +501,15 @@ interface FPArmModelProps {
   active: boolean;
   flashlightActive: boolean;
   flashlightOwned: boolean;
+  pickupItem: PickupItem;
 }
 
-export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightActive, flashlightOwned }) => {
+export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightActive, flashlightOwned, pickupItem }) => {
   const { camera } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   const armPivotRef = useRef<THREE.Group>(null);
   const flashlightRef = useRef<THREE.Group>(null);
+  const cookieRef = useRef<THREE.Group>(null);
 
   // Pickup state — same timed/sustained split as Avatar
   const state = useRef({
@@ -562,18 +585,55 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
     const bob = Math.sin(s.timeSec * 1.8) * 0.012;
     const sway = Math.cos(s.timeSec * 1.3) * 0.008;
 
-    const restX = 1.10;
-    const extX  = 1.55;
-    pivot.rotation.x = restX + (extX - restX) * progress;
-    pivot.rotation.z = sway * 0.5;
+    // Distinct arm pose per held item:
+    //   flashlight: shoulder pitches forward (~89°), arm reaches into view
+    //   cookie:    shoulder pitches LESS but Y-rotates toward the face,
+    //              effectively bringing the hand back toward the mouth
+    //              area (top-left of FOV). Different gesture, same timing.
+    if (pickupItem === 'cookie') {
+      const restX = 0.40,  extX  = 1.20;   // less forward pitch
+      const restY = -0.05, extY  = -0.45;  // rotate hand toward face/mouth
+      pivot.rotation.x = restX + (extX - restX) * progress;
+      pivot.rotation.y = restY + (extY - restY) * progress;
+      pivot.rotation.z = sway * 0.5;
+    } else {
+      const restX = 1.10;
+      const extX  = 1.55;
+      pivot.rotation.x = restX + (extX - restX) * progress;
+      pivot.rotation.y = 0;
+      pivot.rotation.z = sway * 0.5;
+    }
     pivot.position.y = -0.02 + bob;
 
+    // Item attached to the hand — flashlight or cookie, never both.
     const fl = flashlightRef.current;
-    if (fl && flashlightOwned) {
-      const rotX = pivot.rotation.x;
-      const handY = -0.60 * Math.cos(rotX);
-      const handZ = -0.60 * Math.sin(rotX);
-      fl.position.set(0.28, -0.20 + handY + bob, -0.30 + handZ);
+    if (fl) {
+      fl.visible = flashlightOwned && pickupItem !== 'cookie';
+      if (fl.visible) {
+        const rotX = pivot.rotation.x;
+        const handY = -0.60 * Math.cos(rotX);
+        const handZ = -0.60 * Math.sin(rotX);
+        fl.position.set(0.28, -0.20 + handY + bob, -0.30 + handZ);
+      }
+    }
+    const ck = cookieRef.current;
+    if (ck) {
+      ck.visible = pickupItem === 'cookie' && s.timed.active;
+      if (ck.visible) {
+        // Cookie position follows the hand through pivot's X+Y rotation
+        const rotX = pivot.rotation.x;
+        const rotY = pivot.rotation.y;
+        const baseY = -0.60;
+        // Approximate hand position after the same rotations applied above
+        const handY = baseY * Math.cos(rotX);
+        const handZ = baseY * Math.sin(rotX);
+        // Y-rotation rotates the (right, up, forward) frame; for the hand at
+        // pivot-local (0, -0.60, 0), Y-rotation has no effect on the hand
+        // position itself (it's on the rotation axis), only on the cookie
+        // offset visually. We just use the same anchor as the flashlight.
+        ck.position.set(0.28 + Math.sin(rotY) * 0.05, -0.18 + handY + bob, -0.30 + handZ);
+        ck.rotation.set(0, rotY, 0);
+      }
     }
   });
 
@@ -649,6 +709,34 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
           )}
         </group>
       )}
+
+      {/* Cookie — only ever visible during the timed pickup/eat animation.
+          Same anchor convention as the flashlight (sibling of the arm pivot),
+          rotation matches the arm Y so the cookie "follows" the hand toward
+          the mouth. */}
+      <group ref={cookieRef} renderOrder={999} visible={false}>
+        <mesh renderOrder={999} frustumCulled={false}>
+          <cylinderGeometry args={[0.07, 0.07, 0.022, 18]} />
+          <meshStandardMaterial color="#C28850" roughness={0.85} depthTest={false} />
+        </mesh>
+        {/* Chocolate chips — tiny dark spheres on the top face */}
+        <mesh position={[0.025, 0.012, 0.012]} renderOrder={999} frustumCulled={false}>
+          <sphereGeometry args={[0.012, 8, 6]} />
+          <meshStandardMaterial color="#3a1f0a" roughness={0.6} depthTest={false} />
+        </mesh>
+        <mesh position={[-0.030, 0.012, -0.005]} renderOrder={999} frustumCulled={false}>
+          <sphereGeometry args={[0.014, 8, 6]} />
+          <meshStandardMaterial color="#3a1f0a" roughness={0.6} depthTest={false} />
+        </mesh>
+        <mesh position={[0.005, 0.012, -0.030]} renderOrder={999} frustumCulled={false}>
+          <sphereGeometry args={[0.010, 8, 6]} />
+          <meshStandardMaterial color="#3a1f0a" roughness={0.6} depthTest={false} />
+        </mesh>
+        <mesh position={[-0.015, 0.012, 0.025]} renderOrder={999} frustumCulled={false}>
+          <sphereGeometry args={[0.011, 8, 6]} />
+          <meshStandardMaterial color="#3a1f0a" roughness={0.6} depthTest={false} />
+        </mesh>
+      </group>
     </group>
   );
 };
