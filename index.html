@@ -3489,6 +3489,11 @@
     mix-blend-mode: overlay;
   }
 
+  .shadow {
+    --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, #0000001a), 0 1px 2px -1px var(--tw-shadow-color, #0000001a);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+
   .shadow-2xl {
     --tw-shadow: 0 25px 50px -12px var(--tw-shadow-color, #00000040);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -103844,6 +103849,46 @@ const FPArmModel = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightA
     ] })
   ] });
 };
+const ShadowBlob = ({
+  positionRef,
+  radius = 0.45,
+  opacity = 0.45,
+  cullDistSq = 900
+  // 30m
+}) => {
+  const meshRef = reactExports.useRef(null);
+  const { camera } = useThree();
+  const geometry = reactExports.useMemo(() => new CircleGeometry(radius, 16), [radius]);
+  const material = reactExports.useMemo(() => new MeshBasicMaterial({
+    color: 0,
+    transparent: true,
+    opacity,
+    depthWrite: false
+  }), [opacity]);
+  useFrame(() => {
+    const m2 = meshRef.current;
+    const p2 = positionRef.current;
+    if (!m2 || !p2) return;
+    const dx = p2.x - camera.position.x;
+    const dz = p2.z - camera.position.z;
+    if (dx * dx + dz * dz > cullDistSq) {
+      m2.visible = false;
+      return;
+    }
+    m2.visible = true;
+    m2.position.set(p2.x, 5e-3, p2.z);
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "mesh",
+    {
+      ref: meshRef,
+      geometry,
+      material,
+      rotation: [-Math.PI / 2, 0, 0],
+      renderOrder: 1
+    }
+  );
+};
 const EMPTY = {
   flashlight: { owned: false, active: false },
   cookie: { count: 0 }
@@ -105649,6 +105694,10 @@ const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }) => {
     return ((d == null ? void 0 : d.name) || "P-" + (id || "").slice(0, 4).toUpperCase()).slice(0, 16);
   }, [id]);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 5e-3, 0], renderOrder: 1, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.5, 16] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#000", transparent: true, opacity: 0.45, depthWrite: false })
+    ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: clonedScene, scale: [30, 30, 30], position: [0, groundY, 0] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.3, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none select-none whitespace-nowrap", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-black/70 text-white px-2.5 py-0.5 rounded-md text-[11px] font-bold border border-white/20 backdrop-blur-sm tracking-wider text-center shadow-lg", children: displayName }) }) }),
     chatBubbles3D && chatBubble && /* @__PURE__ */ jsxRuntimeExports.jsx(Html, { position: [0, 2.7, 0], center: true, distanceFactor: 8, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pointer-events-none select-none whitespace-nowrap speech-bubble", children: [
@@ -108271,6 +108320,7 @@ function App() {
                 }
               )
             ] }),
+            hasStarted && zoomLevel >= 0.5 && /* @__PURE__ */ jsxRuntimeExports.jsx(ShadowBlob, { positionRef: sharedPlayerPositionRef, radius: 0.55, opacity: 0.5 }),
             hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(
               FPArmModel,
               {

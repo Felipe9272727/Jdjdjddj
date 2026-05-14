@@ -2123,3 +2123,131 @@ O Felipe disse "vc vai ter que fazer mais pedi" — significa que vai pedir as f
 - **NUNCA** anexar meshes diretamente em bones do esqueleto via `createPortal` ou `bone.add()` — interfere com skinning.
 - Bone manipulation em `useFrame` priority 0 está OK, **desde que** o useAnimations seja chamado antes (a ordem dos hooks garante mixer roda primeiro).
 
+---
+
+## 🏗️ Sessão 2026-05-12/14: Reconstrução completa pós-revert (shop, inventário, lanterna, pickup arm, perf)
+
+Tudo o que vem abaixo foi feito a partir do revert ao commit `87da1a9` (~4.44MB). Cinco dias intensos. Esta seção consolida tudo num só lugar pra próximas IAs não terem que reconstruir o histórico do zero.
+
+### Arquivos criados/reescritos
+- `InventorySystem.tsx` (novo) — `useInventory()` hook + `InventoryHUD` (estilo Undertale âmbar/preto)
+- `FlashlightLight.tsx` (novo) — `FlashlightLight` (spotlight + cone volumétrico), `FlashlightModel3D` (3rd person)
+- `ShadowBlob.tsx` (novo) — disco translúcido no chão pros personagens
+- `Player.tsx` — pickup arm animation, FPArmModel (viewmodel 1ª pessoa em primitivas)
+- `ShopOverlay.tsx` — prop `onBuyItem` adicionada
+- `shop-dialogues.ts` — campo `action?` em Choice; lanterna e biscoito como itens compráveis
+- `App.tsx` — wire de tudo, postprocessing minimal, perf monitors
+
+### 🔦 Sistema de inventário
+- `useInventory()` retorna `{inventory, addItem, toggleFlashlight, useCookie, hasAnyItem}`
+- `inventory = { flashlight: {owned, active}, cookie: {count} }`
+- HUD com botões lanterna (toggle) + biscoito (consume), notification toasts, cookie heal radial overlay
+- Tecla `F` toggla lanterna; clique no HUD ou no biscoito também
+
+### 🛒 Shop (recepcionista)
+- Adicionei item **Lanterna - 0G** + **Biscoito - 0G** no menu `buy`
+- `Choice.action: 'buy_flashlight' | 'buy_cookie'` dispara callback `onBuyItem` antes da navegação
+- Dialogue Undertale style mantido
+
+### 💡 Lanterna 3D — fixada na mão via handAnchor
+- Avatar (Player.tsx) cria um `THREE.Object3D` vazio (`__flashlight_anchor`) com `hand.add(anchor)`, position local `(0, 0.05, 0)` (na palma, Mixamo RightHand +Y aponta pros dedos)
+- Avatar expõe o anchor via callback `onHandAnchor(obj)`
+- App.tsx tem `rightHandAnchorRef`, repassa pro `FlashlightModel3D`
+- A cada frame, `FlashlightModel3D` faz `anchor.updateWorldMatrix(true, false)` (sobe na hierarquia!) + `decompose` → copia position/quaternion pro group da lanterna
+- Lanterna fica perfeitamente fixada na mão, segue rotação do braço quando a animação pickup roda
+
+**Por que `updateWorldMatrix(true, false)` e não `updateMatrixWorld(true)`:**
+- `updateMatrixWorld(force)` desce na hierarquia (atualiza filhos) — não serve aqui
+- `updateWorldMatrix(updateParents, updateChildren)` sobe na hierarquia — garante que avRef + primitive transforms estão fresh ANTES de ler bone.matrixWorld
+
+**Iluminação:**
+- SpotLight intensity 22, distance 28m, decay 1.0, angle π/5.5, penumbra 0.45
+- Fill pointLight nos pés do player (intensity 1.2, distance 2.5m) — evita "void" feeling
+- nightMode ambient 0.04, Level 2 ambient 0.08 → lanterna realmente importa
+
+### ✋ Pickup arm animation (Avatar 3ª pessoa)
+- Detecta bones `mixamorig:RightArm` + `RightForeArm` + `RightHand` (exact match + substring fallback)
+- `useFrame` priority **0** (NUNCA != 0 — quebra auto-render)
+- useAnimations é chamado antes na ordem de hooks → mixer roda primeiro
+- Quaternions/eulers pré-alocados, zero GC
+- **Estado separado**: `pickupRef.timed` (1.2s extend→hold→retract) + `pickupRef.sustained` (lanterna ligada = sempre `progress=1`)
+- Quando armExtended vira false, jump elapsed → 0.8 (início do retract) pro braço descer suave
+- **Distinto por item**:
+  - Flashlight: `armX = -π·0.44`, `forearmX = -π·0.13` (extend forward)
+  - Cookie: `armX = -π·0.35`, `armY = +π·0.20` (inward → mouth), `forearmX = -π·0.95` (strong fold)
+
+### 🤚 FPArmModel (1ª pessoa)
+- Mock 3D arm: cylinders + spheres (chunky Roblox style), 80 triangles total
+- Anchored à camera position+quaternion a cada frame
+- `depthTest=false` + `renderOrder=999` + `frustumCulled=false` → sempre por cima
+- `state.timed.elapsed` avança SEMPRE (mesmo invisível) → entering FP mid-animation não reinicia
+- Visível só quando `armExtended || timed.active` (não polui a tela em idle)
+- Lanterna e cookie como meshes separados no FPArmModel; visibility mutuamente exclusiva
+- Cookie animation: shoulder Y rotates inward, elbow folds forward
+
+### ⚡ Performance — todas as otimizações sustentáveis
+
+| Otimização | Como | Onde |
+|---|---|---|
+| Distance-band throttling | 0-10m every frame, 10-30m a cada 2 frames, 30m+ 1Hz | `RemotePlayer.tsx`, `Bot.tsx` |
+| AdaptiveDpr + PerformanceMonitor | drei components — auto-reduz pixelRatio quando FPS cai | `App.tsx` Canvas |
+| Tree count 43→22 | Consolidado em `TREE_POSITIONS` const module-level | `HouseEnv.tsx` |
+| BarneyActor early-exit | `if (!isVisible && scaleRef.current < 0.005) return` | `HouseEnv.tsx` |
+| FpsCounter throttle | `setState` só se valor mudou | `Settings.tsx` |
+| AudioContext suspend | `suspend()` no `visibilitychange:hidden` | `AudioEngine.tsx` |
+| Sun/Moon geometry | 32×32 → 12×10, 16×16 → 10×8 | `HouseEnv.tsx` |
+| ShadowBlobs | 16-seg circle (32 tri) em vez de shadow maps | `ShadowBlob.tsx` + RemotePlayer |
+| Minimal postprocessing | Strip N8AO/Vignette/CA/Environment, só Bloom no high | `App.tsx` |
+| Skeleton scanner gated | `window.__SKELETON_SCAN__` flag — zero cost em prod | `Player.tsx` |
+
+### 🚫 Coisas que tentamos e NÃO funcionaram (anotar pra futuro)
+
+1. **GLB clone + bone scale-collapse para FP viewmodel**
+   Ideia: clonar avatar GLB, colapsar bones que não são do braço direito (scale 0.0001), renderizar perto da câmera.
+   Por quê falhou: scale é herdado via matrixWorld. Colapsar Hips colapsa também RightArm (descendant). E meshes não-skinnadas (cabelo, hat) ignoram bone scale e ficam visíveis. Resultado: cabeça aparecia, braço sumia.
+   Solução final: mock arm com primitivas.
+
+2. **AnimationClip programática + setLayer(1)**
+   Forum decidiu que era a solução perfeita. Falhou porque `setLayer()` não existe na versão Three.js do projeto.
+   Manual bone manipulation com pre-allocated quaternions é o jeito.
+
+3. **createPortal pra anexar lanterna no bone**
+   Causou tela preta (skinned mesh hierarchy não gosta de meshes mountadas como filhos no runtime).
+   Solução: handAnchor = `THREE.Object3D` vazio (sem mesh) é OK como filho do bone. Read matrixWorld + decompose, renderiza mesh SEPARADAMENTE.
+
+4. **N8AO + Vignette + ChromaticAberration + Environment HDRI**
+   Adicionei pra dar "AAA look" — Felipe testou no celular: lag muito grande pra um ganho visual mediano. Removido.
+   Lições: postprocessing real em mobile = veneno. Bloom leve é o teto.
+
+5. **DLSS/FSR Frame Generation**
+   Felipe pediu várias vezes. Não existe API web pra isso. WebGL/WebGPU não expõem driver-level frame interpolation.
+   O que existe: `<AdaptiveDpr>` da drei, que reduz pixelRatio dinamicamente quando FPS cai e deixa o browser fazer upscale. É o teto da web. Já está rodando.
+
+### 🚨 LANDMINES — coisas que NÃO PODEM voltar
+- ❌ `useFrame(..., priority != 0)` — R3F v9 desativa auto-render, tela preta
+- ❌ Anexar mesh via `createPortal` ou `bone.add(mesh)` em skeleton hierarchy
+- ❌ SpotLight com `distance={0}` quando ativo (Three.js = infinite range = black screen)
+- ❌ N8AO em mobile (FPS cai)
+- ❌ Bone scale-collapse pra esconder partes do GLB (afeta descendentes)
+- ✅ OK: bone manipulation em useFrame priority 0 + useAnimations antes
+- ✅ OK: `Object3D` vazio como child de bone (sem mesh)
+- ✅ OK: `updateWorldMatrix(true, false)` pra refrescar matriz sobindo na hierarquia
+
+### Quality profile (atualizado)
+| Setting | low | medium | high |
+|---|---|---|---|
+| dpr range | 0.5–0.75 | 1–1.25 | 1–2 |
+| far plane | 40 | 80 | 120 |
+| antialias | ❌ | ❌ | ✅ |
+| atmosphere | ❌ | ❌ | ✅ |
+| postprocessing | ❌ | ❌ | Bloom only |
+| nightLights | ❌ | ✅ | ✅ |
+| remoteLimit | 3 | 8 | 30 |
+
+### Como debugar próxima vez
+1. Tela preta volta → procurar `useFrame(_, _, !=0)` ou `bone.add(mesh)` recente
+2. Lanterna fora do lugar → verificar `updateWorldMatrix(true, false)` no FlashlightModel3D
+3. FP arm reinicia animação → verificar se `state.timed.elapsed` está sendo avançado FORA do visibility gate
+4. Cookie pra cabelo (não boca) → ajustar `armAngleY` (positivo = pra dentro) e `forearmAngleX` (negativo = elbow forward)
+5. Bones do GLB precisam debug → `window.__SKELETON_SCAN__ = true; location.reload();` → console.table com toda hierarquia
+

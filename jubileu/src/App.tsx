@@ -22,6 +22,7 @@ import { MainMenu } from './MainMenu';
 import { VisualJoystick, DialogueOverlay } from './UI';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
+import { ShadowBlob } from './ShadowBlob';
 import { useInventory, InventoryHUD } from './InventorySystem';
 import { FlashlightLight, FlashlightModel3D } from './FlashlightLight';
 import { ElevatorInterior } from './Elevator';
@@ -688,6 +689,9 @@ export default function App() {
                     zoomLevel={zoomLevel}
                   />
                 </>
+            )}
+            {hasStarted && zoomLevel >= 0.5 && (
+                <ShadowBlob positionRef={sharedPlayerPositionRef} radius={0.55} opacity={0.5} />
             )}
             {hasStarted && (
                 <FPArmModel

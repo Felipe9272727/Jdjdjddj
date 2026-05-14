@@ -165,6 +165,14 @@ export const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }: R
 
     return (
         <group ref={groupRef}>
+            {/* Grounding shadow blob — single 16-segment disc at the feet.
+                Not a real shadow map, just a dark transparent circle that
+                makes remote players feel attached to the floor. Cost is
+                negligible (32 triangles). */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} renderOrder={1}>
+                <circleGeometry args={[0.5, 16]} />
+                <meshBasicMaterial color="#000" transparent opacity={0.45} depthWrite={false} />
+            </mesh>
             <primitive object={clonedScene} scale={[30, 30, 30]} position={[0, groundY, 0]} />
             <Html position={[0, 2.3, 0]} center distanceFactor={8}>
                 <div className="pointer-events-none select-none whitespace-nowrap">
