@@ -31,7 +31,7 @@
 
 import React, { useMemo, useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Instances, Instance, shaderMaterial } from '@react-three/drei';
+import { Instances, Instance, shaderMaterial, MeshReflectorMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 import { ElevatorFacade } from './Elevator';
 
@@ -219,6 +219,14 @@ const Torch: React.FC<{ x: number; y: number; z: number; seed: number }> = ({ x,
     useFrame((state) => {
         const l = lightRef.current;
         if (!l) return;
+        // Distance cull: torches > 20m from the camera don't visibly flicker,
+        // skip the math. Saves on cave-wide useFrame churn (6 torches × 60Hz).
+        const dxC = x - state.camera.position.x;
+        const dzC = z - state.camera.position.z;
+        if (dxC * dxC + dzC * dzC > 400) {
+            l.intensity = 3.5;   // hold steady at base
+            return;
+        }
         // Subtle flame flicker — combination of fast random and slow drift.
         const t = state.clock.elapsedTime;
         const flicker = 0.85 + Math.sin(t * 9 + seed) * 0.05 + Math.sin(t * 23 + seed * 1.3) * 0.04 + Math.random() * 0.03;
@@ -239,7 +247,9 @@ const Torch: React.FC<{ x: number; y: number; z: number; seed: number }> = ({ x,
 };
 
 // ─── Dust motes — drifting in the air, catching light ─────────────────
-const DUST_COUNT = 40;
+// 25 motes (was 40). Past a count threshold the additive blending dominates
+// the cave's color budget; 25 reads as "atmospheric" without washing out.
+const DUST_COUNT = 25;
 const DustMotes: React.FC = () => {
     const positions = useRef(
         Array.from({ length: DUST_COUNT }, () => ({
@@ -371,7 +381,17 @@ const WaterMaterial = shaderMaterial(
     `
 );
 // Use primitive attach="material" — avoids JSX intrinsic typing churn.
-const WaterSurface: React.FC = () => {
+// Falls back to the custom WaterMaterial when reflections aren't desired
+// (low/medium quality, or if MeshReflectorMaterial is too heavy on the
+// device). In `realistic` mode it stacks both: an opaque-ish reflector
+// underneath, and the wave-shader on top with reduced opacity, so the
+// reflection shows THROUGH the chop.
+interface WaterSurfaceProps {
+    /** When true, render a second mesh underneath with MeshReflectorMaterial
+     *  (real screen-space reflection). When false, just the wave shader. */
+    reflective?: boolean;
+}
+const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }) => {
     const mat = useMemo(() => {
         const m = new (WaterMaterial as any)();
         m.transparent = true;
@@ -381,11 +401,70 @@ const WaterSurface: React.FC = () => {
     }, []);
     useFrame((state) => {
         (mat as any).time = state.clock.elapsedTime;
+        // In reflective mode, lower the opacity so the reflector layer
+        // beneath actually shows through. The wave shader provides the
+        // chop and color tint; the reflector provides the real reflection.
+        if (reflective) (mat as any).opacity = 0.45;
     });
     return (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[HOLE_CENTER_X, WATER_LEVEL_Y, HOLE_CENTER_Z]}>
-            <planeGeometry args={[HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05, 32, 32]} />
-            <primitive object={mat} attach="material" />
+        <group position={[HOLE_CENTER_X, WATER_LEVEL_Y, HOLE_CENTER_Z]}>
+            {/* Reflector layer (high quality only). Renders the scene
+                mirrored at this plane → real reflection of cave + torches
+                + crystals in the water. Cost: 1 extra render pass per
+                frame at 1024x1024 — fine for desktop high, skipped on
+                mobile/low. */}
+            {reflective && (
+                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 0]}>
+                    <planeGeometry args={[HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05]} />
+                    <MeshReflectorMaterial
+                        blur={[300, 100]}
+                        resolution={512}
+                        mixBlur={1.0}
+                        mixStrength={1.2}
+                        roughness={0.6}
+                        depthScale={0.4}
+                        minDepthThreshold={0.4}
+                        maxDepthThreshold={1.5}
+                        color="#1a3a4a"
+                        metalness={0.4}
+                        mirror={0.65}
+                    />
+                </mesh>
+            )}
+            {/* Wave/caustic shader on top */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                <planeGeometry args={[HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05, 32, 32]} />
+                <primitive object={mat} attach="material" />
+            </mesh>
+        </group>
+    );
+};
+
+// ─── God ray — volumetric cone of light coming through the hole ───────
+// Single additive cone mesh hanging from the ceiling above the pool.
+// The hole "lets sunlight in" — that's the fiction; in reality there
+// is no sun, but this single cone fakes the effect convincingly. Slow
+// opacity pulse via useFrame to feel alive (dust drifting in beam).
+const GodRay: React.FC = () => {
+    const matRef = useRef<THREE.MeshBasicMaterial>(null);
+    useFrame((state) => {
+        const m = matRef.current;
+        if (!m) return;
+        m.opacity = 0.10 + Math.sin(state.clock.elapsedTime * 0.4) * 0.025;
+    });
+    return (
+        <mesh position={[HOLE_CENTER_X, 4, HOLE_CENTER_Z]} rotation={[Math.PI, 0, 0]}>
+            <coneGeometry args={[HOLE_RADIUS * 1.4, 8, 16, 1, true]} />
+            <meshBasicMaterial
+                ref={matRef}
+                color="#FFE0A8"
+                transparent
+                opacity={0.10}
+                depthWrite={false}
+                blending={THREE.AdditiveBlending}
+                side={THREE.DoubleSide}
+                toneMapped={false}
+            />
         </mesh>
     );
 };
@@ -518,11 +597,16 @@ interface Floor2EnvironmentProps {
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     collectedShards: Set<number>;
     onCollectShard: (i: number) => void;
+    /** When true, the water surface gets a real screen-space reflection.
+     *  Quality-gated: ONLY pass true on high quality — it's an extra
+     *  render pass per frame at 512px. */
+    reflective?: boolean;
 }
 export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     playerPositionRef,
     collectedShards,
     onCollectShard,
+    reflective = false,
 }) => (
     <group>
         {/* Warmer cave palette — fog is now warm-tinted to read as "torch-lit
@@ -636,8 +720,11 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Floating dust motes catching the warm light */}
         <DustMotes />
 
+        {/* God-ray beam descending through the hole */}
+        <GodRay />
+
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
-        <WaterSurface />
+        <WaterSurface reflective={reflective} />
 
         {/* ─── UNDERWATER (Y < 0) ────────────────────────────────────── */}
         {/* Underwater rocky ground — large dark blue plane far below */}

@@ -86,6 +86,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
           playerPositionRef={playerPositionRef}
           collectedShards={collectedShards}
           onCollectShard={onCollectShard}
+          reflective={profile.atmosphere}
         />
       )}
       <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
