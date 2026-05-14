@@ -145,14 +145,19 @@ const _WALLS_HOUSE_DOOR          = [..._HOUSE_BASE, HOUSE_DW];
 const _WALLS_HOUSE_SEALED        = [..._HOUSE_BASE, DOOR_SEAL];
 const _WALLS_HOUSE_DOOR_SEALED   = [..._HOUSE_BASE, HOUSE_DW, DOOR_SEAL];
 
-// Level 2 (placeholder flat floor): just the elevator shell, no house walls.
-// Without an explicit case here the function fell through to the level-1
-// branch and the player collided with INVISIBLE Barney-house walls all
-// over level 2 — which (combined with collision response pushing them
-// back) made it look like they were being teleported around. ELEV_BLD
-// reproduces the exterior of the elevator structure so the player still
-// can't walk through the elevator's back wall on this floor.
-const _LEVEL2_BASE = [...ELEV_W, ...ELEV_BLD];
+// Level 2 (cave + underwater hole): elevator shell + cave walls at ±30.
+// Without the cave walls the player could simply walk past the visible
+// cave-floor mesh into the void — was the "atravesso o chão" bug.
+// The walls do NOT extend through the hole; the hole's bounds are handled
+// by the swim-mode logic in Player.tsx instead.
+const CAVE_WALLS_L2: number[][] = [
+    // Outer walls (60x60 cave, centered at origin)
+    [-30, -30, -30,  30],   // left
+    [ 30, -30,  30,  30],   // right
+    [-30, -30,  30, -30],   // back (behind the elevator at z=-10)
+    [-30,  30,  30,  30],   // front
+];
+const _LEVEL2_BASE = [...ELEV_W, ...ELEV_BLD, ...CAVE_WALLS_L2];
 const _WALLS_LEVEL2_OPEN          = _LEVEL2_BASE;
 const _WALLS_LEVEL2_SEALED        = [..._LEVEL2_BASE, DOOR_SEAL];
 

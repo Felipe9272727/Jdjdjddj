@@ -101112,7 +101112,18 @@ const _WALLS_HOUSE_OPEN = _HOUSE_BASE;
 const _WALLS_HOUSE_DOOR = [..._HOUSE_BASE, HOUSE_DW];
 const _WALLS_HOUSE_SEALED = [..._HOUSE_BASE, DOOR_SEAL];
 const _WALLS_HOUSE_DOOR_SEALED = [..._HOUSE_BASE, HOUSE_DW, DOOR_SEAL];
-const _LEVEL2_BASE = [...ELEV_W, ...ELEV_BLD];
+const CAVE_WALLS_L2 = [
+  // Outer walls (60x60 cave, centered at origin)
+  [-30, -30, -30, 30],
+  // left
+  [30, -30, 30, 30],
+  // right
+  [-30, -30, 30, -30],
+  // back (behind the elevator at z=-10)
+  [-30, 30, 30, 30]
+  // front
+];
+const _LEVEL2_BASE = [...ELEV_W, ...ELEV_BLD, ...CAVE_WALLS_L2];
 const _WALLS_LEVEL2_OPEN = _LEVEL2_BASE;
 const _WALLS_LEVEL2_SEALED = [..._LEVEL2_BASE, DOOR_SEAL];
 const wallsForState = (level, doorsClosed, houseDoorOpen) => {
@@ -103856,8 +103867,63 @@ const CAVE_ROCKS = [
   [18, 0, 4, 1.6, 0.4],
   [-19, 0, 8, 1.8, 2.1],
   [6, 0, 25, 1.5, 1],
-  [-12, 0, -25, 2, 0.7]
+  [-12, 0, -25, 2, 0.7],
+  // Smaller mid-area pebbles for texture
+  [-15, 0, 15, 1, 2.3],
+  [14, 0, -10, 0.9, 0.5],
+  [-20, 0, 0, 1.2, 1.7],
+  [19, 0, 14, 1.1, 0.8]
 ];
+const STALAGMITES = [
+  [-18, 18, 2.5, 0.6],
+  [20, 15, 3.2, 0.8],
+  [-22, -10, 2, 0.5],
+  [24, -18, 2.8, 0.7],
+  [-8, 22, 1.8, 0.5],
+  [10, 20, 2.1, 0.6],
+  [-15, -22, 2.4, 0.7]
+];
+const STALACTITES = [
+  [-12, 10, 1.5, 0.4],
+  [16, 2, 1.8, 0.5],
+  [-5, -15, 1.2, 0.4],
+  [22, 10, 2, 0.55],
+  [-18, -5, 1.4, 0.4],
+  [3, -20, 1.6, 0.5],
+  [-22, 20, 1.3, 0.4],
+  [18, -25, 1.7, 0.5]
+];
+const CRYSTALS = [
+  [-28, 2.2, 8, "#9ae6ff"],
+  // cyan, west wall
+  [28, 3.5, -5, "#c39bff"],
+  // purple, east wall
+  [-10, 0.6, 28, "#ff9ad8"],
+  // pink, north wall
+  [12, 0.8, -28, "#ffd066"],
+  // amber, south wall
+  [-28, 4.5, -18, "#9affae"],
+  // green, west wall further
+  [28, 1.5, 20, "#84d8ff"]
+  // light blue, east wall
+];
+const CRYSTAL_GEO = new OctahedronGeometry(0.35, 0);
+const CrystalCluster = ({ x: x2, y, z, color: color2 }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, y, z], children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, rotation: [0.3, 0.8, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "meshStandardMaterial",
+    {
+      color: color2,
+      emissive: color2,
+      emissiveIntensity: 1.4,
+      metalness: 0.55,
+      roughness: 0.15,
+      toneMapped: false
+    }
+  ) }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, scale: 0.55, position: [0.35, -0.15, 0.15], rotation: [0.6, 1.2, 0.3], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, emissive: color2, emissiveIntensity: 1.2, metalness: 0.5, roughness: 0.18, toneMapped: false }) }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, scale: 0.4, position: [-0.32, -0.2, -0.05], rotation: [-0.4, 0.5, 0.7], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, emissive: color2, emissiveIntensity: 1, metalness: 0.5, roughness: 0.2, toneMapped: false }) }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { intensity: 0.9, distance: 5, decay: 1.6, color: color2 })
+] });
 const UW_BOULDERS = [
   [6, -28, -8, 2.6, 0.3],
   [-9, -28.5, 4.5, 3.1, 1.2],
@@ -103890,19 +103956,27 @@ const UW_PEBBLES = [
   [13, -29.6, 14, 0.4, 0.6]
 ];
 const WaterMaterial = shaderMaterial(
-  { time: 0, opacity: 0.65 },
+  { time: 0, opacity: 0.78 },
   /* glsl */
   `
       uniform float time;
       varying vec2 vUv;
       varying float vWave;
+      varying vec3 vNormalLocal;
       void main() {
         vUv = uv;
-        // Two summed sines at different frequencies and phases for natural
-        // chop. Scale 0.04 — visible but doesn't break the illusion.
-        float w1 = sin(position.x * 0.5 + time * 1.2) * 0.04;
-        float w2 = sin(position.y * 0.4 + time * 0.9 + 1.7) * 0.035;
-        vWave = w1 + w2;
+        // Three octaves of sine for layered chop (low frequency big motion +
+        // higher-frequency ripples). Total amplitude ~0.12m.
+        float w1 = sin(position.x * 0.55 + time * 1.0) * 0.06;
+        float w2 = sin(position.y * 0.40 + time * 0.85 + 1.7) * 0.045;
+        float w3 = sin((position.x + position.y) * 1.1 + time * 1.8) * 0.025;
+        vWave = w1 + w2 + w3;
+        // Cheap analytical normal via partial derivatives of the sum.
+        float dx = cos(position.x * 0.55 + time * 1.0) * 0.06 * 0.55 +
+                   cos((position.x + position.y) * 1.1 + time * 1.8) * 0.025 * 1.1;
+        float dy = cos(position.y * 0.40 + time * 0.85 + 1.7) * 0.045 * 0.40 +
+                   cos((position.x + position.y) * 1.1 + time * 1.8) * 0.025 * 1.1;
+        vNormalLocal = normalize(vec3(-dx, -dy, 1.0));
         vec3 pos = position + vec3(0.0, 0.0, vWave);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
       }
@@ -103913,16 +103987,23 @@ const WaterMaterial = shaderMaterial(
       uniform float opacity;
       varying vec2 vUv;
       varying float vWave;
+      varying vec3 vNormalLocal;
       void main() {
-        // Cyan base with caustic-ish streaks
-        float c1 = sin(vUv.x * 22.0 + time * 0.7) * 0.5 + 0.5;
-        float c2 = sin(vUv.y * 18.0 + time * 1.1 + 2.0) * 0.5 + 0.5;
-        float caustic = c1 * c2;
-        vec3 base = vec3(0.10, 0.32, 0.45);
-        vec3 hi   = vec3(0.55, 0.85, 0.95);
-        vec3 col = mix(base, hi, caustic * 0.45 + vWave * 4.0);
-        // Edge fresnel-ish: brighter where the wave goes up
-        col += vec3(0.05, 0.10, 0.12) * (vWave * 8.0);
+        // Two-tone water: deep base, sky reflection on the tops.
+        vec3 deep   = vec3(0.04, 0.18, 0.28);
+        vec3 mid    = vec3(0.12, 0.42, 0.55);
+        vec3 sky    = vec3(0.60, 0.88, 0.98);
+        // Caustic-style streaks
+        float c1 = sin(vUv.x * 28.0 + time * 0.8) * 0.5 + 0.5;
+        float c2 = sin(vUv.y * 22.0 + time * 1.05 + 2.0) * 0.5 + 0.5;
+        float caustic = pow(c1 * c2, 2.0);
+        // Wave-height tinting: peaks brighter, troughs darker
+        float h = clamp(vWave * 6.0, -1.0, 1.0);
+        vec3 col = mix(deep, mid, 0.5 + h * 0.5);
+        col = mix(col, sky, max(0.0, h) * 0.6 + caustic * 0.35);
+        // Foam at wave extremes — only the very highest crests get whitened
+        float foam = smoothstep(0.06, 0.10, vWave);
+        col = mix(col, vec3(0.95, 0.98, 1.0), foam * 0.5);
         gl_FragColor = vec4(col, opacity);
       }
     `
@@ -104081,6 +104162,15 @@ const Floor2Environment = ({
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a342e", roughness: 0.95, flatShading: true }),
     CAVE_ROCKS.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.8, s], rotation: [0, ry, 0] }, i2))
   ] }),
+  STALAGMITES.map(([x2, z, h2, r2], i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [x2, h2 / 2, z], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [r2, h2, 6] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2e2820", roughness: 1, flatShading: true })
+  ] }, `stalagmite-${i2}`)),
+  STALACTITES.map(([x2, z, h2, r2], i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [x2, 8 - h2 / 2, z], rotation: [Math.PI, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [r2, h2, 6] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#26221c", roughness: 1, flatShading: true })
+  ] }, `stalactite-${i2}`)),
+  CRYSTALS.map(([x2, y, z, color2], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(CrystalCluster, { x: x2, y, z, color: color2 }, `crystal-${i2}`)),
   /* @__PURE__ */ jsxRuntimeExports.jsx(WaterSurface, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, -30, 0], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [80, 80] }),
@@ -104467,6 +104557,10 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       }
       pos.current.y += 0.04 * safeDt;
       if (pos.current.y < -29) pos.current.y = -29;
+      if (pos.current.x < -39) pos.current.x = -39;
+      if (pos.current.x > 39) pos.current.x = 39;
+      if (pos.current.z < -39) pos.current.z = -39;
+      if (pos.current.z > 39) pos.current.z = 39;
       if (pos.current.y > SWIM_THRESHOLD_Y) {
         const dxHole = pos.current.x - HOLE_CENTER_X;
         const dzHole = pos.current.z - HOLE_CENTER_Z;
@@ -104527,14 +104621,6 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
         const [rx, rz] = resolveCollision(nx, nz, PR, walls);
         pos.current.x = rx;
         pos.current.z = rz;
-        pos.current.y = 0;
-        if (currentLevel === 2) {
-          const dxH = pos.current.x - HOLE_CENTER_X;
-          const dzH = pos.current.z - HOLE_CENTER_Z;
-          if (dxH * dxH + dzH * dzH < HOLE_RADIUS * HOLE_RADIUS) {
-            pos.current.y = SWIM_THRESHOLD_Y - 0.1;
-          }
-        }
         if (fp) {
           charRot.current.y = camAng.current.theta + Math.PI;
         } else {
@@ -104549,6 +104635,18 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
           elevTriggered.current = true;
           onEnterElevator();
         }
+      }
+      if (currentLevel === 2) {
+        const dxH = pos.current.x - HOLE_CENTER_X;
+        const dzH = pos.current.z - HOLE_CENTER_Z;
+        if (dxH * dxH + dzH * dzH < HOLE_RADIUS * HOLE_RADIUS) {
+          pos.current.y = Math.min(pos.current.y, 0);
+          pos.current.y -= 5 * safeDt;
+        } else {
+          pos.current.y = 0;
+        }
+      } else {
+        pos.current.y = 0;
       }
       if (currentLevel === 1) {
         const dx = pos.current.x - HOUSE_DOOR_X;

@@ -79,7 +79,75 @@ const CAVE_ROCKS: readonly Boulder[] = [
     [-19, 0,   8, 1.8, 2.1],
     [  6, 0,  25, 1.5, 1.0],
     [-12, 0, -25, 2.0, 0.7],
+    // Smaller mid-area pebbles for texture
+    [-15, 0,  15, 1.0, 2.3],
+    [ 14, 0, -10, 0.9, 0.5],
+    [-20, 0,   0, 1.2, 1.7],
+    [ 19, 0,  14, 1.1, 0.8],
 ] as const;
+
+// ─── Stalagmites (cones from the floor up) ─────────────────────────────
+// Hand-placed so they don't block the elevator path or the hole.
+type Stalactite = readonly [number, number, number, number]; // x, z, height, radius
+const STALAGMITES: readonly Stalactite[] = [
+    [-18,  18, 2.5, 0.6],
+    [ 20,  15, 3.2, 0.8],
+    [-22, -10, 2.0, 0.5],
+    [ 24, -18, 2.8, 0.7],
+    [ -8,  22, 1.8, 0.5],
+    [ 10,  20, 2.1, 0.6],
+    [-15, -22, 2.4, 0.7],
+];
+// Stalactites (cones from the ceiling down)
+const STALACTITES: readonly Stalactite[] = [
+    [-12,  10, 1.5, 0.4],
+    [ 16,   2, 1.8, 0.5],
+    [ -5, -15, 1.2, 0.4],
+    [ 22,  10, 2.0, 0.55],
+    [-18,  -5, 1.4, 0.4],
+    [  3, -20, 1.6, 0.5],
+    [-22,  20, 1.3, 0.4],
+    [ 18, -25, 1.7, 0.5],
+];
+
+// ─── Crystals — colored emissive accents along the walls ─────────────
+// Cluster of small octahedra at each spot; one big one + a few small ones.
+// Adds soft directional pools of color you can see from across the cave.
+type Crystal = readonly [number, number, number, string]; // x, y, z, hexColor
+const CRYSTALS: readonly Crystal[] = [
+    [-28,  2.2,   8, '#9ae6ff'],   // cyan, west wall
+    [ 28,  3.5,  -5, '#c39bff'],   // purple, east wall
+    [-10,  0.6,  28, '#ff9ad8'],   // pink, north wall
+    [ 12,  0.8, -28, '#ffd066'],   // amber, south wall
+    [-28,  4.5, -18, '#9affae'],   // green, west wall further
+    [ 28,  1.5,  20, '#84d8ff'],   // light blue, east wall
+];
+
+const CRYSTAL_GEO = new THREE.OctahedronGeometry(0.35, 0);
+
+const CrystalCluster: React.FC<{ x: number; y: number; z: number; color: string }> = ({ x, y, z, color }) => (
+    <group position={[x, y, z]}>
+        <mesh geometry={CRYSTAL_GEO} rotation={[0.3, 0.8, 0]}>
+            <meshStandardMaterial
+                color={color}
+                emissive={color}
+                emissiveIntensity={1.4}
+                metalness={0.55}
+                roughness={0.15}
+                toneMapped={false}
+            />
+        </mesh>
+        <mesh geometry={CRYSTAL_GEO} scale={0.55} position={[0.35, -0.15, 0.15]} rotation={[0.6, 1.2, 0.3]}>
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.2} metalness={0.5} roughness={0.18} toneMapped={false} />
+        </mesh>
+        <mesh geometry={CRYSTAL_GEO} scale={0.4} position={[-0.32, -0.2, -0.05]} rotation={[-0.4, 0.5, 0.7]}>
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.0} metalness={0.5} roughness={0.2} toneMapped={false} />
+        </mesh>
+        {/* Soft pool of colored light. distance=5 so 6 crystals = 6 small
+            local pools, never overlapping for shader cost. */}
+        <pointLight intensity={0.9} distance={5} decay={1.6} color={color} />
+    </group>
+);
 
 // ─── Underwater terrain ────────────────────────────────────────────────
 const UW_BOULDERS: readonly Boulder[] = [
@@ -115,21 +183,30 @@ const UW_PEBBLES: readonly Boulder[] = [
     [ 13, -29.6,  14, 0.4, 0.6],
 ] as const;
 
-// ─── Shaders ───────────────────────────────────────────────────────────
-// Water surface: sine-wave vertex displacement + animated cyan fragment.
+// ─── Water shader ──────────────────────────────────────────────────────
+// Bigger amplitude, multi-octave waves, fresnel-edge highlights, foam at
+// extreme wave peaks. Animated via uniform `time` from useFrame.
 const WaterMaterial = shaderMaterial(
-    { time: 0, opacity: 0.65 },
+    { time: 0, opacity: 0.78 },
     /* glsl */ `
       uniform float time;
       varying vec2 vUv;
       varying float vWave;
+      varying vec3 vNormalLocal;
       void main() {
         vUv = uv;
-        // Two summed sines at different frequencies and phases for natural
-        // chop. Scale 0.04 — visible but doesn't break the illusion.
-        float w1 = sin(position.x * 0.5 + time * 1.2) * 0.04;
-        float w2 = sin(position.y * 0.4 + time * 0.9 + 1.7) * 0.035;
-        vWave = w1 + w2;
+        // Three octaves of sine for layered chop (low frequency big motion +
+        // higher-frequency ripples). Total amplitude ~0.12m.
+        float w1 = sin(position.x * 0.55 + time * 1.0) * 0.06;
+        float w2 = sin(position.y * 0.40 + time * 0.85 + 1.7) * 0.045;
+        float w3 = sin((position.x + position.y) * 1.1 + time * 1.8) * 0.025;
+        vWave = w1 + w2 + w3;
+        // Cheap analytical normal via partial derivatives of the sum.
+        float dx = cos(position.x * 0.55 + time * 1.0) * 0.06 * 0.55 +
+                   cos((position.x + position.y) * 1.1 + time * 1.8) * 0.025 * 1.1;
+        float dy = cos(position.y * 0.40 + time * 0.85 + 1.7) * 0.045 * 0.40 +
+                   cos((position.x + position.y) * 1.1 + time * 1.8) * 0.025 * 1.1;
+        vNormalLocal = normalize(vec3(-dx, -dy, 1.0));
         vec3 pos = position + vec3(0.0, 0.0, vWave);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
       }
@@ -139,16 +216,23 @@ const WaterMaterial = shaderMaterial(
       uniform float opacity;
       varying vec2 vUv;
       varying float vWave;
+      varying vec3 vNormalLocal;
       void main() {
-        // Cyan base with caustic-ish streaks
-        float c1 = sin(vUv.x * 22.0 + time * 0.7) * 0.5 + 0.5;
-        float c2 = sin(vUv.y * 18.0 + time * 1.1 + 2.0) * 0.5 + 0.5;
-        float caustic = c1 * c2;
-        vec3 base = vec3(0.10, 0.32, 0.45);
-        vec3 hi   = vec3(0.55, 0.85, 0.95);
-        vec3 col = mix(base, hi, caustic * 0.45 + vWave * 4.0);
-        // Edge fresnel-ish: brighter where the wave goes up
-        col += vec3(0.05, 0.10, 0.12) * (vWave * 8.0);
+        // Two-tone water: deep base, sky reflection on the tops.
+        vec3 deep   = vec3(0.04, 0.18, 0.28);
+        vec3 mid    = vec3(0.12, 0.42, 0.55);
+        vec3 sky    = vec3(0.60, 0.88, 0.98);
+        // Caustic-style streaks
+        float c1 = sin(vUv.x * 28.0 + time * 0.8) * 0.5 + 0.5;
+        float c2 = sin(vUv.y * 22.0 + time * 1.05 + 2.0) * 0.5 + 0.5;
+        float caustic = pow(c1 * c2, 2.0);
+        // Wave-height tinting: peaks brighter, troughs darker
+        float h = clamp(vWave * 6.0, -1.0, 1.0);
+        vec3 col = mix(deep, mid, 0.5 + h * 0.5);
+        col = mix(col, sky, max(0.0, h) * 0.6 + caustic * 0.35);
+        // Foam at wave extremes — only the very highest crests get whitened
+        float foam = smoothstep(0.06, 0.10, vWave);
+        col = mix(col, vec3(0.95, 0.98, 1.0), foam * 0.5);
         gl_FragColor = vec4(col, opacity);
       }
     `
@@ -347,6 +431,27 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.8, s]} rotation={[0, ry, 0]} />
             ))}
         </Instances>
+
+        {/* Stalagmites — cones rising from the floor. Random-ish heights. */}
+        {STALAGMITES.map(([x, z, h, r], i) => (
+            <mesh key={`stalagmite-${i}`} position={[x, h / 2, z]}>
+                <coneGeometry args={[r, h, 6]} />
+                <meshStandardMaterial color="#2e2820" roughness={1} flatShading />
+            </mesh>
+        ))}
+
+        {/* Stalactites — inverted cones from the ceiling */}
+        {STALACTITES.map(([x, z, h, r], i) => (
+            <mesh key={`stalactite-${i}`} position={[x, 8 - h / 2, z]} rotation={[Math.PI, 0, 0]}>
+                <coneGeometry args={[r, h, 6]} />
+                <meshStandardMaterial color="#26221c" roughness={1} flatShading />
+            </mesh>
+        ))}
+
+        {/* Decorative glowing crystal clusters on the walls */}
+        {CRYSTALS.map(([x, y, z, color], i) => (
+            <CrystalCluster key={`crystal-${i}`} x={x} y={y} z={z} color={color} />
+        ))}
 
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
         <WaterSurface />

@@ -456,6 +456,12 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
         // Y clamps: underwater floor at Y=-29 and surface at SWIM_THRESHOLD_Y.
         if (pos.current.y < -29) pos.current.y = -29;
+        // Underwater XZ bounds — keep the swimmer inside the 80x80 rocky
+        // bowl so they can't drift off into the void past the boulders.
+        if (pos.current.x < -39) pos.current.x = -39;
+        if (pos.current.x >  39) pos.current.x =  39;
+        if (pos.current.z < -39) pos.current.z = -39;
+        if (pos.current.z >  39) pos.current.z =  39;
         if (pos.current.y > SWIM_THRESHOLD_Y) {
             // Surfaced — if inside the hole, allow popping out into the cave.
             const dxHole = pos.current.x - HOLE_CENTER_X;
@@ -502,17 +508,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
 
             const [rx, rz] = _resolve(nx, nz, PR, walls);
-            pos.current.x = rx; pos.current.z = rz; pos.current.y = 0;
-            // Floor 2 special: if the player walks INTO the hole (XZ inside
-            // the cave-floor cutout), they fall through. Push Y down to
-            // SWIM_THRESHOLD so the next frame enters swim mode.
-            if (currentLevel === 2) {
-                const dxH = pos.current.x - HOLE_CENTER_X;
-                const dzH = pos.current.z - HOLE_CENTER_Z;
-                if (dxH * dxH + dzH * dzH < HOLE_RADIUS * HOLE_RADIUS) {
-                    pos.current.y = SWIM_THRESHOLD_Y - 0.1;
-                }
-            }
+            pos.current.x = rx; pos.current.z = rz;
 
             if (fp) { charRot.current.y = camAng.current.theta + Math.PI; } else { const a = Math.atan2(mv.x, mv.z); let d = a - charRot.current.y; while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; charRot.current.y += d*10*safeDt; }
             // Re-arm when player walks back out of the elevator zone, so a
@@ -522,6 +518,25 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             if (pos.current.z >= EZ_START - 1) elevTriggered.current = false;
             else if (!elevTriggered.current) { elevTriggered.current = true; onEnterElevator(); }
         }
+        // ─── Y axis handling (runs every frame, even when standing still) ──
+        // Default: feet on the floor.
+        if (currentLevel === 2) {
+            // Floor 2: gradual fall when standing inside the hole. Gives a
+            // brief "tipping over the edge" moment rather than an instant
+            // snap; ends when Y < SWIM_THRESHOLD_Y → next frame swim mode.
+            const dxH = pos.current.x - HOLE_CENTER_X;
+            const dzH = pos.current.z - HOLE_CENTER_Z;
+            if (dxH * dxH + dzH * dzH < HOLE_RADIUS * HOLE_RADIUS) {
+                // Inside the hole — accelerate downward (gravity-ish).
+                pos.current.y = Math.min(pos.current.y, 0);   // clamp ceiling
+                pos.current.y -= 5.0 * safeDt;                 // fall speed
+            } else {
+                pos.current.y = 0;                              // cave floor
+            }
+        } else {
+            pos.current.y = 0;
+        }
+
         if (currentLevel === 1) { const dx = pos.current.x-HOUSE_DOOR_X; const dz = pos.current.z-HOUSE_DOOR_Z; onInteractionUpdate(Math.sqrt(dx*dx+dz*dz) < DOOR_INTERACT_DIST); } else { onInteractionUpdate(false); }
         if (currentLevel === 0 && npcPositionRef?.current) { onNpcInteractionUpdate(pos.current.distanceTo(npcPositionRef.current) < NPC_INTERACT_DIST); } else { onNpcInteractionUpdate(false); }
         if (currentLevel === 0 && onCashierInteractionUpdate) { const cdx = pos.current.x - CASHIER_POS.x; const cdz = pos.current.z - CASHIER_POS.z; onCashierInteractionUpdate(Math.sqrt(cdx*cdx + cdz*cdz) < CASHIER_INTERACT_DIST); } else if (onCashierInteractionUpdate) { onCashierInteractionUpdate(false); }
