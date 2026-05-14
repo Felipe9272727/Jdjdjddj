@@ -276,7 +276,7 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
 
       schedulerTimerRef.current = setInterval(() => {
           if (schedulerRef.current) schedulerRef.current();
-      }, 100);
+      }, 150);  // perf: 100ms→150ms — scheduler still keeps audio smooth
       return () => {
           isMounted = false;
           if (schedulerTimerRef.current) clearInterval(schedulerTimerRef.current);

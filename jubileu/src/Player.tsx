@@ -4,6 +4,7 @@ import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
+import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
 useGLTF.preload(WALKING_URL);
@@ -415,6 +416,74 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, 40, dlgAlpha); camera.updateProjectionMatrix();
         // Sync smooth refs for transition back to 3P
         camPosRef.current.copy(camera.position);
+    } else if (currentLevel === 2 && pos.current.y < SWIM_THRESHOLD_Y) {
+        // ─── SWIM MODE (Floor 2, below water) ─────────────────────────
+        // 3D movement: WASD/joystick moves the player along the camera's
+        // forward (including pitch — looking down = sink, up = rise) plus
+        // a perpendicular strafe in the XZ plane. No gravity, no walls,
+        // light buoyancy. Speed ~55% of land speed for "water resistance".
+        const sens = 0.003 * 1.5;
+        if (isDesktop) {
+           if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * sens * 500 * safeDt; camAng.current.phi += lookInput.current.y * sens * 500 * safeDt; lookInput.current.x = 0; lookInput.current.y = 0; }
+        } else {
+           if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * 1.5; camAng.current.phi += lookInput.current.y * 1.5; lookInput.current.x = 0; lookInput.current.y = 0; }
+        }
+        camAng.current.phi = Math.max(-1.5, Math.min(1.5, camAng.current.phi));
+
+        const fwd = -moveInput.current.y; const strafe = moveInput.current.x; let moving = false;
+        if (Math.abs(fwd) > 0.01 || Math.abs(strafe) > 0.01) {
+            moving = true;
+            const cosPhi = Math.cos(camAng.current.phi);
+            // Camera-forward (XYZ). Existing FP code subtracts sin(theta)*cos(phi)
+            // from look-target, so the player-facing forward is -(this vector).
+            const fX = Math.sin(camAng.current.theta) * cosPhi;
+            const fY = Math.sin(camAng.current.phi);
+            const fZ = Math.cos(camAng.current.theta) * cosPhi;
+            // Right perpendicular in XZ — same convention as land walking.
+            const rX = Math.sin(camAng.current.theta - Math.PI / 2);
+            const rZ = Math.cos(camAng.current.theta - Math.PI / 2);
+
+            // Normalize then scale by water-speed. Length of (fwd, strafe) clamped to 1.
+            const inputMag = Math.min(1, Math.sqrt(fwd * fwd + strafe * strafe));
+            const k = SPEED * 0.55 * safeDt * inputMag;
+            // Same -fwd / -strafe sign convention as existing land code.
+            pos.current.x += (-fX * fwd - rX * strafe) * k;
+            pos.current.y += (-fY * fwd) * k;
+            pos.current.z += (-fZ * fwd - rZ * strafe) * k;
+        }
+        // Mild buoyancy — slow drift up when not pressing forward.
+        pos.current.y += 0.04 * safeDt;
+
+        // Y clamps: underwater floor at Y=-29 and surface at SWIM_THRESHOLD_Y.
+        if (pos.current.y < -29) pos.current.y = -29;
+        if (pos.current.y > SWIM_THRESHOLD_Y) {
+            // Surfaced — if inside the hole, allow popping out into the cave.
+            const dxHole = pos.current.x - HOLE_CENTER_X;
+            const dzHole = pos.current.z - HOLE_CENTER_Z;
+            if (dxHole * dxHole + dzHole * dzHole < HOLE_RADIUS * HOLE_RADIUS) {
+                pos.current.y = 0.05; // step onto cave floor
+            } else {
+                pos.current.y = SWIM_THRESHOLD_Y - 0.05; // cap below cave floor
+            }
+        }
+
+        // FP-style camera (zoom is locked to 0 on level 2 by App.tsx)
+        charRot.current.y = camAng.current.theta + Math.PI;
+        if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
+        const ly = pos.current.y + HH * 0.3;  // crouched-ish head height while swimming
+        camera.position.set(pos.current.x, ly, pos.current.z);
+        const ld = 5;
+        camera.lookAt(
+            pos.current.x - Math.sin(camAng.current.theta) * ld * Math.cos(camAng.current.phi),
+            ly - Math.sin(camAng.current.phi) * ld,
+            pos.current.z - Math.cos(camAng.current.theta) * ld * Math.cos(camAng.current.phi)
+        );
+        (camera as THREE.PerspectiveCamera).fov = 95; camera.updateProjectionMatrix();
+        camPosRef.current.copy(camera.position);
+
+        // Reuse Walking anim while moving (no swim anim available)
+        const nextAnim = moving ? 'Walking' : 'Idle';
+        if (nextAnim !== animRef.current) { animRef.current = nextAnim; setAnim(nextAnim); }
     } else {
         const sens = 0.003 * (fp ? 1.5 : 1.0);
         if (isDesktop) {
@@ -434,6 +503,16 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
             const [rx, rz] = _resolve(nx, nz, PR, walls);
             pos.current.x = rx; pos.current.z = rz; pos.current.y = 0;
+            // Floor 2 special: if the player walks INTO the hole (XZ inside
+            // the cave-floor cutout), they fall through. Push Y down to
+            // SWIM_THRESHOLD so the next frame enters swim mode.
+            if (currentLevel === 2) {
+                const dxH = pos.current.x - HOLE_CENTER_X;
+                const dzH = pos.current.z - HOLE_CENTER_Z;
+                if (dxH * dxH + dzH * dzH < HOLE_RADIUS * HOLE_RADIUS) {
+                    pos.current.y = SWIM_THRESHOLD_Y - 0.1;
+                }
+            }
 
             if (fp) { charRot.current.y = camAng.current.theta + Math.PI; } else { const a = Math.atan2(mv.x, mv.z); let d = a - charRot.current.y; while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; charRot.current.y += d*10*safeDt; }
             // Re-arm when player walks back out of the elevator zone, so a
