@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, Loader, AdaptiveDpr, PerformanceMonitor, Environment } from '@react-three/drei';
-import { EffectComposer, Bloom, Vignette, ChromaticAberration } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, Vignette, ChromaticAberration, N8AO } from '@react-three/postprocessing';
 import { BlendFunction, KernelSize } from 'postprocessing';
 import { Vector3, Vector2, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
 
@@ -709,31 +709,45 @@ export default function App() {
                 />
             )}
             <SceneInspector />
-            {/* Environment HDRI as a tiny env map (no background change, just
-                provides reflection samples for metals — flashlight body, kitchen
-                counter, brushed steel ceiling panels, etc.). Lightweight built-in
-                preset, no network fetch. */}
+            {/* Environment HDRI as a tiny env map. ONLY used for reflection
+                sampling on metals — `environmentIntensity` is the indirect
+                contribution and we keep it LOW so it doesn't lift the whole
+                scene's brightness (high quality was washing out before). */}
             {QUALITY_PROFILES[settings.quality].atmosphere && (
-                <Environment preset="apartment" environmentIntensity={0.35} />
+                <Environment preset="apartment" environmentIntensity={0.12} />
             )}
         </Suspense>
-        {/* Post-processing stack — cinematic look. Quality-gated: low quality
-            skips it entirely (saves a render pass). Medium gets Bloom only,
-            High gets the full chain. Bloom catches every emissive material:
-            flashlight lens, ceiling lights, lamp bulbs, glow sprites. */}
+        {/* Post-processing stack. Quality-gated: low skips it entirely.
+            Tuned conservatively — luminance threshold is HIGH (0.92) so only
+            actually-bright surfaces bloom (flashlight lens, lamp bulbs, sun).
+            Previous threshold of 0.7 caught too many mid-bright surfaces
+            which made high quality feel washed-out. */}
         {hasStarted && settings.quality !== 'low' && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
+                {/* N8AO — ambient occlusion. Adds the dark crevices in corners
+                    and where objects meet floors that you only notice when
+                    they're MISSING. Single biggest "looks like a real game"
+                    upgrade. High quality only because it's a real pass. */}
+                {settings.quality === 'high' && (
+                    <N8AO
+                        aoRadius={0.6}
+                        intensity={1.6}
+                        distanceFalloff={0.5}
+                        quality="medium"
+                        halfRes
+                    />
+                )}
                 <Bloom
-                    intensity={settings.quality === 'high' ? 0.8 : 0.5}
-                    luminanceThreshold={0.7}
-                    luminanceSmoothing={0.5}
+                    intensity={settings.quality === 'high' ? 0.45 : 0.30}
+                    luminanceThreshold={0.92}
+                    luminanceSmoothing={0.3}
                     mipmapBlur
                     kernelSize={KernelSize.LARGE}
                 />
                 {settings.quality === 'high' && (
                     <Vignette
-                        offset={0.25}
-                        darkness={nightMode ? 0.8 : 0.45}
+                        offset={0.30}
+                        darkness={nightMode ? 0.85 : 0.55}
                         blendFunction={BlendFunction.NORMAL}
                     />
                 )}

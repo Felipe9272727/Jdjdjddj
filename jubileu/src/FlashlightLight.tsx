@@ -37,6 +37,7 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
   const lightRef = useRef<THREE.SpotLight>(null);
   const targetRef = useRef<THREE.Object3D>(null);
   const coneRef = useRef<THREE.Mesh>(null);
+  const fillRef = useRef<THREE.PointLight>(null);
   // Memoize geometry/material for the volumetric cone — recreating these
   // each render would churn GPU resources.
   const coneGeo = useMemo(() => {
@@ -65,6 +66,10 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
 
     // Light origin near the player's head/hand, pointing where the camera looks.
     light.position.set(pp.x, pp.y + 1.45, pp.z);
+    // Move the fill light with the player too.
+    if (fillRef.current) {
+      fillRef.current.position.set(pp.x, pp.y + 0.6, pp.z);
+    }
     const fwdX = -Math.sin(theta);
     const fwdZ = -Math.cos(theta);
     target.position.set(pp.x + fwdX * 5, pp.y + 1.0, pp.z + fwdZ * 5);
@@ -89,17 +94,35 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
 
   return (
     <>
+      {/* Main beam — strong directional cone. Intensity 22 with decay 1.0
+          gives a sharp, far-reaching hotspot you can actually SEE on walls
+          and furniture, not just a faint glow. distance 28m covers a full
+          hallway. penumbra 0.45 keeps the edge soft so it doesn't look
+          like a hard cookie-cutter circle. */}
       <spotLight
         ref={lightRef}
-        intensity={active ? 5 : 0}
-        angle={Math.PI / 6}
-        penumbra={0.55}
-        distance={active ? 18 : 0.1}  // never 0 — see file header
-        decay={1.4}
+        intensity={active ? 22 : 0}
+        angle={Math.PI / 5.5}
+        penumbra={0.45}
+        distance={active ? 28 : 0.1}   // never 0 — see file header
+        decay={1.0}
         color="#FFF3CC"
         castShadow={false}
         target={targetRef.current ?? undefined}
       />
+      {/* Fill / floor light — small omnidirectional sphere near the player's
+          feet so the area immediately around them isn't pitch-black when
+          the spotlight is pointing forward. Subtle but makes the player
+          feel "anchored" instead of floating in void. */}
+      {active && (
+        <pointLight
+          ref={fillRef}
+          intensity={1.2}
+          distance={2.5}
+          decay={1.5}
+          color="#FFE9A8"
+        />
+      )}
       <object3D ref={targetRef} />
       {/* Volumetric cone — additive translucent mesh that fakes the
           "dust in the air" beam without a real volumetric shader. */}

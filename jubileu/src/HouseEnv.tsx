@@ -270,8 +270,11 @@ export const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOp
     <group>
         <color attach="background" args={[bgColor]} />
         <fog attach="fog" args={[fogColor, nightMode ? 8 : 25, nightMode ? 22 : 60]} />
-        <ambientLight intensity={nightMode ? 0.07 : 0.5} color={nightMode ? '#1a1a40' : '#E3F2FD'} />
-        <hemisphereLight intensity={nightMode ? 0.04 : 0.4} color={nightMode ? '#0a0a30' : '#87CEEB'} groundColor={nightMode ? '#000000' : '#4CAF50'} />
+        {/* Night mode: cranked DOWN so the flashlight matters. Ambient 0.04
+            (was 0.07) and hemisphere 0.02 (was 0.04) — barely-there fill.
+            Day mode unchanged. */}
+        <ambientLight intensity={nightMode ? 0.04 : 0.5} color={nightMode ? '#1a1a40' : '#E3F2FD'} />
+        <hemisphereLight intensity={nightMode ? 0.02 : 0.4} color={nightMode ? '#0a0a30' : '#87CEEB'} groundColor={nightMode ? '#000000' : '#4CAF50'} />
         <mesh position={[0, 24, 0]}><boxGeometry args={[60, 60, 60]} /><meshBasicMaterial color={skyColor} side={THREE.BackSide} /></mesh>
         {!nightMode && <>
             <mesh position={[-20, 30, -20]}><sphereGeometry args={[4, 32, 32]} /><meshBasicMaterial color="#FFD700" /></mesh>
@@ -341,11 +344,14 @@ export const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOp
 // on what populates this floor.
 export const Level2Environment = React.memo(() => (
     <group>
-        <color attach="background" args={['#0a0a0e']} />
-        <fog attach="fog" args={['#0a0a0e', 12, 50]} />
-        <ambientLight intensity={0.35} color="#cfd8dc" />
-        <hemisphereLight intensity={0.25} color="#90a4ae" groundColor="#1a1a20" />
-        <directionalLight position={[10, 18, 8]} intensity={0.6} color="#e0e7ff" />
+        {/* Level 2 is meant to be DARK — that's the whole point of the
+            floor and why the flashlight matters here. Ambient is barely
+            above black, hemisphere is dim, no directional. The flashlight
+            (intensity 22) is the player's only real light source. */}
+        <color attach="background" args={['#050507']} />
+        <fog attach="fog" args={['#050507', 8, 32]} />
+        <ambientLight intensity={0.08} color="#3a3a4a" />
+        <hemisphereLight intensity={0.06} color="#1a1a2a" groundColor="#0a0a10" />
         {/* Distant ceiling — gives the void a sense of enclosure without
             actually boxing the player in. */}
         <mesh position={[0, 18, 0]} rotation={[Math.PI / 2, 0, 0]}>
