@@ -128,6 +128,7 @@
     --color-green-300: oklch(87.1% .15 154.449);
     --color-green-400: oklch(79.2% .209 151.711);
     --color-green-500: oklch(72.3% .219 149.579);
+    --color-cyan-100: oklch(95.6% .045 203.388);
     --color-cyan-200: oklch(91.7% .08 205.041);
     --color-cyan-300: oklch(86.5% .127 207.078);
     --color-cyan-400: oklch(78.9% .154 211.53);
@@ -597,6 +598,10 @@
     top: calc(env(safe-area-inset-top, 0px) + 72px);
   }
 
+  .top-\[calc\(env\(safe-area-inset-top\,0px\)\+88px\)\] {
+    top: calc(env(safe-area-inset-top, 0px) + 88px);
+  }
+
   .top-\[calc\(env\(safe-area-inset-top\,0px\)\+100px\)\] {
     top: calc(env(safe-area-inset-top, 0px) + 100px);
   }
@@ -751,6 +756,10 @@
 
   .z-\[3\] {
     z-index: 3;
+  }
+
+  .z-\[8\] {
+    z-index: 8;
   }
 
   .z-\[35\] {
@@ -1249,7 +1258,15 @@
     flex-shrink: 1;
   }
 
-  .flex-shrink-0, .shrink-0 {
+  .flex-shrink-0 {
+    flex-shrink: 0;
+  }
+
+  .shrink {
+    flex-shrink: 1;
+  }
+
+  .shrink-0 {
     flex-shrink: 0;
   }
 
@@ -1622,6 +1639,16 @@
 
   .border-black {
     border-color: var(--color-black);
+  }
+
+  .border-cyan-400\/40 {
+    border-color: #00d2ef66;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .border-cyan-400\/40 {
+      border-color: color-mix(in oklab, var(--color-cyan-400) 40%, transparent);
+    }
   }
 
   .border-fuchsia-500\/15 {
@@ -3160,6 +3187,10 @@
     }
   }
 
+  .text-cyan-100 {
+    color: var(--color-cyan-100);
+  }
+
   .text-cyan-200 {
     color: var(--color-cyan-200);
   }
@@ -3565,6 +3596,11 @@
 
   .shadow-\[0_0_18px_rgba\(251\,191\,36\,0\.65\)\] {
     --tw-shadow: 0 0 18px var(--tw-shadow-color, #fbbf24a6);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+
+  .shadow-\[0_0_20px_rgba\(90\,216\,255\,0\.25\)\] {
+    --tw-shadow: 0 0 20px var(--tw-shadow-color, #5ad8ff40);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
@@ -105289,7 +105325,7 @@ const Level2DistantFlicker = () => {
   });
   return /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { ref: lightRef, position: [28, 4, -28], distance: 14, decay: 2, color: "#FFCC88" });
 };
-const Level2Environment = React.memo(() => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
+React.memo(() => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
   /* @__PURE__ */ jsxRuntimeExports.jsx("color", { attach: "background", args: ["#030304"] }),
   /* @__PURE__ */ jsxRuntimeExports.jsx("fog", { attach: "fog", args: ["#030304", 5, 18] }),
   /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.06, color: "#2a2a3a" }),
@@ -105668,6 +105704,286 @@ const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionR
     /* @__PURE__ */ jsxRuntimeExports.jsx(HiddenWallPanel, {})
   ] });
 });
+const BOULDER_GEO = new IcosahedronGeometry(1, 1);
+const PEBBLE_GEO = new IcosahedronGeometry(1, 0);
+const BUBBLE_GEO = new SphereGeometry(1, 6, 5);
+const SHARD_GEO = new OctahedronGeometry(0.5, 0);
+const BOULDERS = [
+  [6, -0.3, -8, 1.6, 0.3],
+  [-9, 0, 4.5, 2.1, 1.2],
+  [12, -0.4, 3, 1.8, 0.6],
+  [4, 0.1, 12, 1.3, 2],
+  [-5, -0.2, -14, 2.4, 0.9],
+  [16, 0.2, 9, 1.7, 1.5],
+  [-14, 0.1, -10, 1.9, 2.5],
+  [-18, -0.3, 5, 2, 0.4],
+  [20, -0.1, -4, 1.5, 1.8],
+  [-3, -0.2, 18, 1.4, 1],
+  [9, 0, -16, 2.3, 0.8],
+  [-11, 0.1, 14, 1.6, 2.2],
+  [0, -0.4, -22, 1.9, 0.5],
+  [22, 0, 12, 1.7, 1.1],
+  [-20, 0.2, -16, 2, 0.7]
+];
+const PEBBLES = [
+  [3, -0.05, 2, 0.4, 0.2],
+  [-2, -0.05, 6, 0.3, 1.5],
+  [7, -0.05, -3, 0.5, 0.8],
+  [-6, -0.05, -2, 0.4, 2.1],
+  [1.5, -0.05, 10, 0.35, 0.5],
+  [10, -0.05, 6, 0.45, 1.2],
+  [-8, -0.05, 9, 0.5, 0.9],
+  [14, -0.05, -2, 0.4, 1.8],
+  [-12, -0.05, 0, 0.55, 0.3],
+  [5, -0.05, -10, 0.4, 2.4],
+  [-4, -0.05, 14, 0.5, 1.6],
+  [13, -0.05, 14, 0.4, 0.6],
+  [-15, -0.05, 8, 0.35, 2],
+  [17, -0.05, 4, 0.5, 1],
+  [-7, -0.05, -8, 0.4, 0.4],
+  [0, -0.05, -14, 0.45, 1.9],
+  [11, -0.05, -11, 0.4, 0.7],
+  [-16, -0.05, -3, 0.5, 1.3],
+  [19, -0.05, -10, 0.4, 2.3],
+  [8, -0.05, 18, 0.45, 0.1]
+];
+const UnderwaterSurface = () => {
+  const matRef = reactExports.useRef(null);
+  useFrame((state2) => {
+    const m2 = matRef.current;
+    if (!m2) return;
+    m2.opacity = 0.18 + Math.sin(state2.clock.elapsedTime * 0.5) * 0.04;
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 25, 0], rotation: [Math.PI / 2, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [120, 120] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "meshBasicMaterial",
+      {
+        ref: matRef,
+        color: "#6ab0d8",
+        transparent: true,
+        opacity: 0.18,
+        side: DoubleSide,
+        depthWrite: false,
+        toneMapped: false
+      }
+    )
+  ] });
+};
+const Caustics = () => {
+  const matRef = reactExports.useRef(null);
+  useFrame((state2) => {
+    const m2 = matRef.current;
+    if (!m2) return;
+    const t2 = state2.clock.elapsedTime;
+    const intensity = 0.1 + Math.sin(t2 * 1.3) * 0.05 + Math.sin(t2 * 0.7 + 1.2) * 0.04;
+    m2.opacity = Math.max(0.05, intensity);
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0.02, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [80, 80, 1, 1] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "meshBasicMaterial",
+      {
+        ref: matRef,
+        color: "#8fc4e0",
+        transparent: true,
+        opacity: 0.1,
+        blending: AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false
+      }
+    )
+  ] });
+};
+const BUBBLE_COUNT = 32;
+const BUBBLE_RANGE = 20;
+const BUBBLE_RISE = 0.5;
+const BUBBLE_MAX_Y = 22;
+const BUBBLE_MIN_Y = -1;
+const BubbleField = () => {
+  const positions = reactExports.useRef(
+    Array.from({ length: BUBBLE_COUNT }, () => ({
+      x: (Math.random() - 0.5) * BUBBLE_RANGE * 2,
+      y: Math.random() * BUBBLE_MAX_Y,
+      z: (Math.random() - 0.5) * BUBBLE_RANGE * 2,
+      speed: BUBBLE_RISE * (0.7 + Math.random() * 0.6)
+    }))
+  );
+  const refs = reactExports.useRef(new Array(BUBBLE_COUNT).fill(null));
+  useFrame((_, dt2) => {
+    const safeDt = Math.min(dt2, 0.05);
+    const pos = positions.current;
+    for (let i2 = 0; i2 < BUBBLE_COUNT; i2++) {
+      const p2 = pos[i2];
+      p2.y += p2.speed * safeDt;
+      if (p2.y > BUBBLE_MAX_Y) {
+        p2.y = BUBBLE_MIN_Y;
+        p2.x = (Math.random() - 0.5) * BUBBLE_RANGE * 2;
+        p2.z = (Math.random() - 0.5) * BUBBLE_RANGE * 2;
+      }
+      const r2 = refs.current[i2];
+      if (r2) r2.position.set(p2.x, p2.y, p2.z);
+    }
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: BUBBLE_COUNT, range: BUBBLE_COUNT, geometry: BUBBLE_GEO, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "meshBasicMaterial",
+      {
+        color: "#b8e0f0",
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+        toneMapped: false
+      }
+    ),
+    Array.from({ length: BUBBLE_COUNT }, (_, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+      Instance,
+      {
+        ref: (r2) => {
+          refs.current[i2] = r2;
+        },
+        scale: 0.03 + Math.random() * 0.05
+      },
+      i2
+    ))
+  ] });
+};
+const COLLECT_DIST = 1.4;
+const COLLECT_DIST_SQ = COLLECT_DIST * COLLECT_DIST;
+const Shard = ({ index, position, collected, onCollect, playerPositionRef }) => {
+  const groupRef = reactExports.useRef(null);
+  const collectStartRef = reactExports.useRef(null);
+  const { camera } = useThree();
+  const tooFar = reactExports.useRef(false);
+  useFrame((state2, dt2) => {
+    const g2 = groupRef.current;
+    if (!g2) return;
+    const t2 = state2.clock.elapsedTime;
+    const dxCam = position[0] - camera.position.x;
+    const dzCam = position[2] - camera.position.z;
+    if (dxCam * dxCam + dzCam * dzCam > 400) {
+      if (!tooFar.current) tooFar.current = true;
+      if (collected && collectStartRef.current && t2 - collectStartRef.current > 0.6) {
+        g2.visible = false;
+      }
+      return;
+    }
+    tooFar.current = false;
+    g2.rotation.y = t2 * 0.7 + index;
+    g2.rotation.x = Math.sin(t2 * 0.5 + index) * 0.3;
+    g2.position.set(position[0], position[1] + Math.sin(t2 * 1.2 + index) * 0.15, position[2]);
+    if (collected) {
+      if (collectStartRef.current === null) collectStartRef.current = t2;
+      const elapsed = t2 - collectStartRef.current;
+      const k2 = Math.max(0, 1 - elapsed * 2);
+      g2.scale.setScalar(k2);
+      if (k2 <= 1e-3) g2.visible = false;
+      return;
+    }
+    g2.visible = true;
+    g2.scale.setScalar(1 + Math.sin(t2 * 2 + index) * 0.05);
+    const pp = playerPositionRef.current;
+    const dx = position[0] - pp.x;
+    const dz = position[2] - pp.z;
+    const distSq = dx * dx + dz * dz;
+    if (distSq < COLLECT_DIST_SQ) {
+      onCollect(index);
+    }
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, position: [position[0], position[1], position[2]], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: SHARD_GEO, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "meshStandardMaterial",
+      {
+        color: "#9be8ff",
+        emissive: "#5ad8ff",
+        emissiveIntensity: 1.5,
+        metalness: 0.4,
+        roughness: 0.1,
+        toneMapped: false
+      }
+    ) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [1.3, 1.3, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "spriteMaterial",
+      {
+        color: "#9be8ff",
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+        toneMapped: false,
+        blending: AdditiveBlending
+      }
+    ) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { intensity: 0.8, distance: 3, decay: 1.5, color: "#7ad8ff" })
+  ] });
+};
+const SHARD_POSITIONS = [
+  [7.5, 0.8, -7.5],
+  // behind a near boulder
+  [-13, 0.6, 4.8],
+  // far left
+  [3.5, 0.6, 13.5],
+  // behind player at spawn
+  [-18, 0.6, -10],
+  // far back-left
+  [19.5, 0.6, 11.5]
+  // far right
+];
+const Floor2Environment = ({
+  playerPositionRef,
+  collectedShards,
+  onCollectShard
+}) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx("color", { attach: "background", args: ["#021420"] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("fog", { attach: "fog", args: ["#021420", 5, 22] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.2, color: "#4880a8" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("hemisphereLight", { intensity: 0.25, color: "#5090b8", groundColor: "#0a1620" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("directionalLight", { position: [0, 30, 0], intensity: 0.45, color: "#9ec8e0" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(UnderwaterSurface, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Caustics, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(BubbleField, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [80, 80] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a2530", roughness: 1 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: BOULDERS.length, range: BOULDERS.length, geometry: BOULDER_GEO, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2a3845", roughness: 0.95, flatShading: true }),
+    BOULDERS.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.7, s], rotation: [0, ry, 0] }, i2))
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: PEBBLES.length, range: PEBBLES.length, geometry: PEBBLE_GEO, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#202a35", roughness: 1, flatShading: true }),
+    PEBBLES.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.6, s], rotation: [0, ry, 0] }, i2))
+  ] }),
+  SHARD_POSITIONS.map((pos, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+    Shard,
+    {
+      index: i2,
+      position: pos,
+      collected: collectedShards.has(i2),
+      onCollect: onCollectShard,
+      playerPositionRef
+    },
+    i2
+  )),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, 0, -10], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorFacade, { z: 0, height: 5, width: 10 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 2.5, -6.5], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [11, 5, 1] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a2630" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-5, 2.5, -3.25], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 5, 7.5] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a2630" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [5, 2.5, -3.25], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 5, 7.5] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a2630" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 5.25, -3.25], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [11, 0.5, 7.5] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a2630" })
+    ] })
+  ] })
+] });
 const CHAT_BUBBLE_TTL_MS = 8e3;
 const TELEPORT_DIST_SQ = 25;
 const NEAR_FULL_SQ = 100;
@@ -107731,7 +108047,7 @@ class CanvasErrorBoundary extends reactExports.Component {
   }
 }
 const MAX_JOYSTICK_RADIUS = 50;
-const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
   level === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(LobbyEnvironment, { npcPositionRef, isPaused, playerPositionRef }),
   level === 0 && !profile.atmosphere && /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 3.8, 0], intensity: 2.8, distance: 22, color: "#FFE0B2", decay: 2 }),
   level === 0 && profile.atmosphere && /* @__PURE__ */ jsxRuntimeExports.jsx(FluorescentFlicker, { intensity: 2.8 }),
@@ -107740,7 +108056,14 @@ const World = React.memo(({ timer: timer2, doorsClosed, level, houseDoorOpen, np
   level === 0 && profile.atmosphere && /* @__PURE__ */ jsxRuntimeExports.jsx(CeilingFan, { x: 5, z: -5, speed: 0.8 }),
   level === 0 && profile.atmosphere && /* @__PURE__ */ jsxRuntimeExports.jsx(WallClock, { x: 9.5, z: -7 }),
   level === 1 && /* @__PURE__ */ jsxRuntimeExports.jsx(FlatMapEnvironment, { houseDoorOpen, nightMode, doorOpenAmount }),
-  level === 2 && /* @__PURE__ */ jsxRuntimeExports.jsx(Level2Environment, {}),
+  level === 2 && /* @__PURE__ */ jsxRuntimeExports.jsx(
+    Floor2Environment,
+    {
+      playerPositionRef,
+      collectedShards,
+      onCollectShard
+    }
+  ),
   /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorInterior, { timer: timer2, doorsClosed, level }),
   level === 1 && /* @__PURE__ */ jsxRuntimeExports.jsx(BarneyActor, { gameState, barneyRef, barneyTargetRef, playerPosRef: playerPositionRef, houseDoorOpen }),
   profile.nightLights && /* @__PURE__ */ jsxRuntimeExports.jsx(NightAmbient, { active: nightMode && level === 1 })
@@ -107805,6 +108128,15 @@ function App() {
   const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie: consumeCookie, hasAnyItem } = useInventory();
   const [pickupTrigger, setPickupTrigger] = reactExports.useState(0);
   const [pickupItem, setPickupItem] = reactExports.useState(null);
+  const [collectedShards, setCollectedShards] = reactExports.useState(/* @__PURE__ */ new Set());
+  const handleCollectShard = reactExports.useCallback((i2) => {
+    setCollectedShards((s) => {
+      if (s.has(i2)) return s;
+      const next = new Set(s);
+      next.add(i2);
+      return next;
+    });
+  }, []);
   const triggerPickup = reactExports.useCallback((item) => {
     setPickupItem(item);
     setPickupTrigger((n) => n + 1);
@@ -108019,6 +108351,16 @@ function App() {
     }, 3e3);
   };
   const multiplayerEnabled = settings.multiplayer;
+  const savedZoomRef = reactExports.useRef(null);
+  reactExports.useEffect(() => {
+    if (currentLevel === 2) {
+      if (savedZoomRef.current === null) savedZoomRef.current = zoomLevel;
+      setZoomLevel(0);
+    } else if (savedZoomRef.current !== null) {
+      setZoomLevel(savedZoomRef.current);
+      savedZoomRef.current = null;
+    }
+  }, [currentLevel]);
   const setMultiplayerEnabled = reactExports.useCallback((on2) => updateSettings({ multiplayer: on2 }), [updateSettings]);
   const [playerAnimState, setPlayerAnimState] = reactExports.useState("idle");
   const [playerName, setPlayerName2] = reactExports.useState(getPlayerName());
@@ -108239,7 +108581,7 @@ function App() {
         const p1 = pts[0];
         const p2 = pts[1];
         const dist = Math.sqrt(Math.pow(p1.currX - p2.currX, 2) + Math.pow(p1.currY - p2.currY, 2));
-        if (prevPinchDist.current !== null) {
+        if (prevPinchDist.current !== null && currentLevel !== 2) {
           const delta = dist - prevPinchDist.current;
           setZoomLevel((prev) => Math.min(Math.max(prev - delta * 0.02, 0), 10));
         }
@@ -108347,7 +108689,7 @@ function App() {
   const botEnabled = settings.botMode && hasStarted;
   const { info: botInfo } = useBotStore();
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full h-full relative overflow-hidden select-none", style: { touchAction: "none", backgroundColor: "#000" }, onPointerDown: handlePointerDown, onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onPointerCancel: handlePointerUp, onPointerLeave: handlePointerUp, onWheel: (e2) => {
-    if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen) return;
+    if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2) return;
     setZoomLevel((prev) => Math.min(Math.max(prev + e2.deltaY * 0.01, 0), 10));
   }, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(LiminalAudioEngine, { doorTrigger: doorSoundTrigger, audioContext: audioCtx, muted: muted || shopOpen, masterVolume: settings.masterVolume, nightMode, gameState, currentLevel, doorsClosed }),
@@ -108388,7 +108730,7 @@ function App() {
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse", style: { animationDelay: "0.4s" } })
             ] })
           ] }) }), children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(World, { timer: elevatorTimer, doorsClosed, level: currentLevel, houseDoorOpen, npcPositionRef, isPaused: dialogueOpen || barneyDialogueOpen || shopOpen, playerPositionRef: sharedPlayerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile: QUALITY_PROFILES[settings.quality], collectedShards, onCollectShard: handleCollectShard }),
             visibleRemotePlayerIds.map((id) => /* @__PURE__ */ jsxRuntimeExports.jsx(RemotePlayer, { id, dataRef: otherPlayersDataRef, chatBubbles3D: QUALITY_PROFILES[settings.quality].chatBubbles3D }, id)),
             /* @__PURE__ */ jsxRuntimeExports.jsx(Player, { active: hasStarted, moveInput, lookInput, isDesktop, onEnterElevator: handlePlayerEnterElevator, doorsClosed, currentLevel, onInteractionUpdate: handleInteractionUpdate, onNpcInteractionUpdate: handleNpcInteractionUpdate, onCashierInteractionUpdate: handleCashierInteractionUpdate, houseDoorOpen, zoomLevel, npcPositionRef, dialogueTargetRef: barneyDialogueOpen ? barneyRef : npcPositionRef, dialogueOpen: dialogueOpen || barneyDialogueOpen || shopOpen, sharedPositionRef: sharedPlayerPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef: playerPositionCmdRef, onElevatorZoneChange: handleElevatorZoneChange, pickupTrigger, pickupItem, armExtended: inventory.flashlight.owned && inventory.flashlight.active, onRightHandAnchor: handleRightHandAnchor }),
             hasStarted && inventory.flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
@@ -108493,6 +108835,26 @@ function App() {
       }
     ),
     settings.showFps && hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(FpsCounter, {}),
+    hasStarted && currentLevel === 2 && /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: "fixed inset-0 z-[8] pointer-events-none",
+        style: {
+          background: "radial-gradient(ellipse at center, rgba(0,40,80,0.0) 35%, rgba(0,30,60,0.35) 70%, rgba(0,20,40,0.65) 100%)",
+          mixBlendMode: "multiply"
+        }
+      }
+    ),
+    hasStarted && currentLevel === 2 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "fixed top-[calc(env(safe-area-inset-top,0px)+88px)] left-1/2 -translate-x-1/2 z-[55]\n                        bg-black/60 backdrop-blur-md border border-cyan-400/40 rounded-md\n                        px-3 py-1.5 font-mono text-cyan-200 text-sm\n                        shadow-[0_0_20px_rgba(90,216,255,0.25)] pointer-events-none select-none\n                        flex items-center gap-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { width: "14", height: "14", viewBox: "0 0 24 24", className: "text-cyan-300", children: /* @__PURE__ */ jsxRuntimeExports.jsx("polygon", { points: "12,3 22,12 12,21 2,12", fill: "currentColor", opacity: "0.9" }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "tabular-nums", children: collectedShards.size === 5 ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-cyan-100 font-bold", children: "5 / 5 — TODOS COLETADOS" }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        "shards ",
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-cyan-100 font-bold", children: [
+          collectedShards.size,
+          " / 5"
+        ] })
+      ] }) })
+    ] }),
     botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(BotHud, { info: botInfo }),
     botEnabled && /* @__PURE__ */ jsxRuntimeExports.jsx(ViewportDebug, {}),
     hasStarted && multiplayerEnabled && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [

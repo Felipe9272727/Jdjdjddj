@@ -27,7 +27,8 @@ import { useInventory, InventoryHUD } from './InventorySystem';
 import { FlashlightLight, FlashlightModel3D } from './FlashlightLight';
 import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment, WatchingText } from './LobbyEnv';
-import { FlatMapEnvironment, BarneyActor, Level2Environment } from './HouseEnv';
+import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
+import { Floor2Environment, SHARD_POSITIONS } from './Floor2Underwater';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -59,9 +60,11 @@ interface WorldProps {
   nightMode: boolean;
   doorOpenAmount: number;
   profile: QualityProfile;
+  collectedShards: Set<number>;
+  onCollectShard: (i: number) => void;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -78,7 +81,13 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 0 && profile.atmosphere && <CeilingFan x={5} z={-5} speed={0.8} />}
       {level === 0 && profile.atmosphere && <WallClock x={9.5} z={-7} />}
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
-      {level === 2 && <Level2Environment />}
+      {level === 2 && (
+        <Floor2Environment
+          playerPositionRef={playerPositionRef}
+          collectedShards={collectedShards}
+          onCollectShard={onCollectShard}
+        />
+      )}
       <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
       {profile.nightLights && <NightAmbient active={nightMode && level === 1} />}
@@ -143,6 +152,20 @@ export default function App() {
   const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie: consumeCookie, hasAnyItem } = useInventory();
   const [pickupTrigger, setPickupTrigger] = useState(0);
   const [pickupItem, setPickupItem] = useState<'flashlight' | 'cookie' | null>(null);
+
+  // ─── Floor 2 shards ───────────────────────────────────────────────────
+  // Local set of collected shard indices. Survives the player walking back
+  // and forth across the level, resets only on full game reset (caught/
+  // saved triggers a reset path elsewhere). 5 total shards.
+  const [collectedShards, setCollectedShards] = useState<Set<number>>(new Set());
+  const handleCollectShard = useCallback((i: number) => {
+    setCollectedShards((s) => {
+      if (s.has(i)) return s;          // already collected — avoid set churn
+      const next = new Set(s);
+      next.add(i);
+      return next;
+    });
+  }, []);
   // Trigger the pickup animation, tagging which item is being held. The
   // Avatar reads pickupItem to pick a different bone pose (flashlight =
   // arm extends forward; cookie = elbow folds toward the mouth).
@@ -384,6 +407,22 @@ export default function App() {
   // Multiplayer is now a global setting; the game-start callback below also
   // syncs it (so the menu's MP toggle still wins on the first launch).
   const multiplayerEnabled = settings.multiplayer;
+
+  // Floor 2 forces first-person view: the underwater void only reads right
+  // in FP, and 3rd-person camera would clip through the rocks. Pin zoom to
+  // 0 (which Player.tsx interprets as first-person) whenever the player is
+  // on level 2; restore the previous zoom when they leave.
+  const savedZoomRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (currentLevel === 2) {
+      if (savedZoomRef.current === null) savedZoomRef.current = zoomLevel;
+      setZoomLevel(0);
+    } else if (savedZoomRef.current !== null) {
+      setZoomLevel(savedZoomRef.current);
+      savedZoomRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLevel]);
   const setMultiplayerEnabled = useCallback((on: boolean) => updateSettings({ multiplayer: on }), [updateSettings]);
   const [playerAnimState, setPlayerAnimState] = useState<'idle' | 'walking'>('idle');
   const [playerName, setPlayerName] = useState(getPlayerName());
@@ -564,7 +603,8 @@ export default function App() {
       if (isPinch && !dialogueOpen && !barneyDialogueOpen) {
           const pts = Array.from(activePointers.current.values()); const p1 = pts[0]; const p2 = pts[1];
           const dist = Math.sqrt(Math.pow(p1.currX-p2.currX, 2) + Math.pow(p1.currY-p2.currY, 2));
-          if (prevPinchDist.current !== null) { const delta = dist - prevPinchDist.current; setZoomLevel(prev => Math.min(Math.max(prev - delta * 0.02, 0), 10)); }
+          // Floor 2 locks the camera in 1st person — ignore pinch zoom there.
+          if (prevPinchDist.current !== null && currentLevel !== 2) { const delta = dist - prevPinchDist.current; setZoomLevel(prev => Math.min(Math.max(prev - delta * 0.02, 0), 10)); }
           prevPinchDist.current = dist;
       }
     }
@@ -630,7 +670,7 @@ export default function App() {
   const { info: botInfo } = useBotStore();
 
   return (
-    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
+    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted || shopOpen} masterVolume={settings.masterVolume} nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} doorsClosed={doorsClosed} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
@@ -662,7 +702,7 @@ export default function App() {
         />
         <AdaptiveDpr pixelated />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} />
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -788,6 +828,42 @@ export default function App() {
         />
       )}
       {settings.showFps && hasStarted && <FpsCounter />}
+
+      {/* Floor 2 "cold" overlay — radial cyan tint at the edges, blue
+          color cast in the middle. Sells underwater + cold without
+          touching the renderer. Pure DOM, pointer-none. */}
+      {hasStarted && currentLevel === 2 && (
+        <div
+          className="fixed inset-0 z-[8] pointer-events-none"
+          style={{
+            background:
+              'radial-gradient(ellipse at center, rgba(0,40,80,0.0) 35%, rgba(0,30,60,0.35) 70%, rgba(0,20,40,0.65) 100%)',
+            mixBlendMode: 'multiply',
+          }}
+        />
+      )}
+
+      {/* Floor 2 shard counter — top-center HUD chip. Cyan to match the
+          shards. Pops in/out only on level 2. Includes a small "All shards
+          collected" celebratory state once you grab the 5th. */}
+      {hasStarted && currentLevel === 2 && (
+        <div className="fixed top-[calc(env(safe-area-inset-top,0px)+88px)] left-1/2 -translate-x-1/2 z-[55]
+                        bg-black/60 backdrop-blur-md border border-cyan-400/40 rounded-md
+                        px-3 py-1.5 font-mono text-cyan-200 text-sm
+                        shadow-[0_0_20px_rgba(90,216,255,0.25)] pointer-events-none select-none
+                        flex items-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" className="text-cyan-300">
+            <polygon points="12,3 22,12 12,21 2,12" fill="currentColor" opacity="0.9" />
+          </svg>
+          <span className="tabular-nums">
+            {collectedShards.size === 5 ? (
+              <span className="text-cyan-100 font-bold">5 / 5 — TODOS COLETADOS</span>
+            ) : (
+              <>shards <span className="text-cyan-100 font-bold">{collectedShards.size} / 5</span></>
+            )}
+          </span>
+        </div>
+      )}
       {botEnabled && <BotHud info={botInfo} />}
       {botEnabled && <ViewportDebug />}
 
