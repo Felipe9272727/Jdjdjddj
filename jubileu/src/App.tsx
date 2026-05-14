@@ -755,6 +755,16 @@ export default function App() {
         />
       )}
       
+      {/* First-person crosshair — tiny center dot. Only when in FP view
+          AND no dialogue/shop blocking it. Pure CSS, no canvas draw. */}
+      {hasStarted && zoomLevel < 0.5 && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
+        <div className="fixed left-1/2 top-1/2 z-[60] pointer-events-none"
+             style={{ transform: 'translate(-50%, -50%)' }}>
+          <div className="w-1.5 h-1.5 rounded-full bg-white/55 ring-1 ring-black/40"
+               style={{ boxShadow: '0 0 4px rgba(0,0,0,0.7)' }} />
+        </div>
+      )}
+
       {/* ─────────────────────────────────────────────────────────────────────
           HUD layer: ONE safe-area boundary. Every element inside positions
           itself relative to this fixed wrapper, so `top-3 right-3` ends up at

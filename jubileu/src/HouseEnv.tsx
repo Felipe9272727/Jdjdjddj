@@ -340,47 +340,92 @@ export const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOp
 });
 
 // ── Level 2 ────────────────────────────────────────────────────────────
-// Base plana — placeholder for the next floor that the player reaches
-// after surviving the chase. Intentionally empty (a void plane + elevator
-// shell back) so we have a clean canvas to fill in. Felipe will iterate
-// on what populates this floor.
+// "Terror floor" — kept deliberately empty of gameplay. Felipe hasn't
+// decided what this floor becomes yet. Goal of THIS pass is atmosphere:
+// you step out of the elevator and immediately feel "wrong place" —
+// enclosed-but-vast, decayed, the flashlight is the only useful tool.
+// No NPCs, no scripted events, just dread.
+const Level2DistantFlicker = () => {
+    // A faint, slow-pulsing pointLight far away in the void. Mimics a
+    // failing fluorescent on the edge of the map — you can't see WHAT is
+    // flickering, only the glow at the limit of the fog. Cheap: one light.
+    const lightRef = useRef<THREE.PointLight>(null);
+    useFrame((state) => {
+        const l = lightRef.current;
+        if (!l) return;
+        const t = state.clock.elapsedTime;
+        // Mostly off, occasional flicker spikes. Mathematical "stutter" via
+        // squared sin so the pulses are sharp + irregular.
+        const base = Math.sin(t * 0.7) * 0.5 + 0.5;
+        const stutter = Math.pow(Math.sin(t * 11.3), 8) * (Math.sin(t * 2.1) > 0.7 ? 1 : 0);
+        l.intensity = base * 0.4 + stutter * 1.5;
+    });
+    return <pointLight ref={lightRef} position={[28, 4, -28]} distance={14} decay={2} color="#FFCC88" />;
+};
+
 export const Level2Environment = React.memo(() => (
     <group>
-        {/* Level 2 is meant to be DARK — that's the whole point of the
-            floor and why the flashlight matters here. Ambient is barely
-            above black, hemisphere is dim, no directional. The flashlight
-            (intensity 22) is the player's only real light source. */}
-        <color attach="background" args={['#050507']} />
-        <fog attach="fog" args={['#050507', 8, 32]} />
-        <ambientLight intensity={0.08} color="#3a3a4a" />
-        <hemisphereLight intensity={0.06} color="#1a1a2a" groundColor="#0a0a10" />
-        {/* Distant ceiling — gives the void a sense of enclosure without
-            actually boxing the player in. */}
-        <mesh position={[0, 18, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[120, 120]} />
-            <meshStandardMaterial color="#15151c" roughness={1} side={THREE.DoubleSide} />
-        </mesh>
-        {/* The flat floor itself — a wide off-white plane with a faint
-            grid texture (no asset, just colored planes for stripes). */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+        {/* Even darker than before — ambient barely-there. The flashlight
+            is meant to be your only real source of vision here. */}
+        <color attach="background" args={['#030304']} />
+        <fog attach="fog" args={['#030304', 5, 18]} />
+        <ambientLight intensity={0.06} color="#2a2a3a" />
+        <hemisphereLight intensity={0.04} color="#1a1a2a" groundColor="#050508" />
+
+        {/* Ceiling — lowered + closer for claustrophobia. */}
+        <mesh position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <planeGeometry args={[80, 80]} />
-            <meshStandardMaterial color="#e8e4d8" roughness={0.85} />
+            <meshStandardMaterial color="#0c0c12" roughness={1} side={THREE.DoubleSide} />
         </mesh>
-        {/* Faint floor seams for scale reference (5 stud spacing). */}
+
+        {/* Floor — concrete-ish gray instead of clinical off-white. Gives
+            the "abandoned basement" vibe and means the flashlight HOT spot
+            stays readable (highly reflective floor was washing the beam). */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+            <planeGeometry args={[80, 80]} />
+            <meshStandardMaterial color="#28282e" roughness={0.95} />
+        </mesh>
+        {/* Subtle floor seams */}
         {[-20, -10, 0, 10, 20].map((z) => (
             <mesh key={`seam-z-${z}`} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, z]}>
                 <planeGeometry args={[80, 0.04]} />
-                <meshBasicMaterial color="#c4c0b6" />
+                <meshBasicMaterial color="#1a1a20" />
             </mesh>
         ))}
         {[-20, -10, 0, 10, 20].map((x) => (
             <mesh key={`seam-x-${x}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.005, 0]}>
                 <planeGeometry args={[0.04, 80]} />
-                <meshBasicMaterial color="#c4c0b6" />
+                <meshBasicMaterial color="#1a1a20" />
             </mesh>
         ))}
-        {/* Elevator shell at z=-10 so the player can ride back. Mirrors
-            the lobby/level1 placement. */}
+
+        {/* WALLS — four big slabs around the play area at radius 30. Just
+            outside the fog start, so you only see them when the flashlight
+            beam catches the edge. Gives "enclosed but huge" feeling. */}
+        <mesh position={[0, 4, -30]}><boxGeometry args={[80, 8, 0.5]} /><meshStandardMaterial color="#15151b" roughness={1} /></mesh>
+        <mesh position={[0, 4, 30]}><boxGeometry args={[80, 8, 0.5]} /><meshStandardMaterial color="#15151b" roughness={1} /></mesh>
+        <mesh position={[-30, 4, 0]}><boxGeometry args={[0.5, 8, 80]} /><meshStandardMaterial color="#15151b" roughness={1} /></mesh>
+        <mesh position={[30, 4, 0]}><boxGeometry args={[0.5, 8, 80]} /><meshStandardMaterial color="#15151b" roughness={1} /></mesh>
+
+        {/* Stains on the floor — couple of darker patches that suggest age
+            without telling a story. Tiny meshes, cheap. */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[6, 0.006, -4]}>
+            <circleGeometry args={[1.2, 12]} />
+            <meshBasicMaterial color="#0c0c12" transparent opacity={0.7} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-8, 0.006, 5]}>
+            <circleGeometry args={[0.8, 10]} />
+            <meshBasicMaterial color="#0c0c12" transparent opacity={0.6} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[2, 0.006, 12]}>
+            <circleGeometry args={[1.6, 12]} />
+            <meshBasicMaterial color="#0c0c12" transparent opacity={0.5} />
+        </mesh>
+
+        {/* Distant flickering light — far away in a corner, edge of fog */}
+        <Level2DistantFlicker />
+
+        {/* Elevator shell back — unchanged. */}
         <group position={[0, 0, -10]}>
             <ElevatorFacade z={0} height={5} width={10} />
             <mesh position={[0, 2.5, -6.5]}><boxGeometry args={[11, 5, 1]} /><meshStandardMaterial color={COLORS.wall} /></mesh>

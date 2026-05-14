@@ -549,6 +549,10 @@
     top: calc(var(--spacing) * -1);
   }
 
+  .-top-1\.5 {
+    top: calc(var(--spacing) * -1.5);
+  }
+
   .top-0 {
     top: calc(var(--spacing) * 0);
   }
@@ -675,6 +679,10 @@
 
   .bottom-\[calc\(env\(safe-area-inset-bottom\,0px\)\+170px\)\] {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 170px);
+  }
+
+  .-left-1\.5 {
+    left: calc(var(--spacing) * -1.5);
   }
 
   .-left-2 {
@@ -891,10 +899,6 @@
 
   .flex {
     display: flex;
-  }
-
-  .grid {
-    display: grid;
   }
 
   .hidden {
@@ -2093,6 +2097,16 @@
   @supports (color: color-mix(in lab, red, red)) {
     .bg-white\/20 {
       background-color: color-mix(in oklab, var(--color-white) 20%, transparent);
+    }
+  }
+
+  .bg-white\/55 {
+    background-color: #ffffff8c;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-white\/55 {
+      background-color: color-mix(in oklab, var(--color-white) 55%, transparent);
     }
   }
 
@@ -3529,11 +3543,6 @@
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
-  .shadow-\[0_0_14px_rgba\(251\,191\,36\,0\.55\)\] {
-    --tw-shadow: 0 0 14px var(--tw-shadow-color, #fbbf248c);
-    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-  }
-
   .shadow-\[0_0_15px_rgba\(251\,191\,36\,1\)\] {
     --tw-shadow: 0 0 15px var(--tw-shadow-color, #fbbf24);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -3551,6 +3560,11 @@
 
   .shadow-\[0_0_18px_rgba\(245\,158\,11\,0\.25\)\] {
     --tw-shadow: 0 0 18px var(--tw-shadow-color, #f59e0b40);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+
+  .shadow-\[0_0_18px_rgba\(251\,191\,36\,0\.65\)\] {
+    --tw-shadow: 0 0 18px var(--tw-shadow-color, #fbbf24a6);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
@@ -3680,6 +3694,16 @@
   @supports (color: color-mix(in lab, red, red)) {
     .ring-amber-500\/40 {
       --tw-ring-color: color-mix(in oklab, var(--color-amber-500) 40%, transparent);
+    }
+  }
+
+  .ring-black\/40 {
+    --tw-ring-color: #0006;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .ring-black\/40 {
+      --tw-ring-color: color-mix(in oklab, var(--color-black) 40%, transparent);
     }
   }
 
@@ -3967,6 +3991,16 @@
   @media (hover: hover) {
     .hover\:scale-\[1\.02\]:hover {
       scale: 1.02;
+    }
+
+    .hover\:border-amber-400\/60:hover {
+      border-color: #fcbb0099;
+    }
+
+    @supports (color: color-mix(in lab, red, red)) {
+      .hover\:border-amber-400\/60:hover {
+        border-color: color-mix(in oklab, var(--color-amber-400) 60%, transparent);
+      }
     }
 
     .hover\:border-purple-400\/70:hover {
@@ -103933,6 +103967,7 @@ const InventoryHUD = ({
 }) => {
   const [notification, setNotification] = reactExports.useState(null);
   const [cookieEffect, setCookieEffect] = reactExports.useState(false);
+  const [flashNew, setFlashNew] = reactExports.useState(false);
   const prevFlashlight = reactExports.useRef(inventory.flashlight.owned);
   const prevCookies = reactExports.useRef(inventory.cookie.count);
   const notifTimerRef = reactExports.useRef(null);
@@ -103946,6 +103981,8 @@ const InventoryHUD = ({
   }, []);
   if (inventory.flashlight.owned && !prevFlashlight.current) {
     prevFlashlight.current = true;
+    setFlashNew(true);
+    window.setTimeout(() => setFlashNew(false), 700);
     showNotif("* Você adquiriu a {Lanterna}.");
   }
   if (inventory.cookie.count > prevCookies.current) {
@@ -103967,52 +104004,57 @@ const InventoryHUD = ({
       {
         className: "\n            fixed z-[52] pointer-events-auto select-none\n            bottom-[calc(env(safe-area-inset-bottom,0px)+96px)]\n            left-1/2 -translate-x-1/2\n            landscape:bottom-auto\n            landscape:right-[calc(env(safe-area-inset-right,0px)+14px)]\n            landscape:left-auto landscape:translate-x-0\n            landscape:top-1/2 landscape:-translate-y-1/2\n            animate-inv-enter\n          ",
         children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "\n            flex items-center gap-3\n            landscape:flex-col landscape:gap-3\n            bg-black/55 backdrop-blur-md\n            border border-amber-500/40\n            rounded-md\n            px-3 py-2\n            landscape:px-2 landscape:py-3\n            shadow-[0_0_18px_rgba(245,158,11,0.18)]\n            font-mono\n          ", children: [
-          flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          flashlight.owned && /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "button",
             {
               type: "button",
               onClick: onToggleFlashlight,
+              title: flashlight.active ? "Desligar lanterna (F)" : "Ligar lanterna (F)",
               className: `
                   relative w-12 h-12 flex items-center justify-center
                   rounded-sm border transition-all touch-manipulation
                   active:scale-90
-                  ${flashlight.active ? "bg-amber-500/15 border-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.55)]" : "bg-black/40 border-amber-500/30"}
+                  ${flashlight.active ? "bg-amber-500/15 border-amber-400 shadow-[0_0_18px_rgba(251,191,36,0.65)] animate-flash-breath" : "bg-black/40 border-amber-500/30 hover:border-amber-400/60"}
+                  ${flashNew ? "animate-flash-appear" : ""}
                 `,
               "aria-label": flashlight.active ? "Desligar lanterna" : "Ligar lanterna",
-              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "22", height: "22", viewBox: "0 0 24 24", fill: "none", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "rect",
-                  {
-                    x: "10",
-                    y: "2",
-                    width: "4",
-                    height: "8",
-                    rx: "0.5",
-                    fill: flashlight.active ? "#FFD54F" : "#888",
-                    stroke: flashlight.active ? "#FFA000" : "#666",
-                    strokeWidth: "0.8"
-                  }
-                ),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "rect",
-                  {
-                    x: "8",
-                    y: "10",
-                    width: "8",
-                    height: "6",
-                    rx: "0.5",
-                    fill: flashlight.active ? "#555" : "#444",
-                    stroke: "#333",
-                    strokeWidth: "0.8"
-                  }
-                ),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("rect", { x: "9", y: "16", width: "6", height: "3", rx: "0.5", fill: flashlight.active ? "#444" : "#333" }),
-                flashlight.active && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "12", y1: "2", x2: "12", y2: "0", stroke: "#FFD54F", strokeWidth: "1.5", strokeLinecap: "round", opacity: "0.7" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "8", y1: "3", x2: "6", y2: "1.5", stroke: "#FFD54F", strokeWidth: "1", strokeLinecap: "round", opacity: "0.5" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "16", y1: "3", x2: "18", y2: "1.5", stroke: "#FFD54F", strokeWidth: "1", strokeLinecap: "round", opacity: "0.5" })
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "hidden md:block absolute -top-1.5 -left-1.5 px-1 text-[8px] font-mono font-bold\n                                 bg-amber-500 text-black rounded-sm pointer-events-none leading-none py-0.5", children: "F" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "22", height: "22", viewBox: "0 0 24 24", fill: "none", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "rect",
+                    {
+                      x: "10",
+                      y: "2",
+                      width: "4",
+                      height: "8",
+                      rx: "0.5",
+                      fill: flashlight.active ? "#FFD54F" : "#888",
+                      stroke: flashlight.active ? "#FFA000" : "#666",
+                      strokeWidth: "0.8"
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "rect",
+                    {
+                      x: "8",
+                      y: "10",
+                      width: "8",
+                      height: "6",
+                      rx: "0.5",
+                      fill: flashlight.active ? "#555" : "#444",
+                      stroke: "#333",
+                      strokeWidth: "0.8"
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("rect", { x: "9", y: "16", width: "6", height: "3", rx: "0.5", fill: flashlight.active ? "#444" : "#333" }),
+                  flashlight.active && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "12", y1: "2", x2: "12", y2: "0", stroke: "#FFD54F", strokeWidth: "1.5", strokeLinecap: "round", opacity: "0.7" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "8", y1: "3", x2: "6", y2: "1.5", stroke: "#FFD54F", strokeWidth: "1", strokeLinecap: "round", opacity: "0.5" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "16", y1: "3", x2: "18", y2: "1.5", stroke: "#FFD54F", strokeWidth: "1", strokeLinecap: "round", opacity: "0.5" })
+                  ] })
                 ] })
-              ] })
+              ]
             }
           ),
           cookie.count > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -104083,6 +104125,17 @@ const InventoryHUD = ({
           40% { opacity: 0.35; }
           100% { opacity: 0; }
         }
+        @keyframes flashBreath {
+          0%, 100% { box-shadow: 0 0 14px rgba(251,191,36,0.45); }
+          50%      { box-shadow: 0 0 22px rgba(251,191,36,0.85); }
+        }
+        .animate-flash-breath { animation: flashBreath 2.2s ease-in-out infinite; }
+        @keyframes flashAppear {
+          0%   { opacity: 0; transform: scale(0.5) rotate(-8deg); }
+          60%  { opacity: 1; transform: scale(1.1) rotate(2deg); }
+          100% { transform: scale(1) rotate(0); }
+        }
+        .animate-flash-appear { animation: flashAppear 600ms cubic-bezier(0.16,1,0.3,1) forwards; }
       ` })
   ] });
 };
@@ -105224,27 +105277,68 @@ const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOpenAmoun
     })
   ] });
 });
+const Level2DistantFlicker = () => {
+  const lightRef = reactExports.useRef(null);
+  useFrame((state2) => {
+    const l2 = lightRef.current;
+    if (!l2) return;
+    const t2 = state2.clock.elapsedTime;
+    const base = Math.sin(t2 * 0.7) * 0.5 + 0.5;
+    const stutter = Math.pow(Math.sin(t2 * 11.3), 8) * (Math.sin(t2 * 2.1) > 0.7 ? 1 : 0);
+    l2.intensity = base * 0.4 + stutter * 1.5;
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { ref: lightRef, position: [28, 4, -28], distance: 14, decay: 2, color: "#FFCC88" });
+};
 const Level2Environment = React.memo(() => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx("color", { attach: "background", args: ["#050507"] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("fog", { attach: "fog", args: ["#050507", 8, 32] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.08, color: "#3a3a4a" }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("hemisphereLight", { intensity: 0.06, color: "#1a1a2a", groundColor: "#0a0a10" }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 18, 0], rotation: [Math.PI / 2, 0, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [120, 120] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#15151c", roughness: 1, side: DoubleSide })
-  ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0, 0], receiveShadow: true, children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx("color", { attach: "background", args: ["#030304"] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("fog", { attach: "fog", args: ["#030304", 5, 18] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.06, color: "#2a2a3a" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("hemisphereLight", { intensity: 0.04, color: "#1a1a2a", groundColor: "#050508" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 8, 0], rotation: [Math.PI / 2, 0, 0], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [80, 80] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#e8e4d8", roughness: 0.85 })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#0c0c12", roughness: 1, side: DoubleSide })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [80, 80] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#28282e", roughness: 0.95 })
   ] }),
   [-20, -10, 0, 10, 20].map((z) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, 5e-3, z], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [80, 0.04] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#c4c0b6" })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#1a1a20" })
   ] }, `seam-z-${z}`)),
   [-20, -10, 0, 10, 20].map((x2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [x2, 5e-3, 0], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [0.04, 80] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#c4c0b6" })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#1a1a20" })
   ] }, `seam-x-${x2}`)),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 4, -30], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [80, 8, 0.5] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#15151b", roughness: 1 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 4, 30], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [80, 8, 0.5] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#15151b", roughness: 1 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-30, 4, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.5, 8, 80] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#15151b", roughness: 1 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [30, 4, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.5, 8, 80] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#15151b", roughness: 1 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [6, 6e-3, -4], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [1.2, 12] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#0c0c12", transparent: true, opacity: 0.7 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [-8, 6e-3, 5], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [0.8, 10] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#0c0c12", transparent: true, opacity: 0.6 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [2, 6e-3, 12], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [1.6, 12] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#0c0c12", transparent: true, opacity: 0.5 })
+  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Level2DistantFlicker, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [0, 0, -10], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorFacade, { z: 0, height: 5, width: 10 }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 2.5, -6.5], children: [
@@ -108369,6 +108463,20 @@ function App() {
         onToggleFlashlight: handleToggleFlashlight,
         onUseCookie: handleUseCookie,
         hasAnyItem
+      }
+    ),
+    hasStarted && zoomLevel < 0.5 && !dialogueOpen && !barneyDialogueOpen && !shopOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: "fixed left-1/2 top-1/2 z-[60] pointer-events-none",
+        style: { transform: "translate(-50%, -50%)" },
+        children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: "w-1.5 h-1.5 rounded-full bg-white/55 ring-1 ring-black/40",
+            style: { boxShadow: "0 0 4px rgba(0,0,0,0.7)" }
+          }
+        )
       }
     ),
     hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "hud-fixed", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ElevatorHud, { currentLevel, elevatorTimer, doorsClosed, arrivalPulse }) }),

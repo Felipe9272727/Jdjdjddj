@@ -83,6 +83,9 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
 }) => {
   const [notification, setNotification] = useState<string | null>(null);
   const [cookieEffect, setCookieEffect] = useState(false);
+  // "New item" flash for the icon — toggled true briefly when the item is
+  // first acquired, so the icon does its appearance animation.
+  const [flashNew, setFlashNew] = useState(false);
   const prevFlashlight = useRef(inventory.flashlight.owned);
   const prevCookies = useRef(inventory.cookie.count);
   const notifTimerRef = useRef<number | null>(null);
@@ -101,6 +104,8 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
   // Detect first-time flashlight acquisition
   if (inventory.flashlight.owned && !prevFlashlight.current) {
     prevFlashlight.current = true;
+    setFlashNew(true);
+    window.setTimeout(() => setFlashNew(false), 700);
     showNotif('* Você adquiriu a {Lanterna}.');
   }
   // Detect new cookie
@@ -151,16 +156,23 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
               <button
                 type="button"
                 onClick={onToggleFlashlight}
+                title={flashlight.active ? 'Desligar lanterna (F)' : 'Ligar lanterna (F)'}
                 className={`
                   relative w-12 h-12 flex items-center justify-center
                   rounded-sm border transition-all touch-manipulation
                   active:scale-90
                   ${flashlight.active
-                    ? 'bg-amber-500/15 border-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.55)]'
-                    : 'bg-black/40 border-amber-500/30'}
+                    ? 'bg-amber-500/15 border-amber-400 shadow-[0_0_18px_rgba(251,191,36,0.65)] animate-flash-breath'
+                    : 'bg-black/40 border-amber-500/30 hover:border-amber-400/60'}
+                  ${flashNew ? 'animate-flash-appear' : ''}
                 `}
                 aria-label={flashlight.active ? 'Desligar lanterna' : 'Ligar lanterna'}
               >
+                {/* Keyboard hint chip — only on devices that have a keyboard. */}
+                <span className="hidden md:block absolute -top-1.5 -left-1.5 px-1 text-[8px] font-mono font-bold
+                                 bg-amber-500 text-black rounded-sm pointer-events-none leading-none py-0.5">
+                  F
+                </span>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                   <rect x="10" y="2" width="4" height="8" rx="0.5" fill={flashlight.active ? '#FFD54F' : '#888'}
                     stroke={flashlight.active ? '#FFA000' : '#666'} strokeWidth="0.8"/>
@@ -263,6 +275,17 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
           40% { opacity: 0.35; }
           100% { opacity: 0; }
         }
+        @keyframes flashBreath {
+          0%, 100% { box-shadow: 0 0 14px rgba(251,191,36,0.45); }
+          50%      { box-shadow: 0 0 22px rgba(251,191,36,0.85); }
+        }
+        .animate-flash-breath { animation: flashBreath 2.2s ease-in-out infinite; }
+        @keyframes flashAppear {
+          0%   { opacity: 0; transform: scale(0.5) rotate(-8deg); }
+          60%  { opacity: 1; transform: scale(1.1) rotate(2deg); }
+          100% { transform: scale(1) rotate(0); }
+        }
+        .animate-flash-appear { animation: flashAppear 600ms cubic-bezier(0.16,1,0.3,1) forwards; }
       `}</style>
     </>
   );
