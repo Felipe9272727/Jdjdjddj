@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Html, Loader, AdaptiveDpr, PerformanceMonitor, Environment } from '@react-three/drei';
-import { EffectComposer, Bloom, Vignette, ChromaticAberration, N8AO } from '@react-three/postprocessing';
-import { BlendFunction, KernelSize } from 'postprocessing';
-import { Vector3, Vector2, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
+import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
+import { EffectComposer, Bloom } from '@react-three/postprocessing';
+import { KernelSize } from 'postprocessing';
+import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
 
 // ─── Error Boundary for Canvas ─────────────────────────────────────────────
 class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
@@ -709,56 +709,22 @@ export default function App() {
                 />
             )}
             <SceneInspector />
-            {/* Environment HDRI as a tiny env map. ONLY used for reflection
-                sampling on metals — `environmentIntensity` is the indirect
-                contribution and we keep it LOW so it doesn't lift the whole
-                scene's brightness (high quality was washing out before). */}
-            {QUALITY_PROFILES[settings.quality].atmosphere && (
-                <Environment preset="apartment" environmentIntensity={0.12} />
-            )}
         </Suspense>
-        {/* Post-processing stack. Quality-gated: low skips it entirely.
-            Tuned conservatively — luminance threshold is HIGH (0.92) so only
-            actually-bright surfaces bloom (flashlight lens, lamp bulbs, sun).
-            Previous threshold of 0.7 caught too many mid-bright surfaces
-            which made high quality feel washed-out. */}
-        {hasStarted && settings.quality !== 'low' && (
+        {/* Post-processing — kept minimal. The full chain (N8AO + Vignette +
+            ChromaticAberration + Environment IBL) was killing the framerate
+            without enough visual win to justify it on mobile. We keep ONLY
+            Bloom at high quality, with a very high luminance threshold so
+            it only catches truly bright surfaces (flashlight lens, lamp
+            bulbs). Medium/low: no postprocessing pass at all. */}
+        {hasStarted && settings.quality === 'high' && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
-                {/* N8AO — ambient occlusion. Adds the dark crevices in corners
-                    and where objects meet floors that you only notice when
-                    they're MISSING. Single biggest "looks like a real game"
-                    upgrade. High quality only because it's a real pass. */}
-                {settings.quality === 'high' && (
-                    <N8AO
-                        aoRadius={0.6}
-                        intensity={1.6}
-                        distanceFalloff={0.5}
-                        quality="medium"
-                        halfRes
-                    />
-                )}
                 <Bloom
-                    intensity={settings.quality === 'high' ? 0.45 : 0.30}
-                    luminanceThreshold={0.92}
-                    luminanceSmoothing={0.3}
+                    intensity={0.35}
+                    luminanceThreshold={0.95}
+                    luminanceSmoothing={0.2}
                     mipmapBlur
-                    kernelSize={KernelSize.LARGE}
+                    kernelSize={KernelSize.MEDIUM}
                 />
-                {settings.quality === 'high' && (
-                    <Vignette
-                        offset={0.30}
-                        darkness={nightMode ? 0.85 : 0.55}
-                        blendFunction={BlendFunction.NORMAL}
-                    />
-                )}
-                {settings.quality === 'high' && nightMode && (
-                    <ChromaticAberration
-                        blendFunction={BlendFunction.NORMAL}
-                        offset={new Vector2(0.0008, 0.0008)}
-                        radialModulation
-                        modulationOffset={0.5}
-                    />
-                )}
             </EffectComposer>
         )}
       </Canvas>

@@ -229,12 +229,16 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = fa
     let armAngleX = 0, armAngleY = 0;
     let foreArmAngleX = 0;
     if (pickupItem === 'cookie') {
-      // Cookie: smaller shoulder rotation + tight elbow flexion.
-      // X negative = arm raises forward; elbow X positive = forearm folds up
-      // (Mixamo elbow flexion axis). Net effect: hand lands near the face.
-      armAngleX = -Math.PI * 0.30 * progress;
-      armAngleY = -Math.PI * 0.10 * progress;  // bring hand a bit toward midline
-      foreArmAngleX = Math.PI * 0.85 * progress;  // strong elbow fold
+      // Cookie: bring the hand toward the mouth.
+      // Mixamo RightArm bone: +X tilts shoulder backward, so we go negative
+      // for "raise forward". RightForeArm: NEGATIVE X folds the elbow
+      // toward the upper-arm in the SAME direction the shoulder lifts —
+      // result: hand goes to mouth, not behind the head.
+      // armAngleY positive rotates the shoulder inward (toward midline),
+      // which brings the hand across the chest to the face.
+      armAngleX = -Math.PI * 0.35 * progress;   // shoulder up + forward
+      armAngleY =  Math.PI * 0.20 * progress;   // rotate inward to midline
+      foreArmAngleX = -Math.PI * 0.95 * progress; // STRONG elbow fold same dir
     } else {
       // Flashlight (default): straight-forward extension.
       const maxAngle = -Math.PI * 0.44;

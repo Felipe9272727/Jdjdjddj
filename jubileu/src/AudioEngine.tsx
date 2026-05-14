@@ -62,6 +62,23 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
       }
   }, [muted, audioContext, masterVolume]);
 
+  // Pause / resume audio when the tab is hidden. Free CPU when the user
+  // is on another tab — audio scheduler + decoded buffers eat real time
+  // even when the page isn't visible. Web AudioContext supports suspend()
+  // natively; we restore on visibilitychange.
+  useEffect(() => {
+      if (!audioContext) return;
+      const onVis = () => {
+          if (document.hidden) {
+              if (audioContext.state === 'running') audioContext.suspend().catch(() => {});
+          } else {
+              if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+          }
+      };
+      document.addEventListener('visibilitychange', onVis);
+      return () => document.removeEventListener('visibilitychange', onVis);
+  }, [audioContext]);
+
   useEffect(() => {
      if (doorTrigger > 0 && audioContext && masterGainRef.current) {
          playDoorCloseSound(audioContext, masterGainRef.current);

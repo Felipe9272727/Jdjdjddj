@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, createContext, useContext } from 'react';
+import React, { useEffect, useState, useCallback, useRef, createContext, useContext } from 'react';
 
 
 export type Quality = 'low' | 'medium' | 'high';
@@ -258,6 +258,7 @@ const Toggle = ({ on, onChange }: { on: boolean; onChange: (on: boolean) => void
 // Lightweight FPS counter, only mounted when settings.showFps is true.
 export const FpsCounter = () => {
     const [fps, setFps] = useState(0);
+    const lastShownRef = useRef(0);
     useEffect(() => {
         let raf = 0;
         let frames = 0;
@@ -266,7 +267,14 @@ export const FpsCounter = () => {
             frames++;
             const now = performance.now();
             if (now - last >= 500) {
-                setFps(Math.round((frames * 1000) / (now - last)));
+                const v = Math.round((frames * 1000) / (now - last));
+                // Only re-render when the displayed value would actually change.
+                // setFps even with the same value still schedules a re-render in
+                // React — checking here avoids 2 useless renders per second.
+                if (Math.abs(v - lastShownRef.current) >= 1) {
+                    lastShownRef.current = v;
+                    setFps(v);
+                }
                 frames = 0;
                 last = now;
             }

@@ -43,7 +43,9 @@ export const FlashlightLight: React.FC<FlashlightLightProps> = ({
   const coneGeo = useMemo(() => {
     // ConeGeometry has its apex at +Y/2 and base at -Y/2 by default.
     // We want the apex pointing forward (-Z after rotation in JSX).
-    return new THREE.ConeGeometry(1.4, 6, 24, 1, true);
+    // 16 radial segments is plenty for a translucent cone — the user can't
+    // tell the difference from 24 at this opacity.
+    return new THREE.ConeGeometry(1.4, 6, 16, 1, true);
   }, []);
   const coneMat = useMemo(() => new THREE.MeshBasicMaterial({
     color: 0xFFE9A8,

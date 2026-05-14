@@ -277,11 +277,13 @@ export const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOp
         <hemisphereLight intensity={nightMode ? 0.02 : 0.4} color={nightMode ? '#0a0a30' : '#87CEEB'} groundColor={nightMode ? '#000000' : '#4CAF50'} />
         <mesh position={[0, 24, 0]}><boxGeometry args={[60, 60, 60]} /><meshBasicMaterial color={skyColor} side={THREE.BackSide} /></mesh>
         {!nightMode && <>
-            <mesh position={[-20, 30, -20]}><sphereGeometry args={[4, 32, 32]} /><meshBasicMaterial color="#FFD700" /></mesh>
+            {/* Sun: 32×32 sphere was wildly overkill for a billboard 50m away.
+                12×10 still reads as round, costs ~1/8 the triangles. */}
+            <mesh position={[-20, 30, -20]}><sphereGeometry args={[4, 12, 10]} /><meshBasicMaterial color="#FFD700" /></mesh>
             <pointLight position={[-20, 30, -20]} intensity={0.5} distance={80} color="#FFF9C4" />
         </>}
         {nightMode && <>
-            <mesh position={[12, 26, -18]}><sphereGeometry args={[1.8, 16, 16]} /><meshBasicMaterial color="#E8E8D8" /></mesh>
+            <mesh position={[12, 26, -18]}><sphereGeometry args={[1.8, 10, 8]} /><meshBasicMaterial color="#E8E8D8" /></mesh>
             <pointLight position={[12, 26, -18]} intensity={0.3} distance={100} color="#7070a0" />
         </>}
         <directionalLight position={nightMode ? [12, 26, -18] : [-20, 30, -20]} intensity={nightMode ? 0.08 : 1.8} />
