@@ -104,10 +104,55 @@ function makeRockNormal(size: number, seed: number): THREE.Texture | null {
     tex.colorSpace = THREE.NoColorSpace; // normal maps are linear, NOT sRGB
     return tex;
 }
+// ─── Procedural ALBEDO textures (colored, with grain + dark patches) ──
+// Normal maps alone made the walls look like PS2-era grey boxes. Albedo
+// textures add per-pixel color variation: base stone tone + occasional
+// darker streaks + bright specks. Combined with the normal map (lighting
+// bumps) you get real "rocky stone surface".
+function makeRockAlbedo(size: number, base: [number, number, number], seed: number): THREE.Texture | null {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const img = ctx.createImageData(size, size);
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const u = x / size, v = y / size;
+            // Layered noise — broad streaks + tight specks + dark veins
+            const streak = Math.sin(u * 4 + v * 2 + seed) * 0.5 + Math.sin(u * 9 + seed * 1.3) * 0.3;
+            const speck  = Math.sin(u * 60 + v * 47 + seed * 2.1) * 0.5
+                         + Math.sin(u * 120 + seed * 0.7) * 0.3;
+            const vein   = Math.sin((u + v) * 7 + seed * 3.0) * 0.4;
+            // Bias darker overall, with bright specks: streak controls
+            // mid-frequency tone, speck controls fine grain, vein adds
+            // occasional darker streaks for cracks-in-rock look.
+            const tone = 0.62 + streak * 0.20 + speck * 0.12 + vein * 0.10;
+            const i = (y * size + x) * 4;
+            img.data[i]     = Math.max(0, Math.min(255, base[0] * tone));
+            img.data[i + 1] = Math.max(0, Math.min(255, base[1] * tone));
+            img.data[i + 2] = Math.max(0, Math.min(255, base[2] * tone));
+            img.data[i + 3] = 255;
+        }
+    }
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace; // albedo IS color, sRGB encoded
+    return tex;
+}
 const WALL_NORMAL  = makeRockNormal(256, 0);
 const FLOOR_NORMAL = makeRockNormal(256, 7.3);
+const UW_NORMAL    = makeRockNormal(256, 13.1);
 if (WALL_NORMAL)  WALL_NORMAL.repeat.set(3, 1);
 if (FLOOR_NORMAL) FLOOR_NORMAL.repeat.set(6, 6);
+if (UW_NORMAL)    UW_NORMAL.repeat.set(8, 8);
+const WALL_ALBEDO  = makeRockAlbedo(256, [104, 80, 56], 0);    // warm cave brown
+const FLOOR_ALBEDO = makeRockAlbedo(256, [76, 60, 44], 7.3);   // darker floor stone
+const UW_ALBEDO    = makeRockAlbedo(256, [40, 56, 70], 13.1);  // underwater blue-gray
+if (WALL_ALBEDO)  WALL_ALBEDO.repeat.set(3, 1);
+if (FLOOR_ALBEDO) FLOOR_ALBEDO.repeat.set(6, 6);
+if (UW_ALBEDO)    UW_ALBEDO.repeat.set(8, 8);
 
 // ─── Cave boulders — multiple cohorts for color variation ─────────────
 type Boulder = readonly [number, number, number, number, number]; // x,y,z,s,ry
@@ -435,11 +480,13 @@ const WaterMaterial = shaderMaterial(
         // Foam on extreme peaks.
         float foam = smoothstep(0.06, 0.10, vWave);
         col = mix(col, vec3(0.95, 0.98, 1.0), foam * 0.5);
-        // Final alpha: blend between low (top-down view) and high (grazing).
-        // Looking straight down at the pool: alpha ~0.45 (you SEE through).
-        // Looking at the pool from across the cave: alpha ~0.95 (solid sheet).
-        float alpha = mix(0.45, 0.96, fresnel);
-        gl_FragColor = vec4(col, alpha * opacity / 0.85);
+        // Final alpha: ALWAYS visible. Floor 2 user feedback: water was
+        // "appearing and disappearing" — that was alpha sliding from 0.45
+        // up to 0.96 depending on view angle, reading as flicker.
+        // Pinned to 0.85-0.96 range: subtle fresnel boost but never
+        // transparent enough to lose the pool.
+        float alpha = mix(0.85, 0.96, fresnel);
+        gl_FragColor = vec4(col, alpha);
       }
     `
 );
@@ -564,6 +611,150 @@ const GodRay: React.FC = () => {
         </mesh>
     );
 };
+
+// ─── Underwater caustics — animated rippling light on the seafloor ───
+// A flat plane just above the seafloor with a shader that draws
+// "voronoi-ish" caustic bands. Additive, transparent. Mimics the light
+// pattern that refracts through wave-water in real underwater scenes.
+const CausticsMaterial = shaderMaterial(
+    { time: 0 },
+    /* glsl */ `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    /* glsl */ `
+      uniform float time;
+      varying vec2 vUv;
+      void main() {
+        // Tile UVs so the pattern repeats across the big seafloor plane.
+        vec2 uv = vUv * 6.0;
+        // Two moving sine grids with different angles + speeds = rippling
+        // intersection pattern that reads as light caustics.
+        float a = sin(uv.x * 6.28 + time * 0.6) + sin((uv.x + uv.y) * 5.0 + time * 0.9);
+        float b = sin(uv.y * 6.28 + time * 0.5 + 1.2) + sin((uv.y - uv.x) * 4.5 + time * 0.7);
+        float c = pow(max(0.0, sin(a) * sin(b)), 3.0);
+        // Slightly chromatically split for "RGB caustics" feel.
+        vec3 col = vec3(c * 0.85, c * 0.95, c * 1.0);
+        gl_FragColor = vec4(col, c * 0.55);
+      }
+    `
+);
+const UnderwaterCaustics: React.FC = () => {
+    const mat = useMemo(() => {
+        const m = new (CausticsMaterial as any)();
+        m.transparent = true;
+        m.depthWrite = false;
+        m.blending = THREE.AdditiveBlending;
+        m.toneMapped = false;
+        return m;
+    }, []);
+    useFrame((state) => { (mat as any).time = state.clock.elapsedTime; });
+    return (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -29.95, 0]}>
+            <planeGeometry args={[80, 80]} />
+            <primitive object={mat} attach="material" />
+        </mesh>
+    );
+};
+
+// ─── Underwater flora — kelp + coral ──────────────────────────────────
+// Animated kelp (tall green strands swaying with sin time) and a few
+// coral pieces (red/orange clusters). Built procedurally; reasonable
+// poly count.
+const KELP_GEO = new THREE.CylinderGeometry(0.06, 0.10, 1, 5, 4);
+type KelpData = readonly [number, number, number, number]; // x, z, height, phase
+const KELP_POSITIONS: readonly KelpData[] = [
+    [ 5.5, -8.0, 4.5, 0.3],
+    [ 4.0, -9.5, 3.8, 1.1],
+    [ 7.0, -7.0, 5.0, 2.0],
+    [-3.5,  3.0, 4.0, 0.7],
+    [-5.0,  4.5, 3.2, 1.4],
+    [-6.5,  3.0, 4.8, 2.3],
+    [10.0,  4.0, 4.5, 0.9],
+    [11.5,  6.0, 3.5, 1.7],
+    [-8.0, -8.0, 3.5, 0.5],
+    [-9.5, -7.0, 4.2, 1.9],
+    [12.0, -10.0, 4.0, 1.2],
+    [-15.0,  5.0, 3.8, 0.4],
+    [ 14.0,  8.0, 4.5, 2.1],
+    [ -6.0,  16.0, 3.3, 1.6],
+    [  8.0,  15.0, 4.8, 0.8],
+];
+type CoralData = readonly [number, number, string, number]; // x, z, color, scale
+const CORAL_POSITIONS: readonly CoralData[] = [
+    [ 3.0, -5.0, '#ff6b3d', 1.0],
+    [-4.0,  6.0, '#ff9750', 0.8],
+    [ 9.0, -2.0, '#ff5555', 1.2],
+    [-12.0, -5.0, '#ffa030', 0.9],
+    [13.0,  3.0, '#ff7050', 1.0],
+    [-8.0, 12.0, '#ff8060', 0.7],
+];
+
+const Kelp: React.FC<{ x: number; z: number; height: number; phase: number }> = ({ x, z, height, phase }) => {
+    const groupRef = useRef<THREE.Group>(null);
+    const segments = 5;
+    const refs = useRef<(THREE.Mesh | null)[]>(new Array(segments).fill(null));
+    useFrame((state) => {
+        const t = state.clock.elapsedTime;
+        for (let i = 0; i < segments; i++) {
+            const m = refs.current[i];
+            if (!m) continue;
+            // Each segment sways more the higher it is (i / segments).
+            const swayAmt = (i / segments) * 0.25;
+            m.rotation.z = Math.sin(t * 0.6 + phase + i * 0.4) * swayAmt;
+            m.rotation.x = Math.cos(t * 0.5 + phase + i * 0.3) * swayAmt * 0.6;
+        }
+    });
+    const segLen = height / segments;
+    return (
+        <group ref={groupRef} position={[x, -30, z]}>
+            {Array.from({ length: segments }, (_, i) => (
+                <mesh
+                    key={i}
+                    ref={(r: any) => { refs.current[i] = r; }}
+                    position={[0, segLen * 0.5 + i * segLen * 0.95, 0]}
+                    geometry={KELP_GEO}
+                    scale={[1 - i * 0.1, segLen, 1 - i * 0.1]}
+                >
+                    <meshStandardMaterial color={i < 2 ? '#0e3a1e' : '#2a6a3c'} roughness={0.85} flatShading />
+                </mesh>
+            ))}
+        </group>
+    );
+};
+const Coral: React.FC<{ x: number; z: number; color: string; scale: number }> = ({ x, z, color, scale }) => (
+    <group position={[x, -30, z]} scale={scale}>
+        <mesh position={[0, 0.5, 0]}>
+            <sphereGeometry args={[0.6, 8, 6]} />
+            <meshStandardMaterial color={color} roughness={0.4} metalness={0.05} flatShading />
+        </mesh>
+        <mesh position={[0.3, 0.9, 0.2]}>
+            <sphereGeometry args={[0.4, 8, 6]} />
+            <meshStandardMaterial color={color} roughness={0.4} metalness={0.05} flatShading />
+        </mesh>
+        <mesh position={[-0.35, 1.0, -0.15]}>
+            <sphereGeometry args={[0.35, 8, 6]} />
+            <meshStandardMaterial color={color} roughness={0.4} metalness={0.05} flatShading />
+        </mesh>
+        <mesh position={[0.1, 1.3, 0.3]}>
+            <sphereGeometry args={[0.28, 8, 6]} />
+            <meshStandardMaterial color={color} roughness={0.4} metalness={0.05} flatShading />
+        </mesh>
+    </group>
+);
+const UnderwaterFlora: React.FC = () => (
+    <>
+        {KELP_POSITIONS.map(([x, z, h, p], i) => (
+            <Kelp key={`kelp-${i}`} x={x} z={z} height={h} phase={p} />
+        ))}
+        {CORAL_POSITIONS.map(([x, z, color, s], i) => (
+            <Coral key={`coral-${i}`} x={x} z={z} color={color} scale={s} />
+        ))}
+    </>
+);
 
 // ─── Drifting bubbles (underwater) ─────────────────────────────────────
 const BUBBLE_COUNT = 20;
@@ -732,10 +923,10 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             position={[0, 0, 0]}
         >
             <meshStandardMaterial
-                color="#4a3e2e"
-                roughness={0.95}
+                map={FLOOR_ALBEDO ?? undefined}
                 normalMap={FLOOR_NORMAL ?? undefined}
-                normalScale={new THREE.Vector2(1.5, 1.5)}
+                normalScale={new THREE.Vector2(2.0, 2.0)}
+                roughness={0.92}
             />
         </mesh>
 
@@ -753,21 +944,21 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             Three color variants (a/b/c) are still distinct meshes but
             share the same normal map → bumpy stone lighting everywhere. */}
         {/* North (z = -30) */}
-        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 1.0]} /><meshStandardMaterial color="#3a2f24" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
-        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 1.2]} /><meshStandardMaterial color="#43372a" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
-        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 0.6]} /><meshStandardMaterial color="#352b21" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 1.0]} /><meshStandardMaterial color="#3a2f24" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
+        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 1.2]} /><meshStandardMaterial color="#43372a" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
+        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 0.6]} /><meshStandardMaterial color="#352b21" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
         {/* South (z = 30) */}
-        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 1.0]} /><meshStandardMaterial color="#3c3025" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
-        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 1.2]} /><meshStandardMaterial color="#45382b" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
-        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 0.6]} /><meshStandardMaterial color="#352b21" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 1.0]} /><meshStandardMaterial color="#3c3025" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
+        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 1.2]} /><meshStandardMaterial color="#45382b" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
+        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 0.6]} /><meshStandardMaterial color="#352b21" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
         {/* West (x = -30) */}
-        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[1.0, 5.2, 28]} /><meshStandardMaterial color="#3a2f24" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
-        <mesh position={[-29.4, 3.4, -12]}><boxGeometry args={[1.2, 6.8, 18]} /><meshStandardMaterial color="#43372a" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
-        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[0.6, 3.6, 60]} /><meshStandardMaterial color="#352b21" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[1.0, 5.2, 28]} /><meshStandardMaterial color="#3a2f24" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
+        <mesh position={[-29.4, 3.4, -12]}><boxGeometry args={[1.2, 6.8, 18]} /><meshStandardMaterial color="#43372a" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
+        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[0.6, 3.6, 60]} /><meshStandardMaterial color="#352b21" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
         {/* East (x = 30) */}
-        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[1.0, 5, 22]} /><meshStandardMaterial color="#3c3025" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
-        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[1.2, 7.2, 20]} /><meshStandardMaterial color="#45382b" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
-        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[0.6, 4, 60]} /><meshStandardMaterial color="#352b21" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[1.0, 5, 22]} /><meshStandardMaterial color="#3c3025" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
+        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[1.2, 7.2, 20]} /><meshStandardMaterial color="#45382b" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
+        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[0.6, 4, 60]} /><meshStandardMaterial color="#352b21" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
 
         {/* Cave boulders — 3 cohorts in different tones */}
         <Instances limit={CAVE_ROCKS_DARK.length} range={CAVE_ROCKS_DARK.length} geometry={BOULDER_GEO}>
@@ -830,17 +1021,34 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <DustMotes />
 
         {/* God-ray beam descending through the hole */}
-        <GodRay />
+        {/* God ray removed — Felipe flagged it as "luz esquisita no
+            meio do lago". The cone was reading as a UFO beam, not a
+            shaft of sunlight. Reverting until we have a real volumetric
+            implementation. */}
 
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
         <WaterSurface reflective={reflective} />
 
         {/* ─── UNDERWATER (Y < 0) ────────────────────────────────────── */}
-        {/* Underwater rocky ground — large dark blue plane far below */}
+        {/* Underwater rocky ground — textured blue-gray seafloor with
+            normal-mapped bumpiness so it doesn't read as a flat plane. */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -30, 0]}>
-            <planeGeometry args={[80, 80]} />
-            <meshStandardMaterial color="#0c1820" roughness={1} />
+            <planeGeometry args={[80, 80, 32, 32]} />
+            <meshStandardMaterial
+                map={UW_ALBEDO ?? undefined}
+                normalMap={UW_NORMAL ?? undefined}
+                normalScale={new THREE.Vector2(2.5, 2.5)}
+                roughness={0.95}
+            />
         </mesh>
+
+        {/* RGB caustics on the seafloor — animated additive plane that
+            casts the rippling light pattern from the surface above onto
+            the ground. Pure shader, no texture. */}
+        <UnderwaterCaustics />
+
+        {/* Underwater flora — kelp & coral for ecosystem feel */}
+        <UnderwaterFlora />
 
         {/* Underwater boulders */}
         <Instances limit={UW_BOULDERS.length} range={UW_BOULDERS.length} geometry={BOULDER_GEO}>
