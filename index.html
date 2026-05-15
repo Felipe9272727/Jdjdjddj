@@ -910,6 +910,10 @@
     display: flex;
   }
 
+  .grid {
+    display: grid;
+  }
+
   .hidden {
     display: none;
   }
@@ -104429,7 +104433,25 @@ const CAVE_FLOOR_GEO = (() => {
   const geo = new ShapeGeometry(shape);
   return geo;
 })();
-const BOULDER_GEO = new IcosahedronGeometry(1, 1);
+function makeRockGeo(seed3, detail = 2, displaceAmount = 0.22) {
+  const geo = new IcosahedronGeometry(1, detail);
+  const positions = geo.attributes.position;
+  const v5 = new Vector3();
+  for (let i2 = 0; i2 < positions.count; i2++) {
+    v5.fromBufferAttribute(positions, i2);
+    const n = Math.sin(v5.x * 2.7 + seed3) * 0.5 + Math.sin(v5.y * 3.1 + seed3 * 1.4) * 0.3 + Math.sin(v5.z * 2.9 + seed3 * 2.1) * 0.3 + Math.cos((v5.x + v5.z) * 5.1 + seed3) * 0.15 + Math.sin(v5.x * 11 + v5.y * 9 + seed3 * 3) * 0.08;
+    const scale2 = 1 + n * displaceAmount;
+    positions.setXYZ(i2, v5.x * scale2, v5.y * scale2, v5.z * scale2);
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+makeRockGeo(0);
+const ROCK_GEO_B = makeRockGeo(5.3);
+makeRockGeo(11.7);
+makeRockGeo(17.1);
+const BOULDER_GEO = ROCK_GEO_B;
 const PEBBLE_GEO = new IcosahedronGeometry(1, 0);
 const BUBBLE_GEO = new SphereGeometry(1, 6, 5);
 const SHARD_GEO = new OctahedronGeometry(0.5, 0);
@@ -104488,15 +104510,15 @@ function makeRockAlbedo(size, base, seed3) {
 const WALL_NORMAL = makeRockNormal(256, 0);
 const FLOOR_NORMAL = makeRockNormal(256, 7.3);
 const UW_NORMAL = makeRockNormal(256, 13.1);
-if (WALL_NORMAL) WALL_NORMAL.repeat.set(3, 1);
-if (FLOOR_NORMAL) FLOOR_NORMAL.repeat.set(6, 6);
-if (UW_NORMAL) UW_NORMAL.repeat.set(8, 8);
+if (WALL_NORMAL) WALL_NORMAL.repeat.set(5, 2);
+if (FLOOR_NORMAL) FLOOR_NORMAL.repeat.set(12, 12);
+if (UW_NORMAL) UW_NORMAL.repeat.set(14, 14);
 const WALL_ALBEDO = makeRockAlbedo(256, [104, 80, 56], 0);
 const FLOOR_ALBEDO = makeRockAlbedo(256, [76, 60, 44], 7.3);
 const UW_ALBEDO = makeRockAlbedo(256, [40, 56, 70], 13.1);
-if (WALL_ALBEDO) WALL_ALBEDO.repeat.set(3, 1);
-if (FLOOR_ALBEDO) FLOOR_ALBEDO.repeat.set(6, 6);
-if (UW_ALBEDO) UW_ALBEDO.repeat.set(8, 8);
+if (WALL_ALBEDO) WALL_ALBEDO.repeat.set(6, 2);
+if (FLOOR_ALBEDO) FLOOR_ALBEDO.repeat.set(11, 11);
+if (UW_ALBEDO) UW_ALBEDO.repeat.set(13, 13);
 const CAVE_ROCKS_DARK = [
   [-22, 0, 20, 2.4, 0.3],
   [24, 0, 18, 2.1, 1.2],
@@ -104952,6 +104974,84 @@ const Coral = ({ x: x2, z, color: color2, scale: scale2 }) => /* @__PURE__ */ js
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, roughness: 0.4, metalness: 0.05, flatShading: true })
   ] })
 ] });
+const GodRayShafts = () => {
+  const groupRef = reactExports.useRef(null);
+  useFrame((state2) => {
+    if (groupRef.current) groupRef.current.rotation.y = state2.clock.elapsedTime * 0.04;
+  });
+  const SHAFT_COUNT = 8;
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position: [HOLE_CENTER_X, -15, HOLE_CENTER_Z], children: Array.from({ length: SHAFT_COUNT }, (_, i2) => {
+    const a2 = i2 / SHAFT_COUNT * Math.PI * 2;
+    const r2 = 0.5 + i2 % 2 * 1;
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "mesh",
+      {
+        position: [Math.cos(a2) * r2, 0, Math.sin(a2) * r2],
+        rotation: [0, a2, 0],
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [1.6 + i2 % 3 * 0.4, 28] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "meshBasicMaterial",
+            {
+              color: "#a8d8f0",
+              transparent: true,
+              opacity: 0.07 + i2 % 3 * 0.015,
+              side: DoubleSide,
+              depthWrite: false,
+              blending: AdditiveBlending,
+              toneMapped: false
+            }
+          )
+        ]
+      },
+      i2
+    );
+  }) });
+};
+const FISH_GEO = new ConeGeometry(0.18, 0.55, 4);
+const FISH_COUNT = 14;
+const FishSchool = () => {
+  const refs = reactExports.useRef(new Array(FISH_COUNT).fill(null));
+  useFrame((state2) => {
+    const t2 = state2.clock.elapsedTime;
+    for (let i2 = 0; i2 < FISH_COUNT; i2++) {
+      const f = refs.current[i2];
+      if (!f) continue;
+      const offset = i2 / FISH_COUNT;
+      const radius = 4 + Math.sin(offset * 13.7) * 4.5;
+      const speed = 0.18 + offset * 0.12;
+      const angle = t2 * speed + offset * Math.PI * 4;
+      const y = -18 + Math.sin(t2 * 0.7 + offset * 8) * 5 + (offset - 0.5) * 6;
+      const x2 = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      f.position.set(x2, y, z);
+      f.rotation.y = -angle + Math.PI / 2;
+      f.rotation.z = Math.PI / 2;
+      f.rotation.x = Math.sin(t2 * 6 + offset * 20) * 0.15;
+    }
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { children: Array.from({ length: FISH_COUNT }, (_, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "mesh",
+    {
+      ref: (r2) => {
+        refs.current[i2] = r2;
+      },
+      geometry: FISH_GEO,
+      scale: 0.6 + i2 % 3 * 0.25,
+      children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "meshStandardMaterial",
+        {
+          color: i2 % 3 === 0 ? "#a0c8d8" : i2 % 3 === 1 ? "#7090a0" : "#88a8c0",
+          emissive: i2 % 3 === 0 ? "#284050" : "#1c2830",
+          emissiveIntensity: 0.4,
+          roughness: 0.6,
+          flatShading: true
+        }
+      )
+    },
+    i2
+  )) });
+};
 const UnderwaterFlora = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
   KELP_POSITIONS.map(([x2, z, h2, p2], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Kelp, { x: x2, z, height: h2, phase: p2 }, `kelp-${i2}`)),
   CORAL_POSITIONS.map(([x2, z, color2, s], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Coral, { x: x2, z, color: color2, scale: s }, `coral-${i2}`))
@@ -105174,6 +105274,8 @@ const Floor2Environment = ({
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(UnderwaterCaustics, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsx(UnderwaterFlora, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(GodRayShafts, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(FishSchool, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: UW_BOULDERS.length, range: UW_BOULDERS.length, geometry: BOULDER_GEO, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a2530", roughness: 0.95, flatShading: true }),
     UW_BOULDERS.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.7, s], rotation: [0, ry, 0] }, i2))

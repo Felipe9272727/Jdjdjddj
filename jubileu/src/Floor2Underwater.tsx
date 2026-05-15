@@ -63,7 +63,43 @@ const CAVE_FLOOR_GEO = (() => {
 })();
 
 // ─── Geometries shared across the scene ────────────────────────────────
-const BOULDER_GEO = new THREE.IcosahedronGeometry(1, 1);
+// ─── Procedural displaced rock geometries ─────────────────────────────
+// Felipe: "as texturas ainda estão de PS1 / boulders origami-like".
+// Was using a single IcosahedronGeometry(1, 1) for all boulders — every
+// rock had the same 20-tri shape, just scaled. Looked uniform.
+// Now: build 4 distinct rock geometries by displacing the vertices of
+// an Icosahedron(detail=2) with layered noise. Each rock gets natural
+// irregular bumpiness. ~80 tris each → still cheap, but they read as
+// real rocks, not gem-stones.
+function makeRockGeo(seed: number, detail: number = 2, displaceAmount: number = 0.22): THREE.BufferGeometry {
+    const geo = new THREE.IcosahedronGeometry(1, detail);
+    const positions = geo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < positions.count; i++) {
+        v.fromBufferAttribute(positions, i);
+        // Multi-octave sine noise on the unit vector
+        const n = Math.sin(v.x * 2.7 + seed) * 0.5
+                + Math.sin(v.y * 3.1 + seed * 1.4) * 0.3
+                + Math.sin(v.z * 2.9 + seed * 2.1) * 0.3
+                + Math.cos((v.x + v.z) * 5.1 + seed) * 0.15
+                + Math.sin(v.x * 11 + v.y * 9 + seed * 3) * 0.08;
+        const scale = 1 + n * displaceAmount;
+        positions.setXYZ(i, v.x * scale, v.y * scale, v.z * scale);
+    }
+    positions.needsUpdate = true;
+    geo.computeVertexNormals();
+    return geo;
+}
+const ROCK_GEO_A = makeRockGeo(0);
+const ROCK_GEO_B = makeRockGeo(5.3);
+const ROCK_GEO_C = makeRockGeo(11.7);
+const ROCK_GEO_D = makeRockGeo(17.1);
+const ROCK_VARIANTS = [ROCK_GEO_A, ROCK_GEO_B, ROCK_GEO_C, ROCK_GEO_D];
+// Re-exported under the old name so existing Instances pipelines keep
+// working — each Instances group needs ONE shared geometry, so we point
+// it at the most natural-looking variant.
+const BOULDER_GEO = ROCK_GEO_B;
+
 const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);
 const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5);
 const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
@@ -144,15 +180,22 @@ function makeRockAlbedo(size: number, base: [number, number, number], seed: numb
 const WALL_NORMAL  = makeRockNormal(256, 0);
 const FLOOR_NORMAL = makeRockNormal(256, 7.3);
 const UW_NORMAL    = makeRockNormal(256, 13.1);
-if (WALL_NORMAL)  WALL_NORMAL.repeat.set(3, 1);
-if (FLOOR_NORMAL) FLOOR_NORMAL.repeat.set(6, 6);
-if (UW_NORMAL)    UW_NORMAL.repeat.set(8, 8);
+// Higher tile counts → smaller pattern repeats → less obvious "wall-of-
+// brick" tiling. Felipe's screenshot showed the previous 3x1/6x6/8x8
+// scheme repeating very visibly on the cave floor.
+if (WALL_NORMAL)  WALL_NORMAL.repeat.set(5, 2);
+if (FLOOR_NORMAL) FLOOR_NORMAL.repeat.set(12, 12);
+if (UW_NORMAL)    UW_NORMAL.repeat.set(14, 14);
 const WALL_ALBEDO  = makeRockAlbedo(256, [104, 80, 56], 0);    // warm cave brown
 const FLOOR_ALBEDO = makeRockAlbedo(256, [76, 60, 44], 7.3);   // darker floor stone
 const UW_ALBEDO    = makeRockAlbedo(256, [40, 56, 70], 13.1);  // underwater blue-gray
-if (WALL_ALBEDO)  WALL_ALBEDO.repeat.set(3, 1);
-if (FLOOR_ALBEDO) FLOOR_ALBEDO.repeat.set(6, 6);
-if (UW_ALBEDO)    UW_ALBEDO.repeat.set(8, 8);
+// Albedo repeats are SLIGHTLY OFFSET from normal-map repeats. Different
+// frequency on each layer breaks the visible grid — even though both
+// patterns repeat, they don't align, so there's no obvious "tile here"
+// line. Trick from the Three.js Journey procedural-terrain lesson.
+if (WALL_ALBEDO)  WALL_ALBEDO.repeat.set(6, 2);
+if (FLOOR_ALBEDO) FLOOR_ALBEDO.repeat.set(11, 11);
+if (UW_ALBEDO)    UW_ALBEDO.repeat.set(13, 13);
 
 // ─── Cave boulders — multiple cohorts for color variation ─────────────
 type Boulder = readonly [number, number, number, number, number]; // x,y,z,s,ry
@@ -745,6 +788,95 @@ const Coral: React.FC<{ x: number; z: number; color: string; scale: number }> = 
         </mesh>
     </group>
 );
+// ─── Subnautica-style god ray shafts (underwater volumetric) ──────────
+// Stack of 8 thin vertical planes arranged radially around the hole
+// projection. Each plane is additive-blended translucent — overlapped
+// from any angle they produce the "shafts of sunlight from the surface"
+// look. Slow rotation = sun moving slowly through the water.
+const GodRayShafts: React.FC = () => {
+    const groupRef = useRef<THREE.Group>(null);
+    useFrame((state) => {
+        if (groupRef.current) groupRef.current.rotation.y = state.clock.elapsedTime * 0.04;
+    });
+    const SHAFT_COUNT = 8;
+    return (
+        <group ref={groupRef} position={[HOLE_CENTER_X, -15, HOLE_CENTER_Z]}>
+            {Array.from({ length: SHAFT_COUNT }, (_, i) => {
+                const a = (i / SHAFT_COUNT) * Math.PI * 2;
+                const r = 0.5 + (i % 2) * 1.0;
+                return (
+                    <mesh
+                        key={i}
+                        position={[Math.cos(a) * r, 0, Math.sin(a) * r]}
+                        rotation={[0, a, 0]}
+                    >
+                        <planeGeometry args={[1.6 + (i % 3) * 0.4, 28]} />
+                        <meshBasicMaterial
+                            color="#a8d8f0"
+                            transparent
+                            opacity={0.07 + (i % 3) * 0.015}
+                            side={THREE.DoubleSide}
+                            depthWrite={false}
+                            blending={THREE.AdditiveBlending}
+                            toneMapped={false}
+                        />
+                    </mesh>
+                );
+            })}
+        </group>
+    );
+};
+
+// ─── Fish school — small fish swimming in circular paths ──────────────
+// 14 fish using cone geometry. Each fish has a unique radius, speed,
+// height oscillation, and phase offset → school motion without real
+// boids. Sells "alive ecosystem" instantly.
+const FISH_GEO = new THREE.ConeGeometry(0.18, 0.55, 4);
+const FISH_COUNT = 14;
+const FishSchool: React.FC = () => {
+    const refs = useRef<(THREE.Mesh | null)[]>(new Array(FISH_COUNT).fill(null));
+    useFrame((state) => {
+        const t = state.clock.elapsedTime;
+        for (let i = 0; i < FISH_COUNT; i++) {
+            const f = refs.current[i];
+            if (!f) continue;
+            const offset = i / FISH_COUNT;
+            const radius = 4 + Math.sin(offset * 13.7) * 4.5;
+            const speed = 0.18 + offset * 0.12;
+            const angle = t * speed + offset * Math.PI * 4;
+            const y = -18 + Math.sin(t * 0.7 + offset * 8) * 5 + (offset - 0.5) * 6;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            f.position.set(x, y, z);
+            // Face the direction of motion (tangent to circle).
+            f.rotation.y = -angle + Math.PI / 2;
+            f.rotation.z = Math.PI / 2; // lay cone horizontally so the point is the head
+            // Wiggle
+            f.rotation.x = Math.sin(t * 6 + offset * 20) * 0.15;
+        }
+    });
+    return (
+        <group>
+            {Array.from({ length: FISH_COUNT }, (_, i) => (
+                <mesh
+                    key={i}
+                    ref={(r: any) => { refs.current[i] = r; }}
+                    geometry={FISH_GEO}
+                    scale={0.6 + (i % 3) * 0.25}
+                >
+                    <meshStandardMaterial
+                        color={i % 3 === 0 ? '#a0c8d8' : i % 3 === 1 ? '#7090a0' : '#88a8c0'}
+                        emissive={i % 3 === 0 ? '#284050' : '#1c2830'}
+                        emissiveIntensity={0.4}
+                        roughness={0.6}
+                        flatShading
+                    />
+                </mesh>
+            ))}
+        </group>
+    );
+};
+
 const UnderwaterFlora: React.FC = () => (
     <>
         {KELP_POSITIONS.map(([x, z, h, p], i) => (
@@ -1049,6 +1181,12 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
         {/* Underwater flora — kelp & coral for ecosystem feel */}
         <UnderwaterFlora />
+
+        {/* Subnautica-style god ray shafts descending from the surface */}
+        <GodRayShafts />
+
+        {/* Small fish school looping around the boulder field */}
+        <FishSchool />
 
         {/* Underwater boulders */}
         <Instances limit={UW_BOULDERS.length} range={UW_BOULDERS.length} geometry={BOULDER_GEO}>
