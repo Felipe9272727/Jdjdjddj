@@ -68,6 +68,47 @@ const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);
 const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5);
 const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
 
+// ─── Procedural normal-map textures ───────────────────────────────────
+// Generated ONCE at module load via canvas. No network assets, no
+// external textures. Layered sine noise produces convincing rocky
+// bumpiness. Output is a real normal map (RGB packs the XY components
+// of surface normals, B=up), so meshStandardMaterial.normalMap reads it
+// correctly and applies the bumpiness during lighting.
+function makeRockNormal(size: number, seed: number): THREE.Texture | null {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const img = ctx.createImageData(size, size);
+    // 3 octaves of summed sines = pseudo-fBM noise. Cheap, deterministic.
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const u = x / size, v = y / size;
+            const nx = Math.sin(u * 18 + v * 11 + seed) * 0.40
+                     + Math.sin(u * 36 + seed * 1.3) * 0.25
+                     + Math.sin((u + v) * 60 + seed * 2.1) * 0.10;
+            const ny = Math.cos(v * 16 + u * 9 + seed) * 0.40
+                     + Math.sin(v * 28 + seed * 1.7) * 0.25
+                     + Math.cos((u - v) * 54 + seed * 2.3) * 0.10;
+            const i = (y * size + x) * 4;
+            img.data[i]     = Math.max(0, Math.min(255, 128 + nx * 90));
+            img.data[i + 1] = Math.max(0, Math.min(255, 128 + ny * 90));
+            img.data[i + 2] = 245;          // B mostly up — flatter normals
+            img.data[i + 3] = 255;
+        }
+    }
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.NoColorSpace; // normal maps are linear, NOT sRGB
+    return tex;
+}
+const WALL_NORMAL  = makeRockNormal(256, 0);
+const FLOOR_NORMAL = makeRockNormal(256, 7.3);
+if (WALL_NORMAL)  WALL_NORMAL.repeat.set(3, 1);
+if (FLOOR_NORMAL) FLOOR_NORMAL.repeat.set(6, 6);
+
 // ─── Cave boulders — multiple cohorts for color variation ─────────────
 type Boulder = readonly [number, number, number, number, number]; // x,y,z,s,ry
 
@@ -327,31 +368,41 @@ const UW_PEBBLES: readonly Boulder[] = [
 ] as const;
 
 // ─── Water shader ──────────────────────────────────────────────────────
-// Bigger amplitude, multi-octave waves, fresnel-edge highlights, foam at
-// extreme wave peaks. Animated via uniform `time` from useFrame.
+// Wave shader with FRESNEL — viewing angle controls opacity. Looking
+// straight down: see through to underwater. Looking flat/grazing: the
+// surface reads as opaque sheet, exactly like real water.
+//
+// Plus: passes view direction to the fragment to compute the fresnel
+// term properly. The previous version had no fresnel → the surface
+// looked the same from above and below.
 const WaterMaterial = shaderMaterial(
-    { time: 0, opacity: 0.78 },
+    { time: 0, opacity: 0.85 },
     /* glsl */ `
       uniform float time;
       varying vec2 vUv;
       varying float vWave;
-      varying vec3 vNormalLocal;
+      varying vec3 vViewWS;       // view direction in world space
+      varying vec3 vNormalWS;     // displaced normal in world space
       void main() {
         vUv = uv;
-        // Three octaves of sine for layered chop (low frequency big motion +
-        // higher-frequency ripples). Total amplitude ~0.12m.
+        // 3 octaves of sine for layered chop. Total amplitude ~0.12m.
         float w1 = sin(position.x * 0.55 + time * 1.0) * 0.06;
         float w2 = sin(position.y * 0.40 + time * 0.85 + 1.7) * 0.045;
         float w3 = sin((position.x + position.y) * 1.1 + time * 1.8) * 0.025;
         vWave = w1 + w2 + w3;
-        // Cheap analytical normal via partial derivatives of the sum.
+        // Analytical normal via partial derivatives.
         float dx = cos(position.x * 0.55 + time * 1.0) * 0.06 * 0.55 +
                    cos((position.x + position.y) * 1.1 + time * 1.8) * 0.025 * 1.1;
         float dy = cos(position.y * 0.40 + time * 0.85 + 1.7) * 0.045 * 0.40 +
                    cos((position.x + position.y) * 1.1 + time * 1.8) * 0.025 * 1.1;
-        vNormalLocal = normalize(vec3(-dx, -dy, 1.0));
-        vec3 pos = position + vec3(0.0, 0.0, vWave);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+        // The plane is rotated -π/2 around X before placement, so local
+        // (-dx, -dy, 1) → world Y axis maps to the normal. We approximate
+        // the world-space normal by passing through the modelMatrix.
+        vec3 localNormal = normalize(vec3(-dx, -dy, 1.0));
+        vNormalWS = normalize(mat3(modelMatrix) * localNormal);
+        vec4 wp = modelMatrix * vec4(position + vec3(0.0, 0.0, vWave), 1.0);
+        vViewWS = normalize(cameraPosition - wp.xyz);
+        gl_Position = projectionMatrix * viewMatrix * wp;
       }
     `,
     /* glsl */ `
@@ -359,24 +410,36 @@ const WaterMaterial = shaderMaterial(
       uniform float opacity;
       varying vec2 vUv;
       varying float vWave;
-      varying vec3 vNormalLocal;
+      varying vec3 vViewWS;
+      varying vec3 vNormalWS;
       void main() {
-        // Two-tone water: deep base, sky reflection on the tops.
-        vec3 deep   = vec3(0.04, 0.18, 0.28);
+        // Fresnel: dot of view & normal. Looking down (high dot) →
+        // transparent. Grazing (low dot) → opaque sheen. Pow controls
+        // the falloff sharpness.
+        float ndv = max(0.0, dot(vNormalWS, vViewWS));
+        float fresnel = pow(1.0 - ndv, 2.4);
+        // Three-tone palette.
+        vec3 deep   = vec3(0.03, 0.15, 0.24);
         vec3 mid    = vec3(0.12, 0.42, 0.55);
-        vec3 sky    = vec3(0.60, 0.88, 0.98);
-        // Caustic-style streaks
+        vec3 sky    = vec3(0.62, 0.88, 0.98);
+        // Caustic streaks.
         float c1 = sin(vUv.x * 28.0 + time * 0.8) * 0.5 + 0.5;
         float c2 = sin(vUv.y * 22.0 + time * 1.05 + 2.0) * 0.5 + 0.5;
         float caustic = pow(c1 * c2, 2.0);
-        // Wave-height tinting: peaks brighter, troughs darker
+        // Wave-height tinting.
         float h = clamp(vWave * 6.0, -1.0, 1.0);
         vec3 col = mix(deep, mid, 0.5 + h * 0.5);
-        col = mix(col, sky, max(0.0, h) * 0.6 + caustic * 0.35);
-        // Foam at wave extremes — only the very highest crests get whitened
+        // Fresnel reflects sky on the grazing edge — that's THE signature
+        // of "is this water?". Strong contribution here.
+        col = mix(col, sky, fresnel * 0.85 + max(0.0, h) * 0.25 + caustic * 0.2);
+        // Foam on extreme peaks.
         float foam = smoothstep(0.06, 0.10, vWave);
         col = mix(col, vec3(0.95, 0.98, 1.0), foam * 0.5);
-        gl_FragColor = vec4(col, opacity);
+        // Final alpha: blend between low (top-down view) and high (grazing).
+        // Looking straight down at the pool: alpha ~0.45 (you SEE through).
+        // Looking at the pool from across the cave: alpha ~0.95 (solid sheet).
+        float alpha = mix(0.45, 0.96, fresnel);
+        gl_FragColor = vec4(col, alpha * opacity / 0.85);
       }
     `
 );
@@ -438,6 +501,39 @@ const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }) => {
             </mesh>
         </group>
     );
+};
+
+// ─── DynamicFog ────────────────────────────────────────────────────────
+// Swaps scene.fog + scene.background between "cave" and "underwater"
+// presets based on the player's Y. When the player is below the water
+// line (Y < SWIM_THRESHOLD_Y), fog goes dense + cyan-blue → you can't
+// see the cave THROUGH the water surface looking up (was a bug Felipe
+// flagged). Smooth lerp so the transition isn't a snap.
+const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
+    const { scene } = useThree();
+    const _bgColor = useRef(new THREE.Color('#0e0a08'));
+    const _fogColor = useRef(new THREE.Color('#0e0a08'));
+    useFrame((_, dt) => {
+        const y = playerPositionRef.current?.y ?? 0;
+        if (!scene.fog || !(scene.fog instanceof THREE.Fog)) return;
+        const submerged = y < SWIM_THRESHOLD_Y;
+        // Target presets
+        const tgtBg   = submerged ? 0x041422 : 0x0e0a08;
+        const tgtFog  = submerged ? 0x041422 : 0x0e0a08;
+        const tgtNear = submerged ? 0.5 : 14;
+        const tgtFar  = submerged ? 14  : 55;
+        // Lerp colors + fog distances toward targets at ~8/s rate.
+        const k = Math.min(1, 8 * Math.min(0.05, dt));
+        _fogColor.current.lerp(new THREE.Color(tgtFog), k);
+        _bgColor.current.lerp(new THREE.Color(tgtBg), k);
+        scene.fog.color.copy(_fogColor.current);
+        scene.fog.near = scene.fog.near + (tgtNear - scene.fog.near) * k;
+        scene.fog.far  = scene.fog.far  + (tgtFar  - scene.fog.far)  * k;
+        if (scene.background && (scene.background as any).isColor) {
+            (scene.background as THREE.Color).copy(_bgColor.current);
+        }
+    });
+    return null;
 };
 
 // ─── God ray — volumetric cone of light coming through the hole ───────
@@ -623,13 +719,24 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <hemisphereLight intensity={0.5} color="#c8a888" groundColor="#1a1612" />
         <directionalLight position={[5, 20, 5]} intensity={0.7} color="#ffe8c0" />
 
+        {/* Lerps fog + bg between cave/underwater presets based on player Y.
+            When the player is below the water surface, the fog goes dense
+            cyan-blue — that's what hides the cave when looking UP from
+            underwater (Felipe's screenshot bug). */}
+        <DynamicFog playerPositionRef={playerPositionRef} />
+
         {/* ─── CAVE FLOOR with hole ─────────────────────────────────── */}
         <mesh
             geometry={CAVE_FLOOR_GEO}
             rotation={[-Math.PI / 2, 0, 0]}
             position={[0, 0, 0]}
         >
-            <meshStandardMaterial color="#4a3e2e" roughness={0.95} flatShading />
+            <meshStandardMaterial
+                color="#4a3e2e"
+                roughness={0.95}
+                normalMap={FLOOR_NORMAL ?? undefined}
+                normalScale={new THREE.Vector2(1.5, 1.5)}
+            />
         </mesh>
 
         {/* Cave ceiling */}
@@ -638,27 +745,29 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             <meshStandardMaterial color="#2a221c" roughness={1} side={THREE.DoubleSide} />
         </mesh>
 
-        {/* CAVE WALLS — built as multiple offset boxes per side so the
-            silhouette reads as natural stone rather than a flat sheet. Each
-            "wall" is 3 vertically-stacked, slightly-offset boxes with
-            varying colors. Far cheaper than real geometry; visually:
-            chunky rock instead of cardboard panel. */}
-        {/* North wall (z = -30) */}
-        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 1.0]} /><meshStandardMaterial color="#3a2f24" roughness={1} flatShading /></mesh>
-        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 1.2]} /><meshStandardMaterial color="#43372a" roughness={1} flatShading /></mesh>
-        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 0.6]} /><meshStandardMaterial color="#352b21" roughness={1} flatShading /></mesh>
-        {/* South wall (z = 30) */}
-        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 1.0]} /><meshStandardMaterial color="#3c3025" roughness={1} flatShading /></mesh>
-        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 1.2]} /><meshStandardMaterial color="#45382b" roughness={1} flatShading /></mesh>
-        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 0.6]} /><meshStandardMaterial color="#352b21" roughness={1} flatShading /></mesh>
-        {/* West wall (x = -30) */}
-        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[1.0, 5.2, 28]} /><meshStandardMaterial color="#3a2f24" roughness={1} flatShading /></mesh>
-        <mesh position={[-29.4, 3.4,  -12]}><boxGeometry args={[1.2, 6.8, 18]} /><meshStandardMaterial color="#43372a" roughness={1} flatShading /></mesh>
-        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[0.6, 3.6, 60]} /><meshStandardMaterial color="#352b21" roughness={1} flatShading /></mesh>
-        {/* East wall (x = 30) */}
-        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[1.0, 5, 22]} /><meshStandardMaterial color="#3c3025" roughness={1} flatShading /></mesh>
-        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[1.2, 7.2, 20]} /><meshStandardMaterial color="#45382b" roughness={1} flatShading /></mesh>
-        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[0.6, 4, 60]} /><meshStandardMaterial color="#352b21" roughness={1} flatShading /></mesh>
+        {/* CAVE WALLS — multiple offset boxes per side so the silhouette
+            reads as natural stone rather than a flat sheet. SHARED normal-
+            mapped material across all 12 box panels — Three.js batches
+            meshes with identical materials, so even with 12 panels they
+            cost less than they appear.
+            Three color variants (a/b/c) are still distinct meshes but
+            share the same normal map → bumpy stone lighting everywhere. */}
+        {/* North (z = -30) */}
+        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 1.0]} /><meshStandardMaterial color="#3a2f24" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 1.2]} /><meshStandardMaterial color="#43372a" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 0.6]} /><meshStandardMaterial color="#352b21" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        {/* South (z = 30) */}
+        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 1.0]} /><meshStandardMaterial color="#3c3025" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 1.2]} /><meshStandardMaterial color="#45382b" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 0.6]} /><meshStandardMaterial color="#352b21" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        {/* West (x = -30) */}
+        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[1.0, 5.2, 28]} /><meshStandardMaterial color="#3a2f24" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        <mesh position={[-29.4, 3.4, -12]}><boxGeometry args={[1.2, 6.8, 18]} /><meshStandardMaterial color="#43372a" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[0.6, 3.6, 60]} /><meshStandardMaterial color="#352b21" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        {/* East (x = 30) */}
+        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[1.0, 5, 22]} /><meshStandardMaterial color="#3c3025" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[1.2, 7.2, 20]} /><meshStandardMaterial color="#45382b" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
+        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[0.6, 4, 60]} /><meshStandardMaterial color="#352b21" roughness={1} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.2, 1.2)} /></mesh>
 
         {/* Cave boulders — 3 cohorts in different tones */}
         <Instances limit={CAVE_ROCKS_DARK.length} range={CAVE_ROCKS_DARK.length} geometry={BOULDER_GEO}>

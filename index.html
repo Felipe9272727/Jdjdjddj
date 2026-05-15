@@ -104433,6 +104433,35 @@ const BOULDER_GEO = new IcosahedronGeometry(1, 1);
 const PEBBLE_GEO = new IcosahedronGeometry(1, 0);
 const BUBBLE_GEO = new SphereGeometry(1, 6, 5);
 const SHARD_GEO = new OctahedronGeometry(0.5, 0);
+function makeRockNormal(size, seed3) {
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const img = ctx.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x2 = 0; x2 < size; x2++) {
+      const u = x2 / size, v5 = y / size;
+      const nx = Math.sin(u * 18 + v5 * 11 + seed3) * 0.4 + Math.sin(u * 36 + seed3 * 1.3) * 0.25 + Math.sin((u + v5) * 60 + seed3 * 2.1) * 0.1;
+      const ny = Math.cos(v5 * 16 + u * 9 + seed3) * 0.4 + Math.sin(v5 * 28 + seed3 * 1.7) * 0.25 + Math.cos((u - v5) * 54 + seed3 * 2.3) * 0.1;
+      const i2 = (y * size + x2) * 4;
+      img.data[i2] = Math.max(0, Math.min(255, 128 + nx * 90));
+      img.data[i2 + 1] = Math.max(0, Math.min(255, 128 + ny * 90));
+      img.data[i2 + 2] = 245;
+      img.data[i2 + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = RepeatWrapping;
+  tex.colorSpace = NoColorSpace;
+  return tex;
+}
+const WALL_NORMAL = makeRockNormal(256, 0);
+const FLOOR_NORMAL = makeRockNormal(256, 7.3);
+if (WALL_NORMAL) WALL_NORMAL.repeat.set(3, 1);
+if (FLOOR_NORMAL) FLOOR_NORMAL.repeat.set(6, 6);
 const CAVE_ROCKS_DARK = [
   [-22, 0, 20, 2.4, 0.3],
   [24, 0, 18, 2.1, 1.2],
@@ -104636,29 +104665,34 @@ const UW_PEBBLES = [
   [13, -29.6, 14, 0.4, 0.6]
 ];
 const WaterMaterial = shaderMaterial(
-  { time: 0, opacity: 0.78 },
+  { time: 0, opacity: 0.85 },
   /* glsl */
   `
       uniform float time;
       varying vec2 vUv;
       varying float vWave;
-      varying vec3 vNormalLocal;
+      varying vec3 vViewWS;       // view direction in world space
+      varying vec3 vNormalWS;     // displaced normal in world space
       void main() {
         vUv = uv;
-        // Three octaves of sine for layered chop (low frequency big motion +
-        // higher-frequency ripples). Total amplitude ~0.12m.
+        // 3 octaves of sine for layered chop. Total amplitude ~0.12m.
         float w1 = sin(position.x * 0.55 + time * 1.0) * 0.06;
         float w2 = sin(position.y * 0.40 + time * 0.85 + 1.7) * 0.045;
         float w3 = sin((position.x + position.y) * 1.1 + time * 1.8) * 0.025;
         vWave = w1 + w2 + w3;
-        // Cheap analytical normal via partial derivatives of the sum.
+        // Analytical normal via partial derivatives.
         float dx = cos(position.x * 0.55 + time * 1.0) * 0.06 * 0.55 +
                    cos((position.x + position.y) * 1.1 + time * 1.8) * 0.025 * 1.1;
         float dy = cos(position.y * 0.40 + time * 0.85 + 1.7) * 0.045 * 0.40 +
                    cos((position.x + position.y) * 1.1 + time * 1.8) * 0.025 * 1.1;
-        vNormalLocal = normalize(vec3(-dx, -dy, 1.0));
-        vec3 pos = position + vec3(0.0, 0.0, vWave);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+        // The plane is rotated -π/2 around X before placement, so local
+        // (-dx, -dy, 1) → world Y axis maps to the normal. We approximate
+        // the world-space normal by passing through the modelMatrix.
+        vec3 localNormal = normalize(vec3(-dx, -dy, 1.0));
+        vNormalWS = normalize(mat3(modelMatrix) * localNormal);
+        vec4 wp = modelMatrix * vec4(position + vec3(0.0, 0.0, vWave), 1.0);
+        vViewWS = normalize(cameraPosition - wp.xyz);
+        gl_Position = projectionMatrix * viewMatrix * wp;
       }
     `,
   /* glsl */
@@ -104667,24 +104701,36 @@ const WaterMaterial = shaderMaterial(
       uniform float opacity;
       varying vec2 vUv;
       varying float vWave;
-      varying vec3 vNormalLocal;
+      varying vec3 vViewWS;
+      varying vec3 vNormalWS;
       void main() {
-        // Two-tone water: deep base, sky reflection on the tops.
-        vec3 deep   = vec3(0.04, 0.18, 0.28);
+        // Fresnel: dot of view & normal. Looking down (high dot) →
+        // transparent. Grazing (low dot) → opaque sheen. Pow controls
+        // the falloff sharpness.
+        float ndv = max(0.0, dot(vNormalWS, vViewWS));
+        float fresnel = pow(1.0 - ndv, 2.4);
+        // Three-tone palette.
+        vec3 deep   = vec3(0.03, 0.15, 0.24);
         vec3 mid    = vec3(0.12, 0.42, 0.55);
-        vec3 sky    = vec3(0.60, 0.88, 0.98);
-        // Caustic-style streaks
+        vec3 sky    = vec3(0.62, 0.88, 0.98);
+        // Caustic streaks.
         float c1 = sin(vUv.x * 28.0 + time * 0.8) * 0.5 + 0.5;
         float c2 = sin(vUv.y * 22.0 + time * 1.05 + 2.0) * 0.5 + 0.5;
         float caustic = pow(c1 * c2, 2.0);
-        // Wave-height tinting: peaks brighter, troughs darker
+        // Wave-height tinting.
         float h = clamp(vWave * 6.0, -1.0, 1.0);
         vec3 col = mix(deep, mid, 0.5 + h * 0.5);
-        col = mix(col, sky, max(0.0, h) * 0.6 + caustic * 0.35);
-        // Foam at wave extremes — only the very highest crests get whitened
+        // Fresnel reflects sky on the grazing edge — that's THE signature
+        // of "is this water?". Strong contribution here.
+        col = mix(col, sky, fresnel * 0.85 + max(0.0, h) * 0.25 + caustic * 0.2);
+        // Foam on extreme peaks.
         float foam = smoothstep(0.06, 0.10, vWave);
         col = mix(col, vec3(0.95, 0.98, 1.0), foam * 0.5);
-        gl_FragColor = vec4(col, opacity);
+        // Final alpha: blend between low (top-down view) and high (grazing).
+        // Looking straight down at the pool: alpha ~0.45 (you SEE through).
+        // Looking at the pool from across the cave: alpha ~0.95 (solid sheet).
+        float alpha = mix(0.45, 0.96, fresnel);
+        gl_FragColor = vec4(col, alpha * opacity / 0.85);
       }
     `
 );
@@ -104725,6 +104771,31 @@ const WaterSurface = ({ reflective = false }) => {
       /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: mat, attach: "material" })
     ] })
   ] });
+};
+const DynamicFog = ({ playerPositionRef }) => {
+  const { scene } = useThree();
+  const _bgColor = reactExports.useRef(new Color("#0e0a08"));
+  const _fogColor = reactExports.useRef(new Color("#0e0a08"));
+  useFrame((_, dt2) => {
+    var _a;
+    const y = ((_a = playerPositionRef.current) == null ? void 0 : _a.y) ?? 0;
+    if (!scene.fog || !(scene.fog instanceof Fog)) return;
+    const submerged = y < SWIM_THRESHOLD_Y;
+    const tgtBg = submerged ? 267298 : 920072;
+    const tgtFog = submerged ? 267298 : 920072;
+    const tgtNear = submerged ? 0.5 : 14;
+    const tgtFar = submerged ? 14 : 55;
+    const k2 = Math.min(1, 8 * Math.min(0.05, dt2));
+    _fogColor.current.lerp(new Color(tgtFog), k2);
+    _bgColor.current.lerp(new Color(tgtBg), k2);
+    scene.fog.color.copy(_fogColor.current);
+    scene.fog.near = scene.fog.near + (tgtNear - scene.fog.near) * k2;
+    scene.fog.far = scene.fog.far + (tgtFar - scene.fog.far) * k2;
+    if (scene.background && scene.background.isColor) {
+      scene.background.copy(_bgColor.current);
+    }
+  });
+  return null;
 };
 const GodRay = () => {
   const matRef = reactExports.useRef(null);
@@ -104856,13 +104927,22 @@ const Floor2Environment = ({
   /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.65, color: "#d8c0a0" }),
   /* @__PURE__ */ jsxRuntimeExports.jsx("hemisphereLight", { intensity: 0.5, color: "#c8a888", groundColor: "#1a1612" }),
   /* @__PURE__ */ jsxRuntimeExports.jsx("directionalLight", { position: [5, 20, 5], intensity: 0.7, color: "#ffe8c0" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(DynamicFog, { playerPositionRef }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(
     "mesh",
     {
       geometry: CAVE_FLOOR_GEO,
       rotation: [-Math.PI / 2, 0, 0],
       position: [0, 0, 0],
-      children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#4a3e2e", roughness: 0.95, flatShading: true })
+      children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "meshStandardMaterial",
+        {
+          color: "#4a3e2e",
+          roughness: 0.95,
+          normalMap: FLOOR_NORMAL ?? void 0,
+          normalScale: new Vector2(1.5, 1.5)
+        }
+      )
     }
   ),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 8, 0], rotation: [Math.PI / 2, 0, 0], children: [
@@ -104871,51 +104951,51 @@ const Floor2Environment = ({
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-8, 2.5, -29.6], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [24, 5, 1] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a2f24", roughness: 1, flatShading: true })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a2f24", roughness: 1, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.2, 1.2) })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [10, 3.2, -29.4], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [18, 6.4, 1.2] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#43372a", roughness: 1, flatShading: true })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#43372a", roughness: 1, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.2, 1.2) })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-2, 6, -29.8], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [60, 4, 0.6] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 1, flatShading: true })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 1, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.2, 1.2) })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [6, 2.4, 29.6], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [26, 4.8, 1] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3c3025", roughness: 1, flatShading: true })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3c3025", roughness: 1, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.2, 1.2) })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-12, 3.5, 29.4], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [20, 7, 1.2] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#45382b", roughness: 1, flatShading: true })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#45382b", roughness: 1, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.2, 1.2) })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [4, 6.2, 29.8], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [60, 3.6, 0.6] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 1, flatShading: true })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 1, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.2, 1.2) })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-29.6, 2.6, 0], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 5.2, 28] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a2f24", roughness: 1, flatShading: true })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a2f24", roughness: 1, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.2, 1.2) })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-29.4, 3.4, -12], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.2, 6.8, 18] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#43372a", roughness: 1, flatShading: true })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#43372a", roughness: 1, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.2, 1.2) })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-29.8, 6.2, 3], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.6, 3.6, 60] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 1, flatShading: true })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 1, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.2, 1.2) })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [29.6, 2.5, 8], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 5, 22] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3c3025", roughness: 1, flatShading: true })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3c3025", roughness: 1, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.2, 1.2) })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [29.4, 3.6, -10], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.2, 7.2, 20] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#45382b", roughness: 1, flatShading: true })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#45382b", roughness: 1, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.2, 1.2) })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [29.8, 6, -2], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.6, 4, 60] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 1, flatShading: true })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 1, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.2, 1.2) })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: CAVE_ROCKS_DARK.length, range: CAVE_ROCKS_DARK.length, geometry: BOULDER_GEO, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#322820", roughness: 0.95, flatShading: true }),
