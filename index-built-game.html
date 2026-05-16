@@ -105500,6 +105500,7 @@ const HOLE_CENTER_Z = 5;
 const HOLE_RADIUS = 3;
 const WATER_LEVEL_Y = -0.05;
 const SWIM_THRESHOLD_Y = -0.3;
+const noise3D = createNoise3D();
 const CAVE_FLOOR_GEO = (() => {
   const shape = new Shape();
   const size = 30;
@@ -105543,7 +105544,6 @@ const CAVE_FLOOR_GEO = (() => {
 const BUBBLE_GEO = new SphereGeometry(1, 6, 5);
 const SHARD_GEO = new OctahedronGeometry(0.5, 0);
 const PEBBLE_GEO = new IcosahedronGeometry(1, 0);
-const noise3D = createNoise3D();
 function createOrganicCaveWall(width, height, segments = 48, seed3 = 0, amplitude = 2.5) {
   const geo = new PlaneGeometry(width, height, segments, segments);
   const positions = geo.attributes.position;

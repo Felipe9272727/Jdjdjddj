@@ -75,6 +75,10 @@ export const HOLE_RADIUS = 3.0;
 export const WATER_LEVEL_Y = -0.05;
 export const SWIM_THRESHOLD_Y = -0.3;   // below this the player is "in" the water
 
+// ─── Simplex noise instance (shared across all procedural geometry) ─────
+// MUST be defined before any geometry that uses it (CAVE_FLOOR_GEO, etc.)
+const noise3D = createNoise3D();
+
 // ─── Cave floor with circular hole — ShapeGeometry ────────────────────
 // THREE.Shape supports holes natively; this gives us a single mesh for
 // the floor with a clean circular cutout, no triangulation tricks.
@@ -129,8 +133,6 @@ const CAVE_FLOOR_GEO = (() => {
 const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5);
 const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
 const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);  // kept for instanced pebbles
-// ─── Simplex noise instance (shared across all procedural geometry) ─────
-const noise3D = createNoise3D();
 
 // ─── Organic cave wall geometry helper ──────────────────────────────────
 function createOrganicCaveWall(
