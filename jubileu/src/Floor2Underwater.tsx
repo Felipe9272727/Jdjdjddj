@@ -79,6 +79,17 @@ export const SWIM_THRESHOLD_Y = -0.3;   // below this the player is "in" the wat
 // MUST be defined before any geometry that uses it (CAVE_FLOOR_GEO, etc.)
 const noise3D = createNoise3D();
 
+// ─── Static draw usage marker — GPU hint for immutable geometry ────────
+// Marks all attributes as StaticDrawUsage so the WebGL driver can place
+// them in fast GPU-only memory. Called after final vertex displacement.
+// MUST be defined before any geometry IIFE that uses it.
+const _markStatic = (g: THREE.BufferGeometry) => {
+    for (const name of Object.keys(g.attributes)) {
+        g.attributes[name].setUsage(THREE.StaticDrawUsage);
+    }
+    return g;
+};
+
 // ─── Cave floor with circular hole — ShapeGeometry ────────────────────
 // THREE.Shape supports holes natively; this gives us a single mesh for
 // the floor with a clean circular cutout, no triangulation tricks.
@@ -141,14 +152,14 @@ const CAVE_FLOOR_GEO = (() => {
     }
     uvAttr.needsUpdate = true;
     geo.computeVertexNormals();
-    geo.freeze();  // freeze static geometry for GPU optimization
+    _markStatic(geo);
     return geo;
 })();
 
 // ─── Geometries shared across the scene ────────────────────────────────
-const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5); BUBBLE_GEO.freeze();
-const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0); SHARD_GEO.freeze();
-const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0); PEBBLE_GEO.freeze();
+const BUBBLE_GEO  = _markStatic(new THREE.SphereGeometry(1, 6, 5));
+const SHARD_GEO   = _markStatic(new THREE.OctahedronGeometry(0.5, 0));
+const PEBBLE_GEO  = _markStatic(new THREE.IcosahedronGeometry(1, 0));
 
 // ─── Organic cave wall geometry helper ──────────────────────────────────
 // Creates a PlaneGeometry with heavy multi-octave noise displacement
@@ -181,6 +192,7 @@ function createOrganicCaveWall(
   }
   positions.needsUpdate = true;
   geo.computeVertexNormals();
+  _markStatic(geo);
   return geo;
 }
 
@@ -212,26 +224,26 @@ function createCaveCeiling(
   }
   positions.needsUpdate = true;
   geo.computeVertexNormals();
+  _markStatic(geo);
   return geo;
 }
 
 // Cave ceiling — 3D organic, not flat
 const CAVE_CEILING_GEO = createCaveCeiling(62, 62, 64, 99);  // 64 segs (was 80) — still very organic
-CAVE_CEILING_GEO.freeze();
 
 // DRY cave walls — organic displaced planes (above water, Y > 0)
 const CAVE_WALL_N_GEO = createOrganicCaveWall(62, 10, 48, 0, 3.5);   // 48 segs (was 64)
 const CAVE_WALL_S_GEO = createOrganicCaveWall(62, 10, 48, 10, 3.5);
 const CAVE_WALL_W_GEO = createOrganicCaveWall(62, 10, 48, 20, 3.5);
 const CAVE_WALL_E_GEO = createOrganicCaveWall(62, 10, 48, 30, 3.5);
-CAVE_WALL_N_GEO.freeze(); CAVE_WALL_S_GEO.freeze(); CAVE_WALL_W_GEO.freeze(); CAVE_WALL_E_GEO.freeze();
+
 
 // UNDERWATER cave walls — organic displaced planes
 const UW_WALL_NORTH_GEO = createOrganicCaveWall(62, 35, 48, 40, 3.5);  // 48 segs (was 64)
 const UW_WALL_SOUTH_GEO = createOrganicCaveWall(62, 35, 48, 50, 3.5);
 const UW_WALL_WEST_GEO = createOrganicCaveWall(62, 35, 48, 60, 3.5);
 const UW_WALL_EAST_GEO = createOrganicCaveWall(62, 35, 48, 70, 3.5);
-UW_WALL_NORTH_GEO.freeze(); UW_WALL_SOUTH_GEO.freeze(); UW_WALL_WEST_GEO.freeze(); UW_WALL_EAST_GEO.freeze();
+
 
 // ─── Procedural rock geometry helper ────────────────────────────────────
 function createProceduralRock(
@@ -263,10 +275,10 @@ function createProceduralRock(
   return geo;
 }
 
-const PROC_ROCK_A = createProceduralRock(1, 2, 0.35, 0); PROC_ROCK_A.freeze();
-const PROC_ROCK_B = createProceduralRock(1, 2, 0.3, 50); PROC_ROCK_B.freeze();
-const PROC_ROCK_C = createProceduralRock(1, 2, 0.4, 100); PROC_ROCK_C.freeze();
-const PROC_ROCK_D = createProceduralRock(1, 2, 0.25, 150); PROC_ROCK_D.freeze();
+const PROC_ROCK_A = createProceduralRock(1, 2, 0.35, 0);
+const PROC_ROCK_B = createProceduralRock(1, 2, 0.3, 50);
+const PROC_ROCK_C = createProceduralRock(1, 2, 0.4, 100);
+const PROC_ROCK_D = createProceduralRock(1, 2, 0.25, 150);
 
 // ─── Procedural stalactite geometry helper ──────────────────────────────
 function createProceduralStalactite(
@@ -308,7 +320,7 @@ const PROC_STALAGMITE_GEOS = [
   createProceduralStalactite(1.5, 0.4, 0.05, 10, 15, 270),
   createProceduralStalactite(3.0, 0.9, 0.05, 10, 15, 280),
 ];
-PROC_STALAGMITE_GEOS.forEach(g => g.freeze());
+
 const PROC_STALACTITE_GEOS = [
   createProceduralStalactite(1.5, 0.4, 0.05, 10, 15, 300),
   createProceduralStalactite(1.8, 0.5, 0.05, 10, 15, 310),
@@ -321,7 +333,7 @@ const PROC_STALACTITE_GEOS = [
   createProceduralStalactite(2.5, 0.6, 0.05, 10, 15, 380),
   createProceduralStalactite(2.2, 0.5, 0.05, 10, 15, 390),
 ];
-PROC_STALACTITE_GEOS.forEach(g => g.freeze());
+
 
 // Procedural underwater terrain — displaced PlaneGeometry (simplex-noise)
 const UW_FLOOR_GEO = (() => {
@@ -352,7 +364,7 @@ const UW_FLOOR_GEO = (() => {
     }
     positions.needsUpdate = true;
     geo.computeVertexNormals();
-    geo.freeze();  // freeze static underwater floor
+    _markStatic(geo);
     return geo;
 })();
 
@@ -512,7 +524,7 @@ const CRYSTALS: readonly Crystal[] = [
     [ 25,  0.3,   0, '#f7c948'],   // gold vein
 ];
 
-const CRYSTAL_GEO = new THREE.OctahedronGeometry(0.35, 0); CRYSTAL_GEO.freeze();
+const CRYSTAL_GEO = new THREE.OctahedronGeometry(0.35, 0);
 
 const CrystalCluster: React.FC<{ x: number; y: number; z: number; color: string }> = ({ x, y, z, color }) => (
     <group position={[x, y, z]}>
@@ -1223,7 +1235,7 @@ const UnderwaterCaustics: React.FC = () => {
 };
 
 // ─── Underwater flora — kelp + coral ─────────────────────────────────
-const KELP_GEO = new THREE.CylinderGeometry(0.06, 0.10, 1, 5, 4); KELP_GEO.freeze();
+const KELP_GEO = new THREE.CylinderGeometry(0.06, 0.10, 1, 5, 4);
 type KelpData = readonly [number, number, number, number]; // x, z, height, phase
 const KELP_POSITIONS: readonly KelpData[] = [
     [ 5.5, -8.0, 4.5, 0.3],
@@ -1432,7 +1444,7 @@ const DeepMist: React.FC = () => {
 
 // ─── Debris particles — tiny dark specs drifting underwater ──────────
 const DEBRIS_COUNT = 40;  // reduced from 60 — outside fog range anyway
-const DEBRIS_GEO = new THREE.SphereGeometry(1, 3, 2); DEBRIS_GEO.freeze();
+const DEBRIS_GEO = new THREE.SphereGeometry(1, 3, 2);
 const DebrisField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(DEBRIS_COUNT).fill(null));
     const data = useRef(
@@ -1476,7 +1488,7 @@ const DebrisField: React.FC = () => {
 };
 
 // ─── Fish school — small fish swimming in circular paths ──────────────
-const FISH_GEO = new THREE.ConeGeometry(0.18, 0.55, 4); FISH_GEO.freeze();
+const FISH_GEO = new THREE.ConeGeometry(0.18, 0.55, 4);
 const FISH_COUNT = 8;
 const FishSchool: React.FC = () => {
     const refs = useRef<(THREE.Mesh | null)[]>(new Array(FISH_COUNT).fill(null));
@@ -1630,7 +1642,7 @@ const BUBBLE_MIN_Y = -29;
 
 // ─── Plankton particles (underwater) ──────────────────────────────────
 const PLANKTON_COUNT = 50;
-const PLANKTON_GEO = new THREE.SphereGeometry(1, 4, 3); PLANKTON_GEO.freeze();
+const PLANKTON_GEO = new THREE.SphereGeometry(1, 4, 3);
 const PlanktonField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(PLANKTON_COUNT).fill(null));
     // Pre-compute base positions for deterministic absolute movement
@@ -1852,7 +1864,7 @@ const WaterOccluder: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.
 };
 
 // ─── God rays — light shafts from the surface hole ────────────────────
-const GOD_RAY_GEO = new THREE.CylinderGeometry(1, 0.3, 15, 8, 1, true); GOD_RAY_GEO.freeze();
+const GOD_RAY_GEO = new THREE.CylinderGeometry(1, 0.3, 15, 8, 1, true);
 const GodRays: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
     const groupRef = useRef<THREE.Group>(null);
     useFrame(() => {
@@ -1927,9 +1939,9 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <fog attach="fog" args={['#0e0a08', 16, 60]} />
 
         {/* Horror lighting — dark but visible */}
-        <ambientLight intensity={0.42} color="#d8c0a0" />
-        <hemisphereLight intensity={0.33} color="#c8a888" groundColor="#1a1612" />
-        <directionalLight position={[5, 20, 5]} intensity={0.30} color="#ffe8c0" />
+        <ambientLight intensity={0.48} color="#d8c0a0" />
+        <hemisphereLight intensity={0.38} color="#c8a888" groundColor="#1a1612" />
+        <directionalLight position={[5, 20, 5]} intensity={0.35} color="#ffe8c0" />
 
         {/* Ember sprites — warm glow on floor, NO pointLight (square artifact) */}
         <sprite position={[-25, 0.8, 0]} scale={[7, 7, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.25} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
@@ -1945,6 +1957,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             geometry={CAVE_FLOOR_GEO}
             rotation={[-Math.PI / 2, 0, 0]}
             position={[0, 0, 0]}
+            frustumCulled={false}
         >
             <meshStandardMaterial
                 color="#1a1610"
@@ -1966,25 +1979,25 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         </mesh>
 
         {/* Cave ceiling — 3D ORGANIC with stalactite-like bumps */}
-        <mesh position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]} geometry={CAVE_CEILING_GEO}>
+        <mesh position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]} geometry={CAVE_CEILING_GEO} frustumCulled={false}>
             <meshStandardMaterial color="#1a1610" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={1} aoMap={caveWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
         </mesh>
 
         {/* CAVE WALLS — ORGANIC displaced PlaneGeometry (no more boxGeometry!) */}
         {/* North wall (z = -30) — faces +Z (inward) */}
-        <mesh position={[0, 5, -30]} rotation={[0, 0, 0]} geometry={CAVE_WALL_N_GEO}>
+        <mesh position={[0, 5, -30]} rotation={[0, 0, 0]} geometry={CAVE_WALL_N_GEO} frustumCulled={false}>
             <meshStandardMaterial color="#1a1610" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={1.0} side={THREE.DoubleSide} />
         </mesh>
         {/* South wall (z = 30) — faces -Z (inward) */}
-        <mesh position={[0, 5, 30]} rotation={[0, Math.PI, 0]} geometry={CAVE_WALL_S_GEO}>
+        <mesh position={[0, 5, 30]} rotation={[0, Math.PI, 0]} geometry={CAVE_WALL_S_GEO} frustumCulled={false}>
             <meshStandardMaterial color="#1a1610" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={1.0} side={THREE.DoubleSide} />
         </mesh>
         {/* West wall (x = -30) — faces +X (inward) */}
-        <mesh position={[-30, 5, 0]} rotation={[0, Math.PI / 2, 0]} geometry={CAVE_WALL_W_GEO}>
+        <mesh position={[-30, 5, 0]} rotation={[0, Math.PI / 2, 0]} geometry={CAVE_WALL_W_GEO} frustumCulled={false}>
             <meshStandardMaterial color="#1a1610" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={1.0} side={THREE.DoubleSide} />
         </mesh>
         {/* East wall (x = 30) — faces -X (inward) */}
-        <mesh position={[30, 5, 0]} rotation={[0, -Math.PI / 2, 0]} geometry={CAVE_WALL_E_GEO}>
+        <mesh position={[30, 5, 0]} rotation={[0, -Math.PI / 2, 0]} geometry={CAVE_WALL_E_GEO} frustumCulled={false}>
             <meshStandardMaterial color="#1a1610" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={1.0} side={THREE.DoubleSide} />
         </mesh>
 
@@ -2061,7 +2074,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <UnderwaterOverlay playerPositionRef={playerPositionRef} />
 
         {/* ─── UNDERWATER (Y < 0) ────────────────────────────────────── */}
-        <mesh geometry={UW_FLOOR_GEO} rotation={[-Math.PI / 2, 0, 0]} position={[0, -30, 0]}>
+        <mesh geometry={UW_FLOOR_GEO} rotation={[-Math.PI / 2, 0, 0]} position={[0, -30, 0]} frustumCulled={false}>
             <meshStandardMaterial
                 color="#060804"
                 map={uwFloor.color}
