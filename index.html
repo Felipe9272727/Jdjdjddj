@@ -105081,8 +105081,8 @@ const CAVE_FLOOR_GEO = (() => {
     );
     const edgeFade = Math.min(1, edgeDist / 3);
     const fade = holeFade * edgeFade;
-    const n = Math.sin(v5.x * 0.8 + 2.3) * 0.3 + Math.sin(v5.y * 0.6 + 1.1) * 0.25 + Math.cos(v5.x * 1.2 + v5.y * 0.9 + 4.5) * 0.15;
-    positions.setZ(i2, v5.z + n * 0.15 * fade);
+    const n = Math.sin(v5.x * 0.8 + 2.3) * 0.5 + Math.sin(v5.y * 0.6 + 1.1) * 0.4 + Math.cos(v5.x * 1.2 + v5.y * 0.9 + 4.5) * 0.3 + Math.sin(v5.x * 2.1 + v5.y * 1.7 + 3.2) * 0.15 + Math.cos(v5.x * 3.5 + v5.y * 2.8 + 1.8) * 0.08;
+    positions.setZ(i2, v5.z + n * 0.4 * fade);
   }
   positions.needsUpdate = true;
   geo.computeVertexNormals();
@@ -105092,7 +105092,7 @@ const BUBBLE_GEO = new SphereGeometry(1, 6, 5);
 const SHARD_GEO = new OctahedronGeometry(0.5, 0);
 const PEBBLE_GEO = new IcosahedronGeometry(1, 0);
 const UW_FLOOR_GEO = (() => {
-  const geo = new PlaneGeometry(80, 80, 32, 32);
+  const geo = new PlaneGeometry(80, 80, 64, 64);
   const positions = geo.attributes.position;
   const v5 = new Vector3();
   for (let i2 = 0; i2 < positions.count; i2++) {
@@ -105104,8 +105104,8 @@ const UW_FLOOR_GEO = (() => {
       Math.abs(v5.y - 40)
     );
     const edgeFade = Math.min(1, edgeDist / 5);
-    const n = Math.sin(v5.x * 0.3 + 1.7) * 0.5 + Math.sin(v5.y * 0.4 + 3.1) * 0.4 + Math.sin((v5.x + v5.y) * 0.2 + 0.8) * 0.6 + Math.cos(v5.x * 0.7 - v5.y * 0.5 + 5.3) * 0.3 + Math.sin(v5.x * 1.4 + v5.y * 1.1 + 2.2) * 0.15;
-    positions.setZ(i2, v5.z + n * 1.5 * edgeFade);
+    const n = Math.sin(v5.x * 0.3 + 1.7) * 0.8 + Math.sin(v5.y * 0.4 + 3.1) * 0.6 + Math.sin((v5.x + v5.y) * 0.2 + 0.8) * 1 + Math.cos(v5.x * 0.7 - v5.y * 0.5 + 5.3) * 0.5 + Math.sin(v5.x * 1.4 + v5.y * 1.1 + 2.2) * 0.25 + Math.sin(v5.x * 2.8 + v5.y * 3.1 + 4.7) * 0.1 + Math.cos(v5.x * 4.2 - v5.y * 3.7 + 1.3) * 0.06;
+    positions.setZ(i2, v5.z + n * 2.5 * edgeFade);
   }
   positions.needsUpdate = true;
   geo.computeVertexNormals();
@@ -105222,7 +105222,6 @@ const CrystalCluster = ({ x: x2, y, z, color: color2 }) => /* @__PURE__ */ jsxRu
   /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, scale: 0.75, position: [0.45, -0.2, 0.15], rotation: [0.6, 1.2, 0.3], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, emissive: color2, emissiveIntensity: 1.9, metalness: 0.5, roughness: 0.18, toneMapped: false }) }),
   /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, scale: 0.55, position: [-0.42, -0.25, -0.05], rotation: [-0.4, 0.5, 0.7], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, emissive: color2, emissiveIntensity: 1.7, metalness: 0.5, roughness: 0.2, toneMapped: false }) }),
   /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, scale: 0.4, position: [0, 0.35, -0.15], rotation: [0.2, 0.2, 1.4], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, emissive: color2, emissiveIntensity: 1.4, metalness: 0.5, roughness: 0.2, toneMapped: false }) }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { intensity: 0.8, distance: 7, decay: 1.4, color: color2 }),
   /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [2.5, 2.5, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { color: color2, transparent: true, opacity: 0.45, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
   /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [5, 5, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { color: color2, transparent: true, opacity: 0.12, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) })
 ] });
@@ -105235,27 +105234,22 @@ const TORCH_POSITIONS = [
   [21, 6, 21]
 ];
 const Torch = ({ x: x2, y, z, seed: seed3 }) => {
-  const lightRef = reactExports.useRef(null);
+  const spriteRef = reactExports.useRef(null);
+  const outerRef = reactExports.useRef(null);
   useFrame((state2) => {
-    const l2 = lightRef.current;
-    if (!l2) return;
-    const dxC = x2 - state2.camera.position.x;
-    const dzC = z - state2.camera.position.z;
-    if (dxC * dxC + dzC * dzC > 400) {
-      l2.intensity = 3.5;
-      return;
-    }
     const t2 = state2.clock.elapsedTime;
-    const flicker = 0.85 + Math.sin(t2 * 9 + seed3) * 0.05 + Math.sin(t2 * 23 + seed3 * 1.3) * 0.04 + Math.random() * 0.03;
-    l2.intensity = 3.5 * flicker;
+    const noise = Math.sin(t2 * 37.7 + seed3 * 13.3) * 0.5 + 0.5;
+    const flicker = 0.5 + Math.sin(t2 * 9 + seed3) * 0.08 + Math.sin(t2 * 23 + seed3 * 1.3) * 0.06 + noise * 0.05;
+    if (spriteRef.current) spriteRef.current.opacity = flicker;
+    if (outerRef.current) outerRef.current.opacity = flicker * 0.3;
   });
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, y, z], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [0.18, 0.4, 8] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#FFA850", emissive: "#FFB060", emissiveIntensity: 3.5, toneMapped: false })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [2.2, 2.2, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { color: "#FFC080", transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { ref: lightRef, intensity: 3.5, distance: 16, decay: 1.4, color: "#FFB070" })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [3, 3, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { ref: spriteRef, color: "#FFC080", transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [7, 7, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { ref: outerRef, color: "#FF9040", transparent: true, opacity: 0.15, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) })
   ] });
 };
 const DUST_COUNT = 25;
@@ -105920,8 +105914,7 @@ const Shard = ({ index, position, collected, onCollect, playerPositionRef }) => 
         toneMapped: false
       }
     ) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [1.3, 1.3, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { color: "#9be8ff", transparent: true, opacity: 0.35, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { intensity: 0.8, distance: 3, decay: 1.5, color: "#7ad8ff" })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [1.3, 1.3, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { color: "#9be8ff", transparent: true, opacity: 0.35, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) })
   ] });
 };
 const SHARD_POSITIONS = [
@@ -105984,12 +105977,12 @@ const Floor2Environment = ({
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("color", { attach: "background", args: ["#0e0a08"] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("fog", { attach: "fog", args: ["#0e0a08", 14, 55] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.15, color: "#d8c0a0" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("hemisphereLight", { intensity: 0.12, color: "#c8a888", groundColor: "#1a1612" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("directionalLight", { position: [5, 20, 5], intensity: 0.15, color: "#ffe8c0" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [-25, 0.5, 0], intensity: 0.3, distance: 8, decay: 1.5, color: "#3a1008" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [25, 0.5, -5], intensity: 0.3, distance: 8, decay: 1.5, color: "#3a1008" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 0.5, 25], intensity: 0.25, distance: 7, decay: 1.5, color: "#3a1008" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.25, color: "#d8c0a0" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("hemisphereLight", { intensity: 0.2, color: "#c8a888", groundColor: "#1a1612" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("directionalLight", { position: [5, 20, 5], intensity: 0.2, color: "#ffe8c0" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { position: [-25, 0.8, 0], scale: [6, 6, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { color: "#3a1008", transparent: true, opacity: 0.2, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { position: [25, 0.8, -5], scale: [6, 6, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { color: "#3a1008", transparent: true, opacity: 0.2, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { position: [0, 0.8, 25], scale: [5, 5, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { color: "#3a1008", transparent: true, opacity: 0.15, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(DynamicFog, { playerPositionRef }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(
       "mesh",
@@ -106003,7 +105996,7 @@ const Floor2Environment = ({
             color: "#1a1610",
             map: caveFloor.color,
             normalMap: caveFloor.normal,
-            normalScale: new Vector2(3, 3),
+            normalScale: new Vector2(4, 4),
             roughnessMap: caveFloor.rough,
             roughness: 0.92,
             aoMap: caveFloor.ao,
@@ -106018,56 +106011,56 @@ const Floor2Environment = ({
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-8, 2.5, -29.6], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [24, 5, 1] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(1.6, 1.6), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [10, 3.2, -29.4], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [18, 6.4, 1.2] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(1.6, 1.6), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-2, 6, -29.8], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [60, 4, 0.6] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(1.6, 1.6), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [6, 2.4, 29.6], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [26, 4.8, 1] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(1.6, 1.6), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-12, 3.5, 29.4], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [20, 7, 1.2] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(1.6, 1.6), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [4, 6.2, 29.8], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [60, 3.6, 0.6] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(1.6, 1.6), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-29.6, 2.6, 0], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 5.2, 28] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(1.6, 1.6), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-29.4, 3.4, -12], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.2, 6.8, 18] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(1.6, 1.6), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-29.8, 6.2, 3], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.6, 3.6, 60] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(1.6, 1.6), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [29.6, 2.5, 8], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 5, 22] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(1.6, 1.6), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [29.4, 3.6, -10], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.2, 7.2, 20] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(1.6, 1.6), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [29.8, 6, -2], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.6, 4, 60] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(1.6, 1.6), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.95, aoMap: caveWall.ao, aoMapIntensity: 0.5 })
     ] }),
     CAVE_ROCKS_DARK.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [x2, y + s * 0.4, z], scale: [s, s * 0.7, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: rockScenes[i2 % 4].clone(true) }) }, `dark-${i2}`)),
     CAVE_ROCKS_MID.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [x2, y + s * 0.4, z], scale: [s, s * 0.7, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: rockScenes[(i2 + 1) % 4].clone(true) }) }, `mid-${i2}`)),
     /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: CAVE_ROCKS_LIGHT.length, range: CAVE_ROCKS_LIGHT.length, geometry: PEBBLE_GEO, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveRock.color, normalMap: caveRock.normal, normalScale: new Vector2(1.5, 1.5), roughnessMap: caveRock.rough, roughness: 0.85, aoMap: caveRock.ao, aoMapIntensity: 0.5 }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveRock.color, normalMap: caveRock.normal, normalScale: new Vector2(2, 2), roughnessMap: caveRock.rough, roughness: 0.85, aoMap: caveRock.ao, aoMapIntensity: 0.5 }),
       CAVE_ROCKS_LIGHT.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.7, s], rotation: [0, ry, 0] }, i2))
     ] }),
     POOL_RIM.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [x2, y + s * 0.25, z], scale: [s, s * 0.5, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: rockScenes[i2 % 4].clone(true) }) }, `rim-${i2}`)),
@@ -106083,32 +106076,21 @@ const Floor2Environment = ({
     TORCH_POSITIONS.map(([x2, y, z], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Torch, { x: x2, y, z, seed: i2 * 7.3 }, `torch-${i2}`)),
     /* @__PURE__ */ jsxRuntimeExports.jsx(DustMotes, {}),
     /* @__PURE__ */ jsxRuntimeExports.jsx(WaterSurface, { reflective }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(
-      "mesh",
-      {
-        position: [HOLE_CENTER_X, WATER_LEVEL_Y + 0.02, HOLE_CENTER_Z],
-        rotation: [-Math.PI / 2, 0, 0],
-        children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [HOLE_RADIUS, 32] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "meshBasicMaterial",
-            {
-              color: "#020810",
-              side: BackSide,
-              depthWrite: true,
-              transparent: false
-            }
-          )
-        ]
-      }
-    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [HOLE_CENTER_X, WATER_LEVEL_Y - 1, HOLE_CENTER_Z], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [HOLE_RADIUS + 0.1, HOLE_RADIUS + 0.1, 2, 24, 1, true] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#020810", side: BackSide, depthWrite: true, transparent: false })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [HOLE_CENTER_X, WATER_LEVEL_Y + 0.02, HOLE_CENTER_Z], rotation: [-Math.PI / 2, 0, 0], children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [HOLE_RADIUS + 0.1, 24] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#020810", side: BackSide, depthWrite: true, transparent: false })
+    ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: UW_FLOOR_GEO, rotation: [-Math.PI / 2, 0, 0], position: [0, -30, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       "meshStandardMaterial",
       {
         color: "#0a0a06",
         map: uwFloor.color,
         normalMap: uwFloor.normal,
-        normalScale: new Vector2(3, 3),
+        normalScale: new Vector2(4, 4),
         roughnessMap: uwFloor.rough,
         roughness: 0.98,
         aoMap: uwFloor.ao,
@@ -106123,7 +106105,7 @@ const Floor2Environment = ({
     /* @__PURE__ */ jsxRuntimeExports.jsx(FishSchool, {}),
     UW_BOULDERS.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [x2, y + s * 0.4, z], scale: [s, s * 0.6, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: rockScenes[i2 % 4].clone(true) }) }, `uwb-${i2}`)),
     /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: UW_PEBBLES.length, range: UW_PEBBLES.length, geometry: PEBBLE_GEO, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#0c0c0a", map: uwRock.color, normalMap: uwRock.normal, normalScale: new Vector2(1.5, 1.5), roughnessMap: uwRock.rough, roughness: 0.95, aoMap: uwRock.ao, aoMapIntensity: 0.5 }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#0c0c0a", map: uwRock.color, normalMap: uwRock.normal, normalScale: new Vector2(2, 2), roughnessMap: uwRock.rough, roughness: 0.95, aoMap: uwRock.ao, aoMapIntensity: 0.5 }),
       UW_PEBBLES.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.6, s], rotation: [0, ry, 0] }, i2))
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(BubbleField, {}),

@@ -89,11 +89,13 @@ const CAVE_FLOOR_GEO = (() => {
         );
         const edgeFade = Math.min(1, edgeDist / 3);
         const fade = holeFade * edgeFade;
-        // Small multi-octave noise for subtle unevenness
-        const n = Math.sin(v.x * 0.8 + 2.3) * 0.3
-                + Math.sin(v.y * 0.6 + 1.1) * 0.25
-                + Math.cos(v.x * 1.2 + v.y * 0.9 + 4.5) * 0.15;
-        positions.setZ(i, v.z + n * 0.15 * fade);
+        // More dramatic multi-octave noise for realistic unevenness
+        const n = Math.sin(v.x * 0.8 + 2.3) * 0.5
+                + Math.sin(v.y * 0.6 + 1.1) * 0.4
+                + Math.cos(v.x * 1.2 + v.y * 0.9 + 4.5) * 0.3
+                + Math.sin(v.x * 2.1 + v.y * 1.7 + 3.2) * 0.15
+                + Math.cos(v.x * 3.5 + v.y * 2.8 + 1.8) * 0.08;
+        positions.setZ(i, v.z + n * 0.4 * fade);
     }
     positions.needsUpdate = true;
     geo.computeVertexNormals();
@@ -107,7 +109,7 @@ const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);  // kept for instanced 
 
 // Procedural underwater terrain — displaced PlaneGeometry
 const UW_FLOOR_GEO = (() => {
-    const geo = new THREE.PlaneGeometry(80, 80, 32, 32);
+    const geo = new THREE.PlaneGeometry(80, 80, 64, 64);
     const positions = geo.attributes.position;
     const v = new THREE.Vector3();
     for (let i = 0; i < positions.count; i++) {
@@ -117,12 +119,15 @@ const UW_FLOOR_GEO = (() => {
             Math.abs(v.y - (-40)), Math.abs(v.y - 40)
         );
         const edgeFade = Math.min(1, edgeDist / 5);
-        const n = Math.sin(v.x * 0.3 + 1.7) * 0.5
-                + Math.sin(v.y * 0.4 + 3.1) * 0.4
-                + Math.sin((v.x + v.y) * 0.2 + 0.8) * 0.6
-                + Math.cos(v.x * 0.7 - v.y * 0.5 + 5.3) * 0.3
-                + Math.sin(v.x * 1.4 + v.y * 1.1 + 2.2) * 0.15;
-        positions.setZ(i, v.z + n * 1.5 * edgeFade);
+        // Rich multi-octave terrain for realistic seafloor
+        const n = Math.sin(v.x * 0.3 + 1.7) * 0.8
+                + Math.sin(v.y * 0.4 + 3.1) * 0.6
+                + Math.sin((v.x + v.y) * 0.2 + 0.8) * 1.0
+                + Math.cos(v.x * 0.7 - v.y * 0.5 + 5.3) * 0.5
+                + Math.sin(v.x * 1.4 + v.y * 1.1 + 2.2) * 0.25
+                + Math.sin(v.x * 2.8 + v.y * 3.1 + 4.7) * 0.1
+                + Math.cos(v.x * 4.2 - v.y * 3.7 + 1.3) * 0.06;
+        positions.setZ(i, v.z + n * 2.5 * edgeFade);
     }
     positions.needsUpdate = true;
     geo.computeVertexNormals();
@@ -268,10 +273,8 @@ const CrystalCluster: React.FC<{ x: number; y: number; z: number; color: string 
         <mesh geometry={CRYSTAL_GEO} scale={0.4} position={[0.0, 0.35, -0.15]} rotation={[0.2, 0.2, 1.4]}>
             <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.4} metalness={0.5} roughness={0.2} toneMapped={false} />
         </mesh>
-        {/* Dim pointLight — low intensity avoids square light artifact.
-            Higher intensity = square on mobile GPU. We compensate with
-            the larger glow sprite below. */}
-        <pointLight intensity={0.8} distance={7} decay={1.4} color={color} />
+        {/* NO pointLight — causes square lights on mobile GPU.
+            Glow comes from emissive material + additive sprites only. */}
         {/* Round glow halo — additive sprite, always circular, no square */}
         <sprite scale={[2.5, 2.5, 1]}>
             <spriteMaterial color={color} transparent opacity={0.45} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
@@ -294,30 +297,31 @@ const TORCH_POSITIONS: readonly (readonly [number, number, number])[] = [
 ];
 
 const Torch: React.FC<{ x: number; y: number; z: number; seed: number }> = ({ x, y, z, seed }) => {
-    const lightRef = useRef<THREE.PointLight>(null);
+    const spriteRef = useRef<THREE.SpriteMaterial>(null);
+    const outerRef = useRef<THREE.SpriteMaterial>(null);
     useFrame((state) => {
-        const l = lightRef.current;
-        if (!l) return;
-        const dxC = x - state.camera.position.x;
-        const dzC = z - state.camera.position.z;
-        if (dxC * dxC + dzC * dzC > 400) {
-            l.intensity = 3.5;
-            return;
-        }
         const t = state.clock.elapsedTime;
-        const flicker = 0.85 + Math.sin(t * 9 + seed) * 0.05 + Math.sin(t * 23 + seed * 1.3) * 0.04 + Math.random() * 0.03;
-        l.intensity = 3.5 * flicker;
+        // Deterministic flicker — NO Math.random() (causes GC spikes on mobile)
+        const noise = Math.sin(t * 37.7 + seed * 13.3) * 0.5 + 0.5;
+        const flicker = 0.5 + Math.sin(t * 9 + seed) * 0.08 + Math.sin(t * 23 + seed * 1.3) * 0.06 + noise * 0.05;
+        if (spriteRef.current) spriteRef.current.opacity = flicker;
+        if (outerRef.current) outerRef.current.opacity = flicker * 0.3;
     });
     return (
         <group position={[x, y, z]}>
+            {/* Flame cone — emissive, no pointLight */}
             <mesh>
                 <coneGeometry args={[0.18, 0.4, 8]} />
                 <meshStandardMaterial color="#FFA850" emissive="#FFB060" emissiveIntensity={3.5} toneMapped={false} />
             </mesh>
-            <sprite scale={[2.2, 2.2, 1]}>
-                <spriteMaterial color="#FFC080" transparent opacity={0.6} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+            {/* Inner glow sprite — always round, no square */}
+            <sprite scale={[3.0, 3.0, 1]}>
+                <spriteMaterial ref={spriteRef} color="#FFC080" transparent opacity={0.5} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
             </sprite>
-            <pointLight ref={lightRef} intensity={3.5} distance={16} decay={1.4} color="#FFB070" />
+            {/* Outer atmospheric glow */}
+            <sprite scale={[7.0, 7.0, 1]}>
+                <spriteMaterial ref={outerRef} color="#FF9040" transparent opacity={0.15} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+            </sprite>
         </group>
     );
 };
@@ -1065,7 +1069,7 @@ const Shard: React.FC<ShardProps> = ({ index, position, collected, onCollect, pl
             <sprite scale={[1.3, 1.3, 1]}>
                 <spriteMaterial color="#9be8ff" transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
             </sprite>
-            <pointLight intensity={0.8} distance={3} decay={1.5} color="#7ad8ff" />
+            {/* NO pointLight — causes square lights on mobile. Sprite glow only. */}
         </group>
     );
 };
@@ -1129,14 +1133,14 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <fog attach="fog" args={['#0e0a08', 14, 55]} />
 
         {/* FIX #8: Horror lighting — MUCH darker */}
-        <ambientLight intensity={0.15} color="#d8c0a0" />
-        <hemisphereLight intensity={0.12} color="#c8a888" groundColor="#1a1612" />
-        <directionalLight position={[5, 20, 5]} intensity={0.15} color="#ffe8c0" />
+        <ambientLight intensity={0.25} color="#d8c0a0" />
+        <hemisphereLight intensity={0.20} color="#c8a888" groundColor="#1a1612" />
+        <directionalLight position={[5, 20, 5]} intensity={0.20} color="#ffe8c0" />
 
-        {/* FIX #8: Dim reddish ember pointLights at floor level */}
-        <pointLight position={[-25, 0.5, 0]} intensity={0.3} distance={8} decay={1.5} color="#3a1008" />
-        <pointLight position={[25, 0.5, -5]} intensity={0.3} distance={8} decay={1.5} color="#3a1008" />
-        <pointLight position={[0, 0.5, 25]} intensity={0.25} distance={7} decay={1.5} color="#3a1008" />
+        {/* Ember sprites — warm glow on floor, NO pointLight (square artifact) */}
+        <sprite position={[-25, 0.8, 0]} scale={[6, 6, 1]}><spriteMaterial color="#3a1008" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[25, 0.8, -5]} scale={[6, 6, 1]}><spriteMaterial color="#3a1008" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[0, 0.8, 25]} scale={[5, 5, 1]}><spriteMaterial color="#3a1008" transparent opacity={0.15} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
 
         <DynamicFog playerPositionRef={playerPositionRef} />
 
@@ -1150,7 +1154,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 color="#1a1610"
                 map={caveFloor.color}
                 normalMap={caveFloor.normal}
-                normalScale={new THREE.Vector2(3.0, 3.0)}
+                normalScale={new THREE.Vector2(4.0, 4.0)}
                 roughnessMap={caveFloor.rough}
                 roughness={0.92}
                 aoMap={caveFloor.ao}
@@ -1166,21 +1170,21 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
         {/* CAVE WALLS — real PBR textures */}
         {/* North (z = -30) */}
-        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 1.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 1.2]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 0.6]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 1.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 1.2]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 0.6]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
         {/* South (z = 30) */}
-        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 1.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 1.2]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 0.6]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 1.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 1.2]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 0.6]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
         {/* West (x = -30) */}
-        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[1.0, 5.2, 28]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[-29.4, 3.4, -12]}><boxGeometry args={[1.2, 6.8, 18]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[0.6, 3.6, 60]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[1.0, 5.2, 28]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[-29.4, 3.4, -12]}><boxGeometry args={[1.2, 6.8, 18]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[0.6, 3.6, 60]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
         {/* East (x = 30) */}
-        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[1.0, 5, 22]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[1.2, 7.2, 20]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[0.6, 4, 60]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[1.0, 5, 22]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[1.2, 7.2, 20]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[0.6, 4, 60]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
 
         {/* Cave boulders — real GLB models with PBR textures */}
         {CAVE_ROCKS_DARK.map(([x, y, z, s, ry], i) => (
@@ -1195,7 +1199,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         ))}
         {/* Light pebbles — instanced icosahedra */}
         <Instances limit={CAVE_ROCKS_LIGHT.length} range={CAVE_ROCKS_LIGHT.length} geometry={PEBBLE_GEO}>
-            <meshStandardMaterial map={caveRock.color} normalMap={caveRock.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveRock.rough} roughness={0.85} aoMap={caveRock.ao} aoMapIntensity={0.5} />
+            <meshStandardMaterial map={caveRock.color} normalMap={caveRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={caveRock.rough} roughness={0.85} aoMap={caveRock.ao} aoMapIntensity={0.5} />
             {CAVE_ROCKS_LIGHT.map(([x, y, z, s, ry], i) => (
                 <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]} />
             ))}
@@ -1243,24 +1247,20 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
         <WaterSurface reflective={reflective} />
 
-        {/* Opaque water ceiling — blocks x-ray vision from below.
-            This is a flat, OPAQUE plane at the water level that only
-            renders its BACK face (visible from underwater looking up).
-            It writes to the depth buffer, so all cave geometry above
-            is correctly occluded. The Gerstner wave shader on top
-            (transparent, depthWrite=false) can't block anything because
-            transparent objects don't write depth. This plane does. */}
-        <mesh
-            position={[HOLE_CENTER_X, WATER_LEVEL_Y + 0.02, HOLE_CENTER_Z]}
-            rotation={[-Math.PI / 2, 0, 0]}
-        >
-            <circleGeometry args={[HOLE_RADIUS, 32]} />
-            <meshBasicMaterial
-                color="#020810"
-                side={THREE.BackSide}
-                depthWrite={true}
-                transparent={false}
-            />
+        {/* Opaque water column — blocks x-ray vision from below.
+            A cylinder + disc that covers the entire hole from water level
+            down to Y=-2. It writes to the depth buffer (opaque, not
+            transparent), so ALL cave geometry above is occluded when
+            viewed from underwater. BackSide only = invisible from above.
+            The Gerstner wave shader (transparent, depthWrite=false) can't
+            block anything — this cylinder does the job. */}
+        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y - 1, HOLE_CENTER_Z]}>
+            <cylinderGeometry args={[HOLE_RADIUS + 0.1, HOLE_RADIUS + 0.1, 2, 24, 1, true]} />
+            <meshBasicMaterial color="#020810" side={THREE.BackSide} depthWrite={true} transparent={false} />
+        </mesh>
+        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y + 0.02, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[HOLE_RADIUS + 0.1, 24]} />
+            <meshBasicMaterial color="#020810" side={THREE.BackSide} depthWrite={true} transparent={false} />
         </mesh>
 
         {/* ─── UNDERWATER (Y < 0) ────────────────────────────────────── */}
@@ -1270,7 +1270,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 color="#0a0a06"
                 map={uwFloor.color}
                 normalMap={uwFloor.normal}
-                normalScale={new THREE.Vector2(3.0, 3.0)}
+                normalScale={new THREE.Vector2(4.0, 4.0)}
                 roughnessMap={uwFloor.rough}
                 roughness={0.98}
                 aoMap={uwFloor.ao}
@@ -1305,7 +1305,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
         {/* FIX #5: Underwater pebbles — darkened color="#0c0c0a" */}
         <Instances limit={UW_PEBBLES.length} range={UW_PEBBLES.length} geometry={PEBBLE_GEO}>
-            <meshStandardMaterial color="#0c0c0a" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
+            <meshStandardMaterial color="#0c0c0a" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
             {UW_PEBBLES.map(([x, y, z, s, ry], i) => (
                 <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]} />
             ))}
