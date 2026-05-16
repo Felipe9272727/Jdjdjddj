@@ -93,11 +93,12 @@ export interface QualityProfile {
     far: number;
     antialias: boolean;
     // Scene features
-    atmosphere: boolean;     // dust particles, ceiling fans, wall clock, fluorescent flicker
+    atmosphere: boolean;     // dust particles, ceiling fans, wall clock, fluorescent flicker, water reflections
     overlay: boolean;        // GameEffects fullscreen CSS overlay (vignette + grain)
     nightLights: boolean;    // NightAmbient + the extra moon pointLight in night mode
     chatBubbles3D: boolean;  // <Html> 3D speech bubbles on remote players + Dussekar
     remoteLimit: number;     // hard cap on rendered remote players (others are dropped)
+    godRays: boolean;        // underwater god ray shafts + deep mist — high only
 }
 
 export const QUALITY_PROFILES: Record<Quality, QualityProfile> = {
@@ -110,16 +111,18 @@ export const QUALITY_PROFILES: Record<Quality, QualityProfile> = {
         nightLights: false,
         chatBubbles3D: false,
         remoteLimit: 3,
+        godRays: false,
     },
     medium: {
         dpr: [1, 1.25],
         far: 80,
         antialias: false,
-        atmosphere: false,
+        atmosphere: true,
         overlay: false,
         nightLights: true,
         chatBubbles3D: true,
         remoteLimit: 8,
+        godRays: false,
     },
     high: {
         dpr: [1, 2],
@@ -130,6 +133,7 @@ export const QUALITY_PROFILES: Record<Quality, QualityProfile> = {
         nightLights: true,
         chatBubbles3D: true,
         remoteLimit: 30,
+        godRays: true,
     },
 };
 
