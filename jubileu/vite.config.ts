@@ -11,6 +11,7 @@ export default defineConfig(({mode: _mode}) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    assetsInclude: ['**/*.glb'],
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
@@ -18,6 +19,9 @@ export default defineConfig(({mode: _mode}) => {
     },
     build: {
       minify: false,
+      // Inline ALL assets as base64 data-URIs so the single index.html
+      // is fully self-contained (no external texture/model files needed).
+      assetsInlineLimit: 20_000_000, // 20 MB — covers all PBR textures + GLB models
       rollupOptions: {
         output: {
           // Preserve readable variable names in the bundle

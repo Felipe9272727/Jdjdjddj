@@ -34,6 +34,15 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Instances, Instance, shaderMaterial, MeshReflectorMaterial, useTexture, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { ElevatorFacade } from './Elevator';
+import {
+    caveFloorColor, caveFloorNormal, caveFloorRoughness, caveFloorAO,
+    caveWallColor, caveWallNormal, caveWallRoughness, caveWallAO,
+    caveRockColor, caveRockNormal, caveRockRoughness, caveRockAO,
+    uwFloorColor, uwFloorNormal, uwFloorRoughness, uwFloorAO,
+    uwRockColor, uwRockNormal, uwRockRoughness, uwRockAO,
+    rockModelA, rockModelB, rockModelC, rockModelD,
+    boulderModel, pebbleModel,
+} from './assets/textureImports';
 
 // ─── Hole geometry placement (also exported for Player.tsx) ────────────
 export const HOLE_CENTER_X = 0;
@@ -129,10 +138,10 @@ const UW_FLOOR_GEO = (() => {
 })();
 
 // ─── REAL PBR Textures from ambientcg.com (CC0) ───────────────────
-// Replaced procedural canvas-generated textures with photogrammetry-
-// scanned PBR texture sets from ambientcg.com (Public Domain license).
-// Each set includes: Color (albedo), NormalGL, Roughness, AO.
-// Textures are loaded via drei's useTexture hook at runtime.
+// Photogrammetry-scanned PBR texture sets from ambientcg.com (Public Domain).
+// Each set: Color (albedo), NormalGL, Roughness, AO.
+// Textures are imported via Vite so they get inlined as base64 data-URIs
+// in the JS bundle — the final index.html is fully self-contained.
 //
 // Sources:
 //   Cave floor/walls: Rock064, Rock035, Rock020 (ambientcg.com)
@@ -142,8 +151,9 @@ const UW_FLOOR_GEO = (() => {
 // ─── Texture loading helper ────────────────────────────────────────
 // useTexture returns THREE.Texture[]. We configure repeat wrapping
 // and colorSpace per-map type (albedo=sRGB, normal/rough/AO=linear).
-function usePBRSet(colorPath: string, normalPath: string, roughPath: string, aoPath: string, repeatX: number, repeatY: number) {
-    const [color, normal, rough, ao] = useTexture([colorPath, normalPath, roughPath, aoPath]);
+// Accepts Vite-imported URLs (data-URIs in production, paths in dev).
+function usePBRSet(colorUrl: string, normalUrl: string, roughUrl: string, aoUrl: string, repeatX: number, repeatY: number) {
+    const [color, normal, rough, ao] = useTexture([colorUrl, normalUrl, roughUrl, aoUrl]);
     for (const tex of [color, normal, rough, ao]) {
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         tex.repeat.set(repeatX, repeatY);
@@ -157,53 +167,10 @@ function usePBRSet(colorPath: string, normalPath: string, roughPath: string, aoP
 
 // ─── Rock GLB models ──────────────────────────────────────────────
 // Rock geometry generated from ambientcg displacement maps via
-// Python/trimesh. Each rock has ~642 verts, ~1280 faces — detailed
-// enough for close-up viewing but cheap enough for instancing.
-// Loaded via drei's useGLTF at runtime.
-const ROCK_MODEL_PATHS = [
-    '/models/rocks/rock_a.glb',
-    '/models/rocks/rock_b.glb',
-    '/models/rocks/rock_c.glb',
-    '/models/rocks/rock_d.glb',
-];
-const BOULDER_MODEL_PATH = '/models/rocks/boulder.glb';
-const PEBBLE_MODEL_PATH = '/models/rocks/pebble.glb';
-
-// ─── Real-PBR Rock Component ─────────────────────────────────────────
-// Loads a GLB rock model and applies real PBR textures from ambientcg.
-// This replaces the old procedural icosahedron rocks with photogrammetry-
-// scanned geometry and textures.
-const RealRock: React.FC<{
-    modelPath: string;
-    colorPath: string;
-    normalPath: string;
-    roughPath: string;
-    aoPath: string;
-    position: [number, number, number];
-    scale?: [number, number, number];
-    rotation?: [number, number, number];
-    repeatX?: number;
-    repeatY?: number;
-}> = ({ modelPath, colorPath, normalPath, roughPath, aoPath, position, scale = [1,1,1], rotation = [0,0,0], repeatX = 1, repeatY = 1 }) => {
-    const { scene } = useGLTF(modelPath);
-    const pbr = usePBRSet(colorPath, normalPath, roughPath, aoPath, repeatX, repeatY);
-    const cloned = useMemo(() => scene.clone(true), [scene]);
-    return (
-        <group position={position} rotation={rotation} scale={scale}>
-            <primitive object={cloned}>
-                <meshStandardMaterial
-                    map={pbr.color}
-                    normalMap={pbr.normal}
-                    normalScale={new THREE.Vector2(2.0, 2.0)}
-                    roughnessMap={pbr.rough}
-                    roughness={0.9}
-                    aoMap={pbr.ao}
-                    aoMapIntensity={0.6}
-                />
-            </primitive>
-        </group>
-    );
-};
+// Python/trimesh. Imported via Vite so they're inlined in the bundle.
+const ROCK_MODEL_URLS = [rockModelA, rockModelB, rockModelC, rockModelD];
+const BOULDER_MODEL_URL = boulderModel;
+const PEBBLE_MODEL_URL = pebbleModel;
 
 // ─── Cave boulders — multiple cohorts for color variation ─────────────
 type Boulder = readonly [number, number, number, number, number]; // x,y,z,s,ry
@@ -1146,50 +1113,35 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     onCollectShard,
     reflective = false,
 }) => {
-    // ─── Load real PBR texture sets from ambientcg.com ─────────────
+    // ─── Load real PBR texture sets (Vite-inlined data-URIs) ────────
     const caveFloor = usePBRSet(
-        '/textures/cave/floor_color.jpg',
-        '/textures/cave/floor_normal.jpg',
-        '/textures/cave/floor_roughness.jpg',
-        '/textures/cave/floor_ao.jpg',
+        caveFloorColor, caveFloorNormal, caveFloorRoughness, caveFloorAO,
         8, 8
     );
     const caveWall = usePBRSet(
-        '/textures/cave/wall_color.jpg',
-        '/textures/cave/wall_normal.jpg',
-        '/textures/cave/wall_roughness.jpg',
-        '/textures/cave/wall_ao.jpg',
+        caveWallColor, caveWallNormal, caveWallRoughness, caveWallAO,
         4, 2
     );
     const caveRock = usePBRSet(
-        '/textures/cave/rock_color.jpg',
-        '/textures/cave/rock_normal.jpg',
-        '/textures/cave/rock_roughness.jpg',
-        '/textures/cave/rock_ao.jpg',
+        caveRockColor, caveRockNormal, caveRockRoughness, caveRockAO,
         1, 1
     );
     const uwFloor = usePBRSet(
-        '/textures/underwater/floor_color.jpg',
-        '/textures/underwater/floor_normal.jpg',
-        '/textures/underwater/floor_roughness.jpg',
-        '/textures/underwater/floor_ao.jpg',
+        uwFloorColor, uwFloorNormal, uwFloorRoughness, uwFloorAO,
         10, 10
     );
     const uwRock = usePBRSet(
-        '/textures/underwater/rock_color.jpg',
-        '/textures/underwater/rock_normal.jpg',
-        '/textures/underwater/rock_roughness.jpg',
-        '/textures/underwater/rock_ao.jpg',
+        uwRockColor, uwRockNormal, uwRockRoughness, uwRockAO,
         1, 1
     );
 
-    // ─── Load rock GLB models ──────────────────────────────────────
-    const rockModels = ROCK_MODEL_PATHS.map(p => useGLTF(p));
-    const boulderModel = useGLTF(BOULDER_MODEL_PATH);
+    // ─── Load rock GLB models (Vite-inlined data-URIs) ──────────────
+    const rockModels = ROCK_MODEL_URLS.map(u => useGLTF(u));
+    const boulderModel_ = useGLTF(BOULDER_MODEL_URL);
 
     // Clone GLB scenes so each instance has its own transform
     const rockScenes = useMemo(() => rockModels.map(m => m.scene.clone(true)), [rockModels]);
-    const boulderScene = useMemo(() => boulderModel.scene.clone(true), [boulderModel]);
+    const boulderScene = useMemo(() => boulderModel_.scene.clone(true), [boulderModel_]);
 
     return (
     <group>
