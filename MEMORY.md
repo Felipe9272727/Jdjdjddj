@@ -2239,10 +2239,11 @@ Tudo o que vem abaixo foi feito a partir do revert ao commit `87da1a9` (~4.44MB)
 | dpr range | 0.5–0.75 | 1–1.25 | 1–2 |
 | far plane | 40 | 80 | 120 |
 | antialias | ❌ | ❌ | ✅ |
-| atmosphere | ❌ | ❌ | ✅ |
+| atmosphere | ❌ | ✅ | ✅ |
 | postprocessing | ❌ | ❌ | Bloom only |
 | nightLights | ❌ | ✅ | ✅ |
 | remoteLimit | 3 | 8 | 30 |
+| godRays | ❌ | ❌ | ✅ |
 
 ### Como debugar próxima vez
 1. Tela preta volta → procurar `useFrame(_, _, !=0)` ou `bone.add(mesh)` recente
@@ -2250,4 +2251,36 @@ Tudo o que vem abaixo foi feito a partir do revert ao commit `87da1a9` (~4.44MB)
 3. FP arm reinicia animação → verificar se `state.timed.elapsed` está sendo avançado FORA do visibility gate
 4. Cookie pra cabelo (não boca) → ajustar `armAngleY` (positivo = pra dentro) e `forearmAngleX` (negativo = elbow forward)
 5. Bones do GLB precisam debug → `window.__SKELETON_SCAN__ = true; location.reload();` → console.table com toda hierarquia
+
+---
+
+## 🔧 Sessão 2026-05-17: Water Level + Quality Mode Differentiation
+
+### Mudanças
+
+#### Água elevada para Y=0.35
+- `WATER_LEVEL_Y` mudou de `-0.05` para `0.35` — piscina agora fica ACIMA do chão da caverna
+- `SWIM_THRESHOLD_Y` mudou de `-0.3` para `0.10` — jogador entra em modo nado abaixo de Y=0.10
+- Pool rim boulders reposicionados para Y=0.35 (acompanhar o nível da água)
+- X-ray blocker disc e coluna ajustados para a nova altura
+
+#### Modo Médio com mais diferença visual
+- `atmosphere` agora é `true` no Medium (era `false`) — água com MeshReflectorMaterial no Medium
+- Novo flag `godRays` no QualityProfile:
+  - Low: `false` — sem god rays, sem deep mist
+  - Medium: `false` — sem god rays, sem deep mist (mas tem caustics, flora, peixes, poeira)
+  - High: `true` — god rays + deep mist + tudo
+
+#### Diferenciação por qualidade no Floor2Underwater
+- **Low**: iluminação reduzida, sem caustics, sem flora, sem god rays, sem peixes, sem poeira, sem deep mist, sem plankton
+- **Medium**: caustics ✅, kelp/coral ✅, bolhas ✅, peixes ✅, poeira ✅; sem god rays, sem deep mist
+- **High**: tudo + god rays + deep mist + MeshReflectorMaterial
+
+#### Arquivos alterados
+- `jubileu/src/Floor2Underwater.tsx` — água em Y=0.35, quality prop, renderização condicional
+- `jubileu/src/Settings.tsx` — atmosphere=true no medium, novo flag godRays
+- `jubileu/src/App.tsx` — passa quality prop para World → Floor2Environment
+
+### Commit
+- `d44ba5d` — feat: raise water to Y=0.35, enhance medium quality mode
 
