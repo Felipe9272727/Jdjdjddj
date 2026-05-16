@@ -140,15 +140,18 @@
     --color-purple-300: oklch(82.7% .119 306.383);
     --color-purple-400: oklch(71.4% .203 305.504);
     --color-purple-500: oklch(62.7% .265 303.9);
+    --color-purple-600: oklch(55.8% .288 302.321);
     --color-purple-900: oklch(38.1% .176 304.987);
     --color-fuchsia-100: oklch(95.2% .037 318.852);
     --color-fuchsia-200: oklch(90.3% .076 319.62);
     --color-fuchsia-300: oklch(83.3% .145 321.434);
     --color-fuchsia-400: oklch(74% .238 322.16);
     --color-fuchsia-500: oklch(66.7% .295 322.15);
+    --color-pink-400: oklch(71.8% .202 349.761);
     --color-pink-500: oklch(65.6% .241 354.308);
     --color-rose-200: oklch(89.2% .058 10.001);
     --color-rose-400: oklch(71.2% .194 13.428);
+    --color-rose-500: oklch(64.5% .246 16.439);
     --color-slate-200: oklch(92.9% .013 255.508);
     --color-slate-300: oklch(86.9% .022 252.894);
     --color-slate-900: oklch(20.8% .042 265.755);
@@ -842,6 +845,10 @@
     margin-top: calc(var(--spacing) * -.5);
   }
 
+  .mt-0\.5 {
+    margin-top: calc(var(--spacing) * .5);
+  }
+
   .mt-1 {
     margin-top: calc(var(--spacing) * 1);
   }
@@ -1316,6 +1323,10 @@
     translate: var(--tw-translate-x) var(--tw-translate-y);
   }
 
+  .scale-\[1\.02\] {
+    scale: 1.02;
+  }
+
   .transform {
     transform: var(--tw-rotate-x, ) var(--tw-rotate-y, ) var(--tw-rotate-z, ) var(--tw-skew-x, ) var(--tw-skew-y, );
   }
@@ -1330,6 +1341,10 @@
 
   .cursor-default {
     cursor: default;
+  }
+
+  .cursor-not-allowed {
+    cursor: not-allowed;
   }
 
   .touch-manipulation {
@@ -1394,6 +1409,10 @@
 
   .gap-2 {
     gap: calc(var(--spacing) * 2);
+  }
+
+  .gap-2\.5 {
+    gap: calc(var(--spacing) * 2.5);
   }
 
   .gap-3 {
@@ -1657,6 +1676,16 @@
     }
   }
 
+  .border-purple-400\/30 {
+    border-color: #c07eff4d;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .border-purple-400\/30 {
+      border-color: color-mix(in oklab, var(--color-purple-400) 30%, transparent);
+    }
+  }
+
   .border-purple-500\/30 {
     border-color: #ac4bff4d;
   }
@@ -1724,6 +1753,16 @@
   @supports (color: color-mix(in lab, red, red)) {
     .border-white\/30 {
       border-color: color-mix(in oklab, var(--color-white) 30%, transparent);
+    }
+  }
+
+  .border-white\/60 {
+    border-color: #fff9;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .border-white\/60 {
+      border-color: color-mix(in oklab, var(--color-white) 60%, transparent);
     }
   }
 
@@ -2005,6 +2044,26 @@
 
   .bg-purple-400 {
     background-color: var(--color-purple-400);
+  }
+
+  .bg-purple-500\/10 {
+    background-color: #ac4bff1a;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-purple-500\/10 {
+      background-color: color-mix(in oklab, var(--color-purple-500) 10%, transparent);
+    }
+  }
+
+  .bg-purple-500\/15 {
+    background-color: #ac4bff26;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-purple-500\/15 {
+      background-color: color-mix(in oklab, var(--color-purple-500) 15%, transparent);
+    }
   }
 
   .bg-red-400\/80 {
@@ -2363,6 +2422,16 @@
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
   }
 
+  .from-cyan-400 {
+    --tw-gradient-from: var(--color-cyan-400);
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+
+  .from-purple-500 {
+    --tw-gradient-from: var(--color-purple-500);
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+
   .from-purple-500\/40 {
     --tw-gradient-from: #ac4bff66;
   }
@@ -2374,6 +2443,11 @@
   }
 
   .from-purple-500\/40 {
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+
+  .from-purple-600 {
+    --tw-gradient-from: var(--color-purple-600);
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
   }
 
@@ -2472,8 +2546,26 @@
     --tw-gradient-stops: var(--tw-gradient-via-stops);
   }
 
+  .via-blue-500 {
+    --tw-gradient-via: var(--color-blue-500);
+    --tw-gradient-via-stops: var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-via-stops);
+  }
+
   .via-green-400 {
     --tw-gradient-via: var(--color-green-400);
+    --tw-gradient-via-stops: var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-via-stops);
+  }
+
+  .via-pink-400 {
+    --tw-gradient-via: var(--color-pink-400);
+    --tw-gradient-via-stops: var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-via-stops);
+  }
+
+  .via-pink-500 {
+    --tw-gradient-via: var(--color-pink-500);
     --tw-gradient-via-stops: var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position);
     --tw-gradient-stops: var(--tw-gradient-via-stops);
   }
@@ -2495,6 +2587,12 @@
 
   .via-rose-400 {
     --tw-gradient-via: var(--color-rose-400);
+    --tw-gradient-via-stops: var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-via-stops);
+  }
+
+  .via-rose-500 {
+    --tw-gradient-via: var(--color-rose-500);
     --tw-gradient-via-stops: var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-via) var(--tw-gradient-via-position), var(--tw-gradient-to) var(--tw-gradient-to-position);
     --tw-gradient-stops: var(--tw-gradient-via-stops);
   }
@@ -2653,6 +2751,11 @@
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
   }
 
+  .to-purple-500 {
+    --tw-gradient-to: var(--color-purple-500);
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+
   .to-purple-500\/40 {
     --tw-gradient-to: #ac4bff66;
   }
@@ -2664,6 +2767,11 @@
   }
 
   .to-purple-500\/40 {
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+
+  .to-purple-600 {
+    --tw-gradient-to: var(--color-purple-600);
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
   }
 
@@ -2679,6 +2787,11 @@
 
   .to-red-500 {
     --tw-gradient-to: var(--color-red-500);
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+
+  .to-red-600 {
+    --tw-gradient-to: var(--color-red-600);
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
   }
 
@@ -2729,6 +2842,10 @@
 
   .p-3 {
     padding: calc(var(--spacing) * 3);
+  }
+
+  .p-3\.5 {
+    padding: calc(var(--spacing) * 3.5);
   }
 
   .p-4 {
@@ -2805,6 +2922,10 @@
 
   .py-3 {
     padding-block: calc(var(--spacing) * 3);
+  }
+
+  .py-3\.5 {
+    padding-block: calc(var(--spacing) * 3.5);
   }
 
   .py-4 {
@@ -3331,6 +3452,26 @@
     }
   }
 
+  .text-white\/25 {
+    color: #ffffff40;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/25 {
+      color: color-mix(in oklab, var(--color-white) 25%, transparent);
+    }
+  }
+
+  .text-white\/30 {
+    color: #ffffff4d;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/30 {
+      color: color-mix(in oklab, var(--color-white) 30%, transparent);
+    }
+  }
+
   .text-white\/35 {
     color: #ffffff59;
   }
@@ -3368,6 +3509,16 @@
   @supports (color: color-mix(in lab, red, red)) {
     .text-white\/50 {
       color: color-mix(in oklab, var(--color-white) 50%, transparent);
+    }
+  }
+
+  .text-white\/55 {
+    color: #ffffff8c;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-white\/55 {
+      color: color-mix(in oklab, var(--color-white) 55%, transparent);
     }
   }
 
@@ -3506,8 +3657,20 @@
     opacity: 0;
   }
 
+  .opacity-30 {
+    opacity: .3;
+  }
+
+  .opacity-40 {
+    opacity: .4;
+  }
+
   .opacity-50 {
     opacity: .5;
+  }
+
+  .opacity-60 {
+    opacity: .6;
   }
 
   .opacity-70 {
@@ -3831,6 +3994,16 @@
     }
   }
 
+  .ring-white\/60 {
+    --tw-ring-color: #fff9;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .ring-white\/60 {
+      --tw-ring-color: color-mix(in oklab, var(--color-white) 60%, transparent);
+    }
+  }
+
   .ring-yellow-200 {
     --tw-ring-color: var(--color-yellow-200);
   }
@@ -3917,6 +4090,11 @@
     transition-duration: var(--tw-duration, var(--default-transition-duration));
   }
 
+  .duration-200 {
+    --tw-duration: .2s;
+    transition-duration: .2s;
+  }
+
   .duration-300 {
     --tw-duration: .3s;
     transition-duration: .3s;
@@ -3986,6 +4164,11 @@
       letter-spacing: .3em;
     }
 
+    .group-hover\:tracking-\[0\.25em\]:is(:where(.group):hover *) {
+      --tw-tracking: .25em;
+      letter-spacing: .25em;
+    }
+
     .group-hover\:text-black:is(:where(.group):hover *) {
       color: var(--color-black);
     }
@@ -3996,6 +4179,10 @@
 
     .group-hover\:text-white:is(:where(.group):hover *) {
       color: var(--color-white);
+    }
+
+    .group-hover\:opacity-80:is(:where(.group):hover *) {
+      opacity: .8;
     }
 
     .group-hover\:opacity-100:is(:where(.group):hover *) {
@@ -4059,6 +4246,16 @@
       }
     }
 
+    .hover\:bg-purple-500\/20:hover {
+      background-color: #ac4bff33;
+    }
+
+    @supports (color: color-mix(in lab, red, red)) {
+      .hover\:bg-purple-500\/20:hover {
+        background-color: color-mix(in oklab, var(--color-purple-500) 20%, transparent);
+      }
+    }
+
     .hover\:bg-purple-900\/70:hover {
       background-color: #59168bb3;
     }
@@ -4066,6 +4263,16 @@
     @supports (color: color-mix(in lab, red, red)) {
       .hover\:bg-purple-900\/70:hover {
         background-color: color-mix(in oklab, var(--color-purple-900) 70%, transparent);
+      }
+    }
+
+    .hover\:bg-white\/8:hover {
+      background-color: #ffffff14;
+    }
+
+    @supports (color: color-mix(in lab, red, red)) {
+      .hover\:bg-white\/8:hover {
+        background-color: color-mix(in oklab, var(--color-white) 8%, transparent);
       }
     }
 
@@ -4124,6 +4331,16 @@
     @supports (color: color-mix(in lab, red, red)) {
       .hover\:ring-amber-500\/60:hover {
         --tw-ring-color: color-mix(in oklab, var(--color-amber-500) 60%, transparent);
+      }
+    }
+
+    .hover\:ring-white\/20:hover {
+      --tw-ring-color: #fff3;
+    }
+
+    @supports (color: color-mix(in lab, red, red)) {
+      .hover\:ring-white\/20:hover {
+        --tw-ring-color: color-mix(in oklab, var(--color-white) 20%, transparent);
       }
     }
   }
@@ -63799,7 +64016,7 @@ Error generating stack: ` + l2.message + `
         r2 !== a2 && (Ce(Ws, t2), Ce(Dn, a2));
       }
       function jl(t2) {
-        Ws.current === t2 && (D2(Dn), D2(Ws)), Fc.current === t2 && (D2(Fc), qt ? da._currentValue = rt2 : da._currentValue2 = rt2);
+        Ws.current === t2 && (D2(Dn), D2(Ws)), Fc.current === t2 && (D2(Fc), qt2 ? da._currentValue = rt2 : da._currentValue2 = rt2);
       }
       function ar(t2) {
         var r2 = Error(F2(418, 1 < arguments.length && arguments[1] !== void 0 && arguments[1] ? "text" : "HTML", ""));
@@ -63849,11 +64066,11 @@ Error generating stack: ` + l2.message + `
         Do === null ? Do = [t2] : Do.push(t2);
       }
       function fo(t2, r2, a2) {
-        qt ? (Ce(Yr, r2._currentValue), r2._currentValue = a2) : (Ce(Yr, r2._currentValue2), r2._currentValue2 = a2);
+        qt2 ? (Ce(Yr, r2._currentValue), r2._currentValue = a2) : (Ce(Yr, r2._currentValue2), r2._currentValue2 = a2);
       }
       function En(t2) {
         var r2 = Yr.current;
-        qt ? t2._currentValue = r2 : t2._currentValue2 = r2, D2(Yr);
+        qt2 ? t2._currentValue = r2 : t2._currentValue2 = r2, D2(Yr);
       }
       function Ot(t2, r2, a2) {
         for (; t2 !== null; ) {
@@ -63922,7 +64139,7 @@ Error generating stack: ` + l2.message + `
       function Ri(t2) {
         for (t2 = t2.firstContext; t2 !== null; ) {
           var r2 = t2.context;
-          if (!jn(qt ? r2._currentValue : r2._currentValue2, t2.memoizedValue)) return true;
+          if (!jn(qt2 ? r2._currentValue : r2._currentValue2, t2.memoizedValue)) return true;
           t2 = t2.next;
         }
         return false;
@@ -63937,7 +64154,7 @@ Error generating stack: ` + l2.message + `
         return at2 === null && Un(t2), Nd(t2, r2);
       }
       function Nd(t2, r2) {
-        var a2 = qt ? r2._currentValue : r2._currentValue2;
+        var a2 = qt2 ? r2._currentValue : r2._currentValue2;
         if (r2 = {
           context: r2,
           memoizedValue: a2,
@@ -64097,7 +64314,7 @@ Error generating stack: ` + l2.message + `
       function Pu() {
         var t2 = wu();
         return t2 === null ? null : {
-          parent: qt ? qe._currentValue : qe._currentValue2,
+          parent: qt2 ? qe._currentValue : qe._currentValue2,
           pool: t2
         };
       }
@@ -65421,7 +65638,7 @@ Error generating stack: ` + l2.message + `
       function Bi(t2, r2, a2, l2, c2) {
         var d = wu();
         return d = d === null ? null : {
-          parent: qt ? qe._currentValue : qe._currentValue2,
+          parent: qt2 ? qe._currentValue : qe._currentValue2,
           pool: d
         }, r2.memoizedState = {
           baseLanes: a2,
@@ -65561,7 +65778,7 @@ Error generating stack: ` + l2.message + `
         return c2 ? (So(), y = l2.fallback, c2 = r2.mode, R = t2.child, d = R.sibling, l2 = Qr(R, {
           mode: "hidden",
           children: l2.children
-        }), l2.subtreeFlags = R.subtreeFlags & 65011712, d !== null ? y = Qr(d, y) : (y = Eo(y, c2, a2, null), y.flags |= 2), y.return = r2, l2.return = r2, l2.sibling = y, r2.child = l2, Mt(null, l2), l2 = r2.child, y = t2.child.memoizedState, y === null ? y = ss(a2) : (c2 = y.cachePool, c2 !== null ? (R = qt ? qe._currentValue : qe._currentValue2, c2 = c2.parent !== R ? {
+        }), l2.subtreeFlags = R.subtreeFlags & 65011712, d !== null ? y = Qr(d, y) : (y = Eo(y, c2, a2, null), y.flags |= 2), y.return = r2, l2.return = r2, l2.sibling = y, r2.child = l2, Mt(null, l2), l2 = r2.child, y = t2.child.memoizedState, y === null ? y = ss(a2) : (c2 = y.cachePool, c2 !== null ? (R = qt2 ? qe._currentValue : qe._currentValue2, c2 = c2.parent !== R ? {
           parent: R,
           pool: R
         } : c2) : c2 = Pu(), y = {
@@ -65760,7 +65977,7 @@ Error generating stack: ` + l2.message + `
           case 27:
             if (dn) return yu(r2), t2 === null && dn && ue && (l2 = r2.stateNode = _c(r2.type, r2.pendingProps, pa.current, Dn.current, false), bn = r2, Yt2 = true, Ue = Um(r2.type, l2, Ue)), wn(t2, r2, r2.pendingProps.children, a2), ls(t2, r2), t2 === null && (r2.flags |= 4194304), r2.child;
           case 5:
-            return t2 === null && ue && ($m(r2.type, r2.pendingProps, Dn.current), (c2 = l2 = Ue) && (l2 = Bm(l2, r2.type, r2.pendingProps, Yt2), l2 !== null ? (r2.stateNode = l2, bn = r2, Ue = wc(l2), Yt2 = false, c2 = true) : c2 = false), c2 || ar(r2)), yu(r2), c2 = r2.type, d = r2.pendingProps, h2 = t2 !== null ? t2.memoizedProps : null, l2 = d.children, Rs(c2, d) ? l2 = null : h2 !== null && Rs(c2, h2) && (r2.flags |= 32), r2.memoizedState !== null && (c2 = $l(t2, r2, zu, null, null, a2), qt ? da._currentValue = c2 : da._currentValue2 = c2), ls(t2, r2), wn(t2, r2, l2, a2), r2.child;
+            return t2 === null && ue && ($m(r2.type, r2.pendingProps, Dn.current), (c2 = l2 = Ue) && (l2 = Bm(l2, r2.type, r2.pendingProps, Yt2), l2 !== null ? (r2.stateNode = l2, bn = r2, Ue = wc(l2), Yt2 = false, c2 = true) : c2 = false), c2 || ar(r2)), yu(r2), c2 = r2.type, d = r2.pendingProps, h2 = t2 !== null ? t2.memoizedProps : null, l2 = d.children, Rs(c2, d) ? l2 = null : h2 !== null && Rs(c2, h2) && (r2.flags |= 32), r2.memoizedState !== null && (c2 = $l(t2, r2, zu, null, null, a2), qt2 ? da._currentValue = c2 : da._currentValue2 = c2), ls(t2, r2), wn(t2, r2, l2, a2), r2.child;
           case 6:
             return t2 === null && ue && (jf(r2.pendingProps, Dn.current), (t2 = a2 = Ue) && (a2 = Ph(a2, r2.pendingProps, Yt2), a2 !== null ? (r2.stateNode = a2, bn = r2, Ue = null, t2 = true) : t2 = false), t2 || ar(r2)), null;
           case 13:
@@ -66836,7 +67053,7 @@ Error generating stack: ` + l2.message + `
       function Qn(t2, r2) {
         t2 = null, r2.alternate !== null && (t2 = r2.alternate.memoizedState.cache), r2 = r2.memoizedState.cache, r2 !== t2 && (r2.refCount++, t2 != null && Ra(t2));
       }
-      function yt(t2, r2, a2, l2) {
+      function yt2(t2, r2, a2, l2) {
         if (r2.subtreeFlags & 10256) for (r2 = r2.child; r2 !== null; ) Mp(t2, r2, a2, l2), r2 = r2.sibling;
       }
       function Mp(t2, r2, a2, l2) {
@@ -66845,41 +67062,41 @@ Error generating stack: ` + l2.message + `
           case 0:
           case 11:
           case 15:
-            yt(t2, r2, a2, l2), c2 & 2048 && Br(9, r2);
+            yt2(t2, r2, a2, l2), c2 & 2048 && Br(9, r2);
             break;
           case 1:
-            yt(t2, r2, a2, l2);
+            yt2(t2, r2, a2, l2);
             break;
           case 3:
-            yt(t2, r2, a2, l2), c2 & 2048 && (t2 = null, r2.alternate !== null && (t2 = r2.alternate.memoizedState.cache), r2 = r2.memoizedState.cache, r2 !== t2 && (r2.refCount++, t2 != null && Ra(t2)));
+            yt2(t2, r2, a2, l2), c2 & 2048 && (t2 = null, r2.alternate !== null && (t2 = r2.alternate.memoizedState.cache), r2 = r2.memoizedState.cache, r2 !== t2 && (r2.refCount++, t2 != null && Ra(t2)));
             break;
           case 12:
             if (c2 & 2048) {
-              yt(t2, r2, a2, l2), t2 = r2.stateNode;
+              yt2(t2, r2, a2, l2), t2 = r2.stateNode;
               try {
                 var d = r2.memoizedProps, h2 = d.id, y = d.onPostCommit;
                 typeof y == "function" && y(h2, r2.alternate === null ? "mount" : "update", t2.passiveEffectDuration, -0);
               } catch (R) {
                 ve(r2, r2.return, R);
               }
-            } else yt(t2, r2, a2, l2);
+            } else yt2(t2, r2, a2, l2);
             break;
           case 31:
-            yt(t2, r2, a2, l2);
+            yt2(t2, r2, a2, l2);
             break;
           case 13:
-            yt(t2, r2, a2, l2);
+            yt2(t2, r2, a2, l2);
             break;
           case 23:
             break;
           case 22:
-            d = r2.stateNode, h2 = r2.alternate, r2.memoizedState !== null ? d._visibility & 2 ? yt(t2, r2, a2, l2) : oa(t2, r2) : d._visibility & 2 ? yt(t2, r2, a2, l2) : (d._visibility |= 2, ra(t2, r2, a2, l2, (r2.subtreeFlags & 10256) !== 0 || false)), c2 & 2048 && To(h2, r2);
+            d = r2.stateNode, h2 = r2.alternate, r2.memoizedState !== null ? d._visibility & 2 ? yt2(t2, r2, a2, l2) : oa(t2, r2) : d._visibility & 2 ? yt2(t2, r2, a2, l2) : (d._visibility |= 2, ra(t2, r2, a2, l2, (r2.subtreeFlags & 10256) !== 0 || false)), c2 & 2048 && To(h2, r2);
             break;
           case 24:
-            yt(t2, r2, a2, l2), c2 & 2048 && Qn(r2.alternate, r2);
+            yt2(t2, r2, a2, l2), c2 & 2048 && Qn(r2.alternate, r2);
             break;
           default:
-            yt(t2, r2, a2, l2);
+            yt2(t2, r2, a2, l2);
         }
       }
       function ra(t2, r2, a2, l2, c2) {
@@ -67772,7 +67989,7 @@ Error generating stack: ` + l2.message + `
       m2.cloneMutableInstance;
       var yc = m2.appendInitialChild, Kp = m2.finalizeInitialChildren, Rs = m2.shouldSetTextContent, bc = m2.createTextInstance;
       m2.cloneMutableTextInstance;
-      var eh = m2.scheduleTimeout, Tf = m2.cancelTimeout, Lo = m2.noTimeout, qt = m2.isPrimaryRenderer;
+      var eh = m2.scheduleTimeout, Tf = m2.cancelTimeout, Lo = m2.noTimeout, qt2 = m2.isPrimaryRenderer;
       m2.warnsIfNotActing;
       var $n = m2.supportsMutation, Sr = m2.supportsPersistence, Hn = m2.supportsHydration, nh = m2.getInstanceFromNode;
       m2.beforeActiveInstanceBlur;
@@ -83559,6 +83776,100 @@ var BloomEffect = class extends Effect {
     }
   }
 };
+var chromatic_aberration_default = `#ifdef RADIAL_MODULATION
+uniform float modulationOffset;
+#endif
+varying float vActive;varying vec2 vUvR;varying vec2 vUvB;void mainImage(const in vec4 inputColor,const in vec2 uv,out vec4 outputColor){vec2 ra=inputColor.ra;vec2 ba=inputColor.ba;
+#ifdef RADIAL_MODULATION
+const vec2 center=vec2(0.5);float d=distance(uv,center)*2.0;d=max(d-modulationOffset,0.0);if(vActive>0.0&&d>0.0){ra=texture2D(inputBuffer,mix(uv,vUvR,d)).ra;ba=texture2D(inputBuffer,mix(uv,vUvB,d)).ba;}
+#else
+if(vActive>0.0){ra=texture2D(inputBuffer,vUvR).ra;ba=texture2D(inputBuffer,vUvB).ba;}
+#endif
+outputColor=vec4(ra.x,inputColor.g,ba.x,max(max(ra.y,ba.y),inputColor.a));}`;
+var chromatic_aberration_default2 = `uniform vec2 offset;varying float vActive;varying vec2 vUvR;varying vec2 vUvB;void mainSupport(const in vec2 uv){vec2 shift=offset*vec2(1.0,aspect);vActive=(shift.x!=0.0||shift.y!=0.0)?1.0:0.0;vUvR=uv+shift;vUvB=uv-shift;}`;
+var ChromaticAberrationEffect = class extends Effect {
+  /**
+   * Constructs a new chromatic aberration effect.
+   *
+   * @param {Object} [options] - The options.
+   * @param {Vector2} [options.offset] - The color offset.
+   * @param {Boolean} [options.radialModulation=false] - Whether the effect should be modulated with a radial gradient.
+   * @param {Number} [options.modulationOffset=0.15] - The modulation offset. Only applies if `radialModulation` is enabled.
+   */
+  constructor({
+    offset = new Vector2(1e-3, 5e-4),
+    radialModulation = false,
+    modulationOffset = 0.15
+  } = {}) {
+    super("ChromaticAberrationEffect", chromatic_aberration_default, {
+      vertexShader: chromatic_aberration_default2,
+      attributes: EffectAttribute.CONVOLUTION,
+      uniforms: /* @__PURE__ */ new Map([
+        ["offset", new Uniform(offset)],
+        ["modulationOffset", new Uniform(modulationOffset)]
+      ])
+    });
+    this.radialModulation = radialModulation;
+  }
+  /**
+   * The color offset.
+   *
+   * @type {Vector2}
+   */
+  get offset() {
+    return this.uniforms.get("offset").value;
+  }
+  set offset(value) {
+    this.uniforms.get("offset").value = value;
+  }
+  /**
+   * Indicates whether radial modulation is enabled.
+   *
+   * When enabled, the effect will be weaker in the middle and stronger towards the screen edges.
+   *
+   * @type {Boolean}
+   */
+  get radialModulation() {
+    return this.defines.has("RADIAL_MODULATION");
+  }
+  set radialModulation(value) {
+    if (value) {
+      this.defines.set("RADIAL_MODULATION", "1");
+    } else {
+      this.defines.delete("RADIAL_MODULATION");
+    }
+    this.setChanged();
+  }
+  /**
+   * The modulation offset.
+   *
+   * @type {Number}
+   */
+  get modulationOffset() {
+    return this.uniforms.get("modulationOffset").value;
+  }
+  set modulationOffset(value) {
+    this.uniforms.get("modulationOffset").value = value;
+  }
+  /**
+   * Returns the color offset vector.
+   *
+   * @deprecated Use offset instead.
+   * @return {Vector2} The offset.
+   */
+  getOffset() {
+    return this.offset;
+  }
+  /**
+   * Sets the color offset vector.
+   *
+   * @deprecated Use offset instead.
+   * @param {Vector2} value - The offset.
+   */
+  setOffset(value) {
+    this.offset = value;
+  }
+};
 var RenderPass = class extends Pass {
   /**
    * Constructs a new render pass.
@@ -83744,6 +84055,10 @@ var RenderPass = class extends Pass {
     scene.background = background;
     renderer.shadowMap.autoUpdate = shadowMapAutoUpdate;
   }
+};
+var VignetteTechnique = {
+  DEFAULT: 0,
+  ESKIL: 1
 };
 var depth_downsampling_default = `#include <packing>
 #ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -83973,6 +84288,151 @@ var DepthDownsamplingPass = class extends Pass {
     if (!renderable) {
       throw new Error("Rendering to float texture is not supported.");
     }
+  }
+};
+var vignette_default = `uniform float offset;uniform float darkness;void mainImage(const in vec4 inputColor,const in vec2 uv,out vec4 outputColor){const vec2 center=vec2(0.5);vec3 color=inputColor.rgb;
+#if VIGNETTE_TECHNIQUE == 0
+float d=distance(uv,center);color*=smoothstep(0.8,offset*0.799,d*(darkness+offset));
+#else
+vec2 coord=(uv-center)*vec2(offset);color=mix(color,vec3(1.0-darkness),dot(coord,coord));
+#endif
+outputColor=vec4(color,inputColor.a);}`;
+var VignetteEffect = class extends Effect {
+  /**
+   * Constructs a new Vignette effect.
+   *
+   * @param {Object} [options] - The options.
+   * @param {BlendFunction} [options.blendFunction] - The blend function of this effect.
+   * @param {VignetteTechnique} [options.technique=VignetteTechnique.DEFAULT] - The Vignette technique.
+   * @param {Boolean} [options.eskil=false] - Deprecated. Use technique instead.
+   * @param {Number} [options.offset=0.5] - The Vignette offset.
+   * @param {Number} [options.darkness=0.5] - The Vignette darkness.
+   */
+  constructor({
+    blendFunction,
+    eskil = false,
+    technique = eskil ? VignetteTechnique.ESKIL : VignetteTechnique.DEFAULT,
+    offset = 0.5,
+    darkness = 0.5
+  } = {}) {
+    super("VignetteEffect", vignette_default, {
+      blendFunction,
+      defines: /* @__PURE__ */ new Map([
+        ["VIGNETTE_TECHNIQUE", technique.toFixed(0)]
+      ]),
+      uniforms: /* @__PURE__ */ new Map([
+        ["offset", new Uniform(offset)],
+        ["darkness", new Uniform(darkness)]
+      ])
+    });
+  }
+  /**
+   * The Vignette technique.
+   *
+   * @type {VignetteTechnique}
+   */
+  get technique() {
+    return Number(this.defines.get("VIGNETTE_TECHNIQUE"));
+  }
+  set technique(value) {
+    if (this.technique !== value) {
+      this.defines.set("VIGNETTE_TECHNIQUE", value.toFixed(0));
+      this.setChanged();
+    }
+  }
+  /**
+   * Indicates whether Eskil's Vignette technique is enabled.
+   *
+   * @type {Boolean}
+   * @deprecated Use technique instead.
+   */
+  get eskil() {
+    return this.technique === VignetteTechnique.ESKIL;
+  }
+  /**
+   * Indicates whether Eskil's Vignette technique is enabled.
+   *
+   * @type {Boolean}
+   * @deprecated Use technique instead.
+   */
+  set eskil(value) {
+    this.technique = value ? VignetteTechnique.ESKIL : VignetteTechnique.DEFAULT;
+  }
+  /**
+   * Returns the Vignette technique.
+   *
+   * @deprecated Use technique instead.
+   * @return {VignetteTechnique} The technique.
+   */
+  getTechnique() {
+    return this.technique;
+  }
+  /**
+   * Sets the Vignette technique.
+   *
+   * @deprecated Use technique instead.
+   * @param {VignetteTechnique} value - The technique.
+   */
+  setTechnique(value) {
+    this.technique = value;
+  }
+  /**
+   * The Vignette offset.
+   *
+   * @type {Number}
+   */
+  get offset() {
+    return this.uniforms.get("offset").value;
+  }
+  set offset(value) {
+    this.uniforms.get("offset").value = value;
+  }
+  /**
+   * Returns the Vignette offset.
+   *
+   * @deprecated Use offset instead.
+   * @return {Number} The offset.
+   */
+  getOffset() {
+    return this.offset;
+  }
+  /**
+   * Sets the Vignette offset.
+   *
+   * @deprecated Use offset instead.
+   * @param {Number} value - The offset.
+   */
+  setOffset(value) {
+    this.offset = value;
+  }
+  /**
+   * The Vignette darkness.
+   *
+   * @type {Number}
+   */
+  get darkness() {
+    return this.uniforms.get("darkness").value;
+  }
+  set darkness(value) {
+    this.uniforms.get("darkness").value = value;
+  }
+  /**
+   * Returns the Vignette darkness.
+   *
+   * @deprecated Use darkness instead.
+   * @return {Number} The darkness.
+   */
+  getDarkness() {
+    return this.darkness;
+  }
+  /**
+   * Sets the Vignette darkness.
+   *
+   * @deprecated Use darkness instead.
+   * @param {Number} value - The darkness.
+   */
+  setDarkness(value) {
+    this.darkness = value;
   }
 };
 var effect_default = `#include <common>
@@ -84883,7 +85343,8 @@ const le = /* @__PURE__ */ new WeakMap(), P = (e2, t2) => function({ blendFuncti
   const i2 = useThree((l2) => l2.camera), s = React.useMemo(() => [...(t2 == null ? void 0 : t2.args) ?? [], ...a2.args ?? [{ ...t2, ...a2 }]], [JSON.stringify(a2)]);
   return /* @__PURE__ */ jsxRuntimeExports.jsx(n, { camera: i2, "blendMode-blendFunction": o2, "blendMode-opacity-value": r2, ...a2, args: s });
 };
-const wt = /* @__PURE__ */ P(BloomEffect, { blendFunction: 0 });
+const wt = /* @__PURE__ */ P(BloomEffect, { blendFunction: 0 }), yt = /* @__PURE__ */ P(ChromaticAberrationEffect);
+const qt = /* @__PURE__ */ P(VignetteEffect);
 const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameState, currentLevel = 0, doorsClosed = false, masterVolume = 1 }) => {
   const lobbyGainRef = reactExports.useRef(null);
   const elevatorGainRef = reactExports.useRef(null);
@@ -101979,6 +102440,99 @@ const useMultiplayer = (playerPositionRef, rotationYRef, playerState, isEnabled,
   const user = { uid: playerIdRef.current };
   return { user, login, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages, connectionStatus };
 };
+const FLOORS = [
+  {
+    level: 0,
+    name: "Saguão",
+    description: "Lobby do elevador — ponto de partida",
+    color: "from-amber-500 via-yellow-400 to-amber-500",
+    icon: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2, children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3H21m-3.75 3H21" }) })
+  },
+  {
+    level: 1,
+    name: "Casa do Barney",
+    description: "Visita noturna — sobreviva até o elevador",
+    color: "from-red-500 via-rose-500 to-red-600",
+    icon: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2, children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" }) })
+  },
+  {
+    level: 2,
+    name: "Submerso",
+    description: "Abismo subaquático — colete os fragmentos",
+    color: "from-cyan-400 via-blue-500 to-cyan-400",
+    icon: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-5 h-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2, children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M12 3c-1.2 0-2.4.6-3 1.5C8.4 3.6 7.2 3 6 3c-2.4 0-4.5 2.1-4.5 4.5C1.5 12 12 21 12 21s10.5-9 10.5-13.5C22.5 5.1 20.4 3 18 3c-1.2 0-2.4.6-3 1.5-.6-.9-1.8-1.5-3-1.5z" }) })
+  }
+];
+const CreatorMode = ({ onSelect, multiplayerEnabled }) => {
+  const [selected, setSelected] = reactExports.useState(null);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center gap-4 w-full max-w-sm mx-auto animate-fade-in-up", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 px-3 py-1.5 bg-purple-500/15 border border-purple-400/30 rounded-full", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 bg-purple-400 rounded-full animate-pulse" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-purple-300 text-xs uppercase tracking-wider font-medium", children: "Modo Criador" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-white/50 text-xs text-center max-w-xs", children: "Escolha um andar para começar diretamente. O fluxo normal do jogo será pulado." }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-2.5 w-full", children: FLOORS.map((floor) => {
+      const isSelected = selected === floor.level;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          onClick: () => setSelected(floor.level),
+          className: `
+                group relative w-full text-left rounded-xl transition-all duration-200
+                ${isSelected ? "ring-2 ring-white/60 bg-white/10 scale-[1.02]" : "ring-1 ring-white/10 bg-white/5 hover:bg-white/8 hover:ring-white/20"}
+              `,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 p-3.5", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `
+                  w-10 h-10 rounded-lg flex items-center justify-center shrink-0
+                  bg-gradient-to-br ${floor.color}
+                  ${isSelected ? "opacity-100 shadow-lg" : "opacity-60 group-hover:opacity-80"}
+                  transition-opacity
+                `, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-black", children: floor.icon }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 min-w-0", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: `text-sm font-bold ${isSelected ? "text-white" : "text-white/80"}`, children: [
+                  "Andar ",
+                  floor.level
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: `text-xs ${isSelected ? "text-white/70" : "text-white/40"}`, children: [
+                  "— ",
+                  floor.name
+                ] })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: `text-xs mt-0.5 ${isSelected ? "text-white/55" : "text-white/30"} truncate`, children: floor.description })
+            ] }),
+            isSelected && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-5 h-5 rounded-full bg-white/20 border-2 border-white/60 flex items-center justify-center shrink-0", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 rounded-full bg-white" }) })
+          ] })
+        },
+        floor.level
+      );
+    }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "button",
+      {
+        onClick: () => {
+          if (selected !== null) onSelect(selected, multiplayerEnabled);
+        },
+        disabled: selected === null,
+        className: `
+          group relative w-full overflow-hidden rounded-xl transition-all duration-300
+          ${selected !== null ? "hover:scale-[1.02] active:scale-[0.98]" : "opacity-40 cursor-not-allowed"}
+        `,
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `absolute -inset-0.5 bg-gradient-to-r from-purple-500 via-pink-400 to-purple-500 rounded-xl ${selected !== null ? "opacity-70 group-hover:opacity-100 blur-sm" : "opacity-30"} transition-opacity` }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600 rounded-xl", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 bg-gradient-to-t from-black/30 to-transparent rounded-xl" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative flex items-center justify-center gap-3 px-6 py-3.5 text-white font-bold text-sm tracking-widest", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "group-hover:tracking-[0.25em] transition-all duration-300", children: selected !== null ? `INICIAR NO ANDAR ${selected}` : "SELECIONE UM ANDAR" }),
+              selected !== null && /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 group-hover:translate-x-1 transition-transform", fill: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" }) })
+            ] })
+          ] })
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-white/25 text-[10px] text-center leading-tight", children: "Modo de desenvolvimento. Eventos do enredo e cutscenes podem não funcionar como esperado." })
+  ] });
+};
 const MainMenu = ({ onPlay }) => {
   const [doorPosition, setDoorPosition] = reactExports.useState(0);
   const [showContent, setShowContent] = reactExports.useState(false);
@@ -101991,6 +102545,7 @@ const MainMenu = ({ onPlay }) => {
   const [easterEgg, setEasterEgg] = reactExports.useState(0);
   const [playerName, setPlayerNameState] = reactExports.useState(getPlayerName());
   const [mousePos, setMousePos] = reactExports.useState({ x: 0, y: 0 });
+  const [creatorModeOpen, setCreatorModeOpen] = reactExports.useState(false);
   const { user, login } = useMultiplayer({ current: null }, { current: 0 }, "idle", false);
   reactExports.useEffect(() => {
     const handler = (e2) => {
@@ -102024,6 +102579,10 @@ const MainMenu = ({ onPlay }) => {
     }
     const finalName = setPlayerName(playerName);
     onPlay(multiplayerEnabled, finalName);
+  };
+  const handleCreatorSelect = (level, mpEnabled) => {
+    const finalName = setPlayerName(playerName);
+    onPlay(mpEnabled, finalName, level);
   };
   const handleShare = () => {
     if (typeof window !== "undefined") {
@@ -102136,7 +102695,13 @@ const MainMenu = ({ onPlay }) => {
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-20 h-10 bg-black/80 border border-amber-500/30 rounded-sm flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.2)]", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400 text-2xl font-mono font-bold tracking-wider", style: { textShadow: "0 0 10px rgba(251,191,36,0.5)" }, children: "03" }) }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-gradient-to-r from-transparent via-amber-500/50 to-transparent" })
         ] }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 flex flex-col items-center justify-center px-4 sm:px-6 min-h-0 overflow-y-auto landscape:justify-center scrollbar-hide", children: [
+        creatorModeOpen ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex-1 flex items-center justify-center px-4 min-h-0 overflow-y-auto scrollbar-hide", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          CreatorMode,
+          {
+            onSelect: handleCreatorSelect,
+            multiplayerEnabled
+          }
+        ) }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 flex flex-col items-center justify-center px-4 sm:px-6 min-h-0 overflow-y-auto landscape:justify-center scrollbar-hide", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative mb-4 sm:mb-8 landscape:hidden shrink-0", style: { animationDelay: "0.3s" }, children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-24 h-32 sm:w-40 sm:h-56 max-w-[38vw] max-h-[25vh] border-4 border-[#2a2a2a] rounded-t-lg bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-2 bg-gradient-to-b from-amber-500/5 to-transparent rounded-t" }),
@@ -102217,7 +102782,14 @@ const MainMenu = ({ onPlay }) => {
             )
           ] })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent z-40 landscape:hidden shrink-0", children: [
+        creatorModeOpen ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "p-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent z-40 landscape:hidden shrink-0", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            onClick: () => setCreatorModeOpen(false),
+            className: "w-full py-3 rounded-lg border border-white/20 bg-white/5 text-white/70 text-sm font-bold tracking-wider hover:bg-white/10 transition-colors",
+            children: "VOLTAR"
+          }
+        ) }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] sticky bottom-0 bg-gradient-to-t from-black via-black/95 to-transparent z-40 landscape:hidden shrink-0", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 border border-white/10 rounded-lg mb-2 bg-black/50 backdrop-blur-md p-2.5", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-white/70 text-xs tracking-widest uppercase font-medium", children: "Multiplayer" }),
@@ -102264,6 +102836,17 @@ const MainMenu = ({ onPlay }) => {
               ]
             }
           ),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              onClick: () => setCreatorModeOpen(true),
+              className: "w-full mt-2 flex items-center justify-center gap-1.5 border border-purple-400/30 bg-purple-500/10 py-2.5 rounded-xl text-sm text-purple-300 font-bold hover:bg-purple-500/20 transition-colors",
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2, children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M11.42 15.17l-5.1-5.1a1 1 0 010-1.41l.7-.71a1 1 0 011.42 0l3.54 3.54 7.78-7.78a1 1 0 011.42 0l.7.71a1 1 0 010 1.41l-9.2 9.2a1 1 0 01-1.4.14z" }) }),
+                "MODO CRIADOR"
+              ]
+            }
+          ),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-center gap-5 mt-3 text-white/65 text-xs", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "flex items-center gap-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 1, d: "M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" }) }),
@@ -102276,7 +102859,26 @@ const MainMenu = ({ onPlay }) => {
           ] })
         ] })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "hidden md:flex h-full items-center justify-center pointer-events-auto", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-10 lg:gap-24 max-w-6xl mx-auto px-8", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "hidden md:flex h-full items-center justify-center pointer-events-auto", children: creatorModeOpen ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex-1 max-w-lg mx-auto px-8 flex flex-col justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-6", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "button",
+          {
+            onClick: () => setCreatorModeOpen(false),
+            className: "flex items-center gap-2 text-white/50 hover:text-white/80 text-sm transition-colors mb-6",
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2, children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" }) }),
+              "Voltar ao menu"
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          CreatorMode,
+          {
+            onSelect: handleCreatorSelect,
+            multiplayerEnabled
+          }
+        )
+      ] }) }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-10 lg:gap-24 max-w-6xl mx-auto px-8", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative animate-fade-in", style: { animationDelay: "0.5s", transform: `translate(${mousePos.x * -6}px, ${mousePos.y * -4}px)`, transition: "transform 0.3s ease-out" }, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-64 h-96 border-8 border-[#2a2a2a] rounded-t-2xl bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a] shadow-[inset_0_0_60px_rgba(0,0,0,0.9),0_0_80px_rgba(0,0,0,0.5)]", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-4 bg-gradient-to-b from-amber-500/10 via-transparent to-transparent rounded-t-xl" }),
@@ -102335,6 +102937,17 @@ const MainMenu = ({ onPlay }) => {
                 ] })
               ] })
             ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "button",
+              {
+                onClick: () => setCreatorModeOpen(true),
+                className: "w-full mt-3 flex items-center justify-center gap-2 border border-purple-400/30 bg-purple-500/10 py-2.5 rounded-xl text-sm text-purple-300 font-bold hover:bg-purple-500/20 transition-colors",
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2, children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M11.42 15.17l-5.1-5.1a1 1 0 010-1.41l.7-.71a1 1 0 011.42 0l3.54 3.54 7.78-7.78a1 1 0 011.42 0l.7.71a1 1 0 010 1.41l-9.2 9.2a1 1 0 01-1.4.14z" }) }),
+                  "MODO CRIADOR"
+                ]
+              }
+            ),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-8 mt-6 text-white/50 text-sm", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "flex items-center gap-2", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("kbd", { className: "px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-mono", children: "WASD" }),
@@ -102362,7 +102975,7 @@ const MainMenu = ({ onPlay }) => {
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "ml-4", children: "CAM_01" })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 left-6 text-white/60 text-xs tracking-wider hidden md:block", children: "© 2026 LIMINAL SYSTEMS" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 right-6 text-white/60 text-xs tracking-wider hidden md:block cursor-default select-none", onClick: () => setEasterEgg((p2) => p2 + 1), children: easterEgg >= 3 ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400 animate-pulse", children: "🏆 O elevador sabe de tudo..." }) : "v1.0.3" })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-6 right-6 text-white/60 text-xs tracking-wider hidden md:block cursor-default select-none", onClick: () => setEasterEgg((p2) => p2 + 1), children: easterEgg >= 3 ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-400 animate-pulse", children: "O elevador sabe de tudo..." }) : "v1.0.3" })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute inset-0 pointer-events-none opacity-[0.02]", style: { backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)" } })
   ] });
@@ -104507,18 +105120,82 @@ function makeRockAlbedo(size, base, seed3) {
   tex.colorSpace = SRGBColorSpace$1;
   return tex;
 }
-const WALL_NORMAL = makeRockNormal(256, 0);
-const FLOOR_NORMAL = makeRockNormal(256, 7.3);
-const UW_NORMAL = makeRockNormal(256, 13.1);
+const WALL_NORMAL = makeRockNormal(512, 0);
+const FLOOR_NORMAL = makeRockNormal(512, 7.3);
+const UW_NORMAL = makeRockNormal(512, 13.1);
 if (WALL_NORMAL) WALL_NORMAL.repeat.set(5, 2);
 if (FLOOR_NORMAL) FLOOR_NORMAL.repeat.set(12, 12);
 if (UW_NORMAL) UW_NORMAL.repeat.set(14, 14);
-const WALL_ALBEDO = makeRockAlbedo(256, [104, 80, 56], 0);
-const FLOOR_ALBEDO = makeRockAlbedo(256, [76, 60, 44], 7.3);
-const UW_ALBEDO = makeRockAlbedo(256, [40, 56, 70], 13.1);
+const WALL_ALBEDO = makeRockAlbedo(512, [104, 80, 56], 0);
+const FLOOR_ALBEDO = makeRockAlbedo(512, [76, 60, 44], 7.3);
+const UW_ALBEDO = makeRockAlbedo(512, [40, 56, 70], 13.1);
 if (WALL_ALBEDO) WALL_ALBEDO.repeat.set(6, 2);
 if (FLOOR_ALBEDO) FLOOR_ALBEDO.repeat.set(11, 11);
 if (UW_ALBEDO) UW_ALBEDO.repeat.set(13, 13);
+function makeRockRoughness(size, seed3) {
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const img = ctx.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x2 = 0; x2 < size; x2++) {
+      const u = x2 / size, v5 = y / size;
+      const n = Math.sin(u * 14 + v5 * 9 + seed3) * 0.35 + Math.sin(u * 32 + seed3 * 1.7) * 0.2 + Math.cos((u + v5) * 22 + seed3 * 2.3) * 0.15;
+      const rough = 0.65 + n * 0.3;
+      const i2 = (y * size + x2) * 4;
+      const val = Math.max(0, Math.min(255, rough * 255));
+      img.data[i2] = val;
+      img.data[i2 + 1] = val;
+      img.data[i2 + 2] = val;
+      img.data[i2 + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = RepeatWrapping;
+  tex.colorSpace = NoColorSpace;
+  return tex;
+}
+function makeRockAO(size, seed3) {
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const img = ctx.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x2 = 0; x2 < size; x2++) {
+      const u = x2 / size, v5 = y / size;
+      const vein = Math.sin((u + v5) * 8 + seed3 * 2.5) * 0.4 + Math.sin(u * 16 + v5 * 12 + seed3) * 0.25;
+      const ao = Math.max(0.3, Math.min(1, 0.75 + vein * 0.35));
+      const i2 = (y * size + x2) * 4;
+      const val = Math.max(0, Math.min(255, ao * 255));
+      img.data[i2] = val;
+      img.data[i2 + 1] = val;
+      img.data[i2 + 2] = val;
+      img.data[i2 + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = RepeatWrapping;
+  tex.colorSpace = NoColorSpace;
+  return tex;
+}
+const WALL_ROUGH = makeRockRoughness(256, 0);
+const FLOOR_ROUGH = makeRockRoughness(256, 7.3);
+const UW_ROUGH = makeRockRoughness(256, 13.1);
+const WALL_AO = makeRockAO(256, 0);
+const FLOOR_AO = makeRockAO(256, 7.3);
+const UW_AO = makeRockAO(256, 13.1);
+if (WALL_ROUGH) WALL_ROUGH.repeat.set(5, 2);
+if (FLOOR_ROUGH) FLOOR_ROUGH.repeat.set(12, 12);
+if (UW_ROUGH) UW_ROUGH.repeat.set(14, 14);
+if (WALL_AO) WALL_AO.repeat.set(5, 2);
+if (FLOOR_AO) FLOOR_AO.repeat.set(12, 12);
+if (UW_AO) UW_AO.repeat.set(14, 14);
 const CAVE_ROCKS_DARK = [
   [-22, 0, 20, 2.4, 0.3],
   [24, 0, 18, 2.1, 1.2],
@@ -104728,26 +105405,81 @@ const WaterMaterial = shaderMaterial(
       uniform float time;
       varying vec2 vUv;
       varying float vWave;
-      varying vec3 vViewWS;       // view direction in world space
-      varying vec3 vNormalWS;     // displaced normal in world space
+      varying vec3 vViewWS;
+      varying vec3 vNormalWS;
+      varying vec3 vWorldPos;
+
+      // Gerstner wave: returns displacement (x,y,z) and derivatives (dx, dz)
+      // Based on GPU Gems chapter + Jerry Tessendorf's formulation.
+      vec4 gerstner(vec2 pos, vec2 dir, float steepness, float wavelength, float t) {
+        float k = 6.28318 / max(wavelength, 0.01);
+        float c = sqrt(9.8 / max(k, 0.001));
+        float a = steepness / max(k, 0.001);
+        float f = k * (dot(dir, pos) - c * t);
+        float sinF = sin(f);
+        float cosF = cos(f);
+        return vec4(
+          -dir.x * a * cosF,  // x displacement
+          a * sinF,            // y displacement (vertical)
+          -dir.y * a * cosF,  // z displacement
+          0.0
+        );
+      }
+
       void main() {
         vUv = uv;
-        // 3 octaves of sine for layered chop. Total amplitude ~0.12m.
-        float w1 = sin(position.x * 0.55 + time * 1.0) * 0.06;
-        float w2 = sin(position.y * 0.40 + time * 0.85 + 1.7) * 0.045;
-        float w3 = sin((position.x + position.y) * 1.1 + time * 1.8) * 0.025;
-        vWave = w1 + w2 + w3;
-        // Analytical normal via partial derivatives.
-        float dx = cos(position.x * 0.55 + time * 1.0) * 0.06 * 0.55 +
-                   cos((position.x + position.y) * 1.1 + time * 1.8) * 0.025 * 1.1;
-        float dy = cos(position.y * 0.40 + time * 0.85 + 1.7) * 0.045 * 0.40 +
-                   cos((position.x + position.y) * 1.1 + time * 1.8) * 0.025 * 1.1;
-        // The plane is rotated -π/2 around X before placement, so local
-        // (-dx, -dy, 1) → world Y axis maps to the normal. We approximate
-        // the world-space normal by passing through the modelMatrix.
-        vec3 localNormal = normalize(vec3(-dx, -dy, 1.0));
+        vec3 p = position;
+
+        // 4 Gerstner wave octaves with different directions & wavelengths.
+        // Steepness < 1.0 prevents wave folding. Shorter waves = less
+        // amplitude (natural spectral decay).
+        vec2 d1 = normalize(vec2(1.0, 0.3));
+        vec2 d2 = normalize(vec2(0.3, 1.0));
+        vec2 d3 = normalize(vec2(-0.5, 0.7));
+        vec2 d4 = normalize(vec2(0.8, -0.5));
+
+        vec4 w1 = gerstner(p.xz, d1, 0.22, 4.0, time * 0.8);
+        vec4 w2 = gerstner(p.xz, d2, 0.18, 2.8, time * 0.95 + 1.7);
+        vec4 w3 = gerstner(p.xz, d3, 0.12, 1.8, time * 1.15 + 3.2);
+        vec4 w4 = gerstner(p.xz, d4, 0.07, 1.2, time * 1.4 + 5.0);
+
+        vec3 disp = w1.xyz + w2.xyz + w3.xyz + w4.xyz;
+        p += disp;
+        vWave = disp.y;
+
+        // Analytical normal from Gerstner partial derivatives.
+        // dP/dx and dP/dz are computed from the wave functions.
+        float k1 = 6.28318 / 4.0;  float c1 = sqrt(9.8 / k1);  float a1 = 0.22 / k1;
+        float k2 = 6.28318 / 2.8;  float c2 = sqrt(9.8 / k2);  float a2 = 0.18 / k2;
+        float k3 = 6.28318 / 1.8;  float c3 = sqrt(9.8 / k3);  float a3 = 0.12 / k3;
+        float k4 = 6.28318 / 1.2;  float c4 = sqrt(9.8 / k4);  float a4 = 0.07 / k4;
+
+        float f1 = k1 * (dot(d1, position.xz) - c1 * time * 0.8);
+        float f2 = k2 * (dot(d2, position.xz) - c2 * time * 0.95 - 1.7 * c2);
+        float f3 = k3 * (dot(d3, position.xz) - c3 * time * 1.15 - 3.2 * c3);
+        float f4 = k4 * (dot(d4, position.xz) - c4 * time * 1.4 - 5.0 * c4);
+
+        // dP/dx
+        vec3 dPdx = vec3(
+          1.0 - (d1.x * d1.x * a1 * k1 * sin(f1) + d2.x * d2.x * a2 * k2 * sin(f2)
+               + d3.x * d3.x * a3 * k3 * sin(f3) + d4.x * d4.x * a4 * k4 * sin(f4)),
+          d1.x * a1 * k1 * cos(f1) + d2.x * a2 * k2 * cos(f2) + d3.x * a3 * k3 * cos(f3) + d4.x * a4 * k4 * cos(f4),
+          -(d1.x * d1.y * a1 * k1 * sin(f1) + d2.x * d2.y * a2 * k2 * sin(f2)
+          + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4))
+        );
+        // dP/dz (mapped from local y since plane is rotated)
+        vec3 dPdz = vec3(
+          -(d1.x * d1.y * a1 * k1 * sin(f1) + d2.x * d2.y * a2 * k2 * sin(f2)
+          + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4)),
+          d1.y * a1 * k1 * cos(f1) + d2.y * a2 * k2 * cos(f2) + d3.y * a3 * k3 * cos(f3) + d4.y * a4 * k4 * cos(f4),
+          1.0 - (d1.y * d1.y * a1 * k1 * sin(f1) + d2.y * d2.y * a2 * k2 * sin(f2)
+               + d3.y * d3.y * a3 * k3 * sin(f3) + d4.y * d4.y * a4 * k4 * sin(f4))
+        );
+        vec3 localNormal = normalize(cross(dPdz, dPdx));
         vNormalWS = normalize(mat3(modelMatrix) * localNormal);
-        vec4 wp = modelMatrix * vec4(position + vec3(0.0, 0.0, vWave), 1.0);
+
+        vec4 wp = modelMatrix * vec4(p, 1.0);
+        vWorldPos = wp.xyz;
         vViewWS = normalize(cameraPosition - wp.xyz);
         gl_Position = projectionMatrix * viewMatrix * wp;
       }
@@ -104760,35 +105492,59 @@ const WaterMaterial = shaderMaterial(
       varying float vWave;
       varying vec3 vViewWS;
       varying vec3 vNormalWS;
+      varying vec3 vWorldPos;
+
       void main() {
-        // Fresnel: dot of view & normal. Looking down (high dot) →
-        // transparent. Grazing (low dot) → opaque sheen. Pow controls
-        // the falloff sharpness.
-        float ndv = max(0.0, dot(vNormalWS, vViewWS));
-        float fresnel = pow(1.0 - ndv, 2.4);
-        // Three-tone palette.
-        vec3 deep   = vec3(0.03, 0.15, 0.24);
-        vec3 mid    = vec3(0.12, 0.42, 0.55);
-        vec3 sky    = vec3(0.62, 0.88, 0.98);
-        // Caustic streaks.
-        float c1 = sin(vUv.x * 28.0 + time * 0.8) * 0.5 + 0.5;
-        float c2 = sin(vUv.y * 22.0 + time * 1.05 + 2.0) * 0.5 + 0.5;
-        float caustic = pow(c1 * c2, 2.0);
-        // Wave-height tinting.
-        float h = clamp(vWave * 6.0, -1.0, 1.0);
+        // ─── Schlick Fresnel ──────────────────────────────────────
+        // F0 = 0.02 for water (dielectric). At grazing angles,
+        // reflectance approaches 100% — that's the "mirror edge" look.
+        float ndv = max(0.001, dot(vNormalWS, vViewWS));
+        float R0 = 0.02;
+        float fresnel = R0 + (1.0 - R0) * pow(1.0 - ndv, 5.0);
+        // Boost for visual punch (physically ~1.0 at grazing, we push)
+        fresnel = mix(fresnel, pow(1.0 - ndv, 2.4) * 0.9, 0.5);
+
+        // ─── Deep / shallow / sky palette ────────────────────────
+        vec3 deep   = vec3(0.01, 0.08, 0.14);
+        vec3 mid    = vec3(0.06, 0.28, 0.38);
+        vec3 sky    = vec3(0.55, 0.82, 0.94);
+
+        // ─── Caustic streaks on the surface itself ──────────────
+        float c1 = sin(vUv.x * 32.0 + time * 0.9) * 0.5 + 0.5;
+        float c2 = sin(vUv.y * 26.0 + time * 1.1 + 2.0) * 0.5 + 0.5;
+        float caustic = pow(c1 * c2, 2.5);
+
+        // ─── Wave-height tinting ─────────────────────────────────
+        float h = clamp(vWave * 5.0, -1.0, 1.0);
         vec3 col = mix(deep, mid, 0.5 + h * 0.5);
-        // Fresnel reflects sky on the grazing edge — that's THE signature
-        // of "is this water?". Strong contribution here.
-        col = mix(col, sky, fresnel * 0.85 + max(0.0, h) * 0.25 + caustic * 0.2);
-        // Foam on extreme peaks.
-        float foam = smoothstep(0.06, 0.10, vWave);
-        col = mix(col, vec3(0.95, 0.98, 1.0), foam * 0.5);
-        // Final alpha: ALWAYS visible. Floor 2 user feedback: water was
-        // "appearing and disappearing" — that was alpha sliding from 0.45
-        // up to 0.96 depending on view angle, reading as flicker.
-        // Pinned to 0.85-0.96 range: subtle fresnel boost but never
-        // transparent enough to lose the pool.
-        float alpha = mix(0.85, 0.96, fresnel);
+
+        // ─── Subsurface scattering ──────────────────────────────
+        // Light transmitted through thin wave peaks glows cyan-green.
+        // The thinner the wave (higher wave peak = more transmittance),
+        // the stronger the SSS. This is THE Unreal water look.
+        float sss = pow(max(0.0, h), 1.5) * 0.6;
+        vec3 sssColor = vec3(0.1, 0.55, 0.45);
+        col += sssColor * sss;
+
+        // ─── Fresnel reflection of sky ──────────────────────────
+        col = mix(col, sky, fresnel * 0.8 + caustic * 0.15);
+
+        // ─── Fake specular (sun highlight) ──────────────────────
+        vec3 lightDir = normalize(vec3(0.4, 1.0, 0.3));
+        vec3 halfVec = normalize(vViewWS + lightDir);
+        float spec = pow(max(0.0, dot(vNormalWS, halfVec)), 256.0);
+        col += vec3(1.0, 0.95, 0.85) * spec * 1.5 * (1.0 - fresnel * 0.5);
+
+        // ─── Foam on wave crests + edge foam ────────────────────
+        float foam = smoothstep(0.04, 0.09, vWave);
+        // Edge foam near pool rim (distance from center)
+        float distFromCenter = length(vWorldPos.xz - vec2(0.0, 5.0));
+        float edgeFoam = smoothstep(2.8, 2.2, distFromCenter) * 0.4;
+        float totalFoam = max(foam * 0.55, edgeFoam);
+        col = mix(col, vec3(0.92, 0.96, 1.0), totalFoam);
+
+        // ─── Alpha: visible from all angles ──────────────────────
+        float alpha = mix(0.82, 0.96, fresnel);
         gl_FragColor = vec4(col, alpha);
       }
     `
@@ -104826,7 +105582,7 @@ const WaterSurface = ({ reflective = false }) => {
       )
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05, 32, 32] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05, 64, 64] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: mat, attach: "material" })
     ] })
   ] });
@@ -105061,6 +105817,33 @@ const BUBBLE_RANGE = 18;
 const BUBBLE_RISE = 0.5;
 const BUBBLE_MAX_Y = WATER_LEVEL_Y - 0.5;
 const BUBBLE_MIN_Y = -29;
+const PLANKTON_COUNT = 40;
+const PLANKTON_GEO = new SphereGeometry(1, 4, 3);
+const PlanktonField = () => {
+  const refs = reactExports.useRef(new Array(PLANKTON_COUNT).fill(null));
+  useFrame((state2) => {
+    const t2 = state2.clock.elapsedTime;
+    for (let i2 = 0; i2 < PLANKTON_COUNT; i2++) {
+      const r2 = refs.current[i2];
+      if (!r2) continue;
+      const seed3 = i2 * 7.31;
+      r2.position.x += Math.sin(t2 * 0.15 + seed3) * 3e-3;
+      r2.position.y += Math.cos(t2 * 0.12 + seed3 * 1.3) * 2e-3;
+      r2.position.z += Math.sin(t2 * 0.13 + seed3 * 0.7) * 3e-3;
+    }
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: PLANKTON_COUNT, range: PLANKTON_COUNT, geometry: PLANKTON_GEO, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#a8e8c8", transparent: true, opacity: 0.3, depthWrite: false, toneMapped: false }),
+    Array.from({ length: PLANKTON_COUNT }, (_, i2) => {
+      const x2 = HOLE_CENTER_X + (Math.random() - 0.5) * 30;
+      const y = -3 + Math.random() * -25;
+      const z = HOLE_CENTER_Z + (Math.random() - 0.5) * 30;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { ref: (r2) => {
+        refs.current[i2] = r2;
+      }, position: [x2, y, z], scale: 0.012 + Math.random() * 0.02 }, i2);
+    })
+  ] });
+};
 const BubbleField = () => {
   const positions = reactExports.useRef(
     Array.from({ length: BUBBLE_COUNT }, () => ({
@@ -105175,7 +105958,10 @@ const Floor2Environment = ({
           map: FLOOR_ALBEDO ?? void 0,
           normalMap: FLOOR_NORMAL ?? void 0,
           normalScale: new Vector2(2, 2),
-          roughness: 0.92
+          roughnessMap: FLOOR_ROUGH ?? void 0,
+          roughness: 0.92,
+          aoMap: FLOOR_AO ?? void 0,
+          aoMapIntensity: 0.6
         }
       )
     }
@@ -105186,51 +105972,51 @@ const Floor2Environment = ({
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-8, 2.5, -29.6], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [24, 5, 1] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a2f24", roughness: 1, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a2f24", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [10, 3.2, -29.4], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [18, 6.4, 1.2] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#43372a", roughness: 1, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#43372a", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-2, 6, -29.8], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [60, 4, 0.6] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 1, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [6, 2.4, 29.6], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [26, 4.8, 1] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3c3025", roughness: 1, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3c3025", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-12, 3.5, 29.4], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [20, 7, 1.2] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#45382b", roughness: 1, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#45382b", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [4, 6.2, 29.8], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [60, 3.6, 0.6] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 1, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-29.6, 2.6, 0], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 5.2, 28] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a2f24", roughness: 1, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a2f24", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-29.4, 3.4, -12], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.2, 6.8, 18] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#43372a", roughness: 1, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#43372a", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-29.8, 6.2, 3], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.6, 3.6, 60] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 1, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [29.6, 2.5, 8], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1, 5, 22] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3c3025", roughness: 1, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3c3025", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [29.4, 3.6, -10], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [1.2, 7.2, 20] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#45382b", roughness: 1, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#45382b", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [29.8, 6, -2], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.6, 4, 60] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 1, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: CAVE_ROCKS_DARK.length, range: CAVE_ROCKS_DARK.length, geometry: BOULDER_GEO, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#322820", roughness: 0.95, flatShading: true }),
@@ -105268,7 +106054,10 @@ const Floor2Environment = ({
         map: UW_ALBEDO ?? void 0,
         normalMap: UW_NORMAL ?? void 0,
         normalScale: new Vector2(2.5, 2.5),
-        roughness: 0.95
+        roughnessMap: UW_ROUGH ?? void 0,
+        roughness: 0.95,
+        aoMap: UW_AO ?? void 0,
+        aoMapIntensity: 0.7
       }
     )
   ] }),
@@ -105285,6 +106074,7 @@ const Floor2Environment = ({
     UW_PEBBLES.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.6, s], rotation: [0, ry, 0] }, i2))
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(BubbleField, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(PlanktonField, {}),
   SHARD_POSITIONS.map((pos, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
     Shard,
     {
@@ -109695,7 +110485,7 @@ function App() {
     setDialogueOpen(true);
     setCanInteractNPC(false);
   };
-  const handleStartGame = (mpEnabled, name2) => {
+  const handleStartGame = (mpEnabled, name2, startLevel) => {
     if (audioCtx) return;
     setMultiplayerEnabled(mpEnabled);
     if (name2) setPlayerName2(name2);
@@ -109706,6 +110496,19 @@ function App() {
     setAudioCtx(ctx);
     window.__jubileuAudioCtx = ctx;
     setHasStarted(true);
+    if (startLevel !== void 0 && startLevel !== 0) {
+      setCurrentLevel(startLevel);
+      if (startLevel === 1) {
+        setGameState("outdoor");
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+      } else if (startLevel === 2) {
+        setGameState("outdoor");
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+      }
+    }
     if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
       const req = document.body.requestPointerLock();
       if (req && typeof req.catch === "function") req.catch(() => {
@@ -110094,16 +110897,35 @@ function App() {
             ),
             /* @__PURE__ */ jsxRuntimeExports.jsx(SceneInspector, {})
           ] }),
-          hasStarted && settings.quality === "high" && /* @__PURE__ */ jsxRuntimeExports.jsx(dt$1, { multisampling: 0, enableNormalPass: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            wt,
-            {
-              intensity: 0.35,
-              luminanceThreshold: 0.95,
-              luminanceSmoothing: 0.2,
-              mipmapBlur: true,
-              kernelSize: KernelSize.MEDIUM
-            }
-          ) })
+          hasStarted && settings.quality === "high" && /* @__PURE__ */ jsxRuntimeExports.jsxs(dt$1, { multisampling: 0, enableNormalPass: false, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              wt,
+              {
+                intensity: 0.35,
+                luminanceThreshold: 0.95,
+                luminanceSmoothing: 0.2,
+                mipmapBlur: true,
+                kernelSize: KernelSize.MEDIUM
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              yt,
+              {
+                blendFunction: BlendFunction.NORMAL,
+                offset: currentLevel === 2 ? [2e-3, 2e-3] : [0, 0],
+                radialModulation: false,
+                modulationOffset: 0
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              qt,
+              {
+                eskil: false,
+                offset: currentLevel === 2 ? 0.4 : 0.2,
+                darkness: currentLevel === 2 ? 0.6 : 0.3
+              }
+            )
+          ] })
         ]
       }
     ) }),
