@@ -36,6 +36,7 @@ import React, { useMemo, useRef, useEffect, Suspense } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Instances, Instance, shaderMaterial, MeshReflectorMaterial, useTexture, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import { createNoise3D } from 'simplex-noise';
 import { ElevatorFacade } from './Elevator';
 import {
     caveFloorColor, caveFloorNormal, caveFloorRoughness, caveFloorAO,
@@ -109,19 +110,14 @@ const CAVE_FLOOR_GEO = (() => {
         );
         const edgeFade = Math.min(1, edgeDist / 3);
         const fade = holeFade * edgeFade;
-        // Dramatic multi-octave cave terrain — visible rocky elevation changes
-        const n1 = Math.sin(v.x * 0.5 + 2.3) * 1.0
-                 + Math.sin(v.y * 0.4 + 1.1) * 0.9
-                 + Math.cos(v.x * 0.8 + v.y * 0.6 + 4.5) * 0.7;
-        const n2 = Math.sin(v.x * 1.4 + v.y * 1.1 + 3.2) * 0.5
-                 + Math.cos(v.x * 2.2 + v.y * 1.8 + 1.8) * 0.3
-                 + Math.sin(v.x * 3.1 + v.y * 2.7) * 0.2;
+        // Multi-octave simplex noise for organic cave terrain
+        const n1 = noise3D(v.x * 0.08, v.y * 0.08, 0.0) * 2.5;
+        const n2 = noise3D(v.x * 0.2, v.y * 0.2, 5.0) * 1.0;
+        const n3 = noise3D(v.x * 0.5, v.y * 0.5, 10.0) * 0.35;
         // Sharp ridges — cave-like rocky outcroppings
-        const ridge1 = Math.abs(Math.sin(v.x * 0.7 + 1.5)) * Math.abs(Math.cos(v.y * 0.5 + 2.3)) * 1.2;
-        const ridge2 = Math.abs(Math.sin(v.x * 1.3 + v.y * 0.9 + 0.7)) * 0.5;
-        // Cracks — narrow depressions
-        const crack = Math.abs(Math.sin(v.x * 2.5 + v.y * 1.8 + 3.1)) < 0.15 ? -0.4 : 0;
-        const totalN = n1 + n2 + ridge1 + ridge2 + crack;
+        const ridge1 = Math.abs(noise3D(v.x * 0.12, v.y * 0.12, 15.0)) * 1.2;
+        const ridge2 = Math.abs(noise3D(v.x * 0.3, v.y * 0.3, 20.0)) * 0.5;
+        const totalN = n1 + n2 + n3 + ridge1 + ridge2;
         positions.setZ(i, v.z + totalN * 1.8 * fade);
     }
     positions.needsUpdate = true;
@@ -133,20 +129,128 @@ const CAVE_FLOOR_GEO = (() => {
 const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5);
 const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
 const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);  // kept for instanced pebbles
-const UW_DODECA_GEO = new THREE.DodecahedronGeometry(1, 0);  // for scattered 3D rock formations
-const UW_ICOSA_GEO = new THREE.IcosahedronGeometry(1, 0);    // for scattered 3D rock formations
+// ─── Simplex noise instance (shared across all procedural geometry) ─────
+const noise3D = createNoise3D();
 
-// Procedural underwater terrain — displaced PlaneGeometry
+// ─── Organic cave wall geometry helper ──────────────────────────────────
+function createOrganicCaveWall(
+  width: number,
+  height: number,
+  segments: number = 48,
+  seed: number = 0,
+  amplitude: number = 2.5
+): THREE.BufferGeometry {
+  const geo = new THREE.PlaneGeometry(width, height, segments, segments);
+  const positions = geo.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < positions.count; i++) {
+    v.fromBufferAttribute(positions, i);
+    let displacement = 0;
+    displacement += noise3D(v.x * 0.05 + seed, v.y * 0.05, seed * 0.7) * amplitude;
+    displacement += noise3D(v.x * 0.15 + seed, v.y * 0.15, seed * 1.3) * amplitude * 0.35;
+    displacement += noise3D(v.x * 0.4 + seed, v.y * 0.4, seed * 2.1) * amplitude * 0.1;
+    // Push vertex along Z (normal direction) — walls bulge INWARD
+    positions.setZ(i, v.z + Math.abs(displacement));
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
+const UW_WALL_NORTH_GEO = createOrganicCaveWall(62, 30, 48, 0, 2.5);
+const UW_WALL_SOUTH_GEO = createOrganicCaveWall(62, 30, 48, 10, 2.5);
+const UW_WALL_WEST_GEO = createOrganicCaveWall(62, 30, 48, 20, 2.5);
+const UW_WALL_EAST_GEO = createOrganicCaveWall(62, 30, 48, 30, 2.5);
+
+// ─── Procedural rock geometry helper ────────────────────────────────────
+function createProceduralRock(
+  radius: number = 1,
+  detail: number = 2,
+  roughness: number = 0.35,
+  seed: number = 0
+): THREE.BufferGeometry {
+  const geo = new THREE.IcosahedronGeometry(radius, detail);
+  const positions = geo.attributes.position;
+  const normals = geo.attributes.normal;
+  const v = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  for (let i = 0; i < positions.count; i++) {
+    v.fromBufferAttribute(positions, i);
+    n.fromBufferAttribute(normals, i);
+    let disp = 0;
+    disp += noise3D(v.x * 0.8 + seed, v.y * 0.8, v.z * 0.8) * roughness;
+    disp += noise3D(v.x * 2.0 + seed, v.y * 2.0, v.z * 2.0) * roughness * 0.3;
+    disp += noise3D(v.x * 5.0 + seed, v.y * 5.0, v.z * 5.0) * roughness * 0.1;
+    // Flatten rocks slightly (more realistic)
+    disp *= 0.7 + 0.3 * Math.abs(n.y);
+    positions.setX(i, v.x + n.x * disp);
+    positions.setY(i, v.y + n.y * disp);
+    positions.setZ(i, v.z + n.z * disp);
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
+const PROC_ROCK_A = createProceduralRock(1, 2, 0.35, 0);
+const PROC_ROCK_B = createProceduralRock(1, 2, 0.3, 50);
+const PROC_ROCK_C = createProceduralRock(1, 2, 0.4, 100);
+const PROC_ROCK_D = createProceduralRock(1, 2, 0.25, 150);
+
+// ─── Procedural stalactite geometry helper ──────────────────────────────
+function createProceduralStalactite(
+  height: number,
+  topRadius: number,
+  bottomRadius: number = 0.05,
+  segments: number = 10,
+  heightSegs: number = 15,
+  seed: number = 0
+): THREE.BufferGeometry {
+  const geo = new THREE.ConeGeometry(topRadius, height, segments, heightSegs);
+  const positions = geo.attributes.position;
+  const normals = geo.attributes.normal;
+  const v = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  for (let i = 0; i < positions.count; i++) {
+    v.fromBufferAttribute(positions, i);
+    n.fromBufferAttribute(normals, i);
+    const yNorm = (v.y + height / 2) / height; // 0 at tip, 1 at base
+    const noiseAmt = yNorm * 0.25;
+    const disp = noise3D(v.x * 2.0 + seed, v.y * 1.5, v.z * 2.0) * noiseAmt;
+    positions.setX(i, v.x + n.x * disp);
+    positions.setZ(i, v.z + n.z * disp);
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// Pre-computed procedural stalactite geometries (different seeds for variation)
+const PROC_STALAGMITE_GEOS = [
+  createProceduralStalactite(2.5, 0.6, 0.05, 10, 15, 200),
+  createProceduralStalactite(3.2, 0.8, 0.05, 10, 15, 210),
+  createProceduralStalactite(2.0, 0.5, 0.05, 10, 15, 220),
+  createProceduralStalactite(2.8, 0.7, 0.05, 10, 15, 230),
+  createProceduralStalactite(1.8, 0.5, 0.05, 10, 15, 240),
+  createProceduralStalactite(2.1, 0.6, 0.05, 10, 15, 250),
+  createProceduralStalactite(2.4, 0.7, 0.05, 10, 15, 260),
+];
+const PROC_STALACTITE_GEOS = [
+  createProceduralStalactite(1.5, 0.4, 0.05, 10, 15, 300),
+  createProceduralStalactite(1.8, 0.5, 0.05, 10, 15, 310),
+  createProceduralStalactite(1.2, 0.4, 0.05, 10, 15, 320),
+  createProceduralStalactite(2.0, 0.55, 0.05, 10, 15, 330),
+  createProceduralStalactite(1.4, 0.4, 0.05, 10, 15, 340),
+  createProceduralStalactite(1.6, 0.5, 0.05, 10, 15, 350),
+  createProceduralStalactite(1.3, 0.4, 0.05, 10, 15, 360),
+  createProceduralStalactite(1.7, 0.5, 0.05, 10, 15, 370),
+];
+
+// Procedural underwater terrain — displaced PlaneGeometry (simplex-noise)
 const UW_FLOOR_GEO = (() => {
     const geo = new THREE.PlaneGeometry(80, 80, 200, 200);
     const positions = geo.attributes.position;
     const v = new THREE.Vector3();
-    // Seed-based hash for pseudo-random per-vertex noise
-    const hash = (x: number, y: number) => {
-        let h = x * 374761393 + y * 668265263;
-        h = (h ^ (h >> 13)) * 1274126177;
-        return ((h ^ (h >> 16)) & 0xffff) / 0xffff;
-    };
     for (let i = 0; i < positions.count; i++) {
         v.fromBufferAttribute(positions, i);
         const edgeDist = Math.min(
@@ -157,20 +261,15 @@ const UW_FLOOR_GEO = (() => {
         // Distance from center — central area around the hole gets less displacement
         const distFromCenter = Math.sqrt(v.x * v.x + (v.y - 5) * (v.y - 5));
         const centerDip = Math.max(0, 1 - distFromCenter / 12);
-        // Rich multi-octave terrain — dramatic 3-5 meter elevation changes
-        const n1 = Math.sin(v.x * 0.15 + 1.7) * 3.0
-                  + Math.sin(v.y * 0.2 + 3.1) * 2.8
-                  + Math.sin((v.x + v.y) * 0.1 + 0.8) * 3.5
-                  + Math.cos(v.x * 0.35 - v.y * 0.25 + 5.3) * 1.8;
-        const n2 = Math.sin(v.x * 0.7 + v.y * 0.55 + 2.2) * 1.2
-                  + Math.sin(v.x * 1.4 + v.y * 1.1 + 2.2) * 0.6
-                  + Math.cos(v.x * 2.1 - v.y * 1.8 + 4.7) * 0.35;
-        const n3 = Math.sin(v.x * 3.2 + v.y * 2.8 + 1.3) * 0.18
-                  + Math.cos(v.x * 5.5 + v.y * 4.2 - 0.8) * 0.1;
+        // Rich multi-octave simplex-noise terrain — dramatic 3-5 meter elevation changes
+        const n1 = noise3D(v.x * 0.04, v.y * 0.04, 0.0) * 5.0;
+        const n2 = noise3D(v.x * 0.1, v.y * 0.1, 3.0) * 2.0;
+        const n3 = noise3D(v.x * 0.25, v.y * 0.25, 7.0) * 0.6;
+        const n4 = noise3D(v.x * 0.6, v.y * 0.6, 11.0) * 0.15;
         // Rocky ridges — sharp prominent features
-        const ridge = Math.abs(Math.sin(v.x * 0.4 + 0.5)) * Math.abs(Math.cos(v.y * 0.3 + 2.1)) * 4.5;
+        const ridge = Math.abs(noise3D(v.x * 0.06, v.y * 0.06, 15.0)) * 4.5;
         // Combine with edge fade and center dip
-        const totalN = n1 + n2 + n3 + ridge;
+        const totalN = n1 + n2 + n3 + n4 + ridge;
         const displacement = totalN * edgeFade * (1 - centerDip * 0.6);
         positions.setZ(i, v.z + displacement);
     }
@@ -1261,6 +1360,98 @@ const UnderwaterFlora: React.FC = () => (
     </>
 );
 
+// ─── God Ray — volumetric light beam from the water hole ─────────────────
+const GodRay: React.FC = () => {
+    const matRef = useRef<THREE.ShaderMaterial>(null);
+    useFrame((state) => {
+        if (matRef.current) (matRef.current as any).time = state.clock.elapsedTime;
+    });
+    return (
+        <mesh position={[HOLE_CENTER_X, -10, HOLE_CENTER_Z]} rotation={[0, 0, 0]}>
+            <coneGeometry args={[5, 25, 32, 1, true]} />
+            <shaderMaterial
+                ref={matRef}
+                transparent
+                depthWrite={false}
+                blending={THREE.AdditiveBlending}
+                side={THREE.DoubleSide}
+                uniforms={{
+                    time: { value: 0 },
+                    uColor: { value: new THREE.Color('#1a5a8a') },
+                }}
+                vertexShader={`
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `}
+                fragmentShader={`
+                    uniform float time;
+                    uniform vec3 uColor;
+                    varying vec2 vUv;
+                    void main() {
+                        // Fade from center to edges
+                        float dist = length(vUv - 0.5) * 2.0;
+                        float alpha = smoothstep(1.0, 0.0, dist);
+                        // Fade along length (stronger near top)
+                        alpha *= (1.0 - vUv.y) * 0.5;
+                        // Subtle animation
+                        alpha *= 0.7 + 0.3 * sin(time * 0.5 + vUv.y * 3.0);
+                        // Make it very subtle for horror atmosphere
+                        alpha *= 0.15;
+                        gl_FragColor = vec4(uColor, alpha);
+                    }
+                `}
+            />
+        </mesh>
+    );
+};
+
+// ─── Underwater Sediment — floating particles for depth perception ───────
+const SEDIMENT_COUNT = 200;
+const UnderwaterSediment: React.FC = () => {
+    const refs = useRef<(THREE.Object3D | null)[]>(new Array(SEDIMENT_COUNT).fill(null));
+    const data = useRef(
+        Array.from({ length: SEDIMENT_COUNT }, () => ({
+            x: (Math.random() - 0.5) * 56,
+            y: -2 + Math.random() * -27,
+            z: (Math.random() - 0.5) * 56,
+            vx: (Math.random() - 0.5) * 0.008,
+            vy: (Math.random() - 0.5) * 0.004,
+            vz: (Math.random() - 0.5) * 0.008,
+            seed: Math.random() * 10,
+        }))
+    );
+    useFrame((state, dt) => {
+        const safeDt = Math.min(dt, 0.033);
+        const t = state.clock.elapsedTime;
+        for (let i = 0; i < SEDIMENT_COUNT; i++) {
+            const d = data.current[i];
+            d.x += (d.vx + Math.sin(t * 0.08 + d.seed) * 0.002) * safeDt;
+            d.y += (d.vy + Math.cos(t * 0.06 + d.seed * 0.7) * 0.001) * safeDt;
+            d.z += (d.vz + Math.sin(t * 0.07 + d.seed * 1.3) * 0.002) * safeDt;
+            // Wrap around
+            if (d.x < -28) d.x = 28;
+            if (d.x > 28) d.x = -28;
+            if (d.y < -29) d.y = -2;
+            if (d.y > -2) d.y = -29;
+            if (d.z < -28) d.z = 28;
+            if (d.z > 28) d.z = -28;
+            const r = refs.current[i];
+            if (r) r.position.set(d.x, d.y, d.z);
+        }
+    });
+    return (
+        <Instances limit={SEDIMENT_COUNT} range={SEDIMENT_COUNT} geometry={BUBBLE_GEO}>
+            <meshBasicMaterial color="#8a9aaa" transparent opacity={0.2} depthWrite={false} />
+            {Array.from({ length: SEDIMENT_COUNT }, (_, i) => (
+                <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} scale={0.02 + Math.random() * 0.04} />
+            ))}
+        </Instances>
+    );
+};
+
 // ─── Drifting bubbles (underwater) ─────────────────────────────────────
 const BUBBLE_COUNT = 35;
 const BUBBLE_RANGE = 18;
@@ -1641,18 +1832,16 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             </group>
         ))}
 
-        {/* Stalagmites — cones rising from the floor */}
+        {/* Stalagmites — procedural noise-displaced cones rising from the floor */}
         {STALAGMITES.map(([x, z, h, r], i) => (
-            <mesh key={`stalagmite-${i}`} position={[x, h / 2, z]}>
-                <coneGeometry args={[r, h, 6]} />
+            <mesh key={`stalagmite-${i}`} position={[x, h / 2, z]} geometry={PROC_STALAGMITE_GEOS[i % PROC_STALAGMITE_GEOS.length]}>
                 <meshStandardMaterial color="#3a3024" roughness={1} flatShading />
             </mesh>
         ))}
 
-        {/* Stalactites — inverted cones from the ceiling */}
+        {/* Stalactites — procedural noise-displaced inverted cones from the ceiling */}
         {STALACTITES.map(([x, z, h, r], i) => (
-            <mesh key={`stalactite-${i}`} position={[x, 8 - h / 2, z]} rotation={[Math.PI, 0, 0]}>
-                <coneGeometry args={[r, h, 6]} />
+            <mesh key={`stalactite-${i}`} position={[x, 8 - h / 2, z]} rotation={[Math.PI, 0, 0]} geometry={PROC_STALACTITE_GEOS[i % PROC_STALACTITE_GEOS.length]}>
                 <meshStandardMaterial color="#322a1f" roughness={1} flatShading />
             </mesh>
         ))}
@@ -1713,8 +1902,14 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <GodRayShafts />
         <GodRays playerPositionRef={playerPositionRef} />
 
+        {/* God ray — volumetric light beam from the water hole */}
+        <GodRay />
+
         {/* Deep Mist — drifting fog plane */}
         <DeepMist />
+
+        {/* Underwater sediment — floating particles for depth perception */}
+        <UnderwaterSediment />
 
         {/* Debris particles — tiny specs drifting */}
         <DebrisField />
@@ -1741,28 +1936,36 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <SurfaceBubbleRing />
         <PlanktonField />
 
-        {/* Scattered 3D rock formations on the underwater floor */}
+        {/* Scattered 3D rock formations on the underwater floor — procedural noise rocks */}
         {UW_SCATTERED_ROCKS.map(([x, y, z, s, ry, rx], i) => (
             <mesh
                 key={`uwrock-${i}`}
                 position={[x, y + s * 0.4, z]}
                 scale={[s, s * 0.7, s]}
                 rotation={[rx, ry, 0]}
-                geometry={i % 2 === 0 ? (UW_DODECA_GEO) : (UW_ICOSA_GEO)}
+                geometry={i % 4 === 0 ? PROC_ROCK_A : i % 4 === 1 ? PROC_ROCK_B : i % 4 === 2 ? PROC_ROCK_C : PROC_ROCK_D}
             >
                 <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
             </mesh>
         ))}
 
-        {/* ─── UNDERWATER CAVE WALLS — extending cave walls into the submerged zone ─── */}
-        {/* North underwater wall (z = -30) */}
-        <mesh position={[0, -15, -30]}><boxGeometry args={[62, 30, 2]} /><meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} /></mesh>
-        {/* South underwater wall (z = 30) */}
-        <mesh position={[0, -15, 30]}><boxGeometry args={[62, 30, 2]} /><meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} /></mesh>
-        {/* West underwater wall (x = -30) */}
-        <mesh position={[-30, -15, 0]}><boxGeometry args={[2, 30, 62]} /><meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} /></mesh>
-        {/* East underwater wall (x = 30) */}
-        <mesh position={[30, -15, 0]}><boxGeometry args={[2, 30, 62]} /><meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} /></mesh>
+        {/* ─── UNDERWATER CAVE WALLS — organic displaced PlaneGeometry ─── */}
+        {/* North underwater wall (z = -30) — faces +Z (inward) */}
+        <mesh position={[0, -15, -30]} rotation={[0, 0, 0]} geometry={UW_WALL_NORTH_GEO}>
+            <meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
+        </mesh>
+        {/* South underwater wall (z = 30) — faces -Z (inward) */}
+        <mesh position={[0, -15, 30]} rotation={[0, Math.PI, 0]} geometry={UW_WALL_SOUTH_GEO}>
+            <meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
+        </mesh>
+        {/* West underwater wall (x = -30) — faces +X (inward) */}
+        <mesh position={[-30, -15, 0]} rotation={[0, Math.PI / 2, 0]} geometry={UW_WALL_WEST_GEO}>
+            <meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
+        </mesh>
+        {/* East underwater wall (x = 30) — faces -X (inward) */}
+        <mesh position={[30, -15, 0]} rotation={[0, -Math.PI / 2, 0]} geometry={UW_WALL_EAST_GEO}>
+            <meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
+        </mesh>
 
         {/* Underwater coral/rock pillars — tall vertical formations */}
         {UW_CORAL_PILLARS.map(([x, z, h, rTop, rBot], i) => (
