@@ -79,17 +79,6 @@ export const SWIM_THRESHOLD_Y = -0.3;   // below this the player is "in" the wat
 // MUST be defined before any geometry that uses it (CAVE_FLOOR_GEO, etc.)
 const noise3D = createNoise3D();
 
-// ─── Static draw usage marker — GPU hint for immutable geometry ────────
-// Marks all attributes as StaticDrawUsage so the WebGL driver can place
-// them in fast GPU-only memory. Called after final vertex displacement.
-// MUST be defined before any geometry IIFE that uses it.
-const _markStatic = (g: THREE.BufferGeometry) => {
-    for (const name of Object.keys(g.attributes)) {
-        g.attributes[name].setUsage(THREE.StaticDrawUsage);
-    }
-    return g;
-};
-
 // ─── Cave floor with circular hole — ShapeGeometry ────────────────────
 // THREE.Shape supports holes natively; this gives us a single mesh for
 // the floor with a clean circular cutout, no triangulation tricks.
@@ -152,14 +141,14 @@ const CAVE_FLOOR_GEO = (() => {
     }
     uvAttr.needsUpdate = true;
     geo.computeVertexNormals();
-    _markStatic(geo);
+
     return geo;
 })();
 
 // ─── Geometries shared across the scene ────────────────────────────────
-const BUBBLE_GEO  = _markStatic(new THREE.SphereGeometry(1, 6, 5));
-const SHARD_GEO   = _markStatic(new THREE.OctahedronGeometry(0.5, 0));
-const PEBBLE_GEO  = _markStatic(new THREE.IcosahedronGeometry(1, 0));
+const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5);
+const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
+const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);
 
 // ─── Organic cave wall geometry helper ──────────────────────────────────
 // Creates a PlaneGeometry with heavy multi-octave noise displacement
@@ -192,7 +181,6 @@ function createOrganicCaveWall(
   }
   positions.needsUpdate = true;
   geo.computeVertexNormals();
-  _markStatic(geo);
   return geo;
 }
 
@@ -224,7 +212,6 @@ function createCaveCeiling(
   }
   positions.needsUpdate = true;
   geo.computeVertexNormals();
-  _markStatic(geo);
   return geo;
 }
 
@@ -364,7 +351,7 @@ const UW_FLOOR_GEO = (() => {
     }
     positions.needsUpdate = true;
     geo.computeVertexNormals();
-    _markStatic(geo);
+
     return geo;
 })();
 
@@ -857,23 +844,7 @@ const UnderwaterOverlayMaterial = shaderMaterial(
     `
 );
 
-// ─── Global shader time registry — one useFrame drives all shader materials ──
-// Instead of each material having its own useFrame just to set `time`,
-// we register them here and update all in a single frame callback.
-const _shaderTimeTargets: { time: number }[] = [];
-function registerShaderTime(mat: { time: number }): { time: number } {
-    _shaderTimeTargets.push(mat);
-    return mat;
-}
-const ShaderTimeDriver: React.FC = () => {
-    useFrame((state) => {
-        const t = state.clock.elapsedTime;
-        for (let i = 0; i < _shaderTimeTargets.length; i++) {
-            _shaderTimeTargets[i].time = t;
-        }
-    });
-    return null;
-};
+
 
 // ─── Water shader — Gerstner waves + SSS + Fresnel + foam ───────────
 // FIX #3: Water is opaque when viewed from below (dot(normal, viewDir) < 0)
@@ -1029,10 +1000,10 @@ const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }) => {
         m.transparent = true;
         m.depthWrite = false;
         m.side = THREE.DoubleSide;
-        registerShaderTime(m);
         return m;
     }, []);
-    useFrame(() => {
+    useFrame((state) => {
+        (mat as any).time = state.clock.elapsedTime;
         if (reflective) (mat as any).opacity = 0.45;
     });
     return (
@@ -1070,10 +1041,11 @@ const WaterCeilingDisc: React.FC = () => {
         m.side = THREE.BackSide;
         m.depthWrite = true;
         m.transparent = false;
-        registerShaderTime(m);
         return m;
     }, []);
-    // No useFrame needed — ShaderTimeDriver handles time uniform
+    useFrame((state) => {
+        (mat as any).time = state.clock.elapsedTime;
+    });
     return (
         <mesh
             position={[HOLE_CENTER_X, WATER_LEVEL_Y - 0.1, HOLE_CENTER_Z]}
@@ -1163,10 +1135,10 @@ const UnderwaterOverlay: React.FC<{ playerPositionRef: React.MutableRefObject<TH
         m.depthTest = false;
         m.renderOrder = 999;
         m.side = THREE.DoubleSide;
-        registerShaderTime(m);
         return m;
     }, []);
     useFrame((state) => {
+        (mat as any).time = state.clock.elapsedTime;
         const y = playerPositionRef.current?.y ?? 0;
         const isUnderwater = y < SWIM_THRESHOLD_Y;
         const m = meshRef.current;
@@ -1222,10 +1194,9 @@ const UnderwaterCaustics: React.FC = () => {
         m.depthWrite = false;
         m.blending = THREE.AdditiveBlending;
         m.toneMapped = false;
-        registerShaderTime(m);
         return m;
     }, []);
-    // No useFrame needed — ShaderTimeDriver handles time uniform
+    useFrame((state) => { (mat as any).time = state.clock.elapsedTime; });
     return (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -29.95, 0]}>
             <planeGeometry args={[40, 40]} />
@@ -1950,7 +1921,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <sprite position={[0, 0.8, -25]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
 
         <DynamicFog playerPositionRef={playerPositionRef} />
-        <ShaderTimeDriver />
+
 
         {/* ─── CAVE FLOOR with hole ─── */}
         <mesh
