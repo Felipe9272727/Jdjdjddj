@@ -4,7 +4,7 @@ import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
-import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y } from './Floor2Underwater';
+import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
 useGLTF.preload(WALKING_URL);
@@ -454,6 +454,22 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         // Mild buoyancy — slow drift up when not pressing forward.
         pos.current.y += 0.04 * safeDt;
 
+        // ─── Underwater rock collision (sphere vs sphere) ───────────
+        for (const rock of UW_ROCK_COLLIDERS) {
+            const dx = pos.current.x - rock.x;
+            const dy = pos.current.y - rock.y;
+            const dz = pos.current.z - rock.z;
+            const distSq = dx * dx + dy * dy + dz * dz;
+            const minDist = rock.r + 0.5; // player radius ~0.5
+            if (distSq < minDist * minDist && distSq > 0.0001) {
+                const dist = Math.sqrt(distSq);
+                const push = (minDist - dist) / dist;
+                pos.current.x += dx * push;
+                pos.current.y += dy * push;
+                pos.current.z += dz * push;
+            }
+        }
+
         // Y clamps: underwater floor at Y=-29 and surface at SWIM_THRESHOLD_Y.
         if (pos.current.y < -29) pos.current.y = -29;
         // Underwater XZ bounds — keep the swimmer inside the 80x80 rocky
@@ -521,11 +537,21 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         // ─── Y axis handling (runs every frame, even when standing still) ──
         // Default: feet on the floor.
         if (currentLevel === 2) {
-            // Hard XZ clamp as a last-resort barrier. The cave-wall colliders
-            // in constants.ts handle 99% of the cases, but a fast input spike
-            // or a corner of two segments can occasionally let the player
-            // slip 0.1m past the resolve. This clamp guarantees we stay
-            // inside the visible 60x60 cave footprint.
+            // ─── Cave rock collision (XZ circle check for walking mode) ──
+            for (const rock of CAVE_ROCK_COLLIDERS) {
+                const dx = pos.current.x - rock.x;
+                const dz = pos.current.z - rock.z;
+                const distSq = dx * dx + dz * dz;
+                const minDist = rock.r + 0.5;
+                if (distSq < minDist * minDist && distSq > 0.0001) {
+                    const dist = Math.sqrt(distSq);
+                    const push = (minDist - dist) / dist;
+                    pos.current.x += dx * push;
+                    pos.current.z += dz * push;
+                }
+            }
+
+            // Hard XZ clamp as a last-resort barrier.
             if (pos.current.x < -29) pos.current.x = -29;
             if (pos.current.x >  29) pos.current.x =  29;
             if (pos.current.z < -29) pos.current.z = -29;

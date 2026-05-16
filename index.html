@@ -917,10 +917,6 @@
     display: flex;
   }
 
-  .grid {
-    display: grid;
-  }
-
   .hidden {
     display: none;
   }
@@ -105196,39 +105192,47 @@ const STALACTITES = [
   [-22, 20, 1.3, 0.4],
   [18, -25, 1.7, 0.5]
 ];
-const CRYSTALS = [
-  [-28, 2.2, 8, "#9ae6ff"],
-  // cyan, west wall
-  [28, 3.5, -5, "#c39bff"],
-  // purple, east wall
-  [-10, 0.6, 28, "#ff9ad8"],
-  // pink, north wall
-  [12, 0.8, -28, "#ffd066"],
-  // amber, south wall
-  [-28, 4.5, -18, "#9affae"],
-  // green, west wall further
-  [28, 1.5, 20, "#84d8ff"]
-  // light blue, east wall
+const SPORES = [
+  [-28, 2, 8],
+  [-28, 3.5, 6],
+  [28, 2.5, -5],
+  [28, 4, -3],
+  [-10, 0.8, 28],
+  [-10, 1.5, 26],
+  [12, 0.6, -28],
+  [12, 1.2, -26],
+  [-28, 3.5, -18],
+  [-28, 5, -16],
+  [28, 1.2, 20],
+  [28, 2.8, 18],
+  [-20, 4, -24],
+  [20, 3.5, 22]
 ];
-const CRYSTAL_GEO = new OctahedronGeometry(0.35, 0);
-const CrystalCluster = ({ x: x2, y, z, color: color2 }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, y, z], children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, rotation: [0.3, 0.8, 0], scale: 1.4, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-    "meshStandardMaterial",
-    {
-      color: color2,
-      emissive: color2,
-      emissiveIntensity: 2.2,
-      metalness: 0.55,
-      roughness: 0.15,
-      toneMapped: false
-    }
-  ) }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, scale: 0.75, position: [0.45, -0.2, 0.15], rotation: [0.6, 1.2, 0.3], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, emissive: color2, emissiveIntensity: 1.9, metalness: 0.5, roughness: 0.18, toneMapped: false }) }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, scale: 0.55, position: [-0.42, -0.25, -0.05], rotation: [-0.4, 0.5, 0.7], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, emissive: color2, emissiveIntensity: 1.7, metalness: 0.5, roughness: 0.2, toneMapped: false }) }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, scale: 0.4, position: [0, 0.35, -0.15], rotation: [0.2, 0.2, 1.4], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, emissive: color2, emissiveIntensity: 1.4, metalness: 0.5, roughness: 0.2, toneMapped: false }) }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { intensity: 2.4, distance: 9, decay: 1.4, color: color2 }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [1.8, 1.8, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { color: color2, transparent: true, opacity: 0.35, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) })
-] });
+const BioluminescentSpore = ({ x: x2, y, z, seed: seed3 }) => {
+  const spriteMatRef = reactExports.useRef(null);
+  const lightRef = reactExports.useRef(null);
+  useFrame((state2) => {
+    const t2 = state2.clock.elapsedTime;
+    const pulse = 0.4 + Math.sin(t2 * 0.4 + seed3) * 0.3;
+    if (spriteMatRef.current) spriteMatRef.current.opacity = pulse * 0.35;
+    if (lightRef.current) lightRef.current.intensity = 0.3 * pulse;
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, y, z], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [0.3, 0.3, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "spriteMaterial",
+      {
+        ref: spriteMatRef,
+        color: "#0a4a3a",
+        transparent: true,
+        opacity: 0.2,
+        depthWrite: false,
+        toneMapped: false,
+        blending: AdditiveBlending
+      }
+    ) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { ref: lightRef, intensity: 0.3, distance: 4, decay: 1.5, color: "#0a4a3a" })
+  ] });
+};
 const TORCH_POSITIONS = [
   [-29.5, 5.5, 0],
   [29.5, 5.5, 0],
@@ -105276,7 +105280,7 @@ const DustMotes = () => {
   );
   const refs = reactExports.useRef(new Array(DUST_COUNT).fill(null));
   useFrame((state2, dt2) => {
-    const safeDt = Math.min(dt2, 0.05);
+    const safeDt = Math.min(dt2, 0.033);
     const t2 = state2.clock.elapsedTime;
     const pos = positions.current;
     for (let i2 = 0; i2 < DUST_COUNT; i2++) {
@@ -105331,6 +105335,13 @@ const UW_PEBBLES = [
   [-4, -29.6, 14, 0.5, 1.6],
   [13, -29.6, 14, 0.4, 0.6]
 ];
+const CAVE_ROCK_COLLIDERS = [
+  ...CAVE_ROCKS_DARK.map(([x2, y, z, s]) => ({ x: x2, y: y + s * 0.35, z, r: s * 0.7 })),
+  ...CAVE_ROCKS_MID.map(([x2, y, z, s]) => ({ x: x2, y: y + s * 0.35, z, r: s * 0.5 }))
+];
+const UW_ROCK_COLLIDERS = [
+  ...UW_BOULDERS.map(([x2, y, z, s]) => ({ x: x2, y: y + s * 0.3, z, r: s * 0.6 }))
+];
 const WaterMaterial = shaderMaterial(
   { time: 0, opacity: 0.85 },
   /* glsl */
@@ -105342,8 +105353,6 @@ const WaterMaterial = shaderMaterial(
       varying vec3 vNormalWS;
       varying vec3 vWorldPos;
 
-      // Gerstner wave: returns displacement (x,y,z) and derivatives (dx, dz)
-      // Based on GPU Gems chapter + Jerry Tessendorf's formulation.
       vec4 gerstner(vec2 pos, vec2 dir, float steepness, float wavelength, float t) {
         float k = 6.28318 / max(wavelength, 0.01);
         float c = sqrt(9.8 / max(k, 0.001));
@@ -105352,9 +105361,9 @@ const WaterMaterial = shaderMaterial(
         float sinF = sin(f);
         float cosF = cos(f);
         return vec4(
-          -dir.x * a * cosF,  // x displacement
-          a * sinF,            // y displacement (vertical)
-          -dir.y * a * cosF,  // z displacement
+          -dir.x * a * cosF,
+          a * sinF,
+          -dir.y * a * cosF,
           0.0
         );
       }
@@ -105363,9 +105372,6 @@ const WaterMaterial = shaderMaterial(
         vUv = uv;
         vec3 p = position;
 
-        // 4 Gerstner wave octaves with different directions & wavelengths.
-        // Steepness < 1.0 prevents wave folding. Shorter waves = less
-        // amplitude (natural spectral decay).
         vec2 d1 = normalize(vec2(1.0, 0.3));
         vec2 d2 = normalize(vec2(0.3, 1.0));
         vec2 d3 = normalize(vec2(-0.5, 0.7));
@@ -105380,8 +105386,6 @@ const WaterMaterial = shaderMaterial(
         p += disp;
         vWave = disp.y;
 
-        // Analytical normal from Gerstner partial derivatives.
-        // dP/dx and dP/dz are computed from the wave functions.
         float k1 = 6.28318 / 4.0;  float c1 = sqrt(9.8 / k1);  float a1 = 0.22 / k1;
         float k2 = 6.28318 / 2.8;  float c2 = sqrt(9.8 / k2);  float a2 = 0.18 / k2;
         float k3 = 6.28318 / 1.8;  float c3 = sqrt(9.8 / k3);  float a3 = 0.12 / k3;
@@ -105392,7 +105396,6 @@ const WaterMaterial = shaderMaterial(
         float f3 = k3 * (dot(d3, position.xz) - c3 * time * 1.15 - 3.2 * c3);
         float f4 = k4 * (dot(d4, position.xz) - c4 * time * 1.4 - 5.0 * c4);
 
-        // dP/dx
         vec3 dPdx = vec3(
           1.0 - (d1.x * d1.x * a1 * k1 * sin(f1) + d2.x * d2.x * a2 * k2 * sin(f2)
                + d3.x * d3.x * a3 * k3 * sin(f3) + d4.x * d4.x * a4 * k4 * sin(f4)),
@@ -105400,7 +105403,6 @@ const WaterMaterial = shaderMaterial(
           -(d1.x * d1.y * a1 * k1 * sin(f1) + d2.x * d2.y * a2 * k2 * sin(f2)
           + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4))
         );
-        // dP/dz (mapped from local y since plane is rotated)
         vec3 dPdz = vec3(
           -(d1.x * d1.y * a1 * k1 * sin(f1) + d2.x * d2.y * a2 * k2 * sin(f2)
           + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4)),
@@ -105429,18 +105431,19 @@ const WaterMaterial = shaderMaterial(
 
       void main() {
         // ─── Schlick Fresnel ──────────────────────────────────────
-        // F0 = 0.02 for water (dielectric). At grazing angles,
-        // reflectance approaches 100% — that's the "mirror edge" look.
         float ndv = max(0.001, dot(vNormalWS, vViewWS));
         float R0 = 0.02;
         float fresnel = R0 + (1.0 - R0) * pow(1.0 - ndv, 5.0);
-        // Boost for visual punch (physically ~1.0 at grazing, we push)
         fresnel = mix(fresnel, pow(1.0 - ndv, 2.4) * 0.9, 0.5);
 
-        // ─── Deep / shallow / sky palette ────────────────────────
-        vec3 deep   = vec3(0.01, 0.08, 0.14);
-        vec3 mid    = vec3(0.06, 0.28, 0.38);
-        vec3 sky    = vec3(0.55, 0.82, 0.94);
+        // ─── FIX #3: Opaque when viewed from BELOW ───────────────
+        // dot(normal, viewDir) < 0 means we're looking up from underwater
+        float viewFromBelow = step(dot(vNormalWS, vViewWS), 0.0);
+
+        // ─── Deep / shallow / sky palette — HORROR DARK ──────────
+        vec3 deep   = vec3(0.005, 0.02, 0.04);   // almost black-blue
+        vec3 mid    = vec3(0.02, 0.08, 0.12);     // very dark teal
+        vec3 sky    = vec3(0.15, 0.25, 0.30);     // muted gray-green
 
         // ─── Caustic streaks on the surface itself ──────────────
         float c1 = sin(vUv.x * 32.0 + time * 0.9) * 0.5 + 0.5;
@@ -105452,32 +105455,33 @@ const WaterMaterial = shaderMaterial(
         vec3 col = mix(deep, mid, 0.5 + h * 0.5);
 
         // ─── Subsurface scattering ──────────────────────────────
-        // Light transmitted through thin wave peaks glows cyan-green.
-        // The thinner the wave (higher wave peak = more transmittance),
-        // the stronger the SSS. This is THE Unreal water look.
-        float sss = pow(max(0.0, h), 1.5) * 0.6;
-        vec3 sssColor = vec3(0.1, 0.55, 0.45);
+        float sss = pow(max(0.0, h), 1.5) * 0.3; // reduced from 0.6 for horror
+        vec3 sssColor = vec3(0.05, 0.2, 0.15);   // much dimmer
         col += sssColor * sss;
 
         // ─── Fresnel reflection of sky ──────────────────────────
-        col = mix(col, sky, fresnel * 0.8 + caustic * 0.15);
+        col = mix(col, sky, fresnel * 0.6 + caustic * 0.1);
 
-        // ─── Fake specular (sun highlight) ──────────────────────
+        // ─── Fake specular (sun highlight) — reduced ────────────
         vec3 lightDir = normalize(vec3(0.4, 1.0, 0.3));
         vec3 halfVec = normalize(vViewWS + lightDir);
         float spec = pow(max(0.0, dot(vNormalWS, halfVec)), 256.0);
-        col += vec3(1.0, 0.95, 0.85) * spec * 1.5 * (1.0 - fresnel * 0.5);
+        col += vec3(0.6, 0.55, 0.45) * spec * 0.8 * (1.0 - fresnel * 0.5);
 
         // ─── Foam on wave crests + edge foam ────────────────────
         float foam = smoothstep(0.04, 0.09, vWave);
-        // Edge foam near pool rim (distance from center)
         float distFromCenter = length(vWorldPos.xz - vec2(0.0, 5.0));
         float edgeFoam = smoothstep(2.8, 2.2, distFromCenter) * 0.4;
         float totalFoam = max(foam * 0.55, edgeFoam);
-        col = mix(col, vec3(0.92, 0.96, 1.0), totalFoam);
+        col = mix(col, vec3(0.6, 0.7, 0.72), totalFoam); // gray foam, not bright white
 
-        // ─── Alpha: visible from all angles ──────────────────────
+        // ─── Alpha: opaque from below, semi-transparent from above ──
         float alpha = mix(0.82, 0.96, fresnel);
+        // FIX #3: When viewed from below, water ceiling is fully opaque
+        if (viewFromBelow > 0.5) {
+            alpha = 1.0;
+            col = vec3(0.01, 0.03, 0.05); // dark murky ceiling
+        }
         gl_FragColor = vec4(col, alpha);
       }
     `
@@ -105508,7 +105512,7 @@ const WaterSurface = ({ reflective = false }) => {
           depthScale: 0.4,
           minDepthThreshold: 0.4,
           maxDepthThreshold: 1.5,
-          color: "#1a3a4a",
+          color: "#0a1a2a",
           metalness: 0.4,
           mirror: 0.65
         }
@@ -105524,18 +105528,22 @@ const DynamicFog = ({ playerPositionRef }) => {
   const { scene } = useThree();
   const _bgColor = reactExports.useRef(new Color("#0e0a08"));
   const _fogColor = reactExports.useRef(new Color("#0e0a08"));
+  const _tgtBg = reactExports.useRef(new Color());
+  const _tgtFog = reactExports.useRef(new Color());
   useFrame((_, dt2) => {
     var _a;
+    const safeDt = Math.min(dt2, 0.033);
     const y = ((_a = playerPositionRef.current) == null ? void 0 : _a.y) ?? 0;
     if (!scene.fog || !(scene.fog instanceof Fog)) return;
     const submerged = y < SWIM_THRESHOLD_Y;
-    const tgtBg = submerged ? 133128 : 920072;
-    const tgtFog = submerged ? 133128 : 920072;
-    const tgtNear = submerged ? 0.3 : 14;
-    const tgtFar = submerged ? 10 : 55;
-    const k2 = Math.min(1, 8 * Math.min(0.05, dt2));
-    _fogColor.current.lerp(new Color(tgtFog), k2);
-    _bgColor.current.lerp(new Color(tgtBg), k2);
+    _tgtBg.current.setHex(submerged ? 66564 : 920072);
+    _tgtFog.current.setHex(submerged ? 66564 : 920072);
+    const breathe = Math.sin(performance.now() * 3e-4) * 0.5;
+    const tgtNear = submerged ? 0.2 + breathe * 0.05 : 14;
+    const tgtFar = submerged ? 6 + breathe * 0.5 : 55;
+    const k2 = Math.min(1, 8 * safeDt);
+    _fogColor.current.lerp(_tgtFog.current, k2);
+    _bgColor.current.lerp(_tgtBg.current, k2);
     scene.fog.color.copy(_fogColor.current);
     scene.fog.near = scene.fog.near + (tgtNear - scene.fog.near) * k2;
     scene.fog.far = scene.fog.far + (tgtFar - scene.fog.far) * k2;
@@ -105560,16 +105568,13 @@ const CausticsMaterial = shaderMaterial(
       uniform float time;
       varying vec2 vUv;
       void main() {
-        // Tile UVs so the pattern repeats across the big seafloor plane.
         vec2 uv = vUv * 6.0;
-        // Two moving sine grids with different angles + speeds = rippling
-        // intersection pattern that reads as light caustics.
         float a = sin(uv.x * 6.28 + time * 0.6) + sin((uv.x + uv.y) * 5.0 + time * 0.9);
         float b = sin(uv.y * 6.28 + time * 0.5 + 1.2) + sin((uv.y - uv.x) * 4.5 + time * 0.7);
         float c = pow(max(0.0, sin(a) * sin(b)), 3.0);
-        // Slightly chromatically split for "RGB caustics" feel.
-        vec3 col = vec3(c * 0.15, c * 0.25, c * 0.12);
-        gl_FragColor = vec4(col, c * 0.2);
+        // Dimmer caustics for horror
+        vec3 col = vec3(c * 0.06, c * 0.10, c * 0.08);
+        gl_FragColor = vec4(col, c * 0.12);
       }
     `
 );
@@ -105601,43 +105606,51 @@ const KELP_POSITIONS = [
   [10, 4, 4.5, 0.9],
   [11.5, 6, 3.5, 1.7]
 ];
-const CORAL_POSITIONS = [
-  [3, -5, "#4a3a2a", 1],
-  [-4, 6, "#3a3028", 0.8],
-  [9, -2, "#5a4a38", 1.2],
-  [-12, -5, "#483828", 0.9],
-  [13, 3, "#3a3028", 1],
-  [-8, 12, "#5a4a3a", 0.7]
-];
-const Kelp = ({ x: x2, z, height, phase }) => {
-  const groupRef = reactExports.useRef(null);
-  const segments = 3;
-  const refs = reactExports.useRef(new Array(segments).fill(null));
+const KelpField = () => {
+  const meshRefs = reactExports.useRef(
+    KELP_POSITIONS.map(() => new Array(3).fill(null))
+  );
   useFrame((state2) => {
+    var _a;
     const t2 = state2.clock.elapsedTime;
-    for (let i2 = 0; i2 < segments; i2++) {
-      const m2 = refs.current[i2];
-      if (!m2) continue;
-      const swayAmt = i2 / segments * 0.25;
-      m2.rotation.z = Math.sin(t2 * 0.6 + phase + i2 * 0.4) * swayAmt;
-      m2.rotation.x = Math.cos(t2 * 0.5 + phase + i2 * 0.3) * swayAmt * 0.6;
+    for (let k2 = 0; k2 < KELP_POSITIONS.length; k2++) {
+      const phase = KELP_POSITIONS[k2][3];
+      const segments = 3;
+      for (let i2 = 0; i2 < segments; i2++) {
+        const m2 = (_a = meshRefs.current[k2]) == null ? void 0 : _a[i2];
+        if (!m2) continue;
+        const swayAmt = i2 / segments * 0.25;
+        m2.rotation.z = Math.sin(t2 * 0.6 + phase + i2 * 0.4) * swayAmt;
+        m2.rotation.x = Math.cos(t2 * 0.5 + phase + i2 * 0.3) * swayAmt * 0.6;
+      }
     }
   });
-  const segLen = height / segments;
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { ref: groupRef, position: [x2, -30, z], children: Array.from({ length: segments }, (_, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-    "mesh",
-    {
-      ref: (r2) => {
-        refs.current[i2] = r2;
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: KELP_POSITIONS.map(([x2, z, height, phase], k2) => {
+    const segments = 3;
+    const segLen = height / segments;
+    return /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [x2, -30, z], children: Array.from({ length: segments }, (_, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "mesh",
+      {
+        ref: (r2) => {
+          if (meshRefs.current[k2]) meshRefs.current[k2][i2] = r2;
+        },
+        position: [0, segLen * 0.5 + i2 * segLen * 0.95, 0],
+        geometry: KELP_GEO,
+        scale: [1 - i2 * 0.1, segLen, 1 - i2 * 0.1],
+        children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: i2 < 2 ? "#0a0805" : "#0c0a06", roughness: 0.85, flatShading: true })
       },
-      position: [0, segLen * 0.5 + i2 * segLen * 0.95, 0],
-      geometry: KELP_GEO,
-      scale: [1 - i2 * 0.1, segLen, 1 - i2 * 0.1],
-      children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: i2 < 2 ? "#1a1810" : "#2a2218", roughness: 0.85, flatShading: true })
-    },
-    i2
-  )) });
+      i2
+    )) }, `kelp-${k2}`);
+  }) });
 };
+const CORAL_POSITIONS = [
+  [3, -5, "#1a1208", 1],
+  [-4, 6, "#1a0e06", 0.8],
+  [9, -2, "#1a1610", 1.2],
+  [-12, -5, "#1a1208", 0.9],
+  [13, 3, "#1a0e06", 1],
+  [-8, 12, "#1a1610", 0.7]
+];
 const Coral = ({ x: x2, z, color: color2, scale: scale2 }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, -30, z], scale: scale2, children: [
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.5, 0], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("sphereGeometry", { args: [0.6, 8, 6] }),
@@ -105675,9 +105688,9 @@ const GodRayShafts = () => {
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "meshBasicMaterial",
             {
-              color: "#1a3028",
+              color: "#0a1810",
               transparent: true,
-              opacity: 0.04 + i2 % 3 * 8e-3,
+              opacity: 0.03 + i2 % 3 * 5e-3,
               side: DoubleSide,
               depthWrite: false,
               blending: AdditiveBlending,
@@ -105689,6 +105702,71 @@ const GodRayShafts = () => {
       i2
     );
   }) });
+};
+const DeepMist = () => {
+  const matRef = reactExports.useRef(null);
+  useFrame((state2) => {
+    const m2 = matRef.current;
+    if (!m2) return;
+    const t2 = state2.clock.elapsedTime;
+    m2.opacity = 0.04 + Math.sin(t2 * 0.2) * 0.015;
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, -15, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [60, 60] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "meshBasicMaterial",
+      {
+        ref: matRef,
+        color: "#040808",
+        transparent: true,
+        opacity: 0.04,
+        depthWrite: false,
+        blending: AdditiveBlending,
+        side: DoubleSide,
+        toneMapped: false
+      }
+    )
+  ] });
+};
+const DEBRIS_COUNT = 30;
+const DEBRIS_GEO = new SphereGeometry(1, 3, 2);
+const DebrisField = () => {
+  const refs = reactExports.useRef(new Array(DEBRIS_COUNT).fill(null));
+  const data = reactExports.useRef(
+    Array.from({ length: DEBRIS_COUNT }, () => ({
+      x: (Math.random() - 0.5) * 50,
+      y: -5 + Math.random() * -23,
+      z: (Math.random() - 0.5) * 50,
+      vx: (Math.random() - 0.5) * 0.01,
+      vy: (Math.random() - 0.5) * 5e-3,
+      vz: (Math.random() - 0.5) * 0.01,
+      seed: Math.random() * 10
+    }))
+  );
+  useFrame((state2, dt2) => {
+    const safeDt = Math.min(dt2, 0.033);
+    const t2 = state2.clock.elapsedTime;
+    for (let i2 = 0; i2 < DEBRIS_COUNT; i2++) {
+      const d = data.current[i2];
+      d.x += (d.vx + Math.sin(t2 * 0.1 + d.seed) * 2e-3) * safeDt;
+      d.y += (d.vy + Math.cos(t2 * 0.08 + d.seed) * 1e-3) * safeDt;
+      d.z += (d.vz + Math.sin(t2 * 0.09 + d.seed * 0.7) * 2e-3) * safeDt;
+      if (d.x < -25) d.x = 25;
+      if (d.x > 25) d.x = -25;
+      if (d.y < -29) d.y = -5;
+      if (d.y < -29) d.y = -3;
+      if (d.z < -25) d.z = 25;
+      if (d.z > 25) d.z = -25;
+      const r2 = refs.current[i2];
+      if (r2) r2.position.set(d.x, d.y, d.z);
+    }
+  });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: DEBRIS_COUNT, range: DEBRIS_COUNT, geometry: DEBRIS_GEO, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#080808", transparent: true, opacity: 0.25, depthWrite: false }),
+    Array.from({ length: DEBRIS_COUNT }, (_, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { ref: (r2) => {
+      refs.current[i2] = r2;
+    }, scale: 0.015 + Math.random() * 0.03 }, i2))
+  ] });
 };
 const FISH_GEO = new ConeGeometry(0.18, 0.55, 4);
 const FISH_COUNT = 8;
@@ -105735,7 +105813,7 @@ const FishSchool = () => {
   )) });
 };
 const UnderwaterFlora = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-  KELP_POSITIONS.map(([x2, z, h2, p2], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Kelp, { x: x2, z, height: h2, phase: p2 }, `kelp-${i2}`)),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(KelpField, {}),
   CORAL_POSITIONS.map(([x2, z, color2, s], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Coral, { x: x2, z, color: color2, scale: s }, `coral-${i2}`))
 ] });
 const BUBBLE_COUNT = 20;
@@ -105747,7 +105825,7 @@ const PLANKTON_COUNT = 20;
 const PLANKTON_GEO = new SphereGeometry(1, 4, 3);
 const PlanktonField = () => {
   const refs = reactExports.useRef(new Array(PLANKTON_COUNT).fill(null));
-  useFrame((state2) => {
+  useFrame((state2, dt2) => {
     const t2 = state2.clock.elapsedTime;
     for (let i2 = 0; i2 < PLANKTON_COUNT; i2++) {
       const r2 = refs.current[i2];
@@ -105759,7 +105837,7 @@ const PlanktonField = () => {
     }
   });
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: PLANKTON_COUNT, range: PLANKTON_COUNT, geometry: PLANKTON_GEO, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#4a3a20", transparent: true, opacity: 0.15, depthWrite: false, toneMapped: false }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshBasicMaterial", { color: "#1a1808", transparent: true, opacity: 0.12, depthWrite: false, toneMapped: false }),
     Array.from({ length: PLANKTON_COUNT }, (_, i2) => {
       const x2 = HOLE_CENTER_X + (Math.random() - 0.5) * 30;
       const y = -3 + Math.random() * -25;
@@ -105781,7 +105859,7 @@ const BubbleField = () => {
   );
   const refs = reactExports.useRef(new Array(BUBBLE_COUNT).fill(null));
   useFrame((_, dt2) => {
-    const safeDt = Math.min(dt2, 0.05);
+    const safeDt = Math.min(dt2, 0.033);
     const pos = positions.current;
     for (let i2 = 0; i2 < BUBBLE_COUNT; i2++) {
       const p2 = pos[i2];
@@ -105871,8 +105949,8 @@ const Floor2Environment = ({
     caveFloorNormal,
     caveFloorRoughness,
     caveFloorAO,
-    8,
-    8
+    12,
+    12
   );
   const caveWall = usePBRSet(
     caveWallColor,
@@ -105895,8 +105973,8 @@ const Floor2Environment = ({
     uwFloorNormal,
     uwFloorRoughness,
     uwFloorAO,
-    10,
-    10
+    16,
+    16
   );
   const uwRock = usePBRSet(
     uwRockColor,
@@ -105913,26 +105991,30 @@ const Floor2Environment = ({
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("color", { attach: "background", args: ["#0e0a08"] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("fog", { attach: "fog", args: ["#0e0a08", 14, 55] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.45, color: "#d8c0a0" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("hemisphereLight", { intensity: 0.5, color: "#c8a888", groundColor: "#1a1612" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("directionalLight", { position: [5, 20, 5], intensity: 0.7, color: "#ffe8c0" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 0.15, color: "#d8c0a0" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("hemisphereLight", { intensity: 0.12, color: "#c8a888", groundColor: "#1a1612" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("directionalLight", { position: [5, 20, 5], intensity: 0.15, color: "#ffe8c0" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [-25, 0.5, 0], intensity: 0.3, distance: 8, decay: 1.5, color: "#3a1008" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [25, 0.5, -5], intensity: 0.3, distance: 8, decay: 1.5, color: "#3a1008" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { position: [0, 0.5, 25], intensity: 0.25, distance: 7, decay: 1.5, color: "#3a1008" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(DynamicFog, { playerPositionRef }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(
       "mesh",
       {
         geometry: CAVE_FLOOR_GEO,
         rotation: [-Math.PI / 2, 0, 0],
-        position: [0, -0.02, 0],
+        position: [0, 0, 0],
         children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           "meshStandardMaterial",
           {
+            color: "#1a1610",
             map: caveFloor.color,
             normalMap: caveFloor.normal,
-            normalScale: new Vector2(2, 2),
+            normalScale: new Vector2(3, 3),
             roughnessMap: caveFloor.rough,
             roughness: 0.92,
             aoMap: caveFloor.ao,
-            aoMapIntensity: 0.6
+            aoMapIntensity: 1
           }
         )
       }
@@ -105995,11 +106077,7 @@ const Floor2Environment = ({
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveRock.color, normalMap: caveRock.normal, normalScale: new Vector2(1.5, 1.5), roughnessMap: caveRock.rough, roughness: 0.85, aoMap: caveRock.ao, aoMapIntensity: 0.5 }),
       CAVE_ROCKS_LIGHT.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.7, s], rotation: [0, ry, 0] }, i2))
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [HOLE_CENTER_X, -0.08, HOLE_CENTER_Z], rotation: [-Math.PI / 2, 0, 0], children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("torusGeometry", { args: [HOLE_RADIUS + 0.2, 0.35, 8, 24] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: caveFloor.color, normalMap: caveFloor.normal, normalScale: new Vector2(1.5, 1.5), roughnessMap: caveFloor.rough, roughness: 0.95, depthWrite: false })
-    ] }),
-    POOL_RIM.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [x2, y - 0.15 + s * 0.25, z], scale: [s, s * 0.5, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: rockScenes[i2 % 4].clone(true) }) }, `rim-${i2}`)),
+    POOL_RIM.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [x2, y + s * 0.25, z], scale: [s, s * 0.5, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: rockScenes[i2 % 4].clone(true) }) }, `rim-${i2}`)),
     STALAGMITES.map(([x2, z, h2, r2], i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [x2, h2 / 2, z], children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [r2, h2, 6] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a3024", roughness: 1, flatShading: true })
@@ -106008,30 +106086,32 @@ const Floor2Environment = ({
       /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [r2, h2, 6] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#322a1f", roughness: 1, flatShading: true })
     ] }, `stalactite-${i2}`)),
-    CRYSTALS.map(([x2, y, z, color2], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(CrystalCluster, { x: x2, y, z, color: color2 }, `crystal-${i2}`)),
+    SPORES.map(([x2, y, z], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(BioluminescentSpore, { x: x2, y, z, seed: i2 * 5.7 }, `spore-${i2}`)),
     TORCH_POSITIONS.map(([x2, y, z], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Torch, { x: x2, y, z, seed: i2 * 7.3 }, `torch-${i2}`)),
     /* @__PURE__ */ jsxRuntimeExports.jsx(DustMotes, {}),
     /* @__PURE__ */ jsxRuntimeExports.jsx(WaterSurface, { reflective }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: UW_FLOOR_GEO, rotation: [-Math.PI / 2, 0, 0], position: [0, -30, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       "meshStandardMaterial",
       {
-        color: "#1a1a18",
+        color: "#0a0a06",
         map: uwFloor.color,
         normalMap: uwFloor.normal,
-        normalScale: new Vector2(2.5, 2.5),
+        normalScale: new Vector2(3, 3),
         roughnessMap: uwFloor.rough,
         roughness: 0.98,
         aoMap: uwFloor.ao,
-        aoMapIntensity: 0.7
+        aoMapIntensity: 1
       }
     ) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(UnderwaterCaustics, {}),
     /* @__PURE__ */ jsxRuntimeExports.jsx(UnderwaterFlora, {}),
     /* @__PURE__ */ jsxRuntimeExports.jsx(GodRayShafts, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(DeepMist, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(DebrisField, {}),
     /* @__PURE__ */ jsxRuntimeExports.jsx(FishSchool, {}),
     UW_BOULDERS.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [x2, y + s * 0.4, z], scale: [s, s * 0.6, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: rockScenes[i2 % 4].clone(true) }) }, `uwb-${i2}`)),
     /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: UW_PEBBLES.length, range: UW_PEBBLES.length, geometry: PEBBLE_GEO, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { map: uwRock.color, normalMap: uwRock.normal, normalScale: new Vector2(1.5, 1.5), roughnessMap: uwRock.rough, roughness: 0.95, aoMap: uwRock.ao, aoMapIntensity: 0.5 }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#0c0c0a", map: uwRock.color, normalMap: uwRock.normal, normalScale: new Vector2(1.5, 1.5), roughnessMap: uwRock.rough, roughness: 0.95, aoMap: uwRock.ao, aoMapIntensity: 0.5 }),
       UW_PEBBLES.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.6, s], rotation: [0, ry, 0] }, i2))
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(BubbleField, {}),
@@ -106408,6 +106488,20 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
         pos.current.z += (-fZ * fwd - rZ * strafe) * k2;
       }
       pos.current.y += 0.04 * safeDt;
+      for (const rock of UW_ROCK_COLLIDERS) {
+        const dx = pos.current.x - rock.x;
+        const dy = pos.current.y - rock.y;
+        const dz = pos.current.z - rock.z;
+        const distSq = dx * dx + dy * dy + dz * dz;
+        const minDist = rock.r + 0.5;
+        if (distSq < minDist * minDist && distSq > 1e-4) {
+          const dist = Math.sqrt(distSq);
+          const push = (minDist - dist) / dist;
+          pos.current.x += dx * push;
+          pos.current.y += dy * push;
+          pos.current.z += dz * push;
+        }
+      }
       if (pos.current.y < -29) pos.current.y = -29;
       if (pos.current.x < -39) pos.current.x = -39;
       if (pos.current.x > 39) pos.current.x = 39;
@@ -106489,6 +106583,18 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
         }
       }
       if (currentLevel === 2) {
+        for (const rock of CAVE_ROCK_COLLIDERS) {
+          const dx = pos.current.x - rock.x;
+          const dz = pos.current.z - rock.z;
+          const distSq = dx * dx + dz * dz;
+          const minDist = rock.r + 0.5;
+          if (distSq < minDist * minDist && distSq > 1e-4) {
+            const dist = Math.sqrt(distSq);
+            const push = (minDist - dist) / dist;
+            pos.current.x += dx * push;
+            pos.current.z += dz * push;
+          }
+        }
         if (pos.current.x < -29) pos.current.x = -29;
         if (pos.current.x > 29) pos.current.x = 29;
         if (pos.current.z < -29) pos.current.z = -29;

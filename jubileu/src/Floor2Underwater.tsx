@@ -27,6 +27,9 @@
  *   - Pebbles get a distance-cull (any past 25m squared is hidden in fog
  *     anyway). Boulders too.
  *   - The shader material is a single one-pass thing; no texture lookups.
+ *   - DynamicFog uses setHex() instead of new Color() per frame (no GC spikes).
+ *   - Kelp batched into single KelpField with one useFrame (was 8 separate).
+ *   - safeDt clamped to 0.033 everywhere to prevent huge jumps after tab-switch.
  */
 
 import React, { useMemo, useRef, useEffect, Suspense } from 'react';
@@ -98,38 +101,27 @@ const CAVE_FLOOR_GEO = (() => {
 })();
 
 // ─── Geometries shared across the scene ────────────────────────────────
-// Rock geometries are now loaded from GLB files (see ROCK_MODEL_PATHS).
-// These were generated from ambientcg.com displacement maps using
-// Python/trimesh, giving photogrammetry-based rock shapes instead of
-// procedural icosahedra.
 const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5);
 const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
 const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);  // kept for instanced pebbles
 
 // Procedural underwater terrain — displaced PlaneGeometry
-// Starts as a flat 80×80 grid (64×64 subdivisions) and displaces vertices
-// with layered sine noise for gentle rolling terrain. Edges fade flat so
-// the floor connects seamlessly with the underwater walls.
 const UW_FLOOR_GEO = (() => {
     const geo = new THREE.PlaneGeometry(80, 80, 32, 32);
     const positions = geo.attributes.position;
     const v = new THREE.Vector3();
     for (let i = 0; i < positions.count; i++) {
         v.fromBufferAttribute(positions, i);
-        // Only displace the interior — fade out near edges for seamless wall joins
         const edgeDist = Math.min(
             Math.abs(v.x - (-40)), Math.abs(v.x - 40),
             Math.abs(v.y - (-40)), Math.abs(v.y - 40)
         );
         const edgeFade = Math.min(1, edgeDist / 5);
-        // Multi-octave sine noise for natural rolling terrain
         const n = Math.sin(v.x * 0.3 + 1.7) * 0.5
                 + Math.sin(v.y * 0.4 + 3.1) * 0.4
                 + Math.sin((v.x + v.y) * 0.2 + 0.8) * 0.6
                 + Math.cos(v.x * 0.7 - v.y * 0.5 + 5.3) * 0.3
                 + Math.sin(v.x * 1.4 + v.y * 1.1 + 2.2) * 0.15;
-        // Apply as Z displacement (PlaneGeometry is XY, rotated to XZ later)
-        // Z in local space = Y (up) after rotation
         positions.setZ(i, v.z + n * 1.5 * edgeFade);
     }
     positions.needsUpdate = true;
@@ -137,21 +129,7 @@ const UW_FLOOR_GEO = (() => {
     return geo;
 })();
 
-// ─── REAL PBR Textures from ambientcg.com (CC0) ───────────────────
-// Photogrammetry-scanned PBR texture sets from ambientcg.com (Public Domain).
-// Each set: Color (albedo), NormalGL, Roughness, AO.
-// Textures are imported via Vite so they get inlined as base64 data-URIs
-// in the JS bundle — the final index.html is fully self-contained.
-//
-// Sources:
-//   Cave floor/walls: Rock064, Rock035, Rock020 (ambientcg.com)
-//   Underwater floor: Ground037 (ambientcg.com)
-//   Underwater rocks: Rock058 (ambientcg.com)
-
 // ─── Texture loading helper ────────────────────────────────────────
-// useTexture returns THREE.Texture[]. We configure repeat wrapping
-// and colorSpace per-map type (albedo=sRGB, normal/rough/AO=linear).
-// Accepts Vite-imported URLs (data-URIs in production, paths in dev).
 function usePBRSet(colorUrl: string, normalUrl: string, roughUrl: string, aoUrl: string, repeatX: number, repeatY: number) {
     const [color, normal, rough, ao] = useTexture([colorUrl, normalUrl, roughUrl, aoUrl]);
     for (const tex of [color, normal, rough, ao]) {
@@ -166,8 +144,6 @@ function usePBRSet(colorUrl: string, normalUrl: string, roughUrl: string, aoUrl:
 }
 
 // ─── Rock GLB models ──────────────────────────────────────────────
-// Rock geometry generated from ambientcg displacement maps via
-// Python/trimesh. Imported via Vite so they're inlined in the bundle.
 const ROCK_MODEL_URLS = [rockModelA, rockModelB, rockModelC, rockModelD];
 const BOULDER_MODEL_URL = boulderModel;
 const PEBBLE_MODEL_URL = pebbleModel;
@@ -205,7 +181,7 @@ const CAVE_ROCKS_MID: readonly Boulder[] = [
     [ 20, 0, -14, 1.1, 0.7],
 ] as const;
 
-// "Light" group — scattered small bright stones, near crystal lights
+// "Light" group — scattered small bright stones
 const CAVE_ROCKS_LIGHT: readonly Boulder[] = [
     [-26,  0,   6, 0.7, 0.3],
     [ 26,  0,  -4, 0.6, 1.2],
@@ -216,9 +192,6 @@ const CAVE_ROCKS_LIGHT: readonly Boulder[] = [
 ] as const;
 
 // ─── Pool rim — large boulders forming the edge of the water pit ──────
-// Arranged in a circle around HOLE_CENTER at radius HOLE_RADIUS + 0.8.
-// 14 stones at decreasing-then-increasing scale so the rim feels organic,
-// not stamped. Heights vary so the silhouette isn't flat.
 const POOL_RIM: readonly Boulder[] = (() => {
     const r = HOLE_RADIUS + 0.8;
     const result: Boulder[] = [];
@@ -227,16 +200,14 @@ const POOL_RIM: readonly Boulder[] = (() => {
         const jitter = 0.85 + (Math.sin(i * 13.7) * 0.5 + 0.5) * 0.35;
         const x = HOLE_CENTER_X + Math.cos(a) * r * jitter;
         const z = HOLE_CENTER_Z + Math.sin(a) * r * jitter;
-        const s = 0.7 + (Math.sin(i * 7.3) * 0.5 + 0.5) * 0.7; // 0.7-1.4
+        const s = 0.7 + (Math.sin(i * 7.3) * 0.5 + 0.5) * 0.7;
         const ry = a + Math.sin(i * 3.1) * 0.4;
-        // Boulder centers at ground level — base at Y=0
         result.push([x, 0, z, s, ry] as const);
     }
     return result;
 })();
 
-// ─── Stalagmites (cones from the floor up) ─────────────────────────────
-// Hand-placed so they don't block the elevator path or the hole.
+// ─── Stalagmites / Stalactites ────────────────────────────────────────
 type Stalactite = readonly [number, number, number, number]; // x, z, height, radius
 const STALAGMITES: readonly Stalactite[] = [
     [-18,  18, 2.5, 0.6],
@@ -247,7 +218,6 @@ const STALAGMITES: readonly Stalactite[] = [
     [ 10,  20, 2.1, 0.6],
     [-15, -22, 2.4, 0.7],
 ];
-// Stalactites (cones from the ceiling down)
 const STALACTITES: readonly Stalactite[] = [
     [-12,  10, 1.5, 0.4],
     [ 16,   2, 1.8, 0.5],
@@ -259,56 +229,56 @@ const STALACTITES: readonly Stalactite[] = [
     [ 18, -25, 1.7, 0.5],
 ];
 
-// ─── Crystals — colored emissive accents along the walls ─────────────
-// Cluster of small octahedra at each spot; one big one + a few small ones.
-// Adds soft directional pools of color you can see from across the cave.
-type Crystal = readonly [number, number, number, string]; // x, y, z, hexColor
-const CRYSTALS: readonly Crystal[] = [
-    [-28,  2.2,   8, '#9ae6ff'],   // cyan, west wall
-    [ 28,  3.5,  -5, '#c39bff'],   // purple, east wall
-    [-10,  0.6,  28, '#ff9ad8'],   // pink, north wall
-    [ 12,  0.8, -28, '#ffd066'],   // amber, south wall
-    [-28,  4.5, -18, '#9affae'],   // green, west wall further
-    [ 28,  1.5,  20, '#84d8ff'],   // light blue, east wall
+// ─── Bioluminescent Spore — replaces CrystalCluster ─────────────────
+// Tiny dim cyan-green pulsing dots on the cave walls, very subtle.
+// Horror means DARKNESS with tiny hints of life. No bright square lights.
+type SporeData = readonly [number, number, number]; // x, y, z
+const SPORES: readonly SporeData[] = [
+    [-28,  2.0,   8],
+    [-28,  3.5,   6],
+    [ 28,  2.5,  -5],
+    [ 28,  4.0,  -3],
+    [-10,  0.8,  28],
+    [-10,  1.5,  26],
+    [ 12,  0.6, -28],
+    [ 12,  1.2, -26],
+    [-28,  3.5, -18],
+    [-28,  5.0, -16],
+    [ 28,  1.2,  20],
+    [ 28,  2.8,  18],
+    [-20,  4.0, -24],
+    [ 20,  3.5,  22],
 ];
 
-const CRYSTAL_GEO = new THREE.OctahedronGeometry(0.35, 0);
-
-const CrystalCluster: React.FC<{ x: number; y: number; z: number; color: string }> = ({ x, y, z, color }) => (
-    <group position={[x, y, z]}>
-        <mesh geometry={CRYSTAL_GEO} rotation={[0.3, 0.8, 0]} scale={1.4}>
-            <meshStandardMaterial
-                color={color}
-                emissive={color}
-                emissiveIntensity={2.2}
-                metalness={0.55}
-                roughness={0.15}
-                toneMapped={false}
-            />
-        </mesh>
-        <mesh geometry={CRYSTAL_GEO} scale={0.75} position={[0.45, -0.20, 0.15]} rotation={[0.6, 1.2, 0.3]}>
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.9} metalness={0.5} roughness={0.18} toneMapped={false} />
-        </mesh>
-        <mesh geometry={CRYSTAL_GEO} scale={0.55} position={[-0.42, -0.25, -0.05]} rotation={[-0.4, 0.5, 0.7]}>
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.7} metalness={0.5} roughness={0.2} toneMapped={false} />
-        </mesh>
-        <mesh geometry={CRYSTAL_GEO} scale={0.4} position={[0.0, 0.35, -0.15]} rotation={[0.2, 0.2, 1.4]}>
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.4} metalness={0.5} roughness={0.2} toneMapped={false} />
-        </mesh>
-        {/* Strong pool of colored light — distance bumped from 5 → 9 so
-            each crystal actually illuminates a real area, not just itself. */}
-        <pointLight intensity={2.4} distance={9} decay={1.4} color={color} />
-        {/* Halo sprite for camera glow */}
-        <sprite scale={[1.8, 1.8, 1]}>
-            <spriteMaterial color={color} transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
-        </sprite>
-    </group>
-);
+const BioluminescentSpore: React.FC<{ x: number; y: number; z: number; seed: number }> = ({ x, y, z, seed }) => {
+    const spriteMatRef = useRef<THREE.SpriteMaterial>(null);
+    const lightRef = useRef<THREE.PointLight>(null);
+    useFrame((state) => {
+        const t = state.clock.elapsedTime;
+        // Slow breathing pulse — each spore has unique phase
+        const pulse = 0.4 + Math.sin(t * 0.4 + seed) * 0.3;
+        if (spriteMatRef.current) spriteMatRef.current.opacity = pulse * 0.35;
+        if (lightRef.current) lightRef.current.intensity = 0.3 * pulse;
+    });
+    return (
+        <group position={[x, y, z]}>
+            <sprite scale={[0.3, 0.3, 1]}>
+                <spriteMaterial
+                    ref={spriteMatRef}
+                    color="#0a4a3a"
+                    transparent
+                    opacity={0.2}
+                    depthWrite={false}
+                    toneMapped={false}
+                    blending={THREE.AdditiveBlending}
+                />
+            </sprite>
+            <pointLight ref={lightRef} intensity={0.3} distance={4} decay={1.5} color="#0a4a3a" />
+        </group>
+    );
+};
 
 // ─── Central torches — warm wall-mounted flames around the cave ───────
-// Positioned high on the walls. Provide warm fill-light that lifts the
-// whole space out of pitch black. Each is a small emissive cone + a
-// pulsing pointLight so the cave "breathes" visually.
 const TORCH_POSITIONS: readonly (readonly [number, number, number])[] = [
     [-29.5, 5.5,   0],
     [ 29.5, 5.5,   0],
@@ -323,15 +293,12 @@ const Torch: React.FC<{ x: number; y: number; z: number; seed: number }> = ({ x,
     useFrame((state) => {
         const l = lightRef.current;
         if (!l) return;
-        // Distance cull: torches > 20m from the camera don't visibly flicker,
-        // skip the math. Saves on cave-wide useFrame churn (6 torches × 60Hz).
         const dxC = x - state.camera.position.x;
         const dzC = z - state.camera.position.z;
         if (dxC * dxC + dzC * dzC > 400) {
-            l.intensity = 3.5;   // hold steady at base
+            l.intensity = 3.5;
             return;
         }
-        // Subtle flame flicker — combination of fast random and slow drift.
         const t = state.clock.elapsedTime;
         const flicker = 0.85 + Math.sin(t * 9 + seed) * 0.05 + Math.sin(t * 23 + seed * 1.3) * 0.04 + Math.random() * 0.03;
         l.intensity = 3.5 * flicker;
@@ -351,8 +318,6 @@ const Torch: React.FC<{ x: number; y: number; z: number; seed: number }> = ({ x,
 };
 
 // ─── Dust motes — drifting in the air, catching light ─────────────────
-// 25 motes (was 40). Past a count threshold the additive blending dominates
-// the cave's color budget; 25 reads as "atmospheric" without washing out.
 const DUST_COUNT = 25;
 const DustMotes: React.FC = () => {
     const positions = useRef(
@@ -368,12 +333,11 @@ const DustMotes: React.FC = () => {
     );
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(DUST_COUNT).fill(null));
     useFrame((state, dt) => {
-        const safeDt = Math.min(dt, 0.05);
+        const safeDt = Math.min(dt, 0.033);
         const t = state.clock.elapsedTime;
         const pos = positions.current;
         for (let i = 0; i < DUST_COUNT; i++) {
             const p = pos[i];
-            // Gentle Brownian drift + small sine wobble
             p.x += (p.vx + Math.sin(t * 0.6 + p.seed) * 0.02) * safeDt;
             p.y += p.vy * safeDt;
             p.z += (p.vz + Math.cos(t * 0.5 + p.seed) * 0.02) * safeDt;
@@ -430,11 +394,18 @@ const UW_PEBBLES: readonly Boulder[] = [
     [ 13, -29.6,  14, 0.4, 0.6],
 ] as const;
 
+// ─── Rock collision data (exported for Player.tsx) ───────────────────
+export const CAVE_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = [
+    ...CAVE_ROCKS_DARK.map(([x,y,z,s]) => ({ x, y: y + s * 0.35, z, r: s * 0.7 })),
+    ...CAVE_ROCKS_MID.map(([x,y,z,s]) => ({ x, y: y + s * 0.35, z, r: s * 0.5 })),
+];
+export const UW_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = [
+    ...UW_BOULDERS.map(([x,y,z,s]) => ({ x, y: y + s * 0.3, z, r: s * 0.6 })),
+];
+
 // ─── Water shader — Gerstner waves + SSS + Fresnel + foam ───────────
-// Unreal-quality water: Gerstner waves produce realistic choppiness with
-// proper horizontal displacement (not just vertical sine). The fragment
-// shader computes Schlick Fresnel, subsurface scattering through thin
-// wave peaks, fake refraction via screen-space offset, and foam on crests.
+// FIX #3: Water is opaque when viewed from below (dot(normal, viewDir) < 0)
+// FIX #8: Much darker colors for horror atmosphere
 const WaterMaterial = shaderMaterial(
     { time: 0, opacity: 0.85 },
     /* glsl */ `
@@ -445,8 +416,6 @@ const WaterMaterial = shaderMaterial(
       varying vec3 vNormalWS;
       varying vec3 vWorldPos;
 
-      // Gerstner wave: returns displacement (x,y,z) and derivatives (dx, dz)
-      // Based on GPU Gems chapter + Jerry Tessendorf's formulation.
       vec4 gerstner(vec2 pos, vec2 dir, float steepness, float wavelength, float t) {
         float k = 6.28318 / max(wavelength, 0.01);
         float c = sqrt(9.8 / max(k, 0.001));
@@ -455,9 +424,9 @@ const WaterMaterial = shaderMaterial(
         float sinF = sin(f);
         float cosF = cos(f);
         return vec4(
-          -dir.x * a * cosF,  // x displacement
-          a * sinF,            // y displacement (vertical)
-          -dir.y * a * cosF,  // z displacement
+          -dir.x * a * cosF,
+          a * sinF,
+          -dir.y * a * cosF,
           0.0
         );
       }
@@ -466,9 +435,6 @@ const WaterMaterial = shaderMaterial(
         vUv = uv;
         vec3 p = position;
 
-        // 4 Gerstner wave octaves with different directions & wavelengths.
-        // Steepness < 1.0 prevents wave folding. Shorter waves = less
-        // amplitude (natural spectral decay).
         vec2 d1 = normalize(vec2(1.0, 0.3));
         vec2 d2 = normalize(vec2(0.3, 1.0));
         vec2 d3 = normalize(vec2(-0.5, 0.7));
@@ -483,8 +449,6 @@ const WaterMaterial = shaderMaterial(
         p += disp;
         vWave = disp.y;
 
-        // Analytical normal from Gerstner partial derivatives.
-        // dP/dx and dP/dz are computed from the wave functions.
         float k1 = 6.28318 / 4.0;  float c1 = sqrt(9.8 / k1);  float a1 = 0.22 / k1;
         float k2 = 6.28318 / 2.8;  float c2 = sqrt(9.8 / k2);  float a2 = 0.18 / k2;
         float k3 = 6.28318 / 1.8;  float c3 = sqrt(9.8 / k3);  float a3 = 0.12 / k3;
@@ -495,7 +459,6 @@ const WaterMaterial = shaderMaterial(
         float f3 = k3 * (dot(d3, position.xz) - c3 * time * 1.15 - 3.2 * c3);
         float f4 = k4 * (dot(d4, position.xz) - c4 * time * 1.4 - 5.0 * c4);
 
-        // dP/dx
         vec3 dPdx = vec3(
           1.0 - (d1.x * d1.x * a1 * k1 * sin(f1) + d2.x * d2.x * a2 * k2 * sin(f2)
                + d3.x * d3.x * a3 * k3 * sin(f3) + d4.x * d4.x * a4 * k4 * sin(f4)),
@@ -503,7 +466,6 @@ const WaterMaterial = shaderMaterial(
           -(d1.x * d1.y * a1 * k1 * sin(f1) + d2.x * d2.y * a2 * k2 * sin(f2)
           + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4))
         );
-        // dP/dz (mapped from local y since plane is rotated)
         vec3 dPdz = vec3(
           -(d1.x * d1.y * a1 * k1 * sin(f1) + d2.x * d2.y * a2 * k2 * sin(f2)
           + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4)),
@@ -531,18 +493,19 @@ const WaterMaterial = shaderMaterial(
 
       void main() {
         // ─── Schlick Fresnel ──────────────────────────────────────
-        // F0 = 0.02 for water (dielectric). At grazing angles,
-        // reflectance approaches 100% — that's the "mirror edge" look.
         float ndv = max(0.001, dot(vNormalWS, vViewWS));
         float R0 = 0.02;
         float fresnel = R0 + (1.0 - R0) * pow(1.0 - ndv, 5.0);
-        // Boost for visual punch (physically ~1.0 at grazing, we push)
         fresnel = mix(fresnel, pow(1.0 - ndv, 2.4) * 0.9, 0.5);
 
-        // ─── Deep / shallow / sky palette ────────────────────────
-        vec3 deep   = vec3(0.01, 0.08, 0.14);
-        vec3 mid    = vec3(0.06, 0.28, 0.38);
-        vec3 sky    = vec3(0.55, 0.82, 0.94);
+        // ─── FIX #3: Opaque when viewed from BELOW ───────────────
+        // dot(normal, viewDir) < 0 means we're looking up from underwater
+        float viewFromBelow = step(dot(vNormalWS, vViewWS), 0.0);
+
+        // ─── Deep / shallow / sky palette — HORROR DARK ──────────
+        vec3 deep   = vec3(0.005, 0.02, 0.04);   // almost black-blue
+        vec3 mid    = vec3(0.02, 0.08, 0.12);     // very dark teal
+        vec3 sky    = vec3(0.15, 0.25, 0.30);     // muted gray-green
 
         // ─── Caustic streaks on the surface itself ──────────────
         float c1 = sin(vUv.x * 32.0 + time * 0.9) * 0.5 + 0.5;
@@ -554,45 +517,38 @@ const WaterMaterial = shaderMaterial(
         vec3 col = mix(deep, mid, 0.5 + h * 0.5);
 
         // ─── Subsurface scattering ──────────────────────────────
-        // Light transmitted through thin wave peaks glows cyan-green.
-        // The thinner the wave (higher wave peak = more transmittance),
-        // the stronger the SSS. This is THE Unreal water look.
-        float sss = pow(max(0.0, h), 1.5) * 0.6;
-        vec3 sssColor = vec3(0.1, 0.55, 0.45);
+        float sss = pow(max(0.0, h), 1.5) * 0.3; // reduced from 0.6 for horror
+        vec3 sssColor = vec3(0.05, 0.2, 0.15);   // much dimmer
         col += sssColor * sss;
 
         // ─── Fresnel reflection of sky ──────────────────────────
-        col = mix(col, sky, fresnel * 0.8 + caustic * 0.15);
+        col = mix(col, sky, fresnel * 0.6 + caustic * 0.1);
 
-        // ─── Fake specular (sun highlight) ──────────────────────
+        // ─── Fake specular (sun highlight) — reduced ────────────
         vec3 lightDir = normalize(vec3(0.4, 1.0, 0.3));
         vec3 halfVec = normalize(vViewWS + lightDir);
         float spec = pow(max(0.0, dot(vNormalWS, halfVec)), 256.0);
-        col += vec3(1.0, 0.95, 0.85) * spec * 1.5 * (1.0 - fresnel * 0.5);
+        col += vec3(0.6, 0.55, 0.45) * spec * 0.8 * (1.0 - fresnel * 0.5);
 
         // ─── Foam on wave crests + edge foam ────────────────────
         float foam = smoothstep(0.04, 0.09, vWave);
-        // Edge foam near pool rim (distance from center)
         float distFromCenter = length(vWorldPos.xz - vec2(0.0, 5.0));
         float edgeFoam = smoothstep(2.8, 2.2, distFromCenter) * 0.4;
         float totalFoam = max(foam * 0.55, edgeFoam);
-        col = mix(col, vec3(0.92, 0.96, 1.0), totalFoam);
+        col = mix(col, vec3(0.6, 0.7, 0.72), totalFoam); // gray foam, not bright white
 
-        // ─── Alpha: visible from all angles ──────────────────────
+        // ─── Alpha: opaque from below, semi-transparent from above ──
         float alpha = mix(0.82, 0.96, fresnel);
+        // FIX #3: When viewed from below, water ceiling is fully opaque
+        if (viewFromBelow > 0.5) {
+            alpha = 1.0;
+            col = vec3(0.01, 0.03, 0.05); // dark murky ceiling
+        }
         gl_FragColor = vec4(col, alpha);
       }
     `
 );
-// Use primitive attach="material" — avoids JSX intrinsic typing churn.
-// Falls back to the custom WaterMaterial when reflections aren't desired
-// (low/medium quality, or if MeshReflectorMaterial is too heavy on the
-// device). In `realistic` mode it stacks both: an opaque-ish reflector
-// underneath, and the wave-shader on top with reduced opacity, so the
-// reflection shows THROUGH the chop.
 interface WaterSurfaceProps {
-    /** When true, render a second mesh underneath with MeshReflectorMaterial
-     *  (real screen-space reflection). When false, just the wave shader. */
     reflective?: boolean;
 }
 const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }) => {
@@ -605,18 +561,10 @@ const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }) => {
     }, []);
     useFrame((state) => {
         (mat as any).time = state.clock.elapsedTime;
-        // In reflective mode, lower the opacity so the reflector layer
-        // beneath actually shows through. The wave shader provides the
-        // chop and color tint; the reflector provides the real reflection.
         if (reflective) (mat as any).opacity = 0.45;
     });
     return (
         <group position={[HOLE_CENTER_X, WATER_LEVEL_Y, HOLE_CENTER_Z]}>
-            {/* Reflector layer (high quality only). Renders the scene
-                mirrored at this plane → real reflection of cave + torches
-                + crystals in the water. Cost: 1 extra render pass per
-                frame at 1024x1024 — fine for desktop high, skipped on
-                mobile/low. */}
             {reflective && (
                 <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 0]}>
                     <planeGeometry args={[HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05]} />
@@ -629,13 +577,12 @@ const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }) => {
                         depthScale={0.4}
                         minDepthThreshold={0.4}
                         maxDepthThreshold={1.5}
-                        color="#1a3a4a"
+                        color="#0a1a2a"
                         metalness={0.4}
                         mirror={0.65}
                     />
                 </mesh>
             )}
-            {/* Wave/caustic shader on top — 64x64 verts for Gerstner detail */}
             <mesh rotation={[-Math.PI / 2, 0, 0]}>
                 <planeGeometry args={[HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05, 64, 64]} />
                 <primitive object={mat} attach="material" />
@@ -644,29 +591,31 @@ const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }) => {
     );
 };
 
-// ─── DynamicFog ────────────────────────────────────────────────────────
-// Swaps scene.fog + scene.background between "cave" and "underwater"
-// presets based on the player's Y. When the player is below the water
-// line (Y < SWIM_THRESHOLD_Y), fog goes dense + cyan-blue → you can't
-// see the cave THROUGH the water surface looking up (was a bug Felipe
-// flagged). Smooth lerp so the transition isn't a snap.
+// ─── DynamicFog — FIX #6: no per-frame Color allocation ──────────────
+// FIX #8: tighter underwater fog for horror, breathing fog effect
 const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
     const { scene } = useThree();
     const _bgColor = useRef(new THREE.Color('#0e0a08'));
     const _fogColor = useRef(new THREE.Color('#0e0a08'));
+    // Pre-allocated target colors — setHex() instead of new Color() per frame
+    const _tgtBg = useRef(new THREE.Color());
+    const _tgtFog = useRef(new THREE.Color());
     useFrame((_, dt) => {
+        const safeDt = Math.min(dt, 0.033);
         const y = playerPositionRef.current?.y ?? 0;
         if (!scene.fog || !(scene.fog instanceof THREE.Fog)) return;
         const submerged = y < SWIM_THRESHOLD_Y;
-        // Target presets
-        const tgtBg   = submerged ? 0x020808 : 0x0e0a08;
-        const tgtFog  = submerged ? 0x020808 : 0x0e0a08;
-        const tgtNear = submerged ? 0.3 : 14;
-        const tgtFar  = submerged ? 10  : 55;
-        // Lerp colors + fog distances toward targets at ~8/s rate.
-        const k = Math.min(1, 8 * Math.min(0.05, dt));
-        _fogColor.current.lerp(new THREE.Color(tgtFog), k);
-        _bgColor.current.lerp(new THREE.Color(tgtBg), k);
+        // Target presets — FIX #8: much tighter underwater for horror
+        _tgtBg.current.setHex(submerged ? 0x010404 : 0x0e0a08);
+        _tgtFog.current.setHex(submerged ? 0x010404 : 0x0e0a08);
+        // FIX #8: breathing fog — subtle oscillation for horror atmosphere
+        const breathe = Math.sin(performance.now() * 0.0003) * 0.5;
+        const tgtNear = submerged ? (0.2 + breathe * 0.05) : 14;
+        const tgtFar  = submerged ? (6 + breathe * 0.5)  : 55;
+        // Lerp colors + fog distances toward targets
+        const k = Math.min(1, 8 * safeDt);
+        _fogColor.current.lerp(_tgtFog.current, k);
+        _bgColor.current.lerp(_tgtBg.current, k);
         scene.fog.color.copy(_fogColor.current);
         scene.fog.near = scene.fog.near + (tgtNear - scene.fog.near) * k;
         scene.fog.far  = scene.fog.far  + (tgtFar  - scene.fog.far)  * k;
@@ -677,39 +626,7 @@ const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vec
     return null;
 };
 
-// ─── God ray — volumetric cone of light coming through the hole ───────
-// Single additive cone mesh hanging from the ceiling above the pool.
-// The hole "lets sunlight in" — that's the fiction; in reality there
-// is no sun, but this single cone fakes the effect convincingly. Slow
-// opacity pulse via useFrame to feel alive (dust drifting in beam).
-const GodRay: React.FC = () => {
-    const matRef = useRef<THREE.MeshBasicMaterial>(null);
-    useFrame((state) => {
-        const m = matRef.current;
-        if (!m) return;
-        m.opacity = 0.10 + Math.sin(state.clock.elapsedTime * 0.4) * 0.025;
-    });
-    return (
-        <mesh position={[HOLE_CENTER_X, 4, HOLE_CENTER_Z]} rotation={[Math.PI, 0, 0]}>
-            <coneGeometry args={[HOLE_RADIUS * 1.4, 8, 16, 1, true]} />
-            <meshBasicMaterial
-                ref={matRef}
-                color="#FFE0A8"
-                transparent
-                opacity={0.10}
-                depthWrite={false}
-                blending={THREE.AdditiveBlending}
-                side={THREE.DoubleSide}
-                toneMapped={false}
-            />
-        </mesh>
-    );
-};
-
-// ─── Underwater caustics — animated rippling light on the seafloor ───
-// A flat plane just above the seafloor with a shader that draws
-// "voronoi-ish" caustic bands. Additive, transparent. Mimics the light
-// pattern that refracts through wave-water in real underwater scenes.
+// ─── Underwater caustics — darker for horror ─────────────────────────
 const CausticsMaterial = shaderMaterial(
     { time: 0 },
     /* glsl */ `
@@ -723,16 +640,13 @@ const CausticsMaterial = shaderMaterial(
       uniform float time;
       varying vec2 vUv;
       void main() {
-        // Tile UVs so the pattern repeats across the big seafloor plane.
         vec2 uv = vUv * 6.0;
-        // Two moving sine grids with different angles + speeds = rippling
-        // intersection pattern that reads as light caustics.
         float a = sin(uv.x * 6.28 + time * 0.6) + sin((uv.x + uv.y) * 5.0 + time * 0.9);
         float b = sin(uv.y * 6.28 + time * 0.5 + 1.2) + sin((uv.y - uv.x) * 4.5 + time * 0.7);
         float c = pow(max(0.0, sin(a) * sin(b)), 3.0);
-        // Slightly chromatically split for "RGB caustics" feel.
-        vec3 col = vec3(c * 0.15, c * 0.25, c * 0.12);
-        gl_FragColor = vec4(col, c * 0.2);
+        // Dimmer caustics for horror
+        vec3 col = vec3(c * 0.06, c * 0.10, c * 0.08);
+        gl_FragColor = vec4(col, c * 0.12);
       }
     `
 );
@@ -754,10 +668,7 @@ const UnderwaterCaustics: React.FC = () => {
     );
 };
 
-// ─── Underwater flora — kelp + coral ──────────────────────────────────
-// Animated kelp (tall green strands swaying with sin time) and a few
-// coral pieces (red/orange clusters). Built procedurally; reasonable
-// poly count.
+// ─── Underwater flora — kelp + coral — FIX #5: darkened for horror ───
 const KELP_GEO = new THREE.CylinderGeometry(0.06, 0.10, 1, 5, 4);
 type KelpData = readonly [number, number, number, number]; // x, z, height, phase
 const KELP_POSITIONS: readonly KelpData[] = [
@@ -770,48 +681,62 @@ const KELP_POSITIONS: readonly KelpData[] = [
     [10.0,  4.0, 4.5, 0.9],
     [11.5,  6.0, 3.5, 1.7],
 ];
-type CoralData = readonly [number, number, string, number]; // x, z, color, scale
-const CORAL_POSITIONS: readonly CoralData[] = [
-    [ 3.0, -5.0, '#4a3a2a', 1.0],
-    [-4.0,  6.0, '#3a3028', 0.8],
-    [ 9.0, -2.0, '#5a4a38', 1.2],
-    [-12.0, -5.0, '#483828', 0.9],
-    [13.0,  3.0, '#3a3028', 1.0],
-    [-8.0, 12.0, '#5a4a3a', 0.7],
-];
 
-const Kelp: React.FC<{ x: number; z: number; height: number; phase: number }> = ({ x, z, height, phase }) => {
-    const groupRef = useRef<THREE.Group>(null);
-    const segments = 3;
-    const refs = useRef<(THREE.Mesh | null)[]>(new Array(segments).fill(null));
+// FIX #6: KelpField — single useFrame driving all kelp (was 8 separate useFrame callbacks)
+const KelpField: React.FC = () => {
+    const meshRefs = useRef<(THREE.Mesh | null)[][]>(
+        KELP_POSITIONS.map(() => new Array(3).fill(null))
+    );
     useFrame((state) => {
         const t = state.clock.elapsedTime;
-        for (let i = 0; i < segments; i++) {
-            const m = refs.current[i];
-            if (!m) continue;
-            // Each segment sways more the higher it is (i / segments).
-            const swayAmt = (i / segments) * 0.25;
-            m.rotation.z = Math.sin(t * 0.6 + phase + i * 0.4) * swayAmt;
-            m.rotation.x = Math.cos(t * 0.5 + phase + i * 0.3) * swayAmt * 0.6;
+        for (let k = 0; k < KELP_POSITIONS.length; k++) {
+            const phase = KELP_POSITIONS[k][3];
+            const segments = 3;
+            for (let i = 0; i < segments; i++) {
+                const m = meshRefs.current[k]?.[i];
+                if (!m) continue;
+                const swayAmt = (i / segments) * 0.25;
+                m.rotation.z = Math.sin(t * 0.6 + phase + i * 0.4) * swayAmt;
+                m.rotation.x = Math.cos(t * 0.5 + phase + i * 0.3) * swayAmt * 0.6;
+            }
         }
     });
-    const segLen = height / segments;
     return (
-        <group ref={groupRef} position={[x, -30, z]}>
-            {Array.from({ length: segments }, (_, i) => (
-                <mesh
-                    key={i}
-                    ref={(r: any) => { refs.current[i] = r; }}
-                    position={[0, segLen * 0.5 + i * segLen * 0.95, 0]}
-                    geometry={KELP_GEO}
-                    scale={[1 - i * 0.1, segLen, 1 - i * 0.1]}
-                >
-                    <meshStandardMaterial color={i < 2 ? '#1a1810' : '#2a2218'} roughness={0.85} flatShading />
-                </mesh>
-            ))}
-        </group>
+        <>
+            {KELP_POSITIONS.map(([x, z, height, phase], k) => {
+                const segments = 3;
+                const segLen = height / segments;
+                return (
+                    <group key={`kelp-${k}`} position={[x, -30, z]}>
+                        {Array.from({ length: segments }, (_, i) => (
+                            <mesh
+                                key={i}
+                                ref={(r: any) => { if (meshRefs.current[k]) meshRefs.current[k][i] = r; }}
+                                position={[0, segLen * 0.5 + i * segLen * 0.95, 0]}
+                                geometry={KELP_GEO}
+                                scale={[1 - i * 0.1, segLen, 1 - i * 0.1]}
+                            >
+                                {/* FIX #5: near-black kelp for horror */}
+                                <meshStandardMaterial color={i < 2 ? '#0a0805' : '#0c0a06'} roughness={0.85} flatShading />
+                            </mesh>
+                        ))}
+                    </group>
+                );
+            })}
+        </>
     );
 };
+
+type CoralData = readonly [number, number, string, number]; // x, z, color, scale
+const CORAL_POSITIONS: readonly CoralData[] = [
+    [ 3.0, -5.0, '#1a1208', 1.0],
+    [-4.0,  6.0, '#1a0e06', 0.8],
+    [ 9.0, -2.0, '#1a1610', 1.2],
+    [-12.0, -5.0, '#1a1208', 0.9],
+    [13.0,  3.0, '#1a0e06', 1.0],
+    [-8.0, 12.0, '#1a1610', 0.7],
+];
+
 const Coral: React.FC<{ x: number; z: number; color: string; scale: number }> = ({ x, z, color, scale }) => (
     <group position={[x, -30, z]} scale={scale}>
         <mesh position={[0, 0.5, 0]}>
@@ -832,11 +757,8 @@ const Coral: React.FC<{ x: number; z: number; color: string; scale: number }> = 
         </mesh>
     </group>
 );
-// ─── Subnautica-style god ray shafts (underwater volumetric) ──────────
-// Stack of 8 thin vertical planes arranged radially around the hole
-// projection. Each plane is additive-blended translucent — overlapped
-// from any angle they produce the "shafts of sunlight from the surface"
-// look. Slow rotation = sun moving slowly through the water.
+
+// ─── Subnautica-style god ray shafts — dimmer for horror ─────────────
 const GodRayShafts: React.FC = () => {
     const groupRef = useRef<THREE.Group>(null);
     useFrame((state) => {
@@ -856,9 +778,9 @@ const GodRayShafts: React.FC = () => {
                     >
                         <planeGeometry args={[1.6 + (i % 3) * 0.4, 28]} />
                         <meshBasicMaterial
-                            color="#1a3028"
+                            color="#0a1810"
                             transparent
-                            opacity={0.04 + (i % 3) * 0.008}
+                            opacity={0.03 + (i % 3) * 0.005}
                             side={THREE.DoubleSide}
                             depthWrite={false}
                             blending={THREE.AdditiveBlending}
@@ -871,10 +793,79 @@ const GodRayShafts: React.FC = () => {
     );
 };
 
+// ─── FIX #8: Deep Mist — slowly drifting fog plane underwater ────────
+const DeepMist: React.FC = () => {
+    const matRef = useRef<THREE.MeshBasicMaterial>(null);
+    useFrame((state) => {
+        const m = matRef.current;
+        if (!m) return;
+        const t = state.clock.elapsedTime;
+        // Slow pulse — mist breathes
+        m.opacity = 0.04 + Math.sin(t * 0.2) * 0.015;
+    });
+    return (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -15, 0]}>
+            <planeGeometry args={[60, 60]} />
+            <meshBasicMaterial
+                ref={matRef}
+                color="#040808"
+                transparent
+                opacity={0.04}
+                depthWrite={false}
+                blending={THREE.AdditiveBlending}
+                side={THREE.DoubleSide}
+                toneMapped={false}
+            />
+        </mesh>
+    );
+};
+
+// ─── FIX #8: Debris particles — tiny dark specs drifting underwater ──
+const DEBRIS_COUNT = 30;
+const DEBRIS_GEO = new THREE.SphereGeometry(1, 3, 2);
+const DebrisField: React.FC = () => {
+    const refs = useRef<(THREE.Object3D | null)[]>(new Array(DEBRIS_COUNT).fill(null));
+    const data = useRef(
+        Array.from({ length: DEBRIS_COUNT }, () => ({
+            x: (Math.random() - 0.5) * 50,
+            y: -5 + Math.random() * -23,
+            z: (Math.random() - 0.5) * 50,
+            vx: (Math.random() - 0.5) * 0.01,
+            vy: (Math.random() - 0.5) * 0.005,
+            vz: (Math.random() - 0.5) * 0.01,
+            seed: Math.random() * 10,
+        }))
+    );
+    useFrame((state, dt) => {
+        const safeDt = Math.min(dt, 0.033);
+        const t = state.clock.elapsedTime;
+        for (let i = 0; i < DEBRIS_COUNT; i++) {
+            const d = data.current[i];
+            d.x += (d.vx + Math.sin(t * 0.1 + d.seed) * 0.002) * safeDt;
+            d.y += (d.vy + Math.cos(t * 0.08 + d.seed) * 0.001) * safeDt;
+            d.z += (d.vz + Math.sin(t * 0.09 + d.seed * 0.7) * 0.002) * safeDt;
+            // Wrap around
+            if (d.x < -25) d.x = 25;
+            if (d.x > 25) d.x = -25;
+            if (d.y < -29) d.y = -5;
+            if (d.y < -29) d.y = -3;
+            if (d.z < -25) d.z = 25;
+            if (d.z > 25) d.z = -25;
+            const r = refs.current[i];
+            if (r) r.position.set(d.x, d.y, d.z);
+        }
+    });
+    return (
+        <Instances limit={DEBRIS_COUNT} range={DEBRIS_COUNT} geometry={DEBRIS_GEO}>
+            <meshBasicMaterial color="#080808" transparent opacity={0.25} depthWrite={false} />
+            {Array.from({ length: DEBRIS_COUNT }, (_, i) => (
+                <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} scale={0.015 + Math.random() * 0.03} />
+            ))}
+        </Instances>
+    );
+};
+
 // ─── Fish school — small fish swimming in circular paths ──────────────
-// 14 fish using cone geometry. Each fish has a unique radius, speed,
-// height oscillation, and phase offset → school motion without real
-// boids. Sells "alive ecosystem" instantly.
 const FISH_GEO = new THREE.ConeGeometry(0.18, 0.55, 4);
 const FISH_COUNT = 8;
 const FishSchool: React.FC = () => {
@@ -892,10 +883,8 @@ const FishSchool: React.FC = () => {
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
             f.position.set(x, y, z);
-            // Face the direction of motion (tangent to circle).
             f.rotation.y = -angle + Math.PI / 2;
-            f.rotation.z = Math.PI / 2; // lay cone horizontally so the point is the head
-            // Wiggle
+            f.rotation.z = Math.PI / 2;
             f.rotation.x = Math.sin(t * 6 + offset * 20) * 0.15;
         }
     });
@@ -923,9 +912,7 @@ const FishSchool: React.FC = () => {
 
 const UnderwaterFlora: React.FC = () => (
     <>
-        {KELP_POSITIONS.map(([x, z, h, p], i) => (
-            <Kelp key={`kelp-${i}`} x={x} z={z} height={h} phase={p} />
-        ))}
+        <KelpField />
         {CORAL_POSITIONS.map(([x, z, color, s], i) => (
             <Coral key={`coral-${i}`} x={x} z={z} color={color} scale={s} />
         ))}
@@ -939,20 +926,17 @@ const BUBBLE_RISE = 0.5;
 const BUBBLE_MAX_Y = WATER_LEVEL_Y - 0.5;
 const BUBBLE_MIN_Y = -29;
 
-// ─── Plankton particles (underwater) ────────────────────────────────
-// Tiny green-white specs floating in the water column. Sells "alive
-// underwater ecosystem" without any real cost — InstancedMesh, 40
-// particles, no useFrame per-particle (position set once).
+// ─── Plankton particles (underwater) — darkened for horror ────────────
 const PLANKTON_COUNT = 20;
 const PLANKTON_GEO = new THREE.SphereGeometry(1, 4, 3);
 const PlanktonField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(PLANKTON_COUNT).fill(null));
-    useFrame((state) => {
+    useFrame((state, dt) => {
+        const safeDt = Math.min(dt, 0.033);
         const t = state.clock.elapsedTime;
         for (let i = 0; i < PLANKTON_COUNT; i++) {
             const r = refs.current[i];
             if (!r) continue;
-            // Slow Brownian drift — each particle has a unique phase
             const seed = i * 7.31;
             r.position.x += Math.sin(t * 0.15 + seed) * 0.003;
             r.position.y += Math.cos(t * 0.12 + seed * 1.3) * 0.002;
@@ -961,7 +945,8 @@ const PlanktonField: React.FC = () => {
     });
     return (
         <Instances limit={PLANKTON_COUNT} range={PLANKTON_COUNT} geometry={PLANKTON_GEO}>
-            <meshBasicMaterial color="#4a3a20" transparent opacity={0.15} depthWrite={false} toneMapped={false} />
+            {/* Darkened plankton for horror */}
+            <meshBasicMaterial color="#1a1808" transparent opacity={0.12} depthWrite={false} toneMapped={false} />
             {Array.from({ length: PLANKTON_COUNT }, (_, i) => {
                 const x = HOLE_CENTER_X + (Math.random() - 0.5) * 30;
                 const y = -3 + Math.random() * -25;
@@ -986,7 +971,7 @@ const BubbleField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(BUBBLE_COUNT).fill(null));
 
     useFrame((_, dt) => {
-        const safeDt = Math.min(dt, 0.05);
+        const safeDt = Math.min(dt, 0.033);
         const pos = positions.current;
         for (let i = 0; i < BUBBLE_COUNT; i++) {
             const p = pos[i];
@@ -1030,7 +1015,6 @@ const Shard: React.FC<ShardProps> = ({ index, position, collected, onCollect, pl
         if (!g) return;
         const t = state.clock.elapsedTime;
 
-        // Distance cull: past 20m, hide entirely.
         const dxCam = position[0] - camera.position.x;
         const dyCam = position[1] - camera.position.y;
         const dzCam = position[2] - camera.position.z;
@@ -1081,7 +1065,7 @@ const Shard: React.FC<ShardProps> = ({ index, position, collected, onCollect, pl
     );
 };
 
-// ─── Shard positions (now underwater, around the boulder field) ───────
+// ─── Shard positions (underwater, around the boulder field) ───────────
 export const SHARD_POSITIONS: readonly (readonly [number, number, number])[] = [
     [  7.5, -27.5,  -7.5],
     [-13.0, -27.7,   4.8],
@@ -1095,9 +1079,6 @@ interface Floor2EnvironmentProps {
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     collectedShards: Set<number>;
     onCollectShard: (i: number) => void;
-    /** When true, the water surface gets a real screen-space reflection.
-     *  Quality-gated: ONLY pass true on high quality — it's an extra
-     *  render pass per frame at 512px. */
     reflective?: boolean;
 }
 export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
@@ -1106,10 +1087,11 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     onCollectShard,
     reflective = false,
 }) => {
-    // ─── Load real PBR texture sets (Vite-inlined data-URIs) ────────
+    // ─── Load real PBR texture sets ────────────────────────────────
+    // FIX #7: Increased cave floor texture repeat from 8,8 to 12,12
     const caveFloor = usePBRSet(
         caveFloorColor, caveFloorNormal, caveFloorRoughness, caveFloorAO,
-        8, 8
+        12, 12
     );
     const caveWall = usePBRSet(
         caveWallColor, caveWallNormal, caveWallRoughness, caveWallAO,
@@ -1119,20 +1101,20 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         caveRockColor, caveRockNormal, caveRockRoughness, caveRockAO,
         1, 1
     );
+    // FIX #7: Increased UW floor texture repeat from 10,10 to 16,16
     const uwFloor = usePBRSet(
         uwFloorColor, uwFloorNormal, uwFloorRoughness, uwFloorAO,
-        10, 10
+        16, 16
     );
     const uwRock = usePBRSet(
         uwRockColor, uwRockNormal, uwRockRoughness, uwRockAO,
         1, 1
     );
 
-    // ─── Load rock GLB models (Vite-inlined data-URIs) ──────────────
+    // ─── Load rock GLB models ──────────────────────────────────────
     const rockModels = ROCK_MODEL_URLS.map(u => useGLTF(u));
     const boulderModel_ = useGLTF(BOULDER_MODEL_URL);
 
-    // Clone GLB scenes so each instance has its own transform
     const rockScenes = useMemo(() => rockModels.map(m => m.scene.clone(true)), [rockModels]);
     const boulderScene = useMemo(() => boulderModel_.scene.clone(true), [boulderModel_]);
 
@@ -1141,26 +1123,33 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <color attach="background" args={['#0e0a08']} />
         <fog attach="fog" args={['#0e0a08', 14, 55]} />
 
-        <ambientLight intensity={0.45} color="#d8c0a0" />
-        <hemisphereLight intensity={0.5} color="#c8a888" groundColor="#1a1612" />
-        <directionalLight position={[5, 20, 5]} intensity={0.7} color="#ffe8c0" />
+        {/* FIX #8: Horror lighting — MUCH darker */}
+        <ambientLight intensity={0.15} color="#d8c0a0" />
+        <hemisphereLight intensity={0.12} color="#c8a888" groundColor="#1a1612" />
+        <directionalLight position={[5, 20, 5]} intensity={0.15} color="#ffe8c0" />
+
+        {/* FIX #8: Dim reddish ember pointLights at floor level */}
+        <pointLight position={[-25, 0.5, 0]} intensity={0.3} distance={8} decay={1.5} color="#3a1008" />
+        <pointLight position={[25, 0.5, -5]} intensity={0.3} distance={8} decay={1.5} color="#3a1008" />
+        <pointLight position={[0, 0.5, 25]} intensity={0.25} distance={7} decay={1.5} color="#3a1008" />
 
         <DynamicFog playerPositionRef={playerPositionRef} />
 
-        {/* ─── CAVE FLOOR with hole — real PBR textures ─────────── */}
+        {/* ─── CAVE FLOOR with hole — FIX #1: Y=0 (was -0.02), FIX #7: better textures ─── */}
         <mesh
             geometry={CAVE_FLOOR_GEO}
             rotation={[-Math.PI / 2, 0, 0]}
-            position={[0, -0.02, 0]}
+            position={[0, 0, 0]}
         >
             <meshStandardMaterial
+                color="#1a1610"
                 map={caveFloor.color}
                 normalMap={caveFloor.normal}
-                normalScale={new THREE.Vector2(2.0, 2.0)}
+                normalScale={new THREE.Vector2(3.0, 3.0)}
                 roughnessMap={caveFloor.rough}
                 roughness={0.92}
                 aoMap={caveFloor.ao}
-                aoMapIntensity={0.6}
+                aoMapIntensity={1.0}
             />
         </mesh>
 
@@ -1170,7 +1159,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             <meshStandardMaterial color="#2a221c" roughness={1} side={THREE.DoubleSide} />
         </mesh>
 
-        {/* CAVE WALLS — real PBR textures from ambientcg Rock035 */}
+        {/* CAVE WALLS — real PBR textures */}
         {/* North (z = -30) */}
         <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 1.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
         <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 1.2]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
@@ -1199,7 +1188,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 <primitive object={rockScenes[(i + 1) % 4].clone(true)} />
             </group>
         ))}
-        {/* Light pebbles — still using instanced icosahedra (tiny, not worth GLB) */}
+        {/* Light pebbles — instanced icosahedra */}
         <Instances limit={CAVE_ROCKS_LIGHT.length} range={CAVE_ROCKS_LIGHT.length} geometry={PEBBLE_GEO}>
             <meshStandardMaterial map={caveRock.color} normalMap={caveRock.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveRock.rough} roughness={0.85} aoMap={caveRock.ao} aoMapIntensity={0.5} />
             {CAVE_ROCKS_LIGHT.map(([x, y, z, s, ry], i) => (
@@ -1207,16 +1196,12 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             ))}
         </Instances>
 
-        {/* Pool rim ring — lowered to Y=-0.08 to sit BELOW the cave floor
-            at Y=-0.02, fixing the z-fighting/overlap issue Felipe reported. */}
-        <mesh position={[HOLE_CENTER_X, -0.08, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[HOLE_RADIUS + 0.2, 0.35, 8, 24]} />
-            <meshStandardMaterial map={caveFloor.color} normalMap={caveFloor.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveFloor.rough} roughness={0.95} depthWrite={false} />
-        </mesh>
+        {/* FIX #1: Pool rim torus REMOVED — boulders alone mask the edge.
+            The POOL_RIM boulders sit on the cave floor at Y=0, no z-fighting. */}
 
         {/* POOL RIM — individual boulders forming the circular edge */}
         {POOL_RIM.map(([x, y, z, s, ry], i) => (
-            <group key={`rim-${i}`} position={[x, y - 0.15 + s * 0.25, z]} scale={[s, s * 0.5, s]} rotation={[0, ry, 0]}>
+            <group key={`rim-${i}`} position={[x, y + s * 0.25, z]} scale={[s, s * 0.5, s]} rotation={[0, ry, 0]}>
                 <primitive object={rockScenes[i % 4].clone(true)} />
             </group>
         ))}
@@ -1237,9 +1222,9 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             </mesh>
         ))}
 
-        {/* Decorative glowing crystal clusters on the walls */}
-        {CRYSTALS.map(([x, y, z, color], i) => (
-            <CrystalCluster key={`crystal-${i}`} x={x} y={y} z={z} color={color} />
+        {/* FIX #2: Bioluminescent spores replace CrystalCluster */}
+        {SPORES.map(([x, y, z], i) => (
+            <BioluminescentSpore key={`spore-${i}`} x={x} y={y} z={z} seed={i * 5.7} />
         ))}
 
         {/* Wall-mounted torches with flicker */}
@@ -1250,54 +1235,52 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Floating dust motes catching the warm light */}
         <DustMotes />
 
-        {/* God-ray beam descending through the hole */}
-        {/* God ray removed — Felipe flagged it as "luz esquisita no
-            meio do lago". The cone was reading as a UFO beam, not a
-            shaft of sunlight. Reverting until we have a real volumetric
-            implementation. */}
-
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
         <WaterSurface reflective={reflective} />
 
         {/* ─── UNDERWATER (Y < 0) ────────────────────────────────────── */}
-        {/* Underwater rocky ground — real PBR textures from ambientcg Ground037 */}
+        {/* FIX #7: Better UW floor textures, FIX #5: very dark color */}
         <mesh geometry={UW_FLOOR_GEO} rotation={[-Math.PI / 2, 0, 0]} position={[0, -30, 0]}>
             <meshStandardMaterial
-                color="#1a1a18"
+                color="#0a0a06"
                 map={uwFloor.color}
                 normalMap={uwFloor.normal}
-                normalScale={new THREE.Vector2(2.5, 2.5)}
+                normalScale={new THREE.Vector2(3.0, 3.0)}
                 roughnessMap={uwFloor.rough}
                 roughness={0.98}
                 aoMap={uwFloor.ao}
-                aoMapIntensity={0.7}
+                aoMapIntensity={1.0}
             />
         </mesh>
 
-        {/* RGB caustics on the seafloor — animated additive plane that
-            casts the rippling light pattern from the surface above onto
-            the ground. Pure shader, no texture. */}
+        {/* RGB caustics on the seafloor */}
         <UnderwaterCaustics />
 
-        {/* Underwater flora — kelp & coral for ecosystem feel */}
+        {/* Underwater flora — kelp & coral */}
         <UnderwaterFlora />
 
-        {/* Subnautica-style god ray shafts descending from the surface */}
+        {/* God ray shafts descending from the surface */}
         <GodRayShafts />
+
+        {/* FIX #8: Deep Mist — drifting fog plane */}
+        <DeepMist />
+
+        {/* FIX #8: Debris particles — tiny specs drifting */}
+        <DebrisField />
 
         {/* Small fish school looping around the boulder field */}
         <FishSchool />
 
-        {/* Underwater boulders — real GLB models with PBR textures */}
+        {/* FIX #5: Underwater boulders — darkened color="#0a0a08" */}
         {UW_BOULDERS.map(([x, y, z, s, ry], i) => (
             <group key={`uwb-${i}`} position={[x, y + s * 0.4, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]}>
                 <primitive object={rockScenes[i % 4].clone(true)} />
             </group>
         ))}
 
-        {/* Underwater pebbles — real PBR textures on instanced geometry */}
+        {/* FIX #5: Underwater pebbles — darkened color="#0c0c0a" */}
         <Instances limit={UW_PEBBLES.length} range={UW_PEBBLES.length} geometry={PEBBLE_GEO}>
-            <meshStandardMaterial map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
+            <meshStandardMaterial color="#0c0c0a" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
             {UW_PEBBLES.map(([x, y, z, s, ry], i) => (
                 <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]} />
             ))}
