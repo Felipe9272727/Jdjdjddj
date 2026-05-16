@@ -29,9 +29,9 @@
  *   - The shader material is a single one-pass thing; no texture lookups.
  */
 
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, Suspense } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Instances, Instance, shaderMaterial, MeshReflectorMaterial } from '@react-three/drei';
+import { Instances, Instance, shaderMaterial, MeshReflectorMaterial, useTexture, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { ElevatorFacade } from './Elevator';
 
@@ -89,47 +89,13 @@ const CAVE_FLOOR_GEO = (() => {
 })();
 
 // ─── Geometries shared across the scene ────────────────────────────────
-// ─── Procedural displaced rock geometries ─────────────────────────────
-// Felipe: "as texturas ainda estão de PS1 / boulders origami-like".
-// Was using a single IcosahedronGeometry(1, 1) for all boulders — every
-// rock had the same 20-tri shape, just scaled. Looked uniform.
-// Now: build 4 distinct rock geometries by displacing the vertices of
-// an Icosahedron(detail=2) with layered noise. Each rock gets natural
-// irregular bumpiness. ~80 tris each → still cheap, but they read as
-// real rocks, not gem-stones.
-function makeRockGeo(seed: number, detail: number = 2, displaceAmount: number = 0.22): THREE.BufferGeometry {
-    const geo = new THREE.IcosahedronGeometry(1, detail);
-    const positions = geo.attributes.position;
-    const v = new THREE.Vector3();
-    for (let i = 0; i < positions.count; i++) {
-        v.fromBufferAttribute(positions, i);
-        // Multi-octave sine noise on the unit vector
-        const n = Math.sin(v.x * 2.7 + seed) * 0.5
-                + Math.sin(v.y * 3.1 + seed * 1.4) * 0.3
-                + Math.sin(v.z * 2.9 + seed * 2.1) * 0.3
-                + Math.cos((v.x + v.z) * 5.1 + seed) * 0.15
-                + Math.sin(v.x * 11 + v.y * 9 + seed * 3) * 0.08;
-        const scale = 1 + n * displaceAmount;
-        positions.setXYZ(i, v.x * scale, v.y * scale, v.z * scale);
-    }
-    positions.needsUpdate = true;
-    geo.computeVertexNormals();
-    return geo;
-}
-const ROCK_GEO_A = makeRockGeo(0);
-const ROCK_GEO_B = makeRockGeo(5.3);
-const ROCK_GEO_C = makeRockGeo(11.7);
-const ROCK_GEO_D = makeRockGeo(17.1);
-const ROCK_VARIANTS = [ROCK_GEO_A, ROCK_GEO_B, ROCK_GEO_C, ROCK_GEO_D];
-// Re-exported under the old name so existing Instances pipelines keep
-// working — each Instances group needs ONE shared geometry, so we point
-// it at the most natural-looking variant.
-// Kept for reference — individual rocks now use ROCK_VARIANTS[i % 4] directly.
-// const BOULDER_GEO = ROCK_GEO_B;
-
-const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);
+// Rock geometries are now loaded from GLB files (see ROCK_MODEL_PATHS).
+// These were generated from ambientcg.com displacement maps using
+// Python/trimesh, giving photogrammetry-based rock shapes instead of
+// procedural icosahedra.
 const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5);
 const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
+const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);  // kept for instanced pebbles
 
 // Procedural underwater terrain — displaced PlaneGeometry
 // Starts as a flat 80×80 grid (64×64 subdivisions) and displaces vertices
@@ -162,174 +128,82 @@ const UW_FLOOR_GEO = (() => {
     return geo;
 })();
 
-// ─── Procedural normal-map textures ───────────────────────────────────
-// Generated ONCE at module load via canvas. No network assets, no
-// external textures. Layered sine noise produces convincing rocky
-// bumpiness. Output is a real normal map (RGB packs the XY components
-// of surface normals, B=up), so meshStandardMaterial.normalMap reads it
-// correctly and applies the bumpiness during lighting.
-function makeRockNormal(size: number, seed: number): THREE.Texture | null {
-    if (typeof document === 'undefined') return null;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    const img = ctx.createImageData(size, size);
-    // 3 octaves of summed sines = pseudo-fBM noise. Cheap, deterministic.
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            const u = x / size, v = y / size;
-            const nx = Math.sin(u * 18 + v * 11 + seed) * 0.40
-                     + Math.sin(u * 36 + seed * 1.3) * 0.25
-                     + Math.sin((u + v) * 60 + seed * 2.1) * 0.10;
-            const ny = Math.cos(v * 16 + u * 9 + seed) * 0.40
-                     + Math.sin(v * 28 + seed * 1.7) * 0.25
-                     + Math.cos((u - v) * 54 + seed * 2.3) * 0.10;
-            const i = (y * size + x) * 4;
-            img.data[i]     = Math.max(0, Math.min(255, 128 + nx * 90));
-            img.data[i + 1] = Math.max(0, Math.min(255, 128 + ny * 90));
-            img.data[i + 2] = 245;          // B mostly up — flatter normals
-            img.data[i + 3] = 255;
-        }
-    }
-    ctx.putImageData(img, 0, 0);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.colorSpace = THREE.NoColorSpace; // normal maps are linear, NOT sRGB
-    return tex;
-}
-// ─── Procedural ALBEDO textures (colored, with grain + dark patches) ──
-// Normal maps alone made the walls look like PS2-era grey boxes. Albedo
-// textures add per-pixel color variation: base stone tone + occasional
-// darker streaks + bright specks. Combined with the normal map (lighting
-// bumps) you get real "rocky stone surface".
-function makeRockAlbedo(size: number, base: [number, number, number], seed: number): THREE.Texture | null {
-    if (typeof document === 'undefined') return null;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    const img = ctx.createImageData(size, size);
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            const u = x / size, v = y / size;
-            // Layered noise — broad streaks + tight specks + dark veins
-            const streak = Math.sin(u * 4 + v * 2 + seed) * 0.5 + Math.sin(u * 9 + seed * 1.3) * 0.3;
-            const speck  = Math.sin(u * 60 + v * 47 + seed * 2.1) * 0.5
-                         + Math.sin(u * 120 + seed * 0.7) * 0.3;
-            const vein   = Math.sin((u + v) * 7 + seed * 3.0) * 0.4;
-            // Bias darker overall, with bright specks: streak controls
-            // mid-frequency tone, speck controls fine grain, vein adds
-            // occasional darker streaks for cracks-in-rock look.
-            const tone = 0.62 + streak * 0.20 + speck * 0.12 + vein * 0.10;
-            const i = (y * size + x) * 4;
-            img.data[i]     = Math.max(0, Math.min(255, base[0] * tone));
-            img.data[i + 1] = Math.max(0, Math.min(255, base[1] * tone));
-            img.data[i + 2] = Math.max(0, Math.min(255, base[2] * tone));
-            img.data[i + 3] = 255;
-        }
-    }
-    ctx.putImageData(img, 0, 0);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.colorSpace = THREE.SRGBColorSpace; // albedo IS color, sRGB encoded
-    return tex;
-}
-const WALL_NORMAL  = makeRockNormal(512, 0);
-const FLOOR_NORMAL = makeRockNormal(512, 7.3);
-const UW_NORMAL    = makeRockNormal(512, 13.1);
-// Higher tile counts → smaller pattern repeats → less obvious "wall-of-
-// brick" tiling. Felipe's screenshot showed the previous 3x1/6x6/8x8
-// scheme repeating very visibly on the cave floor.
-if (WALL_NORMAL)  WALL_NORMAL.repeat.set(5, 2);
-if (FLOOR_NORMAL) FLOOR_NORMAL.repeat.set(12, 12);
-if (UW_NORMAL)    UW_NORMAL.repeat.set(14, 14);
-const WALL_ALBEDO  = makeRockAlbedo(512, [104, 80, 56], 0);    // warm cave brown
-const FLOOR_ALBEDO = makeRockAlbedo(512, [76, 60, 44], 7.3);   // darker floor stone
-const UW_ALBEDO    = makeRockAlbedo(512, [40, 56, 70], 13.1);  // underwater blue-gray
-// Albedo repeats are SLIGHTLY OFFSET from normal-map repeats. Different
-// frequency on each layer breaks the visible grid — even though both
-// patterns repeat, they don't align, so there's no obvious "tile here"
-// line. Trick from the Three.js Journey procedural-terrain lesson.
-if (WALL_ALBEDO)  WALL_ALBEDO.repeat.set(6, 2);
-if (FLOOR_ALBEDO) FLOOR_ALBEDO.repeat.set(11, 11);
-if (UW_ALBEDO)    UW_ALBEDO.repeat.set(13, 13);
+// ─── REAL PBR Textures from ambientcg.com (CC0) ───────────────────
+// Replaced procedural canvas-generated textures with photogrammetry-
+// scanned PBR texture sets from ambientcg.com (Public Domain license).
+// Each set includes: Color (albedo), NormalGL, Roughness, AO.
+// Textures are loaded via drei's useTexture hook at runtime.
+//
+// Sources:
+//   Cave floor/walls: Rock064, Rock035, Rock020 (ambientcg.com)
+//   Underwater floor: Ground037 (ambientcg.com)
+//   Underwater rocks: Rock058 (ambientcg.com)
 
-// ─── Procedural ROUGHNESS textures ────────────────────────────────
-// Rocks are rough (0.7-0.95), wet rocks near water are smoother.
-// Output: greyscale where dark = rough, bright = smooth.
-function makeRockRoughness(size: number, seed: number): THREE.Texture | null {
-    if (typeof document === 'undefined') return null;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    const img = ctx.createImageData(size, size);
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            const u = x / size, v = y / size;
-            const n = Math.sin(u * 14 + v * 9 + seed) * 0.35
-                    + Math.sin(u * 32 + seed * 1.7) * 0.20
-                    + Math.cos((u + v) * 22 + seed * 2.3) * 0.15;
-            // Map to roughness range 0.5-1.0 (mostly rough)
-            const rough = 0.65 + n * 0.30;
-            const i = (y * size + x) * 4;
-            const val = Math.max(0, Math.min(255, rough * 255));
-            img.data[i] = val;
-            img.data[i + 1] = val;
-            img.data[i + 2] = val;
-            img.data[i + 3] = 255;
-        }
+// ─── Texture loading helper ────────────────────────────────────────
+// useTexture returns THREE.Texture[]. We configure repeat wrapping
+// and colorSpace per-map type (albedo=sRGB, normal/rough/AO=linear).
+function usePBRSet(colorPath: string, normalPath: string, roughPath: string, aoPath: string, repeatX: number, repeatY: number) {
+    const [color, normal, rough, ao] = useTexture([colorPath, normalPath, roughPath, aoPath]);
+    for (const tex of [color, normal, rough, ao]) {
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(repeatX, repeatY);
     }
-    ctx.putImageData(img, 0, 0);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.colorSpace = THREE.NoColorSpace;
-    return tex;
+    color.colorSpace = THREE.SRGBColorSpace;
+    normal.colorSpace = THREE.NoColorSpace;
+    rough.colorSpace = THREE.NoColorSpace;
+    ao.colorSpace = THREE.NoColorSpace;
+    return { color, normal, rough, ao };
 }
-// ─── Procedural AO textures ────────────────────────────────────────
-// Ambient occlusion: dark in crevices/cracks, bright on exposed flat.
-// Makes the cave walls look 3D even without direct light.
-function makeRockAO(size: number, seed: number): THREE.Texture | null {
-    if (typeof document === 'undefined') return null;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    const img = ctx.createImageData(size, size);
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            const u = x / size, v = y / size;
-            // Dark veins = occlusion, bright = open surface
-            const vein = Math.sin((u + v) * 8 + seed * 2.5) * 0.4
-                       + Math.sin(u * 16 + v * 12 + seed) * 0.25;
-            const ao = Math.max(0.3, Math.min(1.0, 0.75 + vein * 0.35));
-            const i = (y * size + x) * 4;
-            const val = Math.max(0, Math.min(255, ao * 255));
-            img.data[i] = val;
-            img.data[i + 1] = val;
-            img.data[i + 2] = val;
-            img.data[i + 3] = 255;
-        }
-    }
-    ctx.putImageData(img, 0, 0);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.colorSpace = THREE.NoColorSpace;
-    return tex;
-}
-const WALL_ROUGH  = makeRockRoughness(256, 0);
-const FLOOR_ROUGH = makeRockRoughness(256, 7.3);
-const UW_ROUGH    = makeRockRoughness(256, 13.1);
-const WALL_AO     = makeRockAO(256, 0);
-const FLOOR_AO    = makeRockAO(256, 7.3);
-const UW_AO       = makeRockAO(256, 13.1);
-if (WALL_ROUGH)  WALL_ROUGH.repeat.set(5, 2);
-if (FLOOR_ROUGH) FLOOR_ROUGH.repeat.set(12, 12);
-if (UW_ROUGH)    UW_ROUGH.repeat.set(14, 14);
-if (WALL_AO)  WALL_AO.repeat.set(5, 2);
-if (FLOOR_AO) FLOOR_AO.repeat.set(12, 12);
-if (UW_AO)    UW_AO.repeat.set(14, 14);
+
+// ─── Rock GLB models ──────────────────────────────────────────────
+// Rock geometry generated from ambientcg displacement maps via
+// Python/trimesh. Each rock has ~642 verts, ~1280 faces — detailed
+// enough for close-up viewing but cheap enough for instancing.
+// Loaded via drei's useGLTF at runtime.
+const ROCK_MODEL_PATHS = [
+    '/models/rocks/rock_a.glb',
+    '/models/rocks/rock_b.glb',
+    '/models/rocks/rock_c.glb',
+    '/models/rocks/rock_d.glb',
+];
+const BOULDER_MODEL_PATH = '/models/rocks/boulder.glb';
+const PEBBLE_MODEL_PATH = '/models/rocks/pebble.glb';
+
+// ─── Real-PBR Rock Component ─────────────────────────────────────────
+// Loads a GLB rock model and applies real PBR textures from ambientcg.
+// This replaces the old procedural icosahedron rocks with photogrammetry-
+// scanned geometry and textures.
+const RealRock: React.FC<{
+    modelPath: string;
+    colorPath: string;
+    normalPath: string;
+    roughPath: string;
+    aoPath: string;
+    position: [number, number, number];
+    scale?: [number, number, number];
+    rotation?: [number, number, number];
+    repeatX?: number;
+    repeatY?: number;
+}> = ({ modelPath, colorPath, normalPath, roughPath, aoPath, position, scale = [1,1,1], rotation = [0,0,0], repeatX = 1, repeatY = 1 }) => {
+    const { scene } = useGLTF(modelPath);
+    const pbr = usePBRSet(colorPath, normalPath, roughPath, aoPath, repeatX, repeatY);
+    const cloned = useMemo(() => scene.clone(true), [scene]);
+    return (
+        <group position={position} rotation={rotation} scale={scale}>
+            <primitive object={cloned}>
+                <meshStandardMaterial
+                    map={pbr.color}
+                    normalMap={pbr.normal}
+                    normalScale={new THREE.Vector2(2.0, 2.0)}
+                    roughnessMap={pbr.rough}
+                    roughness={0.9}
+                    aoMap={pbr.ao}
+                    aoMapIntensity={0.6}
+                />
+            </primitive>
+        </group>
+    );
+};
 
 // ─── Cave boulders — multiple cohorts for color variation ─────────────
 type Boulder = readonly [number, number, number, number, number]; // x,y,z,s,ry
@@ -1271,41 +1145,76 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     collectedShards,
     onCollectShard,
     reflective = false,
-}) => (
+}) => {
+    // ─── Load real PBR texture sets from ambientcg.com ─────────────
+    const caveFloor = usePBRSet(
+        '/textures/cave/floor_color.jpg',
+        '/textures/cave/floor_normal.jpg',
+        '/textures/cave/floor_roughness.jpg',
+        '/textures/cave/floor_ao.jpg',
+        8, 8
+    );
+    const caveWall = usePBRSet(
+        '/textures/cave/wall_color.jpg',
+        '/textures/cave/wall_normal.jpg',
+        '/textures/cave/wall_roughness.jpg',
+        '/textures/cave/wall_ao.jpg',
+        4, 2
+    );
+    const caveRock = usePBRSet(
+        '/textures/cave/rock_color.jpg',
+        '/textures/cave/rock_normal.jpg',
+        '/textures/cave/rock_roughness.jpg',
+        '/textures/cave/rock_ao.jpg',
+        1, 1
+    );
+    const uwFloor = usePBRSet(
+        '/textures/underwater/floor_color.jpg',
+        '/textures/underwater/floor_normal.jpg',
+        '/textures/underwater/floor_roughness.jpg',
+        '/textures/underwater/floor_ao.jpg',
+        10, 10
+    );
+    const uwRock = usePBRSet(
+        '/textures/underwater/rock_color.jpg',
+        '/textures/underwater/rock_normal.jpg',
+        '/textures/underwater/rock_roughness.jpg',
+        '/textures/underwater/rock_ao.jpg',
+        1, 1
+    );
+
+    // ─── Load rock GLB models ──────────────────────────────────────
+    const rockModels = ROCK_MODEL_PATHS.map(p => useGLTF(p));
+    const boulderModel = useGLTF(BOULDER_MODEL_PATH);
+
+    // Clone GLB scenes so each instance has its own transform
+    const rockScenes = useMemo(() => rockModels.map(m => m.scene.clone(true)), [rockModels]);
+    const boulderScene = useMemo(() => boulderModel.scene.clone(true), [boulderModel]);
+
+    return (
     <group>
-        {/* Warmer cave palette — fog is now warm-tinted to read as "torch-lit
-            interior", and the start distance is pushed out so the player can
-            actually see the cave dressing. Most of the perceptual lift is
-            from buffing ambient + adding torches, not from the bg color. */}
         <color attach="background" args={['#0e0a08']} />
         <fog attach="fog" args={['#0e0a08', 14, 55]} />
 
-        {/* Cave lighting — much stronger than before. Felipe was getting a
-            pitch-black room. ambient 0.22→0.65, hemisphere 0.18→0.5,
-            directional 0.35→0.7. Plus 6 torches with flicker do the rest. */}
         <ambientLight intensity={0.65} color="#d8c0a0" />
         <hemisphereLight intensity={0.5} color="#c8a888" groundColor="#1a1612" />
         <directionalLight position={[5, 20, 5]} intensity={0.7} color="#ffe8c0" />
 
-        {/* Lerps fog + bg between cave/underwater presets based on player Y.
-            When the player is below the water surface, the fog goes dense
-            cyan-blue — that's what hides the cave when looking UP from
-            underwater (Felipe's screenshot bug). */}
         <DynamicFog playerPositionRef={playerPositionRef} />
 
-        {/* ─── CAVE FLOOR with hole ─────────────────────────────────── */}
+        {/* ─── CAVE FLOOR with hole — real PBR textures ─────────── */}
         <mesh
             geometry={CAVE_FLOOR_GEO}
             rotation={[-Math.PI / 2, 0, 0]}
-            position={[0, 0, 0]}
+            position={[0, -0.02, 0]}
         >
             <meshStandardMaterial
-                map={FLOOR_ALBEDO ?? undefined}
-                normalMap={FLOOR_NORMAL ?? undefined}
+                map={caveFloor.color}
+                normalMap={caveFloor.normal}
                 normalScale={new THREE.Vector2(2.0, 2.0)}
-                roughnessMap={FLOOR_ROUGH ?? undefined}
+                roughnessMap={caveFloor.rough}
                 roughness={0.92}
-                aoMap={FLOOR_AO ?? undefined}
+                aoMap={caveFloor.ao}
                 aoMapIntensity={0.6}
             />
         </mesh>
@@ -1316,61 +1225,55 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             <meshStandardMaterial color="#2a221c" roughness={1} side={THREE.DoubleSide} />
         </mesh>
 
-        {/* CAVE WALLS — multiple offset boxes per side so the silhouette
-            reads as natural stone rather than a flat sheet. SHARED normal-
-            mapped material across all 12 box panels — Three.js batches
-            meshes with identical materials, so even with 12 panels they
-            cost less than they appear.
-            Three color variants (a/b/c) are still distinct meshes but
-            share the same normal map → bumpy stone lighting everywhere. */}
+        {/* CAVE WALLS — real PBR textures from ambientcg Rock035 */}
         {/* North (z = -30) */}
-        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 1.0]} /><meshStandardMaterial color="#3a2f24" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 1.2]} /><meshStandardMaterial color="#43372a" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 0.6]} /><meshStandardMaterial color="#352b21" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 1.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 1.2]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 0.6]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
         {/* South (z = 30) */}
-        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 1.0]} /><meshStandardMaterial color="#3c3025" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 1.2]} /><meshStandardMaterial color="#45382b" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 0.6]} /><meshStandardMaterial color="#352b21" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 1.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 1.2]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 0.6]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
         {/* West (x = -30) */}
-        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[1.0, 5.2, 28]} /><meshStandardMaterial color="#3a2f24" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[-29.4, 3.4, -12]}><boxGeometry args={[1.2, 6.8, 18]} /><meshStandardMaterial color="#43372a" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[0.6, 3.6, 60]} /><meshStandardMaterial color="#352b21" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[1.0, 5.2, 28]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[-29.4, 3.4, -12]}><boxGeometry args={[1.2, 6.8, 18]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[0.6, 3.6, 60]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
         {/* East (x = 30) */}
-        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[1.0, 5, 22]} /><meshStandardMaterial color="#3c3025" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[1.2, 7.2, 20]} /><meshStandardMaterial color="#45382b" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
-        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[0.6, 4, 60]} /><meshStandardMaterial color="#352b21" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[1.0, 5, 22]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[1.2, 7.2, 20]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[0.6, 4, 60]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.6, 1.6)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} /></mesh>
 
-        {/* Cave boulders — individual meshes with procedural geometry variants */}
+        {/* Cave boulders — real GLB models with PBR textures */}
         {CAVE_ROCKS_DARK.map(([x, y, z, s, ry], i) => (
-            <mesh key={`dark-${i}`} geometry={ROCK_VARIANTS[i % 4]} position={[x, y + s * 0.5, z]} scale={[s, s * 0.8, s]} rotation={[0, ry, 0]}>
-                <meshStandardMaterial color="#322820" roughness={0.95} flatShading />
-            </mesh>
+            <group key={`dark-${i}`} position={[x, y + s * 0.4, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]}>
+                <primitive object={rockScenes[i % 4].clone(true)} />
+            </group>
         ))}
         {CAVE_ROCKS_MID.map(([x, y, z, s, ry], i) => (
-            <mesh key={`mid-${i}`} geometry={ROCK_VARIANTS[i % 4]} position={[x, y + s * 0.5, z]} scale={[s, s * 0.8, s]} rotation={[0, ry, 0]}>
-                <meshStandardMaterial color="#564335" roughness={0.9} flatShading />
-            </mesh>
+            <group key={`mid-${i}`} position={[x, y + s * 0.4, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]}>
+                <primitive object={rockScenes[(i + 1) % 4].clone(true)} />
+            </group>
         ))}
+        {/* Light pebbles — still using instanced icosahedra (tiny, not worth GLB) */}
         <Instances limit={CAVE_ROCKS_LIGHT.length} range={CAVE_ROCKS_LIGHT.length} geometry={PEBBLE_GEO}>
-            <meshStandardMaterial color="#6a5544" roughness={0.85} flatShading />
+            <meshStandardMaterial map={caveRock.color} normalMap={caveRock.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveRock.rough} roughness={0.85} aoMap={caveRock.ao} aoMapIntensity={0.5} />
             {CAVE_ROCKS_LIGHT.map(([x, y, z, s, ry], i) => (
                 <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]} />
             ))}
         </Instances>
 
-        {/* Pool rim ring — raised stone lip around the water hole */}
-        <mesh position={[HOLE_CENTER_X, 0.05, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
+        {/* Pool rim ring — lowered to Y=-0.08 to sit BELOW the cave floor
+            at Y=-0.02, fixing the z-fighting/overlap issue Felipe reported. */}
+        <mesh position={[HOLE_CENTER_X, -0.08, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
             <torusGeometry args={[HOLE_RADIUS + 0.2, 0.35, 8, 24]} />
-            <meshStandardMaterial color="#2a2018" roughness={0.95} map={FLOOR_ALBEDO ?? undefined} normalMap={FLOOR_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.5, 1.5)} />
+            <meshStandardMaterial map={caveFloor.color} normalMap={caveFloor.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveFloor.rough} roughness={0.95} />
         </mesh>
 
-        {/* POOL RIM — individual boulders forming the circular edge of the
-            water hole. Lowered to sit partially in the floor so they don't
-            float above the ground. */}
+        {/* POOL RIM — individual boulders forming the circular edge */}
         {POOL_RIM.map(([x, y, z, s, ry], i) => (
-            <mesh key={`rim-${i}`} geometry={ROCK_VARIANTS[i % 4]} position={[x, y - 0.1 + s * 0.35, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]}>
-                <meshStandardMaterial color="#3e3026" roughness={0.92} flatShading />
-            </mesh>
+            <group key={`rim-${i}`} position={[x, y - 0.1 + s * 0.3, z]} scale={[s, s * 0.5, s]} rotation={[0, ry, 0]}>
+                <primitive object={rockScenes[i % 4].clone(true)} />
+            </group>
         ))}
 
         {/* Stalagmites — cones rising from the floor */}
@@ -1412,16 +1315,15 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <WaterSurface reflective={reflective} />
 
         {/* ─── UNDERWATER (Y < 0) ────────────────────────────────────── */}
-        {/* Underwater rocky ground — procedurally displaced seafloor with
-            rolling terrain, normal-mapped bumpiness, and PBR textures. */}
+        {/* Underwater rocky ground — real PBR textures from ambientcg Ground037 */}
         <mesh geometry={UW_FLOOR_GEO} rotation={[-Math.PI / 2, 0, 0]} position={[0, -30, 0]}>
             <meshStandardMaterial
-                map={UW_ALBEDO ?? undefined}
-                normalMap={UW_NORMAL ?? undefined}
+                map={uwFloor.color}
+                normalMap={uwFloor.normal}
                 normalScale={new THREE.Vector2(2.5, 2.5)}
-                roughnessMap={UW_ROUGH ?? undefined}
+                roughnessMap={uwFloor.rough}
                 roughness={0.95}
-                aoMap={UW_AO ?? undefined}
+                aoMap={uwFloor.ao}
                 aoMapIntensity={0.7}
             />
         </mesh>
@@ -1440,16 +1342,16 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Small fish school looping around the boulder field */}
         <FishSchool />
 
-        {/* Underwater boulders — individual meshes with procedural geometry variants */}
+        {/* Underwater boulders — real GLB models with PBR textures */}
         {UW_BOULDERS.map(([x, y, z, s, ry], i) => (
-            <mesh key={`uwb-${i}`} geometry={ROCK_VARIANTS[i % 4]} position={[x, y + s * 0.5, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]}>
-                <meshStandardMaterial color="#1a2530" roughness={0.95} flatShading />
-            </mesh>
+            <group key={`uwb-${i}`} position={[x, y + s * 0.4, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]}>
+                <primitive object={rockScenes[i % 4].clone(true)} />
+            </group>
         ))}
 
-        {/* Underwater pebbles */}
+        {/* Underwater pebbles — real PBR textures on instanced geometry */}
         <Instances limit={UW_PEBBLES.length} range={UW_PEBBLES.length} geometry={PEBBLE_GEO}>
-            <meshStandardMaterial color="#101820" roughness={1} flatShading />
+            <meshStandardMaterial map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
             {UW_PEBBLES.map(([x, y, z, s, ry], i) => (
                 <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]} />
             ))}
@@ -1478,4 +1380,5 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             <mesh position={[0, 5.25, -3.25]}><boxGeometry args={[11, 0.5, 7.5]} /><meshStandardMaterial color="#1a1612" /></mesh>
         </group>
     </group>
-);
+    );
+};

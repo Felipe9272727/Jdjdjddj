@@ -82,12 +82,14 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 0 && profile.atmosphere && <WallClock x={9.5} z={-7} />}
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
       {level === 2 && (
-        <Floor2Environment
-          playerPositionRef={playerPositionRef}
-          collectedShards={collectedShards}
-          onCollectShard={onCollectShard}
-          reflective={profile.atmosphere}
-        />
+        <Suspense fallback={null}>
+          <Floor2Environment
+            playerPositionRef={playerPositionRef}
+            collectedShards={collectedShards}
+            onCollectShard={onCollectShard}
+            reflective={profile.atmosphere}
+          />
+        </Suspense>
       )}
       <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
