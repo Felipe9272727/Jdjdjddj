@@ -461,12 +461,34 @@ const STALACTITES: readonly Stalactite[] = [
 // a dim pointLight for actual scene illumination (low intensity = no square).
 type Crystal = readonly [number, number, number, string]; // x, y, z, hexColor
 const CRYSTALS: readonly Crystal[] = [
+    // Wall crystals (near ground level)
     [-28,  2.2,   8, '#9ae6ff'],   // cyan, west wall
     [ 28,  3.5,  -5, '#c39bff'],   // purple, east wall
     [-10,  0.6,  28, '#ff9ad8'],   // pink, north wall
     [ 12,  0.8, -28, '#ffd066'],   // amber, south wall
     [-28,  4.5, -18, '#9affae'],   // green, west wall further
     [ 28,  1.5,  20, '#84d8ff'],   // light blue, east wall
+    // More wall crystals — denser mineral deposits
+    [-28,  1.5,  -3, '#b8a9ff'],   // lavender, west wall
+    [ 28,  5.0,  12, '#ff8fab'],   // rose, east wall
+    [-15,  1.0, -28, '#66ffcc'],   // mint, south wall
+    [ 20,  2.5,  28, '#ffb347'],   // orange, north wall
+    [-28,  3.8,  20, '#87ceeb'],   // sky blue, west wall
+    [ 15,  0.8, -28, '#dda0dd'],   // plum, south wall
+    // Ceiling crystals — hanging minerals like amethyst/geode formations
+    [-12,  7.5,   5, '#c39bff'],   // purple, ceiling
+    [  8,  7.0, -10, '#9ae6ff'],   // cyan, ceiling
+    [ 18,  7.8,  15, '#ff9ad8'],   // pink, ceiling
+    [-20,  7.2, -15, '#84d8ff'],   // light blue, ceiling
+    [  0,  7.6,  20, '#9affae'],   // green, ceiling
+    [-8,  7.3,  -22, '#ffd066'],   // amber, ceiling
+    [ 22,  7.4,  -5, '#b8a9ff'],   // lavender, ceiling
+    [-18,  7.1,  10, '#ff8fab'],   // rose, ceiling
+    // Floor mineral veins — glowing deposits emerging from cracks
+    [-20,  0.3, -10, '#00ffaa'],   // bright green vein
+    [ 15,  0.2,   8, '#ff6b9d'],   // hot pink vein
+    [ -5,  0.4, -20, '#4dc9f6'],   // teal vein
+    [ 25,  0.3,   0, '#f7c948'],   // gold vein
 ];
 
 const CRYSTAL_GEO = new THREE.OctahedronGeometry(0.35, 0);
@@ -684,6 +706,39 @@ export const CAVE_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r:
 export const UW_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = [
     ...UW_BOULDERS.map(([x,y,z,s]) => ({ x, y: y + s * 0.3, z, r: s * 0.6 })),
 ];
+
+// ─── Wall collision data — organic walls bulge inward, need collision ──
+// Place collision spheres along each wall. The organic walls have max
+// displacement ~5m inward from z=±30 / x=±30, so the inner edge is ~25.
+// We place colliders every 8m along the wall at varying heights.
+export const CAVE_WALL_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = (() => {
+    const colliders: { x: number; y: number; z: number; r: number }[] = [];
+    const WALL_POS = 30;
+    const BULGE = 4;  // max inward bulge
+    const STEP = 8;
+    // North wall (z = -30, bulges toward +Z)
+    for (let x = -28; x <= 28; x += STEP) {
+        colliders.push({ x, y: 3, z: -WALL_POS + BULGE, r: BULGE + 1 });
+    }
+    // South wall (z = 30, bulges toward -Z)
+    for (let x = -28; x <= 28; x += STEP) {
+        colliders.push({ x, y: 3, z: WALL_POS - BULGE, r: BULGE + 1 });
+    }
+    // West wall (x = -30, bulges toward +X)
+    for (let z = -28; z <= 28; z += STEP) {
+        colliders.push({ x: -WALL_POS + BULGE, y: 3, z, r: BULGE + 1 });
+    }
+    // East wall (x = 30, bulges toward -X)
+    for (let z = -28; z <= 28; z += STEP) {
+        colliders.push({ x: WALL_POS - BULGE, y: 3, z, r: BULGE + 1 });
+    }
+    // Corner colliders — bigger spheres at corners where two walls meet
+    const corners = [[-28, -28], [28, -28], [-28, 28], [28, 28]];
+    for (const [cx, cz] of corners) {
+        colliders.push({ x: cx, y: 3, z: cz, r: 5 });
+    }
+    return colliders;
+})();
 
 // ─── Water ceiling shader — animated ripple pattern visible from below ──
 const WaterCeilingMaterial = shaderMaterial(

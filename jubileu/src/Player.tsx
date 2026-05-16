@@ -4,7 +4,7 @@ import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
-import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS } from './Floor2Underwater';
+import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
 useGLTF.preload(WALKING_URL);
@@ -551,11 +551,26 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
                 }
             }
 
+            // ─── Cave wall collision (organic walls bulge inward) ──
+            for (const wall of CAVE_WALL_COLLIDERS) {
+                const dx = pos.current.x - wall.x;
+                const dz = pos.current.z - wall.z;
+                const distSq = dx * dx + dz * dz;
+                const minDist = wall.r + 0.5;
+                if (distSq < minDist * minDist && distSq > 0.0001) {
+                    const dist = Math.sqrt(distSq);
+                    const push = (minDist - dist) / dist;
+                    pos.current.x += dx * push;
+                    pos.current.z += dz * push;
+                }
+            }
+
             // Hard XZ clamp as a last-resort barrier.
-            if (pos.current.x < -29) pos.current.x = -29;
-            if (pos.current.x >  29) pos.current.x =  29;
-            if (pos.current.z < -29) pos.current.z = -29;
-            if (pos.current.z >  29) pos.current.z =  29;
+            // Organic walls can bulge ~5m inward, so clamp tighter
+            if (pos.current.x < -25) pos.current.x = -25;
+            if (pos.current.x >  25) pos.current.x =  25;
+            if (pos.current.z < -25) pos.current.z = -25;
+            if (pos.current.z >  25) pos.current.z =  25;
             // Floor 2: gradual fall when standing inside the hole. Gives a
             // brief "tipping over the edge" moment rather than an instant
             // snap; ends when Y < SWIM_THRESHOLD_Y → next frame swim mode.
