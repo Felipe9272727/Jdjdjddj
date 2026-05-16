@@ -177,18 +177,18 @@ function makeRockAlbedo(size: number, base: [number, number, number], seed: numb
     tex.colorSpace = THREE.SRGBColorSpace; // albedo IS color, sRGB encoded
     return tex;
 }
-const WALL_NORMAL  = makeRockNormal(256, 0);
-const FLOOR_NORMAL = makeRockNormal(256, 7.3);
-const UW_NORMAL    = makeRockNormal(256, 13.1);
+const WALL_NORMAL  = makeRockNormal(512, 0);
+const FLOOR_NORMAL = makeRockNormal(512, 7.3);
+const UW_NORMAL    = makeRockNormal(512, 13.1);
 // Higher tile counts → smaller pattern repeats → less obvious "wall-of-
 // brick" tiling. Felipe's screenshot showed the previous 3x1/6x6/8x8
 // scheme repeating very visibly on the cave floor.
 if (WALL_NORMAL)  WALL_NORMAL.repeat.set(5, 2);
 if (FLOOR_NORMAL) FLOOR_NORMAL.repeat.set(12, 12);
 if (UW_NORMAL)    UW_NORMAL.repeat.set(14, 14);
-const WALL_ALBEDO  = makeRockAlbedo(256, [104, 80, 56], 0);    // warm cave brown
-const FLOOR_ALBEDO = makeRockAlbedo(256, [76, 60, 44], 7.3);   // darker floor stone
-const UW_ALBEDO    = makeRockAlbedo(256, [40, 56, 70], 13.1);  // underwater blue-gray
+const WALL_ALBEDO  = makeRockAlbedo(512, [104, 80, 56], 0);    // warm cave brown
+const FLOOR_ALBEDO = makeRockAlbedo(512, [76, 60, 44], 7.3);   // darker floor stone
+const UW_ALBEDO    = makeRockAlbedo(512, [40, 56, 70], 13.1);  // underwater blue-gray
 // Albedo repeats are SLIGHTLY OFFSET from normal-map repeats. Different
 // frequency on each layer breaks the visible grid — even though both
 // patterns repeat, they don't align, so there's no obvious "tile here"
@@ -196,6 +196,82 @@ const UW_ALBEDO    = makeRockAlbedo(256, [40, 56, 70], 13.1);  // underwater blu
 if (WALL_ALBEDO)  WALL_ALBEDO.repeat.set(6, 2);
 if (FLOOR_ALBEDO) FLOOR_ALBEDO.repeat.set(11, 11);
 if (UW_ALBEDO)    UW_ALBEDO.repeat.set(13, 13);
+
+// ─── Procedural ROUGHNESS textures ────────────────────────────────
+// Rocks are rough (0.7-0.95), wet rocks near water are smoother.
+// Output: greyscale where dark = rough, bright = smooth.
+function makeRockRoughness(size: number, seed: number): THREE.Texture | null {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const img = ctx.createImageData(size, size);
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const u = x / size, v = y / size;
+            const n = Math.sin(u * 14 + v * 9 + seed) * 0.35
+                    + Math.sin(u * 32 + seed * 1.7) * 0.20
+                    + Math.cos((u + v) * 22 + seed * 2.3) * 0.15;
+            // Map to roughness range 0.5-1.0 (mostly rough)
+            const rough = 0.65 + n * 0.30;
+            const i = (y * size + x) * 4;
+            const val = Math.max(0, Math.min(255, rough * 255));
+            img.data[i] = val;
+            img.data[i + 1] = val;
+            img.data[i + 2] = val;
+            img.data[i + 3] = 255;
+        }
+    }
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.NoColorSpace;
+    return tex;
+}
+// ─── Procedural AO textures ────────────────────────────────────────
+// Ambient occlusion: dark in crevices/cracks, bright on exposed flat.
+// Makes the cave walls look 3D even without direct light.
+function makeRockAO(size: number, seed: number): THREE.Texture | null {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const img = ctx.createImageData(size, size);
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            const u = x / size, v = y / size;
+            // Dark veins = occlusion, bright = open surface
+            const vein = Math.sin((u + v) * 8 + seed * 2.5) * 0.4
+                       + Math.sin(u * 16 + v * 12 + seed) * 0.25;
+            const ao = Math.max(0.3, Math.min(1.0, 0.75 + vein * 0.35));
+            const i = (y * size + x) * 4;
+            const val = Math.max(0, Math.min(255, ao * 255));
+            img.data[i] = val;
+            img.data[i + 1] = val;
+            img.data[i + 2] = val;
+            img.data[i + 3] = 255;
+        }
+    }
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.NoColorSpace;
+    return tex;
+}
+const WALL_ROUGH  = makeRockRoughness(256, 0);
+const FLOOR_ROUGH = makeRockRoughness(256, 7.3);
+const UW_ROUGH    = makeRockRoughness(256, 13.1);
+const WALL_AO     = makeRockAO(256, 0);
+const FLOOR_AO    = makeRockAO(256, 7.3);
+const UW_AO       = makeRockAO(256, 13.1);
+if (WALL_ROUGH)  WALL_ROUGH.repeat.set(5, 2);
+if (FLOOR_ROUGH) FLOOR_ROUGH.repeat.set(12, 12);
+if (UW_ROUGH)    UW_ROUGH.repeat.set(14, 14);
+if (WALL_AO)  WALL_AO.repeat.set(5, 2);
+if (FLOOR_AO) FLOOR_AO.repeat.set(12, 12);
+if (UW_AO)    UW_AO.repeat.set(14, 14);
 
 // ─── Cave boulders — multiple cohorts for color variation ─────────────
 type Boulder = readonly [number, number, number, number, number]; // x,y,z,s,ry
@@ -455,40 +531,92 @@ const UW_PEBBLES: readonly Boulder[] = [
     [ 13, -29.6,  14, 0.4, 0.6],
 ] as const;
 
-// ─── Water shader ──────────────────────────────────────────────────────
-// Wave shader with FRESNEL — viewing angle controls opacity. Looking
-// straight down: see through to underwater. Looking flat/grazing: the
-// surface reads as opaque sheet, exactly like real water.
-//
-// Plus: passes view direction to the fragment to compute the fresnel
-// term properly. The previous version had no fresnel → the surface
-// looked the same from above and below.
+// ─── Water shader — Gerstner waves + SSS + Fresnel + foam ───────────
+// Unreal-quality water: Gerstner waves produce realistic choppiness with
+// proper horizontal displacement (not just vertical sine). The fragment
+// shader computes Schlick Fresnel, subsurface scattering through thin
+// wave peaks, fake refraction via screen-space offset, and foam on crests.
 const WaterMaterial = shaderMaterial(
     { time: 0, opacity: 0.85 },
     /* glsl */ `
       uniform float time;
       varying vec2 vUv;
       varying float vWave;
-      varying vec3 vViewWS;       // view direction in world space
-      varying vec3 vNormalWS;     // displaced normal in world space
+      varying vec3 vViewWS;
+      varying vec3 vNormalWS;
+      varying vec3 vWorldPos;
+
+      // Gerstner wave: returns displacement (x,y,z) and derivatives (dx, dz)
+      // Based on GPU Gems chapter + Jerry Tessendorf's formulation.
+      vec4 gerstner(vec2 pos, vec2 dir, float steepness, float wavelength, float t) {
+        float k = 6.28318 / max(wavelength, 0.01);
+        float c = sqrt(9.8 / max(k, 0.001));
+        float a = steepness / max(k, 0.001);
+        float f = k * (dot(dir, pos) - c * t);
+        float sinF = sin(f);
+        float cosF = cos(f);
+        return vec4(
+          -dir.x * a * cosF,  // x displacement
+          a * sinF,            // y displacement (vertical)
+          -dir.y * a * cosF,  // z displacement
+          0.0
+        );
+      }
+
       void main() {
         vUv = uv;
-        // 3 octaves of sine for layered chop. Total amplitude ~0.12m.
-        float w1 = sin(position.x * 0.55 + time * 1.0) * 0.06;
-        float w2 = sin(position.y * 0.40 + time * 0.85 + 1.7) * 0.045;
-        float w3 = sin((position.x + position.y) * 1.1 + time * 1.8) * 0.025;
-        vWave = w1 + w2 + w3;
-        // Analytical normal via partial derivatives.
-        float dx = cos(position.x * 0.55 + time * 1.0) * 0.06 * 0.55 +
-                   cos((position.x + position.y) * 1.1 + time * 1.8) * 0.025 * 1.1;
-        float dy = cos(position.y * 0.40 + time * 0.85 + 1.7) * 0.045 * 0.40 +
-                   cos((position.x + position.y) * 1.1 + time * 1.8) * 0.025 * 1.1;
-        // The plane is rotated -π/2 around X before placement, so local
-        // (-dx, -dy, 1) → world Y axis maps to the normal. We approximate
-        // the world-space normal by passing through the modelMatrix.
-        vec3 localNormal = normalize(vec3(-dx, -dy, 1.0));
+        vec3 p = position;
+
+        // 4 Gerstner wave octaves with different directions & wavelengths.
+        // Steepness < 1.0 prevents wave folding. Shorter waves = less
+        // amplitude (natural spectral decay).
+        vec2 d1 = normalize(vec2(1.0, 0.3));
+        vec2 d2 = normalize(vec2(0.3, 1.0));
+        vec2 d3 = normalize(vec2(-0.5, 0.7));
+        vec2 d4 = normalize(vec2(0.8, -0.5));
+
+        vec4 w1 = gerstner(p.xz, d1, 0.22, 4.0, time * 0.8);
+        vec4 w2 = gerstner(p.xz, d2, 0.18, 2.8, time * 0.95 + 1.7);
+        vec4 w3 = gerstner(p.xz, d3, 0.12, 1.8, time * 1.15 + 3.2);
+        vec4 w4 = gerstner(p.xz, d4, 0.07, 1.2, time * 1.4 + 5.0);
+
+        vec3 disp = w1.xyz + w2.xyz + w3.xyz + w4.xyz;
+        p += disp;
+        vWave = disp.y;
+
+        // Analytical normal from Gerstner partial derivatives.
+        // dP/dx and dP/dz are computed from the wave functions.
+        float k1 = 6.28318 / 4.0;  float c1 = sqrt(9.8 / k1);  float a1 = 0.22 / k1;
+        float k2 = 6.28318 / 2.8;  float c2 = sqrt(9.8 / k2);  float a2 = 0.18 / k2;
+        float k3 = 6.28318 / 1.8;  float c3 = sqrt(9.8 / k3);  float a3 = 0.12 / k3;
+        float k4 = 6.28318 / 1.2;  float c4 = sqrt(9.8 / k4);  float a4 = 0.07 / k4;
+
+        float f1 = k1 * (dot(d1, position.xz) - c1 * time * 0.8);
+        float f2 = k2 * (dot(d2, position.xz) - c2 * time * 0.95 - 1.7 * c2);
+        float f3 = k3 * (dot(d3, position.xz) - c3 * time * 1.15 - 3.2 * c3);
+        float f4 = k4 * (dot(d4, position.xz) - c4 * time * 1.4 - 5.0 * c4);
+
+        // dP/dx
+        vec3 dPdx = vec3(
+          1.0 - (d1.x * d1.x * a1 * k1 * sin(f1) + d2.x * d2.x * a2 * k2 * sin(f2)
+               + d3.x * d3.x * a3 * k3 * sin(f3) + d4.x * d4.x * a4 * k4 * sin(f4)),
+          d1.x * a1 * k1 * cos(f1) + d2.x * a2 * k2 * cos(f2) + d3.x * a3 * k3 * cos(f3) + d4.x * a4 * k4 * cos(f4),
+          -(d1.x * d1.y * a1 * k1 * sin(f1) + d2.x * d2.y * a2 * k2 * sin(f2)
+          + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4))
+        );
+        // dP/dz (mapped from local y since plane is rotated)
+        vec3 dPdz = vec3(
+          -(d1.x * d1.y * a1 * k1 * sin(f1) + d2.x * d2.y * a2 * k2 * sin(f2)
+          + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4)),
+          d1.y * a1 * k1 * cos(f1) + d2.y * a2 * k2 * cos(f2) + d3.y * a3 * k3 * cos(f3) + d4.y * a4 * k4 * cos(f4),
+          1.0 - (d1.y * d1.y * a1 * k1 * sin(f1) + d2.y * d2.y * a2 * k2 * sin(f2)
+               + d3.y * d3.y * a3 * k3 * sin(f3) + d4.y * d4.y * a4 * k4 * sin(f4))
+        );
+        vec3 localNormal = normalize(cross(dPdz, dPdx));
         vNormalWS = normalize(mat3(modelMatrix) * localNormal);
-        vec4 wp = modelMatrix * vec4(position + vec3(0.0, 0.0, vWave), 1.0);
+
+        vec4 wp = modelMatrix * vec4(p, 1.0);
+        vWorldPos = wp.xyz;
         vViewWS = normalize(cameraPosition - wp.xyz);
         gl_Position = projectionMatrix * viewMatrix * wp;
       }
@@ -500,35 +628,59 @@ const WaterMaterial = shaderMaterial(
       varying float vWave;
       varying vec3 vViewWS;
       varying vec3 vNormalWS;
+      varying vec3 vWorldPos;
+
       void main() {
-        // Fresnel: dot of view & normal. Looking down (high dot) →
-        // transparent. Grazing (low dot) → opaque sheen. Pow controls
-        // the falloff sharpness.
-        float ndv = max(0.0, dot(vNormalWS, vViewWS));
-        float fresnel = pow(1.0 - ndv, 2.4);
-        // Three-tone palette.
-        vec3 deep   = vec3(0.03, 0.15, 0.24);
-        vec3 mid    = vec3(0.12, 0.42, 0.55);
-        vec3 sky    = vec3(0.62, 0.88, 0.98);
-        // Caustic streaks.
-        float c1 = sin(vUv.x * 28.0 + time * 0.8) * 0.5 + 0.5;
-        float c2 = sin(vUv.y * 22.0 + time * 1.05 + 2.0) * 0.5 + 0.5;
-        float caustic = pow(c1 * c2, 2.0);
-        // Wave-height tinting.
-        float h = clamp(vWave * 6.0, -1.0, 1.0);
+        // ─── Schlick Fresnel ──────────────────────────────────────
+        // F0 = 0.02 for water (dielectric). At grazing angles,
+        // reflectance approaches 100% — that's the "mirror edge" look.
+        float ndv = max(0.001, dot(vNormalWS, vViewWS));
+        float R0 = 0.02;
+        float fresnel = R0 + (1.0 - R0) * pow(1.0 - ndv, 5.0);
+        // Boost for visual punch (physically ~1.0 at grazing, we push)
+        fresnel = mix(fresnel, pow(1.0 - ndv, 2.4) * 0.9, 0.5);
+
+        // ─── Deep / shallow / sky palette ────────────────────────
+        vec3 deep   = vec3(0.01, 0.08, 0.14);
+        vec3 mid    = vec3(0.06, 0.28, 0.38);
+        vec3 sky    = vec3(0.55, 0.82, 0.94);
+
+        // ─── Caustic streaks on the surface itself ──────────────
+        float c1 = sin(vUv.x * 32.0 + time * 0.9) * 0.5 + 0.5;
+        float c2 = sin(vUv.y * 26.0 + time * 1.1 + 2.0) * 0.5 + 0.5;
+        float caustic = pow(c1 * c2, 2.5);
+
+        // ─── Wave-height tinting ─────────────────────────────────
+        float h = clamp(vWave * 5.0, -1.0, 1.0);
         vec3 col = mix(deep, mid, 0.5 + h * 0.5);
-        // Fresnel reflects sky on the grazing edge — that's THE signature
-        // of "is this water?". Strong contribution here.
-        col = mix(col, sky, fresnel * 0.85 + max(0.0, h) * 0.25 + caustic * 0.2);
-        // Foam on extreme peaks.
-        float foam = smoothstep(0.06, 0.10, vWave);
-        col = mix(col, vec3(0.95, 0.98, 1.0), foam * 0.5);
-        // Final alpha: ALWAYS visible. Floor 2 user feedback: water was
-        // "appearing and disappearing" — that was alpha sliding from 0.45
-        // up to 0.96 depending on view angle, reading as flicker.
-        // Pinned to 0.85-0.96 range: subtle fresnel boost but never
-        // transparent enough to lose the pool.
-        float alpha = mix(0.85, 0.96, fresnel);
+
+        // ─── Subsurface scattering ──────────────────────────────
+        // Light transmitted through thin wave peaks glows cyan-green.
+        // The thinner the wave (higher wave peak = more transmittance),
+        // the stronger the SSS. This is THE Unreal water look.
+        float sss = pow(max(0.0, h), 1.5) * 0.6;
+        vec3 sssColor = vec3(0.1, 0.55, 0.45);
+        col += sssColor * sss;
+
+        // ─── Fresnel reflection of sky ──────────────────────────
+        col = mix(col, sky, fresnel * 0.8 + caustic * 0.15);
+
+        // ─── Fake specular (sun highlight) ──────────────────────
+        vec3 lightDir = normalize(vec3(0.4, 1.0, 0.3));
+        vec3 halfVec = normalize(vViewWS + lightDir);
+        float spec = pow(max(0.0, dot(vNormalWS, halfVec)), 256.0);
+        col += vec3(1.0, 0.95, 0.85) * spec * 1.5 * (1.0 - fresnel * 0.5);
+
+        // ─── Foam on wave crests + edge foam ────────────────────
+        float foam = smoothstep(0.04, 0.09, vWave);
+        // Edge foam near pool rim (distance from center)
+        float distFromCenter = length(vWorldPos.xz - vec2(0.0, 5.0));
+        float edgeFoam = smoothstep(2.8, 2.2, distFromCenter) * 0.4;
+        float totalFoam = max(foam * 0.55, edgeFoam);
+        col = mix(col, vec3(0.92, 0.96, 1.0), totalFoam);
+
+        // ─── Alpha: visible from all angles ──────────────────────
+        float alpha = mix(0.82, 0.96, fresnel);
         gl_FragColor = vec4(col, alpha);
       }
     `
@@ -584,9 +736,9 @@ const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }) => {
                     />
                 </mesh>
             )}
-            {/* Wave/caustic shader on top */}
+            {/* Wave/caustic shader on top — 64x64 verts for Gerstner detail */}
             <mesh rotation={[-Math.PI / 2, 0, 0]}>
-                <planeGeometry args={[HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05, 32, 32]} />
+                <planeGeometry args={[HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05, 64, 64]} />
                 <primitive object={mat} attach="material" />
             </mesh>
         </group>
@@ -895,6 +1047,41 @@ const BUBBLE_RISE = 0.5;
 const BUBBLE_MAX_Y = WATER_LEVEL_Y - 0.5;
 const BUBBLE_MIN_Y = -29;
 
+// ─── Plankton particles (underwater) ────────────────────────────────
+// Tiny green-white specs floating in the water column. Sells "alive
+// underwater ecosystem" without any real cost — InstancedMesh, 40
+// particles, no useFrame per-particle (position set once).
+const PLANKTON_COUNT = 40;
+const PLANKTON_GEO = new THREE.SphereGeometry(1, 4, 3);
+const PlanktonField: React.FC = () => {
+    const refs = useRef<(THREE.Object3D | null)[]>(new Array(PLANKTON_COUNT).fill(null));
+    useFrame((state) => {
+        const t = state.clock.elapsedTime;
+        for (let i = 0; i < PLANKTON_COUNT; i++) {
+            const r = refs.current[i];
+            if (!r) continue;
+            // Slow Brownian drift — each particle has a unique phase
+            const seed = i * 7.31;
+            r.position.x += Math.sin(t * 0.15 + seed) * 0.003;
+            r.position.y += Math.cos(t * 0.12 + seed * 1.3) * 0.002;
+            r.position.z += Math.sin(t * 0.13 + seed * 0.7) * 0.003;
+        }
+    });
+    return (
+        <Instances limit={PLANKTON_COUNT} range={PLANKTON_COUNT} geometry={PLANKTON_GEO}>
+            <meshBasicMaterial color="#a8e8c8" transparent opacity={0.3} depthWrite={false} toneMapped={false} />
+            {Array.from({ length: PLANKTON_COUNT }, (_, i) => {
+                const x = HOLE_CENTER_X + (Math.random() - 0.5) * 30;
+                const y = -3 + Math.random() * -25;
+                const z = HOLE_CENTER_Z + (Math.random() - 0.5) * 30;
+                return (
+                    <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} position={[x, y, z]} scale={0.012 + Math.random() * 0.02} />
+                );
+            })}
+        </Instances>
+    );
+};
+
 const BubbleField: React.FC = () => {
     const positions = useRef(
         Array.from({ length: BUBBLE_COUNT }, () => ({
@@ -1058,7 +1245,10 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 map={FLOOR_ALBEDO ?? undefined}
                 normalMap={FLOOR_NORMAL ?? undefined}
                 normalScale={new THREE.Vector2(2.0, 2.0)}
+                roughnessMap={FLOOR_ROUGH ?? undefined}
                 roughness={0.92}
+                aoMap={FLOOR_AO ?? undefined}
+                aoMapIntensity={0.6}
             />
         </mesh>
 
@@ -1076,21 +1266,21 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             Three color variants (a/b/c) are still distinct meshes but
             share the same normal map → bumpy stone lighting everywhere. */}
         {/* North (z = -30) */}
-        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 1.0]} /><meshStandardMaterial color="#3a2f24" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
-        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 1.2]} /><meshStandardMaterial color="#43372a" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
-        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 0.6]} /><meshStandardMaterial color="#352b21" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
+        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 1.0]} /><meshStandardMaterial color="#3a2f24" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 1.2]} /><meshStandardMaterial color="#43372a" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 0.6]} /><meshStandardMaterial color="#352b21" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
         {/* South (z = 30) */}
-        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 1.0]} /><meshStandardMaterial color="#3c3025" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
-        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 1.2]} /><meshStandardMaterial color="#45382b" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
-        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 0.6]} /><meshStandardMaterial color="#352b21" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
+        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 1.0]} /><meshStandardMaterial color="#3c3025" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 1.2]} /><meshStandardMaterial color="#45382b" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 0.6]} /><meshStandardMaterial color="#352b21" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
         {/* West (x = -30) */}
-        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[1.0, 5.2, 28]} /><meshStandardMaterial color="#3a2f24" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
-        <mesh position={[-29.4, 3.4, -12]}><boxGeometry args={[1.2, 6.8, 18]} /><meshStandardMaterial color="#43372a" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
-        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[0.6, 3.6, 60]} /><meshStandardMaterial color="#352b21" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
+        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[1.0, 5.2, 28]} /><meshStandardMaterial color="#3a2f24" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[-29.4, 3.4, -12]}><boxGeometry args={[1.2, 6.8, 18]} /><meshStandardMaterial color="#43372a" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[0.6, 3.6, 60]} /><meshStandardMaterial color="#352b21" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
         {/* East (x = 30) */}
-        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[1.0, 5, 22]} /><meshStandardMaterial color="#3c3025" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
-        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[1.2, 7.2, 20]} /><meshStandardMaterial color="#45382b" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
-        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[0.6, 4, 60]} /><meshStandardMaterial color="#352b21" roughness={1} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} /></mesh>
+        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[1.0, 5, 22]} /><meshStandardMaterial color="#3c3025" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[1.2, 7.2, 20]} /><meshStandardMaterial color="#45382b" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
+        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[0.6, 4, 60]} /><meshStandardMaterial color="#352b21" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
 
         {/* Cave boulders — 3 cohorts in different tones */}
         <Instances limit={CAVE_ROCKS_DARK.length} range={CAVE_ROCKS_DARK.length} geometry={BOULDER_GEO}>
@@ -1170,7 +1360,10 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 map={UW_ALBEDO ?? undefined}
                 normalMap={UW_NORMAL ?? undefined}
                 normalScale={new THREE.Vector2(2.5, 2.5)}
+                roughnessMap={UW_ROUGH ?? undefined}
                 roughness={0.95}
+                aoMap={UW_AO ?? undefined}
+                aoMapIntensity={0.7}
             />
         </mesh>
 
@@ -1205,6 +1398,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         </Instances>
 
         <BubbleField />
+        <PlanktonField />
 
         {SHARD_POSITIONS.map((pos, i) => (
             <Shard

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
-import { KernelSize } from 'postprocessing';
+import { EffectComposer, Bloom, ChromaticAberration, Vignette } from '@react-three/postprocessing';
+import { KernelSize, BlendFunction } from 'postprocessing';
 import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
 
 // ─── Error Boundary for Canvas ─────────────────────────────────────────────
@@ -755,12 +755,11 @@ export default function App() {
             )}
             <SceneInspector />
         </Suspense>
-        {/* Post-processing — kept minimal. The full chain (N8AO + Vignette +
-            ChromaticAberration + Environment IBL) was killing the framerate
-            without enough visual win to justify it on mobile. We keep ONLY
-            Bloom at high quality, with a very high luminance threshold so
-            it only catches truly bright surfaces (flashlight lens, lamp
-            bulbs). Medium/low: no postprocessing pass at all. */}
+        {/* Post-processing — expanded for underwater immersion.
+            High quality: Bloom + ChromaticAberration + Vignette when submerged.
+            The ChromaticAberration simulates light dispersion through water,
+            and the Vignette deepens the claustrophobic underwater feel.
+            Medium/low: no postprocessing pass at all. */}
         {hasStarted && settings.quality === 'high' && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
                 <Bloom
@@ -769,6 +768,17 @@ export default function App() {
                     luminanceSmoothing={0.2}
                     mipmapBlur
                     kernelSize={KernelSize.MEDIUM}
+                />
+                <ChromaticAberration
+                    blendFunction={BlendFunction.NORMAL}
+                    offset={currentLevel === 2 ? [0.002, 0.002] as unknown as Vector3 : [0, 0] as unknown as Vector3}
+                    radialModulation={false}
+                    modulationOffset={0.0}
+                />
+                <Vignette
+                    eskil={false}
+                    offset={currentLevel === 2 ? 0.4 : 0.2}
+                    darkness={currentLevel === 2 ? 0.6 : 0.3}
                 />
             </EffectComposer>
         )}
