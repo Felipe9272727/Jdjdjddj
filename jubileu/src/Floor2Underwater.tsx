@@ -141,13 +141,14 @@ const CAVE_FLOOR_GEO = (() => {
     }
     uvAttr.needsUpdate = true;
     geo.computeVertexNormals();
+    geo.freeze();  // freeze static geometry for GPU optimization
     return geo;
 })();
 
 // ─── Geometries shared across the scene ────────────────────────────────
-const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5);
-const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
-const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);  // kept for instanced pebbles
+const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5); BUBBLE_GEO.freeze();
+const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0); SHARD_GEO.freeze();
+const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0); PEBBLE_GEO.freeze();
 
 // ─── Organic cave wall geometry helper ──────────────────────────────────
 // Creates a PlaneGeometry with heavy multi-octave noise displacement
@@ -215,19 +216,22 @@ function createCaveCeiling(
 }
 
 // Cave ceiling — 3D organic, not flat
-const CAVE_CEILING_GEO = createCaveCeiling(62, 62, 80, 99);
+const CAVE_CEILING_GEO = createCaveCeiling(62, 62, 64, 99);  // 64 segs (was 80) — still very organic
+CAVE_CEILING_GEO.freeze();
 
 // DRY cave walls — organic displaced planes (above water, Y > 0)
-const CAVE_WALL_N_GEO = createOrganicCaveWall(62, 10, 64, 0, 3.5);
-const CAVE_WALL_S_GEO = createOrganicCaveWall(62, 10, 64, 10, 3.5);
-const CAVE_WALL_W_GEO = createOrganicCaveWall(62, 10, 64, 20, 3.5);
-const CAVE_WALL_E_GEO = createOrganicCaveWall(62, 10, 64, 30, 3.5);
+const CAVE_WALL_N_GEO = createOrganicCaveWall(62, 10, 48, 0, 3.5);   // 48 segs (was 64)
+const CAVE_WALL_S_GEO = createOrganicCaveWall(62, 10, 48, 10, 3.5);
+const CAVE_WALL_W_GEO = createOrganicCaveWall(62, 10, 48, 20, 3.5);
+const CAVE_WALL_E_GEO = createOrganicCaveWall(62, 10, 48, 30, 3.5);
+CAVE_WALL_N_GEO.freeze(); CAVE_WALL_S_GEO.freeze(); CAVE_WALL_W_GEO.freeze(); CAVE_WALL_E_GEO.freeze();
 
 // UNDERWATER cave walls — organic displaced planes
-const UW_WALL_NORTH_GEO = createOrganicCaveWall(62, 35, 64, 40, 3.5);
-const UW_WALL_SOUTH_GEO = createOrganicCaveWall(62, 35, 64, 50, 3.5);
-const UW_WALL_WEST_GEO = createOrganicCaveWall(62, 35, 64, 60, 3.5);
-const UW_WALL_EAST_GEO = createOrganicCaveWall(62, 35, 64, 70, 3.5);
+const UW_WALL_NORTH_GEO = createOrganicCaveWall(62, 35, 48, 40, 3.5);  // 48 segs (was 64)
+const UW_WALL_SOUTH_GEO = createOrganicCaveWall(62, 35, 48, 50, 3.5);
+const UW_WALL_WEST_GEO = createOrganicCaveWall(62, 35, 48, 60, 3.5);
+const UW_WALL_EAST_GEO = createOrganicCaveWall(62, 35, 48, 70, 3.5);
+UW_WALL_NORTH_GEO.freeze(); UW_WALL_SOUTH_GEO.freeze(); UW_WALL_WEST_GEO.freeze(); UW_WALL_EAST_GEO.freeze();
 
 // ─── Procedural rock geometry helper ────────────────────────────────────
 function createProceduralRock(
@@ -259,10 +263,10 @@ function createProceduralRock(
   return geo;
 }
 
-const PROC_ROCK_A = createProceduralRock(1, 2, 0.35, 0);
-const PROC_ROCK_B = createProceduralRock(1, 2, 0.3, 50);
-const PROC_ROCK_C = createProceduralRock(1, 2, 0.4, 100);
-const PROC_ROCK_D = createProceduralRock(1, 2, 0.25, 150);
+const PROC_ROCK_A = createProceduralRock(1, 2, 0.35, 0); PROC_ROCK_A.freeze();
+const PROC_ROCK_B = createProceduralRock(1, 2, 0.3, 50); PROC_ROCK_B.freeze();
+const PROC_ROCK_C = createProceduralRock(1, 2, 0.4, 100); PROC_ROCK_C.freeze();
+const PROC_ROCK_D = createProceduralRock(1, 2, 0.25, 150); PROC_ROCK_D.freeze();
 
 // ─── Procedural stalactite geometry helper ──────────────────────────────
 function createProceduralStalactite(
@@ -304,6 +308,7 @@ const PROC_STALAGMITE_GEOS = [
   createProceduralStalactite(1.5, 0.4, 0.05, 10, 15, 270),
   createProceduralStalactite(3.0, 0.9, 0.05, 10, 15, 280),
 ];
+PROC_STALAGMITE_GEOS.forEach(g => g.freeze());
 const PROC_STALACTITE_GEOS = [
   createProceduralStalactite(1.5, 0.4, 0.05, 10, 15, 300),
   createProceduralStalactite(1.8, 0.5, 0.05, 10, 15, 310),
@@ -316,10 +321,11 @@ const PROC_STALACTITE_GEOS = [
   createProceduralStalactite(2.5, 0.6, 0.05, 10, 15, 380),
   createProceduralStalactite(2.2, 0.5, 0.05, 10, 15, 390),
 ];
+PROC_STALACTITE_GEOS.forEach(g => g.freeze());
 
 // Procedural underwater terrain — displaced PlaneGeometry (simplex-noise)
 const UW_FLOOR_GEO = (() => {
-    const geo = new THREE.PlaneGeometry(80, 80, 200, 200);
+    const geo = new THREE.PlaneGeometry(80, 80, 150, 150);  // 150 segs (was 200) — saves ~44% verts, still dense
     const positions = geo.attributes.position;
     const v = new THREE.Vector3();
     for (let i = 0; i < positions.count; i++) {
@@ -346,6 +352,7 @@ const UW_FLOOR_GEO = (() => {
     }
     positions.needsUpdate = true;
     geo.computeVertexNormals();
+    geo.freeze();  // freeze static underwater floor
     return geo;
 })();
 
@@ -505,7 +512,7 @@ const CRYSTALS: readonly Crystal[] = [
     [ 25,  0.3,   0, '#f7c948'],   // gold vein
 ];
 
-const CRYSTAL_GEO = new THREE.OctahedronGeometry(0.35, 0);
+const CRYSTAL_GEO = new THREE.OctahedronGeometry(0.35, 0); CRYSTAL_GEO.freeze();
 
 const CrystalCluster: React.FC<{ x: number; y: number; z: number; color: string }> = ({ x, y, z, color }) => (
     <group position={[x, y, z]}>
@@ -838,6 +845,24 @@ const UnderwaterOverlayMaterial = shaderMaterial(
     `
 );
 
+// ─── Global shader time registry — one useFrame drives all shader materials ──
+// Instead of each material having its own useFrame just to set `time`,
+// we register them here and update all in a single frame callback.
+const _shaderTimeTargets: { time: number }[] = [];
+function registerShaderTime(mat: { time: number }): { time: number } {
+    _shaderTimeTargets.push(mat);
+    return mat;
+}
+const ShaderTimeDriver: React.FC = () => {
+    useFrame((state) => {
+        const t = state.clock.elapsedTime;
+        for (let i = 0; i < _shaderTimeTargets.length; i++) {
+            _shaderTimeTargets[i].time = t;
+        }
+    });
+    return null;
+};
+
 // ─── Water shader — Gerstner waves + SSS + Fresnel + foam ───────────
 // FIX #3: Water is opaque when viewed from below (dot(normal, viewDir) < 0)
 // FIX #8: Much darker colors for horror atmosphere
@@ -992,10 +1017,10 @@ const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }) => {
         m.transparent = true;
         m.depthWrite = false;
         m.side = THREE.DoubleSide;
+        registerShaderTime(m);
         return m;
     }, []);
-    useFrame((state) => {
-        (mat as any).time = state.clock.elapsedTime;
+    useFrame(() => {
         if (reflective) (mat as any).opacity = 0.45;
     });
     return (
@@ -1033,11 +1058,10 @@ const WaterCeilingDisc: React.FC = () => {
         m.side = THREE.BackSide;
         m.depthWrite = true;
         m.transparent = false;
+        registerShaderTime(m);
         return m;
     }, []);
-    useFrame((state) => {
-        (mat as any).time = state.clock.elapsedTime;
-    });
+    // No useFrame needed — ShaderTimeDriver handles time uniform
     return (
         <mesh
             position={[HOLE_CENTER_X, WATER_LEVEL_Y - 0.1, HOLE_CENTER_Z]}
@@ -1127,6 +1151,7 @@ const UnderwaterOverlay: React.FC<{ playerPositionRef: React.MutableRefObject<TH
         m.depthTest = false;
         m.renderOrder = 999;
         m.side = THREE.DoubleSide;
+        registerShaderTime(m);
         return m;
     }, []);
     useFrame((state) => {
@@ -1141,7 +1166,6 @@ const UnderwaterOverlay: React.FC<{ playerPositionRef: React.MutableRefObject<TH
                 m.translateZ(-0.3);
             }
         }
-        (mat as any).time = state.clock.elapsedTime;
         (mat as any).depth = Math.min(Math.abs(y - SWIM_THRESHOLD_Y) / 29, 1);
     });
     return (
@@ -1186,9 +1210,10 @@ const UnderwaterCaustics: React.FC = () => {
         m.depthWrite = false;
         m.blending = THREE.AdditiveBlending;
         m.toneMapped = false;
+        registerShaderTime(m);
         return m;
     }, []);
-    useFrame((state) => { (mat as any).time = state.clock.elapsedTime; });
+    // No useFrame needed — ShaderTimeDriver handles time uniform
     return (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -29.95, 0]}>
             <planeGeometry args={[40, 40]} />
@@ -1198,7 +1223,7 @@ const UnderwaterCaustics: React.FC = () => {
 };
 
 // ─── Underwater flora — kelp + coral ─────────────────────────────────
-const KELP_GEO = new THREE.CylinderGeometry(0.06, 0.10, 1, 5, 4);
+const KELP_GEO = new THREE.CylinderGeometry(0.06, 0.10, 1, 5, 4); KELP_GEO.freeze();
 type KelpData = readonly [number, number, number, number]; // x, z, height, phase
 const KELP_POSITIONS: readonly KelpData[] = [
     [ 5.5, -8.0, 4.5, 0.3],
@@ -1406,8 +1431,8 @@ const DeepMist: React.FC = () => {
 };
 
 // ─── Debris particles — tiny dark specs drifting underwater ──────────
-const DEBRIS_COUNT = 60;
-const DEBRIS_GEO = new THREE.SphereGeometry(1, 3, 2);
+const DEBRIS_COUNT = 40;  // reduced from 60 — outside fog range anyway
+const DEBRIS_GEO = new THREE.SphereGeometry(1, 3, 2); DEBRIS_GEO.freeze();
 const DebrisField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(DEBRIS_COUNT).fill(null));
     const data = useRef(
@@ -1451,7 +1476,7 @@ const DebrisField: React.FC = () => {
 };
 
 // ─── Fish school — small fish swimming in circular paths ──────────────
-const FISH_GEO = new THREE.ConeGeometry(0.18, 0.55, 4);
+const FISH_GEO = new THREE.ConeGeometry(0.18, 0.55, 4); FISH_GEO.freeze();
 const FISH_COUNT = 8;
 const FishSchool: React.FC = () => {
     const refs = useRef<(THREE.Mesh | null)[]>(new Array(FISH_COUNT).fill(null));
@@ -1508,7 +1533,7 @@ const UnderwaterFlora: React.FC = () => (
 const GodRay: React.FC = () => {
     const matRef = useRef<THREE.ShaderMaterial>(null);
     useFrame((state) => {
-        if (matRef.current) (matRef.current as any).time = state.clock.elapsedTime;
+        if (matRef.current) matRef.current.uniforms.time.value = state.clock.elapsedTime;
     });
     return (
         <mesh position={[HOLE_CENTER_X, -10, HOLE_CENTER_Z]} rotation={[0, 0, 0]}>
@@ -1553,7 +1578,7 @@ const GodRay: React.FC = () => {
 };
 
 // ─── Underwater Sediment — floating particles for depth perception ───────
-const SEDIMENT_COUNT = 200;
+const SEDIMENT_COUNT = 120;  // reduced from 200 — outside fog range
 const UnderwaterSediment: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(SEDIMENT_COUNT).fill(null));
     const data = useRef(
@@ -1605,19 +1630,32 @@ const BUBBLE_MIN_Y = -29;
 
 // ─── Plankton particles (underwater) ──────────────────────────────────
 const PLANKTON_COUNT = 50;
-const PLANKTON_GEO = new THREE.SphereGeometry(1, 4, 3);
+const PLANKTON_GEO = new THREE.SphereGeometry(1, 4, 3); PLANKTON_GEO.freeze();
 const PlanktonField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(PLANKTON_COUNT).fill(null));
-    useFrame((state, dt) => {
-        const safeDt = Math.min(dt, 0.033);
+    // Pre-compute base positions for deterministic absolute movement
+    const basePositions = useRef(
+        Array.from({ length: PLANKTON_COUNT }, (_, i) => {
+            const h1 = Math.sin(i * 127.1 + 1.7) * 43758.5453;
+            const h2 = Math.sin(i * 269.5 + 3.1) * 43758.5453;
+            const h3 = Math.sin(i * 419.2 + 0.8) * 43758.5453;
+            return {
+                x: HOLE_CENTER_X + (h1 - Math.floor(h1) - 0.5) * 30,
+                y: -3 - (h2 - Math.floor(h2)) * 25,
+                z: HOLE_CENTER_Z + (h3 - Math.floor(h3) - 0.5) * 30,
+            };
+        })
+    );
+    useFrame((state) => {
         const t = state.clock.elapsedTime;
         for (let i = 0; i < PLANKTON_COUNT; i++) {
             const r = refs.current[i];
             if (!r) continue;
-            const seed = i * 7.31;
-            r.position.x += Math.sin(t * 0.15 + seed) * 0.003;
-            r.position.y += Math.cos(t * 0.12 + seed * 1.3) * 0.002;
-            r.position.z += Math.sin(t * 0.13 + seed * 0.7) * 0.003;
+            const bp = basePositions.current[i];
+            // Absolute position based on time — no drift, no accumulation errors
+            r.position.x = bp.x + Math.sin(t * 0.15 + i * 7.31) * 0.3;
+            r.position.y = bp.y + Math.cos(t * 0.12 + i * 7.31 * 1.3) * 0.2;
+            r.position.z = bp.z + Math.sin(t * 0.13 + i * 7.31 * 0.7) * 0.3;
         }
     });
     return (
@@ -1625,11 +1663,10 @@ const PlanktonField: React.FC = () => {
             {/* Darkened plankton for horror */}
             <meshBasicMaterial color="#1a1808" transparent opacity={0.12} depthWrite={false} toneMapped={false} />
             {Array.from({ length: PLANKTON_COUNT }, (_, i) => {
-                const x = HOLE_CENTER_X + (Math.random() - 0.5) * 30;
-                const y = -3 + Math.random() * -25;
-                const z = HOLE_CENTER_Z + (Math.random() - 0.5) * 30;
+                const bp = basePositions.current[i];
+                const s = 0.012 + (Math.sin(i * 5.7) * 0.5 + 0.5) * 0.02;  // deterministic scale
                 return (
-                    <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} position={[x, y, z]} scale={0.012 + Math.random() * 0.02} />
+                    <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} position={[bp.x, bp.y, bp.z]} scale={s} />
                 );
             })}
         </Instances>
@@ -1815,7 +1852,7 @@ const WaterOccluder: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.
 };
 
 // ─── God rays — light shafts from the surface hole ────────────────────
-const GOD_RAY_GEO = new THREE.CylinderGeometry(1, 0.3, 15, 8, 1, true);
+const GOD_RAY_GEO = new THREE.CylinderGeometry(1, 0.3, 15, 8, 1, true); GOD_RAY_GEO.freeze();
 const GodRays: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
     const groupRef = useRef<THREE.Group>(null);
     useFrame(() => {
@@ -1890,9 +1927,9 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <fog attach="fog" args={['#0e0a08', 16, 60]} />
 
         {/* Horror lighting — dark but visible */}
-        <ambientLight intensity={0.35} color="#d8c0a0" />
-        <hemisphereLight intensity={0.28} color="#c8a888" groundColor="#1a1612" />
-        <directionalLight position={[5, 20, 5]} intensity={0.25} color="#ffe8c0" />
+        <ambientLight intensity={0.42} color="#d8c0a0" />
+        <hemisphereLight intensity={0.33} color="#c8a888" groundColor="#1a1612" />
+        <directionalLight position={[5, 20, 5]} intensity={0.30} color="#ffe8c0" />
 
         {/* Ember sprites — warm glow on floor, NO pointLight (square artifact) */}
         <sprite position={[-25, 0.8, 0]} scale={[7, 7, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.25} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
@@ -1901,6 +1938,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <sprite position={[0, 0.8, -25]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
 
         <DynamicFog playerPositionRef={playerPositionRef} />
+        <ShaderTimeDriver />
 
         {/* ─── CAVE FLOOR with hole ─── */}
         <mesh
