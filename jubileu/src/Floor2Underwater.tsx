@@ -58,7 +58,33 @@ const CAVE_FLOOR_GEO = (() => {
     // is then rotated -π/2 around X so its Y becomes world's Z.
     hole.absarc(HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, 0, Math.PI * 2, false);
     shape.holes.push(hole);
-    const geo = new THREE.ShapeGeometry(shape);
+    const geo = new THREE.ShapeGeometry(shape, 24); // higher curveSegments for more vertices
+    // Displace vertices for subtle unevenness — breaks the flat plane look.
+    // In ShapeGeometry XY plane, Z displacement becomes Y (up) after rotation.
+    const positions = geo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < positions.count; i++) {
+        v.fromBufferAttribute(positions, i);
+        // Fade out near the hole edge so the rim stays clean
+        const dxH = v.x - HOLE_CENTER_X;
+        const dyH = v.y - HOLE_CENTER_Z;
+        const distToHole = Math.sqrt(dxH * dxH + dyH * dyH);
+        const holeFade = Math.min(1, Math.max(0, (distToHole - HOLE_RADIUS) / 2));
+        // Fade out near outer edges so walls connect cleanly
+        const edgeDist = Math.min(
+            Math.abs(v.x - (-size)), Math.abs(v.x - size),
+            Math.abs(v.y - (-size)), Math.abs(v.y - size)
+        );
+        const edgeFade = Math.min(1, edgeDist / 3);
+        const fade = holeFade * edgeFade;
+        // Small multi-octave noise for subtle unevenness
+        const n = Math.sin(v.x * 0.8 + 2.3) * 0.3
+                + Math.sin(v.y * 0.6 + 1.1) * 0.25
+                + Math.cos(v.x * 1.2 + v.y * 0.9 + 4.5) * 0.15;
+        positions.setZ(i, v.z + n * 0.15 * fade);
+    }
+    positions.needsUpdate = true;
+    geo.computeVertexNormals();
     return geo;
 })();
 
@@ -98,11 +124,43 @@ const ROCK_VARIANTS = [ROCK_GEO_A, ROCK_GEO_B, ROCK_GEO_C, ROCK_GEO_D];
 // Re-exported under the old name so existing Instances pipelines keep
 // working — each Instances group needs ONE shared geometry, so we point
 // it at the most natural-looking variant.
-const BOULDER_GEO = ROCK_GEO_B;
+// Kept for reference — individual rocks now use ROCK_VARIANTS[i % 4] directly.
+// const BOULDER_GEO = ROCK_GEO_B;
 
 const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);
 const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5);
 const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
+
+// Procedural underwater terrain — displaced PlaneGeometry
+// Starts as a flat 80×80 grid (64×64 subdivisions) and displaces vertices
+// with layered sine noise for gentle rolling terrain. Edges fade flat so
+// the floor connects seamlessly with the underwater walls.
+const UW_FLOOR_GEO = (() => {
+    const geo = new THREE.PlaneGeometry(80, 80, 64, 64);
+    const positions = geo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < positions.count; i++) {
+        v.fromBufferAttribute(positions, i);
+        // Only displace the interior — fade out near edges for seamless wall joins
+        const edgeDist = Math.min(
+            Math.abs(v.x - (-40)), Math.abs(v.x - 40),
+            Math.abs(v.y - (-40)), Math.abs(v.y - 40)
+        );
+        const edgeFade = Math.min(1, edgeDist / 5);
+        // Multi-octave sine noise for natural rolling terrain
+        const n = Math.sin(v.x * 0.3 + 1.7) * 0.5
+                + Math.sin(v.y * 0.4 + 3.1) * 0.4
+                + Math.sin((v.x + v.y) * 0.2 + 0.8) * 0.6
+                + Math.cos(v.x * 0.7 - v.y * 0.5 + 5.3) * 0.3
+                + Math.sin(v.x * 1.4 + v.y * 1.1 + 2.2) * 0.15;
+        // Apply as Z displacement (PlaneGeometry is XY, rotated to XZ later)
+        // Z in local space = Y (up) after rotation
+        positions.setZ(i, v.z + n * 1.5 * edgeFade);
+    }
+    positions.needsUpdate = true;
+    geo.computeVertexNormals();
+    return geo;
+})();
 
 // ─── Procedural normal-map textures ───────────────────────────────────
 // Generated ONCE at module load via canvas. No network assets, no
@@ -1282,19 +1340,17 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[1.2, 7.2, 20]} /><meshStandardMaterial color="#45382b" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
         <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[0.6, 4, 60]} /><meshStandardMaterial color="#352b21" roughness={0.95} roughnessMap={WALL_ROUGH ?? undefined} map={WALL_ALBEDO ?? undefined} normalMap={WALL_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.6, 1.6)} aoMap={WALL_AO ?? undefined} aoMapIntensity={0.5} /></mesh>
 
-        {/* Cave boulders — 3 cohorts in different tones */}
-        <Instances limit={CAVE_ROCKS_DARK.length} range={CAVE_ROCKS_DARK.length} geometry={BOULDER_GEO}>
-            <meshStandardMaterial color="#322820" roughness={0.95} flatShading />
-            {CAVE_ROCKS_DARK.map(([x, y, z, s, ry], i) => (
-                <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.8, s]} rotation={[0, ry, 0]} />
-            ))}
-        </Instances>
-        <Instances limit={CAVE_ROCKS_MID.length} range={CAVE_ROCKS_MID.length} geometry={BOULDER_GEO}>
-            <meshStandardMaterial color="#564335" roughness={0.9} flatShading />
-            {CAVE_ROCKS_MID.map(([x, y, z, s, ry], i) => (
-                <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.8, s]} rotation={[0, ry, 0]} />
-            ))}
-        </Instances>
+        {/* Cave boulders — individual meshes with procedural geometry variants */}
+        {CAVE_ROCKS_DARK.map(([x, y, z, s, ry], i) => (
+            <mesh key={`dark-${i}`} geometry={ROCK_VARIANTS[i % 4]} position={[x, y + s * 0.5, z]} scale={[s, s * 0.8, s]} rotation={[0, ry, 0]}>
+                <meshStandardMaterial color="#322820" roughness={0.95} flatShading />
+            </mesh>
+        ))}
+        {CAVE_ROCKS_MID.map(([x, y, z, s, ry], i) => (
+            <mesh key={`mid-${i}`} geometry={ROCK_VARIANTS[i % 4]} position={[x, y + s * 0.5, z]} scale={[s, s * 0.8, s]} rotation={[0, ry, 0]}>
+                <meshStandardMaterial color="#564335" roughness={0.9} flatShading />
+            </mesh>
+        ))}
         <Instances limit={CAVE_ROCKS_LIGHT.length} range={CAVE_ROCKS_LIGHT.length} geometry={PEBBLE_GEO}>
             <meshStandardMaterial color="#6a5544" roughness={0.85} flatShading />
             {CAVE_ROCKS_LIGHT.map(([x, y, z, s, ry], i) => (
@@ -1302,16 +1358,20 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             ))}
         </Instances>
 
-        {/* POOL RIM — large boulders forming the circular edge of the
-            water hole. Look + collision: even though Player.tsx falls
-            through the hole by XZ-radius check, the rim makes it visually
-            obvious where the pool is, even from across the cave. */}
-        <Instances limit={POOL_RIM.length} range={POOL_RIM.length} geometry={BOULDER_GEO}>
-            <meshStandardMaterial color="#3e3026" roughness={0.92} flatShading />
-            {POOL_RIM.map(([x, y, z, s, ry], i) => (
-                <Instance key={i} position={[x, y + s * 0.45, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]} />
-            ))}
-        </Instances>
+        {/* Pool rim ring — raised stone lip around the water hole */}
+        <mesh position={[HOLE_CENTER_X, 0.05, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[HOLE_RADIUS + 0.2, 0.35, 8, 24]} />
+            <meshStandardMaterial color="#2a2018" roughness={0.95} map={FLOOR_ALBEDO ?? undefined} normalMap={FLOOR_NORMAL ?? undefined} normalScale={new THREE.Vector2(1.5, 1.5)} />
+        </mesh>
+
+        {/* POOL RIM — individual boulders forming the circular edge of the
+            water hole. Lowered to sit partially in the floor so they don't
+            float above the ground. */}
+        {POOL_RIM.map(([x, y, z, s, ry], i) => (
+            <mesh key={`rim-${i}`} geometry={ROCK_VARIANTS[i % 4]} position={[x, y - 0.1 + s * 0.35, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]}>
+                <meshStandardMaterial color="#3e3026" roughness={0.92} flatShading />
+            </mesh>
+        ))}
 
         {/* Stalagmites — cones rising from the floor */}
         {STALAGMITES.map(([x, z, h, r], i) => (
@@ -1352,10 +1412,9 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <WaterSurface reflective={reflective} />
 
         {/* ─── UNDERWATER (Y < 0) ────────────────────────────────────── */}
-        {/* Underwater rocky ground — textured blue-gray seafloor with
-            normal-mapped bumpiness so it doesn't read as a flat plane. */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -30, 0]}>
-            <planeGeometry args={[80, 80, 32, 32]} />
+        {/* Underwater rocky ground — procedurally displaced seafloor with
+            rolling terrain, normal-mapped bumpiness, and PBR textures. */}
+        <mesh geometry={UW_FLOOR_GEO} rotation={[-Math.PI / 2, 0, 0]} position={[0, -30, 0]}>
             <meshStandardMaterial
                 map={UW_ALBEDO ?? undefined}
                 normalMap={UW_NORMAL ?? undefined}
@@ -1381,13 +1440,12 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Small fish school looping around the boulder field */}
         <FishSchool />
 
-        {/* Underwater boulders */}
-        <Instances limit={UW_BOULDERS.length} range={UW_BOULDERS.length} geometry={BOULDER_GEO}>
-            <meshStandardMaterial color="#1a2530" roughness={0.95} flatShading />
-            {UW_BOULDERS.map(([x, y, z, s, ry], i) => (
-                <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]} />
-            ))}
-        </Instances>
+        {/* Underwater boulders — individual meshes with procedural geometry variants */}
+        {UW_BOULDERS.map(([x, y, z, s, ry], i) => (
+            <mesh key={`uwb-${i}`} geometry={ROCK_VARIANTS[i % 4]} position={[x, y + s * 0.5, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]}>
+                <meshStandardMaterial color="#1a2530" roughness={0.95} flatShading />
+            </mesh>
+        ))}
 
         {/* Underwater pebbles */}
         <Instances limit={UW_PEBBLES.length} range={UW_PEBBLES.length} geometry={PEBBLE_GEO}>
