@@ -229,54 +229,59 @@ const STALACTITES: readonly Stalactite[] = [
     [ 18, -25, 1.7, 0.5],
 ];
 
-// ─── Bioluminescent Spore — replaces CrystalCluster ─────────────────
-// Tiny dim cyan-green pulsing dots on the cave walls, very subtle.
-// Horror means DARKNESS with tiny hints of life. No bright square lights.
-type SporeData = readonly [number, number, number]; // x, y, z
-const SPORES: readonly SporeData[] = [
-    [-28,  2.0,   8],
-    [-28,  3.5,   6],
-    [ 28,  2.5,  -5],
-    [ 28,  4.0,  -3],
-    [-10,  0.8,  28],
-    [-10,  1.5,  26],
-    [ 12,  0.6, -28],
-    [ 12,  1.2, -26],
-    [-28,  3.5, -18],
-    [-28,  5.0, -16],
-    [ 28,  1.2,  20],
-    [ 28,  2.8,  18],
-    [-20,  4.0, -24],
-    [ 20,  3.5,  22],
+// ─── Crystals — colored emissive accents along the walls ─────────────
+// Cluster of small octahedra at each spot; one big one + a few small ones.
+// Adds soft directional pools of color you can see from across the cave.
+// FIX: pointLight replaced by emissive sprites to avoid square lights on
+// mobile. The glow is driven by additive-blend sprites (always round) +
+// a dim pointLight for actual scene illumination (low intensity = no square).
+type Crystal = readonly [number, number, number, string]; // x, y, z, hexColor
+const CRYSTALS: readonly Crystal[] = [
+    [-28,  2.2,   8, '#9ae6ff'],   // cyan, west wall
+    [ 28,  3.5,  -5, '#c39bff'],   // purple, east wall
+    [-10,  0.6,  28, '#ff9ad8'],   // pink, north wall
+    [ 12,  0.8, -28, '#ffd066'],   // amber, south wall
+    [-28,  4.5, -18, '#9affae'],   // green, west wall further
+    [ 28,  1.5,  20, '#84d8ff'],   // light blue, east wall
 ];
 
-const BioluminescentSpore: React.FC<{ x: number; y: number; z: number; seed: number }> = ({ x, y, z, seed }) => {
-    const spriteMatRef = useRef<THREE.SpriteMaterial>(null);
-    const lightRef = useRef<THREE.PointLight>(null);
-    useFrame((state) => {
-        const t = state.clock.elapsedTime;
-        // Slow breathing pulse — each spore has unique phase
-        const pulse = 0.4 + Math.sin(t * 0.4 + seed) * 0.3;
-        if (spriteMatRef.current) spriteMatRef.current.opacity = pulse * 0.35;
-        if (lightRef.current) lightRef.current.intensity = 0.3 * pulse;
-    });
-    return (
-        <group position={[x, y, z]}>
-            <sprite scale={[0.3, 0.3, 1]}>
-                <spriteMaterial
-                    ref={spriteMatRef}
-                    color="#0a4a3a"
-                    transparent
-                    opacity={0.2}
-                    depthWrite={false}
-                    toneMapped={false}
-                    blending={THREE.AdditiveBlending}
-                />
-            </sprite>
-            <pointLight ref={lightRef} intensity={0.3} distance={4} decay={1.5} color="#0a4a3a" />
-        </group>
-    );
-};
+const CRYSTAL_GEO = new THREE.OctahedronGeometry(0.35, 0);
+
+const CrystalCluster: React.FC<{ x: number; y: number; z: number; color: string }> = ({ x, y, z, color }) => (
+    <group position={[x, y, z]}>
+        <mesh geometry={CRYSTAL_GEO} rotation={[0.3, 0.8, 0]} scale={1.4}>
+            <meshStandardMaterial
+                color={color}
+                emissive={color}
+                emissiveIntensity={2.2}
+                metalness={0.55}
+                roughness={0.15}
+                toneMapped={false}
+            />
+        </mesh>
+        <mesh geometry={CRYSTAL_GEO} scale={0.75} position={[0.45, -0.20, 0.15]} rotation={[0.6, 1.2, 0.3]}>
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.9} metalness={0.5} roughness={0.18} toneMapped={false} />
+        </mesh>
+        <mesh geometry={CRYSTAL_GEO} scale={0.55} position={[-0.42, -0.25, -0.05]} rotation={[-0.4, 0.5, 0.7]}>
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.7} metalness={0.5} roughness={0.2} toneMapped={false} />
+        </mesh>
+        <mesh geometry={CRYSTAL_GEO} scale={0.4} position={[0.0, 0.35, -0.15]} rotation={[0.2, 0.2, 1.4]}>
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.4} metalness={0.5} roughness={0.2} toneMapped={false} />
+        </mesh>
+        {/* Dim pointLight — low intensity avoids square light artifact.
+            Higher intensity = square on mobile GPU. We compensate with
+            the larger glow sprite below. */}
+        <pointLight intensity={0.8} distance={7} decay={1.4} color={color} />
+        {/* Round glow halo — additive sprite, always circular, no square */}
+        <sprite scale={[2.5, 2.5, 1]}>
+            <spriteMaterial color={color} transparent opacity={0.45} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+        </sprite>
+        {/* Bigger soft outer glow for atmospheric pool of light */}
+        <sprite scale={[5.0, 5.0, 1]}>
+            <spriteMaterial color={color} transparent opacity={0.12} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+        </sprite>
+    </group>
+);
 
 // ─── Central torches — warm wall-mounted flames around the cave ───────
 const TORCH_POSITIONS: readonly (readonly [number, number, number])[] = [
@@ -1222,9 +1227,9 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             </mesh>
         ))}
 
-        {/* FIX #2: Bioluminescent spores replace CrystalCluster */}
-        {SPORES.map(([x, y, z], i) => (
-            <BioluminescentSpore key={`spore-${i}`} x={x} y={y} z={z} seed={i * 5.7} />
+        {/* Decorative glowing crystal clusters on the walls */}
+        {CRYSTALS.map(([x, y, z, color], i) => (
+            <CrystalCluster key={`crystal-${i}`} x={x} y={y} z={z} color={color} />
         ))}
 
         {/* Wall-mounted torches with flicker */}
@@ -1237,6 +1242,26 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
         <WaterSurface reflective={reflective} />
+
+        {/* Opaque water ceiling — blocks x-ray vision from below.
+            This is a flat, OPAQUE plane at the water level that only
+            renders its BACK face (visible from underwater looking up).
+            It writes to the depth buffer, so all cave geometry above
+            is correctly occluded. The Gerstner wave shader on top
+            (transparent, depthWrite=false) can't block anything because
+            transparent objects don't write depth. This plane does. */}
+        <mesh
+            position={[HOLE_CENTER_X, WATER_LEVEL_Y + 0.02, HOLE_CENTER_Z]}
+            rotation={[-Math.PI / 2, 0, 0]}
+        >
+            <circleGeometry args={[HOLE_RADIUS, 32]} />
+            <meshBasicMaterial
+                color="#020810"
+                side={THREE.BackSide}
+                depthWrite={true}
+                transparent={false}
+            />
+        </mesh>
 
         {/* ─── UNDERWATER (Y < 0) ────────────────────────────────────── */}
         {/* FIX #7: Better UW floor textures, FIX #5: very dark color */}

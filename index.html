@@ -105192,47 +105192,40 @@ const STALACTITES = [
   [-22, 20, 1.3, 0.4],
   [18, -25, 1.7, 0.5]
 ];
-const SPORES = [
-  [-28, 2, 8],
-  [-28, 3.5, 6],
-  [28, 2.5, -5],
-  [28, 4, -3],
-  [-10, 0.8, 28],
-  [-10, 1.5, 26],
-  [12, 0.6, -28],
-  [12, 1.2, -26],
-  [-28, 3.5, -18],
-  [-28, 5, -16],
-  [28, 1.2, 20],
-  [28, 2.8, 18],
-  [-20, 4, -24],
-  [20, 3.5, 22]
+const CRYSTALS = [
+  [-28, 2.2, 8, "#9ae6ff"],
+  // cyan, west wall
+  [28, 3.5, -5, "#c39bff"],
+  // purple, east wall
+  [-10, 0.6, 28, "#ff9ad8"],
+  // pink, north wall
+  [12, 0.8, -28, "#ffd066"],
+  // amber, south wall
+  [-28, 4.5, -18, "#9affae"],
+  // green, west wall further
+  [28, 1.5, 20, "#84d8ff"]
+  // light blue, east wall
 ];
-const BioluminescentSpore = ({ x: x2, y, z, seed: seed3 }) => {
-  const spriteMatRef = reactExports.useRef(null);
-  const lightRef = reactExports.useRef(null);
-  useFrame((state2) => {
-    const t2 = state2.clock.elapsedTime;
-    const pulse = 0.4 + Math.sin(t2 * 0.4 + seed3) * 0.3;
-    if (spriteMatRef.current) spriteMatRef.current.opacity = pulse * 0.35;
-    if (lightRef.current) lightRef.current.intensity = 0.3 * pulse;
-  });
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, y, z], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [0.3, 0.3, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "spriteMaterial",
-      {
-        ref: spriteMatRef,
-        color: "#0a4a3a",
-        transparent: true,
-        opacity: 0.2,
-        depthWrite: false,
-        toneMapped: false,
-        blending: AdditiveBlending
-      }
-    ) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { ref: lightRef, intensity: 0.3, distance: 4, decay: 1.5, color: "#0a4a3a" })
-  ] });
-};
+const CRYSTAL_GEO = new OctahedronGeometry(0.35, 0);
+const CrystalCluster = ({ x: x2, y, z, color: color2 }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, y, z], children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, rotation: [0.3, 0.8, 0], scale: 1.4, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "meshStandardMaterial",
+    {
+      color: color2,
+      emissive: color2,
+      emissiveIntensity: 2.2,
+      metalness: 0.55,
+      roughness: 0.15,
+      toneMapped: false
+    }
+  ) }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, scale: 0.75, position: [0.45, -0.2, 0.15], rotation: [0.6, 1.2, 0.3], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, emissive: color2, emissiveIntensity: 1.9, metalness: 0.5, roughness: 0.18, toneMapped: false }) }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, scale: 0.55, position: [-0.42, -0.25, -0.05], rotation: [-0.4, 0.5, 0.7], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, emissive: color2, emissiveIntensity: 1.7, metalness: 0.5, roughness: 0.2, toneMapped: false }) }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: CRYSTAL_GEO, scale: 0.4, position: [0, 0.35, -0.15], rotation: [0.2, 0.2, 1.4], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, emissive: color2, emissiveIntensity: 1.4, metalness: 0.5, roughness: 0.2, toneMapped: false }) }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("pointLight", { intensity: 0.8, distance: 7, decay: 1.4, color: color2 }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [2.5, 2.5, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { color: color2, transparent: true, opacity: 0.45, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { scale: [5, 5, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { color: color2, transparent: true, opacity: 0.12, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) })
+] });
 const TORCH_POSITIONS = [
   [-29.5, 5.5, 0],
   [29.5, 5.5, 0],
@@ -106086,10 +106079,29 @@ const Floor2Environment = ({
       /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [r2, h2, 6] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#322a1f", roughness: 1, flatShading: true })
     ] }, `stalactite-${i2}`)),
-    SPORES.map(([x2, y, z], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(BioluminescentSpore, { x: x2, y, z, seed: i2 * 5.7 }, `spore-${i2}`)),
+    CRYSTALS.map(([x2, y, z, color2], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(CrystalCluster, { x: x2, y, z, color: color2 }, `crystal-${i2}`)),
     TORCH_POSITIONS.map(([x2, y, z], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Torch, { x: x2, y, z, seed: i2 * 7.3 }, `torch-${i2}`)),
     /* @__PURE__ */ jsxRuntimeExports.jsx(DustMotes, {}),
     /* @__PURE__ */ jsxRuntimeExports.jsx(WaterSurface, { reflective }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "mesh",
+      {
+        position: [HOLE_CENTER_X, WATER_LEVEL_Y + 0.02, HOLE_CENTER_Z],
+        rotation: [-Math.PI / 2, 0, 0],
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("circleGeometry", { args: [HOLE_RADIUS, 32] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "meshBasicMaterial",
+            {
+              color: "#020810",
+              side: BackSide,
+              depthWrite: true,
+              transparent: false
+            }
+          )
+        ]
+      }
+    ),
     /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: UW_FLOOR_GEO, rotation: [-Math.PI / 2, 0, 0], position: [0, -30, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       "meshStandardMaterial",
       {
