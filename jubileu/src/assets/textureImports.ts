@@ -38,6 +38,11 @@ export { default as uwRockNormal }       from './textures/underwater/rock_normal
 export { default as uwRockRoughness }    from './textures/underwater/rock_roughness.jpg';
 export { default as uwRockAO }           from './textures/underwater/rock_ao.jpg';
 
+export { default as uwWallColor }        from './textures/underwater/wall_color.jpg';
+export { default as uwWallNormal }       from './textures/underwater/wall_normal.jpg';
+export { default as uwWallRoughness }    from './textures/underwater/wall_roughness.jpg';
+export { default as uwWallAO }           from './textures/underwater/wall_ao.jpg';
+
 // ─── Rock GLB models ──────────────────────────────────────────────
 export { default as rockModelA }   from './models/rocks/rock_a.glb';
 export { default as rockModelB }   from './models/rocks/rock_b.glb';
