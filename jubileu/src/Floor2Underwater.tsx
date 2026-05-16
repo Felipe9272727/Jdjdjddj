@@ -108,13 +108,20 @@ const CAVE_FLOOR_GEO = (() => {
         );
         const edgeFade = Math.min(1, edgeDist / 3);
         const fade = holeFade * edgeFade;
-        // More dramatic multi-octave noise for realistic unevenness
-        const n = Math.sin(v.x * 0.8 + 2.3) * 0.5
-                + Math.sin(v.y * 0.6 + 1.1) * 0.4
-                + Math.cos(v.x * 1.2 + v.y * 0.9 + 4.5) * 0.3
-                + Math.sin(v.x * 2.1 + v.y * 1.7 + 3.2) * 0.15
-                + Math.cos(v.x * 3.5 + v.y * 2.8 + 1.8) * 0.08;
-        positions.setZ(i, v.z + n * 0.4 * fade);
+        // Dramatic multi-octave cave terrain — visible rocky elevation changes
+        const n1 = Math.sin(v.x * 0.5 + 2.3) * 1.0
+                 + Math.sin(v.y * 0.4 + 1.1) * 0.9
+                 + Math.cos(v.x * 0.8 + v.y * 0.6 + 4.5) * 0.7;
+        const n2 = Math.sin(v.x * 1.4 + v.y * 1.1 + 3.2) * 0.5
+                 + Math.cos(v.x * 2.2 + v.y * 1.8 + 1.8) * 0.3
+                 + Math.sin(v.x * 3.1 + v.y * 2.7) * 0.2;
+        // Sharp ridges — cave-like rocky outcroppings
+        const ridge1 = Math.abs(Math.sin(v.x * 0.7 + 1.5)) * Math.abs(Math.cos(v.y * 0.5 + 2.3)) * 1.2;
+        const ridge2 = Math.abs(Math.sin(v.x * 1.3 + v.y * 0.9 + 0.7)) * 0.5;
+        // Cracks — narrow depressions
+        const crack = Math.abs(Math.sin(v.x * 2.5 + v.y * 1.8 + 3.1)) < 0.15 ? -0.4 : 0;
+        const totalN = n1 + n2 + ridge1 + ridge2 + crack;
+        positions.setZ(i, v.z + totalN * 1.8 * fade);
     }
     positions.needsUpdate = true;
     geo.computeVertexNormals();
@@ -244,7 +251,7 @@ const POOL_RIM: readonly Boulder[] = (() => {
         const z = HOLE_CENTER_Z + Math.sin(a) * r * jitter;
         const s = 0.7 + (Math.sin(i * 7.3) * 0.5 + 0.5) * 0.7;
         const ry = a + Math.sin(i * 3.1) * 0.4;
-        result.push([x, 0, z, s, ry] as const);
+        result.push([x, 0.15, z, s, ry] as const);
     }
     return result;
 })();
@@ -531,6 +538,8 @@ const UnderwaterOverlayMaterial = shaderMaterial(
       varying vec2 vUv;
       void main() {
         vec2 uv = vUv;
+        // Screen-space wobble — underwater distortion
+        uv += vec2(sin(uv.y * 30.0 + time * 2.0) * 0.003, cos(uv.x * 25.0 + time * 1.7) * 0.003) * (1.0 - depth);
         // Center-based UV for vignette
         vec2 center = uv - 0.5;
         float vignette = 1.0 - dot(center, center) * 2.5;
@@ -538,7 +547,7 @@ const UnderwaterOverlayMaterial = shaderMaterial(
         // Caustic-like pattern on the overlay
         float c1 = sin(uv.x * 18.0 + time * 1.4) * sin(uv.y * 15.0 + time * 1.1);
         float c2 = sin(uv.x * 12.0 - time * 0.9 + 1.5) * sin(uv.y * 10.0 + time * 1.3);
-        float caustic = pow(max(0.0, c1 * c2), 3.0) * 0.12;
+        float caustic = pow(max(0.0, c1 * c2), 2.5) * 0.2;
         // Color tinting based on depth — dramatic absorption
         vec3 shallowTint = vec3(0.0, 0.025, 0.04);
         vec3 midTint = vec3(0.0, 0.015, 0.07);
@@ -552,7 +561,7 @@ const UnderwaterOverlayMaterial = shaderMaterial(
         // Add caustic highlights to the tint
         tint += vec3(0.0, caustic * 0.4, caustic * 0.3);
         // Alpha increases with depth, vignette softens edges
-        float alpha = (0.12 + depth * 0.3) * vignette;
+        float alpha = (0.18 + depth * 0.45) * vignette;
         // Slight chromatic-aberration color shift at edges
         float edgeDist = length(center) * 2.0;
         tint.r += edgeDist * 0.005 * depth;
@@ -898,8 +907,8 @@ const CausticsMaterial = shaderMaterial(
         float c3 = sin(uv.x * 12.0 + uv.y * 8.0 + time * 2.0) * sin(uv.y * 10.0 - uv.x * 6.0 + time * 1.8);
         float c = pow(max(0.0, sin(a) * sin(b)), 2.0) + pow(max(0.0, c3), 3.0) * 0.5;
         // 3x brighter caustics — visible even in horror darkness
-        vec3 col = vec3(c * 0.24, c * 0.54, c * 0.42);
-        gl_FragColor = vec4(col, c * 0.35);
+        vec3 col = vec3(c * 0.35, c * 0.65, c * 0.50);
+        gl_FragColor = vec4(col, c * 0.45);
       }
     `
 );
@@ -1424,6 +1433,52 @@ export const SHARD_POSITIONS: readonly (readonly [number, number, number])[] = [
     [ 19.5, -27.7,  11.5],
 ] as const;
 
+// ─── Water occluder — depth-only mesh that blocks X-ray from underwater ──
+const WaterOccluder: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
+    const meshRef = useRef<THREE.Mesh>(null);
+    useFrame(() => {
+        const m = meshRef.current;
+        if (m) {
+            m.visible = playerPositionRef.current.y < SWIM_THRESHOLD_Y;
+        }
+    });
+    return (
+        <mesh
+            ref={meshRef}
+            position={[HOLE_CENTER_X, WATER_LEVEL_Y - 0.05, HOLE_CENTER_Z]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            renderOrder={-1}
+        >
+            <circleGeometry args={[HOLE_RADIUS + 0.3, 48]} />
+            <meshBasicMaterial colorWrite={false} depthWrite={true} transparent={false} side={THREE.DoubleSide} />
+        </mesh>
+    );
+};
+
+// ─── God rays — light shafts from the surface hole ────────────────────
+const GOD_RAY_GEO = new THREE.CylinderGeometry(1, 0.3, 15, 8, 1, true);
+const GodRays: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
+    const groupRef = useRef<THREE.Group>(null);
+    useFrame(() => {
+        const g = groupRef.current;
+        if (g) {
+            g.visible = playerPositionRef.current.y < SWIM_THRESHOLD_Y;
+        }
+    });
+    return (
+        <group ref={groupRef} position={[HOLE_CENTER_X, -15, HOLE_CENTER_Z]}>
+            {/* Main central ray */}
+            <mesh geometry={GOD_RAY_GEO} rotation={[0, 0, 0.1]}>
+                <meshBasicMaterial color="#1a4a5a" transparent opacity={0.04} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
+            </mesh>
+            {/* Secondary offset ray */}
+            <mesh geometry={GOD_RAY_GEO} position={[0.5, -2, 0.3]} rotation={[0.05, 0.3, -0.15]} scale={0.7}>
+                <meshBasicMaterial color="#1a5a6a" transparent opacity={0.03} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
+            </mesh>
+        </group>
+    );
+};
+
 // ─── Full level ────────────────────────────────────────────────────────
 interface Floor2EnvironmentProps {
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
@@ -1493,7 +1548,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 color="#1a1610"
                 map={caveFloor.color}
                 normalMap={caveFloor.normal}
-                normalScale={new THREE.Vector2(4.0, 4.0)}
+                normalScale={new THREE.Vector2(6.0, 6.0)}
                 roughnessMap={caveFloor.rough}
                 roughness={0.92}
                 aoMap={caveFloor.ao}
@@ -1594,6 +1649,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             BackSide = only visible from below (underwater), blocks seeing cave/elevator through water.
             Uses WaterCeilingMaterial for animated ripple effect. */}
         <WaterCeilingDisc />
+        <WaterOccluder playerPositionRef={playerPositionRef} />
 
         {/* Underwater overlay — screen-space tint and caustic when underwater */}
         <UnderwaterOverlay playerPositionRef={playerPositionRef} />
@@ -1620,6 +1676,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
         {/* God ray shafts descending from the surface */}
         <GodRayShafts />
+        <GodRays playerPositionRef={playerPositionRef} />
 
         {/* Deep Mist — drifting fog plane */}
         <DeepMist />
