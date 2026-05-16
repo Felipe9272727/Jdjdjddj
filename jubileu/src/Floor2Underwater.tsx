@@ -111,7 +111,7 @@ const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);  // kept for instanced 
 // with layered sine noise for gentle rolling terrain. Edges fade flat so
 // the floor connects seamlessly with the underwater walls.
 const UW_FLOOR_GEO = (() => {
-    const geo = new THREE.PlaneGeometry(80, 80, 64, 64);
+    const geo = new THREE.PlaneGeometry(80, 80, 32, 32);
     const positions = geo.attributes.position;
     const v = new THREE.Vector3();
     for (let i = 0; i < positions.count; i++) {
@@ -659,10 +659,10 @@ const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vec
         if (!scene.fog || !(scene.fog instanceof THREE.Fog)) return;
         const submerged = y < SWIM_THRESHOLD_Y;
         // Target presets
-        const tgtBg   = submerged ? 0x041422 : 0x0e0a08;
-        const tgtFog  = submerged ? 0x041422 : 0x0e0a08;
-        const tgtNear = submerged ? 0.5 : 14;
-        const tgtFar  = submerged ? 14  : 55;
+        const tgtBg   = submerged ? 0x020808 : 0x0e0a08;
+        const tgtFog  = submerged ? 0x020808 : 0x0e0a08;
+        const tgtNear = submerged ? 0.3 : 14;
+        const tgtFar  = submerged ? 10  : 55;
         // Lerp colors + fog distances toward targets at ~8/s rate.
         const k = Math.min(1, 8 * Math.min(0.05, dt));
         _fogColor.current.lerp(new THREE.Color(tgtFog), k);
@@ -731,8 +731,8 @@ const CausticsMaterial = shaderMaterial(
         float b = sin(uv.y * 6.28 + time * 0.5 + 1.2) + sin((uv.y - uv.x) * 4.5 + time * 0.7);
         float c = pow(max(0.0, sin(a) * sin(b)), 3.0);
         // Slightly chromatically split for "RGB caustics" feel.
-        vec3 col = vec3(c * 0.85, c * 0.95, c * 1.0);
-        gl_FragColor = vec4(col, c * 0.55);
+        vec3 col = vec3(c * 0.15, c * 0.25, c * 0.12);
+        gl_FragColor = vec4(col, c * 0.2);
       }
     `
 );
@@ -748,7 +748,7 @@ const UnderwaterCaustics: React.FC = () => {
     useFrame((state) => { (mat as any).time = state.clock.elapsedTime; });
     return (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -29.95, 0]}>
-            <planeGeometry args={[80, 80]} />
+            <planeGeometry args={[40, 40]} />
             <primitive object={mat} attach="material" />
         </mesh>
     );
@@ -769,27 +769,20 @@ const KELP_POSITIONS: readonly KelpData[] = [
     [-6.5,  3.0, 4.8, 2.3],
     [10.0,  4.0, 4.5, 0.9],
     [11.5,  6.0, 3.5, 1.7],
-    [-8.0, -8.0, 3.5, 0.5],
-    [-9.5, -7.0, 4.2, 1.9],
-    [12.0, -10.0, 4.0, 1.2],
-    [-15.0,  5.0, 3.8, 0.4],
-    [ 14.0,  8.0, 4.5, 2.1],
-    [ -6.0,  16.0, 3.3, 1.6],
-    [  8.0,  15.0, 4.8, 0.8],
 ];
 type CoralData = readonly [number, number, string, number]; // x, z, color, scale
 const CORAL_POSITIONS: readonly CoralData[] = [
-    [ 3.0, -5.0, '#ff6b3d', 1.0],
-    [-4.0,  6.0, '#ff9750', 0.8],
-    [ 9.0, -2.0, '#ff5555', 1.2],
-    [-12.0, -5.0, '#ffa030', 0.9],
-    [13.0,  3.0, '#ff7050', 1.0],
-    [-8.0, 12.0, '#ff8060', 0.7],
+    [ 3.0, -5.0, '#4a3a2a', 1.0],
+    [-4.0,  6.0, '#3a3028', 0.8],
+    [ 9.0, -2.0, '#5a4a38', 1.2],
+    [-12.0, -5.0, '#483828', 0.9],
+    [13.0,  3.0, '#3a3028', 1.0],
+    [-8.0, 12.0, '#5a4a3a', 0.7],
 ];
 
 const Kelp: React.FC<{ x: number; z: number; height: number; phase: number }> = ({ x, z, height, phase }) => {
     const groupRef = useRef<THREE.Group>(null);
-    const segments = 5;
+    const segments = 3;
     const refs = useRef<(THREE.Mesh | null)[]>(new Array(segments).fill(null));
     useFrame((state) => {
         const t = state.clock.elapsedTime;
@@ -813,7 +806,7 @@ const Kelp: React.FC<{ x: number; z: number; height: number; phase: number }> = 
                     geometry={KELP_GEO}
                     scale={[1 - i * 0.1, segLen, 1 - i * 0.1]}
                 >
-                    <meshStandardMaterial color={i < 2 ? '#0e3a1e' : '#2a6a3c'} roughness={0.85} flatShading />
+                    <meshStandardMaterial color={i < 2 ? '#1a1810' : '#2a2218'} roughness={0.85} flatShading />
                 </mesh>
             ))}
         </group>
@@ -823,19 +816,19 @@ const Coral: React.FC<{ x: number; z: number; color: string; scale: number }> = 
     <group position={[x, -30, z]} scale={scale}>
         <mesh position={[0, 0.5, 0]}>
             <sphereGeometry args={[0.6, 8, 6]} />
-            <meshStandardMaterial color={color} roughness={0.4} metalness={0.05} flatShading />
+            <meshStandardMaterial color={color} roughness={0.95} metalness={0.05} flatShading />
         </mesh>
         <mesh position={[0.3, 0.9, 0.2]}>
             <sphereGeometry args={[0.4, 8, 6]} />
-            <meshStandardMaterial color={color} roughness={0.4} metalness={0.05} flatShading />
+            <meshStandardMaterial color={color} roughness={0.95} metalness={0.05} flatShading />
         </mesh>
         <mesh position={[-0.35, 1.0, -0.15]}>
             <sphereGeometry args={[0.35, 8, 6]} />
-            <meshStandardMaterial color={color} roughness={0.4} metalness={0.05} flatShading />
+            <meshStandardMaterial color={color} roughness={0.95} metalness={0.05} flatShading />
         </mesh>
         <mesh position={[0.1, 1.3, 0.3]}>
             <sphereGeometry args={[0.28, 8, 6]} />
-            <meshStandardMaterial color={color} roughness={0.4} metalness={0.05} flatShading />
+            <meshStandardMaterial color={color} roughness={0.95} metalness={0.05} flatShading />
         </mesh>
     </group>
 );
@@ -863,9 +856,9 @@ const GodRayShafts: React.FC = () => {
                     >
                         <planeGeometry args={[1.6 + (i % 3) * 0.4, 28]} />
                         <meshBasicMaterial
-                            color="#a8d8f0"
+                            color="#1a3028"
                             transparent
-                            opacity={0.07 + (i % 3) * 0.015}
+                            opacity={0.04 + (i % 3) * 0.008}
                             side={THREE.DoubleSide}
                             depthWrite={false}
                             blending={THREE.AdditiveBlending}
@@ -883,7 +876,7 @@ const GodRayShafts: React.FC = () => {
 // height oscillation, and phase offset → school motion without real
 // boids. Sells "alive ecosystem" instantly.
 const FISH_GEO = new THREE.ConeGeometry(0.18, 0.55, 4);
-const FISH_COUNT = 14;
+const FISH_COUNT = 8;
 const FishSchool: React.FC = () => {
     const refs = useRef<(THREE.Mesh | null)[]>(new Array(FISH_COUNT).fill(null));
     useFrame((state) => {
@@ -916,10 +909,10 @@ const FishSchool: React.FC = () => {
                     scale={0.6 + (i % 3) * 0.25}
                 >
                     <meshStandardMaterial
-                        color={i % 3 === 0 ? '#a0c8d8' : i % 3 === 1 ? '#7090a0' : '#88a8c0'}
-                        emissive={i % 3 === 0 ? '#284050' : '#1c2830'}
-                        emissiveIntensity={0.4}
-                        roughness={0.6}
+                        color={i % 3 === 0 ? '#1a2a30' : i % 3 === 1 ? '#0e1a20' : '#162228'}
+                        emissive={i % 3 === 0 ? '#081018' : '#060c10'}
+                        emissiveIntensity={0.2}
+                        roughness={0.8}
                         flatShading
                     />
                 </mesh>
@@ -950,7 +943,7 @@ const BUBBLE_MIN_Y = -29;
 // Tiny green-white specs floating in the water column. Sells "alive
 // underwater ecosystem" without any real cost — InstancedMesh, 40
 // particles, no useFrame per-particle (position set once).
-const PLANKTON_COUNT = 40;
+const PLANKTON_COUNT = 20;
 const PLANKTON_GEO = new THREE.SphereGeometry(1, 4, 3);
 const PlanktonField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(PLANKTON_COUNT).fill(null));
@@ -968,7 +961,7 @@ const PlanktonField: React.FC = () => {
     });
     return (
         <Instances limit={PLANKTON_COUNT} range={PLANKTON_COUNT} geometry={PLANKTON_GEO}>
-            <meshBasicMaterial color="#a8e8c8" transparent opacity={0.3} depthWrite={false} toneMapped={false} />
+            <meshBasicMaterial color="#4a3a20" transparent opacity={0.15} depthWrite={false} toneMapped={false} />
             {Array.from({ length: PLANKTON_COUNT }, (_, i) => {
                 const x = HOLE_CENTER_X + (Math.random() - 0.5) * 30;
                 const y = -3 + Math.random() * -25;
@@ -1010,7 +1003,7 @@ const BubbleField: React.FC = () => {
 
     return (
         <Instances limit={BUBBLE_COUNT} range={BUBBLE_COUNT} geometry={BUBBLE_GEO}>
-            <meshBasicMaterial color="#b8e0f0" transparent opacity={0.35} depthWrite={false} toneMapped={false} />
+            <meshBasicMaterial color="#2a3a40" transparent opacity={0.2} depthWrite={false} toneMapped={false} />
             {Array.from({ length: BUBBLE_COUNT }, (_, i) => (
                 <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} scale={0.03 + Math.random() * 0.05} />
             ))}
@@ -1148,7 +1141,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <color attach="background" args={['#0e0a08']} />
         <fog attach="fog" args={['#0e0a08', 14, 55]} />
 
-        <ambientLight intensity={0.65} color="#d8c0a0" />
+        <ambientLight intensity={0.45} color="#d8c0a0" />
         <hemisphereLight intensity={0.5} color="#c8a888" groundColor="#1a1612" />
         <directionalLight position={[5, 20, 5]} intensity={0.7} color="#ffe8c0" />
 
@@ -1218,12 +1211,12 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             at Y=-0.02, fixing the z-fighting/overlap issue Felipe reported. */}
         <mesh position={[HOLE_CENTER_X, -0.08, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
             <torusGeometry args={[HOLE_RADIUS + 0.2, 0.35, 8, 24]} />
-            <meshStandardMaterial map={caveFloor.color} normalMap={caveFloor.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveFloor.rough} roughness={0.95} />
+            <meshStandardMaterial map={caveFloor.color} normalMap={caveFloor.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveFloor.rough} roughness={0.95} depthWrite={false} />
         </mesh>
 
         {/* POOL RIM — individual boulders forming the circular edge */}
         {POOL_RIM.map(([x, y, z, s, ry], i) => (
-            <group key={`rim-${i}`} position={[x, y - 0.1 + s * 0.3, z]} scale={[s, s * 0.5, s]} rotation={[0, ry, 0]}>
+            <group key={`rim-${i}`} position={[x, y - 0.15 + s * 0.25, z]} scale={[s, s * 0.5, s]} rotation={[0, ry, 0]}>
                 <primitive object={rockScenes[i % 4].clone(true)} />
             </group>
         ))}
@@ -1270,11 +1263,12 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Underwater rocky ground — real PBR textures from ambientcg Ground037 */}
         <mesh geometry={UW_FLOOR_GEO} rotation={[-Math.PI / 2, 0, 0]} position={[0, -30, 0]}>
             <meshStandardMaterial
+                color="#1a1a18"
                 map={uwFloor.color}
                 normalMap={uwFloor.normal}
                 normalScale={new THREE.Vector2(2.5, 2.5)}
                 roughnessMap={uwFloor.rough}
-                roughness={0.95}
+                roughness={0.98}
                 aoMap={uwFloor.ao}
                 aoMapIntensity={0.7}
             />
