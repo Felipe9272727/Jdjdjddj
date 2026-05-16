@@ -28,11 +28,11 @@ import { FlashlightLight, FlashlightModel3D } from './FlashlightLight';
 import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
-import { Floor2Environment, SHARD_POSITIONS, SWIM_THRESHOLD_Y } from './Floor2Underwater';
+import { Floor2Environment, SHARD_POSITIONS } from './Floor2Underwater';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
-import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES, type QualityProfile, type Quality } from './Settings';
+import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES, type QualityProfile } from './Settings';
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
 import { RobloxChat, BubbleChatFallback } from './ChatSystem';
 import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient, EmptyLobbyAmbience } from './PostEffects';
@@ -60,12 +60,11 @@ interface WorldProps {
   nightMode: boolean;
   doorOpenAmount: number;
   profile: QualityProfile;
-  quality: Quality;
   collectedShards: Set<number>;
   onCollectShard: (i: number) => void;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, quality, collectedShards, onCollectShard }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -89,7 +88,6 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
             collectedShards={collectedShards}
             onCollectShard={onCollectShard}
             reflective={profile.atmosphere}
-            quality={quality}
           />
         </Suspense>
       )}
@@ -133,17 +131,6 @@ export default function App() {
   const [arrivalPulse, setArrivalPulse] = useState(false);
 
   const [gameState, setGameState] = useState<GameState>('lobby');
-  // Track whether the player is actually underwater on level 2 (Y < SWIM_THRESHOLD_Y).
-  // Used to conditionally render the blue tint overlay and adjust post-processing.
-  const [isUnderwater, setIsUnderwater] = useState(false);
-  useEffect(() => {
-    if (currentLevel !== 2) { setIsUnderwater(false); return; }
-    const id = setInterval(() => {
-      const y = sharedPlayerPositionRef.current?.y ?? 0;
-      setIsUnderwater(y < SWIM_THRESHOLD_Y);
-    }, 100); // poll at 10 Hz — fast enough for smooth overlay transitions
-    return () => clearInterval(id);
-  }, [currentLevel]);
   const [barneyDialogueOpen, setBarneyDialogueOpen] = useState(false);
   const [barneyDialogueNode, setBarneyDialogueNode] = useState('greet');
   const [canSleep, setCanSleep] = useState(false);
@@ -740,7 +727,7 @@ export default function App() {
         />
         <AdaptiveDpr pixelated />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} quality={settings.quality} collectedShards={collectedShards} onCollectShard={handleCollectShard} />
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -808,14 +795,14 @@ export default function App() {
                 />
                 <ChromaticAberration
                     blendFunction={BlendFunction.NORMAL}
-                    offset={isUnderwater ? [0.002, 0.002] as unknown as Vector3 : [0, 0] as unknown as Vector3}
+                    offset={currentLevel === 2 ? [0.002, 0.002] as unknown as Vector3 : [0, 0] as unknown as Vector3}
                     radialModulation={false}
                     modulationOffset={0.0}
                 />
                 <Vignette
                     eskil={false}
-                    offset={isUnderwater ? 0.4 : 0.2}
-                    darkness={isUnderwater ? 0.6 : 0.3}
+                    offset={currentLevel === 2 ? 0.4 : 0.2}
+                    darkness={currentLevel === 2 ? 0.6 : 0.3}
                 />
             </EffectComposer>
         )}
@@ -877,16 +864,16 @@ export default function App() {
       )}
       {settings.showFps && hasStarted && <FpsCounter />}
 
-      {/* Floor 2 "cold" overlay — visible blue/cyan tint when underwater.
-          Only shows when the player is actually underwater (below SWIM_THRESHOLD_Y),
-          not while walking the cave. Uses screen blend mode so the blue is additive
-          and clearly visible even in dark scenes. */}
-      {hasStarted && currentLevel === 2 && isUnderwater && (
+      {/* Floor 2 "cold" overlay — radial cyan tint at the edges, blue
+          color cast in the middle. Sells underwater + cold without
+          touching the renderer. Pure DOM, pointer-none. */}
+      {hasStarted && currentLevel === 2 && (
         <div
-          className="fixed inset-0 z-[8] pointer-events-none transition-opacity duration-500"
+          className="fixed inset-0 z-[8] pointer-events-none"
           style={{
             background:
-              'radial-gradient(ellipse at center, rgba(10,60,120,0.15) 20%, rgba(5,40,90,0.35) 55%, rgba(0,25,60,0.55) 100%)',
+              'radial-gradient(ellipse at center, rgba(0,40,80,0.0) 35%, rgba(0,30,60,0.35) 70%, rgba(0,20,40,0.65) 100%)',
+            mixBlendMode: 'multiply',
           }}
         />
       )}

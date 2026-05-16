@@ -478,19 +478,14 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         if (pos.current.x >  39) pos.current.x =  39;
         if (pos.current.z < -39) pos.current.z = -39;
         if (pos.current.z >  39) pos.current.z =  39;
-        // Surfacing check: when player swims close to the cave floor (Y ≈ 0),
-        // decide whether they exit the water or get capped below the floor.
-        // SWIM_THRESHOLD_Y is -0.3 (below cave floor at Y=0), so we use a
-        // separate surfacing threshold that's closer to the actual floor.
-        const SURFACE_CHECK_Y = -0.1;
-        if (pos.current.y > SURFACE_CHECK_Y) {
+        if (pos.current.y > SWIM_THRESHOLD_Y) {
+            // Surfaced — if inside the hole, allow popping out into the cave.
             const dxHole = pos.current.x - HOLE_CENTER_X;
             const dzHole = pos.current.z - HOLE_CENTER_Z;
             if (dxHole * dxHole + dzHole * dzHole < HOLE_RADIUS * HOLE_RADIUS) {
-                pos.current.y = 0.05; // step onto cave floor → exits swim mode next frame
+                pos.current.y = 0.05; // step onto cave floor
             } else {
-                // Outside the hole — cave floor is solid here, cap below it
-                pos.current.y = -0.15; // stay underwater, just below surfacing check
+                pos.current.y = SWIM_THRESHOLD_Y - 0.05; // cap below cave floor
             }
         }
 
