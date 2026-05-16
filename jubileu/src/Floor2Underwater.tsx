@@ -126,6 +126,20 @@ const CAVE_FLOOR_GEO = (() => {
         positions.setZ(i, v.z + totalN * 2.5 * fade);
     }
     positions.needsUpdate = true;
+    // ─── FIX: Remap UVs to cover the ENTIRE floor surface ───
+    // ShapeGeometry with holes generates broken UVs near the hole cutout,
+    // causing the texture to only appear on part of the floor.
+    // We manually remap UVs based on XY position (which becomes XZ in world),
+    // normalizing -size..+size → 0..1 so the texture covers everything.
+    const uvAttr = geo.attributes.uv;
+    const floorSize = size * 2; // 60 units total
+    for (let i = 0; i < positions.count; i++) {
+        v.fromBufferAttribute(positions, i);
+        const u = (v.x + size) / floorSize;  // -30..30 → 0..1
+        const v2 = (v.y + size) / floorSize; // -30..30 → 0..1
+        uvAttr.setXY(i, u, v2);
+    }
+    uvAttr.needsUpdate = true;
     geo.computeVertexNormals();
     return geo;
 })();
@@ -1873,17 +1887,18 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     return (
     <group>
         <color attach="background" args={['#0e0a08']} />
-        <fog attach="fog" args={['#0e0a08', 14, 55]} />
+        <fog attach="fog" args={['#0e0a08', 16, 60]} />
 
-        {/* Horror lighting — MUCH darker */}
-        <ambientLight intensity={0.25} color="#d8c0a0" />
-        <hemisphereLight intensity={0.20} color="#c8a888" groundColor="#1a1612" />
-        <directionalLight position={[5, 20, 5]} intensity={0.20} color="#ffe8c0" />
+        {/* Horror lighting — dark but visible */}
+        <ambientLight intensity={0.35} color="#d8c0a0" />
+        <hemisphereLight intensity={0.28} color="#c8a888" groundColor="#1a1612" />
+        <directionalLight position={[5, 20, 5]} intensity={0.25} color="#ffe8c0" />
 
         {/* Ember sprites — warm glow on floor, NO pointLight (square artifact) */}
-        <sprite position={[-25, 0.8, 0]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#3a1008" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
-        <sprite position={[25, 0.8, -5]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#3a1008" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
-        <sprite position={[0, 0.8, 25]} scale={[5, 5, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#3a1008" transparent opacity={0.15} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[-25, 0.8, 0]} scale={[7, 7, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.25} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[25, 0.8, -5]} scale={[7, 7, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.25} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[0, 0.8, 25]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[0, 0.8, -25]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
 
         <DynamicFog playerPositionRef={playerPositionRef} />
 
@@ -1897,11 +1912,11 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 color="#1a1610"
                 map={caveFloor.color}
                 normalMap={caveFloor.normal}
-                normalScale={new THREE.Vector2(1.8, 1.8)}
+                normalScale={new THREE.Vector2(2.5, 2.5)}
                 roughnessMap={caveFloor.rough}
-                roughness={0.92}
+                roughness={0.88}
                 aoMap={caveFloor.ao}
-                aoMapIntensity={1.5}
+                aoMapIntensity={1.2}
                 side={THREE.DoubleSide}
             />
         </mesh>
@@ -1909,7 +1924,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Cave floor underside — blocks X-ray from underwater looking up */}
         <mesh position={[0, -0.1, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <planeGeometry args={[62, 62]} />
-            <meshStandardMaterial color="#0a0806" map={caveFloor.color} normalMap={caveFloor.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveFloor.rough} roughness={0.95} aoMap={caveFloor.ao} aoMapIntensity={1.2} side={THREE.BackSide} />
+            <meshStandardMaterial color="#0a0806" map={caveFloor.color} normalMap={caveFloor.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={caveFloor.rough} roughness={0.92} aoMap={caveFloor.ao} aoMapIntensity={1.0} side={THREE.BackSide} />
         </mesh>
 
         {/* Cave ceiling — 3D ORGANIC with stalactite-like bumps */}
@@ -1964,14 +1979,14 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Stalagmites — procedural noise-displaced cones rising from the floor */}
         {STALAGMITES.map(([x, z, h, r], i) => (
             <mesh key={`stalagmite-${i}`} position={[x, h / 2, z]} geometry={PROC_STALAGMITE_GEOS[i % PROC_STALAGMITE_GEOS.length]}>
-                <meshStandardMaterial color="#3a3024" roughness={1} flatShading />
+                <meshStandardMaterial color="#3a3024" map={caveRock.color} normalMap={caveRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={caveRock.rough} roughness={0.92} aoMap={caveRock.ao} aoMapIntensity={0.6} flatShading />
             </mesh>
         ))}
 
         {/* Stalactites — procedural noise-displaced inverted cones from the ceiling */}
         {STALACTITES.map(([x, z, h, r], i) => (
             <mesh key={`stalactite-${i}`} position={[x, 8 - h / 2, z]} rotation={[Math.PI, 0, 0]} geometry={PROC_STALACTITE_GEOS[i % PROC_STALACTITE_GEOS.length]}>
-                <meshStandardMaterial color="#322a1f" roughness={1} flatShading />
+                <meshStandardMaterial color="#322a1f" map={caveRock.color} normalMap={caveRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={caveRock.rough} roughness={0.92} aoMap={caveRock.ao} aoMapIntensity={0.6} flatShading />
             </mesh>
         ))}
 
