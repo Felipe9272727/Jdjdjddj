@@ -441,7 +441,13 @@ export default function App() {
   const { user, otherPlayerIds, otherPlayersDataRef, sendChat, chatMessages, connectionStatus } = useMultiplayer(sharedPlayerPositionRef, sharedRotationYRef, playerAnimState, multiplayerEnabled, currentLevel, playerName);
 
   const handleStartDialogue = () => { setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
-  const handleStartGame = (mpEnabled: boolean, name?: string) => {
+  // ─── CREATOR MODE ───
+  // handleStartGame now accepts an optional 3rd arg `startLevel`.
+  // When provided (via Creator Mode), the game starts directly on that floor,
+  // skipping the normal lobby → elevator → floor progression.
+  // If omitted, the game starts normally at level 0 (lobby).
+  // ─── CREATOR MODE ───
+  const handleStartGame = (mpEnabled: boolean, name?: string, startLevel?: number) => {
     if (audioCtx) return;
     setMultiplayerEnabled(mpEnabled);
     if (name) setPlayerName(name);
@@ -451,6 +457,22 @@ export default function App() {
     setAudioCtx(ctx);
     (window as any).__jubileuAudioCtx = ctx;
     setHasStarted(true);
+    // ─── CREATOR MODE: jump to selected floor ───
+    if (startLevel !== undefined && startLevel !== 0) {
+      setCurrentLevel(startLevel);
+      // Set appropriate game state for the chosen floor
+      if (startLevel === 1) {
+        setGameState('outdoor');
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+      } else if (startLevel === 2) {
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+      }
+    }
+    // ─── CREATOR MODE: end jump ───
     if (typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches) {
       const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined;
       if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {});
