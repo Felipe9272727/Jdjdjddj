@@ -6,9 +6,13 @@
  * Vite inlines every file as a base64 data-URI inside the JS bundle,
  * so the final index.html is fully self-contained (no external files).
  *
- * Source: ambientcg.com (CC0 / Public Domain)
- *   Cave: Rock064, Rock035, Rock020
- *   Underwater: Ground037, Rock058
+ * Source: polyhaven.com (CC0 / Public Domain) — photoscanned, dramatically higher quality
+ *   Cave Walls: Rock Face 03 (2K)
+ *   Cave Floor: Aerial Rocks 02 (2K)
+ *   Cave Rocks: Mossy Rock (2K)
+ *   UW Floor: Brown Mud Rocks 01 (2K)
+ *   UW Rocks: Seaside Rock (2K)
+ *   UW Walls: Rock Face (2K)
  */
 
 // ─── Cave textures ─────────────────────────────────────────────────

@@ -1576,11 +1576,11 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 color="#1a1610"
                 map={caveFloor.color}
                 normalMap={caveFloor.normal}
-                normalScale={new THREE.Vector2(6.0, 6.0)}
+                normalScale={new THREE.Vector2(1.8, 1.8)}
                 roughnessMap={caveFloor.rough}
                 roughness={0.92}
                 aoMap={caveFloor.ao}
-                aoMapIntensity={1.0}
+                aoMapIntensity={1.5}
                 side={THREE.DoubleSide}
             />
         </mesh>
@@ -1588,32 +1588,32 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Cave floor underside — blocks X-ray from underwater looking up */}
         <mesh position={[0, -0.1, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <planeGeometry args={[62, 62]} />
-            <meshStandardMaterial color="#0a0806" map={caveFloor.color} normalMap={caveFloor.normal} normalScale={new THREE.Vector2(3.0, 3.0)} roughnessMap={caveFloor.rough} roughness={0.95} aoMap={caveFloor.ao} aoMapIntensity={0.8} side={THREE.BackSide} />
+            <meshStandardMaterial color="#0a0806" map={caveFloor.color} normalMap={caveFloor.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveFloor.rough} roughness={0.95} aoMap={caveFloor.ao} aoMapIntensity={1.2} side={THREE.BackSide} />
         </mesh>
 
-        {/* Cave ceiling */}
+        {/* Cave ceiling — PBR textured */}
         <mesh position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <planeGeometry args={[60, 60]} />
-            <meshStandardMaterial color="#2a221c" roughness={1} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#1a1610" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveWall.rough} roughness={1} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
         </mesh>
 
         {/* CAVE WALLS — real PBR textures, DoubleSide + thicker to prevent X-ray */}
         {/* North (z = -30) */}
-        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 2.5]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 2.5]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 2.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 2.5]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 2.5]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 2.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
         {/* South (z = 30) */}
-        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 2.5]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 2.5]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 2.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 2.5]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 2.5]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 2.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
         {/* West (x = -30) */}
-        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[2.5, 5.2, 28]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[-29.4, 3.4, -12]}><boxGeometry args={[2.5, 6.8, 18]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[2.0, 3.6, 60]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[2.5, 5.2, 28]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        <mesh position={[-29.4, 3.4, -12]}><boxGeometry args={[2.5, 6.8, 18]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[2.0, 3.6, 60]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
         {/* East (x = 30) */}
-        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[2.5, 5, 22]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[2.5, 7.2, 20]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[2.0, 4, 60]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.5} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[2.5, 5, 22]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[2.5, 7.2, 20]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[2.0, 4, 60]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
 
         {/* Cave boulders — real GLB models with PBR textures */}
         {CAVE_ROCKS_DARK.map(([x, y, z, s, ry], i) => (
@@ -1695,11 +1695,11 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 color="#060804"
                 map={uwFloor.color}
                 normalMap={uwFloor.normal}
-                normalScale={new THREE.Vector2(5.0, 5.0)}
+                normalScale={new THREE.Vector2(2.0, 2.0)}
                 roughnessMap={uwFloor.rough}
                 roughness={0.95}
                 aoMap={uwFloor.ao}
-                aoMapIntensity={1.2}
+                aoMapIntensity={1.5}
             />
         </mesh>
 
@@ -1731,7 +1731,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
         {/* Underwater pebbles — darkened */}
         <Instances limit={UW_PEBBLES.length} range={UW_PEBBLES.length} geometry={PEBBLE_GEO}>
-            <meshStandardMaterial color="#0c0c0a" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
+            <meshStandardMaterial color="#0c0c0a" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
             {UW_PEBBLES.map(([x, y, z, s, ry], i) => (
                 <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]} />
             ))}
@@ -1750,25 +1750,25 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 rotation={[rx, ry, 0]}
                 geometry={i % 2 === 0 ? (UW_DODECA_GEO) : (UW_ICOSA_GEO)}
             >
-                <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(3.0, 3.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.6} flatShading />
+                <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
             </mesh>
         ))}
 
         {/* ─── UNDERWATER CAVE WALLS — extending cave walls into the submerged zone ─── */}
         {/* North underwater wall (z = -30) */}
-        <mesh position={[0, -15, -30]}><boxGeometry args={[62, 30, 2]} /><meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(3.0, 3.0)} roughnessMap={uwWall.rough} roughness={0.98} aoMap={uwWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} /></mesh>
+        <mesh position={[0, -15, -30]}><boxGeometry args={[62, 30, 2]} /><meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} /></mesh>
         {/* South underwater wall (z = 30) */}
-        <mesh position={[0, -15, 30]}><boxGeometry args={[62, 30, 2]} /><meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(3.0, 3.0)} roughnessMap={uwWall.rough} roughness={0.98} aoMap={uwWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} /></mesh>
+        <mesh position={[0, -15, 30]}><boxGeometry args={[62, 30, 2]} /><meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} /></mesh>
         {/* West underwater wall (x = -30) */}
-        <mesh position={[-30, -15, 0]}><boxGeometry args={[2, 30, 62]} /><meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(3.0, 3.0)} roughnessMap={uwWall.rough} roughness={0.98} aoMap={uwWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} /></mesh>
+        <mesh position={[-30, -15, 0]}><boxGeometry args={[2, 30, 62]} /><meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} /></mesh>
         {/* East underwater wall (x = 30) */}
-        <mesh position={[30, -15, 0]}><boxGeometry args={[2, 30, 62]} /><meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(3.0, 3.0)} roughnessMap={uwWall.rough} roughness={0.98} aoMap={uwWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} /></mesh>
+        <mesh position={[30, -15, 0]}><boxGeometry args={[2, 30, 62]} /><meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} /></mesh>
 
         {/* Underwater coral/rock pillars — tall vertical formations */}
         {UW_CORAL_PILLARS.map(([x, z, h, rTop, rBot], i) => (
             <mesh key={`coral-${i}`} position={[x, -30 + h / 2, z]}>
                 <cylinderGeometry args={[rTop, rBot, h, 8]} />
-                <meshStandardMaterial color="#0c0e08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(4.0, 4.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.7} flatShading side={THREE.DoubleSide} />
+                <meshStandardMaterial color="#0c0e08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading side={THREE.DoubleSide} />
             </mesh>
         ))}
 
@@ -1778,17 +1778,17 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 {/* Left pillar */}
                 <mesh position={[-span / 2, h / 2, 0]}>
                     <cylinderGeometry args={[thick, thick * 1.3, h, 6]} />
-                    <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(3.0, 3.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.6} flatShading />
+                    <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
                 </mesh>
                 {/* Right pillar */}
                 <mesh position={[span / 2, h / 2, 0]}>
                     <cylinderGeometry args={[thick, thick * 1.3, h, 6]} />
-                    <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(3.0, 3.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.6} flatShading />
+                    <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
                 </mesh>
                 {/* Top beam */}
                 <mesh position={[0, h, 0]} rotation={[0, 0, Math.PI / 2]}>
                     <cylinderGeometry args={[thick * 0.8, thick * 0.8, span + thick * 2, 6]} />
-                    <meshStandardMaterial color="#0c0e08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(3.0, 3.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.6} flatShading />
+                    <meshStandardMaterial color="#0c0e08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
                 </mesh>
             </group>
         ))}
