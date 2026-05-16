@@ -105069,7 +105069,7 @@ const HOLE_CENTER_X = 0;
 const HOLE_CENTER_Z = 5;
 const HOLE_RADIUS = 3;
 const WATER_LEVEL_Y = 0.35;
-const SWIM_THRESHOLD_Y = 0.1;
+const SWIM_THRESHOLD_Y = -0.3;
 const CAVE_FLOOR_GEO = (() => {
   const shape = new Shape();
   const size = 30;
@@ -105541,13 +105541,13 @@ const DynamicFog = ({ playerPositionRef }) => {
   const _bgColor = reactExports.useRef(new Color("#0e0a08"));
   const _tgtFog = reactExports.useRef(new Color());
   const _tgtBg = reactExports.useRef(new Color());
-  const _surfaceFog = new Color("#040e12");
-  const _midFog = new Color("#020810");
-  const _deepFog = new Color("#010406");
+  const _surfaceFog = new Color("#0a2040");
+  const _midFog = new Color("#061838");
+  const _deepFog = new Color("#030e22");
   const _caveFog = new Color("#0e0a08");
-  const _surfaceBg = new Color("#040e12");
-  const _midBg = new Color("#020810");
-  const _deepBg = new Color("#010406");
+  const _surfaceBg = new Color("#0a2040");
+  const _midBg = new Color("#061838");
+  const _deepBg = new Color("#030e22");
   const _caveBg = new Color("#0e0a08");
   useFrame((_, dt2) => {
     var _a;
@@ -105574,10 +105574,10 @@ const DynamicFog = ({ playerPositionRef }) => {
         _tgtBg.current.copy(_midBg).lerp(_deepBg, (t2 - 0.4) / 0.6);
       }
       const breathe = Math.sin(performance.now() * 3e-4) * 0.5;
-      const baseNear = 0.5 - t2 * 0.4;
-      const baseFar = 8 - t2 * 4;
-      const tgtNear = Math.max(0.1, baseNear + breathe * 0.05);
-      const tgtFar = Math.max(3, baseFar + breathe * 0.3);
+      const baseNear = 1.5 - t2 * 0.8;
+      const baseFar = 18 - t2 * 8;
+      const tgtNear = Math.max(0.5, baseNear + breathe * 0.1);
+      const tgtFar = Math.max(6, baseFar + breathe * 0.5);
       const k2 = Math.min(1, 8 * safeDt);
       _fogColor.current.lerp(_tgtFog.current, k2);
       _bgColor.current.lerp(_tgtBg.current, k2);
@@ -106586,13 +106586,14 @@ const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed,
       if (pos.current.x > 39) pos.current.x = 39;
       if (pos.current.z < -39) pos.current.z = -39;
       if (pos.current.z > 39) pos.current.z = 39;
-      if (pos.current.y > SWIM_THRESHOLD_Y) {
+      const SURFACE_CHECK_Y = -0.1;
+      if (pos.current.y > SURFACE_CHECK_Y) {
         const dxHole = pos.current.x - HOLE_CENTER_X;
         const dzHole = pos.current.z - HOLE_CENTER_Z;
         if (dxHole * dxHole + dzHole * dzHole < HOLE_RADIUS * HOLE_RADIUS) {
           pos.current.y = 0.05;
         } else {
-          pos.current.y = SWIM_THRESHOLD_Y - 0.05;
+          pos.current.y = -0.15;
         }
       }
       charRot.current.y = camAng.current.theta + Math.PI;
@@ -110363,6 +110364,19 @@ function App() {
   const lastHandledTimerRef = reactExports.useRef(null);
   const [arrivalPulse, setArrivalPulse] = reactExports.useState(false);
   const [gameState, setGameState] = reactExports.useState("lobby");
+  const [isUnderwater, setIsUnderwater] = reactExports.useState(false);
+  reactExports.useEffect(() => {
+    if (currentLevel !== 2) {
+      setIsUnderwater(false);
+      return;
+    }
+    const id = setInterval(() => {
+      var _a;
+      const y = ((_a = sharedPlayerPositionRef.current) == null ? void 0 : _a.y) ?? 0;
+      setIsUnderwater(y < SWIM_THRESHOLD_Y);
+    }, 100);
+    return () => clearInterval(id);
+  }, [currentLevel]);
   const [barneyDialogueOpen, setBarneyDialogueOpen] = reactExports.useState(false);
   const [barneyDialogueNode, setBarneyDialogueNode] = reactExports.useState("greet");
   const [canSleep, setCanSleep] = reactExports.useState(false);
@@ -111063,7 +111077,7 @@ function App() {
               yt,
               {
                 blendFunction: BlendFunction.NORMAL,
-                offset: currentLevel === 2 ? [2e-3, 2e-3] : [0, 0],
+                offset: isUnderwater ? [2e-3, 2e-3] : [0, 0],
                 radialModulation: false,
                 modulationOffset: 0
               }
@@ -111072,8 +111086,8 @@ function App() {
               qt,
               {
                 eskil: false,
-                offset: currentLevel === 2 ? 0.4 : 0.2,
-                darkness: currentLevel === 2 ? 0.6 : 0.3
+                offset: isUnderwater ? 0.4 : 0.2,
+                darkness: isUnderwater ? 0.6 : 0.3
               }
             )
           ] })
@@ -111122,13 +111136,12 @@ function App() {
       }
     ),
     settings.showFps && hasStarted && /* @__PURE__ */ jsxRuntimeExports.jsx(FpsCounter, {}),
-    hasStarted && currentLevel === 2 && /* @__PURE__ */ jsxRuntimeExports.jsx(
+    hasStarted && currentLevel === 2 && isUnderwater && /* @__PURE__ */ jsxRuntimeExports.jsx(
       "div",
       {
-        className: "fixed inset-0 z-[8] pointer-events-none",
+        className: "fixed inset-0 z-[8] pointer-events-none transition-opacity duration-500",
         style: {
-          background: "radial-gradient(ellipse at center, rgba(0,40,80,0.0) 35%, rgba(0,30,60,0.35) 70%, rgba(0,20,40,0.65) 100%)",
-          mixBlendMode: "multiply"
+          background: "radial-gradient(ellipse at center, rgba(10,60,120,0.15) 20%, rgba(5,40,90,0.35) 55%, rgba(0,25,60,0.55) 100%)"
         }
       }
     ),
