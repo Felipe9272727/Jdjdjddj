@@ -47,6 +47,25 @@ import {
     boulderModel, pebbleModel,
 } from './assets/textureImports';
 
+// ─── Procedural glow texture for sprites (prevents square artifacts) ────
+const GLOW_TEXTURE = (() => {
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.3, 'rgba(255,255,255,0.6)');
+    gradient.addColorStop(0.7, 'rgba(255,255,255,0.15)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+})();
+
 // ─── Hole geometry placement (also exported for Player.tsx) ────────────
 export const HOLE_CENTER_X = 0;
 export const HOLE_CENTER_Z = 5;
@@ -109,25 +128,41 @@ const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);  // kept for instanced 
 
 // Procedural underwater terrain — displaced PlaneGeometry
 const UW_FLOOR_GEO = (() => {
-    const geo = new THREE.PlaneGeometry(80, 80, 64, 64);
+    const geo = new THREE.PlaneGeometry(80, 80, 150, 150);
     const positions = geo.attributes.position;
     const v = new THREE.Vector3();
+    // Seed-based hash for pseudo-random per-vertex noise
+    const hash = (x: number, y: number) => {
+        let h = x * 374761393 + y * 668265263;
+        h = (h ^ (h >> 13)) * 1274126177;
+        return ((h ^ (h >> 16)) & 0xffff) / 0xffff;
+    };
     for (let i = 0; i < positions.count; i++) {
         v.fromBufferAttribute(positions, i);
         const edgeDist = Math.min(
             Math.abs(v.x - (-40)), Math.abs(v.x - 40),
             Math.abs(v.y - (-40)), Math.abs(v.y - 40)
         );
-        const edgeFade = Math.min(1, edgeDist / 5);
-        // Rich multi-octave terrain for realistic seafloor
-        const n = Math.sin(v.x * 0.3 + 1.7) * 0.8
-                + Math.sin(v.y * 0.4 + 3.1) * 0.6
-                + Math.sin((v.x + v.y) * 0.2 + 0.8) * 1.0
-                + Math.cos(v.x * 0.7 - v.y * 0.5 + 5.3) * 0.5
-                + Math.sin(v.x * 1.4 + v.y * 1.1 + 2.2) * 0.25
-                + Math.sin(v.x * 2.8 + v.y * 3.1 + 4.7) * 0.1
-                + Math.cos(v.x * 4.2 - v.y * 3.7 + 1.3) * 0.06;
-        positions.setZ(i, v.z + n * 2.5 * edgeFade);
+        const edgeFade = Math.min(1, edgeDist / 8);
+        // Distance from center — central area around the hole gets less displacement
+        const distFromCenter = Math.sqrt(v.x * v.x + (v.y - 5) * (v.y - 5));
+        const centerDip = Math.max(0, 1 - distFromCenter / 12);
+        // Rich multi-octave terrain — MUCH more dramatic than before
+        const n1 = Math.sin(v.x * 0.15 + 1.7) * 2.0
+                  + Math.sin(v.y * 0.2 + 3.1) * 1.8
+                  + Math.sin((v.x + v.y) * 0.1 + 0.8) * 2.5
+                  + Math.cos(v.x * 0.35 - v.y * 0.25 + 5.3) * 1.2;
+        const n2 = Math.sin(v.x * 0.7 + v.y * 0.55 + 2.2) * 0.8
+                  + Math.sin(v.x * 1.4 + v.y * 1.1 + 2.2) * 0.4
+                  + Math.cos(v.x * 2.1 - v.y * 1.8 + 4.7) * 0.2;
+        const n3 = Math.sin(v.x * 3.2 + v.y * 2.8 + 1.3) * 0.12
+                  + Math.cos(v.x * 5.5 + v.y * 4.2 - 0.8) * 0.06;
+        // Rocky ridges — sharp features
+        const ridge = Math.abs(Math.sin(v.x * 0.4 + 0.5)) * Math.abs(Math.cos(v.y * 0.3 + 2.1)) * 3.0;
+        // Combine with edge fade and center dip
+        const totalN = n1 + n2 + n3 + ridge;
+        const displacement = totalN * edgeFade * (1 - centerDip * 0.6);
+        positions.setZ(i, v.z + displacement);
     }
     positions.needsUpdate = true;
     geo.computeVertexNormals();
@@ -273,15 +308,13 @@ const CrystalCluster: React.FC<{ x: number; y: number; z: number; color: string 
         <mesh geometry={CRYSTAL_GEO} scale={0.4} position={[0.0, 0.35, -0.15]} rotation={[0.2, 0.2, 1.4]}>
             <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.4} metalness={0.5} roughness={0.2} toneMapped={false} />
         </mesh>
-        {/* NO pointLight — causes square lights on mobile GPU.
-            Glow comes from emissive material + additive sprites only. */}
-        {/* Round glow halo — additive sprite, always circular, no square */}
+        {/* Round glow halo — additive sprite with procedural glow texture */}
         <sprite scale={[2.5, 2.5, 1]}>
-            <spriteMaterial color={color} transparent opacity={0.45} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+            <spriteMaterial map={GLOW_TEXTURE} color={color} transparent opacity={0.45} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
         </sprite>
         {/* Bigger soft outer glow for atmospheric pool of light */}
         <sprite scale={[5.0, 5.0, 1]}>
-            <spriteMaterial color={color} transparent opacity={0.12} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+            <spriteMaterial map={GLOW_TEXTURE} color={color} transparent opacity={0.12} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
         </sprite>
     </group>
 );
@@ -314,13 +347,13 @@ const Torch: React.FC<{ x: number; y: number; z: number; seed: number }> = ({ x,
                 <coneGeometry args={[0.18, 0.4, 8]} />
                 <meshStandardMaterial color="#FFA850" emissive="#FFB060" emissiveIntensity={3.5} toneMapped={false} />
             </mesh>
-            {/* Inner glow sprite — always round, no square */}
+            {/* Inner glow sprite — always round with glow texture */}
             <sprite scale={[3.0, 3.0, 1]}>
-                <spriteMaterial ref={spriteRef} color="#FFC080" transparent opacity={0.5} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                <spriteMaterial ref={spriteRef} map={GLOW_TEXTURE} color="#FFC080" transparent opacity={0.5} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
             </sprite>
             {/* Outer atmospheric glow */}
             <sprite scale={[7.0, 7.0, 1]}>
-                <spriteMaterial ref={outerRef} color="#FF9040" transparent opacity={0.15} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                <spriteMaterial ref={outerRef} map={GLOW_TEXTURE} color="#FF9040" transparent opacity={0.15} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
             </sprite>
         </group>
     );
@@ -600,34 +633,67 @@ const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }) => {
     );
 };
 
-// ─── DynamicFog — FIX #6: no per-frame Color allocation ──────────────
-// FIX #8: tighter underwater fog for horror, breathing fog effect
+// ─── DynamicFog — depth-based color absorption (Beer-Lambert style) ───
 const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
     const { scene } = useThree();
-    const _bgColor = useRef(new THREE.Color('#0e0a08'));
     const _fogColor = useRef(new THREE.Color('#0e0a08'));
-    // Pre-allocated target colors — setHex() instead of new Color() per frame
-    const _tgtBg = useRef(new THREE.Color());
+    const _bgColor = useRef(new THREE.Color('#0e0a08'));
     const _tgtFog = useRef(new THREE.Color());
+    const _tgtBg = useRef(new THREE.Color());
+    // Pre-allocated depth-based fog colors
+    const _surfaceFog = new THREE.Color('#040e12');  // dark teal near surface
+    const _midFog = new THREE.Color('#020810');      // deep blue mid-depth
+    const _deepFog = new THREE.Color('#010406');     // near-black at bottom
+    const _caveFog = new THREE.Color('#0e0a08');     // warm dark cave
+    const _surfaceBg = new THREE.Color('#040e12');
+    const _midBg = new THREE.Color('#020810');
+    const _deepBg = new THREE.Color('#010406');
+    const _caveBg = new THREE.Color('#0e0a08');
+
     useFrame((_, dt) => {
         const safeDt = Math.min(dt, 0.033);
         const y = playerPositionRef.current?.y ?? 0;
         if (!scene.fog || !(scene.fog instanceof THREE.Fog)) return;
-        const submerged = y < SWIM_THRESHOLD_Y;
-        // Target presets — FIX #8: much tighter underwater for horror
-        _tgtBg.current.setHex(submerged ? 0x010404 : 0x0e0a08);
-        _tgtFog.current.setHex(submerged ? 0x010404 : 0x0e0a08);
-        // FIX #8: breathing fog — subtle oscillation for horror atmosphere
-        const breathe = Math.sin(performance.now() * 0.0003) * 0.5;
-        const tgtNear = submerged ? (0.2 + breathe * 0.05) : 14;
-        const tgtFar  = submerged ? (6 + breathe * 0.5)  : 55;
-        // Lerp colors + fog distances toward targets
-        const k = Math.min(1, 8 * safeDt);
-        _fogColor.current.lerp(_tgtFog.current, k);
-        _bgColor.current.lerp(_tgtBg.current, k);
-        scene.fog.color.copy(_fogColor.current);
-        scene.fog.near = scene.fog.near + (tgtNear - scene.fog.near) * k;
-        scene.fog.far  = scene.fog.far  + (tgtFar  - scene.fog.far)  * k;
+
+        if (y >= SWIM_THRESHOLD_Y) {
+            // Cave mode
+            _tgtFog.current.copy(_caveFog);
+            _tgtBg.current.copy(_caveBg);
+            const k = Math.min(1, 8 * safeDt);
+            _fogColor.current.lerp(_tgtFog.current, k);
+            _bgColor.current.lerp(_tgtBg.current, k);
+            scene.fog.color.copy(_fogColor.current);
+            scene.fog.near = scene.fog.near + (14 - scene.fog.near) * k;
+            scene.fog.far = scene.fog.far + (55 - scene.fog.far) * k;
+        } else {
+            // Underwater — depth-based color absorption (Beer-Lambert style)
+            const depth = Math.abs(y - SWIM_THRESHOLD_Y); // 0 at surface, ~29 at bottom
+            const t = Math.min(depth / 29, 1); // 0-1 normalized depth
+
+            // Interpolate fog color based on depth
+            if (t < 0.4) {
+                _tgtFog.current.copy(_surfaceFog).lerp(_midFog, t / 0.4);
+                _tgtBg.current.copy(_surfaceBg).lerp(_midBg, t / 0.4);
+            } else {
+                _tgtFog.current.copy(_midFog).lerp(_deepFog, (t - 0.4) / 0.6);
+                _tgtBg.current.copy(_midBg).lerp(_deepBg, (t - 0.4) / 0.6);
+            }
+
+            // Breathing fog for horror
+            const breathe = Math.sin(performance.now() * 0.0003) * 0.5;
+            // Tighter fog as you go deeper
+            const baseNear = 0.5 - t * 0.4; // 0.5 at surface, 0.1 at bottom
+            const baseFar = 8 - t * 4;       // 8 at surface, 4 at bottom
+            const tgtNear = Math.max(0.1, baseNear + breathe * 0.05);
+            const tgtFar = Math.max(3, baseFar + breathe * 0.3);
+
+            const k = Math.min(1, 8 * safeDt);
+            _fogColor.current.lerp(_tgtFog.current, k);
+            _bgColor.current.lerp(_tgtBg.current, k);
+            scene.fog.color.copy(_fogColor.current);
+            scene.fog.near = scene.fog.near + (tgtNear - scene.fog.near) * k;
+            scene.fog.far = scene.fog.far + (tgtFar - scene.fog.far) * k;
+        }
         if (scene.background && (scene.background as any).isColor) {
             (scene.background as THREE.Color).copy(_bgColor.current);
         }
@@ -635,7 +701,7 @@ const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vec
     return null;
 };
 
-// ─── Underwater caustics — darker for horror ─────────────────────────
+// ─── Underwater caustics — improved visibility ─────────────────────────
 const CausticsMaterial = shaderMaterial(
     { time: 0 },
     /* glsl */ `
@@ -649,13 +715,13 @@ const CausticsMaterial = shaderMaterial(
       uniform float time;
       varying vec2 vUv;
       void main() {
-        vec2 uv = vUv * 6.0;
+        vec2 uv = vUv * 8.0;
         float a = sin(uv.x * 6.28 + time * 0.6) + sin((uv.x + uv.y) * 5.0 + time * 0.9);
         float b = sin(uv.y * 6.28 + time * 0.5 + 1.2) + sin((uv.y - uv.x) * 4.5 + time * 0.7);
-        float c = pow(max(0.0, sin(a) * sin(b)), 3.0);
-        // Dimmer caustics for horror
-        vec3 col = vec3(c * 0.06, c * 0.10, c * 0.08);
-        gl_FragColor = vec4(col, c * 0.12);
+        float c = pow(max(0.0, sin(a) * sin(b)), 2.5);
+        // Brighter caustics — can still be horror but need to be VISIBLE
+        vec3 col = vec3(c * 0.08, c * 0.18, c * 0.14);  // more green-blue, brighter
+        gl_FragColor = vec4(col, c * 0.2);  // was 0.12, now 0.2
       }
     `
 );
@@ -677,7 +743,7 @@ const UnderwaterCaustics: React.FC = () => {
     );
 };
 
-// ─── Underwater flora — kelp + coral — FIX #5: darkened for horror ───
+// ─── Underwater flora — kelp + coral ─────────────────────────────────
 const KELP_GEO = new THREE.CylinderGeometry(0.06, 0.10, 1, 5, 4);
 type KelpData = readonly [number, number, number, number]; // x, z, height, phase
 const KELP_POSITIONS: readonly KelpData[] = [
@@ -689,9 +755,18 @@ const KELP_POSITIONS: readonly KelpData[] = [
     [-6.5,  3.0, 4.8, 2.3],
     [10.0,  4.0, 4.5, 0.9],
     [11.5,  6.0, 3.5, 1.7],
+    // NEW — denser kelp forest
+    [ 6.5, -10.0, 5.5, 0.5],
+    [ 3.0, -7.0, 3.5, 1.8],
+    [ 8.5, -6.0, 4.2, 2.5],
+    [-2.0,  5.0, 3.8, 0.2],
+    [-7.0,  2.0, 5.2, 1.0],
+    [12.0,  3.0, 4.0, 0.6],
+    [-8.0,  7.0, 3.0, 1.3],
+    [15.0, -3.0, 4.8, 2.1],
 ];
 
-// FIX #6: KelpField — single useFrame driving all kelp (was 8 separate useFrame callbacks)
+// KelpField — single useFrame driving all kelp
 const KelpField: React.FC = () => {
     const meshRefs = useRef<(THREE.Mesh | null)[][]>(
         KELP_POSITIONS.map(() => new Array(3).fill(null))
@@ -725,10 +800,18 @@ const KelpField: React.FC = () => {
                                 geometry={KELP_GEO}
                                 scale={[1 - i * 0.1, segLen, 1 - i * 0.1]}
                             >
-                                {/* FIX #5: near-black kelp for horror */}
                                 <meshStandardMaterial color={i < 2 ? '#0a0805' : '#0c0a06'} roughness={0.85} flatShading />
                             </mesh>
                         ))}
+                        {/* Kelp leaf — flat plane at the top */}
+                        <mesh
+                            position={[0, height * 0.9, 0]}
+                            rotation={[0.3 + Math.sin(phase) * 0.2, phase, 0.1]}
+                            scale={[0.6, 0.3, 0.02]}
+                        >
+                            <planeGeometry args={[1, 1]} />
+                            <meshStandardMaterial color="#0c0f06" roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.85} />
+                        </mesh>
                     </group>
                 );
             })}
@@ -748,26 +831,39 @@ const CORAL_POSITIONS: readonly CoralData[] = [
 
 const Coral: React.FC<{ x: number; z: number; color: string; scale: number }> = ({ x, z, color, scale }) => (
     <group position={[x, -30, z]} scale={scale}>
-        <mesh position={[0, 0.5, 0]}>
-            <sphereGeometry args={[0.6, 8, 6]} />
-            <meshStandardMaterial color={color} roughness={0.95} metalness={0.05} flatShading />
+        {/* Base rock */}
+        <mesh position={[0, 0.3, 0]}>
+            <dodecahedronGeometry args={[0.5, 0]} />
+            <meshStandardMaterial color="#0e0a06" roughness={0.95} metalness={0.05} flatShading />
         </mesh>
-        <mesh position={[0.3, 0.9, 0.2]}>
-            <sphereGeometry args={[0.4, 8, 6]} />
-            <meshStandardMaterial color={color} roughness={0.95} metalness={0.05} flatShading />
+        {/* Branch 1 — main trunk */}
+        <mesh position={[0, 1.0, 0]} rotation={[0.1, 0, 0.15]}>
+            <cylinderGeometry args={[0.06, 0.1, 1.2, 5]} />
+            <meshStandardMaterial color={color} roughness={0.9} flatShading />
         </mesh>
-        <mesh position={[-0.35, 1.0, -0.15]}>
-            <sphereGeometry args={[0.35, 8, 6]} />
-            <meshStandardMaterial color={color} roughness={0.95} metalness={0.05} flatShading />
+        {/* Branch 2 — split */}
+        <mesh position={[0.15, 1.5, 0.1]} rotation={[0, 0.4, 0.3]}>
+            <cylinderGeometry args={[0.04, 0.07, 0.8, 5]} />
+            <meshStandardMaterial color={color} roughness={0.9} flatShading />
         </mesh>
-        <mesh position={[0.1, 1.3, 0.3]}>
-            <sphereGeometry args={[0.28, 8, 6]} />
-            <meshStandardMaterial color={color} roughness={0.95} metalness={0.05} flatShading />
+        {/* Branch 3 — opposite split */}
+        <mesh position={[-0.12, 1.4, -0.08]} rotation={[0.2, -0.3, -0.25]}>
+            <cylinderGeometry args={[0.04, 0.06, 0.7, 5]} />
+            <meshStandardMaterial color={color} roughness={0.9} flatShading />
+        </mesh>
+        {/* Tip bulbs — bioluminescent for horror */}
+        <mesh position={[0.15, 1.9, 0.1]}>
+            <sphereGeometry args={[0.08, 6, 4]} />
+            <meshStandardMaterial color="#1a3020" emissive="#081810" emissiveIntensity={0.3} roughness={0.8} />
+        </mesh>
+        <mesh position={[-0.12, 1.75, -0.08]}>
+            <sphereGeometry args={[0.06, 6, 4]} />
+            <meshStandardMaterial color="#1a3020" emissive="#081810" emissiveIntensity={0.3} roughness={0.8} />
         </mesh>
     </group>
 );
 
-// ─── Subnautica-style god ray shafts — dimmer for horror ─────────────
+// ─── Subnautica-style god ray shafts — brighter for visibility ────────
 const GodRayShafts: React.FC = () => {
     const groupRef = useRef<THREE.Group>(null);
     useFrame((state) => {
@@ -787,9 +883,9 @@ const GodRayShafts: React.FC = () => {
                     >
                         <planeGeometry args={[1.6 + (i % 3) * 0.4, 28]} />
                         <meshBasicMaterial
-                            color="#0a1810"
+                            color="#0c3020"
                             transparent
-                            opacity={0.03 + (i % 3) * 0.005}
+                            opacity={0.06 + (i % 3) * 0.02}
                             side={THREE.DoubleSide}
                             depthWrite={false}
                             blending={THREE.AdditiveBlending}
@@ -802,7 +898,7 @@ const GodRayShafts: React.FC = () => {
     );
 };
 
-// ─── FIX #8: Deep Mist — slowly drifting fog plane underwater ────────
+// ─── Deep Mist — slowly drifting fog plane underwater ────────────────
 const DeepMist: React.FC = () => {
     const matRef = useRef<THREE.MeshBasicMaterial>(null);
     useFrame((state) => {
@@ -829,8 +925,8 @@ const DeepMist: React.FC = () => {
     );
 };
 
-// ─── FIX #8: Debris particles — tiny dark specs drifting underwater ──
-const DEBRIS_COUNT = 30;
+// ─── Debris particles — tiny dark specs drifting underwater ──────────
+const DEBRIS_COUNT = 60;
 const DEBRIS_GEO = new THREE.SphereGeometry(1, 3, 2);
 const DebrisField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(DEBRIS_COUNT).fill(null));
@@ -929,14 +1025,14 @@ const UnderwaterFlora: React.FC = () => (
 );
 
 // ─── Drifting bubbles (underwater) ─────────────────────────────────────
-const BUBBLE_COUNT = 20;
+const BUBBLE_COUNT = 35;
 const BUBBLE_RANGE = 18;
 const BUBBLE_RISE = 0.5;
 const BUBBLE_MAX_Y = WATER_LEVEL_Y - 0.5;
 const BUBBLE_MIN_Y = -29;
 
-// ─── Plankton particles (underwater) — darkened for horror ────────────
-const PLANKTON_COUNT = 20;
+// ─── Plankton particles (underwater) ──────────────────────────────────
+const PLANKTON_COUNT = 50;
 const PLANKTON_GEO = new THREE.SphereGeometry(1, 4, 3);
 const PlanktonField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(PLANKTON_COUNT).fill(null));
@@ -1067,7 +1163,7 @@ const Shard: React.FC<ShardProps> = ({ index, position, collected, onCollect, pl
                 />
             </mesh>
             <sprite scale={[1.3, 1.3, 1]}>
-                <spriteMaterial color="#9be8ff" transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                <spriteMaterial map={GLOW_TEXTURE} color="#9be8ff" transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
             </sprite>
             {/* NO pointLight — causes square lights on mobile. Sprite glow only. */}
         </group>
@@ -1097,7 +1193,6 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     reflective = false,
 }) => {
     // ─── Load real PBR texture sets ────────────────────────────────
-    // FIX #7: Increased cave floor texture repeat from 8,8 to 12,12
     const caveFloor = usePBRSet(
         caveFloorColor, caveFloorNormal, caveFloorRoughness, caveFloorAO,
         12, 12
@@ -1110,7 +1205,6 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         caveRockColor, caveRockNormal, caveRockRoughness, caveRockAO,
         1, 1
     );
-    // FIX #7: Increased UW floor texture repeat from 10,10 to 16,16
     const uwFloor = usePBRSet(
         uwFloorColor, uwFloorNormal, uwFloorRoughness, uwFloorAO,
         16, 16
@@ -1132,19 +1226,19 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <color attach="background" args={['#0e0a08']} />
         <fog attach="fog" args={['#0e0a08', 14, 55]} />
 
-        {/* FIX #8: Horror lighting — MUCH darker */}
+        {/* Horror lighting — MUCH darker */}
         <ambientLight intensity={0.25} color="#d8c0a0" />
         <hemisphereLight intensity={0.20} color="#c8a888" groundColor="#1a1612" />
         <directionalLight position={[5, 20, 5]} intensity={0.20} color="#ffe8c0" />
 
         {/* Ember sprites — warm glow on floor, NO pointLight (square artifact) */}
-        <sprite position={[-25, 0.8, 0]} scale={[6, 6, 1]}><spriteMaterial color="#3a1008" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
-        <sprite position={[25, 0.8, -5]} scale={[6, 6, 1]}><spriteMaterial color="#3a1008" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
-        <sprite position={[0, 0.8, 25]} scale={[5, 5, 1]}><spriteMaterial color="#3a1008" transparent opacity={0.15} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[-25, 0.8, 0]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#3a1008" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[25, 0.8, -5]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#3a1008" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[0, 0.8, 25]} scale={[5, 5, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#3a1008" transparent opacity={0.15} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
 
         <DynamicFog playerPositionRef={playerPositionRef} />
 
-        {/* ─── CAVE FLOOR with hole — FIX #1: Y=0 (was -0.02), FIX #7: better textures ─── */}
+        {/* ─── CAVE FLOOR with hole ─── */}
         <mesh
             geometry={CAVE_FLOOR_GEO}
             rotation={[-Math.PI / 2, 0, 0]}
@@ -1205,9 +1299,6 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             ))}
         </Instances>
 
-        {/* FIX #1: Pool rim torus REMOVED — boulders alone mask the edge.
-            The POOL_RIM boulders sit on the cave floor at Y=0, no z-fighting. */}
-
         {/* POOL RIM — individual boulders forming the circular edge */}
         {POOL_RIM.map(([x, y, z, s, ry], i) => (
             <group key={`rim-${i}`} position={[x, y + s * 0.25, z]} scale={[s, s * 0.5, s]} rotation={[0, ry, 0]}>
@@ -1247,34 +1338,30 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
         <WaterSurface reflective={reflective} />
 
-        {/* Opaque water column — blocks x-ray vision from below.
-            A cylinder + disc that covers the entire hole from water level
-            down to Y=-2. It writes to the depth buffer (opaque, not
-            transparent), so ALL cave geometry above is occluded when
-            viewed from underwater. BackSide only = invisible from above.
-            The Gerstner wave shader (transparent, depthWrite=false) can't
-            block anything — this cylinder does the job. */}
-        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y - 1, HOLE_CENTER_Z]}>
-            <cylinderGeometry args={[HOLE_RADIUS + 0.1, HOLE_RADIUS + 0.1, 2, 24, 1, true]} />
-            <meshBasicMaterial color="#020810" side={THREE.BackSide} depthWrite={true} transparent={false} />
+        {/* Opaque water column — blocks X-ray from below.
+            FrontSide renders the inner face visible when looking UP from underwater.
+            Extends 8 units below surface to cover most viewing angles. */}
+        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y - 4, HOLE_CENTER_Z]}>
+            <cylinderGeometry args={[HOLE_RADIUS + 0.15, HOLE_RADIUS + 0.15, 8, 32, 1, true]} />
+            <meshBasicMaterial color="#010508" side={THREE.FrontSide} depthWrite={true} transparent={false} />
         </mesh>
-        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y + 0.02, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[HOLE_RADIUS + 0.1, 24]} />
-            <meshBasicMaterial color="#020810" side={THREE.BackSide} depthWrite={true} transparent={false} />
+        {/* Opaque disc at water surface — primary X-ray blocker from below */}
+        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y - 0.02, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[HOLE_RADIUS + 0.15, 32]} />
+            <meshBasicMaterial color="#010508" side={THREE.FrontSide} depthWrite={true} transparent={false} />
         </mesh>
 
         {/* ─── UNDERWATER (Y < 0) ────────────────────────────────────── */}
-        {/* FIX #7: Better UW floor textures, FIX #5: very dark color */}
         <mesh geometry={UW_FLOOR_GEO} rotation={[-Math.PI / 2, 0, 0]} position={[0, -30, 0]}>
             <meshStandardMaterial
-                color="#0a0a06"
+                color="#060804"
                 map={uwFloor.color}
                 normalMap={uwFloor.normal}
-                normalScale={new THREE.Vector2(4.0, 4.0)}
+                normalScale={new THREE.Vector2(6.0, 6.0)}
                 roughnessMap={uwFloor.rough}
-                roughness={0.98}
+                roughness={0.95}
                 aoMap={uwFloor.ao}
-                aoMapIntensity={1.0}
+                aoMapIntensity={1.2}
             />
         </mesh>
 
@@ -1287,23 +1374,23 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* God ray shafts descending from the surface */}
         <GodRayShafts />
 
-        {/* FIX #8: Deep Mist — drifting fog plane */}
+        {/* Deep Mist — drifting fog plane */}
         <DeepMist />
 
-        {/* FIX #8: Debris particles — tiny specs drifting */}
+        {/* Debris particles — tiny specs drifting */}
         <DebrisField />
 
         {/* Small fish school looping around the boulder field */}
         <FishSchool />
 
-        {/* FIX #5: Underwater boulders — darkened color="#0a0a08" */}
+        {/* Underwater boulders — darkened */}
         {UW_BOULDERS.map(([x, y, z, s, ry], i) => (
             <group key={`uwb-${i}`} position={[x, y + s * 0.4, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]}>
                 <primitive object={rockScenes[i % 4].clone(true)} />
             </group>
         ))}
 
-        {/* FIX #5: Underwater pebbles — darkened color="#0c0c0a" */}
+        {/* Underwater pebbles — darkened */}
         <Instances limit={UW_PEBBLES.length} range={UW_PEBBLES.length} geometry={PEBBLE_GEO}>
             <meshStandardMaterial color="#0c0c0a" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
             {UW_PEBBLES.map(([x, y, z, s, ry], i) => (
