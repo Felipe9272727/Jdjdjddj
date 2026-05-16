@@ -95,8 +95,8 @@ const CAVE_FLOOR_GEO = (() => {
     // is then rotated -π/2 around X so its Y becomes world's Z.
     hole.absarc(HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, 0, Math.PI * 2, false);
     shape.holes.push(hole);
-    const geo = new THREE.ShapeGeometry(shape, 24); // higher curveSegments for more vertices
-    // Displace vertices for subtle unevenness — breaks the flat plane look.
+    const geo = new THREE.ShapeGeometry(shape, 48); // higher segments for more organic terrain
+    // Displace vertices for DRAMATIC unevenness — real caves are very irregular.
     // In ShapeGeometry XY plane, Z displacement becomes Y (up) after rotation.
     const positions = geo.attributes.position;
     const v = new THREE.Vector3();
@@ -106,23 +106,24 @@ const CAVE_FLOOR_GEO = (() => {
         const dxH = v.x - HOLE_CENTER_X;
         const dyH = v.y - HOLE_CENTER_Z;
         const distToHole = Math.sqrt(dxH * dxH + dyH * dyH);
-        const holeFade = Math.min(1, Math.max(0, (distToHole - HOLE_RADIUS) / 2));
+        const holeFade = Math.min(1, Math.max(0, (distToHole - HOLE_RADIUS) / 3));
         // Fade out near outer edges so walls connect cleanly
         const edgeDist = Math.min(
             Math.abs(v.x - (-size)), Math.abs(v.x - size),
             Math.abs(v.y - (-size)), Math.abs(v.y - size)
         );
-        const edgeFade = Math.min(1, edgeDist / 3);
+        const edgeFade = Math.min(1, edgeDist / 4);
         const fade = holeFade * edgeFade;
-        // Multi-octave simplex noise for organic cave terrain
-        const n1 = noise3D(v.x * 0.08, v.y * 0.08, 0.0) * 2.5;
-        const n2 = noise3D(v.x * 0.2, v.y * 0.2, 5.0) * 1.0;
-        const n3 = noise3D(v.x * 0.5, v.y * 0.5, 10.0) * 0.35;
-        // Sharp ridges — cave-like rocky outcroppings
-        const ridge1 = Math.abs(noise3D(v.x * 0.12, v.y * 0.12, 15.0)) * 1.2;
-        const ridge2 = Math.abs(noise3D(v.x * 0.3, v.y * 0.3, 20.0)) * 0.5;
-        const totalN = n1 + n2 + n3 + ridge1 + ridge2;
-        positions.setZ(i, v.z + totalN * 1.8 * fade);
+        // DRAMATIC multi-octave simplex noise — real caves have 1-3 meter elevation changes
+        const n1 = noise3D(v.x * 0.04, v.y * 0.04, 0.0) * 4.0;    // large hills
+        const n2 = noise3D(v.x * 0.1, v.y * 0.1, 5.0) * 2.0;       // medium bumps
+        const n3 = noise3D(v.x * 0.25, v.y * 0.25, 10.0) * 0.8;    // small rocks
+        const n4 = noise3D(v.x * 0.6, v.y * 0.6, 15.0) * 0.2;     // fine roughness
+        // Sharp ridges — dramatic rocky outcroppings you can see
+        const ridge1 = Math.abs(noise3D(v.x * 0.06, v.y * 0.06, 20.0)) * 2.5;
+        const ridge2 = Math.abs(noise3D(v.x * 0.15, v.y * 0.15, 25.0)) * 1.0;
+        const totalN = n1 + n2 + n3 + n4 + ridge1 + ridge2;
+        positions.setZ(i, v.z + totalN * 2.5 * fade);
     }
     positions.needsUpdate = true;
     geo.computeVertexNormals();
@@ -135,23 +136,63 @@ const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
 const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);  // kept for instanced pebbles
 
 // ─── Organic cave wall geometry helper ──────────────────────────────────
+// Creates a PlaneGeometry with heavy multi-octave noise displacement
+// so walls look like real cave rock — bulging, rounded, organic.
 function createOrganicCaveWall(
   width: number,
   height: number,
-  segments: number = 48,
+  segments: number = 64,
   seed: number = 0,
-  amplitude: number = 2.5
+  amplitude: number = 3.5
 ): THREE.BufferGeometry {
   const geo = new THREE.PlaneGeometry(width, height, segments, segments);
   const positions = geo.attributes.position;
   const v = new THREE.Vector3();
   for (let i = 0; i < positions.count; i++) {
     v.fromBufferAttribute(positions, i);
+    // Large smooth bulges — main cave shape
     let displacement = 0;
-    displacement += noise3D(v.x * 0.05 + seed, v.y * 0.05, seed * 0.7) * amplitude;
-    displacement += noise3D(v.x * 0.15 + seed, v.y * 0.15, seed * 1.3) * amplitude * 0.35;
-    displacement += noise3D(v.x * 0.4 + seed, v.y * 0.4, seed * 2.1) * amplitude * 0.1;
+    displacement += noise3D(v.x * 0.03 + seed, v.y * 0.03, seed * 0.7) * amplitude;
+    displacement += noise3D(v.x * 0.07 + seed, v.y * 0.07, seed * 1.1) * amplitude * 0.5;
+    // Medium detail — rocky texture
+    displacement += noise3D(v.x * 0.15 + seed, v.y * 0.15, seed * 1.3) * amplitude * 0.25;
+    // Fine detail — rough surface
+    displacement += noise3D(v.x * 0.4 + seed, v.y * 0.4, seed * 2.1) * amplitude * 0.08;
+    // Sharp ridges — dramatic protrusions like real cave formations
+    const ridge = Math.abs(noise3D(v.x * 0.08 + seed, v.y * 0.08, seed * 0.5)) * amplitude * 0.4;
     // Push vertex along Z (normal direction) — walls bulge INWARD
+    // Use abs() so displacement is always inward (positive Z = into the cave)
+    positions.setZ(i, v.z + Math.abs(displacement) + ridge);
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// ─── Cave ceiling geometry — displaced PlaneGeometry with stalactite-like bumps ───
+function createCaveCeiling(
+  width: number,
+  depth: number,
+  segments: number = 80,
+  seed: number = 99
+): THREE.BufferGeometry {
+  const geo = new THREE.PlaneGeometry(width, depth, segments, segments);
+  const positions = geo.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < positions.count; i++) {
+    v.fromBufferAttribute(positions, i);
+    // Large undulations — ceiling height varies 2-4 meters
+    let displacement = 0;
+    displacement += noise3D(v.x * 0.025 + seed, v.y * 0.025, seed * 1.7) * 3.5;
+    displacement += noise3D(v.x * 0.06 + seed, v.y * 0.06, seed * 0.9) * 1.8;
+    // Stalactite clusters — sharp downward protrusions
+    const stalactiteNoise = Math.max(0, noise3D(v.x * 0.12 + seed, v.y * 0.12, seed * 2.3));
+    displacement += stalactiteNoise * stalactiteNoise * 4.0;
+    // Medium detail
+    displacement += noise3D(v.x * 0.2 + seed, v.y * 0.2, seed * 3.1) * 0.8;
+    // Fine roughness
+    displacement += noise3D(v.x * 0.5 + seed, v.y * 0.5, seed * 4.7) * 0.2;
+    // Push DOWN (positive Z after rotation = downward in world)
     positions.setZ(i, v.z + Math.abs(displacement));
   }
   positions.needsUpdate = true;
@@ -159,10 +200,20 @@ function createOrganicCaveWall(
   return geo;
 }
 
-const UW_WALL_NORTH_GEO = createOrganicCaveWall(62, 30, 48, 0, 2.5);
-const UW_WALL_SOUTH_GEO = createOrganicCaveWall(62, 30, 48, 10, 2.5);
-const UW_WALL_WEST_GEO = createOrganicCaveWall(62, 30, 48, 20, 2.5);
-const UW_WALL_EAST_GEO = createOrganicCaveWall(62, 30, 48, 30, 2.5);
+// Cave ceiling — 3D organic, not flat
+const CAVE_CEILING_GEO = createCaveCeiling(62, 62, 80, 99);
+
+// DRY cave walls — organic displaced planes (above water, Y > 0)
+const CAVE_WALL_N_GEO = createOrganicCaveWall(62, 10, 64, 0, 3.5);
+const CAVE_WALL_S_GEO = createOrganicCaveWall(62, 10, 64, 10, 3.5);
+const CAVE_WALL_W_GEO = createOrganicCaveWall(62, 10, 64, 20, 3.5);
+const CAVE_WALL_E_GEO = createOrganicCaveWall(62, 10, 64, 30, 3.5);
+
+// UNDERWATER cave walls — organic displaced planes
+const UW_WALL_NORTH_GEO = createOrganicCaveWall(62, 35, 64, 40, 3.5);
+const UW_WALL_SOUTH_GEO = createOrganicCaveWall(62, 35, 64, 50, 3.5);
+const UW_WALL_WEST_GEO = createOrganicCaveWall(62, 35, 64, 60, 3.5);
+const UW_WALL_EAST_GEO = createOrganicCaveWall(62, 35, 64, 70, 3.5);
 
 // ─── Procedural rock geometry helper ────────────────────────────────────
 function createProceduralRock(
@@ -236,6 +287,8 @@ const PROC_STALAGMITE_GEOS = [
   createProceduralStalactite(1.8, 0.5, 0.05, 10, 15, 240),
   createProceduralStalactite(2.1, 0.6, 0.05, 10, 15, 250),
   createProceduralStalactite(2.4, 0.7, 0.05, 10, 15, 260),
+  createProceduralStalactite(1.5, 0.4, 0.05, 10, 15, 270),
+  createProceduralStalactite(3.0, 0.9, 0.05, 10, 15, 280),
 ];
 const PROC_STALACTITE_GEOS = [
   createProceduralStalactite(1.5, 0.4, 0.05, 10, 15, 300),
@@ -246,6 +299,8 @@ const PROC_STALACTITE_GEOS = [
   createProceduralStalactite(1.6, 0.5, 0.05, 10, 15, 350),
   createProceduralStalactite(1.3, 0.4, 0.05, 10, 15, 360),
   createProceduralStalactite(1.7, 0.5, 0.05, 10, 15, 370),
+  createProceduralStalactite(2.5, 0.6, 0.05, 10, 15, 380),
+  createProceduralStalactite(2.2, 0.5, 0.05, 10, 15, 390),
 ];
 
 // Procedural underwater terrain — displaced PlaneGeometry (simplex-noise)
@@ -343,17 +398,18 @@ const CAVE_ROCKS_LIGHT: readonly Boulder[] = [
 ] as const;
 
 // ─── Pool rim — large boulders forming the edge of the water pit ──────
+// More boulders, bigger, more irregular — looks like a natural sinkhole, not a pipe
 const POOL_RIM: readonly Boulder[] = (() => {
-    const r = HOLE_RADIUS + 0.8;
+    const r = HOLE_RADIUS + 1.2;
     const result: Boulder[] = [];
-    for (let i = 0; i < 14; i++) {
-        const a = (i / 14) * Math.PI * 2;
-        const jitter = 0.85 + (Math.sin(i * 13.7) * 0.5 + 0.5) * 0.35;
+    for (let i = 0; i < 20; i++) {  // more boulders = less pipe-like
+        const a = (i / 20) * Math.PI * 2;
+        const jitter = 0.7 + (Math.sin(i * 13.7) * 0.5 + 0.5) * 0.5;
         const x = HOLE_CENTER_X + Math.cos(a) * r * jitter;
         const z = HOLE_CENTER_Z + Math.sin(a) * r * jitter;
-        const s = 0.7 + (Math.sin(i * 7.3) * 0.5 + 0.5) * 0.7;
-        const ry = a + Math.sin(i * 3.1) * 0.4;
-        result.push([x, 0.15, z, s, ry] as const);
+        const s = 1.0 + (Math.sin(i * 7.3) * 0.5 + 0.5) * 1.2;  // bigger boulders
+        const ry = a + Math.sin(i * 3.1) * 0.6;
+        result.push([x, 0.2, z, s, ry] as const);
     }
     return result;
 })();
@@ -368,6 +424,15 @@ const STALAGMITES: readonly Stalactite[] = [
     [ -8,  22, 1.8, 0.5],
     [ 10,  20, 2.1, 0.6],
     [-15, -22, 2.4, 0.7],
+    // Extra stalagmites — more claustrophobic, more cave-like
+    [-5,   12, 1.5, 0.4],
+    [ 8,   -8, 1.8, 0.5],
+    [-20,   5, 2.2, 0.6],
+    [ 15,  -3, 1.3, 0.4],
+    [ -3, -15, 1.6, 0.5],
+    [ 25,   8, 2.0, 0.5],
+    [-12, -5,  1.4, 0.3],
+    [ 18,  22, 1.7, 0.4],
 ];
 const STALACTITES: readonly Stalactite[] = [
     [-12,  10, 1.5, 0.4],
@@ -378,6 +443,14 @@ const STALACTITES: readonly Stalactite[] = [
     [  3, -20, 1.6, 0.5],
     [-22,  20, 1.3, 0.4],
     [ 18, -25, 1.7, 0.5],
+    // Extra stalactites — more claustrophobic, hanging lower
+    [-8,    0, 2.5, 0.6],
+    [ 5,   -8, 2.2, 0.5],
+    [-15,  15, 1.8, 0.4],
+    [ 12,  18, 2.0, 0.5],
+    [ 0,  -12, 1.5, 0.4],
+    [-25,  -8, 1.9, 0.5],
+    [ 20,  -3, 1.6, 0.4],
 ];
 
 // ─── Crystals — colored emissive accents along the walls ─────────────
@@ -1784,29 +1857,28 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             <meshStandardMaterial color="#0a0806" map={caveFloor.color} normalMap={caveFloor.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveFloor.rough} roughness={0.95} aoMap={caveFloor.ao} aoMapIntensity={1.2} side={THREE.BackSide} />
         </mesh>
 
-        {/* Cave ceiling — PBR textured */}
-        <mesh position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[60, 60]} />
-            <meshStandardMaterial color="#1a1610" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveWall.rough} roughness={1} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
+        {/* Cave ceiling — 3D ORGANIC with stalactite-like bumps */}
+        <mesh position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]} geometry={CAVE_CEILING_GEO}>
+            <meshStandardMaterial color="#1a1610" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={1} aoMap={caveWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
         </mesh>
 
-        {/* CAVE WALLS — real PBR textures, DoubleSide + thicker to prevent X-ray */}
-        {/* North (z = -30) */}
-        <mesh position={[ -8, 2.5, -29.6]}><boxGeometry args={[24, 5, 2.5]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[ 10, 3.2, -29.4]}><boxGeometry args={[18, 6.4, 2.5]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[ -2, 6.0, -29.8]}><boxGeometry args={[60, 4, 2.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        {/* South (z = 30) */}
-        <mesh position={[  6, 2.4,  29.6]}><boxGeometry args={[26, 4.8, 2.5]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[-12, 3.5,  29.4]}><boxGeometry args={[20, 7, 2.5]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[  4, 6.2,  29.8]}><boxGeometry args={[60, 3.6, 2.0]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        {/* West (x = -30) */}
-        <mesh position={[-29.6, 2.6,   0]}><boxGeometry args={[2.5, 5.2, 28]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[-29.4, 3.4, -12]}><boxGeometry args={[2.5, 6.8, 18]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[-29.8, 6.2,   3]}><boxGeometry args={[2.0, 3.6, 60]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        {/* East (x = 30) */}
-        <mesh position={[ 29.6, 2.5,   8]}><boxGeometry args={[2.5, 5, 22]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[ 29.4, 3.6, -10]}><boxGeometry args={[2.5, 7.2, 20]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
-        <mesh position={[ 29.8, 6.0,  -2]}><boxGeometry args={[2.0, 4, 60]} /><meshStandardMaterial map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} envMapIntensity={0.3} /></mesh>
+        {/* CAVE WALLS — ORGANIC displaced PlaneGeometry (no more boxGeometry!) */}
+        {/* North wall (z = -30) — faces +Z (inward) */}
+        <mesh position={[0, 5, -30]} rotation={[0, 0, 0]} geometry={CAVE_WALL_N_GEO}>
+            <meshStandardMaterial color="#1a1610" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={1.0} side={THREE.DoubleSide} />
+        </mesh>
+        {/* South wall (z = 30) — faces -Z (inward) */}
+        <mesh position={[0, 5, 30]} rotation={[0, Math.PI, 0]} geometry={CAVE_WALL_S_GEO}>
+            <meshStandardMaterial color="#1a1610" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={1.0} side={THREE.DoubleSide} />
+        </mesh>
+        {/* West wall (x = -30) — faces +X (inward) */}
+        <mesh position={[-30, 5, 0]} rotation={[0, Math.PI / 2, 0]} geometry={CAVE_WALL_W_GEO}>
+            <meshStandardMaterial color="#1a1610" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={1.0} side={THREE.DoubleSide} />
+        </mesh>
+        {/* East wall (x = 30) — faces -X (inward) */}
+        <mesh position={[30, 5, 0]} rotation={[0, -Math.PI / 2, 0]} geometry={CAVE_WALL_E_GEO}>
+            <meshStandardMaterial color="#1a1610" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={1.0} side={THREE.DoubleSide} />
+        </mesh>
 
         {/* Cave boulders — real GLB models with PBR textures */}
         {CAVE_ROCKS_DARK.map(([x, y, z, s, ry], i) => (
