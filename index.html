@@ -105043,7 +105043,28 @@ const CAVE_FLOOR_GEO = (() => {
   const hole = new Path();
   hole.absarc(HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, 0, Math.PI * 2, false);
   shape.holes.push(hole);
-  const geo = new ShapeGeometry(shape);
+  const geo = new ShapeGeometry(shape, 24);
+  const positions = geo.attributes.position;
+  const v5 = new Vector3();
+  for (let i2 = 0; i2 < positions.count; i2++) {
+    v5.fromBufferAttribute(positions, i2);
+    const dxH = v5.x - HOLE_CENTER_X;
+    const dyH = v5.y - HOLE_CENTER_Z;
+    const distToHole = Math.sqrt(dxH * dxH + dyH * dyH);
+    const holeFade = Math.min(1, Math.max(0, (distToHole - HOLE_RADIUS) / 2));
+    const edgeDist = Math.min(
+      Math.abs(v5.x - -size),
+      Math.abs(v5.x - size),
+      Math.abs(v5.y - -size),
+      Math.abs(v5.y - size)
+    );
+    const edgeFade = Math.min(1, edgeDist / 3);
+    const fade = holeFade * edgeFade;
+    const n = Math.sin(v5.x * 0.8 + 2.3) * 0.3 + Math.sin(v5.y * 0.6 + 1.1) * 0.25 + Math.cos(v5.x * 1.2 + v5.y * 0.9 + 4.5) * 0.15;
+    positions.setZ(i2, v5.z + n * 0.15 * fade);
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
   return geo;
 })();
 function makeRockGeo(seed3, detail = 2, displaceAmount = 0.22) {
@@ -105060,14 +105081,34 @@ function makeRockGeo(seed3, detail = 2, displaceAmount = 0.22) {
   geo.computeVertexNormals();
   return geo;
 }
-makeRockGeo(0);
+const ROCK_GEO_A = makeRockGeo(0);
 const ROCK_GEO_B = makeRockGeo(5.3);
-makeRockGeo(11.7);
-makeRockGeo(17.1);
-const BOULDER_GEO = ROCK_GEO_B;
+const ROCK_GEO_C = makeRockGeo(11.7);
+const ROCK_GEO_D = makeRockGeo(17.1);
+const ROCK_VARIANTS = [ROCK_GEO_A, ROCK_GEO_B, ROCK_GEO_C, ROCK_GEO_D];
 const PEBBLE_GEO = new IcosahedronGeometry(1, 0);
 const BUBBLE_GEO = new SphereGeometry(1, 6, 5);
 const SHARD_GEO = new OctahedronGeometry(0.5, 0);
+const UW_FLOOR_GEO = (() => {
+  const geo = new PlaneGeometry(80, 80, 64, 64);
+  const positions = geo.attributes.position;
+  const v5 = new Vector3();
+  for (let i2 = 0; i2 < positions.count; i2++) {
+    v5.fromBufferAttribute(positions, i2);
+    const edgeDist = Math.min(
+      Math.abs(v5.x - -40),
+      Math.abs(v5.x - 40),
+      Math.abs(v5.y - -40),
+      Math.abs(v5.y - 40)
+    );
+    const edgeFade = Math.min(1, edgeDist / 5);
+    const n = Math.sin(v5.x * 0.3 + 1.7) * 0.5 + Math.sin(v5.y * 0.4 + 3.1) * 0.4 + Math.sin((v5.x + v5.y) * 0.2 + 0.8) * 0.6 + Math.cos(v5.x * 0.7 - v5.y * 0.5 + 5.3) * 0.3 + Math.sin(v5.x * 1.4 + v5.y * 1.1 + 2.2) * 0.15;
+    positions.setZ(i2, v5.z + n * 1.5 * edgeFade);
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+})();
 function makeRockNormal(size, seed3) {
   if (typeof document === "undefined") return null;
   const canvas = document.createElement("canvas");
@@ -106018,22 +106059,17 @@ const Floor2Environment = ({
     /* @__PURE__ */ jsxRuntimeExports.jsx("boxGeometry", { args: [0.6, 4, 60] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#352b21", roughness: 0.95, roughnessMap: WALL_ROUGH ?? void 0, map: WALL_ALBEDO ?? void 0, normalMap: WALL_NORMAL ?? void 0, normalScale: new Vector2(1.6, 1.6), aoMap: WALL_AO ?? void 0, aoMapIntensity: 0.5 })
   ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: CAVE_ROCKS_DARK.length, range: CAVE_ROCKS_DARK.length, geometry: BOULDER_GEO, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#322820", roughness: 0.95, flatShading: true }),
-    CAVE_ROCKS_DARK.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.8, s], rotation: [0, ry, 0] }, i2))
-  ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: CAVE_ROCKS_MID.length, range: CAVE_ROCKS_MID.length, geometry: BOULDER_GEO, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#564335", roughness: 0.9, flatShading: true }),
-    CAVE_ROCKS_MID.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.8, s], rotation: [0, ry, 0] }, i2))
-  ] }),
+  CAVE_ROCKS_DARK.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: ROCK_VARIANTS[i2 % 4], position: [x2, y + s * 0.5, z], scale: [s, s * 0.8, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#322820", roughness: 0.95, flatShading: true }) }, `dark-${i2}`)),
+  CAVE_ROCKS_MID.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: ROCK_VARIANTS[i2 % 4], position: [x2, y + s * 0.5, z], scale: [s, s * 0.8, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#564335", roughness: 0.9, flatShading: true }) }, `mid-${i2}`)),
   /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: CAVE_ROCKS_LIGHT.length, range: CAVE_ROCKS_LIGHT.length, geometry: PEBBLE_GEO, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#6a5544", roughness: 0.85, flatShading: true }),
     CAVE_ROCKS_LIGHT.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.7, s], rotation: [0, ry, 0] }, i2))
   ] }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: POOL_RIM.length, range: POOL_RIM.length, geometry: BOULDER_GEO, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3e3026", roughness: 0.92, flatShading: true }),
-    POOL_RIM.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.45, z], scale: [s, s * 0.7, s], rotation: [0, ry, 0] }, i2))
+  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [HOLE_CENTER_X, 0.05, HOLE_CENTER_Z], rotation: [-Math.PI / 2, 0, 0], children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("torusGeometry", { args: [HOLE_RADIUS + 0.2, 0.35, 8, 24] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#2a2018", roughness: 0.95, map: FLOOR_ALBEDO ?? void 0, normalMap: FLOOR_NORMAL ?? void 0, normalScale: new Vector2(1.5, 1.5) })
   ] }),
+  POOL_RIM.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: ROCK_VARIANTS[i2 % 4], position: [x2, y - 0.1 + s * 0.35, z], scale: [s, s * 0.6, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3e3026", roughness: 0.92, flatShading: true }) }, `rim-${i2}`)),
   STALAGMITES.map(([x2, z, h2, r2], i2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [x2, h2 / 2, z], children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("coneGeometry", { args: [r2, h2, 6] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#3a3024", roughness: 1, flatShading: true })
@@ -106046,29 +106082,23 @@ const Floor2Environment = ({
   TORCH_POSITIONS.map(([x2, y, z], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Torch, { x: x2, y, z, seed: i2 * 7.3 }, `torch-${i2}`)),
   /* @__PURE__ */ jsxRuntimeExports.jsx(DustMotes, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsx(WaterSurface, { reflective }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { rotation: [-Math.PI / 2, 0, 0], position: [0, -30, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [80, 80, 32, 32] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "meshStandardMaterial",
-      {
-        map: UW_ALBEDO ?? void 0,
-        normalMap: UW_NORMAL ?? void 0,
-        normalScale: new Vector2(2.5, 2.5),
-        roughnessMap: UW_ROUGH ?? void 0,
-        roughness: 0.95,
-        aoMap: UW_AO ?? void 0,
-        aoMapIntensity: 0.7
-      }
-    )
-  ] }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: UW_FLOOR_GEO, rotation: [-Math.PI / 2, 0, 0], position: [0, -30, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "meshStandardMaterial",
+    {
+      map: UW_ALBEDO ?? void 0,
+      normalMap: UW_NORMAL ?? void 0,
+      normalScale: new Vector2(2.5, 2.5),
+      roughnessMap: UW_ROUGH ?? void 0,
+      roughness: 0.95,
+      aoMap: UW_AO ?? void 0,
+      aoMapIntensity: 0.7
+    }
+  ) }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(UnderwaterCaustics, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsx(UnderwaterFlora, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsx(GodRayShafts, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsx(FishSchool, {}),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: UW_BOULDERS.length, range: UW_BOULDERS.length, geometry: BOULDER_GEO, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a2530", roughness: 0.95, flatShading: true }),
-    UW_BOULDERS.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.7, s], rotation: [0, ry, 0] }, i2))
-  ] }),
+  UW_BOULDERS.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { geometry: ROCK_VARIANTS[i2 % 4], position: [x2, y + s * 0.5, z], scale: [s, s * 0.7, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a2530", roughness: 0.95, flatShading: true }) }, `uwb-${i2}`)),
   /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: UW_PEBBLES.length, range: UW_PEBBLES.length, geometry: PEBBLE_GEO, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#101820", roughness: 1, flatShading: true }),
     UW_PEBBLES.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Instance, { position: [x2, y + s * 0.5, z], scale: [s, s * 0.6, s], rotation: [0, ry, 0] }, i2))
