@@ -72,7 +72,7 @@ export const HOLE_CENTER_X = 0;
 export const HOLE_CENTER_Z = 5;
 export const HOLE_RADIUS = 3.0;
 export const WATER_LEVEL_Y = 0.35;
-export const SWIM_THRESHOLD_Y = 0.10;   // below this the player is "in" the water
+export const SWIM_THRESHOLD_Y = -0.3;    // below this the player is "in" the water (must be below cave floor Y=0)
 
 // ─── Cave floor with circular hole — ShapeGeometry ────────────────────
 // THREE.Shape supports holes natively; this gives us a single mesh for
@@ -641,14 +641,14 @@ const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vec
     const _bgColor = useRef(new THREE.Color('#0e0a08'));
     const _tgtFog = useRef(new THREE.Color());
     const _tgtBg = useRef(new THREE.Color());
-    // Pre-allocated depth-based fog colors
-    const _surfaceFog = new THREE.Color('#040e12');  // dark teal near surface
-    const _midFog = new THREE.Color('#020810');      // deep blue mid-depth
-    const _deepFog = new THREE.Color('#010406');     // near-black at bottom
+    // Pre-allocated depth-based fog colors — VISIBLE blue tint underwater
+    const _surfaceFog = new THREE.Color('#0a2040');  // clearly blue near surface
+    const _midFog = new THREE.Color('#061838');      // deep blue mid-depth
+    const _deepFog = new THREE.Color('#030e22');     // dark blue at bottom
     const _caveFog = new THREE.Color('#0e0a08');     // warm dark cave
-    const _surfaceBg = new THREE.Color('#040e12');
-    const _midBg = new THREE.Color('#020810');
-    const _deepBg = new THREE.Color('#010406');
+    const _surfaceBg = new THREE.Color('#0a2040');
+    const _midBg = new THREE.Color('#061838');
+    const _deepBg = new THREE.Color('#030e22');
     const _caveBg = new THREE.Color('#0e0a08');
 
     useFrame((_, dt) => {
@@ -682,11 +682,11 @@ const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vec
 
             // Breathing fog for horror
             const breathe = Math.sin(performance.now() * 0.0003) * 0.5;
-            // Tighter fog as you go deeper
-            const baseNear = 0.5 - t * 0.4; // 0.5 at surface, 0.1 at bottom
-            const baseFar = 8 - t * 4;       // 8 at surface, 4 at bottom
-            const tgtNear = Math.max(0.1, baseNear + breathe * 0.05);
-            const tgtFar = Math.max(3, baseFar + breathe * 0.3);
+            // Wider fog so the blue tint is actually visible
+            const baseNear = 1.5 - t * 0.8; // 1.5 at surface, 0.7 at bottom
+            const baseFar = 18 - t * 8;       // 18 at surface, 10 at bottom
+            const tgtNear = Math.max(0.5, baseNear + breathe * 0.1);
+            const tgtFar = Math.max(6, baseFar + breathe * 0.5);
 
             const k = Math.min(1, 8 * safeDt);
             _fogColor.current.lerp(_tgtFog.current, k);
