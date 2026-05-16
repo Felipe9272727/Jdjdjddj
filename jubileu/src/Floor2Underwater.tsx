@@ -548,10 +548,10 @@ const UnderwaterOverlayMaterial = shaderMaterial(
         float c1 = sin(uv.x * 18.0 + time * 1.4) * sin(uv.y * 15.0 + time * 1.1);
         float c2 = sin(uv.x * 12.0 - time * 0.9 + 1.5) * sin(uv.y * 10.0 + time * 1.3);
         float caustic = pow(max(0.0, c1 * c2), 2.5) * 0.2;
-        // Color tinting based on depth — dramatic absorption
-        vec3 shallowTint = vec3(0.0, 0.025, 0.04);
-        vec3 midTint = vec3(0.0, 0.015, 0.07);
-        vec3 deepTint = vec3(0.0, 0.003, 0.025);
+        // Color tinting based on depth — VISIBLE blue absorption
+        vec3 shallowTint = vec3(0.0, 0.06, 0.12);
+        vec3 midTint = vec3(0.0, 0.04, 0.14);
+        vec3 deepTint = vec3(0.0, 0.01, 0.08);
         vec3 tint;
         if (depth < 0.35) {
           tint = mix(shallowTint, midTint, depth / 0.35);
@@ -561,7 +561,7 @@ const UnderwaterOverlayMaterial = shaderMaterial(
         // Add caustic highlights to the tint
         tint += vec3(0.0, caustic * 0.4, caustic * 0.3);
         // Alpha increases with depth, vignette softens edges
-        float alpha = (0.18 + depth * 0.45) * vignette;
+        float alpha = (0.25 + depth * 0.5) * vignette;
         // Slight chromatic-aberration color shift at edges
         float edgeDist = length(center) * 2.0;
         tint.r += edgeDist * 0.005 * depth;
@@ -789,14 +789,14 @@ const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vec
     const _bgColor = useRef(new THREE.Color('#0e0a08'));
     const _tgtFog = useRef(new THREE.Color());
     const _tgtBg = useRef(new THREE.Color());
-    // Pre-allocated depth-based fog colors — more dramatic absorption
-    const _surfaceFog = new THREE.Color('#030a10');  // dark teal near surface
-    const _midFog = new THREE.Color('#010610');      // deeper blue mid-depth
-    const _deepFog = new THREE.Color('#000306');     // near-black at bottom
+    // Pre-allocated depth-based fog colors — VISIBLE blue tint underwater
+    const _surfaceFog = new THREE.Color('#0a2a50');  // visible blue near surface
+    const _midFog = new THREE.Color('#061a3a');      // deep blue mid-depth
+    const _deepFog = new THREE.Color('#03102a');     // dark blue at bottom
     const _caveFog = new THREE.Color('#0e0a08');     // warm dark cave
-    const _surfaceBg = new THREE.Color('#030a10');
-    const _midBg = new THREE.Color('#010610');
-    const _deepBg = new THREE.Color('#000306');
+    const _surfaceBg = new THREE.Color('#0a2a50');
+    const _midBg = new THREE.Color('#061a3a');
+    const _deepBg = new THREE.Color('#03102a');
     const _caveBg = new THREE.Color('#0e0a08');
 
     useFrame((_, dt) => {
@@ -830,11 +830,11 @@ const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vec
 
             // Breathing fog for horror
             const breathe = Math.sin(performance.now() * 0.0003) * 0.5;
-            // Tighter fog as you go deeper
-            const baseNear = 0.5 - t * 0.4; // 0.5 at surface, 0.1 at bottom
-            const baseFar = 8 - t * 4;       // 8 at surface, 4 at bottom
-            const tgtNear = Math.max(0.1, baseNear + breathe * 0.05);
-            const tgtFar = Math.max(3, baseFar + breathe * 0.3);
+            // Wider fog so blue tint is visible
+            const baseNear = 1.5 - t * 0.6; // 1.5 at surface, 0.9 at bottom
+            const baseFar = 20 - t * 8;      // 20 at surface, 12 at bottom
+            const tgtNear = Math.max(0.5, baseNear + breathe * 0.1);
+            const tgtFar = Math.max(8, baseFar + breathe * 0.5);
 
             const k = Math.min(1, 8 * safeDt);
             _fogColor.current.lerp(_tgtFog.current, k);
