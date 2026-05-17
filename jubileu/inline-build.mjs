@@ -17,7 +17,7 @@ if (!scriptMatch) throw new Error('script tag not found in dist/index.html');
 const escapeScript = (s) => s.replace(/<\/script/gi, '<\\/script');
 const escapeStyle = (s) => s.replace(/<\/style/gi, '<\\/style');
 
-const jsRel = scriptMatch[1].replace(/^\//, '');
+const jsRel = scriptMatch[1].replace(/^\/?Jdjdjddj\//, '');
 const js = fs.readFileSync(path.join(dist, jsRel), 'utf8');
 // Remove the external script tag from <head>.
 // Use a function replacement to prevent JS's $& / $' / $` special patterns
@@ -37,7 +37,7 @@ html = html.replace('</body>', () => `<script>${inlinedJs}</script>\n  </body>`)
 html = html.replace(/<link rel="modulepreload"[^>]*>/gi, '');
 
 if (cssMatch) {
-  const cssRel = cssMatch[1].replace(/^\//, '');
+  const cssRel = cssMatch[1].replace(/^\/?Jdjdjddj\//, '');
   const css = fs.readFileSync(path.join(dist, cssRel), 'utf8');
   const inlinedCss = escapeStyle(css);
   html = html.replace(cssMatch[0], () => `<style>${inlinedCss}</style>`);

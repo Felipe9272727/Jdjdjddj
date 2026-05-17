@@ -28,10 +28,10 @@ export const WaterCeilingMaterial = shaderMaterial(
         float cross1 = sin(uv.x * 22.0 + time * 1.8) * sin(uv.y * 20.0 - time * 1.3) * 0.5 + 0.5;
         float cross2 = sin(uv.x * 16.0 - time * 1.1 + 2.0) * sin(uv.y * 14.0 + time * 0.9) * 0.5 + 0.5;
         float ripple = pow(ripple1 * ripple2, 1.5) * 0.6 + pow(cross1 * cross2, 2.0) * 0.4;
-        vec3 col = vec3(0.02, 0.06, 0.10);
-        col += vec3(0.03, 0.12, 0.15) * ripple;
-        float caustic = pow(ripple, 3.0) * 0.2;
-        col += vec3(0.04, 0.15, 0.10) * caustic;
+        vec3 col = vec3(0.04, 0.10, 0.16);
+        col += vec3(0.05, 0.18, 0.22) * ripple;
+        float caustic = pow(ripple, 3.0) * 0.3;
+        col += vec3(0.06, 0.20, 0.14) * caustic;
         gl_FragColor = vec4(col, 1.0);
       }
     `
@@ -60,9 +60,9 @@ export const UnderwaterOverlayMaterial = shaderMaterial(
         float c1 = sin(uv.x * 18.0 + time * 1.4) * sin(uv.y * 15.0 + time * 1.1);
         float c2 = sin(uv.x * 12.0 - time * 0.9 + 1.5) * sin(uv.y * 10.0 + time * 1.3);
         float caustic = pow(max(0.0, c1 * c2), 2.5) * 0.2;
-        vec3 shallowTint = vec3(0.0, 0.10, 0.18);
-        vec3 midTint = vec3(0.0, 0.07, 0.20);
-        vec3 deepTint = vec3(0.0, 0.02, 0.12);
+        vec3 shallowTint = vec3(0.02, 0.15, 0.25);
+        vec3 midTint = vec3(0.01, 0.10, 0.25);
+        vec3 deepTint = vec3(0.0, 0.05, 0.18);
         vec3 tint;
         if (depth < 0.35) {
           tint = mix(shallowTint, midTint, depth / 0.35);
@@ -70,7 +70,7 @@ export const UnderwaterOverlayMaterial = shaderMaterial(
           tint = mix(midTint, deepTint, (depth - 0.35) / 0.65);
         }
         tint += vec3(0.0, caustic * 0.5, caustic * 0.4);
-        float alpha = (0.20 + depth * 0.45) * vignette;
+        float alpha = (0.12 + depth * 0.30) * vignette;
         float edgeDist = length(center) * 2.0;
         tint.r += edgeDist * 0.005 * depth;
         tint.b += edgeDist * 0.01 * (1.0 - depth);
@@ -173,9 +173,9 @@ export const WaterMaterial = shaderMaterial(
 
         float viewFromBelow = step(dot(vNormalWS, vViewWS), 0.0);
 
-        vec3 deep   = vec3(0.02, 0.08, 0.14);
-        vec3 mid    = vec3(0.06, 0.18, 0.28);
-        vec3 sky    = vec3(0.25, 0.38, 0.45);
+        vec3 deep   = vec3(0.05, 0.15, 0.25);
+        vec3 mid    = vec3(0.10, 0.30, 0.42);
+        vec3 sky    = vec3(0.35, 0.50, 0.58);
 
         float c1 = sin(vUv.x * 32.0 + time * 0.9) * 0.5 + 0.5;
         float c2 = sin(vUv.y * 26.0 + time * 1.1 + 2.0) * 0.5 + 0.5;
@@ -201,10 +201,10 @@ export const WaterMaterial = shaderMaterial(
         float totalFoam = max(foam * 0.6, edgeFoam);
         col = mix(col, vec3(0.7, 0.78, 0.82), totalFoam);
 
-        float alpha = mix(0.85, 0.97, fresnel);
+        float alpha = mix(0.90, 0.98, fresnel);
         if (viewFromBelow > 0.5) {
             alpha = 1.0;
-            col = vec3(0.02, 0.06, 0.1);
+            col = vec3(0.04, 0.10, 0.18);
         }
         gl_FragColor = vec4(col, alpha);
       }
@@ -230,8 +230,8 @@ export const CausticsMaterial = shaderMaterial(
         float b = sin(uv.y * 6.28 + time * 1.0 + 1.2) + sin((uv.y - uv.x) * 4.5 + time * 1.1);
         float c3 = sin(uv.x * 12.0 + uv.y * 8.0 + time * 2.0) * sin(uv.y * 10.0 - uv.x * 6.0 + time * 1.8);
         float c = pow(max(0.0, sin(a) * sin(b)), 2.0) + pow(max(0.0, c3), 3.0) * 0.5;
-        vec3 col = vec3(c * 0.35, c * 0.65, c * 0.50);
-        gl_FragColor = vec4(col, c * 0.45);
+        vec3 col = vec3(c * 0.45, c * 0.75, c * 0.55);
+        gl_FragColor = vec4(col, c * 0.55);
       }
     `
 );

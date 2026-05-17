@@ -222,18 +222,18 @@ export const WaterCeilingDisc: React.FC = () => {
 // ─── DynamicFog — depth-based color absorption (Beer-Lambert style) ───
 export const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
     const { scene } = useThree();
-    const _fogColor = useRef(new THREE.Color('#1a1410'));
-    const _bgColor = useRef(new THREE.Color('#1a1410'));
+    const _fogColor = useRef(new THREE.Color('#2a2018'));
+    const _bgColor = useRef(new THREE.Color('#2a2018'));
     const _tgtFog = useRef(new THREE.Color());
     const _tgtBg = useRef(new THREE.Color());
-    const _surfaceFog = new THREE.Color('#0a2a50');
-    const _midFog = new THREE.Color('#061a3a');
-    const _deepFog = new THREE.Color('#03102a');
-    const _caveFog = new THREE.Color('#1a1410');
-    const _surfaceBg = new THREE.Color('#0a2a50');
-    const _midBg = new THREE.Color('#061a3a');
-    const _deepBg = new THREE.Color('#03102a');
-    const _caveBg = new THREE.Color('#1a1410');
+    const _surfaceFog = new THREE.Color('#1a4a70');
+    const _midFog = new THREE.Color('#0e3060');
+    const _deepFog = new THREE.Color('#081840');
+    const _caveFog = new THREE.Color('#2a2018');
+    const _surfaceBg = new THREE.Color('#1a4a70');
+    const _midBg = new THREE.Color('#0e3060');
+    const _deepBg = new THREE.Color('#081840');
+    const _caveBg = new THREE.Color('#2a2018');
 
     useFrame((_, dt) => {
         const safeDt = Math.min(dt, 0.033);
@@ -262,10 +262,10 @@ export const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<TH
             }
 
             const breathe = Math.sin(performance.now() * 0.0003) * 0.5;
-            const baseNear = 1.5 - t * 0.6;
-            const baseFar = 20 - t * 8;
-            const tgtNear = Math.max(0.5, baseNear + breathe * 0.1);
-            const tgtFar = Math.max(8, baseFar + breathe * 0.5);
+            const baseNear = 3.0 - t * 1.0;
+            const baseFar = 35 - t * 12;
+            const tgtNear = Math.max(1.0, baseNear + breathe * 0.2);
+            const tgtFar = Math.max(12, baseFar + breathe * 1.0);
 
             const k = Math.min(1, 8 * safeDt);
             _fogColor.current.lerp(_tgtFog.current, k);
@@ -395,7 +395,7 @@ export const KelpField: React.FC = () => {
                                 geometry={KELP_GEO}
                                 scale={[1 - i * 0.1, segLen, 1 - i * 0.1]}
                             >
-                                <meshStandardMaterial color={i < 2 ? '#0a0805' : '#0c0a06'} roughness={0.85} flatShading />
+                                <meshStandardMaterial color={i < 2 ? '#1a1810' : '#1c1a12'} roughness={0.85} flatShading />
                             </mesh>
                         ))}
                         <mesh
@@ -404,7 +404,7 @@ export const KelpField: React.FC = () => {
                             scale={[0.6, 0.3, 0.02]}
                         >
                             <planeGeometry args={[1, 1]} />
-                            <meshStandardMaterial color="#0c0f06" roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.85} />
+                            <meshStandardMaterial color="#1a2010" roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.85} />
                         </mesh>
                     </group>
                 );
@@ -418,7 +418,7 @@ export const Coral: React.FC<{ x: number; z: number; color: string; scale: numbe
     <group position={[x, -30, z]} scale={scale}>
         <mesh position={[0, 0.3, 0]}>
             <dodecahedronGeometry args={[0.5, 0]} />
-            <meshStandardMaterial color="#0e0a06" roughness={0.95} metalness={0.05} flatShading />
+            <meshStandardMaterial color="#1a1a10" roughness={0.95} metalness={0.05} flatShading />
         </mesh>
         <mesh position={[0, 1.0, 0]} rotation={[0.1, 0, 0.15]}>
             <cylinderGeometry args={[0.06, 0.1, 1.2, 5]} />
@@ -473,9 +473,9 @@ export const GodRayShafts: React.FC = () => {
                     >
                         <planeGeometry args={[1.6 + (i % 3) * 0.4, 28]} />
                         <meshBasicMaterial
-                            color="#0c3020"
+                            color="#1a6a4a"
                             transparent
-                            opacity={0.12 + (i % 3) * 0.04}
+                            opacity={0.18 + (i % 3) * 0.06}
                             side={THREE.DoubleSide}
                             depthWrite={false}
                             blending={THREE.AdditiveBlending}
@@ -488,9 +488,9 @@ export const GodRayShafts: React.FC = () => {
             <mesh position={[0, 10, 0]}>
                 <coneGeometry args={[2.5, 14, 16, 1, true]} />
                 <meshBasicMaterial
-                    color="#1a5040"
+                    color="#2a7a6a"
                     transparent
-                    opacity={0.10}
+                    opacity={0.15}
                     side={THREE.DoubleSide}
                     depthWrite={false}
                     blending={THREE.AdditiveBlending}
@@ -501,9 +501,9 @@ export const GodRayShafts: React.FC = () => {
             <mesh position={[0, 8, 0]}>
                 <coneGeometry args={[1.2, 10, 12, 1, true]} />
                 <meshBasicMaterial
-                    color="#1a6050"
+                    color="#2a8a7a"
                     transparent
-                    opacity={0.08}
+                    opacity={0.12}
                     side={THREE.DoubleSide}
                     depthWrite={false}
                     blending={THREE.AdditiveBlending}
@@ -613,8 +613,8 @@ export const FishSchool: React.FC = () => {
                     scale={0.6 + (i % 3) * 0.25}
                 >
                     <meshStandardMaterial
-                        color={i % 3 === 0 ? '#1a2a30' : i % 3 === 1 ? '#0e1a20' : '#162228'}
-                        emissive={i % 3 === 0 ? '#081018' : '#060c10'}
+                        color={i % 3 === 0 ? '#2a3a40' : i % 3 === 1 ? '#1a2a30' : '#2a3a38'}
+                        emissive={i % 3 === 0 ? '#102030' : '#0c1820'}
                         emissiveIntensity={0.2}
                         roughness={0.8}
                         flatShading
@@ -799,7 +799,7 @@ export const GodRay: React.FC = () => {
                 side={THREE.DoubleSide}
                 uniforms={{
                     time: { value: 0 },
-                    uColor: { value: new THREE.Color('#1a5a8a') },
+                    uColor: { value: new THREE.Color('#2a7aaa') },
                 }}
                 vertexShader={`
                     varying vec2 vUv;
@@ -838,10 +838,10 @@ export const GodRays: React.FC<{ playerPositionRef: React.MutableRefObject<THREE
     return (
         <group ref={groupRef} position={[HOLE_CENTER_X, -15, HOLE_CENTER_Z]}>
             <mesh geometry={GOD_RAY_GEO} rotation={[0, 0, 0.1]}>
-                <meshBasicMaterial color="#1a4a5a" transparent opacity={0.04} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
+                <meshBasicMaterial color="#2a6a7a" transparent opacity={0.06} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
             </mesh>
             <mesh geometry={GOD_RAY_GEO} position={[0.5, -2, 0.3]} rotation={[0.05, 0.3, -0.15]} scale={0.7}>
-                <meshBasicMaterial color="#1a5a6a" transparent opacity={0.03} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
+                <meshBasicMaterial color="#2a7a8a" transparent opacity={0.05} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
             </mesh>
         </group>
     );
