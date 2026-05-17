@@ -2284,3 +2284,41 @@ Tudo o que vem abaixo foi feito a partir do revert ao commit `87da1a9` (~4.44MB)
 ### Commit
 - `d44ba5d` — feat: raise water to Y=0.35, enhance medium quality mode
 
+
+---
+
+## 🔧 Sessão 2026-05-17: Cave UE5-Quality Overhaul
+
+### Branch: `feat/cave-unreal-upgrade`
+
+### Novo arquivo: CaveEnhancements.tsx (732 linhas)
+
+10 sistemas novos de efeitos para caverna nível Unreal Engine 5:
+
+1. **WetSurfaceMaterial** — shader PBR custom com umidade animada, trilhas de gotejamento, reflexões Fresnel
+2. **VolumetricCaveFog** — 3 camadas de neblina baseada em altura com drift animado
+3. **DripSystem** — 30 gotas d'água caindo de estalactites com física de gravidade
+4. **FlowstoneFormations** — 9 depósitos de calcita nas paredes com shader de listras
+5. **MossPatches** — 9 manchas orgânicas com bioluminescência perto da água
+6. **CaveStreams** — 3 canais de água fluindo das paredes até a piscina
+7. **CrystalBounceLights** — 6 point lights coloridas para iluminação indireta
+8. **WetFloorReflections** — poças com reflexões baseadas em Fresnel perto da piscina
+9. **VolumetricDust** — 80 partículas quentes captando luz
+10. **SplashRings** — anéis de splash onde gotas atingem a água
+
+### Melhorias no Floor2Underwater.tsx:
+- Iluminação dramática multi-direcional (warm rim, cool fill, water bounce)
+- GodRay volumétrico com noise, partículas de poeira, bandas de luz
+- 12 GodRayShafts (era 8) com sistema de 3 cones
+- Neblina da caverna "respirando" com flicker sutil
+- Shader de água melhorado com caustics baseados em noise, dual specular, espuma animada
+- DeepMist em múltiplas camadas
+
+### Settings.tsx:
+- Medium quality agora ativa efeitos de atmosfera (era false)
+
+### Build:
+- Sucesso, ~24MB (tamanho original já era ~24MB)
+- 5 arquivos alterados, +1643 -167 linhas
+
+### Commit: `8b75510`
