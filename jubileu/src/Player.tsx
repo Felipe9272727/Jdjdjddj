@@ -501,7 +501,11 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             ly - Math.sin(camAng.current.phi) * ld,
             pos.current.z - Math.cos(camAng.current.theta) * ld * Math.cos(camAng.current.phi)
         );
-        (camera as THREE.PerspectiveCamera).fov = 95; camera.updateProjectionMatrix();
+        // Smooth FOV transition into swim mode (95°) instead of instant snap
+        const swimFov = 95;
+        const cam = camera as THREE.PerspectiveCamera;
+        cam.fov = THREE.MathUtils.lerp(cam.fov, swimFov, 1 - Math.pow(0.001, safeDt));
+        cam.updateProjectionMatrix();
         camPosRef.current.copy(camera.position);
 
         // Reuse Walking anim while moving (no swim anim available)

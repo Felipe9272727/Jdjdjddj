@@ -25,6 +25,7 @@ export {
 
     // Shard positions
     SHARD_POSITIONS,
+    TOTAL_SHARDS,
 
     // Sub-components (if anyone imports them directly)
     CrystalCluster, Torch, DustMotes,

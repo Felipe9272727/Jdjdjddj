@@ -29,6 +29,10 @@ const EMPTY: InventoryState = {
 
 export function useInventory() {
   const [inventory, setInventory] = useState<InventoryState>(EMPTY);
+  // Ref to synchronously read the current cookie count for useCookie()
+  const cookieCountRef = useRef(0);
+  // Keep ref in sync with state
+  cookieCountRef.current = inventory.cookie.count;
 
   const addItem = useCallback((id: ItemId) => {
     setInventory(prev => {
@@ -51,13 +55,15 @@ export function useInventory() {
   }, []);
 
   const useCookie = useCallback((): boolean => {
-    let ok = false;
+    // Use ref to synchronously check count before decrementing.
+    // The old pattern with `let ok = false` inside setState never worked
+    // because React batches state updates asynchronously.
+    if (cookieCountRef.current <= 0) return false;
     setInventory(prev => {
       if (prev.cookie.count <= 0) return prev;
-      ok = true;
       return { ...prev, cookie: { count: prev.cookie.count - 1 } };
     });
-    return ok;
+    return true;
   }, []);
 
   const hasAnyItem = inventory.flashlight.owned || inventory.cookie.count > 0;

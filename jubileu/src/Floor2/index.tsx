@@ -27,6 +27,7 @@ export {
     WATER_LEVEL_Y, SWIM_THRESHOLD_Y,
     CAVE_ROCK_COLLIDERS, UW_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS,
     SHARD_POSITIONS,
+    TOTAL_SHARDS,
 } from './constants';
 
 // Re-export sub-components (for anyone importing them directly)

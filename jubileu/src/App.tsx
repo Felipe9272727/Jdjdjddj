@@ -28,7 +28,7 @@ import { FlashlightLight, FlashlightModel3D } from './FlashlightLight';
 import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
-import { Floor2Environment, SHARD_POSITIONS } from './Floor2Underwater';
+import { Floor2Environment, SHARD_POSITIONS, TOTAL_SHARDS } from './Floor2Underwater';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -510,7 +510,7 @@ export default function App() {
                     setFloorReveal(true);
                 }
                 if (elevatorTimer === 17) { setOverlayOpacity(0); }
-                if (elevatorTimer === 15 || elevatorTimer === null) { setFloorReveal(false); }
+                if (elevatorTimer === 15) { setFloorReveal(false); }
             }
         }
     } else if (elevatorTimer === 0) {
@@ -563,14 +563,14 @@ export default function App() {
   const activePointers = useRef(new Map<number, { type: 'move' | 'look' | 'aux'; startX: number; startY: number; currX: number; currY: number }>());
 
   useEffect(() => {
-    if (!dialogueOpen && !barneyDialogueOpen) return;
+    if (!dialogueOpen && !barneyDialogueOpen && !shopOpen) return;
     moveInput.current = { x: 0, y: 0 };
     lookInput.current = { x: 0, y: 0 };
     keysRef.current = { w: false, a: false, s: false, d: false };
     activePointers.current.clear();
     prevPinchDist.current = null;
     setJoystickVisual(p => ({ ...p, active: false }));
-  }, [dialogueOpen, barneyDialogueOpen]);
+  }, [dialogueOpen, barneyDialogueOpen, shopOpen]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!hasStarted) return;
@@ -891,10 +891,10 @@ export default function App() {
             <polygon points="12,3 22,12 12,21 2,12" fill="currentColor" opacity="0.9" />
           </svg>
           <span className="tabular-nums">
-            {collectedShards.size === 5 ? (
-              <span className="text-cyan-100 font-bold">5 / 5 — TODOS COLETADOS</span>
+            {collectedShards.size === TOTAL_SHARDS ? (
+              <span className="text-cyan-100 font-bold">{TOTAL_SHARDS} / {TOTAL_SHARDS} — TODOS COLETADOS</span>
             ) : (
-              <>shards <span className="text-cyan-100 font-bold">{collectedShards.size} / 5</span></>
+              <>shards <span className="text-cyan-100 font-bold">{collectedShards.size} / {TOTAL_SHARDS}</span></>
             )}
           </span>
         </div>

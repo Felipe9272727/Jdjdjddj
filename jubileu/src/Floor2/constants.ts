@@ -315,6 +315,7 @@ export const CAVE_WALL_COLLIDERS: readonly { x: number; y: number; z: number; r:
 })();
 
 // ─── Shard positions (underwater) ────────────────────────────────────
+export const TOTAL_SHARDS = 5;
 export const SHARD_POSITIONS: readonly (readonly [number, number, number])[] = [
     [  7.5, -27.5,  -7.5],
     [-13.0, -27.7,   4.8],

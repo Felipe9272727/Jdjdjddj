@@ -565,7 +565,7 @@ export const DebrisField: React.FC = () => {
             if (d.x < -25) d.x = 25;
             if (d.x > 25) d.x = -25;
             if (d.y < -29) d.y = -5;
-            if (d.y < -29) d.y = -3;
+            if (d.y > -3) d.y = -29;
             if (d.z < -25) d.z = 25;
             if (d.z > 25) d.z = -25;
             const r = refs.current[i];
@@ -670,25 +670,32 @@ export const UnderwaterSediment: React.FC = () => {
 // ─── PlanktonField ────────────────────────────────────────────────────
 export const PlanktonField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(PLANKTON_COUNT).fill(null));
-    useFrame((state, dt) => {
-        const safeDt = Math.min(dt, 0.033);
+    // Store initial positions so we compute absolute offsets (no drift)
+    const basePositions = useRef(
+        Array.from({ length: PLANKTON_COUNT }, () => ({
+            x: HOLE_CENTER_X + (Math.random() - 0.5) * 30,
+            y: -3 + Math.random() * -25,
+            z: HOLE_CENTER_Z + (Math.random() - 0.5) * 30,
+        }))
+    );
+    useFrame((state) => {
         const t = state.clock.elapsedTime;
         for (let i = 0; i < PLANKTON_COUNT; i++) {
             const r = refs.current[i];
             if (!r) continue;
+            const base = basePositions.current[i];
             const seed = i * 7.31;
-            r.position.x += Math.sin(t * 0.15 + seed) * 0.003;
-            r.position.y += Math.cos(t * 0.12 + seed * 1.3) * 0.002;
-            r.position.z += Math.sin(t * 0.13 + seed * 0.7) * 0.003;
+            // Use absolute sinusoidal offsets from base position (no cumulative drift)
+            r.position.x = base.x + Math.sin(t * 0.15 + seed) * 0.8;
+            r.position.y = base.y + Math.cos(t * 0.12 + seed * 1.3) * 0.5;
+            r.position.z = base.z + Math.sin(t * 0.13 + seed * 0.7) * 0.8;
         }
     });
     return (
         <Instances limit={PLANKTON_COUNT} range={PLANKTON_COUNT} geometry={PLANKTON_GEO}>
             <meshBasicMaterial color="#1a1808" transparent opacity={0.12} depthWrite={false} toneMapped={false} />
             {Array.from({ length: PLANKTON_COUNT }, (_, i) => {
-                const x = HOLE_CENTER_X + (Math.random() - 0.5) * 30;
-                const y = -3 + Math.random() * -25;
-                const z = HOLE_CENTER_Z + (Math.random() - 0.5) * 30;
+                const { x, y, z } = basePositions.current[i];
                 return (
                     <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} position={[x, y, z]} scale={0.012 + Math.random() * 0.02} />
                 );
