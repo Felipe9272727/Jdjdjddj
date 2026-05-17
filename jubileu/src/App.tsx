@@ -43,15 +43,15 @@ import { SceneInspector } from './SceneInspector';
 
 const MAX_JOYSTICK_RADIUS = 50;
 
-type Floor2GuidePhase = 'hidden' | 'stinger' | 'offer' | 'complete';
+type Floor2GuidePhase = 'hidden' | 'stinger' | 'ready' | 'complete';
 
 const Floor2DiverGuide = React.memo(({ phase }: { phase: Floor2GuidePhase }) => {
   const groupRef = useRef<Object3D>(null);
   useFrame((state, dt) => {
     const g = groupRef.current;
     if (!g) return;
-    const targetZ = phase === 'hidden' ? -11.2 : phase === 'stinger' ? -7.9 : -8.55;
-    const targetScale = phase === 'hidden' ? 0.001 : phase === 'stinger' ? 1.18 : phase === 'complete' ? 0.92 : 1.0;
+    const targetZ = phase === 'hidden' ? -11.2 : phase === 'stinger' ? -7.85 : phase === 'complete' ? -9.2 : -8.45;
+    const targetScale = phase === 'hidden' ? 0.001 : phase === 'stinger' ? 1.22 : phase === 'complete' ? 0.86 : 1.0;
     const k = Math.min(1, dt * (phase === 'stinger' ? 12 : 5));
     g.position.z += (targetZ - g.position.z) * k;
     g.scale.setScalar(g.scale.x + (targetScale - g.scale.x) * k);
@@ -82,6 +82,57 @@ const Floor2DiverGuide = React.memo(({ phase }: { phase: Floor2GuidePhase }) => 
     </group>
   );
 });
+
+const NightVisionRig = React.memo(({ active, playerPositionRef }: { active: boolean; playerPositionRef: React.MutableRefObject<Vector3> }) => {
+  const lightRef = useRef<any>(null);
+  useFrame((state) => {
+    if (!active || !lightRef.current) return;
+    const p = playerPositionRef.current;
+    lightRef.current.position.set(p.x, p.y + 1.35, p.z);
+    lightRef.current.intensity = 7.5 + Math.sin(state.clock.elapsedTime * 2.5) * 0.25;
+  });
+  if (!active) return null;
+  return (
+    <>
+      <ambientLight intensity={1.65} color="#b8ffd1" />
+      <hemisphereLight args={["#d9ffe6", "#042512", 2.35]} />
+      <pointLight ref={lightRef} intensity={7.5} distance={46} decay={1.25} color="#c9ffd8" />
+      <directionalLight position={[7, 10, 4]} intensity={1.1} color="#bbffd5" />
+    </>
+  );
+});
+
+const Floor2GuideDialogue = ({ onAccept, onClose }: { onAccept: () => void; onClose: () => void }) => {
+  const [node, setNode] = useState<'intro' | 'explain' | 'accept'>('intro');
+  const text = node === 'intro'
+    ? 'Ei. Não grita. Eu também odeio essa entrada dramática, mas o oceano daqui apaga gente despreparada.'
+    : node === 'explain'
+    ? 'Esse respirador filtra a água e tem visão noturna real. Liga no N quando tudo ficar preto lá embaixo.'
+    : 'Coloca com calma. Depois segue as luzes vivas no fundo e pega os fragmentos. Se a visão ficar verde, está funcionando.';
+  return (
+    <div className="fixed inset-0 z-[72] flex items-end justify-center pointer-events-auto px-4 pb-[calc(env(safe-area-inset-bottom,0px)+28px)]">
+      <div className="w-full max-w-2xl rounded-2xl border border-emerald-300/35 bg-black/82 shadow-[0_0_42px_rgba(16,185,129,0.28)] backdrop-blur-xl overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-emerald-300/15 px-4 py-3">
+          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-200 to-cyan-500 text-black font-black flex items-center justify-center">D</div>
+          <div>
+            <div className="text-emerald-100 font-black tracking-wide">Mergulhador do Hotel</div>
+            <div className="text-emerald-300/60 text-xs font-mono uppercase tracking-[0.28em]">segurança submarina</div>
+          </div>
+          <button onClick={onClose} className="ml-auto text-white/45 hover:text-white px-2 py-1" aria-label="Fechar diálogo">×</button>
+        </div>
+        <div className="px-5 py-4 text-emerald-50 text-base leading-relaxed font-mono">{text}</div>
+        <div className="flex flex-col sm:flex-row gap-2 px-4 pb-4">
+          {node !== 'accept' ? (
+            <button onClick={() => setNode(node === 'intro' ? 'explain' : 'accept')} className="flex-1 rounded-xl bg-emerald-300 text-black font-black py-3 hover:bg-emerald-200 active:scale-[0.99] transition">Continuar</button>
+          ) : (
+            <button onClick={onAccept} className="flex-1 rounded-xl bg-gradient-to-r from-emerald-300 to-cyan-200 text-black font-black py-3 hover:brightness-110 active:scale-[0.99] transition">Aceitar respirador</button>
+          )}
+          <button onClick={onClose} className="rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-white/70 hover:text-white hover:bg-white/10 transition">Depois</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ─── Game State Machine ───────────────────────────────────────────────────
 type GameState = 'lobby' | 'outdoor' | 'barney_greet' | 'indoor_day' | 'sleep_fade' | 'indoor_night' | 'chase' | 'caught' | 'saved';
@@ -237,6 +288,7 @@ export default function App() {
   const handleToggleNightVision = useCallback(() => { toggleNightVision(); }, [toggleNightVision]);
 
   const [floor2GuidePhase, setFloor2GuidePhase] = useState<Floor2GuidePhase>('hidden');
+  const [floor2GuideDialogueOpen, setFloor2GuideDialogueOpen] = useState(false);
   const floor2GiftGivenRef = useRef(false);
 
   // Initial scene when the shop opens. 'main' for normal use; 'post_death'
@@ -399,13 +451,24 @@ export default function App() {
 
   useEffect(() => {
     if (!hasStarted || currentLevel !== 2 || doorsClosed || elevatorTimer !== null || floor2GiftGivenRef.current) return;
-    floor2GiftGivenRef.current = true;
     setFloor2GuidePhase('stinger');
     setCameraShake(true);
-    scheduleTimeout(() => { setCameraShake(false); setFloor2GuidePhase('offer'); }, 650);
-    scheduleTimeout(() => { inventoryAddItem('aqualung'); triggerPickup('aqualung'); setFloor2GuidePhase('complete'); }, 1450);
-    scheduleTimeout(() => setFloor2GuidePhase('hidden'), 4300);
-  }, [hasStarted, currentLevel, doorsClosed, elevatorTimer, inventoryAddItem, triggerPickup, scheduleTimeout]);
+    scheduleTimeout(() => {
+      setCameraShake(false);
+      setFloor2GuidePhase('ready');
+      setFloor2GuideDialogueOpen(true);
+    }, 700);
+  }, [hasStarted, currentLevel, doorsClosed, elevatorTimer, scheduleTimeout]);
+
+  const handleAcceptFloor2GuideGift = useCallback(() => {
+    if (floor2GiftGivenRef.current) return;
+    floor2GiftGivenRef.current = true;
+    setFloor2GuideDialogueOpen(false);
+    setFloor2GuidePhase('complete');
+    inventoryAddItem('aqualung');
+    triggerPickup('aqualung');
+    scheduleTimeout(() => setFloor2GuidePhase('hidden'), 2800);
+  }, [inventoryAddItem, triggerPickup, scheduleTimeout]);
 
   const handleOpenDoor = () => {
       if (gameState === 'outdoor') {
@@ -621,19 +684,19 @@ export default function App() {
   const activePointers = useRef(new Map<number, { type: 'move' | 'look' | 'aux'; startX: number; startY: number; currX: number; currY: number }>());
 
   useEffect(() => {
-    if (!dialogueOpen && !barneyDialogueOpen) return;
+    if (!dialogueOpen && !barneyDialogueOpen && !floor2GuideDialogueOpen) return;
     moveInput.current = { x: 0, y: 0 };
     lookInput.current = { x: 0, y: 0 };
     keysRef.current = { w: false, a: false, s: false, d: false };
     activePointers.current.clear();
     prevPinchDist.current = null;
     setJoystickVisual(p => ({ ...p, active: false }));
-  }, [dialogueOpen, barneyDialogueOpen]);
+  }, [dialogueOpen, barneyDialogueOpen, floor2GuideDialogueOpen]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!hasStarted) return;
-    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
-    if (dialogueOpen || barneyDialogueOpen || shopOpen) return;
+    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !floor2GuideDialogueOpen && !shopOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
+    if (dialogueOpen || barneyDialogueOpen || floor2GuideDialogueOpen || shopOpen) return;
     e.preventDefault(); e.stopPropagation();
     const { pointerId, clientX, clientY } = e; const screenW = window.innerWidth; const screenH = window.innerHeight;
     const isPortrait = screenH > screenW; const zoneLimit = isPortrait ? 0.5 : 0.4;
@@ -651,7 +714,7 @@ export default function App() {
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!hasStarted) return;
     if (isDesktop) {
-      if (document.pointerLockElement === document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen) {
+      if (document.pointerLockElement === document.body && !dialogueOpen && !barneyDialogueOpen && !floor2GuideDialogueOpen && !shopOpen) {
         const sx = settings.sensitivity;
         const sy = settings.sensitivity * (settings.invertY ? -1 : 1);
         lookInput.current.x += e.movementX * sx;
@@ -683,7 +746,7 @@ export default function App() {
             pointer.startX = clientX; pointer.startY = clientY;
           }
       }
-      if (isPinch && !dialogueOpen && !barneyDialogueOpen) {
+      if (isPinch && !dialogueOpen && !barneyDialogueOpen && !floor2GuideDialogueOpen) {
           const pts = Array.from(activePointers.current.values()); const p1 = pts[0]; const p2 = pts[1];
           const dist = Math.sqrt(Math.pow(p1.currX-p2.currX, 2) + Math.pow(p1.currY-p2.currY, 2));
           // Floor 2 locks the camera in 1st person — ignore pinch zoom there.
@@ -702,7 +765,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isDesktop || !hasStarted) return;
-    if (dialogueOpen || barneyDialogueOpen || shopOpen) { document.exitPointerLock(); return; }
+    if (dialogueOpen || barneyDialogueOpen || floor2GuideDialogueOpen || shopOpen) { document.exitPointerLock(); return; }
     const upd = () => { const k = keysRef.current; let x=0, y=0; if (k.w) y-=1; if (k.s) y+=1; if (k.a) x-=1; if (k.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
     const kd = (e: KeyboardEvent) => {
       // ESC toggles settings always — even mid-dialogue, so user has an
@@ -713,7 +776,7 @@ export default function App() {
         setSettingsOpen((v) => !v);
         return;
       }
-      if (dialogueOpen || barneyDialogueOpen || shopOpen) return;
+      if (dialogueOpen || barneyDialogueOpen || shopOpen || floor2GuideDialogueOpen) return;
       const k = keysRef.current;
       switch(e.key.toLowerCase()) {
         case 'w': k.w=true; break;
@@ -723,7 +786,8 @@ export default function App() {
         case 'f': if (inventory.flashlight.owned) handleToggleFlashlight(); break;
         case 'n': if (inventory.aqualung.owned) handleToggleNightVision(); break;
         case 'e':
-          if (canInteractCashier) handleOpenShop();
+          if (currentLevel === 2 && floor2GuidePhase === 'ready' && !inventory.aqualung.owned) setFloor2GuideDialogueOpen(true);
+          else if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
           else if (canInteractDoor && !houseDoorOpen) handleOpenDoor();
           else if (canSleepNow && gameState === 'indoor_day') handleSleep();
@@ -738,7 +802,7 @@ export default function App() {
     };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState, inventory.flashlight.owned, inventory.aqualung.owned, handleToggleFlashlight, handleToggleNightVision]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, floor2GuideDialogueOpen, currentLevel, floor2GuidePhase, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState, inventory.flashlight.owned, inventory.aqualung.owned, handleToggleFlashlight, handleToggleNightVision]);
 
   // Memoize the sliced remote player id list to avoid re-creating on every render.
   const visibleRemotePlayerIds = useMemo(
@@ -761,7 +825,7 @@ export default function App() {
       {hasStarted && currentLevel === 2 && floor2GuidePhase !== 'hidden' && (
         <div className="absolute left-1/2 top-[18%] z-[58] -translate-x-1/2 pointer-events-none px-4">
           <div className="rounded-xl border border-emerald-300/35 bg-black/70 px-4 py-3 text-center font-mono text-sm text-emerald-100 shadow-[0_0_28px_rgba(16,185,129,0.28)] backdrop-blur-md">
-            {floor2GuidePhase === 'stinger' ? '!' : floor2GuidePhase === 'offer' ? 'Respire fundo. Pegue isto.' : 'Respirador equipado • N alterna visão noturna'}
+            {floor2GuidePhase === 'stinger' ? '!' : floor2GuidePhase === 'ready' ? 'Pressione E para falar com o mergulhador' : 'Respirador equipado • N alterna visão noturna'}
           </div>
         </div>
       )}
@@ -793,7 +857,8 @@ export default function App() {
         />
         <AdaptiveDpr pixelated />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} />
+            <NightVisionRig active={currentLevel === 2 && inventory.aqualung.nightVisionActive} playerPositionRef={sharedPlayerPositionRef} />
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || floor2GuideDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -802,7 +867,7 @@ export default function App() {
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
             <Floor2DiverGuide phase={currentLevel === 2 ? floor2GuidePhase : 'hidden'} />
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || floor2GuideDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -901,7 +966,7 @@ export default function App() {
       
       {/* First-person crosshair — tiny center dot. Only when in FP view
           AND no dialogue/shop blocking it. Pure CSS, no canvas draw. */}
-      {hasStarted && zoomLevel < 0.5 && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
+      {hasStarted && zoomLevel < 0.5 && !dialogueOpen && !barneyDialogueOpen && !floor2GuideDialogueOpen && !shopOpen && (
         <div className="fixed left-1/2 top-1/2 z-[60] pointer-events-none"
              style={{ transform: 'translate(-50%, -50%)' }}>
           <div className="w-1.5 h-1.5 rounded-full bg-white/55 ring-1 ring-black/40"
@@ -936,7 +1001,7 @@ export default function App() {
       {/* Floor 2 "cold" overlay — radial cyan tint at the edges, blue
           color cast in the middle. Sells underwater + cold without
           touching the renderer. Pure DOM, pointer-none. */}
-      {hasStarted && currentLevel === 2 && (
+      {hasStarted && currentLevel === 2 && !inventory.aqualung.nightVisionActive && (
         <div
           className="fixed inset-0 z-[8] pointer-events-none"
           style={{
@@ -978,7 +1043,7 @@ export default function App() {
                   messages={chatMessages}
                   currentUserId={user?.uid || ''}
                   onSend={sendChat}
-                  enabled={multiplayerEnabled && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !settingsOpen}
+                  enabled={multiplayerEnabled && !dialogueOpen && !barneyDialogueOpen && !floor2GuideDialogueOpen && !shopOpen && !settingsOpen}
                   forceClose={settingsOpen}
               />
               <BubbleChatFallback
@@ -989,14 +1054,14 @@ export default function App() {
       )}
 
       <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !shopOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
+      {hasStarted && !isDesktop && !dialogueOpen && !barneyDialogueOpen && !floor2GuideDialogueOpen && !shopOpen && ( <VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /> )}
       {/* ─── Bottom-center action buttons ─────────────────────────────────
           ABRIR/FALAR/DORMIR are mutually exclusive by game state, so they
           all share the same bottom anchor. Bottom anchor uses safe-area
           inset + 24px so it clears the iOS home indicator and Android
           gesture bar. Horizontal padding is fluid for narrow screens.
           ───────────────────────────────────────────────────────────────── */}
-      {hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
+      {hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && !barneyDialogueOpen && !floor2GuideDialogueOpen && !shopOpen && (
         <ActionButton
           icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" /></svg>}
           label="ABRIR PORTA"
@@ -1006,7 +1071,7 @@ export default function App() {
           ariaLabel="Abrir porta"
         />
       )}
-      {hasStarted && canInteractCashier && !canInteractNPC && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
+      {hasStarted && canInteractCashier && !canInteractNPC && !dialogueOpen && !barneyDialogueOpen && !floor2GuideDialogueOpen && !shopOpen && (
         <ActionButton
           icon={<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6h-2c0-2.76-2.24-5-5-5S7 3.24 7 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-7-3c1.66 0 3 1.34 3 3H9c0-1.66 1.34-3 3-3zM7 10v2h2v-2h6v2h2v-2h2v10H5V10h2z"/></svg>}
           label="ABRIR LOJA"
@@ -1016,7 +1081,17 @@ export default function App() {
           ariaLabel="Abrir loja do recepcionista"
         />
       )}
-      {hasStarted && canInteractNPC && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
+      {hasStarted && currentLevel === 2 && floor2GuidePhase === 'ready' && !inventory.aqualung.owned && !floor2GuideDialogueOpen && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
+        <ActionButton
+          icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-5 4v-4Z" /></svg>}
+          label="FALAR"
+          colorClasses="bg-gradient-to-r from-emerald-300 via-cyan-200 to-emerald-300"
+          ringClasses="bg-gradient-to-b from-emerald-100 to-cyan-200 text-emerald-950 ring-emerald-200"
+          onClick={() => setFloor2GuideDialogueOpen(true)}
+          ariaLabel="Falar com o mergulhador"
+        />
+      )}
+      {hasStarted && canInteractNPC && !dialogueOpen && !barneyDialogueOpen && !floor2GuideDialogueOpen && !shopOpen && (
         <ActionButton
           icon={<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>}
           label="FALAR"
@@ -1027,6 +1102,12 @@ export default function App() {
         />
       )}
       {dialogueOpen && ( <DialogueOverlay nodeKey={dialogueNode} onOptionSelect={(next: string) => setDialogueNode(next)} onClose={() => setDialogueOpen(false)} /> )}
+      {floor2GuideDialogueOpen && (
+        <Floor2GuideDialogue
+          onAccept={handleAcceptFloor2GuideGift}
+          onClose={() => { setFloor2GuideDialogueOpen(false);  }}
+        />
+      )}
       
       <div className="absolute inset-0 z-[60] bg-black pointer-events-none transition-opacity duration-[2500ms]" style={{ opacity: sleepFadeOpacity }}>
         {sleepFadeOpacity > 0.5 && <div className="absolute inset-0 flex items-center justify-center"><div className="text-white/40 text-2xl font-thin tracking-[0.5em] animate-pulse">zzz...</div></div>}
@@ -1039,7 +1120,7 @@ export default function App() {
         </div>
       )}
       
-      {hasStarted && canSleepNow && gameState === 'indoor_day' && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
+      {hasStarted && canSleepNow && gameState === 'indoor_day' && !dialogueOpen && !barneyDialogueOpen && !floor2GuideDialogueOpen && !shopOpen && (
         <ActionButton
           icon={<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3C7.03 3 3 7.03 3 12s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z"/></svg>}
           label="DORMIR"
