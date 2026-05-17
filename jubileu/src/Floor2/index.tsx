@@ -41,7 +41,7 @@ export {
     HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS,
     WATER_LEVEL_Y, SWIM_THRESHOLD_Y,
     SHARD_POSITIONS,
-    CAVE_ROCK_COLLIDERS, UW_ROCK_COLLIDERS,
+    CAVE_ROCK_COLLIDERS, UW_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS,
 } from './constants';
 
 // ═══════════════════════════════════════════════════════════════════════

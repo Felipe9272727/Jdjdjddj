@@ -219,3 +219,33 @@ export const CAVE_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r:
 export const UW_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = [
     ...UW_BOULDERS.map(([x, y, z, s]) => ({ x, y: y + s * 0.3, z, r: s * 0.6 })),
 ];
+
+// ─── Cave wall collision data (exported for Player.tsx) ─────────────────
+export const CAVE_WALL_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = (() => {
+    const colliders: { x: number; y: number; z: number; r: number }[] = [];
+    const WALL_POS = 30;
+    const BULGE = 4;  // max inward bulge
+    const STEP = 8;
+    // North wall (z = -30, bulges toward +Z)
+    for (let x = -28; x <= 28; x += STEP) {
+        colliders.push({ x, y: 3, z: -WALL_POS + BULGE, r: BULGE + 1 });
+    }
+    // South wall (z = 30, bulges toward -Z)
+    for (let x = -28; x <= 28; x += STEP) {
+        colliders.push({ x, y: 3, z: WALL_POS - BULGE, r: BULGE + 1 });
+    }
+    // West wall (x = -30, bulges toward +X)
+    for (let z = -28; z <= 28; z += STEP) {
+        colliders.push({ x: -WALL_POS + BULGE, y: 3, z, r: BULGE + 1 });
+    }
+    // East wall (x = 30, bulges toward -X)
+    for (let z = -28; z <= 28; z += STEP) {
+        colliders.push({ x: WALL_POS - BULGE, y: 3, z, r: BULGE + 1 });
+    }
+    // Corner colliders — bigger spheres at corners where two walls meet
+    const corners = [[-28, -28], [28, -28], [-28, 28], [28, 28]] as const;
+    for (const [cx, cz] of corners) {
+        colliders.push({ x: cx, y: 3, z: cz, r: 5 });
+    }
+    return colliders;
+})();

@@ -22,4 +22,5 @@ export {
     SHARD_POSITIONS,
     CAVE_ROCK_COLLIDERS,
     UW_ROCK_COLLIDERS,
+    CAVE_WALL_COLLIDERS,
 } from './Floor2';
