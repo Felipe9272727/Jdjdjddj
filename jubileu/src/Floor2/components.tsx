@@ -484,6 +484,55 @@ export const Coral: React.FC<{ x: number; z: number; color: string; scale: numbe
     </group>
 );
 
+// ─── CoralBubbles — slow streams of bubbles drifting up from coral tips ─
+// Subnautica-signature ambient detail. Each coral position spawns 2-3
+// small bubbles that rise from its bioluminescent tip, fade in/out, and
+// reset. Single useFrame manages all bubbles. Cheap visual that makes
+// the seabed feel "alive and breathing".
+const CORAL_BUBBLES_PER_CORAL = 3;
+const CoralBubbles: React.FC = () => {
+    const total = CORAL_POSITIONS.length * CORAL_BUBBLES_PER_CORAL;
+    const refs = useRef<(THREE.Object3D | null)[]>(new Array(total).fill(null));
+    const data = useRef(
+        Array.from({ length: total }, (_, i) => {
+            const coralIdx = Math.floor(i / CORAL_BUBBLES_PER_CORAL);
+            const [x, z, , s] = CORAL_POSITIONS[coralIdx];
+            return {
+                originX: x + (Math.random() - 0.5) * 0.4 * s,
+                originZ: z + (Math.random() - 0.5) * 0.4 * s,
+                y: -28 + Math.random() * 6, // staggered initial positions
+                speed: 0.3 + Math.random() * 0.4,
+                phase: Math.random() * Math.PI * 2,
+            };
+        })
+    );
+    useFrame((state, dt) => {
+        const safeDt = Math.min(dt, 0.033);
+        const t = state.clock.elapsedTime;
+        for (let i = 0; i < total; i++) {
+            const d = data.current[i];
+            d.y += d.speed * safeDt;
+            // Reset once the bubble reaches the surface
+            if (d.y > WATER_LEVEL_Y) d.y = -28;
+            const r = refs.current[i];
+            if (r) {
+                // Wobble side-to-side as the bubble drifts up
+                const wobX = Math.sin(t * 1.2 + d.phase) * 0.08;
+                const wobZ = Math.cos(t * 1.0 + d.phase * 1.3) * 0.08;
+                r.position.set(d.originX + wobX, d.y, d.originZ + wobZ);
+            }
+        }
+    });
+    return (
+        <Instances limit={total} range={total} geometry={BUBBLE_GEO}>
+            <meshBasicMaterial color="#c8e8f0" transparent opacity={0.55} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+            {Array.from({ length: total }, (_, i) => (
+                <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} scale={0.04 + Math.random() * 0.04} />
+            ))}
+        </Instances>
+    );
+};
+
 // ─── UnderwaterFlora ──────────────────────────────────────────────────
 export const UnderwaterFlora: React.FC = () => (
     <>
@@ -491,6 +540,7 @@ export const UnderwaterFlora: React.FC = () => (
         {CORAL_POSITIONS.map(([x, z, color, s], i) => (
             <Coral key={`coral-${i}`} x={x} z={z} color={color} scale={s} />
         ))}
+        <CoralBubbles />
     </>
 );
 

@@ -12,11 +12,17 @@ export const SWIM_THRESHOLD_Y = -0.3;   // below this the player is "in" the wat
 
 // ─── Particle / instance counts ────────────────────────────────────────
 export const DUST_COUNT = 25;
-export const DEBRIS_COUNT = 60;
-export const SEDIMENT_COUNT = 200;
-export const PLANKTON_COUNT = 50;
+// Perf-tuned particle counts. 200 sediment + 60 debris + 50 plankton was
+// over 300 underwater Instances getting per-frame position updates from
+// individual useFrame callbacks. Trimmed to a level where the seabed
+// still feels dense but the simulation cost is half (~150 underwater).
+// Mobile profile (~44 FPS in Felipe's last screenshot) gets the biggest
+// uplift here without a perceptible visual change.
+export const DEBRIS_COUNT = 40;
+export const SEDIMENT_COUNT = 120;
+export const PLANKTON_COUNT = 35;
 export const FISH_COUNT = 8;
-export const BUBBLE_COUNT = 35;
+export const BUBBLE_COUNT = 30;
 export const BUBBLE_RANGE = 18;
 export const BUBBLE_RISE = 0.5;
 export const BUBBLE_MAX_Y = WATER_LEVEL_Y - 0.5;

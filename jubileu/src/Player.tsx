@@ -472,12 +472,14 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
         // Y clamps: underwater floor at Y=-29 and surface at SWIM_THRESHOLD_Y.
         if (pos.current.y < -29) pos.current.y = -29;
-        // Underwater XZ bounds — keep the swimmer inside the 80x80 rocky
-        // bowl so they can't drift off into the void past the boulders.
-        if (pos.current.x < -39) pos.current.x = -39;
-        if (pos.current.x >  39) pos.current.x =  39;
-        if (pos.current.z < -39) pos.current.z = -39;
-        if (pos.current.z >  39) pos.current.z =  39;
+        // Underwater XZ bounds — keep the swimmer inside the underwater
+        // walls. Walls are placed at ±30 in index.tsx; clamp to ±28.5 so
+        // the player physically stops before they could clip through.
+        // (Was ±39, which let the player swim outside the room into void.)
+        if (pos.current.x < -28.5) pos.current.x = -28.5;
+        if (pos.current.x >  28.5) pos.current.x =  28.5;
+        if (pos.current.z < -28.5) pos.current.z = -28.5;
+        if (pos.current.z >  28.5) pos.current.z =  28.5;
         if (pos.current.y > SWIM_THRESHOLD_Y) {
             // Surfaced — if inside the hole, allow popping out into the cave.
             const dxHole = pos.current.x - HOLE_CENTER_X;
