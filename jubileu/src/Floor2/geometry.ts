@@ -197,6 +197,9 @@ export const CAVE_FLOOR_GEO = (() => {
     }
     positions.needsUpdate = true;
     uvAttr.needsUpdate = true;
+    // ── AO map needs UV2 — copy UV1 → UV2 so aoMap samples correctly.
+    // Without this, aoMap reads garbage UV2 and creates black patches.
+    geo.setAttribute('uv2', geo.attributes.uv.clone());
     geo.computeVertexNormals();
     return geo;
 })();
@@ -272,6 +275,8 @@ export const UW_FLOOR_GEO = (() => {
         positions.setZ(i, v.z + displacement);
     }
     positions.needsUpdate = true;
+    // AO map needs UV2 — copy UV1 → UV2
+    geo.setAttribute('uv2', geo.attributes.uv.clone());
     geo.computeVertexNormals();
     return geo;
 })();
