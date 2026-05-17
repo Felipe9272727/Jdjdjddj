@@ -12,16 +12,19 @@ export const GameEffects = ({
     gameState,
     currentLevel,
     quality = 'high',
+    nightVisionActive = false,
 }: {
     nightMode: boolean;
     gameState: string;
     currentLevel: number;
     quality?: string;
+    nightVisionActive?: boolean;
 }) => {
     if (quality === 'low') return null;
 
     const isChase = gameState === 'chase';
     const isScary = nightMode || isChase;
+    const isUnderwaterNightVision = currentLevel === 2 && nightVisionActive;
 
     // CSS-based vignette + grain — zero GPU cost, handled by the browser compositor
     return (
@@ -32,12 +35,14 @@ export const GameEffects = ({
                 pointerEvents: 'none',
                 zIndex: 5,
                 // Vignette via radial gradient — deeper red tint during chase
-                background: isChase
+                background: isUnderwaterNightVision
+                    ? `radial-gradient(ellipse at center, rgba(40,255,140,0.10) 0%, rgba(12,120,55,0.22) 48%, rgba(0,25,8,0.62) 100%), repeating-linear-gradient(0deg, rgba(180,255,200,0.05) 0px, rgba(180,255,200,0.05) 1px, transparent 2px, transparent 5px)`
+                    : isChase
                     ? `radial-gradient(ellipse at center, transparent 30%, rgba(120,0,0,0.5) 100%)`
                     : `radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,${isScary ? 0.4 : 0.25}) 100%)`,
                 // Film grain via CSS animation
-                mixBlendMode: isChase ? 'normal' : 'multiply',
-                opacity: isChase ? 0.2 : isScary ? 0.08 : 0.04,
+                mixBlendMode: isUnderwaterNightVision ? 'screen' : isChase ? 'normal' : 'multiply',
+                opacity: isUnderwaterNightVision ? 0.34 : isChase ? 0.2 : isScary ? 0.08 : 0.04,
                 animation: isChase ? 'chase-vignette-pulse 0.8s ease-in-out infinite' : undefined,
             }}
         />

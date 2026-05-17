@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
 import { EffectComposer, Bloom, ChromaticAberration, Vignette } from '@react-three/postprocessing';
 import { KernelSize, BlendFunction } from 'postprocessing';
@@ -42,6 +42,46 @@ import { SceneInspector } from './SceneInspector';
 
 
 const MAX_JOYSTICK_RADIUS = 50;
+
+type Floor2GuidePhase = 'hidden' | 'stinger' | 'offer' | 'complete';
+
+const Floor2DiverGuide = React.memo(({ phase }: { phase: Floor2GuidePhase }) => {
+  const groupRef = useRef<Object3D>(null);
+  useFrame((state, dt) => {
+    const g = groupRef.current;
+    if (!g) return;
+    const targetZ = phase === 'hidden' ? -11.2 : phase === 'stinger' ? -7.9 : -8.55;
+    const targetScale = phase === 'hidden' ? 0.001 : phase === 'stinger' ? 1.18 : phase === 'complete' ? 0.92 : 1.0;
+    const k = Math.min(1, dt * (phase === 'stinger' ? 12 : 5));
+    g.position.z += (targetZ - g.position.z) * k;
+    g.scale.setScalar(g.scale.x + (targetScale - g.scale.x) * k);
+    g.rotation.y = Math.sin(state.clock.elapsedTime * 1.4) * 0.045;
+  });
+
+  if (phase === 'hidden') return null;
+  const glow = phase === 'stinger' ? 1.8 : 1.1;
+  return (
+    <group ref={groupRef as any} position={[0, 0, -11.2]} scale={[0.001, 0.001, 0.001]}>
+      <pointLight position={[0, 2.4, 0.8]} intensity={glow} distance={7} color="#9fffd0" />
+      <mesh position={[0, 1.65, 0]}><sphereGeometry args={[0.28, 24, 16]} /><meshStandardMaterial color="#d6ad86" roughness={0.86} /></mesh>
+      <mesh position={[0, 1.51, 0.205]}><boxGeometry args={[0.38, 0.22, 0.08]} /><meshStandardMaterial color="#2a1710" roughness={0.9} /></mesh>
+      <mesh position={[0, 1.82, -0.02]}><sphereGeometry args={[0.285, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.52]} /><meshStandardMaterial color="#1b120d" roughness={0.75} /></mesh>
+      <mesh position={[0, 1.42, 0.16]}><torusGeometry args={[0.18, 0.026, 8, 24, Math.PI]} /><meshStandardMaterial color="#111827" metalness={0.35} roughness={0.45} /></mesh>
+      <mesh position={[0, 1.06, 0]}><capsuleGeometry args={[0.32, 0.78, 8, 18]} /><meshStandardMaterial color="#162019" roughness={0.62} metalness={0.08} /></mesh>
+      <mesh position={[0, 1.14, 0.02]}><boxGeometry args={[0.72, 0.34, 0.09]} /><meshStandardMaterial color="#2b211a" roughness={0.82} /></mesh>
+      <mesh position={[0, 1.23, 0.075]}><boxGeometry args={[0.18, 0.22, 0.11]} /><meshStandardMaterial color="#d4af37" emissive="#8a5f10" emissiveIntensity={0.25} metalness={0.6} roughness={0.25} /></mesh>
+      <group position={[-0.37, 1.2, 0.16]} rotation={[0.2, 0, -0.65]}><mesh><capsuleGeometry args={[0.055, 0.46, 6, 10]} /><meshStandardMaterial color="#2b211a" roughness={0.8} /></mesh></group>
+      <group position={[0.37, 1.2, 0.16]} rotation={[0.2, 0, 0.65]}><mesh><capsuleGeometry args={[0.055, 0.46, 6, 10]} /><meshStandardMaterial color="#2b211a" roughness={0.8} /></mesh></group>
+      <group position={[0, 1.18, 0.48]}>
+        <mesh><boxGeometry args={[0.42, 0.18, 0.12]} /><meshStandardMaterial color="#05130e" roughness={0.35} metalness={0.25} emissive="#06281b" emissiveIntensity={0.45} /></mesh>
+        <mesh position={[0, 0.01, 0.07]}><boxGeometry args={[0.25, 0.10, 0.025]} /><meshStandardMaterial color="#7dd3fc" emissive="#22d3ee" emissiveIntensity={0.9} transparent opacity={0.86} toneMapped={false} /></mesh>
+      </group>
+      <mesh position={[-0.14, 0.38, 0]}><capsuleGeometry args={[0.08, 0.55, 6, 10]} /><meshStandardMaterial color="#111827" roughness={0.7} /></mesh>
+      <mesh position={[0.14, 0.38, 0]}><capsuleGeometry args={[0.08, 0.55, 6, 10]} /><meshStandardMaterial color="#111827" roughness={0.7} /></mesh>
+      {phase === 'stinger' && <mesh position={[0, 1.65, 0.5]}><planeGeometry args={[2.2, 2.2]} /><meshBasicMaterial color="#a7f3d0" transparent opacity={0.16} depthWrite={false} toneMapped={false} /></mesh>}
+    </group>
+  );
+});
 
 // ─── Game State Machine ───────────────────────────────────────────────────
 type GameState = 'lobby' | 'outdoor' | 'barney_greet' | 'indoor_day' | 'sleep_fade' | 'indoor_night' | 'chase' | 'caught' | 'saved';
@@ -152,9 +192,9 @@ export default function App() {
   const [shopOpen, setShopOpen] = useState(false);
 
   // ─── Inventory + pickup animation ─────────────────────────────────────
-  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie: consumeCookie, hasAnyItem } = useInventory();
+  const { inventory, addItem: inventoryAddItem, toggleFlashlight, toggleNightVision, useCookie: consumeCookie, hasAnyItem } = useInventory();
   const [pickupTrigger, setPickupTrigger] = useState(0);
-  const [pickupItem, setPickupItem] = useState<'flashlight' | 'cookie' | null>(null);
+  const [pickupItem, setPickupItem] = useState<'flashlight' | 'cookie' | 'aqualung' | null>(null);
 
   // ─── Floor 2 shards ───────────────────────────────────────────────────
   // Local set of collected shard indices. Survives the player walking back
@@ -172,7 +212,7 @@ export default function App() {
   // Trigger the pickup animation, tagging which item is being held. The
   // Avatar reads pickupItem to pick a different bone pose (flashlight =
   // arm extends forward; cookie = elbow folds toward the mouth).
-  const triggerPickup = useCallback((item: 'flashlight' | 'cookie') => {
+  const triggerPickup = useCallback((item: 'flashlight' | 'cookie' | 'aqualung') => {
     setPickupItem(item);
     setPickupTrigger((n) => n + 1);
   }, []);
@@ -194,6 +234,10 @@ export default function App() {
     if (inventory.cookie.count > 0) triggerPickup('cookie');
     return consumeCookie();
   }, [inventory.cookie.count, consumeCookie, triggerPickup]);
+  const handleToggleNightVision = useCallback(() => { toggleNightVision(); }, [toggleNightVision]);
+
+  const [floor2GuidePhase, setFloor2GuidePhase] = useState<Floor2GuidePhase>('hidden');
+  const floor2GiftGivenRef = useRef(false);
 
   // Initial scene when the shop opens. 'main' for normal use; 'post_death'
   // is set automatically when the player gets caught by Barney and is
@@ -232,6 +276,9 @@ export default function App() {
           setHouseDoorOpen(false);
           setDoorOpenAmount(0);
           playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+      }
+      if (currentLevel !== 2) {
+          setFloor2GuidePhase('hidden');
       }
       if (currentLevel === 0 && gameState !== 'lobby') {
           setGameState('lobby');
@@ -349,6 +396,17 @@ export default function App() {
     }, 1200);
     return () => clearTimeout(t);
   }, [pendingPostDeathDialogue, currentLevel, doorsClosed]);
+
+  useEffect(() => {
+    if (!hasStarted || currentLevel !== 2 || doorsClosed || elevatorTimer !== null || floor2GiftGivenRef.current) return;
+    floor2GiftGivenRef.current = true;
+    setFloor2GuidePhase('stinger');
+    setCameraShake(true);
+    scheduleTimeout(() => { setCameraShake(false); setFloor2GuidePhase('offer'); }, 650);
+    scheduleTimeout(() => { inventoryAddItem('aqualung'); triggerPickup('aqualung'); setFloor2GuidePhase('complete'); }, 1450);
+    scheduleTimeout(() => setFloor2GuidePhase('hidden'), 4300);
+  }, [hasStarted, currentLevel, doorsClosed, elevatorTimer, inventoryAddItem, triggerPickup, scheduleTimeout]);
+
   const handleOpenDoor = () => {
       if (gameState === 'outdoor') {
           setGameState('barney_greet');
@@ -663,6 +721,7 @@ export default function App() {
         case 's': k.s=true; break;
         case 'd': k.d=true; break;
         case 'f': if (inventory.flashlight.owned) handleToggleFlashlight(); break;
+        case 'n': if (inventory.aqualung.owned) handleToggleNightVision(); break;
         case 'e':
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
@@ -679,7 +738,7 @@ export default function App() {
     };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState, inventory.flashlight.owned, inventory.aqualung.owned, handleToggleFlashlight, handleToggleNightVision]);
 
   // Memoize the sliced remote player id list to avoid re-creating on every render.
   const visibleRemotePlayerIds = useMemo(
@@ -699,6 +758,13 @@ export default function App() {
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted || shopOpen} masterVolume={settings.masterVolume} nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} doorsClosed={doorsClosed} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
+      {hasStarted && currentLevel === 2 && floor2GuidePhase !== 'hidden' && (
+        <div className="absolute left-1/2 top-[18%] z-[58] -translate-x-1/2 pointer-events-none px-4">
+          <div className="rounded-xl border border-emerald-300/35 bg-black/70 px-4 py-3 text-center font-mono text-sm text-emerald-100 shadow-[0_0_28px_rgba(16,185,129,0.28)] backdrop-blur-md">
+            {floor2GuidePhase === 'stinger' ? '!' : floor2GuidePhase === 'offer' ? 'Respire fundo. Pegue isto.' : 'Respirador equipado • N alterna visão noturna'}
+          </div>
+        </div>
+      )}
       <CanvasErrorBoundary>
       <Canvas
         // NOTE: no `key` here. Re-keying on settings change would unmount/remount
@@ -735,6 +801,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
+            <Floor2DiverGuide phase={currentLevel === 2 ? floor2GuidePhase : 'hidden'} />
             <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
@@ -767,6 +834,7 @@ export default function App() {
                   active={hasStarted}
                   flashlightActive={inventory.flashlight.active}
                   flashlightOwned={inventory.flashlight.owned}
+                  aqualungOwned={inventory.aqualung.owned}
                 />
             )}
             {botEnabled && (
@@ -809,7 +877,7 @@ export default function App() {
       </Canvas>
       </CanvasErrorBoundary>
       {hasStarted && QUALITY_PROFILES[settings.quality].overlay && (
-          <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} quality={settings.quality} />
+          <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} quality={settings.quality} nightVisionActive={inventory.aqualung.nightVisionActive} />
       )}
       {/* Empty lobby atmospheric touches — thuds, flickers, wall text */}
       {hasStarted && currentLevel === 0 && gameState === 'lobby' && (
@@ -825,6 +893,7 @@ export default function App() {
         <InventoryHUD
           inventory={inventory}
           onToggleFlashlight={handleToggleFlashlight}
+          onToggleNightVision={handleToggleNightVision}
           onUseCookie={handleUseCookie}
           hasAnyItem={hasAnyItem}
         />

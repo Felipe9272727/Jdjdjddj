@@ -453,6 +453,46 @@ export const UnderwaterFlora: React.FC = () => (
     </>
 );
 
+// ─── BioluminescentReef — low-cost emissive accents for the ocean floor ──
+const REEF_BLOOMS: Array<[number, number, number, string, number]> = [
+    [-14, -28.9, -12, '#2dd4bf', 1.0], [-9, -29.1, 10, '#60a5fa', 0.8],
+    [11, -29.0, -15, '#34d399', 0.9], [15, -28.8, 8, '#a78bfa', 0.7],
+    [-18, -29.2, 5, '#22d3ee', 0.75], [4, -29.0, 18, '#4ade80', 0.85],
+];
+
+export const BioluminescentReef: React.FC = () => {
+    const refs = useRef<(THREE.Sprite | null)[]>([]);
+    useFrame((state) => {
+        const t = state.clock.elapsedTime;
+        for (let i = 0; i < refs.current.length; i++) {
+            const r = refs.current[i];
+            if (!r) continue;
+            const pulse = 0.82 + Math.sin(t * 1.15 + i * 1.9) * 0.18;
+            r.scale.setScalar((1.8 + REEF_BLOOMS[i][4] * 1.2) * pulse);
+        }
+    });
+    return (
+        <group>
+            {REEF_BLOOMS.map(([x, y, z, color, s], i) => (
+                <group key={`reef-${i}`} position={[x, y, z]}>
+                    <mesh position={[0, 0.12, 0]}>
+                        <icosahedronGeometry args={[0.28 * s, 1]} />
+                        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.45} roughness={0.35} toneMapped={false} />
+                    </mesh>
+                    <mesh position={[0.34 * s, 0.1, -0.1]}>
+                        <sphereGeometry args={[0.12 * s, 10, 8]} />
+                        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.2} roughness={0.5} toneMapped={false} />
+                    </mesh>
+                    <sprite ref={(r) => { refs.current[i] = r; }} scale={[2.2, 2.2, 1]} position={[0, 0.4, 0]}>
+                        <spriteMaterial map={GLOW_TEXTURE} color={color} transparent opacity={0.18} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+                    </sprite>
+                    {i < 3 && <pointLight position={[0, 0.8, 0]} color={color} intensity={0.22} distance={4.5} />}
+                </group>
+            ))}
+        </group>
+    );
+};
+
 // ─── GodRayShafts — Subnautica-style light shafts ─────────────────────
 export const GodRayShafts: React.FC = () => {
     const groupRef = useRef<THREE.Group>(null);
@@ -565,7 +605,7 @@ export const DebrisField: React.FC = () => {
             if (d.x < -25) d.x = 25;
             if (d.x > 25) d.x = -25;
             if (d.y < -29) d.y = -5;
-            if (d.y < -29) d.y = -3;
+            if (d.y > -3) d.y = -29;
             if (d.z < -25) d.z = 25;
             if (d.z > 25) d.z = -25;
             const r = refs.current[i];

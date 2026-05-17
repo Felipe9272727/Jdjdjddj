@@ -33,7 +33,7 @@ export {
 export {
     CrystalCluster, Torch, DustMotes,
     WaterSurface, WaterCeilingDisc, DynamicFog, UnderwaterOverlay, WaterOccluder,
-    UnderwaterCaustics, KelpField, Coral, UnderwaterFlora,
+    UnderwaterCaustics, KelpField, Coral, UnderwaterFlora, BioluminescentReef,
     GodRayShafts, DeepMist, DebrisField, FishSchool,
     UnderwaterSediment, PlanktonField, BubbleField, SurfaceBubbleRing,
     GodRay, GodRays, Shard,
@@ -65,7 +65,7 @@ import {
 import {
     CrystalCluster, Torch, DustMotes,
     WaterSurface, WaterCeilingDisc, DynamicFog, UnderwaterOverlay, WaterOccluder,
-    UnderwaterCaustics, UnderwaterFlora,
+    UnderwaterCaustics, UnderwaterFlora, BioluminescentReef,
     GodRayShafts, DeepMist, DebrisField, FishSchool,
     UnderwaterSediment, PlanktonField, BubbleField, SurfaceBubbleRing,
     GodRay, GodRays, Shard,
@@ -342,8 +342,9 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* RGB caustics on the seafloor */}
         <UnderwaterCaustics />
 
-        {/* Underwater flora — kelp & coral */}
+        {/* Underwater flora — kelp, coral, and low-cost bioluminescent reef blooms */}
         <UnderwaterFlora />
+        <BioluminescentReef />
 
         {/* God ray shafts descending from the surface */}
         <GodRayShafts />

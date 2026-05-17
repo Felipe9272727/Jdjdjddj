@@ -38,7 +38,7 @@ function findArmBones(scene: THREE.Object3D): { arm: THREE.Bone | null; forearm:
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInCubic = (t: number) => t * t * t;
 
-export type PickupItem = 'flashlight' | 'cookie' | null;
+export type PickupItem = 'flashlight' | 'cookie' | 'aqualung' | null;
 
 const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = false, pickupItem = null, onHandAnchor }: { animation: 'Idle' | 'Walking'; visible?: boolean; pickupTrigger?: number; armExtended?: boolean; pickupItem?: PickupItem; onHandAnchor?: (a: THREE.Object3D | null) => void }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;
@@ -229,15 +229,16 @@ const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = fa
     //     of eating a cookie, not aiming a flashlight.
     let armAngleX = 0, armAngleY = 0;
     let foreArmAngleX = 0;
-    if (pickupItem === 'cookie') {
-      // Cookie: bring the hand toward the mouth.
+    if (pickupItem === 'cookie' || pickupItem === 'aqualung') {
+      // Cookie/aqualung: bring the hand toward the mouth/face.
       // Mixamo RightArm bone: +X tilts shoulder backward, so we go negative
       // for "raise forward". RightForeArm: NEGATIVE X folds the elbow
       // toward the upper-arm in the SAME direction the shoulder lifts —
       // result: hand goes to mouth, not behind the head.
       // armAngleY positive rotates the shoulder inward (toward midline),
       // which brings the hand across the chest to the face.
-      armAngleX = -Math.PI * 0.35 * progress;   // shoulder up + forward
+      const maskBias = pickupItem === 'aqualung' ? 1.08 : 1.0;
+      armAngleX = -Math.PI * 0.35 * progress * maskBias;   // shoulder up + forward
       armAngleY =  Math.PI * 0.20 * progress;   // rotate inward to midline
       foreArmAngleX = -Math.PI * 0.95 * progress; // STRONG elbow fold same dir
     } else {
@@ -649,15 +650,17 @@ interface FPArmModelProps {
   active: boolean;
   flashlightActive: boolean;
   flashlightOwned: boolean;
+  aqualungOwned?: boolean;
   pickupItem: PickupItem;
 }
 
-export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightActive, flashlightOwned, pickupItem }) => {
+export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightActive, flashlightOwned, aqualungOwned = false, pickupItem }) => {
   const { camera } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   const armPivotRef = useRef<THREE.Group>(null);
   const flashlightRef = useRef<THREE.Group>(null);
   const cookieRef = useRef<THREE.Group>(null);
+  const aqualungRef = useRef<THREE.Group>(null);
 
   // Pickup state — same timed/sustained split as Avatar
   const state = useRef({
@@ -738,8 +741,8 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
     //   cookie:    shoulder pitches LESS but Y-rotates toward the face,
     //              effectively bringing the hand back toward the mouth
     //              area (top-left of FOV). Different gesture, same timing.
-    if (pickupItem === 'cookie') {
-      const restX = 0.40,  extX  = 1.20;   // less forward pitch
+    if (pickupItem === 'cookie' || pickupItem === 'aqualung') {
+      const restX = 0.40,  extX  = pickupItem === 'aqualung' ? 1.33 : 1.20;   // mask reaches slightly higher
       const restY = -0.05, extY  = -0.45;  // rotate hand toward face/mouth
       pivot.rotation.x = restX + (extX - restX) * progress;
       pivot.rotation.y = restY + (extY - restY) * progress;
@@ -756,12 +759,24 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
     // Item attached to the hand — flashlight or cookie, never both.
     const fl = flashlightRef.current;
     if (fl) {
-      fl.visible = flashlightOwned && pickupItem !== 'cookie';
+      fl.visible = flashlightOwned && pickupItem !== 'cookie' && pickupItem !== 'aqualung';
       if (fl.visible) {
         const rotX = pivot.rotation.x;
         const handY = -0.60 * Math.cos(rotX);
         const handZ = -0.60 * Math.sin(rotX);
         fl.position.set(0.28, -0.20 + handY + bob, -0.30 + handZ);
+      }
+    }
+    const mask = aqualungRef.current;
+    if (mask) {
+      mask.visible = aqualungOwned && pickupItem === 'aqualung' && s.timed.active;
+      if (mask.visible) {
+        const rotX = pivot.rotation.x;
+        const rotY = pivot.rotation.y;
+        const handY = -0.60 * Math.cos(rotX);
+        const handZ = -0.60 * Math.sin(rotX);
+        mask.position.set(0.28 + Math.sin(rotY) * 0.04, -0.17 + handY + bob, -0.30 + handZ);
+        mask.rotation.set(0.15, rotY, 0);
       }
     }
     const ck = cookieRef.current;
@@ -857,6 +872,27 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
           )}
         </group>
       )}
+
+
+      {/* Aqualung mask/regulator — visible during the clean equip-to-face animation. */}
+      <group ref={aqualungRef} renderOrder={999} visible={false}>
+        <mesh position={[0, 0.005, 0]} renderOrder={999} frustumCulled={false}>
+          <boxGeometry args={[0.15, 0.075, 0.055]} />
+          <meshStandardMaterial color="#07120f" roughness={0.55} metalness={0.25} depthTest={false} />
+        </mesh>
+        <mesh position={[0, 0.008, -0.032]} renderOrder={999} frustumCulled={false}>
+          <boxGeometry args={[0.105, 0.045, 0.018]} />
+          <meshStandardMaterial color="#7dd3fc" emissive="#0ea5e9" emissiveIntensity={0.45} roughness={0.18} metalness={0.1} transparent opacity={0.82} depthTest={false} />
+        </mesh>
+        <mesh position={[-0.055, -0.052, 0.006]} rotation={[Math.PI / 2, 0, 0]} renderOrder={999} frustumCulled={false}>
+          <torusGeometry args={[0.022, 0.007, 8, 18]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.5} metalness={0.4} depthTest={false} />
+        </mesh>
+        <mesh position={[0.055, -0.052, 0.006]} rotation={[Math.PI / 2, 0, 0]} renderOrder={999} frustumCulled={false}>
+          <torusGeometry args={[0.022, 0.007, 8, 18]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.5} metalness={0.4} depthTest={false} />
+        </mesh>
+      </group>
 
       {/* Cookie — only ever visible during the timed pickup/eat animation.
           Same anchor convention as the flashlight (sibling of the arm pivot),

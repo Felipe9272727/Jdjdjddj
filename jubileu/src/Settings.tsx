@@ -102,7 +102,7 @@ export interface QualityProfile {
 
 export const QUALITY_PROFILES: Record<Quality, QualityProfile> = {
     low: {
-        dpr: [0.5, 0.75],
+        dpr: [1, 1],
         far: 40,
         antialias: false,
         atmosphere: false,

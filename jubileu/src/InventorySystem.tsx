@@ -15,15 +15,17 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 
-export type ItemId = 'flashlight' | 'cookie';
+export type ItemId = 'flashlight' | 'cookie' | 'aqualung';
 
 export interface InventoryState {
   flashlight: { owned: boolean; active: boolean };
+  aqualung: { owned: boolean; nightVisionActive: boolean };
   cookie: { count: number };
 }
 
 const EMPTY: InventoryState = {
   flashlight: { owned: false, active: false },
+  aqualung: { owned: false, nightVisionActive: false },
   cookie: { count: 0 },
 };
 
@@ -35,6 +37,10 @@ export function useInventory() {
       if (id === 'flashlight') {
         if (prev.flashlight.owned) return prev;
         return { ...prev, flashlight: { owned: true, active: false } };
+      }
+      if (id === 'aqualung') {
+        if (prev.aqualung.owned) return prev;
+        return { ...prev, aqualung: { owned: true, nightVisionActive: false } };
       }
       if (id === 'cookie') {
         return { ...prev, cookie: { count: prev.cookie.count + 1 } };
@@ -50,6 +56,13 @@ export function useInventory() {
     });
   }, []);
 
+  const toggleNightVision = useCallback(() => {
+    setInventory(prev => {
+      if (!prev.aqualung.owned) return prev;
+      return { ...prev, aqualung: { ...prev.aqualung, nightVisionActive: !prev.aqualung.nightVisionActive } };
+    });
+  }, []);
+
   const useCookie = useCallback((): boolean => {
     let ok = false;
     setInventory(prev => {
@@ -60,9 +73,9 @@ export function useInventory() {
     return ok;
   }, []);
 
-  const hasAnyItem = inventory.flashlight.owned || inventory.cookie.count > 0;
+  const hasAnyItem = inventory.flashlight.owned || inventory.aqualung.owned || inventory.cookie.count > 0;
 
-  return { inventory, addItem, toggleFlashlight, useCookie, hasAnyItem };
+  return { inventory, addItem, toggleFlashlight, toggleNightVision, useCookie, hasAnyItem };
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -71,6 +84,7 @@ export function useInventory() {
 interface InventoryHUDProps {
   inventory: InventoryState;
   onToggleFlashlight: () => void;
+  onToggleNightVision: () => void;
   onUseCookie: () => boolean;
   hasAnyItem: boolean;
 }
@@ -78,6 +92,7 @@ interface InventoryHUDProps {
 export const InventoryHUD: React.FC<InventoryHUDProps> = ({
   inventory,
   onToggleFlashlight,
+  onToggleNightVision,
   onUseCookie,
   hasAnyItem,
 }) => {
@@ -87,6 +102,7 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
   // first acquired, so the icon does its appearance animation.
   const [flashNew, setFlashNew] = useState(false);
   const prevFlashlight = useRef(inventory.flashlight.owned);
+  const prevAqualung = useRef(inventory.aqualung.owned);
   const prevCookies = useRef(inventory.cookie.count);
   const notifTimerRef = useRef<number | null>(null);
 
@@ -108,6 +124,11 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
     window.setTimeout(() => setFlashNew(false), 700);
     showNotif('* Você adquiriu a {Lanterna}.');
   }
+  // Detect first-time aqualung acquisition
+  if (inventory.aqualung.owned && !prevAqualung.current) {
+    prevAqualung.current = true;
+    showNotif('* Você equipou o {Respirador Abissal}. Visão noturna liberada (N).');
+  }
   // Detect new cookie
   if (inventory.cookie.count > prevCookies.current) {
     showNotif('* Você adquiriu um {Biscoito}.');
@@ -124,7 +145,7 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
 
   if (!hasAnyItem && !notification && !cookieEffect) return null;
 
-  const { flashlight, cookie } = inventory;
+  const { flashlight, aqualung, cookie } = inventory;
 
   return (
     <>
@@ -187,6 +208,31 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
                     </>
                   )}
                 </svg>
+              </button>
+            )}
+
+            {aqualung.owned && (
+              <button
+                type="button"
+                onClick={onToggleNightVision}
+                title={aqualung.nightVisionActive ? 'Desligar visão noturna (N)' : 'Ligar visão noturna (N)'}
+                className={`
+                  relative w-12 h-12 flex items-center justify-center
+                  rounded-sm border transition-all touch-manipulation
+                  active:scale-90
+                  ${aqualung.nightVisionActive
+                    ? 'bg-emerald-500/15 border-emerald-300 shadow-[0_0_18px_rgba(52,211,153,0.7)] animate-nightvision-breath'
+                    : 'bg-black/40 border-emerald-500/30 hover:border-emerald-300/70'}
+                `}
+                aria-label={aqualung.nightVisionActive ? 'Desligar visão noturna' : 'Ligar visão noturna'}
+              >
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                  <path d="M3 12c2.2-4.2 5.2-6.3 9-6.3s6.8 2.1 9 6.3c-2.2 4.2-5.2 6.3-9 6.3S5.2 16.2 3 12Z" fill={aqualung.nightVisionActive ? '#052e16' : '#111'} stroke={aqualung.nightVisionActive ? '#6ee7b7' : '#2f6b4f'} strokeWidth="1.2"/>
+                  <circle cx="12" cy="12" r="3.3" fill={aqualung.nightVisionActive ? '#34d399' : '#123524'} stroke="#9fffd0" strokeWidth="0.7"/>
+                  <circle cx="12" cy="12" r="1.25" fill="#02130a"/>
+                  <path d="M6.5 19c1.3 1.1 3.1 1.7 5.5 1.7s4.2-.6 5.5-1.7" stroke="#6ee7b7" strokeWidth="1" strokeLinecap="round" opacity={aqualung.nightVisionActive ? 0.8 : 0.35}/>
+                </svg>
+                <span className="absolute -bottom-1 -right-1 px-1.5 h-[16px] flex items-center justify-center rounded-sm bg-emerald-300 text-black text-[9px] font-black leading-none">N</span>
               </button>
             )}
 
@@ -286,6 +332,11 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
           100% { transform: scale(1) rotate(0); }
         }
         .animate-flash-appear { animation: flashAppear 600ms cubic-bezier(0.16,1,0.3,1) forwards; }
+        @keyframes nightVisionBreath {
+          0%, 100% { box-shadow: 0 0 14px rgba(52,211,153,0.45); }
+          50%      { box-shadow: 0 0 24px rgba(52,211,153,0.9); }
+        }
+        .animate-nightvision-breath { animation: nightVisionBreath 1.8s ease-in-out infinite; }
       `}</style>
     </>
   );

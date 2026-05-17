@@ -29,7 +29,7 @@ export {
     // Sub-components (if anyone imports them directly)
     CrystalCluster, Torch, DustMotes,
     WaterSurface, WaterCeilingDisc, DynamicFog, UnderwaterOverlay, WaterOccluder,
-    UnderwaterCaustics, KelpField, Coral, UnderwaterFlora,
+    UnderwaterCaustics, KelpField, Coral, UnderwaterFlora, BioluminescentReef,
     GodRayShafts, DeepMist, DebrisField, FishSchool,
     UnderwaterSediment, PlanktonField, BubbleField, SurfaceBubbleRing,
     GodRay, GodRays, Shard,
