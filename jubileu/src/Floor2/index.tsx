@@ -231,7 +231,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
         {/* Cave floor underside — blocks X-ray from underwater looking up */}
         <mesh position={[0, -0.1, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[64, 64]} />
+            <planeGeometry args={[62, 62]} />
             <meshStandardMaterial color="#0a0806" map={caveFloor.color} normalMap={caveFloor.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveFloor.rough} roughness={0.95} aoMap={caveFloor.ao} aoMapIntensity={1.2} side={THREE.BackSide} />
         </mesh>
 

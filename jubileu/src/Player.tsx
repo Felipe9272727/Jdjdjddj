@@ -474,10 +474,11 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         if (pos.current.y < -29) pos.current.y = -29;
         // Underwater XZ bounds — keep the swimmer inside the 80x80 rocky
         // bowl so they can't drift off into the void past the boulders.
-        if (pos.current.x < -39) pos.current.x = -39;
-        if (pos.current.x >  39) pos.current.x =  39;
-        if (pos.current.z < -39) pos.current.z = -39;
-        if (pos.current.z >  39) pos.current.z =  39;
+        // Tighter clamp to stay well inside visual walls at ±30.
+        if (pos.current.x < -35) pos.current.x = -35;
+        if (pos.current.x >  35) pos.current.x =  35;
+        if (pos.current.z < -35) pos.current.z = -35;
+        if (pos.current.z >  35) pos.current.z =  35;
         if (pos.current.y > SWIM_THRESHOLD_Y) {
             // Surfaced — if inside the hole, allow popping out into the cave.
             const dxHole = pos.current.x - HOLE_CENTER_X;
@@ -567,10 +568,10 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
             // Hard XZ clamp as a last-resort barrier.
             // Organic walls can bulge ~5m inward, so clamp tighter
-            if (pos.current.x < -25) pos.current.x = -25;
-            if (pos.current.x >  25) pos.current.x =  25;
-            if (pos.current.z < -25) pos.current.z = -25;
-            if (pos.current.z >  25) pos.current.z =  25;
+            if (pos.current.x < -22) pos.current.x = -22;
+            if (pos.current.x >  22) pos.current.x =  22;
+            if (pos.current.z < -22) pos.current.z = -22;
+            if (pos.current.z >  22) pos.current.z =  22;
             // Floor 2: gradual fall when standing inside the hole. Gives a
             // brief "tipping over the edge" moment rather than an instant
             // snap; ends when Y < SWIM_THRESHOLD_Y → next frame swim mode.

@@ -201,8 +201,6 @@ export default function App() {
   const [shopInitialScene, setShopInitialScene] = useState<string>('main');
   // Set to true when caught — drives the auto-open of the shop with
   // post_death once the player arrives back at the lobby.
-  // Set to true when caught — drives the auto-open of the shop with
-  // post_death once the player arrives back at the lobby.
   const [pendingPostDeathDialogue, setPendingPostDeathDialogue] = useState(false);
   // When the elevator travel sequence reaches its destination beat
   // (timer===18), this overrides the default lobby⇄Barney toggle. Used by
@@ -274,6 +272,8 @@ export default function App() {
                   setPendingPostDeathDialogue(true);
                   setCurrentLevel(0);
                   setFloorReveal(true);
+                  // Reset shards so the player starts fresh on Floor 2
+                  setCollectedShards(new Set());
               }, 2000);
           } else if (p.z <= ELEVATOR_ZONE_Z && Math.abs(p.x) <= ELEVATOR_ZONE_X) {
               // SAVED — player made it inside the elevator before Barney.

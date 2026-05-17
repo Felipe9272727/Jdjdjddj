@@ -189,7 +189,9 @@ export const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRe
             const dx = p.x - b.x, dz = p.z - b.z;
             const d = Math.sqrt(dx*dx + dz*dz);
             if (d > 0.01) {
-                const spd = 3.3 * dt;
+                // Cap delta-time to prevent Barney teleporting after tab-switch
+                const safeDt = Math.min(dt, 0.033);
+                const spd = 3.3 * safeDt;
                 b.x += (dx/d) * spd;
                 b.z += (dz/d) * spd;
             }

@@ -5,6 +5,9 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(({mode: _mode}) => {
   return {
+    // Base path for GitHub Pages deployment (repo name).
+    // When serving locally or from root, use '/'.
+    base: process.env.VITE_BASE || '/Jdjdjddj/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
@@ -19,9 +22,10 @@ export default defineConfig(({mode: _mode}) => {
     },
     build: {
       minify: false,
-      // Inline ALL assets as base64 data-URIs so the single index.html
-      // is fully self-contained (no external texture/model files needed).
-      assetsInlineLimit: 20_000_000, // 20 MB — covers all PBR textures + GLB models
+      // Let Vite decide: small assets (<4KB) inline as data-URIs,
+      // large assets (textures, GLB models) become separate files.
+      // This keeps the JS bundle small for GitHub Pages deployment.
+      assetsInlineLimit: 4096,
       rollupOptions: {
         output: {
           // Preserve readable variable names in the bundle

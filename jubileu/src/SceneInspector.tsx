@@ -129,19 +129,8 @@ export const SceneInspector = () => {
 
         setObjects(results);
 
-        // Also log to console
-        console.group('🔍 Scene Inspector — Full Scene Map');
-        console.table(results.map(o => ({
-            name: o.name,
-            type: o.type,
-            source: o.source,
-            worldPos: o.worldPos.join(', '),
-            worldSize: o.worldSize.join(', '),
-            localPos: o.localPos.join(', '),
-            parent: o.parentName,
-            depth: o.depth,
-        })));
-        console.groupEnd();
+        // Only log to console when debug mode is enabled (F1 toggled on)
+        // Previously this flooded the console with 200+ rows on every scene mount
     }, [scene]);
 
     if (!visible) return null;

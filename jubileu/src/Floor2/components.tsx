@@ -172,7 +172,7 @@ export const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }
         <group position={[HOLE_CENTER_X, WATER_LEVEL_Y, HOLE_CENTER_Z]}>
             {reflective && (
                 <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.15, 0]}>
-                    <planeGeometry args={[HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05]} />
+                    <circleGeometry args={[HOLE_RADIUS + 0.15, 48]} />
                     <MeshReflectorMaterial
                         blur={[300, 100]}
                         resolution={512}
@@ -189,7 +189,7 @@ export const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }
                 </mesh>
             )}
             <mesh rotation={[-Math.PI / 2, 0, 0]}>
-                <planeGeometry args={[HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05, 64, 64]} />
+                <circleGeometry args={[HOLE_RADIUS + 0.15, 64]} />
                 <primitive object={mat} attach="material" />
             </mesh>
         </group>
