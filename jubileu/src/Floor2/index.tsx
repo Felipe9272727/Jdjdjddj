@@ -133,8 +133,65 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     const rockModels = ROCK_MODEL_URLS.map(u => useGLTF(u));
     const boulderModel_ = useGLTF(BOULDER_MODEL_URL);
 
-    const rockScenes = useMemo(() => rockModels.map(m => m.scene.clone(true)), [rockModels]);
-    const boulderScene = useMemo(() => boulderModel_.scene.clone(true), [boulderModel_]);
+    // Clone scenes and override materials with our PBR cave rock textures
+    // so GLB default materials (often too bright) don't clash with the dark cave
+    const rockScenes = useMemo(() => rockModels.map(m => {
+        const scene = m.scene.clone(true);
+        scene.traverse((child: any) => {
+            if (child.isMesh) {
+                child.material = new THREE.MeshStandardMaterial({
+                    color: '#1a1610',
+                    map: caveRock.color,
+                    normalMap: caveRock.normal,
+                    normalScale: new THREE.Vector2(2.0, 2.0),
+                    roughnessMap: caveRock.rough,
+                    roughness: 0.92,
+                    aoMap: caveRock.ao,
+                    aoMapIntensity: 0.6,
+                });
+            }
+        });
+        return scene;
+    }), [rockModels, caveRock]);
+
+    // UW rock scenes — same GLB models but with underwater PBR materials
+    const uwRockScenes = useMemo(() => rockModels.map(m => {
+        const scene = m.scene.clone(true);
+        scene.traverse((child: any) => {
+            if (child.isMesh) {
+                child.material = new THREE.MeshStandardMaterial({
+                    color: '#0a0c08',
+                    map: uwRock.color,
+                    normalMap: uwRock.normal,
+                    normalScale: new THREE.Vector2(2.0, 2.0),
+                    roughnessMap: uwRock.rough,
+                    roughness: 0.95,
+                    aoMap: uwRock.ao,
+                    aoMapIntensity: 0.5,
+                });
+            }
+        });
+        return scene;
+    }), [rockModels, uwRock]);
+
+    const boulderScene = useMemo(() => {
+        const scene = boulderModel_.scene.clone(true);
+        scene.traverse((child: any) => {
+            if (child.isMesh) {
+                child.material = new THREE.MeshStandardMaterial({
+                    color: '#1a1610',
+                    map: caveRock.color,
+                    normalMap: caveRock.normal,
+                    normalScale: new THREE.Vector2(2.0, 2.0),
+                    roughnessMap: caveRock.rough,
+                    roughness: 0.92,
+                    aoMap: caveRock.ao,
+                    aoMapIntensity: 0.6,
+                });
+            }
+        });
+        return scene;
+    }, [boulderModel_, caveRock]);
 
     return (
     <group>
@@ -307,10 +364,10 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Small fish school looping around the boulder field */}
         <FishSchool />
 
-        {/* Underwater boulders — darkened */}
+        {/* Underwater boulders — with UW PBR materials */}
         {UW_BOULDERS.map(([x, y, z, s, ry], i) => (
             <group key={`uwb-${i}`} position={[x, y + s * 0.4, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]}>
-                <primitive object={rockScenes[i % 4].clone(true)} />
+                <primitive object={uwRockScenes[i % 4].clone(true)} />
             </group>
         ))}
 
