@@ -325,6 +325,17 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Underwater overlay */}
         <UnderwaterOverlay playerPositionRef={playerPositionRef} />
 
+        {/* ─── UNDERWATER ambient lighting ───────────────────────────────
+            Two extra lights that ONLY meaningfully affect the underwater
+            volume (their distance ranges keep them out of the cave above):
+            - Top-down cyan "sun" — fakes the column of sunlight piercing
+              the water. Positioned just below the surface, lights every-
+              thing in a 35m radius. Cool tint sets the underwater mood.
+            - Deep blue floor fill — sits at the seabed, casts a soft
+              indigo glow upward. Without it the seabed sucked all light. */}
+        <pointLight position={[HOLE_CENTER_X, -2, HOLE_CENTER_Z]} color="#9ed8f0" intensity={1.6} distance={35} decay={1.6} />
+        <pointLight position={[0, -28, 0]} color="#2a5878" intensity={0.9} distance={30} decay={1.8} />
+
         {/* ─── UNDERWATER (Y < 0) ────────────────────────────────────── */}
         <mesh geometry={UW_FLOOR_GEO} rotation={[-Math.PI / 2, 0, 0]} position={[0, -30, 0]}>
             <meshStandardMaterial
@@ -345,12 +356,12 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Underwater flora — kelp & coral */}
         <UnderwaterFlora />
 
-        {/* God ray shafts descending from the surface */}
+        {/* God ray shafts descending from the surface.
+            (Old code had GodRay + GodRays + GodRayShafts all rendering at
+            once → 3 overlapping volumetric stacks that fought each other
+            and washed out into one murky blob. Consolidated to the single
+            GodRayShafts component, which is the cleanest implementation.) */}
         <GodRayShafts />
-        <GodRays playerPositionRef={playerPositionRef} />
-
-        {/* God ray — volumetric light beam from the water hole */}
-        <GodRay />
 
         {/* Deep Mist — drifting fog plane */}
         <DeepMist />

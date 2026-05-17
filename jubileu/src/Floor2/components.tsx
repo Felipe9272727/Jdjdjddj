@@ -353,9 +353,12 @@ export const UnderwaterCaustics: React.FC = () => {
         return m;
     }, []);
     useFrame((state) => { (mat as any).time = state.clock.elapsedTime; });
+    // Cover the FULL seafloor (80x80). Was 40x40 → caustics stopped halfway
+    // across, very visible bug. Plane 0.05m above the floor with additive
+    // blending — paints light patterns over the rocks.
     return (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -29.95, 0]}>
-            <planeGeometry args={[40, 40]} />
+            <planeGeometry args={[80, 80]} />
             <primitive object={mat} attach="material" />
         </mesh>
     );
@@ -395,16 +398,26 @@ export const KelpField: React.FC = () => {
                                 geometry={KELP_GEO}
                                 scale={[1 - i * 0.1, segLen, 1 - i * 0.1]}
                             >
-                                <meshStandardMaterial color={i < 2 ? '#0a0805' : '#0c0a06'} roughness={0.85} flatShading />
+                                {/* Kelp gradient: dark teal at the base → lighter
+                                    sea-green at the top. Reads as marine algae,
+                                    not black sticks. */}
+                                <meshStandardMaterial
+                                    color={i === 0 ? '#1c4030' : i === 1 ? '#2a6044' : '#3a8458'}
+                                    emissive={i === 2 ? '#082818' : '#000000'}
+                                    emissiveIntensity={i === 2 ? 0.25 : 0}
+                                    roughness={0.85}
+                                    flatShading
+                                />
                             </mesh>
                         ))}
+                        {/* Leaf — flat plane at the top, deep green */}
                         <mesh
                             position={[0, height * 0.9, 0]}
                             rotation={[0.3 + Math.sin(phase) * 0.2, phase, 0.1]}
                             scale={[0.6, 0.3, 0.02]}
                         >
                             <planeGeometry args={[1, 1]} />
-                            <meshStandardMaterial color="#0c0f06" roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.85} />
+                            <meshStandardMaterial color="#2a6a3a" emissive="#0a1c10" emissiveIntensity={0.3} roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.92} />
                         </mesh>
                     </group>
                 );
@@ -414,32 +427,60 @@ export const KelpField: React.FC = () => {
 };
 
 // ─── Coral ────────────────────────────────────────────────────────────
+// Subnautica-style branching coral. Dark stone base + colored branches +
+// BIOLUMINESCENT tips (emissive bulbs at the top of each branch).
+// The tips emit light at the same color as the coral's branches, so each
+// coral cluster also functions as a small ambient light source — turning
+// the underwater scene from "dead aquarium" into "alive reef".
 export const Coral: React.FC<{ x: number; z: number; color: string; scale: number }> = ({ x, z, color, scale }) => (
     <group position={[x, -30, z]} scale={scale}>
+        {/* Stone base — kept dark so coral branches read as growing FROM rock */}
         <mesh position={[0, 0.3, 0]}>
             <dodecahedronGeometry args={[0.5, 0]} />
             <meshStandardMaterial color="#0e0a06" roughness={0.95} metalness={0.05} flatShading />
         </mesh>
+        {/* Main central branch */}
         <mesh position={[0, 1.0, 0]} rotation={[0.1, 0, 0.15]}>
-            <cylinderGeometry args={[0.06, 0.1, 1.2, 5]} />
-            <meshStandardMaterial color={color} roughness={0.9} flatShading />
+            <cylinderGeometry args={[0.06, 0.12, 1.4, 6]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.25} roughness={0.85} flatShading />
         </mesh>
-        <mesh position={[0.15, 1.5, 0.1]} rotation={[0, 0.4, 0.3]}>
-            <cylinderGeometry args={[0.04, 0.07, 0.8, 5]} />
-            <meshStandardMaterial color={color} roughness={0.9} flatShading />
+        {/* Right branch */}
+        <mesh position={[0.18, 1.55, 0.12]} rotation={[0, 0.4, 0.4]}>
+            <cylinderGeometry args={[0.04, 0.08, 0.9, 6]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.25} roughness={0.85} flatShading />
         </mesh>
-        <mesh position={[-0.12, 1.4, -0.08]} rotation={[0.2, -0.3, -0.25]}>
-            <cylinderGeometry args={[0.04, 0.06, 0.7, 5]} />
-            <meshStandardMaterial color={color} roughness={0.9} flatShading />
+        {/* Left branch */}
+        <mesh position={[-0.15, 1.45, -0.10]} rotation={[0.25, -0.3, -0.32]}>
+            <cylinderGeometry args={[0.04, 0.07, 0.8, 6]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.25} roughness={0.85} flatShading />
         </mesh>
-        <mesh position={[0.15, 1.9, 0.1]}>
-            <sphereGeometry args={[0.08, 6, 4]} />
-            <meshStandardMaterial color="#1a3020" emissive="#081810" emissiveIntensity={0.3} roughness={0.8} />
+        {/* Back branch */}
+        <mesh position={[0.02, 1.5, -0.18]} rotation={[-0.35, 0.1, 0.1]}>
+            <cylinderGeometry args={[0.04, 0.06, 0.65, 6]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.25} roughness={0.85} flatShading />
         </mesh>
-        <mesh position={[-0.12, 1.75, -0.08]}>
+        {/* Bioluminescent tips at every branch end — emit at the coral
+            color, full intensity. Lights nearby rocks softly. */}
+        <mesh position={[0, 1.75, 0]}>
+            <sphereGeometry args={[0.10, 8, 6]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.4} toneMapped={false} />
+        </mesh>
+        <mesh position={[0.20, 2.05, 0.14]}>
+            <sphereGeometry args={[0.075, 6, 4]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.2} toneMapped={false} />
+        </mesh>
+        <mesh position={[-0.16, 1.85, -0.11]}>
+            <sphereGeometry args={[0.07, 6, 4]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.0} toneMapped={false} />
+        </mesh>
+        <mesh position={[0.02, 1.85, -0.20]}>
             <sphereGeometry args={[0.06, 6, 4]} />
-            <meshStandardMaterial color="#1a3020" emissive="#081810" emissiveIntensity={0.3} roughness={0.8} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.9} toneMapped={false} />
         </mesh>
+        {/* One small point light per coral — local fill so the bioluminescence
+            actually casts color onto surrounding rocks. Tightly bounded
+            (distance 2.5m) so 11 corals stay within the lights budget. */}
+        <pointLight position={[0, 1.85, 0]} color={color} intensity={0.9} distance={2.5} decay={1.8} />
     </group>
 );
 
@@ -454,26 +495,32 @@ export const UnderwaterFlora: React.FC = () => (
 );
 
 // ─── GodRayShafts — Subnautica-style light shafts ─────────────────────
+// Single consolidated god-ray system (the old code had THREE overlapping
+// god-ray components fighting each other). Stack of 12 vertical planes
+// arranged radially around the hole, additive blended. Slow rotation +
+// per-shaft phase makes the beams shimmer like sunlight refracted by the
+// surface waves. Brighter cyan-blue palette to read as actual sunlight
+// piercing the water, not a vague colored haze.
 export const GodRayShafts: React.FC = () => {
     const groupRef = useRef<THREE.Group>(null);
     useFrame((state) => {
         if (groupRef.current) groupRef.current.rotation.y = state.clock.elapsedTime * 0.04;
     });
-    const SHAFT_COUNT = 8;
+    const SHAFT_COUNT = 12;
     return (
         <group ref={groupRef} position={[HOLE_CENTER_X, -15, HOLE_CENTER_Z]}>
             {Array.from({ length: SHAFT_COUNT }, (_, i) => {
                 const a = (i / SHAFT_COUNT) * Math.PI * 2;
-                const r = 0.5 + (i % 2) * 1.0;
+                const r = 0.4 + (i % 3) * 0.8;
                 return (
                     <mesh
                         key={i}
                         position={[Math.cos(a) * r, 0, Math.sin(a) * r]}
                         rotation={[0, a, 0]}
                     >
-                        <planeGeometry args={[1.6 + (i % 3) * 0.4, 28]} />
+                        <planeGeometry args={[1.8 + (i % 4) * 0.3, 30]} />
                         <meshBasicMaterial
-                            color="#0c3020"
+                            color="#7ac8e8"
                             transparent
                             opacity={0.12 + (i % 3) * 0.04}
                             side={THREE.DoubleSide}
@@ -484,13 +531,13 @@ export const GodRayShafts: React.FC = () => {
                     </mesh>
                 );
             })}
-            {/* Bright spot near the surface — narrow cone of light from the hole */}
+            {/* Bright spot near the surface — narrow cone of sunlight */}
             <mesh position={[0, 10, 0]}>
                 <coneGeometry args={[2.5, 14, 16, 1, true]} />
                 <meshBasicMaterial
-                    color="#1a5040"
+                    color="#9ad8f0"
                     transparent
-                    opacity={0.10}
+                    opacity={0.18}
                     side={THREE.DoubleSide}
                     depthWrite={false}
                     blending={THREE.AdditiveBlending}
@@ -501,9 +548,9 @@ export const GodRayShafts: React.FC = () => {
             <mesh position={[0, 8, 0]}>
                 <coneGeometry args={[1.2, 10, 12, 1, true]} />
                 <meshBasicMaterial
-                    color="#1a6050"
+                    color="#cfe8f8"
                     transparent
-                    opacity={0.08}
+                    opacity={0.14}
                     side={THREE.DoubleSide}
                     depthWrite={false}
                     blending={THREE.AdditiveBlending}
@@ -612,11 +659,15 @@ export const FishSchool: React.FC = () => {
                     geometry={FISH_GEO}
                     scale={0.6 + (i % 3) * 0.25}
                 >
+                    {/* Fish color — silver, copper, and pale gold. Strong
+                        emissive boost so they read as small bright streaks
+                        against the dark water. Was nearly invisible before. */}
                     <meshStandardMaterial
-                        color={i % 3 === 0 ? '#1a2a30' : i % 3 === 1 ? '#0e1a20' : '#162228'}
-                        emissive={i % 3 === 0 ? '#081018' : '#060c10'}
-                        emissiveIntensity={0.2}
-                        roughness={0.8}
+                        color={i % 3 === 0 ? '#b8c8d8' : i % 3 === 1 ? '#d8a878' : '#e0c898'}
+                        emissive={i % 3 === 0 ? '#3a5870' : i % 3 === 1 ? '#5a3818' : '#6a5028'}
+                        emissiveIntensity={0.9}
+                        roughness={0.55}
+                        metalness={0.3}
                         flatShading
                     />
                 </mesh>
@@ -659,7 +710,10 @@ export const UnderwaterSediment: React.FC = () => {
     });
     return (
         <Instances limit={SEDIMENT_COUNT} range={SEDIMENT_COUNT} geometry={BUBBLE_GEO}>
-            <meshBasicMaterial color="#8a9aaa" transparent opacity={0.2} depthWrite={false} />
+            {/* Slightly warmer + more visible particles. Bumped to additive
+                blending so they catch what little light reaches the bottom
+                instead of competing with the dark water for visibility. */}
+            <meshBasicMaterial color="#a8c0d8" transparent opacity={0.35} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
             {Array.from({ length: SEDIMENT_COUNT }, (_, i) => (
                 <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} scale={0.02 + Math.random() * 0.04} />
             ))}
@@ -684,7 +738,11 @@ export const PlanktonField: React.FC = () => {
     });
     return (
         <Instances limit={PLANKTON_COUNT} range={PLANKTON_COUNT} geometry={PLANKTON_GEO}>
-            <meshBasicMaterial color="#1a1808" transparent opacity={0.12} depthWrite={false} toneMapped={false} />
+            {/* Bioluminescent plankton — pale cyan/blue dots. Faintly
+                additive so they read as glowing dust catching the surface
+                light. Was a dim brown that was indistinguishable from
+                particles → invisible. */}
+            <meshBasicMaterial color="#80e8ff" transparent opacity={0.55} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
             {Array.from({ length: PLANKTON_COUNT }, (_, i) => {
                 const x = HOLE_CENTER_X + (Math.random() - 0.5) * 30;
                 const y = -3 + Math.random() * -25;

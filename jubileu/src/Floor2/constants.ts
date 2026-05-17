@@ -266,14 +266,24 @@ export const KELP_POSITIONS: readonly KelpData[] = [
     [15.0, -3.0, 4.8, 2.1],
 ];
 
+// Coral palette — Subnautica-vibrant. Deep cave underwater can still
+// have colored coral; in the dim blue ambient these reds/pinks/yellows
+// POP and provide visual anchors as the player swims around. Without
+// these all you saw was dark brown rocks in dark blue water.
 export const CORAL_POSITIONS: readonly CoralData[] = [
-    [ 3.0, -5.0, '#1a1208', 1.0],
-    [-4.0,  6.0, '#1a0e06', 0.8],
-    [ 9.0, -2.0, '#1a1610', 1.2],
-    [-12.0, -5.0, '#1a1208', 0.9],
-    [13.0,  3.0, '#1a0e06', 1.0],
-    [-8.0, 12.0, '#1a1610', 0.7],
-];
+    [ 3.0, -5.0, '#ff5a3a', 1.0],   // hot orange
+    [-4.0,  6.0, '#ff3a78', 0.8],   // pink
+    [ 9.0, -2.0, '#ffa030', 1.2],   // amber
+    [-12.0, -5.0, '#ff5a3a', 0.9],  // hot orange
+    [13.0,  3.0, '#e84080', 1.0],   // magenta
+    [-8.0, 12.0, '#ffc040', 0.7],   // yellow
+    // Added 5 more in a wider spread so the seafloor has color landmarks
+    [ 15.0, -10.0, '#ff3a78', 1.1],
+    [-15.0,  8.0, '#ff7048', 0.95],
+    [ 18.0, 12.0, '#a850ff', 0.85],  // violet — bioluminescent looking
+    [-18.0, -12.0, '#40e8ff', 1.05], // cyan
+    [  5.0, 16.0, '#60ffa0', 0.9],   // mint
+] as const;
 
 // ─── Rock collision data (exported for Player.tsx) ───────────────────
 export const CAVE_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = [
