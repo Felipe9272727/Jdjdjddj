@@ -247,8 +247,8 @@ export const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<TH
             _fogColor.current.lerp(_tgtFog.current, k);
             _bgColor.current.lerp(_tgtBg.current, k);
             scene.fog.color.copy(_fogColor.current);
-            scene.fog.near = scene.fog.near + (14 - scene.fog.near) * k;
-            scene.fog.far = scene.fog.far + (55 - scene.fog.far) * k;
+            scene.fog.near = scene.fog.near + (8 - scene.fog.near) * k;
+            scene.fog.far = scene.fog.far + (70 - scene.fog.far) * k;
         } else {
             const depth = Math.abs(y - SWIM_THRESHOLD_Y);
             const t = Math.min(depth / 29, 1);

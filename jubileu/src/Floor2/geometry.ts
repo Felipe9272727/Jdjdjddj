@@ -153,10 +153,11 @@ export function createProceduralStalactite(
   return geo;
 }
 
-// ─── Cave floor with circular hole — ShapeGeometry ────────────────────
+// ─── Cave floor with circular hole — ShapeGeometry + proper UVs ───────
 export const CAVE_FLOOR_GEO = (() => {
     const shape = new THREE.Shape();
-    const size = 30;
+    // Size 31 so the floor extends past the walls (62×62 total, matching ceiling)
+    const size = 31;
     shape.moveTo(-size, -size);
     shape.lineTo( size, -size);
     shape.lineTo( size,  size);
@@ -165,8 +166,11 @@ export const CAVE_FLOOR_GEO = (() => {
     const hole = new THREE.Path();
     hole.absarc(HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, 0, Math.PI * 2, false);
     shape.holes.push(hole);
-    const geo = new THREE.ShapeGeometry(shape, 48);
+    const geo = new THREE.ShapeGeometry(shape, 64);
     const positions = geo.attributes.position;
+    // ── Override UVs: map world-space XY → UV based on the full floor span.
+    // ShapeGeometry auto-UVs can be wrong with holes, so we compute our own.
+    const uvAttr = geo.attributes.uv;
     const v = new THREE.Vector3();
     for (let i = 0; i < positions.count; i++) {
         v.fromBufferAttribute(positions, i);
@@ -188,8 +192,11 @@ export const CAVE_FLOOR_GEO = (() => {
         const ridge2 = Math.abs(noise3D(v.x * 0.15, v.y * 0.15, 25.0)) * 1.0;
         const totalN = n1 + n2 + n3 + n4 + ridge1 + ridge2;
         positions.setZ(i, v.z + totalN * 2.5 * fade);
+        // UV: map [-size, +size] → [0, 1] so texture repeat works correctly
+        uvAttr.setXY(i, (v.x + size) / (2 * size), (v.y + size) / (2 * size));
     }
     positions.needsUpdate = true;
+    uvAttr.needsUpdate = true;
     geo.computeVertexNormals();
     return geo;
 })();
@@ -240,16 +247,17 @@ export const PROC_STALACTITE_GEOS = [
   createProceduralStalactite(2.2, 0.5, 0.05, 10, 15, 390),
 ];
 
-// Procedural underwater terrain — displaced PlaneGeometry
+// Procedural underwater terrain — displaced PlaneGeometry (extends past walls)
 export const UW_FLOOR_GEO = (() => {
-    const geo = new THREE.PlaneGeometry(80, 80, 200, 200);
+    // 90×90 plane so it extends well past the ±30 UW walls, no edge gaps
+    const geo = new THREE.PlaneGeometry(90, 90, 200, 200);
     const positions = geo.attributes.position;
     const v = new THREE.Vector3();
     for (let i = 0; i < positions.count; i++) {
         v.fromBufferAttribute(positions, i);
         const edgeDist = Math.min(
-            Math.abs(v.x - (-40)), Math.abs(v.x - 40),
-            Math.abs(v.y - (-40)), Math.abs(v.y - 40)
+            Math.abs(v.x - (-45)), Math.abs(v.x - 45),
+            Math.abs(v.y - (-45)), Math.abs(v.y - 45)
         );
         const edgeFade = Math.min(1, edgeDist / 8);
         const distFromCenter = Math.sqrt(v.x * v.x + (v.y - 5) * (v.y - 5));
