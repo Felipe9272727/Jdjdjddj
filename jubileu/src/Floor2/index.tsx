@@ -196,13 +196,13 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
     return (
     <group>
-        <color attach="background" args={['#0e0a08']} />
-        <fog attach="fog" args={['#0e0a08', 8, 70]} />
+        <color attach="background" args={['#1a1410']} />
+        <fog attach="fog" args={['#1a1410', 12, 90]} />
 
-        {/* Horror lighting — dark but visible: textures need enough light */}
-        <ambientLight intensity={0.45} color="#d8c0a0" />
-        <hemisphereLight intensity={0.35} color="#c8a888" groundColor="#1a1612" />
-        <directionalLight position={[5, 20, 5]} intensity={0.40} color="#ffe8c0" />
+        {/* Cave lighting — atmospheric but visible */}
+        <ambientLight intensity={0.65} color="#d8c0a0" />
+        <hemisphereLight intensity={0.55} color="#c8a888" groundColor="#1a1612" />
+        <directionalLight position={[5, 20, 5]} intensity={0.55} color="#ffe8c0" />
 
         {/* Ember sprites — warm glow on floor, NO pointLight (square artifact) */}
         <sprite position={[-25, 0.8, 0]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#5a2008" transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
@@ -318,7 +318,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Opaque water column */}
         <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y - 16, HOLE_CENTER_Z]}>
             <cylinderGeometry args={[HOLE_RADIUS + 0.15, HOLE_RADIUS + 0.15, 32, 32, 1, true]} />
-            <meshBasicMaterial color="#020508" side={THREE.BackSide} depthWrite={true} transparent={false} />
+            <meshBasicMaterial color="#041828" side={THREE.BackSide} depthWrite={true} transparent={false} />
         </mesh>
         <WaterCeilingDisc />
         <WaterOccluder playerPositionRef={playerPositionRef} />

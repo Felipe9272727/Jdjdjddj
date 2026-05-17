@@ -28,10 +28,10 @@ export const WaterCeilingMaterial = shaderMaterial(
         float cross1 = sin(uv.x * 22.0 + time * 1.8) * sin(uv.y * 20.0 - time * 1.3) * 0.5 + 0.5;
         float cross2 = sin(uv.x * 16.0 - time * 1.1 + 2.0) * sin(uv.y * 14.0 + time * 0.9) * 0.5 + 0.5;
         float ripple = pow(ripple1 * ripple2, 1.5) * 0.6 + pow(cross1 * cross2, 2.0) * 0.4;
-        vec3 col = vec3(0.008, 0.018, 0.032);
-        col += vec3(0.01, 0.05, 0.06) * ripple;
-        float caustic = pow(ripple, 3.0) * 0.15;
-        col += vec3(0.02, 0.08, 0.06) * caustic;
+        vec3 col = vec3(0.02, 0.06, 0.10);
+        col += vec3(0.03, 0.12, 0.15) * ripple;
+        float caustic = pow(ripple, 3.0) * 0.2;
+        col += vec3(0.04, 0.15, 0.10) * caustic;
         gl_FragColor = vec4(col, 1.0);
       }
     `
@@ -60,17 +60,17 @@ export const UnderwaterOverlayMaterial = shaderMaterial(
         float c1 = sin(uv.x * 18.0 + time * 1.4) * sin(uv.y * 15.0 + time * 1.1);
         float c2 = sin(uv.x * 12.0 - time * 0.9 + 1.5) * sin(uv.y * 10.0 + time * 1.3);
         float caustic = pow(max(0.0, c1 * c2), 2.5) * 0.2;
-        vec3 shallowTint = vec3(0.0, 0.06, 0.12);
-        vec3 midTint = vec3(0.0, 0.04, 0.14);
-        vec3 deepTint = vec3(0.0, 0.01, 0.08);
+        vec3 shallowTint = vec3(0.0, 0.10, 0.18);
+        vec3 midTint = vec3(0.0, 0.07, 0.20);
+        vec3 deepTint = vec3(0.0, 0.02, 0.12);
         vec3 tint;
         if (depth < 0.35) {
           tint = mix(shallowTint, midTint, depth / 0.35);
         } else {
           tint = mix(midTint, deepTint, (depth - 0.35) / 0.65);
         }
-        tint += vec3(0.0, caustic * 0.4, caustic * 0.3);
-        float alpha = (0.25 + depth * 0.5) * vignette;
+        tint += vec3(0.0, caustic * 0.5, caustic * 0.4);
+        float alpha = (0.20 + depth * 0.45) * vignette;
         float edgeDist = length(center) * 2.0;
         tint.r += edgeDist * 0.005 * depth;
         tint.b += edgeDist * 0.01 * (1.0 - depth);
@@ -173,9 +173,9 @@ export const WaterMaterial = shaderMaterial(
 
         float viewFromBelow = step(dot(vNormalWS, vViewWS), 0.0);
 
-        vec3 deep   = vec3(0.005, 0.02, 0.04);
-        vec3 mid    = vec3(0.02, 0.08, 0.12);
-        vec3 sky    = vec3(0.15, 0.25, 0.30);
+        vec3 deep   = vec3(0.02, 0.08, 0.14);
+        vec3 mid    = vec3(0.06, 0.18, 0.28);
+        vec3 sky    = vec3(0.25, 0.38, 0.45);
 
         float c1 = sin(vUv.x * 32.0 + time * 0.9) * 0.5 + 0.5;
         float c2 = sin(vUv.y * 26.0 + time * 1.1 + 2.0) * 0.5 + 0.5;
@@ -184,27 +184,27 @@ export const WaterMaterial = shaderMaterial(
         float h = clamp(vWave * 5.0, -1.0, 1.0);
         vec3 col = mix(deep, mid, 0.5 + h * 0.5);
 
-        float sss = pow(max(0.0, h), 1.5) * 0.3;
-        vec3 sssColor = vec3(0.05, 0.2, 0.15);
+        float sss = pow(max(0.0, h), 1.5) * 0.4;
+        vec3 sssColor = vec3(0.08, 0.3, 0.2);
         col += sssColor * sss;
 
-        col = mix(col, sky, fresnel * 0.6 + caustic * 0.1);
+        col = mix(col, sky, fresnel * 0.6 + caustic * 0.15);
 
         vec3 lightDir = normalize(vec3(0.4, 1.0, 0.3));
         vec3 halfVec = normalize(vViewWS + lightDir);
         float spec = pow(max(0.0, dot(vNormalWS, halfVec)), 256.0);
-        col += vec3(0.6, 0.55, 0.45) * spec * 0.8 * (1.0 - fresnel * 0.5);
+        col += vec3(0.7, 0.65, 0.5) * spec * 1.0 * (1.0 - fresnel * 0.5);
 
         float foam = smoothstep(0.04, 0.09, vWave);
         float distFromCenter = length(vWorldPos.xz - vec2(0.0, 5.0));
-        float edgeFoam = smoothstep(2.8, 2.2, distFromCenter) * 0.4;
-        float totalFoam = max(foam * 0.55, edgeFoam);
-        col = mix(col, vec3(0.6, 0.7, 0.72), totalFoam);
+        float edgeFoam = smoothstep(3.0, 1.5, distFromCenter) * 0.55;
+        float totalFoam = max(foam * 0.6, edgeFoam);
+        col = mix(col, vec3(0.7, 0.78, 0.82), totalFoam);
 
-        float alpha = mix(0.82, 0.96, fresnel);
+        float alpha = mix(0.85, 0.97, fresnel);
         if (viewFromBelow > 0.5) {
             alpha = 1.0;
-            col = vec3(0.01, 0.03, 0.05);
+            col = vec3(0.02, 0.06, 0.1);
         }
         gl_FragColor = vec4(col, alpha);
       }

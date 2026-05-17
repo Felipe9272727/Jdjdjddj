@@ -92,13 +92,13 @@ export const Torch: React.FC<{ x: number; y: number; z: number; seed: number }> 
         <group position={[x, y, z]}>
             <mesh>
                 <coneGeometry args={[0.18, 0.4, 8]} />
-                <meshStandardMaterial color="#FFA850" emissive="#FFB060" emissiveIntensity={3.5} toneMapped={false} />
+                <meshStandardMaterial color="#FFA850" emissive="#FFB060" emissiveIntensity={5.0} toneMapped={false} />
             </mesh>
-            <sprite scale={[3.0, 3.0, 1]}>
-                <spriteMaterial ref={spriteRef} map={GLOW_TEXTURE} color="#FFC080" transparent opacity={0.5} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+            <sprite scale={[4.0, 4.0, 1]}>
+                <spriteMaterial ref={spriteRef} map={GLOW_TEXTURE} color="#FFC080" transparent opacity={0.6} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
             </sprite>
-            <sprite scale={[7.0, 7.0, 1]}>
-                <spriteMaterial ref={outerRef} map={GLOW_TEXTURE} color="#FF9040" transparent opacity={0.15} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+            <sprite scale={[9.0, 9.0, 1]}>
+                <spriteMaterial ref={outerRef} map={GLOW_TEXTURE} color="#FF9040" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
             </sprite>
         </group>
     );
@@ -222,18 +222,18 @@ export const WaterCeilingDisc: React.FC = () => {
 // ─── DynamicFog — depth-based color absorption (Beer-Lambert style) ───
 export const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
     const { scene } = useThree();
-    const _fogColor = useRef(new THREE.Color('#0e0a08'));
-    const _bgColor = useRef(new THREE.Color('#0e0a08'));
+    const _fogColor = useRef(new THREE.Color('#1a1410'));
+    const _bgColor = useRef(new THREE.Color('#1a1410'));
     const _tgtFog = useRef(new THREE.Color());
     const _tgtBg = useRef(new THREE.Color());
     const _surfaceFog = new THREE.Color('#0a2a50');
     const _midFog = new THREE.Color('#061a3a');
     const _deepFog = new THREE.Color('#03102a');
-    const _caveFog = new THREE.Color('#0e0a08');
+    const _caveFog = new THREE.Color('#1a1410');
     const _surfaceBg = new THREE.Color('#0a2a50');
     const _midBg = new THREE.Color('#061a3a');
     const _deepBg = new THREE.Color('#03102a');
-    const _caveBg = new THREE.Color('#0e0a08');
+    const _caveBg = new THREE.Color('#1a1410');
 
     useFrame((_, dt) => {
         const safeDt = Math.min(dt, 0.033);
