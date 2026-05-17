@@ -51,7 +51,7 @@ export const FLOORS: FloorOption[] = [
 ];
 
 interface CreatorModeProps {
-  onSelect: (level: number, multiplayerEnabled: boolean) => void;
+  onSelect: (level: number, multiplayerEnabled: boolean, mode?: 'direct' | 'floor2_intro_cutscene') => void;
   multiplayerEnabled: boolean;
 }
 
@@ -147,6 +147,22 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
                 <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z"/>
               </svg>
             )}
+          </div>
+        </div>
+      </button>
+
+      {/* Floor 2 cinematic shortcut */}
+      <button
+        onClick={() => onSelect(2, multiplayerEnabled, 'floor2_intro_cutscene')}
+        className="group relative w-full overflow-hidden rounded-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+      >
+        <div className="absolute -inset-0.5 rounded-xl bg-gradient-to-r from-emerald-400 via-cyan-300 to-blue-500 opacity-75 blur-sm group-hover:opacity-100 transition-opacity" />
+        <div className="relative rounded-xl bg-gradient-to-r from-emerald-500 via-cyan-400 to-blue-500">
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-t from-black/35 to-transparent" />
+          <div className="relative flex flex-col items-center justify-center px-5 py-3.5 text-black">
+            <span className="text-[10px] font-black uppercase tracking-[0.32em] opacity-70">Cutscene</span>
+            <span className="text-sm font-black tracking-[0.18em] group-hover:tracking-[0.25em] transition-all">ELEVADOR → FLOOR 2</span>
+            <span className="mt-1 text-[10px] font-bold opacity-70">teleporta no elevador e abre em 5s</span>
           </div>
         </div>
       </button>

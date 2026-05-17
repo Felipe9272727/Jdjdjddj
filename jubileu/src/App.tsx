@@ -102,6 +102,38 @@ const NightVisionRig = React.memo(({ active, playerPositionRef }: { active: bool
   );
 });
 
+
+
+const Floor2IntroCinematic = React.memo(({ phase, secondsToOpen }: { phase: Floor2GuidePhase; secondsToOpen: number | null }) => {
+  const inElevatorCountdown = secondsToOpen !== null && secondsToOpen > 0;
+  const visible = inElevatorCountdown || phase === 'stinger' || phase === 'ready';
+  if (!visible) return null;
+  const title = inElevatorCountdown ? 'ELEVADOR DE SERVIÇO' : phase === 'stinger' ? 'ALGUÉM ESTÁ NA PORTA' : 'PROTOCOLO SUBAQUÁTICO';
+  const caption = inElevatorCountdown
+    ? `Chegada ao Floor 2 em ${String(secondsToOpen).padStart(2, '0')}s`
+    : phase === 'stinger'
+    ? 'As portas abrem e uma silhueta atravessa a névoa.'
+    : 'O mergulhador espera sua resposta. Fale com ele para receber o respirador.';
+  return (
+    <div className="fixed inset-0 z-[57] pointer-events-none overflow-hidden">
+      <div className="absolute inset-x-0 top-0 h-[12vh] bg-black/88" />
+      <div className="absolute inset-x-0 bottom-0 h-[18vh] bg-black/88" />
+      <div className="absolute left-1/2 top-[9vh] -translate-x-1/2 rounded-full border border-emerald-300/25 bg-black/50 px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.36em] text-emerald-200/80 backdrop-blur-md">
+        {title}
+      </div>
+      <div className="absolute left-1/2 bottom-[7vh] w-[min(760px,calc(100%-2rem))] -translate-x-1/2 rounded-2xl border border-emerald-300/25 bg-black/62 px-5 py-4 text-center shadow-[0_0_38px_rgba(16,185,129,0.22)] backdrop-blur-lg">
+        <div className="font-mono text-sm text-emerald-50 sm:text-base">{caption}</div>
+        {inElevatorCountdown && (
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full bg-gradient-to-r from-emerald-300 to-cyan-200 transition-all duration-1000" style={{ width: `${Math.max(0, Math.min(100, ((5 - secondsToOpen) / 5) * 100))}%` }} />
+          </div>
+        )}
+      </div>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_38%,rgba(0,0,0,0.42)_100%)]" />
+    </div>
+  );
+});
+
 const Floor2GuideDialogue = ({ onAccept, onClose }: { onAccept: () => void; onClose: () => void }) => {
   const [node, setNode] = useState<'intro' | 'explain' | 'accept'>('intro');
   const text = node === 'intro'
@@ -289,6 +321,7 @@ export default function App() {
 
   const [floor2GuidePhase, setFloor2GuidePhase] = useState<Floor2GuidePhase>('hidden');
   const [floor2GuideDialogueOpen, setFloor2GuideDialogueOpen] = useState(false);
+  const [floor2IntroCinematic, setFloor2IntroCinematic] = useState(false);
   const floor2GiftGivenRef = useRef(false);
 
   // Initial scene when the shop opens. 'main' for normal use; 'post_death'
@@ -331,6 +364,8 @@ export default function App() {
       }
       if (currentLevel !== 2) {
           setFloor2GuidePhase('hidden');
+          setFloor2GuideDialogueOpen(false);
+          setFloor2IntroCinematic(false);
       }
       if (currentLevel === 0 && gameState !== 'lobby') {
           setGameState('lobby');
@@ -453,17 +488,22 @@ export default function App() {
     if (!hasStarted || currentLevel !== 2 || doorsClosed || elevatorTimer !== null || floor2GiftGivenRef.current) return;
     setFloor2GuidePhase('stinger');
     setCameraShake(true);
+    setFloor2IntroCinematic(true);
     scheduleTimeout(() => {
       setCameraShake(false);
       setFloor2GuidePhase('ready');
+    }, 1200);
+    scheduleTimeout(() => {
+      setFloor2IntroCinematic(false);
       setFloor2GuideDialogueOpen(true);
-    }, 700);
+    }, 2850);
   }, [hasStarted, currentLevel, doorsClosed, elevatorTimer, scheduleTimeout]);
 
   const handleAcceptFloor2GuideGift = useCallback(() => {
     if (floor2GiftGivenRef.current) return;
     floor2GiftGivenRef.current = true;
     setFloor2GuideDialogueOpen(false);
+    setFloor2IntroCinematic(false);
     setFloor2GuidePhase('complete');
     inventoryAddItem('aqualung');
     triggerPickup('aqualung');
@@ -570,7 +610,7 @@ export default function App() {
   // skipping the normal lobby → elevator → floor progression.
   // If omitted, the game starts normally at level 0 (lobby).
   // ─── CREATOR MODE ───
-  const handleStartGame = (mpEnabled: boolean, name?: string, startLevel?: number) => {
+  const handleStartGame = (mpEnabled: boolean, name?: string, startLevel?: number, startMode?: 'direct' | 'floor2_intro_cutscene') => {
     if (audioCtx) return;
     setMultiplayerEnabled(mpEnabled);
     if (name) setPlayerName(name);
@@ -581,7 +621,25 @@ export default function App() {
     (window as any).__jubileuAudioCtx = ctx;
     setHasStarted(true);
     // ─── CREATOR MODE: jump to selected floor ───
-    if (startLevel !== undefined && startLevel !== 0) {
+    if (startMode === 'floor2_intro_cutscene') {
+      setCurrentLevel(2);
+      setGameState('outdoor');
+      setNightMode(false);
+      setHouseDoorOpen(false);
+      setDoorOpenAmount(0);
+      setFloor2GuidePhase('hidden');
+      setFloor2GuideDialogueOpen(false);
+      setFloor2IntroCinematic(true);
+      floor2GiftGivenRef.current = false;
+      setDoorsClosed(true);
+      setElevatorTimer(5);
+      setTravelPhase('traveling');
+      setCameraShake(true);
+      setDoorSoundTrigger(prev => prev + 1);
+      playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+      if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+      elevatorHumStopRef.current = createElevatorHum(ctx);
+    } else if (startLevel !== undefined && startLevel !== 0) {
       setCurrentLevel(startLevel);
       // Set appropriate game state for the chosen floor
       if (startLevel === 1) {
@@ -822,6 +880,9 @@ export default function App() {
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted || shopOpen} masterVolume={settings.masterVolume} nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} doorsClosed={doorsClosed} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
+      {hasStarted && currentLevel === 2 && (floor2IntroCinematic || (elevatorTimer !== null && doorsClosed)) && (
+        <Floor2IntroCinematic phase={floor2GuidePhase} secondsToOpen={doorsClosed && elevatorTimer !== null && elevatorTimer <= 5 ? elevatorTimer : null} />
+      )}
       {hasStarted && currentLevel === 2 && floor2GuidePhase !== 'hidden' && (
         <div className="absolute left-1/2 top-[18%] z-[58] -translate-x-1/2 pointer-events-none px-4">
           <div className="rounded-xl border border-emerald-300/35 bg-black/70 px-4 py-3 text-center font-mono text-sm text-emerald-100 shadow-[0_0_28px_rgba(16,185,129,0.28)] backdrop-blur-md">

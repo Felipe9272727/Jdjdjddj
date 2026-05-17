@@ -63,12 +63,12 @@ export const MainMenu = ({ onPlay }: any) => {
   };
 
   // ─── CREATOR MODE: handler for creator mode floor selection ───
-  const handleCreatorSelect = (level: number, mpEnabled: boolean) => {
+  const handleCreatorSelect = (level: number, mpEnabled: boolean, mode?: 'direct' | 'floor2_intro_cutscene') => {
      if (mpEnabled && !user) {
          // For simplicity, skip MP login in creator mode — just start the game
      }
      const finalName = setPlayerName(playerName);
-     onPlay(mpEnabled, finalName, level);
+     onPlay(mpEnabled, finalName, level, mode);
   };
   // ─── CREATOR MODE: end handler ───
 
