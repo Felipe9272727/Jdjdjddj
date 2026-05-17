@@ -115,7 +115,7 @@ export const QUALITY_PROFILES: Record<Quality, QualityProfile> = {
         dpr: [1, 1.25],
         far: 80,
         antialias: false,
-        atmosphere: false,
+        atmosphere: true,
         overlay: true,
         nightLights: true,
         chatBubbles3D: true,

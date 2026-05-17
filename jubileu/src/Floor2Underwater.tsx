@@ -48,6 +48,7 @@ import {
     rockModelA, rockModelB, rockModelC, rockModelD,
     boulderModel, pebbleModel,
 } from './assets/textureImports';
+import { CaveEnhancements } from './CaveEnhancements';
 
 // ─── Procedural glow texture for sprites (prevents square artifacts) ────
 const GLOW_TEXTURE = (() => {
@@ -934,6 +935,15 @@ const WaterMaterial = shaderMaterial(
       varying vec3 vNormalWS;
       varying vec3 vWorldPos;
 
+      // Simplex-like noise for caustics
+      float hash22(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vnoise(vec2 p) {
+        vec2 i = floor(p); vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash22(i), hash22(i + vec2(1,0)), f.x),
+                   mix(hash22(i + vec2(0,1)), hash22(i + vec2(1,1)), f.x), f.y);
+      }
+
       void main() {
         // ─── Schlick Fresnel ──────────────────────────────────────
         float ndv = max(0.001, dot(vNormalWS, vViewWS));
@@ -941,51 +951,73 @@ const WaterMaterial = shaderMaterial(
         float fresnel = R0 + (1.0 - R0) * pow(1.0 - ndv, 5.0);
         fresnel = mix(fresnel, pow(1.0 - ndv, 2.4) * 0.9, 0.5);
 
-        // ─── FIX #3: Opaque when viewed from BELOW ───────────────
-        // dot(normal, viewDir) < 0 means we're looking up from underwater
+        // ─── Opaque when viewed from BELOW ───────────────────────
         float viewFromBelow = step(dot(vNormalWS, vViewWS), 0.0);
 
         // ─── Deep / shallow / sky palette — HORROR DARK ──────────
-        vec3 deep   = vec3(0.005, 0.02, 0.04);   // almost black-blue
-        vec3 mid    = vec3(0.02, 0.08, 0.12);     // very dark teal
-        vec3 sky    = vec3(0.15, 0.25, 0.30);     // muted gray-green
+        vec3 deep   = vec3(0.003, 0.015, 0.03);
+        vec3 mid    = vec3(0.015, 0.06, 0.10);
+        vec3 sky    = vec3(0.12, 0.20, 0.25);
 
-        // ─── Caustic streaks on the surface itself ──────────────
+        // ─── Enhanced caustic pattern — more realistic ──────────
+        // Multiple overlapping caustic networks
         float c1 = sin(vUv.x * 32.0 + time * 0.9) * 0.5 + 0.5;
         float c2 = sin(vUv.y * 26.0 + time * 1.1 + 2.0) * 0.5 + 0.5;
-        float caustic = pow(c1 * c2, 2.5);
+        float caustic1 = pow(c1 * c2, 2.5);
+
+        // Noise-based caustics — more organic
+        float cn1 = vnoise(vUv * 12.0 + time * 0.3);
+        float cn2 = vnoise(vUv * 8.0 - time * 0.2 + 5.0);
+        float caustic2 = pow(max(0.0, cn1 * cn2), 1.5) * 0.5;
+
+        // Animated caustic network
+        float cn3 = vnoise(vUv * 20.0 + vec2(time * 0.4, time * 0.3));
+        float caustic3 = smoothstep(0.4, 0.8, cn3) * 0.3;
+
+        float caustic = caustic1 + caustic2 + caustic3;
 
         // ─── Wave-height tinting ─────────────────────────────────
         float h = clamp(vWave * 5.0, -1.0, 1.0);
         vec3 col = mix(deep, mid, 0.5 + h * 0.5);
 
-        // ─── Subsurface scattering ──────────────────────────────
-        float sss = pow(max(0.0, h), 1.5) * 0.3; // reduced from 0.6 for horror
-        vec3 sssColor = vec3(0.05, 0.2, 0.15);   // much dimmer
+        // ─── Subsurface scattering — more visible ──────────────
+        float sss = pow(max(0.0, h), 1.5) * 0.4;
+        vec3 sssColor = vec3(0.04, 0.18, 0.12);
         col += sssColor * sss;
 
-        // ─── Fresnel reflection of sky ──────────────────────────
-        col = mix(col, sky, fresnel * 0.6 + caustic * 0.1);
+        // ─── Caustic light on surface ──────────────────────────
+        col += vec3(0.02, 0.04, 0.03) * caustic * 0.5;
 
-        // ─── Fake specular (sun highlight) — reduced ────────────
-        vec3 lightDir = normalize(vec3(0.4, 1.0, 0.3));
-        vec3 halfVec = normalize(vViewWS + lightDir);
-        float spec = pow(max(0.0, dot(vNormalWS, halfVec)), 256.0);
-        col += vec3(0.6, 0.55, 0.45) * spec * 0.8 * (1.0 - fresnel * 0.5);
+        // ─── Fresnel reflection of sky ──────────────────────────
+        col = mix(col, sky, fresnel * 0.6 + caustic * 0.08);
+
+        // ─── Specular highlights — multiple sources ────────────
+        vec3 lightDir1 = normalize(vec3(0.4, 1.0, 0.3));
+        vec3 halfVec1 = normalize(vViewWS + lightDir1);
+        float spec1 = pow(max(0.0, dot(vNormalWS, halfVec1)), 256.0);
+        col += vec3(0.5, 0.45, 0.35) * spec1 * 0.7 * (1.0 - fresnel * 0.5);
+
+        // Secondary specular — from cave lights
+        vec3 lightDir2 = normalize(vec3(-0.3, 0.8, -0.5));
+        vec3 halfVec2 = normalize(vViewWS + lightDir2);
+        float spec2 = pow(max(0.0, dot(vNormalWS, halfVec2)), 128.0);
+        col += vec3(0.3, 0.25, 0.2) * spec2 * 0.3;
 
         // ─── Foam on wave crests + edge foam ────────────────────
         float foam = smoothstep(0.04, 0.09, vWave);
         float distFromCenter = length(vWorldPos.xz - vec2(0.0, 5.0));
         float edgeFoam = smoothstep(2.8, 2.2, distFromCenter) * 0.4;
-        float totalFoam = max(foam * 0.55, edgeFoam);
-        col = mix(col, vec3(0.6, 0.7, 0.72), totalFoam); // gray foam, not bright white
+        // Animated foam detail
+        float foamDetail = vnoise(vUv * 30.0 + time * 0.1);
+        foam *= 0.7 + foamDetail * 0.3;
+        float totalFoam = max(foam * 0.5, edgeFoam);
+        col = mix(col, vec3(0.5, 0.55, 0.58), totalFoam);
 
         // ─── Alpha: opaque from below, semi-transparent from above ──
-        float alpha = mix(0.82, 0.96, fresnel);
-        // FIX #3: When viewed from below, water ceiling is fully opaque
+        float alpha = mix(0.80, 0.95, fresnel);
         if (viewFromBelow > 0.5) {
             alpha = 1.0;
-            col = vec3(0.01, 0.03, 0.05); // dark murky ceiling
+            col = vec3(0.008, 0.025, 0.04);
         }
         gl_FragColor = vec4(col, alpha);
       }
@@ -1080,15 +1112,19 @@ const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vec
         if (!scene.fog || !(scene.fog instanceof THREE.Fog)) return;
 
         if (y >= SWIM_THRESHOLD_Y) {
-            // Cave mode
+            // Cave mode — breathing fog for horror atmosphere
+            const breathe = Math.sin(performance.now() * 0.0002) * 0.5;
+            const flicker = Math.sin(performance.now() * 0.001) * 0.1;
             _tgtFog.current.copy(_caveFog);
             _tgtBg.current.copy(_caveBg);
-            const k = Math.min(1, 8 * safeDt);
+            const k = Math.min(1, 6 * safeDt);
             _fogColor.current.lerp(_tgtFog.current, k);
             _bgColor.current.lerp(_tgtBg.current, k);
             scene.fog.color.copy(_fogColor.current);
-            scene.fog.near = scene.fog.near + (14 - scene.fog.near) * k;
-            scene.fog.far = scene.fog.far + (55 - scene.fog.far) * k;
+            const tgtNear = 12 + breathe * 1.5 + flicker;
+            const tgtFar = 50 + breathe * 4;
+            scene.fog.near = scene.fog.near + (tgtNear - scene.fog.near) * k;
+            scene.fog.far = scene.fog.far + (tgtFar - scene.fog.far) * k;
         } else {
             // Underwater — depth-based color absorption (Beer-Lambert style)
             const depth = Math.abs(y - SWIM_THRESHOLD_Y); // 0 at surface, ~29 at bottom
@@ -1329,25 +1365,27 @@ const Coral: React.FC<{ x: number; z: number; color: string; scale: number }> = 
 const GodRayShafts: React.FC = () => {
     const groupRef = useRef<THREE.Group>(null);
     useFrame((state) => {
-        if (groupRef.current) groupRef.current.rotation.y = state.clock.elapsedTime * 0.04;
+        if (groupRef.current) groupRef.current.rotation.y = state.clock.elapsedTime * 0.03;
     });
-    const SHAFT_COUNT = 8;
+    const SHAFT_COUNT = 12;
     return (
         <group ref={groupRef} position={[HOLE_CENTER_X, -15, HOLE_CENTER_Z]}>
             {Array.from({ length: SHAFT_COUNT }, (_, i) => {
                 const a = (i / SHAFT_COUNT) * Math.PI * 2;
-                const r = 0.5 + (i % 2) * 1.0;
+                const r = 0.3 + (i % 3) * 0.8;
+                const w = 1.2 + (i % 4) * 0.5;
+                const h = 26 + (i % 3) * 2;
                 return (
                     <mesh
                         key={i}
                         position={[Math.cos(a) * r, 0, Math.sin(a) * r]}
                         rotation={[0, a, 0]}
                     >
-                        <planeGeometry args={[1.6 + (i % 3) * 0.4, 28]} />
+                        <planeGeometry args={[w, h]} />
                         <meshBasicMaterial
-                            color="#0c3020"
+                            color={i % 3 === 0 ? '#0a3828' : i % 3 === 1 ? '#0c3020' : '#083028'}
                             transparent
-                            opacity={0.12 + (i % 3) * 0.04}
+                            opacity={0.08 + (i % 4) * 0.03}
                             side={THREE.DoubleSide}
                             depthWrite={false}
                             blending={THREE.AdditiveBlending}
@@ -1356,26 +1394,39 @@ const GodRayShafts: React.FC = () => {
                     </mesh>
                 );
             })}
-            {/* Bright spot near the surface — narrow cone of light from the hole */}
+            {/* Outer glow cone — wide, soft */}
             <mesh position={[0, 10, 0]}>
-                <coneGeometry args={[2.5, 14, 16, 1, true]} />
+                <coneGeometry args={[3.5, 16, 16, 1, true]} />
                 <meshBasicMaterial
                     color="#1a5040"
                     transparent
-                    opacity={0.10}
+                    opacity={0.07}
                     side={THREE.DoubleSide}
                     depthWrite={false}
                     blending={THREE.AdditiveBlending}
                     toneMapped={false}
                 />
             </mesh>
-            {/* Secondary inner cone — brighter core */}
-            <mesh position={[0, 8, 0]}>
-                <coneGeometry args={[1.2, 10, 12, 1, true]} />
+            {/* Mid cone */}
+            <mesh position={[0, 9, 0]}>
+                <coneGeometry args={[2.0, 12, 12, 1, true]} />
                 <meshBasicMaterial
                     color="#1a6050"
                     transparent
-                    opacity={0.08}
+                    opacity={0.06}
+                    side={THREE.DoubleSide}
+                    depthWrite={false}
+                    blending={THREE.AdditiveBlending}
+                    toneMapped={false}
+                />
+            </mesh>
+            {/* Core — brightest */}
+            <mesh position={[0, 8, 0]}>
+                <coneGeometry args={[0.8, 8, 8, 1, true]} />
+                <meshBasicMaterial
+                    color="#2a8060"
+                    transparent
+                    opacity={0.05}
                     side={THREE.DoubleSide}
                     depthWrite={false}
                     blending={THREE.AdditiveBlending}
@@ -1389,27 +1440,25 @@ const GodRayShafts: React.FC = () => {
 // ─── Deep Mist — slowly drifting fog plane underwater ────────────────
 const DeepMist: React.FC = () => {
     const matRef = useRef<THREE.MeshBasicMaterial>(null);
+    const matRef2 = useRef<THREE.MeshBasicMaterial>(null);
     useFrame((state) => {
-        const m = matRef.current;
-        if (!m) return;
         const t = state.clock.elapsedTime;
-        // Slow pulse — mist breathes
-        m.opacity = 0.04 + Math.sin(t * 0.2) * 0.015;
+        const m = matRef.current;
+        if (m) m.opacity = 0.04 + Math.sin(t * 0.2) * 0.015;
+        const m2 = matRef2.current;
+        if (m2) m2.opacity = 0.025 + Math.sin(t * 0.15 + 1.0) * 0.01;
     });
     return (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -15, 0]}>
-            <planeGeometry args={[60, 60]} />
-            <meshBasicMaterial
-                ref={matRef}
-                color="#040808"
-                transparent
-                opacity={0.04}
-                depthWrite={false}
-                blending={THREE.AdditiveBlending}
-                side={THREE.DoubleSide}
-                toneMapped={false}
-            />
-        </mesh>
+        <group>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -15, 0]}>
+                <planeGeometry args={[60, 60]} />
+                <meshBasicMaterial ref={matRef} color="#040808" transparent opacity={0.04} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
+            </mesh>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -22, 0]}>
+                <planeGeometry args={[50, 50]} />
+                <meshBasicMaterial ref={matRef2} color="#020406" transparent opacity={0.025} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
+            </mesh>
+        </group>
     );
 };
 
@@ -1860,6 +1909,7 @@ const GodRays: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector
 
 // ─── Full level ────────────────────────────────────────────────────────
 interface Floor2EnvironmentProps {
+    quality?: 'low' | 'medium' | 'high';
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     collectedShards: Set<number>;
     onCollectShard: (i: number) => void;
@@ -1870,6 +1920,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     collectedShards,
     onCollectShard,
     reflective = false,
+    quality = 'medium',
 }) => {
     // ─── Load real PBR texture sets ────────────────────────────────
     const caveFloor = usePBRSet(
@@ -1909,16 +1960,42 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <color attach="background" args={['#0e0a08']} />
         <fog attach="fog" args={['#0e0a08', 16, 60]} />
 
-        {/* Horror lighting — dark but visible */}
-        <ambientLight intensity={0.48} color="#d8c0a0" />
-        <hemisphereLight intensity={0.38} color="#c8a888" groundColor="#1a1612" />
-        <directionalLight position={[5, 20, 5]} intensity={0.35} color="#ffe8c0" />
+        {/* ═══ UE5-QUALITY CAVE LIGHTING ═══ */}
+
+        {/* Base ambient — very dim, warm cave tone */}
+        <ambientLight intensity={0.22} color="#b8a080" />
+
+        {/* Hemisphere — warm above, cold below (simulates sky/ground bounce) */}
+        <hemisphereLight intensity={0.35} color="#d4b898" groundColor="#0a0806" />
+
+        {/* Main directional — shaft of light from above (like sun through a crack) */}
+        <directionalLight position={[3, 25, 2]} intensity={0.45} color="#ffe0b0" castShadow={false} />
+
+        {/* Secondary fill — dim blue-green from the water pool */}
+        <directionalLight position={[0, 2, 5]} intensity={0.12} color="#2a4a5a" />
+
+        {/* Warm rim light — catches edges of rocks */}
+        <directionalLight position={[-15, 8, -10]} intensity={0.18} color="#ff9060" />
+
+        {/* Cool accent — moon-like light from the cave entrance */}
+        <directionalLight position={[20, 12, -15]} intensity={0.1} color="#8090b0" />
+
+        {/* Point lights for localized pools of warmth */}
+        <pointLight position={[-18, 3, 12]} intensity={1.2} color="#ff6030" distance={12} decay={2} />
+        <pointLight position={[16, 2.5, -8]} intensity={0.8} color="#ff8040" distance={10} decay={2} />
+        <pointLight position={[0, 4, 20]} intensity={0.6} color="#ff7028" distance={8} decay={2} />
+
+        {/* Water pool glow — reflected light from the water surface */}
+        <pointLight position={[0, 0.5, 5]} intensity={0.5} color="#1a3a4a" distance={8} decay={2} />
 
         {/* Ember sprites — warm glow on floor, NO pointLight (square artifact) */}
-        <sprite position={[-25, 0.8, 0]} scale={[7, 7, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.25} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
-        <sprite position={[25, 0.8, -5]} scale={[7, 7, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.25} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
-        <sprite position={[0, 0.8, 25]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
-        <sprite position={[0, 0.8, -25]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[-25, 0.8, 0]} scale={[9, 9, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#6a2010" transparent opacity={0.3} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[25, 0.8, -5]} scale={[8, 8, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#5a1808" transparent opacity={0.28} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[0, 0.8, 25]} scale={[7, 7, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.22} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[0, 0.8, -25]} scale={[7, 7, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1508" transparent opacity={0.22} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        {/* Additional ember sprites for more coverage */}
+        <sprite position={[-15, 1.0, -15]} scale={[5, 5, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#3a1008" transparent opacity={0.18} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[18, 0.6, 18]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#4a1808" transparent opacity={0.2} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
 
         <DynamicFog playerPositionRef={playerPositionRef} />
 
@@ -2172,6 +2249,9 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 playerPositionRef={playerPositionRef}
             />
         ))}
+
+        {/* ─── UE5-QUALITY CAVE ENHANCEMENTS ─── */}
+        <CaveEnhancements quality={quality} />
 
         {/* Elevator shell — in the cave wall */}
         <group position={[0, 0, -10]}>

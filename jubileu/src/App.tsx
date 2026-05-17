@@ -88,6 +88,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
             collectedShards={collectedShards}
             onCollectShard={onCollectShard}
             reflective={profile.atmosphere}
+            quality={settings.quality}
           />
         </Suspense>
       )}
