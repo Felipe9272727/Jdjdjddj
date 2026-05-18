@@ -109,31 +109,23 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     // positions in true world-unit space regardless of how Tripo chose
     // to export (centimetres vs metres, pivot at origin vs feet, etc.).
     c.scale.setScalar(autoScale);
-    // Tag every material as transparency-ready so the fade-out works
-    // uniformly. Also push the PBR sliders so the Tripo-generated
-    // material reads with actual depth rather than the default flat
-    // diffuse-y look: roughness up for fabric/skin feel, normal scale
-    // up for visible surface detail under the cave's grazing torch light.
+    // Only tag materials as transparent so fade-out works.
+    // Do NOT override roughness/metalness/normalScale — the Tripo GLB
+    // ships a metallicRoughnessTexture that controls those per-texel;
+    // clamping them to uniform scalars kills the PBR depth and makes the
+    // model look flat / PNG-like.
     c.traverse((child: any) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = false;
+      }
       if (child.material) {
         const m = child.material;
         const list = Array.isArray(m) ? m : [m];
         for (const mm of list) {
           mm.transparent = true;
           mm.opacity = 1;
-          if (mm.side === undefined) mm.side = THREE.FrontSide;
-          if (typeof mm.roughness === 'number') {
-            mm.roughness = Math.max(mm.roughness, 0.78);
-          }
-          if (typeof mm.metalness === 'number') {
-            mm.metalness = Math.min(mm.metalness, 0.15);
-          }
-          if (mm.normalScale && mm.normalScale.set) {
-            mm.normalScale.set(1.4, 1.4);
-          }
-          if (mm.envMapIntensity !== undefined) {
-            mm.envMapIntensity = 0.85;
-          }
+          mm.needsUpdate = true;
         }
       }
     });
@@ -270,10 +262,12 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         maskRef.current.visible = true;
       }
     } else if (maskRef.current) {
-      // Default mask position — held in front of the diver at chest height.
+      // Mask hidden during idle/spawn — the GLB character is the visual.
+      // Only surface the procedural prop during handover when the diver
+      // actively presents it to the player.
       maskRef.current.position.set(0, 1.05, 0.45);
       maskRef.current.scale.setScalar(1);
-      maskRef.current.visible = st === 'idle' || st === 'spawn';
+      maskRef.current.visible = false;
     }
 
     // ── FADING: opacity ramp ───────────────────────────────────────
@@ -319,14 +313,14 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       groundGlowMatRef.current.opacity = st === 'fading' ? pulse * (1 - t.fadeT) : pulse;
     }
     if (keyLightRef.current) {
-      const base = 3.4;
-      const spawnBoost = st === 'spawn' ? (1 - t.popT) * 4.0 : 0;
+      const base = 5.5;  // brighter front key so GLB textures are clearly lit
+      const spawnBoost = st === 'spawn' ? (1 - t.popT) * 5.0 : 0;
       const fadeMult = st === 'fading' ? (1 - t.fadeT) : 1;
       keyLightRef.current.intensity = (base + spawnBoost) * fadeMult;
     }
     if (fillLightRef.current) {
       const fadeMult = st === 'fading' ? (1 - t.fadeT) : 1;
-      fillLightRef.current.intensity = 2.0 * fadeMult;
+      fillLightRef.current.intensity = 3.0 * fadeMult;
     }
   });
 
@@ -344,15 +338,18 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
 
   return (
     <group ref={groupRef} position={[DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]]} visible={false}>
-      {/* Key + fill lights — driven via refs each frame.
-          Three-point lighting: warm key in front, warm fill near feet,
-          cool cyan rim behind for a moody silhouette. */}
-      <pointLight ref={keyLightRef} position={[0, 1.8, 0]} intensity={0} distance={9} decay={1.2} color="#FFE9A8" />
-      <pointLight ref={fillLightRef} position={[0, 0.6, 0]} intensity={0} distance={4.2} decay={1.6} color="#FFD080" />
-      {/* Cool rim — sits behind the diver (relative to his facing). His
-          group rotates to face the player, so this light always trails
-          him on the negative-Z local axis. */}
-      <pointLight position={[0, 1.4, -1.2]} intensity={2.6} distance={4.5} decay={1.3} color="#5AC8E0" />
+      {/* Three-point lighting — all positions relative to the diver's
+          LOCAL space so they rotate with him and always light his face.
+          +Z is toward the player (the direction the diver faces).
+
+          Key  : high-front-right, warm, driven by refs (spawn boost etc.)
+          Fill : low-front-left, softer warm, driven by refs
+          Rim  : behind the diver (-Z), cool cyan — creates silhouette depth
+          Bounce: below, warm amber — simulates light bouncing off the cave floor */}
+      <pointLight ref={keyLightRef}  position={[ 0.8, 2.2,  1.6]} intensity={0} distance={7} decay={1.4} color="#FFE4A0" />
+      <pointLight ref={fillLightRef} position={[-0.6, 1.2,  1.4]} intensity={0} distance={5} decay={1.6} color="#FFD580" />
+      <pointLight position={[0, 1.5, -1.5]} intensity={3.2} distance={5} decay={1.2} color="#4ABFDC" />
+      <pointLight position={[0, 0.1,  0.8]} intensity={1.4} distance={4} decay={2.0} color="#C08040" />
 
       {/* Ground glow */}
       <sprite position={[0, 0.05, 0]} scale={[4, 1.4, 1]}>
