@@ -85,23 +85,30 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     animations: THREE.AnimationClip[];
   };
   // Compute auto-scale + ground-offset by inspecting the GLB bbox.
-  // Tripo exports come at arbitrary scale (could be cm or m) and with
-  // pivot anywhere — we normalize so the model is DIVER_TARGET_HEIGHT
-  // tall and stands with feet at Y=0.
+  // We apply the scale directly to the clone object (not the parent group)
+  // so that lights, mask, and sprites stay in true world-unit space and are
+  // not distorted by the model's arbitrary export scale.
   const { autoScale, groundOffsetY } = useMemo(() => {
     const bbox = new THREE.Box3().setFromObject(gltf.scene);
     const size = new THREE.Vector3();
     bbox.getSize(size);
     const h = size.y > 0.0001 ? size.y : 1;
     const sc = DIVER_TARGET_HEIGHT / h;
-    // bbox.min.y is the lowest point (feet). Multiply by sc to find its
-    // scaled position, then negate so feet land at y=0.
+    // groundOffsetY lifts the clone so its lowest vertex lands at y=0.
+    // Because the clone itself carries scale=sc, the offset in parent space
+    // is: -bbox.min.y * sc  (same value as before, but now interpreted
+    // correctly since the parent group is always scale=1).
     const yOff = -bbox.min.y * sc;
     return { autoScale: sc, groundOffsetY: yOff };
   }, [gltf.scene]);
 
   const clone = useMemo(() => {
     const c = SkeletonUtils.clone(gltf.scene);
+    // Bake the normalising scale directly onto the clone so the parent
+    // group can remain at scale=1.  This keeps lights, mask and sprite
+    // positions in true world-unit space regardless of how Tripo chose
+    // to export (centimetres vs metres, pivot at origin vs feet, etc.).
+    c.scale.setScalar(autoScale);
     // Tag every material as transparency-ready so the fade-out works
     // uniformly. Also push the PBR sliders so the Tripo-generated
     // material reads with actual depth rather than the default flat
@@ -115,10 +122,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
           mm.transparent = true;
           mm.opacity = 1;
           if (mm.side === undefined) mm.side = THREE.FrontSide;
-          // Tune PBR sliders if present
           if (typeof mm.roughness === 'number') {
-            // Skin/cloth/hair all benefit from higher roughness than the
-            // Tripo default (~0.5).
             mm.roughness = Math.max(mm.roughness, 0.78);
           }
           if (typeof mm.metalness === 'number') {
@@ -134,7 +138,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       }
     });
     return c;
-  }, [gltf.scene]);
+  }, [gltf.scene, autoScale]);
   const { actions, names } = useAnimations(gltf.animations, clone);
 
   // Phase progress timers — reset on state transitions.
@@ -212,18 +216,22 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     const time = stateR3F.clock.elapsedTime;
 
     // ── SPAWN: pop scale + lurch ───────────────────────────────────
+    // Scale is applied to bobRef (not groupRef) so that lights, sprites
+    // and mask — which live in groupRef's unscaled world space — are
+    // unaffected.  The clone already carries autoScale internally, so
+    // bobRef.scale=1 produces the correct 1.85 m standing height.
     if (st === 'spawn') {
       t.popT = Math.min(1, t.popT + safeDt / POP_DURATION);
       const s = 2.0;
       const tt = t.popT;
       const c = tt - 1;
       const ease = 1 + c * c * ((s + 1) * c + s);
-      const sc = THREE.MathUtils.clamp(ease, 0.05, 1.30) * autoScale;
-      g.scale.setScalar(sc);
+      const sc = THREE.MathUtils.clamp(ease, 0.05, 1.30);
+      bob.scale.setScalar(sc);
       bob.position.z = Math.max(0, (1 - tt) * 0.5);
       bob.rotation.x = (1 - tt) * -0.18;
     } else {
-      g.scale.setScalar(autoScale);
+      bob.scale.setScalar(1);
       bob.position.z = 0;
       bob.rotation.x = 0;
     }
@@ -274,7 +282,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const u = t.fadeT;
       const o = 1 - u * u;
       t.fadeOpacity = o;
-      g.scale.setScalar(autoScale * (1 - u * 0.15));
+      bob.scale.setScalar(1 - u * 0.15);
       g.traverse((child: any) => {
         if (child.material) {
           const m = child.material;
