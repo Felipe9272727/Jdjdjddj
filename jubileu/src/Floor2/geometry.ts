@@ -166,7 +166,9 @@ export const CAVE_FLOOR_GEO = (() => {
     const hole = new THREE.Path();
     hole.absarc(HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, 0, Math.PI * 2, false);
     shape.holes.push(hole);
-    const geo = new THREE.ShapeGeometry(shape, 64);
+    // 64 → 96 curve segments around the hole — smoother circle silhouette
+    // and finer noise-displaced floor near the well rim.
+    const geo = new THREE.ShapeGeometry(shape, 96);
     const positions = geo.attributes.position;
     // ── Override UVs: map world-space XY → UV based on the full floor span.
     // ShapeGeometry auto-UVs can be wrong with holes, so we compute our own.
@@ -220,34 +222,38 @@ export const UW_WALL_WEST_GEO  = createOrganicCaveWall(62, 35, 64, 60, 3.5);
 export const UW_WALL_EAST_GEO  = createOrganicCaveWall(62, 35, 64, 70, 3.5);
 
 // Pre-computed procedural rock geometries
-export const PROC_ROCK_A = createProceduralRock(1, 2, 0.35, 0);
-export const PROC_ROCK_B = createProceduralRock(1, 2, 0.3, 50);
-export const PROC_ROCK_C = createProceduralRock(1, 2, 0.4, 100);
-export const PROC_ROCK_D = createProceduralRock(1, 2, 0.25, 150);
+// Detail 2 → 3 quadruples the face count (80 → 320) so rocks read as smooth
+// silhouettes against the cave instead of obvious low-poly icosahedrons.
+export const PROC_ROCK_A = createProceduralRock(1, 3, 0.35, 0);
+export const PROC_ROCK_B = createProceduralRock(1, 3, 0.3, 50);
+export const PROC_ROCK_C = createProceduralRock(1, 3, 0.4, 100);
+export const PROC_ROCK_D = createProceduralRock(1, 3, 0.25, 150);
 
-// Pre-computed procedural stalactite/stalagmite geometries
+// Pre-computed procedural stalactite/stalagmite geometries.
+// Segment counts raised (10→18, 15→24) so the cone silhouette and Phong
+// shading hide the polygonal edges that read as "low poly" on close inspection.
 export const PROC_STALAGMITE_GEOS = [
-  createProceduralStalactite(2.5, 0.6, 0.05, 10, 15, 200),
-  createProceduralStalactite(3.2, 0.8, 0.05, 10, 15, 210),
-  createProceduralStalactite(2.0, 0.5, 0.05, 10, 15, 220),
-  createProceduralStalactite(2.8, 0.7, 0.05, 10, 15, 230),
-  createProceduralStalactite(1.8, 0.5, 0.05, 10, 15, 240),
-  createProceduralStalactite(2.1, 0.6, 0.05, 10, 15, 250),
-  createProceduralStalactite(2.4, 0.7, 0.05, 10, 15, 260),
-  createProceduralStalactite(1.5, 0.4, 0.05, 10, 15, 270),
-  createProceduralStalactite(3.0, 0.9, 0.05, 10, 15, 280),
+  createProceduralStalactite(2.5, 0.6, 0.05, 18, 24, 200),
+  createProceduralStalactite(3.2, 0.8, 0.05, 18, 24, 210),
+  createProceduralStalactite(2.0, 0.5, 0.05, 18, 24, 220),
+  createProceduralStalactite(2.8, 0.7, 0.05, 18, 24, 230),
+  createProceduralStalactite(1.8, 0.5, 0.05, 18, 24, 240),
+  createProceduralStalactite(2.1, 0.6, 0.05, 18, 24, 250),
+  createProceduralStalactite(2.4, 0.7, 0.05, 18, 24, 260),
+  createProceduralStalactite(1.5, 0.4, 0.05, 18, 24, 270),
+  createProceduralStalactite(3.0, 0.9, 0.05, 18, 24, 280),
 ];
 export const PROC_STALACTITE_GEOS = [
-  createProceduralStalactite(1.5, 0.4, 0.05, 10, 15, 300),
-  createProceduralStalactite(1.8, 0.5, 0.05, 10, 15, 310),
-  createProceduralStalactite(1.2, 0.4, 0.05, 10, 15, 320),
-  createProceduralStalactite(2.0, 0.55, 0.05, 10, 15, 330),
-  createProceduralStalactite(1.4, 0.4, 0.05, 10, 15, 340),
-  createProceduralStalactite(1.6, 0.5, 0.05, 10, 15, 350),
-  createProceduralStalactite(1.3, 0.4, 0.05, 10, 15, 360),
-  createProceduralStalactite(1.7, 0.5, 0.05, 10, 15, 370),
-  createProceduralStalactite(2.5, 0.6, 0.05, 10, 15, 380),
-  createProceduralStalactite(2.2, 0.5, 0.05, 10, 15, 390),
+  createProceduralStalactite(1.5, 0.4, 0.05, 18, 24, 300),
+  createProceduralStalactite(1.8, 0.5, 0.05, 18, 24, 310),
+  createProceduralStalactite(1.2, 0.4, 0.05, 18, 24, 320),
+  createProceduralStalactite(2.0, 0.55, 0.05, 18, 24, 330),
+  createProceduralStalactite(1.4, 0.4, 0.05, 18, 24, 340),
+  createProceduralStalactite(1.6, 0.5, 0.05, 18, 24, 350),
+  createProceduralStalactite(1.3, 0.4, 0.05, 18, 24, 360),
+  createProceduralStalactite(1.7, 0.5, 0.05, 18, 24, 370),
+  createProceduralStalactite(2.5, 0.6, 0.05, 18, 24, 380),
+  createProceduralStalactite(2.2, 0.5, 0.05, 18, 24, 390),
 ];
 
 // Procedural underwater terrain — displaced PlaneGeometry (extends past walls)

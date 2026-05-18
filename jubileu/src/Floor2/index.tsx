@@ -165,12 +165,12 @@ const UpwardLightShaft: React.FC = () => {
             {/* Inner shaft: tighter, more concentrated.
                 Open-ended cylinder (last arg = true) so we don't render top/bottom caps. */}
             <mesh position={[0, 4.0, 0]}>
-                <cylinderGeometry args={[1.2, 1.8, 8.0, 32, 1, true]} />
+                <cylinderGeometry args={[1.2, 1.8, 8.0, 64, 4, true]} />
                 <primitive object={matInner} attach="material" />
             </mesh>
             {/* Outer shaft: wider, fainter, softer falloff for the volumetric halo */}
             <mesh position={[0, 4.0, 0]}>
-                <cylinderGeometry args={[2.4, 3.0, 8.0, 32, 1, true]} />
+                <cylinderGeometry args={[2.4, 3.0, 8.0, 64, 4, true]} />
                 <primitive object={matOuter} attach="material" />
             </mesh>
             {/* Bright source halo on the water — billboard, soft falloff */}
@@ -642,7 +642,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             descending below, and the water surface sits at the bottom.
             Rock texture matches the surrounding cave rock for cohesion. */}
         <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y / 2, HOLE_CENTER_Z]}>
-            <cylinderGeometry args={[HOLE_RADIUS - 0.02, HOLE_RADIUS - 0.02, Math.abs(WATER_LEVEL_Y), 48, 6, true]} />
+            <cylinderGeometry args={[HOLE_RADIUS - 0.02, HOLE_RADIUS - 0.02, Math.abs(WATER_LEVEL_Y), 96, 12, true]} />
             <meshStandardMaterial
                 color="#1b1610"
                 map={caveRock.color}

@@ -109,22 +109,27 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     // positions in true world-unit space regardless of how Tripo chose
     // to export (centimetres vs metres, pivot at origin vs feet, etc.).
     c.scale.setScalar(autoScale);
-    // Only tag materials as transparent so fade-out works.
-    // Do NOT override roughness/metalness/normalScale — the Tripo GLB
-    // ships a metallicRoughnessTexture that controls those per-texel;
-    // clamping them to uniform scalars kills the PBR depth and makes the
-    // model look flat / PNG-like.
+    // Leave PBR sliders alone (the Tripo metallicRoughnessTexture controls
+    // them per-texel) but bump envMapIntensity so the IBL contributes
+    // strongly to specular highlights — that's what turns the model from
+    // a flat coloured silhouette into a clearly 3D figure.  We also keep
+    // materials OPAQUE by default; the fade-out path flips transparent on
+    // dynamically so the steady-state look doesn't suffer from the
+    // alpha-blending render path.
     c.traverse((child: any) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = false;
+        child.frustumCulled = false;       // never clip the NPC even at distance
       }
       if (child.material) {
         const m = child.material;
         const list = Array.isArray(m) ? m : [m];
         for (const mm of list) {
-          mm.transparent = true;
+          mm.transparent = false;
           mm.opacity = 1;
+          mm.depthWrite = true;
+          if (mm.envMapIntensity !== undefined) mm.envMapIntensity = 1.4;
           mm.needsUpdate = true;
         }
       }
@@ -280,18 +285,25 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       g.traverse((child: any) => {
         if (child.material) {
           const m = child.material;
-          if (Array.isArray(m)) for (const mm of m) mm.opacity = o;
-          else m.opacity = o;
+          const list = Array.isArray(m) ? m : [m];
+          for (const mm of list) {
+            mm.transparent = true;     // flip ON only during fade
+            mm.opacity = o;
+          }
         }
       });
       if (u >= 0.999) g.visible = false;
     } else if (t.fadeOpacity < 1) {
+      // Restore opaque rendering after a fade
       t.fadeOpacity = 1;
       g.traverse((child: any) => {
         if (child.material) {
           const m = child.material;
-          if (Array.isArray(m)) for (const mm of m) mm.opacity = 1;
-          else m.opacity = 1;
+          const list = Array.isArray(m) ? m : [m];
+          for (const mm of list) {
+            mm.transparent = false;
+            mm.opacity = 1;
+          }
         }
       });
     }
