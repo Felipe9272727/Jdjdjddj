@@ -2284,3 +2284,126 @@ Tudo o que vem abaixo foi feito a partir do revert ao commit `87da1a9` (~4.44MB)
 ### Commit
 - `d44ba5d` — feat: raise water to Y=0.35, enhance medium quality mode
 
+
+---
+
+## 🔧 Sessão 2026-05-18: Bearded Diver + Rebreather + Night Vision + Ocean Polish
+
+### Contexto
+Felipe pediu pra deixar o Floor 2 (caverna submarina) com aparência de jogo
+Unreal, 60+ FPS, sem bugs, e adicionar um NPC procedural barbudo de
+uniforme de hotel que dá um respirador + visão noturna quando o player
+chega no andar.
+
+### O que foi feito
+
+#### NPC + items
+- **`BeardedDiver.tsx` (novo)** — boneco R6 procedural (corpo box-only,
+  cores chapadas) com:
+  - Barba castanha, bigode, costeletas
+  - Chapéu de mensageiro vermelho com banda dourada
+  - Casaco azul-marinho com fileira dupla de botões de latão, lapelas e
+    gravata borboleta
+  - Luvas brancas segurando uma máscara de mergulho com goggles NV
+    clipados em cima
+  - Calça preta, sapatos
+  - Estado interno: 5 fases (delay → scare-pop → idle → handover → fade)
+  - Animação "scare": scale 0 → 1 com overshoot back-out + lurch
+  - Idle: respiração bob (sin × 0.04) + sway lateral sutil
+  - Encara o player no plano XZ
+  - Quando player chega a ≤ 2.6m, fires `onHandover()` uma vez só
+  - Após handover, braços extendem (1s) e diver fade out
+
+- **`InventorySystem.tsx` (expandido)**:
+  - Adicionados `rebreather: { owned }` e `nightVision: { owned, active }`
+  - HUD ganha 2 novos slots: NV (toggle, emerald) e rebreather (passivo,
+    cyan)
+  - Notificações de aquisição
+  - `toggleNightVision` action
+
+#### Night vision
+- **`NightVisionOverlay.tsx` (novo)** — duas peças:
+  - `NightVisionFx` — DOM/CSS: tinta verde (multiply), boost verde
+    (screen), binocular vignette, scanlines, phosphor breathe, HUD chip
+    "NV ON"
+  - `NightVisionLights` — só monta dentro do Canvas quando active=true.
+    Adiciona ambientLight intensity 2.2 + hemisphereLight verde pra o
+    player conseguir enxergar tudo na caverna escura
+
+#### Animação de colocar máscara
+- **`RebreatherPutOnOverlay.tsx` (novo)** — cinemática de 1.7s:
+  - Mãos SVG sobem da base segurando a máscara
+  - Máscara cresce até quadrar a tela
+  - Frame radial preto fecha pelas bordas (sensação de "máscara presa")
+  - Flash branco horizontal (snap-on)
+  - onDone callback limpa o flag
+
+#### Wire no App.tsx
+- `useDiverHandover` hook gerencia o ciclo: diver visível quando
+  `currentLevel === 2 && !doorsClosed && !inventory.rebreather.owned`
+- Handover adiciona ambos os items + dispara put-on overlay
+- Tecla `N` toggla night vision (paralelo ao `F` da lanterna)
+- `WorldProps` expandido com `diverVisible`, `diverHandedOver`,
+  `onDiverHandover`, `nightVisionActive`
+- `NightVisionLights` montado dentro do `<World>` (condicional)
+- `NightVisionFx` + `RebreatherPutOnOverlay` no HUD layer
+
+#### Polish visual do oceano (Floor 2)
+- **`Floor2/shaders.ts`**:
+  - `WaterMaterial`: rim gradient de água rasa cyan-aqua perto do furo,
+    caustics maiores com cross-pattern interference, edge foam ring
+    animado, shimmer de alta frequência sobre as Gerstner waves
+  - `UnderwaterOverlayMaterial`: mais contraste entre shallow (cyan-green)
+    e deep (purple-black), god ray streaks que pannam lentamente,
+    caustics mais brilhantes, UV jitter "fake blur" intensifica com depth
+  - `CausticsMaterial`: padrão voronoi/cellular com palette cyan-aqua-
+    green (substituiu o sin-based muddy anterior)
+- **`Floor2/components.tsx`**:
+  - `FishSchool` ganhou 3 variantes "glower" emissivas (teal, purple,
+    aqua) com sprite halos additive
+  - `DeepMist` virou 3 layers parallax (a mais profunda gated por
+    `reflective`)
+  - `UnderwaterCaustics` escalou pra 80×80, fade com depth do player
+  - `BubbleField` + `SurfaceBubbleRing` usam additive blending cyan pra
+    glow visível
+  - `GodRayShafts` ganha pop de opacity quando player está direto embaixo
+    do hole (proximity-driven)
+- **`Floor2/index.tsx`**:
+  - Novo helper `UnderwaterLighting` — lerp ambient + hemisphere de warm
+    cave pra cool cyan conforme player submerge
+  - Directional light apontando pra baixo do hole (cyan)
+  - (Só `reflective=true`) pointLight "shaft from above" em
+    [HOLE_CENTER_X, -3, HOLE_CENTER_Z] com distance 22 decay 2
+
+### Landmines respeitadas
+- ✅ Zero `useFrame(..., priority != 0)`
+- ✅ Zero `SpotLight distance={0}` enquanto vivo
+- ✅ Zero `bone.add(mesh)` ou `createPortal` em hierarquia de esqueleto
+- ✅ Zero novas postprocessing passes
+- ✅ Zero `useState` dentro de `useFrame`
+
+### Build
+- TypeScript: ✅ limpo (`npx tsc --noEmit`)
+- Vite build: ✅ (24.19MB bundle, gzipped 15.72MB)
+- `index.html`: rebuild + commit junto com source (regra de ouro #1, #3)
+- Dev server: boot limpo (vite v6.4.2 ready em 287ms)
+- Tests: 38/39 pass (o que falha é pré-existente, `dpr[0]=0.5` para low
+  vs test esperando 1)
+
+### Commit
+- `e926f87` — feat(floor2): bearded diver NPC, rebreather + night vision
+  items, underwater visual overhaul
+
+### Branch
+- `claude/review-project-context-QkfHZ` — push feito
+
+### Próximos passos sugeridos
+- [ ] Felipe testar visual do oceano + diver no celular e desktop
+- [ ] Se NV ficar "feio demais" em determinadas situações, ajustar
+      opacidade do tint
+- [ ] Considerar adicionar som de "scare" + som de "máscara colocada"
+      no AudioEngine
+- [ ] Se quiser GLB do diver depois, substituir o procedural por
+      `<primitive object={glbScene} />` — props `position`, `rotation`,
+      `scale` ficam iguais
+
