@@ -66,6 +66,9 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
   const armLRef = useRef<THREE.Group>(null);
   const armRRef = useRef<THREE.Group>(null);
   const maskRef = useRef<THREE.Group>(null);
+  // Spawn flash — additive sprite that pulses out over the pop duration.
+  // Mounted in the JSX as a billboard. Updated each frame via its material.
+  const flashMatRef = useRef<THREE.SpriteMaterial>(null);
 
   // ─── Local animation state ──────────────────────────────────────────
   // 0 = not started, 1 = scare popping, 2 = idle, 3 = handing over, 4 = fading
@@ -123,47 +126,29 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       return;
     }
 
-    // Phase 0 is the "uninitialized" state. If the useEffect hasn't
-    // pushed us to phase 1 yet, just snap visible at scale 1. Better to
-    // show a static NPC than render nothing.
-    if (a.phase === 0) {
+    // Always force-visible + scale=1 while phases 0..3 run. Belt-and-
+    // braces: if anything in the React tree ever resets the scale or
+    // visibility prop, we re-assert it every frame. The pop overlay below
+    // adds the "scare" feel via an additive sprite on top, without
+    // touching the diver's own transform.
+    if (a.phase >= 0 && a.phase < 4) {
       g.visible = true;
       g.scale.setScalar(1);
-      return;
+      inner.position.z = 0;
+      inner.rotation.x = 0;
     }
 
-    g.visible = true;
-
-    // ── Phase 1: scare pop ─────────────────────────────────────────
+    // ── Phase 1 progress (drives the spawn flash sprite) ──
     if (a.phase === 1) {
       a.popT = Math.min(1, a.popT + safeDt / POP_DURATION);
-      // Overshoot ease (back-out): starts at 0, overshoots ~1.10 around
-      // tt=0.55, settles to 1. Min scale clamped to 0.05 so the diver
-      // doesn't ever go completely invisible inside the animation window —
-      // we want the player to SEE the pop, not miss it on a slow frame.
-      const tt = a.popT;
-      const s = 1.70158;
-      const c = tt - 1;
-      const ease = 1 + c * c * ((s + 1) * c + s);
-      const sc = THREE.MathUtils.clamp(ease, 0.05, 1.18);
-      g.scale.setScalar(sc);
-      // Slight lurch forward at the start
-      inner.position.z = Math.max(0, (1 - tt) * 0.35);
-      // Slight tilt that snaps back
-      inner.rotation.x = (1 - tt) * -0.18;
       a.visT = Math.min(1, a.visT + safeDt * 6);
-      if (a.popT >= 1) {
-        a.phase = 2;
-        g.scale.setScalar(1);
-        inner.position.z = 0;
-        inner.rotation.x = 0;
-      }
-    } else if (a.phase >= 2 && a.phase < 4) {
-      // Hold scale at 1 explicitly. If something else (R3F reconciler,
-      // remount, etc.) ever ends up resetting the scale, this re-asserts
-      // the correct value every frame. Cheap insurance against the
-      // class of "diver never shows up" bugs.
-      g.scale.setScalar(1);
+      if (a.popT >= 1) a.phase = 2;
+    }
+    // Spawn flash opacity follows pop progress. Starts bright at popT=0,
+    // fades to 0 by popT=1. Continues fading to 0 once we're past phase 1.
+    if (flashMatRef.current) {
+      const k = a.phase === 1 ? (1 - a.popT) : 0;
+      flashMatRef.current.opacity = k * 1.1;
     }
 
     // ── Common: face the player on XZ ──────────────────────────────
@@ -316,6 +301,19 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       {/* Soft halo behind the diver — billboard, additive */}
       <sprite position={[0, 1.4, 0]} scale={[5, 5, 1]}>
         <spriteMaterial color="#FFC880" transparent opacity={0.18} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+      </sprite>
+      {/* Spawn flash — fires bright at appearance, fades out over POP_DURATION.
+          Material opacity is driven by useFrame via flashMatRef. */}
+      <sprite position={[0, 1.4, 0]} scale={[9, 9, 1]}>
+        <spriteMaterial
+          ref={flashMatRef}
+          color="#FFFFFF"
+          transparent
+          opacity={0}
+          depthWrite={false}
+          toneMapped={false}
+          blending={THREE.AdditiveBlending}
+        />
       </sprite>
 
       <group ref={innerRef}>
