@@ -105311,17 +105311,17 @@ const HOLE_CENTER_Z = 5;
 const HOLE_RADIUS = 3;
 const WATER_LEVEL_Y = -0.05;
 const SWIM_THRESHOLD_Y = -0.3;
-const DUST_COUNT = 25;
-const DEBRIS_COUNT = 60;
-const SEDIMENT_COUNT = 200;
-const PLANKTON_COUNT = 50;
-const FISH_COUNT = 8;
-const BUBBLE_COUNT = 35;
+const DUST_COUNT = 40;
+const DEBRIS_COUNT = 100;
+const SEDIMENT_COUNT = 300;
+const PLANKTON_COUNT = 80;
+const FISH_COUNT = 12;
+const BUBBLE_COUNT = 50;
 const BUBBLE_RANGE = 18;
 const BUBBLE_RISE = 0.5;
 const BUBBLE_MAX_Y = WATER_LEVEL_Y - 0.5;
 const BUBBLE_MIN_Y = -29;
-const SURFACE_BUBBLE_COUNT = 15;
+const SURFACE_BUBBLE_COUNT = 25;
 const SURFACE_BUBBLE_RING_RADIUS = HOLE_RADIUS * 0.8;
 const COLLECT_DIST_SQ = 1.4 * 1.4;
 const CAVE_ROCKS_DARK = [
@@ -105348,7 +105348,14 @@ const CAVE_ROCKS_MID = [
   [-10, 0, -3, 1.1, 1.9],
   [16, 0, -20, 1.2, 0.6],
   [-13, 0, 22, 1, 1.1],
-  [20, 0, -14, 1.1, 0.7]
+  [20, 0, -14, 1.1, 0.7],
+  // Additional mid rocks
+  [-5, 0, 8, 1, 0.9],
+  [8, 0, -4, 0.9, 1.6],
+  [-22, 0, 12, 1.1, 2],
+  [23, 0, 6, 0.8, 0.3],
+  [-3, 0, -20, 1.2, 1.5],
+  [11, 0, 10, 1, 0.4]
 ];
 const CAVE_ROCKS_LIGHT = [
   [-26, 0, 6, 0.7, 0.3],
@@ -105356,13 +105363,20 @@ const CAVE_ROCKS_LIGHT = [
   [-8, 0, 26, 0.7, 0.6],
   [10, 0, -26, 0.8, 1.9],
   [-26, 0, -18, 0.7, 0.4],
-  [26, 0, 20, 0.6, 1.5]
+  [26, 0, 20, 0.6, 1.5],
+  // Additional light rocks
+  [-4, 0, -8, 0.65, 0.8],
+  [20, 0, 14, 0.55, 1.4],
+  [-14, 0, 4, 0.7, 0.5],
+  [16, 0, -8, 0.6, 2],
+  [-1, 0, 18, 0.75, 1.1],
+  [6, 0, -22, 0.65, 0.7]
 ];
 const POOL_RIM = (() => {
   const r2 = HOLE_RADIUS + 1.2;
   const result = [];
-  for (let i2 = 0; i2 < 20; i2++) {
-    const a2 = i2 / 20 * Math.PI * 2;
+  for (let i2 = 0; i2 < 24; i2++) {
+    const a2 = i2 / 24 * Math.PI * 2;
     const jitter = 0.7 + (Math.sin(i2 * 13.7) * 0.5 + 0.5) * 0.5;
     const x2 = HOLE_CENTER_X + Math.cos(a2) * r2 * jitter;
     const z = HOLE_CENTER_Z + Math.sin(a2) * r2 * jitter;
@@ -105387,7 +105401,14 @@ const STALAGMITES = [
   [-3, -15, 1.6, 0.5],
   [25, 8, 2, 0.5],
   [-12, -5, 1.4, 0.3],
-  [18, 22, 1.7, 0.4]
+  [18, 22, 1.7, 0.4],
+  // New additions
+  [-25, -8, 2.6, 0.7],
+  [12, -22, 1.9, 0.5],
+  [-6, 10, 1.2, 0.3],
+  [22, 14, 2.3, 0.6],
+  [-16, 0, 1.7, 0.4],
+  [4, -2, 1.1, 0.3]
 ];
 const STALACTITES = [
   [-12, 10, 1.5, 0.4],
@@ -105404,7 +105425,15 @@ const STALACTITES = [
   [12, 18, 2, 0.5],
   [0, -12, 1.5, 0.4],
   [-25, -8, 1.9, 0.5],
-  [20, -3, 1.6, 0.4]
+  [20, -3, 1.6, 0.4],
+  // New additions
+  [9, -5, 1.3, 0.35],
+  [-10, 22, 1.6, 0.4],
+  [25, -12, 2.1, 0.5],
+  [-2, 6, 1.1, 0.3],
+  [14, -18, 1.8, 0.45],
+  [-20, 12, 1.4, 0.35],
+  [7, 24, 1.9, 0.5]
 ];
 const CRYSTALS = [
   // Wall crystals (near ground level)
@@ -105434,7 +105463,25 @@ const CRYSTALS = [
   [-20, 0.3, -10, "#00ffaa"],
   [15, 0.2, 8, "#ff6b9d"],
   [-5, 0.4, -20, "#4dc9f6"],
-  [25, 0.3, 0, "#f7c948"]
+  [25, 0.3, 0, "#f7c948"],
+  // Additional wall crystals — extended mineral veins
+  [-28, 2.8, 15, "#a8e6ff"],
+  [28, 4.2, -14, "#d4b8ff"],
+  [-22, 1.8, 28, "#ff9ad8"],
+  [18, 3.2, -28, "#ffd066"],
+  [-28, 5.5, -10, "#9affae"],
+  [28, 2, -1, "#84d8ff"],
+  // Additional ceiling crystals
+  [-5, 7.4, -8, "#c39bff"],
+  [14, 7.6, 2, "#9ae6ff"],
+  [-25, 7.8, 0, "#ff9ad8"],
+  [3, 7.2, -18, "#84d8ff"],
+  // Additional floor mineral veins
+  [-12, 0.2, 14, "#00ffaa"],
+  [22, 0.4, -16, "#ff6b9d"],
+  [-8, 0.3, -25, "#4dc9f6"],
+  [10, 0.2, 22, "#f7c948"],
+  [-1, 0.3, 5, "#66ffcc"]
 ];
 const TORCH_POSITIONS = [
   [-29.5, 5.5, 0],
@@ -105459,7 +105506,18 @@ const UW_BOULDERS = [
   [-11, -28.4, 14, 2.5, 2.2],
   [0, -28.5, -22, 2.8, 0.5],
   [22, -28.4, 12, 2.6, 1.1],
-  [-20, -28.4, -16, 2.9, 0.7]
+  [-20, -28.4, -16, 2.9, 0.7],
+  // Additional boulders
+  [8, -28.3, 20, 2.3, 1.6],
+  [-16, -28.5, -20, 2.8, 0.2],
+  [14, -28.4, -8, 2.1, 2],
+  [-7, -28.3, 22, 2.5, 1.3],
+  [24, -28.5, 0, 2.2, 0.8],
+  [-22, -28.4, 10, 2.7, 1.9],
+  [2, -28.5, 8, 2, 0.6],
+  [18, -28.3, -18, 2.4, 1.4],
+  [-24, -28.4, -4, 2.6, 0.5],
+  [10, -28.5, 16, 2.3, 2.1]
 ];
 const UW_PEBBLES = [
   [3, -29.6, 2, 0.4, 0.2],
@@ -105473,7 +105531,16 @@ const UW_PEBBLES = [
   [-12, -29.6, 0, 0.55, 0.3],
   [5, -29.6, -10, 0.4, 2.4],
   [-4, -29.6, 14, 0.5, 1.6],
-  [13, -29.6, 14, 0.4, 0.6]
+  [13, -29.6, 14, 0.4, 0.6],
+  // Additional pebbles
+  [16, -29.6, -8, 0.35, 1],
+  [-10, -29.6, -12, 0.45, 0.7],
+  [8, -29.6, 18, 0.4, 2],
+  [-15, -29.6, 4, 0.5, 1.3],
+  [20, -29.6, -12, 0.35, 0.4],
+  [-3, -29.6, -18, 0.45, 1.9],
+  [11, -29.6, 0, 0.4, 0.5],
+  [-18, -29.6, -6, 0.55, 1.1]
 ];
 const UW_SCATTERED_ROCKS = (() => {
   const rocks = [];
@@ -105538,7 +105605,14 @@ const CORAL_POSITIONS = [
   [9, -2, "#1a1610", 1.2],
   [-12, -5, "#1a1208", 0.9],
   [13, 3, "#1a0e06", 1],
-  [-8, 12, "#1a1610", 0.7]
+  [-8, 12, "#1a1610", 0.7],
+  // Additional coral positions
+  [7, 8, "#1a1008", 0.85],
+  [-15, -8, "#1a0e06", 0.75],
+  [17, -6, "#1a1610", 1.1],
+  [-6, 15, "#1a1208", 0.65],
+  [11, -12, "#1a0e06", 0.9],
+  [-18, 3, "#1a1610", 0.8]
 ];
 const CAVE_ROCK_COLLIDERS = [
   ...CAVE_ROCKS_DARK.map(([x2, y, z, s]) => ({ x: x2, y: y + s * 0.35, z, r: s * 0.7 })),
@@ -105768,11 +105842,11 @@ const GLOW_TEXTURE = (() => {
   tex.needsUpdate = true;
   return tex;
 })();
-const BUBBLE_GEO = new SphereGeometry(1, 6, 5);
-const SHARD_GEO = new OctahedronGeometry(0.5, 0);
-const PEBBLE_GEO = new IcosahedronGeometry(1, 0);
-const CRYSTAL_GEO = new OctahedronGeometry(0.35, 0);
-const KELP_GEO = new CylinderGeometry(0.06, 0.1, 1, 5, 4);
+const BUBBLE_GEO = new SphereGeometry(1, 10, 8);
+const SHARD_GEO = new IcosahedronGeometry(0.5, 1);
+const PEBBLE_GEO = new IcosahedronGeometry(1, 1);
+const CRYSTAL_GEO = new OctahedronGeometry(0.35, 1);
+const KELP_GEO = new CylinderGeometry(0.06, 0.1, 1, 8, 6);
 const FISH_GEO = new ConeGeometry(0.18, 0.55, 4);
 const DEBRIS_GEO = new SphereGeometry(1, 3, 2);
 const PLANKTON_GEO = new SphereGeometry(1, 4, 3);
@@ -105790,25 +105864,6 @@ function createOrganicCaveWall(width, height, segments = 64, seed3 = 0, amplitud
     displacement += noise3D(v5.x * 0.4 + seed3, v5.y * 0.4, seed3 * 2.1) * amplitude * 0.08;
     const ridge = Math.abs(noise3D(v5.x * 0.08 + seed3, v5.y * 0.08, seed3 * 0.5)) * amplitude * 0.4;
     positions.setZ(i2, v5.z + Math.abs(displacement) + ridge);
-  }
-  positions.needsUpdate = true;
-  geo.computeVertexNormals();
-  return geo;
-}
-function createCaveCeiling(width, depth, segments = 80, seed3 = 99) {
-  const geo = new PlaneGeometry(width, depth, segments, segments);
-  const positions = geo.attributes.position;
-  const v5 = new Vector3();
-  for (let i2 = 0; i2 < positions.count; i2++) {
-    v5.fromBufferAttribute(positions, i2);
-    let displacement = 0;
-    displacement += noise3D(v5.x * 0.025 + seed3, v5.y * 0.025, seed3 * 1.7) * 3.5;
-    displacement += noise3D(v5.x * 0.06 + seed3, v5.y * 0.06, seed3 * 0.9) * 1.8;
-    const stalactiteNoise = Math.max(0, noise3D(v5.x * 0.12 + seed3, v5.y * 0.12, seed3 * 2.3));
-    displacement += stalactiteNoise * stalactiteNoise * 4;
-    displacement += noise3D(v5.x * 0.2 + seed3, v5.y * 0.2, seed3 * 3.1) * 0.8;
-    displacement += noise3D(v5.x * 0.5 + seed3, v5.y * 0.5, seed3 * 4.7) * 0.2;
-    positions.setZ(i2, v5.z + Math.abs(displacement));
   }
   positions.needsUpdate = true;
   geo.computeVertexNormals();
@@ -105900,11 +105955,71 @@ const CAVE_FLOOR_GEO = (() => {
   geo.computeVertexNormals();
   return geo;
 })();
-const CAVE_CEILING_GEO = createCaveCeiling(62, 62, 80, 99);
-const CAVE_WALL_N_GEO = createOrganicCaveWall(62, 10, 64, 0, 3.5);
-const CAVE_WALL_S_GEO = createOrganicCaveWall(62, 10, 64, 10, 3.5);
-const CAVE_WALL_W_GEO = createOrganicCaveWall(62, 10, 64, 20, 3.5);
-const CAVE_WALL_E_GEO = createOrganicCaveWall(62, 10, 64, 30, 3.5);
+const CAVE_CEILING_GEO = (() => {
+  const geo = new PlaneGeometry(62, 62, 60, 60);
+  const positions = geo.attributes.position;
+  const v5 = new Vector3();
+  for (let i2 = 0; i2 < positions.count; i2++) {
+    v5.fromBufferAttribute(positions, i2);
+    const n = Math.sin(v5.x * 0.3 + 1.7) * 0.6 + Math.cos(v5.y * 0.4 + 3.1) * 0.5 + Math.sin(v5.x * 0.7 + v5.y * 0.5 + 2.2) * 0.3 + Math.cos(v5.x * 1.2 + v5.y * 0.9 + 0.8) * 0.15;
+    positions.setZ(i2, v5.z + n);
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+})();
+const CAVE_WALL_N_GEO = (() => {
+  const geo = new PlaneGeometry(62, 10, 80, 20);
+  const positions = geo.attributes.position;
+  const v5 = new Vector3();
+  for (let i2 = 0; i2 < positions.count; i2++) {
+    v5.fromBufferAttribute(positions, i2);
+    const n = Math.sin(v5.x * 0.8 + 1.3) * 0.4 + Math.cos(v5.y * 0.6 + 2.1) * 0.3 + Math.sin(v5.x * 1.5 + v5.y * 0.7 + 3.2) * 0.2 + Math.cos(v5.x * 2.8 + v5.y * 1.9 + 0.5) * 0.1;
+    positions.setZ(i2, v5.z + n);
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+})();
+const CAVE_WALL_S_GEO = (() => {
+  const geo = new PlaneGeometry(62, 10, 80, 20);
+  const positions = geo.attributes.position;
+  const v5 = new Vector3();
+  for (let i2 = 0; i2 < positions.count; i2++) {
+    v5.fromBufferAttribute(positions, i2);
+    const n = Math.sin(v5.x * 0.7 + 3.7) * 0.35 + Math.cos(v5.y * 0.5 + 0.8) * 0.3 + Math.sin(v5.x * 1.3 + v5.y * 0.9 + 1.5) * 0.2 + Math.cos(v5.x * 2.5 + v5.y * 2.1 + 4.1) * 0.1;
+    positions.setZ(i2, v5.z + n);
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+})();
+const CAVE_WALL_W_GEO = (() => {
+  const geo = new PlaneGeometry(62, 10, 80, 20);
+  const positions = geo.attributes.position;
+  const v5 = new Vector3();
+  for (let i2 = 0; i2 < positions.count; i2++) {
+    v5.fromBufferAttribute(positions, i2);
+    const n = Math.sin(v5.x * 0.9 + 5.2) * 0.4 + Math.cos(v5.y * 0.7 + 3.3) * 0.25 + Math.sin(v5.x * 1.7 + v5.y * 0.5 + 2.8) * 0.18 + Math.cos(v5.x * 3.1 + v5.y * 1.4 + 1.2) * 0.08;
+    positions.setZ(i2, v5.z + n);
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+})();
+const CAVE_WALL_E_GEO = (() => {
+  const geo = new PlaneGeometry(62, 10, 80, 20);
+  const positions = geo.attributes.position;
+  const v5 = new Vector3();
+  for (let i2 = 0; i2 < positions.count; i2++) {
+    v5.fromBufferAttribute(positions, i2);
+    const n = Math.sin(v5.x * 0.6 + 2.5) * 0.38 + Math.cos(v5.y * 0.8 + 1.9) * 0.28 + Math.sin(v5.x * 1.1 + v5.y * 1.2 + 4.3) * 0.15 + Math.cos(v5.x * 2.3 + v5.y * 2.5 + 0.7) * 0.09;
+    positions.setZ(i2, v5.z + n);
+  }
+  positions.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+})();
 const UW_WALL_NORTH_GEO = createOrganicCaveWall(62, 35, 64, 40, 3.5);
 const UW_WALL_SOUTH_GEO = createOrganicCaveWall(62, 35, 64, 50, 3.5);
 const UW_WALL_WEST_GEO = createOrganicCaveWall(62, 35, 64, 60, 3.5);
@@ -105987,7 +106102,7 @@ const WaterCeilingMaterial = shaderMaterial(
         float cross1 = sin(uv.x * 22.0 + time * 1.8) * sin(uv.y * 20.0 - time * 1.3) * 0.5 + 0.5;
         float cross2 = sin(uv.x * 16.0 - time * 1.1 + 2.0) * sin(uv.y * 14.0 + time * 0.9) * 0.5 + 0.5;
         float ripple = pow(ripple1 * ripple2, 1.5) * 0.6 + pow(cross1 * cross2, 2.0) * 0.4;
-        vec3 col = vec3(0.04, 0.10, 0.16);
+        vec3 col = vec3(0.06, 0.15, 0.22);
         col += vec3(0.05, 0.18, 0.22) * ripple;
         float caustic = pow(ripple, 3.0) * 0.3;
         col += vec3(0.06, 0.20, 0.14) * caustic;
@@ -106019,9 +106134,9 @@ const UnderwaterOverlayMaterial = shaderMaterial(
         float c1 = sin(uv.x * 18.0 + time * 1.4) * sin(uv.y * 15.0 + time * 1.1);
         float c2 = sin(uv.x * 12.0 - time * 0.9 + 1.5) * sin(uv.y * 10.0 + time * 1.3);
         float caustic = pow(max(0.0, c1 * c2), 2.5) * 0.2;
-        vec3 shallowTint = vec3(0.02, 0.15, 0.25);
-        vec3 midTint = vec3(0.01, 0.10, 0.25);
-        vec3 deepTint = vec3(0.0, 0.05, 0.18);
+        vec3 shallowTint = vec3(0.04, 0.20, 0.35);
+        vec3 midTint = vec3(0.02, 0.14, 0.30);
+        vec3 deepTint = vec3(0.01, 0.08, 0.22);
         vec3 tint;
         if (depth < 0.35) {
           tint = mix(shallowTint, midTint, depth / 0.35);
@@ -106071,13 +106186,21 @@ const WaterMaterial = shaderMaterial(
         vec2 d2 = normalize(vec2(0.3, 1.0));
         vec2 d3 = normalize(vec2(-0.5, 0.7));
         vec2 d4 = normalize(vec2(0.8, -0.5));
+        vec2 d5 = normalize(vec2(-0.3, 0.4));
+        vec2 d6 = normalize(vec2(0.6, 0.6));
+        vec2 d7 = normalize(vec2(-0.7, -0.3));
+        vec2 d8 = normalize(vec2(0.4, -0.8));
 
         vec4 w1 = gerstner(p.xz, d1, 0.22, 4.0, time * 0.8);
         vec4 w2 = gerstner(p.xz, d2, 0.18, 2.8, time * 0.95 + 1.7);
         vec4 w3 = gerstner(p.xz, d3, 0.12, 1.8, time * 1.15 + 3.2);
         vec4 w4 = gerstner(p.xz, d4, 0.07, 1.2, time * 1.4 + 5.0);
+        vec4 w5 = gerstner(p.xz, d5, 0.04, 0.8, time * 1.6 + 2.1);
+        vec4 w6 = gerstner(p.xz, d6, 0.03, 0.6, time * 1.8 + 4.5);
+        vec4 w7 = gerstner(p.xz, d7, 0.025, 0.5, time * 2.0 + 6.3);
+        vec4 w8 = gerstner(p.xz, d8, 0.02, 0.4, time * 2.2 + 8.1);
 
-        vec3 disp = w1.xyz + w2.xyz + w3.xyz + w4.xyz;
+        vec3 disp = w1.xyz + w2.xyz + w3.xyz + w4.xyz + w5.xyz + w6.xyz + w7.xyz + w8.xyz;
         p += disp;
         vWave = disp.y;
 
@@ -106085,25 +106208,43 @@ const WaterMaterial = shaderMaterial(
         float k2 = 6.28318 / 2.8;  float c2 = sqrt(9.8 / k2);  float a2 = 0.18 / k2;
         float k3 = 6.28318 / 1.8;  float c3 = sqrt(9.8 / k3);  float a3 = 0.12 / k3;
         float k4 = 6.28318 / 1.2;  float c4 = sqrt(9.8 / k4);  float a4 = 0.07 / k4;
+        float k5 = 6.28318 / 0.8;  float c5 = sqrt(9.8 / k5);  float a5 = 0.04 / k5;
+        float k6 = 6.28318 / 0.6;  float c6 = sqrt(9.8 / k6);  float a6 = 0.03 / k6;
+        float k7 = 6.28318 / 0.5;  float c7 = sqrt(9.8 / k7);  float a7 = 0.025 / k7;
+        float k8 = 6.28318 / 0.4;  float c8 = sqrt(9.8 / k8);  float a8 = 0.02 / k8;
 
         float f1 = k1 * (dot(d1, position.xz) - c1 * time * 0.8);
         float f2 = k2 * (dot(d2, position.xz) - c2 * time * 0.95 - 1.7 * c2);
         float f3 = k3 * (dot(d3, position.xz) - c3 * time * 1.15 - 3.2 * c3);
         float f4 = k4 * (dot(d4, position.xz) - c4 * time * 1.4 - 5.0 * c4);
+        float f5 = k5 * (dot(d5, position.xz) - c5 * time * 1.6 - 2.1 * c5);
+        float f6 = k6 * (dot(d6, position.xz) - c6 * time * 1.8 - 4.5 * c6);
+        float f7 = k7 * (dot(d7, position.xz) - c7 * time * 2.0 - 6.3 * c7);
+        float f8 = k8 * (dot(d8, position.xz) - c8 * time * 2.2 - 8.1 * c8);
 
         vec3 dPdx = vec3(
           1.0 - (d1.x * d1.x * a1 * k1 * sin(f1) + d2.x * d2.x * a2 * k2 * sin(f2)
-               + d3.x * d3.x * a3 * k3 * sin(f3) + d4.x * d4.x * a4 * k4 * sin(f4)),
-          d1.x * a1 * k1 * cos(f1) + d2.x * a2 * k2 * cos(f2) + d3.x * a3 * k3 * cos(f3) + d4.x * a4 * k4 * cos(f4),
+               + d3.x * d3.x * a3 * k3 * sin(f3) + d4.x * d4.x * a4 * k4 * sin(f4)
+               + d5.x * d5.x * a5 * k5 * sin(f5) + d6.x * d6.x * a6 * k6 * sin(f6)
+               + d7.x * d7.x * a7 * k7 * sin(f7) + d8.x * d8.x * a8 * k8 * sin(f8)),
+          d1.x * a1 * k1 * cos(f1) + d2.x * a2 * k2 * cos(f2) + d3.x * a3 * k3 * cos(f3) + d4.x * a4 * k4 * cos(f4)
+          + d5.x * a5 * k5 * cos(f5) + d6.x * a6 * k6 * cos(f6) + d7.x * a7 * k7 * cos(f7) + d8.x * a8 * k8 * cos(f8),
           -(d1.x * d1.y * a1 * k1 * sin(f1) + d2.x * d2.y * a2 * k2 * sin(f2)
-          + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4))
+          + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4)
+          + d5.x * d5.y * a5 * k5 * sin(f5) + d6.x * d6.y * a6 * k6 * sin(f6)
+          + d7.x * d7.y * a7 * k7 * sin(f7) + d8.x * d8.y * a8 * k8 * sin(f8))
         );
         vec3 dPdz = vec3(
           -(d1.x * d1.y * a1 * k1 * sin(f1) + d2.x * d2.y * a2 * k2 * sin(f2)
-          + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4)),
-          d1.y * a1 * k1 * cos(f1) + d2.y * a2 * k2 * cos(f2) + d3.y * a3 * k3 * cos(f3) + d4.y * a4 * k4 * cos(f4),
+          + d3.x * d3.y * a3 * k3 * sin(f3) + d4.x * d4.y * a4 * k4 * sin(f4)
+          + d5.x * d5.y * a5 * k5 * sin(f5) + d6.x * d6.y * a6 * k6 * sin(f6)
+          + d7.x * d7.y * a7 * k7 * sin(f7) + d8.x * d8.y * a8 * k8 * sin(f8)),
+          d1.y * a1 * k1 * cos(f1) + d2.y * a2 * k2 * cos(f2) + d3.y * a3 * k3 * cos(f3) + d4.y * a4 * k4 * cos(f4)
+          + d5.y * a5 * k5 * cos(f5) + d6.y * a6 * k6 * cos(f6) + d7.y * a7 * k7 * cos(f7) + d8.y * a8 * k8 * cos(f8),
           1.0 - (d1.y * d1.y * a1 * k1 * sin(f1) + d2.y * d2.y * a2 * k2 * sin(f2)
-               + d3.y * d3.y * a3 * k3 * sin(f3) + d4.y * d4.y * a4 * k4 * sin(f4))
+               + d3.y * d3.y * a3 * k3 * sin(f3) + d4.y * d4.y * a4 * k4 * sin(f4)
+               + d5.y * d5.y * a5 * k5 * sin(f5) + d6.y * d6.y * a6 * k6 * sin(f6)
+               + d7.y * d7.y * a7 * k7 * sin(f7) + d8.y * d8.y * a8 * k8 * sin(f8))
         );
         vec3 localNormal = normalize(cross(dPdz, dPdx));
         vNormalWS = normalize(mat3(modelMatrix) * localNormal);
@@ -106132,9 +106273,9 @@ const WaterMaterial = shaderMaterial(
 
         float viewFromBelow = step(dot(vNormalWS, vViewWS), 0.0);
 
-        vec3 deep   = vec3(0.05, 0.15, 0.25);
-        vec3 mid    = vec3(0.10, 0.30, 0.42);
-        vec3 sky    = vec3(0.35, 0.50, 0.58);
+        vec3 deep   = vec3(0.02, 0.08, 0.15);
+        vec3 mid    = vec3(0.06, 0.18, 0.25);
+        vec3 sky    = vec3(0.25, 0.40, 0.45);
 
         float c1 = sin(vUv.x * 32.0 + time * 0.9) * 0.5 + 0.5;
         float c2 = sin(vUv.y * 26.0 + time * 1.1 + 2.0) * 0.5 + 0.5;
@@ -106143,8 +106284,8 @@ const WaterMaterial = shaderMaterial(
         float h = clamp(vWave * 5.0, -1.0, 1.0);
         vec3 col = mix(deep, mid, 0.5 + h * 0.5);
 
-        float sss = pow(max(0.0, h), 1.5) * 0.4;
-        vec3 sssColor = vec3(0.08, 0.3, 0.2);
+        float sss = pow(max(0.0, h), 1.5) * 0.5;
+        vec3 sssColor = vec3(0.08, 0.35, 0.25);
         col += sssColor * sss;
 
         col = mix(col, sky, fresnel * 0.6 + caustic * 0.15);
@@ -106163,7 +106304,7 @@ const WaterMaterial = shaderMaterial(
         float alpha = mix(0.90, 0.98, fresnel);
         if (viewFromBelow > 0.5) {
             alpha = 1.0;
-            col = vec3(0.04, 0.10, 0.18);
+            col = vec3(0.02, 0.06, 0.10);
         }
         gl_FragColor = vec4(col, alpha);
       }
@@ -106183,14 +106324,20 @@ const CausticsMaterial = shaderMaterial(
   `
       uniform float time;
       varying vec2 vUv;
+
+      float causticPattern(vec2 uv, float t) {
+        float a = sin(uv.x * 6.28 + t * 0.6) + sin((uv.x + uv.y) * 5.0 + t * 0.9);
+        float b = sin(uv.y * 6.28 + t * 0.5 + 1.2) + sin((uv.y - uv.x) * 4.5 + t * 0.7);
+        return pow(max(0.0, sin(a) * sin(b)), 2.5);
+      }
+
       void main() {
         vec2 uv = vUv * 10.0;
-        float a = sin(uv.x * 6.28 + time * 1.2) + sin((uv.x + uv.y) * 5.0 + time * 1.5);
-        float b = sin(uv.y * 6.28 + time * 1.0 + 1.2) + sin((uv.y - uv.x) * 4.5 + time * 1.1);
-        float c3 = sin(uv.x * 12.0 + uv.y * 8.0 + time * 2.0) * sin(uv.y * 10.0 - uv.x * 6.0 + time * 1.8);
-        float c = pow(max(0.0, sin(a) * sin(b)), 2.0) + pow(max(0.0, c3), 3.0) * 0.5;
-        vec3 col = vec3(c * 0.45, c * 0.75, c * 0.55);
-        gl_FragColor = vec4(col, c * 0.55);
+        float r = causticPattern(uv + vec2(0.002, 0.001), time);
+        float g = causticPattern(uv, time);
+        float b = causticPattern(uv - vec2(0.001, 0.002), time);
+        vec3 col = vec3(r * 0.3, g * 0.7, b * 0.5);
+        gl_FragColor = vec4(col, (r + g + b) * 0.15);
       }
     `
 );
@@ -106334,18 +106481,18 @@ const WaterCeilingDisc = () => {
 };
 const DynamicFog = ({ playerPositionRef }) => {
   const { scene } = useThree();
-  const _fogColor = reactExports.useRef(new Color("#2a2018"));
-  const _bgColor = reactExports.useRef(new Color("#2a2018"));
+  const _fogColor = reactExports.useRef(new Color("#1a140e"));
+  const _bgColor = reactExports.useRef(new Color("#1a140e"));
   const _tgtFog = reactExports.useRef(new Color());
   const _tgtBg = reactExports.useRef(new Color());
-  const _surfaceFog = new Color("#1a4a70");
-  const _midFog = new Color("#0e3060");
-  const _deepFog = new Color("#081840");
-  const _caveFog = new Color("#2a2018");
-  const _surfaceBg = new Color("#1a4a70");
-  const _midBg = new Color("#0e3060");
-  const _deepBg = new Color("#081840");
-  const _caveBg = new Color("#2a2018");
+  const _surfaceFog = new Color("#0a1a2a");
+  const _midFog = new Color("#061428");
+  const _deepFog = new Color("#030a18");
+  const _caveFog = new Color("#1a140e");
+  const _surfaceBg = new Color("#0a1a2a");
+  const _midBg = new Color("#061428");
+  const _deepBg = new Color("#030a18");
+  const _caveBg = new Color("#1a140e");
   useFrame((_, dt2) => {
     var _a;
     const safeDt = Math.min(dt2, 0.033);
@@ -106359,7 +106506,7 @@ const DynamicFog = ({ playerPositionRef }) => {
       _bgColor.current.lerp(_tgtBg.current, k2);
       scene.fog.color.copy(_fogColor.current);
       scene.fog.near = scene.fog.near + (8 - scene.fog.near) * k2;
-      scene.fog.far = scene.fog.far + (70 - scene.fog.far) * k2;
+      scene.fog.far = scene.fog.far + (80 - scene.fog.far) * k2;
     } else {
       const depth = Math.abs(y - SWIM_THRESHOLD_Y);
       const t2 = Math.min(depth / 29, 1);
@@ -106373,8 +106520,8 @@ const DynamicFog = ({ playerPositionRef }) => {
       const breathe = Math.sin(performance.now() * 3e-4) * 0.5;
       const baseNear = 3 - t2 * 1;
       const baseFar = 35 - t2 * 12;
-      const tgtNear = Math.max(1, baseNear + breathe * 0.2);
-      const tgtFar = Math.max(12, baseFar + breathe * 1);
+      const tgtNear = t2 < 0.1 ? 1 : Math.max(0.3, baseNear + breathe * 0.2);
+      const tgtFar = t2 < 0.1 ? 18 : Math.max(10, baseFar + breathe * 1);
       const k2 = Math.min(1, 8 * safeDt);
       _fogColor.current.lerp(_tgtFog.current, k2);
       _bgColor.current.lerp(_tgtBg.current, k2);
@@ -106461,14 +106608,14 @@ const UnderwaterCaustics = () => {
 };
 const KelpField = () => {
   const meshRefs = reactExports.useRef(
-    KELP_POSITIONS.map(() => new Array(3).fill(null))
+    KELP_POSITIONS.map(() => new Array(5).fill(null))
   );
   useFrame((state2) => {
     var _a;
     const t2 = state2.clock.elapsedTime;
     for (let k2 = 0; k2 < KELP_POSITIONS.length; k2++) {
       const phase = KELP_POSITIONS[k2][3];
-      const segments = 3;
+      const segments = 5;
       for (let i2 = 0; i2 < segments; i2++) {
         const m2 = (_a = meshRefs.current[k2]) == null ? void 0 : _a[i2];
         if (!m2) continue;
@@ -106479,7 +106626,7 @@ const KelpField = () => {
     }
   });
   return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: KELP_POSITIONS.map(([x2, z, height, phase], k2) => {
-    const segments = 3;
+    const segments = 5;
     const segLen = height / segments;
     return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, -30, z], children: [
       Array.from({ length: segments }, (_, i2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -106512,19 +106659,19 @@ const KelpField = () => {
 };
 const Coral = ({ x: x2, z, color: color2, scale: scale2 }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { position: [x2, -30, z], scale: scale2, children: [
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 0.3, 0], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("dodecahedronGeometry", { args: [0.5, 0] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("dodecahedronGeometry", { args: [0.5, 1] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1a10", roughness: 0.95, metalness: 0.05, flatShading: true })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0, 1, 0], rotation: [0.1, 0, 0.15], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.06, 0.1, 1.2, 5] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.06, 0.1, 1.2, 8] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, roughness: 0.9, flatShading: true })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.15, 1.5, 0.1], rotation: [0, 0.4, 0.3], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.07, 0.8, 5] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.07, 0.8, 8] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, roughness: 0.9, flatShading: true })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [-0.12, 1.4, -0.08], rotation: [0.2, -0.3, -0.25], children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.06, 0.7, 5] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("cylinderGeometry", { args: [0.04, 0.06, 0.7, 8] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: color2, roughness: 0.9, flatShading: true })
   ] }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs("mesh", { position: [0.15, 1.9, 0.1], children: [
@@ -106545,7 +106692,7 @@ const GodRayShafts = () => {
   useFrame((state2) => {
     if (groupRef.current) groupRef.current.rotation.y = state2.clock.elapsedTime * 0.04;
   });
-  const SHAFT_COUNT = 8;
+  const SHAFT_COUNT = 12;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { ref: groupRef, position: [HOLE_CENTER_X, -15, HOLE_CENTER_Z], children: [
     Array.from({ length: SHAFT_COUNT }, (_, i2) => {
       const a2 = i2 / SHAFT_COUNT * Math.PI * 2;
@@ -106560,9 +106707,9 @@ const GodRayShafts = () => {
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "meshBasicMaterial",
               {
-                color: "#1a6a4a",
+                color: "#1a8a6a",
                 transparent: true,
-                opacity: 0.18 + i2 % 3 * 0.06,
+                opacity: 0.12 + i2 % 3 * 0.04,
                 side: DoubleSide,
                 depthWrite: false,
                 blending: AdditiveBlending,
@@ -106579,9 +106726,9 @@ const GodRayShafts = () => {
       /* @__PURE__ */ jsxRuntimeExports.jsx(
         "meshBasicMaterial",
         {
-          color: "#2a7a6a",
+          color: "#1a8a6a",
           transparent: true,
-          opacity: 0.15,
+          opacity: 0.12,
           side: DoubleSide,
           depthWrite: false,
           blending: AdditiveBlending,
@@ -106594,9 +106741,9 @@ const GodRayShafts = () => {
       /* @__PURE__ */ jsxRuntimeExports.jsx(
         "meshBasicMaterial",
         {
-          color: "#2a8a7a",
+          color: "#2a9a8a",
           transparent: true,
-          opacity: 0.12,
+          opacity: 0.1,
           side: DoubleSide,
           depthWrite: false,
           blending: AdditiveBlending,
@@ -107080,17 +107227,17 @@ const Floor2Environment = ({
     return scene;
   }, [boulderModel_, caveRock]);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("group", { children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("color", { attach: "background", args: ["#2a2018"] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("fog", { attach: "fog", args: ["#2a2018", 25, 140] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 1.4, color: "#d8c0a0" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("color", { attach: "background", args: ["#1a140e"] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("fog", { attach: "fog", args: ["#1a140e", 8, 80] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("ambientLight", { intensity: 2, color: "#d8c0a0" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("hemisphereLight", { intensity: 1, color: "#c8a888", groundColor: "#2a2218" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("directionalLight", { position: [5, 20, 5], intensity: 1.2, color: "#ffe8c0" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("directionalLight", { position: [-8, 15, -5], intensity: 0.4, color: "#d8b888" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { position: [-25, 0.8, 0], scale: [8, 8, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { map: GLOW_TEXTURE, color: "#8a3010", transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { position: [25, 0.8, -5], scale: [8, 8, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { map: GLOW_TEXTURE, color: "#8a3010", transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { position: [0, 0.8, 25], scale: [7, 7, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { map: GLOW_TEXTURE, color: "#8a3010", transparent: true, opacity: 0.45, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { position: [HOLE_CENTER_X, 0.5, HOLE_CENTER_Z], scale: [10, 10, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { map: GLOW_TEXTURE, color: "#1a5a8a", transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { position: [HOLE_CENTER_X, 1.2, HOLE_CENTER_Z], scale: [14, 14, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { map: GLOW_TEXTURE, color: "#0a3a5a", transparent: true, opacity: 0.2, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { position: [HOLE_CENTER_X, 0.5, HOLE_CENTER_Z], scale: [12, 12, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { map: GLOW_TEXTURE, color: "#1a5a8a", transparent: true, opacity: 0.65, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("sprite", { position: [HOLE_CENTER_X, 1.2, HOLE_CENTER_Z], scale: [18, 18, 1], children: /* @__PURE__ */ jsxRuntimeExports.jsx("spriteMaterial", { map: GLOW_TEXTURE, color: "#0a3a5a", transparent: true, opacity: 0.25, depthWrite: false, toneMapped: false, blending: AdditiveBlending }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(DynamicFog, { playerPositionRef }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(
       "mesh",
@@ -107118,11 +107265,11 @@ const Floor2Environment = ({
       /* @__PURE__ */ jsxRuntimeExports.jsx("planeGeometry", { args: [62, 62] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#1a1610", map: caveFloor.color, normalMap: caveFloor.normal, normalScale: new Vector2(1.5, 1.5), roughnessMap: caveFloor.rough, roughness: 0.92, aoMap: caveFloor.ao, aoMapIntensity: 0.8, side: BackSide })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { position: [0, 8, 0], rotation: [Math.PI / 2, 0, 0], geometry: CAVE_CEILING_GEO, children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#302820", map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.9, aoMap: caveWall.ao, aoMapIntensity: 0.6, side: DoubleSide }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { position: [0, 5, -30], rotation: [0, 0, 0], geometry: CAVE_WALL_N_GEO, children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#302820", map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.88, aoMap: caveWall.ao, aoMapIntensity: 0.6, side: DoubleSide }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { position: [0, 5, 30], rotation: [0, Math.PI, 0], geometry: CAVE_WALL_S_GEO, children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#302820", map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.88, aoMap: caveWall.ao, aoMapIntensity: 0.6, side: DoubleSide }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { position: [-30, 5, 0], rotation: [0, Math.PI / 2, 0], geometry: CAVE_WALL_W_GEO, children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#302820", map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.88, aoMap: caveWall.ao, aoMapIntensity: 0.6, side: DoubleSide }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { position: [30, 5, 0], rotation: [0, -Math.PI / 2, 0], geometry: CAVE_WALL_E_GEO, children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#302820", map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(2.5, 2.5), roughnessMap: caveWall.rough, roughness: 0.88, aoMap: caveWall.ao, aoMapIntensity: 0.6, side: DoubleSide }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { position: [0, 8, 0], rotation: [Math.PI / 2, 0, 0], geometry: CAVE_CEILING_GEO, children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#302820", map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(3, 3), roughnessMap: caveWall.rough, roughness: 0.9, aoMap: caveWall.ao, aoMapIntensity: 0.6, side: DoubleSide }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { position: [0, 5, -30], rotation: [0, 0, 0], geometry: CAVE_WALL_N_GEO, children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#302820", map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(4, 4), roughnessMap: caveWall.rough, roughness: 0.88, aoMap: caveWall.ao, aoMapIntensity: 0.6, side: DoubleSide }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { position: [0, 5, 30], rotation: [0, Math.PI, 0], geometry: CAVE_WALL_S_GEO, children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#302820", map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(4, 4), roughnessMap: caveWall.rough, roughness: 0.88, aoMap: caveWall.ao, aoMapIntensity: 0.6, side: DoubleSide }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { position: [-30, 5, 0], rotation: [0, Math.PI / 2, 0], geometry: CAVE_WALL_W_GEO, children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#302820", map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(4, 4), roughnessMap: caveWall.rough, roughness: 0.88, aoMap: caveWall.ao, aoMapIntensity: 0.6, side: DoubleSide }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("mesh", { position: [30, 5, 0], rotation: [0, -Math.PI / 2, 0], geometry: CAVE_WALL_E_GEO, children: /* @__PURE__ */ jsxRuntimeExports.jsx("meshStandardMaterial", { color: "#302820", map: caveWall.color, normalMap: caveWall.normal, normalScale: new Vector2(4, 4), roughnessMap: caveWall.rough, roughness: 0.88, aoMap: caveWall.ao, aoMapIntensity: 0.6, side: DoubleSide }) }),
     CAVE_ROCKS_DARK.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [x2, y + s * 0.4, z], scale: [s, s * 0.7, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: rockScenes[i2 % 4].clone(true) }) }, `dark-${i2}`)),
     CAVE_ROCKS_MID.map(([x2, y, z, s, ry], i2) => /* @__PURE__ */ jsxRuntimeExports.jsx("group", { position: [x2, y + s * 0.4, z], scale: [s, s * 0.7, s], rotation: [0, ry, 0], children: /* @__PURE__ */ jsxRuntimeExports.jsx("primitive", { object: rockScenes[(i2 + 1) % 4].clone(true) }) }, `mid-${i2}`)),
     /* @__PURE__ */ jsxRuntimeExports.jsxs(Instances, { limit: CAVE_ROCKS_LIGHT.length, range: CAVE_ROCKS_LIGHT.length, geometry: PEBBLE_GEO, children: [
@@ -112064,28 +112211,28 @@ function App() {
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               wt,
               {
-                intensity: 0.35,
-                luminanceThreshold: 0.95,
+                intensity: currentLevel === 2 ? 0.6 : 0.35,
+                luminanceThreshold: currentLevel === 2 ? 0.8 : 0.95,
                 luminanceSmoothing: 0.2,
                 mipmapBlur: true,
-                kernelSize: KernelSize.MEDIUM
+                kernelSize: currentLevel === 2 ? KernelSize.LARGE : KernelSize.MEDIUM
               }
             ),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               yt,
               {
                 blendFunction: BlendFunction.NORMAL,
-                offset: currentLevel === 2 ? [2e-3, 2e-3] : [0, 0],
-                radialModulation: false,
-                modulationOffset: 0
+                offset: currentLevel === 2 ? [4e-3, 3e-3] : [0, 0],
+                radialModulation: currentLevel === 2,
+                modulationOffset: 0.15
               }
             ),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               qt,
               {
                 eskil: false,
-                offset: currentLevel === 2 ? 0.4 : 0.2,
-                darkness: currentLevel === 2 ? 0.6 : 0.3
+                offset: currentLevel === 2 ? 0.3 : 0.2,
+                darkness: currentLevel === 2 ? 0.65 : 0.3
               }
             )
           ] })
