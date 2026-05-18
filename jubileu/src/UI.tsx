@@ -121,18 +121,33 @@ export const DialogueOverlay = ({
 
       <div className="flex flex-col flex-1 justify-end pb-4 px-3 md:px-[20%] landscape:pb-2 landscape:px-8 max-h-[100dvh] overflow-hidden">
 
-        {/* Speaker name label (optional) */}
+        {/* Speaker name label (optional) — matches the dialog accent. */}
         {speakerName && (
           <div className="self-start pointer-events-auto -mb-px">
-            <div className={`px-3 py-1 bg-black/90 ${accentColor ?? 'border-yellow-500/50'} border-x-2 border-t-2 rounded-t-md text-xs sm:text-sm font-bold tracking-widest uppercase text-white/90`}>
+            <div
+              className={`px-3 py-1 bg-black/90 ${accentColor ?? 'border-yellow-500/50'} border-x-2 border-t-2 rounded-t-md text-xs sm:text-sm font-bold tracking-widest uppercase ${accentColor?.includes('cyan') ? 'text-cyan-100' : 'text-white/90'}`}
+              style={{
+                textShadow: accentColor?.includes('cyan')
+                  ? '0 0 10px rgba(34,211,238,0.6)'
+                  : 'none',
+              }}
+            >
               {speakerName}
             </div>
           </div>
         )}
-        {/* Dialogue Text Box */}
-        <div className={`bg-black/80 border-t-2 ${accentColor ?? 'border-yellow-500/50'} p-3 sm:p-4 md:p-6 shadow-2xl pointer-events-auto mb-2 sm:mb-4 rounded-t-xl landscape:mb-2`}>
+        {/* Dialogue Text Box. The shadow class is tuned per-speaker via
+            accentColor — the diver gets a soft cyan glow. */}
+        <div
+          className={`bg-black/85 border-t-2 ${accentColor ?? 'border-yellow-500/50'} p-3 sm:p-4 md:p-6 pointer-events-auto mb-2 sm:mb-4 rounded-t-xl landscape:mb-2 backdrop-blur-sm`}
+          style={{
+            boxShadow: accentColor?.includes('cyan')
+              ? '0 -2px 30px rgba(34,211,238,0.35), 0 8px 24px rgba(0,0,0,0.7)'
+              : '0 8px 24px rgba(0,0,0,0.7)',
+          }}
+        >
           <p className="text-white text-sm sm:text-base font-bold font-serif leading-snug sm:leading-relaxed min-h-[2rem] sm:min-h-[4rem] text-shadow-sm">
-            <TypewriterText text={node.text} speed={30} voicePitch={330} />
+            <TypewriterText text={node.text} speed={30} voicePitch={accentColor?.includes('cyan') ? 220 : 330} />
           </p>
         </div>
 
