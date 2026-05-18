@@ -658,7 +658,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Inner foam / wet-rock ring just at the water line — bright,
             slightly emissive band so the eye instantly registers "water". */}
         <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y + 0.04, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[HOLE_RADIUS - 0.20, HOLE_RADIUS - 0.02, 64, 1]} />
+            <ringGeometry args={[HOLE_RADIUS - 0.20, HOLE_RADIUS - 0.02, 96, 4]} />
             <meshStandardMaterial
                 color="#cbe8f0"
                 emissive="#5aa8bd"
@@ -668,6 +668,24 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 opacity={0.85}
                 side={THREE.DoubleSide}
                 toneMapped={false}
+            />
+        </mesh>
+
+        {/* Outer bevelled stone rim — thick collar of rock around the well
+            mouth.  Torus segment gives the rim depth and softness instead of
+            the flat circle a single plane would produce, which the
+            "low-poly" feedback was about. */}
+        <mesh position={[HOLE_CENTER_X, 0.02, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[HOLE_RADIUS + 0.15, 0.35, 12, 64]} />
+            <meshStandardMaterial
+                color="#352a22"
+                map={caveRock.color}
+                normalMap={caveRock.normal}
+                normalScale={new THREE.Vector2(2.4, 2.4)}
+                roughnessMap={caveRock.rough}
+                roughness={0.97}
+                aoMap={caveRock.ao}
+                aoMapIntensity={1.2}
             />
         </mesh>
         {/* Strong downward point light hanging above the water — illuminates
