@@ -29,12 +29,17 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 // ─── Anchor / interaction constants ────────────────────────────────────
-/** Diver world position on Floor 2 — right outside the elevator door. */
-export const DIVER_POS: readonly [number, number, number] = [0, 0, -6.5];
+// Elevator on Floor 2 lives at [0, 0, -10] (group). Doors are on the +Z
+// face. The diver stands ~2 units past the doors so the player sees them
+// as soon as the doors slide open.
+/** Diver world position on Floor 2 — clear of the elevator door so the
+ *  player can fully step out before the trigger fires. Visible from
+ *  inside the elevator through the open doors. */
+export const DIVER_POS: readonly [number, number, number] = [0, 0, -6];
 /** Player must be within this radius (XZ) to trigger the handover. */
-export const DIVER_INTERACT_DIST = 2.6;
-/** Delay after doors open before the diver "pops" in (ms). */
-const SCARE_DELAY_MS = 350;
+export const DIVER_INTERACT_DIST = 2.8;
+/** Tiny grace beat after the doors open before the diver pops in (s). */
+const SCARE_DELAY_S = 0.15;
 /** Duration of the scare pop animation (s). */
 const POP_DURATION = 0.55;
 
@@ -92,9 +97,16 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         handoverFired: false,
       };
     } else {
-      // Kick off the scare sequence after a short delay so the doors finish
-      // opening before the diver pops in.
-      animRef.current.delayLeft = SCARE_DELAY_MS / 1000;
+      // Visible: start the pop IMMEDIATELY. No delay gate — the player
+      // sees the diver appear with the overshoot scale animation as soon
+      // as the doors are open. We learned earlier that a delay gate can
+      // hide the NPC entirely if the useEffect / useFrame order isn't
+      // what we expect.
+      animRef.current.phase = 1;
+      animRef.current.popT = 0;
+      animRef.current.visT = 1;
+      animRef.current.armT = 0;
+      animRef.current.handoverFired = false;
     }
   }, [visible]);
 
@@ -111,16 +123,13 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       return;
     }
 
-    // Wait for door-open delay before the pop kicks off
+    // Phase 0 is the "uninitialized" state. If the useEffect hasn't
+    // pushed us to phase 1 yet, just snap visible at scale 1. Better to
+    // show a static NPC than render nothing.
     if (a.phase === 0) {
-      a.delayLeft -= safeDt;
-      if (a.delayLeft <= 0) {
-        a.phase = 1;
-        a.popT = 0;
-      } else {
-        g.visible = false;
-        return;
-      }
+      g.visible = true;
+      g.scale.setScalar(1);
+      return;
     }
 
     g.visible = true;
@@ -128,12 +137,15 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     // ── Phase 1: scare pop ─────────────────────────────────────────
     if (a.phase === 1) {
       a.popT = Math.min(1, a.popT + safeDt / POP_DURATION);
-      // Overshoot ease (back-out)
+      // Overshoot ease (back-out): starts at 0, overshoots ~1.10 around
+      // tt=0.55, settles to 1. Min scale clamped to 0.05 so the diver
+      // doesn't ever go completely invisible inside the animation window —
+      // we want the player to SEE the pop, not miss it on a slow frame.
       const tt = a.popT;
       const s = 1.70158;
       const c = tt - 1;
       const ease = 1 + c * c * ((s + 1) * c + s);
-      const sc = THREE.MathUtils.clamp(ease, 0, 1.18);
+      const sc = THREE.MathUtils.clamp(ease, 0.05, 1.18);
       g.scale.setScalar(sc);
       // Slight lurch forward at the start
       inner.position.z = Math.max(0, (1 - tt) * 0.35);
@@ -146,6 +158,12 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         inner.position.z = 0;
         inner.rotation.x = 0;
       }
+    } else if (a.phase >= 2 && a.phase < 4) {
+      // Hold scale at 1 explicitly. If something else (R3F reconciler,
+      // remount, etc.) ever ends up resetting the scale, this re-asserts
+      // the correct value every frame. Cheap insurance against the
+      // class of "diver never shows up" bugs.
+      g.scale.setScalar(1);
     }
 
     // ── Common: face the player on XZ ──────────────────────────────
@@ -285,11 +303,20 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
   //   hat:     2.05
 
   return (
-    <group ref={groupRef} position={[DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]]} visible={false} scale={0}>
-      {/* Soft glow at his feet — calling attention to the NPC. Distance is
-          finite to avoid the SpotLight=0 black-screen bug. */}
-      <pointLight position={[0, 1.4, 0]} intensity={0.9} distance={4.5} decay={1.6} color="#FFE9A8" />
-      <pointLight position={[0, 0.2, 0]} intensity={0.6} distance={2.5} decay={2.0} color="#FFD080" />
+    <group ref={groupRef} position={[DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]]} visible={false}>
+      {/* Bright key light right ON the diver — pulls him out of the cave
+          gloom. Two stacked point lights give a warm "hotel lantern" wash
+          that reads from far away. Distance is finite (never 0). */}
+      <pointLight position={[0, 1.8, 0]} intensity={3.4} distance={8} decay={1.2} color="#FFE9A8" />
+      <pointLight position={[0, 0.6, 0]} intensity={2.0} distance={4} decay={1.6} color="#FFD080" />
+      {/* Atmospheric ground glow — sells him as a beacon */}
+      <sprite position={[0, 0.05, 0]} scale={[4, 1.4, 1]}>
+        <spriteMaterial color="#FFE9A8" transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+      </sprite>
+      {/* Soft halo behind the diver — billboard, additive */}
+      <sprite position={[0, 1.4, 0]} scale={[5, 5, 1]}>
+        <spriteMaterial color="#FFC880" transparent opacity={0.18} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+      </sprite>
 
       <group ref={innerRef}>
         {/* ── SHOES ── */}

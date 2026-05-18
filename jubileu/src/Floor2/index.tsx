@@ -105,9 +105,9 @@ const UnderwaterLighting: React.FC<{
     const shaftPointRef = useRef<THREE.PointLight>(null);
 
     // Stable Color instances to lerp toward — avoids allocating per frame
-    const _ambCave = useMemo(() => new THREE.Color('#d8c0a0'), []);
+    const _ambCave = useMemo(() => new THREE.Color('#e8d4b0'), []);
     const _ambWater = useMemo(() => new THREE.Color('#4090b0'), []);
-    const _hemiCave = useMemo(() => new THREE.Color('#c8a888'), []);
+    const _hemiCave = useMemo(() => new THREE.Color('#d0b89a'), []);
     const _hemiWater = useMemo(() => new THREE.Color('#3aa0c0'), []);
     const _ambTmp = useMemo(() => new THREE.Color(), []);
     const _hemiTmp = useMemo(() => new THREE.Color(), []);
@@ -122,18 +122,20 @@ const UnderwaterLighting: React.FC<{
 
         const k = Math.min(1, 8 * safeDt);
 
-        // Ambient — fade from warm cave to cool underwater cyan
+        // Ambient — much brighter in the cave so the dark stone textures
+        // are readable; cool down + dim slightly underwater for contrast.
         if (ambientRef.current) {
             _ambTmp.copy(_ambCave).lerp(_ambWater, tWater);
             ambientRef.current.color.lerp(_ambTmp, k);
-            const tgtInt = 0.45 - tWater * 0.10;   // dim a bit underwater
+            const tgtInt = 1.10 - tWater * 0.45;
             ambientRef.current.intensity += (tgtInt - ambientRef.current.intensity) * k;
         }
-        // Hemisphere — also cool down
+        // Hemisphere — same idea: bright warm key from above in the cave,
+        // colder and dimmer underwater.
         if (hemiRef.current) {
             _hemiTmp.copy(_hemiCave).lerp(_hemiWater, tWater);
             hemiRef.current.color.lerp(_hemiTmp, k);
-            const tgtInt = 0.35 + tWater * 0.05;
+            const tgtInt = 0.70 - tWater * 0.10;
             hemiRef.current.intensity += (tgtInt - hemiRef.current.intensity) * k;
         }
         // Directional light — only "active" underwater, focused down from hole
@@ -156,8 +158,8 @@ const UnderwaterLighting: React.FC<{
 
     return (
         <>
-            <ambientLight ref={ambientRef} intensity={0.45} color="#d8c0a0" />
-            <hemisphereLight ref={hemiRef} intensity={0.35} color="#c8a888" groundColor="#0a1418" />
+            <ambientLight ref={ambientRef} intensity={1.10} color="#e8d4b0" />
+            <hemisphereLight ref={hemiRef} intensity={0.70} color="#d0b89a" groundColor="#1a1208" />
             <directionalLight
                 position={[HOLE_CENTER_X, 12, HOLE_CENTER_Z]}
                 target-position={[HOLE_CENTER_X, -25, HOLE_CENTER_Z]}
@@ -286,19 +288,30 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
     return (
     <group>
-        <color attach="background" args={['#0e0a08']} />
-        <fog attach="fog" args={['#0e0a08', 8, 70]} />
+        <color attach="background" args={['#1c1410']} />
+        <fog attach="fog" args={['#1c1410', 14, 110]} />
 
-        {/* Horror lighting — dark but visible: textures need enough light.
-            Cave-toned lights (driven dynamically by UnderwaterLighting based on
-            player Y) — fades to cool cyan when the player submerges. */}
+        {/* Cave lighting — moody but visible. Significantly brighter than
+            the original horror lobby so the player can read the geometry
+            and see the diver/items. UnderwaterLighting handles the
+            warm-cave-to-cool-cyan transition as the player submerges. */}
         <UnderwaterLighting playerPositionRef={playerPositionRef} reflective={reflective} />
-        <directionalLight position={[5, 20, 5]} intensity={0.40} color="#ffe8c0" />
+        <directionalLight position={[5, 20, 5]} intensity={0.95} color="#ffe8c0" />
+        {/* Secondary key light from the opposite side — fills shadows on
+            the elevator wall when the player exits. */}
+        <directionalLight position={[-8, 15, -8]} intensity={0.55} color="#fff0d0" />
+        {/* Elevator exit lantern — bright warm pointLight right in front
+            of the doors, so the player and the diver are both well-lit
+            the moment doors open. Finite distance (never 0). */}
+        <pointLight position={[0, 3.0, -7]} intensity={2.8} distance={12} decay={1.4} color="#FFE0B2" />
 
         {/* Ember sprites — warm glow on floor, NO pointLight (square artifact) */}
-        <sprite position={[-25, 0.8, 0]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#5a2008" transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
-        <sprite position={[25, 0.8, -5]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#5a2008" transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
-        <sprite position={[0, 0.8, 25]} scale={[5, 5, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#5a2008" transparent opacity={0.30} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[-25, 0.8, 0]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#7a3010" transparent opacity={0.55} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[25, 0.8, -5]} scale={[6, 6, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#7a3010" transparent opacity={0.55} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[0, 0.8, 25]} scale={[5, 5, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#7a3010" transparent opacity={0.45} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        {/* Extra ember glows near the elevator exit — frame the diver */}
+        <sprite position={[-6, 0.6, -8]} scale={[5, 5, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#FFD080" transparent opacity={0.45} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[6, 0.6, -8]} scale={[5, 5, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#FFD080" transparent opacity={0.45} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
 
         <DynamicFog playerPositionRef={playerPositionRef} />
 
