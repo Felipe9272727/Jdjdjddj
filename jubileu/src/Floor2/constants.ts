@@ -11,17 +11,17 @@ export const WATER_LEVEL_Y = -0.05;
 export const SWIM_THRESHOLD_Y = -0.3;   // below this the player is "in" the water
 
 // ─── Particle / instance counts ────────────────────────────────────────
-export const DUST_COUNT = 25;
-export const DEBRIS_COUNT = 60;
-export const SEDIMENT_COUNT = 200;
-export const PLANKTON_COUNT = 50;
-export const FISH_COUNT = 8;
-export const BUBBLE_COUNT = 35;
+export const DUST_COUNT = 40;
+export const DEBRIS_COUNT = 100;
+export const SEDIMENT_COUNT = 300;
+export const PLANKTON_COUNT = 80;
+export const FISH_COUNT = 12;
+export const BUBBLE_COUNT = 50;
 export const BUBBLE_RANGE = 18;
 export const BUBBLE_RISE = 0.5;
 export const BUBBLE_MAX_Y = WATER_LEVEL_Y - 0.5;
 export const BUBBLE_MIN_Y = -29;
-export const SURFACE_BUBBLE_COUNT = 15;
+export const SURFACE_BUBBLE_COUNT = 25;
 export const SURFACE_BUBBLE_RING_RADIUS = HOLE_RADIUS * 0.8;
 export const COLLECT_DIST_SQ = 1.4 * 1.4;
 
@@ -64,6 +64,13 @@ export const CAVE_ROCKS_MID: readonly Boulder[] = [
     [ 16, 0, -20, 1.2, 0.6],
     [-13, 0,  22, 1.0, 1.1],
     [ 20, 0, -14, 1.1, 0.7],
+    // Additional mid rocks
+    [ -5, 0,   8, 1.0, 0.9],
+    [  8, 0,  -4, 0.9, 1.6],
+    [-22, 0,  12, 1.1, 2.0],
+    [ 23, 0,   6, 0.8, 0.3],
+    [ -3, 0, -20, 1.2, 1.5],
+    [ 11, 0,  10, 1.0, 0.4],
 ] as const;
 
 // "Light" group — scattered small bright stones
@@ -74,14 +81,21 @@ export const CAVE_ROCKS_LIGHT: readonly Boulder[] = [
     [ 10,  0, -26, 0.8, 1.9],
     [-26,  0, -18, 0.7, 0.4],
     [ 26,  0,  20, 0.6, 1.5],
+    // Additional light rocks
+    [ -4,  0,  -8, 0.65,0.8],
+    [ 20,  0,  14, 0.55,1.4],
+    [-14,  0,   4, 0.70,0.5],
+    [ 16,  0,  -8, 0.60,2.0],
+    [ -1,  0,  18, 0.75,1.1],
+    [  6,  0, -22, 0.65,0.7],
 ] as const;
 
 // ─── Pool rim — large boulders forming the edge of the water pit ──────
 export const POOL_RIM: readonly Boulder[] = (() => {
     const r = HOLE_RADIUS + 1.2;
     const result: Boulder[] = [];
-    for (let i = 0; i < 20; i++) {
-        const a = (i / 20) * Math.PI * 2;
+    for (let i = 0; i < 24; i++) {
+        const a = (i / 24) * Math.PI * 2;
         const jitter = 0.7 + (Math.sin(i * 13.7) * 0.5 + 0.5) * 0.5;
         const x = HOLE_CENTER_X + Math.cos(a) * r * jitter;
         const z = HOLE_CENTER_Z + Math.sin(a) * r * jitter;
@@ -109,6 +123,13 @@ export const STALAGMITES: readonly Stalactite[] = [
     [ 25,   8, 2.0, 0.5],
     [-12, -5,  1.4, 0.3],
     [ 18,  22, 1.7, 0.4],
+    // New additions
+    [-25,  -8, 2.6, 0.7],
+    [ 12, -22, 1.9, 0.5],
+    [ -6,  10, 1.2, 0.3],
+    [ 22,  14, 2.3, 0.6],
+    [-16,   0, 1.7, 0.4],
+    [  4,  -2, 1.1, 0.3],
 ];
 export const STALACTITES: readonly Stalactite[] = [
     [-12,  10, 1.5, 0.4],
@@ -126,6 +147,14 @@ export const STALACTITES: readonly Stalactite[] = [
     [ 0,  -12, 1.5, 0.4],
     [-25,  -8, 1.9, 0.5],
     [ 20,  -3, 1.6, 0.4],
+    // New additions
+    [  9,  -5, 1.3, 0.35],
+    [-10,  22, 1.6, 0.4],
+    [ 25,  -12, 2.1, 0.5],
+    [ -2,   6, 1.1, 0.3],
+    [ 14,  -18, 1.8, 0.45],
+    [-20,  12, 1.4, 0.35],
+    [  7,  24, 1.9, 0.5],
 ];
 
 // ─── Crystals — colored emissive accents along the walls ─────────────
@@ -158,6 +187,24 @@ export const CRYSTALS: readonly Crystal[] = [
     [ 15,  0.2,   8, '#ff6b9d'],
     [ -5,  0.4, -20, '#4dc9f6'],
     [ 25,  0.3,   0, '#f7c948'],
+    // Additional wall crystals — extended mineral veins
+    [-28,  2.8,  15, '#a8e6ff'],
+    [ 28,  4.2, -14, '#d4b8ff'],
+    [-22,  1.8,  28, '#ff9ad8'],
+    [ 18,  3.2, -28, '#ffd066'],
+    [-28,  5.5, -10, '#9affae'],
+    [ 28,  2.0,  -1, '#84d8ff'],
+    // Additional ceiling crystals
+    [ -5,  7.4,  -8, '#c39bff'],
+    [ 14,  7.6,   2, '#9ae6ff'],
+    [-25,  7.8,   0, '#ff9ad8'],
+    [  3,  7.2, -18, '#84d8ff'],
+    // Additional floor mineral veins
+    [-12,  0.2,  14, '#00ffaa'],
+    [ 22,  0.4, -16, '#ff6b9d'],
+    [ -8,  0.3, -25, '#4dc9f6'],
+    [ 10,  0.2,  22, '#f7c948'],
+    [ -1,  0.3,   5, '#66ffcc'],
 ];
 
 // ─── Central torches ──────────────────────────────────────────────────
@@ -187,6 +234,17 @@ export const UW_BOULDERS: readonly Boulder[] = [
     [  0, -28.5,-22, 2.8, 0.5],
     [ 22, -28.4, 12, 2.6, 1.1],
     [-20, -28.4,-16, 2.9, 0.7],
+    // Additional boulders
+    [  8, -28.3, 20, 2.3, 1.6],
+    [-16, -28.5,-20, 2.8, 0.2],
+    [ 14, -28.4, -8, 2.1, 2.0],
+    [ -7, -28.3, 22, 2.5, 1.3],
+    [ 24, -28.5,  0, 2.2, 0.8],
+    [-22, -28.4, 10, 2.7, 1.9],
+    [  2, -28.5,  8, 2.0, 0.6],
+    [ 18, -28.3,-18, 2.4, 1.4],
+    [-24, -28.4, -4, 2.6, 0.5],
+    [ 10, -28.5, 16, 2.3, 2.1],
 ] as const;
 
 export const UW_PEBBLES: readonly Boulder[] = [
@@ -202,6 +260,15 @@ export const UW_PEBBLES: readonly Boulder[] = [
     [  5, -29.6, -10, 0.4, 2.4],
     [ -4, -29.6,  14, 0.5, 1.6],
     [ 13, -29.6,  14, 0.4, 0.6],
+    // Additional pebbles
+    [ 16, -29.6,  -8, 0.35,1.0],
+    [ -10,-29.6, -12, 0.45,0.7],
+    [  8, -29.6,  18, 0.4, 2.0],
+    [-15, -29.6,   4, 0.5, 1.3],
+    [ 20, -29.6, -12, 0.35,0.4],
+    [ -3, -29.6, -18, 0.45,1.9],
+    [ 11, -29.6,   0, 0.4, 0.5],
+    [-18, -29.6,  -6, 0.55,1.1],
 ] as const;
 
 export const UW_SCATTERED_ROCKS: readonly RockFormation[] = (() => {
@@ -273,6 +340,13 @@ export const CORAL_POSITIONS: readonly CoralData[] = [
     [-12.0, -5.0, '#1a1208', 0.9],
     [13.0,  3.0, '#1a0e06', 1.0],
     [-8.0, 12.0, '#1a1610', 0.7],
+    // Additional coral positions
+    [ 7.0,  8.0, '#1a1008', 0.85],
+    [-15.0, -8.0, '#1a0e06', 0.75],
+    [ 17.0, -6.0, '#1a1610', 1.1],
+    [-6.0, 15.0, '#1a1208', 0.65],
+    [ 11.0, -12.0, '#1a0e06', 0.9],
+    [-18.0,  3.0, '#1a1610', 0.8],
 ];
 
 // ─── Rock collision data (exported for Player.tsx) ───────────────────

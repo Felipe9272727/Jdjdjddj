@@ -222,18 +222,18 @@ export const WaterCeilingDisc: React.FC = () => {
 // ─── DynamicFog — depth-based color absorption (Beer-Lambert style) ───
 export const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
     const { scene } = useThree();
-    const _fogColor = useRef(new THREE.Color('#2a2018'));
-    const _bgColor = useRef(new THREE.Color('#2a2018'));
+    const _fogColor = useRef(new THREE.Color('#1a140e'));
+    const _bgColor = useRef(new THREE.Color('#1a140e'));
     const _tgtFog = useRef(new THREE.Color());
     const _tgtBg = useRef(new THREE.Color());
-    const _surfaceFog = new THREE.Color('#1a4a70');
-    const _midFog = new THREE.Color('#0e3060');
-    const _deepFog = new THREE.Color('#081840');
-    const _caveFog = new THREE.Color('#2a2018');
-    const _surfaceBg = new THREE.Color('#1a4a70');
-    const _midBg = new THREE.Color('#0e3060');
-    const _deepBg = new THREE.Color('#081840');
-    const _caveBg = new THREE.Color('#2a2018');
+    const _surfaceFog = new THREE.Color('#0a1a2a');
+    const _midFog = new THREE.Color('#061428');
+    const _deepFog = new THREE.Color('#030a18');
+    const _caveFog = new THREE.Color('#1a140e');
+    const _surfaceBg = new THREE.Color('#0a1a2a');
+    const _midBg = new THREE.Color('#061428');
+    const _deepBg = new THREE.Color('#030a18');
+    const _caveBg = new THREE.Color('#1a140e');
 
     useFrame((_, dt) => {
         const safeDt = Math.min(dt, 0.033);
@@ -248,7 +248,7 @@ export const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<TH
             _bgColor.current.lerp(_tgtBg.current, k);
             scene.fog.color.copy(_fogColor.current);
             scene.fog.near = scene.fog.near + (8 - scene.fog.near) * k;
-            scene.fog.far = scene.fog.far + (70 - scene.fog.far) * k;
+            scene.fog.far = scene.fog.far + (80 - scene.fog.far) * k;
         } else {
             const depth = Math.abs(y - SWIM_THRESHOLD_Y);
             const t = Math.min(depth / 29, 1);
@@ -264,8 +264,8 @@ export const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<TH
             const breathe = Math.sin(performance.now() * 0.0003) * 0.5;
             const baseNear = 3.0 - t * 1.0;
             const baseFar = 35 - t * 12;
-            const tgtNear = Math.max(1.0, baseNear + breathe * 0.2);
-            const tgtFar = Math.max(12, baseFar + breathe * 1.0);
+            const tgtNear = t < 0.1 ? 1.0 : Math.max(0.3, baseNear + breathe * 0.2);
+            const tgtFar = t < 0.1 ? 18 : Math.max(10, baseFar + breathe * 1.0);
 
             const k = Math.min(1, 8 * safeDt);
             _fogColor.current.lerp(_tgtFog.current, k);
@@ -364,13 +364,13 @@ export const UnderwaterCaustics: React.FC = () => {
 // ─── KelpField — single useFrame driving all kelp ─────────────────────
 export const KelpField: React.FC = () => {
     const meshRefs = useRef<(THREE.Mesh | null)[][]>(
-        KELP_POSITIONS.map(() => new Array(3).fill(null))
+        KELP_POSITIONS.map(() => new Array(5).fill(null))
     );
     useFrame((state) => {
         const t = state.clock.elapsedTime;
         for (let k = 0; k < KELP_POSITIONS.length; k++) {
             const phase = KELP_POSITIONS[k][3];
-            const segments = 3;
+            const segments = 5;
             for (let i = 0; i < segments; i++) {
                 const m = meshRefs.current[k]?.[i];
                 if (!m) continue;
@@ -383,7 +383,7 @@ export const KelpField: React.FC = () => {
     return (
         <>
             {KELP_POSITIONS.map(([x, z, height, phase], k) => {
-                const segments = 3;
+                const segments = 5;
                 const segLen = height / segments;
                 return (
                     <group key={`kelp-${k}`} position={[x, -30, z]}>
@@ -417,19 +417,19 @@ export const KelpField: React.FC = () => {
 export const Coral: React.FC<{ x: number; z: number; color: string; scale: number }> = ({ x, z, color, scale }) => (
     <group position={[x, -30, z]} scale={scale}>
         <mesh position={[0, 0.3, 0]}>
-            <dodecahedronGeometry args={[0.5, 0]} />
+            <dodecahedronGeometry args={[0.5, 1]} />
             <meshStandardMaterial color="#1a1a10" roughness={0.95} metalness={0.05} flatShading />
         </mesh>
         <mesh position={[0, 1.0, 0]} rotation={[0.1, 0, 0.15]}>
-            <cylinderGeometry args={[0.06, 0.1, 1.2, 5]} />
+            <cylinderGeometry args={[0.06, 0.1, 1.2, 8]} />
             <meshStandardMaterial color={color} roughness={0.9} flatShading />
         </mesh>
         <mesh position={[0.15, 1.5, 0.1]} rotation={[0, 0.4, 0.3]}>
-            <cylinderGeometry args={[0.04, 0.07, 0.8, 5]} />
+            <cylinderGeometry args={[0.04, 0.07, 0.8, 8]} />
             <meshStandardMaterial color={color} roughness={0.9} flatShading />
         </mesh>
         <mesh position={[-0.12, 1.4, -0.08]} rotation={[0.2, -0.3, -0.25]}>
-            <cylinderGeometry args={[0.04, 0.06, 0.7, 5]} />
+            <cylinderGeometry args={[0.04, 0.06, 0.7, 8]} />
             <meshStandardMaterial color={color} roughness={0.9} flatShading />
         </mesh>
         <mesh position={[0.15, 1.9, 0.1]}>
@@ -459,7 +459,7 @@ export const GodRayShafts: React.FC = () => {
     useFrame((state) => {
         if (groupRef.current) groupRef.current.rotation.y = state.clock.elapsedTime * 0.04;
     });
-    const SHAFT_COUNT = 8;
+    const SHAFT_COUNT = 12;
     return (
         <group ref={groupRef} position={[HOLE_CENTER_X, -15, HOLE_CENTER_Z]}>
             {Array.from({ length: SHAFT_COUNT }, (_, i) => {
@@ -473,9 +473,9 @@ export const GodRayShafts: React.FC = () => {
                     >
                         <planeGeometry args={[1.6 + (i % 3) * 0.4, 28]} />
                         <meshBasicMaterial
-                            color="#1a6a4a"
+                            color="#1a8a6a"
                             transparent
-                            opacity={0.18 + (i % 3) * 0.06}
+                            opacity={0.12 + (i % 3) * 0.04}
                             side={THREE.DoubleSide}
                             depthWrite={false}
                             blending={THREE.AdditiveBlending}
@@ -488,9 +488,9 @@ export const GodRayShafts: React.FC = () => {
             <mesh position={[0, 10, 0]}>
                 <coneGeometry args={[2.5, 14, 16, 1, true]} />
                 <meshBasicMaterial
-                    color="#2a7a6a"
+                    color="#1a8a6a"
                     transparent
-                    opacity={0.15}
+                    opacity={0.12}
                     side={THREE.DoubleSide}
                     depthWrite={false}
                     blending={THREE.AdditiveBlending}
@@ -501,9 +501,9 @@ export const GodRayShafts: React.FC = () => {
             <mesh position={[0, 8, 0]}>
                 <coneGeometry args={[1.2, 10, 12, 1, true]} />
                 <meshBasicMaterial
-                    color="#2a8a7a"
+                    color="#2a9a8a"
                     transparent
-                    opacity={0.12}
+                    opacity={0.10}
                     side={THREE.DoubleSide}
                     depthWrite={false}
                     blending={THREE.AdditiveBlending}

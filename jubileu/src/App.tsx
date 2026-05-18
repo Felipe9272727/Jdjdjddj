@@ -787,22 +787,22 @@ export default function App() {
         {hasStarted && settings.quality === 'high' && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
                 <Bloom
-                    intensity={0.35}
-                    luminanceThreshold={0.95}
+                    intensity={currentLevel === 2 ? 0.6 : 0.35}
+                    luminanceThreshold={currentLevel === 2 ? 0.8 : 0.95}
                     luminanceSmoothing={0.2}
                     mipmapBlur
-                    kernelSize={KernelSize.MEDIUM}
+                    kernelSize={currentLevel === 2 ? KernelSize.LARGE : KernelSize.MEDIUM}
                 />
                 <ChromaticAberration
                     blendFunction={BlendFunction.NORMAL}
-                    offset={currentLevel === 2 ? [0.002, 0.002] as unknown as Vector3 : [0, 0] as unknown as Vector3}
-                    radialModulation={false}
-                    modulationOffset={0.0}
+                    offset={currentLevel === 2 ? [0.004, 0.003] as unknown as Vector3 : [0, 0] as unknown as Vector3}
+                    radialModulation={currentLevel === 2}
+                    modulationOffset={0.15}
                 />
                 <Vignette
                     eskil={false}
-                    offset={currentLevel === 2 ? 0.4 : 0.2}
-                    darkness={currentLevel === 2 ? 0.6 : 0.3}
+                    offset={currentLevel === 2 ? 0.3 : 0.2}
+                    darkness={currentLevel === 2 ? 0.65 : 0.3}
                 />
             </EffectComposer>
         )}

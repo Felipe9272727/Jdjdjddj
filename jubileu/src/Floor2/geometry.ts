@@ -34,11 +34,11 @@ export const GLOW_TEXTURE = (() => {
 })();
 
 // ─── Shared simple geometries ─────────────────────────────────────────
-export const BUBBLE_GEO  = new THREE.SphereGeometry(1, 6, 5);
-export const SHARD_GEO   = new THREE.OctahedronGeometry(0.5, 0);
-export const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 0);
-export const CRYSTAL_GEO = new THREE.OctahedronGeometry(0.35, 0);
-export const KELP_GEO    = new THREE.CylinderGeometry(0.06, 0.10, 1, 5, 4);
+export const BUBBLE_GEO  = new THREE.SphereGeometry(1, 10, 8);
+export const SHARD_GEO   = new THREE.IcosahedronGeometry(0.5, 1);
+export const PEBBLE_GEO  = new THREE.IcosahedronGeometry(1, 1);
+export const CRYSTAL_GEO = new THREE.OctahedronGeometry(0.35, 1);
+export const KELP_GEO    = new THREE.CylinderGeometry(0.06, 0.10, 1, 8, 6);
 export const FISH_GEO    = new THREE.ConeGeometry(0.18, 0.55, 4);
 export const DEBRIS_GEO  = new THREE.SphereGeometry(1, 3, 2);
 export const PLANKTON_GEO = new THREE.SphereGeometry(1, 4, 3);
@@ -204,14 +204,90 @@ export const CAVE_FLOOR_GEO = (() => {
     return geo;
 })();
 
-// Cave ceiling — 3D organic, not flat
-export const CAVE_CEILING_GEO = createCaveCeiling(62, 62, 80, 99);
+// Cave ceiling — displaced PlaneGeometry
+export const CAVE_CEILING_GEO = (() => {
+    const geo = new THREE.PlaneGeometry(62, 62, 60, 60);
+    const positions = geo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < positions.count; i++) {
+        v.fromBufferAttribute(positions, i);
+        const n = Math.sin(v.x * 0.3 + 1.7) * 0.6 + Math.cos(v.y * 0.4 + 3.1) * 0.5
+                + Math.sin(v.x * 0.7 + v.y * 0.5 + 2.2) * 0.3
+                + Math.cos(v.x * 1.2 + v.y * 0.9 + 0.8) * 0.15;
+        positions.setZ(i, v.z + n);
+    }
+    positions.needsUpdate = true;
+    geo.computeVertexNormals();
+    return geo;
+})();
 
-// DRY cave walls — organic displaced planes (above water, Y > 0)
-export const CAVE_WALL_N_GEO = createOrganicCaveWall(62, 10, 64, 0, 3.5);
-export const CAVE_WALL_S_GEO = createOrganicCaveWall(62, 10, 64, 10, 3.5);
-export const CAVE_WALL_W_GEO = createOrganicCaveWall(62, 10, 64, 20, 3.5);
-export const CAVE_WALL_E_GEO = createOrganicCaveWall(62, 10, 64, 30, 3.5);
+// Cave wall north (z = -30, faces +Z inward)
+export const CAVE_WALL_N_GEO = (() => {
+    const geo = new THREE.PlaneGeometry(62, 10, 80, 20);
+    const positions = geo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < positions.count; i++) {
+        v.fromBufferAttribute(positions, i);
+        const n = Math.sin(v.x * 0.8 + 1.3) * 0.4 + Math.cos(v.y * 0.6 + 2.1) * 0.3
+                + Math.sin(v.x * 1.5 + v.y * 0.7 + 3.2) * 0.2
+                + Math.cos(v.x * 2.8 + v.y * 1.9 + 0.5) * 0.1;
+        positions.setZ(i, v.z + n);
+    }
+    positions.needsUpdate = true;
+    geo.computeVertexNormals();
+    return geo;
+})();
+
+// Cave wall south (z = 30, faces -Z inward) — different noise seed
+export const CAVE_WALL_S_GEO = (() => {
+    const geo = new THREE.PlaneGeometry(62, 10, 80, 20);
+    const positions = geo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < positions.count; i++) {
+        v.fromBufferAttribute(positions, i);
+        const n = Math.sin(v.x * 0.7 + 3.7) * 0.35 + Math.cos(v.y * 0.5 + 0.8) * 0.3
+                + Math.sin(v.x * 1.3 + v.y * 0.9 + 1.5) * 0.2
+                + Math.cos(v.x * 2.5 + v.y * 2.1 + 4.1) * 0.1;
+        positions.setZ(i, v.z + n);
+    }
+    positions.needsUpdate = true;
+    geo.computeVertexNormals();
+    return geo;
+})();
+
+// Cave wall west (x = -30, faces +X inward)
+export const CAVE_WALL_W_GEO = (() => {
+    const geo = new THREE.PlaneGeometry(62, 10, 80, 20);
+    const positions = geo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < positions.count; i++) {
+        v.fromBufferAttribute(positions, i);
+        const n = Math.sin(v.x * 0.9 + 5.2) * 0.4 + Math.cos(v.y * 0.7 + 3.3) * 0.25
+                + Math.sin(v.x * 1.7 + v.y * 0.5 + 2.8) * 0.18
+                + Math.cos(v.x * 3.1 + v.y * 1.4 + 1.2) * 0.08;
+        positions.setZ(i, v.z + n);
+    }
+    positions.needsUpdate = true;
+    geo.computeVertexNormals();
+    return geo;
+})();
+
+// Cave wall east (x = 30, faces -X inward)
+export const CAVE_WALL_E_GEO = (() => {
+    const geo = new THREE.PlaneGeometry(62, 10, 80, 20);
+    const positions = geo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < positions.count; i++) {
+        v.fromBufferAttribute(positions, i);
+        const n = Math.sin(v.x * 0.6 + 2.5) * 0.38 + Math.cos(v.y * 0.8 + 1.9) * 0.28
+                + Math.sin(v.x * 1.1 + v.y * 1.2 + 4.3) * 0.15
+                + Math.cos(v.x * 2.3 + v.y * 2.5 + 0.7) * 0.09;
+        positions.setZ(i, v.z + n);
+    }
+    positions.needsUpdate = true;
+    geo.computeVertexNormals();
+    return geo;
+})();
 
 // UNDERWATER cave walls — organic displaced planes
 export const UW_WALL_NORTH_GEO = createOrganicCaveWall(62, 35, 64, 40, 3.5);

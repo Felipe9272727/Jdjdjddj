@@ -196,11 +196,11 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
     return (
     <group>
-        <color attach="background" args={['#2a2018']} />
-        <fog attach="fog" args={['#2a2018', 25, 140]} />
+        <color attach="background" args={['#1a140e']} />
+        <fog attach="fog" args={['#1a140e', 8, 80]} />
 
         {/* Cave lighting — atmospheric but visible */}
-        <ambientLight intensity={1.4} color="#d8c0a0" />
+        <ambientLight intensity={2.0} color="#d8c0a0" />
         <hemisphereLight intensity={1.0} color="#c8a888" groundColor="#2a2218" />
         <directionalLight position={[5, 20, 5]} intensity={1.2} color="#ffe8c0" />
         {/* Extra fill light from opposite side to reduce harsh shadows */}
@@ -211,8 +211,8 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <sprite position={[25, 0.8, -5]} scale={[8, 8, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#8a3010" transparent opacity={0.5} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
         <sprite position={[0, 0.8, 25]} scale={[7, 7, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#8a3010" transparent opacity={0.45} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
         {/* Pool rim glow — makes the water hole visible from across the cave */}
-        <sprite position={[HOLE_CENTER_X, 0.5, HOLE_CENTER_Z]} scale={[10, 10, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#1a5a8a" transparent opacity={0.55} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
-        <sprite position={[HOLE_CENTER_X, 1.2, HOLE_CENTER_Z]} scale={[14, 14, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#0a3a5a" transparent opacity={0.20} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[HOLE_CENTER_X, 0.5, HOLE_CENTER_Z]} scale={[12, 12, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#1a5a8a" transparent opacity={0.65} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
+        <sprite position={[HOLE_CENTER_X, 1.2, HOLE_CENTER_Z]} scale={[18, 18, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#0a3a5a" transparent opacity={0.25} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
 
         <DynamicFog playerPositionRef={playerPositionRef} />
 
@@ -243,25 +243,25 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
         {/* Cave ceiling — 3D ORGANIC with stalactite-like bumps */}
         <mesh position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]} geometry={CAVE_CEILING_GEO}>
-            <meshStandardMaterial color="#302820" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.90} aoMap={caveWall.ao} aoMapIntensity={0.6} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#302820" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(3.0, 3.0)} roughnessMap={caveWall.rough} roughness={0.90} aoMap={caveWall.ao} aoMapIntensity={0.6} side={THREE.DoubleSide} />
         </mesh>
 
         {/* CAVE WALLS — ORGANIC displaced PlaneGeometry */}
         {/* North wall (z = -30) — faces +Z (inward) */}
         <mesh position={[0, 5, -30]} rotation={[0, 0, 0]} geometry={CAVE_WALL_N_GEO}>
-            <meshStandardMaterial color="#302820" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.88} aoMap={caveWall.ao} aoMapIntensity={0.6} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#302820" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(4.0, 4.0)} roughnessMap={caveWall.rough} roughness={0.88} aoMap={caveWall.ao} aoMapIntensity={0.6} side={THREE.DoubleSide} />
         </mesh>
         {/* South wall (z = 30) — faces -Z (inward) */}
         <mesh position={[0, 5, 30]} rotation={[0, Math.PI, 0]} geometry={CAVE_WALL_S_GEO}>
-            <meshStandardMaterial color="#302820" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.88} aoMap={caveWall.ao} aoMapIntensity={0.6} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#302820" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(4.0, 4.0)} roughnessMap={caveWall.rough} roughness={0.88} aoMap={caveWall.ao} aoMapIntensity={0.6} side={THREE.DoubleSide} />
         </mesh>
         {/* West wall (x = -30) — faces +X (inward) */}
         <mesh position={[-30, 5, 0]} rotation={[0, Math.PI / 2, 0]} geometry={CAVE_WALL_W_GEO}>
-            <meshStandardMaterial color="#302820" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.88} aoMap={caveWall.ao} aoMapIntensity={0.6} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#302820" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(4.0, 4.0)} roughnessMap={caveWall.rough} roughness={0.88} aoMap={caveWall.ao} aoMapIntensity={0.6} side={THREE.DoubleSide} />
         </mesh>
         {/* East wall (x = 30) — faces -X (inward) */}
         <mesh position={[30, 5, 0]} rotation={[0, -Math.PI / 2, 0]} geometry={CAVE_WALL_E_GEO}>
-            <meshStandardMaterial color="#302820" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.88} aoMap={caveWall.ao} aoMapIntensity={0.6} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#302820" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(4.0, 4.0)} roughnessMap={caveWall.rough} roughness={0.88} aoMap={caveWall.ao} aoMapIntensity={0.6} side={THREE.DoubleSide} />
         </mesh>
 
         {/* Cave boulders — real GLB models with PBR textures */}
