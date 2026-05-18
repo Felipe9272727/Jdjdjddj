@@ -273,7 +273,7 @@ export default function App() {
   const wasUnderwaterRef = useRef(false);
   useEffect(() => {
     if (currentLevel !== 2) { wasUnderwaterRef.current = false; return; }
-    const SWIM_Y = -0.3;  // mirrors SWIM_THRESHOLD_Y in Floor2/constants
+    const SWIM_Y = -2.7;  // mirrors SWIM_THRESHOLD_Y in Floor2/constants
     const id = setInterval(() => {
       const isUnder = sharedPlayerPositionRef.current.y < SWIM_Y;
       if (isUnder !== wasUnderwaterRef.current) {

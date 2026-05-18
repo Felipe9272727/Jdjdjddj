@@ -7,8 +7,13 @@
 export const HOLE_CENTER_X = 0;
 export const HOLE_CENTER_Z = 5;
 export const HOLE_RADIUS = 3.0;
-export const WATER_LEVEL_Y = -0.05;
-export const SWIM_THRESHOLD_Y = -0.3;   // below this the player is "in" the water
+// Water surface sits 2.5 m below the cave floor so the hole reads as a
+// genuine well rather than a puddle.  A stone shaft is rendered between
+// y = 0 (cave floor) and WATER_LEVEL_Y so the player visibly descends
+// into the well when they walk over the edge.
+export const WATER_LEVEL_Y = -2.5;
+export const WELL_DEPTH = Math.abs(WATER_LEVEL_Y);   // = 2.5
+export const SWIM_THRESHOLD_Y = -2.7;   // below this the player is "in" the water
 
 // ─── Particle / instance counts ────────────────────────────────────────
 export const DUST_COUNT = 25;

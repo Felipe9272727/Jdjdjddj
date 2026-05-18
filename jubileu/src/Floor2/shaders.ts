@@ -228,11 +228,12 @@ export const WaterMaterial = shaderMaterial(
 
         float viewFromBelow = step(dot(vNormalWS, vViewWS), 0.0);
 
-        // Vivid color palette: deeper teal, brighter mid, sky tone
-        vec3 deep    = vec3(0.005, 0.04, 0.07);     // deep teal
-        vec3 mid     = vec3(0.04, 0.16, 0.22);      // tropical blue-green
-        vec3 shallow = vec3(0.10, 0.32, 0.34);      // bright shallow aqua
-        vec3 sky     = vec3(0.30, 0.45, 0.50);      // sky reflection
+        // Vivid color palette — pushed brighter so the well water is
+        // unmistakably WATER in the dark cave (was almost black before).
+        vec3 deep    = vec3(0.010, 0.07, 0.13);     // deep teal
+        vec3 mid     = vec3(0.07,  0.28, 0.38);     // tropical blue-green
+        vec3 shallow = vec3(0.18,  0.50, 0.52);     // bright shallow aqua
+        vec3 sky     = vec3(0.45,  0.65, 0.72);     // sky reflection
 
         // Distance from the hole center to drive a "shallow rim" gradient
         float distFromCenter = length(vWorldPos.xz - vec2(0.0, 5.0));
@@ -375,6 +376,52 @@ export const CausticsMaterial = shaderMaterial(
 
         float alpha = clamp(c * 0.6, 0.0, 0.85);
         gl_FragColor = vec4(col, alpha);
+      }
+    `
+);
+
+// ─── LightShaftMaterial — soft volumetric god ray for the water hole ──
+// Used on a cylinder (open-ended) wrapping the water column.  Fragment
+// shader fades alpha radially (centre bright, edges 0) and vertically
+// (apex bright, base & top faded) so the shaft reads as *light* rather
+// than a solid translucent cone — fixing the "PNG triangle" look.
+export const LightShaftMaterial = shaderMaterial(
+    { time: 0, intensity: 1.0, color: [0.42, 0.78, 1.0] },
+    /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vLocalPos;
+      void main() {
+        vUv = uv;
+        vLocalPos = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    /* glsl */ `
+      uniform float time;
+      uniform float intensity;
+      uniform vec3  color;
+      varying vec2 vUv;
+      varying vec3 vLocalPos;
+      void main() {
+        // vUv.x walks around the cylinder, vUv.y walks bottom→top.
+        // Cylinder is open (no caps) so we treat alpha as a soft envelope:
+        //   - vertical: bright at bottom (water surface), fading up
+        //   - around:   constant (it's a cylinder ring, not a cone)
+        // The "billboard from any angle" feel comes from camera always
+        // grazing the cylinder wall at low angle → fresnel-like glow.
+        float vertical = 1.0 - vUv.y;              // 1 at bottom, 0 at top
+        vertical = pow(vertical, 1.4);              // softer falloff
+        // Soft pulse so the shaft breathes
+        float pulse = 0.85 + 0.15 * sin(time * 0.6) + 0.05 * sin(time * 1.7 + 1.0);
+        // Dust speckles drifting upward inside the shaft
+        float speckle = step(0.985,
+          fract(sin(dot(vec2(vUv.x * 20.0, vUv.y * 60.0 - time * 0.4),
+                        vec2(12.9898, 78.233))) * 43758.5453));
+        // Combine
+        float a = vertical * pulse * intensity * 0.18;
+        vec3  c = color * (vertical * 1.4 + 0.2);
+        c += color * speckle * 1.8;
+        gl_FragColor = vec4(c, a);
       }
     `
 );

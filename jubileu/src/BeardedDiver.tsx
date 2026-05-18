@@ -313,14 +313,14 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       groundGlowMatRef.current.opacity = st === 'fading' ? pulse * (1 - t.fadeT) : pulse;
     }
     if (keyLightRef.current) {
-      const base = 5.5;  // brighter front key so GLB textures are clearly lit
-      const spawnBoost = st === 'spawn' ? (1 - t.popT) * 5.0 : 0;
+      const base = 8.5;  // strong front key so GLB textures pop in cave
+      const spawnBoost = st === 'spawn' ? (1 - t.popT) * 6.0 : 0;
       const fadeMult = st === 'fading' ? (1 - t.fadeT) : 1;
       keyLightRef.current.intensity = (base + spawnBoost) * fadeMult;
     }
     if (fillLightRef.current) {
       const fadeMult = st === 'fading' ? (1 - t.fadeT) : 1;
-      fillLightRef.current.intensity = 3.0 * fadeMult;
+      fillLightRef.current.intensity = 4.5 * fadeMult;
     }
   });
 
@@ -338,18 +338,28 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
 
   return (
     <group ref={groupRef} position={[DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]]} visible={false}>
+      {/* Dedicated hemisphereLight scoped to the diver so the cave's
+          dark fog doesn't swallow the GLB's PBR textures.  Sky = warm
+          torch glow, ground = cool reflected cyan from the water.
+          Adds a flat fill across every face of the model regardless
+          of where the key light is hitting. */}
+      <hemisphereLight color="#FFD080" groundColor="#4A6F8A" intensity={1.6} />
+
       {/* Three-point lighting — all positions relative to the diver's
           LOCAL space so they rotate with him and always light his face.
           +Z is toward the player (the direction the diver faces).
 
           Key  : high-front-right, warm, driven by refs (spawn boost etc.)
           Fill : low-front-left, softer warm, driven by refs
-          Rim  : behind the diver (-Z), cool cyan — creates silhouette depth
-          Bounce: below, warm amber — simulates light bouncing off the cave floor */}
-      <pointLight ref={keyLightRef}  position={[ 0.8, 2.2,  1.6]} intensity={0} distance={7} decay={1.4} color="#FFE4A0" />
-      <pointLight ref={fillLightRef} position={[-0.6, 1.2,  1.4]} intensity={0} distance={5} decay={1.6} color="#FFD580" />
-      <pointLight position={[0, 1.5, -1.5]} intensity={3.2} distance={5} decay={1.2} color="#4ABFDC" />
-      <pointLight position={[0, 0.1,  0.8]} intensity={1.4} distance={4} decay={2.0} color="#C08040" />
+          Face : very close in front, soft kicker — guarantees the face
+                 is always readable even from across the cave
+          Rim  : behind the diver (-Z), cool cyan — silhouette pop
+          Bounce: below, warm amber — light bouncing off cave floor */}
+      <pointLight ref={keyLightRef}  position={[ 0.9, 2.4,  1.4]} intensity={0} distance={9}  decay={1.1} color="#FFE2A0" />
+      <pointLight ref={fillLightRef} position={[-0.8, 1.3,  1.2]} intensity={0} distance={6}  decay={1.3} color="#FFD080" />
+      <pointLight position={[ 0.0, 1.65, 0.9]} intensity={4.0} distance={3} decay={1.1} color="#FFF0CC" />
+      <pointLight position={[ 0.0, 1.5, -1.5]} intensity={3.8} distance={5}  decay={1.2} color="#5AC8E0" />
+      <pointLight position={[ 0.0, 0.1,  0.6]} intensity={2.0} distance={4}  decay={1.8} color="#D08850" />
 
       {/* Ground glow */}
       <sprite position={[0, 0.05, 0]} scale={[4, 1.4, 1]}>

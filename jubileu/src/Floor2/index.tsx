@@ -6,9 +6,10 @@
  * previously exported from the monolithic Floor2Underwater.tsx.
  */
 
-import React, { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import React, { useMemo, useRef, useEffect } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Instances, Instance, useTexture, useGLTF } from '@react-three/drei';
+import { RoomEnvironment } from 'three-stdlib';
 import * as THREE from 'three';
 import { ElevatorFacade } from '../Elevator';
 import {
@@ -72,7 +73,7 @@ import {
     GodRay, GodRays, Shard,
 } from './components';
 
-import { CausticsMaterial } from './shaders';
+import { CausticsMaterial, LightShaftMaterial } from './shaders';
 
 // ─── Texture loading helper ────────────────────────────────────────
 function usePBRSet(colorUrl: string, normalUrl: string, roughUrl: string, aoUrl: string, repeatX: number, repeatY: number) {
@@ -131,42 +132,66 @@ const BIO_POSITIONS: readonly [number, number, number, string, number][] = [
 // breathing softly so the cave never feels static. Visible from across
 // the cave when the player is above water.
 const UpwardLightShaft: React.FC = () => {
-    const matRef = useRef<THREE.MeshBasicMaterial>(null);
-    const haloMatRef = useRef<THREE.SpriteMaterial>(null);
+    // Two stacked, open-cylinder shells using the LightShaftMaterial.
+    // Combined with a soft halo billboard at the source and a tight
+    // additive halo at the top, the result reads as a continuous god
+    // ray rather than a hard-edged cone.
+    const matInner = useMemo(() => {
+        const m = new (LightShaftMaterial as any)();
+        m.transparent = true; m.depthWrite = false; m.toneMapped = false;
+        m.blending = THREE.AdditiveBlending; m.side = THREE.DoubleSide;
+        return m;
+    }, []);
+    const matOuter = useMemo(() => {
+        const m = new (LightShaftMaterial as any)();
+        m.transparent = true; m.depthWrite = false; m.toneMapped = false;
+        m.blending = THREE.AdditiveBlending; m.side = THREE.DoubleSide;
+        return m;
+    }, []);
+    const haloRef = useRef<THREE.SpriteMaterial>(null);
+    const topGlowRef = useRef<THREE.SpriteMaterial>(null);
     useFrame((state) => {
         const t = state.clock.elapsedTime;
-        const breath = 0.5 + Math.sin(t * 0.5) * 0.2 + Math.sin(t * 1.3) * 0.08;
-        if (matRef.current) matRef.current.opacity = 0.045 + breath * 0.04;
-        if (haloMatRef.current) haloMatRef.current.opacity = 0.35 + breath * 0.18;
+        const breath = 0.85 + Math.sin(t * 0.6) * 0.12 + Math.sin(t * 1.7) * 0.05;
+        (matInner as any).time = t;
+        (matInner as any).intensity = breath * 1.20;
+        (matOuter as any).time = t * 0.7 + 5.0;
+        (matOuter as any).intensity = breath * 0.55;
+        if (haloRef.current) haloRef.current.opacity = 0.55 + breath * 0.20;
+        if (topGlowRef.current) topGlowRef.current.opacity = 0.30 + breath * 0.15;
     });
     return (
         <group position={[HOLE_CENTER_X, WATER_LEVEL_Y, HOLE_CENTER_Z]}>
-            {/* Vertical cone — apex down at the water, base up at ceiling.
-                ConeGeometry has apex at +Y/2; we flip the rotation so the
-                apex sits at the water surface and the cone spreads upward.
-                Open cone (last arg true), additive, no depth write. */}
+            {/* Inner shaft: tighter, more concentrated.
+                Open-ended cylinder (last arg = true) so we don't render top/bottom caps. */}
             <mesh position={[0, 4.0, 0]}>
-                <coneGeometry args={[3.0, 8.0, 24, 1, true]} />
-                <meshBasicMaterial
-                    ref={matRef}
-                    color="#7ad4e8"
-                    transparent
-                    opacity={0.06}
-                    side={THREE.DoubleSide}
-                    depthWrite={false}
-                    blending={THREE.AdditiveBlending}
-                    toneMapped={false}
-                />
+                <cylinderGeometry args={[1.2, 1.8, 8.0, 32, 1, true]} />
+                <primitive object={matInner} attach="material" />
             </mesh>
-            {/* Halo billboard at the water surface so the shaft has a
-                bright "source" base — like the light is emanating from a
-                spot above the water. */}
-            <sprite position={[0, 0.05, 0]} scale={[6, 6, 1]}>
+            {/* Outer shaft: wider, fainter, softer falloff for the volumetric halo */}
+            <mesh position={[0, 4.0, 0]}>
+                <cylinderGeometry args={[2.4, 3.0, 8.0, 32, 1, true]} />
+                <primitive object={matOuter} attach="material" />
+            </mesh>
+            {/* Bright source halo on the water — billboard, soft falloff */}
+            <sprite position={[0, 0.08, 0]} scale={[7, 7, 1]}>
                 <spriteMaterial
-                    ref={haloMatRef}
-                    color="#9af0ff"
+                    ref={haloRef}
+                    color="#a8e8ff"
                     transparent
-                    opacity={0.4}
+                    opacity={0.55}
+                    depthWrite={false}
+                    toneMapped={false}
+                    blending={THREE.AdditiveBlending}
+                />
+            </sprite>
+            {/* Subtle top glow where the shaft reaches the ceiling */}
+            <sprite position={[0, 7.6, 0]} scale={[5, 2.2, 1]}>
+                <spriteMaterial
+                    ref={topGlowRef}
+                    color="#9ad8ee"
+                    transparent
+                    opacity={0.30}
                     depthWrite={false}
                     toneMapped={false}
                     blending={THREE.AdditiveBlending}
@@ -339,6 +364,30 @@ const UnderwaterLighting: React.FC<{
     );
 };
 
+// ─── CaveIBL — procedural environment map for PBR materials ───────────
+// Generates a small PMREM (pre-filtered mipmap radiance environment map)
+// from Three.js's RoomEnvironment.  This gives PBR materials (the GLB
+// concierge, the wet rock around the well, the cave rocks) something to
+// reflect, which is what makes them read as 3D surfaces instead of flat
+// colour planes.  Self-contained — no HDRI download.
+const CaveIBL: React.FC = () => {
+    const { gl, scene } = useThree();
+    useEffect(() => {
+        const pmrem = new THREE.PMREMGenerator(gl);
+        pmrem.compileEquirectangularShader();
+        const room = new RoomEnvironment();
+        const envRT = pmrem.fromScene(room, 0.04);
+        scene.environment = envRT.texture;
+        // Don't set scene.background — DynamicFog owns background colour.
+        return () => {
+            scene.environment = null;
+            envRT.dispose();
+            pmrem.dispose();
+        };
+    }, [gl, scene]);
+    return null;
+};
+
 // ─── Full level ────────────────────────────────────────────────────────
 interface Floor2EnvironmentProps {
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
@@ -452,6 +501,15 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             and see the diver/items. UnderwaterLighting handles the
             warm-cave-to-cool-cyan transition as the player submerges. */}
         <UnderwaterLighting playerPositionRef={playerPositionRef} reflective={reflective} />
+
+        {/* IBL — feeds PBR materials (cave rocks, GLB NPC) with proper
+            reflections.  Without an environment map the Tripo concierge's
+            metallicRoughnessTexture has nothing to reflect, so the model
+            renders as flat shaded surfaces ("PNG-like").
+            Uses Three's procedural RoomEnvironment so the bundle stays
+            self-contained (no external HDRI download). */}
+        <CaveIBL />
+
         <directionalLight position={[5, 20, 5]} intensity={0.95} color="#ffe8c0" />
         {/* Secondary key light from the opposite side — fills shadows on
             the elevator wall when the player exits. */}
@@ -578,6 +636,45 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Floating dust motes catching the warm light */}
         <DustMotes />
 
+        {/* ─── WELL SHAFT — stone walls from cave floor down to water ─── */}
+        {/* Inward-facing cylinder (BackSide) creates the illusion of a
+            real well: the player walks over the rim, sees stone walls
+            descending below, and the water surface sits at the bottom.
+            Rock texture matches the surrounding cave rock for cohesion. */}
+        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y / 2, HOLE_CENTER_Z]}>
+            <cylinderGeometry args={[HOLE_RADIUS - 0.02, HOLE_RADIUS - 0.02, Math.abs(WATER_LEVEL_Y), 48, 6, true]} />
+            <meshStandardMaterial
+                color="#1b1610"
+                map={caveRock.color}
+                normalMap={caveRock.normal}
+                normalScale={new THREE.Vector2(2.2, 2.2)}
+                roughnessMap={caveRock.rough}
+                roughness={0.95}
+                aoMap={caveRock.ao}
+                aoMapIntensity={1.0}
+                side={THREE.BackSide}
+            />
+        </mesh>
+        {/* Inner foam / wet-rock ring just at the water line — bright,
+            slightly emissive band so the eye instantly registers "water". */}
+        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y + 0.04, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[HOLE_RADIUS - 0.20, HOLE_RADIUS - 0.02, 64, 1]} />
+            <meshStandardMaterial
+                color="#cbe8f0"
+                emissive="#5aa8bd"
+                emissiveIntensity={0.55}
+                roughness={0.6}
+                transparent
+                opacity={0.85}
+                side={THREE.DoubleSide}
+                toneMapped={false}
+            />
+        </mesh>
+        {/* Strong downward point light hanging above the water — illuminates
+            the well walls and water surface from above so the depth reads. */}
+        <pointLight position={[HOLE_CENTER_X, 1.2, HOLE_CENTER_Z]} intensity={3.5} distance={8} decay={1.4} color="#a8d8f0" />
+        <pointLight position={[HOLE_CENTER_X, WATER_LEVEL_Y + 0.5, HOLE_CENTER_Z]} intensity={2.2} distance={5} decay={1.5} color="#7ac0d4" />
+
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
         <WaterSurface reflective={reflective} />
 
@@ -586,8 +683,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {reflective && <CeilingReflectionCaustics />}
 
         {/* Vertical cyan glow shaft from the water surface — visible from
-            across the cave, magic-source feel. Always-on (cheap), since
-            the cone has only 24 segments and a single material. */}
+            across the cave, magic-source feel. */}
         <UpwardLightShaft />
 
         {/* Opaque water column */}
