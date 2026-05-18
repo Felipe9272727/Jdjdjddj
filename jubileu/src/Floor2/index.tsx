@@ -125,6 +125,57 @@ const BIO_POSITIONS: readonly [number, number, number, string, number][] = [
 // ceiling, sized to the water hole, with a warm tint (matches the
 // ember sprites' glow color) and additive blending so it brightens
 // instead of darkening the ceiling texture.
+// ─── UpwardLightShaft — magical vertical glow rising from the water ─
+// Reads as "there's something supernatural about this hole" — a Subnautica/
+// Sea of Thieves trope. A vertical cone with very low additive opacity,
+// breathing softly so the cave never feels static. Visible from across
+// the cave when the player is above water.
+const UpwardLightShaft: React.FC = () => {
+    const matRef = useRef<THREE.MeshBasicMaterial>(null);
+    const haloMatRef = useRef<THREE.SpriteMaterial>(null);
+    useFrame((state) => {
+        const t = state.clock.elapsedTime;
+        const breath = 0.5 + Math.sin(t * 0.5) * 0.2 + Math.sin(t * 1.3) * 0.08;
+        if (matRef.current) matRef.current.opacity = 0.045 + breath * 0.04;
+        if (haloMatRef.current) haloMatRef.current.opacity = 0.35 + breath * 0.18;
+    });
+    return (
+        <group position={[HOLE_CENTER_X, WATER_LEVEL_Y, HOLE_CENTER_Z]}>
+            {/* Vertical cone — apex down at the water, base up at ceiling.
+                ConeGeometry has apex at +Y/2; we flip the rotation so the
+                apex sits at the water surface and the cone spreads upward.
+                Open cone (last arg true), additive, no depth write. */}
+            <mesh position={[0, 4.0, 0]}>
+                <coneGeometry args={[3.0, 8.0, 24, 1, true]} />
+                <meshBasicMaterial
+                    ref={matRef}
+                    color="#7ad4e8"
+                    transparent
+                    opacity={0.06}
+                    side={THREE.DoubleSide}
+                    depthWrite={false}
+                    blending={THREE.AdditiveBlending}
+                    toneMapped={false}
+                />
+            </mesh>
+            {/* Halo billboard at the water surface so the shaft has a
+                bright "source" base — like the light is emanating from a
+                spot above the water. */}
+            <sprite position={[0, 0.05, 0]} scale={[6, 6, 1]}>
+                <spriteMaterial
+                    ref={haloMatRef}
+                    color="#9af0ff"
+                    transparent
+                    opacity={0.4}
+                    depthWrite={false}
+                    toneMapped={false}
+                    blending={THREE.AdditiveBlending}
+                />
+            </sprite>
+        </group>
+    );
+};
+
 const CeilingReflectionCaustics: React.FC = () => {
     const mat = useMemo(() => {
         const m = new (CausticsMaterial as any)();
@@ -533,6 +584,11 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Light dancing on the cave ceiling above the water — sells the
             "there's water below" effect. Quality-gated to high. */}
         {reflective && <CeilingReflectionCaustics />}
+
+        {/* Vertical cyan glow shaft from the water surface — visible from
+            across the cave, magic-source feel. Always-on (cheap), since
+            the cone has only 24 segments and a single material. */}
+        <UpwardLightShaft />
 
         {/* Opaque water column */}
         <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y - 16, HOLE_CENTER_Z]}>

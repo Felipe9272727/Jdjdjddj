@@ -267,6 +267,23 @@ export default function App() {
     }
   }, [scheduleTimeout]);
 
+  // Splash overlay — fires once when the player transitions across the
+  // SWIM_THRESHOLD (entering OR leaving the water). Pure DOM/CSS, ~600ms.
+  const [splashKey, setSplashKey] = useState(0);
+  const wasUnderwaterRef = useRef(false);
+  useEffect(() => {
+    if (currentLevel !== 2) { wasUnderwaterRef.current = false; return; }
+    const SWIM_Y = -0.3;  // mirrors SWIM_THRESHOLD_Y in Floor2/constants
+    const id = setInterval(() => {
+      const isUnder = sharedPlayerPositionRef.current.y < SWIM_Y;
+      if (isUnder !== wasUnderwaterRef.current) {
+        wasUnderwaterRef.current = isUnder;
+        setSplashKey(k => k + 1);
+      }
+    }, 80);
+    return () => clearInterval(id);
+  }, [currentLevel]);
+
   // Cave ambience — slow rumble + drips. Mounted while the player is on
   // Floor 2 and audio is unmuted. Stopped cleanly on exit.
   const caveAmbienceStopRef = useRef<(() => void) | null>(null);
@@ -1005,6 +1022,29 @@ export default function App() {
           when the player toggles NV off. */}
       {hasStarted && (
         <NightVisionFx active={inventory.nightVision.owned && inventory.nightVision.active} />
+      )}
+
+      {/* Splash overlay — pure CSS, fires on swim-threshold crossings.
+          Brief radial flash + a few short streaks for the impact moment. */}
+      {hasStarted && currentLevel === 2 && splashKey > 0 && (
+        <div
+          key={splashKey}
+          className="fixed inset-0 z-[28] pointer-events-none animate-splash-flash"
+          style={{
+            background:
+              'radial-gradient(ellipse at center, rgba(120,220,255,0.55) 0%, rgba(80,180,230,0.25) 30%, rgba(20,60,90,0.10) 60%, rgba(0,0,0,0) 80%)',
+          }}
+        >
+          <style>{`
+            @keyframes splashFlash {
+              0%   { opacity: 0; transform: scale(0.85); }
+              15%  { opacity: 1; transform: scale(1.0); }
+              50%  { opacity: 0.55; }
+              100% { opacity: 0; transform: scale(1.15); }
+            }
+            .animate-splash-flash { animation: splashFlash 700ms ease-out forwards; }
+          `}</style>
+        </div>
       )}
 
       
