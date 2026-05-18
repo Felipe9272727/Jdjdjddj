@@ -38,7 +38,7 @@ function findArmBones(scene: THREE.Object3D): { arm: THREE.Bone | null; forearm:
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInCubic = (t: number) => t * t * t;
 
-export type PickupItem = 'flashlight' | 'cookie' | null;
+export type PickupItem = 'flashlight' | 'cookie' | 'nightvision' | null;
 
 const Avatar = ({ animation, visible = true, pickupTrigger = 0, armExtended = false, pickupItem = null, onHandAnchor }: { animation: 'Idle' | 'Walking'; visible?: boolean; pickupTrigger?: number; armExtended?: boolean; pickupItem?: PickupItem; onHandAnchor?: (a: THREE.Object3D | null) => void }) => {
   const { scene, animations: walkAnims } = useGLTF(WALKING_URL) as any;

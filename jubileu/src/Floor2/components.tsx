@@ -460,27 +460,31 @@ export const Coral: React.FC<{ x: number; z: number; color: string; scale: numbe
             <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.25} roughness={0.85} flatShading />
         </mesh>
         {/* Bioluminescent tips at every branch end — emit at the coral
-            color, full intensity. Lights nearby rocks softly. */}
+            color, full intensity. PointLight removed: 11 corals + 6
+            crystals + 6 torches + 2 ambient was 25+ dynamic lights and
+            WebGL gets unhappy past ~10 on mobile. emissiveIntensity
+            cranked to 3.5 to keep the bright look without the light. */}
         <mesh position={[0, 1.75, 0]}>
             <sphereGeometry args={[0.10, 8, 6]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.4} toneMapped={false} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3.5} toneMapped={false} />
         </mesh>
         <mesh position={[0.20, 2.05, 0.14]}>
             <sphereGeometry args={[0.075, 6, 4]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.2} toneMapped={false} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3.2} toneMapped={false} />
         </mesh>
         <mesh position={[-0.16, 1.85, -0.11]}>
             <sphereGeometry args={[0.07, 6, 4]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.0} toneMapped={false} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3.0} toneMapped={false} />
         </mesh>
         <mesh position={[0.02, 1.85, -0.20]}>
             <sphereGeometry args={[0.06, 6, 4]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.9} toneMapped={false} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.8} toneMapped={false} />
         </mesh>
-        {/* One small point light per coral — local fill so the bioluminescence
-            actually casts color onto surrounding rocks. Tightly bounded
-            (distance 2.5m) so 11 corals stay within the lights budget. */}
-        <pointLight position={[0, 1.85, 0]} color={color} intensity={0.9} distance={2.5} decay={1.8} />
+        {/* Halo sprite — picks up camera glow so the tip reads as
+            actively emitting even without a real point light. */}
+        <sprite position={[0, 1.85, 0]} scale={[0.6, 0.6, 1]}>
+            <spriteMaterial color={color} transparent opacity={0.55} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+        </sprite>
     </group>
 );
 

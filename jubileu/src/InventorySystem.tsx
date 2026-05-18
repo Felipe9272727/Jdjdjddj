@@ -15,16 +15,21 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 
-export type ItemId = 'flashlight' | 'cookie';
+export type ItemId = 'flashlight' | 'cookie' | 'nightvision';
 
 export interface InventoryState {
   flashlight: { owned: boolean; active: boolean };
   cookie: { count: number };
+  // Diving mask given by the Floor 2 NPC. "Owned" once received; "active"
+  // toggles the green night-vision overlay (always-on diving function is
+  // narrative — the game doesn't have an oxygen mechanic).
+  nightvision: { owned: boolean; active: boolean };
 }
 
 const EMPTY: InventoryState = {
   flashlight: { owned: false, active: false },
   cookie: { count: 0 },
+  nightvision: { owned: false, active: false },
 };
 
 export function useInventory() {
@@ -39,6 +44,10 @@ export function useInventory() {
       if (id === 'cookie') {
         return { ...prev, cookie: { count: prev.cookie.count + 1 } };
       }
+      if (id === 'nightvision') {
+        if (prev.nightvision.owned) return prev;
+        return { ...prev, nightvision: { owned: true, active: false } };
+      }
       return prev;
     });
   }, []);
@@ -47,6 +56,13 @@ export function useInventory() {
     setInventory(prev => {
       if (!prev.flashlight.owned) return prev;
       return { ...prev, flashlight: { ...prev.flashlight, active: !prev.flashlight.active } };
+    });
+  }, []);
+
+  const toggleNightVision = useCallback(() => {
+    setInventory(prev => {
+      if (!prev.nightvision.owned) return prev;
+      return { ...prev, nightvision: { ...prev.nightvision, active: !prev.nightvision.active } };
     });
   }, []);
 
@@ -60,9 +76,9 @@ export function useInventory() {
     return ok;
   }, []);
 
-  const hasAnyItem = inventory.flashlight.owned || inventory.cookie.count > 0;
+  const hasAnyItem = inventory.flashlight.owned || inventory.cookie.count > 0 || inventory.nightvision.owned;
 
-  return { inventory, addItem, toggleFlashlight, useCookie, hasAnyItem };
+  return { inventory, addItem, toggleFlashlight, toggleNightVision, useCookie, hasAnyItem };
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -71,6 +87,7 @@ export function useInventory() {
 interface InventoryHUDProps {
   inventory: InventoryState;
   onToggleFlashlight: () => void;
+  onToggleNightVision: () => void;
   onUseCookie: () => boolean;
   hasAnyItem: boolean;
 }
@@ -78,6 +95,7 @@ interface InventoryHUDProps {
 export const InventoryHUD: React.FC<InventoryHUDProps> = ({
   inventory,
   onToggleFlashlight,
+  onToggleNightVision,
   onUseCookie,
   hasAnyItem,
 }) => {
@@ -86,8 +104,10 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
   // "New item" flash for the icon — toggled true briefly when the item is
   // first acquired, so the icon does its appearance animation.
   const [flashNew, setFlashNew] = useState(false);
+  const [nightVisionNew, setNightVisionNew] = useState(false);
   const prevFlashlight = useRef(inventory.flashlight.owned);
   const prevCookies = useRef(inventory.cookie.count);
+  const prevNightVision = useRef(inventory.nightvision.owned);
   const notifTimerRef = useRef<number | null>(null);
 
   const showNotif = useCallback((msg: string) => {
@@ -113,6 +133,13 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
     showNotif('* Você adquiriu um {Biscoito}.');
   }
   prevCookies.current = inventory.cookie.count;
+  // Detect first-time night-vision acquisition
+  if (inventory.nightvision.owned && !prevNightVision.current) {
+    prevNightVision.current = true;
+    setNightVisionNew(true);
+    window.setTimeout(() => setNightVisionNew(false), 700);
+    showNotif('* Você adquiriu a {Máscara de Mergulho}.');
+  }
 
   const handleUseCookie = () => {
     if (onUseCookie()) {
@@ -124,7 +151,7 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
 
   if (!hasAnyItem && !notification && !cookieEffect) return null;
 
-  const { flashlight, cookie } = inventory;
+  const { flashlight, cookie, nightvision } = inventory;
 
   return (
     <>
@@ -187,6 +214,48 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
                     </>
                   )}
                 </svg>
+              </button>
+            )}
+
+            {nightvision.owned && (
+              <button
+                type="button"
+                onClick={onToggleNightVision}
+                title={nightvision.active ? 'Desligar visão noturna (N)' : 'Ligar visão noturna (N)'}
+                className={`
+                  relative w-12 h-12 flex items-center justify-center
+                  rounded-sm border transition-all touch-manipulation
+                  active:scale-90
+                  ${nightvision.active
+                    ? 'bg-green-500/15 border-green-400 shadow-[0_0_18px_rgba(34,197,94,0.65)] animate-flash-breath'
+                    : 'bg-black/40 border-green-500/30 hover:border-green-400/60'}
+                  ${nightVisionNew ? 'animate-flash-appear' : ''}
+                `}
+                aria-label={nightvision.active ? 'Desligar visão noturna' : 'Ligar visão noturna'}
+              >
+                <span className="hidden md:block absolute -top-1.5 -left-1.5 px-1 text-[8px] font-mono font-bold
+                                 bg-green-500 text-black rounded-sm pointer-events-none leading-none py-0.5">
+                  N
+                </span>
+                {/* Diving mask icon — goggles + breather tube */}
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  {/* Mask frame */}
+                  <rect x="3" y="8" width="18" height="9" rx="2.5"
+                    fill={nightvision.active ? '#1a3a1a' : '#222'} stroke={nightvision.active ? '#7ee78a' : '#666'} strokeWidth="1.2"/>
+                  {/* Left lens */}
+                  <circle cx="8.5" cy="12.5" r="2.5"
+                    fill={nightvision.active ? '#90ffa0' : '#333'} stroke={nightvision.active ? '#3ad24a' : '#444'} strokeWidth="0.6"/>
+                  {/* Right lens */}
+                  <circle cx="15.5" cy="12.5" r="2.5"
+                    fill={nightvision.active ? '#90ffa0' : '#333'} stroke={nightvision.active ? '#3ad24a' : '#444'} strokeWidth="0.6"/>
+                  {/* Strap */}
+                  <path d="M3 12 H1 M21 12 H23" stroke={nightvision.active ? '#7ee78a' : '#666'} strokeWidth="1.1" strokeLinecap="round"/>
+                  {/* Breather tube */}
+                  <path d="M15.5 17 Q18 19 17 22" stroke={nightvision.active ? '#7ee78a' : '#666'} strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+                </svg>
+                {nightvision.active && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-400 shadow-[0_0_6px_rgba(34,197,94,0.9)] animate-pulse" />
+                )}
               </button>
             )}
 

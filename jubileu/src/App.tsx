@@ -29,6 +29,7 @@ import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { Floor2Environment, SHARD_POSITIONS } from './Floor2Underwater';
+import { Floor2BellhopNPC } from './Floor2/npc';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -62,9 +63,13 @@ interface WorldProps {
   profile: QualityProfile;
   collectedShards: Set<number>;
   onCollectShard: (i: number) => void;
+  // Forwarded so Floor2Environment can suppress its own DynamicFog when
+  // the night-vision overlay is active (otherwise the underwater blue
+  // fog fights the green overlay and produces a muddy teal).
+  nightVisionActive?: boolean;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, nightVisionActive }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -152,9 +157,9 @@ export default function App() {
   const [shopOpen, setShopOpen] = useState(false);
 
   // ─── Inventory + pickup animation ─────────────────────────────────────
-  const { inventory, addItem: inventoryAddItem, toggleFlashlight, useCookie: consumeCookie, hasAnyItem } = useInventory();
+  const { inventory, addItem: inventoryAddItem, toggleFlashlight, toggleNightVision, useCookie: consumeCookie, hasAnyItem } = useInventory();
   const [pickupTrigger, setPickupTrigger] = useState(0);
-  const [pickupItem, setPickupItem] = useState<'flashlight' | 'cookie' | null>(null);
+  const [pickupItem, setPickupItem] = useState<'flashlight' | 'cookie' | 'nightvision' | null>(null);
 
   // ─── Floor 2 shards ───────────────────────────────────────────────────
   // Local set of collected shard indices. Survives the player walking back
@@ -172,7 +177,7 @@ export default function App() {
   // Trigger the pickup animation, tagging which item is being held. The
   // Avatar reads pickupItem to pick a different bone pose (flashlight =
   // arm extends forward; cookie = elbow folds toward the mouth).
-  const triggerPickup = useCallback((item: 'flashlight' | 'cookie') => {
+  const triggerPickup = useCallback((item: 'flashlight' | 'cookie' | 'nightvision') => {
     setPickupItem(item);
     setPickupTrigger((n) => n + 1);
   }, []);
@@ -194,6 +199,21 @@ export default function App() {
     if (inventory.cookie.count > 0) triggerPickup('cookie');
     return consumeCookie();
   }, [inventory.cookie.count, consumeCookie, triggerPickup]);
+  const handleToggleNightVision = useCallback(() => {
+    // Only equipping (turning ON) plays the pickup arm anim — the
+    // "putting goggles on face" gesture. Turning off is silent.
+    if (inventory.nightvision.owned && !inventory.nightvision.active) triggerPickup('nightvision');
+    toggleNightVision();
+  }, [inventory.nightvision.owned, inventory.nightvision.active, toggleNightVision, triggerPickup]);
+
+  // Floor 2 NPC hands the diving mask the moment the player approaches.
+  // Adds the item to the inventory + plays the "you got an item" arm
+  // animation. Guarded by .owned inside addItem so it only fires once.
+  const handleDeliverNightVision = useCallback(() => {
+    if (inventory.nightvision.owned) return;
+    inventoryAddItem('nightvision');
+    triggerPickup('nightvision');
+  }, [inventory.nightvision.owned, inventoryAddItem, triggerPickup]);
 
   // Initial scene when the shop opens. 'main' for normal use; 'post_death'
   // is set automatically when the player gets caught by Barney and is
@@ -663,6 +683,7 @@ export default function App() {
         case 's': k.s=true; break;
         case 'd': k.d=true; break;
         case 'f': if (inventory.flashlight.owned) handleToggleFlashlight(); break;
+        case 'n': if (inventory.nightvision.owned) handleToggleNightVision(); break;
         case 'e':
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
@@ -727,7 +748,31 @@ export default function App() {
         />
         <AdaptiveDpr pixelated />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} />
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} nightVisionActive={inventory.nightvision.active} />
+            {/* Night-vision in-scene lighting boost. The DOM overlay above
+                gives the visual look; this extra ambient + hemisphere
+                actually lifts the scene out of darkness so the player can
+                SEE inside dark caverns. Tinted green to match the overlay. */}
+            {hasStarted && inventory.nightvision.active && (
+              <>
+                <ambientLight intensity={1.4} color="#8aff9a" />
+                <hemisphereLight intensity={0.9} color="#aaffaa" groundColor="#103018" />
+              </>
+            )}
+            {/* Floor 2 bellhop — appears outside the elevator as soon as
+                the doors finish opening. Hands the player the diving mask
+                (night-vision goggles) when they walk over. Stays put after
+                delivery so the scene composition reads "he greeted me". */}
+            {hasStarted && currentLevel === 2 && (
+              <Floor2BellhopNPC
+                position={[2.0, 0, -6.0]}
+                rotationY={Math.PI}
+                visible={!doorsClosed && doorOpenAmount > 0.85}
+                playerPositionRef={sharedPlayerPositionRef}
+                onDeliver={handleDeliverNightVision}
+                delivered={inventory.nightvision.owned}
+              />
+            )}
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -825,11 +870,63 @@ export default function App() {
         <InventoryHUD
           inventory={inventory}
           onToggleFlashlight={handleToggleFlashlight}
+          onToggleNightVision={handleToggleNightVision}
           onUseCookie={handleUseCookie}
           hasAnyItem={hasAnyItem}
         />
       )}
       
+      {/* ─── NIGHT VISION OVERLAY ─────────────────────────────────────
+          Full-screen DOM overlay rendered when the diving mask is active.
+          Multiple layers stacked for realism:
+            1. Green tint via mix-blend-multiply — desaturates the world
+            2. Scanline + grain pattern — military goggle vibe
+            3. Edge vignette tinted dark green
+            4. Subtle bright glow ring around the screen edge
+          Pure CSS, no GPU pass. Active flag drives both the visual AND a
+          scene-wide ambient boost added via a side-effect later. */}
+      {hasStarted && inventory.nightvision.active && (
+        <>
+          {/* Layer 1 — green color cast */}
+          <div className="fixed inset-0 z-[8] pointer-events-none"
+            style={{
+              background: 'radial-gradient(ellipse at center, rgba(40,255,80,0.18) 0%, rgba(20,180,40,0.28) 60%, rgba(0,40,0,0.45) 100%)',
+              mixBlendMode: 'multiply',
+            }}
+          />
+          {/* Layer 2 — saturate + brightness boost so dark areas read */}
+          <div className="fixed inset-0 z-[9] pointer-events-none"
+            style={{
+              backdropFilter: 'saturate(0.4) brightness(1.6) hue-rotate(90deg)',
+              WebkitBackdropFilter: 'saturate(0.4) brightness(1.6) hue-rotate(90deg)',
+            }}
+          />
+          {/* Layer 3 — scanlines + grain pattern (CSS gradient stripes) */}
+          <div className="fixed inset-0 z-[10] pointer-events-none opacity-30"
+            style={{
+              background:
+                'repeating-linear-gradient(0deg, rgba(0,255,80,0.10) 0px, transparent 1px, transparent 3px, rgba(0,255,80,0.06) 4px)',
+              mixBlendMode: 'screen',
+            }}
+          />
+          {/* Layer 4 — outer vignette */}
+          <div className="fixed inset-0 z-[11] pointer-events-none"
+            style={{
+              boxShadow: 'inset 0 0 200px rgba(0,30,10,0.75), inset 0 0 80px rgba(0,80,30,0.5)',
+            }}
+          />
+          {/* Layer 5 — small status chip (top-left of screen) */}
+          <div className="fixed top-[calc(env(safe-area-inset-top,0px)+10px)] left-[calc(env(safe-area-inset-left,0px)+10px)] z-[60] pointer-events-none">
+            <div className="bg-black/70 border border-green-400/60 rounded-sm px-2 py-1
+                            text-green-300 text-[10px] font-mono tracking-widest
+                            shadow-[0_0_12px_rgba(34,197,94,0.4)] flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_6px_rgba(34,197,94,0.9)]" />
+              NV-ON
+            </div>
+          </div>
+        </>
+      )}
+
       {/* First-person crosshair — tiny center dot. Only when in FP view
           AND no dialogue/shop blocking it. Pure CSS, no canvas draw. */}
       {hasStarted && zoomLevel < 0.5 && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (
