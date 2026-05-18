@@ -81,8 +81,26 @@ interface DialogueNode {
   options: DialogueOption[];
 }
 
-export const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }: { nodeKey: string; onOptionSelect: (next: string) => void; onClose: () => void }) => {
-  const node: DialogueNode | undefined = DIALOGUE_TREE[nodeKey];
+export const DialogueOverlay = ({
+  nodeKey,
+  onOptionSelect,
+  onClose,
+  tree,
+  speakerName,
+  accentColor,
+}: {
+  nodeKey: string;
+  onOptionSelect: (next: string) => void;
+  onClose: () => void;
+  /** Optional alternate dialogue tree. Defaults to DIALOGUE_TREE (lobby NPC). */
+  tree?: Record<string, any>;
+  /** Optional name label rendered above the text box. */
+  speakerName?: string;
+  /** Optional Tailwind border-* class for accent color (e.g. "border-cyan-400/60"). */
+  accentColor?: string;
+}) => {
+  const activeTree = tree ?? DIALOGUE_TREE;
+  const node: DialogueNode | undefined = activeTree[nodeKey];
   const [showOptions, setShowOptions] = useState(false);
   
   useEffect(() => {
@@ -103,8 +121,16 @@ export const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }: { nodeKey:
 
       <div className="flex flex-col flex-1 justify-end pb-4 px-3 md:px-[20%] landscape:pb-2 landscape:px-8 max-h-[100dvh] overflow-hidden">
 
+        {/* Speaker name label (optional) */}
+        {speakerName && (
+          <div className="self-start pointer-events-auto -mb-px">
+            <div className={`px-3 py-1 bg-black/90 ${accentColor ?? 'border-yellow-500/50'} border-x-2 border-t-2 rounded-t-md text-xs sm:text-sm font-bold tracking-widest uppercase text-white/90`}>
+              {speakerName}
+            </div>
+          </div>
+        )}
         {/* Dialogue Text Box */}
-        <div className="bg-black/80 border-t-2 border-yellow-500/50 p-3 sm:p-4 md:p-6 shadow-2xl pointer-events-auto mb-2 sm:mb-4 rounded-t-xl landscape:mb-2">
+        <div className={`bg-black/80 border-t-2 ${accentColor ?? 'border-yellow-500/50'} p-3 sm:p-4 md:p-6 shadow-2xl pointer-events-auto mb-2 sm:mb-4 rounded-t-xl landscape:mb-2`}>
           <p className="text-white text-sm sm:text-base font-bold font-serif leading-snug sm:leading-relaxed min-h-[2rem] sm:min-h-[4rem] text-shadow-sm">
             <TypewriterText text={node.text} speed={30} voicePitch={330} />
           </p>

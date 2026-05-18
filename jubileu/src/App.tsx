@@ -25,9 +25,10 @@ import { Player, FPArmModel } from './Player';
 import { ShadowBlob } from './ShadowBlob';
 import { useInventory, InventoryHUD } from './InventorySystem';
 import { FlashlightLight, FlashlightModel3D } from './FlashlightLight';
-import { BeardedDiver, useDiverHandover } from './BeardedDiver';
+import { BeardedDiver, DIVER_POS, DIVER_SCARE_DIST } from './BeardedDiver';
 import { NightVisionFx, NightVisionLights } from './NightVisionOverlay';
-import { RebreatherPutOnOverlay } from './RebreatherPutOnOverlay';
+import { Rebreather3DPutOn } from './Rebreather3DPutOn';
+import { DIVER_DIALOGUE } from './constants';
 import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
@@ -39,7 +40,7 @@ import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES, type QualityPr
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
 import { RobloxChat, BubbleChatFallback } from './ChatSystem';
 import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient, EmptyLobbyAmbience } from './PostEffects';
-import { CeilingFan, WallClock, playArrivalDing, createElevatorHum } from './Atmosphere';
+import { CeilingFan, WallClock, playArrivalDing, createElevatorHum, playJumpscareStab, playEquipChime } from './Atmosphere';
 import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue } from './HudComponents';
 import { SceneInspector } from './SceneInspector';
 
@@ -65,16 +66,14 @@ interface WorldProps {
   profile: QualityProfile;
   collectedShards: Set<number>;
   onCollectShard: (i: number) => void;
-  /** True while the player is on Floor 2 and hasn't received gear yet. */
-  diverVisible: boolean;
-  diverHandedOver: boolean;
-  onDiverHandover: () => void;
+  /** Diver state machine phase — drives the BeardedDiver rendering. */
+  diverPhase: 'hidden' | 'spawn' | 'idle' | 'handover' | 'fading' | 'done';
   /** True when night vision goggles are equipped and on. Mounts the
    *  ambient/hemisphere boost inside the canvas. */
   nightVisionActive: boolean;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverVisible, diverHandedOver, onDiverHandover, nightVisionActive }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, nightVisionActive }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -101,14 +100,13 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
           />
         </Suspense>
       )}
-      {/* Bearded diver NPC — only spawns on Floor 2. Greets the player with a
-          scare pop when the doors open, hands over the rebreather + NV
-          goggles when the player walks within range. */}
-      {level === 2 && (
+      {/* Bearded hotel-concierge diver — only spawns on Floor 2. State
+          machine driven by App.tsx (hidden → spawn → idle → handover →
+          fading → done). The 'done' phase is treated like 'hidden': the
+          component still mounts but doesn't render. */}
+      {level === 2 && diverPhase !== 'done' && (
         <BeardedDiver
-          visible={diverVisible}
-          handedOver={diverHandedOver}
-          onHandover={onDiverHandover}
+          state={diverPhase}
           playerPositionRef={playerPositionRef}
         />
       )}
@@ -167,6 +165,9 @@ export default function App() {
   
   const barneyRef = useRef(new Vector3(0, 0, 0));
   const barneyTargetRef = useRef({ x: 0, z: 6.8, scale: 0 });
+  // Stable ref pointing to the diver's world position (Floor 2). The
+  // dialogue camera focus uses it during the diver conversation.
+  const diverPositionRef = useRef(new Vector3(DIVER_POS[0], DIVER_POS[1] + 1.6, DIVER_POS[2]));
   
   const npcPositionRef = useRef(new Vector3(5, 0, 5)); 
   const [canInteractNPC, setCanInteractNPC] = useState(false); 
@@ -180,26 +181,103 @@ export default function App() {
   const [pickupTrigger, setPickupTrigger] = useState(0);
   const [pickupItem, setPickupItem] = useState<'flashlight' | 'cookie' | null>(null);
 
-  // ─── Bearded diver handover (Floor 2) ─────────────────────────────────
-  // The diver appears once on Floor 2 (after the elevator doors open) and
-  // hands the player the rebreather + night vision. We trigger the put-on
-  // cinematic and add the items. Latched in `diverHandedOver` so the diver
-  // fades out and won't re-trigger until the player leaves the floor.
-  const [rebreatherPutOnActive, setRebreatherPutOnActive] = useState(false);
-  const handleDiverHandover = useCallback(() => {
-    // Add both items, fire the put-on overlay. The NV is owned but starts
-    // off — the player toggles it on with N or via the HUD.
+  // ─── Bearded diver state machine (Floor 2) ─────────────────────────────
+  // Flow:
+  //   hidden  → spawn  → idle    → handover → fading → done
+  //
+  // hidden:    diver invisible, parent watches player proximity.
+  // spawn:     JUMPSCARE — camera shake, audio stab, diver pop. ~450ms.
+  // idle:      diver breathing, faces player, dialogue overlay is open.
+  // handover:  player chose EQUIP. Diver presents the mask, 3D put-on
+  //            cinematic plays in parallel. Items get added when it's done.
+  // fading:    diver fades out, despawns. After ~900ms → done.
+  // done:      no further work; if the player ever revisits without
+  //            having the gear, it stays done (inventory persists).
+  type DiverPhase = 'hidden' | 'spawn' | 'idle' | 'handover' | 'fading' | 'done';
+  const [diverPhase, setDiverPhase] = useState<DiverPhase>('hidden');
+  const [diverDialogueOpen, setDiverDialogueOpen] = useState(false);
+  const [diverDialogueNode, setDiverDialogueNode] = useState('greet');
+  const [rebreather3DActive, setRebreather3DActive] = useState(false);
+  const lastSpawnTimeRef = useRef<number>(0);
+
+  // Reset everything when the player leaves Floor 2.
+  useEffect(() => {
+    if (currentLevel !== 2) {
+      setDiverPhase('hidden');
+      setDiverDialogueOpen(false);
+      setDiverDialogueNode('greet');
+      setRebreather3DActive(false);
+    }
+  }, [currentLevel]);
+
+  // If the player already has the rebreather, skip the diver entirely.
+  useEffect(() => {
+    if (inventory.rebreather.owned && diverPhase !== 'done' && diverPhase !== 'fading') {
+      setDiverPhase('done');
+    }
+  }, [inventory.rebreather.owned, diverPhase]);
+
+  // ── Proximity check + JUMPSCARE trigger ──────────────────────────────
+  // Runs at 100ms while on Floor 2 with the diver still hidden. When the
+  // player crosses DIVER_SCARE_DIST, fire the scare.
+  useEffect(() => {
+    if (currentLevel !== 2 || diverPhase !== 'hidden' || inventory.rebreather.owned) return;
+    if (doorsClosed) return;
+    const id = setInterval(() => {
+      const p = sharedPlayerPositionRef.current;
+      const dx = p.x - DIVER_POS[0];
+      const dz = p.z - DIVER_POS[2];
+      const dist2 = dx * dx + dz * dz;
+      if (dist2 < DIVER_SCARE_DIST * DIVER_SCARE_DIST) {
+        // JUMPSCARE — kick the diver state machine + side effects.
+        clearInterval(id);
+        lastSpawnTimeRef.current = performance.now();
+        setDiverPhase('spawn');
+        setCameraShake(true);
+        playJumpscareStab(audioCtx);
+        // ~500ms shake then settle
+        scheduleTimeout(() => setCameraShake(false), 500);
+        // After pop animation finishes, transition to idle and open dialogue.
+        scheduleTimeout(() => {
+          setDiverPhase('idle');
+          setDiverDialogueNode('greet');
+          setDiverDialogueOpen(true);
+        }, 500);
+      }
+    }, 100);
+    return () => clearInterval(id);
+  }, [currentLevel, diverPhase, inventory.rebreather.owned, doorsClosed, audioCtx, scheduleTimeout]);
+
+  // Handle a dialogue option selection from the diver tree.
+  const handleDiverDialogueResponse = useCallback((next: string) => {
+    if (next === 'EQUIP') {
+      // Player accepted the mask. Close dialogue, start the 3D put-on
+      // cinematic, transition diver to handover (presenting the mask).
+      setDiverDialogueOpen(false);
+      setDiverPhase('handover');
+      setRebreather3DActive(true);
+    } else if (next === 'LEAVE') {
+      // Player declined entirely — diver fades out.
+      setDiverDialogueOpen(false);
+      setDiverPhase('fading');
+      scheduleTimeout(() => setDiverPhase('done'), 950);
+    } else {
+      // Normal node navigation.
+      setDiverDialogueNode(next);
+    }
+  }, [scheduleTimeout]);
+
+  // Called when the 3D put-on cinematic finishes.
+  const handleRebreather3DDone = useCallback(() => {
+    setRebreather3DActive(false);
+    // Add the gear once the visual is over.
     inventoryAddItem('rebreather');
     inventoryAddItem('nightVision');
-    setRebreatherPutOnActive(true);
-  }, [inventoryAddItem]);
-  // Visibility: only while on Floor 2 with doors open AND haven't already
-  // gotten the gear. Once rebreather is owned, the diver fades & despawns.
-  // Diver shows up the moment the player arrives on Floor 2 (elevator
-  // doors open) — and stays until the player has received the gear. After
-  // handover the component fades out & despawns on its own.
-  const diverAllowed = currentLevel === 2 && !doorsClosed && !inventory.rebreather.owned;
-  const diver = useDiverHandover(diverAllowed, handleDiverHandover);
+    playEquipChime(audioCtx);
+    // Diver fades out + despawns.
+    setDiverPhase('fading');
+    scheduleTimeout(() => setDiverPhase('done'), 950);
+  }, [audioCtx, inventoryAddItem, scheduleTimeout]);
 
   // ─── Floor 2 shards ───────────────────────────────────────────────────
   // Local set of collected shard indices. Survives the player walking back
@@ -779,7 +857,7 @@ export default function App() {
         />
         <AdaptiveDpr pixelated />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverVisible={diver.visible} diverHandedOver={diver.handedOver} onDiverHandover={diver.handleHandover} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} />
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -787,7 +865,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={barneyDialogueOpen ? barneyRef : npcPositionRef} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={diverDialogueOpen ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -819,6 +897,15 @@ export default function App() {
                   active={hasStarted}
                   flashlightActive={inventory.flashlight.active}
                   flashlightOwned={inventory.flashlight.owned}
+                />
+            )}
+            {/* Rebreather 3D put-on cinematic — viewmodel-style, attaches
+                to the camera each frame. Fires once when the player
+                accepts the diver's offer. */}
+            {hasStarted && (
+                <Rebreather3DPutOn
+                  active={rebreather3DActive}
+                  onDone={handleRebreather3DDone}
                 />
             )}
             {botEnabled && (
@@ -890,12 +977,6 @@ export default function App() {
         <NightVisionFx active={inventory.nightVision.owned && inventory.nightVision.active} />
       )}
 
-      {/* Rebreather put-on cinematic — fires once when the diver hands the
-          gear over. ~1.7s, then `onDone` clears the flag. */}
-      <RebreatherPutOnOverlay
-        active={rebreatherPutOnActive}
-        onDone={() => setRebreatherPutOnActive(false)}
-      />
       
       {/* First-person crosshair — tiny center dot. Only when in FP view
           AND no dialogue/shop blocking it. Pure CSS, no canvas draw. */}
@@ -1025,6 +1106,19 @@ export default function App() {
         />
       )}
       {dialogueOpen && ( <DialogueOverlay nodeKey={dialogueNode} onOptionSelect={(next: string) => setDialogueNode(next)} onClose={() => setDialogueOpen(false)} /> )}
+
+      {/* Bearded diver dialogue — same overlay system, custom dialogue tree,
+          cyan accent to match the underwater / nightvision palette. */}
+      {diverDialogueOpen && (
+        <DialogueOverlay
+          tree={DIVER_DIALOGUE}
+          nodeKey={diverDialogueNode}
+          speakerName="Mergulhador"
+          accentColor="border-cyan-400/60"
+          onOptionSelect={handleDiverDialogueResponse}
+          onClose={() => setDiverDialogueOpen(false)}
+        />
+      )}
       
       <div className="absolute inset-0 z-[60] bg-black pointer-events-none transition-opacity duration-[2500ms]" style={{ opacity: sleepFadeOpacity }}>
         {sleepFadeOpacity > 0.5 && <div className="absolute inset-0 flex items-center justify-center"><div className="text-white/40 text-2xl font-thin tracking-[0.5em] animate-pulse">zzz...</div></div>}

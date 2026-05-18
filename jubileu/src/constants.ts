@@ -77,6 +77,58 @@ export const DIALOGUE_TREE: Record<string, any> = {
   "joke": { "text": "Eu não tenho senso de humor. Fui fabricado sem ele.", "options": [{ "text": "Ah.", "next": "start" }] }
 };
 
+// Bearded diver on Floor 2 — uses `EQUIP` and `LEAVE` as terminal action
+// keys (handled in App.tsx, not as further nodes).
+export const DIVER_DIALOGUE: Record<string, any> = {
+  "greet": {
+    "text": "Ahh... mais um turista. Eu estava te esperando, sabe? Há quanto tempo? Os relógios aqui embaixo... ficam confusos.",
+    "options": [
+      { "text": "Quem é você?", "next": "who" },
+      { "text": "O que tem aí na sua mão?", "next": "what" }
+    ]
+  },
+  "who": {
+    "text": "Eu fui o mergulhador da casa. Antes dela ser uma casa. Antes dela ser qualquer coisa. Agora eu... eu cuido das pessoas que descem.",
+    "options": [
+      { "text": "E o que é isso aí?", "next": "what" },
+      { "text": "Cuida como?", "next": "care" }
+    ]
+  },
+  "care": {
+    "text": "Faço com que vocês respirem. E faço com que vocês vejam. As duas coisas são igualmente importantes. Especialmente aqui embaixo.",
+    "options": [
+      { "text": "Me dá esse troço.", "next": "offer" }
+    ]
+  },
+  "what": {
+    "text": "Um respirador. Com binóculos. Você vai precisar dos dois. A água lá embaixo... não é só água. E está bem escuro lá embaixo.",
+    "options": [
+      { "text": "Por que está me oferecendo isso?", "next": "why" },
+      { "text": "Tá, pode passar.", "next": "offer" }
+    ]
+  },
+  "why": {
+    "text": "Porque eu não quero ver mais ninguém afogado lá em baixo. Já tem gente demais lá embaixo. Coloca isso e vai.",
+    "options": [
+      { "text": "Tá bom, me dá.", "next": "offer" }
+    ]
+  },
+  "offer": {
+    "text": "Toma. Encaixa direitinho na cara. Depois é só apertar o botãozinho na lateral pra acender a visão. Aperta a tecla N — vai te lembrar disso.",
+    "options": [
+      { "text": "[Colocar o respirador]", "next": "EQUIP" },
+      { "text": "Prefiro nadar sem.", "next": "refuse" }
+    ]
+  },
+  "refuse": {
+    "text": "Bem... então boa sorte. Eu fico aqui. Caso você mude de ideia, é só voltar. Se conseguir voltar.",
+    "options": [
+      { "text": "Pensando bem...", "next": "offer" },
+      { "text": "[Sair]", "next": "LEAVE" }
+    ]
+  }
+};
+
 export const SPEED = 4.0;
 export const PR = 0.5;
 export const EZ_START = -10.0;

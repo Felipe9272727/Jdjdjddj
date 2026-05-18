@@ -90,6 +90,105 @@ export const playArrivalDing = (audioContext: AudioContext | null) => {
 };
 
 /**
+ * Jumpscare stab — short, sharp violin-style sting for sudden NPC
+ * appearances. Composed of:
+ *   - Low atonal cluster (G2 + Ab2 + A#2 dissonance)
+ *   - High shrill descending sweep (2.5kHz → 800Hz)
+ *   - White-noise burst gated by a fast envelope
+ *   - Low-end thud for body impact
+ */
+export const playJumpscareStab = (audioContext: AudioContext | null) => {
+    if (!audioContext) return;
+    const t = audioContext.currentTime;
+
+    // ── Low atonal cluster (Bernard Herrmann-ish dissonance) ──
+    const cluster = [98, 104, 117]; // G2, Ab2, A#2 — semitone dissonance
+    for (const freq of cluster) {
+        const osc = audioContext.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, t);
+        const gain = audioContext.createGain();
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.22, t + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+        osc.connect(gain).connect(audioContext.destination);
+        osc.start(t);
+        osc.stop(t + 0.7);
+    }
+
+    // ── High shrill descending sweep ──
+    const high = audioContext.createOscillator();
+    high.type = 'sawtooth';
+    high.frequency.setValueAtTime(2500, t);
+    high.frequency.exponentialRampToValueAtTime(800, t + 0.45);
+    const highFilter = audioContext.createBiquadFilter();
+    highFilter.type = 'lowpass';
+    highFilter.frequency.value = 4000;
+    highFilter.Q.value = 6;
+    const highGain = audioContext.createGain();
+    highGain.gain.setValueAtTime(0, t);
+    highGain.gain.linearRampToValueAtTime(0.16, t + 0.01);
+    highGain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    high.connect(highFilter).connect(highGain).connect(audioContext.destination);
+    high.start(t);
+    high.stop(t + 0.55);
+
+    // ── White noise burst ──
+    const noiseLen = Math.floor(audioContext.sampleRate * 0.25);
+    const noiseBuf = audioContext.createBuffer(1, noiseLen, audioContext.sampleRate);
+    const noiseData = noiseBuf.getChannelData(0);
+    for (let i = 0; i < noiseLen; i++) noiseData[i] = Math.random() * 2 - 1;
+    const noiseSrc = audioContext.createBufferSource();
+    noiseSrc.buffer = noiseBuf;
+    const noiseFilter = audioContext.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = 1800;
+    noiseFilter.Q.value = 1.2;
+    const noiseGain = audioContext.createGain();
+    noiseGain.gain.setValueAtTime(0, t);
+    noiseGain.gain.linearRampToValueAtTime(0.20, t + 0.005);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.30);
+    noiseSrc.connect(noiseFilter).connect(noiseGain).connect(audioContext.destination);
+    noiseSrc.start(t);
+    noiseSrc.stop(t + 0.30);
+
+    // ── Sub-bass thud (body impact) ──
+    const thud = audioContext.createOscillator();
+    thud.type = 'sine';
+    thud.frequency.setValueAtTime(70, t);
+    thud.frequency.exponentialRampToValueAtTime(30, t + 0.18);
+    const thudGain = audioContext.createGain();
+    thudGain.gain.setValueAtTime(0, t);
+    thudGain.gain.linearRampToValueAtTime(0.50, t + 0.005);
+    thudGain.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+    thud.connect(thudGain).connect(audioContext.destination);
+    thud.start(t);
+    thud.stop(t + 0.35);
+};
+
+/**
+ * Soft confirm chime — used when the rebreather "snaps" into place during
+ * the put-on cinematic.
+ */
+export const playEquipChime = (audioContext: AudioContext | null) => {
+    if (!audioContext) return;
+    const t = audioContext.currentTime;
+    const freqs = [523.25, 783.99]; // C5 + G5
+    for (let i = 0; i < freqs.length; i++) {
+        const osc = audioContext.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freqs[i], t + i * 0.05);
+        const gain = audioContext.createGain();
+        gain.gain.setValueAtTime(0, t + i * 0.05);
+        gain.gain.linearRampToValueAtTime(0.10, t + 0.02 + i * 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6 + i * 0.05);
+        osc.connect(gain).connect(audioContext.destination);
+        osc.start(t + i * 0.05);
+        osc.stop(t + 0.7 + i * 0.05);
+    }
+};
+
+/**
  * Elevator hum — subtle ambient motor sound while traveling.
  */
 export const createElevatorHum = (audioContext: AudioContext | null): (() => void) => {
