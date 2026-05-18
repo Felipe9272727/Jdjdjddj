@@ -925,23 +925,31 @@ export default function App() {
             Medium/low: no postprocessing pass at all. */}
         {hasStarted && settings.quality === 'high' && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
+                {/* Bloom — Floor 2 needs harder bloom for the bioluminescent
+                    crystals + emissive caustics to truly pop. Lower threshold
+                    + higher intensity in the cave; subtle elsewhere. */}
                 <Bloom
-                    intensity={0.35}
-                    luminanceThreshold={0.95}
-                    luminanceSmoothing={0.2}
+                    intensity={currentLevel === 2 ? 0.85 : 0.35}
+                    luminanceThreshold={currentLevel === 2 ? 0.55 : 0.95}
+                    luminanceSmoothing={currentLevel === 2 ? 0.35 : 0.2}
                     mipmapBlur
-                    kernelSize={KernelSize.MEDIUM}
+                    kernelSize={currentLevel === 2 ? KernelSize.LARGE : KernelSize.MEDIUM}
                 />
+                {/* Chromatic aberration — heavier underwater (light dispersion
+                    through liquid). 4x bigger offset on Floor 2 sells the
+                    "looking through water + a glass mask" feel. */}
                 <ChromaticAberration
                     blendFunction={BlendFunction.NORMAL}
-                    offset={currentLevel === 2 ? [0.002, 0.002] as unknown as Vector3 : [0, 0] as unknown as Vector3}
+                    offset={currentLevel === 2 ? [0.0035, 0.0035] as unknown as Vector3 : [0, 0] as unknown as Vector3}
                     radialModulation={false}
                     modulationOffset={0.0}
                 />
+                {/* Vignette — deeper darkness around the edges in the cave for
+                    a claustrophobic / isolation feel. */}
                 <Vignette
                     eskil={false}
-                    offset={currentLevel === 2 ? 0.4 : 0.2}
-                    darkness={currentLevel === 2 ? 0.6 : 0.3}
+                    offset={currentLevel === 2 ? 0.32 : 0.2}
+                    darkness={currentLevel === 2 ? 0.78 : 0.3}
                 />
             </EffectComposer>
         )}

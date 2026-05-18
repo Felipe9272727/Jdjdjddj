@@ -173,18 +173,22 @@ export const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }
             {reflective && (
                 <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.15, 0]}>
                     <planeGeometry args={[HOLE_RADIUS * 2 - 0.05, HOLE_RADIUS * 2 - 0.05]} />
+                    {/* Tuned for "dark water reflective bowl" feel — mirror
+                        coefficient way up so torch/diver light bounces back
+                        clearly, blur reduced so the reflection is recognizable
+                        without being mirror-perfect (real water is messy). */}
                     <MeshReflectorMaterial
-                        blur={[300, 100]}
-                        resolution={512}
-                        mixBlur={1.0}
-                        mixStrength={1.2}
-                        roughness={0.6}
-                        depthScale={0.4}
-                        minDepthThreshold={0.4}
-                        maxDepthThreshold={1.5}
-                        color="#0a1a2a"
-                        metalness={0.4}
-                        mirror={0.65}
+                        blur={[200, 60]}
+                        resolution={768}
+                        mixBlur={0.7}
+                        mixStrength={2.2}
+                        roughness={0.35}
+                        depthScale={0.6}
+                        minDepthThreshold={0.3}
+                        maxDepthThreshold={1.4}
+                        color="#06121e"
+                        metalness={0.55}
+                        mirror={0.95}
                     />
                 </mesh>
             )}

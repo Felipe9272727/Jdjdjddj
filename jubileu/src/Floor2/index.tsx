@@ -72,6 +72,8 @@ import {
     GodRay, GodRays, Shard,
 } from './components';
 
+import { CausticsMaterial } from './shaders';
+
 // ─── Texture loading helper ────────────────────────────────────────
 function usePBRSet(colorUrl: string, normalUrl: string, roughUrl: string, aoUrl: string, repeatX: number, repeatY: number) {
     const [color, normal, rough, ao] = useTexture([colorUrl, normalUrl, roughUrl, aoUrl]);
@@ -90,6 +92,109 @@ function usePBRSet(colorUrl: string, normalUrl: string, roughUrl: string, aoUrl:
 const ROCK_MODEL_URLS = [rockModelA, rockModelB, rockModelC, rockModelD];
 const BOULDER_MODEL_URL = boulderModel;
 const PEBBLE_MODEL_URL = pebbleModel;
+
+// ─── BioluminescentPatches — scattered emissive sprite glow points ─
+// Cave gets a painterly "alive mineral" quality. Each patch breathes
+// at its own phase so the cave hums softly. Quality-gated by the
+// caller (only mounted when `reflective` is true).
+const BIO_POSITIONS: readonly [number, number, number, string, number][] = [
+    // [x, y, z, color, baseScale]
+    [-27, 1.4, 12, '#3affaa', 1.4],
+    [ 27, 2.2, -8, '#9affd0', 1.2],
+    [-15, 0.4, 24, '#3affc8', 1.0],
+    [ 18, 1.8, 26, '#5af0d0', 1.3],
+    [-22, 4.5, -22, '#9aff80', 1.5],
+    [ 24, 3.8, 18, '#3affaa', 1.1],
+    [-8, 6.2, -28, '#7affc0', 1.0],
+    [ 11, 5.5, 28, '#3affd0', 1.2],
+    [-26, 2.5, -3, '#5affb0', 1.0],
+    [ 28, 1.2, 22, '#9affb0', 1.3],
+    [-2, 0.3, -25, '#3afff0', 0.9],
+    [ 6, 0.5, 22, '#5affb0', 0.9],
+    // violet/purple accents for mood variety
+    [-19, 3.0, -16, '#a06aff', 1.3],
+    [ 22, 5.0, 5, '#b07aff', 1.1],
+    [-12, 1.5, 6, '#c08aff', 1.0],
+    [ 9, 4.2, -22, '#a06aff', 1.2],
+];
+
+// ─── CeilingReflectionCaustics — light dancing on the cave ceiling ─
+// Water reflects sunlight (or in our case the ember/torch light) up onto
+// the cave ceiling — a real-world phenomenon that immediately reads as
+// "there's water there". We project a caustic plane just below the
+// ceiling, sized to the water hole, with a warm tint (matches the
+// ember sprites' glow color) and additive blending so it brightens
+// instead of darkening the ceiling texture.
+const CeilingReflectionCaustics: React.FC = () => {
+    const mat = useMemo(() => {
+        const m = new (CausticsMaterial as any)();
+        m.transparent = true;
+        m.depthWrite = false;
+        m.blending = THREE.AdditiveBlending;
+        m.toneMapped = false;
+        return m;
+    }, []);
+    useFrame((state) => { (mat as any).time = state.clock.elapsedTime * 0.6; });
+    return (
+        <mesh
+            position={[HOLE_CENTER_X, 7.85, HOLE_CENTER_Z]}
+            rotation={[Math.PI / 2, 0, 0]}
+        >
+            {/* Scale the projection wider than the hole — water reflection
+                fans out across the ceiling, not just directly above. */}
+            <planeGeometry args={[HOLE_RADIUS * 4.5, HOLE_RADIUS * 4.5]} />
+            <primitive object={mat} attach="material" />
+        </mesh>
+    );
+};
+
+const BioluminescentPatches: React.FC = () => {
+    const matRefs = React.useRef<(THREE.SpriteMaterial | null)[]>(new Array(BIO_POSITIONS.length).fill(null));
+    const haloRefs = React.useRef<(THREE.SpriteMaterial | null)[]>(new Array(BIO_POSITIONS.length).fill(null));
+    useFrame((state) => {
+        const t = state.clock.elapsedTime;
+        for (let i = 0; i < BIO_POSITIONS.length; i++) {
+            const phase = i * 0.97;
+            const breath = 0.55 + Math.sin(t * 0.8 + phase) * 0.25 + Math.sin(t * 2.3 + phase * 1.7) * 0.08;
+            const mat = matRefs.current[i];
+            if (mat) mat.opacity = breath;
+            const halo = haloRefs.current[i];
+            if (halo) halo.opacity = breath * 0.18;
+        }
+    });
+    return (
+        <group>
+            {BIO_POSITIONS.map(([x, y, z, color, scl], i) => (
+                <React.Fragment key={i}>
+                    {/* Core dot — bright additive */}
+                    <sprite position={[x, y, z]} scale={[0.6 * scl, 0.6 * scl, 1]}>
+                        <spriteMaterial
+                            ref={(r: any) => { matRefs.current[i] = r; }}
+                            color={color}
+                            transparent
+                            opacity={0.6}
+                            depthWrite={false}
+                            toneMapped={false}
+                            blending={THREE.AdditiveBlending}
+                        />
+                    </sprite>
+                    {/* Halo — larger softer glow */}
+                    <sprite position={[x, y, z]} scale={[3 * scl, 3 * scl, 1]}>
+                        <spriteMaterial
+                            ref={(r: any) => { haloRefs.current[i] = r; }}
+                            color={color}
+                            transparent
+                            opacity={0.15}
+                            depthWrite={false}
+                            toneMapped={false}
+                            blending={THREE.AdditiveBlending}
+                        />
+                    </sprite>
+                </React.Fragment>
+            ))}
+        </group>
+    );
+};
 
 // ─── UnderwaterLighting — animates ambient + hemisphere + shaft point light
 // based on player Y. Above water it stays warm/cave-toned; below water it
@@ -313,6 +418,12 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <sprite position={[-6, 0.6, -8]} scale={[5, 5, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#FFD080" transparent opacity={0.45} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
         <sprite position={[6, 0.6, -8]} scale={[5, 5, 1]}><spriteMaterial map={GLOW_TEXTURE} color="#FFD080" transparent opacity={0.45} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} /></sprite>
 
+        {/* Bioluminescent patches scattered across the cave — small breathing
+            cyan/violet/teal sprites that read as "alive mineral" or glowing
+            moss. Adds the painterly depth that pushes the cave from "dim"
+            into "magical / haunted aquarium". Quality-gated to high. */}
+        {reflective && <BioluminescentPatches />}
+
         <DynamicFog playerPositionRef={playerPositionRef} />
 
         {/* ─── CAVE FLOOR with hole ─── */}
@@ -418,6 +529,10 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
         <WaterSurface reflective={reflective} />
+
+        {/* Light dancing on the cave ceiling above the water — sells the
+            "there's water below" effect. Quality-gated to high. */}
+        {reflective && <CeilingReflectionCaustics />}
 
         {/* Opaque water column */}
         <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y - 16, HOLE_CENTER_Z]}>

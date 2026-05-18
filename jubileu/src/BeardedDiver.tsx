@@ -53,10 +53,10 @@ const HANDOVER_DURATION = 0.7;
 /** Fade-out duration in seconds. */
 const FADE_DURATION = 0.9;
 
-/** GLB scale tweak — adjust if the model is too big/small after import.
- *  Hotel concierge from typical 3D model sites comes ~1.7-2m tall, so
- *  scale 1 usually works. We expose this so it's easy to tune. */
-const DIVER_SCALE = 1.05;
+/** Target height for the diver in world units (~human height in meters).
+ *  We auto-scale the GLB to this so Tripo's arbitrary export scale
+ *  doesn't end up tiny or huge. Used at clone time. */
+const DIVER_TARGET_HEIGHT = 1.85;
 
 export type DiverState = 'hidden' | 'spawn' | 'idle' | 'handover' | 'fading';
 
@@ -84,11 +84,29 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     scene: THREE.Group;
     animations: THREE.AnimationClip[];
   };
+  // Compute auto-scale + ground-offset by inspecting the GLB bbox.
+  // Tripo exports come at arbitrary scale (could be cm or m) and with
+  // pivot anywhere — we normalize so the model is DIVER_TARGET_HEIGHT
+  // tall and stands with feet at Y=0.
+  const { autoScale, groundOffsetY } = useMemo(() => {
+    const bbox = new THREE.Box3().setFromObject(gltf.scene);
+    const size = new THREE.Vector3();
+    bbox.getSize(size);
+    const h = size.y > 0.0001 ? size.y : 1;
+    const sc = DIVER_TARGET_HEIGHT / h;
+    // bbox.min.y is the lowest point (feet). Multiply by sc to find its
+    // scaled position, then negate so feet land at y=0.
+    const yOff = -bbox.min.y * sc;
+    return { autoScale: sc, groundOffsetY: yOff };
+  }, [gltf.scene]);
+
   const clone = useMemo(() => {
     const c = SkeletonUtils.clone(gltf.scene);
     // Tag every material as transparency-ready so the fade-out works
-    // uniformly. We don't toggle transparency on/off mid-run; we just
-    // set opacity to 1 in idle and ramp down in fading.
+    // uniformly. Also push the PBR sliders so the Tripo-generated
+    // material reads with actual depth rather than the default flat
+    // diffuse-y look: roughness up for fabric/skin feel, normal scale
+    // up for visible surface detail under the cave's grazing torch light.
     c.traverse((child: any) => {
       if (child.material) {
         const m = child.material;
@@ -96,9 +114,22 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         for (const mm of list) {
           mm.transparent = true;
           mm.opacity = 1;
-          // Many GLBs ship with double-sided unset; make sure we cast
-          // shadows-ish lighting correctly without z-fight artifacts.
           if (mm.side === undefined) mm.side = THREE.FrontSide;
+          // Tune PBR sliders if present
+          if (typeof mm.roughness === 'number') {
+            // Skin/cloth/hair all benefit from higher roughness than the
+            // Tripo default (~0.5).
+            mm.roughness = Math.max(mm.roughness, 0.78);
+          }
+          if (typeof mm.metalness === 'number') {
+            mm.metalness = Math.min(mm.metalness, 0.15);
+          }
+          if (mm.normalScale && mm.normalScale.set) {
+            mm.normalScale.set(1.4, 1.4);
+          }
+          if (mm.envMapIntensity !== undefined) {
+            mm.envMapIntensity = 0.85;
+          }
         }
       }
     });
@@ -164,11 +195,18 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     const dz = pp.z - DIVER_POS[2];
     if (dx * dx + dz * dz > 1e-3) {
       const targetY = Math.atan2(dx, dz);
-      let cur = g.rotation.y;
-      let d2 = targetY - cur;
-      while (d2 > Math.PI) d2 -= Math.PI * 2;
-      while (d2 < -Math.PI) d2 += Math.PI * 2;
-      g.rotation.y = cur + d2 * Math.min(1, 6 * safeDt);
+      // Snap immediately on the very first frame of spawn so the player
+      // never sees the diver facing the wrong way mid-jumpscare. After
+      // that, smooth turn at a moderate speed.
+      if (st === 'spawn' && t.popT < 0.01) {
+        g.rotation.y = targetY;
+      } else {
+        let cur = g.rotation.y;
+        let d2 = targetY - cur;
+        while (d2 > Math.PI) d2 -= Math.PI * 2;
+        while (d2 < -Math.PI) d2 += Math.PI * 2;
+        g.rotation.y = cur + d2 * Math.min(1, 8 * safeDt);
+      }
     }
 
     const time = stateR3F.clock.elapsedTime;
@@ -180,21 +218,32 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const tt = t.popT;
       const c = tt - 1;
       const ease = 1 + c * c * ((s + 1) * c + s);
-      const sc = THREE.MathUtils.clamp(ease, 0.05, 1.30) * DIVER_SCALE;
+      const sc = THREE.MathUtils.clamp(ease, 0.05, 1.30) * autoScale;
       g.scale.setScalar(sc);
       bob.position.z = Math.max(0, (1 - tt) * 0.5);
       bob.rotation.x = (1 - tt) * -0.18;
     } else {
-      g.scale.setScalar(DIVER_SCALE);
+      g.scale.setScalar(autoScale);
       bob.position.z = 0;
       bob.rotation.x = 0;
     }
 
-    // ── IDLE: breathing bob + sway ────────────────────────────────
-    if (st === 'idle') {
+    // ── IDLE / HANDOVER: procedural idle (no skeleton in GLB) ─────
+    // The Tripo concierge GLB ships static — no idle animation. We
+    // layer subtle motion via the bob group so he reads as alive:
+    //   - chest breath (sin on Y, slow)
+    //   - body sway (sin on Z, even slower)
+    //   - subtle head-look toward player (twist on Y via tiny offset)
+    //   - micro-bob from "shifting weight" (sin on rotation X)
+    if (st === 'idle' || st === 'handover') {
       const breath = Math.sin(time * 1.6) * 0.045;
       bob.position.y = breath;
       bob.rotation.z = Math.sin(time * 0.65) * 0.025;
+      // Weight shift — overlay tiny pitch wave that fades out during handover
+      const weightShift = Math.sin(time * 0.45) * 0.012;
+      bob.rotation.x = (st === 'handover')
+        ? bob.rotation.x // handover sets its own pitch below
+        : weightShift;
     } else if (st !== 'spawn') {
       bob.position.y = 0;
       bob.rotation.z = 0;
@@ -225,7 +274,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const u = t.fadeT;
       const o = 1 - u * u;
       t.fadeOpacity = o;
-      g.scale.setScalar(DIVER_SCALE * (1 - u * 0.15));
+      g.scale.setScalar(autoScale * (1 - u * 0.15));
       g.traverse((child: any) => {
         if (child.material) {
           const m = child.material;
@@ -287,9 +336,15 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
 
   return (
     <group ref={groupRef} position={[DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]]} visible={false}>
-      {/* Key + fill lights — driven via refs each frame */}
+      {/* Key + fill lights — driven via refs each frame.
+          Three-point lighting: warm key in front, warm fill near feet,
+          cool cyan rim behind for a moody silhouette. */}
       <pointLight ref={keyLightRef} position={[0, 1.8, 0]} intensity={0} distance={9} decay={1.2} color="#FFE9A8" />
       <pointLight ref={fillLightRef} position={[0, 0.6, 0]} intensity={0} distance={4.2} decay={1.6} color="#FFD080" />
+      {/* Cool rim — sits behind the diver (relative to his facing). His
+          group rotates to face the player, so this light always trails
+          him on the negative-Z local axis. */}
+      <pointLight position={[0, 1.4, -1.2]} intensity={2.6} distance={4.5} decay={1.3} color="#5AC8E0" />
 
       {/* Ground glow */}
       <sprite position={[0, 0.05, 0]} scale={[4, 1.4, 1]}>
@@ -315,7 +370,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       {/* Body bob group — wraps the GLB so we can lift/rotate without
           fighting R3F's <primitive> prop ownership of the GLB itself. */}
       <group ref={bobRef}>
-        <primitive object={clone} position={[0, 0, 0]} rotation={[0, 0, 0]} />
+        <primitive object={clone} position={[0, groundOffsetY, 0]} rotation={[0, 0, 0]} />
 
         {/* MASK + NV goggles, presented in front of the diver's chest.
             Procedural so we don't depend on the GLB having a "RightHand"
