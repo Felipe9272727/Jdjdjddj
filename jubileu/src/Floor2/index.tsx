@@ -6,7 +6,8 @@
  * previously exported from the monolithic Floor2Underwater.tsx.
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { Instances, Instance, useTexture, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { ElevatorFacade } from '../Elevator';
@@ -42,7 +43,7 @@ export {
 // Internal imports (not re-exported)
 import {
     HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS,
-    WATER_LEVEL_Y,
+    WATER_LEVEL_Y, SWIM_THRESHOLD_Y,
     CAVE_ROCKS_DARK, CAVE_ROCKS_MID, CAVE_ROCKS_LIGHT,
     POOL_RIM, STALAGMITES, STALACTITES,
     CRYSTALS, TORCH_POSITIONS,
@@ -89,6 +90,96 @@ function usePBRSet(colorUrl: string, normalUrl: string, roughUrl: string, aoUrl:
 const ROCK_MODEL_URLS = [rockModelA, rockModelB, rockModelC, rockModelD];
 const BOULDER_MODEL_URL = boulderModel;
 const PEBBLE_MODEL_URL = pebbleModel;
+
+// ─── UnderwaterLighting — animates ambient + hemisphere + shaft point light
+// based on player Y. Above water it stays warm/cave-toned; below water it
+// drives cool cyan-blue tint with a downward focus and a soft "shaft of light
+// from above" point light at the hole position.
+const UnderwaterLighting: React.FC<{
+    playerPositionRef: React.MutableRefObject<THREE.Vector3>;
+    reflective: boolean;
+}> = ({ playerPositionRef, reflective }) => {
+    const ambientRef = useRef<THREE.AmbientLight>(null);
+    const hemiRef = useRef<THREE.HemisphereLight>(null);
+    const dirRef = useRef<THREE.DirectionalLight>(null);
+    const shaftPointRef = useRef<THREE.PointLight>(null);
+
+    // Stable Color instances to lerp toward — avoids allocating per frame
+    const _ambCave = useMemo(() => new THREE.Color('#d8c0a0'), []);
+    const _ambWater = useMemo(() => new THREE.Color('#4090b0'), []);
+    const _hemiCave = useMemo(() => new THREE.Color('#c8a888'), []);
+    const _hemiWater = useMemo(() => new THREE.Color('#3aa0c0'), []);
+    const _ambTmp = useMemo(() => new THREE.Color(), []);
+    const _hemiTmp = useMemo(() => new THREE.Color(), []);
+
+    useFrame((_, dt) => {
+        const safeDt = Math.min(dt, 0.033);
+        const y = playerPositionRef.current?.y ?? 0;
+        // 0 = above water, 1 = fully underwater
+        const tWater = Math.max(0, Math.min(1, (SWIM_THRESHOLD_Y - y) / 5));
+        // Depth fraction (0 at surface, 1 at deepest)
+        const depth = Math.max(0, Math.min(1, -y / 29));
+
+        const k = Math.min(1, 8 * safeDt);
+
+        // Ambient — fade from warm cave to cool underwater cyan
+        if (ambientRef.current) {
+            _ambTmp.copy(_ambCave).lerp(_ambWater, tWater);
+            ambientRef.current.color.lerp(_ambTmp, k);
+            const tgtInt = 0.45 - tWater * 0.10;   // dim a bit underwater
+            ambientRef.current.intensity += (tgtInt - ambientRef.current.intensity) * k;
+        }
+        // Hemisphere — also cool down
+        if (hemiRef.current) {
+            _hemiTmp.copy(_hemiCave).lerp(_hemiWater, tWater);
+            hemiRef.current.color.lerp(_hemiTmp, k);
+            const tgtInt = 0.35 + tWater * 0.05;
+            hemiRef.current.intensity += (tgtInt - hemiRef.current.intensity) * k;
+        }
+        // Directional light — only "active" underwater, focused down from hole
+        if (dirRef.current) {
+            // Stronger when near surface, fades with depth (light absorption)
+            const tgt = tWater * (1.0 - depth * 0.6) * 1.2;
+            dirRef.current.intensity += (tgt - dirRef.current.intensity) * k;
+        }
+        // Shaft point light — only active when player is underwater AND
+        // close-ish to the hole horizontally (avoid over-illuminating far corners)
+        if (shaftPointRef.current) {
+            const dx = (playerPositionRef.current?.x ?? 0) - HOLE_CENTER_X;
+            const dz = (playerPositionRef.current?.z ?? 0) - HOLE_CENTER_Z;
+            const horiz = Math.sqrt(dx * dx + dz * dz);
+            const proximity = Math.max(0, 1 - horiz / 25);
+            const tgt = tWater * proximity * (1.0 - depth * 0.4) * 1.4;
+            shaftPointRef.current.intensity += (tgt - shaftPointRef.current.intensity) * k;
+        }
+    });
+
+    return (
+        <>
+            <ambientLight ref={ambientRef} intensity={0.45} color="#d8c0a0" />
+            <hemisphereLight ref={hemiRef} intensity={0.35} color="#c8a888" groundColor="#0a1418" />
+            <directionalLight
+                position={[HOLE_CENTER_X, 12, HOLE_CENTER_Z]}
+                target-position={[HOLE_CENTER_X, -25, HOLE_CENTER_Z]}
+                intensity={0}
+                color="#5acce0"
+                ref={dirRef}
+            />
+            {/* "Shaft of light from above" — soft underwater point light at the hole.
+                Distance ~22 so it focuses on the upper underwater zone. */}
+            {reflective && (
+                <pointLight
+                    ref={shaftPointRef}
+                    position={[HOLE_CENTER_X, -3, HOLE_CENTER_Z]}
+                    intensity={0}
+                    color="#7ad4e8"
+                    distance={22}
+                    decay={2}
+                />
+            )}
+        </>
+    );
+};
 
 // ─── Full level ────────────────────────────────────────────────────────
 interface Floor2EnvironmentProps {
@@ -198,9 +289,10 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <color attach="background" args={['#0e0a08']} />
         <fog attach="fog" args={['#0e0a08', 8, 70]} />
 
-        {/* Horror lighting — dark but visible: textures need enough light */}
-        <ambientLight intensity={0.45} color="#d8c0a0" />
-        <hemisphereLight intensity={0.35} color="#c8a888" groundColor="#1a1612" />
+        {/* Horror lighting — dark but visible: textures need enough light.
+            Cave-toned lights (driven dynamically by UnderwaterLighting based on
+            player Y) — fades to cool cyan when the player submerges. */}
+        <UnderwaterLighting playerPositionRef={playerPositionRef} reflective={reflective} />
         <directionalLight position={[5, 20, 5]} intensity={0.40} color="#ffe8c0" />
 
         {/* Ember sprites — warm glow on floor, NO pointLight (square artifact) */}
@@ -340,20 +432,20 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         </mesh>
 
         {/* RGB caustics on the seafloor */}
-        <UnderwaterCaustics />
+        <UnderwaterCaustics playerPositionRef={playerPositionRef} />
 
         {/* Underwater flora — kelp & coral */}
         <UnderwaterFlora />
 
         {/* God ray shafts descending from the surface */}
-        <GodRayShafts />
+        <GodRayShafts playerPositionRef={playerPositionRef} />
         <GodRays playerPositionRef={playerPositionRef} />
 
         {/* God ray — volumetric light beam from the water hole */}
         <GodRay />
 
-        {/* Deep Mist — drifting fog plane */}
-        <DeepMist />
+        {/* Deep Mist — parallax fog layers */}
+        <DeepMist reflective={reflective} />
 
         {/* Underwater sediment — floating particles for depth perception */}
         <UnderwaterSediment />

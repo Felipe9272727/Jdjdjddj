@@ -343,7 +343,7 @@ export const WaterOccluder: React.FC<{ playerPositionRef: React.MutableRefObject
 // ═══════════════════════════════════════════════════════════════════════
 
 // ─── UnderwaterCaustics ───────────────────────────────────────────────
-export const UnderwaterCaustics: React.FC = () => {
+export const UnderwaterCaustics: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
     const mat = useMemo(() => {
         const m = new (CausticsMaterial as any)();
         m.transparent = true;
@@ -352,10 +352,21 @@ export const UnderwaterCaustics: React.FC = () => {
         m.toneMapped = false;
         return m;
     }, []);
-    useFrame((state) => { (mat as any).time = state.clock.elapsedTime; });
+    const meshRef = useRef<THREE.Mesh>(null);
+    useFrame((state) => {
+        (mat as any).time = state.clock.elapsedTime;
+        // Fade caustic intensity based on player depth — strong when shallow,
+        // dim deep down where the light wouldn't reach.
+        if (playerPositionRef && meshRef.current) {
+            const y = playerPositionRef.current.y;
+            const depth = Math.min(Math.max(-y / 29, 0), 1);
+            const baseAlpha = 1.0 - depth * 0.55;
+            (meshRef.current.material as any).opacity = baseAlpha;
+        }
+    });
     return (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -29.95, 0]}>
-            <planeGeometry args={[40, 40]} />
+        <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -29.95, 0]}>
+            <planeGeometry args={[80, 80]} />
             <primitive object={mat} attach="material" />
         </mesh>
     );
@@ -454,10 +465,41 @@ export const UnderwaterFlora: React.FC = () => (
 );
 
 // ─── GodRayShafts — Subnautica-style light shafts ─────────────────────
-export const GodRayShafts: React.FC = () => {
+interface GodRayShaftsProps {
+    playerPositionRef?: React.MutableRefObject<THREE.Vector3>;
+}
+export const GodRayShafts: React.FC<GodRayShaftsProps> = ({ playerPositionRef }) => {
     const groupRef = useRef<THREE.Group>(null);
+    const shaftMats = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
+    const outerConeMat = useRef<THREE.MeshBasicMaterial>(null);
+    const innerConeMat = useRef<THREE.MeshBasicMaterial>(null);
     useFrame((state) => {
-        if (groupRef.current) groupRef.current.rotation.y = state.clock.elapsedTime * 0.04;
+        const t = state.clock.elapsedTime;
+        if (groupRef.current) groupRef.current.rotation.y = t * 0.04;
+
+        // If we have player position, drive the opacity so the shafts
+        // POP when the player is directly under the hole (the most
+        // dramatic angle: looking up at the sun-shaft).
+        let proximity = 0.4; // default "background" intensity
+        if (playerPositionRef) {
+            const p = playerPositionRef.current;
+            const dx = p.x - HOLE_CENTER_X;
+            const dz = p.z - HOLE_CENTER_Z;
+            const horizDist = Math.sqrt(dx * dx + dz * dz);
+            // 1 when directly under the hole, fades to 0.3 by 15 units away
+            proximity = 0.3 + Math.max(0, 1 - horizDist / 15) * 0.7;
+        }
+
+        const breathe = 0.85 + 0.15 * Math.sin(t * 0.6);
+        for (let i = 0; i < shaftMats.current.length; i++) {
+            const m = shaftMats.current[i];
+            if (m) {
+                const baseOp = 0.16 + (i % 3) * 0.05;
+                m.opacity = baseOp * proximity * breathe;
+            }
+        }
+        if (outerConeMat.current) outerConeMat.current.opacity = 0.18 * proximity * breathe;
+        if (innerConeMat.current) innerConeMat.current.opacity = 0.14 * proximity * breathe;
     });
     const SHAFT_COUNT = 8;
     return (
@@ -473,9 +515,10 @@ export const GodRayShafts: React.FC = () => {
                     >
                         <planeGeometry args={[1.6 + (i % 3) * 0.4, 28]} />
                         <meshBasicMaterial
-                            color="#0c3020"
+                            ref={(r: any) => { shaftMats.current[i] = r; }}
+                            color="#3aa8d0"
                             transparent
-                            opacity={0.12 + (i % 3) * 0.04}
+                            opacity={0.16 + (i % 3) * 0.05}
                             side={THREE.DoubleSide}
                             depthWrite={false}
                             blending={THREE.AdditiveBlending}
@@ -488,9 +531,10 @@ export const GodRayShafts: React.FC = () => {
             <mesh position={[0, 10, 0]}>
                 <coneGeometry args={[2.5, 14, 16, 1, true]} />
                 <meshBasicMaterial
-                    color="#1a5040"
+                    ref={outerConeMat}
+                    color="#5acce0"
                     transparent
-                    opacity={0.10}
+                    opacity={0.18}
                     side={THREE.DoubleSide}
                     depthWrite={false}
                     blending={THREE.AdditiveBlending}
@@ -501,9 +545,10 @@ export const GodRayShafts: React.FC = () => {
             <mesh position={[0, 8, 0]}>
                 <coneGeometry args={[1.2, 10, 12, 1, true]} />
                 <meshBasicMaterial
-                    color="#1a6050"
+                    ref={innerConeMat}
+                    color="#a0e0f0"
                     transparent
-                    opacity={0.08}
+                    opacity={0.14}
                     side={THREE.DoubleSide}
                     depthWrite={false}
                     blending={THREE.AdditiveBlending}
@@ -514,29 +559,77 @@ export const GodRayShafts: React.FC = () => {
     );
 };
 
-// ─── DeepMist — slowly drifting fog plane underwater ─────────────────
-export const DeepMist: React.FC = () => {
-    const matRef = useRef<THREE.MeshBasicMaterial>(null);
+// ─── DeepMist — 3 stacked fog planes for parallax depth fog ──────────
+export const DeepMist: React.FC<{ reflective?: boolean }> = ({ reflective = false }) => {
+    const mat1 = useRef<THREE.MeshBasicMaterial>(null);
+    const mat2 = useRef<THREE.MeshBasicMaterial>(null);
+    const mat3 = useRef<THREE.MeshBasicMaterial>(null);
+    const g1 = useRef<THREE.Group>(null);
+    const g2 = useRef<THREE.Group>(null);
+    const g3 = useRef<THREE.Group>(null);
     useFrame((state) => {
-        const m = matRef.current;
-        if (!m) return;
         const t = state.clock.elapsedTime;
-        m.opacity = 0.04 + Math.sin(t * 0.2) * 0.015;
+        if (mat1.current) mat1.current.opacity = 0.05 + Math.sin(t * 0.20) * 0.015;
+        if (mat2.current) mat2.current.opacity = 0.045 + Math.sin(t * 0.16 + 1.3) * 0.012;
+        if (mat3.current) mat3.current.opacity = 0.04 + Math.sin(t * 0.13 + 2.7) * 0.012;
+        // Subtle horizontal drift (rotation) — parallax
+        if (g1.current) g1.current.rotation.y = t * 0.012;
+        if (g2.current) g2.current.rotation.y = -t * 0.009 + 1.0;
+        if (g3.current) g3.current.rotation.y = t * 0.007 + 2.0;
     });
     return (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -15, 0]}>
-            <planeGeometry args={[60, 60]} />
-            <meshBasicMaterial
-                ref={matRef}
-                color="#040808"
-                transparent
-                opacity={0.04}
-                depthWrite={false}
-                blending={THREE.AdditiveBlending}
-                side={THREE.DoubleSide}
-                toneMapped={false}
-            />
-        </mesh>
+        <>
+            {/* Upper mist layer — bluish, near the surface */}
+            <group ref={g1}>
+                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -8, 0]}>
+                    <planeGeometry args={[70, 70]} />
+                    <meshBasicMaterial
+                        ref={mat1}
+                        color="#0a1a30"
+                        transparent
+                        opacity={0.05}
+                        depthWrite={false}
+                        blending={THREE.AdditiveBlending}
+                        side={THREE.DoubleSide}
+                        toneMapped={false}
+                    />
+                </mesh>
+            </group>
+            {/* Mid mist layer — teal */}
+            <group ref={g2}>
+                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -15, 0]}>
+                    <planeGeometry args={[80, 80]} />
+                    <meshBasicMaterial
+                        ref={mat2}
+                        color="#061a2a"
+                        transparent
+                        opacity={0.045}
+                        depthWrite={false}
+                        blending={THREE.AdditiveBlending}
+                        side={THREE.DoubleSide}
+                        toneMapped={false}
+                    />
+                </mesh>
+            </group>
+            {/* Deep mist layer — black-purple, only on quality > low */}
+            {reflective && (
+                <group ref={g3}>
+                    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -23, 0]}>
+                        <planeGeometry args={[90, 90]} />
+                        <meshBasicMaterial
+                            ref={mat3}
+                            color="#040810"
+                            transparent
+                            opacity={0.04}
+                            depthWrite={false}
+                            blending={THREE.AdditiveBlending}
+                            side={THREE.DoubleSide}
+                            toneMapped={false}
+                        />
+                    </mesh>
+                </group>
+            )}
+        </>
     );
 };
 
@@ -583,8 +676,19 @@ export const DebrisField: React.FC = () => {
 };
 
 // ─── FishSchool — small fish swimming in circular paths ───────────────
+// Fish are visually varied: some are "glow" fish with bright emissive
+// colors that catch the eye, others are darker for background filler.
+const FISH_PALETTE: { color: string; emissive: string; intensity: number; glow: boolean }[] = [
+    { color: '#1a2a30', emissive: '#081018', intensity: 0.2, glow: false },
+    { color: '#0e1a20', emissive: '#060c10', intensity: 0.2, glow: false },
+    { color: '#162228', emissive: '#0a1218', intensity: 0.2, glow: false },
+    { color: '#2a4a5e', emissive: '#1a4a6e', intensity: 1.6, glow: true },   // teal glower
+    { color: '#3a2a4e', emissive: '#5a1a8a', intensity: 1.4, glow: true },   // purple glower
+    { color: '#1a3e3a', emissive: '#0aa888', intensity: 1.5, glow: true },   // aqua glower
+];
 export const FishSchool: React.FC = () => {
     const refs = useRef<(THREE.Mesh | null)[]>(new Array(FISH_COUNT).fill(null));
+    const spriteRefs = useRef<(THREE.Sprite | null)[]>(new Array(FISH_COUNT).fill(null));
     useFrame((state) => {
         const t = state.clock.elapsedTime;
         for (let i = 0; i < FISH_COUNT; i++) {
@@ -601,26 +705,54 @@ export const FishSchool: React.FC = () => {
             f.rotation.y = -angle + Math.PI / 2;
             f.rotation.z = Math.PI / 2;
             f.rotation.x = Math.sin(t * 6 + offset * 20) * 0.15;
+            // Glow sprite follows the fish
+            const sp = spriteRefs.current[i];
+            if (sp) sp.position.set(x, y, z);
         }
     });
     return (
         <group>
-            {Array.from({ length: FISH_COUNT }, (_, i) => (
-                <mesh
-                    key={i}
-                    ref={(r: any) => { refs.current[i] = r; }}
-                    geometry={FISH_GEO}
-                    scale={0.6 + (i % 3) * 0.25}
-                >
-                    <meshStandardMaterial
-                        color={i % 3 === 0 ? '#1a2a30' : i % 3 === 1 ? '#0e1a20' : '#162228'}
-                        emissive={i % 3 === 0 ? '#081018' : '#060c10'}
-                        emissiveIntensity={0.2}
-                        roughness={0.8}
-                        flatShading
-                    />
-                </mesh>
-            ))}
+            {Array.from({ length: FISH_COUNT }, (_, i) => {
+                // Varied size — wider range for visual variety
+                const seed = Math.sin(i * 12.93) * 0.5 + 0.5;
+                const scale = 0.45 + seed * 0.9;
+                const palette = FISH_PALETTE[i % FISH_PALETTE.length];
+                return (
+                    <React.Fragment key={i}>
+                        <mesh
+                            ref={(r: any) => { refs.current[i] = r; }}
+                            geometry={FISH_GEO}
+                            scale={scale}
+                        >
+                            <meshStandardMaterial
+                                color={palette.color}
+                                emissive={palette.emissive}
+                                emissiveIntensity={palette.intensity}
+                                roughness={0.8}
+                                flatShading
+                                toneMapped={!palette.glow}
+                            />
+                        </mesh>
+                        {/* Subtle additive glow sprite for the bright "glower" fish */}
+                        {palette.glow && (
+                            <sprite
+                                ref={(r: any) => { spriteRefs.current[i] = r; }}
+                                scale={[scale * 1.8, scale * 1.8, 1]}
+                            >
+                                <spriteMaterial
+                                    map={GLOW_TEXTURE}
+                                    color={palette.emissive}
+                                    transparent
+                                    opacity={0.40}
+                                    depthWrite={false}
+                                    toneMapped={false}
+                                    blending={THREE.AdditiveBlending}
+                                />
+                            </sprite>
+                        )}
+                    </React.Fragment>
+                );
+            })}
         </group>
     );
 };
@@ -731,9 +863,16 @@ export const BubbleField: React.FC = () => {
 
     return (
         <Instances limit={BUBBLE_COUNT} range={BUBBLE_COUNT} geometry={BUBBLE_GEO}>
-            <meshBasicMaterial color="#2a3a40" transparent opacity={0.2} depthWrite={false} toneMapped={false} />
+            <meshBasicMaterial
+                color="#7ac8e0"
+                transparent
+                opacity={0.45}
+                depthWrite={false}
+                toneMapped={false}
+                blending={THREE.AdditiveBlending}
+            />
             {Array.from({ length: BUBBLE_COUNT }, (_, i) => (
-                <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} scale={0.03 + Math.random() * 0.05} />
+                <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} scale={0.04 + Math.random() * 0.07} />
             ))}
         </Instances>
     );
@@ -766,7 +905,14 @@ export const SurfaceBubbleRing: React.FC = () => {
     });
     return (
         <Instances limit={SURFACE_BUBBLE_COUNT} range={SURFACE_BUBBLE_COUNT} geometry={BUBBLE_GEO}>
-            <meshBasicMaterial color="#3a4a50" transparent opacity={0.25} depthWrite={false} toneMapped={false} />
+            <meshBasicMaterial
+                color="#9adce8"
+                transparent
+                opacity={0.45}
+                depthWrite={false}
+                toneMapped={false}
+                blending={THREE.AdditiveBlending}
+            />
             {Array.from({ length: SURFACE_BUBBLE_COUNT }, (_, i) => {
                 const s = 0.06 + Math.sin(i * 5.7) * 0.5 * 0.04;
                 return <Instance key={i} ref={(r: any) => { refs.current[i] = r; }} scale={s} />;
