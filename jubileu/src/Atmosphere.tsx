@@ -167,6 +167,107 @@ export const playJumpscareStab = (audioContext: AudioContext | null) => {
 };
 
 /**
+ * Cave ambience — continuous low rumble + a few sine drones that beat
+ * against each other for an unsettling cave acoustic. Returns a stop
+ * function so the caller can cancel on level change.
+ *
+ * Use case: Floor 2 underwater cave. Mounts on level entry, stops on
+ * exit. Volume is intentionally low; it sits under everything else.
+ */
+export const createCaveAmbience = (audioContext: AudioContext | null): (() => void) => {
+    if (!audioContext) return () => {};
+
+    // ── Sub-bass rumble ──
+    const sub = audioContext.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.value = 38;
+    const subGain = audioContext.createGain();
+    subGain.gain.value = 0;
+    sub.connect(subGain).connect(audioContext.destination);
+    subGain.gain.setTargetAtTime(0.13, audioContext.currentTime, 1.5);
+    sub.start();
+
+    // ── Mid drone (slightly detuned sines for beating) ──
+    const drone1 = audioContext.createOscillator();
+    drone1.type = 'sine';
+    drone1.frequency.value = 87;
+    const drone2 = audioContext.createOscillator();
+    drone2.type = 'sine';
+    drone2.frequency.value = 89.3;  // detune for slow beating
+    const droneFilter = audioContext.createBiquadFilter();
+    droneFilter.type = 'lowpass';
+    droneFilter.frequency.value = 220;
+    droneFilter.Q.value = 0.6;
+    const droneGain = audioContext.createGain();
+    droneGain.gain.value = 0;
+    drone1.connect(droneFilter);
+    drone2.connect(droneFilter);
+    droneFilter.connect(droneGain).connect(audioContext.destination);
+    droneGain.gain.setTargetAtTime(0.045, audioContext.currentTime, 2.0);
+    drone1.start();
+    drone2.start();
+
+    // ── Filtered noise wash — distant water/wind ──
+    const noiseLen = Math.floor(audioContext.sampleRate * 4);
+    const noiseBuf = audioContext.createBuffer(1, noiseLen, audioContext.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < noiseLen; i++) data[i] = Math.random() * 2 - 1;
+    const noise = audioContext.createBufferSource();
+    noise.buffer = noiseBuf;
+    noise.loop = true;
+    const noiseFilter = audioContext.createBiquadFilter();
+    noiseFilter.type = 'lowpass';
+    noiseFilter.frequency.value = 450;
+    const noiseGain = audioContext.createGain();
+    noiseGain.gain.value = 0;
+    noise.connect(noiseFilter).connect(noiseGain).connect(audioContext.destination);
+    noiseGain.gain.setTargetAtTime(0.028, audioContext.currentTime, 3.0);
+    noise.start();
+
+    // ── Random drip scheduler ──
+    let stopped = false;
+    const scheduleDrip = () => {
+        if (stopped) return;
+        const t = audioContext.currentTime;
+        const dripFreq = 1200 + Math.random() * 1400;
+        const dripOsc = audioContext.createOscillator();
+        dripOsc.type = 'sine';
+        dripOsc.frequency.setValueAtTime(dripFreq, t);
+        dripOsc.frequency.exponentialRampToValueAtTime(dripFreq * 0.55, t + 0.10);
+        const dripGain = audioContext.createGain();
+        dripGain.gain.setValueAtTime(0, t);
+        dripGain.gain.linearRampToValueAtTime(0.05 + Math.random() * 0.03, t + 0.005);
+        dripGain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        dripOsc.connect(dripGain).connect(audioContext.destination);
+        dripOsc.start(t);
+        dripOsc.stop(t + 0.20);
+        // Next drip in 1.5..6 seconds
+        const next = 1500 + Math.random() * 4500;
+        setTimeout(scheduleDrip, next);
+    };
+    setTimeout(scheduleDrip, 1200 + Math.random() * 2000);
+
+    return () => {
+        stopped = true;
+        try { subGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.5); } catch {}
+        try { droneGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.5); } catch {}
+        try { noiseGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.5); } catch {}
+        // Stop nodes 1s later so the fade can finish.
+        setTimeout(() => {
+            try { sub.stop(); sub.disconnect(); } catch {}
+            try { drone1.stop(); drone1.disconnect(); } catch {}
+            try { drone2.stop(); drone2.disconnect(); } catch {}
+            try { noise.stop(); noise.disconnect(); } catch {}
+            try { subGain.disconnect(); } catch {}
+            try { droneGain.disconnect(); } catch {}
+            try { noiseGain.disconnect(); } catch {}
+            try { droneFilter.disconnect(); } catch {}
+            try { noiseFilter.disconnect(); } catch {}
+        }, 1200);
+    };
+};
+
+/**
  * Soft confirm chime — used when the rebreather "snaps" into place during
  * the put-on cinematic.
  */

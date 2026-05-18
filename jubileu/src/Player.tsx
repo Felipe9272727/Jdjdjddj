@@ -489,16 +489,22 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             }
         }
 
-        // FP-style camera (zoom is locked to 0 on level 2 by App.tsx)
+        // FP-style camera (zoom is locked to 0 on level 2 by App.tsx).
+        // Underwater adds a slow buoyancy sway + breathing bob to the
+        // camera position — a small but powerful realism cue.
         charRot.current.y = camAng.current.theta + Math.PI;
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
-        const ly = pos.current.y + HH * 0.3;  // crouched-ish head height while swimming
-        camera.position.set(pos.current.x, ly, pos.current.z);
+        const tNow = state.clock.elapsedTime;
+        const swayX = Math.sin(tNow * 0.55) * 0.06;
+        const swayY = Math.sin(tNow * 0.85 + 1.3) * 0.04 + Math.sin(tNow * 0.35) * 0.02;
+        const swayZ = Math.cos(tNow * 0.45) * 0.05;
+        const ly = pos.current.y + HH * 0.3 + swayY;  // crouched-ish head height while swimming
+        camera.position.set(pos.current.x + swayX, ly, pos.current.z + swayZ);
         const ld = 5;
         camera.lookAt(
-            pos.current.x - Math.sin(camAng.current.theta) * ld * Math.cos(camAng.current.phi),
+            pos.current.x - Math.sin(camAng.current.theta) * ld * Math.cos(camAng.current.phi) + swayX * 0.4,
             ly - Math.sin(camAng.current.phi) * ld,
-            pos.current.z - Math.cos(camAng.current.theta) * ld * Math.cos(camAng.current.phi)
+            pos.current.z - Math.cos(camAng.current.theta) * ld * Math.cos(camAng.current.phi) + swayZ * 0.4
         );
         (camera as THREE.PerspectiveCamera).fov = 95; camera.updateProjectionMatrix();
         camPosRef.current.copy(camera.position);

@@ -40,7 +40,7 @@ import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES, type QualityPr
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
 import { RobloxChat, BubbleChatFallback } from './ChatSystem';
 import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient, EmptyLobbyAmbience } from './PostEffects';
-import { CeilingFan, WallClock, playArrivalDing, createElevatorHum, playJumpscareStab, playEquipChime } from './Atmosphere';
+import { CeilingFan, WallClock, playArrivalDing, createElevatorHum, playJumpscareStab, playEquipChime, createCaveAmbience } from './Atmosphere';
 import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue } from './HudComponents';
 import { SceneInspector } from './SceneInspector';
 
@@ -266,6 +266,28 @@ export default function App() {
       setDiverDialogueNode(next);
     }
   }, [scheduleTimeout]);
+
+  // Cave ambience — slow rumble + drips. Mounted while the player is on
+  // Floor 2 and audio is unmuted. Stopped cleanly on exit.
+  const caveAmbienceStopRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (currentLevel === 2 && audioCtx && !muted) {
+      if (!caveAmbienceStopRef.current) {
+        caveAmbienceStopRef.current = createCaveAmbience(audioCtx);
+      }
+    } else {
+      if (caveAmbienceStopRef.current) {
+        caveAmbienceStopRef.current();
+        caveAmbienceStopRef.current = null;
+      }
+    }
+    return () => {
+      if (caveAmbienceStopRef.current) {
+        caveAmbienceStopRef.current();
+        caveAmbienceStopRef.current = null;
+      }
+    };
+  }, [currentLevel, audioCtx, muted]);
 
   // Called when the 3D put-on cinematic finishes.
   const handleRebreather3DDone = useCallback(() => {
