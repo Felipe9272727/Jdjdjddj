@@ -104,36 +104,18 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
 
   const clone = useMemo(() => {
     const c = SkeletonUtils.clone(gltf.scene);
-    // Bake the normalising scale directly onto the clone so the parent
-    // group can remain at scale=1.  This keeps lights, mask and sprite
-    // positions in true world-unit space regardless of how Tripo chose
-    // to export (centimetres vs metres, pivot at origin vs feet, etc.).
+    // Bake the normalising scale onto the clone so the parent group can stay
+    // scale=1 (lights, mask, sprites live in world units).
     c.scale.setScalar(autoScale);
-    // Leave PBR sliders alone (the Tripo metallicRoughnessTexture controls
-    // them per-texel) but bump envMapIntensity so the IBL contributes
-    // strongly to specular highlights — that's what turns the model from
-    // a flat coloured silhouette into a clearly 3D figure.  We also keep
-    // materials OPAQUE by default; the fade-out path flips transparent on
-    // dynamically so the steady-state look doesn't suffer from the
-    // alpha-blending render path.
+    // Keep Tripo's original PBR textures (baseColor, normal, metallicRoughness)
+    // exactly like the Cashier does — no material swap, no envMapIntensity
+    // hacks. The "PNG look" was actually the face-player rotation (below)
+    // making the player see the same silhouette from every angle.
     c.traverse((child: any) => {
       if (!child.isMesh) return;
       child.castShadow = true;
       child.receiveShadow = true;
       child.frustumCulled = false;
-      // Pull the GLB's normal map before discarding the flat Tripo material.
-      // The normal map alone gives genuine surface detail that responds to 3D
-      // lighting, which is what makes the model read as solid rather than flat.
-      const orig = Array.isArray(child.material) ? child.material[0] : child.material;
-      const normalMap = orig?.normalMap ?? null;
-      child.material = new THREE.MeshStandardMaterial({
-        color: '#1c2a3a',          // dark navy/charcoal diving suit
-        normalMap,
-        normalScale: new THREE.Vector2(1.8, 1.8),
-        roughness: 0.72,
-        metalness: 0.06,
-        envMapIntensity: 3.0,      // IBL fills the cave-lit form
-      });
     });
     return c;
   }, [gltf.scene, autoScale]);
@@ -191,25 +173,9 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     }
     g.visible = true;
 
-    // ── Face the player on XZ ──────────────────────────────────────
-    const pp = playerPositionRef.current;
-    const dx = pp.x - DIVER_POS[0];
-    const dz = pp.z - DIVER_POS[2];
-    if (dx * dx + dz * dz > 1e-3) {
-      const targetY = Math.atan2(dx, dz);
-      // Snap immediately on the very first frame of spawn so the player
-      // never sees the diver facing the wrong way mid-jumpscare. After
-      // that, smooth turn at a moderate speed.
-      if (st === 'spawn' && t.popT < 0.01) {
-        g.rotation.y = targetY;
-      } else {
-        let cur = g.rotation.y;
-        let d2 = targetY - cur;
-        while (d2 > Math.PI) d2 -= Math.PI * 2;
-        while (d2 < -Math.PI) d2 += Math.PI * 2;
-        g.rotation.y = cur + d2 * Math.min(1, 8 * safeDt);
-      }
-    }
+    // Rotation is static (set on the JSX <group>) — same logic the Cashier
+    // uses. Tracking the player every frame collapsed the silhouette to one
+    // angle, which is what made the model read as a 2D billboard.
 
     const time = stateR3F.clock.elapsedTime;
 
@@ -350,7 +316,12 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
   }), []);
 
   return (
-    <group ref={groupRef} position={[DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]]} visible={false}>
+    <group
+      ref={groupRef}
+      position={[DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]]}
+      rotation={[0, Math.PI, 0]}
+      visible={false}
+    >
       {/* Dedicated hemisphereLight scoped to the diver so the cave's
           dark fog doesn't swallow the GLB's PBR textures.  Sky = warm
           torch glow, ground = cool reflected cyan from the water.
