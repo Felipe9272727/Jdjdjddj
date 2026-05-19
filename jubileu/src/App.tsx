@@ -20,6 +20,7 @@ class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasErr
 import { LiminalAudioEngine } from './AudioEngine';
 import { MainMenu } from './MainMenu';
 import { VisualJoystick, DialogueOverlay } from './UI';
+import { DiverDialogue } from './DiverDialogue';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
 import { ShadowBlob } from './ShadowBlob';
@@ -28,7 +29,7 @@ import { FlashlightLight, FlashlightModel3D } from './FlashlightLight';
 import { BeardedDiver, DIVER_POS, DIVER_SCARE_DIST } from './BeardedDiver';
 import { NightVisionFx, NightVisionLights } from './NightVisionOverlay';
 import { Rebreather3DPutOn } from './Rebreather3DPutOn';
-import { DIVER_DIALOGUE } from './constants';
+// DIVER_DIALOGUE is now handled internally by DiverDialogue.tsx
 import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
@@ -1175,14 +1176,10 @@ export default function App() {
       )}
       {dialogueOpen && ( <DialogueOverlay nodeKey={dialogueNode} onOptionSelect={(next: string) => setDialogueNode(next)} onClose={() => setDialogueOpen(false)} /> )}
 
-      {/* Bearded diver dialogue — same overlay system, custom dialogue tree,
-          cyan accent to match the underwater / nightvision palette. */}
+      {/* Bearded diver dialogue — purpose-built overlay, see DiverDialogue.tsx */}
       {diverDialogueOpen && (
-        <DialogueOverlay
-          tree={DIVER_DIALOGUE}
+        <DiverDialogue
           nodeKey={diverDialogueNode}
-          speakerName="Mergulhador"
-          accentColor="border-cyan-400/60"
           onOptionSelect={handleDiverDialogueResponse}
           onClose={() => setDiverDialogueOpen(false)}
         />

@@ -117,22 +117,23 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     // dynamically so the steady-state look doesn't suffer from the
     // alpha-blending render path.
     c.traverse((child: any) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = false;
-        child.frustumCulled = false;       // never clip the NPC even at distance
-      }
-      if (child.material) {
-        const m = child.material;
-        const list = Array.isArray(m) ? m : [m];
-        for (const mm of list) {
-          mm.transparent = false;
-          mm.opacity = 1;
-          mm.depthWrite = true;
-          if (mm.envMapIntensity !== undefined) mm.envMapIntensity = 1.4;
-          mm.needsUpdate = true;
-        }
-      }
+      if (!child.isMesh) return;
+      child.castShadow = true;
+      child.receiveShadow = true;
+      child.frustumCulled = false;
+      // Pull the GLB's normal map before discarding the flat Tripo material.
+      // The normal map alone gives genuine surface detail that responds to 3D
+      // lighting, which is what makes the model read as solid rather than flat.
+      const orig = Array.isArray(child.material) ? child.material[0] : child.material;
+      const normalMap = orig?.normalMap ?? null;
+      child.material = new THREE.MeshStandardMaterial({
+        color: '#1c2a3a',          // dark navy/charcoal diving suit
+        normalMap,
+        normalScale: new THREE.Vector2(1.8, 1.8),
+        roughness: 0.72,
+        metalness: 0.06,
+        envMapIntensity: 3.0,      // IBL fills the cave-lit form
+      });
     });
     return c;
   }, [gltf.scene, autoScale]);
@@ -355,7 +356,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
           torch glow, ground = cool reflected cyan from the water.
           Adds a flat fill across every face of the model regardless
           of where the key light is hitting. */}
-      <hemisphereLight color="#FFD080" groundColor="#4A6F8A" intensity={1.6} />
+      <hemisphereLight color="#FFD080" groundColor="#4A6F8A" intensity={0.9} />
 
       {/* Three-point lighting — all positions relative to the diver's
           LOCAL space so they rotate with him and always light his face.
