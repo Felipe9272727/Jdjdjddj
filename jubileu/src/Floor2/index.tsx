@@ -428,7 +428,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     );
 
     // ─── Load rock GLB models ──────────────────────────────────────
-    const rockModels = ROCK_MODEL_URLS.map(u => useGLTF(u));
+    const rockModels = useGLTF(ROCK_MODEL_URLS);
     const boulderModel_ = useGLTF(BOULDER_MODEL_URL);
 
     // Clone scenes and override materials with our PBR cave rock textures
