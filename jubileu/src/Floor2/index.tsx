@@ -375,7 +375,7 @@ const CaveIBL: React.FC = () => {
     useEffect(() => {
         const pmrem = new THREE.PMREMGenerator(gl);
         pmrem.compileEquirectangularShader();
-        const room = new RoomEnvironment();
+        const room = RoomEnvironment();
         const envRT = pmrem.fromScene(room, 0.04);
         scene.environment = envRT.texture;
         // Don't set scene.background — DynamicFog owns background colour.

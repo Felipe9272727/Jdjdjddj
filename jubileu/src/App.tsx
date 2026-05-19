@@ -738,12 +738,12 @@ export default function App() {
     activePointers.current.clear();
     prevPinchDist.current = null;
     setJoystickVisual(p => ({ ...p, active: false }));
-  }, [dialogueOpen, barneyDialogueOpen]);
+  }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!hasStarted) return;
-    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
-    if (dialogueOpen || barneyDialogueOpen || shopOpen) return;
+    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
+    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen) return;
     e.preventDefault(); e.stopPropagation();
     const { pointerId, clientX, clientY } = e; const screenW = window.innerWidth; const screenH = window.innerHeight;
     const isPortrait = screenH > screenW; const zoneLimit = isPortrait ? 0.5 : 0.4;
@@ -761,7 +761,7 @@ export default function App() {
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!hasStarted) return;
     if (isDesktop) {
-      if (document.pointerLockElement === document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen) {
+      if (document.pointerLockElement === document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen) {
         const sx = settings.sensitivity;
         const sy = settings.sensitivity * (settings.invertY ? -1 : 1);
         lookInput.current.x += e.movementX * sx;
@@ -812,18 +812,16 @@ export default function App() {
 
   useEffect(() => {
     if (!isDesktop || !hasStarted) return;
-    if (dialogueOpen || barneyDialogueOpen || shopOpen) { document.exitPointerLock(); return; }
+    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen) { document.exitPointerLock(); return; }
     const upd = () => { const k = keysRef.current; let x=0, y=0; if (k.w) y-=1; if (k.s) y+=1; if (k.a) x-=1; if (k.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
     const kd = (e: KeyboardEvent) => {
-      // ESC toggles settings always — even mid-dialogue, so user has an
-      // escape hatch.
       if (e.key === 'Escape') {
         e.preventDefault();
         if (shopOpen) { handleCloseShop(); return; }
         setSettingsOpen((v) => !v);
         return;
       }
-      if (dialogueOpen || barneyDialogueOpen || shopOpen) return;
+      if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen) return;
       const k = keysRef.current;
       switch(e.key.toLowerCase()) {
         case 'w': k.w=true; break;
@@ -848,7 +846,7 @@ export default function App() {
     };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, diverDialogueOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
 
   // Memoize the sliced remote player id list to avoid re-creating on every render.
   const visibleRemotePlayerIds = useMemo(

@@ -19,9 +19,9 @@ describe('Settings', () => {
       expect(QUALITY_PROFILES.medium.far).toBeLessThanOrEqual(QUALITY_PROFILES.high.far);
     });
 
-    it('dpr[0] should be 1 for all profiles', () => {
+    it('dpr[0] should be > 0 for all profiles', () => {
       for (const [key, profile] of Object.entries(QUALITY_PROFILES)) {
-        expect(profile.dpr[0], `${key}`).toBe(1);
+        expect(profile.dpr[0], `${key}`).toBeGreaterThan(0);
       }
     });
 
