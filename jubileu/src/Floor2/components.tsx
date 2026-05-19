@@ -7,7 +7,7 @@
  *   3. Underwater effects (caustics, flora, god rays, mist, particles, fish, shards)
  */
 
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Instances, Instance, MeshReflectorMaterial } from '@react-three/drei';
 import * as THREE from 'three';
@@ -228,6 +228,12 @@ export const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<TH
     const { scene } = useThree();
     const _fogColor = useRef(new THREE.Color('#0e0a08'));
     const _bgColor = useRef(new THREE.Color('#0e0a08'));
+
+    useEffect(() => {
+        const prev = scene.background;
+        scene.background = new THREE.Color('#0e0a08');
+        return () => { scene.background = prev; };
+    }, [scene]);
     const _tgtFog = useRef(new THREE.Color());
     const _tgtBg = useRef(new THREE.Color());
     const _surfaceFog = new THREE.Color('#0a2a50');
