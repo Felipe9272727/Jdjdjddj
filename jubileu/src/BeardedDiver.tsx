@@ -51,12 +51,18 @@ const POP_DURATION = 0.45;
 /** Handover (mask-present) duration in seconds. */
 const HANDOVER_DURATION = 0.7;
 /** Fade-out duration in seconds. */
-const FADE_DURATION = 0.9;
+const FADE_DURATION = 3.5;
+/** How far the diver walks backwards (toward -Z, away from the player's
+ *  approach direction) while fading out. */
+const FADE_WALK_DISTANCE = 4.5;
+/** How much the diver sinks below the floor while leaving — sells the
+ *  "walks into the dark" feel without him visibly clipping through. */
+const FADE_SINK = 0.6;
 
 /** Target height for the diver in world units (~human height in meters).
  *  We auto-scale the GLB to this so Tripo's arbitrary export scale
  *  doesn't end up tiny or huge. Used at clone time. */
-const DIVER_TARGET_HEIGHT = 1.85;
+const DIVER_TARGET_HEIGHT = 2.3;
 
 export type DiverState = 'hidden' | 'spawn' | 'idle' | 'handover' | 'fading';
 
@@ -142,6 +148,10 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       tRef.current.armT = 0;
       tRef.current.fadeT = 0;
       tRef.current.fadeOpacity = 1;
+      // Reset walked-away position so a respawn shows him at DIVER_POS again
+      if (groupRef.current) {
+        groupRef.current.position.set(DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]);
+      }
     }
   }, [state]);
 
@@ -242,19 +252,37 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       maskRef.current.visible = false;
     }
 
-    // ── FADING: opacity ramp ───────────────────────────────────────
+    // ── FADING: walk-away ramp ─────────────────────────────────────
+    // Sells "the diver leaves" instead of "the diver winks out". He walks
+    // backwards (his -Z, which is +Z in world after the rotation) into the
+    // dark cave, sinks a little (knees give as the suit gets heavier with
+    // water), and only at the end of the walk fades to transparent.
     if (st === 'fading') {
       t.fadeT = Math.min(1, t.fadeT + safeDt / FADE_DURATION);
       const u = t.fadeT;
-      const o = 1 - u * u;
+      // Ease-out: he starts walking quickly then slows as he gets distant.
+      const walk = 1 - Math.pow(1 - u, 2);
+      // He's rotated 180° on Y, so his "forward" (local -Z) is world +Z;
+      // we want him to leave AWAY from the player, which is local +Z =
+      // world -Z. So we push the group in -Z (deeper into the cave).
+      g.position.set(
+        DIVER_POS[0],
+        DIVER_POS[1] - FADE_SINK * walk,
+        DIVER_POS[2] - FADE_WALK_DISTANCE * walk
+      );
+      // Subtle limp / sway so he looks like he's walking, not sliding
+      bob.position.y = Math.sin(time * 3.2) * 0.04 * (1 - u);
+      bob.rotation.z = Math.sin(time * 2.8) * 0.045 * (1 - u);
+      // Opacity only kicks in over the last 40% of the walk so he stays
+      // visible while he's still close enough to read as "leaving".
+      const o = u < 0.6 ? 1 : 1 - ((u - 0.6) / 0.4);
       t.fadeOpacity = o;
-      bob.scale.setScalar(1 - u * 0.15);
       g.traverse((child: any) => {
         if (child.material) {
           const m = child.material;
           const list = Array.isArray(m) ? m : [m];
           for (const mm of list) {
-            mm.transparent = true;     // flip ON only during fade
+            mm.transparent = true;
             mm.opacity = o;
           }
         }

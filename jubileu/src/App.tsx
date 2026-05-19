@@ -20,7 +20,7 @@ class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasErr
 import { LiminalAudioEngine } from './AudioEngine';
 import { MainMenu } from './MainMenu';
 import { VisualJoystick, DialogueOverlay } from './UI';
-import { DiverDialogue } from './DiverDialogue';
+import { DiverCutscene } from './DiverCutscene';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
 import { ShadowBlob } from './ShadowBlob';
@@ -29,7 +29,7 @@ import { FlashlightLight, FlashlightModel3D } from './FlashlightLight';
 import { BeardedDiver, DIVER_POS, DIVER_SCARE_DIST } from './BeardedDiver';
 import { NightVisionFx, NightVisionLights } from './NightVisionOverlay';
 import { Rebreather3DPutOn } from './Rebreather3DPutOn';
-// DIVER_DIALOGUE is now handled internally by DiverDialogue.tsx
+// Diver lines now live as a linear sequence inside DiverCutscene.tsx
 import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
@@ -168,7 +168,11 @@ export default function App() {
   const barneyTargetRef = useRef({ x: 0, z: 6.8, scale: 0 });
   // Stable ref pointing to the diver's world position (Floor 2). The
   // dialogue camera focus uses it during the diver conversation.
-  const diverPositionRef = useRef(new Vector3(DIVER_POS[0], DIVER_POS[1] + 1.6, DIVER_POS[2]));
+  // Camera focus target — Player.tsx adds +1.75 for camera y and +1.35 for
+  // look-at y, so this ref needs to be at the diver's FEET (y=0). Pointing
+  // it at chest height made the camera aim above the diver's head, which
+  // is why he looked so small on screen.
+  const diverPositionRef = useRef(new Vector3(DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]));
   
   const npcPositionRef = useRef(new Vector3(5, 0, 5)); 
   const [canInteractNPC, setCanInteractNPC] = useState(false); 
@@ -197,7 +201,6 @@ export default function App() {
   type DiverPhase = 'hidden' | 'spawn' | 'idle' | 'handover' | 'fading' | 'done';
   const [diverPhase, setDiverPhase] = useState<DiverPhase>('hidden');
   const [diverDialogueOpen, setDiverDialogueOpen] = useState(false);
-  const [diverDialogueNode, setDiverDialogueNode] = useState('greet');
   const [rebreather3DActive, setRebreather3DActive] = useState(false);
   const lastSpawnTimeRef = useRef<number>(0);
 
@@ -206,7 +209,6 @@ export default function App() {
     if (currentLevel !== 2) {
       setDiverPhase('hidden');
       setDiverDialogueOpen(false);
-      setDiverDialogueNode('greet');
       setRebreather3DActive(false);
     }
   }, [currentLevel]);
@@ -238,10 +240,9 @@ export default function App() {
         playJumpscareStab(audioCtx);
         // ~500ms shake then settle
         scheduleTimeout(() => setCameraShake(false), 500);
-        // After pop animation finishes, transition to idle and open dialogue.
+        // After pop animation finishes, transition to idle and play cutscene.
         scheduleTimeout(() => {
           setDiverPhase('idle');
-          setDiverDialogueNode('greet');
           setDiverDialogueOpen(true);
         }, 500);
       }
@@ -249,23 +250,17 @@ export default function App() {
     return () => clearInterval(id);
   }, [currentLevel, diverPhase, inventory.rebreather.owned, doorsClosed, audioCtx, scheduleTimeout]);
 
-  // Handle a dialogue option selection from the diver tree.
-  const handleDiverDialogueResponse = useCallback((next: string) => {
-    if (next === 'EQUIP') {
-      // Player accepted the mask. Close dialogue, start the 3D put-on
-      // cinematic, transition diver to handover (presenting the mask).
-      setDiverDialogueOpen(false);
-      setDiverPhase('handover');
-      setRebreather3DActive(true);
-    } else if (next === 'LEAVE') {
-      // Player declined entirely — diver fades out.
-      setDiverDialogueOpen(false);
-      setDiverPhase('fading');
-      scheduleTimeout(() => setDiverPhase('done'), 950);
-    } else {
-      // Normal node navigation.
-      setDiverDialogueNode(next);
-    }
+  // Cutscene → accept = player takes the gear, refuse = diver walks away.
+  const handleCutsceneAccept = useCallback(() => {
+    setDiverDialogueOpen(false);
+    setDiverPhase('handover');
+    setRebreather3DActive(true);
+  }, []);
+  const handleCutsceneRefuse = useCallback(() => {
+    setDiverDialogueOpen(false);
+    setDiverPhase('fading');
+    // Match BeardedDiver's FADE_DURATION (3.5s walk-away).
+    scheduleTimeout(() => setDiverPhase('done'), 3600);
   }, [scheduleTimeout]);
 
   // Splash overlay — fires once when the player transitions across the
@@ -314,9 +309,9 @@ export default function App() {
     inventoryAddItem('rebreather');
     inventoryAddItem('nightVision');
     playEquipChime(audioCtx);
-    // Diver fades out + despawns.
+    // Diver walks away + despawns (matches BeardedDiver FADE_DURATION).
     setDiverPhase('fading');
-    scheduleTimeout(() => setDiverPhase('done'), 950);
+    scheduleTimeout(() => setDiverPhase('done'), 3600);
   }, [audioCtx, inventoryAddItem, scheduleTimeout]);
 
   // ─── Floor 2 shards ───────────────────────────────────────────────────
@@ -1178,10 +1173,9 @@ export default function App() {
 
       {/* Bearded diver dialogue — purpose-built overlay, see DiverDialogue.tsx */}
       {diverDialogueOpen && (
-        <DiverDialogue
-          nodeKey={diverDialogueNode}
-          onOptionSelect={handleDiverDialogueResponse}
-          onClose={() => setDiverDialogueOpen(false)}
+        <DiverCutscene
+          onAccept={handleCutsceneAccept}
+          onRefuse={handleCutsceneRefuse}
         />
       )}
       
