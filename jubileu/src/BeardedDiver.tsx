@@ -136,11 +136,25 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
   const keyLightRef = useRef<THREE.PointLight>(null);
   const fillLightRef = useRef<THREE.PointLight>(null);
   const maskLightRef = useRef<THREE.PointLight>(null);
+  // Procedural arms — connect the diver's shoulders to the held mask.
+  const armLRef = useRef<THREE.Mesh>(null);
+  const armRRef = useRef<THREE.Mesh>(null);
   // Pre-allocated colors for smooth per-beat temperature shift
   const keyColorSmoothed = useRef(new THREE.Color('#FFE2A0'));
   const fillColorSmoothed = useRef(new THREE.Color('#FFD080'));
   const keyColorTarget   = useRef(new THREE.Color('#FFE2A0'));
   const fillColorTarget  = useRef(new THREE.Color('#FFD080'));
+  // Reusable temporaries for the per-frame arm IK (avoid GC churn)
+  const armTmp = useRef({
+    hand: new THREE.Vector3(),
+    vec: new THREE.Vector3(),
+    up: new THREE.Vector3(0, 1, 0),
+    quat: new THREE.Quaternion(),
+    shoulderL: new THREE.Vector3(-0.30, 1.52, 0.05),
+    shoulderR: new THREE.Vector3( 0.30, 1.52, 0.05),
+    handLocalL: new THREE.Vector3(-0.255, -0.05, 0.015),
+    handLocalR: new THREE.Vector3( 0.255, -0.05, 0.015),
+  });
 
   // ─── Load + clone GLB (so multiple instances / fade ops are safe) ──
   const gltf = useGLTF(hotelConciergeModel) as unknown as {
@@ -526,6 +540,33 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         const offerPulse = u > 0.82 ? 1 + Math.sin(time * 2.6) * 0.060 : 1;
         maskRef.current.scale.setScalar(offerPulse);
         maskRef.current.visible = true;
+
+        // ── Arm IK — fit each arm cylinder shoulder → held hand ──────
+        const at = armTmp.current;
+        const fitArm = (
+          armMesh: THREE.Mesh | null,
+          handLocal: THREE.Vector3,
+          shoulder: THREE.Vector3,
+        ) => {
+          if (!armMesh) return;
+          // Hand position in bob space = maskRef transform applied to the
+          // hand's local offset (account for the offer-pulse scale + tilt).
+          at.hand.copy(handLocal)
+            .multiplyScalar(offerPulse)
+            .applyEuler(maskRef.current!.rotation)
+            .add(maskRef.current!.position);
+          at.vec.subVectors(at.hand, shoulder);
+          const len = at.vec.length();
+          if (len < 1e-3) return;
+          at.vec.multiplyScalar(1 / len);
+          armMesh.position.copy(shoulder).addScaledVector(at.vec, len * 0.5);
+          at.quat.setFromUnitVectors(at.up, at.vec);
+          armMesh.quaternion.copy(at.quat);
+          armMesh.scale.set(1, len, 1);
+          armMesh.visible = true;
+        };
+        fitArm(armLRef.current, at.handLocalL, at.shoulderL);
+        fitArm(armRRef.current, at.handLocalR, at.shoulderR);
       }
     } else if (maskRef.current) {
       // Mask hidden during idle/spawn — the GLB character is the visual.
@@ -535,6 +576,8 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       maskRef.current.rotation.x = 0;
       maskRef.current.scale.setScalar(1);
       maskRef.current.visible = false;
+      if (armLRef.current) armLRef.current.visible = false;
+      if (armRRef.current) armRRef.current.visible = false;
     }
 
     // ── FADING: walk-away ramp ─────────────────────────────────────
@@ -811,10 +854,6 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
             <mesh position={[-0.040, 0.030, -0.072]} rotation={[0.3, 0, 0]} material={matDiverGlove}>
               <boxGeometry args={[0.058, 0.044, 0.050]} />
             </mesh>
-            {/* Wrist stub angling back toward the body */}
-            <mesh position={[0.010, -0.115, -0.045]} rotation={[-0.6, 0, 0.15]} material={matDiverGlove}>
-              <cylinderGeometry args={[0.044, 0.050, 0.16, 12]} />
-            </mesh>
           </group>
           {/* Left hand — mirrored */}
           <group position={[-0.255, -0.02, 0.015]}>
@@ -833,11 +872,18 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
             <mesh position={[0.040, 0.030, -0.072]} rotation={[0.3, 0, 0]} material={matDiverGlove}>
               <boxGeometry args={[0.058, 0.044, 0.050]} />
             </mesh>
-            <mesh position={[-0.010, -0.115, -0.045]} rotation={[-0.6, 0, -0.15]} material={matDiverGlove}>
-              <cylinderGeometry args={[0.044, 0.050, 0.16, 12]} />
-            </mesh>
           </group>
         </group>
+
+        {/* Procedural arms — tapered cylinders re-fitted every frame to
+            span shoulder → held mask. Geometry is 1u tall along Y; the
+            useFrame IK scales/orients it. Hidden unless handover. */}
+        <mesh ref={armLRef} material={matDiverGlove} visible={false}>
+          <cylinderGeometry args={[0.050, 0.082, 1, 14]} />
+        </mesh>
+        <mesh ref={armRRef} material={matDiverGlove} visible={false}>
+          <cylinderGeometry args={[0.050, 0.082, 1, 14]} />
+        </mesh>
       </group>
     </group>
     </>
