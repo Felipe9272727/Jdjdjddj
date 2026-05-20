@@ -424,8 +424,10 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
           const ct = diverCineRef.current;
           const pushEase = 1 - Math.pow(1 - Math.min(1, ct / 16), 3);
           camDist = 6.2 - pushEase * 0.8;  // slow dolly 6.2→5.4 over 16s
-          driftX = Math.sin(ct * 0.52) * 0.055 + Math.sin(ct * 1.27) * 0.018;
-          driftY = Math.cos(ct * 0.41) * 0.040 + Math.sin(ct * 0.93 + 1.1) * 0.014;
+          // Handheld cinematographer arc — primary slow sweep + faster micro-tremor.
+          // X swings ±0.22m so the diver shifts within the frame; Y floats ±0.09m.
+          driftX = Math.sin(ct * 0.38) * 0.18 + Math.sin(ct * 1.10 + 0.7) * 0.04;
+          driftY = Math.cos(ct * 0.29) * 0.09 + Math.sin(ct * 0.85 + 1.4) * 0.025;
         }
         const camHeight  = isDiverScene ? 1.55 : 1.75;
         const lookHeight = isDiverScene ? 1.3  : 1.35;

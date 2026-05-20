@@ -34,6 +34,59 @@ import * as THREE from 'three';
 import { SkeletonUtils } from 'three-stdlib';
 import { hotelConciergeModel } from './assets/textureImports';
 
+const BUBBLE_COUNT = 70;
+
+function BubbleParticles() {
+  const ref = useRef<THREE.Points>(null);
+  const { positions, speeds } = useMemo(() => {
+    const positions = new Float32Array(BUBBLE_COUNT * 3);
+    const speeds = new Float32Array(BUBBLE_COUNT * 3);
+    for (let i = 0; i < BUBBLE_COUNT; i++) {
+      const r = Math.random();
+      positions[i * 3]     = (Math.random() - 0.5) * 5.0;
+      positions[i * 3 + 1] = r * 5.0 - 0.5;
+      positions[i * 3 + 2] = DIVER_POS[2] + (Math.random() - 0.5) * 5.0;
+      speeds[i * 3]        = (Math.random() - 0.5) * 0.025;
+      speeds[i * 3 + 1]    = 0.18 + Math.random() * 0.30;
+      speeds[i * 3 + 2]    = (Math.random() - 0.5) * 0.025;
+    }
+    return { positions, speeds };
+  }, []);
+
+  useFrame((_, dt) => {
+    if (!ref.current) return;
+    const pos = (ref.current.geometry.attributes.position.array as Float32Array);
+    for (let i = 0; i < BUBBLE_COUNT; i++) {
+      pos[i * 3]     += speeds[i * 3]     * dt;
+      pos[i * 3 + 1] += speeds[i * 3 + 1] * dt;
+      pos[i * 3 + 2] += speeds[i * 3 + 2] * dt;
+      if (pos[i * 3 + 1] > 4.5) {
+        pos[i * 3]     = (Math.random() - 0.5) * 5.0;
+        pos[i * 3 + 1] = -0.5 + Math.random() * 0.4;
+        pos[i * 3 + 2] = DIVER_POS[2] + (Math.random() - 0.5) * 5.0;
+      }
+    }
+    ref.current.geometry.attributes.position.needsUpdate = true;
+  }, 0);
+
+  return (
+    <points ref={ref}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial
+        color="#A5F3FC"
+        size={0.040}
+        transparent
+        opacity={0.55}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        toneMapped={false}
+      />
+    </points>
+  );
+}
+
 // Preload at module level so the model is ready by the time the player
 // even reaches Floor 2.
 useGLTF.preload(hotelConciergeModel);
@@ -238,7 +291,13 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       bob.position.x = wShift * 0.048;
       bob.rotation.z = wShift * 0.060 + Math.sin(time * 0.26) * 0.020;
       // ── Glance ────────────────────────────────────────────────────
-      bob.rotation.y = Math.sin(time * 0.31 + 0.6) * 0.110
+      // Every ~7s a wider look-aside sweeps the gaze 0.30 rad further,
+      // creating a distinctive character moment that breaks monotony.
+      const beatProgress = (time % 7.0) / 7.0;
+      const beatGlance = beatProgress > 0.72
+        ? Math.sin((beatProgress - 0.72) / 0.28 * Math.PI) * 0.30
+        : 0;
+      bob.rotation.y = Math.sin(time * 0.31 + 0.6) * (0.110 + beatGlance)
                      + Math.sin(time * 0.13 + 2.1) * 0.050;
       // ── Pitch ─────────────────────────────────────────────────────
       bob.rotation.x = (st === 'handover')
@@ -413,6 +472,8 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
   }), []);
 
   return (
+    <>
+    <BubbleParticles />
     <group
       ref={groupRef}
       position={[DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]]}
@@ -512,5 +573,6 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         </group>
       </group>
     </group>
+    </>
   );
 };
