@@ -188,6 +188,9 @@ export const DiverCutscene = ({ onAccept, onRefuse }: DiverCutsceneProps) => {
 
   return (
     <div className="cs-root" onClick={advanceNow}>
+      {/* Cinematic corner vignette — pulls focus onto the diver */}
+      <div className="cs-vignette" aria-hidden="true" />
+
       {/* Top letterbox bar */}
       <div className={`cs-bar cs-bar-top ${lettersIn ? 'cs-bar-in' : ''}`}>
         <button
@@ -226,7 +229,7 @@ export const DiverCutscene = ({ onAccept, onRefuse }: DiverCutsceneProps) => {
           MERGULHADOR
         </div>
 
-        <p className="cs-subtitle">
+        <p className="cs-subtitle" key={beatIdx}>
           {displayed}
           {!doneTyping && <span className="cs-caret" aria-hidden="true" />}
         </p>
@@ -262,6 +265,25 @@ const STYLES = `
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Cinematic vignette — soft dark corners centred on the diver window */
+.cs-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 72% 58% at 50% 44%,
+    rgba(0, 0, 0, 0) 52%,
+    rgba(0, 0, 0, 0.5) 100%
+  );
+  opacity: 0;
+  animation: cs-vignette-in 900ms ease-out 120ms forwards;
+}
+@keyframes cs-vignette-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 .cs-bar {
   position: absolute;
   left: 0;
@@ -273,15 +295,27 @@ const STYLES = `
 }
 .cs-bar-top {
   top: 0;
-  height: 14vh;
+  height: 12vh;
   transform: translateY(-100%);
-  border-bottom: 1px solid rgba(34, 211, 238, 0.18);
+  border-bottom: 1px solid rgba(34, 211, 238, 0.16);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+/* Feathered inner edge — the bar fades into the scene instead of a hard cut */
+.cs-bar-top::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 7vh;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0) 100%);
+  pointer-events: none;
 }
 .cs-bar-bottom {
   bottom: 0;
-  height: 30vh;
+  height: 27vh;
   transform: translateY(100%);
+  transition-delay: 70ms;
   border-top: 1px solid rgba(34, 211, 238, 0.22);
   box-shadow:
     0 -4px 14px rgba(0, 0, 0, 0.55),
@@ -295,6 +329,18 @@ const STYLES = `
   padding-right: max(24px, env(safe-area-inset-right));
   padding-bottom: max(22px, env(safe-area-inset-bottom));
   text-align: center;
+}
+/* Feathered inner edge — fades up into the scene so the diver's lower
+   body is never sliced by a hard black line */
+.cs-bar-bottom::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 9vh;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0) 100%);
+  pointer-events: none;
 }
 .cs-bar.cs-bar-in { transform: translateY(0); }
 
@@ -368,6 +414,14 @@ const STYLES = `
   flex: 1;
   display: flex;
   align-items: center;
+  justify-content: center;
+  animation: cs-line-in 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* Each beat re-mounts (keyed) so this fade+rise replays per line, turning
+   the old hard cut between beats into a smooth cinematic transition */
+@keyframes cs-line-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .cs-caret {
   display: inline-block;
@@ -422,9 +476,9 @@ const STYLES = `
 
 /* ─── Mobile portrait / smaller ─────────────────────────────────────── */
 @media (max-width: 640px) {
-  .cs-bar-top { height: 12vh; }
+  .cs-bar-top { height: 11vh; }
   .cs-bar-bottom {
-    height: 34vh;
+    height: 30vh;
     padding: 14px 18px 18px;
     padding-left: max(18px, env(safe-area-inset-left));
     padding-right: max(18px, env(safe-area-inset-right));
@@ -439,7 +493,7 @@ const STYLES = `
 @media (max-height: 480px) and (orientation: landscape) {
   .cs-bar-top { height: 10vh; }
   .cs-bar-bottom {
-    height: 36vh;
+    height: 33vh;
     padding: 8px 18px 12px;
     padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
@@ -453,9 +507,9 @@ const STYLES = `
 
 /* ─── Wide desktop — let the bars be a bit bigger ───────────────────── */
 @media (min-width: 1024px) {
-  .cs-bar-top { height: 14vh; }
+  .cs-bar-top { height: 13vh; }
   .cs-bar-bottom {
-    height: 32vh;
+    height: 26vh;
     padding: 22px 32px 26px;
   }
   .cs-subtitle { font-size: 1.65rem; max-width: 960px; }
@@ -465,10 +519,12 @@ const STYLES = `
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .cs-bar { transition-duration: 1ms; }
+  .cs-bar { transition-duration: 1ms; transition-delay: 0ms; }
   .cs-speaker-dot { animation: none; }
   .cs-tap-hint { animation: none; opacity: 0.6; }
   .cs-caret { animation: none; }
   .cs-dot-current { transform: none; }
+  .cs-subtitle { animation: none; }
+  .cs-vignette { animation: none; opacity: 1; }
 }
 `;

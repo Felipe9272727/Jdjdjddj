@@ -406,14 +406,23 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
         const nP = dialogueFocusRef.current; const pP = pos.current;
         const d2p = _v.current[0].subVectors(pP, nP).normalize(); if (d2p.lengthSq() < 1e-3) d2p.set(0,0,1);
-        const tCam = _v.current[1].copy(nP).addScaledVector(d2p, 2.2); tCam.y += 1.75;
-        const tLook = _v.current[2].copy(nP); tLook.y += 1.35;
+        // Floor 2 diver cutscene needs a pulled-back, wider frame so the
+        // letterbox bars never crop the 2.3m model. lookAt is biased low so
+        // he sits inside the (asymmetric) window between the bars rather
+        // than at the optical centre of the full frame.
+        const isDiverScene = currentLevel === 2;
+        const camDist    = isDiverScene ? 6.6  : 2.2;
+        const camHeight  = isDiverScene ? 1.55 : 1.75;
+        const lookHeight = isDiverScene ? 0.9  : 1.35;
+        const targetFov  = isDiverScene ? 46   : 40;
+        const tCam = _v.current[1].copy(nP).addScaledVector(d2p, camDist); tCam.y += camHeight;
+        const tLook = _v.current[2].copy(nP); tLook.y += lookHeight;
         const dlgAlpha = Math.min(5 * safeDt, 0.4);
         camera.position.lerp(tCam, dlgAlpha);
         if (camLookRef.current.distanceTo(tLook) > 10) { camLookRef.current.copy(pP); camLookRef.current.y += 1.6; }
         camLookRef.current.lerp(tLook, dlgAlpha);
         camera.lookAt(camLookRef.current);
-        (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, 40, dlgAlpha); camera.updateProjectionMatrix();
+        (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, targetFov, dlgAlpha); camera.updateProjectionMatrix();
         // Sync smooth refs for transition back to 3P
         camPosRef.current.copy(camera.position);
     } else if (currentLevel === 2 && pos.current.y < SWIM_THRESHOLD_Y) {

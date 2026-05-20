@@ -218,9 +218,15 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     //   - subtle head-look toward player (twist on Y via tiny offset)
     //   - micro-bob from "shifting weight" (sin on rotation X)
     if (st === 'idle' || st === 'handover') {
-      const breath = Math.sin(time * 1.6) * 0.045;
+      // Layered breathing — a primary chest rise plus a slower secondary
+      // swell so it never reads as a single mechanical sine wave.
+      const breath = Math.sin(time * 1.5) * 0.040 + Math.sin(time * 0.71 + 1.0) * 0.013;
       bob.position.y = breath;
-      bob.rotation.z = Math.sin(time * 0.65) * 0.025;
+      // Subtle weight-shift: he sways side to side as if shifting his feet.
+      bob.position.x = Math.sin(time * 0.42) * 0.020;
+      bob.rotation.z = Math.sin(time * 0.6) * 0.022 + Math.sin(time * 0.27) * 0.010;
+      // Slow idle "glance" — he scans the gloom a little, never frozen.
+      bob.rotation.y = Math.sin(time * 0.34 + 0.6) * 0.06;
       // Weight shift — overlay tiny pitch wave that fades out during handover
       const weightShift = Math.sin(time * 0.45) * 0.012;
       bob.rotation.x = (st === 'handover')
@@ -228,7 +234,9 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         : weightShift;
     } else if (st !== 'spawn') {
       bob.position.y = 0;
+      bob.position.x = 0;
       bob.rotation.z = 0;
+      bob.rotation.y = 0;
     }
 
     // ── HANDOVER: presenting tilt + mask drifts forward ───────────
@@ -260,22 +268,28 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     if (st === 'fading') {
       t.fadeT = Math.min(1, t.fadeT + safeDt / FADE_DURATION);
       const u = t.fadeT;
-      // Ease-out: he starts walking quickly then slows as he gets distant.
-      const walk = 1 - Math.pow(1 - u, 2);
-      // He's rotated 180° on Y, so his "forward" (local -Z) is world +Z;
-      // we want him to leave AWAY from the player, which is local +Z =
-      // world -Z. So we push the group in -Z (deeper into the cave).
+      // Phase 1 (first ~22%): he turns his back to the player rather than
+      // moonwalking away. smoothstep eases the pivot in and out.
+      const turn = THREE.MathUtils.smoothstep(u, 0.0, 0.22);
+      bob.rotation.y = turn * Math.PI;
+      // Phase 2: once the turn is underway he strides off into the cave.
+      // Translation is held back until ~16% so the turn and walk don't
+      // visually fight each other.
+      const stride = THREE.MathUtils.smoothstep(u, 0.16, 1.0);
       g.position.set(
         DIVER_POS[0],
-        DIVER_POS[1] - FADE_SINK * walk,
-        DIVER_POS[2] - FADE_WALK_DISTANCE * walk
+        DIVER_POS[1] - FADE_SINK * stride,
+        DIVER_POS[2] - FADE_WALK_DISTANCE * stride
       );
-      // Subtle limp / sway so he looks like he's walking, not sliding
-      bob.position.y = Math.sin(time * 3.2) * 0.04 * (1 - u);
-      bob.rotation.z = Math.sin(time * 2.8) * 0.045 * (1 - u);
-      // Opacity only kicks in over the last 40% of the walk so he stays
+      // Walk cycle — a vertical step-bob + body roll, plus a slight
+      // forward lean into the stride. All scaled by `stride` so he
+      // settles smoothly when he stops moving.
+      bob.position.y = Math.abs(Math.sin(time * 6.0)) * 0.05 * stride;
+      bob.rotation.z = Math.sin(time * 6.0) * 0.05 * stride;
+      bob.rotation.x = stride * 0.07;
+      // Opacity only kicks in over the last 35% of the walk so he stays
       // visible while he's still close enough to read as "leaving".
-      const o = u < 0.6 ? 1 : 1 - ((u - 0.6) / 0.4);
+      const o = u < 0.65 ? 1 : 1 - ((u - 0.65) / 0.35);
       t.fadeOpacity = o;
       g.traverse((child: any) => {
         if (child.material) {

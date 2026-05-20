@@ -1074,7 +1074,7 @@ export default function App() {
           onToggleMute={() => setMuted(!muted)}
         />
       )}
-      {settings.showFps && hasStarted && <FpsCounter />}
+      {settings.showFps && hasStarted && !diverDialogueOpen && <FpsCounter />}
 
       {/* Floor 2 "cold" overlay — radial cyan tint at the edges, blue
           color cast in the middle. Sells underwater + cold without
@@ -1093,7 +1093,7 @@ export default function App() {
       {/* Floor 2 shard counter — top-center HUD chip. Cyan to match the
           shards. Pops in/out only on level 2. Includes a small "All shards
           collected" celebratory state once you grab the 5th. */}
-      {hasStarted && currentLevel === 2 && (
+      {hasStarted && currentLevel === 2 && !diverDialogueOpen && (
         <div className="fixed top-[calc(env(safe-area-inset-top,0px)+88px)] left-1/2 -translate-x-1/2 z-[55]
                         bg-black/60 backdrop-blur-md border border-cyan-400/40 rounded-md
                         px-3 py-1.5 font-mono text-cyan-200 text-sm
@@ -1115,13 +1115,13 @@ export default function App() {
       {botEnabled && <ViewportDebug />}
 
       {/* ─── Roblox-style Chat System ──────────────────────────────────────── */}
-      {hasStarted && multiplayerEnabled && (
+      {hasStarted && multiplayerEnabled && !diverDialogueOpen && (
           <>
               <RobloxChat
                   messages={chatMessages}
                   currentUserId={user?.uid || ''}
                   onSend={sendChat}
-                  enabled={multiplayerEnabled && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !settingsOpen}
+                  enabled={multiplayerEnabled && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !settingsOpen && !diverDialogueOpen}
                   forceClose={settingsOpen}
               />
               <BubbleChatFallback
