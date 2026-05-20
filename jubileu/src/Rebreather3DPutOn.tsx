@@ -98,7 +98,7 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
     //  1.80-2.40: shrinks away (player wearing it now)
     const mask = maskRef.current;
     if (mask) {
-      let z = -0.65, y = -0.20, scale = 0, rotX = 0, rotZ = 0, rotY = 0;
+      let z = -0.65, y = -0.20, scale = 0, rotX = 0, rotZ = 0, rotY = 0, xPos = 0;
 
       if (t < 0.45) {
         const u = t / 0.45;
@@ -111,10 +111,7 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
         rotX = (1 - e) * 0.35;
         rotZ = swing * 1.4;
         rotY = swing * 0.5;
-        mask.position.set(swing, y, z);
-        mask.scale.setScalar(Math.max(0, scale));
-        mask.rotation.set(rotX, rotY, rotZ);
-        return;  // skip the set below
+        xPos = swing;
       } else if (t < 1.40) {
         const u = (t - 0.45) / 0.95;
         const e = u * u * (3 - 2 * u);
@@ -127,10 +124,7 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
         z = -0.62 + e * 0.20;
         rotX = -e * 0.06;
         rotZ = trZ;
-        mask.position.set(trX, y, z);
-        mask.scale.setScalar(Math.max(0, scale));
-        mask.rotation.set(rotX, 0, rotZ);
-        return;
+        xPos = trX;
       } else if (t < 1.80) {
         // Spring-based scale punch on snap
         const age = t - 1.40;
@@ -155,10 +149,9 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
         z = -0.42;
       }
 
-      mask.position.set(0, y, z);
+      mask.position.set(xPos, y, z);
       mask.scale.setScalar(Math.max(0, scale));
-      mask.rotation.x = rotX;
-      mask.rotation.z = rotZ;
+      mask.rotation.set(rotX, rotY, rotZ);
     }
 
     // ── Arms — rise naturally from sides to hold the mask ──────────
