@@ -43,8 +43,11 @@ const BEATS: string[] = [
 const TYPEWRITER_MS = 26;
 const DWELL_AFTER_TYPE_MS = 1700;
 
-function dwellForBeat(text: string): number {
-  return TYPEWRITER_MS * text.length + DWELL_AFTER_TYPE_MS;
+// Beat 3 = mask extends toward player ("Toma") — hold longer so they can absorb
+// the gesture. Beat 4 = final farewell words — extra weight before accepting.
+function dwellForBeat(idx: number, text: string): number {
+  const extra = idx === 3 ? 900 : idx === 4 ? 500 : idx === 1 ? 200 : 0;
+  return TYPEWRITER_MS * text.length + DWELL_AFTER_TYPE_MS + extra;
 }
 
 export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps) => {
@@ -119,7 +122,7 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
         return;
       }
       setBeatIdx((i) => i + 1);
-    }, dwellForBeat(beatText));
+    }, dwellForBeat(beatIdx, beatText));
 
     return () => {
       if (advanceTimeoutRef.current !== null) {
@@ -229,6 +232,25 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
 
       {/* Bottom letterbox bar — holds the subtitle */}
       <div className={`cs-bar cs-bar-bottom ${lettersIn ? 'cs-bar-in' : ''}`}>
+        {/* Per-beat emotional color wash — subtle tint shifts with mood */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            pointerEvents: 'none',
+            // beat 0: cyan curiosity, 1: amber nostalgia, 2: rose warmth,
+            // 3: green NV (mask extends), 4: blue-white authority
+            background: [
+              'radial-gradient(ellipse at 50% 100%, rgba(34,211,238,0.09) 0%, transparent 70%)',
+              'radial-gradient(ellipse at 50% 100%, rgba(251,191,36,0.10) 0%, transparent 70%)',
+              'radial-gradient(ellipse at 50% 100%, rgba(251,146,60,0.08) 0%, transparent 70%)',
+              'radial-gradient(ellipse at 50% 100%, rgba(74,222,128,0.12) 0%, transparent 70%)',
+              'radial-gradient(ellipse at 50% 100%, rgba(147,197,253,0.09) 0%, transparent 70%)',
+            ][beatIdx] ?? 'none',
+            transition: 'background 900ms ease',
+          }}
+        />
         <div className="cs-speaker">
           <span className="cs-speaker-dot" />
           MERGULHADOR
@@ -242,7 +264,7 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
         {/* Auto-advance progress bar — appears while dwell timer runs */}
         {doneTyping && (
           <div className="cs-auto-bar" key={beatIdx} aria-hidden="true">
-            <div className="cs-auto-bar-fill" style={{ animationDuration: `${DWELL_AFTER_TYPE_MS}ms` }} />
+            <div className="cs-auto-bar-fill" style={{ animationDuration: `${DWELL_AFTER_TYPE_MS + (beatIdx === 3 ? 900 : beatIdx === 4 ? 500 : beatIdx === 1 ? 200 : 0)}ms` }} />
           </div>
         )}
 

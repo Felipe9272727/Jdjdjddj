@@ -612,11 +612,19 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       groundGlowMatRef.current.opacity = st === 'fading' ? pulse * (1 - t.fadeT) : pulse;
     }
     if (maskLightRef.current) {
-      const lit = st === 'handover' && t.armT > 0.5;
-      // Stronger glow + larger distance now that we dim the key during offer.
-      const pulse = lit ? 1 + Math.sin(time * 3.0) * 0.28 : 0;
-      maskLightRef.current.intensity = pulse * 9.0;
+      // Glow ramps up as mask extends, peaks bright at full extension
+      const rampFactor = st === 'handover'
+        ? THREE.MathUtils.smoothstep(t.armT, 0.30, 0.75)
+        : 0;
+      const pulse = 1 + Math.sin(time * 3.2) * 0.32;
+      maskLightRef.current.intensity = rampFactor * pulse * 18.0;
     }
+    // Goggle emissiveIntensity also ramps — makes them look like they power up
+    matGoggles.emissiveIntensity = 6.0 + (
+      st === 'handover'
+        ? THREE.MathUtils.smoothstep(t.armT, 0.30, 0.80) * 14.0
+        : 0
+    );
     // During handover offer (armT > 0.55) dim the key by up to 40% and
     // fill by 50% so the glowing mask becomes the dominant practical light.
     const handoverDim = (st === 'handover' && t.armT > 0.55)
