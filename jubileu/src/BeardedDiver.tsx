@@ -188,19 +188,23 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     fadeOpacity: 1,
     beatLean: 0,    // smoothed X-lean driven by dialogue beat index
     beatYaw:  0,    // smoothed Y-yaw offset driven by dialogue beat index
-    // Spring state — gives breathing/sway inertia so motion feels weighted
-    // rather than mechanically sinusoidal. Under-damped so it overshoots slightly.
     spY: 0, svY: 0,   // spring Y (breathing bob)
     spX: 0, svX: 0,   // spring X (weight shift)
     spZ: 0, svZ: 0,   // spring Z (body roll)
-    // Beat-triggered head nod: fires when dialogue beat advances.
+    // Chest scale spring — subtle Y scale gives volume to the breath
+    spSY: 1.0, svSY: 0,
     nodT: 1,          // nod phase (1 = done/idle, 0 = just started)
-    prevBeat: -1,     // last seen beat index to detect changes
-    // Soft player gaze: the diver's body subtly orients toward the player's
-    // X offset. 25% blend so it feels like awareness, not billboard rotation.
+    prevBeat: -1,
     gaze: 0,
-    // Per-beat body roll (Z-tilt) — each dialogue register gets a head-tilt
     beatRoll: 0,
+    // Weight-shift phase: slow cycle gives natural foot-to-foot feel
+    weightPhase: 0,
+    // Micro-gesture timer: periodic look-down then back
+    microT: 0,
+    microBob: 0,
+    // Handover look-at-mask impulse: brief glance down before extending
+    maskGlance: 0,
+    prevArmT: 0,
   });
 
   // Reset timers on state transitions + drive idle animation.
@@ -218,8 +222,12 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       tRef.current.spY = 0; tRef.current.svY = 0;
       tRef.current.spX = 0; tRef.current.svX = 0;
       tRef.current.spZ = 0; tRef.current.svZ = 0;
+      tRef.current.spSY = 1; tRef.current.svSY = 0;
       tRef.current.nodT = 1; tRef.current.prevBeat = -1;
       tRef.current.gaze = 0; tRef.current.beatRoll = 0;
+      tRef.current.weightPhase = 0; tRef.current.microT = 0;
+      tRef.current.microBob = 0; tRef.current.maskGlance = 0;
+      tRef.current.prevArmT = 0;
       // Reset walked-away position so a respawn shows him at DIVER_POS again
       if (groupRef.current) {
         groupRef.current.position.set(DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]);
@@ -293,11 +301,11 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     } else if (st !== 'fading') {
       // Return to anchor whenever we're not in spawn or fading
       g.position.set(DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]);
-      bob.scale.setScalar(1);
+      bob.scale.set(1, 1, 1);
       bob.position.z = 0;
       bob.rotation.x = 0;
     } else {
-      bob.scale.setScalar(1);
+      bob.scale.set(1, 1, 1);
       bob.position.z = 0;
       bob.rotation.x = 0;
     }
@@ -312,49 +320,69 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     if (st === 'idle' || st === 'handover') {
       // ── Per-beat body language ─────────────────────────────────────
       const beat = dialogueBeatRef ? dialogueBeatRef.current : -1;
-      // Detect beat change → trigger a head nod
       if (beat !== t.prevBeat) {
         t.prevBeat = beat;
         t.nodT = 0;
       }
-      t.nodT = Math.min(1, t.nodT + safeDt / 0.45);
-      // Nod: quick dip-and-recover in X. Peaks at ~30% into the gesture.
+      t.nodT = Math.min(1, t.nodT + safeDt / 0.40);
+      // Nod: double-dip (two peaks) for expressiveness
       const nod = t.nodT < 1
-        ? Math.sin(t.nodT * Math.PI) * Math.sin(t.nodT * Math.PI * 0.5) * 0.26
+        ? Math.sin(t.nodT * Math.PI) * (0.28 + Math.sin(t.nodT * Math.PI * 1.8) * 0.08)
         : 0;
 
-      // Wider beat lean/yaw/roll — character moments need to READ clearly
+      // Amplified beat poses — strong enough to read clearly at conversation distance
       const beatLeanTarget =
-        beat === 1 ? -0.16 :   // lean back — lost in memory
-        beat === 2 ?  0.18 :   // lean forward — caring/earnest
-        beat === 4 ? -0.05 :   // upright — authoritative
-                     0.06;
+        beat === 0 ?  0.04 :   // curious attention forward
+        beat === 1 ? -0.25 :   // lean back — genuinely lost in memory
+        beat === 2 ?  0.22 :   // lean forward — intimate/earnest
+        beat === 3 ?  0.10 :   // slight lean — gentle instruction
+        beat === 4 ? -0.08 :   // plant feet — authority, direct
+                     0.04;
       const beatYawTarget =
-        beat === 1 ?  0.38 :   // look well aside — truly reminiscing
-        beat === 4 ? -0.12 :   // square to player — direct eye contact
+        beat === 0 ?  0.08 :   // slight turn — sizing the player up
+        beat === 1 ?  0.50 :   // look well aside — truly reminiscing
+        beat === 2 ? -0.10 :   // lean toward player center
+        beat === 3 ?  0.18 :   // look at item being described
+        beat === 4 ? -0.16 :   // square to player — locking eyes
                      0;
       const beatRollTarget =
-        beat === 1 ?  0.08 :   // tilt right — introspective
-        beat === 2 ? -0.07 :   // tilt left — empathetic
+        beat === 0 ?  0.04 :
+        beat === 1 ?  0.12 :   // tilt right — introspective
+        beat === 2 ? -0.10 :   // tilt left — empathetic
+        beat === 3 ?  0.05 :
         beat === 4 ?  0.01 :   // level — authority
                      0.03;
-      t.beatLean += (beatLeanTarget - t.beatLean) * Math.min(1, safeDt * 2.5);
-      t.beatYaw  += (beatYawTarget  - t.beatYaw)  * Math.min(1, safeDt * 2.0);
-      t.beatRoll += (beatRollTarget - t.beatRoll) * Math.min(1, safeDt * 2.5);
+      t.beatLean += (beatLeanTarget - t.beatLean) * Math.min(1, safeDt * 2.8);
+      t.beatYaw  += (beatYawTarget  - t.beatYaw)  * Math.min(1, safeDt * 2.2);
+      t.beatRoll += (beatRollTarget - t.beatRoll) * Math.min(1, safeDt * 2.8);
+
+      // ── Weight shift cycle (foot-to-foot) ─────────────────────────
+      t.weightPhase += safeDt * 0.42;
+      const weightX = Math.sin(t.weightPhase) * 0.038;
+      const weightZ = Math.cos(t.weightPhase * 0.7) * 0.016;
+
+      // ── Periodic micro-gesture: brief look-down + recover ──────────
+      t.microT += safeDt;
+      if (t.microT > 9.5) t.microT = 0;
+      const microBobTarget = t.microT < 0.55
+        ? Math.sin(t.microT / 0.55 * Math.PI) * 0.13
+        : 0;
+      t.microBob += (microBobTarget - t.microBob) * Math.min(1, safeDt * 8);
 
       // ── Spring-driven breathing + sway ────────────────────────────
-      // Raw sine targets — the spring chases these with inertia so the
-      // body overshoots and settles, giving mass to every movement.
-      const breathDepth = 1 + 0.45 * Math.sin(time * 0.21);
-      const targetY = Math.sin(time * 1.45) * 0.082 * breathDepth
-                    + Math.sin(time * 0.70 + 1.0) * 0.022;
-      const targetX = Math.sin(time * 0.37) * 0.065;
-      const targetZ = Math.sin(time * 0.37) * 0.080
-                    + Math.sin(time * 0.26) * 0.026
+      // Four-frequency breathing: primary + sigh + micro-jitter + slow belly
+      const breathDepth = 1 + 0.40 * Math.sin(time * 0.19);
+      const targetY = Math.sin(time * 1.45) * 0.085 * breathDepth
+                    + Math.sin(time * 0.70 + 1.0) * 0.022
+                    + Math.sin(time * 2.80 + 0.5) * 0.007  // micro-jitter
+                    + Math.sin(time * 0.11 + 2.3) * 0.018; // slow belly swell
+      const targetX = Math.sin(time * 0.37) * 0.060 + weightX;
+      const targetZ = Math.sin(time * 0.37) * 0.082
+                    + Math.sin(time * 0.26) * 0.028
+                    + weightZ
                     + t.beatRoll;
 
-      // Spring: F = (target - pos) * stiffness − velocity * damping
-      // k=15, d=3.6 → ~18% overshoot — more elastic, reads as alive.
+      // Spring: k=15, d=3.6 → ~18% overshoot
       const ks = 15, kd = 3.6;
       t.svY += ((targetY - t.spY) * ks - t.svY * kd) * safeDt;
       t.spY += t.svY * safeDt;
@@ -363,35 +391,41 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       t.svZ += ((targetZ - t.spZ) * ks - t.svZ * kd) * safeDt;
       t.spZ += t.svZ * safeDt;
 
+      // ── Chest scale breath (spring-driven Y scale) ────────────────
+      // Gives the model a subtle volume to its breathing — ribs expand.
+      const breathScaleTarget = 1.0 + Math.sin(time * 1.45) * 0.013 * breathDepth;
+      t.svSY += ((breathScaleTarget - t.spSY) * 10 - t.svSY * 3.0) * safeDt;
+      t.spSY += t.svSY * safeDt;
+      bob.scale.y = t.spSY;
+      bob.scale.x = 1.0 / Math.sqrt(Math.max(0.90, t.spSY));
+      bob.scale.z = bob.scale.x;
+
       bob.position.y = t.spY;
       bob.position.x = t.spX;
       bob.rotation.z = t.spZ;
 
       // ── Soft player gaze ──────────────────────────────────────────
-      // The diver's body subtly orients toward the player's X position.
-      // atan2(relX, relZ) gives the signed angle; we blend 25% of it so
-      // it reads as "awareness" rather than billboard tracking.
       {
         const relX = playerPositionRef.current.x - DIVER_POS[0];
         const relZ = playerPositionRef.current.z - DIVER_POS[2];
-        const rawGaze = Math.atan2(relX, Math.abs(relZ)) * 0.25;
-        const gazeTarget = THREE.MathUtils.clamp(rawGaze, -0.28, 0.28);
-        t.gaze += (gazeTarget - t.gaze) * Math.min(1, safeDt * 1.8);
+        const rawGaze = Math.atan2(relX, Math.abs(relZ)) * 0.28;
+        const gazeTarget = THREE.MathUtils.clamp(rawGaze, -0.32, 0.32);
+        t.gaze += (gazeTarget - t.gaze) * Math.min(1, safeDt * 2.0);
       }
-      // ── Glance ────────────────────────────────────────────────────
-      const beatProgress = (time % 7.0) / 7.0;
-      const beatGlance = beatProgress > 0.72
-        ? Math.sin((beatProgress - 0.72) / 0.28 * Math.PI) * 0.30
+      // ── Irregular glance away cycle ────────────────────────────────
+      const glancePhase = (time % 9.5) / 9.5;
+      const beatGlance = glancePhase > 0.68
+        ? Math.sin((glancePhase - 0.68) / 0.32 * Math.PI) * 0.34
         : 0;
-      bob.rotation.y = Math.sin(time * 0.31 + 0.6) * (0.110 + beatGlance)
-                     + Math.sin(time * 0.13 + 2.1) * 0.050
+      bob.rotation.y = Math.sin(time * 0.31 + 0.6) * (0.115 + beatGlance)
+                     + Math.sin(time * 0.13 + 2.1) * 0.055
                      + t.beatYaw
                      + t.gaze;
 
-      // ── Pitch (breathing lean + beat lean + nod impulse) ──────────
+      // ── Pitch (breathing lean + beat lean + nod + micro-gesture) ──
       bob.rotation.x = (st === 'handover')
         ? bob.rotation.x
-        : Math.sin(time * 0.45) * 0.020 - t.spY * 0.28 + t.beatLean + nod;
+        : Math.sin(time * 0.45) * 0.022 - t.spY * 0.30 + t.beatLean + nod + t.microBob;
     } else if (st !== 'spawn') {
       bob.position.y = 0;
       bob.position.x = 0;
@@ -403,34 +437,56 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     if (st === 'handover') {
       t.armT = Math.min(1, t.armT + safeDt / HANDOVER_DURATION);
       const u = t.armT;
-      // ── Anticipation ──────────────────────────────────────────────
-      // First ~16%: he settles back a touch and draws the mask in
-      // toward his chest before committing to the offer.
-      const antic = u < 0.16 ? Math.sin((u / 0.16) * Math.PI) : 0;
-      // ── Present ───────────────────────────────────────────────────
-      const pr = THREE.MathUtils.clamp((u - 0.12) / 0.88, 0, 1);
+
+      // ── Phase 1 (0.00-0.10): glance DOWN at mask ──────────────────
+      // He looks at the object he's about to give — establishes the mask
+      // as important before the player's eye has even found it.
+      const glanceDown = u < 0.10
+        ? Math.sin((u / 0.10) * Math.PI) * 0.32
+        : 0;
+      const glanceYaw = u < 0.10
+        ? Math.sin((u / 0.10) * Math.PI) * -0.20  // head turns toward mask (left)
+        : 0;
+      // Detect handover first frame → fire maskGlance impulse
+      if (t.prevArmT === 0 && u > 0) {
+        t.maskGlance = 1;
+      }
+      t.prevArmT = u;
+      t.maskGlance = Math.max(0, t.maskGlance - safeDt * 4.0);
+
+      // ── Anticipation (0.00-0.18) ──────────────────────────────────
+      const antic = u < 0.18 ? Math.sin((u / 0.18) * Math.PI) : 0;
+
+      // ── Present (0.14 onwards) ────────────────────────────────────
+      const pr = THREE.MathUtils.clamp((u - 0.14) / 0.86, 0, 1);
       const bk = 1.5;
       const pc = pr - 1;
       const present = pr <= 0 ? 0 : 1 + pc * pc * ((bk + 1) * pc + bk);
-      // Torso bows forward on the offer — visible lean sells the intention.
-      // Keep a faint breath component so he doesn't freeze entirely.
-      const handoverBreath = Math.sin(time * 1.45) * 0.016;
-      bob.rotation.x = antic * 0.14 - present * 0.42 + handoverBreath;
-      bob.rotation.z = present * -0.11;  // lean right shoulder well forward
+
+      // Torso bows forward — visible physical commitment to the offer
+      const handoverBreath = Math.sin(time * 1.45) * 0.014;
+      bob.rotation.x = glanceDown + antic * 0.16 - present * 0.46 + handoverBreath;
+      bob.rotation.z = present * -0.13;
+      bob.rotation.y = (bob.rotation.y ?? 0) + glanceYaw;
+
       if (maskRef.current) {
-        // Mask rises on an arc from low in (anticipation pull-back) to
-        // high-and-forward (full extension toward the player).
-        const lift = Math.sin(THREE.MathUtils.clamp(present, 0, 1) * Math.PI * 0.5) * 0.32;
-        // When fully extended: a slow breathe-in/out invites the player to take it.
-        const holdBob = u > 0.85 ? Math.sin(time * 2.5 + 0.7) * 0.045 : 0;
-        // Also tilt the mask slightly toward the player as it extends.
-        maskRef.current.rotation.x = present * -0.15;
+        // Arc: starts low (u < 0.14 = anticipation pull toward chest),
+        // then swings UP past chest height and FORWARD toward player.
+        const arcRise = Math.sin(THREE.MathUtils.clamp(present * 1.4, 0, 1) * Math.PI * 0.5);
+        const lift = arcRise * 0.40;  // swings higher than before
+        // At full extension: gentle breathing bob invites the player to take it
+        const holdBob = u > 0.82 ? Math.sin(time * 2.8 + 0.7) * 0.048 : 0;
+        const holdSway = u > 0.82 ? Math.sin(time * 1.9 + 1.1) * 0.018 : 0;
+        // Mask tilts toward camera as it's extended — like genuinely offering it
+        maskRef.current.rotation.x = present * -0.20;
+        maskRef.current.rotation.z = present * 0.04;  // slight cant, natural
         maskRef.current.position.set(
-          0,
-          1.04 - antic * 0.15 + lift,
-          0.40 - antic * 0.14 + present * 0.95 + holdBob,
+          holdSway,
+          1.02 - antic * 0.18 + lift,
+          0.38 - antic * 0.16 + present * 1.05 + holdBob,
         );
-        const offerPulse = u > 0.85 ? 1 + Math.sin(time * 3.0) * 0.07 : 1;
+        // Pulse scale very gently during full offer — breathing life into it
+        const offerPulse = u > 0.82 ? 1 + Math.sin(time * 2.6) * 0.060 : 1;
         maskRef.current.scale.setScalar(offerPulse);
         maskRef.current.visible = true;
       }
@@ -452,19 +508,27 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     if (st === 'fading') {
       t.fadeT = Math.min(1, t.fadeT + safeDt / FADE_DURATION);
       const u = t.fadeT;
-      // He stays in place — no walking, just turns his back.
-      // Brief inhale beat → smooth 180° turn → look-back → hold → fade.
-      const turn = THREE.MathUtils.smoothstep(u, 0.05, 0.38);
-      const settle = Math.sin(THREE.MathUtils.clamp((u - 0.30) / 0.18, 0, 1) * Math.PI)
-                   * 0.08;
+      // Phase 1 (0.00-0.08): brief inhale/settle pause — he takes a breath
+      // Phase 2 (0.08-0.40): smooth 180° turn
+      // Phase 3 (0.40-0.56): head bows in a respectful farewell
+      // Phase 4 (0.56-0.70): look-back over shoulder (last glance at player)
+      // Phase 5 (0.60-1.00): fade to transparent
+      const turn = THREE.MathUtils.smoothstep(u, 0.08, 0.40);
+      const settle = Math.sin(THREE.MathUtils.clamp((u - 0.32) / 0.16, 0, 1) * Math.PI)
+                   * 0.10;
+      // Respectful bow: head dips forward after turn completes
+      const bow = Math.sin(
+        THREE.MathUtils.clamp((u - 0.40) / 0.18, 0, 1) * Math.PI
+      ) * 0.22;
       const lookback = Math.sin(
-        THREE.MathUtils.clamp((u - 0.42) / 0.14, 0, 1) * Math.PI
-      ) * 0.38;
+        THREE.MathUtils.clamp((u - 0.56) / 0.14, 0, 1) * Math.PI
+      ) * 0.42;
       bob.rotation.y = turn * Math.PI + settle - lookback;
       bob.position.y = 0;
       bob.position.x = 0;
       bob.rotation.z = 0;
-      bob.rotation.x = 0;
+      bob.rotation.x = bow;
+      bob.scale.set(1, 1, 1);
       // Fade out over the last 40%
       const o = u < 0.60 ? 1 : 1 - ((u - 0.60) / 0.40);
       t.fadeOpacity = o;

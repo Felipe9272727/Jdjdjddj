@@ -45,6 +45,10 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
   const flashMatRef = useRef<THREE.SpriteMaterial>(null);
 
   const tRef = useRef({ t: 0, done: false });  // max 2.4s
+  // Spring state for snap-scale overshoot
+  const scaleSpring = useRef({ pos: 0, vel: 0 });
+  // Camera shake: decaying sinusoidal offset applied after camera.position copy
+  const shakeRef = useRef({ x: 0, y: 0 });
   const { camera } = useThree();
 
   // Reset when active flips true
@@ -68,38 +72,77 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
 
     g.position.copy(camera.position);
     g.quaternion.copy(camera.quaternion);
+    // Apply decaying camera shake after copy (world-space offset reads as screen shake)
+    {
+      const shakeAge = t - 1.40;
+      if (shakeAge >= 0 && shakeAge < 0.50) {
+        const decay = Math.exp(-shakeAge * 11.0);
+        shakeRef.current.x = Math.sin(shakeAge * 28.0) * 0.009 * decay;
+        shakeRef.current.y = Math.sin(shakeAge * 21.0 + 1.4) * 0.006 * decay;
+      } else {
+        shakeRef.current.x = 0;
+        shakeRef.current.y = 0;
+      }
+      g.position.x += shakeRef.current.x;
+      g.position.y += shakeRef.current.y;
+    }
 
     // ── Mask — held at comfortable arm's-length, brought to face ────
-    // Redesigned to feel like the character is actually putting it on:
-    //  0.00-0.45: mask rises from below at arm's length (z=-0.65, scale 0.60)
-    //  0.45-1.40: slowly floats toward face (z=-0.50→-0.42, scale 0.60→0.70)
-    //  1.40-1.80: snaps onto face — scale bump + flash
-    //  1.80-2.40: shrinks away (player is wearing it)
+    //  0.00-0.45: pendulum swing up from below (x oscillation + rotZ damping)
+    //  0.45-1.40: micro-tremor hold at arm's length (multi-freq noise)
+    //  1.40-1.55: SNAP — spring scale punch from 0.72 → 0.90 → settle
+    //  1.55-1.80: hold on face, goggles glow settles
+    //  1.80-2.40: shrinks away (player wearing it now)
     const mask = maskRef.current;
     if (mask) {
-      let z = -0.65, y = -0.20, scale = 0, rotX = 0, rotZ = 0;
+      let z = -0.65, y = -0.20, scale = 0, rotX = 0, rotZ = 0, rotY = 0;
 
       if (t < 0.45) {
         const u = t / 0.45;
         const e = u * u * (3 - 2 * u);
+        // Pendulum: x-swing damps to zero as it rises
+        const swing = Math.sin(u * Math.PI * 1.6) * (1 - u) * 0.10;
         scale = e * 0.62;
-        y = -0.45 + e * 0.25;
+        y = -0.48 + e * 0.28;
         z = -0.70 + e * 0.08;
-        rotX = (1 - e) * 0.30;
+        rotX = (1 - e) * 0.35;
+        rotZ = swing * 1.4;
+        rotY = swing * 0.5;
+        mask.position.set(swing, y, z);
+        mask.scale.setScalar(Math.max(0, scale));
+        mask.rotation.set(rotX, rotY, rotZ);
+        return;  // skip the set below
       } else if (t < 1.40) {
         const u = (t - 0.45) / 0.95;
         const e = u * u * (3 - 2 * u);
+        // Multi-frequency micro-tremor — nervous hands
+        const trX = Math.sin(t * 17.3) * 0.0030 + Math.sin(t * 11.1) * 0.0018;
+        const trY = Math.sin(t * 13.7 + 1.2) * 0.0025 + Math.sin(t * 8.3 + 2.1) * 0.0014;
+        const trZ = Math.sin(t * 9.4) * 0.0040;
         scale = 0.62 + e * 0.10;
-        y = -0.20 + e * 0.08;
-        z = -0.62 + e * 0.20;   // moves from -0.62 to -0.42
+        y = -0.20 + e * 0.08 + trY;
+        z = -0.62 + e * 0.20;
         rotX = -e * 0.06;
+        rotZ = trZ;
+        mask.position.set(trX, y, z);
+        mask.scale.setScalar(Math.max(0, scale));
+        mask.rotation.set(rotX, 0, rotZ);
+        return;
       } else if (t < 1.80) {
-        const u = (t - 1.40) / 0.40;
-        const wobble = Math.sin(u * Math.PI * 2.5) * 0.035 * (1 - u);
-        scale = 0.72 + wobble;
+        // Spring-based scale punch on snap
+        const age = t - 1.40;
+        if (age < safeDt + 0.002) {
+          // Impulse: kick velocity up hard on the first frame of snap
+          scaleSpring.current.pos = 0.72;
+          scaleSpring.current.vel = 9.0;
+        }
+        // Tight spring k=55, d=7 → sharp pop + settle
+        scaleSpring.current.vel += ((0.72 - scaleSpring.current.pos) * 55 - scaleSpring.current.vel * 7) * safeDt;
+        scaleSpring.current.pos += scaleSpring.current.vel * safeDt;
+        scale = THREE.MathUtils.clamp(scaleSpring.current.pos, 0.40, 1.00);
         y = -0.12;
         z = -0.42;
-        rotZ = Math.sin(u * Math.PI * 3) * 0.018 * (1 - u);
+        rotZ = Math.sin(age * Math.PI * 4) * 0.015 * Math.exp(-age * 8);
       } else {
         const u = (t - 1.80) / 0.60;
         const e = u * u * (3 - 2 * u);
@@ -128,11 +171,11 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
         zLift = -0.50 + e * 0.12;
         pitch = -0.35 + e * 0.50;
       } else if (t >= 0.70 && t < 1.40) {
-        // Hold mask steady with slight breathing micro-movement
-        const u = (t - 0.70) / 0.70;
-        yLift = -0.27 + Math.sin(u * Math.PI * 2) * 0.012;
+        // Hold with multi-freq tremor matching the mask's nervous hands
+        const micro = Math.sin(t * 16.5) * 0.0040 + Math.sin(t * 9.8 + 1.6) * 0.0025;
+        yLift = -0.27 + Math.sin((t - 0.70) * Math.PI * 2 / 0.70) * 0.010 + micro;
         zLift = -0.38;
-        pitch = 0.15;
+        pitch = 0.15 + micro * 0.4;
       } else if (t >= 1.40 && t < 1.80) {
         // Tighten straps
         const u = (t - 1.40) / 0.40;
@@ -155,22 +198,26 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
     armPose(armLRef, true);
     armPose(armRRef, false);
 
-    // ── Flash on snap ─────────────────────────────────────────────
+    // ── Flash on snap — bright instant pop then fast fade ────────
     if (flashMatRef.current) {
       let op = 0;
-      if (t >= 1.40 && t < 1.72) {
-        const u = (t - 1.40) / 0.32;
-        op = (1 - u) * 0.85;
+      if (t >= 1.40 && t < 1.75) {
+        const age = t - 1.40;
+        // Instant peak at t=1.40, exponential decay
+        op = Math.exp(-age * 9.0) * 1.10;
       }
       flashMatRef.current.opacity = op;
     }
 
-    // ── Goggles light up when they snap on ───────────────────────
+    // ── Goggles light up: big burst then settle ───────────────────
     if (lensLeftMatRef.current && lensRightMatRef.current) {
       let emI = 0.5;
       if (t >= 1.40) {
-        const u = THREE.MathUtils.clamp((t - 1.40) / 0.30, 0, 1);
-        emI = 0.5 + u * 1.8;
+        const age = t - 1.40;
+        // Spike to 14.0 immediately, decay to 3.0 settle over 0.60s
+        const burst = Math.exp(-age * 7.0) * 11.0;
+        const settle = THREE.MathUtils.clamp(age / 0.55, 0, 1) * 3.0;
+        emI = 0.5 + burst + settle;
       }
       lensLeftMatRef.current.emissiveIntensity = emI;
       lensRightMatRef.current.emissiveIntensity = emI;
