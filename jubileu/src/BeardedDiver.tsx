@@ -491,27 +491,29 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const pc = pr - 1;
       const present = pr <= 0 ? 0 : 1 + pc * pc * ((bk + 1) * pc + bk);
 
-      // Torso bows forward — visible physical commitment to the offer
+      // Gentle forward lean only — the mask is parented to the foot-pivoted
+      // bob group, so a large torso rotation swings the extended mask up to
+      // head height. A small +X lean (forward) keeps the mask presenting
+      // cleanly out in front at chest level.
       const handoverBreath = Math.sin(time * 1.45) * 0.014;
-      bob.rotation.x = glanceDown + antic * 0.16 - present * 0.46 + handoverBreath;
-      bob.rotation.z = present * -0.13;
+      bob.rotation.x = glanceDown + present * 0.07 + handoverBreath;
+      bob.rotation.z = present * -0.04;
       bob.rotation.y = (bob.rotation.y ?? 0) + glanceYaw;
 
       if (maskRef.current) {
-        // Arc: starts low (u < 0.14 = anticipation pull toward chest),
-        // then swings UP past chest height and FORWARD toward player.
+        // Arc: rises modestly from chest height as it extends forward.
         const arcRise = Math.sin(THREE.MathUtils.clamp(present * 1.4, 0, 1) * Math.PI * 0.5);
-        const lift = arcRise * 0.40;  // swings higher than before
+        const lift = arcRise * 0.24;
         // At full extension: gentle breathing bob invites the player to take it
-        const holdBob = u > 0.82 ? Math.sin(time * 2.8 + 0.7) * 0.048 : 0;
-        const holdSway = u > 0.82 ? Math.sin(time * 1.9 + 1.1) * 0.018 : 0;
+        const holdBob = u > 0.82 ? Math.sin(time * 2.8 + 0.7) * 0.040 : 0;
+        const holdSway = u > 0.82 ? Math.sin(time * 1.9 + 1.1) * 0.016 : 0;
         // Mask tilts toward camera as it's extended — like genuinely offering it
-        maskRef.current.rotation.x = present * -0.20;
+        maskRef.current.rotation.x = present * -0.18;
         maskRef.current.rotation.z = present * 0.04;  // slight cant, natural
         maskRef.current.position.set(
           holdSway,
-          1.02 - antic * 0.18 + lift,
-          0.38 - antic * 0.16 + present * 1.05 + holdBob,
+          1.04 - antic * 0.10 + lift,
+          0.34 - antic * 0.10 + present * 0.62 + holdBob,
         );
         // Pulse scale very gently during full offer — breathing life into it
         const offerPulse = u > 0.82 ? 1 + Math.sin(time * 2.6) * 0.060 : 1;
@@ -609,12 +611,13 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         ? THREE.MathUtils.smoothstep(t.armT, 0.30, 0.75)
         : 0;
       const pulse = 1 + Math.sin(time * 3.2) * 0.32;
-      maskLightRef.current.intensity = rampFactor * pulse * 18.0;
+      maskLightRef.current.intensity = rampFactor * pulse * 10.0;
     }
-    // Goggle emissiveIntensity also ramps — makes them look like they power up
-    matGoggles.emissiveIntensity = 6.0 + (
+    // Goggle emissiveIntensity ramps as they "power up" — kept moderate so
+    // the emissive reads as bright GREEN, not a blown-out white blob.
+    matGoggles.emissiveIntensity = 3.5 + (
       st === 'handover'
-        ? THREE.MathUtils.smoothstep(t.armT, 0.30, 0.80) * 14.0
+        ? THREE.MathUtils.smoothstep(t.armT, 0.30, 0.80) * 5.5
         : 0
     );
     // During handover offer (armT > 0.55) dim the key by up to 40% and
