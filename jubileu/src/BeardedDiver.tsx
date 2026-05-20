@@ -204,8 +204,6 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     weightPhase: 0,
     microT: 0,
     microBob: 0,
-    maskGlance: 0,
-    prevArmT: 0,
     driftZ: 0, driftVZ: 0,
     // Beat-triggered light pulse — brief intensity spike draws eye to character
     lightPulse: 0,
@@ -230,8 +228,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       tRef.current.nodT = 1; tRef.current.prevBeat = -1;
       tRef.current.gaze = 0; tRef.current.beatRoll = 0;
       tRef.current.weightPhase = 0; tRef.current.microT = 0;
-      tRef.current.microBob = 0; tRef.current.maskGlance = 0;
-      tRef.current.prevArmT = 0;
+      tRef.current.microBob = 0;
       tRef.current.driftZ = 0; tRef.current.driftVZ = 0;
       // Reset walked-away position so a respawn shows him at DIVER_POS again
       if (groupRef.current) {
@@ -484,12 +481,6 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const glanceYaw = u < 0.10
         ? Math.sin((u / 0.10) * Math.PI) * -0.20  // head turns toward mask (left)
         : 0;
-      // Detect handover first frame → fire maskGlance impulse
-      if (t.prevArmT === 0 && u > 0) {
-        t.maskGlance = 1;
-      }
-      t.prevArmT = u;
-      t.maskGlance = Math.max(0, t.maskGlance - safeDt * 4.0);
 
       // ── Anticipation (0.00-0.18) ──────────────────────────────────
       const antic = u < 0.18 ? Math.sin((u / 0.18) * Math.PI) : 0;
