@@ -192,8 +192,16 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     armT: 0,
     fadeT: 0,
     fadeOpacity: 1,
-    beatLean: 0,   // smoothed X-lean driven by dialogue beat index
-    beatYaw:  0,   // smoothed Y-yaw offset driven by dialogue beat index
+    beatLean: 0,    // smoothed X-lean driven by dialogue beat index
+    beatYaw:  0,    // smoothed Y-yaw offset driven by dialogue beat index
+    // Spring state — gives breathing/sway inertia so motion feels weighted
+    // rather than mechanically sinusoidal. Under-damped so it overshoots slightly.
+    spY: 0, svY: 0,   // spring Y (breathing bob)
+    spX: 0, svX: 0,   // spring X (weight shift)
+    spZ: 0, svZ: 0,   // spring Z (body roll)
+    // Beat-triggered head nod: fires when dialogue beat advances.
+    nodT: 1,          // nod phase (1 = done/idle, 0 = just started)
+    prevBeat: -1,     // last seen beat index to detect changes
   });
 
   // Reset timers on state transitions + drive idle animation.
@@ -208,6 +216,10 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       tRef.current.armT = 0;
       tRef.current.fadeT = 0;
       tRef.current.fadeOpacity = 1;
+      tRef.current.spY = 0; tRef.current.svY = 0;
+      tRef.current.spX = 0; tRef.current.svX = 0;
+      tRef.current.spZ = 0; tRef.current.svZ = 0;
+      tRef.current.nodT = 1; tRef.current.prevBeat = -1;
       // Reset walked-away position so a respawn shows him at DIVER_POS again
       if (groupRef.current) {
         groupRef.current.position.set(DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]);
@@ -290,21 +302,56 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     //   - subtle head-look toward player (twist on Y via tiny offset)
     //   - micro-bob from "shifting weight" (sin on rotation X)
     if (st === 'idle' || st === 'handover') {
-      // ── Breathing ─────────────────────────────────────────────────
-      // Primary chest rise modulated by a slow depth envelope so some
-      // breaths are deeper than others — never metronomic. A faster,
-      // tiny secondary ripple stops it reading as a pure sine.
+      // ── Per-beat body language ─────────────────────────────────────
+      const beat = dialogueBeatRef ? dialogueBeatRef.current : -1;
+      // Detect beat change → trigger a head nod
+      if (beat !== t.prevBeat) {
+        t.prevBeat = beat;
+        t.nodT = 0;
+      }
+      t.nodT = Math.min(1, t.nodT + safeDt / 0.45);
+      // Nod: quick dip-and-recover in X. Peaks at ~30% into the gesture.
+      const nod = t.nodT < 1
+        ? Math.sin(t.nodT * Math.PI) * Math.sin(t.nodT * Math.PI * 0.5) * 0.18
+        : 0;
+
+      const beatLeanTarget =
+        beat === 1 ? -0.10 :   // lean back — lost in memory
+        beat === 2 ?  0.12 :   // lean forward — caring
+        beat === 4 ? -0.03 :   // upright — authoritative
+                     0.04;
+      const beatYawTarget =
+        beat === 1 ?  0.28 :   // look aside — reminiscing
+        beat === 4 ? -0.08 :   // square to player — direct
+                     0;
+      t.beatLean += (beatLeanTarget - t.beatLean) * Math.min(1, safeDt * 2.5);
+      t.beatYaw  += (beatYawTarget  - t.beatYaw)  * Math.min(1, safeDt * 2.0);
+
+      // ── Spring-driven breathing + sway ────────────────────────────
+      // Raw sine targets — the spring chases these with inertia so the
+      // body overshoots and settles, giving mass to every movement.
       const breathDepth = 1 + 0.40 * Math.sin(time * 0.21);
-      const breath = Math.sin(time * 1.45) * 0.060 * breathDepth
-                   + Math.sin(time * 0.70 + 1.0) * 0.018;
-      bob.position.y = breath;
-      // ── Weight shift ──────────────────────────────────────────────
-      const wShift = Math.sin(time * 0.37);
-      bob.position.x = wShift * 0.048;
-      bob.rotation.z = wShift * 0.060 + Math.sin(time * 0.26) * 0.020;
+      const targetY = Math.sin(time * 1.45) * 0.060 * breathDepth
+                    + Math.sin(time * 0.70 + 1.0) * 0.018;
+      const targetX = Math.sin(time * 0.37) * 0.048;
+      const targetZ = Math.sin(time * 0.37) * 0.060
+                    + Math.sin(time * 0.26) * 0.020;
+
+      // Spring: F = (target - pos) * stiffness − velocity * damping
+      // Stiffness 18 + damping 4.2 → lightly under-damped, ~12% overshoot.
+      const ks = 18, kd = 4.2;
+      t.svY += ((targetY - t.spY) * ks - t.svY * kd) * safeDt;
+      t.spY += t.svY * safeDt;
+      t.svX += ((targetX - t.spX) * ks - t.svX * kd) * safeDt;
+      t.spX += t.svX * safeDt;
+      t.svZ += ((targetZ - t.spZ) * ks - t.svZ * kd) * safeDt;
+      t.spZ += t.svZ * safeDt;
+
+      bob.position.y = t.spY;
+      bob.position.x = t.spX;
+      bob.rotation.z = t.spZ;
+
       // ── Glance ────────────────────────────────────────────────────
-      // Every ~7s a wider look-aside sweeps the gaze 0.30 rad further,
-      // creating a distinctive character moment that breaks monotony.
       const beatProgress = (time % 7.0) / 7.0;
       const beatGlance = beatProgress > 0.72
         ? Math.sin((beatProgress - 0.72) / 0.28 * Math.PI) * 0.30
@@ -312,30 +359,11 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       bob.rotation.y = Math.sin(time * 0.31 + 0.6) * (0.110 + beatGlance)
                      + Math.sin(time * 0.13 + 2.1) * 0.050
                      + t.beatYaw;
-      // ── Per-beat body language ─────────────────────────────────────
-      // Each dialogue line gets a distinct lean so the diver reads as
-      // reacting to what he's saying, not looping the same idle pose.
-      //   beat 0 → welcoming greeting  → neutral, tiny lean in
-      //   beat 1 → philosophical memory → lean back, reflective
-      //   beat 2 → caring guardian      → lean forward, earnest
-      //   beat 3 → handover (state changes; loop below handles it)
-      //   beat 4 → instructional farewell → nearly upright, authoritative
-      const beat = dialogueBeatRef ? dialogueBeatRef.current : -1;
-      const beatLeanTarget =
-        beat === 1 ? -0.10 :   // lean back — lost in memory
-        beat === 2 ?  0.12 :   // lean forward — caring
-        beat === 4 ? -0.03 :   // upright — authoritative
-                     0.04;     // default gentle lean-in
-      const beatYawTarget =
-        beat === 1 ?  0.28 :   // look aside as if gazing into the past
-        beat === 4 ? -0.08 :   // square to player — direct instruction
-                     0;
-      t.beatLean += (beatLeanTarget - t.beatLean) * Math.min(1, safeDt * 2.5);
-      t.beatYaw  += (beatYawTarget  - t.beatYaw)  * Math.min(1, safeDt * 2.0);
-      // ── Pitch ─────────────────────────────────────────────────────
+
+      // ── Pitch (breathing lean + beat lean + nod impulse) ──────────
       bob.rotation.x = (st === 'handover')
         ? bob.rotation.x
-        : Math.sin(time * 0.45) * 0.020 - breath * 0.28 + t.beatLean;
+        : Math.sin(time * 0.45) * 0.020 - t.spY * 0.28 + t.beatLean + nod;
     } else if (st !== 'spawn') {
       bob.position.y = 0;
       bob.position.x = 0;
