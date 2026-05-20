@@ -265,14 +265,16 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
           MERGULHADOR
         </div>
 
-        <p className="cs-subtitle" key={beatIdx}>
+        <p className="cs-subtitle" key={`sub-${beatIdx}`}>
           {displayed}
           {!doneTyping && <span className="cs-caret" aria-hidden="true" />}
         </p>
 
-        {/* Auto-advance progress bar — appears while dwell timer runs */}
+        {/* Auto-advance progress bar — appears while dwell timer runs.
+            Key is prefixed distinctly from the subtitle's — sibling keys
+            must be unique or React fails to unmount the old elements. */}
         {doneTyping && (
-          <div className="cs-auto-bar" key={beatIdx} aria-hidden="true">
+          <div className="cs-auto-bar" key={`bar-${beatIdx}`} aria-hidden="true">
             <div className="cs-auto-bar-fill" style={{ animationDuration: `${DWELL_AFTER_TYPE_MS + (beatIdx === 3 ? 900 : beatIdx === 4 ? 500 : beatIdx === 1 ? 200 : 0)}ms` }} />
           </div>
         )}
