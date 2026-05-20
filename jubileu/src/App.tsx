@@ -244,15 +244,17 @@ export default function App() {
         lastSpawnTimeRef.current = performance.now();
         setDiverPhase('spawn');
         setCameraShake(true);
+        setDiverSpawnFlashKey(k => k + 1);
         playJumpscareStab(audioCtx);
         // ~500ms shake then settle
         scheduleTimeout(() => setCameraShake(false), 500);
-        // After pop animation finishes, transition to idle and play cutscene.
+        // Pop finishes (~450ms) → idle pose. Hold a beat so the player
+        // registers the scare, THEN slide the cutscene letterbox in.
         scheduleTimeout(() => {
           diverBeatRef.current = -1;
           setDiverPhase('idle');
-          setDiverDialogueOpen(true);
         }, 500);
+        scheduleTimeout(() => setDiverDialogueOpen(true), 780);
       }
     }, 100);
     return () => clearInterval(id);
@@ -286,6 +288,8 @@ export default function App() {
   const wasUnderwaterRef = useRef(false);
   // Dive-into-well cinematic: black-screen fade → teleport underwater.
   const [diveBlackKey, setDiveBlackKey] = useState(0);
+  // Diver spawn jumpscare — DOM cyan flash punch when he bursts from the floor.
+  const [diverSpawnFlashKey, setDiverSpawnFlashKey] = useState(0);
   useEffect(() => {
     if (currentLevel !== 2) { wasUnderwaterRef.current = false; return; }
     const SWIM_Y = -2.7;  // mirrors SWIM_THRESHOLD_Y in Floor2/constants
@@ -1072,6 +1076,32 @@ export default function App() {
       )}
 
       
+      {/* Diver spawn jumpscare flash — cyan punch synced to the burst.
+          Quick blow-out then fast decay so it reads as an impact, not a fade. */}
+      {diverSpawnFlashKey > 0 && (
+        <div
+          key={diverSpawnFlashKey}
+          className="fixed inset-0 z-[77] pointer-events-none"
+        >
+          <div
+            className="dvspawn-flash w-full h-full"
+            style={{
+              background:
+                'radial-gradient(ellipse at center, rgba(180,255,250,0.95) 0%, rgba(110,230,255,0.6) 35%, rgba(40,140,180,0.2) 65%, rgba(0,0,0,0) 85%)',
+            }}
+          />
+          <style>{`
+            @keyframes dvSpawnFlash {
+              0%   { opacity: 0; transform: scale(1.15); }
+              8%   { opacity: 1; transform: scale(1.0); }
+              28%  { opacity: 0.45; }
+              100% { opacity: 0; transform: scale(1.08); }
+            }
+            .dvspawn-flash { animation: dvSpawnFlash 420ms cubic-bezier(0.2,0.9,0.3,1) forwards; }
+          `}</style>
+        </div>
+      )}
+
       {/* Dive-into-well — cinematic descent (2200ms total). Player is
           teleported underwater at 800ms while the screen is fully black.
           Layers: rushing speed streaks → iris tunnel closes → black hold
