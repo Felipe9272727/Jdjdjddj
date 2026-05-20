@@ -312,6 +312,8 @@ interface PlayerProps {
   sharedRotationYRef: React.MutableRefObject<number>;
   cameraThetaRef: React.MutableRefObject<number>;
   cameraShakeRef: React.MutableRefObject<boolean>;
+  /** Current diver dialogue beat (-1 = none). Drives emotion-reactive framing. */
+  diverBeatRef?: React.MutableRefObject<number>;
   positionCmdRef: React.MutableRefObject<{ x: number; y: number; z: number } | null>;
   onElevatorZoneChange: (inside: boolean) => void;
   pickupTrigger?: number;
@@ -320,7 +322,7 @@ interface PlayerProps {
   onRightHandAnchor?: (a: THREE.Object3D | null) => void;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -334,6 +336,8 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
   const timeRef = useRef(0);
   const diverCineRef = useRef(0); // elapsed time inside the Floor 2 cinematic camera
+  // Emotion-reactive framing: smoothed dist/fov offsets driven by dialogue beat.
+  const diverFrameRef = useRef({ dist: 0, fov: 0 });
   const camPosRef = useRef(new Vector3(0, 0, 8)); // smooth camera position
   const camInitRef = useRef(false); // sync camera to player pos on first frame
   const walls = useMemo(() => wallsForState(currentLevel, doorsClosed, houseDoorOpen), [currentLevel, doorsClosed, houseDoorOpen]);
@@ -402,7 +406,11 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     // is talking to: lobby NPC, Barney, etc.) and falls back to the lobby NPC ref so
     // existing call sites that don't pass a target still work.
     const dialogueFocusRef = dialogueTargetRef ?? npcPositionRef;
-    if (!(dialogueOpen && currentLevel === 2)) diverCineRef.current = 0;
+    if (!(dialogueOpen && currentLevel === 2)) {
+      diverCineRef.current = 0;
+      diverFrameRef.current.dist = 0;
+      diverFrameRef.current.fov = 0;
+    }
     if (dialogueOpen && dialogueFocusRef?.current) {
         if (animRef.current !== 'Idle') { animRef.current = 'Idle'; setAnim('Idle'); }
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
@@ -419,6 +427,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         // camera breathes around him for subtle parallax.
         let camDist = isDiverScene ? 5.8 : 2.2;
         let driftX = 0, driftY = 0;
+        let beatFov = 0;
         if (isDiverScene) {
           diverCineRef.current += safeDt;
           const ct = diverCineRef.current;
@@ -428,10 +437,31 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
           // X swings ±0.22m so the diver shifts within the frame; Y floats ±0.09m.
           driftX = Math.sin(ct * 0.38) * 0.18 + Math.sin(ct * 1.10 + 0.7) * 0.04;
           driftY = Math.cos(ct * 0.29) * 0.09 + Math.sin(ct * 0.85 + 1.4) * 0.025;
+          // ── Emotion-reactive framing — the camera responds to the beat ──
+          // Memory beat pulls back & widens; intimate/authority beats push in
+          // and tighten the lens so the diver fills more of the frame.
+          const beat = diverBeatRef?.current ?? -1;
+          const distTarget =
+            beat === 1 ?  0.55 :   // memory — pull back, give him room
+            beat === 2 ? -0.35 :   // caring — lean the lens in
+            beat === 3 ? -0.55 :   // handover — focus tight on the mask
+            beat === 4 ? -0.70 :   // authority — in your face
+                          0;
+          const fovTarget =
+            beat === 1 ?  2.2 :    // wider — airy, distant
+            beat === 2 ? -1.6 :    // tighter — intimate
+            beat === 3 ? -2.4 :    // tighter still
+            beat === 4 ? -3.2 :    // tightest — claustrophobic
+                          0;
+          const smooth = Math.min(1, safeDt * 1.6);
+          diverFrameRef.current.dist += (distTarget - diverFrameRef.current.dist) * smooth;
+          diverFrameRef.current.fov  += (fovTarget  - diverFrameRef.current.fov)  * smooth;
+          camDist += diverFrameRef.current.dist;
+          beatFov = diverFrameRef.current.fov;
         }
         const camHeight  = isDiverScene ? 1.55 : 1.75;
         const lookHeight = isDiverScene ? 1.3  : 1.35;
-        const targetFov  = isDiverScene ? 46   : 40;
+        const targetFov  = (isDiverScene ? 46 : 40) + beatFov;
         const tCam = _v.current[1].copy(nP).addScaledVector(d2p, camDist);
         tCam.y += camHeight + driftY; tCam.x += driftX;
         const tLook = _v.current[2].copy(nP); tLook.y += lookHeight;
