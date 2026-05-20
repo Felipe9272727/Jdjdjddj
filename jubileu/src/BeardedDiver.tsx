@@ -136,6 +136,11 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
   const keyLightRef = useRef<THREE.PointLight>(null);
   const fillLightRef = useRef<THREE.PointLight>(null);
   const maskLightRef = useRef<THREE.PointLight>(null);
+  // Pre-allocated colors for smooth per-beat temperature shift
+  const keyColorSmoothed = useRef(new THREE.Color('#FFE2A0'));
+  const fillColorSmoothed = useRef(new THREE.Color('#FFD080'));
+  const keyColorTarget   = useRef(new THREE.Color('#FFE2A0'));
+  const fillColorTarget  = useRef(new THREE.Color('#FFD080'));
 
   // ─── Load + clone GLB (so multiple instances / fade ops are safe) ──
   const gltf = useGLTF(hotelConciergeModel) as unknown as {
@@ -186,25 +191,24 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     armT: 0,
     fadeT: 0,
     fadeOpacity: 1,
-    beatLean: 0,    // smoothed X-lean driven by dialogue beat index
-    beatYaw:  0,    // smoothed Y-yaw offset driven by dialogue beat index
-    spY: 0, svY: 0,   // spring Y (breathing bob)
-    spX: 0, svX: 0,   // spring X (weight shift)
-    spZ: 0, svZ: 0,   // spring Z (body roll)
-    // Chest scale spring — subtle Y scale gives volume to the breath
+    beatLean: 0,
+    beatYaw:  0,
+    spY: 0, svY: 0,
+    spX: 0, svX: 0,
+    spZ: 0, svZ: 0,
     spSY: 1.0, svSY: 0,
-    nodT: 1,          // nod phase (1 = done/idle, 0 = just started)
+    nodT: 1,
     prevBeat: -1,
     gaze: 0,
     beatRoll: 0,
-    // Weight-shift phase: slow cycle gives natural foot-to-foot feel
     weightPhase: 0,
-    // Micro-gesture timer: periodic look-down then back
     microT: 0,
     microBob: 0,
-    // Handover look-at-mask impulse: brief glance down before extending
     maskGlance: 0,
     prevArmT: 0,
+    // Proximity drift: diver steps closer on intimate/authoritative beats.
+    // driftZ is an OFFSET added to DIVER_POS[2] (positive = toward player).
+    driftZ: 0, driftVZ: 0,
   });
 
   // Reset timers on state transitions + drive idle animation.
@@ -228,6 +232,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       tRef.current.weightPhase = 0; tRef.current.microT = 0;
       tRef.current.microBob = 0; tRef.current.maskGlance = 0;
       tRef.current.prevArmT = 0;
+      tRef.current.driftZ = 0; tRef.current.driftVZ = 0;
       // Reset walked-away position so a respawn shows him at DIVER_POS again
       if (groupRef.current) {
         groupRef.current.position.set(DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]);
@@ -276,31 +281,29 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     // bobRef.scale=1 produces the correct 1.85 m standing height.
     if (st === 'spawn') {
       t.popT = Math.min(1, t.popT + safeDt / POP_DURATION);
-      const s = 2.0;
+      const s = 2.5;  // stronger back-ease overshoot
       const tt = t.popT;
-      // Rise from 1.8m below the floor, accelerating upward. The flash
-      // covers the first ~80% of the rise so the diver bursts INTO view.
       const riseEase = 1 - Math.pow(1 - tt, 2.8);
       g.position.set(DIVER_POS[0], DIVER_POS[1] - 1.8 * (1 - riseEase), DIVER_POS[2]);
       const c = tt - 1;
       const ease = 1 + c * c * ((s + 1) * c + s);
-      const sc = THREE.MathUtils.clamp(ease, 0.05, 1.30);
-      const sq = Math.sin(tt * Math.PI * 2) * 0.5 * 0.30;
-      // Landing impact: when the rise finishes (tt > 0.82), compress body
-      // downward then rebound — sells the weight of bursting out of the floor.
-      const impactPhase = THREE.MathUtils.clamp((tt - 0.82) / 0.18, 0, 1);
-      const impactSquash = Math.sin(impactPhase * Math.PI) * 0.14;  // compress then release
+      const sc = THREE.MathUtils.clamp(ease, 0.05, 1.45);  // bigger overshoot
+      const sq = Math.sin(tt * Math.PI * 2) * 0.5 * 0.35;  // more pronounced squash/stretch
+      const impactPhase = THREE.MathUtils.clamp((tt - 0.78) / 0.22, 0, 1);
+      const impactSquash = Math.sin(impactPhase * Math.PI) * 0.20;  // harder land
+      // Forward lurch at impact — body throws itself toward player
+      const impactLurch = Math.sin(impactPhase * Math.PI) * 0.35;
       bob.scale.set(
-        sc * (1 - sq * 0.5) * (1 + impactSquash * 0.3),
+        sc * (1 - sq * 0.6) * (1 + impactSquash * 0.35),
         sc * (1 + sq)       * (1 - impactSquash),
-        sc * (1 - sq * 0.5) * (1 + impactSquash * 0.3),
+        sc * (1 - sq * 0.6) * (1 + impactSquash * 0.35),
       );
-      bob.position.z = Math.max(0, (1 - tt) * 0.5);
-      bob.position.y = Math.sin(tt * Math.PI) * 0.16 - impactSquash * 0.12;
-      bob.rotation.x = (1 - tt) * -0.22;
+      bob.position.z = Math.max(0, (1 - tt) * 0.5) + impactLurch * 0.28;
+      bob.position.y = Math.sin(tt * Math.PI) * 0.18 - impactSquash * 0.14;
+      bob.rotation.x = (1 - tt) * -0.28 + impactLurch;  // lurch forward at impact
     } else if (st !== 'fading') {
-      // Return to anchor whenever we're not in spawn or fading
-      g.position.set(DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]);
+      // Return to anchor — proximity drift applied below in idle/handover
+      g.position.set(DIVER_POS[0], DIVER_POS[1], DIVER_POS[2] + t.driftZ);
       bob.scale.set(1, 1, 1);
       bob.position.z = 0;
       bob.rotation.x = 0;
@@ -355,6 +358,38 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       t.beatLean += (beatLeanTarget - t.beatLean) * Math.min(1, safeDt * 2.8);
       t.beatYaw  += (beatYawTarget  - t.beatYaw)  * Math.min(1, safeDt * 2.2);
       t.beatRoll += (beatRollTarget - t.beatRoll) * Math.min(1, safeDt * 2.8);
+
+      // ── Proximity drift — diver steps into the player's space ─────
+      // Beat 2 (caring): 0.8u forward; beat 4 (authority): 1.2u forward.
+      // Handover: +1.4u so the mask is physically close when extended.
+      // Spring k=1.2, d=1.8 → very smooth, takes ~1.5s to fully settle.
+      const driftTarget = st === 'handover' ? 1.40 :
+                          beat === 4 ? 1.20 :
+                          beat === 2 ? 0.80 :
+                          beat === 3 ? 0.50 :
+                          beat === 1 ? 0.20 : 0;
+      t.driftVZ += ((driftTarget - t.driftZ) * 1.2 - t.driftVZ * 1.8) * safeDt;
+      t.driftZ  += t.driftVZ * safeDt;
+      g.position.z = DIVER_POS[2] + t.driftZ;
+
+      // ── Per-beat light temperature ─────────────────────────────────
+      // beat 1 (memory): warm amber candlelight
+      // beat 4 (authority): cooler, slightly blue-white — dramatic
+      // handover: cooler still, the mask glow is the warm element
+      const kc = st === 'handover' ? '#C8E8FF' :
+                 beat === 1 ? '#FFBA50' :
+                 beat === 4 ? '#C8DCFF' :
+                              '#FFE2A0';
+      const fc = st === 'handover' ? '#B0D4FF' :
+                 beat === 1 ? '#FFAE40' :
+                 beat === 4 ? '#D4E4FF' :
+                              '#FFD080';
+      keyColorTarget.current.set(kc);
+      fillColorTarget.current.set(fc);
+      keyColorSmoothed.current.lerp(keyColorTarget.current, safeDt * 1.4);
+      fillColorSmoothed.current.lerp(fillColorTarget.current, safeDt * 1.4);
+      if (keyLightRef.current)  keyLightRef.current.color.copy(keyColorSmoothed.current);
+      if (fillLightRef.current) fillLightRef.current.color.copy(fillColorSmoothed.current);
 
       // ── Weight shift cycle (foot-to-foot) ─────────────────────────
       t.weightPhase += safeDt * 0.42;
