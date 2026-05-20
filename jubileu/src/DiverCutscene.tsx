@@ -43,11 +43,20 @@ const BEATS: string[] = [
 const TYPEWRITER_MS = 26;
 const DWELL_AFTER_TYPE_MS = 1700;
 
+// Per-beat typewriter speed — the dialogue rhythm is hand-tuned to the
+// diver's mood: he lingers on the memory, quickens as he hands the mask over.
+function typeSpeedForBeat(idx: number): number {
+  return idx === 1 ? 37   // memory — slow, wistful
+       : idx === 2 ? 30   // earnest — measured
+       : idx === 3 ? 23   // "toma" — quicker, decisive
+       : TYPEWRITER_MS;   // 0 + 4 — normal cadence
+}
+
 // Beat 3 = mask extends toward player ("Toma") — hold longer so they can absorb
 // the gesture. Beat 4 = final farewell words — extra weight before accepting.
 function dwellForBeat(idx: number, text: string): number {
   const extra = idx === 3 ? 900 : idx === 4 ? 500 : idx === 1 ? 200 : 0;
-  return TYPEWRITER_MS * text.length + DWELL_AFTER_TYPE_MS + extra;
+  return typeSpeedForBeat(idx) * text.length + DWELL_AFTER_TYPE_MS + extra;
 }
 
 export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps) => {
@@ -95,7 +104,7 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
         }
         setDoneTyping(true);
       }
-    }, TYPEWRITER_MS);
+    }, typeSpeedForBeat(beatIdx));
 
     return () => {
       if (typeIntervalRef.current !== null) {
