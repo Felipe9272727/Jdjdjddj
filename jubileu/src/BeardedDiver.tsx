@@ -202,6 +202,9 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     // Beat-triggered head nod: fires when dialogue beat advances.
     nodT: 1,          // nod phase (1 = done/idle, 0 = just started)
     prevBeat: -1,     // last seen beat index to detect changes
+    // Soft player gaze: the diver's body subtly orients toward the player's
+    // X offset. 25% blend so it feels like awareness, not billboard rotation.
+    gaze: 0,
   });
 
   // Reset timers on state transitions + drive idle animation.
@@ -220,6 +223,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       tRef.current.spX = 0; tRef.current.svX = 0;
       tRef.current.spZ = 0; tRef.current.svZ = 0;
       tRef.current.nodT = 1; tRef.current.prevBeat = -1;
+      tRef.current.gaze = 0;
       // Reset walked-away position so a respawn shows him at DIVER_POS again
       if (groupRef.current) {
         groupRef.current.position.set(DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]);
@@ -359,6 +363,17 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       bob.position.x = t.spX;
       bob.rotation.z = t.spZ;
 
+      // ── Soft player gaze ──────────────────────────────────────────
+      // The diver's body subtly orients toward the player's X position.
+      // atan2(relX, relZ) gives the signed angle; we blend 25% of it so
+      // it reads as "awareness" rather than billboard tracking.
+      {
+        const relX = playerPositionRef.current.x - DIVER_POS[0];
+        const relZ = playerPositionRef.current.z - DIVER_POS[2];
+        const rawGaze = Math.atan2(relX, Math.abs(relZ)) * 0.25;
+        const gazeTarget = THREE.MathUtils.clamp(rawGaze, -0.28, 0.28);
+        t.gaze += (gazeTarget - t.gaze) * Math.min(1, safeDt * 1.8);
+      }
       // ── Glance ────────────────────────────────────────────────────
       const beatProgress = (time % 7.0) / 7.0;
       const beatGlance = beatProgress > 0.72
@@ -366,7 +381,8 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         : 0;
       bob.rotation.y = Math.sin(time * 0.31 + 0.6) * (0.110 + beatGlance)
                      + Math.sin(time * 0.13 + 2.1) * 0.050
-                     + t.beatYaw;
+                     + t.beatYaw
+                     + t.gaze;
 
       // ── Pitch (breathing lean + beat lean + nod impulse) ──────────
       bob.rotation.x = (st === 'handover')
@@ -393,8 +409,9 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const pc = pr - 1;
       const present = pr <= 0 ? 0 : 1 + pc * pc * ((bk + 1) * pc + bk);
       // Torso bows forward on the offer — visible lean sells the intention.
-      // Extra side-tilt (Z) leans the shoulder into the offer like a real person.
-      bob.rotation.x = antic * 0.10 - present * 0.32;
+      // Keep a faint breath component so he doesn't freeze entirely.
+      const handoverBreath = Math.sin(time * 1.45) * 0.014;
+      bob.rotation.x = antic * 0.10 - present * 0.32 + handoverBreath;
       bob.rotation.z = present * -0.08;  // lean right shoulder forward
       if (maskRef.current) {
         // Mask rises on an arc from low in (anticipation pull-back) to
