@@ -1072,24 +1072,77 @@ export default function App() {
       )}
 
       
-      {/* Dive-into-well: black screen fades in (0-0.7s), holds (0.7-1.1s),
-          fades out (1.1-2.2s). Player is teleported at 800ms while black. */}
+      {/* Dive-into-well — cinematic descent (2200ms total). Player is
+          teleported underwater at 800ms while the screen is fully black.
+          Layers: rushing speed streaks → iris tunnel closes → black hold
+          → blue water-flood on impact → reveal of the underwater scene. */}
       {diveBlackKey > 0 && (
         <div
           key={diveBlackKey}
-          className="fixed inset-0 z-[95] pointer-events-none"
-          style={{ background: '#000' }}
+          className="fixed inset-0 z-[95] pointer-events-none overflow-hidden"
         >
+          {/* Rushing downward speed streaks — the fall */}
+          <div className="dive-streaks" />
+          {/* Iris tunnel — the well mouth shrinking above as you drop */}
+          <div className="dive-iris" />
+          {/* Black core hold */}
+          <div className="dive-core" />
+          {/* Water-flood — blue wash as you break the surface */}
+          <div className="dive-water" />
           <style>{`
-            @keyframes diveBlack {
-              0%    { opacity: 0; }
-              32%   { opacity: 1; }
-              50%   { opacity: 1; }
-              100%  { opacity: 0; }
+            .dive-streaks, .dive-iris, .dive-core, .dive-water {
+              position: absolute; inset: -20%;
+              pointer-events: none; will-change: opacity, transform;
             }
-            .animate-dive-black { animation: diveBlack 2200ms ease-in-out forwards; }
+            .dive-streaks {
+              background: repeating-linear-gradient(
+                to bottom,
+                transparent 0px, transparent 38px,
+                rgba(160,215,245,0.18) 40px, transparent 45px);
+              animation: diveStreaks 2200ms cubic-bezier(0.4,0,0.7,1) forwards;
+            }
+            @keyframes diveStreaks {
+              0%   { opacity: 0; transform: translateY(-25%) scaleY(2.2); }
+              14%  { opacity: 0.85; }
+              42%  { opacity: 0.45; transform: translateY(55%) scaleY(2.8); }
+              58%  { opacity: 0; }
+              100% { opacity: 0; }
+            }
+            .dive-iris {
+              background: radial-gradient(circle at 50% 42%,
+                transparent 0%, transparent 36%, #000 72%);
+              animation: diveIris 2200ms cubic-bezier(0.55,0,0.85,0.5) forwards;
+            }
+            @keyframes diveIris {
+              0%   { transform: scale(3.4); opacity: 0; }
+              10%  { opacity: 1; }
+              44%  { transform: scale(0.16); opacity: 1; }
+              56%  { transform: scale(0.04); opacity: 1; }
+              100% { transform: scale(0.04); opacity: 0; }
+            }
+            .dive-core {
+              background: #000;
+              animation: diveCore 2200ms ease-in-out forwards;
+            }
+            @keyframes diveCore {
+              0%   { opacity: 0; }
+              30%  { opacity: 1; }
+              60%  { opacity: 1; }
+              100% { opacity: 0; }
+            }
+            .dive-water {
+              background: radial-gradient(ellipse at 50% 38%,
+                rgba(50,140,190,0) 0%, rgba(22,86,138,0.88) 66%,
+                rgba(8,42,72,0.96) 100%);
+              animation: diveWater 2200ms ease-out forwards;
+            }
+            @keyframes diveWater {
+              0%   { opacity: 0; transform: scale(1.3); }
+              54%  { opacity: 0; transform: scale(1.3); }
+              66%  { opacity: 1; transform: scale(1.0); }
+              100% { opacity: 0; transform: scale(0.95); }
+            }
           `}</style>
-          <div className="animate-dive-black w-full h-full" style={{ background: '#000' }} />
         </div>
       )}
 
