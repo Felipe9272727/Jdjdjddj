@@ -206,9 +206,9 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     microBob: 0,
     maskGlance: 0,
     prevArmT: 0,
-    // Proximity drift: diver steps closer on intimate/authoritative beats.
-    // driftZ is an OFFSET added to DIVER_POS[2] (positive = toward player).
     driftZ: 0, driftVZ: 0,
+    // Beat-triggered light pulse — brief intensity spike draws eye to character
+    lightPulse: 0,
   });
 
   // Reset timers on state transitions + drive idle animation.
@@ -326,7 +326,9 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       if (beat !== t.prevBeat) {
         t.prevBeat = beat;
         t.nodT = 0;
+        t.lightPulse = 1.0;  // brief intensity spike on beat change
       }
+      t.lightPulse = Math.max(0, t.lightPulse - safeDt * 2.8);
       t.nodT = Math.min(1, t.nodT + safeDt / 0.40);
       // Nod: double-dip (two peaks) for expressiveness
       const nod = t.nodT < 1
@@ -627,14 +629,16 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         : 0;
       const spawnBoost = st === 'spawn' ? (1 - t.popT) * 6.0 : 0;
       const fadeMult = st === 'fading' ? (1 - t.fadeT) : 1;
-      keyLightRef.current.intensity = (base + caustic + spawnBoost) * (1 - handoverDim) * fadeMult;
+      const beatBoost = 1 + t.lightPulse * 0.55;  // ~55% brighter on beat change
+      keyLightRef.current.intensity = (base + caustic + spawnBoost) * (1 - handoverDim) * fadeMult * beatBoost;
     }
     if (fillLightRef.current) {
       const caustic = (st === 'idle' || st === 'handover')
         ? Math.sin(time * 1.9 + 2.0) * 0.70
         : 0;
       const fadeMult = st === 'fading' ? (1 - t.fadeT) : 1;
-      fillLightRef.current.intensity = (4.5 + caustic) * (1 - handoverDim * 1.25) * fadeMult;
+      const beatBoost = 1 + t.lightPulse * 0.40;
+      fillLightRef.current.intensity = (4.5 + caustic) * (1 - handoverDim * 1.25) * fadeMult * beatBoost;
     }
   });
 
@@ -714,39 +718,59 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         <group ref={maskRef} position={[0, 1.05, 0.45]}>
           {/* Mask point light — green glow casts onto the diver's face when extended */}
           <pointLight ref={maskLightRef} position={[0, 0.1, 0.2]} intensity={0} distance={3} decay={1.8} color="#4ADE80" />
+          {/* Main mask body — tapered diving mask silhouette */}
           <mesh material={matMaskFrame}>
-            <boxGeometry args={[0.40, 0.28, 0.18]} />
+            <boxGeometry args={[0.42, 0.30, 0.20]} />
           </mesh>
-          <mesh position={[0, 0, 0.10]} material={matMaskGlass}>
-            <boxGeometry args={[0.32, 0.20, 0.02]} />
+          {/* Recessed cushion ring */}
+          <mesh position={[0, 0, 0.005]} material={matMaskStrap}>
+            <boxGeometry args={[0.38, 0.26, 0.06]} />
           </mesh>
-          {/* Lens glint */}
-          <mesh position={[-0.06, 0.04, 0.115]}>
-            <boxGeometry args={[0.08, 0.04, 0.004]} />
-            <meshBasicMaterial color="#FFFFFF" transparent opacity={0.8} toneMapped={false} />
+          {/* Large viewport glass */}
+          <mesh position={[0, 0, 0.112]} material={matMaskGlass}>
+            <boxGeometry args={[0.30, 0.18, 0.02]} />
           </mesh>
-          <mesh position={[-0.23, 0, 0]} material={matMaskStrap}>
-            <boxGeometry args={[0.04, 0.10, 0.04]} />
+          {/* Lens specular glint — two small bright spots */}
+          <mesh position={[-0.07, 0.04, 0.126]}>
+            <boxGeometry args={[0.06, 0.03, 0.003]} />
+            <meshBasicMaterial color="#FFFFFF" transparent opacity={0.85} toneMapped={false} />
           </mesh>
-          <mesh position={[ 0.23, 0, 0]} material={matMaskStrap}>
-            <boxGeometry args={[0.04, 0.10, 0.04]} />
+          <mesh position={[ 0.07, -0.03, 0.126]}>
+            <boxGeometry args={[0.03, 0.02, 0.003]} />
+            <meshBasicMaterial color="#FFFFFF" transparent opacity={0.55} toneMapped={false} />
           </mesh>
-          <mesh position={[0.07, -0.18, 0.02]} material={matMaskFrame}>
-            <boxGeometry args={[0.09, 0.10, 0.06]} />
+          {/* Strap anchors — tapered cylinders */}
+          <mesh position={[-0.24, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={matMaskStrap}>
+            <cylinderGeometry args={[0.025, 0.018, 0.08, 8]} />
           </mesh>
-          {/* NV goggles — vivid green glow, clearly readable from 5m */}
-          <group position={[0, 0.16, 0.06]}>
-            <mesh position={[-0.11, 0, 0]} material={matMaskFrame}>
-              <boxGeometry args={[0.11, 0.11, 0.11]} />
+          <mesh position={[ 0.24, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={matMaskStrap}>
+            <cylinderGeometry args={[0.025, 0.018, 0.08, 8]} />
+          </mesh>
+          {/* Purge valve / regulator nub at bottom */}
+          <mesh position={[0.07, -0.19, 0.05]} material={matMaskFrame}>
+            <cylinderGeometry args={[0.038, 0.028, 0.12, 10]} />
+          </mesh>
+          {/* NV goggle tubes — proper cylinders, read much better as optics */}
+          <group position={[0, 0.19, 0.05]}>
+            {/* Left tube housing */}
+            <mesh position={[-0.115, 0, 0]} rotation={[Math.PI / 2, 0, 0]} material={matMaskFrame}>
+              <cylinderGeometry args={[0.062, 0.055, 0.14, 16]} />
             </mesh>
-            <mesh position={[ 0.11, 0, 0]} material={matMaskFrame}>
-              <boxGeometry args={[0.11, 0.11, 0.11]} />
+            {/* Right tube housing */}
+            <mesh position={[ 0.115, 0, 0]} rotation={[Math.PI / 2, 0, 0]} material={matMaskFrame}>
+              <cylinderGeometry args={[0.062, 0.055, 0.14, 16]} />
             </mesh>
-            <mesh position={[-0.11, 0, 0.06]} material={matGoggles}>
-              <boxGeometry args={[0.08, 0.08, 0.022]} />
+            {/* Left lens — circular glowing disc */}
+            <mesh position={[-0.115, 0, 0.072]} material={matGoggles}>
+              <circleGeometry args={[0.046, 20]} />
             </mesh>
-            <mesh position={[ 0.11, 0, 0.06]} material={matGoggles}>
-              <boxGeometry args={[0.08, 0.08, 0.022]} />
+            {/* Right lens */}
+            <mesh position={[ 0.115, 0, 0.072]} material={matGoggles}>
+              <circleGeometry args={[0.046, 20]} />
+            </mesh>
+            {/* Centre bridge between tubes */}
+            <mesh position={[0, 0, 0]} material={matMaskFrame}>
+              <boxGeometry args={[0.08, 0.032, 0.10]} />
             </mesh>
           </group>
         </group>
