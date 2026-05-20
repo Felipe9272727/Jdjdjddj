@@ -46,7 +46,7 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
 
   const tRef = useRef({ t: 0, done: false });  // max 2.4s
   // Spring state for snap-scale overshoot
-  const scaleSpring = useRef({ pos: 0, vel: 0 });
+  const scaleSpring = useRef({ pos: 0, vel: 0, kicked: false });
   // Camera shake: decaying sinusoidal offset applied after camera.position copy
   const shakeRef = useRef({ x: 0, y: 0 });
   const { camera } = useThree();
@@ -56,6 +56,9 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
     if (active) {
       tRef.current.t = 0;
       tRef.current.done = false;
+      scaleSpring.current.pos = 0;
+      scaleSpring.current.vel = 0;
+      scaleSpring.current.kicked = false;
     }
   }, [active]);
 
@@ -131,8 +134,9 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
       } else if (t < 1.80) {
         // Spring-based scale punch on snap
         const age = t - 1.40;
-        if (age < safeDt + 0.002) {
-          // Impulse: kick velocity up hard on the first frame of snap
+        if (!scaleSpring.current.kicked) {
+          // Impulse: kick velocity up hard, exactly once, at the snap
+          scaleSpring.current.kicked = true;
           scaleSpring.current.pos = 0.72;
           scaleSpring.current.vel = 9.0;
         }
