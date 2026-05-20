@@ -326,28 +326,24 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       t.nodT = Math.min(1, t.nodT + safeDt / 0.45);
       // Nod: quick dip-and-recover in X. Peaks at ~30% into the gesture.
       const nod = t.nodT < 1
-        ? Math.sin(t.nodT * Math.PI) * Math.sin(t.nodT * Math.PI * 0.5) * 0.18
+        ? Math.sin(t.nodT * Math.PI) * Math.sin(t.nodT * Math.PI * 0.5) * 0.26
         : 0;
 
+      // Wider beat lean/yaw/roll — character moments need to READ clearly
       const beatLeanTarget =
-        beat === 1 ? -0.10 :   // lean back — lost in memory
-        beat === 2 ?  0.12 :   // lean forward — caring
-        beat === 4 ? -0.03 :   // upright — authoritative
-                     0.04;
+        beat === 1 ? -0.16 :   // lean back — lost in memory
+        beat === 2 ?  0.18 :   // lean forward — caring/earnest
+        beat === 4 ? -0.05 :   // upright — authoritative
+                     0.06;
       const beatYawTarget =
-        beat === 1 ?  0.28 :   // look aside — reminiscing
-        beat === 4 ? -0.08 :   // square to player — direct
+        beat === 1 ?  0.38 :   // look well aside — truly reminiscing
+        beat === 4 ? -0.12 :   // square to player — direct eye contact
                      0;
-      // Z-tilt per beat: subtle head-tilt that matches the emotional register
-      //   beat 0 → very slight tilt right (curious/welcoming)
-      //   beat 1 → tilt right (introspective, "let me think...")
-      //   beat 2 → tilt left (empathetic, leaning toward the player)
-      //   beat 4 → nearly level (authoritative/instructional)
       const beatRollTarget =
-        beat === 1 ?  0.055 :
-        beat === 2 ? -0.050 :
-        beat === 4 ?  0.010 :
-                     0.025;
+        beat === 1 ?  0.08 :   // tilt right — introspective
+        beat === 2 ? -0.07 :   // tilt left — empathetic
+        beat === 4 ?  0.01 :   // level — authority
+                     0.03;
       t.beatLean += (beatLeanTarget - t.beatLean) * Math.min(1, safeDt * 2.5);
       t.beatYaw  += (beatYawTarget  - t.beatYaw)  * Math.min(1, safeDt * 2.0);
       t.beatRoll += (beatRollTarget - t.beatRoll) * Math.min(1, safeDt * 2.5);
@@ -355,17 +351,17 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       // ── Spring-driven breathing + sway ────────────────────────────
       // Raw sine targets — the spring chases these with inertia so the
       // body overshoots and settles, giving mass to every movement.
-      const breathDepth = 1 + 0.40 * Math.sin(time * 0.21);
-      const targetY = Math.sin(time * 1.45) * 0.060 * breathDepth
-                    + Math.sin(time * 0.70 + 1.0) * 0.018;
-      const targetX = Math.sin(time * 0.37) * 0.048;
-      const targetZ = Math.sin(time * 0.37) * 0.060
-                    + Math.sin(time * 0.26) * 0.020
+      const breathDepth = 1 + 0.45 * Math.sin(time * 0.21);
+      const targetY = Math.sin(time * 1.45) * 0.082 * breathDepth
+                    + Math.sin(time * 0.70 + 1.0) * 0.022;
+      const targetX = Math.sin(time * 0.37) * 0.065;
+      const targetZ = Math.sin(time * 0.37) * 0.080
+                    + Math.sin(time * 0.26) * 0.026
                     + t.beatRoll;
 
       // Spring: F = (target - pos) * stiffness − velocity * damping
-      // Stiffness 18 + damping 4.2 → lightly under-damped, ~12% overshoot.
-      const ks = 18, kd = 4.2;
+      // k=15, d=3.6 → ~18% overshoot — more elastic, reads as alive.
+      const ks = 15, kd = 3.6;
       t.svY += ((targetY - t.spY) * ks - t.svY * kd) * safeDt;
       t.spY += t.svY * safeDt;
       t.svX += ((targetX - t.spX) * ks - t.svX * kd) * safeDt;
@@ -424,9 +420,9 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const present = pr <= 0 ? 0 : 1 + pc * pc * ((bk + 1) * pc + bk);
       // Torso bows forward on the offer — visible lean sells the intention.
       // Keep a faint breath component so he doesn't freeze entirely.
-      const handoverBreath = Math.sin(time * 1.45) * 0.014;
-      bob.rotation.x = antic * 0.10 - present * 0.32 + handoverBreath;
-      bob.rotation.z = present * -0.08;  // lean right shoulder forward
+      const handoverBreath = Math.sin(time * 1.45) * 0.016;
+      bob.rotation.x = antic * 0.14 - present * 0.42 + handoverBreath;
+      bob.rotation.z = present * -0.11;  // lean right shoulder well forward
       if (maskRef.current) {
         // Mask rises on an arc from low in (anticipation pull-back) to
         // high-and-forward (full extension toward the player).
