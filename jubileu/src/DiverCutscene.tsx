@@ -386,6 +386,13 @@ const STYLES = `
   text-transform: uppercase;
   text-shadow: 0 0 14px rgba(103, 232, 249, 0.55);
   margin-bottom: 10px;
+  /* Cinematic title reveal — settles in just after the bar arrives,
+     letter-spacing tightening as it fades up. */
+  animation: cs-speaker-in 560ms cubic-bezier(0.22, 1, 0.36, 1) 360ms both;
+}
+@keyframes cs-speaker-in {
+  from { opacity: 0; transform: translateY(-7px); letter-spacing: 0.42em; }
+  to   { opacity: 1; transform: translateY(0);    letter-spacing: 0.22em; }
 }
 .cs-speaker-dot {
   width: 7px;
@@ -443,6 +450,11 @@ const STYLES = `
   display: flex;
   gap: 8px;
   margin-top: 14px;
+  animation: cs-fade-up 620ms cubic-bezier(0.22, 1, 0.36, 1) 480ms both;
+}
+@keyframes cs-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .cs-dot {
   width: 7px;
@@ -526,5 +538,7 @@ const STYLES = `
   .cs-dot-current { transform: none; }
   .cs-subtitle { animation: none; }
   .cs-vignette { animation: none; opacity: 1; }
+  .cs-speaker { animation: none; }
+  .cs-progress { animation: none; }
 }
 `;

@@ -333,6 +333,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const _v = _vRef;
 
   const timeRef = useRef(0);
+  const diverCineRef = useRef(0); // elapsed time inside the Floor 2 cinematic camera
   const camPosRef = useRef(new Vector3(0, 0, 8)); // smooth camera position
   const camInitRef = useRef(false); // sync camera to player pos on first frame
   const walls = useMemo(() => wallsForState(currentLevel, doorsClosed, houseDoorOpen), [currentLevel, doorsClosed, houseDoorOpen]);
@@ -401,6 +402,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     // is talking to: lobby NPC, Barney, etc.) and falls back to the lobby NPC ref so
     // existing call sites that don't pass a target still work.
     const dialogueFocusRef = dialogueTargetRef ?? npcPositionRef;
+    if (!(dialogueOpen && currentLevel === 2)) diverCineRef.current = 0;
     if (dialogueOpen && dialogueFocusRef?.current) {
         if (animRef.current !== 'Idle') { animRef.current = 'Idle'; setAnim('Idle'); }
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
@@ -411,11 +413,25 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         // he sits inside the (asymmetric) window between the bars rather
         // than at the optical centre of the full frame.
         const isDiverScene = currentLevel === 2;
-        const camDist    = isDiverScene ? 6.6  : 2.2;
+        // Cinematic camera life — a slow dolly push-in plus a gentle
+        // handheld drift so the shot is never dead-still (AA feel). The
+        // look target stays fixed, so the diver holds frame while the
+        // camera breathes around him for subtle parallax.
+        let camDist = isDiverScene ? 6.6 : 2.2;
+        let driftX = 0, driftY = 0;
+        if (isDiverScene) {
+          diverCineRef.current += safeDt;
+          const ct = diverCineRef.current;
+          const pushEase = 1 - Math.pow(1 - Math.min(1, ct / 16), 3);
+          camDist = 7.2 - pushEase * 0.8;
+          driftX = Math.sin(ct * 0.52) * 0.055 + Math.sin(ct * 1.27) * 0.018;
+          driftY = Math.cos(ct * 0.41) * 0.040 + Math.sin(ct * 0.93 + 1.1) * 0.014;
+        }
         const camHeight  = isDiverScene ? 1.55 : 1.75;
         const lookHeight = isDiverScene ? 0.9  : 1.35;
         const targetFov  = isDiverScene ? 46   : 40;
-        const tCam = _v.current[1].copy(nP).addScaledVector(d2p, camDist); tCam.y += camHeight;
+        const tCam = _v.current[1].copy(nP).addScaledVector(d2p, camDist);
+        tCam.y += camHeight + driftY; tCam.x += driftX;
         const tLook = _v.current[2].copy(nP); tLook.y += lookHeight;
         const dlgAlpha = Math.min(5 * safeDt, 0.4);
         camera.position.lerp(tCam, dlgAlpha);

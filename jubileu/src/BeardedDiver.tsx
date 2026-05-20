@@ -48,8 +48,9 @@ export const DIVER_POS: readonly [number, number, number] = [0, 0, -6];
 export const DIVER_SCARE_DIST = 5.2;
 /** Pop animation duration in seconds. */
 const POP_DURATION = 0.45;
-/** Handover (mask-present) duration in seconds. */
-const HANDOVER_DURATION = 0.7;
+/** Handover (mask-present) duration in seconds. Long enough for a proper
+ *  anticipation → arc → overshoot → settle gesture. */
+const HANDOVER_DURATION = 1.5;
 /** Fade-out duration in seconds. */
 const FADE_DURATION = 3.5;
 /** How far the diver walks backwards (toward -Z, away from the player's
@@ -201,8 +202,13 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const c = tt - 1;
       const ease = 1 + c * c * ((s + 1) * c + s);
       const sc = THREE.MathUtils.clamp(ease, 0.05, 1.30);
-      bob.scale.setScalar(sc);
+      // Squash & stretch — he stretches tall as he punches in, then a
+      // quick squash on the landing before settling. The 0.5·sin(2πt)
+      // curve is continuous (no pop at the stretch→squash crossover).
+      const sq = Math.sin(tt * Math.PI * 2) * 0.5 * 0.18;
+      bob.scale.set(sc * (1 - sq * 0.5), sc * (1 + sq), sc * (1 - sq * 0.5));
       bob.position.z = Math.max(0, (1 - tt) * 0.5);
+      bob.position.y = Math.sin(tt * Math.PI) * 0.10; // little hop on entry
       bob.rotation.x = (1 - tt) * -0.18;
     } else {
       bob.scale.setScalar(1);
@@ -218,20 +224,31 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     //   - subtle head-look toward player (twist on Y via tiny offset)
     //   - micro-bob from "shifting weight" (sin on rotation X)
     if (st === 'idle' || st === 'handover') {
-      // Layered breathing — a primary chest rise plus a slower secondary
-      // swell so it never reads as a single mechanical sine wave.
-      const breath = Math.sin(time * 1.5) * 0.040 + Math.sin(time * 0.71 + 1.0) * 0.013;
+      // ── Breathing ─────────────────────────────────────────────────
+      // Primary chest rise modulated by a slow depth envelope so some
+      // breaths are deeper than others — never metronomic. A faster,
+      // tiny secondary ripple stops it reading as a pure sine.
+      const breathDepth = 1 + 0.32 * Math.sin(time * 0.21);
+      const breath = Math.sin(time * 1.45) * 0.034 * breathDepth
+                   + Math.sin(time * 0.70 + 1.0) * 0.010;
       bob.position.y = breath;
-      // Subtle weight-shift: he sways side to side as if shifting his feet.
-      bob.position.x = Math.sin(time * 0.42) * 0.020;
-      bob.rotation.z = Math.sin(time * 0.6) * 0.022 + Math.sin(time * 0.27) * 0.010;
-      // Slow idle "glance" — he scans the gloom a little, never frozen.
-      bob.rotation.y = Math.sin(time * 0.34 + 0.6) * 0.06;
-      // Weight shift — overlay tiny pitch wave that fades out during handover
-      const weightShift = Math.sin(time * 0.45) * 0.012;
+      // ── Weight shift ──────────────────────────────────────────────
+      // He eases his weight from foot to foot in slow arcs — the lateral
+      // slide and the body roll share a phase so it reads as one motion.
+      const wShift = Math.sin(time * 0.37);
+      bob.position.x = wShift * 0.024;
+      bob.rotation.z = wShift * 0.030 + Math.sin(time * 0.26) * 0.011;
+      // ── Glance ────────────────────────────────────────────────────
+      // Slow scan of the gloom with an offset secondary wave so the head
+      // turn has organic acceleration rather than a flat oscillation.
+      bob.rotation.y = Math.sin(time * 0.31 + 0.6) * 0.060
+                     + Math.sin(time * 0.13 + 2.1) * 0.030;
+      // ── Pitch ─────────────────────────────────────────────────────
+      // Tiny weight wave, plus a pitch coupled to the breath so the
+      // chest+head rise together as a single believable arc.
       bob.rotation.x = (st === 'handover')
         ? bob.rotation.x // handover sets its own pitch below
-        : weightShift;
+        : Math.sin(time * 0.45) * 0.013 - breath * 0.22;
     } else if (st !== 'spawn') {
       bob.position.y = 0;
       bob.position.x = 0;
@@ -243,12 +260,33 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     if (st === 'handover') {
       t.armT = Math.min(1, t.armT + safeDt / HANDOVER_DURATION);
       const u = t.armT;
-      const easeArm = u * u * (3 - 2 * u);
-      bob.rotation.x = easeArm * -0.10;
+      // ── Anticipation ──────────────────────────────────────────────
+      // First ~16%: he settles back a touch and draws the mask in
+      // toward his chest before committing to the offer.
+      const antic = u < 0.16 ? Math.sin((u / 0.16) * Math.PI) : 0;
+      // ── Present ───────────────────────────────────────────────────
+      // Back-ease-out so the gesture overshoots slightly forward then
+      // settles — the follow-through that sells real weight.
+      const pr = THREE.MathUtils.clamp((u - 0.12) / 0.88, 0, 1);
+      const bk = 1.5;
+      const pc = pr - 1;
+      const present = pr <= 0 ? 0 : 1 + pc * pc * ((bk + 1) * pc + bk);
+      // Torso: leans back on the anticipation, then bows forward to
+      // offer the gear; settles as `present` resolves to 1.
+      bob.rotation.x = antic * 0.05 - present * 0.13;
       if (maskRef.current) {
-        // Mask starts in the diver's hand zone, drifts forward + up.
-        maskRef.current.position.set(0, 1.05 + easeArm * 0.10, 0.45 + easeArm * 0.85);
-        maskRef.current.scale.setScalar(1);
+        // Mask arcs: pulled down-and-in during anticipation, then up
+        // along a curve and forward toward the player on the present.
+        const lift = Math.sin(THREE.MathUtils.clamp(present, 0, 1) * Math.PI * 0.5) * 0.17;
+        maskRef.current.position.set(
+          0,
+          1.04 - antic * 0.07 + lift,
+          0.40 - antic * 0.11 + present * 0.92,
+        );
+        // A subtle present-pulse — the mask "breathes" forward once it
+        // is fully extended, inviting the player to take it.
+        const offerPulse = u > 0.9 ? 1 + Math.sin(time * 3.0) * 0.03 : 1;
+        maskRef.current.scale.setScalar(offerPulse);
         maskRef.current.visible = true;
       }
     } else if (maskRef.current) {
@@ -268,25 +306,37 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     if (st === 'fading') {
       t.fadeT = Math.min(1, t.fadeT + safeDt / FADE_DURATION);
       const u = t.fadeT;
-      // Phase 1 (first ~22%): he turns his back to the player rather than
-      // moonwalking away. smoothstep eases the pivot in and out.
-      const turn = THREE.MathUtils.smoothstep(u, 0.0, 0.22);
-      bob.rotation.y = turn * Math.PI;
-      // Phase 2: once the turn is underway he strides off into the cave.
-      // Translation is held back until ~16% so the turn and walk don't
-      // visually fight each other.
-      const stride = THREE.MathUtils.smoothstep(u, 0.16, 1.0);
+      // ── Anticipation ──────────────────────────────────────────────
+      // A held beat (~first 10%): he straightens and draws a breath —
+      // the pause before he commits to leaving.
+      const antic = u < 0.10 ? Math.sin((u / 0.10) * Math.PI) : 0;
+      // ── Turn ──────────────────────────────────────────────────────
+      // He pivots his back to the player. The turn eases in/out and
+      // carries a small follow-through wobble so it settles like mass,
+      // not like a servo snapping to 180°.
+      const turn = THREE.MathUtils.smoothstep(u, 0.08, 0.34);
+      const settle = Math.sin(THREE.MathUtils.clamp((u - 0.26) / 0.20, 0, 1) * Math.PI)
+                   * (1 - u) * 0.10;
+      bob.rotation.y = turn * Math.PI + settle;
+      // ── Stride ────────────────────────────────────────────────────
+      // Translation held back until the turn is underway, then eased so
+      // he accelerates from rest into a steady walk.
+      const stride = THREE.MathUtils.smoothstep(u, 0.26, 1.0);
       g.position.set(
         DIVER_POS[0],
         DIVER_POS[1] - FADE_SINK * stride,
-        DIVER_POS[2] - FADE_WALK_DISTANCE * stride
+        DIVER_POS[2] - FADE_WALK_DISTANCE * stride,
       );
-      // Walk cycle — a vertical step-bob + body roll, plus a slight
-      // forward lean into the stride. All scaled by `stride` so he
-      // settles smoothly when he stops moving.
-      bob.position.y = Math.abs(Math.sin(time * 6.0)) * 0.05 * stride;
-      bob.rotation.z = Math.sin(time * 6.0) * 0.05 * stride;
-      bob.rotation.x = stride * 0.07;
+      // ── Gait ──────────────────────────────────────────────────────
+      // Each step compresses (body drops onto the loaded leg) then
+      // recovers; the torso rolls into the stance leg and leans into
+      // the walk. Everything is scaled by `stride` so it eases in/out.
+      const gait = time * 5.6;
+      const compress = -Math.abs(Math.sin(gait)) * 0.055;
+      bob.position.y = antic * 0.045 + compress * stride;
+      bob.position.x = Math.sin(gait) * 0.020 * stride;
+      bob.rotation.z = Math.sin(gait) * 0.060 * stride;
+      bob.rotation.x = -antic * 0.05 + stride * 0.10;
       // Opacity only kicks in over the last 35% of the walk so he stays
       // visible while he's still close enough to read as "leaving".
       const o = u < 0.65 ? 1 : 1 - ((u - 0.65) / 0.35);
@@ -335,13 +385,23 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     }
     if (keyLightRef.current) {
       const base = 8.5;  // strong front key so GLB textures pop in cave
+      // Underwater caustics — light rippling as it filters through the
+      // water above. Two incommensurate sines so it never visibly loops.
+      const caustic = (st === 'idle' || st === 'handover')
+        ? Math.sin(time * 2.3) * 0.7 + Math.sin(time * 5.1 + 1.3) * 0.4
+        : 0;
       const spawnBoost = st === 'spawn' ? (1 - t.popT) * 6.0 : 0;
       const fadeMult = st === 'fading' ? (1 - t.fadeT) : 1;
-      keyLightRef.current.intensity = (base + spawnBoost) * fadeMult;
+      keyLightRef.current.intensity = (base + caustic + spawnBoost) * fadeMult;
     }
     if (fillLightRef.current) {
+      // Counter-phase caustic on the fill so the ripple reads as a
+      // pattern travelling across the model, not a global flicker.
+      const caustic = (st === 'idle' || st === 'handover')
+        ? Math.sin(time * 1.9 + 2.0) * 0.35
+        : 0;
       const fadeMult = st === 'fading' ? (1 - t.fadeT) : 1;
-      fillLightRef.current.intensity = 4.5 * fadeMult;
+      fillLightRef.current.intensity = (4.5 + caustic) * fadeMult;
     }
   });
 
