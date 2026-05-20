@@ -662,6 +662,10 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     color: '#052e16', emissive: '#4ADE80', emissiveIntensity: 6.0,
     roughness: 0.2, toneMapped: false, transparent: true,
   }), []);
+  // Diver's neoprene dive gloves — grip the mask during the handover.
+  const matDiverGlove = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#15323a', roughness: 0.82, metalness: 0.05, transparent: true,
+  }), []);
 
   return (
     <>
@@ -780,6 +784,57 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
             {/* Centre bridge between tubes */}
             <mesh position={[0, 0, 0]} material={matMaskFrame}>
               <boxGeometry args={[0.08, 0.032, 0.10]} />
+            </mesh>
+          </group>
+
+          {/* ── Gloved hands gripping the mask ──────────────────────
+              Children of maskRef so they ride/tilt/scale with the
+              mask through the whole handover. They're only visible
+              when the mask is (handover only). Sells "he's holding
+              it out to you" instead of a prop floating in mid-air. */}
+          {/* Right hand — grips the right frame edge */}
+          <group position={[0.255, -0.02, 0.015]}>
+            <mesh material={matDiverGlove}>
+              <boxGeometry args={[0.058, 0.135, 0.15]} />
+            </mesh>
+            {/* Fingers curling over the front face */}
+            <mesh position={[-0.046, 0.040, 0.090]} material={matDiverGlove}>
+              <boxGeometry args={[0.066, 0.030, 0.052]} />
+            </mesh>
+            <mesh position={[-0.046, 0.002, 0.096]} material={matDiverGlove}>
+              <boxGeometry args={[0.070, 0.030, 0.052]} />
+            </mesh>
+            <mesh position={[-0.046, -0.036, 0.088]} material={matDiverGlove}>
+              <boxGeometry args={[0.062, 0.030, 0.052]} />
+            </mesh>
+            {/* Thumb on the back */}
+            <mesh position={[-0.040, 0.030, -0.072]} rotation={[0.3, 0, 0]} material={matDiverGlove}>
+              <boxGeometry args={[0.058, 0.044, 0.050]} />
+            </mesh>
+            {/* Wrist stub angling back toward the body */}
+            <mesh position={[0.010, -0.115, -0.045]} rotation={[-0.6, 0, 0.15]} material={matDiverGlove}>
+              <cylinderGeometry args={[0.044, 0.050, 0.16, 12]} />
+            </mesh>
+          </group>
+          {/* Left hand — mirrored */}
+          <group position={[-0.255, -0.02, 0.015]}>
+            <mesh material={matDiverGlove}>
+              <boxGeometry args={[0.058, 0.135, 0.15]} />
+            </mesh>
+            <mesh position={[0.046, 0.040, 0.090]} material={matDiverGlove}>
+              <boxGeometry args={[0.066, 0.030, 0.052]} />
+            </mesh>
+            <mesh position={[0.046, 0.002, 0.096]} material={matDiverGlove}>
+              <boxGeometry args={[0.070, 0.030, 0.052]} />
+            </mesh>
+            <mesh position={[0.046, -0.036, 0.088]} material={matDiverGlove}>
+              <boxGeometry args={[0.062, 0.030, 0.052]} />
+            </mesh>
+            <mesh position={[0.040, 0.030, -0.072]} rotation={[0.3, 0, 0]} material={matDiverGlove}>
+              <boxGeometry args={[0.058, 0.044, 0.050]} />
+            </mesh>
+            <mesh position={[-0.010, -0.115, -0.045]} rotation={[-0.6, 0, -0.15]} material={matDiverGlove}>
+              <cylinderGeometry args={[0.044, 0.050, 0.16, 12]} />
             </mesh>
           </group>
         </group>
