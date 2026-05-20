@@ -282,6 +282,8 @@ export default function App() {
   // SWIM_THRESHOLD (entering OR leaving the water). Pure DOM/CSS, ~600ms.
   const [splashKey, setSplashKey] = useState(0);
   const wasUnderwaterRef = useRef(false);
+  // Dive-into-well cinematic: black-screen fade → teleport underwater.
+  const [diveBlackKey, setDiveBlackKey] = useState(0);
   useEffect(() => {
     if (currentLevel !== 2) { wasUnderwaterRef.current = false; return; }
     const SWIM_Y = -2.7;  // mirrors SWIM_THRESHOLD_Y in Floor2/constants
@@ -318,15 +320,25 @@ export default function App() {
   }, [currentLevel, audioCtx, muted]);
 
   // Called when the 3D put-on cinematic finishes.
+  // Sequence: equip chime → diver turns away → black screen → player
+  // teleports to just inside the water → splash → underwater.
   const handleRebreather3DDone = useCallback(() => {
     setRebreather3DActive(false);
-    // Add the gear once the visual is over.
     inventoryAddItem('rebreather');
     inventoryAddItem('nightVision');
     playEquipChime(audioCtx);
-    // Diver walks away + despawns (matches BeardedDiver FADE_DURATION).
+    // Diver just turns his back — no walking away.
     setDiverPhase('fading');
-    scheduleTimeout(() => setDiverPhase('done'), 3600);
+    scheduleTimeout(() => setDiverPhase('done'), 2200);
+    // Trigger the dive black-screen. The CSS animation is:
+    //   0-0.7s  fade to black, 0.7-1.1s hold, 1.1-2.2s fade back.
+    // At 800ms (while fully black) teleport player into the well.
+    setDiveBlackKey(k => k + 1);
+    scheduleTimeout(() => {
+      // Well centre: HOLE_CENTER_X=0, HOLE_CENTER_Z=5, drop to -3.5
+      playerPositionCmdRef.current = { x: 0, y: -3.5, z: 5 };
+      setSplashKey(k => k + 1);
+    }, 800);
   }, [audioCtx, inventoryAddItem, scheduleTimeout]);
 
   // ─── Floor 2 shards ───────────────────────────────────────────────────
@@ -913,7 +925,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading'} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackKey > 0} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -1057,6 +1069,27 @@ export default function App() {
       )}
 
       
+      {/* Dive-into-well: black screen fades in (0-0.7s), holds (0.7-1.1s),
+          fades out (1.1-2.2s). Player is teleported at 800ms while black. */}
+      {diveBlackKey > 0 && (
+        <div
+          key={diveBlackKey}
+          className="fixed inset-0 z-[95] pointer-events-none"
+          style={{ background: '#000' }}
+        >
+          <style>{`
+            @keyframes diveBlack {
+              0%    { opacity: 0; }
+              32%   { opacity: 1; }
+              50%   { opacity: 1; }
+              100%  { opacity: 0; }
+            }
+            .animate-dive-black { animation: diveBlack 2200ms ease-in-out forwards; }
+          `}</style>
+          <div className="animate-dive-black w-full h-full" style={{ background: '#000' }} />
+        </div>
+      )}
+
       {/* First-person crosshair — tiny center dot. Only when in FP view
           AND no dialogue/shop blocking it. Pure CSS, no canvas draw. */}
       {hasStarted && zoomLevel < 0.5 && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (

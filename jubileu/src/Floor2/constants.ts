@@ -81,21 +81,8 @@ export const CAVE_ROCKS_LIGHT: readonly Boulder[] = [
     [ 26,  0,  20, 0.6, 1.5],
 ] as const;
 
-// ─── Pool rim — large boulders forming the edge of the water pit ──────
-export const POOL_RIM: readonly Boulder[] = (() => {
-    const r = HOLE_RADIUS + 1.2;
-    const result: Boulder[] = [];
-    for (let i = 0; i < 20; i++) {
-        const a = (i / 20) * Math.PI * 2;
-        const jitter = 0.7 + (Math.sin(i * 13.7) * 0.5 + 0.5) * 0.5;
-        const x = HOLE_CENTER_X + Math.cos(a) * r * jitter;
-        const z = HOLE_CENTER_Z + Math.sin(a) * r * jitter;
-        const s = 1.0 + (Math.sin(i * 7.3) * 0.5 + 0.5) * 1.2;
-        const ry = a + Math.sin(i * 3.1) * 0.6;
-        result.push([x, 0.2, z, s, ry] as const);
-    }
-    return result;
-})();
+// Pool rim boulders removed — clean well edge so the shaft is unobstructed.
+export const POOL_RIM: readonly Boulder[] = [];
 
 // ─── Stalagmites / Stalactites ────────────────────────────────────────
 export const STALAGMITES: readonly Stalactite[] = [

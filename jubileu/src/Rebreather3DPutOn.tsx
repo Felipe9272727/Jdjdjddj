@@ -44,7 +44,7 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
   const lensRightMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const flashMatRef = useRef<THREE.SpriteMaterial>(null);
 
-  const tRef = useRef({ t: 0, done: false });
+  const tRef = useRef({ t: 0, done: false });  // max 2.4s
   const { camera } = useThree();
 
   // Reset when active flips true
@@ -58,138 +58,125 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
   useFrame((_state, dt) => {
     const g = groupRef.current;
     if (!g) return;
-    if (!active) {
-      g.visible = false;
-      return;
-    }
+    if (!active) { g.visible = false; return; }
     g.visible = true;
 
     const safeDt = Math.min(dt, 0.033);
     const ts = tRef.current;
-    ts.t = Math.min(2.0, ts.t + safeDt);
+    ts.t = Math.min(2.4, ts.t + safeDt);
     const t = ts.t;
 
-    // Attach the group to the camera position + orientation every frame.
-    // This is the same trick FPArmModel uses to keep gear locked to the view.
     g.position.copy(camera.position);
     g.quaternion.copy(camera.quaternion);
 
-    // ── Mask transform — drift-in, hover, click, retreat ────────────
+    // ── Mask — held at comfortable arm's-length, brought to face ────
+    // Redesigned to feel like the character is actually putting it on:
+    //  0.00-0.45: mask rises from below at arm's length (z=-0.65, scale 0.60)
+    //  0.45-1.40: slowly floats toward face (z=-0.50→-0.42, scale 0.60→0.70)
+    //  1.40-1.80: snaps onto face — scale bump + flash
+    //  1.80-2.40: shrinks away (player is wearing it)
     const mask = maskRef.current;
     if (mask) {
-      let z = -0.6;        // distance forward of camera (-z = forward in cam space)
-      let y = -0.5;        // vertical offset
-      let scale = 0;
-      let rotX = 0;
-      let rotZ = 0;
+      let z = -0.65, y = -0.20, scale = 0, rotX = 0, rotZ = 0;
 
-      if (t < 0.30) {
-        // 0.00-0.30: appear, drift up from below frame
-        const u = t / 0.30;
-        const e = u * u * (3 - 2 * u); // smoothstep
-        scale = e * 1.0;
-        y = -0.5 + e * 0.35;
-        z = -0.85 + e * 0.20;
-        rotX = (1 - e) * 0.4;
-      } else if (t < 1.10) {
-        // 0.30-1.10: float forward
-        const u = (t - 0.30) / 0.80;
+      if (t < 0.45) {
+        const u = t / 0.45;
         const e = u * u * (3 - 2 * u);
-        scale = 1.0 + e * 0.15;
-        y = -0.15 + e * 0.05;
-        z = -0.65 + e * 0.30; // closer to camera
-        rotX = -0.05 + e * 0.05;
-      } else if (t < 1.55) {
-        // 1.10-1.55: click into place — wobble
-        const u = (t - 1.10) / 0.45;
-        // Quick scale bump then settle
-        const wobble = Math.sin(u * Math.PI * 2.5) * 0.04 * (1 - u);
-        scale = 1.15 + wobble;
-        y = -0.10;
-        z = -0.36;
-        rotX = 0;
-        rotZ = Math.sin(u * Math.PI * 3) * 0.02 * (1 - u);
+        scale = e * 0.62;
+        y = -0.45 + e * 0.25;
+        z = -0.70 + e * 0.08;
+        rotX = (1 - e) * 0.30;
+      } else if (t < 1.40) {
+        const u = (t - 0.45) / 0.95;
+        const e = u * u * (3 - 2 * u);
+        scale = 0.62 + e * 0.10;
+        y = -0.20 + e * 0.08;
+        z = -0.62 + e * 0.20;   // moves from -0.62 to -0.42
+        rotX = -e * 0.06;
+      } else if (t < 1.80) {
+        const u = (t - 1.40) / 0.40;
+        const wobble = Math.sin(u * Math.PI * 2.5) * 0.035 * (1 - u);
+        scale = 0.72 + wobble;
+        y = -0.12;
+        z = -0.42;
+        rotZ = Math.sin(u * Math.PI * 3) * 0.018 * (1 - u);
       } else {
-        // 1.55-2.00: shrink + fade
-        const u = (t - 1.55) / 0.45;
-        scale = (1.15) * (1 - u);
-        y = -0.10;
-        z = -0.36;
+        const u = (t - 1.80) / 0.60;
+        const e = u * u * (3 - 2 * u);
+        scale = 0.72 * (1 - e);
+        y = -0.12;
+        z = -0.42;
       }
 
       mask.position.set(0, y, z);
-      mask.scale.setScalar(scale);
+      mask.scale.setScalar(Math.max(0, scale));
       mask.rotation.x = rotX;
       mask.rotation.z = rotZ;
     }
 
-    // ── Arms — rise from below to grab the mask, then slide back ──
+    // ── Arms — rise naturally from sides to hold the mask ──────────
     const armPose = (ref: React.MutableRefObject<THREE.Group | null>, isLeft: boolean) => {
       const arm = ref.current;
       if (!arm) return;
-      let visible = true;
-      let yLift = -0.9;  // off-screen by default
-      let zLift = -0.45;
-      let pitch = -0.4;
-      if (t < 0.20) {
-        visible = false;
-      } else if (t < 0.55) {
-        // Arms rise into frame
-        const u = (t - 0.20) / 0.35;
+      let visible = t >= 0.30;
+      let yLift = -0.85, zLift = -0.50, pitch = -0.35;
+
+      if (t >= 0.30 && t < 0.70) {
+        const u = (t - 0.30) / 0.40;
         const e = u * u * (3 - 2 * u);
-        yLift = -0.9 + e * 0.65;
-        zLift = -0.45 + e * 0.08;
-        pitch = -0.4 + e * 0.55;
-      } else if (t < 1.10) {
-        // Arms hold the mask
-        const u = (t - 0.55) / 0.55;
-        yLift = -0.25 + Math.sin(u * Math.PI) * 0.02;
-        zLift = -0.37;
+        yLift = -0.85 + e * 0.58;
+        zLift = -0.50 + e * 0.12;
+        pitch = -0.35 + e * 0.50;
+      } else if (t >= 0.70 && t < 1.40) {
+        // Hold mask steady with slight breathing micro-movement
+        const u = (t - 0.70) / 0.70;
+        yLift = -0.27 + Math.sin(u * Math.PI * 2) * 0.012;
+        zLift = -0.38;
         pitch = 0.15;
-      } else if (t < 1.55) {
-        // Arms tighten the strap — slight pull-down
-        const u = (t - 1.10) / 0.45;
-        yLift = -0.25 - u * 0.05;
-        zLift = -0.37 + u * 0.04;
-        pitch = 0.15 - u * 0.05;
-      } else {
-        // Arms slide back down off-screen
-        const u = (t - 1.55) / 0.45;
+      } else if (t >= 1.40 && t < 1.80) {
+        // Tighten straps
+        const u = (t - 1.40) / 0.40;
+        yLift = -0.27 - u * 0.04;
+        zLift = -0.38 + u * 0.03;
+        pitch = 0.15 - u * 0.04;
+      } else if (t >= 1.80) {
+        // Slide back off screen
+        const u = (t - 1.80) / 0.45;
         const e = u * u * (3 - 2 * u);
-        yLift = -0.30 - e * 0.6;
-        zLift = -0.33 - e * 0.10;
-        pitch = 0.10 - e * 0.5;
+        yLift = -0.31 - e * 0.55;
+        zLift = -0.35 - e * 0.08;
+        pitch = 0.11 - e * 0.46;
       }
+
       arm.visible = visible;
-      arm.position.set(isLeft ? -0.16 : 0.16, yLift, zLift);
-      arm.rotation.set(pitch, 0, isLeft ? 0.15 : -0.15);
+      arm.position.set(isLeft ? -0.18 : 0.18, yLift, zLift);
+      arm.rotation.set(pitch, 0, isLeft ? 0.12 : -0.12);
     };
     armPose(armLRef, true);
     armPose(armRRef, false);
 
-    // ── Flash on click ────────────────────────────────────────────
+    // ── Flash on snap ─────────────────────────────────────────────
     if (flashMatRef.current) {
       let op = 0;
-      if (t >= 1.10 && t < 1.45) {
-        const u = (t - 1.10) / 0.35;
-        op = (1 - u) * 0.9;
+      if (t >= 1.40 && t < 1.72) {
+        const u = (t - 1.40) / 0.32;
+        op = (1 - u) * 0.85;
       }
       flashMatRef.current.opacity = op;
     }
 
-    // ── Lens emissive — settles to high when goggles "activate" ──
+    // ── Goggles light up when they snap on ───────────────────────
     if (lensLeftMatRef.current && lensRightMatRef.current) {
-      let emI = 0.7;
-      if (t >= 1.10) {
-        const u = THREE.MathUtils.clamp((t - 1.10) / 0.35, 0, 1);
-        emI = 0.7 + u * 1.6;
+      let emI = 0.5;
+      if (t >= 1.40) {
+        const u = THREE.MathUtils.clamp((t - 1.40) / 0.30, 0, 1);
+        emI = 0.5 + u * 1.8;
       }
       lensLeftMatRef.current.emissiveIntensity = emI;
       lensRightMatRef.current.emissiveIntensity = emI;
     }
 
-    // ── Done check ───────────────────────────────────────────────
-    if (t >= 2.0 && !ts.done) {
+    if (t >= 2.4 && !ts.done) {
       ts.done = true;
       onDone();
     }

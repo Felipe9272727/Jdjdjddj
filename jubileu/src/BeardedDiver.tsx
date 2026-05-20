@@ -104,14 +104,8 @@ const POP_DURATION = 0.45;
 /** Handover (mask-present) duration in seconds. Long enough for a proper
  *  anticipation → arc → overshoot → settle gesture. */
 const HANDOVER_DURATION = 1.5;
-/** Fade-out duration in seconds. */
-const FADE_DURATION = 3.5;
-/** How far the diver walks backwards (toward -Z, away from the player's
- *  approach direction) while fading out. */
-const FADE_WALK_DISTANCE = 4.5;
-/** How much the diver sinks below the floor while leaving — sells the
- *  "walks into the dark" feel without him visibly clipping through. */
-const FADE_SINK = 0.6;
+/** Fade-out duration in seconds — just a turn + fade, no walking. */
+const FADE_DURATION = 2.0;
 
 /** Target height for the diver in world units (~human height in meters).
  *  We auto-scale the GLB to this so Tripo's arbitrary export scale
@@ -458,47 +452,21 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     if (st === 'fading') {
       t.fadeT = Math.min(1, t.fadeT + safeDt / FADE_DURATION);
       const u = t.fadeT;
-      // ── Anticipation ──────────────────────────────────────────────
-      // A held beat (~first 10%): he straightens and draws a breath —
-      // the pause before he commits to leaving.
-      const antic = u < 0.10 ? Math.sin((u / 0.10) * Math.PI) : 0;
-      // ── Turn ──────────────────────────────────────────────────────
-      // He pivots his back to the player. The turn eases in/out and
-      // carries a small follow-through wobble so it settles like mass,
-      // not like a servo snapping to 180°.
-      const turn = THREE.MathUtils.smoothstep(u, 0.08, 0.34);
-      const settle = Math.sin(THREE.MathUtils.clamp((u - 0.26) / 0.20, 0, 1) * Math.PI)
-                   * (1 - u) * 0.10;
-      // ── Look back ─────────────────────────────────────────────────
-      // Just after the turn completes and before the stride begins, a brief
-      // glance back over the shoulder — the emotional punctuation of the scene.
-      // Peak at u≈0.41, lasts ~0.2s (6% of the 3.5s fade duration).
+      // He stays in place — no walking, just turns his back.
+      // Brief inhale beat → smooth 180° turn → look-back → hold → fade.
+      const turn = THREE.MathUtils.smoothstep(u, 0.05, 0.38);
+      const settle = Math.sin(THREE.MathUtils.clamp((u - 0.30) / 0.18, 0, 1) * Math.PI)
+                   * 0.08;
       const lookback = Math.sin(
-        THREE.MathUtils.clamp((u - 0.36) / 0.12, 0, 1) * Math.PI
-      ) * 0.38;  // 0.38 rad ≈ 22° back toward camera
+        THREE.MathUtils.clamp((u - 0.42) / 0.14, 0, 1) * Math.PI
+      ) * 0.38;
       bob.rotation.y = turn * Math.PI + settle - lookback;
-      // ── Stride ────────────────────────────────────────────────────
-      // Translation held back until the turn is underway, then eased so
-      // he accelerates from rest into a steady walk.
-      const stride = THREE.MathUtils.smoothstep(u, 0.26, 1.0);
-      g.position.set(
-        DIVER_POS[0],
-        DIVER_POS[1] - FADE_SINK * stride,
-        DIVER_POS[2] - FADE_WALK_DISTANCE * stride,
-      );
-      // ── Gait ──────────────────────────────────────────────────────
-      // Each step compresses (body drops onto the loaded leg) then
-      // recovers; the torso rolls into the stance leg and leans into
-      // the walk. Everything is scaled by `stride` so it eases in/out.
-      const gait = time * 5.6;
-      const compress = -Math.abs(Math.sin(gait)) * 0.090;
-      bob.position.y = antic * 0.060 + compress * stride;
-      bob.position.x = Math.sin(gait) * 0.040 * stride;
-      bob.rotation.z = Math.sin(gait) * 0.110 * stride;
-      bob.rotation.x = -antic * 0.07 + stride * 0.12;
-      // Opacity only kicks in over the last 35% of the walk so he stays
-      // visible while he's still close enough to read as "leaving".
-      const o = u < 0.65 ? 1 : 1 - ((u - 0.65) / 0.35);
+      bob.position.y = 0;
+      bob.position.x = 0;
+      bob.rotation.z = 0;
+      bob.rotation.x = 0;
+      // Fade out over the last 40%
+      const o = u < 0.60 ? 1 : 1 - ((u - 0.60) / 0.40);
       t.fadeOpacity = o;
       g.traverse((child: any) => {
         if (child.material) {
