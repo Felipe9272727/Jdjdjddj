@@ -205,6 +205,8 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     // Soft player gaze: the diver's body subtly orients toward the player's
     // X offset. 25% blend so it feels like awareness, not billboard rotation.
     gaze: 0,
+    // Per-beat body roll (Z-tilt) — each dialogue register gets a head-tilt
+    beatRoll: 0,
   });
 
   // Reset timers on state transitions + drive idle animation.
@@ -223,7 +225,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       tRef.current.spX = 0; tRef.current.svX = 0;
       tRef.current.spZ = 0; tRef.current.svZ = 0;
       tRef.current.nodT = 1; tRef.current.prevBeat = -1;
-      tRef.current.gaze = 0;
+      tRef.current.gaze = 0; tRef.current.beatRoll = 0;
       // Reset walked-away position so a respawn shows him at DIVER_POS again
       if (groupRef.current) {
         groupRef.current.position.set(DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]);
@@ -336,8 +338,19 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         beat === 1 ?  0.28 :   // look aside — reminiscing
         beat === 4 ? -0.08 :   // square to player — direct
                      0;
+      // Z-tilt per beat: subtle head-tilt that matches the emotional register
+      //   beat 0 → very slight tilt right (curious/welcoming)
+      //   beat 1 → tilt right (introspective, "let me think...")
+      //   beat 2 → tilt left (empathetic, leaning toward the player)
+      //   beat 4 → nearly level (authoritative/instructional)
+      const beatRollTarget =
+        beat === 1 ?  0.055 :
+        beat === 2 ? -0.050 :
+        beat === 4 ?  0.010 :
+                     0.025;
       t.beatLean += (beatLeanTarget - t.beatLean) * Math.min(1, safeDt * 2.5);
       t.beatYaw  += (beatYawTarget  - t.beatYaw)  * Math.min(1, safeDt * 2.0);
+      t.beatRoll += (beatRollTarget - t.beatRoll) * Math.min(1, safeDt * 2.5);
 
       // ── Spring-driven breathing + sway ────────────────────────────
       // Raw sine targets — the spring chases these with inertia so the
@@ -347,7 +360,8 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
                     + Math.sin(time * 0.70 + 1.0) * 0.018;
       const targetX = Math.sin(time * 0.37) * 0.048;
       const targetZ = Math.sin(time * 0.37) * 0.060
-                    + Math.sin(time * 0.26) * 0.020;
+                    + Math.sin(time * 0.26) * 0.020
+                    + t.beatRoll;
 
       // Spring: F = (target - pos) * stiffness − velocity * damping
       // Stiffness 18 + damping 4.2 → lightly under-damped, ~12% overshoot.
