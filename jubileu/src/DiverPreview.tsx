@@ -42,6 +42,7 @@ export function DiverPreview() {
         dpr={2}
       >
         <CameraRig />
+        <fogExp2 attach="fog" color="#020e1a" density={0.042} />
         <ambientLight intensity={0.25} />
         <Suspense fallback={null}>
           <BeardedDiver state={state} playerPositionRef={playerRef} />

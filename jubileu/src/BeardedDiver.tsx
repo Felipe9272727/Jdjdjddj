@@ -44,7 +44,7 @@ function BubbleParticles() {
     for (let i = 0; i < BUBBLE_COUNT; i++) {
       const r = Math.random();
       positions[i * 3]     = (Math.random() - 0.5) * 5.0;
-      positions[i * 3 + 1] = r * 5.0 - 0.5;
+      positions[i * 3 + 1] = r * 5.0;
       positions[i * 3 + 2] = DIVER_POS[2] + (Math.random() - 0.5) * 5.0;
       speeds[i * 3]        = (Math.random() - 0.5) * 0.025;
       speeds[i * 3 + 1]    = 0.18 + Math.random() * 0.30;
@@ -62,7 +62,7 @@ function BubbleParticles() {
       pos[i * 3 + 2] += speeds[i * 3 + 2] * dt;
       if (pos[i * 3 + 1] > 4.5) {
         pos[i * 3]     = (Math.random() - 0.5) * 5.0;
-        pos[i * 3 + 1] = -0.5 + Math.random() * 0.4;
+        pos[i * 3 + 1] = Math.random() * 0.3;
         pos[i * 3 + 2] = DIVER_POS[2] + (Math.random() - 0.5) * 5.0;
       }
     }
@@ -253,17 +253,24 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       t.popT = Math.min(1, t.popT + safeDt / POP_DURATION);
       const s = 2.0;
       const tt = t.popT;
+      // Rise from 1.8m below the floor, accelerating upward. The flash
+      // covers the first ~80% of the rise so the diver bursts INTO view.
+      const riseEase = 1 - Math.pow(1 - tt, 2.8);
+      g.position.set(DIVER_POS[0], DIVER_POS[1] - 1.8 * (1 - riseEase), DIVER_POS[2]);
       const c = tt - 1;
       const ease = 1 + c * c * ((s + 1) * c + s);
       const sc = THREE.MathUtils.clamp(ease, 0.05, 1.30);
-      // Squash & stretch — he stretches tall as he punches in, then a
-      // quick squash on the landing before settling. The 0.5·sin(2πt)
-      // curve is continuous (no pop at the stretch→squash crossover).
       const sq = Math.sin(tt * Math.PI * 2) * 0.5 * 0.30;
       bob.scale.set(sc * (1 - sq * 0.5), sc * (1 + sq), sc * (1 - sq * 0.5));
       bob.position.z = Math.max(0, (1 - tt) * 0.5);
       bob.position.y = Math.sin(tt * Math.PI) * 0.16;
       bob.rotation.x = (1 - tt) * -0.22;
+    } else if (st !== 'fading') {
+      // Return to anchor whenever we're not in spawn or fading
+      g.position.set(DIVER_POS[0], DIVER_POS[1], DIVER_POS[2]);
+      bob.scale.setScalar(1);
+      bob.position.z = 0;
+      bob.rotation.x = 0;
     } else {
       bob.scale.setScalar(1);
       bob.position.z = 0;
