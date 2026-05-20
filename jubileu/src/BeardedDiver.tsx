@@ -544,26 +544,30 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     }
     if (maskLightRef.current) {
       const lit = st === 'handover' && t.armT > 0.5;
-      const pulse = lit ? 1 + Math.sin(time * 3.0) * 0.25 : 0;
-      maskLightRef.current.intensity = pulse * 6.0;
+      // Stronger glow + larger distance now that we dim the key during offer.
+      const pulse = lit ? 1 + Math.sin(time * 3.0) * 0.28 : 0;
+      maskLightRef.current.intensity = pulse * 9.0;
     }
+    // During handover offer (armT > 0.55) dim the key by up to 40% and
+    // fill by 50% so the glowing mask becomes the dominant practical light.
+    const handoverDim = (st === 'handover' && t.armT > 0.55)
+      ? THREE.MathUtils.smoothstep(t.armT, 0.55, 0.85) * 0.40
+      : 0;
     if (keyLightRef.current) {
-      const base = 8.5;  // strong front key so GLB textures pop in cave
-      // Underwater caustics — light rippling as it filters through the
-      // water above. Two incommensurate sines so it never visibly loops.
+      const base = 8.5;
       const caustic = (st === 'idle' || st === 'handover')
         ? Math.sin(time * 2.3) * 1.4 + Math.sin(time * 5.1 + 1.3) * 0.8
         : 0;
       const spawnBoost = st === 'spawn' ? (1 - t.popT) * 6.0 : 0;
       const fadeMult = st === 'fading' ? (1 - t.fadeT) : 1;
-      keyLightRef.current.intensity = (base + caustic + spawnBoost) * fadeMult;
+      keyLightRef.current.intensity = (base + caustic + spawnBoost) * (1 - handoverDim) * fadeMult;
     }
     if (fillLightRef.current) {
       const caustic = (st === 'idle' || st === 'handover')
         ? Math.sin(time * 1.9 + 2.0) * 0.70
         : 0;
       const fadeMult = st === 'fading' ? (1 - t.fadeT) : 1;
-      fillLightRef.current.intensity = (4.5 + caustic) * fadeMult;
+      fillLightRef.current.intensity = (4.5 + caustic) * (1 - handoverDim * 1.25) * fadeMult;
     }
   });
 
