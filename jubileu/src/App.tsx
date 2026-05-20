@@ -170,6 +170,8 @@ export default function App() {
   
   const barneyRef = useRef(new Vector3(0, 0, 0));
   const barneyTargetRef = useRef({ x: 0, z: 6.8, scale: 0 });
+  // Current Barney→player distance, updated every 200ms during chase.
+  const barneyDistRef = useRef<number>(12);
   // Stable ref pointing to the diver's world position (Floor 2). The
   // dialogue camera focus uses it during the diver conversation.
   // Camera focus target — Player.tsx adds +1.75 for camera y and +1.35 for
@@ -436,6 +438,7 @@ export default function App() {
           const p = sharedPlayerPositionRef.current;
           const b = barneyRef.current;
           const d = Math.sqrt((p.x - b.x) ** 2 + (p.z - b.z) ** 2);
+          barneyDistRef.current = d;
           if (d < BARNEY_CATCH_DIST) {
               // CAUGHT — Barney got the player. Jumpscare, then drop them
               // back at a FIXED spot in the lobby (centro, fora do elevador)
@@ -1016,7 +1019,7 @@ export default function App() {
       </Canvas>
       </CanvasErrorBoundary>
       {hasStarted && QUALITY_PROFILES[settings.quality].overlay && (
-          <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} quality={settings.quality} />
+          <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} quality={settings.quality} dangerRef={barneyDistRef} />
       )}
       {/* Empty lobby atmospheric touches — thuds, flickers, wall text */}
       {hasStarted && currentLevel === 0 && gameState === 'lobby' && (
@@ -1256,7 +1259,7 @@ export default function App() {
       
       {/* Status banners */}
       {hasStarted && gameState === 'indoor_night' && <NightBanner elevatorActive={elevatorTimer !== null} />}
-      {hasStarted && gameState === 'chase' && <ChaseBanner elevatorActive={elevatorTimer !== null} />}
+      {hasStarted && gameState === 'chase' && <ChaseBanner elevatorActive={elevatorTimer !== null} barneyDistRef={barneyDistRef} />}
       {hasStarted && gameState === 'saved' && <SavedOverlay />}
       
       {barneyDialogueOpen && <BarneyDialogue dialogueNode={barneyDialogueNode} onResponse={handleBarneyResponse} />}

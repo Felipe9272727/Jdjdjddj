@@ -12,35 +12,71 @@ export const GameEffects = ({
     gameState,
     currentLevel,
     quality = 'high',
+    dangerRef,
 }: {
     nightMode: boolean;
     gameState: string;
     currentLevel: number;
     quality?: string;
+    dangerRef?: React.MutableRefObject<number>;
 }) => {
-    if (quality === 'low') return null;
-
+    const proximityDivRef = useRef<HTMLDivElement>(null);
     const isChase = gameState === 'chase';
     const isScary = nightMode || isChase;
 
+    // rAF loop — updates the proximity vignette directly without React re-renders.
+    useEffect(() => {
+        if (!isChase || !dangerRef) return;
+        let rafId: number;
+        const update = () => {
+            const el = proximityDivRef.current;
+            if (el) {
+                const dist = dangerRef.current ?? 12;
+                const danger = Math.max(0, Math.min(1, (12 - dist) / 10));
+                const inner = Math.round(30 - danger * 18);
+                const outer = (0.4 + danger * 0.45).toFixed(2);
+                el.style.background = `radial-gradient(ellipse at center, transparent ${inner}%, rgba(180,0,0,${outer}) 100%)`;
+                el.style.opacity = (0.15 + danger * 0.65).toFixed(2);
+            }
+            rafId = requestAnimationFrame(update);
+        };
+        rafId = requestAnimationFrame(update);
+        return () => cancelAnimationFrame(rafId);
+    }, [isChase, dangerRef]);
+
+    if (quality === 'low') return null;
+
     // CSS-based vignette + grain — zero GPU cost, handled by the browser compositor
     return (
-        <div
-            style={{
-                position: 'absolute',
-                inset: 0,
-                pointerEvents: 'none',
-                zIndex: 5,
-                // Vignette via radial gradient — deeper red tint during chase
-                background: isChase
-                    ? `radial-gradient(ellipse at center, transparent 30%, rgba(120,0,0,0.5) 100%)`
-                    : `radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,${isScary ? 0.4 : 0.25}) 100%)`,
-                // Film grain via CSS animation
-                mixBlendMode: isChase ? 'normal' : 'multiply',
-                opacity: isChase ? 0.2 : isScary ? 0.08 : 0.04,
-                animation: isChase ? 'chase-vignette-pulse 0.8s ease-in-out infinite' : undefined,
-            }}
-        />
+        <>
+            <div
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    zIndex: 5,
+                    background: isChase
+                        ? `radial-gradient(ellipse at center, transparent 30%, rgba(120,0,0,0.5) 100%)`
+                        : `radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,${isScary ? 0.4 : 0.25}) 100%)`,
+                    mixBlendMode: isChase ? 'normal' : 'multiply',
+                    opacity: isChase ? 0.2 : isScary ? 0.08 : 0.04,
+                    animation: isChase ? 'chase-vignette-pulse 0.8s ease-in-out infinite' : undefined,
+                }}
+            />
+            {/* Proximity deepening overlay — updated via rAF, no re-renders */}
+            {isChase && (
+                <div
+                    ref={proximityDivRef}
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        pointerEvents: 'none',
+                        zIndex: 6,
+                        opacity: 0,
+                    }}
+                />
+            )}
+        </>
     );
 };
 

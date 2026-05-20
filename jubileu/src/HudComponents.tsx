@@ -316,21 +316,30 @@ export const NightBanner = ({ elevatorActive }: { elevatorActive: boolean }) => 
   </div>
 );
 
-export const ChaseBanner = ({ elevatorActive }: { elevatorActive: boolean }) => {
-  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+export const ChaseBanner = ({
+  elevatorActive,
+  barneyDistRef,
+}: {
+  elevatorActive: boolean;
+  barneyDistRef?: React.MutableRefObject<number>;
+}) => {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Heartbeat sound loop — speed increases over time
-    let beatCount = 0;
-    heartbeatRef.current = setInterval(() => {
-      beatCount++;
-      const speed = Math.min(1.0 + beatCount * 0.03, 2.5);
+    // Recursive setTimeout so interval shrinks as Barney closes in.
+    const scheduleBeat = () => {
+      const dist = barneyDistRef?.current ?? 12;
+      // danger 0 = far (≥12u), 1 = very close (≤2u)
+      const danger = Math.max(0, Math.min(1, (12 - dist) / 10));
+      const speed = 1.0 + danger * 1.4;
       playHeartbeat(speed);
-    }, 700);
-    return () => {
-      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+      timerRef.current = setTimeout(scheduleBeat, Math.round(700 - danger * 350));
     };
-  }, []);
+    scheduleBeat();
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [barneyDistRef]);
 
   return (
     <>
