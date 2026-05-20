@@ -545,21 +545,22 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
     if (st === 'fading') {
       t.fadeT = Math.min(1, t.fadeT + safeDt / FADE_DURATION);
       const u = t.fadeT;
-      // Phase 1 (0.00-0.08): brief inhale/settle pause — he takes a breath
-      // Phase 2 (0.08-0.40): smooth 180° turn
-      // Phase 3 (0.40-0.56): head bows in a respectful farewell
-      // Phase 4 (0.56-0.70): look-back over shoulder (last glance at player)
-      // Phase 5 (0.60-1.00): fade to transparent
-      const turn = THREE.MathUtils.smoothstep(u, 0.08, 0.40);
-      const settle = Math.sin(THREE.MathUtils.clamp((u - 0.32) / 0.16, 0, 1) * Math.PI)
-                   * 0.10;
-      // Respectful bow: head dips forward after turn completes
-      const bow = Math.sin(
-        THREE.MathUtils.clamp((u - 0.40) / 0.18, 0, 1) * Math.PI
-      ) * 0.22;
+      // The dive blackout covers the screen by ~u=0.33, so the whole
+      // farewell gesture is front-loaded into the visible window:
+      //  0.00-0.04: settle  0.04-0.24: decisive 180° turn
+      //  0.10-0.20: a glance back at the player mid-turn
+      //  0.22-0.40: respectful head bow  0.50-1.00: fade out
+      const turn = THREE.MathUtils.smoothstep(u, 0.04, 0.24);
+      const settle = Math.sin(THREE.MathUtils.clamp((u - 0.02) / 0.10, 0, 1) * Math.PI)
+                   * 0.09;
+      // Glance back mid-turn — a last look at the player before he goes
       const lookback = Math.sin(
-        THREE.MathUtils.clamp((u - 0.56) / 0.14, 0, 1) * Math.PI
-      ) * 0.42;
+        THREE.MathUtils.clamp((u - 0.10) / 0.10, 0, 1) * Math.PI
+      ) * 0.40;
+      // Respectful bow as the turn settles
+      const bow = Math.sin(
+        THREE.MathUtils.clamp((u - 0.22) / 0.18, 0, 1) * Math.PI
+      ) * 0.22;
       bob.rotation.y = turn * Math.PI + settle - lookback;
       bob.position.y = 0;
       bob.position.x = 0;
