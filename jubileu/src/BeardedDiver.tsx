@@ -473,7 +473,14 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const turn = THREE.MathUtils.smoothstep(u, 0.08, 0.34);
       const settle = Math.sin(THREE.MathUtils.clamp((u - 0.26) / 0.20, 0, 1) * Math.PI)
                    * (1 - u) * 0.10;
-      bob.rotation.y = turn * Math.PI + settle;
+      // ── Look back ─────────────────────────────────────────────────
+      // Just after the turn completes and before the stride begins, a brief
+      // glance back over the shoulder — the emotional punctuation of the scene.
+      // Peak at u≈0.41, lasts ~0.2s (6% of the 3.5s fade duration).
+      const lookback = Math.sin(
+        THREE.MathUtils.clamp((u - 0.36) / 0.12, 0, 1) * Math.PI
+      ) * 0.38;  // 0.38 rad ≈ 22° back toward camera
+      bob.rotation.y = turn * Math.PI + settle - lookback;
       // ── Stride ────────────────────────────────────────────────────
       // Translation held back until the turn is underway, then eased so
       // he accelerates from rest into a steady walk.
