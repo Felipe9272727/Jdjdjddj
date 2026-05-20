@@ -85,6 +85,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
   const groundGlowMatRef = useRef<THREE.SpriteMaterial>(null);
   const keyLightRef = useRef<THREE.PointLight>(null);
   const fillLightRef = useRef<THREE.PointLight>(null);
+  const maskLightRef = useRef<THREE.PointLight>(null);
 
   // ─── Load + clone GLB (so multiple instances / fade ops are safe) ──
   const gltf = useGLTF(hotelConciergeModel) as unknown as {
@@ -274,7 +275,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
         maskRef.current.position.set(
           0,
           1.04 - antic * 0.15 + lift,
-          0.40 - antic * 0.14 + present * 1.20 + holdBob,
+          0.40 - antic * 0.14 + present * 0.90 + holdBob,
         );
         const offerPulse = u > 0.85 ? 1 + Math.sin(time * 3.0) * 0.06 : 1;
         maskRef.current.scale.setScalar(offerPulse);
@@ -374,6 +375,11 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const pulse = 0.32 + Math.sin(time * 2.0) * 0.06;
       groundGlowMatRef.current.opacity = st === 'fading' ? pulse * (1 - t.fadeT) : pulse;
     }
+    if (maskLightRef.current) {
+      const lit = st === 'handover' && t.armT > 0.5;
+      const pulse = lit ? 1 + Math.sin(time * 3.0) * 0.25 : 0;
+      maskLightRef.current.intensity = pulse * 6.0;
+    }
     if (keyLightRef.current) {
       const base = 8.5;  // strong front key so GLB textures pop in cave
       // Underwater caustics — light rippling as it filters through the
@@ -395,15 +401,15 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
   });
 
   // ─── Procedural mask + NV goggles (presented in his hands) ───────
-  const matMaskFrame = useMemo(() => new THREE.MeshStandardMaterial({ color: '#0E7490', roughness: 0.55, metalness: 0.4, transparent: true }), []);
+  const matMaskFrame = useMemo(() => new THREE.MeshStandardMaterial({ color: '#0E7490', roughness: 0.45, metalness: 0.55, transparent: true }), []);
   const matMaskGlass = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#67E8F9', emissive: '#0e7490', emissiveIntensity: 0.6,
-    roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.85, toneMapped: false,
+    color: '#A5F3FC', emissive: '#22D3EE', emissiveIntensity: 3.0,
+    roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.90, toneMapped: false,
   }), []);
-  const matMaskStrap = useMemo(() => new THREE.MeshStandardMaterial({ color: '#1a1a1a', roughness: 0.85, transparent: true }), []);
+  const matMaskStrap = useMemo(() => new THREE.MeshStandardMaterial({ color: '#222', roughness: 0.9, transparent: true }), []);
   const matGoggles = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#0a3a2a', emissive: '#10B981', emissiveIntensity: 0.7,
-    roughness: 0.3, toneMapped: false, transparent: true,
+    color: '#052e16', emissive: '#4ADE80', emissiveIntensity: 6.0,
+    roughness: 0.2, toneMapped: false, transparent: true,
   }), []);
 
   return (
@@ -466,38 +472,41 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
             Procedural so we don't depend on the GLB having a "RightHand"
             bone or carrying a mask asset. */}
         <group ref={maskRef} position={[0, 1.05, 0.45]}>
+          {/* Mask point light — green glow casts onto the diver's face when extended */}
+          <pointLight ref={maskLightRef} position={[0, 0.1, 0.2]} intensity={0} distance={3} decay={1.8} color="#4ADE80" />
           <mesh material={matMaskFrame}>
-            <boxGeometry args={[0.38, 0.26, 0.18]} />
+            <boxGeometry args={[0.40, 0.28, 0.18]} />
           </mesh>
           <mesh position={[0, 0, 0.10]} material={matMaskGlass}>
-            <boxGeometry args={[0.30, 0.18, 0.02]} />
+            <boxGeometry args={[0.32, 0.20, 0.02]} />
           </mesh>
+          {/* Lens glint */}
           <mesh position={[-0.06, 0.04, 0.115]}>
-            <boxGeometry args={[0.08, 0.04, 0.005]} />
-            <meshBasicMaterial color="#FFFFFF" transparent opacity={0.7} toneMapped={false} />
+            <boxGeometry args={[0.08, 0.04, 0.004]} />
+            <meshBasicMaterial color="#FFFFFF" transparent opacity={0.8} toneMapped={false} />
           </mesh>
-          <mesh position={[-0.21, 0, 0]} material={matMaskStrap}>
+          <mesh position={[-0.23, 0, 0]} material={matMaskStrap}>
             <boxGeometry args={[0.04, 0.10, 0.04]} />
           </mesh>
-          <mesh position={[ 0.21, 0, 0]} material={matMaskStrap}>
+          <mesh position={[ 0.23, 0, 0]} material={matMaskStrap}>
             <boxGeometry args={[0.04, 0.10, 0.04]} />
           </mesh>
-          <mesh position={[0.06, -0.16, 0.02]} material={matMaskFrame}>
-            <boxGeometry args={[0.08, 0.10, 0.06]} />
+          <mesh position={[0.07, -0.18, 0.02]} material={matMaskFrame}>
+            <boxGeometry args={[0.09, 0.10, 0.06]} />
           </mesh>
-          {/* NV goggles clipped on top */}
-          <group position={[0, 0.14, 0.06]}>
-            <mesh position={[-0.10, 0, 0]} material={matMaskFrame}>
-              <boxGeometry args={[0.10, 0.10, 0.10]} />
+          {/* NV goggles — vivid green glow, clearly readable from 5m */}
+          <group position={[0, 0.16, 0.06]}>
+            <mesh position={[-0.11, 0, 0]} material={matMaskFrame}>
+              <boxGeometry args={[0.11, 0.11, 0.11]} />
             </mesh>
-            <mesh position={[ 0.10, 0, 0]} material={matMaskFrame}>
-              <boxGeometry args={[0.10, 0.10, 0.10]} />
+            <mesh position={[ 0.11, 0, 0]} material={matMaskFrame}>
+              <boxGeometry args={[0.11, 0.11, 0.11]} />
             </mesh>
-            <mesh position={[-0.10, 0, 0.055]} material={matGoggles}>
-              <boxGeometry args={[0.07, 0.07, 0.02]} />
+            <mesh position={[-0.11, 0, 0.06]} material={matGoggles}>
+              <boxGeometry args={[0.08, 0.08, 0.022]} />
             </mesh>
-            <mesh position={[ 0.10, 0, 0.055]} material={matGoggles}>
-              <boxGeometry args={[0.07, 0.07, 0.02]} />
+            <mesh position={[ 0.11, 0, 0.06]} material={matGoggles}>
+              <boxGeometry args={[0.08, 0.08, 0.022]} />
             </mesh>
           </group>
         </group>

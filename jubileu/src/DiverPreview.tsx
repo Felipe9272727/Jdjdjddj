@@ -16,8 +16,8 @@ const STATES: DiverState[] = ['hidden', 'spawn', 'idle', 'handover', 'fading'];
 function CameraRig() {
   const { camera } = useThree();
   useEffect(() => {
-    camera.position.set(0, 1.55, DIVER_POS[2] + 6.6);
-    camera.lookAt(0, 0.9, DIVER_POS[2]);
+    camera.position.set(0, 1.55, DIVER_POS[2] + 5.8);
+    camera.lookAt(0, 1.3, DIVER_POS[2]);
     camera.updateProjectionMatrix();
   }, [camera]);
   return null;

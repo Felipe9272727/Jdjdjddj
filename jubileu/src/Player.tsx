@@ -417,18 +417,18 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         // handheld drift so the shot is never dead-still (AA feel). The
         // look target stays fixed, so the diver holds frame while the
         // camera breathes around him for subtle parallax.
-        let camDist = isDiverScene ? 6.6 : 2.2;
+        let camDist = isDiverScene ? 5.8 : 2.2;
         let driftX = 0, driftY = 0;
         if (isDiverScene) {
           diverCineRef.current += safeDt;
           const ct = diverCineRef.current;
           const pushEase = 1 - Math.pow(1 - Math.min(1, ct / 16), 3);
-          camDist = 7.2 - pushEase * 0.8;
+          camDist = 6.2 - pushEase * 0.8;  // slow dolly 6.2→5.4 over 16s
           driftX = Math.sin(ct * 0.52) * 0.055 + Math.sin(ct * 1.27) * 0.018;
           driftY = Math.cos(ct * 0.41) * 0.040 + Math.sin(ct * 0.93 + 1.1) * 0.014;
         }
         const camHeight  = isDiverScene ? 1.55 : 1.75;
-        const lookHeight = isDiverScene ? 0.9  : 1.35;
+        const lookHeight = isDiverScene ? 1.3  : 1.35;
         const targetFov  = isDiverScene ? 46   : 40;
         const tCam = _v.current[1].copy(nP).addScaledVector(d2p, camDist);
         tCam.y += camHeight + driftY; tCam.x += driftX;
