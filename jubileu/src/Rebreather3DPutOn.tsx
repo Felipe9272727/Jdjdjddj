@@ -275,47 +275,60 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
       <group ref={maskRef} renderOrder={999}>
         {/* Frame body */}
         <mesh material={matFrame} renderOrder={999} frustumCulled={false}>
-          <boxGeometry args={[0.42, 0.30, 0.22]} />
+          <boxGeometry args={[0.44, 0.32, 0.22]} />
         </mesh>
-        {/* Soft inner cushion ring (faux) */}
+        {/* Recessed cushion ring */}
         <mesh position={[0, 0, 0.005]} material={matStrap} renderOrder={999} frustumCulled={false}>
-          <boxGeometry args={[0.40, 0.28, 0.04]} />
+          <boxGeometry args={[0.41, 0.29, 0.05]} />
         </mesh>
         {/* Big glass viewport */}
-        <mesh position={[0, 0, 0.115]} material={matGlass} renderOrder={1000} frustumCulled={false}>
-          <boxGeometry args={[0.34, 0.22, 0.02]} />
+        <mesh position={[0, 0, 0.118]} material={matGlass} renderOrder={1000} frustumCulled={false}>
+          <boxGeometry args={[0.32, 0.20, 0.022]} />
         </mesh>
-        {/* Highlight on glass */}
-        <mesh position={[-0.06, 0.05, 0.13]} renderOrder={1001} frustumCulled={false}>
-          <boxGeometry args={[0.08, 0.04, 0.005]} />
-          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.75} toneMapped={false} depthTest={false} />
+        {/* Primary highlight on glass */}
+        <mesh position={[-0.07, 0.055, 0.134]} renderOrder={1001} frustumCulled={false}>
+          <boxGeometry args={[0.08, 0.035, 0.004]} />
+          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.80} toneMapped={false} depthTest={false} />
         </mesh>
-        {/* Strap loops */}
-        <mesh position={[-0.23, 0, 0]} material={matStrap} renderOrder={999} frustumCulled={false}>
-          <boxGeometry args={[0.04, 0.12, 0.05]} />
+        {/* Secondary glint */}
+        <mesh position={[ 0.06, -0.03, 0.134]} renderOrder={1001} frustumCulled={false}>
+          <boxGeometry args={[0.04, 0.02, 0.003]} />
+          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.45} toneMapped={false} depthTest={false} />
         </mesh>
-        <mesh position={[ 0.23, 0, 0]} material={matStrap} renderOrder={999} frustumCulled={false}>
-          <boxGeometry args={[0.04, 0.12, 0.05]} />
+        {/* Tapered strap anchors */}
+        <mesh position={[-0.245, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={matStrap} renderOrder={999} frustumCulled={false}>
+          <cylinderGeometry args={[0.028, 0.020, 0.09, 10]} />
         </mesh>
-        {/* Breathing tube exit */}
-        <mesh position={[0.05, -0.18, 0.03]} material={matFrame} renderOrder={999} frustumCulled={false}>
-          <boxGeometry args={[0.09, 0.10, 0.07]} />
+        <mesh position={[ 0.245, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={matStrap} renderOrder={999} frustumCulled={false}>
+          <cylinderGeometry args={[0.028, 0.020, 0.09, 10]} />
         </mesh>
-        {/* NV goggles clipped on top */}
-        <group position={[0, 0.18, 0.06]}>
-          <mesh position={[-0.11, 0, 0]} material={matGoggleHousing} renderOrder={999} frustumCulled={false}>
-            <boxGeometry args={[0.12, 0.12, 0.12]} />
+        {/* Purge valve cylinder */}
+        <mesh position={[0.06, -0.195, 0.04]} material={matFrame} renderOrder={999} frustumCulled={false}>
+          <cylinderGeometry args={[0.040, 0.030, 0.13, 10]} />
+        </mesh>
+        {/* NV goggle tubes — cylinders pointing forward */}
+        <group position={[0, 0.19, 0.06]}>
+          {/* Left tube */}
+          <mesh position={[-0.115, 0, 0]} rotation={[Math.PI / 2, 0, 0]} material={matGoggleHousing} renderOrder={999} frustumCulled={false}>
+            <cylinderGeometry args={[0.065, 0.058, 0.15, 18]} />
           </mesh>
-          <mesh position={[ 0.11, 0, 0]} material={matGoggleHousing} renderOrder={999} frustumCulled={false}>
-            <boxGeometry args={[0.12, 0.12, 0.12]} />
+          {/* Right tube */}
+          <mesh position={[ 0.115, 0, 0]} rotation={[Math.PI / 2, 0, 0]} material={matGoggleHousing} renderOrder={999} frustumCulled={false}>
+            <cylinderGeometry args={[0.065, 0.058, 0.15, 18]} />
           </mesh>
-          <mesh position={[-0.11, 0, 0.064]} renderOrder={1000} frustumCulled={false}>
-            <boxGeometry args={[0.085, 0.085, 0.02]} />
+          {/* Left lens — circular emissive disc */}
+          <mesh position={[-0.115, 0, 0.077]} renderOrder={1000} frustumCulled={false}>
+            <circleGeometry args={[0.049, 22]} />
             <primitive object={matLensLeft} attach="material" ref={lensLeftMatRef} />
           </mesh>
-          <mesh position={[ 0.11, 0, 0.064]} renderOrder={1000} frustumCulled={false}>
-            <boxGeometry args={[0.085, 0.085, 0.02]} />
+          {/* Right lens */}
+          <mesh position={[ 0.115, 0, 0.077]} renderOrder={1000} frustumCulled={false}>
+            <circleGeometry args={[0.049, 22]} />
             <primitive object={matLensRight} attach="material" ref={lensRightMatRef} />
+          </mesh>
+          {/* Centre bridge */}
+          <mesh material={matGoggleHousing} renderOrder={999} frustumCulled={false}>
+            <boxGeometry args={[0.09, 0.034, 0.11]} />
           </mesh>
         </group>
         {/* Click flash sprite */}
@@ -333,24 +346,38 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
         </sprite>
       </group>
 
-      {/* ARMS — procedural blocky forearms + gloved hands rise from below.
-          Built along +Y by default; rotated via parent group `armPose`. */}
+      {/* ARMS — forearms + gloved hands rise from below frame. */}
       <group ref={armLRef} visible={false} renderOrder={998}>
-        {/* Forearm sleeve */}
-        <mesh position={[0, -0.05, 0]} material={matSleeve} renderOrder={998} frustumCulled={false}>
-          <cylinderGeometry args={[0.038, 0.045, 0.22, 12]} />
+        {/* Forearm — thicker, tapered cylinder */}
+        <mesh position={[0, -0.06, 0]} material={matSleeve} renderOrder={998} frustumCulled={false}>
+          <cylinderGeometry args={[0.042, 0.052, 0.28, 14]} />
         </mesh>
-        {/* Hand (glove) */}
-        <mesh position={[0, 0.10, 0]} material={matSkin} renderOrder={998} frustumCulled={false}>
-          <boxGeometry args={[0.06, 0.10, 0.08]} />
+        {/* Wrist cuff ridge */}
+        <mesh position={[0, 0.045, 0]} material={matSleeve} renderOrder={998} frustumCulled={false}>
+          <cylinderGeometry args={[0.048, 0.048, 0.025, 14]} />
+        </mesh>
+        {/* Palm */}
+        <mesh position={[0, 0.11, 0]} material={matSkin} renderOrder={998} frustumCulled={false}>
+          <boxGeometry args={[0.068, 0.095, 0.048]} />
+        </mesh>
+        {/* Thumb nub */}
+        <mesh position={[-0.044, 0.095, 0.005]} rotation={[0, 0, -0.5]} material={matSkin} renderOrder={998} frustumCulled={false}>
+          <capsuleGeometry args={[0.014, 0.028, 4, 8]} />
         </mesh>
       </group>
       <group ref={armRRef} visible={false} renderOrder={998}>
-        <mesh position={[0, -0.05, 0]} material={matSleeve} renderOrder={998} frustumCulled={false}>
-          <cylinderGeometry args={[0.038, 0.045, 0.22, 12]} />
+        <mesh position={[0, -0.06, 0]} material={matSleeve} renderOrder={998} frustumCulled={false}>
+          <cylinderGeometry args={[0.042, 0.052, 0.28, 14]} />
         </mesh>
-        <mesh position={[0, 0.10, 0]} material={matSkin} renderOrder={998} frustumCulled={false}>
-          <boxGeometry args={[0.06, 0.10, 0.08]} />
+        <mesh position={[0, 0.045, 0]} material={matSleeve} renderOrder={998} frustumCulled={false}>
+          <cylinderGeometry args={[0.048, 0.048, 0.025, 14]} />
+        </mesh>
+        <mesh position={[0, 0.11, 0]} material={matSkin} renderOrder={998} frustumCulled={false}>
+          <boxGeometry args={[0.068, 0.095, 0.048]} />
+        </mesh>
+        {/* Thumb nub (mirrored) */}
+        <mesh position={[ 0.044, 0.095, 0.005]} rotation={[0, 0, 0.5]} material={matSkin} renderOrder={998} frustumCulled={false}>
+          <capsuleGeometry args={[0.014, 0.028, 4, 8]} />
         </mesh>
       </group>
     </group>

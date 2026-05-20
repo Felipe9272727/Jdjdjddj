@@ -300,58 +300,57 @@ const STYLES = `
   position: absolute;
   left: 0;
   right: 0;
-  background: #000;
   pointer-events: auto;
-  transition: transform 380ms cubic-bezier(0.18, 0.89, 0.32, 1.15);
+  transition: transform 400ms cubic-bezier(0.18, 0.89, 0.32, 1.15);
   will-change: transform;
 }
 .cs-bar-top {
   top: 0;
-  height: 12vh;
+  height: 13vh;
   transform: translateY(-100%);
-  border-bottom: 1px solid rgba(34, 211, 238, 0.16);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  background: #000;
+  border-bottom: 1px solid rgba(34, 211, 238, 0.14);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.7);
 }
-/* Feathered inner edge — the bar fades into the scene instead of a hard cut */
 .cs-bar-top::after {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
   top: 100%;
-  height: 7vh;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0) 100%);
+  height: 9vh;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0) 100%);
   pointer-events: none;
 }
 .cs-bar-bottom {
   bottom: 0;
-  height: 27vh;
+  height: 31vh;
   transform: translateY(100%);
-  transition-delay: 70ms;
-  border-top: 1px solid rgba(34, 211, 238, 0.22);
+  transition-delay: 80ms;
+  /* Subtle oceanic tint — very dark teal-black */
+  background: linear-gradient(to bottom, #000c0f 0%, #000a0d 100%);
+  border-top: 1px solid rgba(34, 211, 238, 0.28);
   box-shadow:
-    0 -4px 14px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(34, 211, 238, 0.08);
+    0 -6px 28px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(34, 211, 238, 0.12);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 18px 24px 22px;
-  padding-left: max(24px, env(safe-area-inset-left));
-  padding-right: max(24px, env(safe-area-inset-right));
-  padding-bottom: max(22px, env(safe-area-inset-bottom));
+  padding: 20px 32px 24px;
+  padding-left: max(32px, env(safe-area-inset-left));
+  padding-right: max(32px, env(safe-area-inset-right));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
   text-align: center;
 }
-/* Feathered inner edge — fades up into the scene so the diver's lower
-   body is never sliced by a hard black line */
 .cs-bar-bottom::before {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
   bottom: 100%;
-  height: 9vh;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0) 100%);
+  height: 11vh;
+  background: linear-gradient(to top, rgba(0, 8, 12, 0.97) 0%, rgba(0, 0, 0, 0) 100%);
   pointer-events: none;
 }
 .cs-bar.cs-bar-in { transform: translateY(0); }
@@ -422,19 +421,21 @@ const STYLES = `
 /* Subtitle text */
 .cs-subtitle {
   margin: 0 auto;
-  max-width: 820px;
+  max-width: 860px;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: 1.45rem;
-  line-height: 1.45;
-  font-weight: 500;
-  color: #f0f9ff;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
-  letter-spacing: 0.01em;
+  font-size: 1.60rem;
+  line-height: 1.42;
+  font-weight: 600;
+  color: #e8f8ff;
+  text-shadow:
+    0 2px 18px rgba(0, 0, 0, 0.95),
+    0 0 40px rgba(34, 211, 238, 0.06);
+  letter-spacing: 0.012em;
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: cs-line-in 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: cs-line-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 /* Each beat re-mounts (keyed) so this fade+rise replays per line, turning
    the old hard cut between beats into a smooth cinematic transition */
@@ -522,15 +523,15 @@ const STYLES = `
 
 /* ─── Mobile portrait / smaller ─────────────────────────────────────── */
 @media (max-width: 640px) {
-  .cs-bar-top { height: 11vh; }
+  .cs-bar-top { height: 12vh; }
   .cs-bar-bottom {
-    height: 30vh;
-    padding: 14px 18px 18px;
-    padding-left: max(18px, env(safe-area-inset-left));
-    padding-right: max(18px, env(safe-area-inset-right));
-    padding-bottom: max(18px, env(safe-area-inset-bottom));
+    height: 33vh;
+    padding: 16px 20px 20px;
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
   }
-  .cs-subtitle { font-size: 1.18rem; line-height: 1.5; }
+  .cs-subtitle { font-size: 1.22rem; line-height: 1.50; }
   .cs-speaker { font-size: 0.72rem; }
   .cs-skip { padding: 6px 12px; font-size: 0.68rem; }
 }
