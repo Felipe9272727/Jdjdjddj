@@ -69,12 +69,15 @@ interface WorldProps {
   onCollectShard: (i: number) => void;
   /** Diver state machine phase — drives the BeardedDiver rendering. */
   diverPhase: 'hidden' | 'spawn' | 'idle' | 'handover' | 'fading' | 'done';
+  /** Current dialogue beat index (-1 = no dialogue). Used for per-beat
+   *  body-language adjustments in BeardedDiver. */
+  diverBeatRef: React.MutableRefObject<number>;
   /** True when night vision goggles are equipped and on. Mounts the
    *  ambient/hemisphere boost inside the canvas. */
   nightVisionActive: boolean;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, nightVisionActive }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -109,6 +112,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
         <BeardedDiver
           state={diverPhase}
           playerPositionRef={playerPositionRef}
+          dialogueBeatRef={diverBeatRef}
         />
       )}
       <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
@@ -203,6 +207,7 @@ export default function App() {
   const [diverDialogueOpen, setDiverDialogueOpen] = useState(false);
   const [rebreather3DActive, setRebreather3DActive] = useState(false);
   const lastSpawnTimeRef = useRef<number>(0);
+  const diverBeatRef = useRef<number>(-1);
 
   // Reset everything when the player leaves Floor 2.
   useEffect(() => {
@@ -242,6 +247,7 @@ export default function App() {
         scheduleTimeout(() => setCameraShake(false), 500);
         // After pop animation finishes, transition to idle and play cutscene.
         scheduleTimeout(() => {
+          diverBeatRef.current = -1;
           setDiverPhase('idle');
           setDiverDialogueOpen(true);
         }, 500);
@@ -268,6 +274,7 @@ export default function App() {
   // Sync 3D diver state with specific dialogue beats for choreography.
   // Beat 3 = "Toma — encaixa direitinho na cara." → diver extends the mask.
   const handleCutsceneBeat = useCallback((beatIdx: number) => {
+    diverBeatRef.current = beatIdx;
     if (beatIdx === 3) setDiverPhase('handover');
   }, []);
 
@@ -898,7 +905,7 @@ export default function App() {
         />
         <AdaptiveDpr pixelated />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} />
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
