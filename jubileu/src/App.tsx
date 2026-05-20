@@ -251,9 +251,12 @@ export default function App() {
   }, [currentLevel, diverPhase, inventory.rebreather.owned, doorsClosed, audioCtx, scheduleTimeout]);
 
   // Cutscene → accept = player takes the gear, refuse = diver walks away.
+  // Handover is already triggered at beat 3 via handleCutsceneBeat so the
+  // mask extends while the diver says "Toma". On accept we just close the
+  // dialogue and fire the pickup animation.
   const handleCutsceneAccept = useCallback(() => {
     setDiverDialogueOpen(false);
-    setDiverPhase('handover');
+    // handover state was set by handleCutsceneBeat at beat 3 — don't reset it.
     setRebreather3DActive(true);
   }, []);
   const handleCutsceneRefuse = useCallback(() => {
@@ -262,6 +265,11 @@ export default function App() {
     // Match BeardedDiver's FADE_DURATION (3.5s walk-away).
     scheduleTimeout(() => setDiverPhase('done'), 3600);
   }, [scheduleTimeout]);
+  // Sync 3D diver state with specific dialogue beats for choreography.
+  // Beat 3 = "Toma — encaixa direitinho na cara." → diver extends the mask.
+  const handleCutsceneBeat = useCallback((beatIdx: number) => {
+    if (beatIdx === 3) setDiverPhase('handover');
+  }, []);
 
   // Splash overlay — fires once when the player transitions across the
   // SWIM_THRESHOLD (entering OR leaving the water). Pure DOM/CSS, ~600ms.
@@ -1176,6 +1184,7 @@ export default function App() {
         <DiverCutscene
           onAccept={handleCutsceneAccept}
           onRefuse={handleCutsceneRefuse}
+          onBeat={handleCutsceneBeat}
         />
       )}
       

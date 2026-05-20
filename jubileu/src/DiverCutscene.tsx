@@ -25,6 +25,8 @@ export interface DiverCutsceneProps {
   onAccept: () => void;
   /** Called when the player skips / refuses (× button). */
   onRefuse: () => void;
+  /** Called every time the displayed beat index changes. */
+  onBeat?: (beatIdx: number) => void;
 }
 
 // ─── Beats — linear sequence of diver speech ──────────────────────────────
@@ -45,7 +47,7 @@ function dwellForBeat(text: string): number {
   return TYPEWRITER_MS * text.length + DWELL_AFTER_TYPE_MS;
 }
 
-export const DiverCutscene = ({ onAccept, onRefuse }: DiverCutsceneProps) => {
+export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps) => {
   const [beatIdx, setBeatIdx] = useState(0);
   const [displayedLen, setDisplayedLen] = useState(0);
   const [doneTyping, setDoneTyping] = useState(false);
@@ -65,6 +67,9 @@ export const DiverCutscene = ({ onAccept, onRefuse }: DiverCutsceneProps) => {
     });
     return () => cancelAnimationFrame(raf);
   }, []);
+
+  // Notify parent on every beat change (used for 3D choreography sync)
+  useEffect(() => { onBeat?.(beatIdx); }, [beatIdx, onBeat]);
 
   // (Re)start typewriter whenever the beat changes
   useEffect(() => {
