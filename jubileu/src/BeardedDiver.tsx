@@ -278,9 +278,17 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const ease = 1 + c * c * ((s + 1) * c + s);
       const sc = THREE.MathUtils.clamp(ease, 0.05, 1.30);
       const sq = Math.sin(tt * Math.PI * 2) * 0.5 * 0.30;
-      bob.scale.set(sc * (1 - sq * 0.5), sc * (1 + sq), sc * (1 - sq * 0.5));
+      // Landing impact: when the rise finishes (tt > 0.82), compress body
+      // downward then rebound — sells the weight of bursting out of the floor.
+      const impactPhase = THREE.MathUtils.clamp((tt - 0.82) / 0.18, 0, 1);
+      const impactSquash = Math.sin(impactPhase * Math.PI) * 0.14;  // compress then release
+      bob.scale.set(
+        sc * (1 - sq * 0.5) * (1 + impactSquash * 0.3),
+        sc * (1 + sq)       * (1 - impactSquash),
+        sc * (1 - sq * 0.5) * (1 + impactSquash * 0.3),
+      );
       bob.position.z = Math.max(0, (1 - tt) * 0.5);
-      bob.position.y = Math.sin(tt * Math.PI) * 0.16;
+      bob.position.y = Math.sin(tt * Math.PI) * 0.16 - impactSquash * 0.12;
       bob.rotation.x = (1 - tt) * -0.22;
     } else if (st !== 'fading') {
       // Return to anchor whenever we're not in spawn or fading
@@ -385,19 +393,23 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const pc = pr - 1;
       const present = pr <= 0 ? 0 : 1 + pc * pc * ((bk + 1) * pc + bk);
       // Torso bows forward on the offer — visible lean sells the intention.
-      bob.rotation.x = antic * 0.08 - present * 0.22;
+      // Extra side-tilt (Z) leans the shoulder into the offer like a real person.
+      bob.rotation.x = antic * 0.10 - present * 0.32;
+      bob.rotation.z = present * -0.08;  // lean right shoulder forward
       if (maskRef.current) {
         // Mask rises on an arc from low in (anticipation pull-back) to
         // high-and-forward (full extension toward the player).
-        const lift = Math.sin(THREE.MathUtils.clamp(present, 0, 1) * Math.PI * 0.5) * 0.30;
+        const lift = Math.sin(THREE.MathUtils.clamp(present, 0, 1) * Math.PI * 0.5) * 0.32;
         // When fully extended: a slow breathe-in/out invites the player to take it.
-        const holdBob = u > 0.85 ? Math.sin(time * 2.5 + 0.7) * 0.04 : 0;
+        const holdBob = u > 0.85 ? Math.sin(time * 2.5 + 0.7) * 0.045 : 0;
+        // Also tilt the mask slightly toward the player as it extends.
+        maskRef.current.rotation.x = present * -0.15;
         maskRef.current.position.set(
           0,
           1.04 - antic * 0.15 + lift,
-          0.40 - antic * 0.14 + present * 0.90 + holdBob,
+          0.40 - antic * 0.14 + present * 0.95 + holdBob,
         );
-        const offerPulse = u > 0.85 ? 1 + Math.sin(time * 3.0) * 0.06 : 1;
+        const offerPulse = u > 0.85 ? 1 + Math.sin(time * 3.0) * 0.07 : 1;
         maskRef.current.scale.setScalar(offerPulse);
         maskRef.current.visible = true;
       }
@@ -406,6 +418,7 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       // Only surface the procedural prop during handover when the diver
       // actively presents it to the player.
       maskRef.current.position.set(0, 1.05, 0.45);
+      maskRef.current.rotation.x = 0;
       maskRef.current.scale.setScalar(1);
       maskRef.current.visible = false;
     }
@@ -564,19 +577,19 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       <pointLight position={[ 0.0, 1.5, -1.5]} intensity={3.8} distance={5}  decay={1.2} color="#5AC8E0" />
       <pointLight position={[ 0.0, 0.1,  0.6]} intensity={2.0} distance={4}  decay={1.8} color="#D08850" />
 
-      {/* Ground glow */}
+      {/* Ground glow — cold aqua puddle of bioluminescence */}
       <sprite position={[0, 0.05, 0]} scale={[4, 1.4, 1]}>
-        <spriteMaterial ref={groundGlowMatRef} color="#FFE9A8" transparent opacity={0.32} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+        <spriteMaterial ref={groundGlowMatRef} color="#1AD4B8" transparent opacity={0.32} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
       </sprite>
-      {/* Halo */}
+      {/* Halo — cold teal rim matching the cave lighting */}
       <sprite position={[0, 1.4, 0]} scale={[5, 5, 1]}>
-        <spriteMaterial ref={haloMatRef} color="#FFC880" transparent opacity={0.18} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+        <spriteMaterial ref={haloMatRef} color="#38BDF8" transparent opacity={0.18} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
       </sprite>
-      {/* Spawn flash */}
+      {/* Spawn flash — deep cyan burst, not white, fits underwater atmosphere */}
       <sprite position={[0, 1.4, 0]} scale={[10, 10, 1]}>
         <spriteMaterial
           ref={flashMatRef}
-          color="#FFFFFF"
+          color="#7FEFFF"
           transparent
           opacity={0}
           depthWrite={false}
