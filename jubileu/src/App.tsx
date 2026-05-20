@@ -1233,10 +1233,14 @@ export default function App() {
       </div>
       
       {jumpscare && (
-        <div className="absolute inset-0 z-[75] flex items-center justify-center pointer-events-none animate-jumpscare bg-red-950">
-          <img src={BARNEY_URL} className="w-full h-full object-contain mix-blend-color-burn" alt="" style={{ filter: 'hue-rotate(-20deg) saturate(1.5) contrast(1.2)' }} />
-          <div className="absolute inset-0 bg-red-600/30 mix-blend-overlay" />
-        </div>
+        <>
+          {/* White pop flash — fires immediately on mount, fades in 280ms */}
+          <div className="absolute inset-0 z-[76] pointer-events-none animate-jumpscare-flash bg-white" />
+          <div className="absolute inset-0 z-[75] flex items-center justify-center pointer-events-none animate-jumpscare bg-red-950">
+            <img src={BARNEY_URL} className="w-full h-full object-contain mix-blend-color-burn" alt="" style={{ filter: 'hue-rotate(-20deg) saturate(1.8) contrast(1.3)' }} />
+            <div className="absolute inset-0 bg-red-600/40 mix-blend-overlay" />
+          </div>
+        </>
       )}
       
       {hasStarted && canSleepNow && gameState === 'indoor_day' && !dialogueOpen && !barneyDialogueOpen && !shopOpen && (

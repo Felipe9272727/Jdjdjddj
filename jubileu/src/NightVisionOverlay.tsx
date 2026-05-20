@@ -19,7 +19,7 @@
  * an additional layer so the edges fade to black like real NV.
  */
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface NightVisionFxProps {
   active: boolean;
@@ -30,6 +30,14 @@ interface NightVisionFxProps {
  * the canvas, below the menus). pointer-events: none.
  */
 export const NightVisionFx: React.FC<NightVisionFxProps> = ({ active }) => {
+  // Fires a boot-flash animation each time NV is activated.
+  const [bootKey, setBootKey] = useState(0);
+  const prevActive = useRef(false);
+  useEffect(() => {
+    if (active && !prevActive.current) setBootKey(k => k + 1);
+    prevActive.current = active;
+  }, [active]);
+
   return (
     <>
       <div
@@ -99,7 +107,23 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({ active }) => {
           NV ON
         </div>
       )}
+      {/* Boot flash — bright green burst when goggles first power on */}
+      {bootKey > 0 && (
+        <div
+          key={bootKey}
+          className="fixed inset-0 z-[24] pointer-events-none animate-nv-boot"
+          style={{ background: 'rgba(40,255,120,0.70)', mixBlendMode: 'screen' }}
+        />
+      )}
       <style>{`
+        @keyframes nvBoot {
+          0%   { opacity: 1; }
+          18%  { opacity: 0.6; }
+          35%  { opacity: 0.85; }
+          55%  { opacity: 0.15; }
+          100% { opacity: 0; }
+        }
+        .animate-nv-boot { animation: nvBoot 550ms ease-out forwards; }
         @keyframes nvScan {
           0%   { transform: translateY(0); }
           100% { transform: translateY(4px); }

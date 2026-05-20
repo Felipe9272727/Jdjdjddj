@@ -239,6 +239,13 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
           {!doneTyping && <span className="cs-caret" aria-hidden="true" />}
         </p>
 
+        {/* Auto-advance progress bar — appears while dwell timer runs */}
+        {doneTyping && (
+          <div className="cs-auto-bar" key={beatIdx} aria-hidden="true">
+            <div className="cs-auto-bar-fill" style={{ animationDuration: `${DWELL_AFTER_TYPE_MS}ms` }} />
+          </div>
+        )}
+
         {/* Progress dots */}
         <div className="cs-progress" aria-hidden="true">
           {BEATS.map((_, i) => (
@@ -448,6 +455,28 @@ const STYLES = `
 @keyframes cs-caret-blink {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0; }
+}
+
+/* Auto-advance progress bar */
+.cs-auto-bar {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto 6px;
+  height: 2px;
+  background: rgba(34, 211, 238, 0.15);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.cs-auto-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(34,211,238,0.4), rgba(34,211,238,0.9));
+  border-radius: 1px;
+  animation: cs-bar-fill linear forwards;
+}
+@keyframes cs-bar-fill {
+  from { width: 0%; }
+  to   { width: 100%; }
 }
 
 /* Progress dots */
