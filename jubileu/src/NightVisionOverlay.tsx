@@ -1,22 +1,17 @@
 /**
- * NightVisionOverlay.tsx — full-screen "night vision" effect.
+ * NightVisionOverlay.tsx — tactical radar / night-vision effect.
  *
  * Two pieces:
- *  1. <NightVisionFx> — purely DOM/CSS. Renders a green-tinted layer on top of
- *     the canvas when active. Includes a subtle scanline + grain, plus a
- *     binocular-style vignette (two soft circular masks).
- *  2. <NightVisionLights> — Three.js lights that get mounted ONLY when
- *     active AND the player is on a dark floor. Lifts the ambient + adds a
- *     small green hemisphere fill so the player can actually see.
+ *  1. <NightVisionFx> — purely DOM/CSS. Near-black tactical overlay with a
+ *     green phosphor grid, expanding radar rings, and a reticle vignette.
+ *     The very bright NightVisionLights in the 3D scene punch through the
+ *     dark layer as glowing green silhouettes — the "radar" read.
+ *  2. <NightVisionLights> — bright green Three.js lights mounted inside the
+ *     canvas so all geometry glows and becomes visible through the overlay.
  *
  * NON-NEGOTIABLES (from MEMORY.md):
- *  - No `<spotLight distance={0}>` while alive (we don't use any here).
+ *  - No `<spotLight distance={0}>` while alive.
  *  - No `useFrame` priority != 0 (we don't use useFrame here).
- *  - Conditional rendering is FINE — lights mount/unmount cleanly.
- *
- * The DOM overlay uses `mix-blend-mode: multiply` so it tints the canvas
- * without obliterating bright spots. The vignette uses radial gradients in
- * an additional layer so the edges fade to black like real NV.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -25,12 +20,7 @@ interface NightVisionFxProps {
   active: boolean;
 }
 
-/**
- * The DOM overlay. Mount this near the top of your fixed HUD tree (above
- * the canvas, below the menus). pointer-events: none.
- */
 export const NightVisionFx: React.FC<NightVisionFxProps> = ({ active }) => {
-  // Fires a boot-flash animation each time NV is activated.
   const [bootKey, setBootKey] = useState(0);
   const prevActive = useRef(false);
   useEffect(() => {
@@ -40,60 +30,55 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({ active }) => {
 
   return (
     <>
+      {/* Layer 1: Near-black tactical overlay — suppresses the scene so only
+          bright NV-lit surfaces punch through as glowing green silhouettes */}
       <div
         className="fixed inset-0 z-[18] pointer-events-none transition-opacity duration-300"
         style={{
           opacity: active ? 1 : 0,
-          // The green tint. multiply pulls non-green channels down so the
-          // image reads as monochrome-green like real Gen-3 NV.
-          backgroundColor: 'rgba(0,255,90,0.35)',
+          backgroundColor: 'rgba(0,0,0,0.88)',
           mixBlendMode: 'multiply',
         }}
       />
+
+      {/* Layer 2: Green phosphor base + tactical grid */}
       <div
         className="fixed inset-0 z-[19] pointer-events-none transition-opacity duration-300"
         style={{
           opacity: active ? 1 : 0,
-          // A second pass: small green boost added (not multiplied) so very
-          // dark pixels still get a faint glow.
-          background:
-            'radial-gradient(ellipse at center, rgba(80,255,140,0.18) 0%, rgba(0,140,40,0.12) 45%, rgba(0,60,18,0.45) 85%, rgba(0,30,8,0.85) 100%)',
+          background: [
+            'radial-gradient(ellipse at center, rgba(30,255,100,0.14) 0%, rgba(0,120,40,0.06) 55%, rgba(0,40,16,0.28) 100%)',
+          ].join(', '),
+          backgroundImage: [
+            'radial-gradient(ellipse at center, rgba(30,255,100,0.14) 0%, rgba(0,120,40,0.06) 55%, rgba(0,40,16,0.28) 100%)',
+            'linear-gradient(rgba(0,255,80,0.050) 1px, transparent 1px)',
+            'linear-gradient(90deg, rgba(0,255,80,0.050) 1px, transparent 1px)',
+          ].join(', '),
+          backgroundSize: 'auto, 48px 48px, 48px 48px',
           mixBlendMode: 'screen',
         }}
       />
-      {/* Binocular vignette — two soft circles in the middle, black around */}
+
+      {/* Layer 3: Tactical reticle vignette — dark edges, clear center */}
       <div
         className="fixed inset-0 z-[20] pointer-events-none transition-opacity duration-300"
         style={{
           opacity: active ? 1 : 0,
           background:
-            'radial-gradient(ellipse 38% 55% at 50% 50%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.85) 100%)',
+            'radial-gradient(ellipse 50% 62% at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.90) 100%)',
         }}
       />
-      {/* Scanlines + grain */}
+
+      {/* Radar rings — 3 phase-offset expanding circles emanating from center */}
       {active && (
-        <div
-          className="fixed inset-0 z-[21] pointer-events-none animate-nv-scan"
-          style={{
-            background:
-              'repeating-linear-gradient(0deg, rgba(0,30,15,0.0) 0px, rgba(0,40,15,0.0) 2px, rgba(0,60,25,0.18) 3px, rgba(0,40,15,0.0) 4px)',
-            mixBlendMode: 'overlay',
-            opacity: 0.6,
-          }}
-        />
+        <div className="fixed inset-0 z-[21] pointer-events-none overflow-hidden">
+          <div className="nv-ring nv-ring-1" />
+          <div className="nv-ring nv-ring-2" />
+          <div className="nv-ring nv-ring-3" />
+        </div>
       )}
-      {/* Subtle flicker / phosphor breathing */}
-      {active && (
-        <div
-          className="fixed inset-0 z-[22] pointer-events-none animate-nv-breathe"
-          style={{
-            background:
-              'radial-gradient(circle at 50% 50%, rgba(120,255,160,0.06) 0%, rgba(0,0,0,0) 60%)',
-            mixBlendMode: 'screen',
-          }}
-        />
-      )}
-      {/* Top-left HUD chip — "NV ON" indicator */}
+
+      {/* Top-left HUD chip */}
       {active && (
         <div
           className="fixed z-[23] pointer-events-none
@@ -107,7 +92,8 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({ active }) => {
           NV ON
         </div>
       )}
-      {/* Boot flash — bright green burst when goggles first power on */}
+
+      {/* Boot flash — green burst when goggles power on */}
       {bootKey > 0 && (
         <div
           key={bootKey}
@@ -115,6 +101,7 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({ active }) => {
           style={{ background: 'rgba(40,255,120,0.70)', mixBlendMode: 'screen' }}
         />
       )}
+
       <style>{`
         @keyframes nvBoot {
           0%   { opacity: 1; }
@@ -124,36 +111,48 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({ active }) => {
           100% { opacity: 0; }
         }
         .animate-nv-boot { animation: nvBoot 550ms ease-out forwards; }
-        @keyframes nvScan {
-          0%   { transform: translateY(0); }
-          100% { transform: translateY(4px); }
+
+        /* Radar ring base */
+        .nv-ring {
+          position: absolute;
+          width: 80vmax; height: 80vmax;
+          left: 50%; top: 50%;
+          border-radius: 50%;
+          border: 1.5px solid rgba(40, 255, 100, 0.55);
+          box-shadow: 0 0 6px rgba(40, 255, 100, 0.25);
+          transform: translate(-50%, -50%) scale(0.06);
+          opacity: 0;
+          animation: nvRadarRing 3.8s ease-out infinite;
         }
-        .animate-nv-scan { animation: nvScan 0.25s steps(2) infinite; }
-        @keyframes nvBreathe {
-          0%, 100% { opacity: 0.6; }
-          50%      { opacity: 0.85; }
+        .nv-ring-2 { animation-delay: 1.27s; }
+        .nv-ring-3 { animation-delay: 2.53s; }
+
+        @keyframes nvRadarRing {
+          0%   { transform: translate(-50%, -50%) scale(0.06); opacity: 0.8; }
+          65%  { opacity: 0.18; }
+          100% { transform: translate(-50%, -50%) scale(1.1);  opacity: 0;   }
         }
-        .animate-nv-breathe { animation: nvBreathe 3.2s ease-in-out infinite; }
       `}</style>
     </>
   );
 };
 
-/**
- * Lights to mount inside the <Canvas> when night vision is on. Boosts
- * ambient + a hemi fill, both tinted green. Designed for Floor 2 (dark
- * underwater cave) — the goal is to make EVERYTHING visible while the
- * green overlay handles the color cast.
- */
 interface NightVisionLightsProps {
   active: boolean;
 }
+
+/**
+ * Very bright green lights mounted inside the canvas when NV is active.
+ * High intensity makes all geometry glow strongly — the dark CSS overlay
+ * then suppresses everything except those bright spots, creating the
+ * radar/tactical silhouette effect.
+ */
 export const NightVisionLights: React.FC<NightVisionLightsProps> = ({ active }) => {
   if (!active) return null;
   return (
     <>
-      <ambientLight intensity={2.2} color="#a8ffc0" />
-      <hemisphereLight intensity={1.0} color="#bfffd0" groundColor="#102a18" />
+      <ambientLight intensity={4.8} color="#50ffaa" />
+      <hemisphereLight intensity={2.6} color="#90ffcc" groundColor="#0a2014" />
     </>
   );
 };

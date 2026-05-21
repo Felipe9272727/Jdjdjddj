@@ -55,19 +55,19 @@ const BEAT_PALETTE = [
   { tint: 'rgba(147,197,253,0.055)', dot: '#93c5fd', glow: 'rgba(147,197,253,0.20)' },
 ] as const;
 
-const TYPEWRITER_MS = 26;
-const DWELL_AFTER_TYPE_MS = 1700;
+const TYPEWRITER_MS = 13;
+const DWELL_AFTER_TYPE_MS = 500;
 
-// Per-beat typewriter speed — hand-tuned to the diver's mood.
+// Per-beat typewriter speed — diver speaks fast, doesn't wait for you.
 function typeSpeedForBeat(idx: number): number {
-  return idx === 1 ? 37   // memory — slow, wistful
-       : idx === 2 ? 30   // earnest — measured
-       : idx === 3 ? 23   // "toma" — quicker, decisive
+  return idx === 1 ? 17   // memory — slightly slower, still rushed
+       : idx === 2 ? 14
+       : idx === 3 ? 12   // "toma" — clipped, no ceremony
        : TYPEWRITER_MS;
 }
 
 function dwellForBeat(idx: number, text: string): number {
-  const extra = idx === 3 ? 900 : idx === 4 ? 500 : idx === 1 ? 200 : 0;
+  const extra = idx === 3 ? 350 : idx === 4 ? 180 : idx === 1 ? 100 : 0;
   return typeSpeedForBeat(idx) * text.length + DWELL_AFTER_TYPE_MS + extra;
 }
 
@@ -289,7 +289,7 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
             <div
               className="cs-auto-bar-fill"
               style={{
-                animationDuration: `${DWELL_AFTER_TYPE_MS + (beatIdx === 3 ? 900 : beatIdx === 4 ? 500 : beatIdx === 1 ? 200 : 0)}ms`,
+                animationDuration: `${DWELL_AFTER_TYPE_MS + (beatIdx === 3 ? 350 : beatIdx === 4 ? 180 : beatIdx === 1 ? 100 : 0)}ms`,
                 background: `linear-gradient(90deg, ${palette.dot}55, ${palette.dot}ee)`,
               }}
             />

@@ -326,25 +326,19 @@ export default function App() {
   }, [currentLevel, audioCtx, muted]);
 
   // Called when the 3D put-on cinematic finishes.
-  // Sequence: equip chime → diver turns away → black screen → player
-  // teleports to just inside the water → splash → underwater.
+  // Diver turns away → brief goggle-equip blink → player returns to elevator.
   const handleRebreather3DDone = useCallback(() => {
     setRebreather3DActive(false);
     inventoryAddItem('rebreather');
     inventoryAddItem('nightVision');
     playEquipChime(audioCtx);
-    // Diver just turns his back — no walking away.
     setDiverPhase('fading');
     scheduleTimeout(() => setDiverPhase('done'), 2200);
-    // Trigger the dive black-screen. The CSS animation is:
-    //   0-0.7s  fade to black, 0.7-1.1s hold, 1.1-2.2s fade back.
-    // At 800ms (while fully black) teleport player into the well.
+    // Brief black blink for goggle equip, then place player near elevator.
     setDiveBlackKey(k => k + 1);
     scheduleTimeout(() => {
-      // Well centre: HOLE_CENTER_X=0, HOLE_CENTER_Z=5, drop to -3.5
-      playerPositionCmdRef.current = { x: 0, y: -3.5, z: 5 };
-      setSplashKey(k => k + 1);
-    }, 800);
+      playerPositionCmdRef.current = { x: 0, y: 0, z: -8 };
+    }, 300);
   }, [audioCtx, inventoryAddItem, scheduleTimeout]);
 
   // ─── Floor 2 shards ───────────────────────────────────────────────────
@@ -1117,68 +1111,15 @@ export default function App() {
       {diveBlackKey > 0 && (
         <div
           key={diveBlackKey}
-          className="fixed inset-0 z-[95] pointer-events-none overflow-hidden"
+          className="fixed inset-0 z-[95] pointer-events-none"
+          style={{ background: '#000', animation: 'equipBlink 700ms ease-in-out forwards' }}
         >
-          {/* Rushing downward speed streaks — the fall */}
-          <div className="dive-streaks" />
-          {/* Iris tunnel — the well mouth shrinking above as you drop */}
-          <div className="dive-iris" />
-          {/* Black core hold */}
-          <div className="dive-core" />
-          {/* Water-flood — blue wash as you break the surface */}
-          <div className="dive-water" />
           <style>{`
-            .dive-streaks, .dive-iris, .dive-core, .dive-water {
-              position: absolute; inset: -20%;
-              pointer-events: none; will-change: opacity, transform;
-            }
-            .dive-streaks {
-              background: repeating-linear-gradient(
-                to bottom,
-                transparent 0px, transparent 38px,
-                rgba(160,215,245,0.18) 40px, transparent 45px);
-              animation: diveStreaks 2200ms cubic-bezier(0.4,0,0.7,1) forwards;
-            }
-            @keyframes diveStreaks {
-              0%   { opacity: 0; transform: translateY(-25%) scaleY(2.2); }
-              14%  { opacity: 0.85; }
-              42%  { opacity: 0.45; transform: translateY(55%) scaleY(2.8); }
-              58%  { opacity: 0; }
-              100% { opacity: 0; }
-            }
-            .dive-iris {
-              background: radial-gradient(circle at 50% 42%,
-                transparent 0%, transparent 36%, #000 72%);
-              animation: diveIris 2200ms cubic-bezier(0.55,0,0.85,0.5) forwards;
-            }
-            @keyframes diveIris {
-              0%   { transform: scale(3.4); opacity: 0; }
-              10%  { opacity: 1; }
-              44%  { transform: scale(0.16); opacity: 1; }
-              56%  { transform: scale(0.04); opacity: 1; }
-              100% { transform: scale(0.04); opacity: 0; }
-            }
-            .dive-core {
-              background: #000;
-              animation: diveCore 2200ms ease-in-out forwards;
-            }
-            @keyframes diveCore {
+            @keyframes equipBlink {
               0%   { opacity: 0; }
-              30%  { opacity: 1; }
-              60%  { opacity: 1; }
+              32%  { opacity: 1; }
+              62%  { opacity: 1; }
               100% { opacity: 0; }
-            }
-            .dive-water {
-              background: radial-gradient(ellipse at 50% 38%,
-                rgba(50,140,190,0) 0%, rgba(22,86,138,0.88) 66%,
-                rgba(8,42,72,0.96) 100%);
-              animation: diveWater 2200ms ease-out forwards;
-            }
-            @keyframes diveWater {
-              0%   { opacity: 0; transform: scale(1.3); }
-              54%  { opacity: 0; transform: scale(1.3); }
-              66%  { opacity: 1; transform: scale(1.0); }
-              100% { opacity: 0; transform: scale(0.95); }
             }
           `}</style>
         </div>
