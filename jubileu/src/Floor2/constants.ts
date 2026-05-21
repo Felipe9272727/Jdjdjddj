@@ -17,9 +17,9 @@ export const SWIM_THRESHOLD_Y = -2.7;   // below this the player is "in" the wat
 
 // ─── Particle / instance counts ────────────────────────────────────────
 export const DUST_COUNT = 25;
-export const DEBRIS_COUNT = 60;
-export const SEDIMENT_COUNT = 200;
-export const PLANKTON_COUNT = 50;
+export const DEBRIS_COUNT = 20;
+export const SEDIMENT_COUNT = 60;
+export const PLANKTON_COUNT = 15;
 export const FISH_COUNT = 8;
 export const BUBBLE_COUNT = 35;
 export const BUBBLE_RANGE = 18;

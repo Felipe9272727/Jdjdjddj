@@ -770,6 +770,14 @@ export default function App() {
     setJoystickVisual(p => ({ ...p, active: false }));
   }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen]);
 
+  useEffect(() => {
+    if (!dialogueOpen && !barneyDialogueOpen && !diverDialogueOpen) return;
+    if (elevatorTimer !== null && elevatorTimer > 0 && !doorsClosed) {
+      setElevatorTimer(null);
+      setTravelPhase('idle');
+    }
+  }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen]);
+
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!hasStarted) return;
     if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }

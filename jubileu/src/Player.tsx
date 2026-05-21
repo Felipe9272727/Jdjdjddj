@@ -595,7 +595,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             // teleport-aware setter at line ~152, the trigger only fires on
             // GENUINE walk-ins (never on respawn teleports).
             if (pos.current.z >= EZ_START - 1) elevTriggered.current = false;
-            else if (!elevTriggered.current) { elevTriggered.current = true; onEnterElevator(); }
+            else if (!elevTriggered.current && !dialogueOpen) { elevTriggered.current = true; onEnterElevator(); }
         }
         // ─── Y axis handling (runs every frame, even when standing still) ──
         // Default: feet on the floor.

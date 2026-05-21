@@ -45,7 +45,7 @@ export const WaterCeilingMaterial = shaderMaterial(
 
 // ─── Underwater overlay — screen-space tint and caustic pattern ────────
 export const UnderwaterOverlayMaterial = shaderMaterial(
-    { time: 0, depth: 0 },
+    { time: 0, depth: 0, intensity: 1.0 },
     /* glsl */ `
       varying vec2 vUv;
       void main() {
@@ -56,6 +56,7 @@ export const UnderwaterOverlayMaterial = shaderMaterial(
     /* glsl */ `
       uniform float time;
       uniform float depth;
+      uniform float intensity;
       varying vec2 vUv;
 
       // Hash & cheap noise for fake-blur jitter
@@ -123,7 +124,7 @@ export const UnderwaterOverlayMaterial = shaderMaterial(
         tint += vec3(0.05, 0.16, 0.20) * godRay * (1.0 - depth * 0.4);
 
         // Push contrast with depth: darken edges, lighten caustics
-        float alpha = (0.28 + depth * 0.55) * vignette;
+        float alpha = (0.28 + depth * 0.55) * vignette * intensity;
         tint.r += radial * 0.005 * depth;
         tint.b += radial * 0.012 * (1.0 - depth);
         // Subtle blue shift at deep

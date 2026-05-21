@@ -294,6 +294,7 @@ export const DynamicFog: React.FC<{ playerPositionRef: React.MutableRefObject<TH
 // ─── UnderwaterOverlay — camera-following tint + caustic ──────────────
 export const UnderwaterOverlay: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
     const meshRef = useRef<THREE.Mesh>(null);
+    const intensityRef = useRef(0);
     const mat = useMemo(() => {
         const m = new (UnderwaterOverlayMaterial as any)();
         m.transparent = true;
@@ -303,13 +304,16 @@ export const UnderwaterOverlay: React.FC<{ playerPositionRef: React.MutableRefOb
         m.side = THREE.DoubleSide;
         return m;
     }, []);
-    useFrame((state) => {
+    useFrame((state, dt) => {
         const y = playerPositionRef.current?.y ?? 0;
         const isUnderwater = y < SWIM_THRESHOLD_Y;
+        const safeDt = Math.min(dt, 0.033);
+        const targetIntensity = isUnderwater ? 1.0 : 0.0;
+        intensityRef.current += (targetIntensity - intensityRef.current) * Math.min(1, 5 * safeDt);
         const m = meshRef.current;
         if (m) {
-            m.visible = isUnderwater;
-            if (isUnderwater) {
+            m.visible = intensityRef.current > 0.01;
+            if (m.visible) {
                 m.position.copy(state.camera.position);
                 m.quaternion.copy(state.camera.quaternion);
                 m.translateZ(-0.3);
@@ -317,6 +321,7 @@ export const UnderwaterOverlay: React.FC<{ playerPositionRef: React.MutableRefOb
         }
         (mat as any).time = state.clock.elapsedTime;
         (mat as any).depth = Math.min(Math.abs(y - SWIM_THRESHOLD_Y) / 29, 1);
+        (mat as any).intensity = intensityRef.current;
     });
     return (
         <mesh ref={meshRef}>

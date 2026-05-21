@@ -164,7 +164,7 @@ export const CAVE_FLOOR_GEO = (() => {
     shape.lineTo(-size,  size);
     shape.closePath();
     const hole = new THREE.Path();
-    hole.absarc(HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, 0, Math.PI * 2, false);
+    hole.absarc(HOLE_CENTER_X, -HOLE_CENTER_Z, HOLE_RADIUS, 0, Math.PI * 2, false);
     shape.holes.push(hole);
     // 64 → 96 curve segments around the hole — smoother circle silhouette
     // and finer noise-displaced floor near the well rim.
@@ -177,7 +177,7 @@ export const CAVE_FLOOR_GEO = (() => {
     for (let i = 0; i < positions.count; i++) {
         v.fromBufferAttribute(positions, i);
         const dxH = v.x - HOLE_CENTER_X;
-        const dyH = v.y - HOLE_CENTER_Z;
+        const dyH = v.y + HOLE_CENTER_Z;
         const distToHole = Math.sqrt(dxH * dxH + dyH * dyH);
         const holeFade = Math.min(1, Math.max(0, (distToHole - HOLE_RADIUS) / 3));
         const edgeDist = Math.min(
