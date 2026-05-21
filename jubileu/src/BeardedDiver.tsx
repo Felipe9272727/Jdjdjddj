@@ -34,7 +34,7 @@ import * as THREE from 'three';
 import { SkeletonUtils } from 'three-stdlib';
 import { hotelConciergeModel } from './assets/textureImports';
 
-const BUBBLE_COUNT = 70;
+const BUBBLE_COUNT = 20;
 
 function BubbleParticles() {
   const ref = useRef<THREE.Points>(null);
@@ -135,7 +135,6 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
   const groundGlowMatRef = useRef<THREE.SpriteMaterial>(null);
   const keyLightRef = useRef<THREE.PointLight>(null);
   const fillLightRef = useRef<THREE.PointLight>(null);
-  const maskLightRef = useRef<THREE.PointLight>(null);
   // Pre-allocated colors for smooth per-beat temperature shift
   const keyColorSmoothed = useRef(new THREE.Color('#FFE2A0'));
   const fillColorSmoothed = useRef(new THREE.Color('#FFD080'));
@@ -605,14 +604,6 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       const pulse = 0.32 + Math.sin(time * 2.0) * 0.06;
       groundGlowMatRef.current.opacity = st === 'fading' ? pulse * (1 - t.fadeT) : pulse;
     }
-    if (maskLightRef.current) {
-      // Glow ramps up as mask extends, peaks bright at full extension
-      const rampFactor = st === 'handover'
-        ? THREE.MathUtils.smoothstep(t.armT, 0.30, 0.75)
-        : 0;
-      const pulse = 1 + Math.sin(time * 3.2) * 0.32;
-      maskLightRef.current.intensity = rampFactor * pulse * 10.0;
-    }
     // Goggle emissiveIntensity ramps as they "power up" — kept moderate so
     // the emissive reads as bright GREEN, not a blown-out white blob.
     matGoggles.emissiveIntensity = 3.5 + (
@@ -666,28 +657,10 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       rotation={[0, 0, 0]}
       visible={false}
     >
-      {/* Dedicated hemisphereLight scoped to the diver so the cave's
-          dark fog doesn't swallow the GLB's PBR textures.  Sky = warm
-          torch glow, ground = cool reflected cyan from the water.
-          Adds a flat fill across every face of the model regardless
-          of where the key light is hitting. */}
-      <hemisphereLight color="#FFD080" groundColor="#4A6F8A" intensity={0.9} />
-
-      {/* Three-point lighting — all positions relative to the diver's
-          LOCAL space so they rotate with him and always light his face.
-          +Z is toward the player (the direction the diver faces).
-
-          Key  : high-front-right, warm, driven by refs (spawn boost etc.)
-          Fill : low-front-left, softer warm, driven by refs
-          Face : very close in front, soft kicker — guarantees the face
-                 is always readable even from across the cave
-          Rim  : behind the diver (-Z), cool cyan — silhouette pop
-          Bounce: below, warm amber — light bouncing off cave floor */}
+      {/* Two-point lighting — key (warm, ref-driven) + fill (softer warm, ref-driven).
+          Static face/rim/bounce lights removed for mobile performance. */}
       <pointLight ref={keyLightRef}  position={[ 0.9, 2.4,  1.4]} intensity={0} distance={9}  decay={1.1} color="#FFE2A0" />
       <pointLight ref={fillLightRef} position={[-0.8, 1.3,  1.2]} intensity={0} distance={6}  decay={1.3} color="#FFD080" />
-      <pointLight position={[ 0.0, 1.65, 0.9]} intensity={4.0} distance={3} decay={1.1} color="#FFF0CC" />
-      <pointLight position={[ 0.0, 1.5, -1.5]} intensity={3.8} distance={5}  decay={1.2} color="#5AC8E0" />
-      <pointLight position={[ 0.0, 0.1,  0.6]} intensity={2.0} distance={4}  decay={1.8} color="#D08850" />
 
       {/* Ground glow — cold aqua puddle of bioluminescence */}
       <sprite position={[0, 0.05, 0]} scale={[4, 1.4, 1]}>
@@ -719,8 +692,6 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
             Procedural so we don't depend on the GLB having a "RightHand"
             bone or carrying a mask asset. */}
         <group ref={maskRef} position={[0, 1.05, 0.45]}>
-          {/* Mask point light — green glow casts onto the diver's face when extended */}
-          <pointLight ref={maskLightRef} position={[0, 0.1, 0.2]} intensity={0} distance={3} decay={1.8} color="#4ADE80" />
           {/* Main mask body — tapered diving mask silhouette */}
           <mesh material={matMaskFrame}>
             <boxGeometry args={[0.42, 0.30, 0.20]} />

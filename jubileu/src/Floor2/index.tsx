@@ -691,7 +691,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Strong downward point light hanging above the water — illuminates
             the well walls and water surface from above so the depth reads. */}
         <pointLight position={[HOLE_CENTER_X, 1.2, HOLE_CENTER_Z]} intensity={3.5} distance={8} decay={1.4} color="#a8d8f0" />
-        <pointLight position={[HOLE_CENTER_X, WATER_LEVEL_Y + 0.5, HOLE_CENTER_Z]} intensity={2.2} distance={5} decay={1.5} color="#7ac0d4" />
+        {reflective && <pointLight position={[HOLE_CENTER_X, WATER_LEVEL_Y + 0.5, HOLE_CENTER_Z]} intensity={2.2} distance={5} decay={1.5} color="#7ac0d4" />}
 
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
         <WaterSurface reflective={reflective} />
