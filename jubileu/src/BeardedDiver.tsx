@@ -34,75 +34,56 @@ import * as THREE from 'three';
 import { SkeletonUtils } from 'three-stdlib';
 import { hotelConciergeModel } from './assets/textureImports';
 
-// Two bubble layers — small dense layer + large sparse layer — give depth
-// and make the underwater volume feel genuinely volumetric.
-const BUBBLE_SMALL_COUNT = 60;
-const BUBBLE_LARGE_COUNT = 22;
-
-function makeBubbleLayer(count: number, spread: number, riseMin: number, riseMax: number) {
-  const positions = new Float32Array(count * 3);
-  const speeds    = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    const r = Math.random();
-    positions[i * 3]     = (Math.random() - 0.5) * spread;
-    positions[i * 3 + 1] = r * 5.0;
-    positions[i * 3 + 2] = DIVER_POS[2] + (Math.random() - 0.5) * spread;
-    speeds[i * 3]        = (Math.random() - 0.5) * 0.022;
-    speeds[i * 3 + 1]    = riseMin + Math.random() * (riseMax - riseMin);
-    speeds[i * 3 + 2]    = (Math.random() - 0.5) * 0.022;
-  }
-  return { positions, speeds };
-}
+const BUBBLE_COUNT = 70;
 
 function BubbleParticles() {
-  const smallRef = useRef<THREE.Points>(null);
-  const largeRef = useRef<THREE.Points>(null);
-
-  const { positions: posS, speeds: spdS } = useMemo(
-    () => makeBubbleLayer(BUBBLE_SMALL_COUNT, 5.0, 0.14, 0.34), []);
-  const { positions: posL, speeds: spdL } = useMemo(
-    () => makeBubbleLayer(BUBBLE_LARGE_COUNT, 6.5, 0.06, 0.16), []);
+  const ref = useRef<THREE.Points>(null);
+  const { positions, speeds } = useMemo(() => {
+    const positions = new Float32Array(BUBBLE_COUNT * 3);
+    const speeds = new Float32Array(BUBBLE_COUNT * 3);
+    for (let i = 0; i < BUBBLE_COUNT; i++) {
+      const r = Math.random();
+      positions[i * 3]     = (Math.random() - 0.5) * 5.0;
+      positions[i * 3 + 1] = r * 5.0;
+      positions[i * 3 + 2] = DIVER_POS[2] + (Math.random() - 0.5) * 5.0;
+      speeds[i * 3]        = (Math.random() - 0.5) * 0.025;
+      speeds[i * 3 + 1]    = 0.18 + Math.random() * 0.30;
+      speeds[i * 3 + 2]    = (Math.random() - 0.5) * 0.025;
+    }
+    return { positions, speeds };
+  }, []);
 
   useFrame((_, dt) => {
-    for (const [ref, count, speeds, spread] of [
-      [smallRef, BUBBLE_SMALL_COUNT, spdS, 5.0] as const,
-      [largeRef, BUBBLE_LARGE_COUNT, spdL, 6.5] as const,
-    ]) {
-      if (!ref.current) continue;
-      const pos = ref.current.geometry.attributes.position.array as Float32Array;
-      for (let i = 0; i < count; i++) {
-        pos[i * 3]     += speeds[i * 3]     * dt;
-        pos[i * 3 + 1] += speeds[i * 3 + 1] * dt;
-        pos[i * 3 + 2] += speeds[i * 3 + 2] * dt;
-        if (pos[i * 3 + 1] > 4.5) {
-          pos[i * 3]     = (Math.random() - 0.5) * spread;
-          pos[i * 3 + 1] = Math.random() * 0.3;
-          pos[i * 3 + 2] = DIVER_POS[2] + (Math.random() - 0.5) * spread;
-        }
+    if (!ref.current) return;
+    const pos = (ref.current.geometry.attributes.position.array as Float32Array);
+    for (let i = 0; i < BUBBLE_COUNT; i++) {
+      pos[i * 3]     += speeds[i * 3]     * dt;
+      pos[i * 3 + 1] += speeds[i * 3 + 1] * dt;
+      pos[i * 3 + 2] += speeds[i * 3 + 2] * dt;
+      if (pos[i * 3 + 1] > 4.5) {
+        pos[i * 3]     = (Math.random() - 0.5) * 5.0;
+        pos[i * 3 + 1] = Math.random() * 0.3;
+        pos[i * 3 + 2] = DIVER_POS[2] + (Math.random() - 0.5) * 5.0;
       }
-      ref.current.geometry.attributes.position.needsUpdate = true;
     }
+    ref.current.geometry.attributes.position.needsUpdate = true;
   }, 0);
 
   return (
-    <>
-      {/* Small dense bubbles — fill the volume */}
-      <points ref={smallRef}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[posS, 3]} />
-        </bufferGeometry>
-        <pointsMaterial color="#A5F3FC" size={0.036} transparent opacity={0.55}
-          depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
-      </points>
-      {/* Large sparse bubbles — slow-rising, give sense of depth */}
-      <points ref={largeRef}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[posL, 3]} />
-        </bufferGeometry>
-        <pointsMaterial color="#67E8F9" size={0.080} transparent opacity={0.28}
-          depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
-      </points>
-    </>
+    <points ref={ref}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial
+        color="#A5F3FC"
+        size={0.040}
+        transparent
+        opacity={0.55}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        toneMapped={false}
+      />
+    </points>
   );
 }
 

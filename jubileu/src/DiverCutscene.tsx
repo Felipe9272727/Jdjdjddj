@@ -1,23 +1,21 @@
 /**
  * DiverCutscene.tsx — Cinematic linear cutscene for the BeardedDiver.
  *
- * Letterboxed, auto-advancing sequence of speech beats that ends by handing
- * over the rebreather + night-vision goggles. The player can skip with the
- * × button (treated as Refuse → diver walks away).
+ * Replaces the previous DiverDialogue overlay (which was a branching tree
+ * with options) with a letterboxed, auto-advancing sequence of speech beats
+ * that ends by handing over the rebreather + night-vision goggles. The
+ * player can skip with the × button (treated as Refuse → diver walks away).
  *
- * Design philosophy: restraint. The 3D underwater scene and the diver are
- * the stars — the overlay stays out of their way. The only flourishes are:
- *   - A soft, low-pass-filtered typewriter "tok" (classic dialogue feel)
- *   - A gentle blur-in on each new subtitle line
- *   - The per-beat colour wash already tuned to the diver's mood
- * Everything else is clean letterbox + legible type.
- *
+ * Built to work on both mobile and desktop:
  *  - Top + bottom black letterbox bars slide in (350ms)
- *  - Large legible subtitles centred in the bottom band
+ *  - Large legible subtitles centered in the bottom band
  *  - Tap anywhere / Space / Enter → advance to the next beat early
  *  - Auto-advance after a per-beat dwell time (typewriter + read-time)
  *  - "× Pular" skip control in top-right (safe-area aware)
  *  - Progress dots at the bottom show how far we are
+ *
+ * The component is self-contained — inline styles + a scoped <style> tag,
+ * no Tailwind/CSS module dependency.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -32,6 +30,8 @@ export interface DiverCutsceneProps {
 }
 
 // ─── Beats — linear sequence of diver speech ──────────────────────────────
+// Auto-advance dwell = base 1800ms + 38ms per character (matches typewriter
+// + comfortable read time).
 const BEATS: string[] = [
   'Ahh... mais um turista. Eu estava te esperando, sabe?',
   'Eu fui o mergulhador da casa. Antes dela ser uma casa. Antes dela ser qualquer coisa.',
@@ -59,33 +59,6 @@ function dwellForBeat(idx: number, text: string): number {
   return typeSpeedForBeat(idx) * text.length + DWELL_AFTER_TYPE_MS + extra;
 }
 
-// ─── Typewriter audio — a soft, low-pass-filtered "tok" per few characters ─
-// Kept deliberately quiet and muffled so it reads as an ambient cue, not a
-// distraction. All wrapped in try/catch — audio must never break the scene.
-function makeAudioCtx(): AudioContext | null {
-  try { return new (window.AudioContext || (window as any).webkitAudioContext)(); }
-  catch { return null; }
-}
-
-function playTypeTok(ctx: AudioContext) {
-  try {
-    const len = Math.floor(ctx.sampleRate * 0.026);
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    const d   = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) {
-      d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.006));
-    }
-    const src  = ctx.createBufferSource();
-    src.buffer = buf;
-    const lp   = ctx.createBiquadFilter();
-    lp.type = 'lowpass'; lp.frequency.value = 850; lp.Q.value = 0.7;
-    const gain = ctx.createGain();
-    gain.gain.value = 0.04;   // very subtle
-    src.connect(lp); lp.connect(gain); gain.connect(ctx.destination);
-    src.start();
-  } catch {}
-}
-
 export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps) => {
   const [beatIdx, setBeatIdx] = useState(0);
   const [displayedLen, setDisplayedLen] = useState(0);
@@ -95,8 +68,6 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
   const typeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const advanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handedOffRef = useRef(false);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const charCountRef = useRef(0);
 
   const totalBeats = BEATS.length;
   const beatText = BEATS[beatIdx] ?? '';
@@ -112,14 +83,10 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
   // Notify parent on every beat change (used for 3D choreography sync)
   useEffect(() => { onBeat?.(beatIdx); }, [beatIdx, onBeat]);
 
-  // Clean up the AudioContext on unmount
-  useEffect(() => () => { try { audioCtxRef.current?.close(); } catch {} }, []);
-
   // (Re)start typewriter whenever the beat changes
   useEffect(() => {
     setDisplayedLen(0);
     setDoneTyping(false);
-    charCountRef.current = 0;
 
     if (typeIntervalRef.current !== null) {
       clearInterval(typeIntervalRef.current);
@@ -130,12 +97,6 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
     typeIntervalRef.current = setInterval(() => {
       idx += 1;
       setDisplayedLen(idx);
-      // Soft typewriter tok every 3rd character — ambient, not chatty
-      charCountRef.current += 1;
-      if (charCountRef.current % 3 === 0) {
-        if (!audioCtxRef.current) audioCtxRef.current = makeAudioCtx();
-        if (audioCtxRef.current) playTypeTok(audioCtxRef.current);
-      }
       if (idx >= beatText.length) {
         if (typeIntervalRef.current !== null) {
           clearInterval(typeIntervalRef.current);
@@ -507,14 +468,13 @@ const STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: cs-line-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: cs-line-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 /* Each beat re-mounts (keyed) so this fade+rise replays per line, turning
-   the old hard cut between beats into a smooth cinematic transition. A
-   gentle blur clears as the line settles — like a focus pull. */
+   the old hard cut between beats into a smooth cinematic transition */
 @keyframes cs-line-in {
-  from { opacity: 0; transform: translateY(10px); filter: blur(3px); }
-  to   { opacity: 1; transform: translateY(0);    filter: blur(0px); }
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .cs-caret {
   display: inline-block;

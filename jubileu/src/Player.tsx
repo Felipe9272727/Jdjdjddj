@@ -426,20 +426,20 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         // look target stays fixed, so the diver holds frame while the
         // camera breathes around him for subtle parallax.
         let camDist = isDiverScene ? 5.8 : 2.2;
-        let driftX = 0, driftY = 0, driftZ = 0;
+        let driftX = 0, driftY = 0;
         let beatFov = 0;
         if (isDiverScene) {
           diverCineRef.current += safeDt;
           const ct = diverCineRef.current;
           const pushEase = 1 - Math.pow(1 - Math.min(1, ct / 16), 3);
           camDist = 6.2 - pushEase * 0.8;  // slow dolly 6.2→5.4 over 16s
-          // Handheld cinematographer arc — primary slow sweep + micro-tremor.
-          // X swings ±0.22m so the diver shifts within the frame;
-          // Y floats ±0.09m; Z adds a subtle depth breathe (±0.06m).
+          // Handheld cinematographer arc — primary slow sweep + faster micro-tremor.
+          // X swings ±0.22m so the diver shifts within the frame; Y floats ±0.09m.
           driftX = Math.sin(ct * 0.38) * 0.18 + Math.sin(ct * 1.10 + 0.7) * 0.04;
           driftY = Math.cos(ct * 0.29) * 0.09 + Math.sin(ct * 0.85 + 1.4) * 0.025;
-          driftZ = Math.sin(ct * 0.22 + 0.5) * 0.06 + Math.sin(ct * 0.67 + 2.1) * 0.02;
-          // ── Emotion-reactive framing ────────────────────────────────────
+          // ── Emotion-reactive framing — the camera responds to the beat ──
+          // Memory beat pulls back & widens; intimate/authority beats push in
+          // and tighten the lens so the diver fills more of the frame.
           const beat = diverBeatRef?.current ?? -1;
           const distTarget =
             beat === 1 ?  0.55 :   // memory — pull back, give him room
@@ -461,14 +461,9 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
         const camHeight  = isDiverScene ? 1.55 : 1.75;
         const lookHeight = isDiverScene ? 1.3  : 1.35;
-        // Focal breathing: tie a ±0.3° FOV oscillation to the diver's breathing
-        // rhythm (1.45 rad/s) so the camera feels alive even when stationary.
-        const breathFov = isDiverScene
-          ? Math.sin(state.clock.elapsedTime * 1.45) * 0.30
-          : 0;
-        const targetFov  = (isDiverScene ? 46 : 40) + beatFov + breathFov;
+        const targetFov  = (isDiverScene ? 46 : 40) + beatFov;
         const tCam = _v.current[1].copy(nP).addScaledVector(d2p, camDist);
-        tCam.y += camHeight + driftY; tCam.x += driftX; tCam.z -= driftZ;
+        tCam.y += camHeight + driftY; tCam.x += driftX;
         const tLook = _v.current[2].copy(nP); tLook.y += lookHeight;
         const dlgAlpha = Math.min(5 * safeDt, 0.4);
         camera.position.lerp(tCam, dlgAlpha);
