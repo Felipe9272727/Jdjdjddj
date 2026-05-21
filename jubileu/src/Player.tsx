@@ -338,10 +338,6 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const diverCineRef = useRef(0); // elapsed time inside the Floor 2 cinematic camera
   // Emotion-reactive framing: smoothed dist/fov offsets driven by dialogue beat.
   const diverFrameRef = useRef({ dist: 0, fov: 0 });
-  // Beat-jolt: when the diver beat changes, briefly boost camera lerp alpha
-  // so it re-frames quickly before settling back to the slow dolly speed.
-  const beatJoltRef = useRef(0);          // seconds of jolt remaining
-  const prevDiverBeatRef = useRef(-1);    // to detect beat changes
   const camPosRef = useRef(new Vector3(0, 0, 8)); // smooth camera position
   const camInitRef = useRef(false); // sync camera to player pos on first frame
   const walls = useMemo(() => wallsForState(currentLevel, doorsClosed, houseDoorOpen), [currentLevel, doorsClosed, houseDoorOpen]);
@@ -443,14 +439,8 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
           driftX = Math.sin(ct * 0.38) * 0.18 + Math.sin(ct * 1.10 + 0.7) * 0.04;
           driftY = Math.cos(ct * 0.29) * 0.09 + Math.sin(ct * 0.85 + 1.4) * 0.025;
           driftZ = Math.sin(ct * 0.22 + 0.5) * 0.06 + Math.sin(ct * 0.67 + 2.1) * 0.02;
-          // ── Beat detection: jolt camera on beat change ──────────────────
-          const beat = diverBeatRef?.current ?? -1;
-          if (beat !== prevDiverBeatRef.current) {
-            prevDiverBeatRef.current = beat;
-            beatJoltRef.current = 0.28; // 280ms of boosted lerp
-          }
-          beatJoltRef.current = Math.max(0, beatJoltRef.current - safeDt);
           // ── Emotion-reactive framing ────────────────────────────────────
+          const beat = diverBeatRef?.current ?? -1;
           const distTarget =
             beat === 1 ?  0.55 :   // memory — pull back, give him room
             beat === 2 ? -0.35 :   // caring — lean the lens in
@@ -480,12 +470,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         const tCam = _v.current[1].copy(nP).addScaledVector(d2p, camDist);
         tCam.y += camHeight + driftY; tCam.x += driftX; tCam.z -= driftZ;
         const tLook = _v.current[2].copy(nP); tLook.y += lookHeight;
-        // Beat jolt: briefly use a much higher lerp alpha so the camera snaps
-        // to the new beat framing, then eases back to the slow dolly speed.
-        const joltBoost = isDiverScene && beatJoltRef.current > 0
-          ? (beatJoltRef.current / 0.28) * 0.55   // 0→0.55 extra alpha during jolt
-          : 0;
-        const dlgAlpha = Math.min(5 * safeDt, 0.4) + joltBoost;
+        const dlgAlpha = Math.min(5 * safeDt, 0.4);
         camera.position.lerp(tCam, dlgAlpha);
         if (camLookRef.current.distanceTo(tLook) > 10) { camLookRef.current.copy(pP); camLookRef.current.y += 1.6; }
         camLookRef.current.lerp(tLook, dlgAlpha);

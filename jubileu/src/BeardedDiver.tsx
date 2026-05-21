@@ -155,8 +155,6 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
   const keyLightRef = useRef<THREE.PointLight>(null);
   const fillLightRef = useRef<THREE.PointLight>(null);
   const maskLightRef = useRef<THREE.PointLight>(null);
-  // Spawn ring — 3D torus that expands outward when the diver bursts in
-  const spawnRingRef = useRef<THREE.Mesh>(null);
   // Pre-allocated colors for smooth per-beat temperature shift
   const keyColorSmoothed = useRef(new THREE.Color('#FFE2A0'));
   const fillColorSmoothed = useRef(new THREE.Color('#FFD080'));
@@ -301,16 +299,6 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       t.popT = Math.min(1, t.popT + safeDt / POP_DURATION);
       const s = 2.5;  // stronger back-ease overshoot
       const tt = t.popT;
-      // Spawn ring: expands outward and fades — ground-shockwave effect
-      if (spawnRingRef.current) {
-        const ringScale = THREE.MathUtils.clamp(tt * 2.8, 0, 4.0);
-        spawnRingRef.current.scale.setScalar(ringScale);
-        const ringMat = spawnRingRef.current.material as THREE.MeshBasicMaterial;
-        ringMat.opacity = tt < 0.5
-          ? THREE.MathUtils.smoothstep(tt, 0, 0.12) * 0.6
-          : 0.6 * (1 - (tt - 0.5) / 0.5);
-        spawnRingRef.current.visible = true;
-      }
       const riseEase = 1 - Math.pow(1 - tt, 2.8);
       g.position.set(DIVER_POS[0], DIVER_POS[1] - 1.8 * (1 - riseEase), DIVER_POS[2]);
       const c = tt - 1;
@@ -335,12 +323,10 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       bob.scale.set(1, 1, 1);
       bob.position.z = 0;
       bob.rotation.x = 0;
-      if (spawnRingRef.current) spawnRingRef.current.visible = false;
     } else {
       bob.scale.set(1, 1, 1);
       bob.position.z = 0;
       bob.rotation.x = 0;
-      if (spawnRingRef.current) spawnRingRef.current.visible = false;
     }
 
     // ── IDLE / HANDOVER: procedural idle (no skeleton in GLB) ─────
@@ -721,13 +707,6 @@ export const BeardedDiver: React.FC<BeardedDiverProps> = ({
       <pointLight position={[ 0.0, 1.65, 0.9]} intensity={4.0} distance={3} decay={1.1} color="#FFF0CC" />
       <pointLight position={[ 0.0, 1.5, -1.5]} intensity={3.8} distance={5}  decay={1.2} color="#5AC8E0" />
       <pointLight position={[ 0.0, 0.1,  0.6]} intensity={2.0} distance={4}  decay={1.8} color="#D08850" />
-
-      {/* Spawn ring — 3D torus ground shockwave that expands and fades during pop */}
-      <mesh ref={spawnRingRef} position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-        <torusGeometry args={[0.9, 0.04, 8, 48]} />
-        <meshBasicMaterial color="#22D3EE" transparent opacity={0} depthWrite={false}
-          blending={THREE.AdditiveBlending} toneMapped={false} />
-      </mesh>
 
       {/* Ground glow — cold aqua puddle of bioluminescence */}
       <sprite position={[0, 0.05, 0]} scale={[4, 1.4, 1]}>

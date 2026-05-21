@@ -1084,61 +1084,28 @@ export default function App() {
       )}
 
       
-      {/* Diver spawn jumpscare flash — two-layer radial punch:
-          1. Fast white-cyan blow-out (impact punch)
-          2. Slower concentric ring that expands outward (shockwave ripple)
-          Both layer together for a cinematic "presence arrives" feel. */}
+      {/* Diver spawn jumpscare flash — cyan punch synced to the burst.
+          Quick blow-out then fast decay so it reads as an impact, not a fade. */}
       {diverSpawnFlashKey > 0 && (
         <div
           key={diverSpawnFlashKey}
           className="fixed inset-0 z-[77] pointer-events-none"
         >
-          {/* Impact punch — radial burst from centre */}
           <div
             className="dvspawn-flash w-full h-full"
             style={{
               background:
-                'radial-gradient(ellipse at center, rgba(200,255,252,0.98) 0%, rgba(100,230,255,0.65) 30%, rgba(34,140,180,0.25) 58%, rgba(0,0,0,0) 80%)',
+                'radial-gradient(ellipse at center, rgba(180,255,250,0.95) 0%, rgba(110,230,255,0.6) 35%, rgba(40,140,180,0.2) 65%, rgba(0,0,0,0) 85%)',
             }}
           />
-          {/* Shockwave ring — expands outward after the initial punch */}
-          <div className="dvspawn-ring w-full h-full" />
-          {/* Edge vignette squeeze — dark periphery slams inward then releases */}
-          <div className="dvspawn-vignette w-full h-full" />
           <style>{`
             @keyframes dvSpawnFlash {
-              0%   { opacity: 0; transform: scale(1.18); }
-              7%   { opacity: 1;  transform: scale(1.0); }
-              22%  { opacity: 0.55; }
-              100% { opacity: 0; transform: scale(1.06); }
+              0%   { opacity: 0; transform: scale(1.15); }
+              8%   { opacity: 1; transform: scale(1.0); }
+              28%  { opacity: 0.45; }
+              100% { opacity: 0; transform: scale(1.08); }
             }
-            .dvspawn-flash { animation: dvSpawnFlash 500ms cubic-bezier(0.15,0.85,0.25,1) forwards; }
-
-            @keyframes dvSpawnRing {
-              0%   { opacity: 0;    transform: scale(0.3); }
-              15%  { opacity: 0.6;  transform: scale(0.7); }
-              60%  { opacity: 0.15; transform: scale(1.4); }
-              100% { opacity: 0;    transform: scale(1.9); }
-            }
-            .dvspawn-ring {
-              position: absolute; inset: 0;
-              border-radius: 50%;
-              border: 3px solid rgba(34, 211, 238, 0.8);
-              box-shadow: 0 0 40px rgba(34, 211, 238, 0.5), inset 0 0 40px rgba(34, 211, 238, 0.2);
-              animation: dvSpawnRing 700ms cubic-bezier(0.1,0.7,0.3,1) 40ms forwards;
-              transform-origin: center center;
-            }
-
-            @keyframes dvSpawnVignette {
-              0%   { opacity: 0; }
-              10%  { opacity: 1; box-shadow: inset 0 0 120px 60px rgba(0,0,0,0.9); }
-              35%  { opacity: 0.6; box-shadow: inset 0 0 80px 30px rgba(0,0,0,0.5); }
-              100% { opacity: 0; box-shadow: inset 0 0 0px 0px rgba(0,0,0,0); }
-            }
-            .dvspawn-vignette {
-              position: absolute; inset: 0;
-              animation: dvSpawnVignette 600ms ease-out forwards;
-            }
+            .dvspawn-flash { animation: dvSpawnFlash 420ms cubic-bezier(0.2,0.9,0.3,1) forwards; }
           `}</style>
         </div>
       )}
