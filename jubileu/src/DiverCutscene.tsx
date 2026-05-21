@@ -4,15 +4,17 @@
  * Replaces the previous DiverDialogue overlay (which was a branching tree
  * with options) with a letterboxed, auto-advancing sequence of speech beats
  * that ends by handing over the rebreather + night-vision goggles. The
- * player can skip with the × button (treated as Refuse → diver walks away).
+ * player can skip with the PULAR button (treated as Refuse → diver walks away).
  *
  * Built to work on both mobile and desktop:
- *  - Top + bottom black letterbox bars slide in (350ms)
+ *  - Top + bottom black letterbox bars slide in (400ms)
  *  - Large legible subtitles centered in the bottom band
  *  - Tap anywhere / Space / Enter → advance to the next beat early
  *  - Auto-advance after a per-beat dwell time (typewriter + read-time)
- *  - "× Pular" skip control in top-right (safe-area aware)
+ *  - "PULAR" skip control in top-right (safe-area aware)
  *  - Progress dots at the bottom show how far we are
+ *  - Per-beat emotional color palette tints the world + text
+ *  - Graceful exit: bars slide out before the cutscene unmounts
  *
  * The component is self-contained — inline styles + a scoped <style> tag,
  * no Tailwind/CSS module dependency.
@@ -23,15 +25,13 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 export interface DiverCutsceneProps {
   /** Called when the player accepts the gear at the end of the cutscene. */
   onAccept: () => void;
-  /** Called when the player skips / refuses (× button). */
+  /** Called when the player skips / refuses (PULAR button). */
   onRefuse: () => void;
   /** Called every time the displayed beat index changes. */
   onBeat?: (beatIdx: number) => void;
 }
 
 // ─── Beats — linear sequence of diver speech ──────────────────────────────
-// Auto-advance dwell = base 1800ms + 38ms per character (matches typewriter
-// + comfortable read time).
 const BEATS: string[] = [
   'Ahh... mais um turista. Eu estava te esperando, sabe?',
   'Eu fui o mergulhador da casa. Antes dela ser uma casa. Antes dela ser qualquer coisa.',
@@ -40,20 +40,32 @@ const BEATS: string[] = [
   'Aperta a tecla N quando precisar enxergar no escuro. Vai. E boa sorte.',
 ];
 
+// Per-beat emotional color palette — tints the ambient overlay, speaker dot,
+// subtitle glow, and progress fill. Each color matches the tone of the line.
+// beat 0: cyan    — arrival, curiosity
+// beat 1: amber   — nostalgia, memory
+// beat 2: orange  — warmth, care
+// beat 3: green   — handover, the mask
+// beat 4: blue    — farewell, authority
+const BEAT_PALETTE = [
+  { tint: 'rgba(34,211,238,0.055)',  dot: '#22d3ee', glow: 'rgba(34,211,238,0.22)' },
+  { tint: 'rgba(251,191,36,0.065)',  dot: '#fbbf24', glow: 'rgba(251,191,36,0.22)' },
+  { tint: 'rgba(251,146,60,0.055)',  dot: '#fb923c', glow: 'rgba(251,146,60,0.20)' },
+  { tint: 'rgba(74,222,128,0.075)',  dot: '#4ade80', glow: 'rgba(74,222,128,0.28)' },
+  { tint: 'rgba(147,197,253,0.055)', dot: '#93c5fd', glow: 'rgba(147,197,253,0.20)' },
+] as const;
+
 const TYPEWRITER_MS = 26;
 const DWELL_AFTER_TYPE_MS = 1700;
 
-// Per-beat typewriter speed — the dialogue rhythm is hand-tuned to the
-// diver's mood: he lingers on the memory, quickens as he hands the mask over.
+// Per-beat typewriter speed — hand-tuned to the diver's mood.
 function typeSpeedForBeat(idx: number): number {
   return idx === 1 ? 37   // memory — slow, wistful
        : idx === 2 ? 30   // earnest — measured
        : idx === 3 ? 23   // "toma" — quicker, decisive
-       : TYPEWRITER_MS;   // 0 + 4 — normal cadence
+       : TYPEWRITER_MS;
 }
 
-// Beat 3 = mask extends toward player ("Toma") — hold longer so they can absorb
-// the gesture. Beat 4 = final farewell words — extra weight before accepting.
 function dwellForBeat(idx: number, text: string): number {
   const extra = idx === 3 ? 900 : idx === 4 ? 500 : idx === 1 ? 200 : 0;
   return typeSpeedForBeat(idx) * text.length + DWELL_AFTER_TYPE_MS + extra;
@@ -64,6 +76,8 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
   const [displayedLen, setDisplayedLen] = useState(0);
   const [doneTyping, setDoneTyping] = useState(false);
   const [lettersIn, setLettersIn] = useState(false);
+  // Increments on each beat change → re-mounts the flash div → CSS animation re-fires
+  const [flashKey, setFlashKey] = useState(0);
 
   const typeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const advanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,6 +85,7 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
 
   const totalBeats = BEATS.length;
   const beatText = BEATS[beatIdx] ?? '';
+  const palette = BEAT_PALETTE[beatIdx] ?? BEAT_PALETTE[0];
 
   // Slide letterbox in on mount
   useEffect(() => {
@@ -80,19 +95,20 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Notify parent on every beat change (used for 3D choreography sync)
+  // Notify parent on every beat change (3D choreography sync)
   useEffect(() => { onBeat?.(beatIdx); }, [beatIdx, onBeat]);
+
+  // Trigger beat flash on every beat change (including initial)
+  useEffect(() => { setFlashKey(k => k + 1); }, [beatIdx]);
 
   // (Re)start typewriter whenever the beat changes
   useEffect(() => {
     setDisplayedLen(0);
     setDoneTyping(false);
-
     if (typeIntervalRef.current !== null) {
       clearInterval(typeIntervalRef.current);
       typeIntervalRef.current = null;
     }
-
     let idx = 0;
     typeIntervalRef.current = setInterval(() => {
       idx += 1;
@@ -105,7 +121,6 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
         setDoneTyping(true);
       }
     }, typeSpeedForBeat(beatIdx));
-
     return () => {
       if (typeIntervalRef.current !== null) {
         clearInterval(typeIntervalRef.current);
@@ -114,32 +129,35 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
     };
   }, [beatIdx, beatText]);
 
+  // Helper: gracefully exit the cutscene (slides bars out, then fires callback)
+  const exitGracefully = useCallback((cb: () => void, delay = 480) => {
+    setLettersIn(false);
+    setTimeout(cb, delay);
+  }, []);
+
   // Schedule auto-advance after the current beat completes typing
   useEffect(() => {
     if (advanceTimeoutRef.current !== null) {
       clearTimeout(advanceTimeoutRef.current);
       advanceTimeoutRef.current = null;
     }
-
     advanceTimeoutRef.current = setTimeout(() => {
-      // Last beat: trigger Accept exactly once
       if (beatIdx >= totalBeats - 1) {
         if (!handedOffRef.current) {
           handedOffRef.current = true;
-          onAccept();
+          exitGracefully(onAccept);
         }
         return;
       }
       setBeatIdx((i) => i + 1);
     }, dwellForBeat(beatIdx, beatText));
-
     return () => {
       if (advanceTimeoutRef.current !== null) {
         clearTimeout(advanceTimeoutRef.current);
         advanceTimeoutRef.current = null;
       }
     };
-  }, [beatIdx, beatText, totalBeats, onAccept]);
+  }, [beatIdx, beatText, totalBeats, onAccept, exitGracefully]);
 
   const advanceNow = useCallback(() => {
     if (advanceTimeoutRef.current !== null) {
@@ -150,16 +168,14 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
       clearInterval(typeIntervalRef.current);
       typeIntervalRef.current = null;
     }
-    // If typewriter is mid-flight on this beat, snap it to the end first
     if (!doneTyping) {
       setDisplayedLen(beatText.length);
       setDoneTyping(true);
-      // Re-arm a brief read-pause so the player can absorb the full text
       advanceTimeoutRef.current = setTimeout(() => {
         if (beatIdx >= totalBeats - 1) {
           if (!handedOffRef.current) {
             handedOffRef.current = true;
-            onAccept();
+            exitGracefully(onAccept);
           }
           return;
         }
@@ -167,35 +183,27 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
       }, 700);
       return;
     }
-    // Already done typing — advance immediately
     if (beatIdx >= totalBeats - 1) {
       if (!handedOffRef.current) {
         handedOffRef.current = true;
-        onAccept();
+        exitGracefully(onAccept);
       }
       return;
     }
     setBeatIdx((i) => i + 1);
-  }, [beatIdx, beatText, doneTyping, onAccept, totalBeats]);
+  }, [beatIdx, beatText, doneTyping, onAccept, totalBeats, exitGracefully]);
 
   const handleSkip = useCallback(() => {
     if (handedOffRef.current) return;
     handedOffRef.current = true;
-    onRefuse();
-  }, [onRefuse]);
+    exitGracefully(onRefuse, 420);
+  }, [onRefuse, exitGracefully]);
 
   // Keyboard: Space/Enter advances, Esc skips
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleSkip();
-        return;
-      }
-      if (e.key === ' ' || e.key === 'Enter') {
-        e.preventDefault();
-        advanceNow();
-      }
+      if (e.key === 'Escape') { e.preventDefault(); handleSkip(); return; }
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); advanceNow(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -205,51 +213,43 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
 
   return (
     <div className="cs-root" onClick={advanceNow}>
-      {/* Cinematic corner vignette — pulls focus onto the diver */}
+      {/* Ambient beat tint — subtle emotional color wash over the visible 3D world */}
+      <div
+        className="cs-ambient-tint"
+        aria-hidden="true"
+        style={{ background: palette.tint }}
+      />
+
+      {/* Cinematic corner vignette */}
       <div className="cs-vignette" aria-hidden="true" />
+
+      {/* Beat flash — brief luminance cut on each new beat, like a film splice */}
+      <div key={flashKey} className="cs-beat-flash" aria-hidden="true" />
 
       {/* Top letterbox bar */}
       <div className={`cs-bar cs-bar-top ${lettersIn ? 'cs-bar-in' : ''}`}>
+        <div className="cs-location" aria-hidden="true">ANDAR 2 · ZONA SUBAQUÁTICA</div>
         <button
           type="button"
           className="cs-skip"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleSkip();
-          }}
+          onClick={(e) => { e.stopPropagation(); handleSkip(); }}
           aria-label="Pular cutscene"
         >
           <span>PULAR</span>
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-            <path
-              d="M7 6 L17 12 L7 18 Z"
-              fill="currentColor"
-              opacity="0.85"
-            />
-            <line
-              x1="19"
-              y1="6"
-              x2="19"
-              y2="18"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
+            <path d="M7 6 L17 12 L7 18 Z" fill="currentColor" opacity="0.85" />
+            <line x1="19" y1="6" x2="19" y2="18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </button>
       </div>
 
       {/* Bottom letterbox bar — holds the subtitle */}
       <div className={`cs-bar cs-bar-bottom ${lettersIn ? 'cs-bar-in' : ''}`}>
-        {/* Per-beat emotional color wash — subtle tint shifts with mood */}
+        {/* Per-beat color wash inside the bottom bar */}
         <div
           aria-hidden="true"
           style={{
-            position: 'absolute',
-            inset: 0,
-            pointerEvents: 'none',
-            // beat 0: cyan curiosity, 1: amber nostalgia, 2: rose warmth,
-            // 3: green NV (mask extends), 4: blue-white authority
+            position: 'absolute', inset: 0, pointerEvents: 'none',
             background: [
               'radial-gradient(ellipse at 50% 100%, rgba(34,211,238,0.09) 0%, transparent 70%)',
               'radial-gradient(ellipse at 50% 100%, rgba(251,191,36,0.10) 0%, transparent 70%)',
@@ -260,33 +260,48 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
             transition: 'background 900ms ease',
           }}
         />
+
         <div className="cs-speaker">
-          <span className="cs-speaker-dot" />
-          MERGULHADOR
+          <span
+            className="cs-speaker-dot"
+            style={{
+              background: palette.dot,
+              boxShadow: `0 0 8px ${palette.dot}cc`,
+            }}
+          />
+          {/* Re-keyed so the letter-spacing entrance animation replays every beat */}
+          <span key={`spkname-${beatIdx}`} className="cs-speaker-name">MERGULHADOR</span>
         </div>
 
-        <p className="cs-subtitle" key={`sub-${beatIdx}`}>
+        <p
+          className={`cs-subtitle${beatIdx === 1 ? ' cs-subtitle-nostalgic' : ''}`}
+          key={`sub-${beatIdx}`}
+          style={{
+            textShadow: `0 2px 18px rgba(0,0,0,0.95), 0 0 36px ${palette.glow}`,
+          }}
+        >
           {displayed}
           {!doneTyping && <span className="cs-caret" aria-hidden="true" />}
         </p>
 
-        {/* Auto-advance progress bar — appears while dwell timer runs.
-            Key is prefixed distinctly from the subtitle's — sibling keys
-            must be unique or React fails to unmount the old elements. */}
         {doneTyping && (
           <div className="cs-auto-bar" key={`bar-${beatIdx}`} aria-hidden="true">
-            <div className="cs-auto-bar-fill" style={{ animationDuration: `${DWELL_AFTER_TYPE_MS + (beatIdx === 3 ? 900 : beatIdx === 4 ? 500 : beatIdx === 1 ? 200 : 0)}ms` }} />
+            <div
+              className="cs-auto-bar-fill"
+              style={{
+                animationDuration: `${DWELL_AFTER_TYPE_MS + (beatIdx === 3 ? 900 : beatIdx === 4 ? 500 : beatIdx === 1 ? 200 : 0)}ms`,
+                background: `linear-gradient(90deg, ${palette.dot}55, ${palette.dot}ee)`,
+              }}
+            />
           </div>
         )}
 
-        {/* Progress dots */}
         <div className="cs-progress" aria-hidden="true">
           {BEATS.map((_, i) => (
             <span
               key={i}
-              className={`cs-dot ${i === beatIdx ? 'cs-dot-current' : ''} ${
-                i < beatIdx ? 'cs-dot-past' : ''
-              }`}
+              className={`cs-dot ${i === beatIdx ? 'cs-dot-current' : ''} ${i < beatIdx ? 'cs-dot-past' : ''}`}
+              style={i === beatIdx ? { background: palette.dot, boxShadow: `0 0 10px ${palette.dot}dd` } : {}}
             />
           ))}
         </div>
@@ -311,11 +326,21 @@ const STYLES = `
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Cinematic vignette — soft dark corners centred on the diver window */
+/* Ambient beat tint — sits behind everything, tints the visible 3D world */
+.cs-ambient-tint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: background 1100ms ease;
+  z-index: 0;
+}
+
+/* Cinematic vignette — soft dark corners pulling focus onto the diver */
 .cs-vignette {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 1;
   background: radial-gradient(
     ellipse 72% 58% at 50% 44%,
     rgba(0, 0, 0, 0) 52%,
@@ -329,13 +354,28 @@ const STYLES = `
   to   { opacity: 1; }
 }
 
+/* Beat flash — brief luminance cut on each new line, like a film splice */
+.cs-beat-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.055);
+  animation: cs-flash 340ms ease-out forwards;
+}
+@keyframes cs-flash {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
 .cs-bar {
   position: absolute;
   left: 0;
   right: 0;
   pointer-events: auto;
-  transition: transform 400ms cubic-bezier(0.18, 0.89, 0.32, 1.15);
+  transition: transform 420ms cubic-bezier(0.18, 0.89, 0.32, 1.15);
   will-change: transform;
+  z-index: 3;
 }
 .cs-bar-top {
   top: 0;
@@ -360,7 +400,6 @@ const STYLES = `
   height: 31vh;
   transform: translateY(100%);
   transition-delay: 80ms;
-  /* Subtle oceanic tint — very dark teal-black */
   background: linear-gradient(to bottom, #000c0f 0%, #000a0d 100%);
   border-top: 1px solid rgba(34, 211, 238, 0.28);
   box-shadow:
@@ -387,6 +426,21 @@ const STYLES = `
   pointer-events: none;
 }
 .cs-bar.cs-bar-in { transform: translateY(0); }
+
+/* Location label — subtle scene context in the top bar */
+.cs-location {
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left));
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.60rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: rgba(103, 232, 249, 0.38);
+  text-transform: uppercase;
+  animation: cs-fade-up 700ms ease-out 520ms both;
+}
 
 /* Skip button (top-right of top bar) */
 .cs-skip {
@@ -417,7 +471,7 @@ const STYLES = `
   outline: none;
 }
 
-/* Speaker name */
+/* Speaker badge */
 .cs-speaker {
   display: inline-flex;
   align-items: center;
@@ -430,25 +484,34 @@ const STYLES = `
   text-transform: uppercase;
   text-shadow: 0 0 14px rgba(103, 232, 249, 0.55);
   margin-bottom: 10px;
-  /* Cinematic title reveal — settles in just after the bar arrives,
-     letter-spacing tightening as it fades up. */
   animation: cs-speaker-in 560ms cubic-bezier(0.22, 1, 0.36, 1) 360ms both;
 }
 @keyframes cs-speaker-in {
   from { opacity: 0; transform: translateY(-7px); letter-spacing: 0.42em; }
   to   { opacity: 1; transform: translateY(0);    letter-spacing: 0.22em; }
 }
+
+/* Speaker dot — color set via inline style per beat */
 .cs-speaker-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #22d3ee;
-  box-shadow: 0 0 8px rgba(34, 211, 238, 0.9);
+  flex-shrink: 0;
+  transition: background 600ms ease, box-shadow 600ms ease;
   animation: cs-dot-pulse 1.5s ease-in-out infinite;
 }
 @keyframes cs-dot-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.4; transform: scale(0.7); }
+}
+
+/* Speaker name — re-keyed every beat to replay this entrance */
+.cs-speaker-name {
+  animation: cs-speaker-name-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes cs-speaker-name-in {
+  from { opacity: 0.3; letter-spacing: 0.38em; }
+  to   { opacity: 1;   letter-spacing: 0.22em; }
 }
 
 /* Subtitle text */
@@ -460,18 +523,16 @@ const STYLES = `
   line-height: 1.42;
   font-weight: 600;
   color: #e8f8ff;
-  text-shadow:
-    0 2px 18px rgba(0, 0, 0, 0.95),
-    0 0 40px rgba(34, 211, 238, 0.06);
   letter-spacing: 0.012em;
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   animation: cs-line-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: text-shadow 800ms ease;
 }
-/* Each beat re-mounts (keyed) so this fade+rise replays per line, turning
-   the old hard cut between beats into a smooth cinematic transition */
+/* Beat 1 (nostalgia): slight italic — the memory leans */
+.cs-subtitle-nostalgic { font-style: italic; }
 @keyframes cs-line-in {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -491,7 +552,7 @@ const STYLES = `
   50%       { opacity: 0; }
 }
 
-/* Auto-advance progress bar */
+/* Auto-advance progress bar — fill color set via inline style per beat */
 .cs-auto-bar {
   width: 100%;
   max-width: 820px;
@@ -504,7 +565,6 @@ const STYLES = `
 .cs-auto-bar-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, rgba(34,211,238,0.4), rgba(34,211,238,0.9));
   border-radius: 1px;
   animation: cs-bar-fill linear forwards;
 }
@@ -513,7 +573,7 @@ const STYLES = `
   to   { width: 100%; }
 }
 
-/* Progress dots */
+/* Progress dots — current dot color + shadow set via inline style per beat */
 .cs-progress {
   display: flex;
   gap: 8px;
@@ -530,14 +590,10 @@ const STYLES = `
   border-radius: 50%;
   background: rgba(34, 211, 238, 0.18);
   border: 1px solid rgba(34, 211, 238, 0.32);
-  transition: background 200ms, transform 200ms, box-shadow 200ms;
+  transition: background 300ms, transform 300ms, box-shadow 300ms;
 }
 .cs-dot-past { background: rgba(34, 211, 238, 0.55); }
-.cs-dot-current {
-  background: #22d3ee;
-  transform: scale(1.25);
-  box-shadow: 0 0 10px rgba(34, 211, 238, 0.85);
-}
+.cs-dot-current { transform: scale(1.28); }
 
 /* Tap hint */
 .cs-tap-hint {
@@ -567,6 +623,7 @@ const STYLES = `
   .cs-subtitle { font-size: 1.22rem; line-height: 1.50; }
   .cs-speaker { font-size: 0.72rem; }
   .cs-skip { padding: 6px 12px; font-size: 0.68rem; }
+  .cs-location { font-size: 0.54rem; }
 }
 
 /* ─── Landscape phones — keep bars thin so the world stays visible ── */
@@ -583,6 +640,7 @@ const STYLES = `
   .cs-dot { width: 6px; height: 6px; }
   .cs-tap-hint { margin-top: 6px; font-size: 0.58rem; }
   .cs-skip { padding: 4px 10px; font-size: 0.62rem; }
+  .cs-location { display: none; }
 }
 
 /* ─── Wide desktop — let the bars be a bit bigger ───────────────────── */
@@ -607,6 +665,10 @@ const STYLES = `
   .cs-subtitle { animation: none; }
   .cs-vignette { animation: none; opacity: 1; }
   .cs-speaker { animation: none; }
+  .cs-speaker-name { animation: none; }
   .cs-progress { animation: none; }
+  .cs-beat-flash { animation: none; opacity: 0; }
+  .cs-location { animation: none; opacity: 1; }
+  .cs-ambient-tint { transition-duration: 1ms; }
 }
 `;
