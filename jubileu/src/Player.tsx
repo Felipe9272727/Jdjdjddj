@@ -338,6 +338,10 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const diverCineRef = useRef(0); // elapsed time inside the Floor 2 cinematic camera
   // Emotion-reactive framing: smoothed dist/fov offsets driven by dialogue beat.
   const diverFrameRef = useRef({ dist: 0, fov: 0 });
+  // Beat-jolt: when the diver beat changes, briefly boost camera lerp alpha
+  // so it re-frames quickly before settling back to the slow dolly speed.
+  const beatJoltRef = useRef(0);          // seconds of jolt remaining
+  const prevDiverBeatRef = useRef(-1);    // to detect beat changes
   const camPosRef = useRef(new Vector3(0, 0, 8)); // smooth camera position
   const camInitRef = useRef(false); // sync camera to player pos on first frame
   const walls = useMemo(() => wallsForState(currentLevel, doorsClosed, houseDoorOpen), [currentLevel, doorsClosed, houseDoorOpen]);
@@ -426,21 +430,27 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         // look target stays fixed, so the diver holds frame while the
         // camera breathes around him for subtle parallax.
         let camDist = isDiverScene ? 5.8 : 2.2;
-        let driftX = 0, driftY = 0;
+        let driftX = 0, driftY = 0, driftZ = 0;
         let beatFov = 0;
         if (isDiverScene) {
           diverCineRef.current += safeDt;
           const ct = diverCineRef.current;
           const pushEase = 1 - Math.pow(1 - Math.min(1, ct / 16), 3);
           camDist = 6.2 - pushEase * 0.8;  // slow dolly 6.2→5.4 over 16s
-          // Handheld cinematographer arc — primary slow sweep + faster micro-tremor.
-          // X swings ±0.22m so the diver shifts within the frame; Y floats ±0.09m.
+          // Handheld cinematographer arc — primary slow sweep + micro-tremor.
+          // X swings ±0.22m so the diver shifts within the frame;
+          // Y floats ±0.09m; Z adds a subtle depth breathe (±0.06m).
           driftX = Math.sin(ct * 0.38) * 0.18 + Math.sin(ct * 1.10 + 0.7) * 0.04;
           driftY = Math.cos(ct * 0.29) * 0.09 + Math.sin(ct * 0.85 + 1.4) * 0.025;
-          // ── Emotion-reactive framing — the camera responds to the beat ──
-          // Memory beat pulls back & widens; intimate/authority beats push in
-          // and tighten the lens so the diver fills more of the frame.
+          driftZ = Math.sin(ct * 0.22 + 0.5) * 0.06 + Math.sin(ct * 0.67 + 2.1) * 0.02;
+          // ── Beat detection: jolt camera on beat change ──────────────────
           const beat = diverBeatRef?.current ?? -1;
+          if (beat !== prevDiverBeatRef.current) {
+            prevDiverBeatRef.current = beat;
+            beatJoltRef.current = 0.28; // 280ms of boosted lerp
+          }
+          beatJoltRef.current = Math.max(0, beatJoltRef.current - safeDt);
+          // ── Emotion-reactive framing ────────────────────────────────────
           const distTarget =
             beat === 1 ?  0.55 :   // memory — pull back, give him room
             beat === 2 ? -0.35 :   // caring — lean the lens in
@@ -461,11 +471,21 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
         const camHeight  = isDiverScene ? 1.55 : 1.75;
         const lookHeight = isDiverScene ? 1.3  : 1.35;
-        const targetFov  = (isDiverScene ? 46 : 40) + beatFov;
+        // Focal breathing: tie a ±0.3° FOV oscillation to the diver's breathing
+        // rhythm (1.45 rad/s) so the camera feels alive even when stationary.
+        const breathFov = isDiverScene
+          ? Math.sin(state.clock.elapsedTime * 1.45) * 0.30
+          : 0;
+        const targetFov  = (isDiverScene ? 46 : 40) + beatFov + breathFov;
         const tCam = _v.current[1].copy(nP).addScaledVector(d2p, camDist);
-        tCam.y += camHeight + driftY; tCam.x += driftX;
+        tCam.y += camHeight + driftY; tCam.x += driftX; tCam.z -= driftZ;
         const tLook = _v.current[2].copy(nP); tLook.y += lookHeight;
-        const dlgAlpha = Math.min(5 * safeDt, 0.4);
+        // Beat jolt: briefly use a much higher lerp alpha so the camera snaps
+        // to the new beat framing, then eases back to the slow dolly speed.
+        const joltBoost = isDiverScene && beatJoltRef.current > 0
+          ? (beatJoltRef.current / 0.28) * 0.55   // 0→0.55 extra alpha during jolt
+          : 0;
+        const dlgAlpha = Math.min(5 * safeDt, 0.4) + joltBoost;
         camera.position.lerp(tCam, dlgAlpha);
         if (camLookRef.current.distanceTo(tLook) > 10) { camLookRef.current.copy(pP); camLookRef.current.y += 1.6; }
         camLookRef.current.lerp(tLook, dlgAlpha);
