@@ -51,28 +51,28 @@ export const CrystalCluster: React.FC<{ x: number; y: number; z: number; color: 
             <meshStandardMaterial
                 color={color}
                 emissive={color}
-                emissiveIntensity={2.2}
+                emissiveIntensity={0.95}
                 metalness={0.55}
                 roughness={0.15}
                 toneMapped={false}
             />
         </mesh>
         <mesh geometry={CRYSTAL_GEO} scale={0.75} position={[0.45, -0.20, 0.15]} rotation={[0.6, 1.2, 0.3]}>
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.9} metalness={0.5} roughness={0.18} toneMapped={false} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.75} metalness={0.5} roughness={0.18} toneMapped={false} />
         </mesh>
         <mesh geometry={CRYSTAL_GEO} scale={0.55} position={[-0.42, -0.25, -0.05]} rotation={[-0.4, 0.5, 0.7]}>
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.7} metalness={0.5} roughness={0.2} toneMapped={false} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.60} metalness={0.5} roughness={0.2} toneMapped={false} />
         </mesh>
         <mesh geometry={CRYSTAL_GEO} scale={0.4} position={[0.0, 0.35, -0.15]} rotation={[0.2, 0.2, 1.4]}>
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.4} metalness={0.5} roughness={0.2} toneMapped={false} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.45} metalness={0.5} roughness={0.2} toneMapped={false} />
         </mesh>
         {/* Round glow halo — additive sprite */}
         <sprite scale={[2.5, 2.5, 1]}>
-            <spriteMaterial map={GLOW_TEXTURE} color={color} transparent opacity={0.45} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+            <spriteMaterial map={GLOW_TEXTURE} color={color} transparent opacity={0.30} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
         </sprite>
         {/* Bigger soft outer glow for atmospheric pool of light */}
         <sprite scale={[5.0, 5.0, 1]}>
-            <spriteMaterial map={GLOW_TEXTURE} color={color} transparent opacity={0.12} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+            <spriteMaterial map={GLOW_TEXTURE} color={color} transparent opacity={0.08} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
         </sprite>
     </group>
 );

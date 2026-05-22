@@ -157,8 +157,8 @@ const UpwardLightShaft: React.FC = () => {
         (matInner as any).intensity = breath * 1.20;
         (matOuter as any).time = t * 0.7 + 5.0;
         (matOuter as any).intensity = breath * 0.55;
-        if (haloRef.current) haloRef.current.opacity = 0.55 + breath * 0.20;
-        if (topGlowRef.current) topGlowRef.current.opacity = 0.30 + breath * 0.15;
+        if (haloRef.current) haloRef.current.opacity = 0.22 + breath * 0.08;
+        if (topGlowRef.current) topGlowRef.current.opacity = 0.10 + breath * 0.06;
     });
     return (
         <group position={[HOLE_CENTER_X, WATER_LEVEL_Y, HOLE_CENTER_Z]}>
@@ -174,24 +174,24 @@ const UpwardLightShaft: React.FC = () => {
                 <primitive object={matOuter} attach="material" />
             </mesh>
             {/* Bright source halo on the water — billboard, soft falloff */}
-            <sprite position={[0, 0.08, 0]} scale={[7, 7, 1]}>
+            <sprite position={[0, 0.08, 0]} scale={[6, 6, 1]}>
                 <spriteMaterial
                     ref={haloRef}
                     color="#a8e8ff"
                     transparent
-                    opacity={0.55}
+                    opacity={0.28}
                     depthWrite={false}
                     toneMapped={false}
                     blending={THREE.AdditiveBlending}
                 />
             </sprite>
             {/* Subtle top glow where the shaft reaches the ceiling */}
-            <sprite position={[0, 7.6, 0]} scale={[5, 2.2, 1]}>
+            <sprite position={[0, 7.6, 0]} scale={[4, 1.8, 1]}>
                 <spriteMaterial
                     ref={topGlowRef}
                     color="#9ad8ee"
                     transparent
-                    opacity={0.30}
+                    opacity={0.14}
                     depthWrite={false}
                     toneMapped={false}
                     blending={THREE.AdditiveBlending}
@@ -233,9 +233,9 @@ const BioluminescentPatches: React.FC = () => {
             const phase = i * 0.97;
             const breath = 0.55 + Math.sin(t * 0.8 + phase) * 0.25 + Math.sin(t * 2.3 + phase * 1.7) * 0.08;
             const mat = matRefs.current[i];
-            if (mat) mat.opacity = breath;
+            if (mat) mat.opacity = breath * 0.42;
             const halo = haloRefs.current[i];
-            if (halo) halo.opacity = breath * 0.18;
+            if (halo) halo.opacity = breath * 0.08;
         }
     });
     return (
@@ -243,24 +243,24 @@ const BioluminescentPatches: React.FC = () => {
             {BIO_POSITIONS.map(([x, y, z, color, scl], i) => (
                 <React.Fragment key={i}>
                     {/* Core dot — bright additive */}
-                    <sprite position={[x, y, z]} scale={[0.6 * scl, 0.6 * scl, 1]}>
+                    <sprite position={[x, y, z]} scale={[0.5 * scl, 0.5 * scl, 1]}>
                         <spriteMaterial
                             ref={(r: any) => { matRefs.current[i] = r; }}
                             color={color}
                             transparent
-                            opacity={0.6}
+                            opacity={0.35}
                             depthWrite={false}
                             toneMapped={false}
                             blending={THREE.AdditiveBlending}
                         />
                     </sprite>
                     {/* Halo — larger softer glow */}
-                    <sprite position={[x, y, z]} scale={[3 * scl, 3 * scl, 1]}>
+                    <sprite position={[x, y, z]} scale={[2 * scl, 2 * scl, 1]}>
                         <spriteMaterial
                             ref={(r: any) => { haloRefs.current[i] = r; }}
                             color={color}
                             transparent
-                            opacity={0.15}
+                            opacity={0.08}
                             depthWrite={false}
                             toneMapped={false}
                             blending={THREE.AdditiveBlending}

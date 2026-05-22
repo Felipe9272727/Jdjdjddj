@@ -994,15 +994,15 @@ export default function App() {
             Medium/low: no postprocessing pass at all. */}
         {hasStarted && settings.quality === 'high' && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
-                {/* Bloom — Floor 2 needs harder bloom for the bioluminescent
-                    crystals + emissive caustics to truly pop. Lower threshold
-                    + higher intensity in the cave; subtle elsewhere. */}
+                {/* Bloom — moderate on Floor 2. Threshold kept high so only
+                    truly bright emissive crystals + water surface bloom;
+                    low enough to avoid washing the whole cave cyan. */}
                 <Bloom
-                    intensity={currentLevel === 2 ? 0.85 : 0.35}
-                    luminanceThreshold={currentLevel === 2 ? 0.55 : 0.95}
-                    luminanceSmoothing={currentLevel === 2 ? 0.35 : 0.2}
+                    intensity={currentLevel === 2 ? 0.45 : 0.35}
+                    luminanceThreshold={currentLevel === 2 ? 0.72 : 0.95}
+                    luminanceSmoothing={currentLevel === 2 ? 0.25 : 0.2}
                     mipmapBlur
-                    kernelSize={currentLevel === 2 ? KernelSize.LARGE : KernelSize.MEDIUM}
+                    kernelSize={currentLevel === 2 ? KernelSize.MEDIUM : KernelSize.MEDIUM}
                 />
                 {/* Chromatic aberration — heavier underwater (light dispersion
                     through liquid). 4x bigger offset on Floor 2 sells the
