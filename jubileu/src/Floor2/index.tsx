@@ -6,10 +6,9 @@
  * previously exported from the monolithic Floor2Underwater.tsx.
  */
 
-import React, { useMemo, useRef, useEffect } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import React, { useMemo, useRef } from 'react';
+import { useThree } from '@react-three/fiber';
 import { Instances, Instance, useTexture, useGLTF } from '@react-three/drei';
-import { RoomEnvironment } from 'three-stdlib';
 import * as THREE from 'three';
 import { ElevatorFacade } from '../Elevator';
 import {
@@ -32,14 +31,17 @@ export {
 } from './constants';
 
 // Re-export sub-components (for anyone importing them directly)
+export { CrystalCluster, Torch, TorchField, DustMotes } from './cave-features';
 export {
-    CrystalCluster, Torch, TorchField, DustMotes,
     WaterSurface, WaterCeilingDisc, DynamicFog, UnderwaterOverlay, WaterOccluder,
+} from './water-effects';
+export {
     UnderwaterCaustics, KelpField, Coral, UnderwaterFlora,
     GodRayShafts, DeepMist, DebrisField, FishSchool,
     UnderwaterSediment, PlanktonField, BubbleField, SurfaceBubbleRing,
     GodRay, GodRays, Shard,
-} from './components';
+} from './underwater-effects';
+export { BioluminescentPatches, UpwardLightShaft, CeilingReflectionCaustics, UnderwaterLighting, CaveIBL } from './lighting';
 
 // Internal imports (not re-exported)
 import {
@@ -65,16 +67,16 @@ import {
     PROC_ROCK_A, PROC_ROCK_B, PROC_ROCK_C, PROC_ROCK_D,
 } from './geometry';
 
+import { CrystalCluster, TorchField, DustMotes } from './cave-features';
+import { WaterSurface, WaterCeilingDisc, DynamicFog, UnderwaterOverlay, WaterOccluder } from './water-effects';
 import {
-    CrystalCluster, TorchField, DustMotes,
-    WaterSurface, WaterCeilingDisc, DynamicFog, UnderwaterOverlay, WaterOccluder,
     UnderwaterCaustics, UnderwaterFlora,
     GodRayShafts, DeepMist, DebrisField, FishSchool,
     UnderwaterSediment, PlanktonField, BubbleField, SurfaceBubbleRing,
     GodRay, GodRays, Shard,
-} from './components';
+} from './underwater-effects';
+import { BioluminescentPatches, UpwardLightShaft, CeilingReflectionCaustics, UnderwaterLighting, CaveIBL } from './lighting';
 
-import { CausticsMaterial, LightShaftMaterial } from './shaders';
 
 // ─── Texture loading helper ────────────────────────────────────────
 function usePBRSet(colorUrl: string, normalUrl: string, roughUrl: string, aoUrl: string, repeatX: number, repeatY: number) {
@@ -95,300 +97,6 @@ const ROCK_MODEL_URLS = [rockModelA, rockModelB, rockModelC, rockModelD];
 const BOULDER_MODEL_URL = boulderModel;
 const PEBBLE_MODEL_URL = pebbleModel;
 
-// ─── BioluminescentPatches — scattered emissive sprite glow points ─
-// Cave gets a painterly "alive mineral" quality. Each patch breathes
-// at its own phase so the cave hums softly. Quality-gated by the
-// caller (only mounted when `reflective` is true).
-const BIO_POSITIONS: readonly [number, number, number, string, number][] = [
-    // [x, y, z, color, baseScale]
-    [-27, 1.4, 12, '#3affaa', 1.4],
-    [ 27, 2.2, -8, '#9affd0', 1.2],
-    [-15, 0.4, 24, '#3affc8', 1.0],
-    [ 18, 1.8, 26, '#5af0d0', 1.3],
-    [-22, 4.5, -22, '#9aff80', 1.5],
-    [ 24, 3.8, 18, '#3affaa', 1.1],
-    [-8, 6.2, -28, '#7affc0', 1.0],
-    [ 11, 5.5, 28, '#3affd0', 1.2],
-    [-26, 2.5, -3, '#5affb0', 1.0],
-    [ 28, 1.2, 22, '#9affb0', 1.3],
-    [-2, 0.3, -25, '#3afff0', 0.9],
-    [ 6, 0.5, 22, '#5affb0', 0.9],
-    // violet/purple accents for mood variety
-    [-19, 3.0, -16, '#a06aff', 1.3],
-    [ 22, 5.0, 5, '#b07aff', 1.1],
-    [-12, 1.5, 6, '#c08aff', 1.0],
-    [ 9, 4.2, -22, '#a06aff', 1.2],
-];
-
-// ─── CeilingReflectionCaustics — light dancing on the cave ceiling ─
-// Water reflects sunlight (or in our case the ember/torch light) up onto
-// the cave ceiling — a real-world phenomenon that immediately reads as
-// "there's water there". We project a caustic plane just below the
-// ceiling, sized to the water hole, with a warm tint (matches the
-// ember sprites' glow color) and additive blending so it brightens
-// instead of darkening the ceiling texture.
-// ─── UpwardLightShaft — magical vertical glow rising from the water ─
-// Reads as "there's something supernatural about this hole" — a Subnautica/
-// Sea of Thieves trope. A vertical cone with very low additive opacity,
-// breathing softly so the cave never feels static. Visible from across
-// the cave when the player is above water.
-const UpwardLightShaft: React.FC = () => {
-    // Two stacked, open-cylinder shells using the LightShaftMaterial.
-    // Combined with a soft halo billboard at the source and a tight
-    // additive halo at the top, the result reads as a continuous god
-    // ray rather than a hard-edged cone.
-    const matInner = useMemo(() => {
-        const m = new (LightShaftMaterial as any)();
-        m.transparent = true; m.depthWrite = false; m.toneMapped = false;
-        m.blending = THREE.AdditiveBlending; m.side = THREE.DoubleSide;
-        return m;
-    }, []);
-    const matOuter = useMemo(() => {
-        const m = new (LightShaftMaterial as any)();
-        m.transparent = true; m.depthWrite = false; m.toneMapped = false;
-        m.blending = THREE.AdditiveBlending; m.side = THREE.DoubleSide;
-        return m;
-    }, []);
-    const haloRef = useRef<THREE.SpriteMaterial>(null);
-    const topGlowRef = useRef<THREE.SpriteMaterial>(null);
-    useFrame((state) => {
-        const t = state.clock.elapsedTime;
-        const breath = 0.85 + Math.sin(t * 0.6) * 0.12 + Math.sin(t * 1.7) * 0.05;
-        (matInner as any).time = t;
-        (matInner as any).intensity = breath * 1.20;
-        (matOuter as any).time = t * 0.7 + 5.0;
-        (matOuter as any).intensity = breath * 0.55;
-        if (haloRef.current) haloRef.current.opacity = 0.22 + breath * 0.08;
-        if (topGlowRef.current) topGlowRef.current.opacity = 0.10 + breath * 0.06;
-    });
-    return (
-        <group position={[HOLE_CENTER_X, WATER_LEVEL_Y, HOLE_CENTER_Z]}>
-            {/* Inner shaft: tighter, more concentrated.
-                Open-ended cylinder (last arg = true) so we don't render top/bottom caps. */}
-            <mesh position={[0, 4.0, 0]}>
-                <cylinderGeometry args={[1.2, 1.8, 8.0, 64, 4, true]} />
-                <primitive object={matInner} attach="material" />
-            </mesh>
-            {/* Outer shaft: wider, fainter, softer falloff for the volumetric halo */}
-            <mesh position={[0, 4.0, 0]}>
-                <cylinderGeometry args={[2.4, 3.0, 8.0, 64, 4, true]} />
-                <primitive object={matOuter} attach="material" />
-            </mesh>
-            {/* Bright source halo on the water — billboard, soft falloff */}
-            <sprite position={[0, 0.08, 0]} scale={[6, 6, 1]}>
-                <spriteMaterial
-                    ref={haloRef}
-                    color="#a8e8ff"
-                    transparent
-                    opacity={0.28}
-                    depthWrite={false}
-                    toneMapped={false}
-                    blending={THREE.AdditiveBlending}
-                />
-            </sprite>
-            {/* Subtle top glow where the shaft reaches the ceiling */}
-            <sprite position={[0, 7.6, 0]} scale={[4, 1.8, 1]}>
-                <spriteMaterial
-                    ref={topGlowRef}
-                    color="#9ad8ee"
-                    transparent
-                    opacity={0.14}
-                    depthWrite={false}
-                    toneMapped={false}
-                    blending={THREE.AdditiveBlending}
-                />
-            </sprite>
-        </group>
-    );
-};
-
-const CeilingReflectionCaustics: React.FC = () => {
-    const mat = useMemo(() => {
-        const m = new (CausticsMaterial as any)();
-        m.transparent = true;
-        m.depthWrite = false;
-        m.blending = THREE.AdditiveBlending;
-        m.toneMapped = false;
-        return m;
-    }, []);
-    useFrame((state) => { (mat as any).time = state.clock.elapsedTime * 0.6; });
-    return (
-        <mesh
-            position={[HOLE_CENTER_X, 7.85, HOLE_CENTER_Z]}
-            rotation={[Math.PI / 2, 0, 0]}
-        >
-            {/* Scale the projection wider than the hole — water reflection
-                fans out across the ceiling, not just directly above. */}
-            <planeGeometry args={[HOLE_RADIUS * 4.5, HOLE_RADIUS * 4.5]} />
-            <primitive object={mat} attach="material" />
-        </mesh>
-    );
-};
-
-const BioluminescentPatches: React.FC = () => {
-    const matRefs = React.useRef<(THREE.SpriteMaterial | null)[]>(new Array(BIO_POSITIONS.length).fill(null));
-    const haloRefs = React.useRef<(THREE.SpriteMaterial | null)[]>(new Array(BIO_POSITIONS.length).fill(null));
-    useFrame((state) => {
-        const t = state.clock.elapsedTime;
-        for (let i = 0; i < BIO_POSITIONS.length; i++) {
-            const phase = i * 0.97;
-            const breath = 0.55 + Math.sin(t * 0.8 + phase) * 0.25 + Math.sin(t * 2.3 + phase * 1.7) * 0.08;
-            const mat = matRefs.current[i];
-            if (mat) mat.opacity = breath * 0.42;
-            const halo = haloRefs.current[i];
-            if (halo) halo.opacity = breath * 0.08;
-        }
-    });
-    return (
-        <group>
-            {BIO_POSITIONS.map(([x, y, z, color, scl], i) => (
-                <React.Fragment key={i}>
-                    {/* Core dot — bright additive */}
-                    <sprite position={[x, y, z]} scale={[0.5 * scl, 0.5 * scl, 1]}>
-                        <spriteMaterial
-                            ref={(r: any) => { matRefs.current[i] = r; }}
-                            color={color}
-                            transparent
-                            opacity={0.35}
-                            depthWrite={false}
-                            toneMapped={false}
-                            blending={THREE.AdditiveBlending}
-                        />
-                    </sprite>
-                    {/* Halo — larger softer glow */}
-                    <sprite position={[x, y, z]} scale={[2 * scl, 2 * scl, 1]}>
-                        <spriteMaterial
-                            ref={(r: any) => { haloRefs.current[i] = r; }}
-                            color={color}
-                            transparent
-                            opacity={0.08}
-                            depthWrite={false}
-                            toneMapped={false}
-                            blending={THREE.AdditiveBlending}
-                        />
-                    </sprite>
-                </React.Fragment>
-            ))}
-        </group>
-    );
-};
-
-// ─── UnderwaterLighting — animates ambient + hemisphere + shaft point light
-// based on player Y. Above water it stays warm/cave-toned; below water it
-// drives cool cyan-blue tint with a downward focus and a soft "shaft of light
-// from above" point light at the hole position.
-const UnderwaterLighting: React.FC<{
-    playerPositionRef: React.MutableRefObject<THREE.Vector3>;
-    reflective: boolean;
-}> = ({ playerPositionRef, reflective }) => {
-    const ambientRef = useRef<THREE.AmbientLight>(null);
-    const hemiRef = useRef<THREE.HemisphereLight>(null);
-    const dirRef = useRef<THREE.DirectionalLight>(null);
-    const shaftPointRef = useRef<THREE.PointLight>(null);
-
-    // Stable Color instances to lerp toward — avoids allocating per frame
-    const _ambCave = useMemo(() => new THREE.Color('#e8d4b0'), []);
-    const _ambWater = useMemo(() => new THREE.Color('#4090b0'), []);
-    const _hemiCave = useMemo(() => new THREE.Color('#d0b89a'), []);
-    const _hemiWater = useMemo(() => new THREE.Color('#3aa0c0'), []);
-    const _ambTmp = useMemo(() => new THREE.Color(), []);
-    const _hemiTmp = useMemo(() => new THREE.Color(), []);
-
-    useFrame((_, dt) => {
-        const safeDt = Math.min(dt, 0.033);
-        const y = playerPositionRef.current?.y ?? 0;
-        swimmerY.current = y;
-        // 0 = above water, 1 = fully underwater
-        const tWater = Math.max(0, Math.min(1, (SWIM_THRESHOLD_Y - y) / 5));
-        // Depth fraction (0 at surface, 1 at deepest)
-        const depth = Math.max(0, Math.min(1, -y / 29));
-
-        const k = Math.min(1, 8 * safeDt);
-
-        // Ambient — much brighter in the cave so the dark stone textures
-        // are readable; cool down + dim slightly underwater for contrast.
-        if (ambientRef.current) {
-            _ambTmp.copy(_ambCave).lerp(_ambWater, tWater);
-            ambientRef.current.color.lerp(_ambTmp, k);
-            const tgtInt = 1.10 - tWater * 0.45;
-            ambientRef.current.intensity += (tgtInt - ambientRef.current.intensity) * k;
-        }
-        // Hemisphere — same idea: bright warm key from above in the cave,
-        // colder and dimmer underwater.
-        if (hemiRef.current) {
-            _hemiTmp.copy(_hemiCave).lerp(_hemiWater, tWater);
-            hemiRef.current.color.lerp(_hemiTmp, k);
-            const tgtInt = 0.70 - tWater * 0.10;
-            hemiRef.current.intensity += (tgtInt - hemiRef.current.intensity) * k;
-        }
-        // Directional light — only "active" underwater, focused down from hole
-        if (dirRef.current) {
-            // Stronger when near surface, fades with depth (light absorption)
-            const tgt = tWater * (1.0 - depth * 0.6) * 1.2;
-            dirRef.current.intensity += (tgt - dirRef.current.intensity) * k;
-        }
-        // Shaft point light — only active when player is underwater AND
-        // close-ish to the hole horizontally (avoid over-illuminating far corners)
-        if (shaftPointRef.current) {
-            const dx = (playerPositionRef.current?.x ?? 0) - HOLE_CENTER_X;
-            const dz = (playerPositionRef.current?.z ?? 0) - HOLE_CENTER_Z;
-            const horiz = Math.sqrt(dx * dx + dz * dz);
-            const proximity = Math.max(0, 1 - horiz / 25);
-            const tgt = tWater * proximity * (1.0 - depth * 0.4) * 1.4;
-            shaftPointRef.current.intensity += (tgt - shaftPointRef.current.intensity) * k;
-        }
-    });
-
-    return (
-        <>
-            <ambientLight ref={ambientRef} intensity={1.10} color="#e8d4b0" />
-            <hemisphereLight ref={hemiRef} intensity={0.70} color="#d0b89a" groundColor="#1a1208" />
-            <directionalLight
-                position={[HOLE_CENTER_X, 12, HOLE_CENTER_Z]}
-                target-position={[HOLE_CENTER_X, -25, HOLE_CENTER_Z]}
-                intensity={0}
-                color="#5acce0"
-                ref={dirRef}
-            />
-            {/* "Shaft of light from above" — soft underwater point light at the hole.
-                Distance ~22 so it focuses on the upper underwater zone. */}
-            {reflective && (
-                <pointLight
-                    ref={shaftPointRef}
-                    position={[HOLE_CENTER_X, -3, HOLE_CENTER_Z]}
-                    intensity={0}
-                    color="#7ad4e8"
-                    distance={22}
-                    decay={2}
-                />
-            )}
-        </>
-    );
-};
-
-// ─── CaveIBL — procedural environment map for PBR materials ───────────
-// Generates a small PMREM (pre-filtered mipmap radiance environment map)
-// from Three.js's RoomEnvironment.  This gives PBR materials (the GLB
-// concierge, the wet rock around the well, the cave rocks) something to
-// reflect, which is what makes them read as 3D surfaces instead of flat
-// colour planes.  Self-contained — no HDRI download.
-const CaveIBL: React.FC = () => {
-    const { gl, scene } = useThree();
-    useEffect(() => {
-        const pmrem = new THREE.PMREMGenerator(gl);
-        pmrem.compileEquirectangularShader();
-        const room = RoomEnvironment();
-        const envRT = pmrem.fromScene(room, 0.04);
-        scene.environment = envRT.texture;
-        // Don't set scene.background — DynamicFog owns background colour.
-        return () => {
-            scene.environment = null;
-            envRT.dispose();
-            pmrem.dispose();
-        };
-    }, [gl, scene]);
-    return null;
-};
 
 // ─── Full level ────────────────────────────────────────────────────────
 interface Floor2EnvironmentProps {
