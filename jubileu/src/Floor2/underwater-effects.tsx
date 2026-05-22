@@ -16,7 +16,7 @@ import {
     DEBRIS_COUNT, SEDIMENT_COUNT, PLANKTON_COUNT, FISH_COUNT,
     BUBBLE_COUNT, BUBBLE_RANGE, BUBBLE_RISE, BUBBLE_MAX_Y, BUBBLE_MIN_Y,
     SURFACE_BUBBLE_COUNT, SURFACE_BUBBLE_RING_RADIUS,
-    COLLECT_DIST_SQ,
+    COLLECT_DIST_SQ, SHARD_POSITIONS,
     KELP_POSITIONS, CORAL_POSITIONS,
 } from './constants';
 import {
@@ -514,6 +514,7 @@ export const SurfaceBubbleRing: React.FC = () => {
         }))
     );
     useFrame((state) => {
+        if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         const t = state.clock.elapsedTime;
         for (let i = 0; i < SURFACE_BUBBLE_COUNT; i++) {
             const r = refs.current[i];
@@ -543,6 +544,7 @@ export const SurfaceBubbleRing: React.FC = () => {
 export const GodRay: React.FC = () => {
     const matRef = useRef<THREE.ShaderMaterial>(null);
     useFrame((state) => {
+        if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         if (matRef.current) (matRef.current as any).time = state.clock.elapsedTime;
     });
     return (
@@ -661,6 +663,73 @@ export const Shard: React.FC<ShardProps> = ({ index, position, collected, onColl
             <sprite scale={[1.3, 1.3, 1]}>
                 <spriteMaterial map={GLOW_TEXTURE} color="#9be8ff" transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
             </sprite>
+        </group>
+    );
+};
+
+// ─── ShardField — single useFrame manages all collectible shards ───────
+interface ShardFieldProps {
+    collectedShards: Set<number>;
+    onCollectShard: (i: number) => void;
+    playerPositionRef: React.MutableRefObject<THREE.Vector3>;
+}
+export const ShardField: React.FC<ShardFieldProps> = ({ collectedShards, onCollectShard, playerPositionRef }) => {
+    const groupRefs = useRef<(THREE.Group | null)[]>(new Array(SHARD_POSITIONS.length).fill(null));
+    const collectStartRefs = useRef<(number | null)[]>(new Array(SHARD_POSITIONS.length).fill(null));
+    const { camera } = useThree();
+
+    useFrame((state) => {
+        const t = state.clock.elapsedTime;
+        const pp = playerPositionRef.current;
+
+        for (let index = 0; index < SHARD_POSITIONS.length; index++) {
+            const g = groupRefs.current[index];
+            if (!g) continue;
+
+            const position = SHARD_POSITIONS[index];
+            const dxCam = position[0] - camera.position.x;
+            const dyCam = position[1] - camera.position.y;
+            const dzCam = position[2] - camera.position.z;
+            if (dxCam*dxCam + dyCam*dyCam + dzCam*dzCam > 600) {
+                g.visible = false;
+                continue;
+            }
+
+            const collected = collectedShards.has(index);
+            if (collected) {
+                if (collectStartRefs.current[index] === null) collectStartRefs.current[index] = t;
+                const elapsed = t - (collectStartRefs.current[index] as number);
+                const k = Math.max(0, 1 - elapsed * 2);
+                g.scale.setScalar(k);
+                if (k <= 0.001) g.visible = false;
+                continue;
+            }
+
+            g.visible = true;
+            g.rotation.y = t * 0.7 + index;
+            g.rotation.x = Math.sin(t * 0.5 + index) * 0.3;
+            g.position.set(position[0], position[1] + Math.sin(t * 1.2 + index) * 0.15, position[2]);
+            g.scale.setScalar(1 + Math.sin(t * 2 + index) * 0.05);
+
+            const dx = position[0] - pp.x;
+            const dy = position[1] - pp.y;
+            const dz = position[2] - pp.z;
+            if (dx*dx + dy*dy + dz*dz < COLLECT_DIST_SQ) onCollectShard(index);
+        }
+    });
+
+    return (
+        <group>
+            {SHARD_POSITIONS.map((position, index) => (
+                <group key={index} ref={(r: any) => { groupRefs.current[index] = r; }} position={[position[0], position[1], position[2]]}>
+                    <mesh geometry={SHARD_GEO}>
+                        <meshStandardMaterial color="#9be8ff" emissive="#5ad8ff" emissiveIntensity={1.5} metalness={0.4} roughness={0.1} toneMapped={false} />
+                    </mesh>
+                    <sprite scale={[1.3, 1.3, 1]}>
+                        <spriteMaterial map={GLOW_TEXTURE} color="#9be8ff" transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                    </sprite>
+                </group>
+            ))}
         </group>
     );
 };

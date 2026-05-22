@@ -39,7 +39,7 @@ export {
     UnderwaterCaustics, KelpField, Coral, UnderwaterFlora,
     GodRayShafts, DeepMist, DebrisField, FishSchool,
     UnderwaterSediment, PlanktonField, BubbleField, SurfaceBubbleRing,
-    GodRay, GodRays, Shard,
+    GodRay, GodRays, Shard, ShardField,
 } from './underwater-effects';
 export { BioluminescentPatches, UpwardLightShaft, CeilingReflectionCaustics, UnderwaterLighting, CaveIBL } from './lighting';
 
@@ -52,7 +52,6 @@ import {
     CRYSTALS, TORCH_POSITIONS,
     UW_BOULDERS, UW_PEBBLES, UW_SCATTERED_ROCKS,
     UW_CORAL_PILLARS, UW_ARCHES,
-    SHARD_POSITIONS,
     swimmerY,
 } from './constants';
 
@@ -73,7 +72,7 @@ import {
     UnderwaterCaustics, UnderwaterFlora,
     GodRayShafts, DeepMist, DebrisField, FishSchool,
     UnderwaterSediment, PlanktonField, BubbleField, SurfaceBubbleRing,
-    GodRay, GodRays, Shard,
+    GodRay, GodRays, ShardField,
 } from './underwater-effects';
 import { BioluminescentPatches, UpwardLightShaft, CeilingReflectionCaustics, UnderwaterLighting, CaveIBL } from './lighting';
 
@@ -96,6 +95,15 @@ function usePBRSet(colorUrl: string, normalUrl: string, roughUrl: string, aoUrl:
 const ROCK_MODEL_URLS = [rockModelA, rockModelB, rockModelC, rockModelD];
 const BOULDER_MODEL_URL = boulderModel;
 const PEBBLE_MODEL_URL = pebbleModel;
+
+// Stable Vector2 instances — avoids new allocations (and forced material
+// uniform updates) every time Floor2Environment renders.
+const V2_15 = /*@__PURE__*/ new THREE.Vector2(1.5, 1.5);
+const V2_18 = /*@__PURE__*/ new THREE.Vector2(1.8, 1.8);
+const V2_20 = /*@__PURE__*/ new THREE.Vector2(2.0, 2.0);
+const V2_22 = /*@__PURE__*/ new THREE.Vector2(2.2, 2.2);
+const V2_24 = /*@__PURE__*/ new THREE.Vector2(2.4, 2.4);
+const V2_25 = /*@__PURE__*/ new THREE.Vector2(2.5, 2.5);
 
 
 // ─── Full level ────────────────────────────────────────────────────────
@@ -151,7 +159,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                     color: '#1a1610',
                     map: caveRock.color,
                     normalMap: caveRock.normal,
-                    normalScale: new THREE.Vector2(2.0, 2.0),
+                    normalScale: V2_20,
                     roughnessMap: caveRock.rough,
                     roughness: 0.92,
                     aoMap: caveRock.ao,
@@ -171,7 +179,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                     color: '#0a0c08',
                     map: uwRock.color,
                     normalMap: uwRock.normal,
-                    normalScale: new THREE.Vector2(2.0, 2.0),
+                    normalScale: V2_20,
                     roughnessMap: uwRock.rough,
                     roughness: 0.95,
                     aoMap: uwRock.ao,
@@ -190,7 +198,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                     color: '#1a1610',
                     map: caveRock.color,
                     normalMap: caveRock.normal,
-                    normalScale: new THREE.Vector2(2.0, 2.0),
+                    normalScale: V2_20,
                     roughnessMap: caveRock.rough,
                     roughness: 0.92,
                     aoMap: caveRock.ao,
@@ -200,6 +208,18 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         });
         return scene;
     }, [boulderModel_, caveRock]);
+
+    // Pre-clone all individual rock GLB scenes so they are never re-cloned
+    // during render (JSX re-evaluation would call .clone(true) every frame
+    // otherwise, which is extremely expensive for complex scene graphs).
+    const caveRockClones = useMemo(() => [
+        ...CAVE_ROCKS_DARK.map((_, i) => rockScenes[i % 4].clone(true)),
+        ...CAVE_ROCKS_MID.map((_, i) => rockScenes[(i + 1) % 4].clone(true)),
+    ], [rockScenes]);
+
+    const uwRockClones = useMemo(() =>
+        UW_BOULDERS.map((_, i) => uwRockScenes[i % 4].clone(true)),
+        [uwRockScenes]);
 
     return (
     <group>
@@ -251,7 +271,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 color="#2a2218"
                 map={caveFloor.color}
                 normalMap={caveFloor.normal}
-                normalScale={new THREE.Vector2(2.0, 2.0)}
+                normalScale={V2_20}
                 roughnessMap={caveFloor.rough}
                 roughness={0.88}
                 aoMap={caveFloor.ao}
@@ -268,64 +288,57 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
 
         {/* Cave ceiling — 3D ORGANIC with stalactite-like bumps */}
         <mesh position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]} geometry={CAVE_CEILING_GEO}>
-            <meshStandardMaterial color="#221c14" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#221c14" map={caveWall.color} normalMap={caveWall.normal} normalScale={V2_25} roughnessMap={caveWall.rough} roughness={0.95} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
         </mesh>
 
         {/* CAVE WALLS — ORGANIC displaced PlaneGeometry */}
         {/* North wall (z = -30) — faces +Z (inward) */}
         <mesh position={[0, 5, -30]} rotation={[0, 0, 0]} geometry={CAVE_WALL_N_GEO}>
-            <meshStandardMaterial color="#221c14" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.92} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#221c14" map={caveWall.color} normalMap={caveWall.normal} normalScale={V2_25} roughnessMap={caveWall.rough} roughness={0.92} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
         </mesh>
         {/* South wall (z = 30) — faces -Z (inward) */}
         <mesh position={[0, 5, 30]} rotation={[0, Math.PI, 0]} geometry={CAVE_WALL_S_GEO}>
-            <meshStandardMaterial color="#221c14" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.92} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#221c14" map={caveWall.color} normalMap={caveWall.normal} normalScale={V2_25} roughnessMap={caveWall.rough} roughness={0.92} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
         </mesh>
         {/* West wall (x = -30) — faces +X (inward) */}
         <mesh position={[-30, 5, 0]} rotation={[0, Math.PI / 2, 0]} geometry={CAVE_WALL_W_GEO}>
-            <meshStandardMaterial color="#221c14" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.92} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#221c14" map={caveWall.color} normalMap={caveWall.normal} normalScale={V2_25} roughnessMap={caveWall.rough} roughness={0.92} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
         </mesh>
         {/* East wall (x = 30) — faces -X (inward) */}
         <mesh position={[30, 5, 0]} rotation={[0, -Math.PI / 2, 0]} geometry={CAVE_WALL_E_GEO}>
-            <meshStandardMaterial color="#221c14" map={caveWall.color} normalMap={caveWall.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={caveWall.rough} roughness={0.92} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#221c14" map={caveWall.color} normalMap={caveWall.normal} normalScale={V2_25} roughnessMap={caveWall.rough} roughness={0.92} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
         </mesh>
 
-        {/* Cave boulders — real GLB models with PBR textures */}
+        {/* Cave boulders — real GLB models, pre-cloned in useMemo */}
         {CAVE_ROCKS_DARK.map(([x, y, z, s, ry], i) => (
             <group key={`dark-${i}`} position={[x, y + s * 0.4, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]}>
-                <primitive object={rockScenes[i % 4].clone(true)} />
+                <primitive object={caveRockClones[i]} />
             </group>
         ))}
         {CAVE_ROCKS_MID.map(([x, y, z, s, ry], i) => (
             <group key={`mid-${i}`} position={[x, y + s * 0.4, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]}>
-                <primitive object={rockScenes[(i + 1) % 4].clone(true)} />
+                <primitive object={caveRockClones[CAVE_ROCKS_DARK.length + i]} />
             </group>
         ))}
         {/* Light pebbles — instanced icosahedra */}
         <Instances limit={CAVE_ROCKS_LIGHT.length} range={CAVE_ROCKS_LIGHT.length} geometry={PEBBLE_GEO}>
-            <meshStandardMaterial map={caveRock.color} normalMap={caveRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={caveRock.rough} roughness={0.85} aoMap={caveRock.ao} aoMapIntensity={0.5} />
+            <meshStandardMaterial map={caveRock.color} normalMap={caveRock.normal} normalScale={V2_20} roughnessMap={caveRock.rough} roughness={0.85} aoMap={caveRock.ao} aoMapIntensity={0.5} />
             {CAVE_ROCKS_LIGHT.map(([x, y, z, s, ry], i) => (
                 <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]} />
             ))}
         </Instances>
 
-        {/* POOL RIM — individual boulders forming the circular edge */}
-        {POOL_RIM.map(([x, y, z, s, ry], i) => (
-            <group key={`rim-${i}`} position={[x, y + s * 0.25, z]} scale={[s, s * 0.5, s]} rotation={[0, ry, 0]}>
-                <primitive object={rockScenes[i % 4].clone(true)} />
-            </group>
-        ))}
-
         {/* Stalagmites — procedural noise-displaced cones rising from the floor */}
         {STALAGMITES.map(([x, z, h, r], i) => (
             <mesh key={`stalagmite-${i}`} position={[x, h / 2, z]} geometry={PROC_STALAGMITE_GEOS[i % PROC_STALAGMITE_GEOS.length]}>
-                <meshStandardMaterial color="#3a3024" map={caveRock.color} normalMap={caveRock.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughness={0.95} />
+                <meshStandardMaterial color="#3a3024" map={caveRock.color} normalMap={caveRock.normal} normalScale={V2_15} roughness={0.95} />
             </mesh>
         ))}
 
         {/* Stalactites — procedural noise-displaced inverted cones from the ceiling */}
         {STALACTITES.map(([x, z, h, r], i) => (
             <mesh key={`stalactite-${i}`} position={[x, 8 - h / 2, z]} rotation={[Math.PI, 0, 0]} geometry={PROC_STALACTITE_GEOS[i % PROC_STALACTITE_GEOS.length]}>
-                <meshStandardMaterial color="#322a1f" map={caveRock.color} normalMap={caveRock.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughness={0.95} />
+                <meshStandardMaterial color="#322a1f" map={caveRock.color} normalMap={caveRock.normal} normalScale={V2_15} roughness={0.95} />
             </mesh>
         ))}
 
@@ -351,7 +364,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 color="#1b1610"
                 map={caveRock.color}
                 normalMap={caveRock.normal}
-                normalScale={new THREE.Vector2(2.2, 2.2)}
+                normalScale={V2_22}
                 roughnessMap={caveRock.rough}
                 roughness={0.95}
                 aoMap={caveRock.ao}
@@ -385,7 +398,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 color="#352a22"
                 map={caveRock.color}
                 normalMap={caveRock.normal}
-                normalScale={new THREE.Vector2(2.4, 2.4)}
+                normalScale={V2_24}
                 roughnessMap={caveRock.rough}
                 roughness={0.97}
                 aoMap={caveRock.ao}
@@ -425,7 +438,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 color="#0c100a"
                 map={uwFloor.color}
                 normalMap={uwFloor.normal}
-                normalScale={new THREE.Vector2(2.0, 2.0)}
+                normalScale={V2_20}
                 roughnessMap={uwFloor.rough}
                 roughness={0.92}
                 aoMap={uwFloor.ao}
@@ -454,16 +467,16 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {reflective && <DebrisField />}
         {reflective && <FishSchool />}
 
-        {/* Underwater boulders — with UW PBR materials */}
+        {/* Underwater boulders — pre-cloned in useMemo */}
         {UW_BOULDERS.map(([x, y, z, s, ry], i) => (
             <group key={`uwb-${i}`} position={[x, y + s * 0.4, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]}>
-                <primitive object={uwRockScenes[i % 4].clone(true)} />
+                <primitive object={uwRockClones[i]} />
             </group>
         ))}
 
         {/* Underwater pebbles — darkened */}
         <Instances limit={UW_PEBBLES.length} range={UW_PEBBLES.length} geometry={PEBBLE_GEO}>
-            <meshStandardMaterial color="#0c0c0a" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(1.8, 1.8)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
+            <meshStandardMaterial color="#0c0c0a" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_18} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
             {UW_PEBBLES.map(([x, y, z, s, ry], i) => (
                 <Instance key={i} position={[x, y + s * 0.5, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]} />
             ))}
@@ -482,33 +495,33 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 rotation={[rx, ry, 0]}
                 geometry={i % 4 === 0 ? PROC_ROCK_A : i % 4 === 1 ? PROC_ROCK_B : i % 4 === 2 ? PROC_ROCK_C : PROC_ROCK_D}
             >
-                <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
+                <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
             </mesh>
         ))}
 
         {/* ─── UNDERWATER CAVE WALLS — organic displaced PlaneGeometry ─── */}
         {/* North underwater wall (z = -30) — faces +Z (inward) */}
         <mesh position={[0, -15, -30]} rotation={[0, 0, 0]} geometry={UW_WALL_NORTH_GEO}>
-            <meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={V2_20} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
         </mesh>
         {/* South underwater wall (z = 30) — faces -Z (inward) */}
         <mesh position={[0, -15, 30]} rotation={[0, Math.PI, 0]} geometry={UW_WALL_SOUTH_GEO}>
-            <meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={V2_20} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
         </mesh>
         {/* West underwater wall (x = -30) — faces +X (inward) */}
         <mesh position={[-30, -15, 0]} rotation={[0, Math.PI / 2, 0]} geometry={UW_WALL_WEST_GEO}>
-            <meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={V2_20} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
         </mesh>
         {/* East underwater wall (x = 30) — faces -X (inward) */}
         <mesh position={[30, -15, 0]} rotation={[0, -Math.PI / 2, 0]} geometry={UW_WALL_EAST_GEO}>
-            <meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
+            <meshStandardMaterial color="#0a0c08" map={uwWall.color} normalMap={uwWall.normal} normalScale={V2_20} roughnessMap={uwWall.rough} roughness={0.92} aoMap={uwWall.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
         </mesh>
 
         {/* Underwater coral/rock pillars — tall vertical formations */}
         {UW_CORAL_PILLARS.map(([x, z, h, rTop, rBot], i) => (
             <mesh key={`coral-${i}`} position={[x, -30 + h / 2, z]}>
                 <cylinderGeometry args={[rTop, rBot, h, 8]} />
-                <meshStandardMaterial color="#0c0e08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.5, 2.5)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading side={THREE.DoubleSide} />
+                <meshStandardMaterial color="#0c0e08" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_25} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading side={THREE.DoubleSide} />
             </mesh>
         ))}
 
@@ -518,31 +531,26 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 {/* Left pillar */}
                 <mesh position={[-span / 2, h / 2, 0]}>
                     <cylinderGeometry args={[thick, thick * 1.3, h, 6]} />
-                    <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
+                    <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
                 </mesh>
                 {/* Right pillar */}
                 <mesh position={[span / 2, h / 2, 0]}>
                     <cylinderGeometry args={[thick, thick * 1.3, h, 6]} />
-                    <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
+                    <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
                 </mesh>
                 {/* Top beam */}
                 <mesh position={[0, h, 0]} rotation={[0, 0, Math.PI / 2]}>
                     <cylinderGeometry args={[thick * 0.8, thick * 0.8, span + thick * 2, 6]} />
-                    <meshStandardMaterial color="#0c0e08" map={uwRock.color} normalMap={uwRock.normal} normalScale={new THREE.Vector2(2.0, 2.0)} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
+                    <meshStandardMaterial color="#0c0e08" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
                 </mesh>
             </group>
         ))}
 
-        {SHARD_POSITIONS.map((pos, i) => (
-            <Shard
-                key={i}
-                index={i}
-                position={pos}
-                collected={collectedShards.has(i)}
-                onCollect={onCollectShard}
-                playerPositionRef={playerPositionRef}
-            />
-        ))}
+        <ShardField
+            collectedShards={collectedShards}
+            onCollectShard={onCollectShard}
+            playerPositionRef={playerPositionRef}
+        />
 
         {/* Elevator shell — in the cave wall */}
         <group position={[0, 0, -10]}>
