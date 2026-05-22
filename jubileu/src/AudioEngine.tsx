@@ -236,23 +236,13 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
       }
       
       // Barney theme: load on mount so it's ready when the chase starts.
-      // The ~2MB file loads in background while the player is in the lobby.
-      // Try repo first (same host as other tracks, CORS-friendly), fallback to archive.org
-      const BARNEY_URLS = [
-          'https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/Barney%20Theme%20Song.mp3',
-          'https://archive.org/download/barneysgreatesthits/Barney%20Theme%20Song.mp3'
-      ];
-      const fetchWithFallback = async (urls: string[]): Promise<ArrayBuffer> => {
-          for (const url of urls) {
-              try {
-                  const r = await fetch(url);
-                  if (r.ok) return await r.arrayBuffer();
-              } catch (e) { /* try next */ }
-          }
-          throw new Error(`All URLs failed for ${urls[0]}`);
-      };
+      // Bundled locally in public/ — the old raw.githubusercontent URL
+      // pointed at a file that was never committed, so it 404'd on every
+      // boot. Serving it from the app origin removes the network dependency
+      // entirely (no 404, no CORS, works offline).
       if (!barneyBufferRef.current) {
-          fetchWithFallback(BARNEY_URLS)
+          fetch(`${import.meta.env.BASE_URL}barney-theme.mp3`)
+              .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
               .then(b => ctx.decodeAudioData(b))
               .then(audioBuf => {
                   if (!isMounted) return;
