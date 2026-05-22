@@ -15,18 +15,21 @@ export const WATER_LEVEL_Y = -2.5;
 export const WELL_DEPTH = Math.abs(WATER_LEVEL_Y);   // = 2.5
 export const SWIM_THRESHOLD_Y = -2.7;   // below this the player is "in" the water
 
+// ─── Shared mutable ref — UnderwaterLighting writes, underwater components read ──
+export const swimmerY = { current: 0 };
+
 // ─── Particle / instance counts ────────────────────────────────────────
-export const DUST_COUNT = 25;
-export const DEBRIS_COUNT = 20;
-export const SEDIMENT_COUNT = 20;
-export const PLANKTON_COUNT = 15;
-export const FISH_COUNT = 8;
-export const BUBBLE_COUNT = 35;
+export const DUST_COUNT = 12;
+export const DEBRIS_COUNT = 8;
+export const SEDIMENT_COUNT = 12;
+export const PLANKTON_COUNT = 6;
+export const FISH_COUNT = 5;
+export const BUBBLE_COUNT = 15;
 export const BUBBLE_RANGE = 18;
 export const BUBBLE_RISE = 0.5;
 export const BUBBLE_MAX_Y = WATER_LEVEL_Y - 0.5;
 export const BUBBLE_MIN_Y = -29;
-export const SURFACE_BUBBLE_COUNT = 15;
+export const SURFACE_BUBBLE_COUNT = 8;
 export const SURFACE_BUBBLE_RING_RADIUS = HOLE_RADIUS * 0.8;
 export const COLLECT_DIST_SQ = 1.4 * 1.4;
 

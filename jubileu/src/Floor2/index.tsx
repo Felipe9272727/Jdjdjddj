@@ -33,7 +33,7 @@ export {
 
 // Re-export sub-components (for anyone importing them directly)
 export {
-    CrystalCluster, Torch, DustMotes,
+    CrystalCluster, Torch, TorchField, DustMotes,
     WaterSurface, WaterCeilingDisc, DynamicFog, UnderwaterOverlay, WaterOccluder,
     UnderwaterCaustics, KelpField, Coral, UnderwaterFlora,
     GodRayShafts, DeepMist, DebrisField, FishSchool,
@@ -51,6 +51,7 @@ import {
     UW_BOULDERS, UW_PEBBLES, UW_SCATTERED_ROCKS,
     UW_CORAL_PILLARS, UW_ARCHES,
     SHARD_POSITIONS,
+    swimmerY,
 } from './constants';
 
 import {
@@ -65,7 +66,7 @@ import {
 } from './geometry';
 
 import {
-    CrystalCluster, Torch, DustMotes,
+    CrystalCluster, TorchField, DustMotes,
     WaterSurface, WaterCeilingDisc, DynamicFog, UnderwaterOverlay, WaterOccluder,
     UnderwaterCaustics, UnderwaterFlora,
     GodRayShafts, DeepMist, DebrisField, FishSchool,
@@ -296,6 +297,7 @@ const UnderwaterLighting: React.FC<{
     useFrame((_, dt) => {
         const safeDt = Math.min(dt, 0.033);
         const y = playerPositionRef.current?.y ?? 0;
+        swimmerY.current = y;
         // 0 = above water, 1 = fully underwater
         const tWater = Math.max(0, Math.min(1, (SWIM_THRESHOLD_Y - y) / 5));
         // Depth fraction (0 at surface, 1 at deepest)
@@ -510,10 +512,6 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             self-contained (no external HDRI download). */}
         <CaveIBL />
 
-        <directionalLight position={[5, 20, 5]} intensity={0.95} color="#ffe8c0" />
-        {/* Secondary key light from the opposite side — fills shadows on
-            the elevator wall when the player exits. */}
-        <directionalLight position={[-8, 15, -8]} intensity={0.55} color="#fff0d0" />
         {/* Elevator exit lantern — bright warm pointLight right in front
             of the doors, so the player and the diver are both well-lit
             the moment doors open. Finite distance (never 0). */}
@@ -628,10 +626,8 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             <CrystalCluster key={`crystal-${i}`} x={x} y={y} z={z} color={color} />
         ))}
 
-        {/* Wall-mounted torches with flicker */}
-        {TORCH_POSITIONS.map(([x, y, z], i) => (
-            <Torch key={`torch-${i}`} x={x} y={y} z={z} seed={i * 7.3} />
-        ))}
+        {/* Wall-mounted torches with flicker — single TorchField (1 useFrame total) */}
+        <TorchField positions={TORCH_POSITIONS} />
 
         {/* Floating dust motes catching the warm light */}
         <DustMotes />
@@ -745,14 +741,10 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Deep Mist — parallax fog layers */}
         <DeepMist reflective={reflective} />
 
-        {/* Underwater sediment — floating particles for depth perception */}
-        <UnderwaterSediment />
-
-        {/* Debris particles — tiny specs drifting */}
-        <DebrisField />
-
-        {/* Small fish school looping around the boulder field */}
-        <FishSchool />
+        {/* Underwater sediment, debris, fish — gated to high quality */}
+        {reflective && <UnderwaterSediment />}
+        {reflective && <DebrisField />}
+        {reflective && <FishSchool />}
 
         {/* Underwater boulders — with UW PBR materials */}
         {UW_BOULDERS.map(([x, y, z, s, ry], i) => (
@@ -769,9 +761,9 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             ))}
         </Instances>
 
-        <BubbleField />
+        {reflective && <BubbleField />}
         <SurfaceBubbleRing />
-        <PlanktonField />
+        {reflective && <PlanktonField />}
 
         {/* Scattered 3D rock formations on the underwater floor — procedural noise rocks */}
         {UW_SCATTERED_ROCKS.map(([x, y, z, s, ry, rx], i) => (

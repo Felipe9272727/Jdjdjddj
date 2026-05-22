@@ -23,6 +23,7 @@ import {
     UW_BOULDERS, UW_PEBBLES, UW_SCATTERED_ROCKS,
     UW_CORAL_PILLARS, UW_ARCHES,
     KELP_POSITIONS, CORAL_POSITIONS,
+    swimmerY,
 } from './constants';
 
 import {
@@ -100,6 +101,42 @@ export const Torch: React.FC<{ x: number; y: number; z: number; seed: number }> 
             <sprite scale={[7.0, 7.0, 1]}>
                 <spriteMaterial ref={outerRef} map={GLOW_TEXTURE} color="#FF9040" transparent opacity={0.15} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
             </sprite>
+        </group>
+    );
+};
+
+// ─── TorchField — single useFrame drives all torches (replaces N*Torch) ─
+export const TorchField: React.FC<{ positions: readonly (readonly [number, number, number])[] }> = ({ positions }) => {
+    const innerRefs = useRef<(THREE.SpriteMaterial | null)[]>([]);
+    const outerRefs = useRef<(THREE.SpriteMaterial | null)[]>([]);
+    useFrame((state) => {
+        const t = state.clock.elapsedTime;
+        for (let i = 0; i < positions.length; i++) {
+            const seed = i * 7.3;
+            const noise = Math.sin(t * 37.7 + seed * 13.3) * 0.5 + 0.5;
+            const flicker = 0.5 + Math.sin(t * 9 + seed) * 0.08 + Math.sin(t * 23 + seed * 1.3) * 0.06 + noise * 0.05;
+            const r = innerRefs.current[i];
+            const o = outerRefs.current[i];
+            if (r) r.opacity = flicker;
+            if (o) o.opacity = flicker * 0.3;
+        }
+    });
+    return (
+        <group>
+            {positions.map(([x, y, z], i) => (
+                <group key={i} position={[x, y, z]}>
+                    <mesh>
+                        <coneGeometry args={[0.18, 0.4, 8]} />
+                        <meshStandardMaterial color="#FFA850" emissive="#FFB060" emissiveIntensity={3.5} toneMapped={false} />
+                    </mesh>
+                    <sprite scale={[3.0, 3.0, 1]}>
+                        <spriteMaterial ref={(r: any) => { innerRefs.current[i] = r; }} map={GLOW_TEXTURE} color="#FFC080" transparent opacity={0.5} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                    </sprite>
+                    <sprite scale={[7.0, 7.0, 1]}>
+                        <spriteMaterial ref={(r: any) => { outerRefs.current[i] = r; }} map={GLOW_TEXTURE} color="#FF9040" transparent opacity={0.15} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                    </sprite>
+                </group>
+            ))}
         </group>
     );
 };
@@ -369,6 +406,7 @@ export const UnderwaterCaustics: React.FC<{ playerPositionRef?: React.MutableRef
     }, []);
     const meshRef = useRef<THREE.Mesh>(null);
     useFrame((state) => {
+        if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         (mat as any).time = state.clock.elapsedTime;
         // Fade caustic intensity based on player depth — strong when shallow,
         // dim deep down where the light wouldn't reach.
@@ -393,6 +431,7 @@ export const KelpField: React.FC = () => {
         KELP_POSITIONS.map(() => new Array(3).fill(null))
     );
     useFrame((state) => {
+        if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         const t = state.clock.elapsedTime;
         for (let k = 0; k < KELP_POSITIONS.length; k++) {
             const phase = KELP_POSITIONS[k][3];
@@ -489,6 +528,7 @@ export const GodRayShafts: React.FC<GodRayShaftsProps> = ({ playerPositionRef })
     const outerConeMat = useRef<THREE.MeshBasicMaterial>(null);
     const innerConeMat = useRef<THREE.MeshBasicMaterial>(null);
     useFrame((state) => {
+        if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         const t = state.clock.elapsedTime;
         if (groupRef.current) groupRef.current.rotation.y = t * 0.04;
 
@@ -583,6 +623,7 @@ export const DeepMist: React.FC<{ reflective?: boolean }> = ({ reflective = fals
     const g2 = useRef<THREE.Group>(null);
     const g3 = useRef<THREE.Group>(null);
     useFrame((state) => {
+        if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         const t = state.clock.elapsedTime;
         if (mat1.current) mat1.current.opacity = 0.05 + Math.sin(t * 0.20) * 0.015;
         if (mat2.current) mat2.current.opacity = 0.045 + Math.sin(t * 0.16 + 1.3) * 0.012;
@@ -663,6 +704,7 @@ export const DebrisField: React.FC = () => {
         }))
     );
     useFrame((state, dt) => {
+        if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         const safeDt = Math.min(dt, 0.033);
         const t = state.clock.elapsedTime;
         for (let i = 0; i < DEBRIS_COUNT; i++) {
@@ -705,6 +747,7 @@ export const FishSchool: React.FC = () => {
     const refs = useRef<(THREE.Mesh | null)[]>(new Array(FISH_COUNT).fill(null));
     const spriteRefs = useRef<(THREE.Sprite | null)[]>(new Array(FISH_COUNT).fill(null));
     useFrame((state) => {
+        if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         const t = state.clock.elapsedTime;
         for (let i = 0; i < FISH_COUNT; i++) {
             const f = refs.current[i];
@@ -787,6 +830,7 @@ export const UnderwaterSediment: React.FC = () => {
         }))
     );
     useFrame((state, dt) => {
+        if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         const safeDt = Math.min(dt, 0.033);
         const t = state.clock.elapsedTime;
         for (let i = 0; i < SEDIMENT_COUNT; i++) {
@@ -818,6 +862,7 @@ export const UnderwaterSediment: React.FC = () => {
 export const PlanktonField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(PLANKTON_COUNT).fill(null));
     useFrame((state, dt) => {
+        if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         const safeDt = Math.min(dt, 0.033);
         const t = state.clock.elapsedTime;
         for (let i = 0; i < PLANKTON_COUNT; i++) {
@@ -857,6 +902,7 @@ export const BubbleField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(BUBBLE_COUNT).fill(null));
 
     useFrame((_, dt) => {
+        if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         const safeDt = Math.min(dt, 0.033);
         const pos = positions.current;
         for (let i = 0; i < BUBBLE_COUNT; i++) {
@@ -984,6 +1030,7 @@ export const GodRay: React.FC = () => {
 export const GodRays: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
     const groupRef = useRef<THREE.Group>(null);
     useFrame(() => {
+        if (swimmerY.current >= SWIM_THRESHOLD_Y) { if (groupRef.current) groupRef.current.visible = false; return; }
         const g = groupRef.current;
         if (g) {
             g.visible = playerPositionRef.current.y < SWIM_THRESHOLD_Y;
