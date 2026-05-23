@@ -1058,7 +1058,7 @@ export default function App() {
           Brief radial flash + a few short streaks for the impact moment. */}
       {hasStarted && currentLevel === 2 && splashKey > 0 && (
         <div
-          key={splashKey}
+          key={`splash-${splashKey}`}
           className="fixed inset-0 z-[28] pointer-events-none animate-splash-flash"
           style={{
             background:
@@ -1082,7 +1082,7 @@ export default function App() {
           Quick blow-out then fast decay so it reads as an impact, not a fade. */}
       {diverSpawnFlashKey > 0 && (
         <div
-          key={diverSpawnFlashKey}
+          key={`diverspawn-${diverSpawnFlashKey}`}
           className="fixed inset-0 z-[77] pointer-events-none"
         >
           <div
@@ -1110,7 +1110,7 @@ export default function App() {
           → blue water-flood on impact → reveal of the underwater scene. */}
       {diveBlackKey > 0 && (
         <div
-          key={diveBlackKey}
+          key={`diveblack-${diveBlackKey}`}
           className="fixed inset-0 z-[95] pointer-events-none"
           style={{ background: '#000', animation: 'equipBlink 700ms ease-in-out forwards' }}
         >
