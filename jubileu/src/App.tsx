@@ -189,6 +189,8 @@ export default function App() {
 
   // ─── Inventory + pickup animation ─────────────────────────────────────
   const { inventory, addItem: inventoryAddItem, toggleFlashlight, toggleNightVision, useCookie: consumeCookie, hasAnyItem } = useInventory();
+  const inventoryRef = useRef(inventory);
+  useEffect(() => { inventoryRef.current = inventory; }, [inventory]);
   const [pickupTrigger, setPickupTrigger] = useState(0);
   const [pickupItem, setPickupItem] = useState<'flashlight' | 'cookie' | null>(null);
 
@@ -860,8 +862,8 @@ export default function App() {
         case 'a': k.a=true; break;
         case 's': k.s=true; break;
         case 'd': k.d=true; break;
-        case 'f': if (inventory.flashlight.owned) handleToggleFlashlight(); break;
-        case 'n': if (inventory.nightVision.owned) toggleNightVision(); break;
+        case 'f': if (inventoryRef.current.flashlight.owned) handleToggleFlashlight(); break;
+        case 'n': if (inventoryRef.current.nightVision.owned) toggleNightVision(); break;
         case 'e':
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
