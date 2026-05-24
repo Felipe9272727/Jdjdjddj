@@ -44,7 +44,7 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
   const lensRightMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const flashMatRef = useRef<THREE.SpriteMaterial>(null);
 
-  const tRef = useRef({ t: 0, done: false });  // max 2.4s
+  const tRef = useRef({ t: 0, done: false });  // max 1.6s
   // Spring state for snap-scale overshoot
   const scaleSpring = useRef({ pos: 0, vel: 0, kicked: false });
   // Camera shake: decaying sinusoidal offset applied after camera.position copy
@@ -70,14 +70,14 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
 
     const safeDt = Math.min(dt, 0.033);
     const ts = tRef.current;
-    ts.t = Math.min(2.4, ts.t + safeDt);
+    ts.t = Math.min(1.60, ts.t + safeDt);
     const t = ts.t;
 
     g.position.copy(camera.position);
     g.quaternion.copy(camera.quaternion);
     // Apply decaying camera shake after copy (world-space offset reads as screen shake)
     {
-      const shakeAge = t - 1.40;
+      const shakeAge = t - 0.70;
       if (shakeAge >= 0 && shakeAge < 0.50) {
         const decay = Math.exp(-shakeAge * 11.0);
         shakeRef.current.x = Math.sin(shakeAge * 28.0) * 0.009 * decay;
@@ -91,17 +91,16 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
     }
 
     // ── Mask — held at comfortable arm's-length, brought to face ────
-    //  0.00-0.45: pendulum swing up from below (x oscillation + rotZ damping)
-    //  0.45-1.40: micro-tremor hold at arm's length (multi-freq noise)
-    //  1.40-1.55: SNAP — spring scale punch from 0.72 → 0.90 → settle
-    //  1.55-1.80: hold on face, goggles glow settles
-    //  1.80-2.40: shrinks away (player wearing it now)
+    //  0.00-0.35: pendulum swing up from below (x oscillation + rotZ damping)
+    //  0.35-0.70: quick micro-tremor hold at arm's length
+    //  0.70-1.10: SNAP — spring scale punch from 0.72 → 0.90 → settle
+    //  1.10-1.60: shrinks away (player wearing it now)
     const mask = maskRef.current;
     if (mask) {
       let z = -0.65, y = -0.20, scale = 0, rotX = 0, rotZ = 0, rotY = 0, xPos = 0;
 
-      if (t < 0.45) {
-        const u = t / 0.45;
+      if (t < 0.35) {
+        const u = t / 0.35;
         const e = u * u * (3 - 2 * u);
         // Pendulum: x-swing damps to zero as it rises
         const swing = Math.sin(u * Math.PI * 1.6) * (1 - u) * 0.10;
@@ -112,10 +111,10 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
         rotZ = swing * 1.4;
         rotY = swing * 0.5;
         xPos = swing;
-      } else if (t < 1.40) {
-        const u = (t - 0.45) / 0.95;
+      } else if (t < 0.70) {
+        const u = (t - 0.35) / 0.35;
         const e = u * u * (3 - 2 * u);
-        // Multi-frequency micro-tremor — nervous hands
+        // Multi-frequency micro-tremor — nervous hands (shortened)
         const trX = Math.sin(t * 17.3) * 0.0030 + Math.sin(t * 11.1) * 0.0018;
         const trY = Math.sin(t * 13.7 + 1.2) * 0.0025 + Math.sin(t * 8.3 + 2.1) * 0.0014;
         const trZ = Math.sin(t * 9.4) * 0.0040;
@@ -125,9 +124,9 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
         rotX = -e * 0.06;
         rotZ = trZ;
         xPos = trX;
-      } else if (t < 1.80) {
+      } else if (t < 1.10) {
         // Spring-based scale punch on snap
-        const age = t - 1.40;
+        const age = t - 0.70;
         if (!scaleSpring.current.kicked) {
           // Impulse: kick velocity up hard, exactly once, at the snap
           scaleSpring.current.kicked = true;
@@ -142,7 +141,7 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
         z = -0.42;
         rotZ = Math.sin(age * Math.PI * 4) * 0.015 * Math.exp(-age * 8);
       } else {
-        const u = (t - 1.80) / 0.60;
+        const u = (t - 1.10) / 0.50;
         const e = u * u * (3 - 2 * u);
         scale = 0.72 * (1 - e);
         y = -0.12;
@@ -158,31 +157,31 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
     const armPose = (ref: React.MutableRefObject<THREE.Group | null>, isLeft: boolean) => {
       const arm = ref.current;
       if (!arm) return;
-      let visible = t >= 0.30;
+      let visible = t >= 0.25;
       let yLift = -0.85, zLift = -0.50, pitch = -0.35;
 
-      if (t >= 0.30 && t < 0.70) {
-        const u = (t - 0.30) / 0.40;
+      if (t >= 0.25 && t < 0.55) {
+        const u = (t - 0.25) / 0.30;
         const e = u * u * (3 - 2 * u);
         yLift = -0.85 + e * 0.58;
         zLift = -0.50 + e * 0.12;
         pitch = -0.35 + e * 0.50;
-      } else if (t >= 0.70 && t < 1.40) {
+      } else if (t >= 0.55 && t < 0.70) {
         // Hold with multi-freq tremor matching the mask's nervous hands
         const micro = Math.sin(t * 16.5) * 0.0040 + Math.sin(t * 9.8 + 1.6) * 0.0025;
-        yLift = -0.27 + Math.sin((t - 0.70) * Math.PI * 2 / 0.70) * 0.010 + micro;
+        yLift = -0.27 + Math.sin((t - 0.55) * Math.PI * 2 / 0.15) * 0.010 + micro;
         zLift = -0.38;
         pitch = 0.15 + micro * 0.4;
-      } else if (t >= 1.40 && t < 1.80) {
+      } else if (t >= 0.70 && t < 1.10) {
         // Tighten straps
-        const u = (t - 1.40) / 0.40;
+        const u = (t - 0.70) / 0.40;
         yLift = -0.27 - u * 0.04;
         zLift = -0.38 + u * 0.03;
         pitch = 0.15 - u * 0.04;
-      } else if (t >= 1.80) {
+      } else if (t >= 1.10) {
         // Slide back off screen
-        const u = (t - 1.80) / 0.45;
-        const e = u * u * (3 - 2 * u);
+        const u = (t - 1.10) / 0.40;
+        const e = Math.min(1, u) * Math.min(1, u) * (3 - 2 * Math.min(1, u));
         yLift = -0.31 - e * 0.55;
         zLift = -0.35 - e * 0.08;
         pitch = 0.11 - e * 0.46;
@@ -198,9 +197,9 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
     // ── Flash on snap — bright instant pop then fast fade ────────
     if (flashMatRef.current) {
       let op = 0;
-      if (t >= 1.40 && t < 1.75) {
-        const age = t - 1.40;
-        // Instant peak at t=1.40, exponential decay
+      if (t >= 0.70 && t < 1.05) {
+        const age = t - 0.70;
+        // Instant peak at snap, exponential decay
         op = Math.exp(-age * 9.0) * 1.10;
       }
       flashMatRef.current.opacity = op;
@@ -209,18 +208,17 @@ export const Rebreather3DPutOn: React.FC<Rebreather3DPutOnProps> = ({
     // ── Goggles light up: big burst then settle ───────────────────
     if (lensLeftMatRef.current && lensRightMatRef.current) {
       let emI = 0.5;
-      if (t >= 1.40) {
-        const age = t - 1.40;
-        // Spike to 14.0 immediately, decay to 3.0 settle over 0.60s
+      if (t >= 0.70) {
+        const age = t - 0.70;
         const burst = Math.exp(-age * 7.0) * 11.0;
-        const settle = THREE.MathUtils.clamp(age / 0.55, 0, 1) * 3.0;
+        const settle = THREE.MathUtils.clamp(age / 0.40, 0, 1) * 3.0;
         emI = 0.5 + burst + settle;
       }
       lensLeftMatRef.current.emissiveIntensity = emI;
       lensRightMatRef.current.emissiveIntensity = emI;
     }
 
-    if (t >= 2.4 && !ts.done) {
+    if (t >= 1.60 && !ts.done) {
       ts.done = true;
       onDone();
     }

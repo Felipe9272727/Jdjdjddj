@@ -75,6 +75,7 @@ import {
     GodRay, GodRays, ShardField,
 } from './underwater-effects';
 import { BioluminescentPatches, UpwardLightShaft, CeilingReflectionCaustics, UnderwaterLighting, CaveIBL } from './lighting';
+import { MonsterFish } from './MonsterFish';
 
 
 // ─── Texture loading helper ────────────────────────────────────────
@@ -111,12 +112,14 @@ interface Floor2EnvironmentProps {
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     collectedShards: Set<number>;
     onCollectShard: (i: number) => void;
+    onPlayerCaught?: () => void;
     reflective?: boolean;
 }
 export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     playerPositionRef,
     collectedShards,
     onCollectShard,
+    onPlayerCaught,
     reflective = false,
 }) => {
     // ─── Load real PBR texture sets ────────────────────────────────
@@ -551,6 +554,15 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             onCollectShard={onCollectShard}
             playerPositionRef={playerPositionRef}
         />
+
+        {/* Monster fish — spawns after the first shard is collected */}
+        {onPlayerCaught && (
+            <MonsterFish
+                playerPositionRef={playerPositionRef}
+                collectedShards={collectedShards}
+                onPlayerCaught={onPlayerCaught}
+            />
+        )}
 
         {/* Elevator shell — in the cave wall */}
         <group position={[0, 0, -10]}>

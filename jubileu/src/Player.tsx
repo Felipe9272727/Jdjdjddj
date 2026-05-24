@@ -527,14 +527,27 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             }
         }
 
+        // ─── Underwater wall collision (reuse cave wall sphere colliders, XZ only)
+        for (const wall of CAVE_WALL_COLLIDERS) {
+            const dx = pos.current.x - wall.x;
+            const dz = pos.current.z - wall.z;
+            const distSq = dx * dx + dz * dz;
+            const minDist = wall.r + 0.5;
+            if (distSq < minDist * minDist && distSq > 0.0001) {
+                const dist = Math.sqrt(distSq);
+                const push = (minDist - dist) / dist;
+                pos.current.x += dx * push;
+                pos.current.z += dz * push;
+            }
+        }
+
         // Y clamps: underwater floor at Y=-29 and surface at SWIM_THRESHOLD_Y.
         if (pos.current.y < -29) pos.current.y = -29;
-        // Underwater XZ bounds — keep the swimmer inside the 80x80 rocky
-        // bowl so they can't drift off into the void past the boulders.
-        if (pos.current.x < -39) pos.current.x = -39;
-        if (pos.current.x >  39) pos.current.x =  39;
-        if (pos.current.z < -39) pos.current.z = -39;
-        if (pos.current.z >  39) pos.current.z =  39;
+        // Underwater XZ bounds — tighter clamp matches visual wall positions.
+        if (pos.current.x < -26) pos.current.x = -26;
+        if (pos.current.x >  26) pos.current.x =  26;
+        if (pos.current.z < -26) pos.current.z = -26;
+        if (pos.current.z >  26) pos.current.z =  26;
         if (pos.current.y > SWIM_THRESHOLD_Y) {
             // Surfaced — if inside the hole, allow popping out into the cave.
             const dxHole = pos.current.x - HOLE_CENTER_X;

@@ -159,13 +159,15 @@ export const UnderwaterLighting: React.FC<{
         if (ambientRef.current) {
             _ambTmp.copy(_ambCave).lerp(_ambWater, tWater);
             ambientRef.current.color.lerp(_ambTmp, k);
-            const tgtInt = 1.10 - tWater * 0.45;
+            // Cave is very dark — NV goggles are the primary light source.
+            // Underwater slightly brighter (bioluminescence + caustics).
+            const tgtInt = 0.08 + tWater * 0.30;
             ambientRef.current.intensity += (tgtInt - ambientRef.current.intensity) * k;
         }
         if (hemiRef.current) {
             _hemiTmp.copy(_hemiCave).lerp(_hemiWater, tWater);
             hemiRef.current.color.lerp(_hemiTmp, k);
-            const tgtInt = 0.70 - tWater * 0.10;
+            const tgtInt = 0.06 + tWater * 0.08;
             hemiRef.current.intensity += (tgtInt - hemiRef.current.intensity) * k;
         }
         if (dirRef.current) {

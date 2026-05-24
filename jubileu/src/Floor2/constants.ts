@@ -277,6 +277,9 @@ export const CAVE_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r:
 ];
 export const UW_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = [
     ...UW_BOULDERS.map(([x,y,z,s]) => ({ x, y: y + s * 0.3, z, r: s * 0.6 })),
+    ...UW_SCATTERED_ROCKS
+        .filter(r => r[3] > 0.5)
+        .map(([x, y, z, s]) => ({ x, y: y + s * 0.3, z, r: s * 0.5 })),
 ];
 
 // ─── Wall collision data — organic walls bulge inward, need collision ──
@@ -311,9 +314,9 @@ export const CAVE_WALL_COLLIDERS: readonly { x: number; y: number; z: number; r:
 
 // ─── Shard positions (underwater) ────────────────────────────────────
 export const SHARD_POSITIONS: readonly (readonly [number, number, number])[] = [
-    [  7.5, -27.5,  -7.5],
+    [ 10.5, -27.0,  -4.5],   // moved: was inside boulder 0
     [-13.0, -27.7,   4.8],
-    [  3.5, -27.7,  13.5],
+    [  5.5, -27.0,  17.0],   // moved: was inside boulder 3
     [-18.0, -27.7, -10.0],
     [ 19.5, -27.7,  11.5],
 ] as const;
