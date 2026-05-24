@@ -73,6 +73,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     const _v2      = useRef(new THREE.Vector3());
 
     // ── Apply scary material + start animation ───────────────────────
+    const calibratedRef = useRef(false);
     useEffect(() => {
         if (!scene) return;
 
@@ -89,8 +90,26 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
             if (o.isMesh) {
                 o.material = mat;
                 o.castShadow = false;
+                o.frustumCulled = false;
             }
         });
+
+        // Auto-fit: the source GLB has a native bbox of ~23 × 59 × 35 units,
+        // so without normalization a sane scale would be ~0.05.  Compute the
+        // post-root-transform bbox and rescale + center so the longest axis
+        // is exactly TARGET_SIZE meters and the visual center sits on the
+        // group origin (matches the AI's tracked position).
+        if (!calibratedRef.current) {
+            const TARGET_SIZE = 3.0; // metres along longest axis
+            const box = new THREE.Box3().setFromObject(scene);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z) || 1;
+            const k = TARGET_SIZE / maxDim;
+            scene.scale.setScalar(k);
+            scene.position.set(-center.x * k, -center.y * k, -center.z * k);
+            calibratedRef.current = true;
+        }
     }, [scene]);
 
     useEffect(() => {
@@ -273,13 +292,13 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
 
     return (
         <group ref={rootRef} visible={false}>
-            {/* Loaded monster model — scaled to ~2.5× and rotated to face +Z */}
-            <group ref={modelRef} scale={[2.5, 2.5, 2.5]} rotation={[0, Math.PI, 0]}>
+            {/* Loaded monster model — auto-fitted in useEffect to ~3m. */}
+            <group ref={modelRef}>
                 <primitive object={scene} />
             </group>
 
-            {/* Glowing amber eyes overlaid in approximate head position */}
-            <sprite position={[0.25, 1.4, 1.2]} scale={[0.35, 0.35, 1]}>
+            {/* Glowing amber eyes overlaid roughly at the head */}
+            <sprite position={[0.18, 0.55, 0.7]} scale={[0.22, 0.22, 1]}>
                 <spriteMaterial
                     ref={eyeLMatRef}
                     color="#ff5500"
@@ -290,7 +309,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                     blending={THREE.AdditiveBlending}
                 />
             </sprite>
-            <sprite position={[-0.25, 1.4, 1.2]} scale={[0.35, 0.35, 1]}>
+            <sprite position={[-0.18, 0.55, 0.7]} scale={[0.22, 0.22, 1]}>
                 <spriteMaterial
                     ref={eyeRMatRef}
                     color="#ff5500"
@@ -302,11 +321,11 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 />
             </sprite>
 
-            {/* Bioluminescent lure on the forehead */}
-            <mesh geometry={lureGeo} material={lureMat} position={[0, 2.0, 1.0]} />
+            {/* Bioluminescent lure above the head */}
+            <mesh geometry={lureGeo} material={lureMat} position={[0, 0.95, 0.4]} />
             <pointLight
                 ref={lureLightRef}
-                position={[0, 2.0, 1.0]}
+                position={[0, 0.95, 0.4]}
                 color="#00ffaa"
                 intensity={0.8}
                 distance={6}

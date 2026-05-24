@@ -33,24 +33,15 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({ active }) => {
 
   return (
     <>
-      {/* Layer 1: Mid-green-grey multiply — desaturates the scene before tint.
-          Keeping it off near-black so the underlying scene still reads through. */}
+      {/* Layer 1: Green phosphor tint — additive screen blend BRIGHTENS the
+          scene and pushes hues toward green. Must NOT darken — the cave is
+          already pitch black; the goggles' job is to make it visible. */}
       <div
         className="fixed inset-0 z-[18] pointer-events-none transition-opacity duration-300"
         style={{
-          opacity: active ? 1 : 0,
-          backgroundColor: 'rgb(18,42,26)',
-          mixBlendMode: 'multiply',
-        }}
-      />
-
-      {/* Layer 2: Subtle green phosphor tint — hue shift without flooding. */}
-      <div
-        className="fixed inset-0 z-[19] pointer-events-none transition-opacity duration-300"
-        style={{
-          opacity: active ? 1 : 0,
+          opacity: active ? 0.85 : 0,
           background:
-            'radial-gradient(ellipse at center, rgba(40,255,120,0.06) 0%, rgba(0,80,30,0.03) 60%, rgba(0,20,10,0.18) 100%)',
+            'radial-gradient(ellipse at center, rgba(60,255,140,0.30) 0%, rgba(40,220,110,0.22) 50%, rgba(20,180,80,0.18) 100%)',
           mixBlendMode: 'screen',
         }}
       />
@@ -58,22 +49,22 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({ active }) => {
       {/* Layer 2b: CRT scanlines */}
       <div
         className="fixed inset-0 z-[20] pointer-events-none nv-scanlines transition-opacity duration-300"
-        style={{ opacity: active ? 0.55 : 0 }}
+        style={{ opacity: active ? 0.40 : 0 }}
       />
 
       {/* Layer 2c: Animated grain (SVG turbulence) */}
       <div
         className="fixed inset-0 z-[20] pointer-events-none nv-grain transition-opacity duration-300"
-        style={{ opacity: active ? 0.22 : 0 }}
+        style={{ opacity: active ? 0.20 : 0 }}
       />
 
-      {/* Layer 3: Vignette — dark corners, clear center */}
+      {/* Layer 3: Vignette — soft dark corners (much lighter than before). */}
       <div
         className="fixed inset-0 z-[21] pointer-events-none transition-opacity duration-300"
         style={{
           opacity: active ? 1 : 0,
           background:
-            'radial-gradient(ellipse 50% 62% at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.92) 100%)',
+            'radial-gradient(ellipse 60% 72% at 50% 50%, rgba(0,0,0,0) 65%, rgba(0,16,8,0.55) 100%)',
         }}
       />
 
@@ -250,28 +241,31 @@ export const ShardScanner: React.FC<ShardScannerProps> = ({
       ctx.stroke();
 
       // ── Shards ──────────────────────────────────────────────────────────
-      const cosH = Math.cos(-heading);
-      const sinH = Math.sin(-heading);
+      // `heading` is the player body rotation (charRot.y = camAng.theta + π).
+      // The player therefore faces world direction (sin h, cos h) in XZ, and
+      // their right is (cos h, -sin h). Project (dx, dz) onto those axes.
+      const sinH = Math.sin(heading);
+      const cosH = Math.cos(heading);
       const blink = 0.65 + Math.sin(t * 5.5) * 0.35;
 
       for (let i = 0; i < shardPositions.length; i++) {
         const s = shardPositions[i];
         const dx = s[0] - pp.x;
         const dz = s[2] - pp.z;
-        // Rotate relative to player heading
-        const rx = dx * cosH - dz * sinH;
-        const ry = dx * sinH + dz * cosH;
+        const xLocal =  dx * cosH - dz * sinH;   // right of player
+        const yLocal =  dx * sinH + dz * cosH;   // in front of player
 
-        const distNorm = Math.sqrt(rx * rx + ry * ry) / RADAR_RANGE;
+        const distNorm = Math.sqrt(xLocal * xLocal + yLocal * yLocal) / RADAR_RANGE;
         let sx: number, sy: number, atEdge = false;
         if (distNorm > 1) {
-          const a = Math.atan2(ry, rx);
+          // Clamp to edge; canvas-y is inverted, so negate yLocal for the angle.
+          const a = Math.atan2(-yLocal, xLocal);
           sx = R + Math.cos(a) * edgeR;
           sy = R + Math.sin(a) * edgeR;
           atEdge = true;
         } else {
-          sx = R + (rx / RADAR_RANGE) * edgeR;
-          sy = R + (ry / RADAR_RANGE) * edgeR;
+          sx = R + (xLocal / RADAR_RANGE) * edgeR;
+          sy = R - (yLocal / RADAR_RANGE) * edgeR;  // forward → up on screen
         }
 
         if (collected.has(i)) {
@@ -299,9 +293,9 @@ export const ShardScanner: React.FC<ShardScannerProps> = ({
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Out-of-range: small outward tick
+        // Out-of-range: small outward tick (using canvas-space angle)
         if (atEdge) {
-          const a = Math.atan2(ry, rx);
+          const a = Math.atan2(-yLocal, xLocal);
           ctx.strokeStyle = `rgba(155, 232, 255, ${blink * 0.7})`;
           ctx.lineWidth = 1;
           ctx.beginPath();
@@ -388,8 +382,11 @@ export const NightVisionLights: React.FC<NightVisionLightsProps> = ({ active }) 
   if (!active) return null;
   return (
     <>
-      <ambientLight intensity={2.2} color="#5affb0" />
-      <hemisphereLight intensity={1.0} color="#7affc4" groundColor="#03100a" />
+      {/* Strong ambient + hemi so the very-dark cave reads clearly through the
+          green tint. Cave base lighting is ~0.08 / 0.06 — these add ~5×6× more,
+          which is what the goggles are FOR. */}
+      <ambientLight intensity={4.5} color="#5affb0" />
+      <hemisphereLight intensity={2.4} color="#9affd4" groundColor="#04140a" />
     </>
   );
 };
