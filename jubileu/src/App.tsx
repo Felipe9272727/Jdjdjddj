@@ -27,7 +27,7 @@ import { ShadowBlob } from './ShadowBlob';
 import { useInventory, InventoryHUD } from './InventorySystem';
 import { FlashlightLight, FlashlightModel3D } from './FlashlightLight';
 import { BeardedDiver, DIVER_POS, DIVER_SCARE_DIST } from './BeardedDiver';
-import { NightVisionFx, NightVisionLights } from './NightVisionOverlay';
+import { NightVisionFx, NightVisionLights, ShardScanner } from './NightVisionOverlay';
 import { Rebreather3DPutOn } from './Rebreather3DPutOn';
 // Diver lines now live as a linear sequence inside DiverCutscene.tsx
 import { ElevatorInterior } from './Elevator';
@@ -1056,13 +1056,18 @@ export default function App() {
           Sits above the canvas (z-18..23) and below the menus. Disappears
           when the player toggles NV off. */}
       {hasStarted && (
-        <NightVisionFx
-          active={inventory.nightVision.owned && inventory.nightVision.active}
-          playerPositionRef={currentLevel === 2 ? sharedPlayerPositionRef : undefined}
-          playerRotationYRef={currentLevel === 2 ? sharedRotationYRef : undefined}
-          shardPositions={currentLevel === 2 ? SHARD_POSITIONS : undefined}
-          collectedShards={currentLevel === 2 ? collectedShards : undefined}
-        />
+        <>
+        <NightVisionFx active={inventory.nightVision.owned && inventory.nightVision.active} />
+        {/* Shard scanner — always visible on Floor 2 once rebreather is owned */}
+        {currentLevel === 2 && inventory.rebreather.owned && (
+          <ShardScanner
+            playerPositionRef={sharedPlayerPositionRef}
+            playerRotationYRef={sharedRotationYRef}
+            shardPositions={SHARD_POSITIONS}
+            collectedShards={collectedShards}
+          />
+        )}
+        </>
       )}
 
       {/* Splash overlay — pure CSS, fires on swim-threshold crossings.

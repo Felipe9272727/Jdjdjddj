@@ -1,12 +1,13 @@
 /**
- * NightVisionOverlay.tsx — tactical night-vision effect with shard minimap.
+ * NightVisionOverlay.tsx — tactical night-vision effect + shard scanner HUD.
  *
- * Two pieces:
- *  1. <NightVisionFx> — DOM/CSS phosphor stack + canvas radar minimap.
- *     The minimap polls player & shard positions via raf (no React re-render
- *     per frame); when NV is inactive the raf loop is parked.
- *  2. <NightVisionLights> — bright green Three.js lights mounted inside the
- *     canvas so geometry glows and silhouettes punch through the dark CSS.
+ * Exports:
+ *  <NightVisionFx>   — DOM/CSS phosphor stack (dark overlay, scanlines, grain,
+ *                      vignette, chromatic aberration, boot flash, NV ON chip).
+ *  <ShardScanner>    — Compact canvas radar, always visible in bottom-right when
+ *                      the player owns the rebreather on Floor 2. Shows all 5
+ *                      shard positions relative to the player, with a sweep line.
+ *  <NightVisionLights> — Three.js green lights mounted inside the canvas.
  *
  * NON-NEGOTIABLES (from MEMORY.md):
  *  - No `<spotLight distance={0}>` while alive.
@@ -16,28 +17,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
+// ─── NightVisionFx ──────────────────────────────────────────────────────────
+
 interface NightVisionFxProps {
   active: boolean;
-  // Optional minimap data. When omitted, only the visual overlay renders
-  // (e.g. Floor 1 doesn't have shards). Floor 2 wires all four.
-  playerPositionRef?: React.MutableRefObject<THREE.Vector3>;
-  playerRotationYRef?: React.MutableRefObject<number>;
-  shardPositions?: ReadonlyArray<readonly [number, number, number]>;
-  collectedShards?: Set<number>;
 }
 
-// World units shown across the radar (one edge = RADAR_RANGE units). Floor 2
-// underwater zone spans roughly ±25 on x/z, so 60 covers the player's
-// useful read while keeping distant shards visibly grouped at the edge.
-const RADAR_RANGE = 60;
-
-export const NightVisionFx: React.FC<NightVisionFxProps> = ({
-  active,
-  playerPositionRef,
-  playerRotationYRef,
-  shardPositions,
-  collectedShards,
-}) => {
+export const NightVisionFx: React.FC<NightVisionFxProps> = ({ active }) => {
   const [bootKey, setBootKey] = useState(0);
   const prevActive = useRef(false);
   useEffect(() => {
@@ -45,199 +31,10 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({
     prevActive.current = active;
   }, [active]);
 
-  // ── Minimap radar — canvas painted via raf while NV is on ──────────────
-  const radarRef = useRef<HTMLCanvasElement | null>(null);
-  const rafRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (!active || !radarRef.current || !playerPositionRef || !shardPositions) return;
-    const canvas = radarRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    // Render at 2x for crisp display on retina; CSS size handles layout.
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const sizeCss = 196;
-    canvas.width = Math.floor(sizeCss * dpr);
-    canvas.height = Math.floor(sizeCss * dpr);
-    canvas.style.width = `${sizeCss}px`;
-    canvas.style.height = `${sizeCss}px`;
-    ctx.scale(dpr, dpr);
-
-    const R = sizeCss / 2;          // radius in css px
-    const startTs = performance.now();
-
-    const draw = () => {
-      const now = performance.now();
-      const t = (now - startTs) / 1000;
-      const pp = playerPositionRef.current;
-      const heading = playerRotationYRef?.current ?? 0;
-
-      ctx.clearRect(0, 0, sizeCss, sizeCss);
-
-      // Background disc (dark phosphor)
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(R, R, R - 1, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(2, 18, 8, 0.92)';
-      ctx.fill();
-      ctx.clip();
-
-      // Crosshatch grid (rotates with player heading so it feels alive)
-      ctx.strokeStyle = 'rgba(40, 255, 100, 0.10)';
-      ctx.lineWidth = 1;
-      const grid = 18;
-      const off = ((t * 4) % grid);
-      for (let x = -grid + off; x < sizeCss + grid; x += grid) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, sizeCss); ctx.stroke();
-      }
-      for (let y = -grid + off; y < sizeCss + grid; y += grid) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(sizeCss, y); ctx.stroke();
-      }
-
-      // Concentric range rings
-      ctx.strokeStyle = 'rgba(40, 255, 100, 0.28)';
-      ctx.lineWidth = 1;
-      for (let r = R / 3; r < R; r += R / 3) {
-        ctx.beginPath(); ctx.arc(R, R, r, 0, Math.PI * 2); ctx.stroke();
-      }
-      // Crosshair
-      ctx.strokeStyle = 'rgba(40, 255, 100, 0.22)';
-      ctx.beginPath(); ctx.moveTo(R, 0); ctx.lineTo(R, sizeCss);
-      ctx.moveTo(0, R); ctx.lineTo(sizeCss, R); ctx.stroke();
-
-      // Sweep wedge — classic radar arm. Sweeps clockwise, ~4s/rev.
-      const sweepAng = (t * Math.PI / 2) % (Math.PI * 2);
-      const sweepGrad = ctx.createRadialGradient(R, R, 0, R, R, R);
-      sweepGrad.addColorStop(0, 'rgba(120, 255, 160, 0.45)');
-      sweepGrad.addColorStop(1, 'rgba(40, 255, 100, 0.0)');
-      ctx.beginPath();
-      ctx.moveTo(R, R);
-      ctx.arc(R, R, R, sweepAng - 0.55, sweepAng);
-      ctx.closePath();
-      ctx.fillStyle = sweepGrad;
-      ctx.fill();
-      // Bright sweep edge
-      ctx.strokeStyle = 'rgba(160, 255, 200, 0.65)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(R, R);
-      ctx.lineTo(R + Math.cos(sweepAng) * R, R + Math.sin(sweepAng) * R);
-      ctx.stroke();
-
-      // Shards — relative to player, rotated by -heading so forward = up
-      const cos = Math.cos(-heading);
-      const sin = Math.sin(-heading);
-      const blink = 0.7 + Math.sin(t * 6) * 0.3;
-      for (let i = 0; i < shardPositions.length; i++) {
-        const collected = collectedShards?.has(i);
-        const s = shardPositions[i];
-        const dx = s[0] - pp.x;
-        const dz = s[2] - pp.z;
-        // Rotate around the player so the radar is player-relative.
-        let rx = dx * cos - dz * sin;
-        let ry = dx * sin + dz * cos;
-        // Normalize to radar disc; clamp to edge with an arrow if out of range.
-        const distNorm = Math.sqrt(rx * rx + ry * ry) / RADAR_RANGE;
-        const edgeR = R - 10;
-        let px: number, py: number, atEdge = false;
-        if (distNorm > 1) {
-          const ang = Math.atan2(ry, rx);
-          px = R + Math.cos(ang) * edgeR;
-          py = R + Math.sin(ang) * edgeR;
-          atEdge = true;
-        } else {
-          px = R + (rx / RADAR_RANGE) * edgeR;
-          py = R + (ry / RADAR_RANGE) * edgeR;
-        }
-
-        if (collected) {
-          // Small dim cross — "collected" marker
-          ctx.strokeStyle = 'rgba(120, 255, 160, 0.28)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(px - 3, py - 3); ctx.lineTo(px + 3, py + 3);
-          ctx.moveTo(px - 3, py + 3); ctx.lineTo(px + 3, py - 3);
-          ctx.stroke();
-          continue;
-        }
-
-        // Uncollected — pulsing cyan diamond (matches shard color)
-        const dotR = atEdge ? 3 : 4;
-        ctx.shadowColor = '#9be8ff';
-        ctx.shadowBlur = 8;
-        ctx.fillStyle = `rgba(155, 232, 255, ${blink})`;
-        ctx.beginPath();
-        ctx.moveTo(px, py - dotR);
-        ctx.lineTo(px + dotR, py);
-        ctx.lineTo(px, py + dotR);
-        ctx.lineTo(px - dotR, py);
-        ctx.closePath();
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        if (atEdge) {
-          // Direction arrowhead points outward to indicate out-of-range
-          const ang = Math.atan2(ry, rx);
-          ctx.strokeStyle = `rgba(155, 232, 255, ${blink * 0.8})`;
-          ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          ctx.moveTo(px + Math.cos(ang) * 5, py + Math.sin(ang) * 5);
-          ctx.lineTo(px + Math.cos(ang) * 9, py + Math.sin(ang) * 9);
-          ctx.stroke();
-        }
-      }
-
-      // Player chevron (always centered, facing up — radar is player-relative)
-      ctx.fillStyle = 'rgba(180, 255, 200, 0.95)';
-      ctx.strokeStyle = 'rgba(40, 255, 100, 0.95)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(R, R - 7);
-      ctx.lineTo(R + 5, R + 5);
-      ctx.lineTo(R, R + 2);
-      ctx.lineTo(R - 5, R + 5);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.restore();
-
-      // Outer bezel ring (drawn outside the clip)
-      ctx.strokeStyle = 'rgba(74, 222, 128, 0.7)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(R, R, R - 1, 0, Math.PI * 2); ctx.stroke();
-      // Cardinal ticks
-      ctx.strokeStyle = 'rgba(120, 255, 160, 0.55)';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 12; i++) {
-        const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
-        const major = i % 3 === 0;
-        const r0 = R - (major ? 8 : 4);
-        const r1 = R - 1;
-        ctx.beginPath();
-        ctx.moveTo(R + Math.cos(a) * r0, R + Math.sin(a) * r0);
-        ctx.lineTo(R + Math.cos(a) * r1, R + Math.sin(a) * r1);
-        ctx.stroke();
-      }
-
-      rafRef.current = requestAnimationFrame(draw);
-    };
-    rafRef.current = requestAnimationFrame(draw);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    };
-  }, [active, playerPositionRef, playerRotationYRef, shardPositions, collectedShards]);
-
-  const hasMinimap = !!(active && playerPositionRef && shardPositions);
-  const remainingShards = shardPositions && collectedShards
-    ? shardPositions.length - collectedShards.size
-    : 0;
-
   return (
     <>
-      {/* Layer 1: Cooler dark overlay — desaturates the scene before tint
-          rather than blacking it out (multiply with mid-grey instead of near-
-          black, so the underlying scene still reads through). */}
+      {/* Layer 1: Mid-green-grey multiply — desaturates the scene before tint.
+          Keeping it off near-black so the underlying scene still reads through. */}
       <div
         className="fixed inset-0 z-[18] pointer-events-none transition-opacity duration-300"
         style={{
@@ -247,8 +44,7 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({
         }}
       />
 
-      {/* Layer 2: Green phosphor tint — subtle, not a flood. Keeps the scene's
-          structure visible while shifting the hue toward NV green. */}
+      {/* Layer 2: Subtle green phosphor tint — hue shift without flooding. */}
       <div
         className="fixed inset-0 z-[19] pointer-events-none transition-opacity duration-300"
         style={{
@@ -259,7 +55,7 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({
         }}
       />
 
-      {/* Layer 2b: Scanlines — fine horizontal striping like a CRT phosphor tube */}
+      {/* Layer 2b: CRT scanlines */}
       <div
         className="fixed inset-0 z-[20] pointer-events-none nv-scanlines transition-opacity duration-300"
         style={{ opacity: active ? 0.55 : 0 }}
@@ -271,7 +67,7 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({
         style={{ opacity: active ? 0.22 : 0 }}
       />
 
-      {/* Layer 3: Tactical reticle vignette — dark edges, clear center */}
+      {/* Layer 3: Vignette — dark corners, clear center */}
       <div
         className="fixed inset-0 z-[21] pointer-events-none transition-opacity duration-300"
         style={{
@@ -281,7 +77,7 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({
         }}
       />
 
-      {/* Layer 3b: Chromatic aberration tint — subtle cyan/red fringes at sides */}
+      {/* Layer 3b: Chromatic aberration — cyan left, red-ish right */}
       <div
         className="fixed inset-0 z-[21] pointer-events-none transition-opacity duration-300"
         style={{
@@ -292,7 +88,7 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({
         }}
       />
 
-      {/* Top-left HUD chip */}
+      {/* NV ON chip — top-left */}
       {active && (
         <div
           className="fixed z-[23] pointer-events-none
@@ -304,23 +100,6 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({
         >
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 align-middle animate-pulse" />
           NV ON
-        </div>
-      )}
-
-      {/* Bottom-right minimap radar */}
-      {hasMinimap && (
-        <div
-          className="fixed z-[23] pointer-events-none font-mono text-emerald-300
-                     bottom-[calc(env(safe-area-inset-bottom,0px)+16px)]
-                     right-[calc(env(safe-area-inset-right,0px)+16px)]"
-          style={{ filter: 'drop-shadow(0 0 18px rgba(74,222,128,0.32))' }}
-        >
-          <canvas ref={radarRef} className="block" />
-          {/* Range / signal label below the radar */}
-          <div className="mt-1 flex justify-between text-[9px] tracking-widest opacity-80 px-1">
-            <span>R {RADAR_RANGE}m</span>
-            <span>{remainingShards}/{shardPositions?.length ?? 0}</span>
-          </div>
         </div>
       )}
 
@@ -343,14 +122,11 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({
         }
         .animate-nv-boot { animation: nvBoot 550ms ease-out forwards; }
 
-        /* CRT scanlines — pure CSS, no DOM cost */
         .nv-scanlines {
           background-image: repeating-linear-gradient(
             to bottom,
-            rgba(0, 0, 0, 0) 0px,
-            rgba(0, 0, 0, 0) 2px,
-            rgba(0, 0, 0, 0.35) 3px,
-            rgba(0, 0, 0, 0) 4px
+            rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
+            rgba(0,0,0,0.35) 3px, rgba(0,0,0,0) 4px
           );
           mix-blend-mode: multiply;
           animation: nvScroll 4s linear infinite;
@@ -360,7 +136,6 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({
           100% { background-position-y: 32px; }
         }
 
-        /* Subtle animated grain — SVG turbulence as data-uri */
         .nv-grain {
           background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.15  0 0 0 0 1  0 0 0 0 0.4  0 0 0 0.22 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
           background-size: 220px 220px;
@@ -368,34 +143,251 @@ export const NightVisionFx: React.FC<NightVisionFxProps> = ({
           animation: nvGrain 0.6s steps(6) infinite;
         }
         @keyframes nvGrain {
-          0%   { transform: translate(0, 0); }
-          20%  { transform: translate(-6px, 4px); }
-          40%  { transform: translate(5px, -3px); }
-          60%  { transform: translate(-3px, -5px); }
-          80%  { transform: translate(4px, 3px); }
-          100% { transform: translate(0, 0); }
+          0%   { transform: translate(0,0); }
+          20%  { transform: translate(-6px,4px); }
+          40%  { transform: translate(5px,-3px); }
+          60%  { transform: translate(-3px,-5px); }
+          80%  { transform: translate(4px,3px); }
+          100% { transform: translate(0,0); }
         }
       `}</style>
     </>
   );
 };
 
+// ─── ShardScanner ────────────────────────────────────────────────────────────
+
+// World radius shown across the radar. 60 units covers the whole underwater zone
+// while still letting the player read directionality clearly.
+const RADAR_RANGE = 60;
+
+export interface ShardScannerProps {
+  playerPositionRef: React.MutableRefObject<THREE.Vector3>;
+  playerRotationYRef: React.MutableRefObject<number>;
+  shardPositions: ReadonlyArray<readonly [number, number, number]>;
+  collectedShards: Set<number>;
+}
+
+export const ShardScanner: React.FC<ShardScannerProps> = ({
+  playerPositionRef,
+  playerRotationYRef,
+  shardPositions,
+  collectedShards,
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const rafRef = useRef<number | null>(null);
+  // Keep a ref to collectedShards so the raf loop always reads the latest
+  // without restarting. Sets are mutated externally; a ref avoids stale closure.
+  const collectedRef = useRef(collectedShards);
+  useEffect(() => { collectedRef.current = collectedShards; }, [collectedShards]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const sizeCss = 130;          // compact — fits the corner without intruding
+    canvas.width = Math.floor(sizeCss * dpr);
+    canvas.height = Math.floor(sizeCss * dpr);
+    canvas.style.width = `${sizeCss}px`;
+    canvas.style.height = `${sizeCss}px`;
+    ctx.scale(dpr, dpr);
+
+    const R = sizeCss / 2;
+    const edgeR = R - 8;
+    const startTs = performance.now();
+
+    const draw = () => {
+      const t = (performance.now() - startTs) / 1000;
+      const pp = playerPositionRef.current;
+      const heading = playerRotationYRef.current;
+      const collected = collectedRef.current;
+
+      ctx.clearRect(0, 0, sizeCss, sizeCss);
+
+      // ── Background disc ──────────────────────────────────────────────────
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(R, R, R - 1, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(2, 14, 8, 0.88)';
+      ctx.fill();
+      ctx.clip();
+
+      // Range rings
+      ctx.strokeStyle = 'rgba(40, 220, 100, 0.20)';
+      ctx.lineWidth = 0.8;
+      for (let r = R / 3; r < R; r += R / 3) {
+        ctx.beginPath(); ctx.arc(R, R, r, 0, Math.PI * 2); ctx.stroke();
+      }
+      // Crosshair lines
+      ctx.strokeStyle = 'rgba(40, 220, 100, 0.15)';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(R, 0); ctx.lineTo(R, sizeCss);
+      ctx.moveTo(0, R); ctx.lineTo(sizeCss, R);
+      ctx.stroke();
+
+      // Sweep wedge (clockwise, ~5s/rev — slower than before, easier to read)
+      const sweepAng = (t * Math.PI * 2 / 5) % (Math.PI * 2);
+      const sweepGrad = ctx.createRadialGradient(R, R, 0, R, R, R);
+      sweepGrad.addColorStop(0, 'rgba(80, 255, 140, 0.30)');
+      sweepGrad.addColorStop(1, 'rgba(40, 255, 100, 0.00)');
+      ctx.beginPath();
+      ctx.moveTo(R, R);
+      ctx.arc(R, R, R, sweepAng - 0.5, sweepAng);
+      ctx.closePath();
+      ctx.fillStyle = sweepGrad;
+      ctx.fill();
+
+      // Sweep edge line
+      ctx.strokeStyle = 'rgba(140, 255, 180, 0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(R, R);
+      ctx.lineTo(R + Math.cos(sweepAng) * (R - 2), R + Math.sin(sweepAng) * (R - 2));
+      ctx.stroke();
+
+      // ── Shards ──────────────────────────────────────────────────────────
+      const cosH = Math.cos(-heading);
+      const sinH = Math.sin(-heading);
+      const blink = 0.65 + Math.sin(t * 5.5) * 0.35;
+
+      for (let i = 0; i < shardPositions.length; i++) {
+        const s = shardPositions[i];
+        const dx = s[0] - pp.x;
+        const dz = s[2] - pp.z;
+        // Rotate relative to player heading
+        const rx = dx * cosH - dz * sinH;
+        const ry = dx * sinH + dz * cosH;
+
+        const distNorm = Math.sqrt(rx * rx + ry * ry) / RADAR_RANGE;
+        let sx: number, sy: number, atEdge = false;
+        if (distNorm > 1) {
+          const a = Math.atan2(ry, rx);
+          sx = R + Math.cos(a) * edgeR;
+          sy = R + Math.sin(a) * edgeR;
+          atEdge = true;
+        } else {
+          sx = R + (rx / RADAR_RANGE) * edgeR;
+          sy = R + (ry / RADAR_RANGE) * edgeR;
+        }
+
+        if (collected.has(i)) {
+          // Collected → tiny dim cross
+          ctx.strokeStyle = 'rgba(80, 200, 120, 0.25)';
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(sx - 2.5, sy - 2.5); ctx.lineTo(sx + 2.5, sy + 2.5);
+          ctx.moveTo(sx - 2.5, sy + 2.5); ctx.lineTo(sx + 2.5, sy - 2.5);
+          ctx.stroke();
+          continue;
+        }
+
+        // Uncollected → pulsing cyan diamond
+        const dr = atEdge ? 2.5 : 3.5;
+        ctx.shadowColor = '#9be8ff';
+        ctx.shadowBlur = 6;
+        ctx.fillStyle = `rgba(155, 232, 255, ${blink})`;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy - dr);
+        ctx.lineTo(sx + dr, sy);
+        ctx.lineTo(sx, sy + dr);
+        ctx.lineTo(sx - dr, sy);
+        ctx.closePath();
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Out-of-range: small outward tick
+        if (atEdge) {
+          const a = Math.atan2(ry, rx);
+          ctx.strokeStyle = `rgba(155, 232, 255, ${blink * 0.7})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(sx + Math.cos(a) * 4, sy + Math.sin(a) * 4);
+          ctx.lineTo(sx + Math.cos(a) * 7, sy + Math.sin(a) * 7);
+          ctx.stroke();
+        }
+      }
+
+      // ── Player chevron ───────────────────────────────────────────────────
+      ctx.fillStyle = 'rgba(160, 255, 190, 0.90)';
+      ctx.strokeStyle = 'rgba(40, 255, 100, 0.80)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(R, R - 6);
+      ctx.lineTo(R + 4, R + 4);
+      ctx.lineTo(R, R + 1);
+      ctx.lineTo(R - 4, R + 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
+
+      // ── Bezel + ticks (drawn outside the clip) ───────────────────────────
+      ctx.strokeStyle = 'rgba(74, 222, 128, 0.65)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(R, R, R - 1, 0, Math.PI * 2); ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(100, 240, 160, 0.45)';
+      ctx.lineWidth = 0.8;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
+        const major = i % 2 === 0;
+        ctx.beginPath();
+        ctx.moveTo(R + Math.cos(a) * (R - (major ? 6 : 3)), R + Math.sin(a) * (R - (major ? 6 : 3)));
+        ctx.lineTo(R + Math.cos(a) * (R - 1), R + Math.sin(a) * (R - 1));
+        ctx.stroke();
+      }
+
+      rafRef.current = requestAnimationFrame(draw);
+    };
+
+    rafRef.current = requestAnimationFrame(draw);
+    return () => {
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    };
+  // Only re-mount the raf loop when refs change identity (never in practice)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerPositionRef, playerRotationYRef, shardPositions]);
+
+  const remaining = shardPositions.length - collectedShards.size;
+
+  return (
+    <div
+      className="fixed z-[55] pointer-events-none select-none font-mono
+                 bottom-[calc(env(safe-area-inset-bottom,0px)+16px)]
+                 right-[calc(env(safe-area-inset-right,0px)+16px)]"
+      style={{ filter: 'drop-shadow(0 0 12px rgba(74,222,128,0.28))' }}
+    >
+      {/* Header label */}
+      <div className="flex justify-between items-center mb-1 px-0.5
+                      text-[9px] text-emerald-400/70 tracking-[0.18em] uppercase">
+        <span>SCANNER</span>
+        <span className="text-cyan-300/80">{remaining}/{shardPositions.length}</span>
+      </div>
+      <canvas ref={canvasRef} className="block rounded-full" />
+    </div>
+  );
+};
+
+// ─── NightVisionLights ───────────────────────────────────────────────────────
+
 interface NightVisionLightsProps {
   active: boolean;
 }
 
 /**
- * Very bright green lights mounted inside the canvas when NV is active.
- * High intensity makes all geometry glow strongly — the dark CSS overlay
- * then suppresses everything except those bright spots, creating the
- * radar/tactical silhouette effect.
+ * Moderate-intensity green lights mounted inside the canvas when NV is active.
+ * Illuminates geometry so it reads through the dark CSS overlay without blowing
+ * out the scene.
  */
 export const NightVisionLights: React.FC<NightVisionLightsProps> = ({ active }) => {
   if (!active) return null;
   return (
     <>
-      {/* Moderate intensity so the scene is readable but not blown out — the
-          CSS overlay tints what's already lit instead of inventing brightness. */}
       <ambientLight intensity={2.2} color="#5affb0" />
       <hemisphereLight intensity={1.0} color="#7affc4" groundColor="#03100a" />
     </>
