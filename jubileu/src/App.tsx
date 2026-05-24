@@ -290,6 +290,7 @@ export default function App() {
   const wasUnderwaterRef = useRef(false);
   // Dive-into-well cinematic: black-screen fade → teleport underwater.
   const [diveBlackKey, setDiveBlackKey] = useState(0);
+  const [diveBlackActive, setDiveBlackActive] = useState(false);
   // Diver spawn jumpscare — DOM cyan flash punch when he bursts from the floor.
   const [diverSpawnFlashKey, setDiverSpawnFlashKey] = useState(0);
   useEffect(() => {
@@ -338,9 +339,11 @@ export default function App() {
     scheduleTimeout(() => setDiverPhase('done'), 2200);
     // Brief black blink for goggle equip, then place player near elevator.
     setDiveBlackKey(k => k + 1);
+    setDiveBlackActive(true);
     scheduleTimeout(() => {
       playerPositionCmdRef.current = { x: 0, y: 0, z: -8 };
     }, 300);
+    scheduleTimeout(() => setDiveBlackActive(false), 750);
   }, [audioCtx, inventoryAddItem, scheduleTimeout]);
 
   // ─── Floor 2 shards ───────────────────────────────────────────────────
@@ -936,7 +939,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackKey > 0} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -1110,7 +1113,7 @@ export default function App() {
           teleported underwater at 800ms while the screen is fully black.
           Layers: rushing speed streaks → iris tunnel closes → black hold
           → blue water-flood on impact → reveal of the underwater scene. */}
-      {diveBlackKey > 0 && (
+      {diveBlackActive && (
         <div
           key={`diveblack-${diveBlackKey}`}
           className="fixed inset-0 z-[95] pointer-events-none"
