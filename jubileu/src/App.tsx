@@ -1056,7 +1056,13 @@ export default function App() {
           Sits above the canvas (z-18..23) and below the menus. Disappears
           when the player toggles NV off. */}
       {hasStarted && (
-        <NightVisionFx active={inventory.nightVision.owned && inventory.nightVision.active} />
+        <NightVisionFx
+          active={inventory.nightVision.owned && inventory.nightVision.active}
+          playerPositionRef={currentLevel === 2 ? sharedPlayerPositionRef : undefined}
+          playerRotationYRef={currentLevel === 2 ? sharedRotationYRef : undefined}
+          shardPositions={currentLevel === 2 ? SHARD_POSITIONS : undefined}
+          collectedShards={currentLevel === 2 ? collectedShards : undefined}
+        />
       )}
 
       {/* Splash overlay — pure CSS, fires on swim-threshold crossings.
@@ -1265,6 +1271,7 @@ export default function App() {
           onAccept={handleCutsceneAccept}
           onRefuse={handleCutsceneRefuse}
           onBeat={handleCutsceneBeat}
+          audioCtx={audioCtx}
         />
       )}
       

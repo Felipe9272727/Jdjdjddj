@@ -290,6 +290,144 @@ export const playEquipChime = (audioContext: AudioContext | null) => {
 };
 
 /**
+ * Diver cutscene helpers — typewriter ticks, per-beat punctuation, ambient
+ * bed. Procedural Web Audio, no external samples.
+ */
+export const playTypewriterTick = (audioContext: AudioContext | null) => {
+    if (!audioContext) return;
+    const t = audioContext.currentTime;
+    // Tiny pitched click — slightly randomized so it doesn't sound robotic.
+    const osc = audioContext.createOscillator();
+    osc.type = 'square';
+    const freq = 1850 + Math.random() * 320;
+    osc.frequency.setValueAtTime(freq, t);
+    const gain = audioContext.createGain();
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.013, t + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    // Highpass to keep it tight + crisp; cuts the booming square fundamentals.
+    const hp = audioContext.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 900;
+    osc.connect(hp).connect(gain).connect(audioContext.destination);
+    osc.start(t);
+    osc.stop(t + 0.05);
+};
+
+export const playBeatPunctuation = (audioContext: AudioContext | null, beatIdx: number) => {
+    if (!audioContext) return;
+    const t = audioContext.currentTime;
+    // Each beat gets a different "color" to underscore the emotion shift:
+    //   0 cyan/curiosity, 1 amber/memory, 2 orange/warmth,
+    //   3 green/handover (more weight), 4 blue/farewell.
+    const palettes: Array<{ base: number; sweep: number; len: number; vol: number }> = [
+        { base: 220,  sweep: 110, len: 0.85, vol: 0.085 }, // curious — descending
+        { base: 165,  sweep: 132, len: 1.10, vol: 0.090 }, // memory — slow lower
+        { base: 196,  sweep: 220, len: 0.95, vol: 0.085 }, // warm — rises
+        { base: 110,  sweep: 78,  len: 1.20, vol: 0.110 }, // handover — deep
+        { base: 260,  sweep: 174, len: 0.80, vol: 0.085 }, // farewell — bell-like
+    ];
+    const p = palettes[beatIdx] ?? palettes[0];
+
+    // Sub layer: deep sine sweep
+    const sub = audioContext.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(p.base, t);
+    sub.frequency.exponentialRampToValueAtTime(p.sweep, t + p.len * 0.85);
+    const subGain = audioContext.createGain();
+    subGain.gain.setValueAtTime(0, t);
+    subGain.gain.linearRampToValueAtTime(p.vol, t + 0.03);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + p.len);
+
+    // Whoosh layer: filtered noise
+    const noiseBuf = audioContext.createBuffer(1, audioContext.sampleRate * p.len, audioContext.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const noise = audioContext.createBufferSource();
+    noise.buffer = noiseBuf;
+    const bp = audioContext.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 0.9;
+    bp.frequency.setValueAtTime(p.base * 4, t);
+    bp.frequency.exponentialRampToValueAtTime(p.sweep * 3, t + p.len * 0.85);
+    const noiseGain = audioContext.createGain();
+    noiseGain.gain.setValueAtTime(0, t);
+    noiseGain.gain.linearRampToValueAtTime(p.vol * 0.45, t + 0.04);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + p.len);
+
+    sub.connect(subGain).connect(audioContext.destination);
+    noise.connect(bp).connect(noiseGain).connect(audioContext.destination);
+    sub.start(t);
+    sub.stop(t + p.len + 0.05);
+    noise.start(t);
+    noise.stop(t + p.len);
+};
+
+/**
+ * Dark underwater drone bed that plays during the diver cutscene.
+ * Returns a stop function (call on unmount or when cutscene exits).
+ */
+export const createDiverCutsceneBed = (audioContext: AudioContext | null): (() => void) => {
+    if (!audioContext) return () => {};
+    const t = audioContext.currentTime;
+
+    // Two detuned sub-bass sines for a brooding bed
+    const subA = audioContext.createOscillator(); subA.type = 'sine'; subA.frequency.value = 55;
+    const subB = audioContext.createOscillator(); subB.type = 'sine'; subB.frequency.value = 55 * 1.012;
+    const subC = audioContext.createOscillator(); subC.type = 'sine'; subC.frequency.value = 82.5; // perfect fifth shimmer
+
+    // Filtered pink noise for "underwater wash"
+    const noiseBuf = audioContext.createBuffer(1, audioContext.sampleRate * 2, audioContext.sampleRate);
+    const noiseData = noiseBuf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < noiseData.length; i++) {
+        const white = Math.random() * 2 - 1;
+        last = 0.985 * last + 0.015 * white;  // crude pink-ish filter
+        noiseData[i] = last * 6;
+    }
+    const noise = audioContext.createBufferSource();
+    noise.buffer = noiseBuf;
+    noise.loop = true;
+    const lp = audioContext.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 380;
+    lp.Q.value = 0.7;
+
+    // Slow LFO modulates the noise filter — gives the bed gentle motion
+    const lfo = audioContext.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.18;
+    const lfoGain = audioContext.createGain();
+    lfoGain.gain.value = 120;
+    lfo.connect(lfoGain).connect(lp.frequency);
+
+    // Bus + 4s fade-in so it doesn't punch in
+    const bus = audioContext.createGain();
+    bus.gain.setValueAtTime(0, t);
+    bus.gain.linearRampToValueAtTime(0.16, t + 4.0);
+
+    subA.connect(bus); subB.connect(bus); subC.connect(bus);
+    noise.connect(lp).connect(bus);
+    bus.connect(audioContext.destination);
+
+    subA.start(t); subB.start(t); subC.start(t); noise.start(t); lfo.start(t);
+
+    let stopped = false;
+    return () => {
+        if (stopped) return;
+        stopped = true;
+        const now = audioContext.currentTime;
+        bus.gain.cancelScheduledValues(now);
+        bus.gain.setValueAtTime(bus.gain.value, now);
+        bus.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+        try {
+            subA.stop(now + 0.7); subB.stop(now + 0.7); subC.stop(now + 0.7);
+            noise.stop(now + 0.7); lfo.stop(now + 0.7);
+        } catch { /* already stopped */ }
+    };
+};
+
+/**
  * Elevator hum — subtle ambient motor sound while traveling.
  */
 export const createElevatorHum = (audioContext: AudioContext | null): (() => void) => {

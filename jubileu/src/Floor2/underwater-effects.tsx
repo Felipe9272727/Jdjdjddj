@@ -721,12 +721,12 @@ export const ShardField: React.FC<ShardFieldProps> = ({ collectedShards, onColle
     return (
         <group>
             {SHARD_POSITIONS.map((position, index) => (
-                <group key={index} ref={(r: any) => { groupRefs.current[index] = r; }} position={[position[0], position[1], position[2]]}>
+                <group key={index} ref={(r: any) => { groupRefs.current[index] = r; }} position={[position[0], position[1], position[2]]} scale={0.55}>
                     <mesh geometry={SHARD_GEO}>
-                        <meshStandardMaterial color="#9be8ff" emissive="#5ad8ff" emissiveIntensity={1.5} metalness={0.4} roughness={0.1} toneMapped={false} />
+                        <meshStandardMaterial color="#3a6a78" emissive="#1a3a48" emissiveIntensity={0.22} metalness={0.65} roughness={0.45} toneMapped />
                     </mesh>
-                    <sprite scale={[1.3, 1.3, 1]}>
-                        <spriteMaterial map={GLOW_TEXTURE} color="#9be8ff" transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                    <sprite scale={[0.45, 0.45, 1]}>
+                        <spriteMaterial map={GLOW_TEXTURE} color="#5ad8ff" transparent opacity={0.10} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
                     </sprite>
                 </group>
             ))}

@@ -21,6 +21,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { playTypewriterTick, playBeatPunctuation, createDiverCutsceneBed } from './Atmosphere';
 
 export interface DiverCutsceneProps {
   /** Called when the player accepts the gear at the end of the cutscene. */
@@ -29,6 +30,8 @@ export interface DiverCutsceneProps {
   onRefuse: () => void;
   /** Called every time the displayed beat index changes. */
   onBeat?: (beatIdx: number) => void;
+  /** Web Audio context for procedural cutscene SFX (typewriter, beats, bed). */
+  audioCtx?: AudioContext | null;
 }
 
 // ─── Beats — linear sequence of diver speech ──────────────────────────────
@@ -71,7 +74,7 @@ function dwellForBeat(idx: number, text: string): number {
   return typeSpeedForBeat(idx) * text.length + DWELL_AFTER_TYPE_MS + extra;
 }
 
-export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps) => {
+export const DiverCutscene = ({ onAccept, onRefuse, onBeat, audioCtx }: DiverCutsceneProps) => {
   const [beatIdx, setBeatIdx] = useState(0);
   const [displayedLen, setDisplayedLen] = useState(0);
   const [doneTyping, setDoneTyping] = useState(false);
@@ -101,6 +104,17 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
   // Trigger beat flash on every beat change (including initial)
   useEffect(() => { setFlashKey(k => k + 1); }, [beatIdx]);
 
+  // Per-beat audio punctuation — fires alongside the visual flash so the
+  // cut between lines actually feels like a cut, not just a text swap.
+  useEffect(() => { playBeatPunctuation(audioCtx ?? null, beatIdx); }, [beatIdx, audioCtx]);
+
+  // Underwater bed — starts on mount, gracefully fades on unmount.
+  useEffect(() => {
+    if (!audioCtx) return;
+    const stop = createDiverCutsceneBed(audioCtx);
+    return () => stop();
+  }, [audioCtx]);
+
   // (Re)start typewriter whenever the beat changes
   useEffect(() => {
     setDisplayedLen(0);
@@ -113,6 +127,9 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
     typeIntervalRef.current = setInterval(() => {
       idx += 1;
       setDisplayedLen(idx);
+      // Subtle tick — skipped on spaces so it sounds like keys, not white noise.
+      const ch = beatText[idx - 1];
+      if (ch && ch !== ' ') playTypewriterTick(audioCtx ?? null);
       if (idx >= beatText.length) {
         if (typeIntervalRef.current !== null) {
           clearInterval(typeIntervalRef.current);
@@ -127,7 +144,7 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat }: DiverCutsceneProps
         typeIntervalRef.current = null;
       }
     };
-  }, [beatIdx, beatText]);
+  }, [beatIdx, beatText, audioCtx]);
 
   // Helper: gracefully exit the cutscene (slides bars out, then fires callback)
   const exitGracefully = useCallback((cb: () => void, delay = 480) => {
