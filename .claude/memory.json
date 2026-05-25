@@ -282,6 +282,40 @@
         "3. [UX] tela de morte mínima: 1.5s texto 'DEVORADO' antes de voltar ao lobby",
         "4. [BUG] monster-wall-clip: CAVE_WALL_COLLIDERS no loop de movement do MonsterFish"
       ]
+    },
+    {
+      "cycle": 7,
+      "date": "2026-05-25",
+      "type": "CICLO COMPLETO: solicitado pelo usuário com permissão autônoma",
+      "trigger": "usuário pediu 'o monstro está muito pouco complexo, faça um modelo incrível, jumpscare incrível, e se for pego a tela fica preta'",
+      "bug_fixed_first": "fishJumpscareKey não resetava para 0 → tela preta permanente após morte. Fix: setFishJumpscareKey(0) no timeout de 2800ms.",
+      "nrem_analysis": [
+        "Monstro atual: cilindros + esfera = lula de borracha. Geometricamente correto, biologicamente inerte.",
+        "Faltam: tentáculos (define 'monstro aquático'), eye tracking (desumaniza o olhar), mandíbula maior, jumpscare 3D (não SVG flat)",
+        "Bioluminescência em stripes fixas sem fase individual — sem vida",
+        "Jumpscare DOM (SVG) é 2D e flat — sem profundidade de aproximação"
+      ],
+      "rem_dream": "Visualizei o monstro perfeito: corpo ondulando como água (já tinha), 7 tentáculos FK ao redor da mandíbula (como algas em corrente), olhos com pupila em fenda vertical que rastreiam o jogador, mandíbula maior e mais grotesca com 3 fileiras de dentes (outer/inner/ghost), bioluminescência em onda correndo da cabeça para a cauda, 4 luzes de ponto ao longo do corpo com fase independente, e o jumpscare 3D: o monstro trava, abre a mandíbula totalmente, câmera treme, corre em direção ao jogador a 45 m/s — ENTÃO o overlay DOM aparece.",
+      "implemented": [
+        "12 segmentos de corpo (era 10)",
+        "7 tentáculos FK — 4 segmentos cada, hierarquia real de grupos Three.js nested",
+        "3 fileiras de dentes: outer (10+8), inner translúcido (6), ghost (6)",
+        "Eye tracking: pupila em fenda vertical desloca posição em espaço local do monstro",
+        "Bioluminescência: 3 materiais de stripe com fase independente (onda head→tail)",
+        "4 bio point lights ao longo do corpo, fase independente",
+        "Jumpscare 3D: turn (400ms) + rush (450ms) antes de onPlayerCaught()",
+        "cameraShakeRef prop: câmera treme durante a fase turn do jumpscare",
+        "Thread completo: App → WorldProps → World → Floor2Environment → MonsterFish"
+      ],
+      "commit": "89166fd6",
+      "insights": [
+        "FK em R3F é grátis: grupos nested herdam transformações do pai automaticamente pelo Three.js",
+        "Eye tracking em espaço local: inverte quaternion do root, aplica ao vetor direção → coordenadas locais",
+        "Jumpscare 3D > 2D: a câmera já está dentro do mundo 3D, o monstro vindo em direção a ela é mais assustador que qualquer SVG",
+        "Delay na callback (onPlayerCaught fires at 850ms not 0ms) cria momento de impacto antes do overlay",
+        "STRIPE_MATS[i].emissiveIntensity update em useFrame funciona porque Three.js só faz upload do uniform se o material foi marcado como needsUpdate, mas emissiveIntensity não exige needsUpdate — funciona direto",
+        "N_BODY * N_TENT * TENT_SEGS = 12 * 7 * 4 = 336 transform nodes — pesado? Não para o V8/Three.js, pois são apenas matrix mult operations sem draw calls extras (instancing seria só necessário se tivéssemos 1000+)"
+      ]
     }
   ]
 }
