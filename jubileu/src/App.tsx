@@ -167,6 +167,7 @@ export default function App() {
   const [nightMode, setNightMode] = useState(false);
   const [sleepFadeOpacity, setSleepFadeOpacity] = useState(0);
   const [jumpscare, setJumpscare] = useState(false);
+  const [fishJumpscareKey, setFishJumpscareKey] = useState(0);
   const [doorOpenAmount, setDoorOpenAmount] = useState(0);
   const [insideElevator, setInsideElevator] = useState(false);
   
@@ -933,7 +934,17 @@ export default function App() {
         />
         <AdaptiveDpr pixelated />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} onPlayerCaught={() => setGameState('caught')} />
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} onPlayerCaught={() => {
+                setFishJumpscareKey(k => k + 1);
+                playJumpscareStab(audioCtx);
+                scheduleTimeout(() => {
+                  setGameState('caught');
+                  playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
+                  setCurrentLevel(0);
+                  setFloorReveal(true);
+                  setPendingPostDeathDialogue(true);
+                }, 2200);
+              }} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -1119,6 +1130,71 @@ export default function App() {
             }
             .dvspawn-flash { animation: dvSpawnFlash 420ms cubic-bezier(0.2,0.9,0.3,1) forwards; }
           `}</style>
+        </div>
+      )}
+
+      {/* Fish monster jumpscare — slams into camera when it catches the player.
+          Phase 1 (0–120ms): white-out flash.
+          Phase 2 (120–900ms): full-screen glowing eye + open maw.
+          Phase 3 (900–2200ms): fade to black (screen stays black until level reset). */}
+      {fishJumpscareKey > 0 && (
+        <div key={`fishjs-${fishJumpscareKey}`} className="fixed inset-0 z-[96] pointer-events-none overflow-hidden">
+          <style>{`
+            @keyframes fishFlash   { 0%{opacity:0} 6%{opacity:1} 22%{opacity:0.6} 100%{opacity:0} }
+            @keyframes fishMawIn   { 0%{opacity:0;transform:scale(0.4)} 15%{opacity:1;transform:scale(1.05)} 30%{transform:scale(1)} 80%{opacity:1} 100%{opacity:0} }
+            @keyframes fishFadeBlk { 0%{opacity:0} 60%{opacity:0} 100%{opacity:1} }
+            @keyframes fishEyePulse { 0%,100%{filter:brightness(1)} 50%{filter:brightness(2.5)} }
+            .fish-flash    { animation: fishFlash   120ms ease-out forwards; }
+            .fish-maw      { animation: fishMawIn   2200ms cubic-bezier(0.1,0.9,0.2,1) forwards; }
+            .fish-fadeblk  { animation: fishFadeBlk 2200ms ease-in forwards; }
+            .fish-eyepulse { animation: fishEyePulse 250ms ease-in-out infinite; }
+          `}</style>
+
+          {/* White impact flash */}
+          <div className="fish-flash absolute inset-0 bg-white" />
+
+          {/* Monster maw SVG — fills screen */}
+          <div className="fish-maw absolute inset-0 flex items-center justify-center">
+            <svg viewBox="-100 -80 200 160" width="110%" height="110%" style={{ position:'absolute', top:'-5%', left:'-5%' }}>
+              {/* Outer dark void */}
+              <ellipse cx="0" cy="0" rx="110" ry="90" fill="#000" />
+              {/* Maw / throat */}
+              <path d="M-85,0 Q-60,-55 0,-65 Q60,-55 85,0 Q60,55 0,62 Q-60,55 -85,0 Z" fill="#0a0008" />
+              {/* Upper teeth row */}
+              {[-65,-48,-30,-12,6,24,42,60].map((x, i) => (
+                <polygon key={`ut${i}`}
+                  points={`${x},-30 ${x+9},-30 ${x+4.5},${-55 + Math.abs(x) * 0.15}`}
+                  fill="#dddbd0" opacity="0.92" />
+              ))}
+              {/* Lower teeth row */}
+              {[-58,-40,-22,-4,14,32,50].map((x, i) => (
+                <polygon key={`lt${i}`}
+                  points={`${x},28 ${x+10},28 ${x+5},${50 - Math.abs(x) * 0.12}`}
+                  fill="#ccc9be" opacity="0.88" />
+              ))}
+              {/* Bioluminescent glow lines */}
+              <line x1="-70" y1="8"  x2="70" y2="8"  stroke="#00ffaa" strokeWidth="1.5" opacity="0.45" />
+              <line x1="-55" y1="-8" x2="55" y2="-8" stroke="#00ffaa" strokeWidth="1.0" opacity="0.30" />
+              {/* Left eye */}
+              <g className="fish-eyepulse">
+                <circle cx="-52" cy="-22" r="14" fill="#ff4400" />
+                <circle cx="-52" cy="-22" r="7"  fill="#000" />
+                <circle cx="-52" cy="-22" r="16" fill="none" stroke="#ff6600" strokeWidth="2" opacity="0.7" />
+              </g>
+              {/* Right eye */}
+              <g className="fish-eyepulse">
+                <circle cx=" 52" cy="-22" r="14" fill="#ff4400" />
+                <circle cx=" 52" cy="-22" r="7"  fill="#000" />
+                <circle cx=" 52" cy="-22" r="16" fill="none" stroke="#ff6600" strokeWidth="2" opacity="0.7" />
+              </g>
+              {/* Lure glow */}
+              <circle cx="0" cy="-72" r="8" fill="#00ffee" opacity="0.9" />
+              <circle cx="0" cy="-72" r="18" fill="#00ffee" opacity="0.25" />
+            </svg>
+          </div>
+
+          {/* Fade to black */}
+          <div className="fish-fadeblk absolute inset-0 bg-black" />
         </div>
       )}
 
