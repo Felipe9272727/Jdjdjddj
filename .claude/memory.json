@@ -1,0 +1,113 @@
+{
+  "meta": {
+    "version": 1,
+    "created": "2026-05-25",
+    "last_sleep": "2026-05-25T00:00:00Z",
+    "sleep_cycles": 1,
+    "session_note": "Sessão longa — consolidação ativa"
+  },
+
+  "user": {
+    "language": "pt-BR (mistura casual com inglês técnico)",
+    "style": "direto, sem firulas, manda comandos curtos",
+    "email": "gamerfelipe984@gmail.com",
+    "vibe": "dev criativo, quer coisas impressionantes, tolera experimentos"
+  },
+
+  "project": {
+    "name": "Jubileu",
+    "path": "/home/user/Jdjdjddj/jubileu",
+    "type": "jogo React Three Fiber (R3F) — horror/suspense em primeira pessoa",
+    "stack": ["React", "TypeScript", "Vite", "Three.js", "R3F", "@react-three/drei", "Tailwind", "Playwright (testes)"],
+    "dev_server": "http://localhost:3001",
+    "git_branch": "claude/review-project-context-QkfHZ",
+    "repo": "felipe9272727/jdjdjddj"
+  },
+
+  "architecture": {
+    "entry": "jubileu/src/App.tsx",
+    "levels": {
+      "0": "Lobby (LobbyEnvironment)",
+      "1": "Flat map exterior/casa (FlatMapEnvironment + BarneyActor)",
+      "2": "Andar 2 — caverna subaquática (Floor2Environment + Floor2Underwater)"
+    },
+    "key_files": {
+      "App.tsx": "raiz do jogo, máquina de estados, orquestra tudo",
+      "Player.tsx": "movimento FP, colisão, câmera",
+      "Floor2/MonsterFish.tsx": "predador procedural do andar 2",
+      "Floor2/constants.ts": "posições de shards, colisores de rocha, threshold água",
+      "Floor2/lighting.tsx": "iluminação da caverna (escuro sem NV)",
+      "NightVisionOverlay.tsx": "NV overlay DOM + NightVisionLights + ShardScanner",
+      "Rebreather3DPutOn.tsx": "animação de colocar máscara",
+      "BeardedDiver.tsx": "NPC mergulhador que dá o rebreather",
+      "Atmosphere.tsx": "sons ambiente, ventilador, relógio, jumpscare stab"
+    }
+  },
+
+  "floor2_state": {
+    "shards_total": 5,
+    "monster_activates_at": "primeiro shard coletado",
+    "swim_threshold_y": -2.7,
+    "cave_dark": true,
+    "nv_required": true,
+    "scanner_gate": "NV ativo + rebreather + andar 2"
+  },
+
+  "monster": {
+    "status": "IMPLEMENTADO — procedural, sem GLB",
+    "type": "predador abissal procedural (anglerfish + enguia)",
+    "body": "10 segmentos cilíndricos com onda sinusoidal",
+    "features": [
+      "cabeça plana larga",
+      "mandíbula que abre no lunge",
+      "14 dentes (fileiras superior e inferior)",
+      "olhos âmbar brilhantes com pupilas escuras",
+      "tentáculo lure anglerfish + orb ciano pulsante",
+      "nadadeiras peitorais que batem",
+      "4 espinhos dorsais",
+      "cauda bifurcada",
+      "listras bioluminescentes verdes em cada segmento"
+    ],
+    "ai_states": ["dormant", "patrol", "hunting", "lunge", "regroup"],
+    "spawn": "(-22, -20, -22)",
+    "catch_dist": 1.9,
+    "lunge_dist": 5.5,
+    "fps_fix": "sem AnimationMixer — animação só via useFrame sinusoidal"
+  },
+
+  "jumpscare": {
+    "status": "IMPLEMENTADO",
+    "trigger": "onPlayerCaught (monstro pega o jogador)",
+    "sequence": [
+      "flash branco 120ms",
+      "SVG tela-cheia: mandíbula aberta, fileiras de dentes, olhos vermelhos pulsantes, lure anglerfish",
+      "fade para preto 2200ms",
+      "reset para lobby + pós-morte dialogue"
+    ],
+    "component": "DOM overlay z-96 em App.tsx (fishJumpscareKey state)"
+  },
+
+  "fixed_bugs": [
+    "NV usava multiply → tudo ficava escuro; corrigido para screen blend",
+    "Scanner quadrantes errados — corrigida rotação heading = camAng.theta + π",
+    "Monstro humanóide (GLB code4game) → substituído por predador aquático procedural",
+    "FPS drop por AnimationMixer + frustumCulled=false → removido, agora puramente procedural",
+    "Rebreather animation era longa (2.4s) → encurtada para 1.6s",
+    "Shards dentro de pedras → reposicionados para (10.5,-27,−4.5) e (5.5,-27,17)"
+  ],
+
+  "open_todos": [],
+
+  "dream_log": [
+    {
+      "cycle": 1,
+      "date": "2026-05-25",
+      "consolidation": "Primeira consolidação — sessão iniciou com monstro humanóide com FPS drop. Substituído por criatura procedural aquática + jumpscare adicionado. TypeScript limpo. Push feito.",
+      "insights": [
+        "Usuário prioriza visuais impressionantes e performance",
+        "Sem GLB/AnimationMixer para monstros — custo muito alto",
+        "Jumpscare deve ser DOM (não canvas) para garantir render mesmo com canvas sobrecarregado"
+      ]
+    }
+  ]
+}
