@@ -117,6 +117,7 @@ interface Floor2EnvironmentProps {
     monsterPositionRef?: React.MutableRefObject<THREE.Vector3>;
     monsterProximityRef?: React.MutableRefObject<number>;
     berserk?: boolean;
+    cameraShakeRef?: React.MutableRefObject<boolean>;
 }
 export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     playerPositionRef,
@@ -127,6 +128,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     monsterPositionRef,
     monsterProximityRef,
     berserk = false,
+    cameraShakeRef,
 }) => {
     // ─── Load real PBR texture sets ────────────────────────────────
     const caveFloor = usePBRSet(
@@ -570,6 +572,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 monsterPositionRef={monsterPositionRef}
                 monsterProximityRef={monsterProximityRef}
                 berserk={berserk}
+                cameraShakeRef={cameraShakeRef}
             />
         )}
 
