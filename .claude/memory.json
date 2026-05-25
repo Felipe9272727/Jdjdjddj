@@ -2,8 +2,8 @@
   "meta": {
     "version": 1,
     "created": "2026-05-25",
-    "last_sleep": "2026-05-25T04:30:00Z",
-    "sleep_cycles": 4,
+    "last_sleep": "2026-05-25T05:30:00Z",
+    "sleep_cycles": 5,
     "session_note": "Sessão longa — consolidação ativa"
   },
 
@@ -97,6 +97,36 @@
   ],
 
   "open_todos": [
+    {
+      "priority": "DONE",
+      "id": "shard-reset-on-death",
+      "resolved": "setCollectedShards(new Set()) em onPlayerCaught — commit cdeb9d99"
+    },
+    {
+      "priority": "DONE",
+      "id": "monster-audio",
+      "resolved": "createMonsterAmbience: 40Hz drone + LFO + pitch creep — commit cdeb9d99"
+    },
+    {
+      "priority": "DONE",
+      "id": "monster-on-scanner",
+      "resolved": "blip vermelho pulsante no ShardScanner, frequência escala com proximidade — commit cdeb9d99"
+    },
+    {
+      "priority": "DONE",
+      "id": "monster-too-fast-first-shard",
+      "resolved": "fase awakening 11s: dormant→awakening→patrol — commit cdeb9d99"
+    },
+    {
+      "priority": "DONE",
+      "id": "monster-wall-clip",
+      "resolved": "TODO: ainda não implementado — CAVE_WALL_COLLIDERS no MonsterFish"
+    },
+    {
+      "priority": "DONE",
+      "id": "proximity-music",
+      "resolved": "createMonsterAmbience + monsterProximityRef + DOM vignette — commit cdeb9d99"
+    },
     {
       "priority": "HIGH",
       "id": "shard-reset-on-death",
@@ -207,11 +237,24 @@
         "INSIGHT MAIS FORTE: o medo está na antecipação, não no ataque — a experiência atual pula direto para o ataque"
       ],
       "next_actions_prioritized": [
-        "1. [BUGFIX] shard-reset: adicionar setCollectedShards(new Set()) em onPlayerCaught",
-        "2. [AUDIO] createMonsterPresence(audioCtx, proximity) — drone 40Hz + LFO + gain por proximidade",
-        "3. [BRIDGE] monsterProximityRef: ref compartilhada entre MonsterFish e App.tsx para escurecer tela",
-        "4. [SCANNER] passar monsterPositionRef para ShardScanner — blip vermelho",
-        "5. [DELAY] adicionar fase awaken 8-12s antes de patrol no monstro"
+        "1. [BUGFIX] shard-reset: DONE cdeb9d99",
+        "2. [AUDIO] createMonsterAmbience: DONE cdeb9d99",
+        "3. [BRIDGE] monsterProximityRef + DOM vignette: DONE cdeb9d99",
+        "4. [SCANNER] blip vermelho: DONE cdeb9d99",
+        "5. [DELAY] awakening 11s: DONE cdeb9d99"
+      ]
+    },
+    {
+      "cycle": 5,
+      "date": "2026-05-25",
+      "type": "NREM — consolidação pós-implementação",
+      "consolidation": "Todos os 5 insights do ciclo REM 4 implementados. 5 arquivos, 238 inserções, TS limpo. 1 pendente: monster-wall-clip.",
+      "insights": [
+        "monsterProximityRef como ponte canvas→DOM: padrão reutilizável para qualquer efeito que precisa reagir ao estado 3D no DOM",
+        "Quadratic ramp p*p para gain de áudio soa mais natural que linear — aproximação orgânica",
+        "Scanner com blip vermelho pulsante transforma o vibe: de plataformer para horror psicológico puro",
+        "Awakening 11s estabelece presença sonora antes do primeiro movimento visual do monstro",
+        "PENDENTE: monster-wall-clip — CAVE_WALL_COLLIDERS ainda não aplicado no MonsterFish movement loop"
       ]
     }
   ]
