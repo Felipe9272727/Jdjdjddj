@@ -20,7 +20,7 @@
 import React, { useRef, useMemo, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { UW_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, SWIM_THRESHOLD_Y } from './constants';
+import { UW_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, SWIM_THRESHOLD_Y } from './constants';
 
 // ─── AI tuning ─────────────────────────────────────────────────────────────
 const PATROL_SPEED   = 2.2;
@@ -499,6 +499,18 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                         _v1.current.x += rdx * str;
                         _v1.current.y += rdy * str;
                         _v1.current.z += rdz * str;
+                    }
+                }
+                // Coral pillar avoidance (XZ only — tall cylinders)
+                for (const pillar of UW_PILLAR_COLLIDERS) {
+                    const pdx = fx - pillar.x, pdz = fz - pillar.z;
+                    const pd2 = pdx*pdx + pdz*pdz;
+                    const mr  = pillar.r + 1.8;
+                    if (pd2 < mr*mr && pd2 > 0.001) {
+                        const pd  = Math.sqrt(pd2);
+                        const str = (mr - pd) / pd * 6;
+                        _v1.current.x += pdx * str;
+                        _v1.current.z += pdz * str;
                     }
                 }
                 _v1.current.y += Math.sin(t * 1.3) * 0.5;

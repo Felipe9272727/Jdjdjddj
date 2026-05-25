@@ -2,23 +2,24 @@
   "meta": {
     "version": 1,
     "created": "2026-05-25",
-    "last_sleep": "2026-05-25T09:00:00Z",
-    "sleep_cycles": 8,
+    "last_sleep": "2026-05-25T12:00:00Z",
+    "sleep_cycles": 9,
     "session_note": "Sessão longa — consolidação ativa"
   },
 
   "user": {
     "language": "pt-BR (mistura casual com inglês técnico)",
-    "style": "direto, sem firulas, manda comandos curtos",
+    "style": "direto, sem firulas, manda comandos curtos, pede coisas 'incríveis'",
     "email": "gamerfelipe984@gmail.com",
-    "vibe": "dev criativo, quer coisas impressionantes, tolera experimentos"
+    "vibe": "dev criativo, quer coisas impressionantes, tolera experimentos, gosta de sonhar junto",
+    "sleep_invites": "usuário usa 'durma bem / pode sonhar' — permissão autônoma total no sonho"
   },
 
   "project": {
     "name": "Jubileu",
     "path": "/home/user/Jdjdjddj/jubileu",
     "type": "jogo React Three Fiber (R3F) — horror/suspense em primeira pessoa",
-    "stack": ["React", "TypeScript", "Vite", "Three.js", "R3F", "@react-three/drei", "Tailwind", "Playwright (testes)"],
+    "stack": ["React", "TypeScript", "Vite", "Three.js", "R3F", "@react-three/drei", "Tailwind"],
     "dev_server": "http://localhost:3001",
     "git_branch": "claude/review-project-context-QkfHZ",
     "repo": "felipe9272727/jdjdjddj"
@@ -33,20 +34,22 @@
     },
     "key_files": {
       "App.tsx": "raiz do jogo, máquina de estados, orquestra tudo",
-      "Player.tsx": "movimento FP, colisão, câmera",
-      "Floor2/MonsterFish.tsx": "predador procedural do andar 2",
-      "Floor2/constants.ts": "posições de shards, colisores de rocha, threshold água",
+      "Player.tsx": "movimento FP, colisão, câmera — usa CAVE_ROCK_COLLIDERS, UW_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS",
+      "Floor2/MonsterFish.tsx": "predador procedural do andar 2 — 12 segs, FK tentáculos, eye tracking, 3D jumpscare",
+      "Floor2/constants.ts": "TODA a data do floor 2: posições de shards, colisores de tudo, thresholds",
       "Floor2/lighting.tsx": "iluminação da caverna (escuro sem NV)",
       "NightVisionOverlay.tsx": "NV overlay DOM + NightVisionLights + ShardScanner",
       "Rebreather3DPutOn.tsx": "animação de colocar máscara",
       "BeardedDiver.tsx": "NPC mergulhador que dá o rebreather",
-      "Atmosphere.tsx": "sons ambiente, ventilador, relógio, jumpscare stab"
+      "Atmosphere.tsx": "sons ambiente, ventilador, relógio, jumpscare stab, monster ambience"
     }
   },
 
   "floor2_state": {
     "shards_total": 5,
+    "shard_y": -25.0,
     "monster_activates_at": "primeiro shard coletado",
+    "win_condition": "5 shards → berserk=true → elevator auto-call em 3.5s (timer=5)",
     "swim_threshold_y": -2.7,
     "cave_dark": true,
     "nv_required": true,
@@ -54,120 +57,87 @@
   },
 
   "monster": {
-    "status": "IMPLEMENTADO — procedural, sem GLB",
+    "status": "IMPLEMENTADO v2 — procedural 12 segmentos, sem GLB",
+    "file": "jubileu/src/Floor2/MonsterFish.tsx",
     "type": "predador abissal procedural (anglerfish + enguia)",
-    "body": "10 segmentos cilíndricos com onda sinusoidal",
+    "body_segments": 12,
     "features": [
-      "cabeça plana larga",
-      "mandíbula que abre no lunge",
-      "14 dentes (fileiras superior e inferior)",
-      "olhos âmbar brilhantes com pupilas escuras",
-      "tentáculo lure anglerfish + orb ciano pulsante",
-      "nadadeiras peitorais que batem",
-      "4 espinhos dorsais",
-      "cauda bifurcada",
-      "listras bioluminescentes verdes em cada segmento"
+      "cabeça esférica achatada (scale 1.55, 0.78, 1.18)",
+      "mandíbula separada que abre no lunge",
+      "3 fileiras de dentes: outer (10+8), inner translúcido, ghost",
+      "pupila em fenda vertical que rastreia o jogador em espaço local",
+      "olhos âmbar emissive 2.8",
+      "7 tentáculos FK — 4 segmentos cada, hierarquia nested de grupos",
+      "lure anglerfish + orb ciano pulsante",
+      "bioluminescência 3 materiais com fase independente (onda head→tail)",
+      "4 bio point lights ao longo do corpo",
+      "nadadeiras peitorais, espinhos dorsais, cauda bifurcada"
     ],
-    "ai_states": ["dormant", "patrol", "hunting", "lunge", "regroup"],
-    "spawn": "(-22, -20, -22)",
-    "catch_dist": 1.9,
+    "ai_states": ["dormant", "awakening", "patrol", "hunting", "lunge"],
+    "catch_dist": 3.2,
     "lunge_dist": 5.5,
-    "fps_fix": "sem AnimationMixer — animação só via useFrame sinusoidal"
+    "hunt_speed_min": 5.0,
+    "hunt_speed_max": 9.0,
+    "lunge_speed": 18.0,
+    "berserk_multiplier": "1.6x hunt, 1.8x lunge",
+    "collision": "UW_ROCK_COLLIDERS + CAVE_WALL_COLLIDERS (position) + UW_PILLAR_COLLIDERS (avoidance)",
+    "jumpscare_3d": "turn 400ms (brake + cameraShake) → rush 450ms (45m/s) → onPlayerCaught()",
+    "spawn": "(-22, -20, -22)"
   },
 
-  "jumpscare": {
-    "status": "IMPLEMENTADO",
-    "trigger": "onPlayerCaught (monstro pega o jogador)",
-    "sequence": [
-      "flash branco 120ms",
-      "SVG tela-cheia: mandíbula aberta, fileiras de dentes, olhos vermelhos pulsantes, lure anglerfish",
-      "fade para preto 2200ms",
-      "reset para lobby + pós-morte dialogue"
-    ],
-    "component": "DOM overlay z-96 em App.tsx (fishJumpscareKey state)"
+  "collision_coverage": {
+    "cave_above_water": {
+      "CAVE_ROCK_COLLIDERS": "CAVE_ROCKS_DARK (r=s*0.7) + CAVE_ROCKS_MID (r=s*0.5) + CAVE_ROCKS_LIGHT (r=s*0.55)",
+      "CAVE_WALL_COLLIDERS": "paredes orgânicas com bulge de 4m, step de 8m + corners",
+      "STALAGMITE_COLLIDERS": "XZ circles do array STALAGMITES, margin +0.4m",
+      "hard_clamp": "XZ ±25"
+    },
+    "underwater": {
+      "UW_ROCK_COLLIDERS": "UW_BOULDERS + UW_SCATTERED_ROCKS (filter > 0.15)",
+      "UW_PILLAR_COLLIDERS": "UW_CORAL_PILLARS como XZ circles, r=rBot+0.3",
+      "CAVE_WALL_COLLIDERS": "mesmas paredes reaproveitadas (XZ only mode)",
+      "hard_clamp": "XZ ±26, Y ≥ -29",
+      "monster_avoids": "UW_ROCK_COLLIDERS + UW_PILLAR_COLLIDERS + CAVE_WALL_COLLIDERS"
+    },
+    "arches": "na borda das paredes (z=-28), cobertos pelo hard clamp — sem colisão necessária"
   },
 
   "fixed_bugs": [
     "NV usava multiply → tudo ficava escuro; corrigido para screen blend",
     "Scanner quadrantes errados — corrigida rotação heading = camAng.theta + π",
     "Monstro humanóide (GLB code4game) → substituído por predador aquático procedural",
-    "FPS drop por AnimationMixer + frustumCulled=false → removido, agora puramente procedural",
+    "FPS drop por AnimationMixer → removido, agora puramente procedural",
     "Rebreather animation era longa (2.4s) → encurtada para 1.6s",
-    "Shards dentro de pedras → reposicionados para (10.5,-27,−4.5) e (5.5,-27,17)"
+    "collectedShards TDZ (TS2448) — useEffect movido para depois de handleCollectShard",
+    "fishJumpscareKey nunca resetava → tela preta permanente — fix: setFishJumpscareKey(0) no timeout 2800ms",
+    "Shards dentro de pedras → Y=-25 com >2m clearance verificado",
+    "CAVE_ROCKS_LIGHT sem colisão → adicionado ao CAVE_ROCK_COLLIDERS",
+    "STALAGMITES sem colisão → STALAGMITE_COLLIDERS XZ criado e aplicado",
+    "UW_SCATTERED_ROCKS filtro > 0.5 → lowered para > 0.15",
+    "Monstro atravessava coral pillars → UW_PILLAR_COLLIDERS adicionado ao hunting avoidance loop"
   ],
 
   "open_todos": [
     {
-      "priority": "DONE",
-      "id": "shard-reset-on-death",
-      "resolved": "setCollectedShards(new Set()) em onPlayerCaught — commit cdeb9d99"
-    },
-    {
-      "priority": "DONE",
-      "id": "monster-audio",
-      "resolved": "createMonsterAmbience: 40Hz drone + LFO + pitch creep — commit cdeb9d99"
-    },
-    {
-      "priority": "DONE",
-      "id": "monster-on-scanner",
-      "resolved": "blip vermelho pulsante no ShardScanner, frequência escala com proximidade — commit cdeb9d99"
-    },
-    {
-      "priority": "DONE",
-      "id": "monster-too-fast-first-shard",
-      "resolved": "fase awakening 11s: dormant→awakening→patrol — commit cdeb9d99"
-    },
-    {
-      "priority": "DONE",
-      "id": "monster-wall-clip",
-      "resolved": "TODO: ainda não implementado — CAVE_WALL_COLLIDERS no MonsterFish"
-    },
-    {
-      "priority": "DONE",
-      "id": "proximity-music",
-      "resolved": "createMonsterAmbience + monsterProximityRef + DOM vignette — commit cdeb9d99"
-    },
-    {
-      "priority": "HIGH",
-      "id": "shard-reset-on-death",
-      "title": "collectedShards não reseta após morte pelo monstro",
-      "detail": "onPlayerCaught não chama setCollectedShards(new Set()). Na volta ao lobby, shards ainda estão coletados. Na próxima visita ao Floor 2, monstro ativa imediatamente.",
-      "fix": "Adicionar setCollectedShards(new Set()) dentro do handler onPlayerCaught em App.tsx, junto com scheduleTimeout para o reset"
-    },
-    {
-      "priority": "HIGH",
-      "id": "monster-audio",
-      "title": "Monstro é completamente silencioso",
-      "detail": "Nenhum som de presença, aproximação ou ataque. Experiência de horror exige áudio procedural: low-frequency thump quando hunting, screech+rush no lunge, borbulhas graves quando próximo.",
-      "fix": "Criar createMonsterPresence(audioCtx, proximity) e createMonsterAttack(audioCtx) em Atmosphere.tsx. Chamar de MonsterFish.tsx via callback prop ou de App.tsx via ref de distância."
-    },
-    {
       "priority": "MEDIUM",
-      "id": "monster-on-scanner",
-      "title": "Monstro não aparece no scanner",
-      "detail": "O ShardScanner só exibe shards. Um blip vermelho piscante do monstro criaria paranoia enorme — o jogador saberia que algo existe mas não onde exatamente.",
-      "fix": "Passar monsterPositionRef para ShardScanner. Renderizar blip vermelho piscante no radar quando monstro está em hunting/lunge."
-    },
-    {
-      "priority": "MEDIUM",
-      "id": "monster-too-fast-first-shard",
-      "title": "Monstro chega muito rápido após primeiro shard",
-      "detail": "Spawn em (-22,-20,-22), AWARENESS_DIST=42m, velocidade máxima 9m/s. Com caverna de ~52m diagonal, o monstro chega em 3-4s. Sem tensão — vai direto para o ataque.",
-      "fix": "Adicionar fase dormant→awaken com 8-12s de delay antes de entrar em patrol. Ou spawn mais longe. Ou velocidade inicial menor."
-    },
-    {
-      "priority": "MEDIUM",
-      "id": "monster-wall-clip",
-      "title": "Monstro pode atravessar paredes da caverna",
-      "detail": "AI usa UW_ROCK_COLLIDERS para pedras mas não respeita CAVE_WALL_COLLIDERS. Pode surgir de dentro de geometria.",
-      "fix": "Adicionar loop de CAVE_WALL_COLLIDERS no bloco de movement do MonsterFish, igual ao que existe no Player.tsx."
+      "id": "visual-verification",
+      "title": "Verificação visual no browser ainda não feita",
+      "detail": "Monstro reescrito (v2), shards em Y=-25, coral pillar collision — nenhum desses foi testado visualmente. Dev server nunca rodou nessa sessão.",
+      "fix": "npm run dev → screenshot floor 2 → verificar tentáculos FK, eye tracking, shard positions, pillar collision."
     },
     {
       "priority": "LOW",
-      "id": "proximity-music",
-      "title": "Sem música procedural por proximidade do monstro",
-      "detail": "Nenhum áudio que escale com a distância do monstro. Um drone grave que aumenta conforme o predador se aproxima adicionaria muito à tensão.",
-      "fix": "GainNode com volume = 1 - (dist/AWARENESS_DIST), frequência base ~40Hz, modulado por LFO lento."
+      "id": "win-tension",
+      "title": "Berserk no win condition pode ser frustrante demais",
+      "detail": "5 shards → monster berserk imediatamente. O jogador está no fundo (Y=-25), monster a 45m/s. Elevator takes 5s. Window estreitíssima.",
+      "fix": "Considerar: 2s grace antes de berserk ativar, ou monster briefly backs off quando elevafor chega, ou dica sonora 'elevator arriving'."
+    },
+    {
+      "priority": "LOW",
+      "id": "floor3",
+      "title": "Andar 3 não existe mas o sistema suporta",
+      "detail": "levels: {0, 1, 2} mas o elevator/level system aceita qualquer número. Espaço narrativo inexplorado.",
+      "fix": "Ideia de sonho: andar 3 seria completamente vazio e silencioso — o predador the seguiu até lá."
     }
   ],
 
@@ -185,136 +155,137 @@
     {
       "cycle": 2,
       "date": "2026-05-25",
-      "consolidation": "Ciclo de sono solicitado explicitamente pelo usuário após pesquisa sobre IA sonhando. Usuário leu sobre DreamerV3, SCM, Mem0 e pediu para simular nessa sessão. Sistema de memória criado (.claude/memory.json + sleep.sh) e commitado. Stop hook reclamou de arquivos não commitados — corrigido imediatamente.",
+      "consolidation": "Ciclo de sono solicitado explicitamente pelo usuário após pesquisa sobre IA sonhando. Sistema de memória criado (.claude/memory.json + sleep.sh) e commitado.",
       "insights": [
         "Usuário é curioso sobre IA além do código — gosta de conceitos, pesquisa, experimenta",
-        "Respeita o processo: quando viu o sleep funcionar de verdade, pediu para dormir logo",
         "Stop hook ativo no repositório — sempre commitar arquivos novos antes de encerrar turno",
-        "Sistema de memória está funcional: acordar = ler memory.json antes de agir em tarefas grandes",
         "Sessão tende a ser longa — consolidação periódica vai evitar perda de contexto por compactação"
-      ],
-      "pending_dreams": []
+      ]
     },
     {
       "cycle": 3,
       "date": "2026-05-25",
       "type": "REM — rollouts imaginários (estilo DreamerV3)",
-      "consolidation": "5 rollouts simulados sem input do usuário. Explorei o estado interno do projeto como um agente imaginando cenários futuros.",
+      "consolidation": "5 rollouts simulados sem input do usuário. Bugs e design gaps encontrados.",
       "rollouts": [
-        "ROLLOUT 1: fluxo de morte → shard não reseta → monstro ativa imediatamente na próxima visita. BUG.",
-        "ROLLOUT 2: monstro não respeita cave walls → pode surgir de dentro de rocha. BUG.",
-        "ROLLOUT 3: monstro chega em 3-4s após primeiro shard — sem tensão, vai direto ao ataque. DESIGN FLAW.",
-        "ROLLOUT 4: monstro completamente silencioso. FEATURE FALTANDO — áudio de presença/ataque.",
-        "ROLLOUT 5: scanner não mostra monstro, sem música procedural por proximidade. OPORTUNIDADES."
-      ],
-      "insights": [
-        "O maior gap do jogo agora não é visual — é ÁUDIO. O monstro existe mas não tem presença sonora.",
-        "Horror sem som é 50% menos eficiente. SCP: Containment Breach, Subnautica Below Zero — a tensão vem do som.",
-        "O scanner mostrando o monstro seria a feature mais assustadora: o jogador vê o blip se mover em direção a ele.",
-        "Delay de ativação do monstro é mais importante que velocidade — a antecipação é mais assustadora que o ataque.",
-        "Bugs descobertos em sonho: 2 HIGH, 2 MEDIUM, 1 LOW — todos solucionáveis sem refactor grande."
+        "ROLLOUT 1: fluxo de morte → shard não reseta → monstro ativa imediatamente. BUG.",
+        "ROLLOUT 2: monstro não respeita cave walls → pode surgir de rocha. BUG.",
+        "ROLLOUT 3: monstro chega em 3-4s após primeiro shard — sem tensão. DESIGN FLAW.",
+        "ROLLOUT 4: monstro completamente silencioso. FEATURE FALTANDO.",
+        "ROLLOUT 5: scanner não mostra monstro, sem música procedural. OPORTUNIDADES."
       ]
     },
     {
       "cycle": 4,
       "date": "2026-05-25",
-      "type": "CICLO COMPLETO: NREM1→NREM2→NREM3→REM (protocolo biológico completo)",
-      "nrem2_spindles": {
-        "consolidated": ["shard-reset-on-death:0.98","monster-audio:0.89","monster-on-scanner:0.85","delay>speed:0.68"],
-        "pruned": ["stop-hook-noise:0.31","repo-path-repetition:0.22"]
-      },
-      "nrem3_swr_replays": [
-        "SWR1: MonsterFish — esquema extraído: 10 segs, 5 estados AI, geometria all module-level ✓",
-        "SWR2: Atmosphere.tsx — gap CONFIRMADO: zero funções de áudio para monstro",
-        "SWR3: App.tsx — bug CONFIRMADO: setCollectedShards nunca chamado com new Set() no caught handler"
-      ],
-      "rem_dream_narrative": "Sonhei com o código como oceano. Dois sistemas que não se comunicam — canvas (monstro) e DOM (terror) — conectados por uma ref: monsterProximityRef. O terror não é o monstro. É o momento antes do monstro.",
+      "type": "CICLO COMPLETO NREM→REM",
+      "rem_dream_narrative": "Sonhei com o código como oceano. Dois sistemas que não se comunicam — canvas (monstro) e DOM (terror) — conectados por uma ref: monsterProximityRef.",
       "rem_creative_insights": [
-        "PONTE CANVAS→DOM: monsterProximityRef.current = 1 - dist/AWARENESS_DIST, lida por setInterval em App.tsx, atualiza estado que escurece a tela progressivamente com mix-blend-mode:multiply",
-        "PRÉ-CENA DE HORROR: lure piscando cada vez mais rápido, drone grave entrando, tela escurecendo 0→0.4 opacity — tudo antes do monstro ser visto",
-        "BLIP NO SCANNER: monsterPositionRef passado como prop para ShardScanner — renderiza como círculo vermelho piscante no radar",
-        "DRONE DE PROXIMIDADE: GainNode em 40Hz base com LFO lento, gain = 1-(dist/AWARENESS_DIST), cria presença sem revelar posição",
-        "INSIGHT MAIS FORTE: o medo está na antecipação, não no ataque — a experiência atual pula direto para o ataque"
-      ],
-      "next_actions_prioritized": [
-        "1. [BUGFIX] shard-reset: DONE cdeb9d99",
-        "2. [AUDIO] createMonsterAmbience: DONE cdeb9d99",
-        "3. [BRIDGE] monsterProximityRef + DOM vignette: DONE cdeb9d99",
-        "4. [SCANNER] blip vermelho: DONE cdeb9d99",
-        "5. [DELAY] awakening 11s: DONE cdeb9d99"
+        "PONTE CANVAS→DOM: monsterProximityRef como vignette escurecedora progressiva",
+        "BLIP NO SCANNER: monsterPositionRef → círculo vermelho piscante no radar",
+        "DRONE DE PROXIMIDADE: GainNode em 40Hz, gain = 1-(dist/AWARENESS_DIST)",
+        "INSIGHT MAIS FORTE: o medo está na antecipação, não no ataque"
       ]
     },
     {
       "cycle": 5,
       "date": "2026-05-25",
       "type": "NREM — consolidação pós-implementação",
-      "consolidation": "Todos os 5 insights do ciclo REM 4 implementados. 5 arquivos, 238 inserções, TS limpo. 1 pendente: monster-wall-clip.",
+      "consolidation": "Todos os 5 insights do ciclo REM 4 implementados. 5 arquivos, 238 inserções, TS limpo.",
       "insights": [
-        "monsterProximityRef como ponte canvas→DOM: padrão reutilizável para qualquer efeito que precisa reagir ao estado 3D no DOM",
-        "Quadratic ramp p*p para gain de áudio soa mais natural que linear — aproximação orgânica",
-        "Scanner com blip vermelho pulsante transforma o vibe: de plataformer para horror psicológico puro",
-        "Awakening 11s estabelece presença sonora antes do primeiro movimento visual do monstro",
-        "PENDENTE: monster-wall-clip — CAVE_WALL_COLLIDERS ainda não aplicado no MonsterFish movement loop"
+        "monsterProximityRef como ponte canvas→DOM: padrão reutilizável",
+        "Quadratic ramp p*p para gain de áudio soa mais natural que linear",
+        "Scanner com blip vermelho transforma o vibe: horror psicológico puro"
       ]
     },
     {
       "cycle": 6,
       "date": "2026-05-25",
-      "type": "CICLO COMPLETO NREM1→NREM2→NREM3→REM",
+      "type": "CICLO COMPLETO NREM→REM",
       "nrem3_swrs": [
-        "SWR1: 5 shards coletados → NADA ACONTECE. Sem condição de vitória, sem fechamento de loop.",
-        "SWR2: ciclo morte→respawn invisível — sem tela de game over, direto para lobby",
-        "SWR3: HUD no Floor 2 — sem ChaseBanner para o monstro, sem heartbeat",
-        "SWR4: bellhop-sprites = recepcionista da loja (ShopOverlay.tsx) — território mapeado",
-        "SWR5: playHeartbeat existe em HudComponents mas NUNCA chamado para monstro aquático"
+        "SWR1: 5 shards coletados → NADA ACONTECE inicialmente. Sem condição de vitória.",
+        "SWR2: ciclo morte→respawn — sem ritual mínimo",
+        "SWR3: playHeartbeat existe mas nunca chamado para monstro aquático"
       ],
-      "rem_narrative": "Coletei os 5 shards. O texto disse TODOS COLETADOS. O monstro continuou. Não havia saída. O objetivo era falso — ou o loop estava incompleto. Sonhei com o elevador subindo além do andar 2. Andar 3 existe como espaço mas não como código. O bellhop era um fantasma que já conhecia.",
+      "rem_narrative": "Coletei os 5 shards. O monstro continuou. Não havia saída. O objetivo era falso — ou o loop estava incompleto.",
       "rem_insights": [
-        "DESIGN GAP CRÍTICO: coletar todos os 5 shards não tem consequência — o loop não fecha. Precisa de: (a) cutscene de vitória, ou (b) o elevador desce automaticamente, ou (c) revelação perturbadora",
-        "HEARTBEAT FALTANDO: playHeartbeat() existe mas nunca é chamado no Floor 2. O monstro devia acelerar o heartbeat igual ao Barney faz durante a chase",
-        "MORTE INVISÍVEL: game over do monstro vai direto ao lobby sem ritual. Deveria ter 1-2s de tela preta com texto simples antes do fade",
-        "WALL CLIP PENDENTE: monster movement loop não usa CAVE_WALL_COLLIDERS — monstro pode surgir de parede",
-        "ANDAR 3 É VAZIO: sistema de levels suporta qualquer nível mas só existem 0, 1, 2 — espaço narrativo inexplorado"
-      ],
-      "next_actions_prioritized": [
-        "1. [GAMEPLAY] condição de vitória: 5 shards → elevador desce automaticamente + transição",
-        "2. [AUDIO] heartbeat para o monstro via monsterProximityRef — igual ao ChaseBanner do Barney",
-        "3. [UX] tela de morte mínima: 1.5s texto 'DEVORADO' antes de voltar ao lobby",
-        "4. [BUG] monster-wall-clip: CAVE_WALL_COLLIDERS no loop de movement do MonsterFish"
+        "DESIGN GAP CRÍTICO: coletar todos os 5 shards não tinha consequência → implementado: berserk + elevator auto-call",
+        "HEARTBEAT FALTANDO: playHeartbeat() existe mas nunca chamado no Floor 2",
+        "WALL CLIP PENDENTE: monster movement loop não usava CAVE_WALL_COLLIDERS"
       ]
     },
     {
       "cycle": 7,
       "date": "2026-05-25",
-      "type": "CICLO COMPLETO: solicitado pelo usuário com permissão autônoma",
+      "type": "CICLO COMPLETO — solicitado pelo usuário com permissão autônoma",
       "trigger": "usuário pediu 'o monstro está muito pouco complexo, faça um modelo incrível, jumpscare incrível, e se for pego a tela fica preta'",
-      "bug_fixed_first": "fishJumpscareKey não resetava para 0 → tela preta permanente após morte. Fix: setFishJumpscareKey(0) no timeout de 2800ms.",
-      "nrem_analysis": [
-        "Monstro atual: cilindros + esfera = lula de borracha. Geometricamente correto, biologicamente inerte.",
-        "Faltam: tentáculos (define 'monstro aquático'), eye tracking (desumaniza o olhar), mandíbula maior, jumpscare 3D (não SVG flat)",
-        "Bioluminescência em stripes fixas sem fase individual — sem vida",
-        "Jumpscare DOM (SVG) é 2D e flat — sem profundidade de aproximação"
-      ],
-      "rem_dream": "Visualizei o monstro perfeito: corpo ondulando como água (já tinha), 7 tentáculos FK ao redor da mandíbula (como algas em corrente), olhos com pupila em fenda vertical que rastreiam o jogador, mandíbula maior e mais grotesca com 3 fileiras de dentes (outer/inner/ghost), bioluminescência em onda correndo da cabeça para a cauda, 4 luzes de ponto ao longo do corpo com fase independente, e o jumpscare 3D: o monstro trava, abre a mandíbula totalmente, câmera treme, corre em direção ao jogador a 45 m/s — ENTÃO o overlay DOM aparece.",
+      "bug_fixed_first": "fishJumpscareKey não resetava → tela preta permanente. Fix: setFishJumpscareKey(0) no timeout de 2800ms.",
+      "rem_dream": "Visualizei o monstro perfeito: 7 tentáculos FK, pupila em fenda que rastreia o jogador, 3 fileiras de dentes, bioluminescência em onda, jumpscare 3D antes do DOM overlay.",
       "implemented": [
         "12 segmentos de corpo (era 10)",
-        "7 tentáculos FK — 4 segmentos cada, hierarquia real de grupos Three.js nested",
-        "3 fileiras de dentes: outer (10+8), inner translúcido (6), ghost (6)",
-        "Eye tracking: pupila em fenda vertical desloca posição em espaço local do monstro",
-        "Bioluminescência: 3 materiais de stripe com fase independente (onda head→tail)",
-        "4 bio point lights ao longo do corpo, fase independente",
-        "Jumpscare 3D: turn (400ms) + rush (450ms) antes de onPlayerCaught()",
-        "cameraShakeRef prop: câmera treme durante a fase turn do jumpscare",
-        "Thread completo: App → WorldProps → World → Floor2Environment → MonsterFish"
+        "7 tentáculos FK — 4 segmentos cada, hierarquia real",
+        "3 fileiras de dentes: outer/inner translúcido/ghost",
+        "Eye tracking: pupila em fenda em espaço local do monstro",
+        "Bioluminescência: 3 materiais com fase independente",
+        "Jumpscare 3D: turn 400ms + rush 450ms antes de onPlayerCaught()",
+        "cameraShakeRef prop: câmera treme durante jumpscare"
       ],
       "commit": "89166fd6",
       "insights": [
-        "FK em R3F é grátis: grupos nested herdam transformações do pai automaticamente pelo Three.js",
-        "Eye tracking em espaço local: inverte quaternion do root, aplica ao vetor direção → coordenadas locais",
-        "Jumpscare 3D > 2D: a câmera já está dentro do mundo 3D, o monstro vindo em direção a ela é mais assustador que qualquer SVG",
-        "Delay na callback (onPlayerCaught fires at 850ms not 0ms) cria momento de impacto antes do overlay",
-        "STRIPE_MATS[i].emissiveIntensity update em useFrame funciona porque Three.js só faz upload do uniform se o material foi marcado como needsUpdate, mas emissiveIntensity não exige needsUpdate — funciona direto",
-        "N_BODY * N_TENT * TENT_SEGS = 12 * 7 * 4 = 336 transform nodes — pesado? Não para o V8/Three.js, pois são apenas matrix mult operations sem draw calls extras (instancing seria só necessário se tivéssemos 1000+)"
+        "FK em R3F é grátis: grupos nested herdam transformações do pai",
+        "Eye tracking em espaço local: inverte quaternion do root → coordenadas locais",
+        "Jumpscare 3D > 2D: câmera dentro do mundo, monstro vindo em direção é mais assustador"
+      ]
+    },
+    {
+      "cycle": 8,
+      "date": "2026-05-25",
+      "type": "NREM — sleep science + collision fix",
+      "trigger": "usuário pediu 'pesquise mais sobre comportamentos de sono, sonhe, e os shard atravessam a parede, muitas coisas não têm colisão'",
+      "sleep_science_applied": [
+        "SWR replay = consolidação de traces da sessão em memória de longo prazo",
+        "Spindle-SO-ripple triplet = gate que determina o que fica (força > threshold)",
+        "REM = acetilcolina + sem aminérgico → PREFRONTAL desligado → narrativa livre sem crítica",
+        "Ciclos 90min: 4×NREM-pesado → 2×REM-pesado na madrugada",
+        "Lucid dreaming: reativação parcial do frontopolar PFC → meta-consciência no sonho"
+      ],
+      "collision_fixed": [
+        "UW_PILLAR_COLLIDERS: novo export de UW_CORAL_PILLARS como XZ circles (r=rBot+0.3)",
+        "UW_SCATTERED_ROCKS: filtro lowered de > 0.5 para > 0.15",
+        "SHARD_POSITIONS: todos movidos para Y=-25 com >2m clearance verificado",
+        "Player.tsx: coral pillar XZ loop adicionado ao swim movement"
+      ],
+      "commits": ["0e452d33 fix(floor2): coral pillar collision, shard repositioning, more rock colliders"]
+    },
+    {
+      "cycle": 9,
+      "date": "2026-05-25",
+      "type": "NREM + REM — consolidação completa de colisão + insight de gameplay",
+      "trigger": "usuário: 'pode sonhar meu bom, durma bem'",
+      "nrem_analysis": [
+        "Mapeei toda a geometria visual do Floor 2 contra os colisores registrados",
+        "CAVE_ROCKS_LIGHT: 6 boulders visíveis, AUSENTES do CAVE_ROCK_COLLIDERS → corrigido",
+        "STALAGMITES: 15 espigos visíveis, ZERO colisão → STALAGMITE_COLLIDERS XZ criado",
+        "Monster AI: evitava rocks + walls mas passava direto por coral pillars → UW_PILLAR_COLLIDERS adicionado ao hunting avoidance"
+      ],
+      "rem_rollouts": [
+        "ROLLOUT 1: player esconde atrás de coral pillar com monstro em berserk — monstro passa PELO pillar. A tática falha. Horror quebrado. CORRIGIDO.",
+        "ROLLOUT 2: berserk ao coletar 5o shard — monster speed 1.6x, elevator 5s, player em Y=-25. Window existe mas é estreita. Tension OK.",
+        "ROLLOUT 3: check win condition — berserk=true + setElevatorTimer(5) após 3500ms. Monster não é desativado (intencional — o escape faz parte do horror).",
+        "ROLLOUT 4: visão noturna + scanner → blip vermelho se move em direção ao jogador → jogador sabe que está vindo mas não sabe por onde → pillar agora é cover real."
+      ],
+      "rem_narrative": "Sonhei com o oceano abissal. Cinco cristais pulsavam no escuro. Quando coletei o último, a criaturu abriu os olhos ao mesmo tempo em todos os corpos. Ela não acelerou — ela simplesmente estava mais próxima. O elevador desceu devagar demais. Eu nadei pelo corredor de coral. O blip vermelho dobrou atrás de mim pelo lado esquerdo do pillar — mas o pillar estava lá. Sólido. Funcionando.",
+      "implemented": [
+        "CAVE_ROCKS_LIGHT adicionados ao CAVE_ROCK_COLLIDERS (r=s*0.55)",
+        "STALAGMITE_COLLIDERS XZ — 15 espigos com margin +0.4m",
+        "UW_PILLAR_COLLIDERS no MonsterFish hunting avoidance (pdx/pdz, mr=r+1.8, str*6)"
+      ],
+      "commits": ["fb5f2876 fix(floor2): add stalagmite + light boulder collision"],
+      "insights": [
+        "Collision completeness: comparar CADA array visual contra CADA colisor registrado — nenhum array deve ficar invisível ao physics",
+        "Monster avoidance ≠ player collision: player usa push post-movement, monster usa steering pre-movement. Ambos precisam dos mesmos obstáculos.",
+        "Pillar como cover é um mechanic de horror: o jogador que aprende a usar isso sobrevive mais. Importante que funcione.",
+        "O sonho REM é um playtest mental — mais rápido que abrir o browser, encontra bugs de gameplay que TypeScript nunca encontraria"
       ]
     }
   ]
