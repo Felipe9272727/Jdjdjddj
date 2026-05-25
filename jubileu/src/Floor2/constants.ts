@@ -278,9 +278,13 @@ export const CAVE_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r:
 export const UW_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = [
     ...UW_BOULDERS.map(([x,y,z,s]) => ({ x, y: y + s * 0.3, z, r: s * 0.6 })),
     ...UW_SCATTERED_ROCKS
-        .filter(r => r[3] > 0.5)
+        .filter(r => r[3] > 0.15)   // was 0.5 — now smaller rocks also block
         .map(([x, y, z, s]) => ({ x, y: y + s * 0.3, z, r: s * 0.5 })),
 ];
+
+// ─── Coral pillar collision — XZ circles (no Y check needed for tall cylinders)
+export const UW_PILLAR_COLLIDERS: readonly { x: number; z: number; r: number }[] =
+    UW_CORAL_PILLARS.map(([x, z, , , rBot]) => ({ x, z, r: rBot + 0.3 }));
 
 // ─── Wall collision data — organic walls bulge inward, need collision ──
 export const CAVE_WALL_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = (() => {
@@ -313,10 +317,12 @@ export const CAVE_WALL_COLLIDERS: readonly { x: number; y: number; z: number; r:
 })();
 
 // ─── Shard positions (underwater) ────────────────────────────────────
+// Y=-25 puts shards in mid-water (~5 m above boulders, well below surface).
+// Each position verified: >2 m clearance from every boulder sphere and coral pillar.
 export const SHARD_POSITIONS: readonly (readonly [number, number, number])[] = [
-    [ 10.5, -27.0,  -4.5],   // moved: was inside boulder 0
-    [-13.0, -27.7,   4.8],
-    [  5.5, -27.0,  17.0],   // moved: was inside boulder 3
-    [-18.0, -27.7, -10.0],
-    [ 19.5, -27.7,  11.5],
+    [ 12.5, -25.0, -12.0],   // east, near north wall
+    [-11.0, -25.0,   9.0],   // west-center
+    [  3.0, -25.0,  16.0],   // center-south
+    [-16.0, -25.0, -12.0],   // northwest
+    [ 17.0, -25.0,   6.0],   // east-center
 ] as const;

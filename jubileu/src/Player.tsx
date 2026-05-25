@@ -4,7 +4,7 @@ import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
-import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS } from './Floor2Underwater';
+import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
 useGLTF.preload(WALKING_URL);
@@ -527,12 +527,26 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             }
         }
 
-        // ─── Underwater wall collision (reuse cave wall sphere colliders, XZ only)
+        // ─── Underwater wall collision (XZ only)
         for (const wall of CAVE_WALL_COLLIDERS) {
             const dx = pos.current.x - wall.x;
             const dz = pos.current.z - wall.z;
             const distSq = dx * dx + dz * dz;
             const minDist = wall.r + 0.5;
+            if (distSq < minDist * minDist && distSq > 0.0001) {
+                const dist = Math.sqrt(distSq);
+                const push = (minDist - dist) / dist;
+                pos.current.x += dx * push;
+                pos.current.z += dz * push;
+            }
+        }
+
+        // ─── Coral pillar collision (XZ only — pillars are tall cylinders)
+        for (const pillar of UW_PILLAR_COLLIDERS) {
+            const dx = pos.current.x - pillar.x;
+            const dz = pos.current.z - pillar.z;
+            const distSq = dx * dx + dz * dz;
+            const minDist = pillar.r + 0.5;
             if (distSq < minDist * minDist && distSq > 0.0001) {
                 const dist = Math.sqrt(distSq);
                 const push = (minDist - dist) / dist;
