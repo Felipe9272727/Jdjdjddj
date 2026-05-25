@@ -1029,6 +1029,7 @@ export default function App() {
                 setMonsterDarkness(0);
                 scheduleTimeout(() => {
                   setDevoured(false);
+                  setFishJumpscareKey(0);
                   setGameState('caught');
                   setCollectedShards(new Set());
                   playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
