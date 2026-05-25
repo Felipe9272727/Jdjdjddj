@@ -274,7 +274,12 @@ export const CORAL_POSITIONS: readonly CoralData[] = [
 export const CAVE_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = [
     ...CAVE_ROCKS_DARK.map(([x,y,z,s]) => ({ x, y: y + s * 0.35, z, r: s * 0.7 })),
     ...CAVE_ROCKS_MID.map(([x,y,z,s]) => ({ x, y: y + s * 0.35, z, r: s * 0.5 })),
+    ...CAVE_ROCKS_LIGHT.map(([x,y,z,s]) => ({ x, y: y + s * 0.3, z, r: s * 0.55 })),
 ];
+
+// ─── Stalagmite collision — XZ circles (tall spires, Y ignored like pillars) ──
+export const STALAGMITE_COLLIDERS: readonly { x: number; z: number; r: number }[] =
+    STALAGMITES.map(([x, z, , r]) => ({ x, z, r }));
 export const UW_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = [
     ...UW_BOULDERS.map(([x,y,z,s]) => ({ x, y: y + s * 0.3, z, r: s * 0.6 })),
     ...UW_SCATTERED_ROCKS

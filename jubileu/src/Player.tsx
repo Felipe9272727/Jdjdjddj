@@ -4,7 +4,7 @@ import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
-import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS } from './Floor2Underwater';
+import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
 useGLTF.preload(WALKING_URL);
@@ -647,6 +647,20 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
                 const dz = pos.current.z - wall.z;
                 const distSq = dx * dx + dz * dz;
                 const minDist = wall.r + 0.5;
+                if (distSq < minDist * minDist && distSq > 0.0001) {
+                    const dist = Math.sqrt(distSq);
+                    const push = (minDist - dist) / dist;
+                    pos.current.x += dx * push;
+                    pos.current.z += dz * push;
+                }
+            }
+
+            // ─── Stalagmite collision (XZ only — tall spires the player can't climb) ──
+            for (const s of STALAGMITE_COLLIDERS) {
+                const dx = pos.current.x - s.x;
+                const dz = pos.current.z - s.z;
+                const distSq = dx * dx + dz * dz;
+                const minDist = s.r + 0.4;
                 if (distSq < minDist * minDist && distSq > 0.0001) {
                     const dist = Math.sqrt(distSq);
                     const push = (minDist - dist) / dist;
