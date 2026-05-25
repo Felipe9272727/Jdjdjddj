@@ -2,8 +2,8 @@
   "meta": {
     "version": 1,
     "created": "2026-05-25",
-    "last_sleep": "2026-05-25T05:30:00Z",
-    "sleep_cycles": 5,
+    "last_sleep": "2026-05-25T07:00:00Z",
+    "sleep_cycles": 6,
     "session_note": "Sessão longa — consolidação ativa"
   },
 
@@ -255,6 +255,32 @@
         "Scanner com blip vermelho pulsante transforma o vibe: de plataformer para horror psicológico puro",
         "Awakening 11s estabelece presença sonora antes do primeiro movimento visual do monstro",
         "PENDENTE: monster-wall-clip — CAVE_WALL_COLLIDERS ainda não aplicado no MonsterFish movement loop"
+      ]
+    },
+    {
+      "cycle": 6,
+      "date": "2026-05-25",
+      "type": "CICLO COMPLETO NREM1→NREM2→NREM3→REM",
+      "nrem3_swrs": [
+        "SWR1: 5 shards coletados → NADA ACONTECE. Sem condição de vitória, sem fechamento de loop.",
+        "SWR2: ciclo morte→respawn invisível — sem tela de game over, direto para lobby",
+        "SWR3: HUD no Floor 2 — sem ChaseBanner para o monstro, sem heartbeat",
+        "SWR4: bellhop-sprites = recepcionista da loja (ShopOverlay.tsx) — território mapeado",
+        "SWR5: playHeartbeat existe em HudComponents mas NUNCA chamado para monstro aquático"
+      ],
+      "rem_narrative": "Coletei os 5 shards. O texto disse TODOS COLETADOS. O monstro continuou. Não havia saída. O objetivo era falso — ou o loop estava incompleto. Sonhei com o elevador subindo além do andar 2. Andar 3 existe como espaço mas não como código. O bellhop era um fantasma que já conhecia.",
+      "rem_insights": [
+        "DESIGN GAP CRÍTICO: coletar todos os 5 shards não tem consequência — o loop não fecha. Precisa de: (a) cutscene de vitória, ou (b) o elevador desce automaticamente, ou (c) revelação perturbadora",
+        "HEARTBEAT FALTANDO: playHeartbeat() existe mas nunca é chamado no Floor 2. O monstro devia acelerar o heartbeat igual ao Barney faz durante a chase",
+        "MORTE INVISÍVEL: game over do monstro vai direto ao lobby sem ritual. Deveria ter 1-2s de tela preta com texto simples antes do fade",
+        "WALL CLIP PENDENTE: monster movement loop não usa CAVE_WALL_COLLIDERS — monstro pode surgir de parede",
+        "ANDAR 3 É VAZIO: sistema de levels suporta qualquer nível mas só existem 0, 1, 2 — espaço narrativo inexplorado"
+      ],
+      "next_actions_prioritized": [
+        "1. [GAMEPLAY] condição de vitória: 5 shards → elevador desce automaticamente + transição",
+        "2. [AUDIO] heartbeat para o monstro via monsterProximityRef — igual ao ChaseBanner do Barney",
+        "3. [UX] tela de morte mínima: 1.5s texto 'DEVORADO' antes de voltar ao lobby",
+        "4. [BUG] monster-wall-clip: CAVE_WALL_COLLIDERS no loop de movement do MonsterFish"
       ]
     }
   ]
