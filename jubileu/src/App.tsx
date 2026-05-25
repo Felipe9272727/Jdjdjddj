@@ -42,7 +42,7 @@ import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
 import { RobloxChat, BubbleChatFallback } from './ChatSystem';
 import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient, EmptyLobbyAmbience } from './PostEffects';
 import { CeilingFan, WallClock, playArrivalDing, createElevatorHum, playJumpscareStab, playEquipChime, createCaveAmbience, createMonsterAmbience } from './Atmosphere';
-import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue } from './HudComponents';
+import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue, playHeartbeat } from './HudComponents';
 import { SceneInspector } from './SceneInspector';
 
 
@@ -78,9 +78,10 @@ interface WorldProps {
   onPlayerCaught: () => void;
   monsterPositionRef: React.MutableRefObject<Vector3>;
   monsterProximityRef: React.MutableRefObject<number>;
+  berserk: boolean;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -107,6 +108,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
             reflective={profile.atmosphere}
             monsterPositionRef={monsterPositionRef}
             monsterProximityRef={monsterProximityRef}
+            berserk={berserk}
           />
         </Suspense>
       )}
@@ -344,6 +346,8 @@ export default function App() {
   const monsterProximityRef = useRef(0);
   const monsterAmbienceRef  = useRef<ReturnType<typeof createMonsterAmbience> | null>(null);
   const [monsterDarkness, setMonsterDarkness] = useState(0);
+  const [berserk, setBerserk] = useState(false);
+  const [devoured, setDevoured] = useState(false); // brief death-ritual overlay
 
   // Start/stop monster ambience with Floor 2
   useEffect(() => {
@@ -360,15 +364,33 @@ export default function App() {
     }
   }, [currentLevel, audioCtx, muted]);
 
-  // Poll proximity ref every 80ms → update audio gain + DOM darkness
+  // Poll proximity ref every 80ms → update audio gain + DOM darkness + heartbeat
+  const heartbeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (currentLevel !== 2) return;
+    if (currentLevel !== 2) {
+      if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
+      return;
+    }
     const id = setInterval(() => {
       const p = monsterProximityRef.current;
       monsterAmbienceRef.current?.setProximity(p);
-      setMonsterDarkness(p * p * 0.45);   // quadratic — ramps fast when close
+      setMonsterDarkness(p * p * 0.45);
     }, 80);
-    return () => clearInterval(id);
+
+    // Heartbeat — recursive timeout that accelerates with proximity
+    const scheduleHeart = () => {
+      const p = monsterProximityRef.current;
+      if (p < 0.15) { heartbeatTimerRef.current = setTimeout(scheduleHeart, 900); return; }
+      const speed = 1.0 + p * 1.8;
+      playHeartbeat(speed);
+      heartbeatTimerRef.current = setTimeout(scheduleHeart, Math.round(750 - p * 420));
+    };
+    scheduleHeart();
+
+    return () => {
+      clearInterval(id);
+      if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
+    };
   }, [currentLevel]);
 
   // Called when the 3D put-on cinematic finishes.
@@ -402,6 +424,28 @@ export default function App() {
       return next;
     });
   }, []);
+
+  // Win condition: all 5 shards → berserk mode + elevator auto-calls
+  const berserkTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (currentLevel !== 2 || collectedShards.size < 5 || berserkTriggeredRef.current) return;
+    berserkTriggeredRef.current = true;
+    setBerserk(true);
+    scheduleTimeout(() => {
+      if (elevatorStateRef.current.elevatorTimer === null && !elevatorStateRef.current.doorsClosed) {
+        setElevatorTimer(5);
+      }
+    }, 3500);
+  }, [collectedShards.size, currentLevel, scheduleTimeout]);
+
+  // Reset berserk when leaving Floor 2
+  useEffect(() => {
+    if (currentLevel !== 2) {
+      setBerserk(false);
+      berserkTriggeredRef.current = false;
+    }
+  }, [currentLevel]);
+
   // Trigger the pickup animation, tagging which item is being held. The
   // Avatar reads pickupItem to pick a different bone pose (flashlight =
   // arm extends forward; cookie = elbow folds toward the mouth).
@@ -974,23 +1018,24 @@ export default function App() {
         />
         <AdaptiveDpr pixelated />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} onPlayerCaught={() => {
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} onPlayerCaught={() => {
                 setFishJumpscareKey(k => k + 1);
+                setDevoured(true);
                 playJumpscareStab(audioCtx);
-                // Stop monster audio immediately on catch
                 if (monsterAmbienceRef.current) {
                   monsterAmbienceRef.current.stop();
                   monsterAmbienceRef.current = null;
                 }
                 setMonsterDarkness(0);
                 scheduleTimeout(() => {
+                  setDevoured(false);
                   setGameState('caught');
-                  setCollectedShards(new Set()); // reset shards so monster doesn't instant-activate on next visit
+                  setCollectedShards(new Set());
                   playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
                   setCurrentLevel(0);
                   setFloorReveal(true);
                   setPendingPostDeathDialogue(true);
-                }, 2200);
+                }, 2800);
               }} />
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
@@ -1258,6 +1303,42 @@ export default function App() {
 
           {/* Fade to black */}
           <div className="fish-fadeblk absolute inset-0 bg-black" />
+
+          {/* DEVORADO ritual — appears at 600ms during the blackout */}
+          {devoured && (
+            <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 2 }}>
+              <style>{`
+                @keyframes devoradoIn {
+                  0%   { opacity:0; letter-spacing:0.8em; }
+                  20%  { opacity:1; letter-spacing:0.35em; }
+                  75%  { opacity:1; }
+                  100% { opacity:0; }
+                }
+                .devorado-text { animation: devoradoIn 2200ms ease-in-out forwards; animation-delay: 500ms; opacity:0; }
+              `}</style>
+              <div className="devorado-text text-center select-none">
+                <div style={{ color:'#cc2200', fontFamily:'monospace', fontWeight:'900', fontSize:'clamp(1.8rem,6vw,3.5rem)', letterSpacing:'0.35em', textShadow:'0 0 40px rgba(200,30,0,0.8), 0 0 80px rgba(200,30,0,0.4)' }}>
+                  DEVORADO
+                </div>
+                <div style={{ color:'rgba(180,60,40,0.7)', fontFamily:'monospace', fontSize:'clamp(0.7rem,2vw,1rem)', letterSpacing:'0.5em', marginTop:'0.75em' }}>
+                  pelas profundezas
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* All 5 shards collected — berserk warning banner */}
+      {hasStarted && currentLevel === 2 && berserk && (
+        <div className="fixed top-[calc(env(safe-area-inset-top,0px)+80px)] left-1/2 -translate-x-1/2 z-[40] pointer-events-none px-3 max-w-[calc(100%-1.5rem)]">
+          <style>{`
+            @keyframes berserkPulse { 0%,100%{opacity:0.85;transform:scale(1)} 50%{opacity:1;transform:scale(1.03)} }
+            .berserk-banner { animation: berserkPulse 0.6s ease-in-out infinite; }
+          `}</style>
+          <div className="berserk-banner bg-red-950/95 ring-2 ring-red-500 text-red-200 px-4 py-2 rounded-lg font-black tracking-widest text-xs sm:text-sm shadow-[0_0_30px_rgba(239,68,68,0.6)] text-center">
+            ⚠ ELE SENTIU — CORRA PARA O ELEVADOR ⚠
+          </div>
         </div>
       )}
 

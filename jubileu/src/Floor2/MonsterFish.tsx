@@ -8,7 +8,7 @@
 import React, { useRef, useMemo, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { UW_ROCK_COLLIDERS, SWIM_THRESHOLD_Y } from './constants';
+import { UW_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, SWIM_THRESHOLD_Y } from './constants';
 
 // ─── AI tuning ─────────────────────────────────────────────────────────────
 const PATROL_SPEED   = 2.2;
@@ -35,6 +35,8 @@ export interface MonsterFishProps {
     monsterPositionRef?: React.MutableRefObject<THREE.Vector3>;
     /** Written every frame: 0=far/dormant, 1=right on top of player. */
     monsterProximityRef?: React.MutableRefObject<number>;
+    /** When true: berserk mode — no regroup, max speed, instant lunge. */
+    berserk?: boolean;
 }
 
 // ─── Geometry helpers ──────────────────────────────────────────────────────
@@ -139,6 +141,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     onPlayerCaught,
     monsterPositionRef,
     monsterProximityRef,
+    berserk = false,
 }) => {
     // Root group (world position + yaw + pitch)
     const rootRef = useRef<THREE.Group>(null);
@@ -277,7 +280,9 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
             }
             case 'hunting': {
                 const speedT = Math.min(1, (dist - LUNGE_DIST) / (AWARENESS_DIST - LUNGE_DIST));
-                const speed  = HUNT_SPEED_MIN + speedT * (HUNT_SPEED_MAX - HUNT_SPEED_MIN);
+                const speed  = berserk
+                    ? HUNT_SPEED_MAX * 1.6
+                    : HUNT_SPEED_MIN + speedT * (HUNT_SPEED_MAX - HUNT_SPEED_MIN);
                 _v1.current.set(dx/dist, dy/dist, dz/dist).multiplyScalar(speed);
                 // Rock avoidance
                 for (const rock of UW_ROCK_COLLIDERS) {
@@ -296,18 +301,26 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 vel.current.lerp(_v1.current, safeDt * 3.2);
                 break;
             }
-            case 'lunge':
+            case 'lunge': {
+                const ls = berserk ? LUNGE_SPEED * 1.8 : LUNGE_SPEED;
                 vel.current.lerp(
-                    _v1.current.set(lDir.current.x * LUNGE_SPEED, lDir.current.y * LUNGE_SPEED, lDir.current.z * LUNGE_SPEED),
+                    _v1.current.set(lDir.current.x * ls, lDir.current.y * ls, lDir.current.z * ls),
                     safeDt * 12,
                 );
                 break;
+            }
             case 'regroup':
-                vel.current.multiplyScalar(1 - safeDt * 2.2);
-                vel.current.lerp(
-                    _v1.current.copy(SPAWN_POS).sub(pos.current).normalize().multiplyScalar(2.5),
-                    safeDt * 0.9,
-                );
+                if (berserk) {
+                    // In berserk mode, no rest — immediately re-hunt
+                    state.current = 'hunting';
+                    caught.current = false;
+                } else {
+                    vel.current.multiplyScalar(1 - safeDt * 2.2);
+                    vel.current.lerp(
+                        _v1.current.copy(SPAWN_POS).sub(pos.current).normalize().multiplyScalar(2.5),
+                        safeDt * 0.9,
+                    );
+                }
                 break;
         }
 
@@ -317,6 +330,21 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         pos.current.x = THREE.MathUtils.clamp(pos.current.x, -26, 26);
         pos.current.y = THREE.MathUtils.clamp(pos.current.y, -29, SWIM_THRESHOLD_Y - 1.5);
         pos.current.z = THREE.MathUtils.clamp(pos.current.z, -26, 26);
+
+        // ── Cave wall collision (XZ only) ─────────────────────────────
+        for (const wall of CAVE_WALL_COLLIDERS) {
+            const wdx = pos.current.x - wall.x;
+            const wdz = pos.current.z - wall.z;
+            const wd2 = wdx * wdx + wdz * wdz;
+            const mr  = wall.r + 1.2;
+            if (wd2 < mr * mr && wd2 > 0.001) {
+                const wd = Math.sqrt(wd2);
+                const push = (mr - wd) / wd;
+                pos.current.x += wdx * push;
+                pos.current.z += wdz * push;
+            }
+        }
+
         g.position.copy(pos.current);
 
         // ── Orientation ───────────────────────────────────────────────
