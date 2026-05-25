@@ -157,6 +157,8 @@ export interface ShardScannerProps {
   playerRotationYRef: React.MutableRefObject<number>;
   shardPositions: ReadonlyArray<readonly [number, number, number]>;
   collectedShards: Set<number>;
+  /** If provided, draws a pulsing red blip for the monster on the radar. */
+  monsterPositionRef?: React.MutableRefObject<THREE.Vector3>;
 }
 
 export const ShardScanner: React.FC<ShardScannerProps> = ({
@@ -164,6 +166,7 @@ export const ShardScanner: React.FC<ShardScannerProps> = ({
   playerRotationYRef,
   shardPositions,
   collectedShards,
+  monsterPositionRef,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -303,6 +306,47 @@ export const ShardScanner: React.FC<ShardScannerProps> = ({
           ctx.lineTo(sx + Math.cos(a) * 7, sy + Math.sin(a) * 7);
           ctx.stroke();
         }
+      }
+
+      // ── Monster blip ─────────────────────────────────────────────────────
+      if (monsterPositionRef) {
+        const mp = monsterPositionRef.current;
+        const mdx = mp.x - pp.x;
+        const mdz = mp.z - pp.z;
+        const mxLocal =  mdx * cosH - mdz * sinH;
+        const myLocal =  mdx * sinH + mdz * cosH;
+        const mDistNorm = Math.sqrt(mxLocal * mxLocal + myLocal * myLocal) / RADAR_RANGE;
+        let msx: number, msy: number;
+        if (mDistNorm > 1) {
+          const a = Math.atan2(-myLocal, mxLocal);
+          msx = R + Math.cos(a) * edgeR;
+          msy = R + Math.sin(a) * edgeR;
+        } else {
+          msx = R + (mxLocal / RADAR_RANGE) * edgeR;
+          msy = R - (myLocal / RADAR_RANGE) * edgeR;
+        }
+        // Aggressive red pulse — faster when close
+        const mProx = Math.max(0, 1 - mDistNorm);
+        const pulseFreq = 3 + mProx * 8;
+        const mBlink = 0.5 + Math.sin(t * pulseFreq) * 0.5;
+        ctx.shadowColor = '#ff2200';
+        ctx.shadowBlur = 10 + mProx * 14;
+        ctx.fillStyle = `rgba(255, 40, 0, ${0.7 + mBlink * 0.3})`;
+        ctx.beginPath();
+        ctx.arc(msx, msy, 4 + mProx * 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        // Outer ring — expands and fades (sonar ping effect)
+        const pingPhase = (t * pulseFreq) % (Math.PI * 2);
+        if (pingPhase < Math.PI) {
+          const pingR = 4 + (pingPhase / Math.PI) * 12;
+          const pingA = 0.6 * (1 - pingPhase / Math.PI);
+          ctx.strokeStyle = `rgba(255, 80, 0, ${pingA})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(msx, msy, pingR, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
       }
 
       // ── Player chevron ───────────────────────────────────────────────────

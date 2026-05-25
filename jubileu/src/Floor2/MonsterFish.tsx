@@ -21,12 +21,20 @@ const REGROUP_TIME   = 3.2;
 const AWARENESS_DIST = 42.0;
 const SPAWN_POS      = new THREE.Vector3(-22, -20, -22);
 
-type FishState = 'dormant' | 'patrol' | 'hunting' | 'lunge' | 'regroup';
+type FishState = 'dormant' | 'awakening' | 'patrol' | 'hunting' | 'lunge' | 'regroup';
+
+// How long the monster stirs before it starts patrolling (seconds).
+// This delay is the most frightening part — audio/visual cues build tension.
+const AWAKEN_DELAY = 11.0;
 
 export interface MonsterFishProps {
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     collectedShards: Set<number>;
     onPlayerCaught: () => void;
+    /** Written every frame: world position of the monster (for scanner blip). */
+    monsterPositionRef?: React.MutableRefObject<THREE.Vector3>;
+    /** Written every frame: 0=far/dormant, 1=right on top of player. */
+    monsterProximityRef?: React.MutableRefObject<number>;
 }
 
 // ─── Geometry helpers ──────────────────────────────────────────────────────
@@ -129,6 +137,8 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     playerPositionRef,
     collectedShards,
     onPlayerCaught,
+    monsterPositionRef,
+    monsterProximityRef,
 }) => {
     // Root group (world position + yaw + pitch)
     const rootRef = useRef<THREE.Group>(null);
@@ -155,33 +165,53 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     const regroup  = useRef(0);
     const lDir     = useRef(new THREE.Vector3());
     const patrolT  = useRef(0);
-    const caught   = useRef(false);
-    const active   = useRef(false);
+    const caught      = useRef(false);
+    const active      = useRef(false);
+    const awakenTimer = useRef(0);
 
     // Temp vectors (avoid GC)
     const _v1 = useRef(new THREE.Vector3());
     const _v2 = useRef(new THREE.Vector3());
-
-    // Activate when first shard collected
-    // (checked inside useFrame to avoid stale closures)
 
     // ── Main loop ────────────────────────────────────────────────────────
     useFrame(({ clock }, dt) => {
         const g = rootRef.current;
         if (!g) return;
 
-        // Activate once first shard collected
+        // Activate once first shard collected → enter awakening phase
         if (!active.current && collectedShards.size >= 1) {
             active.current = true;
-            state.current = 'patrol';
+            state.current = 'awakening';
+            awakenTimer.current = AWAKEN_DELAY;
         }
 
         const playerY = playerPositionRef.current?.y ?? 0;
 
         if (state.current === 'dormant' || !active.current || playerY >= SWIM_THRESHOLD_Y) {
+            if (monsterProximityRef) monsterProximityRef.current = 0;
             g.visible = false;
             return;
         }
+
+        // Awakening — monster stirs in place, builds audio/dark tension
+        if (state.current === 'awakening') {
+            const safeDt2 = Math.min(dt, 0.05);
+            awakenTimer.current -= safeDt2;
+            const t2 = clock.elapsedTime;
+            for (let i = 0; i < BODY_SEGS; i++) {
+                const seg = segRefs.current[i];
+                if (seg) seg.rotation.y = Math.sin(t2 * 1.1 - i * 0.4) * 0.07;
+            }
+            g.visible = true;
+            g.position.copy(SPAWN_POS);
+            if (monsterPositionRef) monsterPositionRef.current.copy(SPAWN_POS);
+            const pp2 = playerPositionRef.current;
+            const ad = pp2 ? SPAWN_POS.distanceTo(pp2) : 999;
+            if (monsterProximityRef) monsterProximityRef.current = Math.max(0, 1 - ad / AWARENESS_DIST) * 0.25;
+            if (awakenTimer.current <= 0) state.current = 'patrol';
+            return;
+        }
+
         g.visible = true;
 
         const safeDt = Math.min(dt, 0.05);
@@ -193,6 +223,10 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         const dx = px - fx, dy = py - fy, dz = pz - fz;
         const distSq = dx*dx + dy*dy + dz*dz;
         const dist   = Math.sqrt(distSq);
+
+        // Write shared refs every frame
+        if (monsterPositionRef) monsterPositionRef.current.set(fx, fy, fz);
+        if (monsterProximityRef) monsterProximityRef.current = Math.max(0, 1 - dist / AWARENESS_DIST);
 
         // ── State transitions ────────────────────────────────────────
         switch (state.current) {

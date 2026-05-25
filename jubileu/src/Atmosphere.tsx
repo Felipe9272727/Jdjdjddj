@@ -455,6 +455,86 @@ export const createElevatorHum = (audioContext: AudioContext | null): (() => voi
 };
 
 /**
+ * Monster presence ambience — deep bio-sonar drone that scales with proximity.
+ * Returns { setProximity, stop }. Call setProximity(0..1) each frame or on
+ * interval; call stop() when leaving Floor 2 or on game reset.
+ *
+ * Layers:
+ *   sub    40 Hz sine  — felt more than heard, like a massive heartbeat
+ *   harm   80 Hz sine  — warmth/body of the creature
+ *   lfo    0.28 Hz LFO — slow biological breathing modulation
+ * Pitch rises slightly as proximity increases (Doppler tension).
+ */
+export const createMonsterAmbience = (audioContext: AudioContext | null): {
+    setProximity: (p: number) => void;
+    stop: () => void;
+} => {
+    const noop = { setProximity: () => {}, stop: () => {} };
+    if (!audioContext) return noop;
+
+    const master = audioContext.createGain();
+    master.gain.setValueAtTime(0, audioContext.currentTime);
+    master.connect(audioContext.destination);
+
+    // Sub-bass body
+    const sub = audioContext.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(40, audioContext.currentTime);
+
+    // Second harmonic — richness
+    const harm = audioContext.createOscillator();
+    harm.type = 'sine';
+    harm.frequency.setValueAtTime(80, audioContext.currentTime);
+    const harmGain = audioContext.createGain();
+    harmGain.gain.setValueAtTime(0.35, audioContext.currentTime);
+
+    // LFO — slow biological pulse (0.28 Hz ≈ one breath every 3.5s)
+    const lfo = audioContext.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(0.28, audioContext.currentTime);
+    const lfoDepth = audioContext.createGain();
+    lfoDepth.gain.setValueAtTime(0.18, audioContext.currentTime);
+
+    // Low-pass to keep it subsonic-ish
+    const lpf = audioContext.createBiquadFilter();
+    lpf.type = 'lowpass';
+    lpf.frequency.setValueAtTime(120, audioContext.currentTime);
+    lpf.Q.value = 0.7;
+
+    lfo.connect(lfoDepth).connect(master.gain);
+    sub.connect(lpf);
+    harm.connect(harmGain).connect(lpf);
+    lpf.connect(master);
+
+    sub.start();
+    harm.start();
+    lfo.start();
+
+    let stopped = false;
+    return {
+        setProximity: (p: number) => {
+            if (stopped) return;
+            const t = audioContext.currentTime;
+            const gain = p * p * 0.45;           // quadratic — ramps up fast when close
+            master.gain.linearRampToValueAtTime(gain, t + 0.6);
+            // Pitch creep — rises 15 Hz at full proximity
+            sub.frequency.linearRampToValueAtTime(40 + p * 15, t + 1.2);
+            harm.frequency.linearRampToValueAtTime(80 + p * 22, t + 1.2);
+        },
+        stop: () => {
+            if (stopped) return;
+            stopped = true;
+            const t = audioContext.currentTime;
+            master.gain.linearRampToValueAtTime(0, t + 1.8);
+            setTimeout(() => {
+                try { sub.stop(); harm.stop(); lfo.stop(); } catch (_) {}
+                master.disconnect();
+            }, 2200);
+        },
+    };
+};
+
+/**
  * Wall clock — ticking clock on the lobby wall for atmosphere.
  */
 export const WallClock = ({ x = 8, z = -8 }: { x?: number; z?: number }) => {

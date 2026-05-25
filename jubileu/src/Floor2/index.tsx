@@ -114,6 +114,8 @@ interface Floor2EnvironmentProps {
     onCollectShard: (i: number) => void;
     onPlayerCaught?: () => void;
     reflective?: boolean;
+    monsterPositionRef?: React.MutableRefObject<THREE.Vector3>;
+    monsterProximityRef?: React.MutableRefObject<number>;
 }
 export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     playerPositionRef,
@@ -121,6 +123,8 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
     onCollectShard,
     onPlayerCaught,
     reflective = false,
+    monsterPositionRef,
+    monsterProximityRef,
 }) => {
     // ─── Load real PBR texture sets ────────────────────────────────
     const caveFloor = usePBRSet(
@@ -561,6 +565,8 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
                 playerPositionRef={playerPositionRef}
                 collectedShards={collectedShards}
                 onPlayerCaught={onPlayerCaught}
+                monsterPositionRef={monsterPositionRef}
+                monsterProximityRef={monsterProximityRef}
             />
         )}
 

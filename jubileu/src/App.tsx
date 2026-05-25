@@ -41,7 +41,7 @@ import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES, type QualityPr
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
 import { RobloxChat, BubbleChatFallback } from './ChatSystem';
 import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient, EmptyLobbyAmbience } from './PostEffects';
-import { CeilingFan, WallClock, playArrivalDing, createElevatorHum, playJumpscareStab, playEquipChime, createCaveAmbience } from './Atmosphere';
+import { CeilingFan, WallClock, playArrivalDing, createElevatorHum, playJumpscareStab, playEquipChime, createCaveAmbience, createMonsterAmbience } from './Atmosphere';
 import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue } from './HudComponents';
 import { SceneInspector } from './SceneInspector';
 
@@ -76,9 +76,11 @@ interface WorldProps {
    *  ambient/hemisphere boost inside the canvas. */
   nightVisionActive: boolean;
   onPlayerCaught: () => void;
+  monsterPositionRef: React.MutableRefObject<Vector3>;
+  monsterProximityRef: React.MutableRefObject<number>;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -103,6 +105,8 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
             onCollectShard={onCollectShard}
             onPlayerCaught={onPlayerCaught}
             reflective={profile.atmosphere}
+            monsterPositionRef={monsterPositionRef}
+            monsterProximityRef={monsterProximityRef}
           />
         </Suspense>
       )}
@@ -330,6 +334,42 @@ export default function App() {
       }
     };
   }, [currentLevel, audioCtx, muted]);
+
+  // ── Monster presence system ────────────────────────────────────────────
+  // monsterPositionRef  — written by MonsterFish every frame (world XYZ)
+  // monsterProximityRef — written by MonsterFish every frame (0=far, 1=on top)
+  // monsterAmbienceRef  — the live audio handle returned by createMonsterAmbience
+  // monsterDarkness     — React state (0..0.45) drives the DOM proximity overlay
+  const monsterPositionRef  = useRef(new Vector3(-22, -20, -22));
+  const monsterProximityRef = useRef(0);
+  const monsterAmbienceRef  = useRef<ReturnType<typeof createMonsterAmbience> | null>(null);
+  const [monsterDarkness, setMonsterDarkness] = useState(0);
+
+  // Start/stop monster ambience with Floor 2
+  useEffect(() => {
+    if (currentLevel === 2 && audioCtx && !muted) {
+      if (!monsterAmbienceRef.current) {
+        monsterAmbienceRef.current = createMonsterAmbience(audioCtx);
+      }
+    } else {
+      if (monsterAmbienceRef.current) {
+        monsterAmbienceRef.current.stop();
+        monsterAmbienceRef.current = null;
+      }
+      setMonsterDarkness(0);
+    }
+  }, [currentLevel, audioCtx, muted]);
+
+  // Poll proximity ref every 80ms → update audio gain + DOM darkness
+  useEffect(() => {
+    if (currentLevel !== 2) return;
+    const id = setInterval(() => {
+      const p = monsterProximityRef.current;
+      monsterAmbienceRef.current?.setProximity(p);
+      setMonsterDarkness(p * p * 0.45);   // quadratic — ramps fast when close
+    }, 80);
+    return () => clearInterval(id);
+  }, [currentLevel]);
 
   // Called when the 3D put-on cinematic finishes.
   // Diver turns away → brief goggle-equip blink → player returns to elevator.
@@ -934,11 +974,18 @@ export default function App() {
         />
         <AdaptiveDpr pixelated />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} onPlayerCaught={() => {
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} onPlayerCaught={() => {
                 setFishJumpscareKey(k => k + 1);
                 playJumpscareStab(audioCtx);
+                // Stop monster audio immediately on catch
+                if (monsterAmbienceRef.current) {
+                  monsterAmbienceRef.current.stop();
+                  monsterAmbienceRef.current = null;
+                }
+                setMonsterDarkness(0);
                 scheduleTimeout(() => {
                   setGameState('caught');
+                  setCollectedShards(new Set()); // reset shards so monster doesn't instant-activate on next visit
                   playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
                   setCurrentLevel(0);
                   setFloorReveal(true);
@@ -1065,6 +1112,21 @@ export default function App() {
         />
       )}
 
+      {/* Monster proximity darkness — vignette that deepens as the predator
+          approaches. Canvas↔DOM bridge via monsterProximityRef (written by
+          MonsterFish every frame, polled every 80ms here). z-25 sits above
+          the canvas but below all HUD elements so it doesn't obscure UI. */}
+      {hasStarted && currentLevel === 2 && monsterDarkness > 0.01 && (
+        <div
+          className="fixed inset-0 pointer-events-none"
+          style={{
+            zIndex: 25,
+            background: `radial-gradient(ellipse at center, transparent 25%, rgba(0,4,2,${monsterDarkness.toFixed(3)}) 100%)`,
+            transition: 'opacity 0.6s ease',
+          }}
+        />
+      )}
+
       {/* Night-vision DOM overlay — green tint + scanlines + binocular vignette.
           Sits above the canvas (z-18..23) and below the menus. Disappears
           when the player toggles NV off. */}
@@ -1078,6 +1140,7 @@ export default function App() {
             playerRotationYRef={sharedRotationYRef}
             shardPositions={SHARD_POSITIONS}
             collectedShards={collectedShards}
+            monsterPositionRef={monsterPositionRef}
           />
         )}
         </>
