@@ -2,8 +2,8 @@
   "meta": {
     "version": 1,
     "created": "2026-05-25",
-    "last_sleep": "2026-05-25T02:00:00Z",
-    "sleep_cycles": 2,
+    "last_sleep": "2026-05-25T03:00:00Z",
+    "sleep_cycles": 3,
     "session_note": "Sessão longa — consolidação ativa"
   },
 
@@ -96,7 +96,50 @@
     "Shards dentro de pedras → reposicionados para (10.5,-27,−4.5) e (5.5,-27,17)"
   ],
 
-  "open_todos": [],
+  "open_todos": [
+    {
+      "priority": "HIGH",
+      "id": "shard-reset-on-death",
+      "title": "collectedShards não reseta após morte pelo monstro",
+      "detail": "onPlayerCaught não chama setCollectedShards(new Set()). Na volta ao lobby, shards ainda estão coletados. Na próxima visita ao Floor 2, monstro ativa imediatamente.",
+      "fix": "Adicionar setCollectedShards(new Set()) dentro do handler onPlayerCaught em App.tsx, junto com scheduleTimeout para o reset"
+    },
+    {
+      "priority": "HIGH",
+      "id": "monster-audio",
+      "title": "Monstro é completamente silencioso",
+      "detail": "Nenhum som de presença, aproximação ou ataque. Experiência de horror exige áudio procedural: low-frequency thump quando hunting, screech+rush no lunge, borbulhas graves quando próximo.",
+      "fix": "Criar createMonsterPresence(audioCtx, proximity) e createMonsterAttack(audioCtx) em Atmosphere.tsx. Chamar de MonsterFish.tsx via callback prop ou de App.tsx via ref de distância."
+    },
+    {
+      "priority": "MEDIUM",
+      "id": "monster-on-scanner",
+      "title": "Monstro não aparece no scanner",
+      "detail": "O ShardScanner só exibe shards. Um blip vermelho piscante do monstro criaria paranoia enorme — o jogador saberia que algo existe mas não onde exatamente.",
+      "fix": "Passar monsterPositionRef para ShardScanner. Renderizar blip vermelho piscante no radar quando monstro está em hunting/lunge."
+    },
+    {
+      "priority": "MEDIUM",
+      "id": "monster-too-fast-first-shard",
+      "title": "Monstro chega muito rápido após primeiro shard",
+      "detail": "Spawn em (-22,-20,-22), AWARENESS_DIST=42m, velocidade máxima 9m/s. Com caverna de ~52m diagonal, o monstro chega em 3-4s. Sem tensão — vai direto para o ataque.",
+      "fix": "Adicionar fase dormant→awaken com 8-12s de delay antes de entrar em patrol. Ou spawn mais longe. Ou velocidade inicial menor."
+    },
+    {
+      "priority": "MEDIUM",
+      "id": "monster-wall-clip",
+      "title": "Monstro pode atravessar paredes da caverna",
+      "detail": "AI usa UW_ROCK_COLLIDERS para pedras mas não respeita CAVE_WALL_COLLIDERS. Pode surgir de dentro de geometria.",
+      "fix": "Adicionar loop de CAVE_WALL_COLLIDERS no bloco de movement do MonsterFish, igual ao que existe no Player.tsx."
+    },
+    {
+      "priority": "LOW",
+      "id": "proximity-music",
+      "title": "Sem música procedural por proximidade do monstro",
+      "detail": "Nenhum áudio que escale com a distância do monstro. Um drone grave que aumenta conforme o predador se aproxima adicionaria muito à tensão.",
+      "fix": "GainNode com volume = 1 - (dist/AWARENESS_DIST), frequência base ~40Hz, modulado por LFO lento."
+    }
+  ],
 
   "dream_log": [
     {
@@ -124,6 +167,26 @@
         "Testar o monstro visualmente no browser — swiftshader não renderiza 3D, precisa de servidor real",
         "Verificar se jumpscare SVG escala bem em mobile",
         "open_todos ainda vazio — próxima tarefa do usuário vai preencher"
+      ]
+    },
+    {
+      "cycle": 3,
+      "date": "2026-05-25",
+      "type": "REM — rollouts imaginários (estilo DreamerV3)",
+      "consolidation": "5 rollouts simulados sem input do usuário. Explorei o estado interno do projeto como um agente imaginando cenários futuros.",
+      "rollouts": [
+        "ROLLOUT 1: fluxo de morte → shard não reseta → monstro ativa imediatamente na próxima visita. BUG.",
+        "ROLLOUT 2: monstro não respeita cave walls → pode surgir de dentro de rocha. BUG.",
+        "ROLLOUT 3: monstro chega em 3-4s após primeiro shard — sem tensão, vai direto ao ataque. DESIGN FLAW.",
+        "ROLLOUT 4: monstro completamente silencioso. FEATURE FALTANDO — áudio de presença/ataque.",
+        "ROLLOUT 5: scanner não mostra monstro, sem música procedural por proximidade. OPORTUNIDADES."
+      ],
+      "insights": [
+        "O maior gap do jogo agora não é visual — é ÁUDIO. O monstro existe mas não tem presença sonora.",
+        "Horror sem som é 50% menos eficiente. SCP: Containment Breach, Subnautica Below Zero — a tensão vem do som.",
+        "O scanner mostrando o monstro seria a feature mais assustadora: o jogador vê o blip se mover em direção a ele.",
+        "Delay de ativação do monstro é mais importante que velocidade — a antecipação é mais assustadora que o ataque.",
+        "Bugs descobertos em sonho: 2 HIGH, 2 MEDIUM, 1 LOW — todos solucionáveis sem refactor grande."
       ]
     }
   ]
