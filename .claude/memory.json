@@ -2,8 +2,8 @@
   "meta": {
     "version": 1,
     "created": "2026-05-25",
-    "last_sleep": "2026-05-25T00:00:00Z",
-    "sleep_cycles": 1,
+    "last_sleep": "2026-05-25T02:00:00Z",
+    "sleep_cycles": 2,
     "session_note": "Sessão longa — consolidação ativa"
   },
 
@@ -107,6 +107,23 @@
         "Usuário prioriza visuais impressionantes e performance",
         "Sem GLB/AnimationMixer para monstros — custo muito alto",
         "Jumpscare deve ser DOM (não canvas) para garantir render mesmo com canvas sobrecarregado"
+      ]
+    },
+    {
+      "cycle": 2,
+      "date": "2026-05-25",
+      "consolidation": "Ciclo de sono solicitado explicitamente pelo usuário após pesquisa sobre IA sonhando. Usuário leu sobre DreamerV3, SCM, Mem0 e pediu para simular nessa sessão. Sistema de memória criado (.claude/memory.json + sleep.sh) e commitado. Stop hook reclamou de arquivos não commitados — corrigido imediatamente.",
+      "insights": [
+        "Usuário é curioso sobre IA além do código — gosta de conceitos, pesquisa, experimenta",
+        "Respeita o processo: quando viu o sleep funcionar de verdade, pediu para dormir logo",
+        "Stop hook ativo no repositório — sempre commitar arquivos novos antes de encerrar turno",
+        "Sistema de memória está funcional: acordar = ler memory.json antes de agir em tarefas grandes",
+        "Sessão tende a ser longa — consolidação periódica vai evitar perda de contexto por compactação"
+      ],
+      "pending_dreams": [
+        "Testar o monstro visualmente no browser — swiftshader não renderiza 3D, precisa de servidor real",
+        "Verificar se jumpscare SVG escala bem em mobile",
+        "open_todos ainda vazio — próxima tarefa do usuário vai preencher"
       ]
     }
   ]
