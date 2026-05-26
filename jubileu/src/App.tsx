@@ -752,12 +752,10 @@ export default function App() {
         setNightMode(false);
         setHouseDoorOpen(false);
         setDoorOpenAmount(0);
-        // Spawn the player just outside the elevator doors facing the cave.
-        // The default ref position (0,0,8) puts them at the opposite end of
-        // the cave with the elevator (and bearded diver) BEHIND them — easy
-        // to miss. This teleport mirrors the natural-flow elevator exit.
         playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
         setDoorsClosed(false);
+        inventoryAddItem('rebreather');
+        inventoryAddItem('nightVision');
       }
     }
     // ─── CREATOR MODE: end jump ───
