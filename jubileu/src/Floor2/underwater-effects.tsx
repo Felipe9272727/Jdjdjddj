@@ -721,13 +721,19 @@ export const ShardField: React.FC<ShardFieldProps> = ({ collectedShards, onColle
     return (
         <group>
             {SHARD_POSITIONS.map((position, index) => (
-                <group key={index} ref={(r: any) => { groupRefs.current[index] = r; }} position={[position[0], position[1], position[2]]} scale={0.55}>
+                <group key={index} ref={(r: any) => { groupRefs.current[index] = r; }} position={[position[0], position[1], position[2]]} scale={0.85}>
                     <mesh geometry={SHARD_GEO}>
-                        <meshStandardMaterial color="#3a6a78" emissive="#1a3a48" emissiveIntensity={0.22} metalness={0.65} roughness={0.45} toneMapped />
+                        <meshStandardMaterial color="#44ddff" emissive="#00ccff" emissiveIntensity={2.2} metalness={0.5} roughness={0.08} toneMapped={false} />
                     </mesh>
-                    <sprite scale={[0.45, 0.45, 1]}>
-                        <spriteMaterial map={GLOW_TEXTURE} color="#5ad8ff" transparent opacity={0.10} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                    {/* inner tight glow */}
+                    <sprite scale={[1.1, 1.1, 1]}>
+                        <spriteMaterial map={GLOW_TEXTURE} color="#00eeff" transparent opacity={0.55} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
                     </sprite>
+                    {/* outer aura — visible from distance */}
+                    <sprite scale={[3.2, 3.2, 1]}>
+                        <spriteMaterial map={GLOW_TEXTURE} color="#0088cc" transparent opacity={0.18} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                    </sprite>
+                    <pointLight color="#00ddff" intensity={1.4} distance={6} decay={2} />
                 </group>
             ))}
         </group>

@@ -31,7 +31,7 @@ export const BUBBLE_MAX_Y = WATER_LEVEL_Y - 0.5;
 export const BUBBLE_MIN_Y = -29;
 export const SURFACE_BUBBLE_COUNT = 8;
 export const SURFACE_BUBBLE_RING_RADIUS = HOLE_RADIUS * 0.8;
-export const COLLECT_DIST_SQ = 1.4 * 1.4;
+export const COLLECT_DIST_SQ = 1.9 * 1.9;
 
 // ─── Type aliases ──────────────────────────────────────────────────────
 export type Boulder = readonly [number, number, number, number, number]; // x,y,z,s,ry

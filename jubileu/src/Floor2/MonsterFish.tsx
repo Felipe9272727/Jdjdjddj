@@ -51,9 +51,91 @@ export interface MonsterFishProps {
 }
 
 // ─── Geometry helpers ──────────────────────────────────────────────────────
-function makeSeg(rFront: number, rBack: number, len: number, radSeg = 8): THREE.CylinderGeometry {
+function makeSeg(rFront: number, rBack: number, len: number, radSeg = 14): THREE.CylinderGeometry {
     const g = new THREE.CylinderGeometry(rFront, rBack, len, radSeg, 1, false);
     g.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+    return g;
+}
+
+// Swept pectoral wing — proper tapered fin shape
+function makePectoralFin(): THREE.BufferGeometry {
+    const span = 0.88, segs = 8;
+    const pos: number[] = [];
+    const idx: number[] = [];
+    for (let i = 0; i <= segs; i++) {
+        const t = i / segs;
+        const x = t * span;
+        const chord = 0.52 * (1 - t) + 0.09 * t;
+        const sweep = -0.38 * t;
+        const dip = -Math.sin(t * Math.PI) * 0.06;  // slight anhedral curve
+        pos.push(x, dip, sweep + chord * 0.28);   // leading edge vertex
+        pos.push(x, dip, sweep - chord * 0.72);   // trailing edge vertex
+    }
+    for (let i = 0; i < segs; i++) {
+        const v = i * 2;
+        idx.push(v, v+2, v+1, v+1, v+2, v+3);  // top face
+        idx.push(v, v+1, v+2, v+1, v+3, v+2);  // bottom face
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+}
+
+// Triangular dorsal spine — raked back, sharp apex
+function makeDorsalSpine(h: number, chord: number, thick: number): THREE.BufferGeometry {
+    const t = thick / 2;
+    const p = [
+        -t, 0,  chord * 0.30,  // base front-left
+         t, 0,  chord * 0.30,  // base front-right
+        -t, 0, -chord * 0.70,  // base back-left
+         t, 0, -chord * 0.70,  // base back-right
+        -t * 0.5, h, -chord * 0.12,  // apex-left
+         t * 0.5, h, -chord * 0.12,  // apex-right
+    ];
+    const idx = [
+        0,1,4, 1,5,4,   // front slope
+        2,4,3, 3,4,5,   // back slope
+        0,4,2,           // left side
+        1,3,5,           // right side
+        0,2,1, 1,2,3,   // base
+    ];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+}
+
+// Caudal fin lobe — swept crescent using a fan of triangles
+function makeCaudalLobe(height: number, chord: number, isUpper: boolean): THREE.BufferGeometry {
+    const sign = isUpper ? 1 : -1;
+    const segs = 6;
+    const pos: number[] = [];
+    const idx: number[] = [];
+    // root spine (2 verts at base)
+    pos.push(0, 0, chord * 0.15);
+    pos.push(0, 0, -chord * 0.25);
+    for (let i = 1; i <= segs; i++) {
+        const t = i / segs;
+        const a = t * Math.PI * 0.65;
+        const r = height * Math.sin(t * Math.PI * 0.85);
+        const x = sign * r * Math.cos(a * 0.4);
+        const z = -chord * 0.05 + sign * r * Math.sin(a) * -0.15;
+        const y = sign * r * Math.cos(a * 0.2);
+        pos.push(x, y, z);
+        if (i === 1) {
+            idx.push(0, 2, 1);
+        } else {
+            idx.push(0, i+1, i);
+            idx.push(1, i, i+1);
+        }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
     return g;
 }
 
@@ -74,14 +156,15 @@ const BODY_GEOS = BODY_R.map((r, i) => {
 // ─── Caudal fin (whip tail) — 3 articulated segments ────────────────────────
 const CAUDAL_SEGS = 3;
 const CAUDAL_LEN  = [0.36, 0.30, 0.24];
-const CAUDAL_GEOS = CAUDAL_LEN.map((L, i) => makeSeg(0.06 - i * 0.012, 0.04 - i * 0.012, L, 5));
-const CAUDAL_FIN_GEO_UP   = new THREE.BoxGeometry(0.04, 0.78, 0.58);
-const CAUDAL_FIN_GEO_DOWN = new THREE.BoxGeometry(0.04, 0.66, 0.50);
+const CAUDAL_GEOS = CAUDAL_LEN.map((L, i) => makeSeg(0.06 - i * 0.012, 0.04 - i * 0.012, L, 8));
+const CAUDAL_FIN_GEO_UP   = makeCaudalLobe(0.82, 0.42, true);
+const CAUDAL_FIN_GEO_DOWN = makeCaudalLobe(0.68, 0.36, false);
 
 // ─── Head & jaw ────────────────────────────────────────────────────────────
-const HEAD_GEO  = new THREE.SphereGeometry(0.82, 18, 14);
-const SKULL_GEO = new THREE.SphereGeometry(0.62, 14, 10);   // crown bulge
-const JAW_GEO   = new THREE.SphereGeometry(0.72, 16, 12);
+const HEAD_GEO   = new THREE.SphereGeometry(0.82, 22, 16);
+const SKULL_GEO  = new THREE.SphereGeometry(0.62, 16, 12);   // crown bulge
+const SNOUT_GEO  = makeSeg(0.36, 0.54, 0.70, 14);            // forward-pointing rostrum
+const JAW_GEO    = new THREE.SphereGeometry(0.72, 18, 14);
 const GILL_GEO  = new THREE.TorusGeometry(0.42, 0.05, 6, 14, Math.PI * 0.45);
 
 // ─── Eyes ──────────────────────────────────────────────────────────────────
@@ -112,19 +195,22 @@ const TENT_ROOTS: [number, number, number][] = Array.from({ length: N_TENT }, (_
 });
 
 // ─── Other parts ───────────────────────────────────────────────────────────
-const DORSAL_GEO     = new THREE.BoxGeometry(0.05, 0.62, 0.30);
-const VENTRAL_GEO    = new THREE.BoxGeometry(0.04, 0.32, 0.22);
-const PECT_GEO       = new THREE.BoxGeometry(0.72, 0.08, 0.26);
+const DORSAL_GEO     = makeDorsalSpine(0.64, 0.30, 0.045);
+const DORSAL_TALL_GEO = makeDorsalSpine(0.80, 0.38, 0.055); // larger for front fins
+const VENTRAL_GEO    = makeDorsalSpine(0.30, 0.20, 0.038);
+const PECT_GEO       = makePectoralFin();
 const LURE_GEO       = new THREE.SphereGeometry(0.15, 14, 11);
 const LURE_STALK_GEO = makeSeg(0.026, 0.042, 0.72, 6);
 const STRIPE_GEO     = new THREE.BoxGeometry(0.07, 0.07, SEG_LEN * 0.85);
 
 // ─── Materials ─────────────────────────────────────────────────────────────
 const DARK_MAT = new THREE.MeshStandardMaterial({
-    color: '#03050f', roughness: 0.88, metalness: 0.15, toneMapped: false,
+    color: '#04060e', roughness: 0.90, metalness: 0.12,
+    emissive: '#000508', emissiveIntensity: 0.4, toneMapped: false,
 });
 const SKIN_MAT = new THREE.MeshStandardMaterial({
-    color: '#070811', roughness: 0.82, metalness: 0.10, toneMapped: false,
+    color: '#080a12', roughness: 0.80, metalness: 0.08,
+    emissive: '#010208', emissiveIntensity: 0.35, toneMapped: false,
 });
 const SCLERA_MAT = new THREE.MeshStandardMaterial({
     color: '#0a0606', roughness: 0.6, toneMapped: false,
@@ -245,11 +331,11 @@ const SpineFK: React.FC<SpineProps> = ({ refs, dorsalRefs, bioRefs, caudalRefs }
                 <mesh geometry={CAUDAL_GEOS[1]} material={DARK_MAT} />
                 <group ref={setCaudal(2)} position={[0, 0, -CAUDAL_LEN[1]]}>
                     <mesh geometry={CAUDAL_GEOS[2]} material={DARK_MAT} />
-                    {/* Caudal fin lobes */}
-                    <mesh geometry={CAUDAL_FIN_GEO_UP}
-                        position={[0, 0.36, -CAUDAL_LEN[2] * 0.3]} rotation={[0, 0, 0.32]} />
-                    <mesh geometry={CAUDAL_FIN_GEO_DOWN}
-                        position={[0, -0.32, -CAUDAL_LEN[2] * 0.3]} rotation={[0, 0, -0.32]} />
+                    {/* Caudal fin lobes — crescent swept shape */}
+                    <mesh geometry={CAUDAL_FIN_GEO_UP}   material={DARK_MAT}
+                        position={[0, 0.04, -CAUDAL_LEN[2] * 0.5]} />
+                    <mesh geometry={CAUDAL_FIN_GEO_DOWN} material={DARK_MAT}
+                        position={[0, 0.04, -CAUDAL_LEN[2] * 0.5]} />
                 </group>
             </group>
         </group>
@@ -271,16 +357,17 @@ const SpineFK: React.FC<SpineProps> = ({ refs, dorsalRefs, bioRefs, caudalRefs }
                     position={[ r * 0.80, -r * 0.55, 0]} />
                 <mesh geometry={STRIPE_GEO} material={stripeMat}
                     position={[-r * 0.80, -r * 0.55, 0]} />
-                {/* Dorsal fin */}
+                {/* Dorsal fin — triangular spine */}
                 {dorsalSlot >= 0 && (
-                    <mesh ref={setDorsal(dorsalSlot)} geometry={DORSAL_GEO} material={DARK_MAT}
-                        position={[DORSAL_SLOTS[dorsalSlot].side, r + DORSAL_SLOTS[dorsalSlot].h, 0]}
-                        scale={[1.0, 1.0 + dorsalSlot * 0.08, 1.0]} />
+                    <mesh ref={setDorsal(dorsalSlot)}
+                        geometry={dorsalSlot <= 1 ? DORSAL_TALL_GEO : DORSAL_GEO}
+                        material={DARK_MAT}
+                        position={[DORSAL_SLOTS[dorsalSlot].side, r + 0.04, 0]} />
                 )}
-                {/* Ventral fin */}
+                {/* Ventral keel */}
                 {ventralSlot >= 0 && (
                     <mesh geometry={VENTRAL_GEO} material={DARK_MAT}
-                        position={[0, -(r + 0.16), 0]} />
+                        position={[0, -(r + 0.04), 0]} rotation={[Math.PI, 0, 0]} />
                 )}
                 {/* Bio light */}
                 {bioIdx !== undefined && (
@@ -526,7 +613,6 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 vel.current.x *= Math.max(0, 1 - safeDt * 14);
                 vel.current.y *= Math.max(0, 1 - safeDt * 14);
                 vel.current.z *= Math.max(0, 1 - safeDt * 14);
-                if (cameraShakeRef) cameraShakeRef.current = true;
                 if (jt > 0.40) jsPhase.current = 'rush';
             } else if (jsPhase.current === 'rush') {
                 const tp = jsTarget.current;
@@ -542,7 +628,6 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 if (jt > 0.85) {
                     jsPhase.current = 'done';
                     if (cameraShakeRef) cameraShakeRef.current = false;
-                    onPlayerCaught();
                 }
             }
             updateVisuals(t, safeDt, g, proximity);
@@ -571,6 +656,9 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                     jsPhase.current = 'turn';
                     jsTimer.current = 0;
                     jsTarget.current.copy(pp);
+                    // Fire immediately — overlay starts at the exact moment of catch
+                    if (cameraShakeRef) cameraShakeRef.current = true;
+                    onPlayerCaught();
                 }
                 if (dist > LUNGE_DIST + 6) {
                     state.current = 'regroup';
@@ -711,6 +799,9 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 {/* Main head sphere */}
                 <mesh geometry={HEAD_GEO} material={SKIN_MAT}
                     scale={[1.55, 0.78, 1.18]} position={[0, 0.05, 0.35]} />
+                {/* Forward rostrum / snout — gives anglerfish the elongated face */}
+                <mesh geometry={SNOUT_GEO} material={SKIN_MAT}
+                    scale={[0.82, 0.60, 1.0]} position={[0, -0.08, 0.82]} />
                 {/* Gill slits — 2 per side */}
                 <mesh geometry={GILL_GEO} material={DARK_MAT}
                     position={[ 0.78, 0.0, 0.10]} rotation={[0, -Math.PI / 2, 0.4]} />
@@ -763,12 +854,20 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                     color="#00ccdd" intensity={0.4} distance={22} decay={2} />
             </group>
 
-            {/* ── PECTORAL FINS (groups for multi-axis articulation) ────── */}
-            <group ref={pectLRef} position={[ 0.82, -0.05, -0.18]}>
-                <mesh geometry={PECT_GEO} material={DARK_MAT} scale={[1, 1, 1.8]} />
+            {/* ── PECTORAL FINS — swept wing geometry, mirrored ────────── */}
+            <group ref={pectLRef} position={[ 0.82, -0.05, -0.10]}>
+                <mesh geometry={PECT_GEO}>
+                    <meshStandardMaterial color="#050608" emissive="#010203"
+                        emissiveIntensity={0.3} roughness={0.88} metalness={0.05}
+                        side={THREE.DoubleSide} toneMapped={false} />
+                </mesh>
             </group>
-            <group ref={pectRRef} position={[-0.82, -0.05, -0.18]}>
-                <mesh geometry={PECT_GEO} material={DARK_MAT} scale={[1, 1, 1.8]} />
+            <group ref={pectRRef} position={[-0.82, -0.05, -0.10]} scale={[-1, 1, 1]}>
+                <mesh geometry={PECT_GEO}>
+                    <meshStandardMaterial color="#050608" emissive="#010203"
+                        emissiveIntensity={0.3} roughness={0.88} metalness={0.05}
+                        side={THREE.DoubleSide} toneMapped={false} />
+                </mesh>
             </group>
 
             {/* ── SPINE FK CHAIN (18 nested segments + 3-segment caudal) ── */}
