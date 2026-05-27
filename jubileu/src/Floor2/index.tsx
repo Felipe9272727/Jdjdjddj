@@ -6,9 +6,8 @@
  * previously exported from the monolithic Floor2Underwater.tsx.
  */
 
-import React, { useMemo, useRef } from 'react';
-import { useThree } from '@react-three/fiber';
-import { Instances, Instance, useTexture, useGLTF } from '@react-three/drei';
+import React from 'react';
+import { Instances, Instance, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { ElevatorFacade } from '../Elevator';
 import {
@@ -18,8 +17,6 @@ import {
     uwFloorColor, uwFloorNormal, uwFloorRoughness, uwFloorAO,
     uwRockColor, uwRockNormal, uwRockRoughness, uwRockAO,
     uwWallColor, uwWallNormal, uwWallRoughness, uwWallAO,
-    rockModelA, rockModelB, rockModelC, rockModelD,
-    boulderModel, pebbleModel,
 } from '../assets/textureImports';
 
 // Re-export everything that was exported from the original monolithic file
@@ -92,11 +89,6 @@ function usePBRSet(colorUrl: string, normalUrl: string, roughUrl: string, aoUrl:
     return { color, normal, rough, ao };
 }
 
-// ─── Rock GLB model URLs ──────────────────────────────────────────
-const ROCK_MODEL_URLS = [rockModelA, rockModelB, rockModelC, rockModelD];
-const BOULDER_MODEL_URL = boulderModel;
-const PEBBLE_MODEL_URL = pebbleModel;
-
 // Stable Vector2 instances — avoids new allocations (and forced material
 // uniform updates) every time Floor2Environment renders.
 const V2_15 = /*@__PURE__*/ new THREE.Vector2(1.5, 1.5);
@@ -155,82 +147,6 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         uwWallColor, uwWallNormal, uwWallRoughness, uwWallAO,
         4, 2
     );
-
-    // ─── Load rock GLB models ──────────────────────────────────────
-    const rockModels = useGLTF(ROCK_MODEL_URLS);
-    const boulderModel_ = useGLTF(BOULDER_MODEL_URL);
-
-    // Clone scenes and override materials with our PBR cave rock textures
-    // so GLB default materials (often too bright) don't clash with the dark cave
-    const rockScenes = useMemo(() => rockModels.map(m => {
-        const scene = m.scene.clone(true);
-        scene.traverse((child: any) => {
-            if (child.isMesh) {
-                child.material = new THREE.MeshStandardMaterial({
-                    color: '#1a1610',
-                    map: caveRock.color,
-                    normalMap: caveRock.normal,
-                    normalScale: V2_20,
-                    roughnessMap: caveRock.rough,
-                    roughness: 0.92,
-                    aoMap: caveRock.ao,
-                    aoMapIntensity: 0.6,
-                });
-            }
-        });
-        return scene;
-    }), [rockModels, caveRock]);
-
-    // UW rock scenes — same GLB models but with underwater PBR materials
-    const uwRockScenes = useMemo(() => rockModels.map(m => {
-        const scene = m.scene.clone(true);
-        scene.traverse((child: any) => {
-            if (child.isMesh) {
-                child.material = new THREE.MeshStandardMaterial({
-                    color: '#0a0c08',
-                    map: uwRock.color,
-                    normalMap: uwRock.normal,
-                    normalScale: V2_20,
-                    roughnessMap: uwRock.rough,
-                    roughness: 0.95,
-                    aoMap: uwRock.ao,
-                    aoMapIntensity: 0.5,
-                });
-            }
-        });
-        return scene;
-    }), [rockModels, uwRock]);
-
-    const boulderScene = useMemo(() => {
-        const scene = boulderModel_.scene.clone(true);
-        scene.traverse((child: any) => {
-            if (child.isMesh) {
-                child.material = new THREE.MeshStandardMaterial({
-                    color: '#1a1610',
-                    map: caveRock.color,
-                    normalMap: caveRock.normal,
-                    normalScale: V2_20,
-                    roughnessMap: caveRock.rough,
-                    roughness: 0.92,
-                    aoMap: caveRock.ao,
-                    aoMapIntensity: 0.6,
-                });
-            }
-        });
-        return scene;
-    }, [boulderModel_, caveRock]);
-
-    // Pre-clone all individual rock GLB scenes so they are never re-cloned
-    // during render (JSX re-evaluation would call .clone(true) every frame
-    // otherwise, which is extremely expensive for complex scene graphs).
-    const caveRockClones = useMemo(() => [
-        ...CAVE_ROCKS_DARK.map((_, i) => rockScenes[i % 4].clone(true)),
-        ...CAVE_ROCKS_MID.map((_, i) => rockScenes[(i + 1) % 4].clone(true)),
-    ], [rockScenes]);
-
-    const uwRockClones = useMemo(() =>
-        UW_BOULDERS.map((_, i) => uwRockScenes[i % 4].clone(true)),
-        [uwRockScenes]);
 
     return (
     <group>
@@ -320,17 +236,20 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             <meshStandardMaterial color="#221c14" map={caveWall.color} normalMap={caveWall.normal} normalScale={V2_25} roughnessMap={caveWall.rough} roughness={0.92} aoMap={caveWall.ao} aoMapIntensity={0.8} side={THREE.DoubleSide} />
         </mesh>
 
-        {/* Cave boulders — real GLB models, pre-cloned in useMemo */}
-        {CAVE_ROCKS_DARK.map(([x, y, z, s, ry], i) => (
-            <group key={`dark-${i}`} position={[x, y + s * 0.4, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]}>
-                <primitive object={caveRockClones[i]} />
-            </group>
-        ))}
-        {CAVE_ROCKS_MID.map(([x, y, z, s, ry], i) => (
-            <group key={`mid-${i}`} position={[x, y + s * 0.4, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]}>
-                <primitive object={caveRockClones[CAVE_ROCKS_DARK.length + i]} />
-            </group>
-        ))}
+        {/* Cave boulders — instanced proc rocks: 4 draw calls vs 22 GLB clones */}
+        {([PROC_ROCK_A, PROC_ROCK_B, PROC_ROCK_C, PROC_ROCK_D] as THREE.BufferGeometry[]).map((geo, gi) => {
+            const allRocks = [...CAVE_ROCKS_DARK, ...CAVE_ROCKS_MID];
+            const rocks = allRocks.filter((_, i) => i % 4 === gi);
+            if (!rocks.length) return null;
+            return (
+                <Instances key={gi} limit={rocks.length} range={rocks.length} geometry={geo}>
+                    <meshStandardMaterial color="#1a1610" map={caveRock.color} normalMap={caveRock.normal} normalScale={V2_20} roughnessMap={caveRock.rough} roughness={0.92} aoMap={caveRock.ao} aoMapIntensity={0.6} />
+                    {rocks.map(([x, y, z, s, ry], i) => (
+                        <Instance key={i} position={[x, y + s * 0.4, z]} scale={[s, s * 0.7, s]} rotation={[0, ry, 0]} />
+                    ))}
+                </Instances>
+            );
+        })}
         {/* Light pebbles — instanced icosahedra */}
         <Instances limit={CAVE_ROCKS_LIGHT.length} range={CAVE_ROCKS_LIGHT.length} geometry={PEBBLE_GEO}>
             <meshStandardMaterial map={caveRock.color} normalMap={caveRock.normal} normalScale={V2_20} roughnessMap={caveRock.rough} roughness={0.85} aoMap={caveRock.ao} aoMapIntensity={0.5} />
@@ -478,12 +397,19 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {reflective && <DebrisField />}
         {reflective && <FishSchool />}
 
-        {/* Underwater boulders — pre-cloned in useMemo */}
-        {UW_BOULDERS.map(([x, y, z, s, ry], i) => (
-            <group key={`uwb-${i}`} position={[x, y + s * 0.4, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]}>
-                <primitive object={uwRockClones[i]} />
-            </group>
-        ))}
+        {/* Underwater boulders — instanced proc rocks: 4 draw calls vs 15 GLB clones */}
+        {([PROC_ROCK_A, PROC_ROCK_B, PROC_ROCK_C, PROC_ROCK_D] as THREE.BufferGeometry[]).map((geo, gi) => {
+            const rocks = UW_BOULDERS.filter((_, i) => i % 4 === gi);
+            if (!rocks.length) return null;
+            return (
+                <Instances key={gi} limit={rocks.length} range={rocks.length} geometry={geo}>
+                    <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.5} />
+                    {rocks.map(([x, y, z, s, ry], i) => (
+                        <Instance key={i} position={[x, y + s * 0.4, z]} scale={[s, s * 0.6, s]} rotation={[0, ry, 0]} />
+                    ))}
+                </Instances>
+            );
+        })}
 
         {/* Underwater pebbles — darkened */}
         <Instances limit={UW_PEBBLES.length} range={UW_PEBBLES.length} geometry={PEBBLE_GEO}>

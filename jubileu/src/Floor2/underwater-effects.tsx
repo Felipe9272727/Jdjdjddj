@@ -733,7 +733,6 @@ export const ShardField: React.FC<ShardFieldProps> = ({ collectedShards, onColle
                     <sprite scale={[3.2, 3.2, 1]}>
                         <spriteMaterial map={GLOW_TEXTURE} color="#0088cc" transparent opacity={0.18} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
                     </sprite>
-                    <pointLight color="#00ddff" intensity={1.4} distance={6} decay={2} />
                 </group>
             ))}
         </group>

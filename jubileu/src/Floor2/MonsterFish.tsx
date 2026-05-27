@@ -40,24 +40,6 @@ useGLTF.preload(SHARK_URL);
 type FishState      = 'dormant' | 'awakening' | 'patrol' | 'hunting' | 'lunge' | 'regroup';
 type JumpscarePhase = 'none' | 'rush' | 'done';
 
-// Dark abyssal skin — applied over the atlas material so the shark looks like
-// a deep-sea predator rather than a cartoon.
-const SHARK_MAT = new THREE.MeshStandardMaterial({
-    color:             '#0d1018',
-    emissive:          '#000810',
-    emissiveIntensity: 0.6,
-    roughness:         0.78,
-    metalness:         0.18,
-    toneMapped:        false,
-});
-const SHARK_BELLY_MAT = new THREE.MeshStandardMaterial({
-    color:             '#151a20',
-    emissive:          '#000608',
-    emissiveIntensity: 0.4,
-    roughness:         0.85,
-    metalness:         0.10,
-    toneMapped:        false,
-});
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface MonsterFishProps {
@@ -85,17 +67,20 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     const actionsRef = useRef<Record<string, THREE.AnimationAction>>({});
     const currentAnimRef = useRef('');
 
-    // Clone scene once — lets us apply independent material overrides
+    // Clone scene once — clone the GLB's own atlas material so the texture
+    // stays intact. Just darken color slightly for the deep-sea look; the
+    // fill light below makes the shark visible against dark water.
     const clonedScene = useMemo(() => {
         const clone = (scene as THREE.Group).clone(true);
-        let meshIdx = 0;
         clone.traverse((child: any) => {
             if (child.isSkinnedMesh || child.isMesh) {
-                // Alternate between two dark materials for subtle belly/back variation
-                child.material = meshIdx % 2 === 0 ? SHARK_MAT : SHARK_BELLY_MAT;
+                const m = (child.material as THREE.MeshStandardMaterial).clone();
+                if (m.color) m.color.multiplyScalar(0.75);
+                m.toneMapped = false;
+                m.needsUpdate = true;
+                child.material = m;
                 child.castShadow = false;
                 child.receiveShadow = false;
-                meshIdx++;
             }
         });
         return clone;
@@ -398,12 +383,8 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 Rotate 180° around Y so the shark faces its velocity (+Z forward). */}
             <primitive object={clonedScene} rotation={[0, Math.PI, 0]} />
 
-            {/* Abyssal bio-glow — deep green tint emanating from the body */}
-            <pointLight color="#003d1a" intensity={3.5} distance={9} decay={2} />
-
-            {/* Orange predator eye glow (matches shark eye sockets) */}
-            <pointLight position={[0.5,  0.4, 2.0]} color="#ff3300" intensity={1.8} distance={4} decay={2} />
-            <pointLight position={[-0.5, 0.4, 2.0]} color="#ff3300" intensity={1.8} distance={4} decay={2} />
+            {/* Single blue-white fill — makes the shark visible in dark water */}
+            <pointLight color="#5090c8" intensity={10} distance={18} decay={2} />
         </group>
     );
 };
