@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import {
     UW_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, SWIM_THRESHOLD_Y,
 } from './constants';
+import { sharkDirector } from '../ai/AIDirector';
 
 // ─── AI constants ─────────────────────────────────────────────────────────────
 const PATROL_SPEED   = 2.2;
@@ -204,6 +205,12 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     const _calm       = useMemo(() => new THREE.Color('#5090c8'), []); // unaware → cold blue
     const _enraged    = useMemo(() => new THREE.Color('#ff3322'), []); // locked-on → blood red
 
+    // AI Director search target (occupancy-grid best guess for investigation)
+    const _searchTgt = useRef(new THREE.Vector3());
+
+    // Reset the drama director / spatial memory whenever the shark (re)mounts.
+    useEffect(() => { sharkDirector.reset(); return () => sharkDirector.reset(); }, []);
+
     // Reusable temp vectors — never allocate in useFrame
     const _v1 = useRef(new THREE.Vector3());
     const _v2 = useRef(new THREE.Vector3());
@@ -270,9 +277,11 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         if (monsterProximityRef) monsterProximityRef.current = proximity;
 
         // ── Sensory perception: fuse vision + hearing into alertness ─────────
+        // The AI Director sharpens or dulls the senses (read last frame's value).
+        const senseMult     = sharkDirector.perceptionMult;
         // Hearing radius swells with the player's speed (their "noise").
         const playerNoise   = playerVelRef.current.length();
-        const hearMult      = berserk ? BERSERK_HEARING_MULT : 1;
+        const hearMult      = (berserk ? BERSERK_HEARING_MULT : 1) * senseMult;
         const hearingRadius = Math.min(HEARING_MIN + playerNoise * HEARING_NOISE_K, HEARING_MAX) * hearMult;
         const heard         = dist < hearingRadius;
         // Vision: in range + inside forward cone + unobstructed line of sight.
@@ -290,10 +299,23 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         } else {
             alertness.current = Math.max(0, alertness.current - ALERT_DECAY * safeDt);
         }
-        // Tension (heartbeat / dread audio / DOM darkness) now follows real
-        // detection, not just distance — being hunted feels worse than being near.
+
+        // ── AI Director: feed observations, pull fresh directives ────────────
+        sharkDirector.update({
+            dt: safeDt, dist, awareness: AWARENESS_DIST, perceived,
+            alertness: alertness.current, playerSpeed: playerNoise,
+            shards: collectedShards.size, inLunge: state.current === 'lunge',
+            berserk, px, pz,
+        });
+
+        // Tension (heartbeat / dread audio / DOM darkness) follows real detection
+        // AND the Director's drama intensity → adaptive audio: the dread swells
+        // during a "peak" assault and recedes during a "respite", not just by
+        // raw distance.
         if (monsterProximityRef) {
-            monsterProximityRef.current = Math.max(proximity, alertness.current * 0.9);
+            monsterProximityRef.current = Math.max(
+                proximity, alertness.current * 0.9, sharkDirector.intensity * 0.85,
+            );
         }
         // Visual tell: the fill light bleeds from cold blue → blood red as the
         // shark locks on, and brightens with alertness. Lets the player read
@@ -346,10 +368,13 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 if (alertness.current < ALERT_HUNT_OFF) {
                     investigateTimer.current = 14.0;
                     state.current = 'investigating';
-                } else if (dist < LUNGE_DIST) {
+                } else if (dist < LUNGE_DIST * sharkDirector.aggression) {
+                    // Director aggression widens/loosens the commit window: it
+                    // pounces from farther and at a worse angle during a "peak".
                     _v1.current.set(dxp, dyp, dzp).normalize();
                     const fwd = _v2.current.set(0, 0, 1).applyQuaternion(g.quaternion);
-                    if (fwd.dot(_v1.current) > 0.45 || dist < 2.8) {
+                    const dotGate = 0.45 - (sharkDirector.aggression - 1) * 0.2;
+                    if (fwd.dot(_v1.current) > dotGate || dist < 2.8) {
                         state.current = 'lunge';
                         lDir.current.set(dxp / dist, dyp / dist, dzp / dist);
                     }
@@ -420,7 +445,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 const baseSpeed = berserk
                     ? HUNT_SPEED_MAX * BERSERK_HUNT_MULT
                     : HUNT_SPEED_MIN + speedT * (HUNT_SPEED_MAX - HUNT_SPEED_MIN);
-                const speed = baseSpeed * Math.min(shardMult, 2.5);
+                const speed = baseSpeed * Math.min(shardMult, 2.5) * sharkDirector.huntMult;
                 // Look-ahead: predict player position 55% of the travel time ahead
                 const lookAhead = Math.min(dist / (speed + 0.001) * 0.55, 1.8);
                 const tpx = px + playerVelRef.current.x * lookAhead;
@@ -457,11 +482,14 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 break;
             }
             case 'investigating': {
-                // Navigate toward last known player position
-                const speed = HUNT_SPEED_MAX * 0.55 * Math.min(shardMult, 2.0);
-                const idx = lastKnownPosRef.current.x - fx;
-                const idy = lastKnownPosRef.current.y - fy;
-                const idz = lastKnownPosRef.current.z - fz;
+                // Predator search: head for the highest-probability cell in the
+                // occupancy grid (spatial memory), not just the last fixed point.
+                const speed = HUNT_SPEED_MAX * 0.55 * Math.min(shardMult, 2.0) * sharkDirector.huntMult;
+                sharkDirector.getSearchTarget(_searchTgt.current);
+                _searchTgt.current.y = lastKnownPosRef.current.y; // keep last-seen depth
+                const idx = _searchTgt.current.x - fx;
+                const idy = _searchTgt.current.y - fy;
+                const idz = _searchTgt.current.z - fz;
                 const id  = Math.sqrt(idx*idx + idy*idy + idz*idz) + 0.001;
                 _v1.current.set(idx / id, idy / id, idz / id).multiplyScalar(speed);
                 for (const rock of UW_ROCK_COLLIDERS) {

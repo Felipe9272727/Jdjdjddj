@@ -24,6 +24,7 @@ import {
     BUBBLE_GEO, SHARD_GEO, KELP_GEO, FISH_GEO, DEBRIS_GEO, PLANKTON_GEO, GOD_RAY_GEO,
 } from './geometry';
 import { CausticsMaterial } from './shaders';
+import { perfGovernor } from '../ai/perfGovernor';
 
 // ─── UnderwaterCaustics ───────────────────────────────────────────────
 export const UnderwaterCaustics: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
@@ -372,7 +373,7 @@ export const FishSchool: React.FC<{ monsterPositionRef?: React.MutableRefObject<
         Array.from({ length: FISH_COUNT }, () => new THREE.Vector3())
     );
     const bFleeing = useRef<boolean[]>(new Array(FISH_COUNT).fill(false));
-    const frameParity = useRef(0);
+    const frameTick = useRef(0);
 
     useFrame((state, dt) => {
         if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
@@ -380,8 +381,13 @@ export const FishSchool: React.FC<{ monsterPositionRef?: React.MutableRefObject<
         const t = state.clock.elapsedTime;
         const sharkPos = monsterPositionRef?.current;
         const sharkActive = !!sharkPos && sharkPos.y < SWIM_THRESHOLD_Y;
-        const parity = frameParity.current;
-        frameParity.current ^= 1;
+        // Adaptive time-slice: the perf governor widens the stride under load
+        // (recompute 1/stride of the flock per frame, 2→4 fish-groups).
+        const stride = perfGovernor.stride;
+        const tick   = frameTick.current++;
+        const slot   = tick % stride;
+        // Under heavy load, throttle the additive glow-sprite copies too.
+        const spritesThisFrame = perfGovernor.budget > 0.6 || (tick & 1) === 0;
 
         for (let i = 0; i < FISH_COUNT; i++) {
             const pos = bPos.current[i];
@@ -389,7 +395,7 @@ export const FishSchool: React.FC<{ monsterPositionRef?: React.MutableRefObject<
 
             // Time-slice: only recompute this fish's steering on its frame.
             // Off-frames reuse the cached force and just keep integrating.
-            const recompute = (i & 1) === parity;
+            const recompute = (i % stride) === slot;
             let fleeing = false;
             if (!recompute) {
                 _steer.current.copy(bSteer.current[i]);
@@ -497,7 +503,7 @@ export const FishSchool: React.FC<{ monsterPositionRef?: React.MutableRefObject<
                 m.rotation.x = Math.sin(t * 6 + i * 20) * 0.12;
             }
             const sp = spriteRefs.current[i];
-            if (sp) sp.position.copy(pos);
+            if (sp && spritesThisFrame) sp.position.copy(pos);
         }
     });
 
