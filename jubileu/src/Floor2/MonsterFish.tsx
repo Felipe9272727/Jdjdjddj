@@ -13,6 +13,7 @@ import React, { useRef, useMemo, useEffect, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import { SkeletonUtils } from 'three-stdlib';
 import {
     UW_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, SWIM_THRESHOLD_Y,
 } from './constants';
@@ -119,20 +120,41 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     const actionsRef = useRef<Record<string, THREE.AnimationAction>>({});
     const currentAnimRef = useRef('');
 
-    // Clone scene once — clone the GLB's own atlas material so the texture
-    // stays intact. Just darken color slightly for the deep-sea look; the
-    // fill light below makes the shark visible against dark water.
+    // Clone scene once. CRITICAL: the shark is a *skinned* mesh, so we must use
+    // SkeletonUtils.clone — a plain Object3D.clone(true) leaves the cloned
+    // SkinnedMesh bound to the ORIGINAL skeleton, which makes it collapse to a
+    // point / render invisible (the long-standing "shark is invisible" bug).
+    //
+    // Visibility fix: deep water has almost no light + the atlas material is
+    // semi-metallic, so a normally-lit shark reads as a black blob. We make it
+    // SELF-ILLUMINATED — its own base-colour texture is reused as an emissive
+    // map with a cold tint, so the shark is always clearly visible regardless
+    // of scene lighting, and we kill metalness so it never renders black.
+    // frustumCulled=false stops the animated skin from being culled when its
+    // deformed bounds drift outside the bind-pose bounding sphere.
     const clonedScene = useMemo(() => {
-        const clone = (scene as THREE.Group).clone(true);
+        const clone = SkeletonUtils.clone(scene as THREE.Object3D) as THREE.Group;
         clone.traverse((child: any) => {
             if (child.isSkinnedMesh || child.isMesh) {
-                const m = (child.material as THREE.MeshStandardMaterial).clone();
-                if (m.color) m.color.multiplyScalar(0.75);
-                m.toneMapped = false;
+                const src = child.material as THREE.MeshStandardMaterial;
+                const m = src.clone();
+                m.metalness = 0.0;            // never render black in dark water
+                m.roughness = 0.65;
+                if (m.map) {
+                    m.emissiveMap = m.map;    // self-lit using its own texture
+                    m.emissive = new THREE.Color(0x8fb4d8);
+                    m.emissiveIntensity = 0.7;
+                } else {
+                    m.emissive = new THREE.Color(0x2a3a4a);
+                    m.emissiveIntensity = 0.6;
+                }
+                m.toneMapped = true;
                 m.needsUpdate = true;
                 child.material = m;
                 child.castShadow = false;
                 child.receiveShadow = false;
+                child.frustumCulled = false;  // animated skin must not be culled
+                child.visible = true;
             }
         });
         return clone;
@@ -570,8 +592,12 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         g.rotation.x += (tp - g.rotation.x) * safeDt * (fast ? 22 : 2.5);
     }
 
+    // Scale 1.2 → ~6.7-unit shark. The GLB is authored ~5.6 units long (a 100×
+    // node scale baked in), so the previous 3.8 made it ~21 units: big enough
+    // that an approaching player ended up INSIDE the mesh seeing culled
+    // back-faces — the real cause of the "invisible shark".
     return (
-        <group ref={rootRef} visible={false} scale={[3.8, 3.8, 3.8]}>
+        <group ref={rootRef} visible={false} scale={[1.2, 1.2, 1.2]}>
             {/* Primitive uses the cloned, material-overridden scene.
                 Rotate 180° around Y so the shark faces its velocity (+Z forward). */}
             <primitive object={clonedScene} rotation={[0, Math.PI, 0]} />

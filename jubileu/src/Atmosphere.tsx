@@ -506,6 +506,32 @@ export const createMonsterAmbience = (audioContext: AudioContext | null): {
     harm.connect(harmGain).connect(lpf);
     lpf.connect(master);
 
+    // ── Dissonant tension layer ──────────────────────────────────────────────
+    // A bandpassed sawtooth a tritone-ish above the sub. Silent until the
+    // predator is genuinely close, then it swells in — pure unease, without
+    // muddying the low end.
+    const diss = audioContext.createOscillator();
+    diss.type = 'sawtooth';
+    diss.frequency.setValueAtTime(168, audioContext.currentTime);
+    const dissFilter = audioContext.createBiquadFilter();
+    dissFilter.type = 'bandpass';
+    dissFilter.frequency.setValueAtTime(340, audioContext.currentTime);
+    dissFilter.Q.value = 2.4;
+    const dissGain = audioContext.createGain();
+    dissGain.gain.setValueAtTime(0, audioContext.currentTime);
+    diss.connect(dissFilter).connect(dissGain).connect(master);
+    diss.start();
+
+    // ── Tremolo — a quickening "predator heartbeat" amplitude pulse on the
+    // tension layer. Off at distance; rate climbs as it closes in. ──
+    const trem = audioContext.createOscillator();
+    trem.type = 'sine';
+    trem.frequency.setValueAtTime(1.5, audioContext.currentTime);
+    const tremDepth = audioContext.createGain();
+    tremDepth.gain.setValueAtTime(0, audioContext.currentTime);
+    trem.connect(tremDepth).connect(dissGain.gain);
+    trem.start();
+
     sub.start();
     harm.start();
     lfo.start();
@@ -520,6 +546,12 @@ export const createMonsterAmbience = (audioContext: AudioContext | null): {
             // Pitch creep — rises 15 Hz at full proximity
             sub.frequency.linearRampToValueAtTime(40 + p * 15, t + 1.2);
             harm.frequency.linearRampToValueAtTime(80 + p * 22, t + 1.2);
+            // Tension layer only bites when very close (cubic), and its
+            // heartbeat tremolo quickens with proximity.
+            dissGain.gain.linearRampToValueAtTime(p * p * p * 0.16, t + 0.5);
+            tremDepth.gain.linearRampToValueAtTime(p * p * 0.10, t + 0.5);
+            trem.frequency.linearRampToValueAtTime(1.4 + p * 4.0, t + 0.8);
+            dissFilter.frequency.linearRampToValueAtTime(340 + p * 260, t + 1.0);
         },
         stop: () => {
             if (stopped) return;
@@ -527,11 +559,192 @@ export const createMonsterAmbience = (audioContext: AudioContext | null): {
             const t = audioContext.currentTime;
             master.gain.linearRampToValueAtTime(0, t + 1.8);
             setTimeout(() => {
-                try { sub.stop(); harm.stop(); lfo.stop(); } catch (_) {}
+                try { sub.stop(); harm.stop(); lfo.stop(); diss.stop(); trem.stop(); } catch (_) {}
                 master.disconnect();
             }, 2200);
         },
     };
+};
+
+/**
+ * Underwater ambience bed — fades in with submersion depth on Floor 2.
+ *
+ * A muffled, pressurised soundscape distinct from the dry cave: low-passed
+ * "water pressure" noise, a deep drone, and occasional distant whale-like
+ * moans. `setSubmersion(0..1)` crossfades it with depth; nothing plays while
+ * the player is up in the cave.
+ */
+export const createUnderwaterAmbience = (audioContext: AudioContext | null): {
+    setSubmersion: (s: number) => void;
+    stop: () => void;
+} => {
+    if (!audioContext) return { setSubmersion: () => {}, stop: () => {} };
+
+    const master = audioContext.createGain();
+    master.gain.setValueAtTime(0, audioContext.currentTime);
+    master.connect(audioContext.destination);
+
+    // ── Pressure noise — heavily low-passed, slow-breathing volume ──
+    const noiseLen = Math.floor(audioContext.sampleRate * 4);
+    const noiseBuf = audioContext.createBuffer(1, noiseLen, audioContext.sampleRate);
+    const nd = noiseBuf.getChannelData(0);
+    for (let i = 0; i < noiseLen; i++) nd[i] = Math.random() * 2 - 1;
+    const noise = audioContext.createBufferSource();
+    noise.buffer = noiseBuf; noise.loop = true;
+    const noiseFilter = audioContext.createBiquadFilter();
+    noiseFilter.type = 'lowpass';
+    noiseFilter.frequency.value = 300;
+    const noiseGain = audioContext.createGain();
+    noiseGain.gain.value = 0.5;
+    noise.connect(noiseFilter).connect(noiseGain).connect(master);
+    noise.start();
+
+    // ── Deep drone — the weight of the water column ──
+    const drone = audioContext.createOscillator();
+    drone.type = 'sine';
+    drone.frequency.value = 54;
+    const droneLpf = audioContext.createBiquadFilter();
+    droneLpf.type = 'lowpass';
+    droneLpf.frequency.value = 160;
+    const droneGain = audioContext.createGain();
+    droneGain.gain.value = 0.22;
+    drone.connect(droneLpf).connect(droneGain).connect(master);
+    drone.start();
+
+    // ── Distant whale-like moan scheduler ──
+    let stopped = false;
+    const scheduleMoan = () => {
+        if (stopped) return;
+        const t = audioContext.currentTime;
+        const f0 = 150 + Math.random() * 120;
+        const osc = audioContext.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(f0, t);
+        osc.frequency.exponentialRampToValueAtTime(f0 * 0.45, t + 2.6);
+        const bp = audioContext.createBiquadFilter();
+        bp.type = 'bandpass'; bp.frequency.value = 240; bp.Q.value = 3;
+        const g = audioContext.createGain();
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.06, t + 0.8);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 3.0);
+        osc.connect(bp).connect(g).connect(master);
+        osc.start(t); osc.stop(t + 3.1);
+        setTimeout(scheduleMoan, 9000 + Math.random() * 13000);
+    };
+    setTimeout(scheduleMoan, 4000 + Math.random() * 6000);
+
+    return {
+        setSubmersion: (s: number) => {
+            if (stopped) return;
+            const t = audioContext.currentTime;
+            master.gain.linearRampToValueAtTime(Math.max(0, Math.min(1, s)) * 0.5, t + 0.4);
+        },
+        stop: () => {
+            if (stopped) return;
+            stopped = true;
+            const t = audioContext.currentTime;
+            master.gain.linearRampToValueAtTime(0, t + 1.0);
+            setTimeout(() => {
+                try { noise.stop(); drone.stop(); } catch (_) {}
+                master.disconnect();
+            }, 1300);
+        },
+    };
+};
+
+/**
+ * Detection sting — a sharp dissonant rising hit the instant the predator
+ * locks onto the player. Audible feedback for the perception/AI-Director
+ * "you've been spotted" moment, so stealth has a clear tell.
+ */
+export const playDetectionSting = (audioContext: AudioContext | null) => {
+    if (!audioContext) return;
+    const t = audioContext.currentTime;
+    // Two clashing high partials (minor second) for instant unease.
+    for (const f of [880, 932]) {
+        const osc = audioContext.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(f * 0.6, t);
+        osc.frequency.exponentialRampToValueAtTime(f, t + 0.08);
+        const bp = audioContext.createBiquadFilter();
+        bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 4;
+        const g = audioContext.createGain();
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.07, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+        osc.connect(bp).connect(g).connect(audioContext.destination);
+        osc.start(t); osc.stop(t + 0.65);
+    }
+};
+
+/**
+ * Swim bubble blip — a few quick rising pips, played occasionally while the
+ * player is moving underwater. Subtle life for the dive.
+ */
+export const playBubble = (audioContext: AudioContext | null) => {
+    if (!audioContext) return;
+    const t = audioContext.currentTime;
+    const n = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) {
+        const ts = t + i * (0.03 + Math.random() * 0.04);
+        const f = 600 + Math.random() * 900;
+        const osc = audioContext.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(f, ts);
+        osc.frequency.exponentialRampToValueAtTime(f * 1.6, ts + 0.06);
+        const g = audioContext.createGain();
+        g.gain.setValueAtTime(0, ts);
+        g.gain.linearRampToValueAtTime(0.025, ts + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.001, ts + 0.09);
+        osc.connect(g).connect(audioContext.destination);
+        osc.start(ts); osc.stop(ts + 0.1);
+    }
+};
+
+/**
+ * Visceral shark roar / lunge hit — a downward-pitched distorted growl plus a
+ * filtered noise "whoosh", for the moment the predator commits to the kill.
+ */
+export const playSharkRoar = (audioContext: AudioContext | null) => {
+    if (!audioContext) return;
+    const t = audioContext.currentTime;
+
+    // Growl — stacked detuned saws sweeping downward.
+    const out = audioContext.createGain();
+    out.gain.setValueAtTime(0, t);
+    out.gain.linearRampToValueAtTime(0.32, t + 0.04);
+    out.gain.exponentialRampToValueAtTime(0.001, t + 0.95);
+    const lpf = audioContext.createBiquadFilter();
+    lpf.type = 'lowpass';
+    lpf.frequency.setValueAtTime(900, t);
+    lpf.frequency.exponentialRampToValueAtTime(180, t + 0.8);
+    lpf.Q.value = 6;
+    out.connect(audioContext.destination);
+    lpf.connect(out);
+    for (const det of [-6, 0, 7]) {
+        const osc = audioContext.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150 + det, t);
+        osc.frequency.exponentialRampToValueAtTime(46 + det, t + 0.7);
+        osc.connect(lpf);
+        osc.start(t); osc.stop(t + 0.95);
+    }
+
+    // Whoosh — short burst of band-passed noise (the water displaced).
+    const nlen = Math.floor(audioContext.sampleRate * 0.5);
+    const nbuf = audioContext.createBuffer(1, nlen, audioContext.sampleRate);
+    const ndat = nbuf.getChannelData(0);
+    for (let i = 0; i < nlen; i++) ndat[i] = (Math.random() * 2 - 1) * (1 - i / nlen);
+    const ns = audioContext.createBufferSource();
+    ns.buffer = nbuf;
+    const nbp = audioContext.createBiquadFilter();
+    nbp.type = 'bandpass'; nbp.frequency.setValueAtTime(800, t);
+    nbp.frequency.exponentialRampToValueAtTime(300, t + 0.4); nbp.Q.value = 1.2;
+    const ng = audioContext.createGain();
+    ng.gain.setValueAtTime(0.22, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    ns.connect(nbp).connect(ng).connect(audioContext.destination);
+    ns.start(t); ns.stop(t + 0.5);
 };
 
 /**

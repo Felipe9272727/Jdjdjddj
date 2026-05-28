@@ -41,7 +41,7 @@ import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES, type QualityPr
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
 import { RobloxChat, BubbleChatFallback } from './ChatSystem';
 import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient, EmptyLobbyAmbience } from './PostEffects';
-import { CeilingFan, WallClock, playArrivalDing, createElevatorHum, playJumpscareStab, playEquipChime, createCaveAmbience, createMonsterAmbience } from './Atmosphere';
+import { CeilingFan, WallClock, playArrivalDing, createElevatorHum, playJumpscareStab, playEquipChime, createCaveAmbience, createMonsterAmbience, createUnderwaterAmbience, playSharkRoar, playDetectionSting, playBubble } from './Atmosphere';
 import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue, playHeartbeat } from './HudComponents';
 import { SceneInspector } from './SceneInspector';
 import { perfGovernor } from './ai/perfGovernor';
@@ -347,6 +347,26 @@ export default function App() {
     };
   }, [currentLevel, audioCtx, muted]);
 
+  // Underwater ambience — muffled pressure bed that fades in with dive depth.
+  // Created while on Floor 2; submersion is driven from the proximity poll.
+  const underwaterAmbienceRef = useRef<ReturnType<typeof createUnderwaterAmbience> | null>(null);
+  useEffect(() => {
+    if (currentLevel === 2 && audioCtx && !muted) {
+      if (!underwaterAmbienceRef.current) {
+        underwaterAmbienceRef.current = createUnderwaterAmbience(audioCtx);
+      }
+    } else if (underwaterAmbienceRef.current) {
+      underwaterAmbienceRef.current.stop();
+      underwaterAmbienceRef.current = null;
+    }
+    return () => {
+      if (underwaterAmbienceRef.current) {
+        underwaterAmbienceRef.current.stop();
+        underwaterAmbienceRef.current = null;
+      }
+    };
+  }, [currentLevel, audioCtx, muted]);
+
   // ── Monster presence system ────────────────────────────────────────────
   // monsterPositionRef  — written by MonsterFish every frame (world XYZ)
   // monsterProximityRef — written by MonsterFish every frame (0=far, 1=on top)
@@ -381,10 +401,36 @@ export default function App() {
       if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
       return;
     }
+    let prevProx = 0;
+    let bubbleAccum = 0;
+    let prevX = sharedPlayerPositionRef.current.x;
+    let prevZ = sharedPlayerPositionRef.current.z;
     const id = setInterval(() => {
       const p = monsterProximityRef.current;
       monsterAmbienceRef.current?.setProximity(p);
       setMonsterDarkness(p * p * 0.45);
+      // Depth-driven underwater ambience: fade in over the first ~5 units below
+      // the swim threshold (-2.7). Up in the cave → silent.
+      const pos = sharedPlayerPositionRef.current;
+      const y = pos.y;
+      const submersion = Math.max(0, Math.min(1, (-2.7 - y) / 5));
+      underwaterAmbienceRef.current?.setSubmersion(submersion);
+
+      // Detection sting — rising edge as the predator locks on (spotted!).
+      if (p >= 0.55 && prevProx < 0.55 && !muted) playDetectionSting(audioCtx);
+      prevProx = p;
+
+      // Swim bubbles — occasional, while actually moving underwater.
+      const dx = pos.x - prevX, dz = pos.z - prevZ;
+      const moving = (dx * dx + dz * dz) > 0.0009;   // ~3cm per 80ms tick
+      prevX = pos.x; prevZ = pos.z;
+      if (submersion > 0.2 && moving && !muted) {
+        bubbleAccum += 1;
+        if (bubbleAccum > 14 && Math.random() < 0.35) { // ~once per >1.2s of swimming
+          bubbleAccum = 0;
+          playBubble(audioCtx);
+        }
+      }
     }, 80);
 
     // Heartbeat — recursive timeout that accelerates with proximity
@@ -401,7 +447,7 @@ export default function App() {
       clearInterval(id);
       if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
     };
-  }, [currentLevel]);
+  }, [currentLevel, audioCtx, muted]);
 
   // Called when the 3D put-on cinematic finishes.
   // Diver turns away → brief goggle-equip blink → player returns to elevator.
@@ -1031,6 +1077,7 @@ export default function App() {
                 setFishJumpscareKey(k => k + 1);
                 setDevoured(true);
                 playJumpscareStab(audioCtx);
+                playSharkRoar(audioCtx);
                 if (monsterAmbienceRef.current) {
                   monsterAmbienceRef.current.stop();
                   monsterAmbienceRef.current = null;
