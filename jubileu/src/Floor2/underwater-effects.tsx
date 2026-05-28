@@ -364,6 +364,15 @@ export const FishSchool: React.FC<{ monsterPositionRef?: React.MutableRefObject<
         ))
     );
     const _steer = useRef(new THREE.Vector3());
+    // Per-fish cached steering force. The O(n²) neighbour scan is time-sliced:
+    // each frame only half the flock (alternating parity) recomputes its force,
+    // the rest reuse last frame's — every fish still integrates + renders every
+    // frame, so motion stays smooth at half the perception cost.
+    const bSteer = useRef<THREE.Vector3[]>(
+        Array.from({ length: FISH_COUNT }, () => new THREE.Vector3())
+    );
+    const bFleeing = useRef<boolean[]>(new Array(FISH_COUNT).fill(false));
+    const frameParity = useRef(0);
 
     useFrame((state, dt) => {
         if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
@@ -371,10 +380,21 @@ export const FishSchool: React.FC<{ monsterPositionRef?: React.MutableRefObject<
         const t = state.clock.elapsedTime;
         const sharkPos = monsterPositionRef?.current;
         const sharkActive = !!sharkPos && sharkPos.y < SWIM_THRESHOLD_Y;
+        const parity = frameParity.current;
+        frameParity.current ^= 1;
 
         for (let i = 0; i < FISH_COUNT; i++) {
             const pos = bPos.current[i];
             const vel = bVel.current[i];
+
+            // Time-slice: only recompute this fish's steering on its frame.
+            // Off-frames reuse the cached force and just keep integrating.
+            const recompute = (i & 1) === parity;
+            let fleeing = false;
+            if (!recompute) {
+                _steer.current.copy(bSteer.current[i]);
+                fleeing = bFleeing.current[i];
+            } else {
             _steer.current.set(0, 0, 0);
 
             // ── O(n²) Boids — only 18 fish, < 308 pair checks per frame ───────
@@ -424,7 +444,6 @@ export const FishSchool: React.FC<{ monsterPositionRef?: React.MutableRefObject<
             }
 
             // ── Shark predator evasion ─────────────────────────────────────────
-            let fleeing = false;
             if (sharkActive) {
                 const sdx = pos.x - sharkPos!.x;
                 const sdy = pos.y - sharkPos!.y;
@@ -451,6 +470,11 @@ export const FishSchool: React.FC<{ monsterPositionRef?: React.MutableRefObject<
                 _steer.current.y += bcy / bd * str;
                 _steer.current.z += bcz / bd * str;
             }
+
+            // Cache this frame's freshly computed force for the off-frame reuse.
+            bSteer.current[i].copy(_steer.current);
+            bFleeing.current[i] = fleeing;
+            } // end recompute
 
             // ── Integrate ────────────────────────────────────────────────────
             vel.x += _steer.current.x * safeDt * 6;

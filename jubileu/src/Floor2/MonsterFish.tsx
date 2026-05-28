@@ -31,6 +31,57 @@ const AWAKEN_DELAY   = 11.0;
 const BERSERK_HUNT_MULT  = 1.35;
 const BERSERK_LUNGE_MULT = 1.45;
 
+// ─── Sensory perception AI ──────────────────────────────────────────────────
+// The shark no longer omnisciently knows where the player is. It builds an
+// "alertness" value (0..1) every frame from two independent senses:
+//   • VISION  — player inside a forward cone, in range, with unobstructed
+//               line of sight (rocks / pillars actually break sight).
+//   • HEARING — a noise bubble whose radius grows with how fast the player is
+//               moving. Holding still shrinks it to almost nothing, so a
+//               motionless diver behind a boulder is effectively invisible.
+// Alertness rises fast when perceived and decays slowly when not — so losing
+// the shark means breaking BOTH senses for a couple of seconds, after which it
+// falls back to investigating your last known position. This gives the level
+// real stealth counterplay instead of a permanent distance-triggered chase.
+const VISION_RANGE    = 38.0;   // max sight distance
+const VISION_DOT      = 0.20;   // forward-cone gate: dot(forward,toPlayer) > this (~155° FOV)
+const HEARING_MIN     = 5.5;    // always-hear bubble, even motionless
+const HEARING_MAX     = 34.0;   // cap on hearing radius when thrashing
+const HEARING_NOISE_K = 3.0;    // hearing radius gained per unit of player speed
+const ALERT_RISE      = 2.8;    // alertness/sec while the player is perceived
+const ALERT_DECAY     = 0.40;   // alertness/sec lost when the player is hidden
+const ALERT_HUNT_ON   = 0.70;   // alertness needed to begin hunting
+const ALERT_HUNT_OFF  = 0.28;   // drop below → lose the trail, investigate
+const LOS_SAMPLES     = 6;      // ray-march steps for line-of-sight occlusion
+const BERSERK_HEARING_MULT = 1.6; // enraged shark senses far more sharply
+
+// ─── Line-of-sight test ─────────────────────────────────────────────────────
+// Marches the segment shark→player and returns true if any rock sphere or
+// coral pillar blocks it. Cheap: LOS_SAMPLES × (rocks + pillars), only ever
+// called while the shark is active and the player is within VISION_RANGE.
+function _segmentBlocked(
+    ax: number, ay: number, az: number,
+    bx: number, by: number, bz: number,
+): boolean {
+    for (let s = 1; s < LOS_SAMPLES; s++) {
+        const u  = s / LOS_SAMPLES;
+        const sx = ax + (bx - ax) * u;
+        const sy = ay + (by - ay) * u;
+        const sz = az + (bz - az) * u;
+        for (let i = 0; i < UW_ROCK_COLLIDERS.length; i++) {
+            const r = UW_ROCK_COLLIDERS[i];
+            const dx = sx - r.x, dy = sy - r.y, dz = sz - r.z;
+            if (dx*dx + dy*dy + dz*dz < r.r * r.r) return true;
+        }
+        for (let i = 0; i < UW_PILLAR_COLLIDERS.length; i++) {
+            const p = UW_PILLAR_COLLIDERS[i];
+            const dx = sx - p.x, dz = sz - p.z;
+            if (dx*dx + dz*dz < p.r * p.r) return true;
+        }
+    }
+    return false;
+}
+
 // ms before the DOM overlay fires so the player sees the shark up-close first
 const JUMPSCARE_DELAY = 0.28;
 
@@ -147,6 +198,12 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     const lastKnownPosRef  = useRef(new THREE.Vector3());
     const investigateTimer = useRef(0);
 
+    // Sensory perception — continuous alertness meter (0..1) + fill-light tell
+    const alertness   = useRef(0);
+    const fillLightRef = useRef<THREE.PointLight>(null);
+    const _calm       = useMemo(() => new THREE.Color('#5090c8'), []); // unaware → cold blue
+    const _enraged    = useMemo(() => new THREE.Color('#ff3322'), []); // locked-on → blood red
+
     // Reusable temp vectors — never allocate in useFrame
     const _v1 = useRef(new THREE.Vector3());
     const _v2 = useRef(new THREE.Vector3());
@@ -212,6 +269,40 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         if (monsterPositionRef) monsterPositionRef.current.set(fx, fy, fz);
         if (monsterProximityRef) monsterProximityRef.current = proximity;
 
+        // ── Sensory perception: fuse vision + hearing into alertness ─────────
+        // Hearing radius swells with the player's speed (their "noise").
+        const playerNoise   = playerVelRef.current.length();
+        const hearMult      = berserk ? BERSERK_HEARING_MULT : 1;
+        const hearingRadius = Math.min(HEARING_MIN + playerNoise * HEARING_NOISE_K, HEARING_MAX) * hearMult;
+        const heard         = dist < hearingRadius;
+        // Vision: in range + inside forward cone + unobstructed line of sight.
+        let seen = false;
+        if (dist < VISION_RANGE * hearMult && dist > 0.001) {
+            const fwd = _v2.current.set(0, 0, 1).applyQuaternion(g.quaternion);
+            const dot = (dxp * fwd.x + dyp * fwd.y + dzp * fwd.z) / dist;
+            if (dot > VISION_DOT && !_segmentBlocked(fx, fy, fz, px, py, pz)) seen = true;
+        }
+        const perceived = seen || heard;
+        // Rise fast when perceived, decay slowly when the player is hidden.
+        if (perceived) {
+            alertness.current = Math.min(1, alertness.current + ALERT_RISE * safeDt);
+            lastKnownPosRef.current.set(px, py, pz);   // remember where we last had them
+        } else {
+            alertness.current = Math.max(0, alertness.current - ALERT_DECAY * safeDt);
+        }
+        // Tension (heartbeat / dread audio / DOM darkness) now follows real
+        // detection, not just distance — being hunted feels worse than being near.
+        if (monsterProximityRef) {
+            monsterProximityRef.current = Math.max(proximity, alertness.current * 0.9);
+        }
+        // Visual tell: the fill light bleeds from cold blue → blood red as the
+        // shark locks on, and brightens with alertness. Lets the player read
+        // the predator's state and reward stealth (stay blue = stay hidden).
+        if (fillLightRef.current) {
+            fillLightRef.current.color.copy(_calm).lerp(_enraged, alertness.current);
+            fillLightRef.current.intensity = 8 + alertness.current * 10;
+        }
+
         // ── Jumpscare — overrides normal AI ─────────────────────────────────
         if (jsPhase.current !== 'none') {
             jsTimer.current += safeDt;
@@ -244,15 +335,15 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         // ── Shard-based difficulty scaling ───────────────────────────────────
         const shardMult = 1 + collectedShards.size * 0.18;
 
-        // ── State transitions ────────────────────────────────────────────────
+        // ── State transitions — driven by perception, not raw distance ───────
         switch (state.current) {
             case 'patrol':
-                if (dist < AWARENESS_DIST) state.current = 'hunting';
+                // Only give chase once the shark actually detects the player.
+                if (alertness.current >= ALERT_HUNT_ON) state.current = 'hunting';
                 break;
             case 'hunting':
-                // Player left awareness range → investigate last known position
-                if (dist > AWARENESS_DIST) {
-                    lastKnownPosRef.current.set(px, py, pz);
+                // Lost track of the player → investigate last known position
+                if (alertness.current < ALERT_HUNT_OFF) {
                     investigateTimer.current = 14.0;
                     state.current = 'investigating';
                 } else if (dist < LUNGE_DIST) {
@@ -265,8 +356,8 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 }
                 break;
             case 'investigating':
-                if (dist < AWARENESS_DIST) {
-                    // Player spotted again — resume hunt
+                if (alertness.current >= ALERT_HUNT_ON) {
+                    // Re-acquired the player — resume the hunt
                     state.current = 'hunting';
                 } else {
                     investigateTimer.current -= safeDt;
@@ -274,6 +365,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                     const dyi = lastKnownPosRef.current.y - fy;
                     const dzi = lastKnownPosRef.current.z - fz;
                     const di  = Math.sqrt(dxi*dxi + dyi*dyi + dzi*dzi);
+                    // Reached the last known spot (and they're not here) or gave up → patrol
                     if (di < 3.0 || investigateTimer.current <= 0) state.current = 'patrol';
                 }
                 break;
@@ -456,8 +548,10 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 Rotate 180° around Y so the shark faces its velocity (+Z forward). */}
             <primitive object={clonedScene} rotation={[0, Math.PI, 0]} />
 
-            {/* Single blue-white fill — makes the shark visible in dark water */}
-            <pointLight color="#5090c8" intensity={10} distance={18} decay={2} />
+            {/* Single fill light — makes the shark visible in dark water, and
+                doubles as a perception tell: cold blue when unaware, blood red
+                when it has locked onto the player (driven from useFrame). */}
+            <pointLight ref={fillLightRef} color="#5090c8" intensity={10} distance={18} decay={2} />
         </group>
     );
 };
