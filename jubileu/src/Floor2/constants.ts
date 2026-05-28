@@ -281,15 +281,24 @@ export const CAVE_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r:
 export const STALAGMITE_COLLIDERS: readonly { x: number; z: number; r: number }[] =
     STALAGMITES.map(([x, z, , r]) => ({ x, z, r }));
 export const UW_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = [
-    ...UW_BOULDERS.map(([x,y,z,s]) => ({ x, y: y + s * 0.3, z, r: s * 0.6 })),
+    // Radii bumped closer to the visual rock size so the player no longer
+    // clips into boulders before being stopped.
+    ...UW_BOULDERS.map(([x,y,z,s]) => ({ x, y: y + s * 0.3, z, r: s * 0.78 })),
     ...UW_SCATTERED_ROCKS
         .filter(r => r[3] > 0.15)   // was 0.5 — now smaller rocks also block
-        .map(([x, y, z, s]) => ({ x, y: y + s * 0.3, z, r: s * 0.5 })),
+        .map(([x, y, z, s]) => ({ x, y: y + s * 0.3, z, r: s * 0.62 })),
 ];
 
-// ─── Coral pillar collision — XZ circles (no Y check needed for tall cylinders)
-export const UW_PILLAR_COLLIDERS: readonly { x: number; z: number; r: number }[] =
-    UW_CORAL_PILLARS.map(([x, z, , , rBot]) => ({ x, z, r: rBot + 0.3 }));
+// ─── Coral pillar + arch collision — XZ circles (tall cylinders, Y ignored).
+// Includes the two legs of every underwater arch, which previously had no
+// collision at all (the player and shark swam straight through them).
+export const UW_PILLAR_COLLIDERS: readonly { x: number; z: number; r: number }[] = [
+    ...UW_CORAL_PILLARS.map(([x, z, , , rBot]) => ({ x, z, r: rBot + 0.3 })),
+    ...UW_ARCHES.flatMap(([x, z, , span, thick]) => [
+        { x: x - span / 2, z, r: thick * 1.3 + 0.3 },
+        { x: x + span / 2, z, r: thick * 1.3 + 0.3 },
+    ]),
+];
 
 // ─── Wall collision data — organic walls bulge inward, need collision ──
 export const CAVE_WALL_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = (() => {

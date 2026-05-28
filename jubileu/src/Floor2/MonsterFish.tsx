@@ -20,16 +20,18 @@ import {
 import { sharkDirector } from '../ai/AIDirector';
 
 // ─── AI constants ─────────────────────────────────────────────────────────────
-const PATROL_SPEED   = 2.2;
-const HUNT_SPEED_MIN = 3.0;
-const HUNT_SPEED_MAX = 7.5;
-const LUNGE_SPEED    = 18.0;
-const LUNGE_DIST     = 5.0;
-const CATCH_DIST     = 2.5;
+const PATROL_SPEED   = 2.6;
+const HUNT_SPEED_MIN = 3.5;
+const HUNT_SPEED_MAX = 8.5;
+const LUNGE_SPEED    = 20.0;
+// The shark is now ~20 units long (scale 3.6), so lunge/catch trigger on the
+// MOUTH reaching the player, not the body centre — hence the larger radii.
+const LUNGE_DIST     = 11.0;
+const CATCH_DIST     = 6.0;
 const REGROUP_TIME   = 5.0;
 const AWARENESS_DIST = 42.0;
 const SPAWN_POS      = new THREE.Vector3(-22, -20, -22);
-const AWAKEN_DELAY   = 11.0;
+const AWAKEN_DELAY   = 6.0;
 const BERSERK_HUNT_MULT  = 1.35;
 const BERSERK_LUNGE_MULT = 1.45;
 
@@ -45,15 +47,15 @@ const BERSERK_LUNGE_MULT = 1.45;
 // the shark means breaking BOTH senses for a couple of seconds, after which it
 // falls back to investigating your last known position. This gives the level
 // real stealth counterplay instead of a permanent distance-triggered chase.
-const VISION_RANGE    = 38.0;   // max sight distance
-const VISION_DOT      = 0.20;   // forward-cone gate: dot(forward,toPlayer) > this (~155° FOV)
-const HEARING_MIN     = 5.5;    // always-hear bubble, even motionless
-const HEARING_MAX     = 34.0;   // cap on hearing radius when thrashing
-const HEARING_NOISE_K = 3.0;    // hearing radius gained per unit of player speed
-const ALERT_RISE      = 2.8;    // alertness/sec while the player is perceived
-const ALERT_DECAY     = 0.40;   // alertness/sec lost when the player is hidden
-const ALERT_HUNT_ON   = 0.70;   // alertness needed to begin hunting
-const ALERT_HUNT_OFF  = 0.28;   // drop below → lose the trail, investigate
+const VISION_RANGE    = 44.0;   // max sight distance
+const VISION_DOT      = 0.05;   // forward-cone gate: dot(forward,toPlayer) > this (~175° FOV)
+const HEARING_MIN     = 7.0;    // always-hear bubble, even motionless
+const HEARING_MAX     = 38.0;   // cap on hearing radius when thrashing
+const HEARING_NOISE_K = 3.4;    // hearing radius gained per unit of player speed
+const ALERT_RISE      = 3.2;    // alertness/sec while the player is perceived
+const ALERT_DECAY     = 0.24;   // alertness/sec lost when hidden — stays committed
+const ALERT_HUNT_ON   = 0.60;   // alertness needed to begin hunting
+const ALERT_HUNT_OFF  = 0.24;   // drop below → lose the trail, investigate
 const LOS_SAMPLES     = 6;      // ray-march steps for line-of-sight occlusion
 const BERSERK_HEARING_MULT = 1.6; // enraged shark senses far more sharply
 
@@ -592,12 +594,13 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         g.rotation.x += (tp - g.rotation.x) * safeDt * (fast ? 22 : 2.5);
     }
 
-    // Scale 1.2 → ~6.7-unit shark. The GLB is authored ~5.6 units long (a 100×
-    // node scale baked in), so the previous 3.8 made it ~21 units: big enough
-    // that an approaching player ended up INSIDE the mesh seeing culled
-    // back-faces — the real cause of the "invisible shark".
+    // Scale 3.6 → ~20-unit shark (3× the previous 1.2). The GLB is authored
+    // ~5.6 units long (a 100× node scale baked in). This is now visible at any
+    // distance thanks to the skeleton clone + emissive material + no frustum
+    // culling, and the lunge/catch radii were widened so the kill triggers when
+    // the mouth reaches the player rather than the body centre.
     return (
-        <group ref={rootRef} visible={false} scale={[1.2, 1.2, 1.2]}>
+        <group ref={rootRef} visible={false} scale={[3.6, 3.6, 3.6]}>
             {/* Primitive uses the cloned, material-overridden scene.
                 Rotate 180° around Y so the shark faces its velocity (+Z forward). */}
             <primitive object={clonedScene} rotation={[0, Math.PI, 0]} />

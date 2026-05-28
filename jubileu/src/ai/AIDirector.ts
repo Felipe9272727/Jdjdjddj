@@ -142,15 +142,15 @@ export class AIDirector {
         // ── 5. Intensity + directives ───────────────────────────────────────
         let intTarget: number;
         switch (this.phase) {
-            case 'respite': intTarget = 0.12; break;
-            case 'buildup': intTarget = 0.45 + this.skill * 0.20; break;
+            case 'respite': intTarget = 0.30; break; // never fully passive
+            case 'buildup': intTarget = 0.55 + this.skill * 0.20; break;
             case 'peak':    intTarget = 1.0;  break;
-            case 'fade':    intTarget = 0.5;  break;
+            case 'fade':    intTarget = 0.6;  break;
         }
         if (input.berserk) intTarget = 1;
         this.intensity += (intTarget - this.intensity) * Math.min(1, dt * 1.5);
 
-        this.huntMult       = 0.75 + this.intensity * 0.60 + this.skill * 0.15;
+        this.huntMult       = 0.90 + this.intensity * 0.60 + this.skill * 0.15;
         this.perceptionMult = 0.80 + this.intensity * 0.45 + this.skill * 0.15;
         this.aggression     = this.phase === 'peak' ? 1.4 : this.phase === 'respite' ? 0.7 : 1.0;
         if (input.berserk) {
