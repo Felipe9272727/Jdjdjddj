@@ -23,7 +23,7 @@ export const DUST_COUNT = 12;
 export const DEBRIS_COUNT = 8;
 export const SEDIMENT_COUNT = 12;
 export const PLANKTON_COUNT = 6;
-export const FISH_COUNT = 5;
+export const FISH_COUNT = 18;
 export const BUBBLE_COUNT = 15;
 export const BUBBLE_RANGE = 18;
 export const BUBBLE_RISE = 0.5;
@@ -262,12 +262,12 @@ export const KELP_POSITIONS: readonly KelpData[] = [
 ];
 
 export const CORAL_POSITIONS: readonly CoralData[] = [
-    [ 3.0, -5.0, '#1a1208', 1.0],
-    [-4.0,  6.0, '#1a0e06', 0.8],
-    [ 9.0, -2.0, '#1a1610', 1.2],
-    [-12.0, -5.0, '#1a1208', 0.9],
-    [13.0,  3.0, '#1a0e06', 1.0],
-    [-8.0, 12.0, '#1a1610', 0.7],
+    [ 3.0, -5.0, '#ff6b6b', 1.0],   // red coral
+    [-4.0,  6.0, '#ff9d42', 0.8],   // orange coral
+    [ 9.0, -2.0, '#4ecdc4', 1.2],   // teal coral
+    [-12.0, -5.0, '#ffe66d', 0.9],  // yellow coral
+    [13.0,  3.0, '#a8e6cf', 1.0],   // mint coral
+    [-8.0, 12.0, '#ff77b6', 0.7],   // pink coral
 ];
 
 // ─── Rock collision data (exported for Player.tsx) ───────────────────

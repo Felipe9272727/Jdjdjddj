@@ -8,7 +8,8 @@
 
 import * as THREE from 'three';
 import { createNoise3D } from 'simplex-noise';
-import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS } from './constants';
+import { mergeBufferGeometries as mergeGeometries } from 'three-stdlib';
+import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, STALAGMITES, STALACTITES } from './constants';
 
 // ─── Simplex noise instance (shared across all procedural geometry) ─────
 // MUST be defined before any geometry that uses it (CAVE_FLOOR_GEO, etc.)
@@ -255,6 +256,41 @@ export const PROC_STALACTITE_GEOS = [
   createProceduralStalactite(2.5, 0.6, 0.05, 18, 24, 380),
   createProceduralStalactite(2.2, 0.5, 0.05, 18, 24, 390),
 ];
+
+// ─── Merged stalagmite / stalactite geometry ────────────────────────────
+// Bakes all 15+15 individual meshes into 2 draw calls.
+const _mergeObj = new THREE.Object3D();
+export const MERGED_STALAGMITE_GEO: THREE.BufferGeometry = (() => {
+    const geos: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < STALAGMITES.length; i++) {
+        const [x, z, h] = STALAGMITES[i];
+        const geo = PROC_STALAGMITE_GEOS[i % PROC_STALAGMITE_GEOS.length].clone();
+        _mergeObj.position.set(x, h / 2, z);
+        _mergeObj.rotation.set(0, 0, 0);
+        _mergeObj.updateMatrix();
+        geo.applyMatrix4(_mergeObj.matrix);
+        geos.push(geo);
+    }
+    const merged = mergeGeometries(geos, false)!;
+    geos.forEach(g => g.dispose());
+    return merged;
+})();
+
+export const MERGED_STALACTITE_GEO: THREE.BufferGeometry = (() => {
+    const geos: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < STALACTITES.length; i++) {
+        const [x, z, h] = STALACTITES[i];
+        const geo = PROC_STALACTITE_GEOS[i % PROC_STALACTITE_GEOS.length].clone();
+        _mergeObj.position.set(x, 8 - h / 2, z);
+        _mergeObj.rotation.set(Math.PI, 0, 0);
+        _mergeObj.updateMatrix();
+        geo.applyMatrix4(_mergeObj.matrix);
+        geos.push(geo);
+    }
+    const merged = mergeGeometries(geos, false)!;
+    geos.forEach(g => g.dispose());
+    return merged;
+})();
 
 // Procedural underwater terrain — displaced PlaneGeometry (extends past walls)
 export const UW_FLOOR_GEO = (() => {

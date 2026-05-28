@@ -116,15 +116,15 @@ export const Coral: React.FC<{ x: number; z: number; color: string; scale: numbe
         </mesh>
         <mesh position={[0, 1.0, 0]} rotation={[0.1, 0, 0.15]}>
             <cylinderGeometry args={[0.06, 0.1, 1.2, 5]} />
-            <meshStandardMaterial color={color} roughness={0.9} flatShading />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} roughness={0.9} flatShading />
         </mesh>
         <mesh position={[0.15, 1.5, 0.1]} rotation={[0, 0.4, 0.3]}>
             <cylinderGeometry args={[0.04, 0.07, 0.8, 5]} />
-            <meshStandardMaterial color={color} roughness={0.9} flatShading />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} roughness={0.9} flatShading />
         </mesh>
         <mesh position={[-0.12, 1.4, -0.08]} rotation={[0.2, -0.3, -0.25]}>
             <cylinderGeometry args={[0.04, 0.06, 0.7, 5]} />
-            <meshStandardMaterial color={color} roughness={0.9} flatShading />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} roughness={0.9} flatShading />
         </mesh>
         <mesh position={[0.15, 1.9, 0.1]}>
             <sphereGeometry args={[0.08, 6, 4]} />
@@ -323,7 +323,7 @@ export const DebrisField: React.FC = () => {
     );
 };
 
-// ─── FishSchool — small fish swimming in circular paths ───────────────
+// ─── FishSchool — Boids-based AI fish school with shark predator evasion ─
 const FISH_PALETTE: { color: string; emissive: string; intensity: number; glow: boolean }[] = [
     { color: '#1a2a30', emissive: '#081018', intensity: 0.2, glow: false },
     { color: '#0e1a20', emissive: '#060c10', intensity: 0.2, glow: false },
@@ -332,35 +332,156 @@ const FISH_PALETTE: { color: string; emissive: string; intensity: number; glow: 
     { color: '#3a2a4e', emissive: '#5a1a8a', intensity: 1.4, glow: true },
     { color: '#1a3e3a', emissive: '#0aa888', intensity: 1.5, glow: true },
 ];
-export const FishSchool: React.FC = () => {
-    const refs = useRef<(THREE.Mesh | null)[]>(new Array(FISH_COUNT).fill(null));
+
+// Boids parameters
+const BOIDS_CRUISE   = 3.2;
+const BOIDS_FLEE     = 10.0;
+const BOIDS_SEP_R    = 2.2;
+const BOIDS_VIEW_R   = 7.0;
+const BOIDS_SHARK_R  = 18.0;
+const BOIDS_BOUND_R  = 13.0;
+const BOIDS_CENTER_X = 0;
+const BOIDS_CENTER_Y = -18;
+const BOIDS_CENTER_Z = 5;
+
+export const FishSchool: React.FC<{ monsterPositionRef?: React.MutableRefObject<THREE.Vector3> }> = ({ monsterPositionRef }) => {
+    const refs       = useRef<(THREE.Mesh | null)[]>(new Array(FISH_COUNT).fill(null));
     const spriteRefs = useRef<(THREE.Sprite | null)[]>(new Array(FISH_COUNT).fill(null));
-    useFrame((state) => {
+
+    // Boids state — pre-allocated Vector3 arrays, never re-created per frame
+    const bPos = useRef<THREE.Vector3[]>(
+        Array.from({ length: FISH_COUNT }, (_, i) => new THREE.Vector3(
+            Math.cos(i / FISH_COUNT * Math.PI * 2) * 6,
+            -18 + (i % 6) * 2.0,
+            Math.sin(i / FISH_COUNT * Math.PI * 2) * 6,
+        ))
+    );
+    const bVel = useRef<THREE.Vector3[]>(
+        Array.from({ length: FISH_COUNT }, (_, i) => new THREE.Vector3(
+            Math.cos(i * 2.3) * BOIDS_CRUISE * 0.5,
+            (Math.sin(i * 1.7) - 0.5) * 0.3,
+            Math.sin(i * 2.3) * BOIDS_CRUISE * 0.5,
+        ))
+    );
+    const _steer = useRef(new THREE.Vector3());
+
+    useFrame((state, dt) => {
         if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
+        const safeDt = Math.min(dt, 0.033);
         const t = state.clock.elapsedTime;
+        const sharkPos = monsterPositionRef?.current;
+        const sharkActive = !!sharkPos && sharkPos.y < SWIM_THRESHOLD_Y;
+
         for (let i = 0; i < FISH_COUNT; i++) {
-            const f = refs.current[i];
-            if (!f) continue;
-            const offset = i / FISH_COUNT;
-            const radius = 4 + Math.sin(offset * 13.7) * 4.5;
-            const speed = 0.18 + offset * 0.12;
-            const angle = t * speed + offset * Math.PI * 4;
-            const y = -18 + Math.sin(t * 0.7 + offset * 8) * 5 + (offset - 0.5) * 6;
-            const x = Math.cos(angle) * radius;
-            const z = Math.sin(angle) * radius;
-            f.position.set(x, y, z);
-            f.rotation.y = -angle + Math.PI / 2;
-            f.rotation.z = Math.PI / 2;
-            f.rotation.x = Math.sin(t * 6 + offset * 20) * 0.15;
+            const pos = bPos.current[i];
+            const vel = bVel.current[i];
+            _steer.current.set(0, 0, 0);
+
+            // ── O(n²) Boids — only 18 fish, < 308 pair checks per frame ───────
+            let sepX = 0, sepY = 0, sepZ = 0, sepN = 0;
+            let aliX = 0, aliY = 0, aliZ = 0;
+            let cohX = 0, cohY = 0, cohZ = 0, viewN = 0;
+
+            for (let j = 0; j < FISH_COUNT; j++) {
+                if (i === j) continue;
+                const op = bPos.current[j];
+                const ov = bVel.current[j];
+                const dx = op.x - pos.x, dy = op.y - pos.y, dz = op.z - pos.z;
+                const d2 = dx*dx + dy*dy + dz*dz;
+                if (d2 < BOIDS_SEP_R * BOIDS_SEP_R && d2 > 0.0001) {
+                    const d = Math.sqrt(d2);
+                    const w = 1 / d;
+                    sepX -= dx * w; sepY -= dy * w; sepZ -= dz * w;
+                    sepN++;
+                }
+                if (d2 < BOIDS_VIEW_R * BOIDS_VIEW_R) {
+                    aliX += ov.x; aliY += ov.y; aliZ += ov.z;
+                    cohX += op.x; cohY += op.y; cohZ += op.z;
+                    viewN++;
+                }
+            }
+
+            if (sepN > 0) {
+                _steer.current.x += sepX * 1.6;
+                _steer.current.y += sepY * 1.6;
+                _steer.current.z += sepZ * 1.6;
+            }
+            if (viewN > 0) {
+                const inv = 1 / viewN;
+                // Alignment — steer toward average heading
+                const al = Math.sqrt(aliX*aliX + aliY*aliY + aliZ*aliZ) * inv + 0.0001;
+                _steer.current.x += (aliX * inv / al - vel.x) * 0.7;
+                _steer.current.y += (aliY * inv / al - vel.y) * 0.7;
+                _steer.current.z += (aliZ * inv / al - vel.z) * 0.7;
+                // Cohesion — steer toward center of mass
+                const tcx = cohX * inv - pos.x;
+                const tcy = cohY * inv - pos.y;
+                const tcz = cohZ * inv - pos.z;
+                const cd  = Math.sqrt(tcx*tcx + tcy*tcy + tcz*tcz) + 0.0001;
+                _steer.current.x += tcx / cd * 0.5;
+                _steer.current.y += tcy / cd * 0.5;
+                _steer.current.z += tcz / cd * 0.5;
+            }
+
+            // ── Shark predator evasion ─────────────────────────────────────────
+            let fleeing = false;
+            if (sharkActive) {
+                const sdx = pos.x - sharkPos!.x;
+                const sdy = pos.y - sharkPos!.y;
+                const sdz = pos.z - sharkPos!.z;
+                const sd2 = sdx*sdx + sdy*sdy + sdz*sdz;
+                if (sd2 < BOIDS_SHARK_R * BOIDS_SHARK_R && sd2 > 0.0001) {
+                    const sd  = Math.sqrt(sd2);
+                    const str = (BOIDS_SHARK_R - sd) / BOIDS_SHARK_R * 7.0;
+                    _steer.current.x += sdx / sd * str;
+                    _steer.current.y += sdy / sd * str;
+                    _steer.current.z += sdz / sd * str;
+                    fleeing = true;
+                }
+            }
+
+            // ── Boundary — steer back toward school home ───────────────────────
+            const bcx = BOIDS_CENTER_X - pos.x;
+            const bcy = BOIDS_CENTER_Y - pos.y;
+            const bcz = BOIDS_CENTER_Z - pos.z;
+            const bd  = Math.sqrt(bcx*bcx + bcy*bcy + bcz*bcz);
+            if (bd > BOIDS_BOUND_R) {
+                const str = (bd - BOIDS_BOUND_R) / BOIDS_BOUND_R * 3.0;
+                _steer.current.x += bcx / bd * str;
+                _steer.current.y += bcy / bd * str;
+                _steer.current.z += bcz / bd * str;
+            }
+
+            // ── Integrate ────────────────────────────────────────────────────
+            vel.x += _steer.current.x * safeDt * 6;
+            vel.y += _steer.current.y * safeDt * 6;
+            vel.z += _steer.current.z * safeDt * 6;
+            const spd    = Math.sqrt(vel.x*vel.x + vel.y*vel.y + vel.z*vel.z);
+            const maxSpd = fleeing ? BOIDS_FLEE : BOIDS_CRUISE;
+            if (spd > maxSpd) { const sc = maxSpd / spd; vel.x *= sc; vel.y *= sc; vel.z *= sc; }
+            else if (spd < 0.5 && !fleeing) { const sc = 0.5 / (spd + 0.0001); vel.x *= sc; vel.y *= sc; vel.z *= sc; }
+            pos.x += vel.x * safeDt;
+            pos.y += vel.y * safeDt;
+            pos.z += vel.z * safeDt;
+
+            // ── Update mesh ───────────────────────────────────────────────────
+            const m = refs.current[i];
+            if (m) {
+                m.position.copy(pos);
+                m.rotation.y = -Math.atan2(vel.z, vel.x) + Math.PI / 2;
+                m.rotation.z = Math.PI / 2;
+                m.rotation.x = Math.sin(t * 6 + i * 20) * 0.12;
+            }
             const sp = spriteRefs.current[i];
-            if (sp) sp.position.set(x, y, z);
+            if (sp) sp.position.copy(pos);
         }
     });
+
     return (
         <group>
             {Array.from({ length: FISH_COUNT }, (_, i) => {
-                const seed = Math.sin(i * 12.93) * 0.5 + 0.5;
-                const scale = 0.45 + seed * 0.9;
+                const seed    = Math.sin(i * 12.93) * 0.5 + 0.5;
+                const scale   = 0.38 + seed * 0.72;
                 const palette = FISH_PALETTE[i % FISH_PALETTE.length];
                 return (
                     <React.Fragment key={i}>

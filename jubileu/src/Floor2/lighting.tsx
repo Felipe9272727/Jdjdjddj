@@ -17,6 +17,7 @@ import { LightShaftMaterial, CausticsMaterial } from './shaders';
 
 // ─── BioluminescentPatches — scattered emissive sprite glow points ─────
 const BIO_POSITIONS: readonly [number, number, number, string, number][] = [
+    // ── Cave level (Y > 0) ──────────────────────────────────────────
     [-27, 1.4, 12, '#3affaa', 1.4],
     [ 27, 2.2, -8, '#9affd0', 1.2],
     [-15, 0.4, 24, '#3affc8', 1.0],
@@ -33,6 +34,21 @@ const BIO_POSITIONS: readonly [number, number, number, string, number][] = [
     [ 22, 5.0, 5, '#b07aff', 1.1],
     [-12, 1.5, 6, '#c08aff', 1.0],
     [ 9, 4.2, -22, '#a06aff', 1.2],
+    // ── Underwater (Y < -2) — bioluminescent algae & deep-sea organisms ─
+    [-18, -12, -8,  '#00ffaa', 1.8],
+    [ 22,  -8, 12,  '#00ccff', 1.5],
+    [ -8, -20, -18, '#66ff88', 1.6],
+    [ 15, -15, 20,  '#00ffcc', 1.4],
+    [-22, -18,  4,  '#44ffaa', 1.7],
+    [  8, -25, -14, '#22ddff', 1.3],
+    [ -5, -10, 18,  '#88ff88', 1.2],
+    [ 20, -22,  -8, '#00aaff', 1.5],
+    [-15, -28, 10,  '#00ff88', 1.9],
+    [  5, -15, -20, '#44ccff', 1.3],
+    [-12, -22, 15,  '#00ffbb', 1.4],
+    [ 18, -18,   4, '#22ffcc', 1.6],
+    [-24, -10, -16, '#55ffdd', 1.2],
+    [ 10, -28,  18, '#00ffee', 1.7],
 ];
 
 export const BioluminescentPatches: React.FC = () => {
@@ -161,13 +177,13 @@ export const UnderwaterLighting: React.FC<{
             ambientRef.current.color.lerp(_ambTmp, k);
             // Cave is very dark — NV goggles are the primary light source.
             // Underwater slightly brighter (bioluminescence + caustics).
-            const tgtInt = 0.08 + tWater * 0.30;
+            const tgtInt = 0.08 + tWater * 0.52;  // brighter underwater so environment is visible
             ambientRef.current.intensity += (tgtInt - ambientRef.current.intensity) * k;
         }
         if (hemiRef.current) {
             _hemiTmp.copy(_hemiCave).lerp(_hemiWater, tWater);
             hemiRef.current.color.lerp(_hemiTmp, k);
-            const tgtInt = 0.06 + tWater * 0.08;
+            const tgtInt = 0.06 + tWater * 0.18;  // stronger hemisphere fill underwater
             hemiRef.current.intensity += (tgtInt - hemiRef.current.intensity) * k;
         }
         if (dirRef.current) {

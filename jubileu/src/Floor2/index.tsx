@@ -45,7 +45,7 @@ import {
     HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS,
     WATER_LEVEL_Y, SWIM_THRESHOLD_Y,
     CAVE_ROCKS_DARK, CAVE_ROCKS_MID, CAVE_ROCKS_LIGHT,
-    POOL_RIM, STALAGMITES, STALACTITES,
+    POOL_RIM,
     CRYSTALS, TORCH_POSITIONS,
     UW_BOULDERS, UW_PEBBLES, UW_SCATTERED_ROCKS,
     UW_CORAL_PILLARS, UW_ARCHES,
@@ -59,8 +59,8 @@ import {
     CAVE_WALL_N_GEO, CAVE_WALL_S_GEO, CAVE_WALL_W_GEO, CAVE_WALL_E_GEO,
     UW_WALL_NORTH_GEO, UW_WALL_SOUTH_GEO, UW_WALL_WEST_GEO, UW_WALL_EAST_GEO,
     UW_FLOOR_GEO,
-    PROC_STALAGMITE_GEOS, PROC_STALACTITE_GEOS,
     PROC_ROCK_A, PROC_ROCK_B, PROC_ROCK_C, PROC_ROCK_D,
+    MERGED_STALAGMITE_GEO, MERGED_STALACTITE_GEO,
 } from './geometry';
 
 import { CrystalCluster, TorchField, DustMotes } from './cave-features';
@@ -258,19 +258,13 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             ))}
         </Instances>
 
-        {/* Stalagmites — procedural noise-displaced cones rising from the floor */}
-        {STALAGMITES.map(([x, z, h, r], i) => (
-            <mesh key={`stalagmite-${i}`} position={[x, h / 2, z]} geometry={PROC_STALAGMITE_GEOS[i % PROC_STALAGMITE_GEOS.length]}>
-                <meshStandardMaterial color="#3a3024" map={caveRock.color} normalMap={caveRock.normal} normalScale={V2_15} roughness={0.95} />
-            </mesh>
-        ))}
-
-        {/* Stalactites — procedural noise-displaced inverted cones from the ceiling */}
-        {STALACTITES.map(([x, z, h, r], i) => (
-            <mesh key={`stalactite-${i}`} position={[x, 8 - h / 2, z]} rotation={[Math.PI, 0, 0]} geometry={PROC_STALACTITE_GEOS[i % PROC_STALACTITE_GEOS.length]}>
-                <meshStandardMaterial color="#322a1f" map={caveRock.color} normalMap={caveRock.normal} normalScale={V2_15} roughness={0.95} />
-            </mesh>
-        ))}
+        {/* Stalagmites + stalactites — merged into 2 draw calls (was 30) */}
+        <mesh geometry={MERGED_STALAGMITE_GEO}>
+            <meshStandardMaterial color="#3a3024" map={caveRock.color} normalMap={caveRock.normal} normalScale={V2_15} roughness={0.95} />
+        </mesh>
+        <mesh geometry={MERGED_STALACTITE_GEO}>
+            <meshStandardMaterial color="#322a1f" map={caveRock.color} normalMap={caveRock.normal} normalScale={V2_15} roughness={0.95} />
+        </mesh>
 
         {/* Decorative glowing crystal clusters on the walls */}
         {CRYSTALS.map(([x, y, z, color], i) => (
@@ -395,7 +389,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Underwater sediment, debris, fish — gated to high quality */}
         {reflective && <UnderwaterSediment />}
         {reflective && <DebrisField />}
-        {reflective && <FishSchool />}
+        {reflective && <FishSchool monsterPositionRef={monsterPositionRef} />}
 
         {/* Underwater boulders — instanced proc rocks: 4 draw calls vs 15 GLB clones */}
         {([PROC_ROCK_A, PROC_ROCK_B, PROC_ROCK_C, PROC_ROCK_D] as THREE.BufferGeometry[]).map((geo, gi) => {
@@ -423,18 +417,19 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         <SurfaceBubbleRing />
         {reflective && <PlanktonField />}
 
-        {/* Scattered 3D rock formations on the underwater floor — procedural noise rocks */}
-        {UW_SCATTERED_ROCKS.map(([x, y, z, s, ry, rx], i) => (
-            <mesh
-                key={`uwrock-${i}`}
-                position={[x, y + s * 0.4, z]}
-                scale={[s, s * 0.7, s]}
-                rotation={[rx, ry, 0]}
-                geometry={i % 4 === 0 ? PROC_ROCK_A : i % 4 === 1 ? PROC_ROCK_B : i % 4 === 2 ? PROC_ROCK_C : PROC_ROCK_D}
-            >
-                <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
-            </mesh>
-        ))}
+        {/* Scattered underwater rocks — instanced: 4 draw calls vs 25 individual meshes */}
+        {([PROC_ROCK_A, PROC_ROCK_B, PROC_ROCK_C, PROC_ROCK_D] as THREE.BufferGeometry[]).map((geo, gi) => {
+            const rocks = UW_SCATTERED_ROCKS.filter((_, i) => i % 4 === gi);
+            if (!rocks.length) return null;
+            return (
+                <Instances key={`scatter-${gi}`} limit={rocks.length} range={rocks.length} geometry={geo}>
+                    <meshStandardMaterial color="#0a0c08" map={uwRock.color} normalMap={uwRock.normal} normalScale={V2_20} roughnessMap={uwRock.rough} roughness={0.95} aoMap={uwRock.ao} aoMapIntensity={0.8} flatShading />
+                    {rocks.map(([x, y, z, s, ry, rx], i) => (
+                        <Instance key={i} position={[x, y + s * 0.4, z]} scale={[s, s * 0.7, s]} rotation={[rx, ry, 0]} />
+                    ))}
+                </Instances>
+            );
+        })}
 
         {/* ─── UNDERWATER CAVE WALLS — organic displaced PlaneGeometry ─── */}
         {/* North underwater wall (z = -30) — faces +Z (inward) */}

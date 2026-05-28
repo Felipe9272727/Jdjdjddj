@@ -37,7 +37,7 @@ const JUMPSCARE_DELAY = 0.28;
 const SHARK_URL = '/models/monster/shark.glb';
 useGLTF.preload(SHARK_URL);
 
-type FishState      = 'dormant' | 'awakening' | 'patrol' | 'hunting' | 'lunge' | 'regroup';
+type FishState      = 'dormant' | 'awakening' | 'patrol' | 'hunting' | 'lunge' | 'regroup' | 'investigating';
 type JumpscarePhase = 'none' | 'rush' | 'done';
 
 
@@ -141,9 +141,16 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     const jsTimer  = useRef(0);
     const jsTarget = useRef(new THREE.Vector3());
 
+    // Predictive AI — velocity tracking and investigation state
+    const playerVelRef     = useRef(new THREE.Vector3());
+    const lastPlayerPosRef = useRef<THREE.Vector3 | null>(null);
+    const lastKnownPosRef  = useRef(new THREE.Vector3());
+    const investigateTimer = useRef(0);
+
     // Reusable temp vectors — never allocate in useFrame
     const _v1 = useRef(new THREE.Vector3());
     const _v2 = useRef(new THREE.Vector3());
+    const _v3 = useRef(new THREE.Vector3());
 
     // ─── Main loop ──────────────────────────────────────────────────────────
     useFrame(({ clock }, dt) => {
@@ -184,6 +191,19 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
 
         const pp = playerPositionRef.current;
         const px = pp?.x ?? 0, py = pp?.y ?? -10, pz = pp?.z ?? 0;
+
+        // ── Predictive AI: track player velocity (smoothed) ─────────────────
+        if (lastPlayerPosRef.current) {
+            _v3.current.set(
+                px - lastPlayerPosRef.current.x,
+                py - lastPlayerPosRef.current.y,
+                pz - lastPlayerPosRef.current.z,
+            ).divideScalar(safeDt);
+            playerVelRef.current.lerp(_v3.current, safeDt * 4);
+        } else {
+            lastPlayerPosRef.current = new THREE.Vector3(px, py, pz);
+        }
+        lastPlayerPosRef.current.set(px, py, pz);
         const fx = pos.current.x, fy = pos.current.y, fz = pos.current.z;
         const dxp = px - fx, dyp = py - fy, dzp = pz - fz;
         const dist      = Math.sqrt(dxp*dxp + dyp*dyp + dzp*dzp);
@@ -221,19 +241,40 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
             return;
         }
 
+        // ── Shard-based difficulty scaling ───────────────────────────────────
+        const shardMult = 1 + collectedShards.size * 0.18;
+
         // ── State transitions ────────────────────────────────────────────────
         switch (state.current) {
             case 'patrol':
                 if (dist < AWARENESS_DIST) state.current = 'hunting';
                 break;
             case 'hunting':
-                if (dist < LUNGE_DIST) {
+                // Player left awareness range → investigate last known position
+                if (dist > AWARENESS_DIST) {
+                    lastKnownPosRef.current.set(px, py, pz);
+                    investigateTimer.current = 14.0;
+                    state.current = 'investigating';
+                } else if (dist < LUNGE_DIST) {
                     _v1.current.set(dxp, dyp, dzp).normalize();
                     const fwd = _v2.current.set(0, 0, 1).applyQuaternion(g.quaternion);
                     if (fwd.dot(_v1.current) > 0.45 || dist < 2.8) {
                         state.current = 'lunge';
                         lDir.current.set(dxp / dist, dyp / dist, dzp / dist);
                     }
+                }
+                break;
+            case 'investigating':
+                if (dist < AWARENESS_DIST) {
+                    // Player spotted again — resume hunt
+                    state.current = 'hunting';
+                } else {
+                    investigateTimer.current -= safeDt;
+                    const dxi = lastKnownPosRef.current.x - fx;
+                    const dyi = lastKnownPosRef.current.y - fy;
+                    const dzi = lastKnownPosRef.current.z - fz;
+                    const di  = Math.sqrt(dxi*dxi + dyi*dyi + dzi*dzi);
+                    if (di < 3.0 || investigateTimer.current <= 0) state.current = 'patrol';
                 }
                 break;
             case 'lunge':
@@ -262,7 +303,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         // ── Animation selection ──────────────────────────────────────────────
         if (state.current === 'lunge') {
             playAnim('Swim_Bite', 0.12);
-        } else if (state.current === 'hunting') {
+        } else if (state.current === 'hunting' || state.current === 'investigating') {
             playAnim('Swim_Fast', 0.5);
         } else {
             playAnim('Swim', 0.8);
@@ -282,11 +323,20 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 break;
             }
             case 'hunting': {
-                const speedT = Math.min(1, (dist - LUNGE_DIST) / (AWARENESS_DIST - LUNGE_DIST));
-                const speed  = berserk
+                // Predictive interception: aim at where player will be, not where they are
+                const speedT    = Math.min(1, (dist - LUNGE_DIST) / (AWARENESS_DIST - LUNGE_DIST));
+                const baseSpeed = berserk
                     ? HUNT_SPEED_MAX * BERSERK_HUNT_MULT
                     : HUNT_SPEED_MIN + speedT * (HUNT_SPEED_MAX - HUNT_SPEED_MIN);
-                _v1.current.set(dxp / dist, dyp / dist, dzp / dist).multiplyScalar(speed);
+                const speed = baseSpeed * Math.min(shardMult, 2.5);
+                // Look-ahead: predict player position 55% of the travel time ahead
+                const lookAhead = Math.min(dist / (speed + 0.001) * 0.55, 1.8);
+                const tpx = px + playerVelRef.current.x * lookAhead;
+                const tpy = py + playerVelRef.current.y * lookAhead;
+                const tpz = pz + playerVelRef.current.z * lookAhead;
+                const tdx = tpx - fx, tdy = tpy - fy, tdz = tpz - fz;
+                const tDist = Math.sqrt(tdx*tdx + tdy*tdy + tdz*tdz) + 0.001;
+                _v1.current.set(tdx / tDist, tdy / tDist, tdz / tDist).multiplyScalar(speed);
                 for (const rock of UW_ROCK_COLLIDERS) {
                     const rdx = fx - rock.x, rdy = fy - rock.y, rdz = fz - rock.z;
                     const rd2 = rdx*rdx + rdy*rdy + rdz*rdz;
@@ -310,15 +360,38 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                         _v1.current.z += pdz * str;
                     }
                 }
-                // Subtle vertical undulation
                 _v1.current.y += Math.sin(t * 1.3) * 0.5;
                 vel.current.lerp(_v1.current, safeDt * 3.0);
+                break;
+            }
+            case 'investigating': {
+                // Navigate toward last known player position
+                const speed = HUNT_SPEED_MAX * 0.55 * Math.min(shardMult, 2.0);
+                const idx = lastKnownPosRef.current.x - fx;
+                const idy = lastKnownPosRef.current.y - fy;
+                const idz = lastKnownPosRef.current.z - fz;
+                const id  = Math.sqrt(idx*idx + idy*idy + idz*idz) + 0.001;
+                _v1.current.set(idx / id, idy / id, idz / id).multiplyScalar(speed);
+                for (const rock of UW_ROCK_COLLIDERS) {
+                    const rdx = fx - rock.x, rdy = fy - rock.y, rdz = fz - rock.z;
+                    const rd2 = rdx*rdx + rdy*rdy + rdz*rdz;
+                    const mr  = rock.r + 2.0;
+                    if (rd2 < mr*mr && rd2 > 0.001) {
+                        const rd  = Math.sqrt(rd2);
+                        const str = (mr - rd) / rd * 7;
+                        _v1.current.x += rdx * str;
+                        _v1.current.y += rdy * str;
+                        _v1.current.z += rdz * str;
+                    }
+                }
+                _v1.current.y += Math.sin(t * 1.3) * 0.3;
+                vel.current.lerp(_v1.current, safeDt * 2.5);
                 break;
             }
             case 'lunge': {
                 const ls = berserk ? LUNGE_SPEED * BERSERK_LUNGE_MULT : LUNGE_SPEED;
                 vel.current.lerp(
-                    _v1.current.set(lDir.current.x * ls, lDir.current.y * ls, lDir.current.z * ls),
+                    _v1.current.set(lDir.current.x * ls * shardMult, lDir.current.y * ls * shardMult, lDir.current.z * ls * shardMult),
                     safeDt * 11,
                 );
                 break;

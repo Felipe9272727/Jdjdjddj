@@ -1113,7 +1113,7 @@ export default function App() {
                     luminanceThreshold={currentLevel === 2 ? 0.72 : 0.95}
                     luminanceSmoothing={currentLevel === 2 ? 0.25 : 0.2}
                     mipmapBlur
-                    kernelSize={currentLevel === 2 ? KernelSize.MEDIUM : KernelSize.MEDIUM}
+                    kernelSize={currentLevel === 2 ? KernelSize.SMALL : KernelSize.MEDIUM}
                 />
                 {/* Chromatic aberration — heavier underwater (light dispersion
                     through liquid). 4x bigger offset on Floor 2 sells the
