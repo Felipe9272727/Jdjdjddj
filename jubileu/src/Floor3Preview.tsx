@@ -9,7 +9,7 @@
  */
 
 import { Canvas } from '@react-three/fiber';
-import { EffectComposer, Bloom, Vignette, N8AO } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, Vignette, N8AO, HueSaturation } from '@react-three/postprocessing';
 import { KernelSize } from 'postprocessing';
 import { ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 import { OrbitControls } from '@react-three/drei';
@@ -41,6 +41,7 @@ export default function Floor3Preview() {
                     />
                     <Bloom intensity={0.22} luminanceThreshold={0.95} luminanceSmoothing={0.20} mipmapBlur kernelSize={KernelSize.MEDIUM} />
                     <Vignette eskil={false} offset={0.32} darkness={0.28} />
+                    <HueSaturation saturation={-1} />
                 </EffectComposer>
                 )}
             </Canvas>

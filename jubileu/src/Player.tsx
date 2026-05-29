@@ -4,7 +4,7 @@ import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
-import { platforms as f3Platforms, f3PlayerZ, f3PlayerY, respawnPoint as f3RespawnPoint } from './f3Parkour';
+import { platforms as f3Platforms, f3PlayerZ, f3PlayerY, f3HandState, respawnPoint as f3RespawnPoint } from './f3Parkour';
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
@@ -760,6 +760,11 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             // 5. Respawn when fallen into the void — drop back onto the
             //    furthest-back live platform so the endless climb resumes near
             //    where we were instead of restarting.
+            // Publish motion state for the first-person hands' procedural anim.
+            f3HandState.vy = jumpVelYRef.current;
+            f3HandState.grounded = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;
+            f3HandState.moving = moving;
+
             if (pos.current.y < -8) {
                 const rp = f3RespawnPoint(pos.current.z);
                 pos.current.set(rp.x, rp.y, rp.z);

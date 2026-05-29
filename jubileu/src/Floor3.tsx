@@ -16,11 +16,12 @@
  * + the player-following sky each frame. Physics is in Player.tsx.
  */
 
-import React, { useRef, useEffect, useReducer } from 'react';
+import React, { useRef, useEffect, useReducer, Suspense } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { RoundedBox, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
 import { ElevatorFacade } from './Elevator';
+import FpHands from './Floor3Hands';
 import {
     platforms as f3Platforms, f3PlayerZ, f3PlayerY, tick as f3Tick, reset as f3Reset,
     validateNoOverlaps, type F3Plat,
@@ -218,15 +219,15 @@ const SkyBackground: React.FC = () => {
     const { scene } = useThree();
     useEffect(() => {
         const prev = scene.background;
-        scene.background = new THREE.Color('#9ed2f7');
-        scene.fog = new THREE.Fog('#bfe3fb', 60, 240);   // soft cartoon haze in the distance
+        scene.background = new THREE.Color('#dde2e7');   // pale grey-white (B&W)
+        scene.fog = new THREE.Fog('#e7ebef', 60, 240);   // soft haze in the distance
         return () => { scene.background = prev; scene.fog = null; };
     }, [scene]);
     return null;
 };
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export const Floor3Environment: React.FC<{ elevator?: boolean }> = ({ elevator = true }) => {
+export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean }> = ({ elevator = true, hands = true }) => {
     // Live group refs by platform id, so the single frame loop can drive the
     // moving bridges imperatively (no per-platform useFrame, correct ordering).
     const groupRefs = useRef<Map<number, THREE.Group>>(new Map());
@@ -287,6 +288,13 @@ export const Floor3Environment: React.FC<{ elevator?: boolean }> = ({ elevator =
                 <group position={[0, 0, -10]}>
                     <ElevatorFacade z={0} height={5} width={10} />
                 </group>
+            )}
+
+            {/* First-person cartoon gloves (procedural idle/walk/jump) */}
+            {hands && (
+                <Suspense fallback={null}>
+                    <FpHands />
+                </Suspense>
             )}
         </group>
     );

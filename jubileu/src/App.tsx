@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
-import { EffectComposer, Bloom, ChromaticAberration, Vignette, N8AO } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, ChromaticAberration, Vignette, N8AO, HueSaturation } from '@react-three/postprocessing';
 import { KernelSize, BlendFunction } from 'postprocessing';
 import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
 
@@ -1283,6 +1283,10 @@ export default function App() {
                     offset={currentLevel === 2 ? 0.32 : currentLevel === 3 ? 0.32 : 0.2}
                     darkness={currentLevel === 2 ? 0.78 : currentLevel === 3 ? 0.28 : 0.3}
                 />
+                {/* Floor 3 — full desaturation for the black-&-white rubber-hose look. */}
+                {currentLevel === 3 && (
+                    <HueSaturation saturation={-1} />
+                )}
             </EffectComposer>
         )}
       </Canvas>

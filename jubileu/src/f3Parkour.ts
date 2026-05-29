@@ -70,6 +70,11 @@ export const platforms: F3Plat[] = [];
 export const f3PlayerZ = { current: 0 };
 // Player Y too, so the sky/cloud backdrop can follow the endless vertical climb.
 export const f3PlayerY = { current: 0 };
+
+// Player motion state for the first-person hands' PROCEDURAL animation.
+// Player.tsx writes it each frame; the FpHands component reads it to drive the
+// idle breathing bob, the walk sway and the jump/fall swing (no GLB clips).
+export const f3HandState = { vy: 0, moving: false, grounded: true };
 let _nextId = 0;
 let _lastTickT = -1;
 
