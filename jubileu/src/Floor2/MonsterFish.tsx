@@ -273,6 +273,11 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     const _v2 = useRef(new THREE.Vector3());
     const _v3 = useRef(new THREE.Vector3());
     const _steer = useRef(new THREE.Vector3());   // context-steering output (XZ)
+    // Anti-stuck: track real displacement; if pinned while trying to move, fire
+    // a timed escape impulse toward open water.
+    const lastPos = useRef(new THREE.Vector3(-22, -20, -22));
+    const stuckT  = useRef(0);
+    const escapeT = useRef(0);
 
     // ─── Main loop ──────────────────────────────────────────────────────────
     useFrame(({ clock }, dt) => {
@@ -500,16 +505,35 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         }
 
         // ── Movement ─────────────────────────────────────────────────────────
+        // Escape override — when the watchdog flags the shark as stuck it swims
+        // hard toward open water (cave centre) and rises, for a short burst,
+        // bypassing the normal goal so it always peels off a corner.
+        if (escapeT.current > 0) {
+            escapeT.current -= safeDt;
+            const ex = -fx, ez = -fz;
+            const el = Math.hypot(ex, ez) + 1e-3;
+            _v1.current.set(ex / el * 7, 3.0, ez / el * 7);
+            vel.current.lerp(_v1.current, safeDt * 5);
+        } else
         switch (state.current) {
             case 'patrol': {
+                // Steered patrol — orbit a point but weave around obstacles and
+                // keep clear of the seafloor, so it never grinds into geometry.
                 patrolT.current += safeDt * 0.28;
-                const tx = Math.cos(patrolT.current) * 10 + (px - 10);
-                const tz = Math.sin(patrolT.current) * 10 + (pz - 10);
+                const tx = Math.cos(patrolT.current) * 9 + px * 0.5;
+                const tz = Math.sin(patrolT.current) * 9 + pz * 0.5;
+                const range = 8;
+                sharkSteer.reset();
+                sharkSteer.addInterest(tx - fx, tz - fz, 1);
+                _writeObstacleDanger(fx, fz, 0.8, range);
+                sharkSteer.pick(_steer.current);
+                const floorClear = uwFloorHeight(fx, fz) + 3.0;
                 const tY = -17 + Math.sin(patrolT.current * 0.6) * 3;
-                _v1.current.set(tx - fx, tY - fy, tz - fz);
-                const tl = _v1.current.length();
-                if (tl > 0.1) _v1.current.multiplyScalar(PATROL_SPEED / tl);
-                vel.current.lerp(_v1.current, safeDt * 1.6);
+                let vy = (tY - fy);
+                if (fy < floorClear) vy += (floorClear - fy) * 2.0;
+                vy = THREE.MathUtils.clamp(vy, -PATROL_SPEED, PATROL_SPEED);
+                _v1.current.set(_steer.current.x * PATROL_SPEED, vy, _steer.current.z * PATROL_SPEED);
+                vel.current.lerp(_v1.current, safeDt * 1.8);
                 break;
             }
             case 'hunting': {
@@ -579,30 +603,71 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                     caught.current = false;
                     callbackFired.current = false;
                 } else {
-                    vel.current.multiplyScalar(1 - safeDt * 2.2);
-                    vel.current.lerp(
-                        _v1.current.copy(SPAWN_POS).sub(pos.current).normalize().multiplyScalar(2.5),
-                        safeDt * 0.9,
-                    );
+                    // Back off into OPEN water (toward cave centre, away from the
+                    // player and the wall corners), staying above the seafloor —
+                    // never retreat into the corner where it used to get pinned.
+                    const rx = (fx * 0.25) - (px - fx) * 0.15;  // drift toward centre + away from player
+                    const rz = (fz * 0.25) - (pz - fz) * 0.15;
+                    const floorClear = uwFloorHeight(fx, fz) + 3.0;
+                    const rY = Math.max(-18, floorClear);
+                    _v1.current.set(-rx, rY - fy, -rz);
+                    const rl = _v1.current.length();
+                    if (rl > 0.1) _v1.current.multiplyScalar(2.6 / rl);
+                    vel.current.lerp(_v1.current, safeDt * 1.4);
                 }
                 break;
         }
 
-        // ── Apply velocity + bounds + wall avoidance ──────────────────────────
+        // ── Apply velocity + bounds ───────────────────────────────────────────
         pos.current.x += vel.current.x * safeDt;
         pos.current.y += vel.current.y * safeDt;
         pos.current.z += vel.current.z * safeDt;
         pos.current.x = THREE.MathUtils.clamp(pos.current.x, -28.5, 28.5);
         pos.current.z = THREE.MathUtils.clamp(pos.current.z, -28.5, 28.5);
 
-        // ── Organic-deformation collision (same surfaces the player hits) ──
-        // The shark is stopped by the real bulged walls and rides above the
-        // seafloor ridges. Collision radius is kept SMALL (≈ the original,
-        // un-scaled body) even though the model is rendered 3× bigger — a fat
-        // hitbox made it snag on every rock. The visual size is unchanged.
+        // ── Organic-deformation collision + velocity SLIDE ─────────────────────
+        // Collision moves the body out of the bulged walls / seafloor ridges
+        // (small ≈original-size hitbox). CRITICAL: we then remove the velocity
+        // component that was digging INTO the surface and add a small outward
+        // nudge — otherwise vel keeps pointing into the wall and the shark
+        // vibrates in place (the "enroscado" bug). Now it slides along instead.
+        const preX = pos.current.x, preY = pos.current.y, preZ = pos.current.z;
         resolveUWWalls(pos.current, 0.8);
         const floorMin = uwFloorHeight(pos.current.x, pos.current.z) + 0.8;
         pos.current.y = THREE.MathUtils.clamp(pos.current.y, floorMin, SWIM_THRESHOLD_Y - 1.5);
+        const cx = pos.current.x - preX, cy = pos.current.y - preY, cz = pos.current.z - preZ;
+        const corr2 = cx * cx + cy * cy + cz * cz;
+        if (corr2 > 1e-6) {
+            const cl = Math.sqrt(corr2);
+            const nx = cx / cl, ny = cy / cl, nz = cz / cl;
+            const into = vel.current.x * nx + vel.current.y * ny + vel.current.z * nz;
+            if (into < 0) {                       // moving into the surface → cancel that part
+                vel.current.x -= into * nx;
+                vel.current.y -= into * ny;
+                vel.current.z -= into * nz;
+            }
+            vel.current.x += nx * 2.0;            // outward peel so corners release
+            vel.current.z += nz * 2.0;
+        }
+
+        // ── Anti-stuck watchdog ────────────────────────────────────────────────
+        // Per-frame motion is noisy (collision nudges), so we measure NET
+        // progress over a 0.5s window: checkpoint the position, and if it
+        // barely moved while still trying to swim, fire an escape burst toward
+        // open water (consumed at the top of the movement switch next frame).
+        stuckT.current += safeDt;
+        if (stuckT.current >= 0.5) {
+            const net = Math.hypot(
+                pos.current.x - lastPos.current.x,
+                pos.current.y - lastPos.current.y,
+                pos.current.z - lastPos.current.z,
+            );
+            if (escapeT.current <= 0 && vel.current.length() > 0.6 && net < 0.6) {
+                escapeT.current = 0.9;
+            }
+            lastPos.current.copy(pos.current);
+            stuckT.current = 0;
+        }
 
         g.position.copy(pos.current);
         _updateOrientation(g, safeDt, false);
