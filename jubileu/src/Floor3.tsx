@@ -71,7 +71,7 @@ const RBox: React.FC<BoxProps> = ({
         >
             <primitive object={mat} attach="material" />
             {outline > 0 && (
-                <Outlines thickness={outline} color={OUTLINE} screenspace transparent={false} angle={0.4} />
+                <Outlines thickness={outline * 0.02} color={OUTLINE} transparent={false} angle={0.4} />
             )}
         </RoundedBox>
     );
@@ -100,7 +100,7 @@ const GShape: React.FC<GShapeProps> = ({
             {kind === 'sphere' && <sphereGeometry args={args as any} />}
             <primitive object={mat} attach="material" />
             {outline > 0 && (
-                <Outlines thickness={outline} color={OUTLINE} screenspace transparent={false} angle={0.4} />
+                <Outlines thickness={outline * 0.02} color={OUTLINE} transparent={false} angle={0.4} />
             )}
         </mesh>
     );
