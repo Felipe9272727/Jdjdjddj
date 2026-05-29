@@ -17,12 +17,15 @@
  * Player.tsx; this file is purely visual + the moving-platform animation.
  */
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useReducer } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { RoundedBox, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
 import { ElevatorFacade } from './Elevator';
-import { F3_PLATFORMS, F3_MOVE_AMP, f3MovingX } from './constants';
+import {
+    platforms as f3Platforms, f3PlayerZ, tick as f3Tick, reset as f3Reset,
+    validateNoOverlaps, type F3Plat,
+} from './f3Parkour';
 import { createToonMaterial, type ToonOpts } from './cartoonToon';
 
 // ─── Palette (Aperture cartoon) ──────────────────────────────────────────────
@@ -71,7 +74,7 @@ const RBox: React.FC<BoxProps> = ({
         >
             <primitive object={mat} attach="material" />
             {outline > 0 && (
-                <Outlines thickness={outline * 0.02} color={OUTLINE} transparent={false} angle={0.4} />
+                <Outlines thickness={outline * 0.03} color={OUTLINE} transparent={false} angle={0.4} />
             )}
         </RoundedBox>
     );
@@ -100,7 +103,7 @@ const GShape: React.FC<GShapeProps> = ({
             {kind === 'sphere' && <sphereGeometry args={args as any} />}
             <primitive object={mat} attach="material" />
             {outline > 0 && (
-                <Outlines thickness={outline * 0.02} color={OUTLINE} transparent={false} angle={0.4} />
+                <Outlines thickness={outline * 0.03} color={OUTLINE} transparent={false} angle={0.4} />
             )}
         </mesh>
     );
@@ -178,28 +181,83 @@ const SKY_FS = /* glsl */`
   }
 `;
 
-// ─── Platform colors (Portal cartoon) ────────────────────────────────────────
-const PLAT_TOON: ToonOpts[] = [
-    { color: PANEL, shadow: PANEL_SHADOW, seams: 4, seamColor: PANEL_SEAM, rimStrength: 0.5 },   // start
-    { color: PANEL, shadow: PANEL_SHADOW, seams: 2, seamColor: PANEL_SEAM, rimStrength: 0.6 },
-    { color: PANEL, shadow: PANEL_SHADOW, seams: 2, seamColor: PANEL_SEAM, rimStrength: 0.6 },
-    { color: PANEL, shadow: PANEL_SHADOW, seams: 2, seamColor: PANEL_SEAM, rimStrength: 0.6 },
-    // moving = hard-light bridge (blue glow)
-    { color: '#bfe9ff', shadow: '#5aa8d8', emissive: PORTAL_BLUE, emissiveStrength: 0.9, rimColor: PORTAL_BLUE, rimStrength: 1.4, bands: 2 },
-    // goal panel
-    { color: PANEL, shadow: PANEL_SHADOW, seams: 3, seamColor: PANEL_SEAM, rimStrength: 0.7 },
+// ─── Cartoon platform palette (Spyro-bright, hard 2-band cel) ────────────────
+// One vibrant hue per pool slot (f3Parkour assigns plat.palette = id % 6). The
+// bold colored shadow + white rim + thick outline is the "BEM estilizado"
+// cartoon look. palette === -1 → the neutral Aperture landing panel.
+const CARTOON_PALETTE: ToonOpts[] = [
+    { color: '#ff5d73', shadow: '#aa2a40', bands: 2, rimColor: '#ffe3e9', rimStrength: 1.1, specThreshold: 0.7 }, // coral
+    { color: '#21c7c9', shadow: '#0e6f72', bands: 2, rimColor: '#dffcfc', rimStrength: 1.1, specThreshold: 0.7 }, // teal
+    { color: '#ffd23f', shadow: '#b87d0c', bands: 2, rimColor: '#fff6d6', rimStrength: 1.1, specThreshold: 0.7 }, // gold
+    { color: '#9b5de5', shadow: '#522a9c', bands: 2, rimColor: '#efe2ff', rimStrength: 1.1, specThreshold: 0.7 }, // purple
+    { color: '#7ee787', shadow: '#2f8c46', bands: 2, rimColor: '#e6ffe9', rimStrength: 1.1, specThreshold: 0.7 }, // lime
+    { color: '#4dabf7', shadow: '#175e9c', bands: 2, rimColor: '#e0f1ff', rimStrength: 1.1, specThreshold: 0.7 }, // sky
 ];
+const LANDING_TOON: ToonOpts = { color: PANEL, shadow: PANEL_SHADOW, seams: 4, seamColor: PANEL_SEAM, rimStrength: 0.5, bands: 3 };
+
+function platToon(p: F3Plat): ToonOpts {
+    if (p.palette < 0) return LANDING_TOON;
+    if (p.moving) {
+        // hard-light bridge keeps the energy-blue glow, but cel-banded
+        return { color: '#bfe9ff', shadow: '#3f8fc4', emissive: PORTAL_BLUE, emissiveStrength: 1.0, rimColor: PORTAL_BLUE, rimStrength: 1.5, bands: 2 };
+    }
+    return CARTOON_PALETTE[p.palette % CARTOON_PALETTE.length];
+}
+
+// ─── One platform in the endless pool ────────────────────────────────────────
+// Sized from the platform record (NOT scaled — avoids outline/bevel distortion).
+// Re-mounts only when the pool recycles (keyed by stable id in the parent).
+const PlatformView = React.forwardRef<THREE.Group, { plat: F3Plat }>(({ plat }, ref) => {
+    const w = plat.hw * 2, d = plat.hd * 2;
+    const cy = plat.topY - plat.h / 2;
+    const big = plat.palette < 0;          // the Aperture landing
+    const trimColor = plat.palette < 0 ? PORTAL_BLUE
+        : (CARTOON_PALETTE[plat.palette % CARTOON_PALETTE.length].color as string);
+    return (
+        <group ref={ref} position={[plat.bx, 0, plat.cz]}>
+            <RBox args={[w, plat.h, d]} position={[0, cy, 0]} radius={big ? 0.14 : 0.12}
+                toon={platToon(plat)} outline={big ? 0 : 2.2} />
+            {/* glowing edge trim in the platform's own hue — cartoon pop */}
+            {!big && (
+                <RBox args={[w + 0.05, 0.09, d + 0.05]} position={[0, plat.topY - 0.045, 0]} radius={0.03}
+                    toon={{ color: trimColor, emissive: trimColor, emissiveStrength: 2.4, bands: 1 }} outline={0} castShadow={false} />
+            )}
+            {big && (
+                <RBox args={[w + 0.06, 0.08, d + 0.06]} position={[0, plat.topY - 0.04, 0]} radius={0.03}
+                    toon={{ color: PORTAL_BLUE, emissive: PORTAL_BLUE, emissiveStrength: 1.8, bands: 1 }} outline={0} castShadow={false} />
+            )}
+        </group>
+    );
+});
+PlatformView.displayName = 'PlatformView';
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export const Floor3Environment: React.FC<{ elevator?: boolean }> = ({ elevator = true }) => {
-    const movingRef = useRef<THREE.Group>(null);
-    useFrame((s) => {
-        const x = Math.sin(s.clock.elapsedTime * 0.9) * F3_MOVE_AMP;
-        f3MovingX.current = x;
-        if (movingRef.current) movingRef.current.position.x = x;
-    });
+    // Build the endless course once on mount; tear nothing down (module state).
+    useEffect(() => {
+        f3Reset();
+        if (import.meta.env?.DEV) {
+            const c = validateNoOverlaps(f3Platforms);
+            if (c.length) console.warn('[Floor3] platform overlaps detected:', c);
+        }
+    }, []);
 
-    const lastIdx = F3_PLATFORMS.length - 1;
+    // Live group refs by platform id, so the single frame loop can drive the
+    // moving bridges imperatively (no per-platform useFrame, correct ordering).
+    const groupRefs = useRef<Map<number, THREE.Group>>(new Map());
+    // Re-render only when the pool recycles (rare — a few times/sec at most).
+    const [, bump] = useReducer((n: number) => n + 1, 0);
+
+    useFrame((s) => {
+        const before = f3Platforms.length ? f3Platforms[0].id : -1;
+        f3Tick(s.clock.elapsedTime, f3PlayerZ.current);
+        // Animate moving bridges' live X onto their group transforms.
+        for (const p of f3Platforms) {
+            if (p.moving) { const g = groupRefs.current.get(p.id); if (g) g.position.x = p.x; }
+        }
+        // Detect a recycle (front id changed) and re-render the slot list.
+        if ((f3Platforms.length ? f3Platforms[0].id : -1) !== before) bump();
+    });
 
     return (
         <group>
@@ -265,41 +323,25 @@ export const Floor3Environment: React.FC<{ elevator?: boolean }> = ({ elevator =
             <Portal position={[-14.6, 3.5, 2]} rotation={[0, Math.PI/2, 0]}  color={PORTAL_BLUE} />
             <Portal position={[14.6, 4.0, 8]}  rotation={[0, -Math.PI/2, 0]} color={PORTAL_ORNG} />
 
-            {/* ── Platforms ───────────────────────────────────────────────── */}
-            {F3_PLATFORMS.map((p, i) => {
-                const cy = p.topY - p.h / 2;
-                const w = p.hw * 2, d = p.hd * 2;
-                const isStart = i === 0;
-                const isGoal  = i === lastIdx;
+            {/* ── Endless parkour pool ─────────────────────────────────────
+                Rendered straight from the live recycling array (f3Parkour).
+                Keyed by stable id so React reuses slots across recycles;
+                moving bridges are driven imperatively in the frame loop. */}
+            {f3Platforms.map((p) => (
+                <PlatformView
+                    key={p.id}
+                    plat={p}
+                    ref={(el) => {
+                        if (el) groupRefs.current.set(p.id, el);
+                        else groupRefs.current.delete(p.id);
+                    }}
+                />
+            ))}
 
-                const body = (
-                    <>
-                        <RBox args={[w, p.h, d]} position={[0, cy, 0]} radius={0.14}
-                            toon={PLAT_TOON[i]} outline={isStart ? 0 : 1.5} />
-                        {/* glowing portal-blue edge trim */}
-                        {!isStart && (
-                            <RBox args={[w + 0.06, 0.08, d + 0.06]} position={[0, p.topY - 0.04, 0]} radius={0.03}
-                                toon={{ color: PORTAL_BLUE, emissive: PORTAL_BLUE, emissiveStrength: 2.6, bands: 1 }} outline={0} castShadow={false} />
-                        )}
-                        {/* goal extras */}
-                        {isGoal && <ApertureLogo position={[0, p.topY + 3.2, d/2 - 0.1]} r={1.4} />}
-                        {isGoal && <CompanionCube position={[0, p.topY + 1.0, 0]} scale={0.9} />}
-                        {isGoal && (
-                            <RBox args={[0.12, 3.4, 0.12]} position={[-1.9, p.topY + 1.7, -1.9]} radius={0.05}
-                                toon={{ color: '#e8e8e8', rimStrength: 0.5 }} outline={1} />
-                        )}
-                        {isGoal && (
-                            <RBox args={[1.0, 0.6, 0.05]} position={[-1.45, p.topY + 3.1, -1.9]} radius={0.02}
-                                toon={{ color: PORTAL_ORNG, emissive: PORTAL_ORNG, emissiveStrength: 1.4, rimColor: PORTAL_ORNG, rimStrength: 1.0, bands: 2 }} outline={1} />
-                        )}
-                    </>
-                );
-
-                if (p.moving) {
-                    return <group key={i} ref={movingRef} position={[p.cx, 0, p.cz]}>{body}</group>;
-                }
-                return <group key={i} position={[p.cx, 0, p.cz]}>{body}</group>;
-            })}
+            {/* Companion cube + Aperture logo float over the landing as a
+                welcome beacon (the climb is endless, so there's no goal tile). */}
+            <ApertureLogo position={[0, 7.5, 20.5]} r={1.6} />
+            <CompanionCube position={[5.5, 2.0, -4.5]} scale={0.9} />
 
             {/* ── Floating accent panels for vertical depth ───────────────── */}
             {[[-9, 11, 4],[9, 13, 9],[-7, 9, 14]].map(([x,y,z],i)=>(

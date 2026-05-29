@@ -3,7 +3,8 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
-import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, F3_PLATFORMS, f3MovingX } from './constants';
+import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
+import { platforms as f3Platforms, f3PlayerZ, respawnPoint as f3RespawnPoint } from './f3Parkour';
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
@@ -726,11 +727,16 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             jumpVelYRef.current -= F3_GRAVITY * safeDt;
             pos.current.y += jumpVelYRef.current * safeDt;
 
+            // Publish player Z so the endless-parkour engine (owned by
+            // Floor3's useFrame) recycles the platform pool ahead of us.
+            f3PlayerZ.current = pos.current.z;
+
             // 2. Find the highest platform directly underfoot (XZ bounds).
+            //    Reads the LIVE recycling pool — p.x already includes the
+            //    moving-bridge oscillation written by f3Parkour.tick().
             let groundY = -Infinity;
-            for (const p of F3_PLATFORMS) {
-                const pcx = p.moving ? p.cx + f3MovingX.current : p.cx;
-                if (pos.current.x >= pcx - p.hw && pos.current.x <= pcx + p.hw &&
+            for (const p of f3Platforms) {
+                if (pos.current.x >= p.x - p.hw && pos.current.x <= p.x + p.hw &&
                     pos.current.z >= p.cz - p.hd && pos.current.z <= p.cz + p.hd) {
                     if (p.topY > groundY) groundY = p.topY;
                 }
@@ -749,9 +755,12 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
                 jumpRef.current = false;
             }
 
-            // 5. Respawn when fallen into the void.
+            // 5. Respawn when fallen into the void — drop back onto the
+            //    furthest-back live platform so the endless climb resumes near
+            //    where we were instead of restarting.
             if (pos.current.y < -8) {
-                pos.current.set(0, 0, -7);
+                const rp = f3RespawnPoint(pos.current.z);
+                pos.current.set(rp.x, rp.y, rp.z);
                 jumpVelYRef.current = 0;
             }
         } else {

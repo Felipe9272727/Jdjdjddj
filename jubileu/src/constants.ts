@@ -193,13 +193,16 @@ const _HOUSE_BASE = [...ELEV_W, ...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN
 const _WALLS_LOBBY_OPEN          = _LOBBY_BASE;
 const _WALLS_LOBBY_SEALED        = [..._LOBBY_BASE, DOOR_SEAL];
 
-// Floor 3 — Cartoon Obby. Side walls at X: ±14 prevent walking off edges;
-// no far wall — void (falling into y < -8) handles the Z boundary.
+// Floor 3 — Endless Cartoon Parkour. Side walls at X: ±14 keep the player in
+// the corridor; they run far into +Z because the climb is now infinite (see
+// f3Parkour.ts). No far wall — falling into the void (y < -8) is the only way
+// off the course, handled by the respawn logic in Player.tsx.
+const F3_CORRIDOR_FAR_Z = 100000;   // effectively infinite — the climb never ends
 const FLOOR3_BND: number[][] = [
-    [-14, -10, -1.3, -10],  // left of elevator doorway
-    [1.3,  -10,  14, -10],  // right of elevator doorway
-    [-14,  -10, -14,  22],  // left boundary
-    [ 14,  -10,  14,  22],  // right boundary
+    [-14, -10, -1.3, -10],            // left of elevator doorway
+    [1.3,  -10,  14, -10],            // right of elevator doorway
+    [-14,  -10, -14,  F3_CORRIDOR_FAR_Z],   // left boundary (endless)
+    [ 14,  -10,  14,  F3_CORRIDOR_FAR_Z],   // right boundary (endless)
 ];
 
 // Platform definitions for the Floor 3 obby.
