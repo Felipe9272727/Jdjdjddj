@@ -63,20 +63,20 @@ function _writeObstacleDanger(fx: number, fy: number, fz: number, agentR: number
 // Speeds roughly halved — the shark is deliberately much slower now so the
 // player can sweep the seabed for shards and finish Floor 2 without a constant
 // frantic chase. It still hunts and lunges, just at a far more beatable pace.
-const PATROL_SPEED   = 1.5;
-const HUNT_SPEED_MIN = 1.8;
-const HUNT_SPEED_MAX = 3.8;
+const PATROL_SPEED   = 1.3;
+const HUNT_SPEED_MIN = 1.4;
+const HUNT_SPEED_MAX = 3.0;
 // Hard ceiling on hunt speed. Player swim ≈ 2.4, sprint ≈ 6.5 u/s, so a
-// sprinting diver always out-swims a cruising shark (stamina makes that a
-// resource, not a free pass), while a dawdling diver still gets run down.
-const HUNT_SPEED_CAP = 5.0;
-const LUNGE_SPEED    = 9.0;
-// The shark is now ~20 units long (scale 3.6), so lunge/catch trigger on the
-// MOUTH reaching the player, not the body centre. Lunge commits from closer and
-// the catch radius is tighter, so a locked-in lunge can be juked instead of
-// being an unavoidable death the moment the shark gets near.
-const LUNGE_DIST     = 8.0;
-const CATCH_DIST     = 4.5;
+// sprinting diver easily out-swims the shark (stamina makes that a resource,
+// not a free pass), while a dawdling diver still gets run down — slowly.
+const HUNT_SPEED_CAP = 3.8;
+const LUNGE_SPEED    = 7.0;
+// Back to the small shark (scale 1.2, ~6.7 units), so lunge/catch radii shrink
+// to match the body: the lunge commits only when it's genuinely close and the
+// catch radius is tight, so a locked-in dash is easily juked rather than an
+// instant death whenever the shark drifts near.
+const LUNGE_DIST     = 5.0;
+const CATCH_DIST     = 2.5;
 const REGROUP_TIME   = 6.0;
 const AWARENESS_DIST = 42.0;
 const SPAWN_POS      = new THREE.Vector3(-22, -20, -22);
@@ -773,13 +773,12 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         g.rotation.x += (tp - g.rotation.x) * safeDt * (fast ? 22 : 2.5);
     }
 
-    // Scale 3.6 → ~20-unit shark (3× the previous 1.2). The GLB is authored
-    // ~5.6 units long (a 100× node scale baked in). This is now visible at any
-    // distance thanks to the skeleton clone + emissive material + no frustum
-    // culling, and the lunge/catch radii were widened so the kill triggers when
-    // the mouth reaches the player rather than the body centre.
+    // Scale 1.2 → ~6.7-unit shark. The GLB is authored ~5.6 units long (a 100×
+    // node scale baked in). Still clearly visible thanks to the skeleton clone +
+    // emissive material + no frustum culling; the lunge/catch radii were shrunk
+    // back to match this smaller body so it isn't a long-range killer.
     return (
-        <group ref={rootRef} visible={false} scale={[3.6, 3.6, 3.6]}>
+        <group ref={rootRef} visible={false} scale={[1.2, 1.2, 1.2]}>
             {/* Primitive uses the cloned, material-overridden scene.
                 The orientation helper already aims the group's +Z axis along the
                 velocity, and this GLB's nose IS its local +Z — so NO extra 180°
