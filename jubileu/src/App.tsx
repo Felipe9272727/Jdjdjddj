@@ -1246,11 +1246,11 @@ export default function App() {
                     truly bright emissive crystals + water surface bloom;
                     low enough to avoid washing the whole cave cyan. */}
                 <Bloom
-                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 1.1 : 0.35}
-                    luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 3 ? 0.50 : 0.95}
-                    luminanceSmoothing={currentLevel === 2 ? 0.25 : currentLevel === 3 ? 0.30 : 0.2}
+                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 0.55 : 0.35}
+                    luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 3 ? 0.80 : 0.95}
+                    luminanceSmoothing={currentLevel === 2 ? 0.25 : currentLevel === 3 ? 0.20 : 0.2}
                     mipmapBlur
-                    kernelSize={currentLevel === 2 ? KernelSize.SMALL : currentLevel === 3 ? KernelSize.LARGE : KernelSize.MEDIUM}
+                    kernelSize={currentLevel === 2 ? KernelSize.SMALL : KernelSize.MEDIUM}
                 />
                 {/* Chromatic aberration — heavier underwater (light dispersion
                     through liquid). Floor 3 (Portal 2 sci-fi) uses none. */}
@@ -1708,17 +1708,19 @@ export default function App() {
       {hasStarted && currentLevel === 3 && !isDesktop && (
         <button
           aria-label="Pular"
-          className="fixed z-[45] right-[calc(env(safe-area-inset-right,0px)+18px)] bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] w-20 h-20 rounded-full flex items-center justify-center select-none touch-none active:scale-90 transition-transform"
+          className="fixed z-[45] right-[calc(env(safe-area-inset-right,0px)+16px)] bottom-[calc(env(safe-area-inset-bottom,0px)+20px)] w-24 h-24 rounded-full flex flex-col items-center justify-center select-none touch-none active:scale-90 active:translate-y-1 transition-transform"
           style={{
-            background: 'radial-gradient(circle at 50% 30%, #e8e8e8, #a0a0a0)',
-            boxShadow: '0 4px 0 #606060, 0 0 20px rgba(255,255,255,0.3)',
-            border: '2px solid rgba(255,255,255,0.6)',
+            background: 'radial-gradient(circle at 50% 28%, #6ee060, #28a820)',
+            boxShadow: '0 6px 0 #1a7014, 0 0 0 4px #000, 0 0 28px rgba(80,220,60,0.5)',
+            border: '3px solid #000',
+            fontFamily: 'system-ui, sans-serif',
           }}
           onPointerDown={(e) => { e.stopPropagation(); jumpRef.current = true; }}
         >
-          <svg viewBox="0 0 24 24" className="w-9 h-9" fill="none" stroke="#333" strokeWidth={2.5} strokeLinecap="round">
-            <path d="M12 19V5M5 12l7-7 7 7" />
+          <svg viewBox="0 0 24 24" className="w-10 h-10" fill="white" stroke="black" strokeWidth={1.5} strokeLinecap="round">
+            <path d="M12 20V6M5 13l7-7 7 7" />
           </svg>
+          <span style={{ color: '#fff', fontWeight: 900, fontSize: 11, letterSpacing: 1, textShadow: '1px 1px 0 #000' }}>PULAR</span>
         </button>
       )}
 

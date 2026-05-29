@@ -3,7 +3,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
-import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
+import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, F3_PLATFORMS, f3MovingX } from './constants';
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
@@ -719,14 +719,41 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
                 pos.current.y = 0;                              // cave floor
             }
         } else if (currentLevel === 3) {
-            // Jump physics — only active on Floor 3.
-            if (jumpRef?.current && pos.current.y < 0.02) {
-                jumpVelYRef.current = 7.0;
+            // ── Floor 3 platform physics ──────────────────────────────────
+            // 1. Apply gravity and integrate Y every frame.
+            const F3_GRAVITY = 22;
+            const F3_JUMP    = 9.5;
+            jumpVelYRef.current -= F3_GRAVITY * safeDt;
+            pos.current.y += jumpVelYRef.current * safeDt;
+
+            // 2. Find the highest platform directly underfoot (XZ bounds).
+            let groundY = -Infinity;
+            for (const p of F3_PLATFORMS) {
+                const pcx = p.moving ? p.cx + f3MovingX.current : p.cx;
+                if (pos.current.x >= pcx - p.hw && pos.current.x <= pcx + p.hw &&
+                    pos.current.z >= p.cz - p.hd && pos.current.z <= p.cz + p.hd) {
+                    if (p.topY > groundY) groundY = p.topY;
+                }
+            }
+
+            // 3. Land: snap to ground when falling through it from above.
+            if (groundY > -Infinity && pos.current.y <= groundY && jumpVelYRef.current <= 0) {
+                pos.current.y = groundY;
+                jumpVelYRef.current = 0;
+            }
+
+            // 4. Jump trigger — only fires when grounded.
+            if (jumpRef?.current) {
+                const grounded = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;
+                if (grounded) jumpVelYRef.current = F3_JUMP;
                 jumpRef.current = false;
             }
-            jumpVelYRef.current -= 20 * safeDt;  // gravity
-            pos.current.y += jumpVelYRef.current * safeDt;
-            if (pos.current.y <= 0) { pos.current.y = 0; jumpVelYRef.current = 0; }
+
+            // 5. Respawn when fallen into the void.
+            if (pos.current.y < -8) {
+                pos.current.set(0, 0, -7);
+                jumpVelYRef.current = 0;
+            }
         } else {
             pos.current.y = 0;
         }

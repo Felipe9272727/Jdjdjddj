@@ -193,17 +193,45 @@ const _HOUSE_BASE = [...ELEV_W, ...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN
 const _WALLS_LOBBY_OPEN          = _LOBBY_BASE;
 const _WALLS_LOBBY_SEALED        = [..._LOBBY_BASE, DOOR_SEAL];
 
-// Floor 3 — open outdoor cartoon world (50×40 area, Z: -10..+30, X: ±25).
-// ELEV_W handles the elevator alcove. The doorway opening at x=[-1.3,1.3] is
-// not walled so the player can walk out; DOOR_SEAL closes it when sealed.
-// Portal 2 test chamber: 28 wide × 32 deep (X: ±14, Z: -10..+22)
+// Floor 3 — Cartoon Obby. Side walls at X: ±14 prevent walking off edges;
+// no far wall — void (falling into y < -8) handles the Z boundary.
 const FLOOR3_BND: number[][] = [
     [-14, -10, -1.3, -10],  // left of elevator doorway
     [1.3,  -10,  14, -10],  // right of elevator doorway
-    [-14,  -10, -14,  22],  // left wall
-    [ 14,  -10,  14,  22],  // right wall
-    [-14,   22,  14,  22],  // far wall (behind Aperture logo)
+    [-14,  -10, -14,  22],  // left boundary
+    [ 14,  -10,  14,  22],  // right boundary
 ];
+
+// Platform definitions for the Floor 3 obby.
+// cx/cz = center, hw/hd = half-extents in XZ, topY = player foot level, h = visual height.
+export interface F3Platform {
+    cx: number; cz: number;
+    hw: number; hd: number;
+    topY: number;
+    h: number;
+    moving?: boolean;   // oscillates ±F3_MOVE_AMP in X
+}
+
+export const F3_MOVE_AMP = 2.8;   // moving platform X amplitude
+
+export const F3_PLATFORMS: readonly F3Platform[] = [
+    // Start floor (matches elevator area)
+    { cx: 0,    cz: -5.0, hw: 6.5, hd: 4.5, topY: 0,   h: 0.5 },
+    // Step 1 — tutorial hop (same height)
+    { cx: 0,    cz:  2.0, hw: 1.8, hd: 1.8, topY: 0.1, h: 0.5 },
+    // Step 2 — up, straight
+    { cx: 0,    cz:  6.0, hw: 1.3, hd: 1.3, topY: 1.5, h: 0.5 },
+    // Step 3 — up, offset left
+    { cx: -1.5, cz: 10.0, hw: 1.3, hd: 1.3, topY: 3.0, h: 0.5 },
+    // Step 4 — moving platform
+    { cx: 0,    cz: 13.5, hw: 1.1, hd: 1.1, topY: 4.5, h: 0.5, moving: true },
+    // GOAL
+    { cx: 0,    cz: 17.5, hw: 2.5, hd: 2.5, topY: 6.0, h: 1.0 },
+];
+
+// Shared mutable: Floor3Environment writes the current X offset of the
+// moving platform every frame; Player.tsx physics reads it for collision.
+export const f3MovingX = { current: 0 };
 const _WALLS_FLOOR3              = [...ELEV_W, ...FLOOR3_BND];
 const _WALLS_FLOOR3_SEALED       = [..._WALLS_FLOOR3, DOOR_SEAL];
 const _WALLS_HOUSE_OPEN          = _HOUSE_BASE;
