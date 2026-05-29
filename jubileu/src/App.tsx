@@ -164,6 +164,7 @@ export default function App() {
   // Swim sprint (held button) + stamina (written by Player each frame).
   const sprintHeldRef = useRef(false);
   const staminaRef = useRef(1);
+  const jumpRef = useRef(false);
   const [inWater, setInWater] = useState(false);
   const [staminaPct, setStaminaPct] = useState(1);
   const pendingTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -1086,6 +1087,7 @@ export default function App() {
         case 'd': k.d=true; break;
         case 'f': if (inventoryRef.current.flashlight.owned) handleToggleFlashlight(); break;
         case 'n': if (inventoryRef.current.nightVision.owned) toggleNightVision(); break;
+        case ' ': if (currentLevel === 3) { jumpRef.current = true; e.preventDefault(); } break;
         case 'e':
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
@@ -1180,7 +1182,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -1700,6 +1702,24 @@ export default function App() {
             </svg>
           </button>
         </div>
+      )}
+
+      {/* Jump button — Floor 3 only, mobile only. Desktop uses Space. */}
+      {hasStarted && currentLevel === 3 && !isDesktop && (
+        <button
+          aria-label="Pular"
+          className="fixed z-[45] right-[calc(env(safe-area-inset-right,0px)+18px)] bottom-[calc(env(safe-area-inset-bottom,0px)+24px)] w-20 h-20 rounded-full flex items-center justify-center select-none touch-none active:scale-90 transition-transform"
+          style={{
+            background: 'radial-gradient(circle at 50% 30%, #e8e8e8, #a0a0a0)',
+            boxShadow: '0 4px 0 #606060, 0 0 20px rgba(255,255,255,0.3)',
+            border: '2px solid rgba(255,255,255,0.6)',
+          }}
+          onPointerDown={(e) => { e.stopPropagation(); jumpRef.current = true; }}
+        >
+          <svg viewBox="0 0 24 24" className="w-9 h-9" fill="none" stroke="#333" strokeWidth={2.5} strokeLinecap="round">
+            <path d="M12 19V5M5 12l7-7 7 7" />
+          </svg>
+        </button>
       )}
 
       {barneyDialogueOpen && <BarneyDialogue dialogueNode={barneyDialogueNode} onResponse={handleBarneyResponse} />}

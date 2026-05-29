@@ -324,9 +324,11 @@ interface PlayerProps {
   sprintHeldRef?: React.MutableRefObject<boolean>;
   /** Swim stamina 0..1, written every frame for the HUD bar to read. */
   staminaRef?: React.MutableRefObject<number>;
+  /** Floor 3 jump trigger — set true to initiate a jump. Cleared after use. */
+  jumpRef?: React.MutableRefObject<boolean>;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -339,6 +341,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const _v = _vRef;
 
   const timeRef = useRef(0);
+  const jumpVelYRef = useRef(0);
   const diverCineRef = useRef(0); // elapsed time inside the Floor 2 cinematic camera
   // Emotion-reactive framing: smoothed dist/fov offsets driven by dialogue beat.
   const diverFrameRef = useRef({ dist: 0, fov: 0 });
@@ -715,6 +718,15 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             } else {
                 pos.current.y = 0;                              // cave floor
             }
+        } else if (currentLevel === 3) {
+            // Jump physics — only active on Floor 3.
+            if (jumpRef?.current && pos.current.y < 0.02) {
+                jumpVelYRef.current = 7.0;
+                jumpRef.current = false;
+            }
+            jumpVelYRef.current -= 20 * safeDt;  // gravity
+            pos.current.y += jumpVelYRef.current * safeDt;
+            if (pos.current.y <= 0) { pos.current.y = 0; jumpVelYRef.current = 0; }
         } else {
             pos.current.y = 0;
         }
