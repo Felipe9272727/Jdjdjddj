@@ -191,7 +191,7 @@ const PLAT_TOON: ToonOpts[] = [
 ];
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export const Floor3Environment: React.FC = () => {
+export const Floor3Environment: React.FC<{ elevator?: boolean }> = ({ elevator = true }) => {
     const movingRef = useRef<THREE.Group>(null);
     useFrame((s) => {
         const x = Math.sin(s.clock.elapsedTime * 0.9) * F3_MOVE_AMP;
@@ -233,10 +233,32 @@ export const Floor3Environment: React.FC = () => {
                 toon={{ color: PANEL, shadow: PANEL_SHADOW, seams: 12, seamColor: PANEL_SEAM, rimStrength: 0.3 }} outline={0} castShadow={false} />
             <RBox args={[0.6, 18, 36]} position={[15, 5, 6]} radius={0.25}
                 toon={{ color: PANEL, shadow: PANEL_SHADOW, seams: 12, seamColor: PANEL_SEAM, rimStrength: 0.3 }} outline={0} castShadow={false} />
-            {/* A few dark accent panels on the back wall */}
+            {/* Framed back-wall panels: a glowing cyan plate with a lighter
+                inset face on top, leaving a bright border (Portal "screen" read) */}
             {[[-8,9],[8,9],[-8,3],[8,3]].map(([x,y],i)=>(
-                <RBox key={i} args={[3.6, 3.6, 0.3]} position={[x, y, 21.6]} radius={0.12}
-                    toon={{ color: DARKPANEL, shadow: DARK_SHADOW, rimStrength: 0.4 }} outline={1} castShadow={false} />
+                <group key={i} position={[x, y, 21.2]}>
+                    {/* glowing border plate */}
+                    <RBox args={[3.9, 3.9, 0.16]} position={[0,0,0]} radius={0.12}
+                        toon={{ color: PORTAL_BLUE, emissive: PORTAL_BLUE, emissiveStrength: 1.6, bands: 1 }} outline={0} castShadow={false} />
+                    {/* inset screen face — self-lit so it reads even though it
+                        faces away from the key light */}
+                    <RBox args={[3.3, 3.3, 0.12]} position={[0,0,-0.16]} radius={0.08}
+                        toon={{ color: '#adc6e0', shadow: '#8aa6c4', ambient: 0.6, emissive: '#2a4763', emissiveStrength: 0.8, rimColor: '#dcefff', rimStrength: 1.2, bands: 2 }} outline={0} castShadow={false} />
+                </group>
+            ))}
+
+            {/* Ceiling with recessed glowing light strips (encloses the chamber) */}
+            <RBox args={[30, 0.5, 36]} position={[0, 13.5, 6]} radius={0.1}
+                toon={{ color: PANEL, shadow: PANEL_SHADOW, rimStrength: 0.2 }} outline={0} castShadow={false} />
+            {[-6, 2, 10].map((z, i) => (
+                <RBox key={i} args={[10, 0.16, 0.7]} position={[0, 13.0, z]} radius={0.05}
+                    toon={{ color: '#fffbe8', emissive: '#fff2c4', emissiveStrength: 2.0, bands: 1 }} outline={0} castShadow={false} />
+            ))}
+
+            {/* Glowing trim strips where the walls meet the floor (sci-fi edge light) */}
+            {([[-14.6, 6, [0.12, 0.16, 34]], [14.6, 6, [0.12, 0.16, 34]], [0, 21.7, [29, 0.16, 0.12]]] as [number,number,number[]][]).map(([x,z,s],i)=>(
+                <RBox key={i} args={s as [number,number,number]} position={[x, 0.18, z]} radius={0.04}
+                    toon={{ color: PORTAL_BLUE, emissive: PORTAL_BLUE, emissiveStrength: 1.8, bands: 1 }} outline={0} castShadow={false} />
             ))}
 
             {/* ── Portals on the side walls ───────────────────────────────── */}
@@ -287,9 +309,11 @@ export const Floor3Environment: React.FC = () => {
             ))}
 
             {/* Elevator facade */}
-            <group position={[0, 0, -10]}>
-                <ElevatorFacade z={0} height={5} width={10} />
-            </group>
+            {elevator && (
+                <group position={[0, 0, -10]}>
+                    <ElevatorFacade z={0} height={5} width={10} />
+                </group>
+            )}
         </group>
     );
 };

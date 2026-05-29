@@ -1242,17 +1242,19 @@ export default function App() {
             Medium/low: no postprocessing pass at all. */}
         {hasStarted && settings.quality === 'high' && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
-                {/* N8AO — screen-space ambient occlusion. Floor 3 only: adds
-                    contact shadows in corners and under platforms, the single
-                    biggest "rendered/PC-quality" upgrade for the flat toon
-                    chamber. Runs on the depth buffer so it works regardless of
+                {/* N8AO — screen-space ambient occlusion (Floor 3 only). Tuned
+                    conservatively: tight screen-space radius + low intensity +
+                    high-quality denoise so it adds contact shadows in corners
+                    without the full-surface grain / dark halo the aggressive
+                    settings produced. Runs on the depth buffer so it works with
                     the custom toon ShaderMaterial. */}
                 {currentLevel === 3 && (
                     <N8AO
-                        aoRadius={1.6}
-                        distanceFalloff={1.0}
-                        intensity={3.0}
-                        quality="medium"
+                        screenSpaceRadius
+                        aoRadius={16}
+                        distanceFalloff={0.5}
+                        intensity={1.4}
+                        quality="performance"
                         halfRes
                         color="#0a0e1a"
                     />
