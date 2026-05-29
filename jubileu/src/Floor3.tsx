@@ -1,23 +1,16 @@
 /**
- * Floor3.tsx — Cartoon Obby.
+ * Floor3.tsx — "Câmara de Testes Cartoon" — Portal-inspired obby rendered with
+ * the Guilty-Gear-class toon system in cartoonToon.ts.
  *
- * Visual technique: every 3-D object renders TWO meshes stacked:
- *   1. Back-face mesh with normals pushed outward → thick black outline.
- *   2. Front-face mesh with MeshToonMaterial (4-step cel gradient) → flat cartoon shading.
+ * Every solid object = an inverted-hull outline mesh (distance-scaled width) +
+ * a custom toon fill mesh (banded colored-shadow diffuse + Fresnel rim + hard
+ * specular). The result is a clean, designed cartoon — not a filter on top of
+ * realism — that reads as an Aperture test chamber: white seam panels, portal
+ * blue/orange accents, hard-light platforms, a companion cube, portal rings,
+ * and an Aperture logo at the goal.
  *
- * This "normal-extrusion outline" is the industry standard for cartoon games
- * (Borderlands, Cel-Damage, many anime titles) and works without any
- * post-processing pass. Combined with a hand-painted 3-step toon gradient it
- * gives a clean Cartoon Network / early-Roblox look that reads as *designed*
- * rather than as a shader trick on top of a realistic mesh.
- *
- * Additional cartoon elements:
- *   • Animated gradient sky sphere (blue top → pale-blue horizon).
- *   • Floating box-clouds with outlines that slowly drift in X.
- *   • Rotating gold star on the goal platform.
- *   • Bold, saturated, different colour on every platform.
- *   • f3MovingX.current is written every frame so Player.tsx physics can
- *     track the moving platform without any React state.
+ * Platform layout / physics live in constants.ts (F3_PLATFORMS, f3MovingX) and
+ * Player.tsx; this file is purely visual + the moving-platform animation.
  */
 
 import React, { useRef, useMemo } from 'react';
@@ -25,161 +18,152 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ElevatorFacade } from './Elevator';
 import { F3_PLATFORMS, F3_MOVE_AMP, f3MovingX } from './constants';
+import { createToonMaterial, createOutlineMaterial, type ToonOpts } from './cartoonToon';
 
-// ─── Toon gradient (4 luminance steps → hard cel-shading bands) ──────────────
-function useToonGrad() {
-    return useMemo(() => {
-        const data = new Uint8Array([48, 108, 180, 255]);
-        const t = new THREE.DataTexture(data, 4, 1);
-        (t as any).format = THREE.RedFormat;
-        t.minFilter = THREE.NearestFilter;
-        t.magFilter = THREE.NearestFilter;
-        t.generateMipmaps = false;
-        t.needsUpdate = true;
-        return t;
-    }, []);
-}
+// ─── Palette (Aperture cartoon) ──────────────────────────────────────────────
+const PANEL       = '#eef1f4';
+const PANEL_SHADOW= '#9fb0c4';
+const PANEL_SEAM  = '#c2ccd6';
+const DARKPANEL   = '#2a3340';
+const DARK_SHADOW = '#161c26';
+const PORTAL_BLUE = '#19a8ff';
+const PORTAL_ORNG = '#ff7a18';
+const OUTLINE     = '#0a0712';
 
-// ─── Outline vertex shader (normal-extrusion technique) ──────────────────────
-// Each vertex is pushed OUTWARD along its world-space normal by `outlineWidth`
-// units, then rendered back-face-only in black → a clean silhouette ring.
-const OUTLINE_VS = /* glsl */`
-  uniform float outlineWidth;
-  void main() {
-    // Push along model-space normal then project normally
-    vec3 extruded = position + normal * outlineWidth;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(extruded, 1.0);
-  }
-`;
-const OUTLINE_FS = /* glsl */`
-  void main() { gl_FragColor = vec4(0.04, 0.02, 0.06, 1.0); }
-`;
+// ─── Reusable cartoon primitives ─────────────────────────────────────────────
+type GeoKind = 'box' | 'cyl' | 'torus' | 'sphere';
 
-// Sky gradient shader
-const SKY_VS = /* glsl */`varying vec3 vPos; void main() { vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-const SKY_FS = /* glsl */`
-  varying vec3 vPos;
-  void main() {
-    float t = clamp((normalize(vPos).y + 0.3) / 1.3, 0.0, 1.0);
-    vec3 top  = vec3(0.22, 0.50, 0.95);
-    vec3 mid  = vec3(0.50, 0.75, 1.00);
-    vec3 col  = mix(mid, top, t * t);
-    gl_FragColor = vec4(col, 1.0);
-  }
-`;
-
-// ─── Reusable cartoon box: outline + toon fill ───────────────────────────────
-interface CBoxProps {
-    args: [number, number, number];
-    position: [number, number, number];
+interface ShapeProps {
+    kind: GeoKind;
+    geoArgs: any[];
+    position?: [number, number, number];
     rotation?: [number, number, number];
-    color: string;
-    grad: THREE.DataTexture;
-    outlineW?: number;
+    scale?: [number, number, number];
+    toon: ToonOpts;
+    outline?: number;          // 0 = no outline
+    castShadow?: boolean;
 }
-const CBox: React.FC<CBoxProps> = ({ args, position, rotation = [0,0,0], color, grad, outlineW = 0.08 }) => {
-    const uniRef = useMemo(() => ({ outlineWidth: { value: outlineW } }), [outlineW]);
-    return (
-        <group position={position} rotation={rotation as any}>
-            <mesh>
-                <boxGeometry args={args} />
-                <shaderMaterial vertexShader={OUTLINE_VS} fragmentShader={OUTLINE_FS} uniforms={uniRef} side={THREE.BackSide} />
-            </mesh>
-            <mesh castShadow>
-                <boxGeometry args={args} />
-                <meshToonMaterial color={color} gradientMap={grad} />
-            </mesh>
-        </group>
-    );
+
+const Geo: React.FC<{ kind: GeoKind; args: any[] }> = ({ kind, args }) => {
+    switch (kind) {
+        case 'box':    return <boxGeometry args={args as any} />;
+        case 'cyl':    return <cylinderGeometry args={args as any} />;
+        case 'torus':  return <torusGeometry args={args as any} />;
+        case 'sphere': return <sphereGeometry args={args as any} />;
+    }
 };
 
-// ─── Cartoon cylinder (for poles, clouds, etc.) ───────────────────────────────
-interface CCylProps {
-    args: [number, number, number, number];
-    position: [number, number, number];
-    rotation?: [number, number, number];
-    color: string;
-    grad: THREE.DataTexture;
-    outlineW?: number;
-}
-const CCyl: React.FC<CCylProps> = ({ args, position, rotation = [0,0,0], color, grad, outlineW = 0.07 }) => {
-    const uniRef = useMemo(() => ({ outlineWidth: { value: outlineW } }), [outlineW]);
-    return (
-        <group position={position} rotation={rotation as any}>
-            <mesh>
-                <cylinderGeometry args={args} />
-                <shaderMaterial vertexShader={OUTLINE_VS} fragmentShader={OUTLINE_FS} uniforms={uniRef} side={THREE.BackSide} />
-            </mesh>
-            <mesh castShadow>
-                <cylinderGeometry args={args} />
-                <meshToonMaterial color={color} gradientMap={grad} />
-            </mesh>
-        </group>
-    );
-};
-
-// ─── Platform colors ──────────────────────────────────────────────────────────
-const P_COLORS   = ['#e84040', '#ff4040', '#ff8c00', '#ffe000', '#30cc30', '#ffd700'];
-const P_TOP_CLR  = ['#c83030', '#cc3030', '#d07000', '#ccb800', '#28a828', '#e0b800'];
-
-// ─── Animated cloud ───────────────────────────────────────────────────────────
-const Cloud: React.FC<{ x: number; y: number; z: number; speed: number; phase: number; grad: THREE.DataTexture }> = ({
-    x, y, z, speed, phase, grad,
+/** Outline (inverted hull) + toon fill. The cartoon building block. */
+const Shape: React.FC<ShapeProps> = ({
+    kind, geoArgs, position = [0,0,0], rotation = [0,0,0], scale = [1,1,1], toon, outline = 0.09, castShadow = true,
 }) => {
-    const ref = useRef<THREE.Group>(null);
-    useFrame((s) => {
-        if (ref.current) ref.current.position.x = x + Math.sin(s.clock.elapsedTime * speed + phase) * 4;
-    });
+    const toonMat = useMemo(() => createToonMaterial(toon), [JSON.stringify(toon)]);
+    const outMat  = useMemo(() => outline > 0 ? createOutlineMaterial(outline, OUTLINE) : null, [outline]);
     return (
-        <group ref={ref} position={[x, y, z]}>
-            <CBox args={[3.2, 1.2, 1.6]} position={[0, 0, 0]}      color="#f8f8f8" grad={grad} outlineW={0.06} />
-            <CBox args={[2.0, 1.4, 1.4]} position={[-1.3, 0.5, 0]} color="#f8f8f8" grad={grad} outlineW={0.05} />
-            <CBox args={[2.0, 1.4, 1.4]} position={[1.3,  0.5, 0]} color="#f8f8f8" grad={grad} outlineW={0.05} />
-            <CBox args={[1.4, 1.2, 1.2]} position={[0,    1.0, 0]} color="#f0f0f0" grad={grad} outlineW={0.05} />
+        <group position={position} rotation={rotation as any} scale={scale as any}>
+            {outMat && (
+                <mesh>
+                    <Geo kind={kind} args={geoArgs} />
+                    <primitive object={outMat} attach="material" />
+                </mesh>
+            )}
+            <mesh castShadow={castShadow}>
+                <Geo kind={kind} args={geoArgs} />
+                <primitive object={toonMat} attach="material" />
+            </mesh>
         </group>
     );
 };
 
-// ─── Rotating star on goal ────────────────────────────────────────────────────
-const GoalStar: React.FC<{ x: number; y: number; z: number; grad: THREE.DataTexture }> = ({ x, y, z, grad }) => {
+// ─── Portal ring (blue / orange glowing oval) ────────────────────────────────
+const Portal: React.FC<{ position: [number,number,number]; rotation?: [number,number,number]; color: string }> = ({
+    position, rotation = [0,0,0], color,
+}) => {
+    return (
+        <group position={position} rotation={rotation as any} scale={[1, 1.5, 1]}>
+            {/* outer ring */}
+            <Shape kind="torus" geoArgs={[1.0, 0.12, 12, 40]} toon={{
+                color, emissive: color, emissiveStrength: 2.4, rimColor: color, rimStrength: 1.2, bands: 2,
+            }} outline={0.06} castShadow={false} />
+            {/* swirling inner disc */}
+            <mesh position={[0,0,-0.02]}>
+                <circleGeometry args={[0.95, 32]} />
+                <meshBasicMaterial color={color} transparent opacity={0.35} side={THREE.DoubleSide} />
+            </mesh>
+        </group>
+    );
+};
+
+// ─── Aperture logo (cartoon) ─────────────────────────────────────────────────
+const ApertureLogo: React.FC<{ position: [number,number,number]; rotation?: [number,number,number]; r?: number }> = ({
+    position, rotation = [0,0,0], r = 1.4,
+}) => (
+    <group position={position} rotation={rotation as any}>
+        <Shape kind="torus" geoArgs={[r, 0.08, 10, 40]}        toon={{ color: '#ffffff', rimStrength: 0.9, bands: 2 }} outline={0.05} castShadow={false} />
+        <Shape kind="torus" geoArgs={[r*0.5, 0.06, 10, 32]}    toon={{ color: '#ffffff', rimStrength: 0.9, bands: 2 }} outline={0.05} castShadow={false} />
+        {Array.from({ length: 6 }).map((_, i) => (
+            <Shape key={i} kind="box" geoArgs={[r*0.5, 0.16, 0.04]}
+                position={[Math.cos((i/6)*Math.PI*2)*r*0.74, Math.sin((i/6)*Math.PI*2)*r*0.74, 0]}
+                rotation={[0, 0, (i/6)*Math.PI*2]}
+                toon={{ color: '#ffffff', rimStrength: 0.6, bands: 2 }} outline={0.03} castShadow={false} />
+        ))}
+    </group>
+);
+
+// ─── Companion cube (cartoon) ────────────────────────────────────────────────
+const CompanionCube: React.FC<{ position: [number,number,number]; scale?: number }> = ({ position, scale = 1 }) => {
     const ref = useRef<THREE.Group>(null);
     useFrame((s) => {
         if (ref.current) {
-            ref.current.rotation.y = s.clock.elapsedTime * 1.2;
-            ref.current.position.y = y + Math.sin(s.clock.elapsedTime * 2.2) * 0.18;
+            ref.current.rotation.y = s.clock.elapsedTime * 0.6;
+            ref.current.position.y = position[1] + Math.sin(s.clock.elapsedTime * 1.6) * 0.12;
         }
     });
     return (
-        <group ref={ref} position={[x, y, z]}>
-            {/* Two crossing boxes make a 3-D star shape */}
-            <CBox args={[0.9, 0.9, 0.9]} position={[0, 0, 0]} rotation={[0, 0, 0]}               color="#ffd700" grad={grad} outlineW={0.07} />
-            <CBox args={[0.6, 0.6, 0.6]} position={[0, 0, 0]} rotation={[Math.PI/4, Math.PI/4, 0]} color="#fff060" grad={grad} outlineW={0.05} />
-            {/* Spikes */}
-            {[[0,0.7,0],[0,-0.7,0],[0.7,0,0],[-0.7,0,0],[0,0,0.7],[0,0,-0.7]].map(([px,py,pz],i) => (
-                <CBox key={i} args={[0.22, 0.22, 0.22]} position={[px,py,pz]} color="#ffe840" grad={grad} outlineW={0.04} />
+        <group ref={ref} position={position} scale={[scale,scale,scale]}>
+            <Shape kind="box" geoArgs={[1,1,1]} toon={{ color: '#d8dde4', shadow: '#7a8290', rimStrength: 0.7 }} outline={0.08} />
+            {/* corner nubs */}
+            {[[-.5,-.5,-.5],[.5,-.5,-.5],[-.5,.5,-.5],[.5,.5,-.5],[-.5,-.5,.5],[.5,-.5,.5],[-.5,.5,.5],[.5,.5,.5]].map(([x,y,z],i)=>(
+                <Shape key={i} kind="box" geoArgs={[0.2,0.2,0.2]} position={[x*0.5,y*0.5,z*0.5]}
+                    toon={{ color: '#aab2bd', shadow: '#5a6470', rimStrength: 0.5 }} outline={0.04} />
             ))}
-            {/* Emissive core glow */}
-            <mesh>
-                <sphereGeometry args={[0.22, 8, 6]} />
-                <meshStandardMaterial color="#fff080" emissive="#ffd000" emissiveIntensity={8} />
-            </mesh>
+            {/* pink heart faces */}
+            {([[0,0,0.52,0,0,0],[0,0,-0.52,0,Math.PI,0],[0,0.52,0,-Math.PI/2,0,0],[0,-0.52,0,Math.PI/2,0,0],[0.52,0,0,0,Math.PI/2,0],[-0.52,0,0,0,-Math.PI/2,0]] as number[][]).map((d,i)=>(
+                <mesh key={i} position={[d[0],d[1],d[2]]} rotation={[d[3],d[4],d[5]]}>
+                    <circleGeometry args={[0.2, 5]} />
+                    <meshBasicMaterial color="#ff5fa0" side={THREE.FrontSide} />
+                </mesh>
+            ))}
         </group>
     );
 };
 
-// ─── Void plane (abyss below platforms) ───────────────────────────────────────
-const VoidFloor: React.FC = () => (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -14, 6]}>
-        <planeGeometry args={[80, 80]} />
-        <meshBasicMaterial color="#050318" />
-    </mesh>
-);
+// ─── Sky gradient (clean interior void) ──────────────────────────────────────
+const SKY_VS = /* glsl */`varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
+const SKY_FS = /* glsl */`
+  varying vec3 vP;
+  void main(){
+    float t = clamp((normalize(vP).y + 0.25)/1.25, 0.0, 1.0);
+    vec3 lo = vec3(0.62, 0.68, 0.76);   // grey horizon
+    vec3 hi = vec3(0.88, 0.92, 0.97);   // bright white-grey top
+    gl_FragColor = vec4(mix(lo, hi, t), 1.0);
+  }
+`;
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Platform colors (Portal cartoon) ────────────────────────────────────────
+const PLAT_TOON: ToonOpts[] = [
+    { color: PANEL, shadow: PANEL_SHADOW, seams: 4, seamColor: PANEL_SEAM, rimStrength: 0.5 },   // start
+    { color: PANEL, shadow: PANEL_SHADOW, seams: 2, seamColor: PANEL_SEAM, rimStrength: 0.6 },
+    { color: PANEL, shadow: PANEL_SHADOW, seams: 2, seamColor: PANEL_SEAM, rimStrength: 0.6 },
+    { color: PANEL, shadow: PANEL_SHADOW, seams: 2, seamColor: PANEL_SEAM, rimStrength: 0.6 },
+    // moving = hard-light bridge (blue glow)
+    { color: '#bfe9ff', shadow: '#5aa8d8', emissive: PORTAL_BLUE, emissiveStrength: 0.9, rimColor: PORTAL_BLUE, rimStrength: 1.4, bands: 2 },
+    // goal panel
+    { color: PANEL, shadow: PANEL_SHADOW, seams: 3, seamColor: PANEL_SEAM, rimStrength: 0.7 },
+];
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 export const Floor3Environment: React.FC = () => {
-    const grad = useToonGrad();
-
-    // Animate the moving platform (step 4) and write to shared mutable
     const movingRef = useRef<THREE.Group>(null);
     useFrame((s) => {
         const x = Math.sin(s.clock.elapsedTime * 0.9) * F3_MOVE_AMP;
@@ -187,92 +171,95 @@ export const Floor3Environment: React.FC = () => {
         if (movingRef.current) movingRef.current.position.x = x;
     });
 
+    const lastIdx = F3_PLATFORMS.length - 1;
+
     return (
         <group>
-            {/* ── Sky ─────────────────────────────────────────────────── */}
-            <color attach="background" args={['#4a90e8']} />
-            {/* Sky sphere — gradient shader, huge radius, back-faces inward */}
+            {/* Sky / interior void */}
+            <color attach="background" args={['#cdd6df']} />
             <mesh>
-                <sphereGeometry args={[80, 16, 10]} />
+                <sphereGeometry args={[90, 16, 10]} />
                 <shaderMaterial vertexShader={SKY_VS} fragmentShader={SKY_FS} side={THREE.BackSide} depthWrite={false} />
             </mesh>
 
-            {/* ── Lighting ────────────────────────────────────────────── */}
-            <ambientLight intensity={1.4} color="#e8f4ff" />
-            <directionalLight position={[-6, 14, 8]} intensity={2.2} color="#fff8d8" castShadow />
-            {/* Warm bounce from below */}
-            <hemisphereLight args={['#b8d8ff', '#2a1a60', 0.6]} />
+            {/* Lighting — bright, directional key matches KEY_LIGHT_DIR */}
+            <ambientLight intensity={0.7} color="#e8eef6" />
+            <directionalLight position={[-6, 14, 8]} intensity={1.8} color="#fff6e0" castShadow />
+            <hemisphereLight args={['#dce8f6', '#3a4250', 0.5]} />
+            {/* portal accent fills */}
+            <pointLight position={[0, 5, 13.5]} intensity={2.2} distance={14} decay={2} color={PORTAL_BLUE} />
+            <pointLight position={[0, 7, 17.5]} intensity={1.6} distance={12} decay={2} color={PORTAL_ORNG} />
 
-            {/* ── Void abyss ──────────────────────────────────────────── */}
-            <VoidFloor />
-            {/* Fog-like ambient point in the void for depth */}
-            <pointLight position={[0, -8, 8]} intensity={1.2} distance={28} decay={2} color="#2010a0" />
+            {/* Void abyss */}
+            <mesh rotation={[-Math.PI/2,0,0]} position={[0,-16,6]}>
+                <planeGeometry args={[120,120]} />
+                <meshBasicMaterial color="#0a0e18" />
+            </mesh>
+            <pointLight position={[0,-9,8]} intensity={1.0} distance={30} decay={2} color="#10204a" />
 
-            {/* ── Platforms ───────────────────────────────────────────── */}
-            {F3_PLATFORMS.map((p, i) => {
-                const cy = p.topY - p.h / 2;   // center Y of box
-                const w  = p.hw * 2;
-                const d  = p.hd * 2;
-
-                if (p.moving) {
-                    return (
-                        <group key={i} ref={movingRef} position={[p.cx, 0, p.cz]}>
-                            {/* Platform body */}
-                            <CBox args={[w, p.h, d]} position={[0, cy, 0]} color={P_COLORS[i]} grad={grad} outlineW={0.09} />
-                            {/* Top face highlight strip */}
-                            <mesh position={[0, p.topY + 0.01, 0]} rotation={[-Math.PI/2, 0, 0]}>
-                                <planeGeometry args={[w - 0.1, d - 0.1]} />
-                                <meshToonMaterial color={P_TOP_CLR[i]} gradientMap={grad} />
-                            </mesh>
-                            {/* Stripes under the platform (cartoon detail) */}
-                            <CBox args={[w + 0.05, 0.12, 0.12]} position={[0, cy - p.h * 0.3, 0]} color="#222" grad={grad} outlineW={0.0} />
-                        </group>
-                    );
-                }
-
-                // i === 0: start floor (no visible outline, connects to elevator)
-                const ow = i === 0 ? 0.0 : 0.09;
-                return (
-                    <group key={i} position={[p.cx, 0, p.cz]}>
-                        <CBox args={[w, p.h, d]} position={[0, cy, 0]} color={P_COLORS[i]} grad={grad} outlineW={ow} />
-                        {/* Top strip */}
-                        {i > 0 && (
-                            <mesh position={[0, p.topY + 0.01, 0]} rotation={[-Math.PI/2, 0, 0]}>
-                                <planeGeometry args={[w - 0.1, d - 0.1]} />
-                                <meshToonMaterial color={P_TOP_CLR[i]} gradientMap={grad} />
-                            </mesh>
-                        )}
-                        {/* Decorative band */}
-                        {i > 0 && (
-                            <CBox args={[w + 0.05, 0.10, 0.10]} position={[0, cy - p.h * 0.3, 0]} color="#222" grad={grad} outlineW={0.0} />
-                        )}
-                        {/* Goal star */}
-                        {i === F3_PLATFORMS.length - 1 && (
-                            <GoalStar x={0} y={p.topY + 1.2} z={0} grad={grad} />
-                        )}
-                        {/* Goal flag pole */}
-                        {i === F3_PLATFORMS.length - 1 && (
-                            <>
-                                <CCyl args={[0.06, 0.06, 3.5, 8]} position={[-1.8, p.topY + 1.75, -1.8]} color="#e8e8e8" grad={grad} outlineW={0.04} />
-                                <CBox args={[0.8, 0.5, 0.04]} position={[-1.4, p.topY + 3.1, -1.8]} color="#e82040" grad={grad} outlineW={0.04} />
-                            </>
-                        )}
-                    </group>
-                );
-            })}
-
-            {/* ── Floating clouds ─────────────────────────────────────── */}
-            <Cloud x={-6}  y={10} z={5}  speed={0.25} phase={0.0} grad={grad} />
-            <Cloud x={7}   y={12} z={10} speed={0.18} phase={1.6} grad={grad} />
-            <Cloud x={-2}  y={14} z={15} speed={0.22} phase={3.2} grad={grad} />
-            <Cloud x={5}   y={11} z={0}  speed={0.15} phase={5.0} grad={grad} />
-
-            {/* ── Background decorative pillars (give vertical scale) ──── */}
-            {[[-10, 14, 3], [10, 14, 3], [-10, 10, 10], [10, 10, 10]].map(([px, py, pz], i) => (
-                <CCyl key={i} args={[0.3, 0.3, py as number, 8]} position={[px, (py as number)/2 - 14, pz]} color={['#6644cc','#4466cc','#cc4466','#44cc88'][i]} grad={grad} outlineW={0.06} />
+            {/* ── Background panel walls (Aperture chamber feel) ──────────── */}
+            {/* Back wall */}
+            <Shape kind="box" geoArgs={[30, 18, 0.6]} position={[0, 5, 22]}
+                toon={{ color: PANEL, shadow: PANEL_SHADOW, seams: 9, seamColor: PANEL_SEAM, rimStrength: 0.3 }} outline={0.12} castShadow={false} />
+            {/* Side walls */}
+            <Shape kind="box" geoArgs={[0.6, 18, 36]} position={[-15, 5, 6]}
+                toon={{ color: PANEL, shadow: PANEL_SHADOW, seams: 12, seamColor: PANEL_SEAM, rimStrength: 0.3 }} outline={0.12} castShadow={false} />
+            <Shape kind="box" geoArgs={[0.6, 18, 36]} position={[15, 5, 6]}
+                toon={{ color: PANEL, shadow: PANEL_SHADOW, seams: 12, seamColor: PANEL_SEAM, rimStrength: 0.3 }} outline={0.12} castShadow={false} />
+            {/* A few dark accent panels on the back wall */}
+            {[[-8,9],[8,9],[-8,3],[8,3]].map(([x,y],i)=>(
+                <Shape key={i} kind="box" geoArgs={[3.6, 3.6, 0.3]} position={[x, y, 21.6]}
+                    toon={{ color: DARKPANEL, shadow: DARK_SHADOW, rimStrength: 0.4 }} outline={0.06} castShadow={false} />
             ))}
 
-            {/* ── Elevator facade ─────────────────────────────────────── */}
+            {/* ── Portals on the side walls ───────────────────────────────── */}
+            <Portal position={[-14.6, 3.5, 2]}  rotation={[0, Math.PI/2, 0]}  color={PORTAL_BLUE} />
+            <Portal position={[14.6, 4.0, 8]}   rotation={[0, -Math.PI/2, 0]} color={PORTAL_ORNG} />
+
+            {/* ── Platforms ───────────────────────────────────────────────── */}
+            {F3_PLATFORMS.map((p, i) => {
+                const cy = p.topY - p.h / 2;
+                const w = p.hw * 2, d = p.hd * 2;
+                const isStart = i === 0;
+                const isGoal  = i === lastIdx;
+
+                const body = (
+                    <>
+                        <Shape kind="box" geoArgs={[w, p.h, d]} position={[0, cy, 0]}
+                            toon={PLAT_TOON[i]} outline={isStart ? 0 : 0.1} />
+                        {/* glowing portal-blue edge trim */}
+                        {!isStart && (
+                            <Shape kind="box" geoArgs={[w + 0.06, 0.08, d + 0.06]} position={[0, p.topY - 0.04, 0]}
+                                toon={{ color: PORTAL_BLUE, emissive: PORTAL_BLUE, emissiveStrength: 2.6, bands: 1 }} outline={0} castShadow={false} />
+                        )}
+                        {/* goal extras */}
+                        {isGoal && <ApertureLogo position={[0, p.topY + 3.2, d/2 - 0.1]} r={1.4} />}
+                        {isGoal && <CompanionCube position={[0, p.topY + 1.0, 0]} scale={0.9} />}
+                        {isGoal && (
+                            <Shape kind="box" geoArgs={[0.12, 3.4, 0.12]} position={[-1.9, p.topY + 1.7, -1.9]}
+                                toon={{ color: '#e8e8e8', rimStrength: 0.5 }} outline={0.04} />
+                        )}
+                        {isGoal && (
+                            <Shape kind="box" geoArgs={[1.0, 0.6, 0.05]} position={[-1.45, p.topY + 3.1, -1.9]}
+                                toon={{ color: PORTAL_ORNG, emissive: PORTAL_ORNG, emissiveStrength: 1.4, rimColor: PORTAL_ORNG, rimStrength: 1.0, bands: 2 }} outline={0.04} />
+                        )}
+                    </>
+                );
+
+                if (p.moving) {
+                    return <group key={i} ref={movingRef} position={[p.cx, 0, p.cz]}>{body}</group>;
+                }
+                return <group key={i} position={[p.cx, 0, p.cz]}>{body}</group>;
+            })}
+
+            {/* ── Floating accent panels for vertical depth ───────────────── */}
+            {[[-9, 11, 4],[9, 13, 9],[-7, 9, 14]].map(([x,y,z],i)=>(
+                <Shape key={i} kind="box" geoArgs={[2.4, 2.4, 0.4]} position={[x, y, z]}
+                    rotation={[0, (i-1)*0.4, 0.1*i]}
+                    toon={{ color: i%2 ? DARKPANEL : PANEL, shadow: i%2 ? DARK_SHADOW : PANEL_SHADOW, rimStrength: 0.6 }} outline={0.06} castShadow={false} />
+            ))}
+
+            {/* Elevator facade */}
             <group position={[0, 0, -10]}>
                 <ElevatorFacade z={0} height={5} width={10} />
             </group>
