@@ -829,7 +829,7 @@ export default function App() {
   // on level 2; restore the previous zoom when they leave.
   const savedZoomRef = useRef<number | null>(null);
   useEffect(() => {
-    if (currentLevel === 2) {
+    if (currentLevel === 2 || currentLevel === 3) {
       if (savedZoomRef.current === null) savedZoomRef.current = zoomLevel;
       setZoomLevel(0);
     } else if (savedZoomRef.current !== null) {
@@ -1053,7 +1053,7 @@ export default function App() {
           const pts = Array.from(activePointers.current.values()); const p1 = pts[0]; const p2 = pts[1];
           const dist = Math.sqrt(Math.pow(p1.currX-p2.currX, 2) + Math.pow(p1.currY-p2.currY, 2));
           // Floor 2 locks the camera in 1st person — ignore pinch zoom there.
-          if (prevPinchDist.current !== null && currentLevel !== 2) { const delta = dist - prevPinchDist.current; setZoomLevel(prev => Math.min(Math.max(prev - delta * 0.02, 0), 10)); }
+          if (prevPinchDist.current !== null && currentLevel !== 2 && currentLevel !== 3) { const delta = dist - prevPinchDist.current; setZoomLevel(prev => Math.min(Math.max(prev - delta * 0.02, 0), 10)); }
           prevPinchDist.current = dist;
       }
     }
@@ -1118,7 +1118,7 @@ export default function App() {
   const { info: botInfo } = useBotStore();
 
   return (
-    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
+    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2 || currentLevel === 3) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted || shopOpen} masterVolume={settings.masterVolume} nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} doorsClosed={doorsClosed} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
@@ -1244,27 +1244,25 @@ export default function App() {
                     truly bright emissive crystals + water surface bloom;
                     low enough to avoid washing the whole cave cyan. */}
                 <Bloom
-                    intensity={currentLevel === 2 ? 0.45 : 0.35}
-                    luminanceThreshold={currentLevel === 2 ? 0.72 : 0.95}
-                    luminanceSmoothing={currentLevel === 2 ? 0.25 : 0.2}
+                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 1.1 : 0.35}
+                    luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 3 ? 0.50 : 0.95}
+                    luminanceSmoothing={currentLevel === 2 ? 0.25 : currentLevel === 3 ? 0.30 : 0.2}
                     mipmapBlur
-                    kernelSize={currentLevel === 2 ? KernelSize.SMALL : KernelSize.MEDIUM}
+                    kernelSize={currentLevel === 2 ? KernelSize.SMALL : currentLevel === 3 ? KernelSize.LARGE : KernelSize.MEDIUM}
                 />
                 {/* Chromatic aberration — heavier underwater (light dispersion
-                    through liquid). 4x bigger offset on Floor 2 sells the
-                    "looking through water + a glass mask" feel. */}
+                    through liquid). Floor 3 (Portal 2 sci-fi) uses none. */}
                 <ChromaticAberration
                     blendFunction={BlendFunction.NORMAL}
                     offset={currentLevel === 2 ? [0.0035, 0.0035] as unknown as Vector3 : [0, 0] as unknown as Vector3}
                     radialModulation={false}
                     modulationOffset={0.0}
                 />
-                {/* Vignette — deeper darkness around the edges in the cave for
-                    a claustrophobic / isolation feel. */}
+                {/* Vignette — deep cave on Floor 2, subtle sci-fi on Floor 3. */}
                 <Vignette
                     eskil={false}
-                    offset={currentLevel === 2 ? 0.32 : 0.2}
-                    darkness={currentLevel === 2 ? 0.78 : 0.3}
+                    offset={currentLevel === 2 ? 0.32 : currentLevel === 3 ? 0.28 : 0.2}
+                    darkness={currentLevel === 2 ? 0.78 : currentLevel === 3 ? 0.55 : 0.3}
                 />
             </EffectComposer>
         )}

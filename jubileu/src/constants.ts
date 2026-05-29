@@ -196,12 +196,13 @@ const _WALLS_LOBBY_SEALED        = [..._LOBBY_BASE, DOOR_SEAL];
 // Floor 3 — open outdoor cartoon world (50×40 area, Z: -10..+30, X: ±25).
 // ELEV_W handles the elevator alcove. The doorway opening at x=[-1.3,1.3] is
 // not walled so the player can walk out; DOOR_SEAL closes it when sealed.
+// Portal 2 test chamber: 28 wide × 32 deep (X: ±14, Z: -10..+22)
 const FLOOR3_BND: number[][] = [
-    [-25, -10, -1.3, -10],  // left of elevator doorway
-    [1.3,  -10,  25, -10],  // right of elevator doorway
-    [-25,  -10, -25,  30],  // left boundary
-    [ 25,  -10,  25,  30],  // right boundary
-    [-25,   30,  25,  30],  // far boundary (behind castle)
+    [-14, -10, -1.3, -10],  // left of elevator doorway
+    [1.3,  -10,  14, -10],  // right of elevator doorway
+    [-14,  -10, -14,  22],  // left wall
+    [ 14,  -10,  14,  22],  // right wall
+    [-14,   22,  14,  22],  // far wall (behind Aperture logo)
 ];
 const _WALLS_FLOOR3              = [...ELEV_W, ...FLOOR3_BND];
 const _WALLS_FLOOR3_SEALED       = [..._WALLS_FLOOR3, DOOR_SEAL];
