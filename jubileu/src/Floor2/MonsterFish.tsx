@@ -275,9 +275,10 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     const _steer = useRef(new THREE.Vector3());   // context-steering output (XZ)
     // Anti-stuck: track real displacement; if pinned while trying to move, fire
     // a timed escape impulse toward open water.
-    const lastPos = useRef(new THREE.Vector3(-22, -20, -22));
-    const stuckT  = useRef(0);
-    const escapeT = useRef(0);
+    const lastPos    = useRef(new THREE.Vector3(-22, -20, -22));
+    const stuckT     = useRef(0);
+    const escapeT    = useRef(0);
+    const escapeCount = useRef(0); // consecutive escapes without progress → teleport
 
     // ─── Main loop ──────────────────────────────────────────────────────────
     useFrame(({ clock }, dt) => {
@@ -506,14 +507,19 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
 
         // ── Movement ─────────────────────────────────────────────────────────
         // Escape override — when the watchdog flags the shark as stuck it swims
-        // hard toward open water (cave centre) and rises, for a short burst,
-        // bypassing the normal goal so it always peels off a corner.
+        // toward open water, but uses context steering so it doesn't blunder
+        // into the very pillar/rock it's already wedged against (the old raw
+        // centre-point direction would drive straight into anything between the
+        // shark and origin, which is exactly how it kept getting re-stuck).
         if (escapeT.current > 0) {
             escapeT.current -= safeDt;
-            const ex = -fx, ez = -fz;
-            const el = Math.hypot(ex, ez) + 1e-3;
-            _v1.current.set(ex / el * 7, 3.0, ez / el * 7);
-            vel.current.lerp(_v1.current, safeDt * 5);
+            const escRange = 10;
+            sharkSteer.reset();
+            sharkSteer.addInterest(-fx * 1.5, -fz * 1.5, 1.0); // strong pull toward centre
+            _writeObstacleDanger(fx, fz, 1.4, escRange);         // wider clearance during escape
+            sharkSteer.pick(_steer.current);
+            _v1.current.set(_steer.current.x * 9, 3.5, _steer.current.z * 9);
+            vel.current.lerp(_v1.current, safeDt * 8);
         } else
         switch (state.current) {
             case 'patrol': {
@@ -653,8 +659,9 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         // ── Anti-stuck watchdog ────────────────────────────────────────────────
         // Per-frame motion is noisy (collision nudges), so we measure NET
         // progress over a 0.5s window: checkpoint the position, and if it
-        // barely moved while still trying to swim, fire an escape burst toward
-        // open water (consumed at the top of the movement switch next frame).
+        // barely moved while still trying to swim, fire an escape burst.
+        // After 3 consecutive escapes with no progress we give up and
+        // teleport to spawn — nothing else will free it from deep geometry.
         stuckT.current += safeDt;
         if (stuckT.current >= 0.5) {
             const net = Math.hypot(
@@ -662,8 +669,18 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 pos.current.y - lastPos.current.y,
                 pos.current.z - lastPos.current.z,
             );
-            if (escapeT.current <= 0 && vel.current.length() > 0.6 && net < 0.6) {
-                escapeT.current = 0.9;
+            if (net >= 2.0) {
+                escapeCount.current = 0; // making real progress — reset
+            } else if (escapeT.current <= 0 && vel.current.length() > 0.6 && net < 0.6) {
+                escapeCount.current++;
+                if (escapeCount.current >= 3) {
+                    // Still stuck after 3 escape bursts — teleport to spawn
+                    pos.current.copy(SPAWN_POS);
+                    vel.current.set(0, 0, 0);
+                    escapeCount.current = 0;
+                } else {
+                    escapeT.current = 1.2; // longer escape burst (was 0.9)
+                }
             }
             lastPos.current.copy(pos.current);
             stuckT.current = 0;
