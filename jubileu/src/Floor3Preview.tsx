@@ -6,29 +6,51 @@
  * camera roughly at player eye level, so the scene can be screenshotted and
  * tuned without booting the whole game (audio, networking, player GLB, etc.).
  * Has no gameplay and is never reached in production.
+ *
+ * `?handsdebug` swaps the scene for the raw gloves GLB at the origin (identity
+ * rotation, with an axes helper) so the model's native orientation can be read
+ * directly and the first-person pose dialed in.
  */
 
 import { Canvas } from '@react-three/fiber';
 import { EffectComposer, Bloom, Vignette, N8AO, HueSaturation } from '@react-three/postprocessing';
 import { KernelSize } from 'postprocessing';
 import { ACESFilmicToneMapping, SRGBColorSpace } from 'three';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, useGLTF, Grid } from '@react-three/drei';
 import { Suspense } from 'react';
 import Floor3Environment from './Floor3';
 
+function HandsDebug() {
+    const { scene } = useGLTF('/cartoon_gloves.glb');
+    return (
+        <group>
+            <ambientLight intensity={0.8} />
+            <directionalLight position={[3, 5, 4]} intensity={1.2} />
+            <axesHelper args={[1]} />
+            <Grid args={[4, 4]} cellSize={0.25} sectionSize={1} infiniteGrid fadeDistance={12} />
+            <primitive object={scene} scale={2} />
+        </group>
+    );
+}
+
 export default function Floor3Preview() {
+    const search = window.location.search;
+    const debug = search.includes('handsdebug');
+    const dbgCam: [number, number, number] = search.includes('top') ? [0, 3, 0.001]
+        : search.includes('front') ? [0, 0.2, 3]
+        : [1.6, 1.2, 1.6];
     return (
         <div style={{ width: '100vw', height: '100vh', background: '#000' }}>
             <Canvas
                 shadows
-                camera={{ position: window.location.search.includes('close') ? [0, 2.2, 8] : [0, 1.6, -8], fov: 70, near: 0.1, far: 200 }}
+                camera={{ position: debug ? dbgCam : search.includes('close') ? [0, 2.2, 8] : [0, 1.6, -8], fov: 70, near: 0.1, far: 200 }}
                 gl={{ antialias: true, toneMapping: ACESFilmicToneMapping, outputColorSpace: SRGBColorSpace }}
             >
                 <Suspense fallback={null}>
-                    <Floor3Environment elevator={false} />
+                    {debug ? <HandsDebug /> : <Floor3Environment elevator={false} />}
                 </Suspense>
-                <OrbitControls target={[0, 1.5, 4]} />
-                {!window.location.search.includes('nopost') && (
+                <OrbitControls target={debug ? [0, 0, 0] : [0, 1.5, 4]} />
+                {!debug && !search.includes('nopost') && (
                 <EffectComposer multisampling={0} enableNormalPass={false}>
                     <N8AO
                         screenSpaceRadius
