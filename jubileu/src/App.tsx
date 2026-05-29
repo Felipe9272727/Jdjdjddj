@@ -42,7 +42,7 @@ import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES, type QualityPr
 import { BotSystem, BotHud, ViewportDebug, useBotStore } from './Bot';
 import { RobloxChat, BubbleChatFallback } from './ChatSystem';
 import { GameEffects, DustParticles, FluorescentFlicker, NightAmbient, EmptyLobbyAmbience } from './PostEffects';
-import { CeilingFan, WallClock, playArrivalDing, createElevatorHum, playJumpscareStab, playEquipChime, createCaveAmbience, createMonsterAmbience, createUnderwaterAmbience, playSharkRoar, playDetectionSting, playBubble } from './Atmosphere';
+import { CeilingFan, WallClock, playArrivalDing, createElevatorHum, playJumpscareStab, playEquipChime, createCaveAmbience, createMonsterAmbience, createUnderwaterAmbience, playSharkRoar, playDetectionSting, playBubble, createFloor2Music, createChaseMusic, playJumpscareMusic } from './Atmosphere';
 import { ElevatorHud, FloorReveal, TopControls, ActionButton, NightBanner, ChaseBanner, SavedOverlay, BarneyDialogue, playHeartbeat } from './HudComponents';
 import { SceneInspector } from './SceneInspector';
 import { perfGovernor } from './ai/perfGovernor';
@@ -397,6 +397,44 @@ export default function App() {
     }
   }, [currentLevel, audioCtx, muted]);
 
+  // Floor 2 background score — haunted aquarium underscore. Swells with the
+  // shark's drama (proximity) via the poll below.
+  const floor2MusicRef = useRef<ReturnType<typeof createFloor2Music> | null>(null);
+  useEffect(() => {
+    if (currentLevel === 2 && audioCtx && !muted) {
+      if (!floor2MusicRef.current) floor2MusicRef.current = createFloor2Music(audioCtx);
+    } else if (floor2MusicRef.current) {
+      floor2MusicRef.current.stop();
+      floor2MusicRef.current = null;
+    }
+    return () => {
+      if (floor2MusicRef.current) { floor2MusicRef.current.stop(); floor2MusicRef.current = null; }
+    };
+  }, [currentLevel, audioCtx, muted]);
+
+  // Chase music — driving ostinato during the Barney chase, intensity rising
+  // as he closes the gap (barneyDistRef). Started/stopped by game state.
+  const chaseMusicRef = useRef<ReturnType<typeof createChaseMusic> | null>(null);
+  useEffect(() => {
+    const inChase = gameState === 'chase';
+    if (inChase && audioCtx && !muted) {
+      if (!chaseMusicRef.current) chaseMusicRef.current = createChaseMusic(audioCtx);
+      const id = setInterval(() => {
+        // Closer Barney → hotter music (≈8m away = calm, ≈1.5m = frantic).
+        const d = barneyDistRef.current;
+        const intensity = Math.max(0, Math.min(1, (8 - d) / 6.5));
+        chaseMusicRef.current?.setIntensity(intensity);
+      }, 150);
+      return () => {
+        clearInterval(id);
+        if (chaseMusicRef.current) { chaseMusicRef.current.stop(); chaseMusicRef.current = null; }
+      };
+    } else if (chaseMusicRef.current) {
+      chaseMusicRef.current.stop();
+      chaseMusicRef.current = null;
+    }
+  }, [gameState, audioCtx, muted]);
+
   // Poll proximity ref every 80ms → update audio gain + DOM darkness + heartbeat
   const heartbeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -411,6 +449,7 @@ export default function App() {
     const id = setInterval(() => {
       const p = monsterProximityRef.current;
       monsterAmbienceRef.current?.setProximity(p);
+      floor2MusicRef.current?.setIntensity(p);
       setMonsterDarkness(p * p * 0.45);
       // Depth-driven underwater ambience: fade in over the first ~5 units below
       // the swim threshold (-2.7). Up in the cave → silent.
@@ -605,6 +644,7 @@ export default function App() {
               // No 20s travel here — the jumpscare IS the transition.
               resolved.current = true;
               setJumpscare(true);
+              if (!muted) { playJumpscareStab(audioCtx); playJumpscareMusic(audioCtx); }
               setGameState('caught');
               scheduleTimeout(() => {
                   setJumpscare(false);
@@ -1091,6 +1131,7 @@ export default function App() {
                 setDevoured(true);
                 playJumpscareStab(audioCtx);
                 playSharkRoar(audioCtx);
+                playJumpscareMusic(audioCtx);
                 if (monsterAmbienceRef.current) {
                   monsterAmbienceRef.current.stop();
                   monsterAmbienceRef.current = null;
@@ -1311,176 +1352,36 @@ export default function App() {
         </div>
       )}
 
-      {/* Fish monster jumpscare — shark slams camera.
-          t=0       : red blood flash + chromatic tear
-          t=0–80ms  : max shake / impact
-          t=80–500ms: shark maw fills screen, zooms in fast
-          t=500–2400ms: maw holds then fades into black
-          t=2400ms+  : level reset */}
+      {/* Fish monster jumpscare — the 3D shark rushes the camera and IS the
+          scare. This overlay only adds the cinematic impact: a red flash, a
+          chromatic tear, a closing vignette and a fade-to-black, all with a
+          CLEAR CENTRE so the real 3D shark maw shows through. */}
       {fishJumpscareKey > 0 && (
         <div key={`fishjs-${fishJumpscareKey}`} className="fixed inset-0 z-[96] pointer-events-none overflow-hidden">
           <style>{`
-            @keyframes sharkFlash {
-              0%   { opacity:0 }
-              4%   { opacity:1; filter:hue-rotate(0deg) saturate(3) }
-              18%  { opacity:0.85; filter:hue-rotate(340deg) saturate(2) }
-              100% { opacity:0 }
-            }
-            @keyframes sharkBloodBurst {
-              0%   { opacity:0; transform:scale(0.3) }
-              8%   { opacity:0.7; transform:scale(1.2) }
-              35%  { opacity:0.4; transform:scale(1.0) }
-              100% { opacity:0; transform:scale(1.05) }
-            }
-            @keyframes sharkMawIn {
-              0%   { opacity:0; transform:scale(0.1) rotate(-3deg) }
-              10%  { opacity:1; transform:scale(1.08) rotate(1deg) }
-              20%  { transform:scale(0.98) rotate(0deg) }
-              75%  { opacity:1 }
-              100% { opacity:0 }
-            }
-            @keyframes sharkFadeBlk {
-              0%   { opacity:0 }
-              55%  { opacity:0 }
-              100% { opacity:1 }
-            }
-            @keyframes sharkScreenShake {
-              0%,100% { transform:translate(0,0) }
-              10%  { transform:translate(-8px, 5px) }
-              20%  { transform:translate(7px, -6px) }
-              30%  { transform:translate(-5px, 8px) }
-              40%  { transform:translate(9px, -4px) }
-              50%  { transform:translate(-4px, 6px) }
-              60%  { transform:translate(6px, -5px) }
-              70%  { transform:translate(-7px, 3px) }
-              80%  { transform:translate(4px, -7px) }
-              90%  { transform:translate(-3px, 5px) }
-            }
-            @keyframes sharkEyePulse { 0%,100%{opacity:1} 50%{opacity:0.6;filter:brightness(3)} }
-            @keyframes aberrR { 0%{transform:translate(0,0)} 10%{transform:translate(6px,-3px)} 25%{transform:translate(-4px,2px)} 100%{transform:translate(0,0)} }
-            @keyframes aberrB { 0%{transform:translate(0,0)} 10%{transform:translate(-6px,3px)} 25%{transform:translate(4px,-2px)} 100%{transform:translate(0,0)} }
-            .shark-wrap   { animation: sharkScreenShake 350ms cubic-bezier(0.2,0.8,0.3,1) forwards; }
-            .shark-flash  { animation: sharkFlash    200ms ease-out forwards; }
-            .shark-blood  { animation: sharkBloodBurst 600ms ease-out forwards; }
-            .shark-maw    { animation: sharkMawIn   2400ms cubic-bezier(0.05,1.0,0.2,1) forwards; }
-            .shark-fadeblk{ animation: sharkFadeBlk 2400ms ease-in forwards; }
-            .shark-eye    { animation: sharkEyePulse 180ms ease-in-out 3; }
-            .aberr-r      { animation: aberrR 400ms ease-out forwards; mix-blend-mode:screen; }
-            .aberr-b      { animation: aberrB 400ms ease-out forwards; mix-blend-mode:screen; }
+            @keyframes jsImpact { 0%{opacity:0} 6%{opacity:1} 30%{opacity:.4} 100%{opacity:0} }
+            @keyframes jsVign   { 0%{opacity:.15} 100%{opacity:1} }
+            @keyframes jsBlk    { 0%{opacity:0} 60%{opacity:0} 100%{opacity:1} }
+            @keyframes jsShake3 { 0%,100%{transform:translate(0,0)} 12%{transform:translate(-10px,7px)} 24%{transform:translate(9px,-8px)} 38%{transform:translate(-7px,10px)} 52%{transform:translate(11px,-5px)} 66%{transform:translate(-6px,7px)} 80%{transform:translate(7px,-6px)} }
+            @keyframes jsAberrR { 0%{transform:translate(0,0)} 12%{transform:translate(8px,-4px)} 30%{transform:translate(-5px,3px)} 100%{transform:translate(0,0)} }
+            @keyframes jsAberrB { 0%{transform:translate(0,0)} 12%{transform:translate(-8px,4px)} 30%{transform:translate(5px,-3px)} 100%{transform:translate(0,0)} }
+            .js-wrap   { animation: jsShake3 700ms cubic-bezier(.2,.8,.3,1) forwards; }
+            .js-impact { animation: jsImpact 700ms ease-out forwards; }
+            .js-vign   { animation: jsVign 900ms ease-in forwards; }
+            .js-blk    { animation: jsBlk 2800ms ease-in forwards; }
+            .js-ar     { animation: jsAberrR 600ms ease-out forwards; mix-blend-mode:screen; }
+            .js-ab     { animation: jsAberrB 600ms ease-out forwards; mix-blend-mode:screen; }
           `}</style>
-
-          <div className="shark-wrap absolute inset-0">
-            {/* Chromatic aberration — red channel shift */}
-            <div className="aberr-r absolute inset-0 opacity-40" style={{ background:'radial-gradient(ellipse at center,rgba(255,0,0,0.5) 0%,transparent 70%)' }} />
-            {/* Chromatic aberration — blue channel shift */}
-            <div className="aberr-b absolute inset-0 opacity-30" style={{ background:'radial-gradient(ellipse at center,rgba(0,60,255,0.4) 0%,transparent 70%)' }} />
-
-            {/* Blood/impact flash */}
-            <div className="shark-flash absolute inset-0" style={{ background:'radial-gradient(ellipse at center,#cc1100 0%,#440000 50%,#000 100%)' }} />
-
-            {/* Blood burst radial */}
-            <div className="shark-blood absolute inset-0" style={{ background:'radial-gradient(ellipse at 50% 55%,rgba(180,0,0,0.85) 0%,rgba(80,0,0,0.6) 30%,transparent 70%)' }} />
-
-            {/* Shark maw SVG — fills the whole viewport */}
-            <div className="shark-maw absolute inset-0 flex items-center justify-center">
-              <svg viewBox="-100 -70 200 140" width="120%" height="120%"
-                style={{ position:'absolute', top:'-10%', left:'-10%' }}>
-
-                {/* Deep black void / throat */}
-                <ellipse cx="0" cy="5" rx="115" ry="85" fill="#000" />
-                <ellipse cx="0" cy="8" rx="82"  ry="58" fill="#04000a" />
-                {/* Throat depth gradient */}
-                <radialGradient id="throat" cx="50%" cy="55%" r="50%">
-                  <stop offset="0%" stopColor="#08000f" />
-                  <stop offset="100%" stopColor="#000" />
-                </radialGradient>
-                <ellipse cx="0" cy="12" rx="65" ry="48" fill="url(#throat)" />
-
-                {/* Gum / flesh — dark red visible around tooth bases */}
-                <path d="M-80,2 Q-60,-40 0,-50 Q60,-40 80,2 Q60,42 0,48 Q-60,42 -80,2 Z"
-                  fill="#1a0008" stroke="#330010" strokeWidth="0.5" />
-
-                {/* ── UPPER TEETH (serrated shark row) ── */}
-                {[
-                  [-62,-10, -55,-10, -58.5,-46],
-                  [-48,-12, -40,-12, -44,-50],
-                  [-33,-14, -24,-14, -28.5,-54],
-                  [-18,-16, -8,-16,  -13,-56],
-                  [ -4,-17,  6,-17,    1,-57],
-                  [ 10,-16, 20,-16,   15,-55],
-                  [ 23,-14, 33,-14,   28,-52],
-                  [ 38,-12, 47,-12,   42.5,-49],
-                  [ 51,-10, 60,-10,   55.5,-45],
-                ].map(([x1,y1,x2,y2,tx,ty], i) => (
-                  <polygon key={`ut${i}`}
-                    points={`${x1},${y1} ${x2},${y2} ${tx},${ty}`}
-                    fill={i % 2 === 0 ? '#e8e4d8' : '#d4d0c4'} opacity="0.95" />
-                ))}
-                {/* Second serration row (smaller, offset) */}
-                {[[-55,-8,-50,-8,-52.5,-30],[-38,-11,-32,-11,-35,-32],[- 7,-13, 0,-13,-3.5,-33],[10,-13,17,-13,13.5,-32],[33,-11,39,-11,36,-30],[49,-8,55,-8,52,-28]].map(([x1,y1,x2,y2,tx,ty],i) => (
-                  <polygon key={`ut2${i}`} points={`${x1},${y1} ${x2},${y2} ${tx},${ty}`} fill="#ccc8bc" opacity="0.6" />
-                ))}
-
-                {/* ── LOWER TEETH ── */}
-                {[
-                  [-60,14, -52,14, -56,44],
-                  [-46,18, -37,18, -41.5,48],
-                  [-30,20, -21,20, -25.5,52],
-                  [-14,22,  -4,22,  -9,54],
-                  [  2,22,  12,22,   7,55],
-                  [ 16,21,  26,21,  21,53],
-                  [ 29,19,  39,19,  34,50],
-                  [ 42,17,  51,17,  46.5,47],
-                  [ 54,14,  62,14,  58,43],
-                ].map(([x1,y1,x2,y2,tx,ty], i) => (
-                  <polygon key={`lt${i}`}
-                    points={`${x1},${y1} ${x2},${y2} ${tx},${ty}`}
-                    fill={i % 2 === 0 ? '#dedad0' : '#cac6ba'} opacity="0.92" />
-                ))}
-
-                {/* Blood dripping from upper gum */}
-                {[[-42,-12],[-18,-14],[8,-15],[32,-13],[56,-10]].map(([bx, by], i) => (
-                  <ellipse key={`bd${i}`} cx={bx} cy={by - 2} rx="1.8" ry={3 + i * 0.8}
-                    fill="#880000" opacity="0.7" />
-                ))}
-
-                {/* ── EYES — black oval pupils, amber iris, no whites ── */}
-                <g className="shark-eye">
-                  <ellipse cx="-45" cy="-18" rx="13" ry="11" fill="#1a0800" />
-                  <ellipse cx="-45" cy="-18" rx="10" ry="8"  fill="#cc5500" />
-                  <ellipse cx="-45" cy="-18" rx="5"  ry="9"  fill="#000" />  {/* vertical pupil */}
-                  <ellipse cx="-43" cy="-21" rx="2"  ry="1.5" fill="rgba(255,200,100,0.4)" />
-                  <ellipse cx="-45" cy="-18" rx="14" ry="12" fill="none" stroke="#ff6600" strokeWidth="1.2" opacity="0.5" />
-                </g>
-                <g className="shark-eye">
-                  <ellipse cx=" 45" cy="-18" rx="13" ry="11" fill="#1a0800" />
-                  <ellipse cx=" 45" cy="-18" rx="10" ry="8"  fill="#cc5500" />
-                  <ellipse cx=" 45" cy="-18" rx="5"  ry="9"  fill="#000" />
-                  <ellipse cx=" 43" cy="-21" rx="2"  ry="1.5" fill="rgba(255,200,100,0.4)" />
-                  <ellipse cx=" 45" cy="-18" rx="14" ry="12" fill="none" stroke="#ff6600" strokeWidth="1.2" opacity="0.5" />
-                </g>
-
-                {/* Gill slits — visible on sides */}
-                {[[-82,-5],[-78,2],[-74,9],[-70,15]].map(([gx,gy],i) => (
-                  <line key={`gl${i}`} x1={gx} y1={gy-4} x2={gx+5} y2={gy+6}
-                    stroke="#330010" strokeWidth="1.5" opacity="0.8" />
-                ))}
-                {[[82,-5],[78,2],[74,9],[70,15]].map(([gx,gy],i) => (
-                  <line key={`gr${i}`} x1={gx} y1={gy-4} x2={gx-5} y2={gy+6}
-                    stroke="#330010" strokeWidth="1.5" opacity="0.8" />
-                ))}
-
-                {/* Snout tip at top */}
-                <ellipse cx="0" cy="-62" rx="18" ry="12" fill="#0a0006" />
-                <ellipse cx="0" cy="-55" rx="10" ry="6"  fill="#150010" />
-
-                {/* Lateral line glow — faint bio stripe */}
-                <line x1="-90" y1="2" x2="90" y2="2" stroke="#002a14" strokeWidth="1.5" opacity="0.4" />
-              </svg>
-            </div>
-
-            {/* Fade to black */}
-            <div className="shark-fadeblk absolute inset-0 bg-black" />
+          <div className="js-wrap absolute inset-0">
+            {/* Chromatic tear — sells the bite impact */}
+            <div className="js-ar absolute inset-0 opacity-40" style={{ background:'radial-gradient(ellipse at center,rgba(255,0,0,0.45) 0%,transparent 65%)' }} />
+            <div className="js-ab absolute inset-0 opacity-30" style={{ background:'radial-gradient(ellipse at center,rgba(0,80,255,0.4) 0%,transparent 65%)' }} />
+            {/* Blood impact flash — centre stays clear so the 3D maw shows */}
+            <div className="js-impact absolute inset-0" style={{ background:'radial-gradient(ellipse at center,transparent 30%,rgba(130,0,0,0.55) 62%,#180000 100%)' }} />
+            {/* Vignette crushing in from the edges */}
+            <div className="js-vign absolute inset-0" style={{ background:'radial-gradient(ellipse at center,transparent 32%,rgba(0,0,0,0.85) 80%,#000 100%)' }} />
+            {/* Final fade to black */}
+            <div className="js-blk absolute inset-0 bg-black" />
           </div>
 
           {/* DEVORADO text */}
@@ -1493,7 +1394,7 @@ export default function App() {
                   75%  { opacity:1; }
                   100% { opacity:0; }
                 }
-                .devorado-text { animation: devoradoIn 2400ms ease-in-out forwards; animation-delay: 400ms; opacity:0; }
+                .devorado-text { animation: devoradoIn 2400ms ease-in-out forwards; animation-delay: 900ms; opacity:0; }
               `}</style>
               <div className="devorado-text text-center select-none">
                 <div style={{ color:'#cc1100', fontFamily:'monospace', fontWeight:'900', fontSize:'clamp(1.8rem,6vw,3.5rem)', letterSpacing:'0.35em', textShadow:'0 0 40px rgba(220,0,0,0.9), 0 0 80px rgba(200,0,0,0.4)' }}>

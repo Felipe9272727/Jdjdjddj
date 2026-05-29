@@ -747,6 +747,241 @@ export const playSharkRoar = (audioContext: AudioContext | null) => {
     ns.start(t); ns.stop(t + 0.5);
 };
 
+// ─── MUSIC ───────────────────────────────────────────────────────────────────
+// All three tracks are fully procedural (Web Audio), looped by a small
+// look-ahead note scheduler so they cost nothing to ship and never need an
+// asset download. Each returns { setIntensity?, stop } so the game can swell
+// them with the drama directors.
+
+const _NOTE = (semi: number) => 220 * Math.pow(2, semi / 12); // A3 = semitone 0
+
+/**
+ * Floor 2 background score — a slow, haunted aquarium underscore: a minor pad
+ * that breathes, with a sparse high bell motif drifting over it. setIntensity
+ * (0..1) opens the filter, lifts the volume and quickens the motif as dread
+ * rises (drive it from the shark director). Returns { setIntensity, stop }.
+ */
+export const createFloor2Music = (audioContext: AudioContext | null): {
+    setIntensity: (v: number) => void; stop: () => void;
+} => {
+    if (!audioContext) return { setIntensity: () => {}, stop: () => {} };
+    const ctx = audioContext;
+    const t0 = ctx.currentTime;
+
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0, t0);
+    master.gain.linearRampToValueAtTime(0.0, t0 + 0.01);
+    master.gain.linearRampToValueAtTime(0.16, t0 + 4); // slow fade-in
+    const lpf = ctx.createBiquadFilter();
+    lpf.type = 'lowpass'; lpf.frequency.value = 600; lpf.Q.value = 0.6;
+    master.connect(lpf).connect(ctx.destination);
+
+    // Sustained chord pad — A minor add9 (A, C, E, B) low in the mix.
+    const padGain = ctx.createGain(); padGain.gain.value = 0.5; padGain.connect(master);
+    const padOscs: OscillatorNode[] = [];
+    for (const semi of [-12, -9, -5, 2]) {
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = _NOTE(semi);
+        const d = ctx.createOscillator(); // slow detune partner
+        d.type = 'sine'; d.frequency.value = _NOTE(semi) * 1.004;
+        o.connect(padGain); d.connect(padGain);
+        o.start(t0); d.start(t0);
+        padOscs.push(o, d);
+    }
+    // Tremolo on the pad so it "breathes".
+    const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.12;
+    const lfoG = ctx.createGain(); lfoG.gain.value = 0.18;
+    lfo.connect(lfoG).connect(padGain.gain); lfo.start(t0);
+
+    // Sparse bell motif (A minor pentatonic) scheduled ahead.
+    const scale = [0, 3, 5, 7, 10, 12, 15];
+    let intensity = 0;
+    let step = 0;
+    const schedule = () => {
+        const tt = ctx.currentTime + 0.05;
+        // Play a bell note now-and-then; denser as intensity rises.
+        if (Math.random() < 0.45 + intensity * 0.4) {
+            const semi = scale[Math.floor(Math.random() * scale.length)] + 12;
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0, tt);
+            g.gain.linearRampToValueAtTime(0.06 + intensity * 0.06, tt + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0008, tt + 1.6);
+            const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = _NOTE(semi);
+            const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = _NOTE(semi) * 2;
+            const g2 = ctx.createGain(); g2.gain.value = 0.35; o2.connect(g2).connect(g);
+            o.connect(g).connect(master);
+            o.start(tt); o.stop(tt + 1.7); o2.start(tt); o2.stop(tt + 1.7);
+        }
+        step++;
+    };
+    // Look-ahead scheduler — interval shortens as intensity climbs.
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const arm = () => {
+        if (timer) clearInterval(timer);
+        const period = 1400 - intensity * 700; // 1.4s → 0.7s
+        timer = setInterval(schedule, period);
+    };
+    arm();
+
+    return {
+        setIntensity: (v: number) => {
+            const c = Math.max(0, Math.min(1, v));
+            if (Math.abs(c - intensity) > 0.12) { intensity = c; arm(); }
+            else intensity = c;
+            const now = ctx.currentTime;
+            master.gain.cancelScheduledValues(now);
+            master.gain.linearRampToValueAtTime(0.13 + c * 0.13, now + 0.6);
+            lpf.frequency.linearRampToValueAtTime(520 + c * 1600, now + 0.6);
+        },
+        stop: () => {
+            const now = ctx.currentTime;
+            try { master.gain.cancelScheduledValues(now); master.gain.linearRampToValueAtTime(0, now + 1.2); } catch {}
+            if (timer) { clearInterval(timer); timer = null; }
+            setTimeout(() => {
+                try { padOscs.forEach(o => { o.stop(); o.disconnect(); }); lfo.stop(); } catch {}
+                try { master.disconnect(); lpf.disconnect(); } catch {}
+            }, 1400);
+        },
+    };
+};
+
+/**
+ * Chase music — a driving, panicked ostinato: a galloping bass pulse, an
+ * off-beat dissonant stab and a noise hat, all in a tense phrygian colour.
+ * setIntensity (0..1) drives tempo + brightness + an extra high tremolo layer.
+ * Used for the Barney chase and the shark's "peak" assault.
+ */
+export const createChaseMusic = (audioContext: AudioContext | null): {
+    setIntensity: (v: number) => void; stop: () => void;
+} => {
+    if (!audioContext) return { setIntensity: () => {}, stop: () => {} };
+    const ctx = audioContext;
+    const t0 = ctx.currentTime;
+
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0, t0);
+    master.gain.linearRampToValueAtTime(0.22, t0 + 0.5);
+    const hpf = ctx.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 40;
+    master.connect(hpf).connect(ctx.destination);
+
+    let intensity = 0.5;
+    let beat = 0;
+    // Phrygian-ish menace: root, b2, b3, 5
+    const bassSeq = [-24, -24, -22, -24, -19, -24, -22, -21];
+
+    const tick = () => {
+        const tt = ctx.currentTime + 0.04;
+        const i = beat % 8;
+        // Gallop bass.
+        const bo = ctx.createOscillator(); bo.type = 'sawtooth';
+        bo.frequency.setValueAtTime(_NOTE(bassSeq[i]), tt);
+        const bf = ctx.createBiquadFilter(); bf.type = 'lowpass';
+        bf.frequency.value = 300 + intensity * 900; bf.Q.value = 4;
+        const bg = ctx.createGain();
+        bg.gain.setValueAtTime(0.0001, tt);
+        bg.gain.exponentialRampToValueAtTime(0.3, tt + 0.01);
+        bg.gain.exponentialRampToValueAtTime(0.001, tt + 0.18);
+        bo.connect(bf).connect(bg).connect(master);
+        bo.start(tt); bo.stop(tt + 0.2);
+        // Off-beat dissonant stab.
+        if (i % 2 === 1) {
+            const sg = ctx.createGain();
+            sg.gain.setValueAtTime(0.0001, tt);
+            sg.gain.exponentialRampToValueAtTime(0.07 + intensity * 0.08, tt + 0.008);
+            sg.gain.exponentialRampToValueAtTime(0.001, tt + 0.25);
+            for (const semi of [1, 8, 13]) { // dissonant cluster
+                const o = ctx.createOscillator(); o.type = 'square';
+                o.frequency.value = _NOTE(semi); o.connect(sg);
+                o.start(tt); o.stop(tt + 0.26);
+            }
+            sg.connect(master);
+        }
+        // Noise hat — denser when intense.
+        if (intensity > 0.4 || i % 2 === 0) {
+            const nlen = Math.floor(ctx.sampleRate * 0.06);
+            const nb = ctx.createBuffer(1, nlen, ctx.sampleRate);
+            const nd = nb.getChannelData(0);
+            for (let k = 0; k < nlen; k++) nd[k] = (Math.random() * 2 - 1) * (1 - k / nlen);
+            const ns = ctx.createBufferSource(); ns.buffer = nb;
+            const nf = ctx.createBiquadFilter(); nf.type = 'highpass'; nf.frequency.value = 6000;
+            const ng = ctx.createGain(); ng.gain.value = 0.04 + intensity * 0.05;
+            ns.connect(nf).connect(ng).connect(master);
+            ns.start(tt); ns.stop(tt + 0.06);
+        }
+        beat++;
+    };
+
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const arm = () => {
+        if (timer) clearInterval(timer);
+        const period = 230 - intensity * 80; // ~130–160 bpm eighths → faster when intense
+        timer = setInterval(tick, period);
+    };
+    arm();
+
+    return {
+        setIntensity: (v: number) => {
+            const c = Math.max(0, Math.min(1, v));
+            if (Math.abs(c - intensity) > 0.12) { intensity = c; arm(); }
+            else intensity = c;
+            const now = ctx.currentTime;
+            master.gain.cancelScheduledValues(now);
+            master.gain.linearRampToValueAtTime(0.16 + c * 0.16, now + 0.4);
+        },
+        stop: () => {
+            const now = ctx.currentTime;
+            try { master.gain.cancelScheduledValues(now); master.gain.linearRampToValueAtTime(0, now + 0.5); } catch {}
+            if (timer) { clearInterval(timer); timer = null; }
+            setTimeout(() => { try { master.disconnect(); hpf.disconnect(); } catch {} }, 700);
+        },
+    };
+};
+
+/**
+ * Jumpscare musical hit — a short, brutal orchestral-style stinger: a low
+ * cluster "BRAAM", a fast downward dissonant glissando and a cymbal-ish noise
+ * crash. Layer this with playSharkRoar / playJumpscareStab on the kill.
+ */
+export const playJumpscareMusic = (audioContext: AudioContext | null) => {
+    if (!audioContext) return;
+    const ctx = audioContext;
+    const t = ctx.currentTime;
+
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.5, t + 0.02);
+    out.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
+    out.connect(ctx.destination);
+
+    // Low brass cluster "braam".
+    const lpf = ctx.createBiquadFilter(); lpf.type = 'lowpass';
+    lpf.frequency.setValueAtTime(1400, t); lpf.frequency.exponentialRampToValueAtTime(300, t + 1.4);
+    lpf.connect(out);
+    for (const semi of [-24, -23, -17, -12]) {
+        const o = ctx.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(_NOTE(semi), t);
+        o.frequency.linearRampToValueAtTime(_NOTE(semi) * 0.97, t + 1.6); // slight sag
+        o.connect(lpf); o.start(t); o.stop(t + 1.8);
+    }
+    // Downward dissonant glissando (the "drop").
+    const g2 = ctx.createGain(); g2.gain.setValueAtTime(0.18, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    g2.connect(out);
+    const gl = ctx.createOscillator(); gl.type = 'square';
+    gl.frequency.setValueAtTime(1200, t); gl.frequency.exponentialRampToValueAtTime(80, t + 0.55);
+    gl.connect(g2); gl.start(t); gl.stop(t + 0.6);
+    // Crash — bright noise burst.
+    const nlen = Math.floor(ctx.sampleRate * 0.9);
+    const nb = ctx.createBuffer(1, nlen, ctx.sampleRate);
+    const nd = nb.getChannelData(0);
+    for (let i = 0; i < nlen; i++) nd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / nlen, 1.6);
+    const ns = ctx.createBufferSource(); ns.buffer = nb;
+    const nf = ctx.createBiquadFilter(); nf.type = 'highpass'; nf.frequency.value = 3500;
+    const ng = ctx.createGain(); ng.gain.setValueAtTime(0.25, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+    ns.connect(nf).connect(ng).connect(ctx.destination);
+    ns.start(t); ns.stop(t + 0.9);
+};
+
 /**
  * Wall clock — ticking clock on the lobby wall for atmosphere.
  */

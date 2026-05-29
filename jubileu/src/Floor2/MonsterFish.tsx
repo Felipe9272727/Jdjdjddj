@@ -383,12 +383,22 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
             fillLightRef.current.intensity = 8 + alertness.current * 10;
         }
 
-        // ── Jumpscare — overrides normal AI ─────────────────────────────────
+        // ── Jumpscare — the 3D shark IS the scare (no 2D overlay art) ────────
         if (jsPhase.current !== 'none') {
             jsTimer.current += safeDt;
             const jt = jsTimer.current;
 
-            // 280 ms of raw terror (player sees the shark's face) then fire overlay
+            // Lock the biting animation and flare the fill light blood-red and
+            // bright so the maw is fully lit as it engulfs the camera.
+            playAnim('Swim_Bite', 0.05);
+            if (fillLightRef.current) {
+                fillLightRef.current.color.copy(_enraged);
+                fillLightRef.current.intensity = 26;
+                fillLightRef.current.distance = 26;
+            }
+
+            // Brief beat of raw terror (the player sees the maw fill the screen)
+            // before the DOM impact/vignette overlay fires.
             if (!callbackFired.current && jt >= JUMPSCARE_DELAY) {
                 callbackFired.current = true;
                 if (cameraShakeRef) cameraShakeRef.current = false;
@@ -396,17 +406,22 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
             }
 
             if (jsPhase.current === 'rush') {
+                // Lunge slightly PAST the camera so the open mouth swallows the
+                // whole view instead of stopping politely in front of it.
                 const tp = jsTarget.current;
                 const rdx = tp.x - pos.current.x;
                 const rdy = tp.y - pos.current.y;
                 const rdz = tp.z - pos.current.z;
                 const rl  = Math.sqrt(rdx*rdx + rdy*rdy + rdz*rdz) + 0.001;
-                vel.current.set(rdx / rl * 55, rdy / rl * 55, rdz / rl * 55);
+                const rushSpd = 60;
+                vel.current.set(rdx / rl * rushSpd, rdy / rl * rushSpd, rdz / rl * rushSpd);
                 pos.current.x += vel.current.x * safeDt;
                 pos.current.y += vel.current.y * safeDt;
                 pos.current.z += vel.current.z * safeDt;
+                // Overshoot: once we're basically on the camera, keep drifting in
+                // along the same heading so the maw stays filling the frame.
                 g.position.copy(pos.current);
-                if (jt > 1.0) jsPhase.current = 'done';
+                if (jt > 1.2) jsPhase.current = 'done';
             }
             _updateOrientation(g, safeDt, true);
             return;
