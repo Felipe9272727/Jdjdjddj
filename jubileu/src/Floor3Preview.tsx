@@ -39,8 +39,8 @@ export default function Floor3Preview() {
                         halfRes
                         color="#0a0e1a"
                     />
-                    <Bloom intensity={0.55} luminanceThreshold={0.80} luminanceSmoothing={0.20} mipmapBlur kernelSize={KernelSize.MEDIUM} />
-                    <Vignette eskil={false} offset={0.28} darkness={0.55} />
+                    <Bloom intensity={0.22} luminanceThreshold={0.95} luminanceSmoothing={0.20} mipmapBlur kernelSize={KernelSize.MEDIUM} />
+                    <Vignette eskil={false} offset={0.32} darkness={0.28} />
                 </EffectComposer>
                 )}
             </Canvas>

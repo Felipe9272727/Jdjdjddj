@@ -68,6 +68,8 @@ export const platforms: F3Plat[] = [];
 // Player.tsx writes its Z here every frame; Floor3.tsx's tick() reads it to
 // drive recycling (the renderer owns the per-frame update, not the player).
 export const f3PlayerZ = { current: 0 };
+// Player Y too, so the sky/cloud backdrop can follow the endless vertical climb.
+export const f3PlayerY = { current: 0 };
 let _nextId = 0;
 let _lastTickT = -1;
 

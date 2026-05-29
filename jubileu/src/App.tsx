@@ -1263,8 +1263,8 @@ export default function App() {
                     truly bright emissive crystals + water surface bloom;
                     low enough to avoid washing the whole cave cyan. */}
                 <Bloom
-                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 0.55 : 0.35}
-                    luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 3 ? 0.80 : 0.95}
+                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 0.22 : 0.35}
+                    luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 3 ? 0.95 : 0.95}
                     luminanceSmoothing={currentLevel === 2 ? 0.25 : currentLevel === 3 ? 0.20 : 0.2}
                     mipmapBlur
                     kernelSize={currentLevel === 2 ? KernelSize.SMALL : KernelSize.MEDIUM}
@@ -1280,8 +1280,8 @@ export default function App() {
                 {/* Vignette — deep cave on Floor 2, subtle sci-fi on Floor 3. */}
                 <Vignette
                     eskil={false}
-                    offset={currentLevel === 2 ? 0.32 : currentLevel === 3 ? 0.28 : 0.2}
-                    darkness={currentLevel === 2 ? 0.78 : currentLevel === 3 ? 0.55 : 0.3}
+                    offset={currentLevel === 2 ? 0.32 : currentLevel === 3 ? 0.32 : 0.2}
+                    darkness={currentLevel === 2 ? 0.78 : currentLevel === 3 ? 0.28 : 0.3}
                 />
             </EffectComposer>
         )}
