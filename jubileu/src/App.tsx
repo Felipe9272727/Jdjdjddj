@@ -34,6 +34,7 @@ import { ElevatorInterior } from './Elevator';
 import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { Floor2Environment, SHARD_POSITIONS } from './Floor2Underwater';
+import { Floor3Environment } from './Floor3';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -107,6 +108,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 0 && profile.atmosphere && <CeilingFan x={5} z={-5} speed={0.8} />}
       {level === 0 && profile.atmosphere && <WallClock x={9.5} z={-7} />}
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
+      {level === 3 && <Floor3Environment />}
       {level === 2 && (
         <Suspense fallback={null}>
           <Floor2Environment
@@ -378,6 +380,7 @@ export default function App() {
   const [monsterDarkness, setMonsterDarkness] = useState(0);
   const [berserk, setBerserk] = useState(false);
   const [devoured, setDevoured] = useState(false); // brief death-ritual overlay
+  const [teleportCutscene, setTeleportCutscene] = useState(false); // all-shards win → Floor 3
 
   // Start/stop monster ambience with Floor 2
   useEffect(() => {
@@ -481,24 +484,34 @@ export default function App() {
     });
   }, []);
 
-  // Win condition: all 5 shards → berserk mode + elevator auto-calls
-  const berserkTriggeredRef = useRef(false);
+  // Win condition: all 5 shards → teleport-to-elevator cutscene → Floor 3.
+  const winTriggeredRef = useRef(false);
   useEffect(() => {
-    if (currentLevel !== 2 || collectedShards.size < 5 || berserkTriggeredRef.current) return;
-    berserkTriggeredRef.current = true;
-    setBerserk(true);
+    if (currentLevel !== 2 || collectedShards.size < 5 || winTriggeredRef.current) return;
+    winTriggeredRef.current = true;
+    // 1. Light up the cutscene overlay + a triumphant chime.
+    setTeleportCutscene(true);
+    if (audioCtx && !muted) { playEquipChime(audioCtx); playArrivalDing(audioCtx); }
+    // 2. Yank the diver from the deep straight into the elevator alcove.
+    scheduleTimeout(() => { playerPositionCmdRef.current = { x: 0, y: 0, z: -12 }; }, 1100);
+    // 3. Send the elevator up to Floor 3.
     scheduleTimeout(() => {
+      setNextElevatorDestination(3);
       if (elevatorStateRef.current.elevatorTimer === null && !elevatorStateRef.current.doorsClosed) {
-        setElevatorTimer(5);
+        setElevatorTimer(3);
       }
-    }, 3500);
-  }, [collectedShards.size, currentLevel, scheduleTimeout]);
+    }, 1700);
+    // 4. Fade the overlay out once the lift is moving.
+    scheduleTimeout(() => setTeleportCutscene(false), 2600);
+  }, [collectedShards.size, currentLevel, scheduleTimeout, audioCtx, muted]);
 
-  // Reset berserk when leaving Floor 2
+  // Leaving Floor 2 → clear win latch, berserk and shards so a future dive
+  // starts fresh (and a full inventory doesn't instantly re-trigger the win).
   useEffect(() => {
     if (currentLevel !== 2) {
       setBerserk(false);
-      berserkTriggeredRef.current = false;
+      winTriggeredRef.current = false;
+      setCollectedShards(new Set());
     }
   }, [currentLevel]);
 
@@ -1698,7 +1711,33 @@ export default function App() {
       {hasStarted && gameState === 'indoor_night' && <NightBanner elevatorActive={elevatorTimer !== null} />}
       {hasStarted && gameState === 'chase' && <ChaseBanner elevatorActive={elevatorTimer !== null} barneyDistRef={barneyDistRef} />}
       {hasStarted && gameState === 'saved' && <SavedOverlay />}
-      
+
+      {/* All-shards win → teleport-to-elevator cutscene (Floor 2 → Floor 3). */}
+      {teleportCutscene && (
+        <div className="absolute inset-0 z-[90] pointer-events-none overflow-hidden">
+          <style>{`
+            @keyframes tpFlash  { 0%{opacity:0} 12%{opacity:.9} 100%{opacity:0} }
+            @keyframes tpRings  { 0%{transform:scale(.2);opacity:0} 20%{opacity:.8} 100%{transform:scale(2.4);opacity:0} }
+            @keyframes tpText   { 0%{opacity:0;transform:translateY(14px) scale(.96)} 18%{opacity:1;transform:translateY(0) scale(1)} 80%{opacity:1} 100%{opacity:0} }
+            @keyframes tpScan   { 0%{transform:translateY(-100%)} 100%{transform:translateY(100%)} }
+          `}</style>
+          {/* Cyan bloom flash */}
+          <div className="absolute inset-0" style={{ animation: 'tpFlash 2600ms ease-out forwards', background: 'radial-gradient(ellipse at center, rgba(54,224,255,0.65) 0%, rgba(10,30,50,0.4) 45%, rgba(2,4,10,0.85) 100%)' }} />
+          {/* Expanding teleport rings */}
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="absolute left-1/2 top-1/2 rounded-full border-2"
+              style={{ width: 240, height: 240, marginLeft: -120, marginTop: -120, borderColor: 'rgba(120,240,255,0.7)', animation: `tpRings 2200ms ease-out ${i * 0.35}s forwards` }} />
+          ))}
+          {/* Scanline sweep */}
+          <div className="absolute inset-0 opacity-30" style={{ animation: 'tpScan 1300ms linear', background: 'linear-gradient(transparent, rgba(120,240,255,0.5), transparent)', height: '40%' }} />
+          {/* Text */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center" style={{ animation: 'tpText 2600ms ease-out forwards' }}>
+            <div className="text-cyan-100 font-extrabold tracking-[0.35em] text-3xl md:text-5xl" style={{ textShadow: '0 0 22px #36e0ff, 0 0 48px #36e0ff' }}>FRAGMENTOS COLETADOS</div>
+            <div className="mt-3 text-cyan-300 font-semibold tracking-[0.5em] text-lg md:text-2xl" style={{ textShadow: '0 0 16px #36e0ff' }}>TELEPORTANDO AO ELEVADOR…</div>
+          </div>
+        </div>
+      )}
+
       {barneyDialogueOpen && <BarneyDialogue dialogueNode={barneyDialogueNode} onResponse={handleBarneyResponse} />}
       <ShopOverlay open={shopOpen} onClose={handleCloseShop} initialScene={shopInitialScene} onBuyItem={handleBuyItem} />
     </div>

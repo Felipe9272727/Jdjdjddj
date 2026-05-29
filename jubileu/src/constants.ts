@@ -192,6 +192,11 @@ const _HOUSE_BASE = [...ELEV_W, ...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN
 
 const _WALLS_LOBBY_OPEN          = _LOBBY_BASE;
 const _WALLS_LOBBY_SEALED        = [..._LOBBY_BASE, DOOR_SEAL];
+
+// Floor 3 — placeholder chamber. Reuses the lobby shell (10×10 room + the
+// elevator alcove) so the elevator works identically, but with no furniture.
+const _WALLS_FLOOR3              = [...ELEV_W, ...LOBBY_W];
+const _WALLS_FLOOR3_SEALED       = [..._WALLS_FLOOR3, DOOR_SEAL];
 const _WALLS_HOUSE_OPEN          = _HOUSE_BASE;
 const _WALLS_HOUSE_DOOR          = [..._HOUSE_BASE, HOUSE_DW];
 const _WALLS_HOUSE_SEALED        = [..._HOUSE_BASE, DOOR_SEAL];
@@ -217,6 +222,7 @@ const _WALLS_LEVEL2_SEALED        = [..._LEVEL2_BASE, DOOR_SEAL];
 export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
     if (level === 0) return doorsClosed ? _WALLS_LOBBY_SEALED : _WALLS_LOBBY_OPEN;
     if (level === 2) return doorsClosed ? _WALLS_LEVEL2_SEALED : _WALLS_LEVEL2_OPEN;
+    if (level === 3) return doorsClosed ? _WALLS_FLOOR3_SEALED : _WALLS_FLOOR3;
     if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
     return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;
 };

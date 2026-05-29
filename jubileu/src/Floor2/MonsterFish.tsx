@@ -50,10 +50,13 @@ function _writeObstacleDanger(fx: number, fz: number, agentR: number, range: num
 }
 
 // ─── AI constants ─────────────────────────────────────────────────────────────
-const PATROL_SPEED   = 2.6;
-const HUNT_SPEED_MIN = 3.5;
-const HUNT_SPEED_MAX = 8.5;
-const LUNGE_SPEED    = 20.0;
+// Speeds roughly halved — the shark is deliberately much slower now so the
+// player can sweep the seabed for shards and finish Floor 2 without a constant
+// frantic chase. It still hunts and lunges, just at a far more beatable pace.
+const PATROL_SPEED   = 1.5;
+const HUNT_SPEED_MIN = 2.0;
+const HUNT_SPEED_MAX = 4.2;
+const LUNGE_SPEED    = 10.5;
 // The shark is now ~20 units long (scale 3.6), so lunge/catch trigger on the
 // MOUTH reaching the player, not the body centre — hence the larger radii.
 const LUNGE_DIST     = 11.0;
