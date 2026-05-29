@@ -320,9 +320,13 @@ interface PlayerProps {
   armExtended?: boolean;
   pickupItem?: PickupItem;
   onRightHandAnchor?: (a: THREE.Object3D | null) => void;
+  /** Swim-sprint button held (Floor 2 underwater). */
+  sprintHeldRef?: React.MutableRefObject<boolean>;
+  /** Swim stamina 0..1, written every frame for the HUD bar to read. */
+  staminaRef?: React.MutableRefObject<number>;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -488,7 +492,24 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         camAng.current.phi = Math.max(-1.5, Math.min(1.5, camAng.current.phi));
 
         const fwd = -moveInput.current.y; const strafe = moveInput.current.x; let moving = false;
-        if (Math.abs(fwd) > 0.01 || Math.abs(strafe) > 0.01) {
+        // ── Swim sprint + stamina ──────────────────────────────────────────
+        // Holding the swim-fast button burns stamina for a big speed boost;
+        // releasing (or running dry) regenerates it. Stamina is written to a
+        // shared ref every frame so the HUD bar can read it without re-renders.
+        const SWIM_SPRINT_MULT = 1.95;
+        const STAMINA_DRAIN = 0.34;   // full bar ≈ 3s of sprint
+        const STAMINA_REGEN = 0.22;   // refills in ≈ 4.5s
+        const wantSprint = !!sprintHeldRef?.current;
+        const stam = staminaRef ? staminaRef.current : 1;
+        const willMove = Math.abs(fwd) > 0.01 || Math.abs(strafe) > 0.01;
+        const sprinting = wantSprint && willMove && stam > 0.02;
+        if (staminaRef) {
+            staminaRef.current = sprinting
+                ? Math.max(0, stam - STAMINA_DRAIN * safeDt)
+                : Math.min(1, stam + STAMINA_REGEN * safeDt);
+        }
+        const sprintMult = sprinting ? SWIM_SPRINT_MULT : 1;
+        if (willMove) {
             moving = true;
             const cosPhi = Math.cos(camAng.current.phi);
             // Camera-forward (XYZ). Existing FP code subtracts sin(theta)*cos(phi)
@@ -502,7 +523,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
             // Normalize then scale by water-speed. Length of (fwd, strafe) clamped to 1.
             const inputMag = Math.min(1, Math.sqrt(fwd * fwd + strafe * strafe));
-            const k = SPEED * 0.55 * safeDt * inputMag;
+            const k = SPEED * 0.55 * sprintMult * safeDt * inputMag;
             // Same -fwd / -strafe sign convention as existing land code.
             pos.current.x += (-fX * fwd - rX * strafe) * k;
             pos.current.y += (-fY * fwd) * k;

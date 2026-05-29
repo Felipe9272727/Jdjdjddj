@@ -533,7 +533,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 const range = Math.min(speed * 0.7 + 4, 14);
                 sharkSteer.reset();
                 sharkSteer.addInterest(aimx - fx, aimz - fz, 1);
-                _writeObstacleDanger(fx, fz, 2.0, range);
+                _writeObstacleDanger(fx, fz, 0.8, range);  // small hitbox — avoids snagging on rocks
                 sharkSteer.pick(_steer.current);   // unit XZ heading, collision-free
 
                 // Vertical handled separately (the ring is horizontal): chase the
@@ -555,7 +555,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 const range = Math.min(speed * 0.7 + 4, 12);
                 sharkSteer.reset();
                 sharkSteer.addInterest(_searchTgt.current.x - fx, _searchTgt.current.z - fz, 1);
-                _writeObstacleDanger(fx, fz, 2.0, range);
+                _writeObstacleDanger(fx, fz, 0.8, range);  // small hitbox — avoids snagging on rocks
                 sharkSteer.pick(_steer.current);
                 const floorClear = uwFloorHeight(fx, fz) + 3.0;
                 let vy = (_searchTgt.current.y - fy);
@@ -597,10 +597,11 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
 
         // ── Organic-deformation collision (same surfaces the player hits) ──
         // The shark is stopped by the real bulged walls and rides above the
-        // seafloor ridges — it can no longer cheat through the deformations.
-        // Larger radius (2.2) than the player since the shark body is huge.
-        resolveUWWalls(pos.current, 2.2);
-        const floorMin = uwFloorHeight(pos.current.x, pos.current.z) + 2.0;
+        // seafloor ridges. Collision radius is kept SMALL (≈ the original,
+        // un-scaled body) even though the model is rendered 3× bigger — a fat
+        // hitbox made it snag on every rock. The visual size is unchanged.
+        resolveUWWalls(pos.current, 0.8);
+        const floorMin = uwFloorHeight(pos.current.x, pos.current.z) + 0.8;
         pos.current.y = THREE.MathUtils.clamp(pos.current.y, floorMin, SWIM_THRESHOLD_Y - 1.5);
 
         g.position.copy(pos.current);

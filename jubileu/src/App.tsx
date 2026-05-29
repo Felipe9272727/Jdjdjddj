@@ -161,6 +161,11 @@ export default function App() {
   const cameraThetaRef = useRef(Math.PI);
   const playerPositionCmdRef = useRef<any>(null);
   const cameraShakeRef = useRef(false);
+  // Swim sprint (held button) + stamina (written by Player each frame).
+  const sprintHeldRef = useRef(false);
+  const staminaRef = useRef(1);
+  const [inWater, setInWater] = useState(false);
+  const [staminaPct, setStaminaPct] = useState(1);
   const pendingTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const scheduleTimeout = useCallback((fn: () => void, ms: number) => {
     const id = setTimeout(() => { pendingTimeoutsRef.current.delete(id); fn(); }, ms);
@@ -397,6 +402,20 @@ export default function App() {
     }
   }, [currentLevel, audioCtx, muted]);
 
+  // Desktop: hold Shift to swim faster (mirrors the on-screen button).
+  useEffect(() => {
+    if (currentLevel !== 2) return;
+    const down = (e: KeyboardEvent) => { if (e.key === 'Shift') sprintHeldRef.current = true; };
+    const up   = (e: KeyboardEvent) => { if (e.key === 'Shift') sprintHeldRef.current = false; };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      sprintHeldRef.current = false;
+    };
+  }, [currentLevel]);
+
   // Floor 2 background score — haunted aquarium underscore. Swells with the
   // shark's drama (proximity) via the poll below.
   const floor2MusicRef = useRef<ReturnType<typeof createFloor2Music> | null>(null);
@@ -440,6 +459,8 @@ export default function App() {
   useEffect(() => {
     if (currentLevel !== 2) {
       if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
+      sprintHeldRef.current = false;
+      setInWater(false);
       return;
     }
     let prevProx = 0;
@@ -457,6 +478,10 @@ export default function App() {
       const y = pos.y;
       const submersion = Math.max(0, Math.min(1, (-2.7 - y) / 5));
       underwaterAmbienceRef.current?.setSubmersion(submersion);
+
+      // Swim UI — show the sprint button + stamina bar only while submerged.
+      setInWater(y < -2.7);
+      setStaminaPct(staminaRef.current);
 
       // Detection sting — rising edge as the predator locks on (spotted!).
       if (p >= 0.55 && prevProx < 0.55 && !muted) playDetectionSting(audioCtx);
@@ -1155,7 +1180,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -1636,6 +1661,46 @@ export default function App() {
             <div className="text-cyan-100 font-extrabold tracking-[0.35em] text-3xl md:text-5xl" style={{ textShadow: '0 0 22px #36e0ff, 0 0 48px #36e0ff' }}>FRAGMENTOS COLETADOS</div>
             <div className="mt-3 text-cyan-300 font-semibold tracking-[0.5em] text-lg md:text-2xl" style={{ textShadow: '0 0 16px #36e0ff' }}>TELEPORTANDO AO ELEVADOR…</div>
           </div>
+        </div>
+      )}
+
+      {/* Swim sprint button + stamina bar — only while submerged on Floor 2. */}
+      {hasStarted && currentLevel === 2 && inWater && (
+        <div className="fixed z-[45] right-[calc(env(safe-area-inset-right,0px)+18px)] bottom-[calc(env(safe-area-inset-bottom,0px)+118px)] flex flex-col items-center gap-2 select-none">
+          {/* Stamina bar */}
+          <div className="w-24 h-2.5 rounded-full bg-black/55 ring-1 ring-cyan-300/30 overflow-hidden backdrop-blur-sm">
+            <div
+              className="h-full rounded-full transition-[width] duration-100"
+              style={{
+                width: `${Math.max(0, Math.min(1, staminaPct)) * 100}%`,
+                background: staminaPct < 0.25
+                  ? 'linear-gradient(90deg,#ff5a3c,#ff8c42)'
+                  : 'linear-gradient(90deg,#36e0ff,#7af0ff)',
+                boxShadow: '0 0 10px rgba(60,220,255,0.6)',
+              }}
+            />
+          </div>
+          {/* Hold-to-sprint button */}
+          <button
+            aria-label="Nadar rápido"
+            className="w-16 h-16 rounded-full flex items-center justify-center font-black text-[10px] tracking-widest text-cyan-50 ring-2 ring-cyan-300/50 shadow-[0_0_24px_rgba(54,224,255,0.45)] active:scale-95 transition-transform touch-none"
+            style={{
+              background: staminaPct <= 0.02
+                ? 'radial-gradient(circle at 50% 35%, #355, #122)'
+                : 'radial-gradient(circle at 50% 35%, #1d7fa8, #0a2b3c)',
+              opacity: staminaPct <= 0.02 ? 0.55 : 1,
+            }}
+            onPointerDown={(e) => { e.stopPropagation(); sprintHeldRef.current = true; }}
+            onPointerUp={(e) => { e.stopPropagation(); sprintHeldRef.current = false; }}
+            onPointerLeave={() => { sprintHeldRef.current = false; }}
+            onPointerCancel={() => { sprintHeldRef.current = false; }}
+          >
+            <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3 13c1.5 0 1.5-1 3-1s1.5 1 3 1 1.5-1 3-1 1.5 1 3 1 1.5-1 3-1 1.5 1 3 1v2c-1.5 0-1.5-1-3-1s-1.5 1-3 1-1.5-1-3-1-1.5 1-3 1-1.5-1-3-1-1.5 1-3 1v-2z"/>
+              <circle cx="16" cy="6.5" r="2"/>
+              <path d="M5 9l5-1 4 2 3-1 1.4 1.4-3.6 1.6-4-2-5 1z"/>
+            </svg>
+          </button>
         </div>
       )}
 
