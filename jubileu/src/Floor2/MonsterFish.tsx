@@ -28,9 +28,18 @@ import { findPath } from '../ai/navGrid';
 // best collision-free heading — visibly weaving through the arches and the
 // organic wall bulges instead of grinding along them. `agentR` is the shark's
 // body half-width; `range` the steering look-ahead.
-function _writeObstacleDanger(fx: number, fz: number, agentR: number, range: number): void {
+//
+// CRITICAL — depth gating: the steering ring is purely horizontal, so a rock is
+// only allowed to block a heading when it actually sits at the shark's swim
+// depth. Without this, the seafloor boulders (y≈-28) projected a horizontal
+// "wall" of danger up through the whole water column, deflecting the shark away
+// from the player whenever the goal lay past a boulder — the real reason it
+// "couldn't find the way". Pillars are full-height cylinders, so they always
+// count. (The 3D resolveUWObstacles push-out is the matching hard constraint.)
+function _writeObstacleDanger(fx: number, fy: number, fz: number, agentR: number, range: number): void {
     for (let i = 0; i < UW_ROCK_COLLIDERS.length; i++) {
         const r = UW_ROCK_COLLIDERS[i];
+        if (Math.abs(fy - r.y) > r.r + agentR) continue;   // shark is above/below this rock → no horizontal block
         const dx = r.x - fx, dz = r.z - fz;
         const d = Math.hypot(dx, dz);
         if (d - r.r < range) sharkSteer.addDanger(dx, dz, d, r.r + agentR, range);
@@ -543,8 +552,19 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
             }
             sharkSteer.reset();
             sharkSteer.addInterest(wx - fx, wz - fz, 1);
-            _writeObstacleDanger(fx, fz, agentR, range);
-            sharkSteer.pick(_steer.current);
+            _writeObstacleDanger(fx, fy, fz, agentR, range);
+            // When pick() reports the local ring is fully boxed in, its fallback
+            // is the least-dangerous slot — which near a corner points BACK into
+            // the corner and strands the shark. But the A* segment to the next
+            // waypoint is line-of-sight clear by construction, so the safe move
+            // is simply to head straight at the waypoint. This is the seam where
+            // global planning (A*) overrides local steering's dead-end panic.
+            if (!sharkSteer.pick(_steer.current)) {
+                const dxw = wx - fx, dzw = wz - fz;
+                const l = Math.hypot(dxw, dzw) || 1;
+                _steer.current.x = dxw / l;
+                _steer.current.z = dzw / l;
+            }
         };
 
         // Escape override — when the watchdog flags the shark as stuck it heads
@@ -552,7 +572,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         // out around whatever it's wedged against instead of grinding into it.
         if (escapeT.current > 0) {
             escapeT.current -= safeDt;
-            navSteer(0, 0, 1.4, 11);   // path to centre, wide clearance
+            navSteer(0, 0, 1.0, 11);   // path to centre, wide clearance
             _v1.current.set(_steer.current.x * 9, 3.5, _steer.current.z * 9);
             vel.current.lerp(_v1.current, safeDt * 8);
         } else
@@ -563,7 +583,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 patrolT.current += safeDt * 0.28;
                 const tx = Math.cos(patrolT.current) * 9 + px * 0.5;
                 const tz = Math.sin(patrolT.current) * 9 + pz * 0.5;
-                navSteer(tx, tz, 0.8, 8);
+                navSteer(tx, tz, 0.5, 8);
                 const floorClear = uwFloorHeight(fx, fz) + 3.0;
                 const tY = -17 + Math.sin(patrolT.current * 0.6) * 3;
                 let vy = (tY - fy);
@@ -592,7 +612,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
 
                 // ── A* path toward the predicted aim point, obstacle-threaded ──
                 const range = Math.min(speed * 0.7 + 4, 14);
-                navSteer(aimx, aimz, 0.8, range);   // unit XZ heading, collision-free
+                navSteer(aimx, aimz, 0.5, range);   // unit XZ heading, collision-free
 
                 // Vertical handled separately (the ring is horizontal): chase the
                 // aim depth, stay clear of the seafloor ridge below.
@@ -611,7 +631,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 sharkDirector.getSearchTarget(_searchTgt.current);
                 _searchTgt.current.y = lastKnownPosRef.current.y; // keep last-seen depth
                 const range = Math.min(speed * 0.7 + 4, 12);
-                navSteer(_searchTgt.current.x, _searchTgt.current.z, 0.8, range);
+                navSteer(_searchTgt.current.x, _searchTgt.current.z, 0.5, range);
                 const floorClear = uwFloorHeight(fx, fz) + 3.0;
                 let vy = (_searchTgt.current.y - fy);
                 if (fy < floorClear) vy += (floorClear - fy) * 2.0;
@@ -662,12 +682,16 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         // component that was digging INTO the surface and add a small outward
         // nudge — otherwise vel keeps pointing into the wall and the shark
         // vibrates in place (the "enroscado" bug). Now it slides along instead.
+        // Hitbox radius 0.5 — much smaller than the ~20-unit visual shark, so it
+        // threads gaps the way its slim body really would instead of being held
+        // back by a fat sphere (the "preso nas pedras" complaint).
+        const HITBOX = 0.5;
         const preX = pos.current.x, preY = pos.current.y, preZ = pos.current.z;
-        resolveUWWalls(pos.current, 0.8);
+        resolveUWWalls(pos.current, HITBOX);
         // Hard push-out of rocks + coral pillars — the constraint that finally
         // makes it IMPOSSIBLE for the shark to stay embedded in an obstacle.
-        resolveUWObstacles(pos.current, 0.8);
-        const floorMin = uwFloorHeight(pos.current.x, pos.current.z) + 0.8;
+        resolveUWObstacles(pos.current, HITBOX);
+        const floorMin = uwFloorHeight(pos.current.x, pos.current.z) + 0.6;
         pos.current.y = THREE.MathUtils.clamp(pos.current.y, floorMin, SWIM_THRESHOLD_Y - 1.5);
         const cx = pos.current.x - preX, cy = pos.current.y - preY, cz = pos.current.z - preZ;
         const corr2 = cx * cx + cy * cy + cz * cz;

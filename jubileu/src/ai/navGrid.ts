@@ -1,28 +1,38 @@
 /**
- * ai/navGrid.ts — A* navigation grid for the Floor 2 underwater cave.
+ * ai/navGrid.ts — Lazy Theta* any-angle navigation for the Floor 2 cave shark.
  *
- * Local context-steering is great for smooth obstacle hugging, but it has a
- * fatal flaw: dead-ends and ravines are LOCAL MINIMA. When the shark swims into
- * the gap between two coral pillars (or a pillar and a wall bulge) every nearby
- * heading points at an obstacle, the steering nulls out, and it gets pinned —
- * the "enroscado" bug. A* solves this globally: it plans a path of FREE cells
- * from the shark to its goal, routing *around* obstacle clusters. The shark then
- * steers toward the next waypoint, so local steering only ever has to handle the
- * fine avoidance along an already-clear corridor.
+ * Plain grid A* has two problems that made the shark look dumb / get stuck:
+ *   1. It only steps along the 8 grid directions, so paths ZIGZAG and snag on
+ *      cell corners instead of cutting straight at the player.
+ *   2. If the goal cell is "blocked", the goal silently snaps elsewhere — which
+ *      is exactly what broke pursuit: the player collects shards sitting right
+ *      next to seafloor boulders, those cells were marked blocked, so the goal
+ *      jumped away and the shark swam to the wrong place.
  *
- * The grid is static (obstacles never move), built once at module load from the
- * same collider data the renderer uses. A* runs on fixed-size typed arrays with
- * zero per-call allocation; for a 30×30 grid a full search is well under a
- * millisecond, and the shark only re-plans a few times a second.
+ * Fixes:
+ *   • LAZY THETA*  (Nash & Koenig, "Game AI Pro 2", ch.16; Lazy variant from
+ *     AAAI-10). An any-angle planner: during the search it runs grid
+ *     line-of-sight checks and lets a node inherit its grandparent as parent
+ *     whenever the straight line is clear. The result is a smooth path of long
+ *     straight runs aimed directly at the target — no post-smoothing, no
+ *     zigzag, dramatically fewer places to snag. "Lazy" = it assumes line of
+ *     sight and only verifies on expansion, ~10× fewer LOS checks.
+ *   • The grid now blocks only the FULL-HEIGHT coral pillars (+ a thin wall
+ *     margin). Seafloor boulders are low and handled by the 3D push-out, so
+ *     they no longer wall off the shard areas the player actually visits.
+ *
+ * Static grid (obstacles never move), fixed-size typed arrays, zero per-call
+ * allocation. A 30×30 search with lazy LOS is well under a millisecond and the
+ * shark only re-plans a few times a second.
  */
 
-import { UW_PILLAR_COLLIDERS, UW_BOULDERS } from '../Floor2/constants';
+import { UW_PILLAR_COLLIDERS } from '../Floor2/constants';
 
 const ORIGIN = -30;        // world coord of the grid's lower corner (matches ±30 walls)
 const CELL   = 2;          // 2-unit cells
 const COLS   = 30;         // 30 × 2 = 60 → spans [-30, 30]
 const NCELLS = COLS * COLS;
-const AGENT  = 1.7;        // shark clearance baked into the blocked test
+const AGENT  = 0.9;        // shark clearance baked into the blocked test (hitbox 0.5 + margin)
 
 const blocked = new Uint8Array(NCELLS);
 
@@ -30,18 +40,23 @@ const cellCenter = (c: number): number => ORIGIN + c * CELL + CELL / 2;
 const colOf      = (w: number): number => Math.floor((w - ORIGIN) / CELL);
 const clampCol   = (c: number): number => (c < 0 ? 0 : c >= COLS ? COLS - 1 : c);
 
-// ─── Build the blocked grid (full-height obstacles + a wall margin) ─────────
-// Coral pillars and arch legs are full-height XZ cylinders, so they block at
-// every swim depth. The big seafloor boulders form the visible ravine walls, so
-// we project those into the grid too. Small scattered rocks are left to the 3D
-// push-out (resolveUWObstacles) so the shark can still glide over them.
+// True if the cell is off-grid or solid. Off-grid counts as blocked so LOS and
+// neighbour expansion never walk outside the cave.
+const isBlocked = (cx: number, cz: number): boolean =>
+    cx < 0 || cz < 0 || cx >= COLS || cz >= COLS || blocked[cz * COLS + cx] === 1;
+
+// ─── Build the blocked grid (full-height pillars + a thin wall margin) ──────
+// ONLY coral pillars / arch legs — those are full-height XZ cylinders that
+// block at every swim depth. Seafloor boulders are deliberately NOT baked in:
+// they're low, the shark glides over them, and the 3D resolveUWObstacles()
+// push-out handles the rare low-dive contact. Baking them was what made the
+// shard zones (where the player lives) unreachable.
 (function build() {
     for (let cz = 0; cz < COLS; cz++) {
         for (let cx = 0; cx < COLS; cx++) {
             const x = cellCenter(cx), z = cellCenter(cz);
             let b = 0;
-            // Keep a one-cell margin off the walls (precise surface = resolveUWWalls).
-            if (x < -27 || x > 27 || z < -27 || z > 27) b = 1;
+            if (x < -28 || x > 28 || z < -28 || z > 28) b = 1;  // thin wall margin
             if (!b) {
                 for (let i = 0; i < UW_PILLAR_COLLIDERS.length; i++) {
                     const p = UW_PILLAR_COLLIDERS[i];
@@ -50,49 +65,83 @@ const clampCol   = (c: number): number => (c < 0 ? 0 : c >= COLS ? COLS - 1 : c)
                     if (dx * dx + dz * dz < rr * rr) { b = 1; break; }
                 }
             }
-            if (!b) {
-                for (let i = 0; i < UW_BOULDERS.length; i++) {
-                    const r = UW_BOULDERS[i];
-                    const dx = x - r[0], dz = z - r[2];
-                    const rr = r[3] * 0.78 + AGENT;   // matches the UW_ROCK collider radius
-                    if (dx * dx + dz * dz < rr * rr) { b = 1; break; }
-                }
-            }
             blocked[cz * COLS + cx] = b;
         }
     }
 })();
 
-// ─── A* working buffers (single agent → safe to share) ──────────────────────
+// ─── Search buffers (single agent → safe to share, no allocation) ───────────
 const gScore   = new Float32Array(NCELLS);
 const fScore   = new Float32Array(NCELLS);
-const cameFrom = new Int32Array(NCELLS);
+const parent   = new Int32Array(NCELLS);
 const inOpen   = new Uint8Array(NCELLS);
 const closed   = new Uint8Array(NCELLS);
 
-const SQRT2 = 1.4142135623730951;
 const NB: ReadonlyArray<readonly [number, number]> = [
     [1, 0], [-1, 0], [0, 1], [0, -1],
     [1, 1], [1, -1], [-1, 1], [-1, -1],
 ];
 
-// Octile heuristic (admissible for 8-connectivity with unit/√2 step costs).
-const heur = (ax: number, az: number, bx: number, bz: number): number => {
-    const dx = Math.abs(ax - bx), dz = Math.abs(az - bz);
-    return (dx + dz) + (SQRT2 - 2) * Math.min(dx, dz);
+// Straight-line (euclidean) distance between two cell indices — the natural
+// metric for an any-angle planner, and an admissible heuristic.
+const dist = (a: number, b: number): number => {
+    const ax = a % COLS, az = (a / COLS) | 0;
+    const bx = b % COLS, bz = (b / COLS) | 0;
+    const dx = ax - bx, dz = az - bz;
+    return Math.sqrt(dx * dx + dz * dz);
 };
+
+// ─── Grid line-of-sight (Nash et al., the canonical Theta* LOS) ─────────────
+// Returns true if the straight segment between the centres of cells a and b
+// crosses no blocked cell. Integer-only, robust at corners.
+function lineOfSight(a: number, b: number): boolean {
+    let x0 = a % COLS, y0 = (a / COLS) | 0;
+    const x1 = b % COLS, y1 = (b / COLS) | 0;
+    let dx = x1 - x0, dy = y1 - y0;
+    let sx = 1, sy = 1;
+    if (dy < 0) { dy = -dy; sy = -1; }
+    if (dx < 0) { dx = -dx; sx = -1; }
+    let f = 0;
+    if (dx >= dy) {
+        while (x0 !== x1) {
+            f += dy;
+            if (f >= dx) {
+                if (isBlocked(x0 + ((sx - 1) >> 1), y0 + ((sy - 1) >> 1))) return false;
+                y0 += sy; f -= dx;
+            }
+            if (f !== 0 && isBlocked(x0 + ((sx - 1) >> 1), y0 + ((sy - 1) >> 1))) return false;
+            if (dy === 0 &&
+                isBlocked(x0 + ((sx - 1) >> 1), y0) &&
+                isBlocked(x0 + ((sx - 1) >> 1), y0 - 1)) return false;
+            x0 += sx;
+        }
+    } else {
+        while (y0 !== y1) {
+            f += dx;
+            if (f >= dy) {
+                if (isBlocked(x0 + ((sx - 1) >> 1), y0 + ((sy - 1) >> 1))) return false;
+                x0 += sx; f -= dy;
+            }
+            if (f !== 0 && isBlocked(x0 + ((sx - 1) >> 1), y0 + ((sy - 1) >> 1))) return false;
+            if (dx === 0 &&
+                isBlocked(x0, y0 + ((sy - 1) >> 1)) &&
+                isBlocked(x0 - 1, y0 + ((sy - 1) >> 1))) return false;
+            y0 += sy;
+        }
+    }
+    return true;
+}
 
 /** Nearest free cell index to (cx,cz), spiralling outward. Falls back to itself. */
 function nearestFree(cx: number, cz: number): number {
     cx = clampCol(cx); cz = clampCol(cz);
-    if (!blocked[cz * COLS + cx]) return cz * COLS + cx;
+    if (!isBlocked(cx, cz)) return cz * COLS + cx;
     for (let r = 1; r < COLS; r++) {
         for (let dz = -r; dz <= r; dz++) {
             for (let dx = -r; dx <= r; dx++) {
                 if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue; // ring only
                 const nx = cx + dx, nz = cz + dz;
-                if (nx < 0 || nz < 0 || nx >= COLS || nz >= COLS) continue;
-                if (!blocked[nz * COLS + nx]) return nz * COLS + nx;
+                if (!isBlocked(nx, nz)) return nz * COLS + nx;
             }
         }
     }
@@ -101,23 +150,22 @@ function nearestFree(cx: number, cz: number): number {
 
 function reconstruct(goal: number, start: number, out: number[]): number {
     out.length = 0;
-    // Walk parents goal→start into a temp pair-list, then emit reversed so the
-    // first waypoint is the one nearest the shark.
     const rev: number[] = [];
     let cur = goal;
-    while (cur !== -1 && cur !== start) {
+    let guard = 0;
+    while (cur !== -1 && cur !== start && guard++ < NCELLS) {
         rev.push(cellCenter(cur % COLS), cellCenter((cur / COLS) | 0));
-        cur = cameFrom[cur];
+        cur = parent[cur];
     }
     for (let i = rev.length - 2; i >= 0; i -= 2) out.push(rev[i], rev[i + 1]);
     return out.length / 2;
 }
 
 /**
- * A* from world (sx,sz) to world (gx,gz). Writes waypoint world-XZ pairs into
- * `out` ([x0,z0,x1,z1,…], nearest first) and returns the waypoint count.
+ * Lazy Theta* from world (sx,sz) to world (gx,gz). Writes any-angle waypoint
+ * world-XZ pairs into `out` ([x0,z0,…], nearest first) and returns the count.
  * Returns 0 (and empties `out`) when start == goal or no path exists — the
- * caller should then fall back to steering straight at the goal.
+ * caller should then steer straight at the goal.
  */
 export function findPath(sx: number, sz: number, gx: number, gz: number, out: number[]): number {
     const start = nearestFree(colOf(sx), colOf(sz));
@@ -128,8 +176,8 @@ export function findPath(sx: number, sz: number, gx: number, gz: number, out: nu
     inOpen.fill(0);
     closed.fill(0);
     gScore[start] = 0;
-    const gcx = goal % COLS, gcz = (goal / COLS) | 0;
-    fScore[start] = heur(start % COLS, (start / COLS) | 0, gcx, gcz);
+    parent[start] = start;
+    fScore[start] = dist(start, goal);
     inOpen[start] = 1;
     let openCount = 1;
 
@@ -139,11 +187,30 @@ export function findPath(sx: number, sz: number, gx: number, gz: number, out: nu
         for (let i = 0; i < NCELLS; i++) {
             if (inOpen[i] && fScore[i] < best) { best = fScore[i]; cur = i; }
         }
+        inOpen[cur] = 0; openCount--; closed[cur] = 1;
+
+        // ── Lazy Theta* "SetVertex": we optimistically set parent[cur] to the
+        // grandparent on relaxation; verify line of sight now that cur is being
+        // expanded. If the straight line is actually blocked, fall back to the
+        // best visible already-closed neighbour (true grid-A* parent).
+        if (cur !== start && !lineOfSight(parent[cur], cur)) {
+            let bp = -1, bg = Infinity;
+            const ccx = cur % COLS, ccz = (cur / COLS) | 0;
+            for (let k = 0; k < NB.length; k++) {
+                const nx = ccx + NB[k][0], nz = ccz + NB[k][1];
+                if (nx < 0 || nz < 0 || nx >= COLS || nz >= COLS) continue;
+                const ni = nz * COLS + nx;
+                if (!closed[ni]) continue;
+                const cand = gScore[ni] + dist(ni, cur);
+                if (cand < bg) { bg = cand; bp = ni; }
+            }
+            if (bp !== -1) { parent[cur] = bp; gScore[cur] = bg; }
+        }
+
         if (cur === goal) return reconstruct(goal, start, out);
 
-        inOpen[cur] = 0; openCount--; closed[cur] = 1;
         const ccx = cur % COLS, ccz = (cur / COLS) | 0;
-
+        const par = parent[cur];
         for (let k = 0; k < NB.length; k++) {
             const dx = NB[k][0], dz = NB[k][1];
             const nx = ccx + dx, nz = ccz + dz;
@@ -152,13 +219,13 @@ export function findPath(sx: number, sz: number, gx: number, gz: number, out: nu
             if (blocked[ni] || closed[ni]) continue;
             // No diagonal corner-cutting through a blocked orthogonal neighbour.
             if (dx !== 0 && dz !== 0 &&
-                (blocked[ccz * COLS + nx] || blocked[nz * COLS + ccx])) continue;
-            const step = (dx !== 0 && dz !== 0) ? SQRT2 : 1;
-            const tg = gScore[cur] + step;
-            if (tg < gScore[ni]) {
-                cameFrom[ni] = cur;
-                gScore[ni]   = tg;
-                fScore[ni]   = tg + heur(nx, nz, gcx, gcz);
+                (isBlocked(ccx, nz) || isBlocked(nx, ccz))) continue;
+            // LAZY: assume the parent of cur can see ni; cost via that parent.
+            const cand = gScore[par] + dist(par, ni);
+            if (cand < gScore[ni]) {
+                parent[ni] = par;
+                gScore[ni] = cand;
+                fScore[ni] = cand + dist(ni, goal);
                 if (!inOpen[ni]) { inOpen[ni] = 1; openCount++; }
             }
         }
