@@ -59,7 +59,7 @@ interface BoxProps {
 
 /** Rounded, toon-shaded box with a drei screen-space outline. */
 const RBox: React.FC<BoxProps> = ({
-    args, position = [0,0,0], rotation = [0,0,0], toon, outline = 4, radius = 0.1, castShadow = true,
+    args, position = [0,0,0], rotation = [0,0,0], toon, outline = 1.5, radius = 0.1, castShadow = true,
 }) => {
     const mat = toonMat(toon);
     const minDim = Math.min(args[0], args[1], args[2]);
@@ -71,7 +71,7 @@ const RBox: React.FC<BoxProps> = ({
         >
             <primitive object={mat} attach="material" />
             {outline > 0 && (
-                <Outlines thickness={outline} color={OUTLINE} screenspace transparent={false} angle={Math.PI} />
+                <Outlines thickness={outline} color={OUTLINE} screenspace transparent={false} angle={0.4} />
             )}
         </RoundedBox>
     );
@@ -90,7 +90,7 @@ interface GShapeProps {
 
 /** Toon-shaded round primitive (torus/cyl/sphere) with a drei outline. */
 const GShape: React.FC<GShapeProps> = ({
-    kind, args, position = [0,0,0], rotation = [0,0,0], toon, outline = 3, castShadow = true,
+    kind, args, position = [0,0,0], rotation = [0,0,0], toon, outline = 1.2, castShadow = true,
 }) => {
     const mat = toonMat(toon);
     return (
@@ -100,7 +100,7 @@ const GShape: React.FC<GShapeProps> = ({
             {kind === 'sphere' && <sphereGeometry args={args as any} />}
             <primitive object={mat} attach="material" />
             {outline > 0 && (
-                <Outlines thickness={outline} color={OUTLINE} screenspace transparent={false} angle={Math.PI} />
+                <Outlines thickness={outline} color={OUTLINE} screenspace transparent={false} angle={0.4} />
             )}
         </mesh>
     );
@@ -113,7 +113,7 @@ const Portal: React.FC<{ position: [number,number,number]; rotation?: [number,nu
     <group position={position} rotation={rotation as any} scale={[1, 1.5, 1]}>
         <GShape kind="torus" args={[1.0, 0.12, 16, 48]} toon={{
             color, emissive: color, emissiveStrength: 2.4, rimColor: color, rimStrength: 1.2, bands: 2,
-        }} outline={2} castShadow={false} />
+        }} outline={0.8} castShadow={false} />
         {/* swirling inner disc */}
         <mesh position={[0,0,-0.02]}>
             <circleGeometry args={[0.92, 48]} />
@@ -127,13 +127,13 @@ const ApertureLogo: React.FC<{ position: [number,number,number]; rotation?: [num
     position, rotation = [0,0,0], r = 1.4,
 }) => (
     <group position={position} rotation={rotation as any}>
-        <GShape kind="torus" args={[r, 0.08, 12, 48]}      toon={{ color: '#ffffff', rimStrength: 0.9, bands: 2 }} outline={2} castShadow={false} />
-        <GShape kind="torus" args={[r*0.5, 0.06, 12, 40]}  toon={{ color: '#ffffff', rimStrength: 0.9, bands: 2 }} outline={2} castShadow={false} />
+        <GShape kind="torus" args={[r, 0.08, 12, 48]}      toon={{ color: '#ffffff', rimStrength: 0.9, bands: 2 }} outline={1} castShadow={false} />
+        <GShape kind="torus" args={[r*0.5, 0.06, 12, 40]}  toon={{ color: '#ffffff', rimStrength: 0.9, bands: 2 }} outline={1} castShadow={false} />
         {Array.from({ length: 6 }).map((_, i) => (
             <RBox key={i} args={[r*0.5, 0.16, 0.04]}
                 position={[Math.cos((i/6)*Math.PI*2)*r*0.74, Math.sin((i/6)*Math.PI*2)*r*0.74, 0]}
                 rotation={[0, 0, (i/6)*Math.PI*2]}
-                toon={{ color: '#ffffff', rimStrength: 0.6, bands: 2 }} outline={1.5} radius={0.015} castShadow={false} />
+                toon={{ color: '#ffffff', rimStrength: 0.6, bands: 2 }} outline={0} radius={0.015} castShadow={false} />
         ))}
     </group>
 );
@@ -149,11 +149,11 @@ const CompanionCube: React.FC<{ position: [number,number,number]; scale?: number
     });
     return (
         <group ref={ref} position={position} scale={[scale,scale,scale]}>
-            <RBox args={[1,1,1]} radius={0.14} toon={{ color: '#d8dde4', shadow: '#7a8290', rimStrength: 0.7 }} outline={4} />
+            <RBox args={[1,1,1]} radius={0.14} toon={{ color: '#d8dde4', shadow: '#7a8290', rimStrength: 0.7 }} outline={1.5} />
             {/* corner nubs */}
             {[[-.5,-.5,-.5],[.5,-.5,-.5],[-.5,.5,-.5],[.5,.5,-.5],[-.5,-.5,.5],[.5,-.5,.5],[-.5,.5,.5],[.5,.5,.5]].map(([x,y,z],i)=>(
                 <RBox key={i} args={[0.2,0.2,0.2]} position={[x*0.5,y*0.5,z*0.5]} radius={0.05}
-                    toon={{ color: '#aab2bd', shadow: '#5a6470', rimStrength: 0.5 }} outline={2} />
+                    toon={{ color: '#aab2bd', shadow: '#5a6470', rimStrength: 0.5 }} outline={1} />
             ))}
             {/* pink heart faces */}
             {([[0,0,0.52,0,0,0],[0,0,-0.52,0,Math.PI,0],[0,0.52,0,-Math.PI/2,0,0],[0,-0.52,0,Math.PI/2,0,0],[0.52,0,0,0,Math.PI/2,0],[-0.52,0,0,0,-Math.PI/2,0]] as number[][]).map((d,i)=>(
@@ -226,16 +226,17 @@ export const Floor3Environment: React.FC = () => {
             <pointLight position={[0,-9,8]} intensity={1.0} distance={30} decay={2} color="#10204a" />
 
             {/* ── Background panel walls (Aperture chamber feel) ──────────── */}
+            {/* Walls: no outline — camera is inside them, outlines would show as giant black blobs */}
             <RBox args={[30, 18, 0.6]} position={[0, 5, 22]} radius={0.25}
-                toon={{ color: PANEL, shadow: PANEL_SHADOW, seams: 9, seamColor: PANEL_SEAM, rimStrength: 0.3 }} outline={3} castShadow={false} />
+                toon={{ color: PANEL, shadow: PANEL_SHADOW, seams: 9, seamColor: PANEL_SEAM, rimStrength: 0.3 }} outline={0} castShadow={false} />
             <RBox args={[0.6, 18, 36]} position={[-15, 5, 6]} radius={0.25}
-                toon={{ color: PANEL, shadow: PANEL_SHADOW, seams: 12, seamColor: PANEL_SEAM, rimStrength: 0.3 }} outline={3} castShadow={false} />
+                toon={{ color: PANEL, shadow: PANEL_SHADOW, seams: 12, seamColor: PANEL_SEAM, rimStrength: 0.3 }} outline={0} castShadow={false} />
             <RBox args={[0.6, 18, 36]} position={[15, 5, 6]} radius={0.25}
-                toon={{ color: PANEL, shadow: PANEL_SHADOW, seams: 12, seamColor: PANEL_SEAM, rimStrength: 0.3 }} outline={3} castShadow={false} />
+                toon={{ color: PANEL, shadow: PANEL_SHADOW, seams: 12, seamColor: PANEL_SEAM, rimStrength: 0.3 }} outline={0} castShadow={false} />
             {/* A few dark accent panels on the back wall */}
             {[[-8,9],[8,9],[-8,3],[8,3]].map(([x,y],i)=>(
                 <RBox key={i} args={[3.6, 3.6, 0.3]} position={[x, y, 21.6]} radius={0.12}
-                    toon={{ color: DARKPANEL, shadow: DARK_SHADOW, rimStrength: 0.4 }} outline={2.5} castShadow={false} />
+                    toon={{ color: DARKPANEL, shadow: DARK_SHADOW, rimStrength: 0.4 }} outline={1} castShadow={false} />
             ))}
 
             {/* ── Portals on the side walls ───────────────────────────────── */}
@@ -252,7 +253,7 @@ export const Floor3Environment: React.FC = () => {
                 const body = (
                     <>
                         <RBox args={[w, p.h, d]} position={[0, cy, 0]} radius={0.14}
-                            toon={PLAT_TOON[i]} outline={isStart ? 0 : 4} />
+                            toon={PLAT_TOON[i]} outline={isStart ? 0 : 1.5} />
                         {/* glowing portal-blue edge trim */}
                         {!isStart && (
                             <RBox args={[w + 0.06, 0.08, d + 0.06]} position={[0, p.topY - 0.04, 0]} radius={0.03}
@@ -263,11 +264,11 @@ export const Floor3Environment: React.FC = () => {
                         {isGoal && <CompanionCube position={[0, p.topY + 1.0, 0]} scale={0.9} />}
                         {isGoal && (
                             <RBox args={[0.12, 3.4, 0.12]} position={[-1.9, p.topY + 1.7, -1.9]} radius={0.05}
-                                toon={{ color: '#e8e8e8', rimStrength: 0.5 }} outline={2} />
+                                toon={{ color: '#e8e8e8', rimStrength: 0.5 }} outline={1} />
                         )}
                         {isGoal && (
                             <RBox args={[1.0, 0.6, 0.05]} position={[-1.45, p.topY + 3.1, -1.9]} radius={0.02}
-                                toon={{ color: PORTAL_ORNG, emissive: PORTAL_ORNG, emissiveStrength: 1.4, rimColor: PORTAL_ORNG, rimStrength: 1.0, bands: 2 }} outline={2} />
+                                toon={{ color: PORTAL_ORNG, emissive: PORTAL_ORNG, emissiveStrength: 1.4, rimColor: PORTAL_ORNG, rimStrength: 1.0, bands: 2 }} outline={1} />
                         )}
                     </>
                 );
@@ -282,7 +283,7 @@ export const Floor3Environment: React.FC = () => {
             {[[-9, 11, 4],[9, 13, 9],[-7, 9, 14]].map(([x,y,z],i)=>(
                 <RBox key={i} args={[2.4, 2.4, 0.4]} position={[x, y, z]} radius={0.14}
                     rotation={[0, (i-1)*0.4, 0.1*i]}
-                    toon={{ color: i%2 ? DARKPANEL : PANEL, shadow: i%2 ? DARK_SHADOW : PANEL_SHADOW, rimStrength: 0.6 }} outline={2.5} castShadow={false} />
+                    toon={{ color: i%2 ? DARKPANEL : PANEL, shadow: i%2 ? DARK_SHADOW : PANEL_SHADOW, rimStrength: 0.6 }} outline={1} castShadow={false} />
             ))}
 
             {/* Elevator facade */}
