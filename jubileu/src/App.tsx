@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
-import { EffectComposer, Bloom, ChromaticAberration, Vignette } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, ChromaticAberration, Vignette, N8AO } from '@react-three/postprocessing';
 import { KernelSize, BlendFunction } from 'postprocessing';
 import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
 
@@ -1242,6 +1242,21 @@ export default function App() {
             Medium/low: no postprocessing pass at all. */}
         {hasStarted && settings.quality === 'high' && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
+                {/* N8AO — screen-space ambient occlusion. Floor 3 only: adds
+                    contact shadows in corners and under platforms, the single
+                    biggest "rendered/PC-quality" upgrade for the flat toon
+                    chamber. Runs on the depth buffer so it works regardless of
+                    the custom toon ShaderMaterial. */}
+                {currentLevel === 3 && (
+                    <N8AO
+                        aoRadius={1.6}
+                        distanceFalloff={1.0}
+                        intensity={3.0}
+                        quality="medium"
+                        halfRes
+                        color="#0a0e1a"
+                    />
+                )}
                 {/* Bloom — moderate on Floor 2. Threshold kept high so only
                     truly bright emissive crystals + water surface bloom;
                     low enough to avoid washing the whole cave cyan. */}
