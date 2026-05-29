@@ -193,9 +193,17 @@ const _HOUSE_BASE = [...ELEV_W, ...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN
 const _WALLS_LOBBY_OPEN          = _LOBBY_BASE;
 const _WALLS_LOBBY_SEALED        = [..._LOBBY_BASE, DOOR_SEAL];
 
-// Floor 3 — placeholder chamber. Reuses the lobby shell (10×10 room + the
-// elevator alcove) so the elevator works identically, but with no furniture.
-const _WALLS_FLOOR3              = [...ELEV_W, ...LOBBY_W];
+// Floor 3 — open outdoor cartoon world (50×40 area, Z: -10..+30, X: ±25).
+// ELEV_W handles the elevator alcove. The doorway opening at x=[-1.3,1.3] is
+// not walled so the player can walk out; DOOR_SEAL closes it when sealed.
+const FLOOR3_BND: number[][] = [
+    [-25, -10, -1.3, -10],  // left of elevator doorway
+    [1.3,  -10,  25, -10],  // right of elevator doorway
+    [-25,  -10, -25,  30],  // left boundary
+    [ 25,  -10,  25,  30],  // right boundary
+    [-25,   30,  25,  30],  // far boundary (behind castle)
+];
+const _WALLS_FLOOR3              = [...ELEV_W, ...FLOOR3_BND];
 const _WALLS_FLOOR3_SEALED       = [..._WALLS_FLOOR3, DOOR_SEAL];
 const _WALLS_HOUSE_OPEN          = _HOUSE_BASE;
 const _WALLS_HOUSE_DOOR          = [..._HOUSE_BASE, HOUSE_DW];
