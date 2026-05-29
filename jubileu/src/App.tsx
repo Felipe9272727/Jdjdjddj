@@ -1240,7 +1240,7 @@ export default function App() {
             The ChromaticAberration simulates light dispersion through water,
             and the Vignette deepens the claustrophobic underwater feel.
             Medium/low: no postprocessing pass at all. */}
-        {hasStarted && settings.quality === 'high' && (
+        {hasStarted && (settings.quality === 'high' || currentLevel === 3) && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
                 {/* N8AO — screen-space ambient occlusion (Floor 3 only). Tuned
                     conservatively: tight screen-space radius + low intensity +
@@ -1248,7 +1248,7 @@ export default function App() {
                     without the full-surface grain / dark halo the aggressive
                     settings produced. Runs on the depth buffer so it works with
                     the custom toon ShaderMaterial. */}
-                {currentLevel === 3 && (
+                {currentLevel === 3 && settings.quality === 'high' && (
                     <N8AO
                         screenSpaceRadius
                         aoRadius={16}
@@ -1261,7 +1261,10 @@ export default function App() {
                 )}
                 {/* Bloom — moderate on Floor 2. Threshold kept high so only
                     truly bright emissive crystals + water surface bloom;
-                    low enough to avoid washing the whole cave cyan. */}
+                    low enough to avoid washing the whole cave cyan.
+                    High quality only — on medium/low the Floor-3 composer runs
+                    just the cheap grayscale pass below. */}
+                {settings.quality === 'high' && (
                 <Bloom
                     intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 0.22 : 0.35}
                     luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 3 ? 0.95 : 0.95}
@@ -1269,21 +1272,28 @@ export default function App() {
                     mipmapBlur
                     kernelSize={currentLevel === 2 ? KernelSize.SMALL : KernelSize.MEDIUM}
                 />
+                )}
                 {/* Chromatic aberration — heavier underwater (light dispersion
                     through liquid). Floor 3 (Portal 2 sci-fi) uses none. */}
+                {settings.quality === 'high' && (
                 <ChromaticAberration
                     blendFunction={BlendFunction.NORMAL}
                     offset={currentLevel === 2 ? [0.0035, 0.0035] as unknown as Vector3 : [0, 0] as unknown as Vector3}
                     radialModulation={false}
                     modulationOffset={0.0}
                 />
+                )}
                 {/* Vignette — deep cave on Floor 2, subtle sci-fi on Floor 3. */}
+                {settings.quality === 'high' && (
                 <Vignette
                     eskil={false}
                     offset={currentLevel === 2 ? 0.32 : currentLevel === 3 ? 0.32 : 0.2}
                     darkness={currentLevel === 2 ? 0.78 : currentLevel === 3 ? 0.28 : 0.3}
                 />
-                {/* Floor 3 — full desaturation for the black-&-white rubber-hose look. */}
+                )}
+                {/* Floor 3 — full desaturation for the black-&-white rubber-hose
+                    look. Runs at EVERY quality level (the B&W is core art
+                    direction, not an optional polish pass). */}
                 {currentLevel === 3 && (
                     <HueSaturation saturation={-1} />
                 )}

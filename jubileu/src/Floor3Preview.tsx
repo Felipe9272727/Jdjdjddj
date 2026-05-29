@@ -19,6 +19,7 @@ import { ACESFilmicToneMapping, SRGBColorSpace } from 'three';
 import { OrbitControls, useGLTF, Grid } from '@react-three/drei';
 import { Suspense } from 'react';
 import Floor3Environment from './Floor3';
+import FpHands from './Floor3Hands';
 
 function HandsDebug() {
     const { scene } = useGLTF('/cartoon_gloves.glb');
@@ -33,24 +34,46 @@ function HandsDebug() {
     );
 }
 
+// Renders the REAL first-person hands against a neutral backdrop so the
+// camera-pinned pose can be tuned (via ?…&rx=&py=&s=… URL overrides) and
+// screenshotted exactly as the player sees it.
+function FpHandsPreview() {
+    return (
+        <group>
+            <ambientLight intensity={0.9} />
+            <directionalLight position={[2, 4, 3]} intensity={1.1} />
+            <mesh position={[0, -2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                <planeGeometry args={[40, 40]} />
+                <meshStandardMaterial color="#e9ecef" />
+            </mesh>
+            <FpHands />
+        </group>
+    );
+}
+
 export default function Floor3Preview() {
     const search = window.location.search;
     const debug = search.includes('handsdebug');
+    const fphands = search.includes('fphands');
     const dbgCam: [number, number, number] = search.includes('top') ? [0, 3, 0.001]
         : search.includes('front') ? [0, 0.2, 3]
         : [1.6, 1.2, 1.6];
+    const camPos: [number, number, number] = fphands ? [0, 0, 0]
+        : debug ? dbgCam
+        : search.includes('close') ? [0, 2.2, 8]
+        : [0, 1.6, -8];
     return (
         <div style={{ width: '100vw', height: '100vh', background: '#000' }}>
             <Canvas
                 shadows
-                camera={{ position: debug ? dbgCam : search.includes('close') ? [0, 2.2, 8] : [0, 1.6, -8], fov: 70, near: 0.1, far: 200 }}
+                camera={{ position: camPos, fov: 70, near: 0.1, far: 200 }}
                 gl={{ antialias: true, toneMapping: ACESFilmicToneMapping, outputColorSpace: SRGBColorSpace }}
             >
                 <Suspense fallback={null}>
-                    {debug ? <HandsDebug /> : <Floor3Environment elevator={false} />}
+                    {fphands ? <FpHandsPreview /> : debug ? <HandsDebug /> : <Floor3Environment elevator={false} />}
                 </Suspense>
-                <OrbitControls target={debug ? [0, 0, 0] : [0, 1.5, 4]} />
-                {!debug && !search.includes('nopost') && (
+                {!fphands && <OrbitControls target={debug ? [0, 0, 0] : [0, 1.5, 4]} />}
+                {!debug && !fphands && !search.includes('nopost') && (
                 <EffectComposer multisampling={0} enableNormalPass={false}>
                     <N8AO
                         screenSpaceRadius
