@@ -771,8 +771,10 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     return (
         <group ref={rootRef} visible={false} scale={[3.6, 3.6, 3.6]}>
             {/* Primitive uses the cloned, material-overridden scene.
-                Rotate 180° around Y so the shark faces its velocity (+Z forward). */}
-            <primitive object={clonedScene} rotation={[0, Math.PI, 0]} />
+                The orientation helper already aims the group's +Z axis along the
+                velocity, and this GLB's nose IS its local +Z — so NO extra 180°
+                flip. The old Math.PI flip made it swim tail-first ("de costas"). */}
+            <primitive object={clonedScene} rotation={[0, 0, 0]} />
 
             {/* Single fill light — makes the shark visible in dark water, and
                 doubles as a perception tell: cold blue when unaware, blood red
