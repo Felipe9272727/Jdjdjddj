@@ -182,7 +182,9 @@ export const GodRayShafts: React.FC<GodRayShaftsProps> = ({ playerPositionRef })
         if (outerConeMat.current) outerConeMat.current.opacity = 0.18 * proximity * breathe;
         if (innerConeMat.current) innerConeMat.current.opacity = 0.14 * proximity * breathe;
     });
-    const SHAFT_COUNT = 8;
+    // 8→6 shafts: a ~25% cut in this large additive-blend overdraw layer
+    // (one of the heaviest underwater fill-rate costs) with no read difference.
+    const SHAFT_COUNT = 6;
     return (
         <group ref={groupRef} position={[HOLE_CENTER_X, -15, HOLE_CENTER_Z]}>
             {Array.from({ length: SHAFT_COUNT }, (_, i) => {

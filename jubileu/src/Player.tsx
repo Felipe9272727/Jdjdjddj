@@ -4,7 +4,7 @@ import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
-import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS } from './Floor2Underwater';
+import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
 useGLTF.preload(WALKING_URL);
@@ -555,13 +555,20 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             }
         }
 
-        // Y clamps: underwater floor at Y=-29 and surface at SWIM_THRESHOLD_Y.
-        if (pos.current.y < -29) pos.current.y = -29;
-        // Underwater XZ bounds — tighter clamp matches visual wall positions.
-        if (pos.current.x < -26) pos.current.x = -26;
-        if (pos.current.x >  26) pos.current.x =  26;
-        if (pos.current.z < -26) pos.current.z = -26;
-        if (pos.current.z >  26) pos.current.z =  26;
+        // ─── Organic deformation collision (walls + seafloor ridges) ──
+        // The underwater walls bulge inward and the seafloor heaves up into
+        // ridges. A flat ±26 box let the player swim straight through those
+        // beautiful lumps; now we stop them at the real displaced surface,
+        // sampled from the rendered geometry. Outer ±28.5 box is a safety net
+        // for the far corners the wall profile doesn't cover.
+        if (pos.current.x < -28.5) pos.current.x = -28.5;
+        if (pos.current.x >  28.5) pos.current.x =  28.5;
+        if (pos.current.z < -28.5) pos.current.z = -28.5;
+        if (pos.current.z >  28.5) pos.current.z =  28.5;
+        resolveUWWalls(pos.current, 0.6);
+        // Ride above the seafloor ridges (but never above the hard floor plane).
+        const floorY = Math.max(-29, uwFloorHeight(pos.current.x, pos.current.z) + 0.8);
+        if (pos.current.y < floorY) pos.current.y = floorY;
         if (pos.current.y > SWIM_THRESHOLD_Y) {
             // Surfaced — if inside the hole, allow popping out into the cave.
             const dxHole = pos.current.x - HOLE_CENTER_X;

@@ -33,4 +33,7 @@ export {
     GodRayShafts, DeepMist, DebrisField, FishSchool,
     UnderwaterSediment, PlanktonField, BubbleField, SurfaceBubbleRing,
     GodRay, GodRays, Shard,
+
+    // Organic-deformation collision (walls bulge inward, seafloor ridges)
+    resolveUWWalls, uwFloorHeight,
 } from './Floor2';

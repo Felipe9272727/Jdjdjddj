@@ -40,6 +40,9 @@ export {
 } from './underwater-effects';
 export { BioluminescentPatches, UpwardLightShaft, CeilingReflectionCaustics, UnderwaterLighting, CaveIBL } from './lighting';
 
+// Organic-deformation collision helpers (derived from the rendered geometry)
+export { resolveUWWalls, uwFloorHeight } from './geometry';
+
 // Internal imports (not re-exported)
 import {
     HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS,

@@ -15,9 +15,39 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { SkeletonUtils } from 'three-stdlib';
 import {
-    UW_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, SWIM_THRESHOLD_Y,
+    UW_ROCK_COLLIDERS, UW_PILLAR_COLLIDERS, SWIM_THRESHOLD_Y,
 } from './constants';
+import { resolveUWWalls, uwFloorHeight } from './geometry';
 import { sharkDirector } from '../ai/AIDirector';
+import { sharkSteer, interceptTime } from '../ai/contextSteering';
+
+// ─── Context-steering danger field ──────────────────────────────────────────
+// Writes a danger lobe into the shared context map for every rock, pillar and
+// cave wall within look-ahead range of (fx,fz). The shark then picks the
+// best collision-free heading — visibly weaving through the arches and the
+// organic wall bulges instead of grinding along them. `agentR` is the shark's
+// body half-width; `range` the steering look-ahead.
+function _writeObstacleDanger(fx: number, fz: number, agentR: number, range: number): void {
+    for (let i = 0; i < UW_ROCK_COLLIDERS.length; i++) {
+        const r = UW_ROCK_COLLIDERS[i];
+        const dx = r.x - fx, dz = r.z - fz;
+        const d = Math.hypot(dx, dz);
+        if (d - r.r < range) sharkSteer.addDanger(dx, dz, d, r.r + agentR, range);
+    }
+    for (let i = 0; i < UW_PILLAR_COLLIDERS.length; i++) {
+        const p = UW_PILLAR_COLLIDERS[i];
+        const dx = p.x - fx, dz = p.z - fz;
+        const d = Math.hypot(dx, dz);
+        if (d - p.r < range) sharkSteer.addDanger(dx, dz, d, p.r + agentR, range);
+    }
+    // Four cave walls as danger pointing at the nearest plane. The vector
+    // self→wall has magnitude = distance to that plane; er=0 (the plane itself).
+    const WP = 30;
+    const dN = WP + fz; if (dN < range) sharkSteer.addDanger(0, -dN, dN, 0, range); // north z=-30
+    const dS = WP - fz; if (dS < range) sharkSteer.addDanger(0,  dS, dS, 0, range); // south z=+30
+    const dW = WP + fx; if (dW < range) sharkSteer.addDanger(-dW, 0, dW, 0, range); // west  x=-30
+    const dE = WP - fx; if (dE < range) sharkSteer.addDanger( dE, 0, dE, 0, range); // east  x=+30
+}
 
 // ─── AI constants ─────────────────────────────────────────────────────────────
 const PATROL_SPEED   = 2.6;
@@ -239,6 +269,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     const _v1 = useRef(new THREE.Vector3());
     const _v2 = useRef(new THREE.Vector3());
     const _v3 = useRef(new THREE.Vector3());
+    const _steer = useRef(new THREE.Vector3());   // context-steering output (XZ)
 
     // ─── Main loop ──────────────────────────────────────────────────────────
     useFrame(({ clock }, dt) => {
@@ -464,71 +495,55 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 break;
             }
             case 'hunting': {
-                // Predictive interception: aim at where player will be, not where they are
                 const speedT    = Math.min(1, (dist - LUNGE_DIST) / (AWARENESS_DIST - LUNGE_DIST));
                 const baseSpeed = berserk
                     ? HUNT_SPEED_MAX * BERSERK_HUNT_MULT
                     : HUNT_SPEED_MIN + speedT * (HUNT_SPEED_MAX - HUNT_SPEED_MIN);
                 const speed = baseSpeed * Math.min(shardMult, 2.5) * sharkDirector.huntMult;
-                // Look-ahead: predict player position 55% of the travel time ahead
-                const lookAhead = Math.min(dist / (speed + 0.001) * 0.55, 1.8);
-                const tpx = px + playerVelRef.current.x * lookAhead;
-                const tpy = py + playerVelRef.current.y * lookAhead;
-                const tpz = pz + playerVelRef.current.z * lookAhead;
-                const tdx = tpx - fx, tdy = tpy - fy, tdz = tpz - fz;
-                const tDist = Math.sqrt(tdx*tdx + tdy*tdy + tdz*tdz) + 0.001;
-                _v1.current.set(tdx / tDist, tdy / tDist, tdz / tDist).multiplyScalar(speed);
-                for (const rock of UW_ROCK_COLLIDERS) {
-                    const rdx = fx - rock.x, rdy = fy - rock.y, rdz = fz - rock.z;
-                    const rd2 = rdx*rdx + rdy*rdy + rdz*rdz;
-                    const mr  = rock.r + 2.0;
-                    if (rd2 < mr*mr && rd2 > 0.001) {
-                        const rd  = Math.sqrt(rd2);
-                        const str = (mr - rd) / rd * 7;
-                        _v1.current.x += rdx * str;
-                        _v1.current.y += rdy * str;
-                        _v1.current.z += rdz * str;
-                    }
-                }
-                for (const pillar of UW_PILLAR_COLLIDERS) {
-                    const pdx = fx - pillar.x, pdz = fz - pillar.z;
-                    const pd2 = pdx*pdx + pdz*pdz;
-                    const mr  = pillar.r + 1.8;
-                    if (pd2 < mr*mr && pd2 > 0.001) {
-                        const pd  = Math.sqrt(pd2);
-                        const str = (mr - pd) / pd * 6;
-                        _v1.current.x += pdx * str;
-                        _v1.current.z += pdz * str;
-                    }
-                }
-                _v1.current.y += Math.sin(t * 1.3) * 0.5;
+
+                // ── Predictive interception (closed-form quadratic) ──
+                // Aim at the exact point where the shark meets the player's
+                // extrapolated path, not at the stale player position. Cut the
+                // corner — that's what makes it feel like it reads your mind.
+                const pv = playerVelRef.current;
+                let it = interceptTime(fx, fy, fz, px, py, pz, pv.x, pv.y, pv.z, speed);
+                if (it < 0) it = dist / (speed + 0.001);   // no solution → pure pursuit
+                it = Math.min(it, 2.5);
+                const aimx = px + pv.x * it, aimy = py + pv.y * it, aimz = pz + pv.z * it;
+
+                // ── Context steering: thread obstacles toward the aim point ──
+                const range = Math.min(speed * 0.7 + 4, 14);
+                sharkSteer.reset();
+                sharkSteer.addInterest(aimx - fx, aimz - fz, 1);
+                _writeObstacleDanger(fx, fz, 2.0, range);
+                sharkSteer.pick(_steer.current);   // unit XZ heading, collision-free
+
+                // Vertical handled separately (the ring is horizontal): chase the
+                // aim depth, stay clear of the seafloor ridge below.
+                const floorClear = uwFloorHeight(fx, fz) + 3.0;
+                let vy = (aimy - fy);
+                if (fy < floorClear) vy += (floorClear - fy) * 2.0;
+                vy = THREE.MathUtils.clamp(vy, -speed, speed) * 0.8 + Math.sin(t * 1.3) * 0.5;
+                _v1.current.set(_steer.current.x * speed, vy, _steer.current.z * speed);
                 vel.current.lerp(_v1.current, safeDt * 3.0);
                 break;
             }
             case 'investigating': {
                 // Predator search: head for the highest-probability cell in the
-                // occupancy grid (spatial memory), not just the last fixed point.
+                // occupancy grid (spatial memory), steered around obstacles.
                 const speed = HUNT_SPEED_MAX * 0.55 * Math.min(shardMult, 2.0) * sharkDirector.huntMult;
                 sharkDirector.getSearchTarget(_searchTgt.current);
                 _searchTgt.current.y = lastKnownPosRef.current.y; // keep last-seen depth
-                const idx = _searchTgt.current.x - fx;
-                const idy = _searchTgt.current.y - fy;
-                const idz = _searchTgt.current.z - fz;
-                const id  = Math.sqrt(idx*idx + idy*idy + idz*idz) + 0.001;
-                _v1.current.set(idx / id, idy / id, idz / id).multiplyScalar(speed);
-                for (const rock of UW_ROCK_COLLIDERS) {
-                    const rdx = fx - rock.x, rdy = fy - rock.y, rdz = fz - rock.z;
-                    const rd2 = rdx*rdx + rdy*rdy + rdz*rdz;
-                    const mr  = rock.r + 2.0;
-                    if (rd2 < mr*mr && rd2 > 0.001) {
-                        const rd  = Math.sqrt(rd2);
-                        const str = (mr - rd) / rd * 7;
-                        _v1.current.x += rdx * str;
-                        _v1.current.y += rdy * str;
-                        _v1.current.z += rdz * str;
-                    }
-                }
-                _v1.current.y += Math.sin(t * 1.3) * 0.3;
+                const range = Math.min(speed * 0.7 + 4, 12);
+                sharkSteer.reset();
+                sharkSteer.addInterest(_searchTgt.current.x - fx, _searchTgt.current.z - fz, 1);
+                _writeObstacleDanger(fx, fz, 2.0, range);
+                sharkSteer.pick(_steer.current);
+                const floorClear = uwFloorHeight(fx, fz) + 3.0;
+                let vy = (_searchTgt.current.y - fy);
+                if (fy < floorClear) vy += (floorClear - fy) * 2.0;
+                vy = THREE.MathUtils.clamp(vy, -speed, speed) * 0.7 + Math.sin(t * 1.3) * 0.3;
+                _v1.current.set(_steer.current.x * speed, vy, _steer.current.z * speed);
                 vel.current.lerp(_v1.current, safeDt * 2.5);
                 break;
             }
@@ -559,22 +574,16 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         pos.current.x += vel.current.x * safeDt;
         pos.current.y += vel.current.y * safeDt;
         pos.current.z += vel.current.z * safeDt;
-        pos.current.x = THREE.MathUtils.clamp(pos.current.x, -26, 26);
-        pos.current.y = THREE.MathUtils.clamp(pos.current.y, -29, SWIM_THRESHOLD_Y - 1.5);
-        pos.current.z = THREE.MathUtils.clamp(pos.current.z, -26, 26);
+        pos.current.x = THREE.MathUtils.clamp(pos.current.x, -28.5, 28.5);
+        pos.current.z = THREE.MathUtils.clamp(pos.current.z, -28.5, 28.5);
 
-        for (const wall of CAVE_WALL_COLLIDERS) {
-            const wdx = pos.current.x - wall.x;
-            const wdz = pos.current.z - wall.z;
-            const wd2 = wdx*wdx + wdz*wdz;
-            const mr  = wall.r + 1.2;
-            if (wd2 < mr*mr && wd2 > 0.001) {
-                const wd   = Math.sqrt(wd2);
-                const push = (mr - wd) / wd;
-                pos.current.x += wdx * push;
-                pos.current.z += wdz * push;
-            }
-        }
+        // ── Organic-deformation collision (same surfaces the player hits) ──
+        // The shark is stopped by the real bulged walls and rides above the
+        // seafloor ridges — it can no longer cheat through the deformations.
+        // Larger radius (2.2) than the player since the shark body is huge.
+        resolveUWWalls(pos.current, 2.2);
+        const floorMin = uwFloorHeight(pos.current.x, pos.current.z) + 2.0;
+        pos.current.y = THREE.MathUtils.clamp(pos.current.y, floorMin, SWIM_THRESHOLD_Y - 1.5);
 
         g.position.copy(pos.current);
         _updateOrientation(g, safeDt, false);
