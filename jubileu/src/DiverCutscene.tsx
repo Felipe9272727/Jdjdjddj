@@ -230,6 +230,15 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat, audioCtx }: DiverCut
 
   return (
     <div className="cs-root" onClick={advanceNow}>
+      {/* Cinematic opening title card — fades in over a dark wash, holds, then
+          dissolves to reveal the diver. Pure CSS (no JS timer) so it can't
+          interfere with the typewriter / auto-advance flow. */}
+      <div className="cs-introcard" aria-hidden="true">
+        <div className="cs-introcard-kicker">ANDAR 2</div>
+        <div className="cs-introcard-title">O ABISMO</div>
+        <div className="cs-introcard-sub">— quem desce, raramente sobe igual —</div>
+      </div>
+
       {/* Ambient beat tint — subtle emotional color wash over the visible 3D world */}
       <div
         className="cs-ambient-tint"
@@ -341,6 +350,66 @@ const STYLES = `
   pointer-events: auto;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Cinematic opening title card */
+.cs-introcard {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+  z-index: 45;
+  background: radial-gradient(ellipse at center, rgba(6,18,30,0.55) 0%, rgba(2,6,12,0.96) 75%);
+  animation: csIntroCard 3400ms ease-in-out forwards;
+}
+@keyframes csIntroCard {
+  0%   { opacity: 0; }
+  14%  { opacity: 1; }
+  72%  { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+.cs-introcard-kicker {
+  font-size: clamp(0.7rem, 2.4vw, 1.05rem);
+  font-weight: 600;
+  letter-spacing: 0.9em;
+  text-indent: 0.9em;
+  color: #5fd7ff;
+  text-shadow: 0 0 18px rgba(60,200,255,0.6);
+  animation: csIntroFade 3400ms ease-out forwards;
+}
+.cs-introcard-title {
+  margin-top: 0.25em;
+  font-size: clamp(2.4rem, 9vw, 5.5rem);
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+  color: #eafcff;
+  text-shadow: 0 0 34px rgba(70,205,255,0.75), 0 0 70px rgba(40,150,220,0.4);
+  animation: csIntroTitle 3400ms cubic-bezier(0.2,0.8,0.25,1) forwards;
+}
+.cs-introcard-sub {
+  margin-top: 1em;
+  font-size: clamp(0.7rem, 2.4vw, 1.05rem);
+  font-style: italic;
+  letter-spacing: 0.18em;
+  color: rgba(180,225,245,0.75);
+  animation: csIntroFade 3400ms ease-out 200ms both;
+}
+@keyframes csIntroTitle {
+  0%   { opacity: 0; letter-spacing: 0.7em; text-indent: 0.7em; transform: translateY(12px) scale(0.98); }
+  20%  { opacity: 1; letter-spacing: 0.32em; text-indent: 0.32em; transform: none; }
+  72%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes csIntroFade {
+  0%   { opacity: 0; }
+  22%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* Ambient beat tint — sits behind everything, tints the visible 3D world */

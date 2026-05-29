@@ -19,12 +19,15 @@ export const SWIM_THRESHOLD_Y = -2.7;   // below this the player is "in" the wat
 export const swimmerY = { current: 0 };
 
 // ─── Particle / instance counts ────────────────────────────────────────
-export const DUST_COUNT = 12;
-export const DEBRIS_COUNT = 8;
-export const SEDIMENT_COUNT = 12;
-export const PLANKTON_COUNT = 6;
-export const FISH_COUNT = 18;
-export const BUBBLE_COUNT = 15;
+// Particle counts trimmed ~25% as part of the Floor 2 optimization pass —
+// fewer transparent/alpha-blended instances = less overdraw and fewer
+// per-frame updates, with no perceptible change to the density of the scene.
+export const DUST_COUNT = 10;
+export const DEBRIS_COUNT = 6;
+export const SEDIMENT_COUNT = 9;
+export const PLANKTON_COUNT = 5;
+export const FISH_COUNT = 14;
+export const BUBBLE_COUNT = 11;
 export const BUBBLE_RANGE = 18;
 export const BUBBLE_RISE = 0.5;
 export const BUBBLE_MAX_Y = WATER_LEVEL_Y - 0.5;
