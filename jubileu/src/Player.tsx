@@ -496,9 +496,9 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         // Holding the swim-fast button burns stamina for a big speed boost;
         // releasing (or running dry) regenerates it. Stamina is written to a
         // shared ref every frame so the HUD bar can read it without re-renders.
-        const SWIM_SPRINT_MULT = 1.95;
-        const STAMINA_DRAIN = 0.34;   // full bar ≈ 3s of sprint
-        const STAMINA_REGEN = 0.22;   // refills in ≈ 4.5s
+        const SWIM_SPRINT_MULT = 2.7;  // dash now clearly OUTRUNS the shark's hunt
+        const STAMINA_DRAIN = 0.26;   // full bar ≈ 3.8s of sprint
+        const STAMINA_REGEN = 0.26;   // refills in ≈ 3.8s
         const wantSprint = !!sprintHeldRef?.current;
         const stam = staminaRef ? staminaRef.current : 1;
         const willMove = Math.abs(fwd) > 0.01 || Math.abs(strafe) > 0.01;
@@ -523,7 +523,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
             // Normalize then scale by water-speed. Length of (fwd, strafe) clamped to 1.
             const inputMag = Math.min(1, Math.sqrt(fwd * fwd + strafe * strafe));
-            const k = SPEED * 0.55 * sprintMult * safeDt * inputMag;
+            const k = SPEED * 0.6 * sprintMult * safeDt * inputMag;
             // Same -fwd / -strafe sign convention as existing land code.
             pos.current.x += (-fX * fwd - rX * strafe) * k;
             pos.current.y += (-fY * fwd) * k;

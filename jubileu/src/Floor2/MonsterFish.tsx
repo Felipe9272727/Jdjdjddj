@@ -64,14 +64,20 @@ function _writeObstacleDanger(fx: number, fy: number, fz: number, agentR: number
 // player can sweep the seabed for shards and finish Floor 2 without a constant
 // frantic chase. It still hunts and lunges, just at a far more beatable pace.
 const PATROL_SPEED   = 1.5;
-const HUNT_SPEED_MIN = 2.0;
-const HUNT_SPEED_MAX = 4.2;
-const LUNGE_SPEED    = 10.5;
+const HUNT_SPEED_MIN = 1.8;
+const HUNT_SPEED_MAX = 3.8;
+// Hard ceiling on hunt speed. Player swim ≈ 2.4, sprint ≈ 6.5 u/s, so a
+// sprinting diver always out-swims a cruising shark (stamina makes that a
+// resource, not a free pass), while a dawdling diver still gets run down.
+const HUNT_SPEED_CAP = 5.0;
+const LUNGE_SPEED    = 9.0;
 // The shark is now ~20 units long (scale 3.6), so lunge/catch trigger on the
-// MOUTH reaching the player, not the body centre — hence the larger radii.
-const LUNGE_DIST     = 11.0;
-const CATCH_DIST     = 6.0;
-const REGROUP_TIME   = 5.0;
+// MOUTH reaching the player, not the body centre. Lunge commits from closer and
+// the catch radius is tighter, so a locked-in lunge can be juked instead of
+// being an unavoidable death the moment the shark gets near.
+const LUNGE_DIST     = 8.0;
+const CATCH_DIST     = 4.5;
+const REGROUP_TIME   = 6.0;
 const AWARENESS_DIST = 42.0;
 const SPAWN_POS      = new THREE.Vector3(-22, -20, -22);
 const AWAKEN_DELAY   = 6.0;
@@ -598,7 +604,11 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 const baseSpeed = berserk
                     ? HUNT_SPEED_MAX * BERSERK_HUNT_MULT
                     : HUNT_SPEED_MIN + speedT * (HUNT_SPEED_MAX - HUNT_SPEED_MIN);
-                const speed = baseSpeed * Math.min(shardMult, 2.5) * sharkDirector.huntMult;
+                // Cap the compounded speed so a sprinting diver can always pull
+                // away — the shark wins by cutting corners (interception) and
+                // stealth, not by raw out-swimming. shard scaling trimmed (2.5→1.5).
+                const speed = Math.min(HUNT_SPEED_CAP,
+                    baseSpeed * Math.min(shardMult, 1.5) * sharkDirector.huntMult);
 
                 // ── Predictive interception (closed-form quadratic) ──
                 // Aim at the exact point where the shark meets the player's
