@@ -17,9 +17,10 @@ import { SkeletonUtils } from 'three-stdlib';
 import {
     UW_ROCK_COLLIDERS, UW_PILLAR_COLLIDERS, SWIM_THRESHOLD_Y,
 } from './constants';
-import { resolveUWWalls, uwFloorHeight } from './geometry';
+import { resolveUWWalls, uwFloorHeight, resolveUWObstacles } from './geometry';
 import { sharkDirector } from '../ai/AIDirector';
 import { sharkSteer, interceptTime } from '../ai/contextSteering';
+import { findPath } from '../ai/navGrid';
 
 // ─── Context-steering danger field ──────────────────────────────────────────
 // Writes a danger lobe into the shared context map for every rock, pillar and
@@ -279,6 +280,13 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
     const stuckT     = useRef(0);
     const escapeT    = useRef(0);
     const escapeCount = useRef(0); // consecutive escapes without progress → teleport
+    // A* navigation — the shark plans a path of free cells to its goal and
+    // follows the waypoints, so it routes AROUND pillar/rock clusters instead of
+    // getting trapped in a local-minimum ravine. Re-planned on a short timer.
+    const navPath  = useRef<number[]>([]);   // [x0,z0,x1,z1,…] world XZ waypoints
+    const navIdx   = useRef(0);
+    const navTimer = useRef(0);
+    const navGoal  = useRef(new THREE.Vector3());
 
     // ─── Main loop ──────────────────────────────────────────────────────────
     useFrame(({ clock }, dt) => {
@@ -506,33 +514,56 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         }
 
         // ── Movement ─────────────────────────────────────────────────────────
-        // Escape override — when the watchdog flags the shark as stuck it swims
-        // toward open water, but uses context steering so it doesn't blunder
-        // into the very pillar/rock it's already wedged against (the old raw
-        // centre-point direction would drive straight into anything between the
-        // shark and origin, which is exactly how it kept getting re-stuck).
+        // A*-guided steering: plan a path of free cells to (gx,gz), follow its
+        // waypoints, and use context steering only for the fine avoidance along
+        // the cleared corridor. This is what stops the shark dead-ending in a
+        // ravine — the global path always has a way out. Re-plans every ~0.4s or
+        // when the goal jumps. Writes the chosen unit heading into _steer.
+        const navSteer = (gx: number, gz: number, agentR: number, range: number): void => {
+            navTimer.current -= safeDt;
+            const goalMoved = Math.hypot(gx - navGoal.current.x, gz - navGoal.current.z) > 4;
+            if (navTimer.current <= 0 || goalMoved || navPath.current.length === 0) {
+                findPath(fx, fz, gx, gz, navPath.current);
+                navIdx.current = 0;
+                navGoal.current.set(gx, 0, gz);
+                navTimer.current = 0.4;
+            }
+            // Default to steering straight at the goal (used when A* found no path).
+            let wx = gx, wz = gz;
+            const path = navPath.current;
+            if (path.length >= 2) {
+                // Advance past any waypoints we've already reached.
+                while (navIdx.current * 2 + 1 < path.length) {
+                    const cwx = path[navIdx.current * 2], cwz = path[navIdx.current * 2 + 1];
+                    if (Math.hypot(cwx - fx, cwz - fz) < 2.4) navIdx.current++;
+                    else break;
+                }
+                const i = Math.min(navIdx.current * 2, path.length - 2);
+                wx = path[i]; wz = path[i + 1];
+            }
+            sharkSteer.reset();
+            sharkSteer.addInterest(wx - fx, wz - fz, 1);
+            _writeObstacleDanger(fx, fz, agentR, range);
+            sharkSteer.pick(_steer.current);
+        };
+
+        // Escape override — when the watchdog flags the shark as stuck it heads
+        // for open water via a FRESH A* path to the cave centre, so it threads
+        // out around whatever it's wedged against instead of grinding into it.
         if (escapeT.current > 0) {
             escapeT.current -= safeDt;
-            const escRange = 10;
-            sharkSteer.reset();
-            sharkSteer.addInterest(-fx * 1.5, -fz * 1.5, 1.0); // strong pull toward centre
-            _writeObstacleDanger(fx, fz, 1.4, escRange);         // wider clearance during escape
-            sharkSteer.pick(_steer.current);
+            navSteer(0, 0, 1.4, 11);   // path to centre, wide clearance
             _v1.current.set(_steer.current.x * 9, 3.5, _steer.current.z * 9);
             vel.current.lerp(_v1.current, safeDt * 8);
         } else
         switch (state.current) {
             case 'patrol': {
-                // Steered patrol — orbit a point but weave around obstacles and
+                // Steered patrol — orbit a point but A*-route around obstacles and
                 // keep clear of the seafloor, so it never grinds into geometry.
                 patrolT.current += safeDt * 0.28;
                 const tx = Math.cos(patrolT.current) * 9 + px * 0.5;
                 const tz = Math.sin(patrolT.current) * 9 + pz * 0.5;
-                const range = 8;
-                sharkSteer.reset();
-                sharkSteer.addInterest(tx - fx, tz - fz, 1);
-                _writeObstacleDanger(fx, fz, 0.8, range);
-                sharkSteer.pick(_steer.current);
+                navSteer(tx, tz, 0.8, 8);
                 const floorClear = uwFloorHeight(fx, fz) + 3.0;
                 const tY = -17 + Math.sin(patrolT.current * 0.6) * 3;
                 let vy = (tY - fy);
@@ -559,12 +590,9 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 it = Math.min(it, 2.5);
                 const aimx = px + pv.x * it, aimy = py + pv.y * it, aimz = pz + pv.z * it;
 
-                // ── Context steering: thread obstacles toward the aim point ──
+                // ── A* path toward the predicted aim point, obstacle-threaded ──
                 const range = Math.min(speed * 0.7 + 4, 14);
-                sharkSteer.reset();
-                sharkSteer.addInterest(aimx - fx, aimz - fz, 1);
-                _writeObstacleDanger(fx, fz, 0.8, range);  // small hitbox — avoids snagging on rocks
-                sharkSteer.pick(_steer.current);   // unit XZ heading, collision-free
+                navSteer(aimx, aimz, 0.8, range);   // unit XZ heading, collision-free
 
                 // Vertical handled separately (the ring is horizontal): chase the
                 // aim depth, stay clear of the seafloor ridge below.
@@ -583,10 +611,7 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                 sharkDirector.getSearchTarget(_searchTgt.current);
                 _searchTgt.current.y = lastKnownPosRef.current.y; // keep last-seen depth
                 const range = Math.min(speed * 0.7 + 4, 12);
-                sharkSteer.reset();
-                sharkSteer.addInterest(_searchTgt.current.x - fx, _searchTgt.current.z - fz, 1);
-                _writeObstacleDanger(fx, fz, 0.8, range);  // small hitbox — avoids snagging on rocks
-                sharkSteer.pick(_steer.current);
+                navSteer(_searchTgt.current.x, _searchTgt.current.z, 0.8, range);
                 const floorClear = uwFloorHeight(fx, fz) + 3.0;
                 let vy = (_searchTgt.current.y - fy);
                 if (fy < floorClear) vy += (floorClear - fy) * 2.0;
@@ -639,6 +664,9 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         // vibrates in place (the "enroscado" bug). Now it slides along instead.
         const preX = pos.current.x, preY = pos.current.y, preZ = pos.current.z;
         resolveUWWalls(pos.current, 0.8);
+        // Hard push-out of rocks + coral pillars — the constraint that finally
+        // makes it IMPOSSIBLE for the shark to stay embedded in an obstacle.
+        resolveUWObstacles(pos.current, 0.8);
         const floorMin = uwFloorHeight(pos.current.x, pos.current.z) + 0.8;
         pos.current.y = THREE.MathUtils.clamp(pos.current.y, floorMin, SWIM_THRESHOLD_Y - 1.5);
         const cx = pos.current.x - preX, cy = pos.current.y - preY, cz = pos.current.z - preZ;
@@ -671,7 +699,12 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
             );
             if (net >= 2.0) {
                 escapeCount.current = 0; // making real progress — reset
-            } else if (escapeT.current <= 0 && vel.current.length() > 0.6 && net < 0.6) {
+            } else if (escapeT.current <= 0 && net < 0.6) {
+                // NB: no velocity gate here. The velocity-slide CANCELS velocity
+                // when wedged, so gating on vel>0.6 meant the escape never fired
+                // exactly when the shark was most stuck. Net displacement over the
+                // window is the honest stuck signal — and the watchdog only runs
+                // while actively swimming (dormant/awakening/jumpscare return early).
                 escapeCount.current++;
                 if (escapeCount.current >= 3) {
                     // Still stuck after 3 escape bursts — teleport to spawn
@@ -679,8 +712,10 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
                     vel.current.set(0, 0, 0);
                     escapeCount.current = 0;
                 } else {
-                    escapeT.current = 1.2; // longer escape burst (was 0.9)
+                    escapeT.current = 1.2;        // longer escape burst (was 0.9)
                 }
+                navTimer.current = 0;            // force a fresh A* re-plan now
+                navPath.current.length = 0;
             }
             lastPos.current.copy(pos.current);
             stuckT.current = 0;

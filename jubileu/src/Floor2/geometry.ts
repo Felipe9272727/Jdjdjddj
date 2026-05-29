@@ -9,7 +9,10 @@
 import * as THREE from 'three';
 import { createNoise3D } from 'simplex-noise';
 import { mergeBufferGeometries as mergeGeometries } from 'three-stdlib';
-import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, STALAGMITES, STALACTITES } from './constants';
+import {
+    HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, STALAGMITES, STALACTITES,
+    UW_ROCK_COLLIDERS, UW_PILLAR_COLLIDERS,
+} from './constants';
 
 // ─── Simplex noise instance (shared across all procedural geometry) ─────
 // MUST be defined before any geometry that uses it (CAVE_FLOOR_GEO, etc.)
@@ -424,4 +427,49 @@ export function uwFloorHeight(x: number, z: number): number {
     const cz = Math.min(FLOOR_N - 1, Math.max(0,
         Math.floor((z + FLOOR_HALF) / (2 * FLOOR_HALF) * FLOOR_N)));
     return _floorH[cz * FLOOR_N + cx];
+}
+
+// ── Hard obstacle push-out ──────────────────────────────────────────────────
+// The shark previously only ever AVOIDED the rocks and coral pillars via the
+// context-steering danger field — a soft preference, not a constraint. With
+// momentum (or a wall-peel nudge) it would drift bodily INTO a pillar/rock and
+// nothing pushed it back out, so it stayed embedded and vibrated in place (the
+// "enroscado" bug). This is the missing collision response: it ejects an XYZ
+// point out of every rock sphere and coral-pillar cylinder it penetrates,
+// exactly like resolveUWWalls does for the walls. Mutates `p`; returns true if
+// any correction was applied so the caller can kill the velocity digging in.
+export function resolveUWObstacles(p: { x: number; y: number; z: number }, radius: number): boolean {
+    let pushed = false;
+    // Coral pillars + arch legs — full-height XZ cylinders (Y ignored).
+    for (let i = 0; i < UW_PILLAR_COLLIDERS.length; i++) {
+        const c = UW_PILLAR_COLLIDERS[i];
+        const dx = p.x - c.x, dz = p.z - c.z;
+        const rr = c.r + radius;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < rr * rr) {
+            if (d2 > 1e-6) {
+                const d = Math.sqrt(d2);
+                const push = (rr - d) / d;
+                p.x += dx * push; p.z += dz * push;
+            } else {
+                p.x += rr;   // dead-centre — pick an arbitrary outward axis
+            }
+            pushed = true;
+        }
+    }
+    // Boulders / scattered rocks — 3D spheres (respect depth, so a shark gliding
+    // well above a seafloor boulder is never falsely pushed).
+    for (let i = 0; i < UW_ROCK_COLLIDERS.length; i++) {
+        const c = UW_ROCK_COLLIDERS[i];
+        const dx = p.x - c.x, dy = p.y - c.y, dz = p.z - c.z;
+        const rr = c.r + radius;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 < rr * rr && d2 > 1e-6) {
+            const d = Math.sqrt(d2);
+            const push = (rr - d) / d;
+            p.x += dx * push; p.y += dy * push; p.z += dz * push;
+            pushed = true;
+        }
+    }
+    return pushed;
 }
