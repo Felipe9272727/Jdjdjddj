@@ -48,6 +48,17 @@ export const FLOORS: FloorOption[] = [
       </svg>
     ),
   },
+  {
+    level: 3,
+    name: 'Andar 3',
+    description: 'Terceiro andar — em desenvolvimento',
+    color: 'from-emerald-400 via-green-500 to-emerald-400',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+      </svg>
+    ),
+  },
 ];
 
 interface CreatorModeProps {
