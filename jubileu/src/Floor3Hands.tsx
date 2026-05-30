@@ -27,9 +27,9 @@ const GLOVES_URL = '/cartoon_gloves.glb';
 // render it once. Rx(π/2) stands it so the white gloves point up with fingers
 // curling toward the player (backs of hands to camera) while the black sleeves
 // drop diagonally out the bottom corners — the reference \  / framing.
-const BASE_POS = new THREE.Vector3(0, -0.21, -0.55);
+const BASE_POS = new THREE.Vector3(0, -0.32, -0.45);
 const BASE_ROT = new THREE.Euler(Math.PI / 2, 0, 0);
-const SCALE    = 0.90;
+const SCALE    = 1.42;
 
 // Dev-only pose override via URL (?…&rx=&ry=&rz=&px=&py=&pz=&s=). Lets the
 // first-person pose be dialed in from the preview without a rebuild; no params

@@ -66,7 +66,7 @@ export default function Floor3Preview() {
         <div style={{ width: '100vw', height: '100vh', background: '#000' }}>
             <Canvas
                 shadows
-                camera={{ position: camPos, fov: 70, near: 0.1, far: 200 }}
+                camera={{ position: camPos, fov: fphands ? 90 : 70, near: 0.1, far: 200 }}
                 gl={{ antialias: true, toneMapping: ACESFilmicToneMapping, outputColorSpace: SRGBColorSpace }}
             >
                 <Suspense fallback={null}>
