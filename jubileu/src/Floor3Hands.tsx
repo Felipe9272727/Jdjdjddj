@@ -57,7 +57,7 @@ const BOTTOM_ANCHOR  = 0.71;
 // white gloves. ShaderMaterial is used because it guarantees the `normal`
 // attribute is bound (MeshBasicMaterial drops it). Thickness is in model-local
 // units, so it scales with the gloves and reads consistently at any size.
-const OUTLINE_THICKNESS = 0.024;
+const OUTLINE_THICKNESS = 0.006;
 
 function makeOutlineMaterial(thickness: number) {
     const m = new THREE.ShaderMaterial({
@@ -91,6 +91,7 @@ function layoutFromURL() {
         fillW: n('fw', FILL_WIDTH),
         maxScale: n('ms', MAX_SCALE),
         anchor: n('ba', BOTTOM_ANCHOR),
+        outline: n('ot', OUTLINE_THICKNESS),
     };
 }
 
@@ -147,7 +148,7 @@ export default function FpHands() {
     // Black ink-outline shell drawn just behind the gloves.
     const outline = useMemo(() => {
         const c = scene.clone(true);
-        const mat = makeOutlineMaterial(OUTLINE_THICKNESS);
+        const mat = makeOutlineMaterial(layout.outline);
         c.traverse((o) => {
             if ((o as THREE.Mesh).isMesh) {
                 const m = o as THREE.Mesh;
@@ -158,7 +159,7 @@ export default function FpHands() {
             }
         });
         return c;
-    }, [scene]);
+    }, [scene, layout.outline]);
 
     useFrame((s, dt) => {
         if (!root.current || !inner.current) return;
