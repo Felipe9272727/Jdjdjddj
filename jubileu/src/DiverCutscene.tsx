@@ -58,19 +58,24 @@ const BEAT_PALETTE = [
   { tint: 'rgba(147,197,253,0.055)', dot: '#93c5fd', glow: 'rgba(147,197,253,0.20)' },
 ] as const;
 
-const TYPEWRITER_MS = 13;
-const DWELL_AFTER_TYPE_MS = 500;
+const TYPEWRITER_MS = 30;
+const DWELL_AFTER_TYPE_MS = 1500;
+// The opening title card holds the screen; the dialogue must not start typing
+// behind it (that swallowed the first two lines). Start the beats only once the
+// card has cleared. Keep in sync with the csIntroCard animation duration.
+const INTRO_HOLD_MS = 2400;
 
-// Per-beat typewriter speed — diver speaks fast, doesn't wait for you.
+// Per-beat typewriter speed — diver speaks fast, doesn't wait for you, but slow
+// enough to actually read a full sentence.
 function typeSpeedForBeat(idx: number): number {
-  return idx === 1 ? 17   // memory — slightly slower, still rushed
-       : idx === 2 ? 14
-       : idx === 3 ? 12   // "toma" — clipped, no ceremony
+  return idx === 1 ? 34   // memory — slightly slower, wistful
+       : idx === 2 ? 30
+       : idx === 3 ? 27   // "toma" — clipped, a touch quicker
        : TYPEWRITER_MS;
 }
 
 function dwellForBeat(idx: number, text: string): number {
-  const extra = idx === 3 ? 350 : idx === 4 ? 180 : idx === 1 ? 100 : 0;
+  const extra = idx === 3 ? 500 : idx === 4 ? 700 : idx === 1 ? 300 : 200;
   return typeSpeedForBeat(idx) * text.length + DWELL_AFTER_TYPE_MS + extra;
 }
 
@@ -79,6 +84,8 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat, audioCtx }: DiverCut
   const [displayedLen, setDisplayedLen] = useState(0);
   const [doneTyping, setDoneTyping] = useState(false);
   const [lettersIn, setLettersIn] = useState(false);
+  // Gates the dialogue until the opening title card has cleared.
+  const [ready, setReady] = useState(false);
   // Increments on each beat change → re-mounts the flash div → CSS animation re-fires
   const [flashKey, setFlashKey] = useState(0);
 
@@ -96,6 +103,13 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat, audioCtx }: DiverCut
       requestAnimationFrame(() => setLettersIn(true));
     });
     return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Hold the dialogue until the intro title card has faded, so the first
+  // lines aren't typed (and auto-advanced) behind it.
+  useEffect(() => {
+    const id = setTimeout(() => setReady(true), INTRO_HOLD_MS);
+    return () => clearTimeout(id);
   }, []);
 
   // Notify parent on every beat change (3D choreography sync)
@@ -123,6 +137,7 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat, audioCtx }: DiverCut
       clearInterval(typeIntervalRef.current);
       typeIntervalRef.current = null;
     }
+    if (!ready) return;   // wait for the intro card to clear
     let idx = 0;
     typeIntervalRef.current = setInterval(() => {
       idx += 1;
@@ -144,7 +159,7 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat, audioCtx }: DiverCut
         typeIntervalRef.current = null;
       }
     };
-  }, [beatIdx, beatText, audioCtx]);
+  }, [beatIdx, beatText, audioCtx, ready]);
 
   // Helper: gracefully exit the cutscene (slides bars out, then fires callback)
   const exitGracefully = useCallback((cb: () => void, delay = 480) => {
@@ -158,6 +173,7 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat, audioCtx }: DiverCut
       clearTimeout(advanceTimeoutRef.current);
       advanceTimeoutRef.current = null;
     }
+    if (!ready) return;   // don't advance beats while the intro card is up
     advanceTimeoutRef.current = setTimeout(() => {
       if (beatIdx >= totalBeats - 1) {
         if (!handedOffRef.current) {
@@ -174,9 +190,10 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat, audioCtx }: DiverCut
         advanceTimeoutRef.current = null;
       }
     };
-  }, [beatIdx, beatText, totalBeats, onAccept, exitGracefully]);
+  }, [beatIdx, beatText, totalBeats, onAccept, exitGracefully, ready]);
 
   const advanceNow = useCallback(() => {
+    if (!ready) return;   // ignore taps until the dialogue has started
     if (advanceTimeoutRef.current !== null) {
       clearTimeout(advanceTimeoutRef.current);
       advanceTimeoutRef.current = null;
@@ -208,7 +225,7 @@ export const DiverCutscene = ({ onAccept, onRefuse, onBeat, audioCtx }: DiverCut
       return;
     }
     setBeatIdx((i) => i + 1);
-  }, [beatIdx, beatText, doneTyping, onAccept, totalBeats, exitGracefully]);
+  }, [beatIdx, beatText, doneTyping, onAccept, totalBeats, exitGracefully, ready]);
 
   const handleSkip = useCallback(() => {
     if (handedOffRef.current) return;
@@ -364,7 +381,7 @@ const STYLES = `
   pointer-events: none;
   z-index: 45;
   background: radial-gradient(ellipse at center, rgba(6,18,30,0.55) 0%, rgba(2,6,12,0.96) 75%);
-  animation: csIntroCard 3400ms ease-in-out forwards;
+  animation: csIntroCard 2600ms ease-in-out forwards;
 }
 @keyframes csIntroCard {
   0%   { opacity: 0; }
@@ -379,7 +396,7 @@ const STYLES = `
   text-indent: 0.9em;
   color: #5fd7ff;
   text-shadow: 0 0 18px rgba(60,200,255,0.6);
-  animation: csIntroFade 3400ms ease-out forwards;
+  animation: csIntroFade 2600ms ease-out forwards;
 }
 .cs-introcard-title {
   margin-top: 0.25em;
@@ -389,7 +406,7 @@ const STYLES = `
   text-indent: 0.32em;
   color: #eafcff;
   text-shadow: 0 0 34px rgba(70,205,255,0.75), 0 0 70px rgba(40,150,220,0.4);
-  animation: csIntroTitle 3400ms cubic-bezier(0.2,0.8,0.25,1) forwards;
+  animation: csIntroTitle 2600ms cubic-bezier(0.2,0.8,0.25,1) forwards;
 }
 .cs-introcard-sub {
   margin-top: 1em;
@@ -397,7 +414,7 @@ const STYLES = `
   font-style: italic;
   letter-spacing: 0.18em;
   color: rgba(180,225,245,0.75);
-  animation: csIntroFade 3400ms ease-out 200ms both;
+  animation: csIntroFade 2600ms ease-out 200ms both;
 }
 @keyframes csIntroTitle {
   0%   { opacity: 0; letter-spacing: 0.7em; text-indent: 0.7em; transform: translateY(12px) scale(0.98); }
