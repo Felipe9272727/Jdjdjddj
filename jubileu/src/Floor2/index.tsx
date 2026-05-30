@@ -338,6 +338,13 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {reflective && <pointLight position={[HOLE_CENTER_X, WATER_LEVEL_Y + 0.5, HOLE_CENTER_Z]} intensity={2.2} distance={5} decay={1.5} color="#7ac0d4" />}
 
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
+        {/* Opaque blue fill disc — sits just below the water plane, completely
+            masks the BackSide rock cylinder walls that show through the
+            transparent WaterSurface when viewed from the rim. */}
+        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y - 0.05, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[HOLE_RADIUS - 0.08, 64]} />
+            <meshBasicMaterial color="#061830" transparent={false} depthWrite={true} />
+        </mesh>
         <WaterSurface reflective={reflective} />
 
         {/* Light dancing on the cave ceiling above the water — sells the
