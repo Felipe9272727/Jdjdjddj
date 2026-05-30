@@ -683,14 +683,25 @@ export default function App() {
   // the Floor-2 spot which is behind the parkour (→ void fall + random
   // respawn). theta=π faces the doors / parkour at +z. Keyed only on
   // currentLevel so a later gameState change can't re-teleport mid-climb.
+  // Drop the player inside the elevator cabin (z=-13, facing the parkour) the
+  // moment Floor 3 becomes the current level — which, on a real ride, is
+  // mid-travel (timer 18) while the doors are still closed, exactly like the
+  // Floor-2 arrival teleport. Keyed only on currentLevel so a later state
+  // change can't re-teleport mid-climb.
   useEffect(() => {
       if (currentLevel === 3) {
           playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
-          // Fire the 3D cartoon intro + start the ragtime floor music. Preload
-          // first so the SFX/music are decoded before the choreography runs.
-          // The music routes through the master bus, so mute is handled by the
-          // engine — no need to gate the start on `muted` (which would otherwise
-          // leave the floor silent if the player un-mutes mid-climb).
+      }
+  }, [currentLevel]);
+
+  // Floor 3 INTRO + ragtime — fire only on actual ARRIVAL (doors open), NOT
+  // when currentLevel flips to 3 mid-ride. On a Floor 2 → 3 trip, currentLevel
+  // becomes 3 at timer 18 but the doors don't open until timer 0 (~17s later);
+  // firing on the level flip played the whole intro during the ride and let the
+  // ragtime hijack the elevator music. Gating on `!doorsClosed` waits for the
+  // doors. (Creator-Mode jumps set doorsClosed=false, so they fire immediately.)
+  useEffect(() => {
+      if (currentLevel === 3 && !doorsClosed) {
           if (audioCtx) {
               // Point the 1930s footstep/jump SFX at the master bus (obeys mute).
               configureFloor3Sfx(audioCtx, cartoonBusRef.current);
@@ -703,14 +714,17 @@ export default function App() {
           }
           setCartoonStage(0);
           setCartoonIntro(true);
-      } else {
-          // Left Floor 3 → stop the ragtime bed + detach the SFX.
+      } else if (currentLevel !== 3) {
+          // Left Floor 3 → stop the ragtime bed + detach the SFX. (Don't tear
+          // down merely because the doors closed for the ride OUT — that's
+          // handled by leaving the level; tearing down on doorsClosed would also
+          // wrongly fire during the arrival ride IN.)
           stopCartoonMusic(0.5);
           setMusicActive('ragtime', false);
           clearFloor3Sfx();
           setCartoonIntro(false);
       }
-  }, [currentLevel, audioCtx]);
+  }, [currentLevel, audioCtx, doorsClosed]);
   
   useEffect(() => {
       if (gameState !== 'chase') return;

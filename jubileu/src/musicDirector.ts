@@ -94,4 +94,15 @@ function reconcile(): void {
         // Short, click-free handoff — only ONE bus ever lands on full gain.
         g.bus.gain.setTargetAtTime(g === winner ? 1 : 0, now, 0.08);
     }
+    // Observability: expose the layer stack so "is anything overlapping?" can be
+    // answered at a glance (devtools: __musicLayers). winner is the audible one;
+    // everyone else is being held at 0.
+    if (typeof window !== 'undefined') {
+        (window as any).__musicLayers = {
+            winner: winner?.id ?? null,
+            layers: [...groups.values()]
+                .sort((a, b) => b.priority - a.priority)
+                .map((g) => ({ id: g.id, priority: g.priority, active: g.active })),
+        };
+    }
 }
