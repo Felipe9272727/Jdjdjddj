@@ -73,35 +73,6 @@ const RBox: React.FC<BoxProps> = ({
     );
 };
 
-type GeoKind = 'cyl' | 'torus' | 'sphere';
-interface GShapeProps {
-    kind: GeoKind;
-    args: any[];
-    position?: [number, number, number];
-    rotation?: [number, number, number];
-    toon: ToonOpts;
-    outline?: number;
-    castShadow?: boolean;
-}
-
-/** Toon-shaded round primitive (torus/cyl/sphere) with a drei outline. */
-const GShape: React.FC<GShapeProps> = ({
-    kind, args, position = [0,0,0], rotation = [0,0,0], toon, outline = 1.2, castShadow = true,
-}) => {
-    const mat = toonMat(toon);
-    return (
-        <mesh position={position} rotation={rotation as any} castShadow={castShadow}>
-            {kind === 'cyl'    && <cylinderGeometry args={args as any} />}
-            {kind === 'torus'  && <torusGeometry args={args as any} />}
-            {kind === 'sphere' && <sphereGeometry args={args as any} />}
-            <primitive object={mat} attach="material" />
-            {outline > 0 && (
-                <Outlines thickness={outline * 0.03} color={OUTLINE} transparent={false} angle={0.4} />
-            )}
-        </mesh>
-    );
-};
-
 // ─── Directional arrow decal (black, painted on the platform top) ───────────
 // A flat rubber-hose "go this way" arrow, like the reference. Built once as a
 // shared shape and laid flat on each platform, pointing up the climb (+Z).
@@ -122,14 +93,42 @@ const PlatformArrow: React.FC<{ topY: number; size: number }> = ({ topY, size })
 );
 
 // ─── Cartoon cloud puff (cluster of outlined white spheres) ──────────────────
-const CloudPuff: React.FC<{ position: [number,number,number]; scale?: number }> = ({ position, scale = 1 }) => (
-    <group position={position} scale={[scale, scale, scale]}>
-        {([[0,0,0,1.0],[1.1,-0.1,0,0.8],[-1.1,-0.05,0,0.85],[0.5,0.45,0,0.7],[-0.6,0.4,0,0.65]] as number[][]).map((d,i)=>(
-            <GShape key={i} kind="sphere" args={[d[3], 16, 12]} position={[d[0],d[1],d[2]]}
-                toon={{ color: '#ffffff', shadow: '#c4ccd6', bands: 2, rimStrength: 0.4 }} outline={1.4} castShadow={false} />
-        ))}
-    </group>
-);
+// Each puff = a white toon sphere with a bold black ink line, matching the
+// first-person gloves. drei <Outlines> reads too thin on these distant, parent-
+// scaled spheres, so the outline is a hand-rolled inverted hull: a slightly
+// larger BACK-face black sphere drawn behind each white one. A sphere is
+// radially symmetric, so a uniform scale-up *is* a perfect even outline. With
+// depth-test on, the hulls of inner puffs are hidden by neighbouring white
+// spheres, leaving one clean silhouette around the whole cloud (no internal
+// seams). depthWrite off so the hulls never occlude each other.
+const CLOUD_PUFFS: number[][] = [[0,0,0,1.0],[1.1,-0.1,0,0.8],[-1.1,-0.05,0,0.85],[0.5,0.45,0,0.7],[-0.6,0.4,0,0.65]];
+const CLOUD_OUTLINE = 1.07; // hull scale → ink-line weight
+const CLOUD_OUTLINE_MAT = (() => {
+    const m = new THREE.MeshBasicMaterial({ color: OUTLINE, side: THREE.BackSide });
+    m.depthWrite = false;
+    return m;
+})();
+const CLOUD_FILL_TOON: ToonOpts = { color: '#ffffff', shadow: '#c4ccd6', bands: 2, rimStrength: 0.4 };
+const CloudPuff: React.FC<{ position: [number,number,number]; scale?: number }> = ({ position, scale = 1 }) => {
+    const fill = toonMat(CLOUD_FILL_TOON);
+    return (
+        <group position={position} scale={[scale, scale, scale]}>
+            {CLOUD_PUFFS.map((d,i)=>(
+                <group key={i} position={[d[0],d[1],d[2]]}>
+                    {/* black ink-line hull (slightly larger back-face sphere) */}
+                    <mesh scale={CLOUD_OUTLINE} renderOrder={0} material={CLOUD_OUTLINE_MAT}>
+                        <sphereGeometry args={[d[3], 16, 12]} />
+                    </mesh>
+                    {/* white toon fill */}
+                    <mesh renderOrder={1} castShadow={false}>
+                        <sphereGeometry args={[d[3], 16, 12]} />
+                        <primitive object={fill} attach="material" />
+                    </mesh>
+                </group>
+            ))}
+        </group>
+    );
+};
 
 // ─── Platform palette (matte black-&-white rubber-hose, hard 2-band cel) ─────
 // No neon, no emissive — flat cream/white tops with a hard single shadow band,
