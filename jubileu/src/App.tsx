@@ -21,6 +21,8 @@ import { LiminalAudioEngine } from './AudioEngine';
 import { MainMenu } from './MainMenu';
 import { VisualJoystick, DialogueOverlay } from './UI';
 import { DiverCutscene } from './DiverCutscene';
+import CartoonIntro from './CartoonIntro';
+import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic } from './cartoonAudio';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
 import { ShadowBlob } from './ShadowBlob';
@@ -387,6 +389,7 @@ export default function App() {
   const [berserk, setBerserk] = useState(false);
   const [devoured, setDevoured] = useState(false); // brief death-ritual overlay
   const [teleportCutscene, setTeleportCutscene] = useState(false); // all-shards win → Floor 3
+  const [cartoonIntro, setCartoonIntro] = useState(false);         // Floor 3 "turns cartoon" intro
 
   // Start/stop monster ambience with Floor 2
   useEffect(() => {
@@ -667,8 +670,20 @@ export default function App() {
   useEffect(() => {
       if (currentLevel === 3) {
           playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+          // Fire the cartoon intro + start the ragtime floor music. Preload
+          // first so the SFX/music are decoded before the choreography runs.
+          if (audioCtx) {
+              preloadCartoonAudio(audioCtx).then(() => {
+                  if (!muted) startCartoonMusic(audioCtx, { gain: 0.4, loop: true });
+              });
+          }
+          setCartoonIntro(true);
+      } else {
+          // Left Floor 3 → stop the ragtime bed.
+          stopCartoonMusic(0.5);
+          setCartoonIntro(false);
       }
-  }, [currentLevel]);
+  }, [currentLevel, audioCtx, muted]);
   
   useEffect(() => {
       if (gameState !== 'chase') return;
@@ -907,6 +922,14 @@ export default function App() {
         setDoorsClosed(false);
         inventoryAddItem('rebreather');
         inventoryAddItem('nightVision');
+      } else if (startLevel === 3) {
+        // Floor 3 (parkour). The currentLevel===3 effect handles the spawn
+        // position, the cartoon intro and the ragtime music.
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
       }
     }
     // ─── CREATOR MODE: end jump ───
@@ -1696,6 +1719,9 @@ export default function App() {
       {hasStarted && gameState === 'saved' && <SavedOverlay />}
 
       {/* All-shards win → teleport-to-elevator cutscene (Floor 2 → Floor 3). */}
+      {cartoonIntro && (
+        <CartoonIntro audioCtx={audioCtx} muted={muted} onDone={() => setCartoonIntro(false)} />
+      )}
       {teleportCutscene && (
         <div className="absolute inset-0 z-[90] pointer-events-none overflow-hidden">
           <style>{`
