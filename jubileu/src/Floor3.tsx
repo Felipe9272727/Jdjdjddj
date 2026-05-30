@@ -162,17 +162,21 @@ const PlatformView = React.forwardRef<THREE.Group, { plat: F3Plat }>(({ plat }, 
     const w = plat.hw * 2, d = plat.hd * 2;
     const cy = plat.topY - plat.h / 2;
     const big = plat.palette < 0;          // the Aperture landing
+    // Bold black ink rim: a wider, taller matte-black block whose top sits just
+    // under the white surface. drei <Outlines> went sub-pixel at parkour
+    // distance (white-on-white sky → the floor vanished), so the outline is now
+    // real geometry — a chunky black border readable from any angle/distance.
+    const rim = big ? 0.5 : 0.42;          // total extra width → ~0.2–0.25 ink edge
+    const Hb = plat.h * 1.15;              // black block height (just past the top)
     return (
         <group ref={ref} position={[plat.bx, 0, plat.cz]}>
-            {/* chunky matte-black base block → reads as the thick black border /
-                side wall under the white top (the rubber-hose "ink" edge) */}
-            {!big && (
-                <RBox args={[w + 0.12, plat.h * 0.7, d + 0.12]} position={[0, plat.topY - plat.h * 0.62, 0]} radius={0.06}
-                    toon={{ color: INK, shadow: INK, bands: 1, rimStrength: 0 }} outline={0} />
-            )}
-            {/* white/cream top slab */}
+            {/* chunky matte-black border block — top 0.05 below the white
+                surface so a bold ink rim shows from above AND the side. */}
+            <RBox args={[w + rim, Hb, d + rim]} position={[0, plat.topY - 0.05 - Hb / 2, 0]} radius={0.1}
+                toon={{ color: INK, shadow: INK, bands: 1, rimStrength: 0 }} outline={0} />
+            {/* white/cream top slab — top at the true topY (matches physics) */}
             <RBox args={[w, plat.h, d]} position={[0, cy, 0]} radius={big ? 0.14 : 0.12}
-                toon={platToon(plat)} outline={big ? 0 : 2.4} />
+                toon={platToon(plat)} outline={0} />
             {/* black "go this way" arrow painted on the surface */}
             {!big && <PlatformArrow topY={plat.topY} size={Math.min(w, d) * 0.78} />}
         </group>
