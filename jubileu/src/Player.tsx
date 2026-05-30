@@ -750,6 +750,15 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
                     if (p.topY > groundY) groundY = p.topY;
                 }
             }
+            // Elevator interior floor (global ElevatorInterior at z=-13, EW=6.5,
+            // ED=6 → footprint x∈[-3.25,3.25], z∈[-16,-10]). The parkour pool
+            // doesn't cover it, so add it explicitly — otherwise the player
+            // falls through the cabin on arrival. Extended to z=-9.0 to bridge
+            // the small gap to the START platform (back edge z=-9.5).
+            if (pos.current.x >= -3.25 && pos.current.x <= 3.25 &&
+                pos.current.z >= -16.5 && pos.current.z <= -9.0) {
+                if (0 > groundY) groundY = 0;
+            }
 
             // 3. Land: snap to ground when falling through it from above.
             if (groundY > -Infinity && pos.current.y <= groundY && jumpVelYRef.current <= 0) {

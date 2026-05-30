@@ -549,25 +549,32 @@ export default function App() {
     });
   }, []);
 
-  // Win condition: all 5 shards → teleport-to-elevator cutscene → Floor 3.
+  // Win condition: all 5 shards → ride the elevator up to Floor 3.
+  // Mirrors the saved→Floor 2 transition (a REAL 20-second elevator trip)
+  // instead of an ad-hoc teleport, so the player rides the cabin and steps
+  // out into Floor 3 just like every other floor change.
   const winTriggeredRef = useRef(false);
   useEffect(() => {
     if (currentLevel !== 2 || collectedShards.size < 5 || winTriggeredRef.current) return;
     winTriggeredRef.current = true;
-    // 1. Light up the cutscene overlay + a triumphant chime.
+    // 1. Triumphant chime + flash while we yank the diver up into the cabin.
     setTeleportCutscene(true);
     if (audioCtx && !muted) { playEquipChime(audioCtx); playArrivalDing(audioCtx); }
-    // 2. Yank the diver from the deep straight into the elevator alcove.
-    scheduleTimeout(() => { playerPositionCmdRef.current = { x: 0, y: 0, z: -12 }; }, 1100);
-    // 3. Send the elevator up to Floor 3.
+    // 2. Pull the diver from the deep straight into the elevator cabin (z=-13,
+    //    facing the doors at +z), then start a full elevator ride to Floor 3 —
+    //    same machinery as saved→2: close doors, timer=20, dest=3. At timer
+    //    18 the world swaps to Floor 3; at timer 0 the doors open.
     scheduleTimeout(() => {
+      playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+      setTeleportCutscene(false);
+      setDoorsClosed(true);
+      setDoorSoundTrigger((prev) => prev + 1);
       setNextElevatorDestination(3);
-      if (elevatorStateRef.current.elevatorTimer === null && !elevatorStateRef.current.doorsClosed) {
-        setElevatorTimer(3);
-      }
-    }, 1700);
-    // 4. Fade the overlay out once the lift is moving.
-    scheduleTimeout(() => setTeleportCutscene(false), 2600);
+      setElevatorTimer(20);
+      setTravelPhase('closing');
+      if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+      elevatorHumStopRef.current = createElevatorHum(audioCtx);
+    }, 1100);
   }, [collectedShards.size, currentLevel, scheduleTimeout, audioCtx, muted]);
 
   // Leaving Floor 2 → clear win latch, berserk and shards so a future dive
@@ -652,16 +659,14 @@ export default function App() {
       }
   }, [currentLevel, gameState]);
 
-  // Floor 3 arrival: place the player on the START platform at the elevator,
-  // not at the Floor-2 teleport spot (0,0,-12) which is BEHIND the platform
-  // (z range [-9.5, -0.5]) — that made them fall into the void and respawn at
-  // a random parkour slot instead of stepping out of the elevator. Keyed only
-  // on currentLevel so a later gameState change can't re-teleport mid-climb.
+  // Floor 3 arrival: drop the player inside the elevator cabin (z=-13, same as
+  // levels 1 & 2) so they step out onto the START platform, instead of keeping
+  // the Floor-2 spot which is behind the parkour (→ void fall + random
+  // respawn). theta=π faces the doors / parkour at +z. Keyed only on
+  // currentLevel so a later gameState change can't re-teleport mid-climb.
   useEffect(() => {
       if (currentLevel === 3) {
-          // z=-9 → on the START platform at the elevator; theta=π → face +z
-          // (the parkour runs forward in +z from the elevator).
-          playerPositionCmdRef.current = { x: 0, y: 0, z: -9, theta: Math.PI };
+          playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
       }
   }, [currentLevel]);
   
