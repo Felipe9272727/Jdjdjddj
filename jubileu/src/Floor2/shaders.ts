@@ -427,3 +427,60 @@ export const LightShaftMaterial = shaderMaterial(
       }
     `
 );
+
+// ─── WellWaterMaterial — animated water "texture" for the well shaft walls ─
+// Replaces the rock texture on the inside of the well so the whole pit reads
+// as a column of moving water (not a stone hole). Applied to a BackSide
+// cylinder. Bright blue base + flowing caustic highlights that drift downward,
+// plus a vertical brightness gradient (brighter near the rim where light hits).
+export const WellWaterMaterial = shaderMaterial(
+    { time: 0 },
+    /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vLocalPos;
+      void main() {
+        vUv = uv;
+        vLocalPos = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    /* glsl */ `
+      uniform float time;
+      varying vec2 vUv;
+      varying vec3 vLocalPos;
+
+      // Flowing caustic bands — cheap layered sines that drift downward so the
+      // wall looks like sunlight rippling through water inside the well.
+      float caustic(vec2 uv, float t) {
+        float a = sin(uv.x * 18.0 + t * 1.3) * 0.5 + 0.5;
+        float b = sin(uv.y * 22.0 - t * 1.7 + 1.5) * 0.5 + 0.5;
+        float c = sin((uv.x + uv.y) * 14.0 + t * 0.9) * 0.5 + 0.5;
+        float d = sin((uv.x - uv.y) * 26.0 - t * 1.1) * 0.5 + 0.5;
+        return pow(a * b, 2.0) * 0.7 + pow(c * d, 3.0) * 0.6;
+      }
+
+      void main() {
+        // vUv.y: 0 at bottom (water surface), 1 at top (rim).
+        // Deep blue at the bottom -> brighter clear blue near the rim.
+        vec3 deep    = vec3(0.04, 0.20, 0.46);
+        vec3 bright  = vec3(0.14, 0.50, 0.84);
+        vec3 col = mix(deep, bright, smoothstep(0.0, 1.0, vUv.y));
+
+        // Two caustic layers at different scales/speeds, drifting downward.
+        vec2 flow = vUv + vec2(0.0, -time * 0.06);
+        float c1 = caustic(flow * vec2(2.0, 3.0), time);
+        float c2 = caustic(flow * vec2(4.0, 6.0) + 7.0, time * 1.3);
+        float caust = c1 * 0.7 + c2 * 0.5;
+
+        // Bright cyan-white caustic highlights on top of the blue base.
+        col += vec3(0.20, 0.55, 0.80) * caust * (0.5 + vUv.y * 0.6);
+        col += vec3(0.40, 0.70, 0.95) * pow(caust, 2.5) * 0.4;
+
+        // High-frequency shimmer so it always looks alive.
+        float shimmer = sin(vUv.x * 40.0 + time * 3.0) * sin(vUv.y * 30.0 - time * 3.6);
+        col += vec3(0.25, 0.45, 0.65) * pow(max(0.0, shimmer), 3.0) * 0.25;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+);

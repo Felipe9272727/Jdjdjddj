@@ -30,7 +30,7 @@ export {
 // Re-export sub-components (for anyone importing them directly)
 export { CrystalCluster, Torch, TorchField, DustMotes } from './cave-features';
 export {
-    WaterSurface, WaterCeilingDisc, DynamicFog, UnderwaterOverlay, WaterOccluder,
+    WaterSurface, WaterCeilingDisc, DynamicFog, UnderwaterOverlay, WaterOccluder, WellShaftWater,
 } from './water-effects';
 export {
     UnderwaterCaustics, KelpField, Coral, UnderwaterFlora,
@@ -67,7 +67,7 @@ import {
 } from './geometry';
 
 import { CrystalCluster, TorchField, DustMotes } from './cave-features';
-import { WaterSurface, WaterCeilingDisc, DynamicFog, UnderwaterOverlay, WaterOccluder } from './water-effects';
+import { WaterSurface, WaterCeilingDisc, DynamicFog, UnderwaterOverlay, WaterOccluder, WellShaftWater } from './water-effects';
 import {
     UnderwaterCaustics, UnderwaterFlora,
     GodRayShafts, DeepMist, DebrisField, FishSchool,
@@ -280,14 +280,11 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Floating dust motes catching the warm light */}
         <DustMotes />
 
-        {/* ─── WELL SHAFT — walls from cave floor down to water ─── */}
-        {/* BackSide cylinder so the interior is visible from the rim.
-            Material is deep blue (not rock) so the well reads as water
-            from any angle — no stone texture leaks through. */}
-        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y / 2, HOLE_CENTER_Z]}>
-            <cylinderGeometry args={[HOLE_RADIUS - 0.02, HOLE_RADIUS - 0.02, Math.abs(WATER_LEVEL_Y), 96, 12, true]} />
-            <meshBasicMaterial color="#0a2c52" side={THREE.BackSide} />
-        </mesh>
+        {/* ─── WELL SHAFT — animated water on the walls (was rock) ─── */}
+        {/* Replaces the old rock-textured cylinder: the inside of the well
+            is now a moving-water shader, so the pit reads as a column of
+            water from any angle instead of a stone hole. */}
+        <WellShaftWater />
         {/* Inner foam / wet-rock ring just at the water line — bright,
             slightly emissive band so the eye instantly registers "water". */}
         <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y + 0.04, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>

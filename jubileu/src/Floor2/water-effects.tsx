@@ -11,7 +11,7 @@ import {
     HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS,
     WATER_LEVEL_Y, SWIM_THRESHOLD_Y,
 } from './constants';
-import { WaterCeilingMaterial, UnderwaterOverlayMaterial, WaterMaterial } from './shaders';
+import { WaterCeilingMaterial, UnderwaterOverlayMaterial, WaterMaterial, WellWaterMaterial } from './shaders';
 
 // ─── WaterSurface — Gerstner wave plane ───────────────────────────────
 interface WaterSurfaceProps {
@@ -56,6 +56,30 @@ export const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }
                 <primitive object={mat} attach="material" />
             </mesh>
         </group>
+    );
+};
+
+// ─── WellShaftWater — animated water on the well shaft walls ──────────
+// Replaces the rock-textured shaft cylinder so the inside of the well reads
+// as moving water from any angle. BackSide cylinder, opaque, sized just
+// inside the rock shaft.
+export const WellShaftWater: React.FC = () => {
+    const mat = useMemo(() => {
+        const m = new (WellWaterMaterial as any)();
+        m.side = THREE.BackSide;
+        m.depthWrite = true;
+        m.transparent = false;
+        m.toneMapped = false;
+        return m;
+    }, []);
+    useFrame((state) => {
+        (mat as any).time = state.clock.elapsedTime;
+    });
+    return (
+        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y / 2, HOLE_CENTER_Z]}>
+            <cylinderGeometry args={[HOLE_RADIUS - 0.02, HOLE_RADIUS - 0.02, Math.abs(WATER_LEVEL_Y), 96, 1, true]} />
+            <primitive object={mat} attach="material" />
+        </mesh>
     );
 };
 
