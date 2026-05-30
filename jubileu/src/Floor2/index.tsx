@@ -280,24 +280,13 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {/* Floating dust motes catching the warm light */}
         <DustMotes />
 
-        {/* ─── WELL SHAFT — stone walls from cave floor down to water ─── */}
-        {/* Inward-facing cylinder (BackSide) creates the illusion of a
-            real well: the player walks over the rim, sees stone walls
-            descending below, and the water surface sits at the bottom.
-            Rock texture matches the surrounding cave rock for cohesion. */}
+        {/* ─── WELL SHAFT — walls from cave floor down to water ─── */}
+        {/* BackSide cylinder so the interior is visible from the rim.
+            Material is deep blue (not rock) so the well reads as water
+            from any angle — no stone texture leaks through. */}
         <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y / 2, HOLE_CENTER_Z]}>
             <cylinderGeometry args={[HOLE_RADIUS - 0.02, HOLE_RADIUS - 0.02, Math.abs(WATER_LEVEL_Y), 96, 12, true]} />
-            <meshStandardMaterial
-                color="#1b1610"
-                map={caveRock.color}
-                normalMap={caveRock.normal}
-                normalScale={V2_22}
-                roughnessMap={caveRock.rough}
-                roughness={0.95}
-                aoMap={caveRock.ao}
-                aoMapIntensity={1.0}
-                side={THREE.BackSide}
-            />
+            <meshBasicMaterial color="#071e3d" side={THREE.BackSide} />
         </mesh>
         {/* Inner foam / wet-rock ring just at the water line — bright,
             slightly emissive band so the eye instantly registers "water". */}
@@ -338,20 +327,11 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
         {reflective && <pointLight position={[HOLE_CENTER_X, WATER_LEVEL_Y + 0.5, HOLE_CENTER_Z]} intensity={2.2} distance={5} decay={1.5} color="#7ac0d4" />}
 
         {/* ─── WATER SURFACE inside the hole ─────────────────────────── */}
-        {/* Opaque blue fill disc — sits just below the water plane, completely
-            masks the BackSide rock cylinder walls + well floor that show
-            through the transparent WaterSurface when viewed from the rim.
-            DoubleSide + full radius so it covers regardless of view angle. */}
-        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y - 0.05, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={-1}>
-            <circleGeometry args={[HOLE_RADIUS + 0.05, 64]} />
-            <meshBasicMaterial color="#082544" side={THREE.DoubleSide} transparent={false} depthWrite={true} toneMapped={false} />
-        </mesh>
-        {/* Tall opaque blue cylinder lining the well shaft interior — masks
-            the rock walls all the way up to the rim so the well reads as a
-            water-filled column, not a stone pit. Sits inside the rock shaft. */}
-        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y / 2, HOLE_CENTER_Z]} renderOrder={-1}>
-            <cylinderGeometry args={[HOLE_RADIUS - 0.06, HOLE_RADIUS - 0.06, Math.abs(WATER_LEVEL_Y) - 0.05, 64, 1, true]} />
-            <meshBasicMaterial color="#0a2c4f" side={THREE.BackSide} transparent={false} depthWrite={true} toneMapped={false} />
+        {/* Opaque disc just below the water plane — catches anything
+            visible through the transparent WaterSurface at centre. */}
+        <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y - 0.05, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[HOLE_RADIUS - 0.05, 64]} />
+            <meshBasicMaterial color="#071e3d" side={THREE.DoubleSide} />
         </mesh>
         <WaterSurface reflective={reflective} />
 
