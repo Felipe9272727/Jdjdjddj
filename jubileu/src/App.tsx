@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
-import { EffectComposer, Bloom, ChromaticAberration, Vignette, N8AO, HueSaturation } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, ChromaticAberration, Vignette, N8AO, HueSaturation, Sepia, BrightnessContrast } from '@react-three/postprocessing';
 import { KernelSize, BlendFunction } from 'postprocessing';
 import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
 
@@ -1291,11 +1291,19 @@ export default function App() {
                     darkness={currentLevel === 2 ? 0.78 : currentLevel === 3 ? 0.28 : 0.3}
                 />
                 )}
-                {/* Floor 3 — full desaturation for the black-&-white rubber-hose
-                    look. Runs at EVERY quality level (the B&W is core art
-                    direction, not an optional polish pass). */}
+                {/* Floor 3 — warm sepia "old cartoon film" grade for the
+                    rubber-hose look (Cuphead reference). Desaturate most of the
+                    way, then tint warm via Sepia and push contrast for the inky
+                    print feel. Runs at EVERY quality level (the grade is core
+                    art direction, not an optional polish pass). */}
                 {currentLevel === 3 && (
-                    <HueSaturation saturation={-1} />
+                    <HueSaturation saturation={-0.6} />
+                )}
+                {currentLevel === 3 && (
+                    <Sepia intensity={0.62} />
+                )}
+                {currentLevel === 3 && (
+                    <BrightnessContrast brightness={0.02} contrast={0.18} />
                 )}
             </EffectComposer>
         )}
@@ -1739,19 +1747,20 @@ export default function App() {
       {hasStarted && currentLevel === 3 && !isDesktop && (
         <button
           aria-label="Pular"
-          className="fixed z-[45] right-[calc(env(safe-area-inset-right,0px)+16px)] bottom-[calc(env(safe-area-inset-bottom,0px)+20px)] w-24 h-24 rounded-full flex flex-col items-center justify-center select-none touch-none active:scale-90 active:translate-y-1 transition-transform"
+          className="font-toon fixed z-[45] right-[calc(env(safe-area-inset-right,0px)+16px)] bottom-[calc(env(safe-area-inset-bottom,0px)+20px)] w-24 h-24 rounded-full flex flex-col items-center justify-center select-none touch-none active:scale-90 active:translate-y-1 transition-transform"
           style={{
-            background: 'radial-gradient(circle at 50% 28%, #6ee060, #28a820)',
-            boxShadow: '0 6px 0 #1a7014, 0 0 0 4px #000, 0 0 28px rgba(80,220,60,0.5)',
-            border: '3px solid #000',
-            fontFamily: 'system-ui, sans-serif',
+            // Retro rubber-hose call-to-action — bold red disc with a thick ink
+            // ring and a 3D base shadow, matching the Floor-3 cartoon theme.
+            background: 'radial-gradient(circle at 50% 30%, #ff6a4d, #c0271a)',
+            boxShadow: '0 7px 0 #7a1610, 0 0 0 4px #241a10, 0 10px 18px rgba(0,0,0,0.45)',
+            border: '3px solid #241a10',
           }}
           onPointerDown={(e) => { e.stopPropagation(); jumpRef.current = true; }}
         >
-          <svg viewBox="0 0 24 24" className="w-10 h-10" fill="white" stroke="black" strokeWidth={1.5} strokeLinecap="round">
+          <svg viewBox="0 0 24 24" className="w-9 h-9" fill="#fff5e6" stroke="#241a10" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 20V6M5 13l7-7 7 7" />
           </svg>
-          <span style={{ color: '#fff', fontWeight: 900, fontSize: 11, letterSpacing: 1, textShadow: '1px 1px 0 #000' }}>PULAR</span>
+          <span style={{ color: '#fff5e6', fontSize: 13, letterSpacing: 1.5, textShadow: '2px 2px 0 #241a10' }}>PULAR</span>
         </button>
       )}
 

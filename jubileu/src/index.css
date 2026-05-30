@@ -84,6 +84,40 @@
   transform: scale(0.95);
 }
 
+/* ─── Floor-3 rubber-hose HUD skin ──────────────────────────────────────
+ * Cuphead-style 1930s cartoon theme. Scoped under `.f3-hud`, a class that is
+ * ONLY added to the status badge when currentLevel === 3, so every other
+ * floor keeps the default amber sci-fi HUD untouched. !important is used to
+ * win over Tailwind utilities, but it is harmless here because it can never
+ * apply outside the Floor-3-only `.f3-hud` ancestor.
+ */
+.font-toon { font-family: 'Luckiest Guy', system-ui, sans-serif; }
+
+.f3-hud, .f3-hud span { font-family: 'Luckiest Guy', system-ui, sans-serif; }
+.f3-hud { letter-spacing: 0.03em; }
+
+/* Cream paper panel with a bold ink border (replaces the glass + amber ring). */
+.f3-hud .bg-gradient-to-b.from-black\/95 {
+  background: linear-gradient(to bottom, #f6ecd2, #e8d3a8) !important;
+  box-shadow: 0 0 0 3px #241a10, 0 6px 0 rgba(36,26,16,0.35), 0 10px 22px rgba(0,0,0,0.35) !important;
+}
+/* Warm halo behind the panel. */
+.f3-hud .blur-xl { background: rgba(214,120,40,0.30) !important; }
+/* Top hairline + section divider → ink. */
+.f3-hud .via-amber-400 { background-image: linear-gradient(to right, transparent, #c0271a, transparent) !important; }
+.f3-hud .divide-amber-500\/20 > * + * { border-color: rgba(36,26,16,0.25) !important; }
+
+/* Text + accent recolours (labels brown, numbers/▲/dot red, "Ready" ink). */
+.f3-hud .text-amber-500\/70,
+.f3-hud .text-amber-400\/70 { color: #7a4a1e !important; }
+.f3-hud .text-amber-500\/50 { color: #c0271a !important; }
+.f3-hud .text-amber-300 {
+  color: #c0271a !important;
+  text-shadow: 2px 2px 0 #241a10 !important;
+}
+.f3-hud .text-amber-100 { color: #241a10 !important; }
+.f3-hud .bg-amber-400\/70 { background-color: #c0271a !important; }
+
 /* ─── Viewport setup ──────────────────────────────────────────────────────
  * Goal: full-bleed canvas behind notch/status bar, HUD respects safe area.
  * - body uses dvh (tracks live viewport) so any DOM-based root-level layout

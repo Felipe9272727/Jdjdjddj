@@ -51,6 +51,34 @@ const FILL_WIDTH     = 1.05;
 const MAX_SCALE      = 1.42;
 const BOTTOM_ANCHOR  = 0.71;
 
+// Cuphead-style ink outline. An inverted-hull shell: the gloves are cloned
+// with a black material that pushes every vertex out along its normal and
+// renders only BACK faces, so a uniform black silhouette pokes out behind the
+// white gloves. ShaderMaterial is used because it guarantees the `normal`
+// attribute is bound (MeshBasicMaterial drops it). Thickness is in model-local
+// units, so it scales with the gloves and reads consistently at any size.
+const OUTLINE_THICKNESS = 0.024;
+
+function makeOutlineMaterial(thickness: number) {
+    const m = new THREE.ShaderMaterial({
+        side: THREE.BackSide,
+        uniforms: { uThickness: { value: thickness } },
+        vertexShader: `
+            uniform float uThickness;
+            void main() {
+                vec3 p = position + normalize(normal) * uThickness;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+            }
+        `,
+        fragmentShader: `
+            void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }
+        `,
+    });
+    m.depthTest = false;
+    m.depthWrite = false;
+    return m;
+}
+
 // Dev-only layout override via URL. rx/ry/rz rotate; hd/fw/ba/ms retune the
 // HUD layout live from the preview without a rebuild. No params in production
 // → falls back to the constants above.
@@ -83,12 +111,50 @@ export default function FpHands() {
                 const m = o as THREE.Mesh;
                 m.castShadow = false;
                 m.frustumCulled = false;
-                m.renderOrder = 10;
-                // HUD element — must always render in front of scene geometry.
-                const mats = Array.isArray(m.material) ? m.material : [m.material];
+                m.renderOrder = 11; // in front of the outline shell (10)
+                // Clone materials so our tweaks don't leak into the cached GLB.
+                const src = Array.isArray(m.material) ? m.material : [m.material];
+                const mats = src.map((mat) => (mat ? mat.clone() : mat));
                 for (const mat of mats) {
-                    if (mat) { mat.depthTest = false; mat.depthWrite = false; }
+                    if (!mat) continue;
+                    // HUD element — always render in front of scene geometry.
+                    mat.depthTest = false;
+                    mat.depthWrite = false;
+                    // Flat cartoon brightening — lift the gloves toward the bright
+                    // white of the reference WITHOUT discarding the texture: drive
+                    // emissive from the diffuse map (or colour) so white reads white
+                    // and the black sleeves stay black.
+                    const std = mat as THREE.MeshStandardMaterial;
+                    if ('emissive' in std) {
+                        if (std.map) {
+                            std.emissiveMap = std.map;
+                            std.emissive.setRGB(1, 1, 1);
+                            std.emissiveIntensity = 0.55;
+                        } else if (std.color) {
+                            std.emissive.copy(std.color);
+                            std.emissiveIntensity = 0.45;
+                        }
+                        if ('roughness' in std) std.roughness = Math.min(1, (std.roughness ?? 1));
+                        std.needsUpdate = true;
+                    }
                 }
+                m.material = Array.isArray(m.material) ? mats as THREE.Material[] : mats[0] as THREE.Material;
+            }
+        });
+        return c;
+    }, [scene]);
+
+    // Black ink-outline shell drawn just behind the gloves.
+    const outline = useMemo(() => {
+        const c = scene.clone(true);
+        const mat = makeOutlineMaterial(OUTLINE_THICKNESS);
+        c.traverse((o) => {
+            if ((o as THREE.Mesh).isMesh) {
+                const m = o as THREE.Mesh;
+                m.material = mat;
+                m.castShadow = false;
+                m.frustumCulled = false;
+                m.renderOrder = 10; // behind the gloves (11)
             }
         });
         return c;
@@ -146,6 +212,7 @@ export default function FpHands() {
     return (
         <group ref={root}>
             <group ref={inner}>
+                <primitive object={outline} />
                 <primitive object={model} />
             </group>
         </group>
