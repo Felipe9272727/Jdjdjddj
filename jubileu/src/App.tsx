@@ -1773,9 +1773,10 @@ export default function App() {
       {/* Floor 3 cartoon intro — the wobbly title card. The cream iris wipe,
           rubber-hose gloves and SFX render in 3D inside the Canvas
           (CartoonIntro3D); this DOM layer just shows the title, in lock-step
-          via cartoonStage. Tap anywhere to skip. */}
+          via cartoonStage. The intro can't be skipped — it plays out and
+          dismisses itself (CartoonIntro3D's onDone). */}
       {cartoonIntro && (
-        <CartoonIntro stage={cartoonStage} onSkip={() => setCartoonIntro(false)} />
+        <CartoonIntro stage={cartoonStage} />
       )}
       {teleportCutscene && (
         <div className="absolute inset-0 z-[90] pointer-events-none overflow-hidden">

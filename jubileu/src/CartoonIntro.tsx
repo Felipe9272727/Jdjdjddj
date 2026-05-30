@@ -3,25 +3,24 @@
  * intro. The heavy lifting (cream iris wipe, the rubber-hose gloves doing
  * "puck… puck!", and all the SFX) now happens in 3D inside the Canvas
  * (CartoonIntro3D.tsx). This DOM layer is just the title text on top, driven by
- * the `stage` that the 3D timeline pushes up — so the two stay in lock-step —
- * plus a tap-to-skip catch. Background is transparent: the scene shows through.
+ * the `stage` that the 3D timeline pushes up — so the two stay in lock-step.
+ * The intro can NOT be skipped: it plays out and dismisses itself, and this
+ * layer never captures input (pointer-events: none).
  */
 
 interface Props {
     stage: number;       // choreography stage from CartoonIntro3D (3 = title in, 5 = wiping out)
-    onSkip: () => void;
 }
 
 const INK = '#140c08';
 
-export default function CartoonIntro({ stage, onSkip }: Props) {
+export default function CartoonIntro({ stage }: Props) {
     const showTitle = stage >= 3 && stage < 5;
 
     return (
         <div
-            onClick={onSkip}
             style={{
-                position: 'fixed', inset: 0, zIndex: 80, cursor: 'pointer',
+                position: 'fixed', inset: 0, zIndex: 80, pointerEvents: 'none',
                 background: 'transparent',
                 fontFamily: "'Luckiest Guy', system-ui, sans-serif",
             }}
@@ -44,14 +43,6 @@ export default function CartoonIntro({ stage, onSkip }: Props) {
                             ✦ AND NOW… IN GLORIOUS CARTOON ✦
                         </div>
                     </div>
-                </div>
-            )}
-
-            {/* skip hint */}
-            {stage < 5 && (
-                <div style={{ position: 'absolute', bottom: 14, right: 18, fontSize: 13, color: INK, opacity: 0.7,
-                    letterSpacing: '0.12em', pointerEvents: 'none' }}>
-                    toque para pular ▸
                 </div>
             )}
         </div>
