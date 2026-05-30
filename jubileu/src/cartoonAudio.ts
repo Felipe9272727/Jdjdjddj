@@ -38,11 +38,19 @@ export function preloadCartoonAudio(ctx: AudioContext): Promise<void> {
     return loadingPromise;
 }
 
-/** One-shot SFX. `rate` pitches it; `gain` scales volume. */
+/**
+ * One-shot SFX. `rate` pitches it; `gain` scales volume.
+ *
+ * `destination` routes the clip into the shared master bus (the AudioEngine's
+ * muteable / volume-controlled input) so the cartoon SFX obey the mute toggle
+ * and the master-volume slider exactly like every other sound. Falls back to
+ * the raw `ctx.destination` only if no bus is wired up yet.
+ */
 export function playCartoonSfx(
     ctx: AudioContext,
     name: CartoonSfx,
-    { gain = 1, rate = 1, when = 0 }: { gain?: number; rate?: number; when?: number } = {},
+    { gain = 1, rate = 1, when = 0, destination }:
+        { gain?: number; rate?: number; when?: number; destination?: AudioNode } = {},
 ): void {
     const buf = buffers[name];
     if (!buf) return;
@@ -52,19 +60,29 @@ export function playCartoonSfx(
     const g = ctx.createGain();
     g.gain.value = gain;
     src.connect(g);
-    g.connect(ctx.destination);
+    g.connect(destination ?? ctx.destination);
     src.start(ctx.currentTime + when);
 }
 
 let musicSource: AudioBufferSourceNode | null = null;
 let musicGain: GainNode | null = null;
 
-/** Start the ragtime bed (looping). Fades in; returns a stop fn. */
+/**
+ * Start the ragtime bed (looping). Fades in; returns a stop fn.
+ *
+ * Like the SFX, this routes through `destination` (the shared master bus) when
+ * provided so the ragtime is muted/attenuated with everything else and never
+ * plays "outside" the mix. If the same music is already playing it's left
+ * running (no restart click) and only its destination/gain are refreshed.
+ */
 export function startCartoonMusic(
     ctx: AudioContext,
-    { gain = 0.5, loop = true, fadeIn = 0.4 }: { gain?: number; loop?: boolean; fadeIn?: number } = {},
+    { gain = 0.5, loop = true, fadeIn = 0.4, destination }:
+        { gain?: number; loop?: boolean; fadeIn?: number; destination?: AudioNode } = {},
 ): () => void {
-    stopCartoonMusic(0);
+    // Already looping → don't restart (avoids the audible re-trigger when the
+    // arrival effect re-runs on a mute toggle / prop change).
+    if (musicSource && musicGain) return () => stopCartoonMusic(0.5);
     const buf = buffers.music;
     if (!buf) return () => {};
     const src = ctx.createBufferSource();
@@ -75,7 +93,7 @@ export function startCartoonMusic(
     g.gain.setValueAtTime(0.0001, now);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), now + fadeIn);
     src.connect(g);
-    g.connect(ctx.destination);
+    g.connect(destination ?? ctx.destination);
     src.start(now);
     musicSource = src;
     musicGain = g;

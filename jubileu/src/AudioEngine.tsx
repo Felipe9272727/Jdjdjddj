@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameState, currentLevel = 0, doorsClosed = false, masterVolume = 1 }: any) => {
+export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameState, currentLevel = 0, doorsClosed = false, masterVolume = 1, busRef }: any) => {
   const lobbyGainRef = useRef<any>(null);
   const elevatorGainRef = useRef<any>(null);
   const masterGainRef = useRef<any>(null);
@@ -147,6 +147,13 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
            if (elapsed >= duration) { tracksRef.current[from as keyof typeof tracksRef.current].active = false; tracksRef.current[from as keyof typeof tracksRef.current].volume = 0; tracksRef.current[to as keyof typeof tracksRef.current].volume = 1; crossfadeRef.current.active = false; }
            else { const t = elapsed / duration; tracksRef.current[from as keyof typeof tracksRef.current].volume = 1 - t; tracksRef.current[to as keyof typeof tracksRef.current].volume = t; }
       }
+      // Lobby music belongs ONLY in the saguão (level 0). On every other floor
+      // it must be silent — otherwise it bleeds under the Barney theme / Floor-2
+      // bed / Floor-3 ragtime ("algumas músicas se sobrepõem"), and when Creator
+      // Mode jumps straight to a floor (skipping the lobby→elevator crossfade
+      // that normally fades it out) it just keeps looping forever. Force its
+      // target to 0 whenever we're off level 0.
+      if (currentLevel !== 0) { tracksRef.current.lobby.volume = 0; tracksRef.current.lobby.active = false; }
       if (lobbyGainRef.current) lobbyGainRef.current.gain.setTargetAtTime(tracksRef.current.lobby.volume, now, 0.05);
       if (elevatorGainRef.current) elevatorGainRef.current.gain.setTargetAtTime(tracksRef.current.elevator.volume, now, 0.05);
       
@@ -209,6 +216,11 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
       compressor.connect(makeupGain); makeupGain.connect(ctx.destination);
       const reverbInput = setupReverb(ctx, compressor);
       masterGainRef.current = reverbInput;
+      // Expose the master bus (post-mute, post-volume, pre-reverb) so other
+      // systems — e.g. the Floor-3 cartoon ragtime/SFX — can route through the
+      // same mix instead of wiring straight to ctx.destination (which would
+      // bypass mute + the volume slider and overlap everything).
+      if (busRef) busRef.current = reverbInput;
       const lobbyGain = ctx.createGain(); lobbyGain.gain.value = 1.0; lobbyGain.connect(reverbInput); lobbyGainRef.current = lobbyGain;
       const elevatorGain = ctx.createGain(); elevatorGain.gain.value = 0; elevatorGain.connect(reverbInput); elevatorGainRef.current = elevatorGain;
       
@@ -280,6 +292,7 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
           try { reverbInput.disconnect(); } catch(e) {}
           try { compressor.disconnect(); } catch(e) {}
           try { makeupGain.disconnect(); } catch(e) {}
+          if (busRef) busRef.current = null;
           masterGainRef.current = null;
           lobbyGainRef.current = null;
           elevatorGainRef.current = null;

@@ -22,6 +22,7 @@ import { MainMenu } from './MainMenu';
 import { VisualJoystick, DialogueOverlay } from './UI';
 import { DiverCutscene } from './DiverCutscene';
 import CartoonIntro from './CartoonIntro';
+import CartoonIntro3D from './CartoonIntro3D';
 import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic } from './cartoonAudio';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
@@ -151,6 +152,10 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
+  // Master audio bus (the AudioEngine's muteable/volume-controlled input).
+  // The Floor-3 cartoon ragtime + SFX route through this so they sit inside the
+  // mix (obeying mute + the volume slider) instead of straight to the speakers.
+  const cartoonBusRef = useRef<AudioNode | null>(null);
   const [muted, setMuted] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(4.0);
   const prevPinchDist = useRef<number | null>(null);
@@ -390,6 +395,7 @@ export default function App() {
   const [devoured, setDevoured] = useState(false); // brief death-ritual overlay
   const [teleportCutscene, setTeleportCutscene] = useState(false); // all-shards win → Floor 3
   const [cartoonIntro, setCartoonIntro] = useState(false);         // Floor 3 "turns cartoon" intro
+  const [cartoonStage, setCartoonStage] = useState(0);             // choreography stage (driven by the 3D intro)
 
   // Start/stop monster ambience with Floor 2
   useEffect(() => {
@@ -670,20 +676,24 @@ export default function App() {
   useEffect(() => {
       if (currentLevel === 3) {
           playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
-          // Fire the cartoon intro + start the ragtime floor music. Preload
+          // Fire the 3D cartoon intro + start the ragtime floor music. Preload
           // first so the SFX/music are decoded before the choreography runs.
+          // The music routes through the master bus, so mute is handled by the
+          // engine — no need to gate the start on `muted` (which would otherwise
+          // leave the floor silent if the player un-mutes mid-climb).
           if (audioCtx) {
               preloadCartoonAudio(audioCtx).then(() => {
-                  if (!muted) startCartoonMusic(audioCtx, { gain: 0.4, loop: true });
+                  startCartoonMusic(audioCtx, { gain: 0.4, loop: true, destination: cartoonBusRef.current ?? undefined });
               });
           }
+          setCartoonStage(0);
           setCartoonIntro(true);
       } else {
           // Left Floor 3 → stop the ragtime bed.
           stopCartoonMusic(0.5);
           setCartoonIntro(false);
       }
-  }, [currentLevel, audioCtx, muted]);
+  }, [currentLevel, audioCtx]);
   
   useEffect(() => {
       if (gameState !== 'chase') return;
@@ -1162,7 +1172,7 @@ export default function App() {
 
   return (
     <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2 || currentLevel === 3) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
-      <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted || shopOpen} masterVolume={settings.masterVolume} nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} doorsClosed={doorsClosed} />
+      <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted || shopOpen} masterVolume={settings.masterVolume} nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} doorsClosed={doorsClosed} busRef={cartoonBusRef} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
       <CanvasErrorBoundary>
@@ -1272,6 +1282,17 @@ export default function App() {
                     currentLevel={currentLevel}
                     doorsClosed={doorsClosed}
                     houseDoorOpen={houseDoorOpen}
+                />
+            )}
+            {/* Floor 3 "turns cartoon" intro — 3D iris wipe + rubber-hose gloves
+                doing "puck… puck!", pinned to the camera. Drives the DOM title's
+                stage and self-dismisses (or on tap-to-skip). */}
+            {cartoonIntro && currentLevel === 3 && (
+                <CartoonIntro3D
+                    audioCtx={audioCtx}
+                    busRef={cartoonBusRef}
+                    onStage={setCartoonStage}
+                    onDone={() => setCartoonIntro(false)}
                 />
             )}
             <SceneInspector />
@@ -1718,9 +1739,12 @@ export default function App() {
       {hasStarted && gameState === 'chase' && <ChaseBanner elevatorActive={elevatorTimer !== null} barneyDistRef={barneyDistRef} />}
       {hasStarted && gameState === 'saved' && <SavedOverlay />}
 
-      {/* All-shards win → teleport-to-elevator cutscene (Floor 2 → Floor 3). */}
+      {/* Floor 3 cartoon intro — the wobbly title card. The cream iris wipe,
+          rubber-hose gloves and SFX render in 3D inside the Canvas
+          (CartoonIntro3D); this DOM layer just shows the title, in lock-step
+          via cartoonStage. Tap anywhere to skip. */}
       {cartoonIntro && (
-        <CartoonIntro audioCtx={audioCtx} muted={muted} onDone={() => setCartoonIntro(false)} />
+        <CartoonIntro stage={cartoonStage} onSkip={() => setCartoonIntro(false)} />
       )}
       {teleportCutscene && (
         <div className="absolute inset-0 z-[90] pointer-events-none overflow-hidden">
