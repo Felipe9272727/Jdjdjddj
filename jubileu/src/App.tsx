@@ -25,6 +25,7 @@ import CartoonIntro from './CartoonIntro';
 import CartoonIntro3D from './CartoonIntro3D';
 import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic } from './cartoonAudio';
 import { getMusicBus, setMusicActive } from './musicDirector';
+import { configureFloor3Sfx, clearFloor3Sfx } from './floor3Sfx';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
 import { ShadowBlob } from './ShadowBlob';
@@ -691,6 +692,8 @@ export default function App() {
           // engine — no need to gate the start on `muted` (which would otherwise
           // leave the floor silent if the player un-mutes mid-climb).
           if (audioCtx) {
+              // Point the 1930s footstep/jump SFX at the master bus (obeys mute).
+              configureFloor3Sfx(audioCtx, cartoonBusRef.current);
               preloadCartoonAudio(audioCtx).then(() => {
                   // Through the director's ragtime group bus so it can't overlap
                   // any other music (and the director mutes everything else).
@@ -701,9 +704,10 @@ export default function App() {
           setCartoonStage(0);
           setCartoonIntro(true);
       } else {
-          // Left Floor 3 → stop the ragtime bed.
+          // Left Floor 3 → stop the ragtime bed + detach the SFX.
           stopCartoonMusic(0.5);
           setMusicActive('ragtime', false);
+          clearFloor3Sfx();
           setCartoonIntro(false);
       }
   }, [currentLevel, audioCtx]);

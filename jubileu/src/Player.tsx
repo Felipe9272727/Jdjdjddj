@@ -5,6 +5,7 @@ import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { platforms as f3Platforms, f3PlayerZ, f3PlayerY, f3HandState, respawnPoint as f3RespawnPoint } from './f3Parkour';
+import { playFloor3Step, playFloor3Jump, playFloor3Land } from './floor3Sfx';
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
@@ -343,6 +344,8 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
   const timeRef = useRef(0);
   const jumpVelYRef = useRef(0);
+  const f3StepAccumRef = useRef(0);       // footstep cadence timer (Floor 3)
+  const f3PrevGroundedRef = useRef(true); // for landing edge-detection (Floor 3)
   const diverCineRef = useRef(0); // elapsed time inside the Floor 2 cinematic camera
   // Emotion-reactive framing: smoothed dist/fov offsets driven by dialogue beat.
   const diverFrameRef = useRef({ dist: 0, fov: 0 });
@@ -761,17 +764,32 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             }
 
             // 3. Land: snap to ground when falling through it from above.
+            const wasFalling = jumpVelYRef.current < -1.5;
             if (groundY > -Infinity && pos.current.y <= groundY && jumpVelYRef.current <= 0) {
                 pos.current.y = groundY;
                 jumpVelYRef.current = 0;
+                // Landing SFX — only on a real fall (edge: was airborne+falling).
+                if (wasFalling && !f3PrevGroundedRef.current) playFloor3Land();
             }
 
             // 4. Jump trigger — only fires when grounded.
             if (jumpRef?.current) {
                 const grounded = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;
-                if (grounded) jumpVelYRef.current = F3_JUMP;
+                if (grounded) { jumpVelYRef.current = F3_JUMP; playFloor3Jump(); }
                 jumpRef.current = false;
             }
+
+            // ── 1930s footstep "tok" cadence — only while walking on ground.
+            const groundedNow = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;
+            if (moving && groundedNow) {
+                f3StepAccumRef.current += safeDt;
+                // ~3 steps/sec; play one immediately on the first stride too.
+                if (f3StepAccumRef.current >= 0.33) { playFloor3Step(); f3StepAccumRef.current = 0; }
+            } else {
+                // Prime so the next stride taps right away instead of after 0.33s.
+                f3StepAccumRef.current = 0.33;
+            }
+            f3PrevGroundedRef.current = groundedNow;
 
             // 5. Respawn when fallen into the void — drop back onto the
             //    furthest-back live platform so the endless climb resumes near
