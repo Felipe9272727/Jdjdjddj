@@ -761,7 +761,7 @@ const _NOTE = (semi: number) => 220 * Math.pow(2, semi / 12); // A3 = semitone 0
  * (0..1) opens the filter, lifts the volume and quickens the motif as dread
  * rises (drive it from the shark director). Returns { setIntensity, stop }.
  */
-export const createFloor2Music = (audioContext: AudioContext | null): {
+export const createFloor2Music = (audioContext: AudioContext | null, destination?: AudioNode): {
     setIntensity: (v: number) => void; stop: () => void;
 } => {
     if (!audioContext) return { setIntensity: () => {}, stop: () => {} };
@@ -774,7 +774,9 @@ export const createFloor2Music = (audioContext: AudioContext | null): {
     master.gain.linearRampToValueAtTime(0.16, t0 + 4); // slow fade-in
     const lpf = ctx.createBiquadFilter();
     lpf.type = 'lowpass'; lpf.frequency.value = 600; lpf.Q.value = 0.6;
-    master.connect(lpf).connect(ctx.destination);
+    // Route through the music director's group bus when given (so it obeys mute
+    // + can't overlap other music); fall back to the speakers otherwise.
+    master.connect(lpf).connect(destination ?? ctx.destination);
 
     // Sustained chord pad — A minor add9 (A, C, E, B) low in the mix.
     const padGain = ctx.createGain(); padGain.gain.value = 0.5; padGain.connect(master);
@@ -852,7 +854,7 @@ export const createFloor2Music = (audioContext: AudioContext | null): {
  * setIntensity (0..1) drives tempo + brightness + an extra high tremolo layer.
  * Used for the Barney chase and the shark's "peak" assault.
  */
-export const createChaseMusic = (audioContext: AudioContext | null): {
+export const createChaseMusic = (audioContext: AudioContext | null, destination?: AudioNode): {
     setIntensity: (v: number) => void; stop: () => void;
 } => {
     if (!audioContext) return { setIntensity: () => {}, stop: () => {} };
@@ -863,7 +865,8 @@ export const createChaseMusic = (audioContext: AudioContext | null): {
     master.gain.setValueAtTime(0, t0);
     master.gain.linearRampToValueAtTime(0.22, t0 + 0.5);
     const hpf = ctx.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 40;
-    master.connect(hpf).connect(ctx.destination);
+    // Route through the director's chase group bus (top priority) when given.
+    master.connect(hpf).connect(destination ?? ctx.destination);
 
     let intensity = 0.5;
     let beat = 0;

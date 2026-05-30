@@ -24,6 +24,7 @@ import { DiverCutscene } from './DiverCutscene';
 import CartoonIntro from './CartoonIntro';
 import CartoonIntro3D from './CartoonIntro3D';
 import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic } from './cartoonAudio';
+import { getMusicBus, setMusicActive } from './musicDirector';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
 import { ShadowBlob } from './ShadowBlob';
@@ -92,9 +93,12 @@ interface WorldProps {
   monsterProximityRef: React.MutableRefObject<number>;
   berserk: boolean;
   cameraShakeRef: React.MutableRefObject<boolean>;
+  /** Floor-3 first-person gloves — hidden during the cartoon intro so the
+   *  player's own hands only "appear" once the intro hands are gone. */
+  floor3Hands: boolean;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -111,7 +115,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 0 && profile.atmosphere && <CeilingFan x={5} z={-5} speed={0.8} />}
       {level === 0 && profile.atmosphere && <WallClock x={9.5} z={-7} />}
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
-      {level === 3 && <Floor3Environment />}
+      {level === 3 && <Floor3Environment hands={floor3Hands} />}
       {level === 2 && (
         <Suspense fallback={null}>
           <Floor2Environment
@@ -431,13 +435,15 @@ export default function App() {
   const floor2MusicRef = useRef<ReturnType<typeof createFloor2Music> | null>(null);
   useEffect(() => {
     if (currentLevel === 2 && audioCtx && !muted) {
-      if (!floor2MusicRef.current) floor2MusicRef.current = createFloor2Music(audioCtx);
+      if (!floor2MusicRef.current) floor2MusicRef.current = createFloor2Music(audioCtx, getMusicBus('floor2', 60) ?? undefined);
+      setMusicActive('floor2', true);
     } else if (floor2MusicRef.current) {
       floor2MusicRef.current.stop();
       floor2MusicRef.current = null;
+      setMusicActive('floor2', false);
     }
     return () => {
-      if (floor2MusicRef.current) { floor2MusicRef.current.stop(); floor2MusicRef.current = null; }
+      if (floor2MusicRef.current) { floor2MusicRef.current.stop(); floor2MusicRef.current = null; setMusicActive('floor2', false); }
     };
   }, [currentLevel, audioCtx, muted]);
 
@@ -447,7 +453,8 @@ export default function App() {
   useEffect(() => {
     const inChase = gameState === 'chase';
     if (inChase && audioCtx && !muted) {
-      if (!chaseMusicRef.current) chaseMusicRef.current = createChaseMusic(audioCtx);
+      if (!chaseMusicRef.current) chaseMusicRef.current = createChaseMusic(audioCtx, getMusicBus('chase', 100) ?? undefined);
+      setMusicActive('chase', true);
       const id = setInterval(() => {
         // Closer Barney → hotter music (≈8m away = calm, ≈1.5m = frantic).
         const d = barneyDistRef.current;
@@ -457,10 +464,12 @@ export default function App() {
       return () => {
         clearInterval(id);
         if (chaseMusicRef.current) { chaseMusicRef.current.stop(); chaseMusicRef.current = null; }
+        setMusicActive('chase', false);
       };
     } else if (chaseMusicRef.current) {
       chaseMusicRef.current.stop();
       chaseMusicRef.current = null;
+      setMusicActive('chase', false);
     }
   }, [gameState, audioCtx, muted]);
 
@@ -683,7 +692,10 @@ export default function App() {
           // leave the floor silent if the player un-mutes mid-climb).
           if (audioCtx) {
               preloadCartoonAudio(audioCtx).then(() => {
-                  startCartoonMusic(audioCtx, { gain: 0.4, loop: true, destination: cartoonBusRef.current ?? undefined });
+                  // Through the director's ragtime group bus so it can't overlap
+                  // any other music (and the director mutes everything else).
+                  startCartoonMusic(audioCtx, { gain: 0.4, loop: true, destination: getMusicBus('ragtime', 70) ?? cartoonBusRef.current ?? undefined });
+                  setMusicActive('ragtime', true);
               });
           }
           setCartoonStage(0);
@@ -691,6 +703,7 @@ export default function App() {
       } else {
           // Left Floor 3 → stop the ragtime bed.
           stopCartoonMusic(0.5);
+          setMusicActive('ragtime', false);
           setCartoonIntro(false);
       }
   }, [currentLevel, audioCtx]);
@@ -1204,7 +1217,7 @@ export default function App() {
         <AdaptiveDpr pixelated />
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} onPlayerCaught={() => {
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro} onPlayerCaught={() => {
                 setFishJumpscareKey(k => k + 1);
                 setDevoured(true);
                 playJumpscareStab(audioCtx);
