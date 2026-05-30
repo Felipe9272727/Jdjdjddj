@@ -62,6 +62,11 @@ export default function FpHands() {
                 m.castShadow = false;
                 m.frustumCulled = false;
                 m.renderOrder = 10;
+                // HUD element — must always render in front of scene geometry.
+                const mats = Array.isArray(m.material) ? m.material : [m.material];
+                for (const mat of mats) {
+                    if (mat) { mat.depthTest = false; mat.depthWrite = false; }
+                }
             }
         });
         return c;
