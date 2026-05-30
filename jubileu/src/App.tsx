@@ -651,6 +651,19 @@ export default function App() {
           setDoorOpenAmount(0);
       }
   }, [currentLevel, gameState]);
+
+  // Floor 3 arrival: place the player on the START platform at the elevator,
+  // not at the Floor-2 teleport spot (0,0,-12) which is BEHIND the platform
+  // (z range [-9.5, -0.5]) — that made them fall into the void and respawn at
+  // a random parkour slot instead of stepping out of the elevator. Keyed only
+  // on currentLevel so a later gameState change can't re-teleport mid-climb.
+  useEffect(() => {
+      if (currentLevel === 3) {
+          // z=-9 → on the START platform at the elevator; theta=π → face +z
+          // (the parkour runs forward in +z from the elevator).
+          playerPositionCmdRef.current = { x: 0, y: 0, z: -9, theta: Math.PI };
+      }
+  }, [currentLevel]);
   
   useEffect(() => {
       if (gameState !== 'chase') return;

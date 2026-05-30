@@ -368,6 +368,13 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     
     if (positionCmdRef && positionCmdRef.current) {
         pos.current.set(positionCmdRef.current.x, positionCmdRef.current.y, positionCmdRef.current.z);
+        // Optional facing reset (e.g. Floor 3 arrival should face the parkour
+        // at +z, not whatever free-look angle the diver had underwater).
+        const cmdTheta = (positionCmdRef.current as any).theta;
+        if (typeof cmdTheta === 'number') {
+            camAng.current.theta = cmdTheta;
+            charRot.current.y = cmdTheta;
+        }
         positionCmdRef.current = null;
         camInitRef.current = false; // force camera re-sync after teleport
         // If the teleport drops the player inside the elevator zone (e.g.
