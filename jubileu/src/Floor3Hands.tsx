@@ -9,6 +9,15 @@
  * then parented to a world group that tracks camera position + quaternion each
  * frame, so it always sits at screen-bottom center.
  *
+ * HUD-CORRECT FRAMING: the rest pose is NOT baked in fixed world units —
+ * those only look right at one aspect ratio. Instead the depth, vertical
+ * anchor and scale are recomputed every frame from the camera's vertical FOV
+ * and current aspect ratio (the view-frustum half-extents at the hand depth).
+ * That keeps the gloves anchored at the bottom and fitted to the screen width
+ * in BOTH landscape and portrait — so on a narrow phone they shrink to stay
+ * fully visible instead of spilling off the sides and leaving only the black
+ * sleeve stumps in the centre.
+ *
  * All animation is PROCEDURAL:
  *   • idle   → slow breathing bob
  *   • walk   → figure-eight bob, driven by f3HandState.moving
@@ -23,24 +32,37 @@ import { f3HandState } from './f3Parkour';
 
 const GLOVES_URL = '/cartoon_gloves.glb';
 
-// Camera-local resting pose. The GLB holds BOTH hands fused in one mesh, so we
-// render it once. Rx(π/2) stands it so the white gloves point up with fingers
-// curling toward the player (backs of hands to camera) while the black sleeves
-// drop diagonally out the bottom corners — the reference \  / framing.
-const BASE_POS = new THREE.Vector3(0, -0.32, -0.45);
+// Rx(π/2) stands the flat GLB upright so the white gloves point up with
+// fingers curling toward the player (backs of hands to camera) while the black
+// sleeves drop diagonally out the bottom corners — the reference \  / framing.
 const BASE_ROT = new THREE.Euler(Math.PI / 2, 0, 0);
-const SCALE    = 1.42;
 
-// Dev-only pose override via URL (?…&rx=&ry=&rz=&px=&py=&pz=&s=). Lets the
-// first-person pose be dialed in from the preview without a rebuild; no params
-// in production → falls back to the constants above.
-function poseFromURL() {
+// ── HUD layout, expressed against the view frustum (not fixed world units) ──
+// HAND_DEPTH   — distance in front of the camera; sets perspective foreshortening.
+// FILL_WIDTH   — target span of the fused hands as a fraction of the screen WIDTH.
+//                On wide screens this would exceed MAX_SCALE, so the cap wins and
+//                landscape stays at the hand-tuned size; on narrow (portrait)
+//                screens it shrinks the gloves so they stay on-screen.
+// MAX_SCALE    — landscape-tuned upper bound so hands never grow huge on ultrawide.
+// BOTTOM_ANCHOR— vertical centre of the rig, as a fraction of the visible
+//                half-height below screen centre (≈ where the wrists sit).
+const HAND_DEPTH     = 0.45;
+const FILL_WIDTH     = 1.05;
+const MAX_SCALE      = 1.42;
+const BOTTOM_ANCHOR  = 0.71;
+
+// Dev-only layout override via URL. rx/ry/rz rotate; hd/fw/ba/ms retune the
+// HUD layout live from the preview without a rebuild. No params in production
+// → falls back to the constants above.
+function layoutFromURL() {
     const q = new URLSearchParams(window.location.search);
     const n = (k: string, d: number) => (q.has(k) ? parseFloat(q.get(k)!) : d);
     return {
         rot: new THREE.Euler(n('rx', BASE_ROT.x), n('ry', BASE_ROT.y), n('rz', BASE_ROT.z)),
-        pos: new THREE.Vector3(n('px', BASE_POS.x), n('py', BASE_POS.y), n('pz', BASE_POS.z)),
-        scale: n('s', SCALE),
+        depth: n('hd', HAND_DEPTH),
+        fillW: n('fw', FILL_WIDTH),
+        maxScale: n('ms', MAX_SCALE),
+        anchor: n('ba', BOTTOM_ANCHOR),
     };
 }
 
@@ -50,7 +72,7 @@ export default function FpHands() {
     const inner = useRef<THREE.Group>(null);
     const walk  = useRef(0);
 
-    const pose = useMemo(poseFromURL, []);
+    const layout = useMemo(layoutFromURL, []);
 
     const { scene } = useGLTF(GLOVES_URL);
     // Clone once; keep the original GLB material/texture intact.
@@ -75,10 +97,25 @@ export default function FpHands() {
     useFrame((s, dt) => {
         if (!root.current || !inner.current) return;
         const t = s.clock.elapsedTime;
+        const cam = camera as THREE.PerspectiveCamera;
 
         // Stick the rig to the camera.
         root.current.position.copy(camera.position);
         root.current.quaternion.copy(camera.quaternion);
+
+        // ── HUD framing from the live view frustum ───────────────────────
+        // Visible half-extents at the hand depth, for the current FOV/aspect.
+        // (cam.aspect is updated by R3F on every resize / orientation change.)
+        const halfH = layout.depth * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2);
+        const halfW = halfH * cam.aspect;
+        // Fit the 1.0-wide fused mesh to FILL_WIDTH of the screen, capped so
+        // landscape keeps the tuned size and portrait shrinks to stay on-screen.
+        const fitScale = Math.min(layout.maxScale, layout.fillW * 2 * halfW);
+        const restY = -layout.anchor * halfH;       // wrists near the bottom edge
+        const restZ = -layout.depth;
+        // Bob/jump amplitudes scale with the gloves so motion reads the same at
+        // any size (smaller portrait hands → proportionally smaller sway).
+        const k = fitScale / layout.maxScale;
 
         // Smooth walk flag.
         const target = f3HandState.moving && f3HandState.grounded ? 1 : 0;
@@ -86,28 +123,29 @@ export default function FpHands() {
         const w = walk.current;
 
         // ── Procedural pose ──────────────────────────────────────────────
-        const breath = Math.sin(t * 1.6) * 0.012;
-        const bobY   = Math.sin(t * 12) * 0.025 * w;
-        const bobX   = Math.sin(t * 6)  * 0.028 * w;
+        const breath = Math.sin(t * 1.6) * 0.012 * k;
+        const bobY   = Math.sin(t * 12) * 0.025 * w * k;
+        const bobX   = Math.sin(t * 6)  * 0.028 * w * k;
         const vy     = f3HandState.vy;
-        const jumpY  = THREE.MathUtils.clamp(vy * 0.016, -0.10, 0.12);
+        const jumpY  = THREE.MathUtils.clamp(vy * 0.016, -0.10, 0.12) * k;
         const jumpRX = THREE.MathUtils.clamp(-vy * 0.02, -0.18, 0.22);
 
         inner.current.position.set(
-            pose.pos.x + bobX,
-            pose.pos.y + breath + bobY + jumpY,
-            pose.pos.z + Math.abs(bobX) * 0.4,
+            bobX,
+            restY + breath + bobY + jumpY,
+            restZ + Math.abs(bobX) * 0.4,
         );
         inner.current.rotation.set(
-            pose.rot.x + jumpRX + Math.sin(t * 12) * 0.02 * w,
-            pose.rot.y + bobX * 0.5,
-            pose.rot.z + Math.sin(t * 6) * 0.04 * w,
+            layout.rot.x + jumpRX + Math.sin(t * 12) * 0.02 * w,
+            layout.rot.y + bobX * 0.5,
+            layout.rot.z + Math.sin(t * 6) * 0.04 * w,
         );
+        inner.current.scale.setScalar(fitScale);
     });
 
     return (
         <group ref={root}>
-            <group ref={inner} scale={[pose.scale, pose.scale, pose.scale]}>
+            <group ref={inner}>
                 <primitive object={model} />
             </group>
         </group>
