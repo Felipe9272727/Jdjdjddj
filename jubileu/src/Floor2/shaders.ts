@@ -229,12 +229,13 @@ export const WaterMaterial = shaderMaterial(
 
         float viewFromBelow = step(dot(vNormalWS, vViewWS), 0.0);
 
-        // Vivid color palette — pushed brighter so the well water is
-        // unmistakably WATER in the dark cave (was almost black before).
-        vec3 deep    = vec3(0.010, 0.07, 0.13);     // deep teal
-        vec3 mid     = vec3(0.07,  0.28, 0.38);     // tropical blue-green
-        vec3 shallow = vec3(0.18,  0.50, 0.52);     // bright shallow aqua
-        vec3 sky     = vec3(0.45,  0.65, 0.72);     // sky reflection
+        // Vivid BLUE palette — pushed bluer + brighter so the well reads as
+        // unmistakable water in the dark cave (was a dark teal that vanished
+        // against the rock). Blue channel now leads green at every depth.
+        vec3 deep    = vec3(0.02, 0.13, 0.34);      // deep ocean blue
+        vec3 mid     = vec3(0.05, 0.30, 0.62);      // clear blue
+        vec3 shallow = vec3(0.16, 0.52, 0.82);      // bright shallow blue
+        vec3 sky     = vec3(0.50, 0.72, 0.95);      // sky-blue reflection
 
         // Distance from the hole center to drive a "shallow rim" gradient
         float distFromCenter = length(vWorldPos.xz - vec2(0.0, 5.0));
@@ -265,18 +266,18 @@ export const WaterMaterial = shaderMaterial(
 
         // SSS — bright peaks on wave crests
         float sss = pow(max(0.0, h), 1.5) * 0.4;
-        vec3 sssColor = vec3(0.08, 0.30, 0.25);
+        vec3 sssColor = vec3(0.10, 0.32, 0.48);
         col += sssColor * sss;
 
         // Fresnel mixes in sky reflection
         col = mix(col, sky, fresnel * 0.6 + caustic * 0.12);
 
-        // Add caustic highlights (cyan-aqua)
-        col += vec3(0.05, 0.20, 0.18) * caustic * (0.4 + shallowBoost * 0.8);
-        col += vec3(0.25, 0.40, 0.35) * causticPeak * 0.15;
+        // Add caustic highlights (blue)
+        col += vec3(0.10, 0.30, 0.52) * caustic * (0.4 + shallowBoost * 0.8);
+        col += vec3(0.30, 0.45, 0.68) * causticPeak * 0.15;
 
-        // Add shimmer (white-cyan high-frequency twinkle)
-        col += vec3(0.30, 0.45, 0.50) * shimmer * (0.5 + shallowBoost * 0.5);
+        // Add shimmer (blue-white high-frequency twinkle)
+        col += vec3(0.35, 0.52, 0.72) * shimmer * (0.5 + shallowBoost * 0.5);
 
         // Specular sun glints
         vec3 lightDir = normalize(vec3(0.4, 1.0, 0.3));
@@ -296,11 +297,11 @@ export const WaterMaterial = shaderMaterial(
         vec3 foamColor = vec3(0.70, 0.85, 0.85);
         col = mix(col, foamColor, totalFoam);
 
-        float alpha = mix(0.82, 0.96, fresnel);
+        float alpha = mix(0.92, 0.99, fresnel);
         if (viewFromBelow > 0.5) {
             alpha = 1.0;
-            // From below: brighter teal so the underside has presence
-            col = vec3(0.015, 0.05, 0.07);
+            // From below: deep blue so the underside has presence
+            col = vec3(0.02, 0.10, 0.24);
         }
         gl_FragColor = vec4(col, alpha);
       }

@@ -348,10 +348,11 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             across the cave, magic-source feel. */}
         <UpwardLightShaft />
 
-        {/* Opaque water column */}
+        {/* Opaque water column — deep blue (not near-black) so the pool seen
+            through the transparent surface reads as water, not a rocky hole. */}
         <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y - 16, HOLE_CENTER_Z]}>
             <cylinderGeometry args={[HOLE_RADIUS + 0.15, HOLE_RADIUS + 0.15, 32, 32, 1, true]} />
-            <meshBasicMaterial color="#020508" side={THREE.BackSide} depthWrite={true} transparent={false} />
+            <meshBasicMaterial color="#061a3a" side={THREE.BackSide} depthWrite={true} transparent={false} />
         </mesh>
         <WaterCeilingDisc />
         <WaterOccluder playerPositionRef={playerPositionRef} />
