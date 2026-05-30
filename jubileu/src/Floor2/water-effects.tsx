@@ -23,11 +23,13 @@ export const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }
         m.transparent = true;
         m.depthWrite = false;
         m.side = THREE.DoubleSide;
+        // Skip ACES tone mapping so the vivid blue palette stays bright
+        // instead of being crushed dark like the surrounding rock.
+        m.toneMapped = false;
         return m;
     }, []);
     useFrame((state) => {
         (mat as any).time = state.clock.elapsedTime;
-        if (reflective) (mat as any).opacity = 0.45;
     });
     return (
         <group position={[HOLE_CENTER_X, WATER_LEVEL_Y, HOLE_CENTER_Z]}>
@@ -43,7 +45,7 @@ export const WaterSurface: React.FC<WaterSurfaceProps> = ({ reflective = false }
                         depthScale={0.6}
                         minDepthThreshold={0.3}
                         maxDepthThreshold={1.4}
-                        color="#06121e"
+                        color="#0e3a63"
                         metalness={0.55}
                         mirror={0.95}
                     />

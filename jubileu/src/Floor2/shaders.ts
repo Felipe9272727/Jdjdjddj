@@ -232,10 +232,10 @@ export const WaterMaterial = shaderMaterial(
         // Vivid BLUE palette — pushed bluer + brighter so the well reads as
         // unmistakable water in the dark cave (was a dark teal that vanished
         // against the rock). Blue channel now leads green at every depth.
-        vec3 deep    = vec3(0.02, 0.13, 0.34);      // deep ocean blue
-        vec3 mid     = vec3(0.05, 0.30, 0.62);      // clear blue
-        vec3 shallow = vec3(0.16, 0.52, 0.82);      // bright shallow blue
-        vec3 sky     = vec3(0.50, 0.72, 0.95);      // sky-blue reflection
+        vec3 deep    = vec3(0.03, 0.22, 0.48);      // deep ocean blue
+        vec3 mid     = vec3(0.09, 0.42, 0.76);      // clear blue
+        vec3 shallow = vec3(0.24, 0.62, 0.92);      // bright shallow blue
+        vec3 sky     = vec3(0.58, 0.80, 1.00);      // sky-blue reflection
 
         // Distance from the hole center to drive a "shallow rim" gradient
         float distFromCenter = length(vWorldPos.xz - vec2(0.0, 5.0));

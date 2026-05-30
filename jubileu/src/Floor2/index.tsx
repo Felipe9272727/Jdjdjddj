@@ -286,7 +286,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             from any angle — no stone texture leaks through. */}
         <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y / 2, HOLE_CENTER_Z]}>
             <cylinderGeometry args={[HOLE_RADIUS - 0.02, HOLE_RADIUS - 0.02, Math.abs(WATER_LEVEL_Y), 96, 12, true]} />
-            <meshBasicMaterial color="#071e3d" side={THREE.BackSide} />
+            <meshBasicMaterial color="#0a2c52" side={THREE.BackSide} />
         </mesh>
         {/* Inner foam / wet-rock ring just at the water line — bright,
             slightly emissive band so the eye instantly registers "water". */}
@@ -331,7 +331,7 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             visible through the transparent WaterSurface at centre. */}
         <mesh position={[HOLE_CENTER_X, WATER_LEVEL_Y - 0.05, HOLE_CENTER_Z]} rotation={[-Math.PI / 2, 0, 0]}>
             <circleGeometry args={[HOLE_RADIUS - 0.05, 64]} />
-            <meshBasicMaterial color="#071e3d" side={THREE.DoubleSide} />
+            <meshBasicMaterial color="#0a2c52" side={THREE.DoubleSide} />
         </mesh>
         <WaterSurface reflective={reflective} />
 
