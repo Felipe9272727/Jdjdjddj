@@ -210,6 +210,26 @@ export const CAVE_FLOOR_GEO = (() => {
     return geo;
 })();
 
+// ─── Cave floor UNDERSIDE — flat slab WITH the same well hole ──────────
+// Sits just below the main floor to block X-ray from underwater looking up.
+// Must share the floor's circular hole, otherwise it becomes a solid "lid"
+// over the well mouth and you see rock instead of the water column below.
+export const CAVE_FLOOR_UNDERSIDE_GEO = (() => {
+    const shape = new THREE.Shape();
+    const size = 32;
+    shape.moveTo(-size, -size);
+    shape.lineTo( size, -size);
+    shape.lineTo( size,  size);
+    shape.lineTo(-size,  size);
+    shape.closePath();
+    const hole = new THREE.Path();
+    hole.absarc(HOLE_CENTER_X, -HOLE_CENTER_Z, HOLE_RADIUS, 0, Math.PI * 2, false);
+    shape.holes.push(hole);
+    const geo = new THREE.ShapeGeometry(shape, 96);
+    geo.setAttribute('uv2', geo.attributes.uv.clone());
+    return geo;
+})();
+
 // Cave ceiling — 3D organic, not flat. 80→64 segments: ~36% fewer vertices,
 // the stalactite-bump silhouette is visually identical from the floor.
 export const CAVE_CEILING_GEO = createCaveCeiling(62, 62, 64, 99);

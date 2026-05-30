@@ -57,7 +57,7 @@ import {
 
 import {
     GLOW_TEXTURE,
-    CAVE_FLOOR_GEO, PEBBLE_GEO,
+    CAVE_FLOOR_GEO, CAVE_FLOOR_UNDERSIDE_GEO, PEBBLE_GEO,
     CAVE_CEILING_GEO,
     CAVE_WALL_N_GEO, CAVE_WALL_S_GEO, CAVE_WALL_W_GEO, CAVE_WALL_E_GEO,
     UW_WALL_NORTH_GEO, UW_WALL_SOUTH_GEO, UW_WALL_WEST_GEO, UW_WALL_EAST_GEO,
@@ -210,10 +210,11 @@ export const Floor2Environment: React.FC<Floor2EnvironmentProps> = ({
             />
         </mesh>
 
-        {/* Cave floor underside — blocks X-ray from underwater looking up */}
-        <mesh position={[0, -0.1, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[64, 64]} />
-            <meshStandardMaterial color="#0a0806" map={caveFloor.color} normalMap={caveFloor.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveFloor.rough} roughness={0.95} aoMap={caveFloor.ao} aoMapIntensity={1.2} side={THREE.BackSide} />
+        {/* Cave floor underside — blocks X-ray from underwater looking up.
+            Uses a slab WITH the well hole cut out (same hole as the main
+            floor) so it does not become a solid lid over the well mouth. */}
+        <mesh geometry={CAVE_FLOOR_UNDERSIDE_GEO} position={[0, -0.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <meshStandardMaterial color="#0a0806" map={caveFloor.color} normalMap={caveFloor.normal} normalScale={new THREE.Vector2(1.5, 1.5)} roughnessMap={caveFloor.rough} roughness={0.95} aoMap={caveFloor.ao} aoMapIntensity={1.2} side={THREE.DoubleSide} />
         </mesh>
 
         {/* Cave ceiling — 3D ORGANIC with stalactite-like bumps */}
