@@ -66,6 +66,20 @@ export const FLOORS: FloorOption[] = [
     ),
   },
   {
+    id: 'floor-4',
+    level: 4,
+    name: 'Andar 4',
+    label: 'Andar 4',
+    description: 'Base plate (em construção) — blockout',
+    color: 'from-slate-400 via-zinc-300 to-slate-400',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75L12 4.5l8.25 5.25L12 15 3.75 9.75z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 14.25L12 19.5l8.25-5.25" />
+      </svg>
+    ),
+  },
+  {
     id: 'transition-2-3',
     level: 3,
     name: 'Transição 2 → 3',
@@ -101,8 +115,15 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
         Escolha um andar para começar diretamente. O fluxo normal do jogo será pulado.
       </p>
 
-      {/* Floor cards */}
-      <div className="flex flex-col gap-2.5 w-full">
+      {/* Floor cards — scrollable so the list never overflows the menu */}
+      <div className="flex flex-col gap-2.5 w-full max-h-[46vh] overflow-y-auto overflow-x-hidden px-1 py-0.5 creator-scroll">
+        <style>{`
+          .creator-scroll::-webkit-scrollbar { width: 7px; }
+          .creator-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 8px; }
+          .creator-scroll::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.45); border-radius: 8px; }
+          .creator-scroll::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,0.7); }
+          .creator-scroll { scrollbar-width: thin; scrollbar-color: rgba(168,85,247,0.5) rgba(255,255,255,0.04); }
+        `}</style>
         {FLOORS.map((floor) => {
           const isSelected = selectedId === floor.id;
           return (

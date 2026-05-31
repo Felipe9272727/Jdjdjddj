@@ -43,6 +43,7 @@ import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { Floor2Environment, SHARD_POSITIONS } from './Floor2Underwater';
 import { Floor3Environment } from './Floor3';
+import { Floor4Environment } from './Floor4';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -120,6 +121,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 0 && profile.atmosphere && <WallClock x={9.5} z={-7} />}
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
       {level === 3 && <Floor3Environment hands={floor3Hands} />}
+      {level === 4 && <Floor4Environment />}
       {level === 2 && (
         <Suspense fallback={null}>
           <Floor2Environment
@@ -982,6 +984,14 @@ export default function App() {
         setHouseDoorOpen(false);
         setDoorOpenAmount(0);
         setDoorsClosed(false);
+      } else if (startLevel === 4) {
+        // Floor 4 (WIP base plate). Flat walking; spawn near the elevator.
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
       }
     }
     // ─── CREATOR MODE: end jump ───
