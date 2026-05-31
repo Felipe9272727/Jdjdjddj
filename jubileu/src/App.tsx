@@ -405,7 +405,7 @@ export default function App() {
   const [cartoonStage, setCartoonStage] = useState(0);             // choreography stage (driven by the 3D intro)
   const [cartoonCutscene, setCartoonCutscene] = useState(false);   // meet-the-Diabrete dialogue (after the intro)
   const [cutsceneLine, setCutsceneLine] = useState(0);             // active Diabrete script line
-  const cutsceneTargetRef = useRef(new Vector3(1.1, 1.05, -8.6));  // camera look-at during the cutscene
+  const cutsceneTargetRef = useRef(new Vector3(0.9, 0, -9.2));     // camera look-at (devil's feet) during the cutscene
 
   // Start/stop monster ambience with Floor 2
   useEffect(() => {

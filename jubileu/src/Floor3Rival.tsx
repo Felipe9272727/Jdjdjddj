@@ -20,15 +20,14 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { platforms as f3Platforms, f3PlayerZ } from './f3Parkour';
-import { buildDiabreteRig, B, type DiabreteRig } from './diabreteRig';
+import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
 
 const RIVAL_URL  = '/diabrete.glb';
 const LEAD_Z     = 14;     // units ahead of the player
 const MOVE_SPD   = 6.2;    // Z pursuit speed (u/s)
 const GRAVITY    = 22.0;
-const CHAR_SCALE = 1.55;
 const BASE_YAW   = 0;      // 0 = model faces +Z (running away up the course)
-const ARM_DROP   = 0.95;   // radians: lower the T-pose arms to a run posture
+const ARM_DROP   = 0.85;   // radians: lower the T-pose arms to a run posture
 
 class Spring {
     value = 0; vel = 0;
@@ -115,38 +114,39 @@ const Floor3Rival: React.FC = () => {
 
         // ─ Bones ─────────────────────────────────────────────────────────────
         const air = !onGnd.current;
-        if (!air) phase.current += safeDt * 2.4 * Math.PI * 2;
+        if (!air) phase.current += safeDt * 2.6 * Math.PI * 2;   // brisk cadence
         const φ = phase.current;
         const sw = Math.sin(φ);
 
-        // BODY bounce + lean
-        bones[B.body].position.y =
-            (0.46 - 0.0) + sBob.current.tick(air ? 0 : Math.abs(sw) * 0.055, safeDt);
-        bones[B.body].rotation.x = sLean.current.tick(air ? -0.18 : 0.14, safeDt);
+        // BODY bounce + lean + a little hip weave so the run isn't stiff
+        bones[B.body].position.y = 0.46 + sBob.current.tick(air ? 0 : Math.abs(sw) * 0.075, safeDt);
+        bones[B.body].rotation.x = sLean.current.tick(air ? -0.22 : 0.20, safeDt);
+        bones[B.body].rotation.y = air ? 0 : Math.sin(φ) * 0.10;
+        bones[B.body].rotation.z = air ? 0 : Math.sin(φ) * 0.06;
 
         // HEAD counter-bob + nod
-        bones[B.head].rotation.x = air ? -0.12 : 0.09 + Math.sin(φ * 2 + 0.6) * 0.04;
-        bones[B.head].rotation.z = air ? 0 : Math.sin(φ + 0.3) * 0.05;
+        bones[B.head].rotation.x = air ? -0.14 : 0.11 + Math.sin(φ * 2 + 0.6) * 0.06;
+        bones[B.head].rotation.z = air ? 0 : Math.sin(φ + 0.3) * 0.08;
 
-        // LEGS alternating pendulum (tuck in the air)
-        bones[B.l_leg].rotation.x = air ? -0.44 :  sw * 0.60;
-        bones[B.r_leg].rotation.x = air ? -0.44 : -sw * 0.60;
+        // LEGS alternating pendulum, bigger reach (tuck in the air)
+        bones[B.l_leg].rotation.x = air ? -0.5 :  sw * 0.78;
+        bones[B.r_leg].rotation.x = air ? -0.5 : -sw * 0.78;
 
         // ARMS — drop the sideways T-pose arms DOWN (z), then pump fore/aft (x),
         // counter-phased to the legs. l_arm points -X so +z lowers it; r_arm
         // points +X so -z lowers it.
-        bones[B.l_arm].rotation.z =  (air ? 1.25 : ARM_DROP);
-        bones[B.r_arm].rotation.z = -(air ? 1.25 : ARM_DROP);
-        bones[B.l_arm].rotation.x = air ? -0.55 : -sw * 0.85;
-        bones[B.r_arm].rotation.x = air ? -0.55 :  sw * 0.85;
+        bones[B.l_arm].rotation.z =  (air ? 1.3 : ARM_DROP);
+        bones[B.r_arm].rotation.z = -(air ? 1.3 : ARM_DROP);
+        bones[B.l_arm].rotation.x = air ? -0.7 : -sw * 1.05;
+        bones[B.r_arm].rotation.x = air ? -0.7 :  sw * 1.05;
 
         // Squash / stretch (whole-mesh) — stretch falling, squash on heel-strike
-        const strY = air ? 1 + Math.abs(velY.current) * 0.011 : 1 - Math.abs(sw) * 0.05;
+        const strY = air ? 1 + Math.abs(velY.current) * 0.011 : 1 - Math.abs(sw) * 0.06;
         const strX = 1 / Math.sqrt(Math.max(0.55, strY));
         rig.group.scale.set(strX, strY, strX);
     });
 
-    return <group ref={groupRef} scale={[CHAR_SCALE, CHAR_SCALE, CHAR_SCALE]} />;
+    return <group ref={groupRef} scale={[DIABRETE_SCALE, DIABRETE_SCALE, DIABRETE_SCALE]} />;
 };
 
 useGLTF.preload(RIVAL_URL);

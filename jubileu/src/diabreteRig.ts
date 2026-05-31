@@ -21,6 +21,11 @@
 
 import * as THREE from 'three';
 
+// Shared visual scale — the raw model is only ~1m tall, which read as a tiny
+// doll on the platforms (and barely filled the cutscene frame). Bumped so the
+// devil stands a head TALLER than the player and actually reads as a threat.
+export const DIABRETE_SCALE = 2.2;
+
 // ── Bone indices ──────────────────────────────────────────────────────────────
 export const enum B { root, body, head, l_arm, r_arm, l_leg, r_leg }
 

@@ -18,13 +18,14 @@ export interface Line {
 }
 
 export const DIABRETE_SCRIPT: Line[] = [
-    { speaker: 'diabrete', text: 'Ora, ora… mais um palhaço achando que vai subir?', dur: 3.0, gesture: 'lean' },
-    { speaker: 'player',   text: '…e você é o quê, exatamente?',                       dur: 2.4, gesture: 'idle' },
-    { speaker: 'diabrete', text: 'O DIABRETE! Dono dessa escadaria maluca, hehe!',     dur: 3.0, gesture: 'taunt' },
-    { speaker: 'diabrete', text: 'Tá vendo essas plataformas? Eu DESENHO elas. No traço!', dur: 3.4, gesture: 'point' },
-    { speaker: 'diabrete', text: 'Vou correr na frente enchendo teu caminho de armadilha!', dur: 3.4, gesture: 'throw' },
-    { speaker: 'diabrete', text: 'Me alcança… SE FOR CAPAZ! HAHAHA!',                   dur: 3.0, gesture: 'laugh' },
-    { speaker: 'diabrete', text: 'Tchauzinho, lerdo!',                                  dur: 1.6, gesture: 'dash' },
+    { speaker: 'diabrete', text: 'Olha só o que o elevador cuspiu! Carne fresca pra minha pista de obstáculos!', dur: 3.6, gesture: 'taunt' },
+    { speaker: 'player',   text: 'Que… que diabo é você?',                                  dur: 2.2, gesture: 'idle' },
+    { speaker: 'diabrete', text: 'DIABO é meu sobrenome, gracinha! Pode chamar de DIABRETE!', dur: 3.4, gesture: 'point' },
+    { speaker: 'diabrete', text: 'Essa escadaria maluca é MINHA. Cada plataforma eu que rabisco, no traço!', dur: 3.8, gesture: 'lean' },
+    { speaker: 'diabrete', text: 'E adivinha? Vou desenhar o teu fracasso, degrau por degrau!', dur: 3.6, gesture: 'throw' },
+    { speaker: 'diabrete', text: 'Bora apostar corrida? Eu na frente, tu comendo a minha poeira!', dur: 3.6, gesture: 'taunt' },
+    { speaker: 'diabrete', text: 'HÁ! Me alcança, perna-curta… SE FOR CAPAZ! HAHAHA!',       dur: 3.2, gesture: 'laugh' },
+    { speaker: 'diabrete', text: 'Até já… ou nunca! WHOOSH!',                                 dur: 1.8, gesture: 'dash' },
 ];
 
 export const SCRIPT_TOTAL = DIABRETE_SCRIPT.reduce((s, l) => s + l.dur, 0);
