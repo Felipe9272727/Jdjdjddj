@@ -23,7 +23,7 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { platforms as f3Platforms, f3PlayerZ } from './f3Parkour';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
-import { f3Progress, isDizzy, fireWin } from './f3Hazards';
+import { f3Progress, isDizzy, fireWin, f3DevilPos } from './f3Hazards';
 import { playFloor3Draw, playFloor3Dizzy, playFloor3Fall, playFloor3Land } from './floor3Sfx';
 
 const RIVAL_URL = '/diabrete.glb';
@@ -170,7 +170,12 @@ const Floor3Rival: React.FC = () => {
                 bones[B.l_leg].rotation.x = Math.sin(e * 24) * 1.0; bones[B.r_leg].rotation.x = -Math.sin(e * 24) * 1.0;
                 if (!fellWhistle.current) { fellWhistle.current = true; playFloor3Fall(); }
             }
-            if (e > 2.0 && !fellFired.current) { fellFired.current = true; fireWin(); }
+            // Publish the devil's live position so the fall-cutscene camera tracks him.
+            f3DevilPos.current.copy(g.position);
+            // Hold the camera at platform height through the trip/teeter so the
+            // topple reads cleanly, then let it follow him down into the void.
+            if (e < 1.0) f3DevilPos.current.y = fallStart.current.y;
+            if (e > 2.4 && !fellFired.current) { fellFired.current = true; fireWin(); }
             return;
         }
 

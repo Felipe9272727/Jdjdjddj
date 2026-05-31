@@ -232,7 +232,7 @@ const SkyBackground: React.FC = () => {
 };
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean }> = ({ elevator = true, hands = true }) => {
+export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; gloves?: boolean }> = ({ elevator = true, hands = true, gloves = hands }) => {
     // Live group refs by platform id, so the single frame loop can drive the
     // moving bridges imperatively (no per-platform useFrame, correct ordering).
     const groupRefs = useRef<Map<number, THREE.Group>>(new Map());
@@ -295,8 +295,9 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean }
                 </group>
             )}
 
-            {/* First-person cartoon gloves (procedural idle/walk/jump) */}
-            {hands && (
+            {/* First-person cartoon gloves (procedural idle/walk/jump) — hidden
+                during the fall cutscene (camera leaves first-person to frame the devil) */}
+            {gloves && (
                 <Suspense fallback={null}>
                     <FpHands />
                 </Suspense>

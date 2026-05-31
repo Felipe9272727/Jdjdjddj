@@ -19,6 +19,12 @@
  */
 
 import { platforms as f3Platforms, type F3Plat } from './f3Parkour';
+import * as THREE from 'three';
+
+// Live world position of the Diabrete (feet), written every frame by
+// Floor3Rival. The fall-cutscene camera in App reads this (via the dialogue
+// camera lock) so the shot tracks the devil as he topples into the void.
+export const f3DevilPos = { current: new THREE.Vector3(0, 0, 14) };
 
 // ── Records ───────────────────────────────────────────────────────────────────
 export interface Hazard {

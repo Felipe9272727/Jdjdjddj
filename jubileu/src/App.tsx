@@ -29,7 +29,7 @@ import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic } from './cart
 import { getMusicBus, setMusicActive } from './musicDirector';
 import { configureFloor3Sfx, clearFloor3Sfx } from './floor3Sfx';
 import { configureFloor4Sfx, clearFloor4Sfx } from './floor4Sfx';
-import { resetHazards, setOnWin, setOnProgress, f3Progress } from './f3Hazards';
+import { resetHazards, setOnWin, setOnProgress, f3Progress, f3DevilPos } from './f3Hazards';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
 import { ShadowBlob } from './ShadowBlob';
@@ -104,7 +104,7 @@ interface WorldProps {
   floor3Hands: boolean;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -121,7 +121,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 0 && profile.atmosphere && <CeilingFan x={5} z={-5} speed={0.8} />}
       {level === 0 && profile.atmosphere && <WallClock x={9.5} z={-7} />}
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
-      {level === 3 && <Floor3Environment hands={floor3Hands} />}
+      {level === 3 && <Floor3Environment hands={floor3Hands} gloves={floor3Gloves} />}
       {level === 4 && <Floor4Environment />}
       {level === 2 && (
         <Suspense fallback={null}>
@@ -411,6 +411,7 @@ export default function App() {
   const [cutsceneLine, setCutsceneLine] = useState(0);             // active Diabrete script line
   const cutsceneTargetRef = useRef(new Vector3(0.9, 0, -9.2));     // camera look-at (devil's feet) during the cutscene
   const [brushCount, setBrushCount] = useState(0);                 // paintbrushes stolen (HUD, win at 3)
+  const [cartoonFall, setCartoonFall] = useState(false);           // cinematic camera-lock on the devil's defeat fall
 
   // Start/stop monster ambience with Floor 2
   useEffect(() => {
@@ -727,6 +728,7 @@ export default function App() {
           // Fresh sabotage loop each arrival (jumps/obstacles/brushes/devil).
           resetHazards();
           setBrushCount(0);
+          setCartoonFall(false);
       } else if (currentLevel !== 3) {
           // Left Floor 3 → stop the ragtime bed + detach the SFX. (Don't tear
           // down merely because the doors closed for the ride OUT — that's
@@ -737,6 +739,7 @@ export default function App() {
           clearFloor3Sfx();
           setCartoonIntro(false);
           setCartoonCutscene(false);
+          setCartoonFall(false);
       }
   }, [currentLevel, audioCtx, doorsClosed]);
 
@@ -1085,6 +1088,7 @@ export default function App() {
   // ── Floor 3 cleared — the Diabrete fell into the void (3 brushes stolen).
   // Flash, yank the player into the cabin, then ride UP to Floor 4.
   const advanceToFloor4AfterWin = useCallback(() => {
+    setCartoonFall(false);                       // end the fall camera-lock; flash takes over
     setTeleportCutscene(true);
     if (audioCtx && !muted) { playEquipChime(audioCtx); playArrivalDing(audioCtx); }
     scheduleTimeout(() => {
@@ -1104,7 +1108,7 @@ export default function App() {
   // win callback is one-shot — fireWin nulls it after the devil falls).
   useEffect(() => {
     if (currentLevel !== 3) return;
-    setOnProgress(() => setBrushCount(f3Progress.brushes));
+    setOnProgress(() => { setBrushCount(f3Progress.brushes); if (f3Progress.fell) setCartoonFall(true); });
     setOnWin(() => advanceToFloor4AfterWin());
     return () => { setOnProgress(null); setOnWin(null); };
   }, [currentLevel, advanceToFloor4AfterWin]);
@@ -1298,7 +1302,7 @@ export default function App() {
         <AdaptiveDpr pixelated />
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} onPlayerCaught={() => {
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} onPlayerCaught={() => {
                 setFishJumpscareKey(k => k + 1);
                 setDevoured(true);
                 playJumpscareStab(audioCtx);
@@ -1327,7 +1331,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)))} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -1852,6 +1856,15 @@ export default function App() {
       )}
       {cartoonCutscene && (
         <Floor3CutsceneUI line={cutsceneLine} />
+      )}
+      {/* Diabrete defeat — cinematic letterbox while the camera locks on his fall */}
+      {cartoonFall && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 86, pointerEvents: 'none' }}>
+          <style>{`@keyframes f3fall-bars{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+            @keyframes f3fall-ko{0%{transform:scale(0) rotate(-14deg);opacity:0}60%{transform:scale(1.2) rotate(6deg);opacity:1}100%{transform:scale(1) rotate(-3deg);opacity:1}}`}</style>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '12%', background: '#0a0712', transformOrigin: 'top', animation: 'f3fall-bars .4s ease-out both' }} />
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '12%', background: '#0a0712', transformOrigin: 'bottom', animation: 'f3fall-bars .4s ease-out both' }} />
+        </div>
       )}
       {/* Floor 3 paintbrush counter — steal 3 to send the Diabrete into the void */}
       {currentLevel === 3 && hasStarted && !cartoonIntro && !cartoonCutscene && (
