@@ -5,7 +5,8 @@ import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { platforms as f3Platforms, f3PlayerZ, f3PlayerY, f3HandState, respawnPoint as f3RespawnPoint } from './f3Parkour';
-import { playFloor3Step, playFloor3Jump, playFloor3Land } from './floor3Sfx';
+import { playFloor3Step, playFloor3Jump, playFloor3Land, playFloor3Brush } from './floor3Sfx';
+import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, tryCollectBrush as f3TryCollectBrush } from './f3Hazards';
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
@@ -772,12 +773,22 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
                 if (wasFalling && !f3PrevGroundedRef.current) playFloor3Land();
             }
 
-            // 4. Jump trigger — only fires when grounded.
+            // 4. Jump trigger — only fires when grounded. Each jump feeds the
+            //    sabotage loop (every 10 → the Diabrete inks a new obstacle).
             if (jumpRef?.current) {
                 const grounded = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;
-                if (grounded) { jumpVelYRef.current = F3_JUMP; playFloor3Jump(); }
+                if (grounded) { jumpVelYRef.current = F3_JUMP; playFloor3Jump(); f3RegisterJump(pos.current.z); }
                 jumpRef.current = false;
             }
+
+            // 4b. Spike knockback — crossing a fully-drawn ink-strip too low
+            //     bounces the player back (they must hop it).
+            const kb = f3HazardKnockback(pos.current.x, pos.current.y, pos.current.z);
+            if (kb) { pos.current.z = kb.z; jumpVelYRef.current = kb.vy; playFloor3Land(); }
+
+            // 4c. Paintbrush pickup — steal a brush off the course (dazes the
+            //     devil; the 3rd ends the chase).
+            if (f3TryCollectBrush(pos.current.x, pos.current.y, pos.current.z)) playFloor3Brush();
 
             // ── 1930s footstep "tok" cadence — only while walking on ground.
             const groundedNow = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;

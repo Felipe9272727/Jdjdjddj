@@ -23,6 +23,7 @@ import * as THREE from 'three';
 import { ElevatorFacade } from './Elevator';
 import FpHands from './Floor3Hands';
 import Floor3Rival from './Floor3Rival';
+import Floor3Hazards from './Floor3Hazards';
 import {
     platforms as f3Platforms, f3PlayerZ, f3PlayerY, tick as f3Tick, reset as f3Reset,
     validateNoOverlaps, type F3Plat,
@@ -307,6 +308,9 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean }
                     <Floor3Rival />
                 </Suspense>
             )}
+
+            {/* The devil's sabotage: drawn spike-strips + paintbrush pickups */}
+            {hands && <Floor3Hazards />}
         </group>
     );
 };

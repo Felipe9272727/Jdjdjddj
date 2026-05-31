@@ -28,6 +28,7 @@ import Floor3CutsceneUI from './Floor3CutsceneUI';
 import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic } from './cartoonAudio';
 import { getMusicBus, setMusicActive } from './musicDirector';
 import { configureFloor3Sfx, clearFloor3Sfx } from './floor3Sfx';
+import { resetHazards, setOnWin, setOnProgress, f3Progress } from './f3Hazards';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
 import { ShadowBlob } from './ShadowBlob';
@@ -406,6 +407,7 @@ export default function App() {
   const [cartoonCutscene, setCartoonCutscene] = useState(false);   // meet-the-Diabrete dialogue (after the intro)
   const [cutsceneLine, setCutsceneLine] = useState(0);             // active Diabrete script line
   const cutsceneTargetRef = useRef(new Vector3(0.9, 0, -9.2));     // camera look-at (devil's feet) during the cutscene
+  const [brushCount, setBrushCount] = useState(0);                 // paintbrushes stolen (HUD, win at 3)
 
   // Start/stop monster ambience with Floor 2
   useEffect(() => {
@@ -719,6 +721,9 @@ export default function App() {
           }
           setCartoonStage(0);
           setCartoonIntro(true);
+          // Fresh sabotage loop each arrival (jumps/obstacles/brushes/devil).
+          resetHazards();
+          setBrushCount(0);
       } else if (currentLevel !== 3) {
           // Left Floor 3 → stop the ragtime bed + detach the SFX. (Don't tear
           // down merely because the doors closed for the ride OUT — that's
@@ -1051,6 +1056,33 @@ export default function App() {
       if (audioCtx && audioCtx.state !== 'closed') audioCtx.close().catch(() => {});
     };
   }, [audioCtx]);
+
+  // ── Floor 3 victory — the Diabrete fell into the void (3 brushes stolen).
+  // Flash, yank the player into the cabin, then ride back DOWN to the lobby.
+  const returnToElevatorAfterWin = useCallback(() => {
+    setTeleportCutscene(true);
+    if (audioCtx && !muted) { playEquipChime(audioCtx); playArrivalDing(audioCtx); }
+    scheduleTimeout(() => {
+      playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+      setTeleportCutscene(false);
+      setDoorsClosed(true);
+      setDoorSoundTrigger((prev) => prev + 1);
+      setNextElevatorDestination(0);            // back to the lobby
+      setElevatorTimer(20);
+      setTravelPhase('closing');
+      if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+      elevatorHumStopRef.current = createElevatorHum(audioCtx);
+    }, 1400);
+  }, [audioCtx, muted, scheduleTimeout]);
+
+  // Arm the sabotage-loop callbacks while on Floor 3 (re-armed each entry; the
+  // win callback is one-shot — fireWin nulls it after the devil falls).
+  useEffect(() => {
+    if (currentLevel !== 3) return;
+    setOnProgress(() => setBrushCount(f3Progress.brushes));
+    setOnWin(() => returnToElevatorAfterWin());
+    return () => { setOnProgress(null); setOnWin(null); };
+  }, [currentLevel, returnToElevatorAfterWin]);
 
   const [joystickVisual, setJoystickVisual] = useState({ active: false, originX: 0, originY: 0, currentX: 0, currentY: 0 });
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches);
@@ -1795,6 +1827,22 @@ export default function App() {
       )}
       {cartoonCutscene && (
         <Floor3CutsceneUI line={cutsceneLine} />
+      )}
+      {/* Floor 3 paintbrush counter — steal 3 to send the Diabrete into the void */}
+      {currentLevel === 3 && hasStarted && !cartoonIntro && !cartoonCutscene && (
+        <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 70,
+          pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: 10,
+          fontFamily: "'Luckiest Guy', system-ui, sans-serif" }}>
+          <div style={{ background: '#f6efe0', border: '4px solid #140c08', borderRadius: 16,
+            padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 10,
+            boxShadow: '0 5px 0 #140c08', transform: 'rotate(-1.5deg)' }}>
+            <span style={{ fontSize: 22, color: '#140c08', letterSpacing: '.04em' }}>PINCÉIS</span>
+            {[0, 1, 2].map((i) => (
+              <span key={i} style={{ fontSize: 26, filter: i < brushCount ? 'none' : 'grayscale(1) opacity(0.35)',
+                transform: i < brushCount ? 'scale(1.15) rotate(-8deg)' : 'none', transition: 'all .2s' }}>🖌️</span>
+            ))}
+          </div>
+        </div>
       )}
       {teleportCutscene && (
         <div className="absolute inset-0 z-[90] pointer-events-none overflow-hidden">

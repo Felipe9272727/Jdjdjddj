@@ -108,3 +108,88 @@ export function playFloor3Land(): void {
     p.connect(pg).connect(d);
     p.start(t + 0.02); p.stop(t + 0.22);
 }
+
+/** Quick "scribble" — the Diabrete inking a new obstacle into the air. A buzzy
+ *  back-and-forth saw scrub, like a pen scratching paper. */
+export function playFloor3Draw(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    for (let i = 0; i <= 8; i++) o.frequency.setValueAtTime(260 + (i % 2 ? 180 : 0) + i * 14, t + i * 0.035);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.8;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
+    g.gain.setValueAtTime(0.12, t + 0.26);
+    g.gain.exponentialRampToValueAtTime(0.0006, t + 0.34);
+    o.connect(bp).connect(g).connect(d);
+    o.start(t); o.stop(t + 0.36);
+}
+
+/** Bright "sparkle pop" — picking up a paintbrush (rising arpeggio + shimmer). */
+export function playFloor3Brush(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t = ctx.currentTime;
+    const notes = [523, 659, 784, 1047]; // C E G C — cheerful pickup chime
+    notes.forEach((f, i) => {
+        const o = ctx!.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+        const g = ctx!.createGain();
+        const ts = t + i * 0.06;
+        g.gain.setValueAtTime(0.0001, ts);
+        g.gain.exponentialRampToValueAtTime(0.16, ts + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0006, ts + 0.22);
+        o.connect(g).connect(d!); o.start(ts); o.stop(ts + 0.24);
+    });
+}
+
+/** Cartoon dizziness — a loop of little bird "tweet-tweet" chirps. Returns a
+ *  stop() so the caller can end it when the daze wears off. */
+export function playFloor3Dizzy(durationMs = 3000): () => void {
+    if (!ctx) return () => {}; const d = out(); if (!d) return () => {};
+    const t0 = ctx.currentTime;
+    const oscs: OscillatorNode[] = [];
+    const n = Math.max(3, Math.floor(durationMs / 420));
+    for (let i = 0; i < n; i++) {
+        const ts = t0 + i * 0.42 + (i % 2) * 0.06;
+        const o = ctx.createOscillator(); o.type = 'sine';
+        const base = i % 2 ? 1760 : 1480;            // two alternating birds
+        o.frequency.setValueAtTime(base, ts);
+        o.frequency.exponentialRampToValueAtTime(base * 1.4, ts + 0.05);
+        o.frequency.exponentialRampToValueAtTime(base * 1.1, ts + 0.12);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, ts);
+        g.gain.exponentialRampToValueAtTime(0.09, ts + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0005, ts + 0.16);
+        o.connect(g).connect(d); o.start(ts); o.stop(ts + 0.18);
+        oscs.push(o);
+    }
+    return () => { for (const o of oscs) { try { o.stop(); } catch { /* already stopped */ } } };
+}
+
+/** Long descending slide-whistle + splat — the Diabrete plummeting into the void. */
+export function playFloor3Fall(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(1200, t);
+    o.frequency.exponentialRampToValueAtTime(120, t + 1.3);   // long falling "wheeeee"
+    const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 9;
+    const lfoG = ctx.createGain(); lfoG.gain.value = 30;
+    lfo.connect(lfoG).connect(o.frequency); lfo.start(t); lfo.stop(t + 1.3);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.14, t + 0.03);
+    g.gain.setValueAtTime(0.14, t + 1.1);
+    g.gain.exponentialRampToValueAtTime(0.0006, t + 1.35);
+    o.connect(g).connect(d); o.start(t); o.stop(t + 1.36);
+
+    // Distant "splat" at the bottom.
+    const p = ctx.createOscillator(); p.type = 'sine';
+    p.frequency.setValueAtTime(150, t + 1.32);
+    p.frequency.exponentialRampToValueAtTime(48, t + 1.5);
+    const pg = ctx.createGain();
+    pg.gain.setValueAtTime(0.0001, t + 1.32);
+    pg.gain.exponentialRampToValueAtTime(0.18, t + 1.35);
+    pg.gain.exponentialRampToValueAtTime(0.0005, t + 1.55);
+    p.connect(pg).connect(d); p.start(t + 1.32); p.stop(t + 1.56);
+}
