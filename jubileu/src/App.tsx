@@ -28,6 +28,7 @@ import Floor3CutsceneUI from './Floor3CutsceneUI';
 import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic } from './cartoonAudio';
 import { getMusicBus, setMusicActive } from './musicDirector';
 import { configureFloor3Sfx, clearFloor3Sfx } from './floor3Sfx';
+import { configureFloor4Sfx, clearFloor4Sfx } from './floor4Sfx';
 import { resetHazards, setOnWin, setOnProgress, f3Progress } from './f3Hazards';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
@@ -738,6 +739,20 @@ export default function App() {
           setCartoonCutscene(false);
       }
   }, [currentLevel, audioCtx, doorsClosed]);
+
+  // ── Floor 4 (foundation, theme TBD) — reserve its audio bus + SFX so the
+  // theme can plug straight in, and keep lobby/engine music off this floor.
+  useEffect(() => {
+      if (currentLevel === 4) {
+          configureFloor4Sfx(audioCtx, cartoonBusRef.current);
+          // Reserve the exclusive music group now; no track yet (TODO: theme music).
+          getMusicBus('floor4', 65);
+          setMusicActive('floor4', true);
+      } else {
+          setMusicActive('floor4', false);
+          clearFloor4Sfx();
+      }
+  }, [currentLevel, audioCtx]);
   
   useEffect(() => {
       if (gameState !== 'chase') return;
