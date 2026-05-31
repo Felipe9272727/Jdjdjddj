@@ -1067,9 +1067,9 @@ export default function App() {
     };
   }, [audioCtx]);
 
-  // ── Floor 3 victory — the Diabrete fell into the void (3 brushes stolen).
-  // Flash, yank the player into the cabin, then ride back DOWN to the lobby.
-  const returnToElevatorAfterWin = useCallback(() => {
+  // ── Floor 3 cleared — the Diabrete fell into the void (3 brushes stolen).
+  // Flash, yank the player into the cabin, then ride UP to Floor 4.
+  const advanceToFloor4AfterWin = useCallback(() => {
     setTeleportCutscene(true);
     if (audioCtx && !muted) { playEquipChime(audioCtx); playArrivalDing(audioCtx); }
     scheduleTimeout(() => {
@@ -1077,7 +1077,7 @@ export default function App() {
       setTeleportCutscene(false);
       setDoorsClosed(true);
       setDoorSoundTrigger((prev) => prev + 1);
-      setNextElevatorDestination(0);            // back to the lobby
+      setNextElevatorDestination(4);            // beat the devil → up to Floor 4
       setElevatorTimer(20);
       setTravelPhase('closing');
       if (elevatorHumStopRef.current) elevatorHumStopRef.current();
@@ -1090,9 +1090,9 @@ export default function App() {
   useEffect(() => {
     if (currentLevel !== 3) return;
     setOnProgress(() => setBrushCount(f3Progress.brushes));
-    setOnWin(() => returnToElevatorAfterWin());
+    setOnWin(() => advanceToFloor4AfterWin());
     return () => { setOnProgress(null); setOnWin(null); };
-  }, [currentLevel, returnToElevatorAfterWin]);
+  }, [currentLevel, advanceToFloor4AfterWin]);
 
   const [joystickVisual, setJoystickVisual] = useState({ active: false, originX: 0, originY: 0, currentX: 0, currentY: 0 });
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches);
