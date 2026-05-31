@@ -1,14 +1,20 @@
 /**
  * Floor3Rival.tsx — "O Diabrete" in gameplay: the rubber-hose rival that
- * sprints ahead of the player up the endless parkour AND reacts to the sabotage
- * loop (f3Hazards): a quick "drawing" flourish when he inks a new obstacle, a
- * classic 1930s DIZZY daze (head lolling, body spinning, little birds tweeting
- * around his head) each time the player steals one of his paintbrushes, and a
- * plunge into the void once the third brush is gone — after which he reports his
- * own defeat (fireWin) so the game whisks the player back to the elevator.
+ * sprints ahead of the player up the endless parkour and PERFORMS the sabotage
+ * loop (f3Hazards) as a series of little cartoon set-pieces:
  *
- * The skeleton + skinning is built in diabreteRig.ts (the GLB is rig-less); here
- * we only DRIVE the bones each frame with spring-damped rubber-hose motion.
+ *   • PAINT  — when he inks a new obstacle he runs to that platform, whips out
+ *     a giant paintbrush and sweeps it across, the spikes inking in under his
+ *     strokes, then dashes on.
+ *   • DIZZY  — each time the player steals a brush he drops into a classic
+ *     1930s "seeing stars" pose: knees buckled, body teetering, head lolling
+ *     back, three little birds tweeting in orbit.
+ *   • FALL   — once the third brush is gone he TRIPS (Huggy-Wuggy style):
+ *     lurch, windmill-arm teeter on the edge, then topples forward and plummets
+ *     tumbling into the void, after which he reports his defeat (fireWin).
+ *
+ * The skeleton + skinning is built in diabreteRig.ts (the GLB is rig-less);
+ * here we only DRIVE the bones each frame with spring-damped rubber-hose motion.
  */
 
 import React, { useRef, useEffect } from 'react';
@@ -18,14 +24,21 @@ import * as THREE from 'three';
 import { platforms as f3Platforms, f3PlayerZ } from './f3Parkour';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
 import { f3Progress, isDizzy, fireWin } from './f3Hazards';
-import { playFloor3Draw, playFloor3Dizzy, playFloor3Fall } from './floor3Sfx';
+import { playFloor3Draw, playFloor3Dizzy, playFloor3Fall, playFloor3Land } from './floor3Sfx';
 
-const RIVAL_URL  = '/diabrete.glb';
-const LEAD_Z     = 14;     // units ahead of the player
-const MOVE_SPD   = 6.2;    // Z pursuit speed (u/s)
-const GRAVITY    = 22.0;
-const ARM_DROP   = 0.85;   // radians: lower the T-pose arms to a run posture
-const NBIRDS     = 3;
+const RIVAL_URL = '/diabrete.glb';
+const LEAD_Z    = 14;
+const MOVE_SPD  = 6.2;
+const GRAVITY   = 22.0;
+const ARM_DROP  = 0.85;
+const NBIRDS    = 3;
+const PAINT_DUR = 1.5;     // seconds the painting set-piece lasts
+
+// Brush-prop materials (held in the devil's hand while painting).
+const handleMat  = new THREE.MeshToonMaterial({ color: '#e0a94a' });
+const ferruleMat = new THREE.MeshToonMaterial({ color: '#c2c7cf' });
+const bristleMat = new THREE.MeshToonMaterial({ color: '#1a1420' });
+const tipMat     = new THREE.MeshToonMaterial({ color: '#c0271a' });
 
 class Spring {
     value = 0; vel = 0;
@@ -43,6 +56,7 @@ const Floor3Rival: React.FC = () => {
     const groupRef = useRef<THREE.Group>(null!);
     const rigRef   = useRef<DiabreteRig | null>(null);
     const birdRefs = useRef<THREE.Group[]>([]);
+    const brushRef = useRef<THREE.Group | null>(null);
 
     const posRef = useRef(new THREE.Vector3(0, 0, LEAD_Z));
     const velY   = useRef(0);
@@ -53,12 +67,13 @@ const Floor3Rival: React.FC = () => {
 
     // Reaction state
     const prevDraw  = useRef(0);
-    const drawAnim  = useRef(0);                       // seconds left on the draw flourish
+    const paintT    = useRef(0);
+    const paintZ    = useRef(0);
     const dizzyStop = useRef<null | (() => void)>(null);
     const wasDizzy  = useRef(false);
-    const fallVelY  = useRef(0);
-    const fallSpin  = useRef(0);
+    const fallStart = useRef<THREE.Vector3 | null>(null);
     const fellSfx   = useRef(false);
+    const fellWhistle = useRef(false);
     const fellFired = useRef(false);
 
     const sBob  = useRef(new Spring(24, 8));
@@ -71,6 +86,21 @@ const Floor3Rival: React.FC = () => {
         if (!rig) { console.warn('[Diabrete] no mesh in GLB'); return; }
         group.add(rig.group);
         rigRef.current = rig;
+
+        // Giant paintbrush prop, parented to the right-arm bone (so it tracks the
+        // hand), lying along the arm (+X), bristles at the far tip. Hidden until
+        // a painting set-piece.
+        const brush = new THREE.Group();
+        const h  = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.42, 10), handleMat);  h.rotation.z = Math.PI / 2; h.position.x = 0.2;
+        const fe = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.08, 10), ferruleMat);    fe.rotation.z = Math.PI / 2; fe.position.x = 0.43;
+        const br = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.22, 10), bristleMat);              br.rotation.z = -Math.PI / 2; br.position.x = 0.57;
+        const tp = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), tipMat);                    tp.position.x = 0.68;
+        brush.add(h, fe, br, tp);
+        brush.position.set(0.24, 0, 0);
+        brush.visible = false;
+        rig.bones[B.r_arm].add(brush);
+        brushRef.current = brush;
+
         sBob.current.reset(0);
         sLean.current.reset(0.14);
         return () => {
@@ -81,6 +111,12 @@ const Floor3Rival: React.FC = () => {
         };
     }, [gltf]);
 
+    const nearestGround = (z: number) => {
+        let best: { topY: number; x: number } | null = null; let bd = Infinity;
+        for (const p of f3Platforms) { const d = Math.abs(p.cz - z); if (d < bd) { bd = d; best = { topY: p.topY, x: p.x }; } }
+        return best ?? { topY: 0, x: 0 };
+    };
+
     useFrame((_, dt) => {
         const rig = rigRef.current;
         if (!groupRef.current || !rig) return;
@@ -88,125 +124,146 @@ const Floor3Rival: React.FC = () => {
         const bones  = rig.bones;
         tRef.current += safeDt;
         const t = tRef.current;
+        const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
-        // ── FALL: the devil plunges into the abyss, then reports his defeat ──
+        // ── FALL — Huggy-Wuggy trip → teeter → topple → plummet ─────────────
         if (f3Progress.fell) {
-            if (!fellSfx.current) { fellSfx.current = true; playFloor3Draw(); playFloor3Fall(); if (dizzyStop.current) { dizzyStop.current(); dizzyStop.current = null; } }
-            fallVelY.current -= GRAVITY * 1.4 * safeDt;
-            posRef.current.y += fallVelY.current * safeDt;
-            fallSpin.current += safeDt * 9;
-            groupRef.current.position.copy(posRef.current);
-            groupRef.current.rotation.y = fallSpin.current;         // tumbling spin
-            groupRef.current.rotation.z = Math.sin(fallSpin.current) * 0.5;
-            // flailing limbs as he drops
-            bones[B.l_arm].rotation.x = Math.sin(t * 18) * 1.2;
-            bones[B.r_arm].rotation.x = -Math.sin(t * 18) * 1.2;
-            bones[B.l_leg].rotation.x = Math.sin(t * 16) * 0.9;
-            bones[B.r_leg].rotation.x = -Math.sin(t * 16) * 0.9;
+            if (brushRef.current) brushRef.current.visible = false;
             for (const b of birdRefs.current) if (b) b.visible = false;
-            const fallenMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - f3Progress.fellAt;
-            if (fallenMs > 1900 && !fellFired.current) { fellFired.current = true; fireWin(); }
+            if (dizzyStop.current) { dizzyStop.current(); dizzyStop.current = null; }
+            if (!fallStart.current) fallStart.current = posRef.current.clone();
+            if (!fellSfx.current) { fellSfx.current = true; playFloor3Land(); }   // the "trip" thud
+            const e = (nowMs - f3Progress.fellAt) / 1000;
+            const g = groupRef.current;
+            rig.group.scale.set(1, 1, 1);
+
+            if (e < 0.45) {
+                // TRIP — lurch forward on the spot, arms fling up, head snaps down
+                const k = e / 0.45;
+                g.position.copy(fallStart.current);
+                g.rotation.set(k * 0.5, 0, Math.sin(e * 30) * 0.1);
+                bones[B.l_arm].rotation.x = -1.6 * k; bones[B.r_arm].rotation.x = -1.6 * k;
+                bones[B.l_arm].rotation.z = 0.5; bones[B.r_arm].rotation.z = -0.5;
+                bones[B.head].rotation.x = 0.5 * k;
+                bones[B.l_leg].rotation.x = -0.9 * k; bones[B.r_leg].rotation.x = 0.6 * k; // caught foot
+            } else if (e < 1.0) {
+                // TEETER — windmilling arms on the brink, body tipping past balance
+                const k = (e - 0.45) / 0.55;
+                g.position.set(fallStart.current.x, fallStart.current.y, fallStart.current.z + k * 0.6);
+                g.rotation.set(0.5 + k * 0.7, 0, Math.sin(e * 16) * 0.25);
+                bones[B.l_arm].rotation.x = Math.sin(e * 22) * 2.6;          // big windmill
+                bones[B.r_arm].rotation.x = Math.sin(e * 22 + Math.PI) * 2.6;
+                bones[B.l_arm].rotation.z = 0.4; bones[B.r_arm].rotation.z = -0.4;
+                bones[B.head].rotation.x = 0.5 - k * 0.3;
+                bones[B.l_leg].rotation.x = Math.sin(e * 20) * 0.7;
+                bones[B.r_leg].rotation.x = -Math.sin(e * 20) * 0.7;
+            } else {
+                // TOPPLE & PLUMMET — pitch over and tumble into the void, shrinking
+                velY.current -= GRAVITY * 1.5 * safeDt;
+                posRef.current.z = fallStart.current.z + 0.6 + (e - 1.0) * 3.0;
+                posRef.current.y = fallStart.current.y + velY.current * (e - 1.0);
+                g.position.copy(posRef.current);
+                g.rotation.set(1.2 + (e - 1.0) * 7, Math.sin((e - 1.0) * 5) * 0.4, (e - 1.0) * 4);
+                const sh = Math.max(0.15, 1 - (e - 1.0) * 0.4);
+                g.scale.setScalar(DIABRETE_SCALE * sh);
+                bones[B.l_arm].rotation.x = Math.sin(e * 26) * 1.4; bones[B.r_arm].rotation.x = -Math.sin(e * 26) * 1.4;
+                bones[B.l_leg].rotation.x = Math.sin(e * 24) * 1.0; bones[B.r_leg].rotation.x = -Math.sin(e * 24) * 1.0;
+                if (!fellWhistle.current) { fellWhistle.current = true; playFloor3Fall(); }
+            }
+            if (e > 2.0 && !fellFired.current) { fellFired.current = true; fireWin(); }
             return;
         }
 
         // ── Target & ground ─────────────────────────────────────────────────
-        const targetZ = f3PlayerZ.current + LEAD_Z;
-        if (!inited.current) { inited.current = true; posRef.current.z = targetZ; }
-        let best: { cz: number; topY: number; x: number } | null = null;
-        for (const p of f3Platforms) {
-            if (!best || Math.abs(p.cz - targetZ) < Math.abs(best.cz - targetZ)) best = p;
-        }
-        const groundY = best?.topY ?? 0;
-        const groundX = best?.x ?? 0;
-
         const dazed = isDizzy();
+        const leadZ = f3PlayerZ.current + LEAD_Z;
+        if (!inited.current) { inited.current = true; posRef.current.z = leadZ; }
 
-        // Forward chase — paused while dazed (he's too dizzy to run).
+        // Trigger a paint set-piece when a new obstacle is inked.
+        if (f3Progress.drawFlashAt !== prevDraw.current) {
+            prevDraw.current = f3Progress.drawFlashAt;
+            if (f3Progress.drawFlashAt > 0 && !dazed) { paintT.current = PAINT_DUR; paintZ.current = f3Progress.drawZ; playFloor3Draw(); }
+        }
+        const painting = paintT.current > 0 && !dazed;
+        if (painting) paintT.current = Math.max(0, paintT.current - safeDt);
+
+        // Where he wants to be: at the obstacle while painting, else his lead.
+        const targetZ = painting ? paintZ.current : leadZ;
+        const gnd = nearestGround(targetZ);
+        const groundY = gnd.topY, groundX = gnd.x;
+
         if (!dazed) {
             const dz = targetZ - posRef.current.z;
-            posRef.current.z += Math.sign(dz) * Math.min(Math.abs(dz), MOVE_SPD * safeDt);
+            const spd = painting ? MOVE_SPD * 1.6 : MOVE_SPD;       // hustle to the canvas
+            posRef.current.z += Math.sign(dz) * Math.min(Math.abs(dz), spd * safeDt);
             posRef.current.x += (groundX - posRef.current.x) * (1 - Math.exp(-6 * safeDt));
         }
 
-        // Gravity / landing (runs in both states so he stays on the platform).
+        // Gravity / landing.
         const yDiff = groundY - posRef.current.y;
-        if (onGnd.current && yDiff > 0.28 && !dazed) {
-            velY.current = Math.sqrt(2 * GRAVITY * (yDiff + 0.5)) * 1.05;
-            onGnd.current = false;
-        }
+        if (onGnd.current && yDiff > 0.28 && !dazed && !painting) { velY.current = Math.sqrt(2 * GRAVITY * (yDiff + 0.5)) * 1.05; onGnd.current = false; }
         if (!onGnd.current) {
-            velY.current -= GRAVITY * safeDt;
-            posRef.current.y += velY.current * safeDt;
+            velY.current -= GRAVITY * safeDt; posRef.current.y += velY.current * safeDt;
             if (posRef.current.y <= groundY && velY.current <= 0) { posRef.current.y = groundY; velY.current = 0; onGnd.current = true; }
-        } else {
-            posRef.current.y += yDiff * (1 - Math.exp(-14 * safeDt));
-        }
+        } else { posRef.current.y += yDiff * (1 - Math.exp(-14 * safeDt)); }
         groupRef.current.position.copy(posRef.current);
+        groupRef.current.scale.setScalar(DIABRETE_SCALE);
 
-        // ── Draw flourish — a quick scribble + arm flick when a new obstacle inks
-        if (f3Progress.drawFlashAt !== prevDraw.current) {
-            prevDraw.current = f3Progress.drawFlashAt;
-            if (f3Progress.drawFlashAt > 0) { drawAnim.current = 0.55; playFloor3Draw(); }
-        }
-        if (drawAnim.current > 0) drawAnim.current = Math.max(0, drawAnim.current - safeDt);
-
-        // ── DIZZY daze ───────────────────────────────────────────────────────
+        // ── DIZZY — classic "seeing stars" pose ─────────────────────────────
         if (dazed) {
+            if (brushRef.current) brushRef.current.visible = false;
             if (!wasDizzy.current) { wasDizzy.current = true; if (dizzyStop.current) dizzyStop.current(); dizzyStop.current = playFloor3Dizzy(3000); }
-            // drunken slow spin + big sway
-            groupRef.current.rotation.y = Math.sin(t * 2.2) * 0.7;
-            bones[B.body].position.y = 0.46;
-            bones[B.body].rotation.x = sLean.current.tick(-0.1, safeDt);
-            bones[B.body].rotation.z = Math.sin(t * 3.0) * 0.22;
-            bones[B.head].rotation.z = Math.sin(t * 4.0) * 0.5;     // head lolling
-            bones[B.head].rotation.x = 0.15 + Math.sin(t * 2.5) * 0.1;
-            // arms dangle loosely, swaying
-            bones[B.l_arm].rotation.z = 1.15; bones[B.r_arm].rotation.z = -1.15;
-            bones[B.l_arm].rotation.x = Math.sin(t * 5) * 0.5;
-            bones[B.r_arm].rotation.x = Math.sin(t * 5 + 1) * 0.5;
-            bones[B.l_leg].rotation.x = Math.sin(t * 3) * 0.12;
-            bones[B.r_leg].rotation.x = -Math.sin(t * 3) * 0.12;
-            // birds circle the head
+            groupRef.current.rotation.set(0, Math.sin(t * 1.5) * 0.3, Math.sin(t * 2.5) * 0.18);  // teetering
+            bones[B.body].position.y = 0.46 - 0.08;                 // knees buckle → slump
+            bones[B.body].rotation.set(sLean.current.tick(0.05, safeDt), 0, Math.sin(t * 3) * 0.12);
+            bones[B.head].rotation.set(-0.32 + Math.sin(t * 3) * 0.12, 0, Math.sin(t * 4) * 0.42); // lolling
+            bones[B.l_arm].rotation.set(Math.sin(t * 4) * 0.35, 0, 1.25);   // arms dangle, sway
+            bones[B.r_arm].rotation.set(Math.sin(t * 4 + 1) * 0.35, 0, -1.25);
+            bones[B.l_leg].rotation.set(0.22, 0, 0.26);             // knees splayed out
+            bones[B.r_leg].rotation.set(0.22, 0, -0.26);
             for (let i = 0; i < birdRefs.current.length; i++) {
-                const b = birdRefs.current[i]; if (!b) continue;
-                b.visible = true;
+                const b = birdRefs.current[i]; if (!b) continue; b.visible = true;
                 const a = t * 4 + (i / NBIRDS) * Math.PI * 2;
-                b.position.set(Math.cos(a) * 0.42, 1.0 + Math.sin(t * 6 + i) * 0.05, Math.sin(a) * 0.42);
-                b.rotation.y = -a + Math.PI / 2;
-                b.rotation.z = Math.sin(t * 18 + i) * 0.5;          // wing flap tilt
+                b.position.set(Math.cos(a) * 0.42, 1.05 + Math.sin(t * 6 + i) * 0.05, Math.sin(a) * 0.42);
+                b.rotation.set(0, -a + Math.PI / 2, Math.sin(t * 18 + i) * 0.5);
             }
-            // whole-mesh idle scale
-            rig.group.scale.set(1.04, 0.97, 1.04);
+            rig.group.scale.set(1.05, 0.95, 1.05);
             return;
         }
         if (wasDizzy.current) { wasDizzy.current = false; if (dizzyStop.current) { dizzyStop.current(); dizzyStop.current = null; } }
         for (const b of birdRefs.current) if (b) b.visible = false;
-        groupRef.current.rotation.y = 0;
+
+        // ── PAINT — sweep the giant brush; the spikes ink in beneath it ─────
+        if (painting) {
+            if (brushRef.current) brushRef.current.visible = true;
+            groupRef.current.rotation.set(0, Math.PI * 0.28, 0);    // 3/4 turn so the strokes read
+            const sweep = Math.sin(t * 9);
+            bones[B.body].position.y = 0.46;
+            bones[B.body].rotation.set(sLean.current.tick(0.42, safeDt), 0, 0);   // hunch over the work
+            bones[B.head].rotation.set(0.35, sweep * 0.2, 0);                     // watching the brush
+            // left hand on hip; right arm reaches down-forward and sweeps
+            bones[B.l_arm].rotation.set(0.2, 0, 1.5);
+            bones[B.r_arm].rotation.set(-0.5 + sweep * 0.7, sweep * 0.5, -1.35);
+            bones[B.l_leg].rotation.set(0.06, 0, 0.04);
+            bones[B.r_leg].rotation.set(-0.06, 0, -0.04);
+            rig.group.scale.set(1, 1, 1);
+            return;
+        }
+        if (brushRef.current) brushRef.current.visible = false;
+        groupRef.current.rotation.set(0, 0, 0);
 
         // ── RUN ─────────────────────────────────────────────────────────────
         const air = !onGnd.current;
         if (!air) phase.current += safeDt * 2.6 * Math.PI * 2;
-        const φ = phase.current;
-        const sw = Math.sin(φ);
+        const φ = phase.current; const sw = Math.sin(φ);
 
         bones[B.body].position.y = 0.46 + sBob.current.tick(air ? 0 : Math.abs(sw) * 0.075, safeDt);
-        bones[B.body].rotation.x = sLean.current.tick(air ? -0.22 : 0.20, safeDt);
-        bones[B.body].rotation.y = air ? 0 : Math.sin(φ) * 0.10;
-        bones[B.body].rotation.z = air ? 0 : Math.sin(φ) * 0.06;
-
-        bones[B.head].rotation.x = air ? -0.14 : 0.11 + Math.sin(φ * 2 + 0.6) * 0.06;
-        bones[B.head].rotation.z = air ? 0 : Math.sin(φ + 0.3) * 0.08;
-
-        bones[B.l_leg].rotation.x = air ? -0.5 :  sw * 0.78;
-        bones[B.r_leg].rotation.x = air ? -0.5 : -sw * 0.78;
-
-        // Arms pump fore/aft — unless mid draw-flourish: jab the right arm out as
-        // if scribbling the obstacle into the air.
-        const drawing = drawAnim.current > 0;
-        bones[B.l_arm].rotation.z =  (air ? 1.3 : ARM_DROP);
-        bones[B.r_arm].rotation.z = -(air ? 1.3 : (drawing ? 0.4 : ARM_DROP));
-        bones[B.l_arm].rotation.x = air ? -0.7 : -sw * 1.05;
-        bones[B.r_arm].rotation.x = drawing ? -1.25 + Math.sin(t * 34) * 0.35 : (air ? -0.7 : sw * 1.05);
+        bones[B.body].rotation.set(sLean.current.tick(air ? -0.22 : 0.20, safeDt), air ? 0 : Math.sin(φ) * 0.10, air ? 0 : Math.sin(φ) * 0.06);
+        bones[B.head].rotation.set(air ? -0.14 : 0.11 + Math.sin(φ * 2 + 0.6) * 0.06, 0, air ? 0 : Math.sin(φ + 0.3) * 0.08);
+        bones[B.l_leg].rotation.set(air ? -0.5 :  sw * 0.78, 0, 0);
+        bones[B.r_leg].rotation.set(air ? -0.5 : -sw * 0.78, 0, 0);
+        bones[B.l_arm].rotation.set(air ? -0.7 : -sw * 1.05, 0,  (air ? 1.3 : ARM_DROP));
+        bones[B.r_arm].rotation.set(air ? -0.7 :  sw * 1.05, 0, -(air ? 1.3 : ARM_DROP));
 
         const strY = air ? 1 + Math.abs(velY.current) * 0.011 : 1 - Math.abs(sw) * 0.06;
         const strX = 1 / Math.sqrt(Math.max(0.55, strY));
@@ -215,14 +272,12 @@ const Floor3Rival: React.FC = () => {
 
     return (
         <group ref={groupRef} scale={[DIABRETE_SCALE, DIABRETE_SCALE, DIABRETE_SCALE]}>
-            {/* dizzy birds (hidden until dazed) — children inherit the body scale */}
             {Array.from({ length: NBIRDS }).map((_, i) => (
                 <group key={i} ref={(el) => { if (el) birdRefs.current[i] = el; }} visible={false}>
                     <mesh><sphereGeometry args={[0.055, 10, 8]} /><meshToonMaterial color="#ffffff" /></mesh>
                     <mesh position={[0.055, 0.015, 0]} rotation={[0, 0, -0.6]}>
                         <coneGeometry args={[0.022, 0.06, 6]} /><meshToonMaterial color="#e8a33a" />
                     </mesh>
-                    {/* little wings */}
                     <mesh position={[-0.02, 0.02, 0.04]} rotation={[0.3, 0, 0.4]}><boxGeometry args={[0.07, 0.012, 0.04]} /><meshToonMaterial color="#dfe6ee" /></mesh>
                     <mesh position={[-0.02, 0.02, -0.04]} rotation={[-0.3, 0, 0.4]}><boxGeometry args={[0.07, 0.012, 0.04]} /><meshToonMaterial color="#dfe6ee" /></mesh>
                 </group>

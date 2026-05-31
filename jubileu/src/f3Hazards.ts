@@ -45,7 +45,8 @@ export const f3Progress = {
     obstacles: 0,
     brushes: 0,         // collected (win at 3)
     dizzyUntil: 0,      // performance.now() ms — devil dazed while now < this
-    drawFlashAt: 0,     // ms of the last obstacle draw (rival does a flourish)
+    drawFlashAt: 0,     // ms of the last obstacle draw (rival paints it)
+    drawZ: 0,           // Z of the platform being painted (rival goes there)
     fell: false,        // devil has begun its plunge
     fellAt: 0,          // ms the fall started
     needed: 3,
@@ -76,26 +77,28 @@ export function resetHazards(): void {
 // ── Spawning ──────────────────────────────────────────────────────────────────
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
-/** Pick a static platform a few steps AHEAD of zRef that isn't already used. */
-function pickAhead(zRef: number, minAhead: number, used: Set<number>): F3Plat | null {
+/** Pick the platform NEAREST to targetZ (but at least minZ ahead) that's free. */
+function pickNear(targetZ: number, minZ: number, used: Set<number>): F3Plat | null {
     let best: F3Plat | null = null;
     for (const p of f3Platforms) {
         if (p.palette < 0) continue;             // skip the elevator landing
-        if (p.cz < zRef + minAhead) continue;
+        if (p.cz < minZ) continue;
         if (used.has(p.id)) continue;
-        if (!best || p.cz < best.cz) best = p;   // nearest one past the threshold
+        if (!best || Math.abs(p.cz - targetZ) < Math.abs(best.cz - targetZ)) best = p;
     }
     return best;
 }
 
-/** Ink a spiked obstacle onto a platform ahead of the player. */
+/** Ink a spiked obstacle onto a platform up where the Diabrete is (so he can be
+ *  seen painting it), still well ahead of the player. */
 function spawnObstacle(playerZ: number): void {
     const used = new Set<number>([...hazards.map(h => h.platId), ...brushes.map(b => b.platId)]);
-    const plat = pickAhead(playerZ, 7, used);
+    const plat = pickNear(playerZ + 12, playerZ + 5, used);
     if (!plat) return;
     hazards.push({ id: _nextId++, platId: plat.id, reveal: 0, spikes: 5, hit: false });
     f3Progress.obstacles += 1;
-    f3Progress.drawFlashAt = now();             // rival does a "drawing" flourish
+    f3Progress.drawZ = plat.cz;                 // the rival runs here to paint it
+    f3Progress.drawFlashAt = now();
     // Every 2 obstacles, drop a paintbrush still further up.
     if (f3Progress.obstacles % 2 === 0) spawnBrush(playerZ);
     _onProgress?.();
@@ -103,7 +106,7 @@ function spawnObstacle(playerZ: number): void {
 
 function spawnBrush(playerZ: number): void {
     const used = new Set<number>([...hazards.map(h => h.platId), ...brushes.map(b => b.platId)]);
-    const plat = pickAhead(playerZ, 11, used);
+    const plat = pickNear(playerZ + 16, playerZ + 9, used);
     if (!plat) return;
     brushes.push({ id: _nextId++, platId: plat.id, bob: Math.random() * Math.PI * 2, collected: false, fade: 1 });
 }
