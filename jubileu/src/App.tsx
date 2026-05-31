@@ -23,6 +23,8 @@ import { VisualJoystick, DialogueOverlay } from './UI';
 import { DiverCutscene } from './DiverCutscene';
 import CartoonIntro from './CartoonIntro';
 import CartoonIntro3D from './CartoonIntro3D';
+import Floor3Cutscene from './Floor3Cutscene';
+import Floor3CutsceneUI from './Floor3CutsceneUI';
 import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic } from './cartoonAudio';
 import { getMusicBus, setMusicActive } from './musicDirector';
 import { configureFloor3Sfx, clearFloor3Sfx } from './floor3Sfx';
@@ -401,6 +403,9 @@ export default function App() {
   const [teleportCutscene, setTeleportCutscene] = useState(false); // all-shards win → Floor 3
   const [cartoonIntro, setCartoonIntro] = useState(false);         // Floor 3 "turns cartoon" intro
   const [cartoonStage, setCartoonStage] = useState(0);             // choreography stage (driven by the 3D intro)
+  const [cartoonCutscene, setCartoonCutscene] = useState(false);   // meet-the-Diabrete dialogue (after the intro)
+  const [cutsceneLine, setCutsceneLine] = useState(0);             // active Diabrete script line
+  const cutsceneTargetRef = useRef(new Vector3(1.1, 1.05, -8.6));  // camera look-at during the cutscene
 
   // Start/stop monster ambience with Floor 2
   useEffect(() => {
@@ -723,6 +728,7 @@ export default function App() {
           setMusicActive('ragtime', false);
           clearFloor3Sfx();
           setCartoonIntro(false);
+          setCartoonCutscene(false);
       }
   }, [currentLevel, audioCtx, doorsClosed]);
   
@@ -1235,7 +1241,7 @@ export default function App() {
         <AdaptiveDpr pixelated />
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro} onPlayerCaught={() => {
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} onPlayerCaught={() => {
                 setFishJumpscareKey(k => k + 1);
                 setDevoured(true);
                 playJumpscareStab(audioCtx);
@@ -1264,7 +1270,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -1323,7 +1329,16 @@ export default function App() {
                     audioCtx={audioCtx}
                     busRef={cartoonBusRef}
                     onStage={setCartoonStage}
-                    onDone={() => setCartoonIntro(false)}
+                    onDone={() => { setCartoonIntro(false); setCutsceneLine(0); setCartoonCutscene(true); }}
+                />
+            )}
+            {/* Meet-the-Diabrete dialogue — the rival performs in 3D while the
+                camera (dialogue-locked) frames him; dashes off when finished. */}
+            {cartoonCutscene && currentLevel === 3 && (
+                <Floor3Cutscene
+                    targetRef={cutsceneTargetRef}
+                    onLine={setCutsceneLine}
+                    onDone={() => setCartoonCutscene(false)}
                 />
             )}
             <SceneInspector />
@@ -1777,6 +1792,9 @@ export default function App() {
           dismisses itself (CartoonIntro3D's onDone). */}
       {cartoonIntro && (
         <CartoonIntro stage={cartoonStage} />
+      )}
+      {cartoonCutscene && (
+        <Floor3CutsceneUI line={cutsceneLine} />
       )}
       {teleportCutscene && (
         <div className="absolute inset-0 z-[90] pointer-events-none overflow-hidden">
