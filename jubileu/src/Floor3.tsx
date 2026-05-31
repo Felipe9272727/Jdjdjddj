@@ -22,6 +22,7 @@ import { RoundedBox, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
 import { ElevatorFacade } from './Elevator';
 import FpHands from './Floor3Hands';
+import Floor3Rival from './Floor3Rival';
 import {
     platforms as f3Platforms, f3PlayerZ, f3PlayerY, tick as f3Tick, reset as f3Reset,
     validateNoOverlaps, type F3Plat,
@@ -297,6 +298,13 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean }
             {hands && (
                 <Suspense fallback={null}>
                     <FpHands />
+                </Suspense>
+            )}
+
+            {/* O Diabrete — rival that runs ahead, intro must be done first */}
+            {hands && (
+                <Suspense fallback={null}>
+                    <Floor3Rival />
                 </Suspense>
             )}
         </group>
