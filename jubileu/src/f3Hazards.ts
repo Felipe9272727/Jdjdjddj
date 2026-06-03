@@ -26,6 +26,11 @@ import * as THREE from 'three';
 // camera lock) so the shot tracks the devil as he topples into the void.
 export const f3DevilPos = { current: new THREE.Vector3(0, 0, 14) };
 
+// Creator-Mode preview flag: when set (by the "Queda do Diabrete" card), Floor 3
+// skips the intro and triggers the defeat fall cutscene a moment after arrival,
+// so the fall can be watched on demand. App consumes (and clears) it on entry.
+export const f3Demo = { fall: false };
+
 // ── Records ───────────────────────────────────────────────────────────────────
 export interface Hazard {
     id: number;

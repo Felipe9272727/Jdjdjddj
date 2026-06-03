@@ -5,6 +5,7 @@
 // ─── CREATOR MODE ─────────────────────────────────────────────────────────
 
 import React, { useState } from 'react';
+import { f3Demo } from './f3Hazards';
 
 export interface FloorOption {
   id: string;           // unique (cards can share a level, e.g. the cutscene)
@@ -14,6 +15,7 @@ export interface FloorOption {
   description: string;
   color: string;        // Tailwind gradient classes
   icon: React.ReactNode;
+  variant?: string;     // optional dev variant (e.g. 'fallDemo' → Floor 3 fall cutscene)
 }
 
 export const FLOORS: FloorOption[] = [
@@ -89,6 +91,20 @@ export const FLOORS: FloorOption[] = [
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'floor-3-fall',
+    level: 3,
+    name: 'Queda do Diabrete',
+    label: 'Cutscene',
+    description: 'Vai direto pra cutscene da derrota (o Diabrete tropeça e cai)',
+    color: 'from-rose-500 via-red-500 to-rose-600',
+    variant: 'fallDemo',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 12l-3 3m0 0l-3-3m3 3V9" />
       </svg>
     ),
   },
@@ -179,7 +195,10 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
       {/* Play button */}
       <button
         onClick={() => {
-          if (selectedFloor) onSelect(selectedFloor.level, multiplayerEnabled);
+          if (selectedFloor) {
+            f3Demo.fall = selectedFloor.variant === 'fallDemo';   // arm the Floor-3 fall preview
+            onSelect(selectedFloor.level, multiplayerEnabled);
+          }
         }}
         disabled={selectedFloor === null}
         className={`

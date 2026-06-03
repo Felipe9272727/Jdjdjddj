@@ -29,7 +29,7 @@ import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic } from './cart
 import { getMusicBus, setMusicActive } from './musicDirector';
 import { configureFloor3Sfx, clearFloor3Sfx } from './floor3Sfx';
 import { configureFloor4Sfx, clearFloor4Sfx } from './floor4Sfx';
-import { resetHazards, setOnWin, setOnProgress, f3Progress, f3DevilPos } from './f3Hazards';
+import { resetHazards, setOnWin, setOnProgress, f3Progress, f3DevilPos, f3Demo } from './f3Hazards';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
 import { ShadowBlob } from './ShadowBlob';
@@ -102,6 +102,9 @@ interface WorldProps {
   /** Floor-3 first-person gloves — hidden during the cartoon intro so the
    *  player's own hands only "appear" once the intro hands are gone. */
   floor3Hands: boolean;
+  /** Floor-3 first-person gloves — additionally hidden during the defeat fall
+   *  cutscene (camera leaves first-person to frame the toppling devil). */
+  floor3Gloves: boolean;
 }
 
 const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves }: WorldProps) => (
@@ -723,12 +726,27 @@ export default function App() {
                   setMusicActive('ragtime', true);
               });
           }
-          setCartoonStage(0);
-          setCartoonIntro(true);
           // Fresh sabotage loop each arrival (jumps/obstacles/brushes/devil).
           resetHazards();
           setBrushCount(0);
           setCartoonFall(false);
+          if (f3Demo.fall) {
+              // Creator preview: skip the intro/meet-cutscene, let the rival mount
+              // and reach its lead, then trigger the defeat fall cutscene so it can
+              // be watched on demand.
+              f3Demo.fall = false;
+              setCartoonStage(5);
+              setCartoonIntro(false);
+              setCartoonCutscene(false);
+              scheduleTimeout(() => {
+                  f3Progress.fell = true;
+                  f3Progress.fellAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+                  setCartoonFall(true);
+              }, 1600);
+          } else {
+              setCartoonStage(0);
+              setCartoonIntro(true);
+          }
       } else if (currentLevel !== 3) {
           // Left Floor 3 → stop the ragtime bed + detach the SFX. (Don't tear
           // down merely because the doors closed for the ride OUT — that's
