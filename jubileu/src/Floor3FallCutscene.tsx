@@ -43,6 +43,8 @@ const shoeSole  = new THREE.MeshToonMaterial({ color: '#2a2030' });
 const shoeCuff  = new THREE.MeshToonMaterial({ color: '#15101a' });
 const gloveWhite = new THREE.MeshToonMaterial({ color: '#f4f0e6' });
 const gloveCuff  = new THREE.MeshToonMaterial({ color: '#c0271a' });
+const ledgeTop = new THREE.MeshToonMaterial({ color: '#f3ecdd' });   // cream platform (matches Floor 3)
+const ledgeInk = new THREE.MeshToonMaterial({ color: '#0a0712' });   // ink rim
 
 type Phase = 'intro' | 'beg' | 'stomp' | 'climb';
 type Outcome = 'save' | 'stomp';
@@ -57,6 +59,7 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
     const { camera } = useThree();
     const groupRef = useRef<THREE.Group>(null!);
+    const ledgeRef = useRef<THREE.Group>(null!);
     const shoeRef  = useRef<THREE.Group>(null!);
     const gloveRef = useRef<THREE.Group>(null!);
     const rigRef   = useRef<DiabreteRig | null>(null);
@@ -81,8 +84,12 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
         phase.current = 'intro'; pt.current = 0; begFired.current = false; doneRef.current = false;
         sfx.current = {};
         playFloor3Land();
-        return () => { group.remove(rig.group); rig.dispose(); rigRef.current = null; };
-    }, [gltf]);
+        return () => {
+            group.remove(rig.group); rig.dispose(); rigRef.current = null;
+            // CRITICAL: restore the camera so the player's view isn't left rolled.
+            camera.up.set(0, 1, 0); camera.updateProjectionMatrix();
+        };
+    }, [gltf, camera]);
 
     useFrame((_, dt) => {
         const rig = rigRef.current;
@@ -103,6 +110,8 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
         const ph = phase.current;
         rig.group.scale.set(1, 1, 1);
         g.rotation.set(0, FACE_Y, 0);                  // FACE the platform / player
+        // the cliff he clings to (top at gripY, front edge at z=gz) so he never floats
+        if (ledgeRef.current) ledgeRef.current.position.set(gx, gripY, gz);
         if (shoeRef.current) shoeRef.current.visible = false;
         if (gloveRef.current) gloveRef.current.visible = false;
 
@@ -232,18 +241,20 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
                 b[B.l_leg].rotation.set(0, 0, 0.08); b[B.r_leg].rotation.set(0, 0, -0.08);
                 cam.x = gx + 1.8; cam.y = gripY - 0.3; cam.z = gz + 3.2; cam.ly = gripY + 1.2; cam.lz = gz; cam.fov = 42;
             } else {
-                // LUNGE + SHOVE — thrust at the player; the camera reels back
+                // SHOVE — he lunges with both arms; the PLAYER (camera) is knocked
+                // off and plummets, looking UP at the devil shrinking on the ledge.
                 const e = T - 1.95;
-                const k = clamp01(e / 0.35);
-                g.position.set(gx, gripY, lerp(gz - 0.2, gz + 0.5, k));      // lunge toward the player
-                g.rotation.set(lerp(0.1, -0.5, k), 0, 0);                    // facing the player
-                b[B.l_arm].rotation.set(-1.5 * k, 0, 0.5); b[B.r_arm].rotation.set(-1.5 * k, 0, -0.5);
-                b[B.head].rotation.set(-0.2, 0, 0);
-                const s = easeIn(clamp01(e / 0.7));
-                camRoll = s * 2.0;
-                cam.x = gx; cam.y = gripY + 1.0 + s * 1.5; cam.z = gz + 3.0 + s * 9; cam.ly = gripY + 1.0; cam.lz = gz; cam.fov = 42 + s * 20;
-                if (e > 0.5 && !sfx.current.shove) { sfx.current.shove = true; playFloor3Fall(); }
-                if (e > 1.0 && !doneRef.current) { doneRef.current = true; onDone('save'); }
+                const lunge = clamp01(e / 0.22);
+                g.position.set(gx, gripY, gz - 0.2 + lunge * 0.7);          // thrust toward the player
+                g.rotation.set(lerp(0.1, -0.4, lunge), 0, 0);
+                b[B.l_arm].rotation.set(-1.7 * lunge, 0, 0.45); b[B.r_arm].rotation.set(-1.7 * lunge, 0, -0.45);  // both palms shove out
+                b[B.head].rotation.set(-0.15, 0, 0);
+                const ff = easeIn(clamp01((e - 0.18) / 0.9));               // the player falling
+                camRoll = ff * 1.3;
+                cam.x = gx + ff * 1.2; cam.y = gripY + 1.0 - ff * 9.0; cam.z = gz + 3.0 + ff * 5.0;
+                cam.lx = gx; cam.ly = gripY + 0.8; cam.lz = gz; cam.fov = 48;
+                if (e > 0.4 && !sfx.current.shove) { sfx.current.shove = true; playFloor3Fall(); }
+                if (e > 1.2 && !doneRef.current) { doneRef.current = true; onDone('save'); }
             }
         }
 
@@ -257,6 +268,18 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
 
     return (
         <group>
+            {/* the cliff edge he clings to — top at this group's Y, front face at its Z */}
+            <group ref={ledgeRef}>
+                <mesh position={[0, -1.5, -2.5]}>{/* cream slab */}
+                    <boxGeometry args={[7, 3, 5]} />
+                    <primitive object={ledgeTop} attach="material" />
+                </mesh>
+                <mesh position={[0, -0.18, 0.02]}>{/* black ink rim along the front edge */}
+                    <boxGeometry args={[7.05, 0.42, 0.14]} />
+                    <primitive object={ledgeInk} attach="material" />
+                </mesh>
+            </group>
+
             <group ref={groupRef} scale={[DIABRETE_SCALE, DIABRETE_SCALE, DIABRETE_SCALE]} />
 
             {/* PISAR — a stylized rubber-hose cartoon shoe (toon + ink outline) */}

@@ -418,12 +418,29 @@ export default function App() {
   const [cartoonFall, setCartoonFall] = useState(false);           // cinematic camera-lock on the devil's defeat fall
   const [fallBegging, setFallBegging] = useState(false);           // devil is pleading — show the save/stomp choice
   const [fallChoice, setFallChoice] = useState<'none' | 'save' | 'stomp'>('none');
-  const [pleaIdx, setPleaIdx] = useState(0);                        // cycles the devil's emotional-blackmail pleas
+  const [fallGameOver, setFallGameOver] = useState(false);         // SAVE branch → he betrays you → game over card
+  // The devil's last-ditch conversation; the SALVAR/PISAR choice only appears
+  // once it reaches the final line.
+  const FALL_DIALOGUE: { s: 'diabrete' | 'player'; t: string }[] = [
+    { s: 'diabrete', t: 'E-EI! Não vai embora não! Me ajuda aqui, pelo amor!' },
+    { s: 'player',   t: '…por que eu ajudaria? Você me sabotou a fase inteira.' },
+    { s: 'diabrete', t: 'Aaah, aquilo? A gente tava só BRINCANDO, amigão! Sem ressentimentos!' },
+    { s: 'player',   t: 'Você jogou espinhos em mim. Várias vezes.' },
+    { s: 'diabrete', t: 'Detalhes! Olha — eu tenho família! Quatro diabretinhos famintos!' },
+    { s: 'player',   t: 'Você apareceu do nada faz cinco minutos.' },
+    { s: 'diabrete', t: 'T-tá, menti. MAS… me deixar cair vai pesar na sua consciência PRA SEMPRE…' },
+    { s: 'diabrete', t: 'Então… o que vai ser? Me salva… ou pisa na minha mãozinha?' },
+  ];
+  const [fallLine, setFallLine] = useState(0);
+  const fallChoiceReady = fallLine >= FALL_DIALOGUE.length - 1;
   useEffect(() => {
-    if (!fallBegging) { setPleaIdx(0); return; }
-    const id = setInterval(() => setPleaIdx((i) => i + 1), 2900);
-    return () => clearInterval(id);
-  }, [fallBegging]);
+    if (!fallBegging) { setFallLine(0); return; }
+    if (fallLine >= FALL_DIALOGUE.length - 1) return;     // reached the choice — hold
+    const dur = FALL_DIALOGUE[fallLine].s === 'player' ? 2500 : 3200;
+    const id = setTimeout(() => setFallLine((i) => i + 1), dur);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fallBegging, fallLine]);
 
   // Start/stop monster ambience with Floor 2
   useEffect(() => {
@@ -741,6 +758,7 @@ export default function App() {
           setCartoonFall(false);
           setFallBegging(false);
           setFallChoice('none');
+          setFallGameOver(false);
           if (f3Demo.fall) {
               // Creator preview: skip the intro/meet-cutscene, let the rival mount
               // and reach its lead, then trigger the defeat fall cutscene so it can
@@ -771,6 +789,7 @@ export default function App() {
           setCartoonFall(false);
           setFallBegging(false);
           setFallChoice('none');
+          setFallGameOver(false);
       }
   }, [currentLevel, audioCtx, doorsClosed]);
 
@@ -1136,11 +1155,11 @@ export default function App() {
     }, 1400);
   }, [audioCtx, muted, scheduleTimeout]);
 
-  // ── Player SAVED the devil → betrayal: he shoves the player into the abyss.
-  // Fade, drop them back at the Floor 3 landing and reset the climb to retry.
-  const handleBetrayal = useCallback(() => {
-    setTeleportCutscene(true);
-    if (audioCtx && !muted) playArrivalDing(audioCtx);
+  // ── Player SAVED the devil → BETRAYAL: he shoves the player into the abyss.
+  // GAME OVER: show the card, then drop the player back in the lobby.
+  const handleGameOver = useCallback(() => {
+    setFallGameOver(true);
+    if (audioCtx && !muted) playJumpscareStab(audioCtx);
     scheduleTimeout(() => {
       f3Progress.fell = false;
       resetHazards();
@@ -1148,17 +1167,24 @@ export default function App() {
       setCartoonFall(false);
       setFallBegging(false);
       setFallChoice('none');
-      playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
-      setTeleportCutscene(false);
-    }, 1100);
+      // back to the lobby (centre, outside the elevator zone)
+      setGameState('lobby');
+      setNightMode(false);
+      setHouseDoorOpen(false);
+      setDoorOpenAmount(0);
+      playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
+      setCurrentLevel(0);
+      setFloorReveal(true);
+      setFallGameOver(false);
+    }, 2600);
   }, [audioCtx, muted, scheduleTimeout]);
 
-  // Branch the defeat cutscene's outcome: stomp → Floor 4, save → betrayal.
+  // Branch the defeat cutscene's outcome: stomp → Floor 4, save → game over.
   const handleFallOutcome = useCallback((outcome: 'save' | 'stomp') => {
     setFallBegging(false);
     if (outcome === 'stomp') advanceToFloor4AfterWin();
-    else handleBetrayal();
-  }, [advanceToFloor4AfterWin, handleBetrayal]);
+    else handleGameOver();
+  }, [advanceToFloor4AfterWin, handleGameOver]);
 
   // Arm the sabotage-loop callbacks while on Floor 3 (re-armed each entry; the
   // win callback is one-shot — fireWin nulls it after the devil falls).
@@ -1932,29 +1958,32 @@ export default function App() {
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '12%', background: '#0a0712', transformOrigin: 'bottom', animation: 'f3fall-bars .4s ease-out both' }} />
         </div>
       )}
-      {/* Diabrete's plea + the player's choice: SALVAR (→ betrayal) or PISAR (→ Floor 4) */}
+      {/* Diabrete's conversation + (at the end) the choice: SALVAR (→ game over,
+          back to lobby) or PISAR (→ Floor 4) */}
       {cartoonFall && fallBegging && fallChoice === 'none' && (
-        <div style={{ position: 'fixed', left: 0, right: 0, bottom: '15%', zIndex: 88,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18,
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: '12%', zIndex: 88,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
           fontFamily: "'Luckiest Guy', system-ui, sans-serif", pointerEvents: 'none' }}>
-          {/* speech bubble — cycles the devil's emotional-blackmail pleas */}
-          <div key={pleaIdx} style={{ maxWidth: 'min(82vw, 540px)', background: '#f6efe0', color: '#140c08',
-            border: '4px solid #140c08', borderRadius: 20, padding: '12px 22px',
+          {/* speaker name tab */}
+          <div key={'tab' + fallLine} style={{ alignSelf: 'center', transform: 'rotate(-2deg)',
+            background: FALL_DIALOGUE[fallLine].s === 'diabrete' ? '#c0271a' : '#2b6fb0', color: '#fff',
+            WebkitTextStroke: '2px #140c08', paintOrder: 'stroke', padding: '2px 16px',
+            fontSize: 'min(3.4vw,20px)', letterSpacing: '.06em', borderRadius: 8,
+            boxShadow: '0 3px 0 #140c08', marginBottom: -10, zIndex: 1 }}>
+            {FALL_DIALOGUE[fallLine].s === 'diabrete' ? 'O DIABRETE' : 'VOCÊ'}
+          </div>
+          {/* speech bubble — the conversation line */}
+          <div key={fallLine} style={{ maxWidth: 'min(84vw, 560px)', background: '#f6efe0', color: '#140c08',
+            border: '4px solid #140c08', borderRadius: 20, padding: '14px 24px',
             fontSize: 'min(4vw,24px)', lineHeight: 1.18, textAlign: 'center',
             boxShadow: '0 6px 0 #140c08', transform: 'rotate(-1deg)',
             animation: 'f3fall-ko .35s cubic-bezier(.2,1.5,.4,1) both' }}>
-            {[
-              'E-ei… amigão! Me dá a mão, vai! Eu faço QUALQUER coisa!',
-              'Por favoooor! Eu tenho família! Quatro diabretinhos famintos em casa!',
-              'Olha essa carinha… você não teria CORAGEM, né? NÉ?!',
-              'Eu mudei, juro! Tava até pensando em virar… s-sei lá, BOM!',
-              'A gente é AMIGO! Amigo não pisa na mãozinha do amigo!',
-              'Se me deixar cair, isso vai PESAR na sua consciência pra sempre…',
-              'Te dou ouro! Um atalho secreto pro topo! O QUE VOCÊ QUISER!',
-            ][pleaIdx % 7]}
+            {FALL_DIALOGUE[fallLine].t}
           </div>
-          {/* choice buttons */}
-          <div style={{ display: 'flex', gap: 16, pointerEvents: 'auto' }}>
+          {/* choice buttons — only once the conversation reaches its end */}
+          {fallChoiceReady && (
+          <div style={{ display: 'flex', gap: 16, pointerEvents: 'auto', marginTop: 6,
+            animation: 'f3fall-ko .35s cubic-bezier(.2,1.5,.4,1) both' }}>
             <button onClick={() => { setFallChoice('save'); setFallBegging(false); }}
               style={{ fontFamily: 'inherit', fontSize: 'min(4.4vw,24px)', letterSpacing: '.04em',
                 color: '#fff', background: 'linear-gradient(#3a9d5a,#2b7d45)', border: '4px solid #140c08',
@@ -1969,6 +1998,24 @@ export default function App() {
                 WebkitTextStroke: '1px #140c08', paintOrder: 'stroke' }}>
               👟 PISAR NA MÃO
             </button>
+          </div>
+          )}
+        </div>
+      )}
+      {/* GAME OVER — the devil betrayed you and shoved you into the abyss */}
+      {fallGameOver && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 95, background: '#0a0712',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18,
+          fontFamily: "'Luckiest Guy', system-ui, sans-serif", pointerEvents: 'none',
+          animation: 'f3go-in .5s ease-out both' }}>
+          <style>{`@keyframes f3go-in{from{opacity:0}to{opacity:1}}
+            @keyframes f3go-pop{0%{transform:scale(0) rotate(-8deg)}65%{transform:scale(1.15) rotate(3deg)}100%{transform:scale(1) rotate(-2deg)}}`}</style>
+          <div style={{ fontSize: 'min(15vw,110px)', color: '#c0271a', WebkitTextStroke: 'min(1vw,7px) #f6efe0',
+            paintOrder: 'stroke', letterSpacing: '.04em', animation: 'f3go-pop .5s cubic-bezier(.2,1.5,.4,1) both' }}>
+            GAME OVER
+          </div>
+          <div style={{ fontSize: 'min(4.6vw,26px)', color: '#f6efe0', letterSpacing: '.06em', textAlign: 'center', padding: '0 24px' }}>
+            Você caiu na conversa do Diabrete… e no abismo.
           </div>
         </div>
       )}
