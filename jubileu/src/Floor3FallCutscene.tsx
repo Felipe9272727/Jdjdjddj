@@ -28,7 +28,7 @@ import { f3DevilPos } from './f3Hazards';
 import { playFloor3Land, playFloor3Fall } from './floor3Sfx';
 
 const RIVAL_URL = '/diabrete.glb';
-const HANG_DROP = 1.7;     // body drop so his gripping hands sit at the ledge top
+const HANG_DROP = 1.95;    // body drop so he dangles BELOW the ledge, head at the edge
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const easeIn = (t: number) => t * t;
@@ -73,18 +73,23 @@ const Floor3FallCutscene: React.FC<Props> = ({ onDone }) => {
         if (!groupRef.current || !rig) return;
         const safeDt = Math.min(dt, 0.05);
         clock.current += safeDt;
-        const t = clock.current;
+        let t = clock.current;
+        if (import.meta.env?.DEV && typeof window !== 'undefined') {
+            const scrub = (window as any).__fallScrub;
+            if (typeof scrub === 'number') t = scrub;     // dev: hold a fixed phase
+            (window as any).__fallT = t;
+        }
         const b = rig.bones;
         const gripY = base.current.y;               // platform top edge (hands grip here)
         const g = groupRef.current;
 
         // ── Camera — fixed cinematic 3/4 side angle, push-in, tilt-down on fall ─
         const gx = base.current.x, gz = base.current.z;
-        const focusY = gripY - 0.5;
-        const dist = lerp(7.0, 5.2, clamp01(t / 3));
-        // side + slightly up + in front of the ledge
-        const dir = new THREE.Vector3(0.78, 0.34, 0.52).normalize();
-        camera.position.set(gx + dir.x * dist, focusY + dir.y * dist + 0.4, gz + dir.z * dist);
+        const focusY = gripY - 0.9;                  // centre on his dangling body
+        const dist = lerp(6.0, 4.6, clamp01(t / 3.5));
+        // 3/4 side, near ledge height, looking slightly DOWN at the hang
+        const dir = new THREE.Vector3(0.80, 0.18, 0.57).normalize();
+        camera.position.set(gx + dir.x * dist, gripY + 0.4 + dir.y * dist, gz + dir.z * dist);
         let lookY = focusY;
         if (sFall.current) lookY = focusY - (t - 3.2) * 5.0;   // follow him into the void
         camera.lookAt(gx, lookY, gz);
@@ -107,8 +112,8 @@ const Floor3FallCutscene: React.FC<Props> = ({ onDone }) => {
             const k = (t - 0.5) / 0.4;
             g.position.set(gx, lerp(gripY, gripY - HANG_DROP, easeIn(k)), gz);
             g.rotation.set(0, 0, 0);
-            b[B.l_arm].rotation.set(0.2, 0, lerp(0.5, -1.5, k));   // raise to grip
-            b[B.r_arm].rotation.set(0.2, 0, lerp(-0.5, 1.5, k));
+            b[B.l_arm].rotation.set(lerp(0.2, -0.2, k), 0, lerp(0.5, 2.5, k));   // fling arms UP to catch
+            b[B.r_arm].rotation.set(lerp(0.2, -0.2, k), 0, lerp(-0.5, -2.5, k));
             b[B.head].rotation.set(-0.2, 0, 0);
             b[B.l_leg].rotation.set(0.3, 0, 0.1); b[B.r_leg].rotation.set(0.3, 0, -0.1);
             if (!sGrab.current) { sGrab.current = true; }
@@ -117,7 +122,7 @@ const Floor3FallCutscene: React.FC<Props> = ({ onDone }) => {
             const sway = Math.sin(t * 3.5);
             g.position.set(gx + sway * 0.04, gripY - HANG_DROP + Math.abs(Math.sin(t * 5)) * 0.04, gz);
             g.rotation.set(0, 0, sway * 0.06);
-            b[B.l_arm].rotation.set(0.15, 0, -1.5); b[B.r_arm].rotation.set(0.15, 0, 1.5);  // gripping up
+            b[B.l_arm].rotation.set(-0.2, 0, 2.5); b[B.r_arm].rotation.set(-0.2, 0, -2.5);  // reaching up to grip the ledge
             b[B.head].rotation.set(-0.35 + Math.sin(t * 4) * 0.06, 0, sway * 0.1);          // looking up
             b[B.l_leg].rotation.set(Math.sin(t * 7) * 0.5, 0, 0.15);                        // kicking
             b[B.r_leg].rotation.set(-Math.sin(t * 7) * 0.5, 0, -0.15);
