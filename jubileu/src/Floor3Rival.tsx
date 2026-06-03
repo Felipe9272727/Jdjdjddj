@@ -120,7 +120,6 @@ const Floor3Rival: React.FC = () => {
         const bones  = rig.bones;
         tRef.current += safeDt;
         const t = tRef.current;
-        const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
         // ── Defeated — hand off to the dedicated fall cutscene
         //    (Floor3FallCutscene), which owns its own cinematic camera + staging

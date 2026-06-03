@@ -52,8 +52,6 @@ const SpikeStrip = React.forwardRef<THREE.Group, { hazard: Hazard }>(({ hazard }
             ))}
         </group>
     );
-    // (transforms applied imperatively by the parent each frame)
-    void spikeRefs; void strokeRef;
 });
 SpikeStrip.displayName = 'SpikeStrip';
 
