@@ -23,6 +23,7 @@ import { VisualJoystick, DialogueOverlay } from './UI';
 import { DiverCutscene } from './DiverCutscene';
 import CartoonIntro from './CartoonIntro';
 import CartoonIntro3D from './CartoonIntro3D';
+import Floor3FallCutscene from './Floor3FallCutscene';
 import Floor3Cutscene from './Floor3Cutscene';
 import Floor3CutsceneUI from './Floor3CutsceneUI';
 import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic } from './cartoonAudio';
@@ -1419,6 +1420,12 @@ export default function App() {
                     onLine={setCutsceneLine}
                     onDone={() => setCartoonCutscene(false)}
                 />
+            )}
+            {/* Defeat cutscene — own cinematic camera + staging (trip → ledge
+                grab → the player stomps his hand → plunge). Rendered after
+                <Player> so its camera writes win. */}
+            {cartoonFall && currentLevel === 3 && (
+                <Floor3FallCutscene onDone={advanceToFloor4AfterWin} />
             )}
             <SceneInspector />
         </Suspense>

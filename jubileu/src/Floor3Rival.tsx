@@ -23,8 +23,8 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { platforms as f3Platforms, f3PlayerZ } from './f3Parkour';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
-import { f3Progress, isDizzy, fireWin, f3DevilPos } from './f3Hazards';
-import { playFloor3Draw, playFloor3Dizzy, playFloor3Fall, playFloor3Land } from './floor3Sfx';
+import { f3Progress, isDizzy, f3DevilPos } from './f3Hazards';
+import { playFloor3Draw, playFloor3Dizzy } from './floor3Sfx';
 
 const RIVAL_URL = '/diabrete.glb';
 const LEAD_Z    = 14;
@@ -71,10 +71,6 @@ const Floor3Rival: React.FC = () => {
     const paintZ    = useRef(0);
     const dizzyStop = useRef<null | (() => void)>(null);
     const wasDizzy  = useRef(false);
-    const fallStart = useRef<THREE.Vector3 | null>(null);
-    const fellSfx   = useRef(false);
-    const fellWhistle = useRef(false);
-    const fellFired = useRef(false);
 
     const sBob  = useRef(new Spring(24, 8));
     const sLean = useRef(new Spring(14, 5));
@@ -126,58 +122,20 @@ const Floor3Rival: React.FC = () => {
         const t = tRef.current;
         const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
-        // ── FALL — Huggy-Wuggy trip → teeter → topple → plummet ─────────────
+        // ── Defeated — hand off to the dedicated fall cutscene
+        //    (Floor3FallCutscene), which owns its own cinematic camera + staging
+        //    (trip → ledge grab → the player stomps his hand → plummet). Publish
+        //    our last spot so it can stage there, then HIDE the gameplay rival so
+        //    only the cutscene's devil is on screen.
         if (f3Progress.fell) {
+            f3DevilPos.current.copy(groupRef.current.position);
+            groupRef.current.visible = false;
             if (brushRef.current) brushRef.current.visible = false;
             for (const b of birdRefs.current) if (b) b.visible = false;
             if (dizzyStop.current) { dizzyStop.current(); dizzyStop.current = null; }
-            if (!fallStart.current) fallStart.current = posRef.current.clone();
-            if (!fellSfx.current) { fellSfx.current = true; playFloor3Land(); }   // the "trip" thud
-            const e = (nowMs - f3Progress.fellAt) / 1000;
-            const g = groupRef.current;
-            rig.group.scale.set(1, 1, 1);
-
-            if (e < 0.45) {
-                // TRIP — lurch forward on the spot, arms fling up, head snaps down
-                const k = e / 0.45;
-                g.position.copy(fallStart.current);
-                g.rotation.set(k * 0.5, 0, Math.sin(e * 30) * 0.1);
-                bones[B.l_arm].rotation.x = -1.6 * k; bones[B.r_arm].rotation.x = -1.6 * k;
-                bones[B.l_arm].rotation.z = 0.5; bones[B.r_arm].rotation.z = -0.5;
-                bones[B.head].rotation.x = 0.5 * k;
-                bones[B.l_leg].rotation.x = -0.9 * k; bones[B.r_leg].rotation.x = 0.6 * k; // caught foot
-            } else if (e < 1.0) {
-                // TEETER — windmilling arms on the brink, body tipping past balance
-                const k = (e - 0.45) / 0.55;
-                g.position.set(fallStart.current.x, fallStart.current.y, fallStart.current.z + k * 0.6);
-                g.rotation.set(0.5 + k * 0.7, 0, Math.sin(e * 16) * 0.25);
-                bones[B.l_arm].rotation.x = Math.sin(e * 22) * 2.6;          // big windmill
-                bones[B.r_arm].rotation.x = Math.sin(e * 22 + Math.PI) * 2.6;
-                bones[B.l_arm].rotation.z = 0.4; bones[B.r_arm].rotation.z = -0.4;
-                bones[B.head].rotation.x = 0.5 - k * 0.3;
-                bones[B.l_leg].rotation.x = Math.sin(e * 20) * 0.7;
-                bones[B.r_leg].rotation.x = -Math.sin(e * 20) * 0.7;
-            } else {
-                // TOPPLE & PLUMMET — pitch over and tumble into the void, shrinking
-                velY.current -= GRAVITY * 1.5 * safeDt;
-                posRef.current.z = fallStart.current.z + 0.6 + (e - 1.0) * 3.0;
-                posRef.current.y = fallStart.current.y + velY.current * (e - 1.0);
-                g.position.copy(posRef.current);
-                g.rotation.set(1.2 + (e - 1.0) * 7, Math.sin((e - 1.0) * 5) * 0.4, (e - 1.0) * 4);
-                const sh = Math.max(0.15, 1 - (e - 1.0) * 0.4);
-                g.scale.setScalar(DIABRETE_SCALE * sh);
-                bones[B.l_arm].rotation.x = Math.sin(e * 26) * 1.4; bones[B.r_arm].rotation.x = -Math.sin(e * 26) * 1.4;
-                bones[B.l_leg].rotation.x = Math.sin(e * 24) * 1.0; bones[B.r_leg].rotation.x = -Math.sin(e * 24) * 1.0;
-                if (!fellWhistle.current) { fellWhistle.current = true; playFloor3Fall(); }
-            }
-            // Publish the devil's live position so the fall-cutscene camera tracks him.
-            f3DevilPos.current.copy(g.position);
-            // Hold the camera at platform height through the trip/teeter so the
-            // topple reads cleanly, then let it follow him down into the void.
-            if (e < 1.0) f3DevilPos.current.y = fallStart.current.y;
-            if (e > 2.4 && !fellFired.current) { fellFired.current = true; fireWin(); }
             return;
         }
+        groupRef.current.visible = true;
 
         // ── Target & ground ─────────────────────────────────────────────────
         const dazed = isDizzy();
