@@ -416,6 +416,8 @@ export default function App() {
   const cutsceneTargetRef = useRef(new Vector3(0.9, 0, -9.2));     // camera look-at (devil's feet) during the cutscene
   const [brushCount, setBrushCount] = useState(0);                 // paintbrushes stolen (HUD, win at 3)
   const [cartoonFall, setCartoonFall] = useState(false);           // cinematic camera-lock on the devil's defeat fall
+  const [fallBegging, setFallBegging] = useState(false);           // devil is pleading — show the save/stomp choice
+  const [fallChoice, setFallChoice] = useState<'none' | 'save' | 'stomp'>('none');
 
   // Start/stop monster ambience with Floor 2
   useEffect(() => {
@@ -731,6 +733,8 @@ export default function App() {
           resetHazards();
           setBrushCount(0);
           setCartoonFall(false);
+          setFallBegging(false);
+          setFallChoice('none');
           if (f3Demo.fall) {
               // Creator preview: skip the intro/meet-cutscene, let the rival mount
               // and reach its lead, then trigger the defeat fall cutscene so it can
@@ -759,6 +763,8 @@ export default function App() {
           setCartoonIntro(false);
           setCartoonCutscene(false);
           setCartoonFall(false);
+          setFallBegging(false);
+          setFallChoice('none');
       }
   }, [currentLevel, audioCtx, doorsClosed]);
 
@@ -1108,6 +1114,7 @@ export default function App() {
   // Flash, yank the player into the cabin, then ride UP to Floor 4.
   const advanceToFloor4AfterWin = useCallback(() => {
     setCartoonFall(false);                       // end the fall camera-lock; flash takes over
+    setFallBegging(false); setFallChoice('none');
     setTeleportCutscene(true);
     if (audioCtx && !muted) { playEquipChime(audioCtx); playArrivalDing(audioCtx); }
     scheduleTimeout(() => {
@@ -1122,6 +1129,30 @@ export default function App() {
       elevatorHumStopRef.current = createElevatorHum(audioCtx);
     }, 1400);
   }, [audioCtx, muted, scheduleTimeout]);
+
+  // ── Player SAVED the devil → betrayal: he shoves the player into the abyss.
+  // Fade, drop them back at the Floor 3 landing and reset the climb to retry.
+  const handleBetrayal = useCallback(() => {
+    setTeleportCutscene(true);
+    if (audioCtx && !muted) playArrivalDing(audioCtx);
+    scheduleTimeout(() => {
+      f3Progress.fell = false;
+      resetHazards();
+      setBrushCount(0);
+      setCartoonFall(false);
+      setFallBegging(false);
+      setFallChoice('none');
+      playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+      setTeleportCutscene(false);
+    }, 1100);
+  }, [audioCtx, muted, scheduleTimeout]);
+
+  // Branch the defeat cutscene's outcome: stomp → Floor 4, save → betrayal.
+  const handleFallOutcome = useCallback((outcome: 'save' | 'stomp') => {
+    setFallBegging(false);
+    if (outcome === 'stomp') advanceToFloor4AfterWin();
+    else handleBetrayal();
+  }, [advanceToFloor4AfterWin, handleBetrayal]);
 
   // Arm the sabotage-loop callbacks while on Floor 3 (re-armed each entry; the
   // win callback is one-shot — fireWin nulls it after the devil falls).
@@ -1425,7 +1456,11 @@ export default function App() {
                 grab → the player stomps his hand → plunge). Rendered after
                 <Player> so its camera writes win. */}
             {cartoonFall && currentLevel === 3 && (
-                <Floor3FallCutscene onDone={advanceToFloor4AfterWin} />
+                <Floor3FallCutscene
+                    choice={fallChoice}
+                    onBeg={() => setFallBegging(true)}
+                    onDone={handleFallOutcome}
+                />
             )}
             <SceneInspector />
         </Suspense>
@@ -1889,6 +1924,38 @@ export default function App() {
             @keyframes f3fall-ko{0%{transform:scale(0) rotate(-14deg);opacity:0}60%{transform:scale(1.2) rotate(6deg);opacity:1}100%{transform:scale(1) rotate(-3deg);opacity:1}}`}</style>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '12%', background: '#0a0712', transformOrigin: 'top', animation: 'f3fall-bars .4s ease-out both' }} />
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '12%', background: '#0a0712', transformOrigin: 'bottom', animation: 'f3fall-bars .4s ease-out both' }} />
+        </div>
+      )}
+      {/* Diabrete's plea + the player's choice: SALVAR (→ betrayal) or PISAR (→ Floor 4) */}
+      {cartoonFall && fallBegging && fallChoice === 'none' && (
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: '15%', zIndex: 88,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18,
+          fontFamily: "'Luckiest Guy', system-ui, sans-serif", pointerEvents: 'none' }}>
+          {/* speech bubble */}
+          <div style={{ maxWidth: 'min(80vw, 520px)', background: '#f6efe0', color: '#140c08',
+            border: '4px solid #140c08', borderRadius: 20, padding: '12px 22px',
+            fontSize: 'min(4vw,24px)', lineHeight: 1.18, textAlign: 'center',
+            boxShadow: '0 6px 0 #140c08', transform: 'rotate(-1deg)',
+            animation: 'f3fall-ko .35s cubic-bezier(.2,1.5,.4,1) both' }}>
+            E-ei… amigão! Me dá a mão, vai! Eu te dou um atalho pro topo… QUALQUER coisa!
+          </div>
+          {/* choice buttons */}
+          <div style={{ display: 'flex', gap: 16, pointerEvents: 'auto' }}>
+            <button onClick={() => { setFallChoice('save'); setFallBegging(false); }}
+              style={{ fontFamily: 'inherit', fontSize: 'min(4.4vw,24px)', letterSpacing: '.04em',
+                color: '#fff', background: 'linear-gradient(#3a9d5a,#2b7d45)', border: '4px solid #140c08',
+                borderRadius: 16, padding: '10px 22px', cursor: 'pointer', boxShadow: '0 5px 0 #140c08',
+                WebkitTextStroke: '1px #140c08', paintOrder: 'stroke' }}>
+              🤝 SALVAR
+            </button>
+            <button onClick={() => { setFallChoice('stomp'); setFallBegging(false); }}
+              style={{ fontFamily: 'inherit', fontSize: 'min(4.4vw,24px)', letterSpacing: '.04em',
+                color: '#fff', background: 'linear-gradient(#c0392b,#9b2418)', border: '4px solid #140c08',
+                borderRadius: 16, padding: '10px 22px', cursor: 'pointer', boxShadow: '0 5px 0 #140c08',
+                WebkitTextStroke: '1px #140c08', paintOrder: 'stroke' }}>
+              👟 PISAR NA MÃO
+            </button>
+          </div>
         </div>
       )}
       {/* Floor 3 paintbrush counter — steal 3 to send the Diabrete into the void */}
