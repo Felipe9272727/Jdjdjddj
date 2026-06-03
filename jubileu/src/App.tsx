@@ -418,6 +418,12 @@ export default function App() {
   const [cartoonFall, setCartoonFall] = useState(false);           // cinematic camera-lock on the devil's defeat fall
   const [fallBegging, setFallBegging] = useState(false);           // devil is pleading — show the save/stomp choice
   const [fallChoice, setFallChoice] = useState<'none' | 'save' | 'stomp'>('none');
+  const [pleaIdx, setPleaIdx] = useState(0);                        // cycles the devil's emotional-blackmail pleas
+  useEffect(() => {
+    if (!fallBegging) { setPleaIdx(0); return; }
+    const id = setInterval(() => setPleaIdx((i) => i + 1), 2900);
+    return () => clearInterval(id);
+  }, [fallBegging]);
 
   // Start/stop monster ambience with Floor 2
   useEffect(() => {
@@ -1931,13 +1937,21 @@ export default function App() {
         <div style={{ position: 'fixed', left: 0, right: 0, bottom: '15%', zIndex: 88,
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18,
           fontFamily: "'Luckiest Guy', system-ui, sans-serif", pointerEvents: 'none' }}>
-          {/* speech bubble */}
-          <div style={{ maxWidth: 'min(80vw, 520px)', background: '#f6efe0', color: '#140c08',
+          {/* speech bubble — cycles the devil's emotional-blackmail pleas */}
+          <div key={pleaIdx} style={{ maxWidth: 'min(82vw, 540px)', background: '#f6efe0', color: '#140c08',
             border: '4px solid #140c08', borderRadius: 20, padding: '12px 22px',
             fontSize: 'min(4vw,24px)', lineHeight: 1.18, textAlign: 'center',
             boxShadow: '0 6px 0 #140c08', transform: 'rotate(-1deg)',
             animation: 'f3fall-ko .35s cubic-bezier(.2,1.5,.4,1) both' }}>
-            E-ei… amigão! Me dá a mão, vai! Eu te dou um atalho pro topo… QUALQUER coisa!
+            {[
+              'E-ei… amigão! Me dá a mão, vai! Eu faço QUALQUER coisa!',
+              'Por favoooor! Eu tenho família! Quatro diabretinhos famintos em casa!',
+              'Olha essa carinha… você não teria CORAGEM, né? NÉ?!',
+              'Eu mudei, juro! Tava até pensando em virar… s-sei lá, BOM!',
+              'A gente é AMIGO! Amigo não pisa na mãozinha do amigo!',
+              'Se me deixar cair, isso vai PESAR na sua consciência pra sempre…',
+              'Te dou ouro! Um atalho secreto pro topo! O QUE VOCÊ QUISER!',
+            ][pleaIdx % 7]}
           </div>
           {/* choice buttons */}
           <div style={{ display: 'flex', gap: 16, pointerEvents: 'auto' }}>
