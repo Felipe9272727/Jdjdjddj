@@ -26,6 +26,7 @@ import CartoonIntro3D from './CartoonIntro3D';
 import Floor3FallCutscene from './Floor3FallCutscene';
 import Floor3Cutscene from './Floor3Cutscene';
 import Floor3CutsceneUI from './Floor3CutsceneUI';
+import Floor3To4Transition from './Floor3To4Transition';
 import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic, playCartoonSfx } from './cartoonAudio';
 import { getMusicBus, setMusicActive } from './musicDirector';
 import { configureFloor3Sfx, clearFloor3Sfx, playFloor3GameOver } from './floor3Sfx';
@@ -170,6 +171,7 @@ export default function App() {
   const { settings, update: updateSettings } = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
+  const [showTransition3to4, setShowTransition3to4] = useState(false);
   const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
   // Master audio bus (the AudioEngine's muteable/volume-controlled input).
   // The Floor-3 cartoon ragtime + SFX route through this so they sit inside the
@@ -1021,6 +1023,19 @@ export default function App() {
   // skipping the normal lobby → elevator → floor progression.
   // If omitted, the game starts normally at level 0 (lobby).
   // ─── CREATOR MODE ───
+  // Callback when Floor 3→4 transition completes
+  const handleTransitionComplete = useCallback(() => {
+    console.log('[App] Transition complete, moving to Floor 4...');
+    setShowTransition3to4(false);
+    setCurrentLevel(4);
+    setGameState('outdoor');
+    setNightMode(false);
+    setHouseDoorOpen(false);
+    setDoorOpenAmount(0);
+    setDoorsClosed(false);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
+  }, []);
+
   const handleStartGame = (mpEnabled: boolean, name?: string, startLevel?: number) => {
     if (audioCtx) return;
     setMultiplayerEnabled(mpEnabled);
@@ -1032,6 +1047,14 @@ export default function App() {
     (window as any).__jubileuAudioCtx = ctx;
     setHasStarted(true);
     // ─── CREATOR MODE: jump to selected floor ───
+    // Check if we need to show the 3→4 transition cutscene
+    if (startLevel === 4 && f3Demo.transition3to4) {
+      setShowTransition3to4(true);
+      f3Demo.transition3to4 = false; // consume the flag
+      console.log('[App] Showing Floor 3→4 transition cutscene...');
+      return; // Don't set level yet, wait for transition to complete
+    }
+
     if (startLevel !== undefined && startLevel !== 0) {
       setCurrentLevel(startLevel);
       // Set appropriate game state for the chosen floor
@@ -1396,6 +1419,14 @@ export default function App() {
         <AdaptiveDpr pixelated />
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
+            {/* Floor 3→4 Transition Cutscene */}
+            {showTransition3to4 && (
+              <Floor3To4Transition
+                onComplete={handleTransitionComplete}
+                duration={8}
+              />
+            )}
+
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} onPlayerCaught={() => {
                 setFishJumpscareKey(k => k + 1);
                 setDevoured(true);
