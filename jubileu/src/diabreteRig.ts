@@ -100,14 +100,39 @@ function paintWeights(pos: Float32Array): { joints: Uint16Array; weights: Float3
 }
 
 // Pre-expand a geometry copy along its normals for the inverted-hull outline.
+//
+// The Diabrete GLB (from Tripo) has SPLIT vertices at UV/normal seams — many
+// verts sharing a position but carrying different normals. Extruding each along
+// its own normal tears the hull open at every seam, which reads as ugly black
+// streaks crawling across his body ("looks like a bugged texture"). The scenery
+// avoids this because its outlines are on clean primitives. The fix: WELD the
+// normals — average every normal that shares a position and extrude all coincident
+// verts along that single averaged direction, so the shell stays watertight and
+// the outline becomes a clean silhouette like the rest of the world.
 function makeOutlineGeo(src: THREE.BufferGeometry, thickness: number): THREE.BufferGeometry {
     const geo = src.clone();
     const P = geo.attributes.position.array as Float32Array;
     const Nn = geo.attributes.normal.array as Float32Array;
-    for (let i = 0, n = P.length / 3; i < n; i++) {
-        P[i * 3]     += Nn[i * 3]     * thickness;
-        P[i * 3 + 1] += Nn[i * 3 + 1] * thickness;
-        P[i * 3 + 2] += Nn[i * 3 + 2] * thickness;
+    const n = P.length / 3;
+
+    const key = (x: number, y: number, z: number) =>
+        `${Math.round(x * 1e4)},${Math.round(y * 1e4)},${Math.round(z * 1e4)}`;
+    const acc = new Map<string, [number, number, number]>();
+    for (let i = 0; i < n; i++) {
+        const k = key(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]);
+        let e = acc.get(k);
+        if (!e) { e = [0, 0, 0]; acc.set(k, e); }
+        e[0] += Nn[i * 3]; e[1] += Nn[i * 3 + 1]; e[2] += Nn[i * 3 + 2];
+    }
+    for (const e of acc.values()) {
+        const l = Math.hypot(e[0], e[1], e[2]) || 1;
+        e[0] /= l; e[1] /= l; e[2] /= l;
+    }
+    for (let i = 0; i < n; i++) {
+        const e = acc.get(key(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]))!;
+        P[i * 3]     += e[0] * thickness;
+        P[i * 3 + 1] += e[1] * thickness;
+        P[i * 3 + 2] += e[2] * thickness;
     }
     geo.attributes.position.needsUpdate = true;
     return geo;

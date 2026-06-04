@@ -2737,3 +2737,29 @@ numa versão futura, a injeção é pulada (cai no toon normal, sem quebrar).
 
 **Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado. Branch
 `claude/memory-map-review-V8IIf`.
+
+### Continuação 2026-06-04 — Ajustes pós-feedback (dizzy + outline do Diabrete)
+
+Felipe não curtiu o "cambalear andando" do fix anterior. Novos ajustes:
+
+**Dizzy reformulado (pedido do Felipe):** ele agora fica **PRESO na plataforma** durante
+o stun (movimento + gravidade congelados, Y segurado → zero float mesmo com o cenário
+rolando). Ao **acordar** ele entra em modo `catchUp` e **sprinta** (`MOVE_SPD * 3.6`)
+de volta pro lead; quando chega perto (`|dz| < 1.5`) volta à velocidade normal. Isso
+também conserta o "parece pequeno demais": congelado, o player se aproxima dele durante
+o stun e ele cresce na tela (antes o drift o mantinha sempre a ~14u = pequeno).
+- `catchUp` ref + `CATCHUP_MULT=3.6`; setado no exit do dizzy; limpo ao reaproximar.
+
+**Outline "bugado" no Diabrete:** as linhas pretas pareciam textura bugada porque o
+inverted-hull era extrudado por normais POR-VÉRTICE, e o GLB do Tripo tem vértices
+partidos nas costuras → a casca rasgava (streaks pretos no corpo). No cenário/mãos fica
+limpo porque são primitivas. **Fix:** `makeOutlineGeo` agora **solda as normais por
+posição** (média de todas as normais que compartilham um ponto) e extruda todos os
+vértices coincidentes na MESMA direção → casca estanque, silhueta limpa como o resto.
+- Teste novo em `diabreteRig.test.ts`: verts coincidentes no fill → coincidentes no
+  outline (prova que não rasga).
+
+(O rim light do material foi mantido — Felipe não reclamou dele; só do tamanho e das
+linhas pretas.)
+
+**Estado:** tsc 0 · 59/59 vitest · audit 0 erros · index.html rebuildado.

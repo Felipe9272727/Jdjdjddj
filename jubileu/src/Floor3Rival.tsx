@@ -34,6 +34,7 @@ const GRAVITY   = 22.0;
 const ARM_DROP  = 0.85;
 const NBIRDS    = 3;
 const PAINT_DUR = 1.5;     // seconds the painting set-piece lasts
+const CATCHUP_MULT = 3.6;  // speed boost after a stun, until he retakes his lead
 
 // Brush-prop materials (held in the devil's hand while painting).
 const handleMat  = new THREE.MeshToonMaterial({ color: '#e0a94a' });
@@ -72,6 +73,7 @@ const Floor3Rival: React.FC = () => {
     const paintZ    = useRef(0);
     const dizzyStop = useRef<null | (() => void)>(null);
     const wasDizzy  = useRef(false);
+    const catchUp   = useRef(false);   // sprinting back to the lead after a stun
 
     const sBob  = useRef(new Spring(24, 8));
     const sLean = useRef(new Spring(14, 5));
@@ -171,40 +173,37 @@ const Floor3Rival: React.FC = () => {
 
         if (!dazed) {
             const dz = targetZ - posRef.current.z;
-            const spd = painting ? MOVE_SPD * 1.6 : MOVE_SPD;       // hustle to the canvas
+            // After a stun he SPRINTS back to his lead, then drops to cruising
+            // speed once he's basically there.
+            if (catchUp.current && Math.abs(dz) < 1.5) catchUp.current = false;
+            const spd = painting ? MOVE_SPD * 1.6 : (catchUp.current ? MOVE_SPD * CATCHUP_MULT : MOVE_SPD);
             posRef.current.z += Math.sign(dz) * Math.min(Math.abs(dz), spd * safeDt);
             posRef.current.x += (groundX - posRef.current.x) * (1 - Math.exp(-6 * safeDt));
         }
 
-        // Gravity / landing.
-        const yDiff = groundY - posRef.current.y;
-        if (onGnd.current && yDiff > 0.28 && !dazed && !painting) { velY.current = Math.sqrt(2 * GRAVITY * (yDiff + 0.5)) * 1.05; onGnd.current = false; }
-        if (!onGnd.current) {
-            velY.current -= GRAVITY * safeDt; posRef.current.y += velY.current * safeDt;
-            if (posRef.current.y <= groundY && velY.current <= 0) {
-                landImpact.current = Math.min(1, Math.abs(velY.current) / 9);   // squash scaled by impact speed
-                posRef.current.y = groundY; velY.current = 0; onGnd.current = true;
-            }
-        } else { posRef.current.y += yDiff * (1 - Math.exp(-14 * safeDt)); }
+        // Gravity / landing — SKIPPED while dizzy: he's frozen stiff on the spot
+        // (his Y is held, so he never floats even if the climb scrolls under him).
+        if (!dazed) {
+            const yDiff = groundY - posRef.current.y;
+            if (onGnd.current && yDiff > 0.28 && !painting) { velY.current = Math.sqrt(2 * GRAVITY * (yDiff + 0.5)) * 1.05; onGnd.current = false; }
+            if (!onGnd.current) {
+                velY.current -= GRAVITY * safeDt; posRef.current.y += velY.current * safeDt;
+                if (posRef.current.y <= groundY && velY.current <= 0) {
+                    landImpact.current = Math.min(1, Math.abs(velY.current) / 9);   // squash scaled by impact speed
+                    posRef.current.y = groundY; velY.current = 0; onGnd.current = true;
+                }
+            } else { posRef.current.y += yDiff * (1 - Math.exp(-14 * safeDt)); }
+        }
         groupRef.current.position.copy(posRef.current);
         groupRef.current.scale.setScalar(DIABRETE_SCALE);
 
-        // ── DIZZY — classic "seeing stars" pose ─────────────────────────────
+        // ── DIZZY — classic "seeing stars" pose, FROZEN in place ─────────────
         if (dazed) {
             if (brushRef.current) brushRef.current.visible = false;
             if (!wasDizzy.current) { wasDizzy.current = true; if (dizzyStop.current) dizzyStop.current(); dizzyStop.current = playFloor3Dizzy(3000); }
-            // Stagger ALONG WITH the lead instead of freezing in place. If he froze
-            // here while the player kept climbing, the platform under him would
-            // recycle away — his ground reference would jump to a far platform and
-            // he'd float, then skip jumping while sliding back to catch up (the
-            // reported bug). Drifting keeps him on live ground the whole time and
-            // already at the lead when he recovers, so the hop-run resumes at once.
-            posRef.current.z += (leadZ - posRef.current.z) * (1 - Math.exp(-2.5 * safeDt));
-            const dg = nearestPlatform(posRef.current.z);
-            posRef.current.x += (dg.x - posRef.current.x) * (1 - Math.exp(-2.5 * safeDt));
-            posRef.current.y = dg.topY;                 // stay planted on real ground (no float)
-            velY.current = 0; onGnd.current = true;
-            groupRef.current.position.copy(posRef.current);
+            // He stays planted where he was zapped (no movement) — the player
+            // closes in on him during the stun. On recovery he sprints to retake
+            // the lead (catchUp), then resumes normal speed.
             groupRef.current.rotation.set(0, Math.sin(t * 1.5) * 0.3, Math.sin(t * 2.5) * 0.18);  // teetering
             bones[B.body].position.y = 0.46 - 0.08;                 // knees buckle → slump
             bones[B.body].rotation.set(sLean.current.tick(0.05, safeDt), 0, Math.sin(t * 3) * 0.12);
@@ -222,7 +221,7 @@ const Floor3Rival: React.FC = () => {
             rig.group.scale.set(1.05, 0.95, 1.05);
             return;
         }
-        if (wasDizzy.current) { wasDizzy.current = false; if (dizzyStop.current) { dizzyStop.current(); dizzyStop.current = null; } }
+        if (wasDizzy.current) { wasDizzy.current = false; catchUp.current = true; if (dizzyStop.current) { dizzyStop.current(); dizzyStop.current = null; } }
         for (const b of birdRefs.current) if (b) b.visible = false;
 
         // ── PAINT — sweep the giant brush; the spikes ink in beneath it ─────
