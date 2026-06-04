@@ -2407,3 +2407,136 @@ chega no andar.
       `<primitive object={glbScene} />` — props `position`, `rotation`,
       `scale` ficam iguais
 
+---
+
+## 🎪 Sessão 2026-06-04 — Floor 3 vira o show do "Diabrete" + Floor 4 (base plate) + mesa redonda (PAUSADA)
+
+> **Branch:** `claude/review-project-context-QkfHZ` — tudo commitado e pushado.
+> Esta foi uma sessão LONGA. O Floor 3 deixou de ser só um parkour e virou um
+> nível com rival, cutscenes e uma escolha moral. O Floor 4 nasceu como base
+> plate. No fim a gente começou uma "mesa redonda de agentes" pra decidir o
+> polimento final — **essa parte ficou pausada** (ver seção 10).
+
+### Visão geral do que o Floor 3 é hoje
+1. Player chega → **intro cartoon** (iris creme + luvas rubber-hose "puck puck" + ragtime).
+2. **Cutscene de apresentação**: o Diabrete (diabinho rubber-hose) aparece, provoca o player e dispara correndo.
+3. **Gameplay**: o Diabrete corre na frente fazendo parkour e **sabota** o caminho:
+   - a cada **10 pulos** ele **desenha** (pinta com um pincelão) uma fileira de **espinhos de tinta** numa plataforma à frente;
+   - a cada **2 obstáculos** aparece um **pincel** flutuando pra coletar;
+   - pegar um pincel deixa o Diabrete **tonto** (passarinhos girando, estilo 1930).
+4. Pegar o **3º pincel** → **cutscene de derrota interativa** (ver seção 4).
+
+### 0. Sistema de música exclusiva — `musicDirector.ts` (NOVO)
+- Árbitro central tipo "camada de cebola": **impossível duas músicas tocarem juntas**.
+- Cada grupo tem prioridade: `engine`(lobby/elevador)=10, `floor2`=60, `ragtime`(Floor 3)=70, `chase`=100, `floor4`=65.
+- API: `attachMusicBus(ctx,dest)`, `getMusicBus(id,prio)`, `setMusicActive(id,active)`, `detachMusicBus()`. `reconcile()` escolhe UM vencedor (maior prioridade ativa) e zera os outros via `setTargetAtTime`.
+- Todo grupo passa pelo master bus → respeita mute + slider de volume de graça.
+- `cartoonAudio.ts`, `Atmosphere.tsx`, `AudioEngine.tsx` passaram a rotear pelos buses (param `destination?`). Corrigiu o bug da música do lobby vazando em outros andares (Modo Criador forçava `lobby.volume=0` quando `currentLevel!==0`).
+
+### 1. O Diabrete — rig PROCEDURAL (`diabreteRig.ts` NOVO)
+- O GLB (`public/diabrete.glb`, ~2.9MB, gerado no Tripo) veio **SEM esqueleto e SEM animações** — Mixamo e auto-riggers recusaram.
+- Solução: **riggei manualmente em Three.js**. `buildDiabreteRig(gltf)` constrói um esqueleto de **7 ossos** (root→body→head/l_arm/r_arm/l_leg/r_leg), pinta os **pesos por zonas espaciais** (análise da nuvem de vértices: braços ficam numa barra horizontal em Y≈0.53, X externo; pernas metade inferior bilateral; cabeça topo), e cria 2 `SkinnedMesh` (fill toon + contorno inverted-hull) ligados ao MESMO esqueleto.
+- `export const DIABRETE_SCALE = 2.2` (o modelo cru tem ~1m; escala pra ele ser mais alto que o player).
+- Descoberta importante (testada no harness): pra LEVANTAR os braços do rig, `l_arm.rotation.z` POSITIVO e `r_arm.rotation.z` NEGATIVO (o sinal é contra-intuitivo). Pra correr, baixa os braços da horizontal (`ARM_DROP`) e bombeia em contrafase.
+
+### 2. Animação do rival — `Floor3Rival.tsx`
+- Tudo **animação procedural por spring**, sem clipes:
+  - **Correr**: pernas em pêndulo alternado, braços bombeando, body bounce + lean + gingado, squash/stretch.
+  - **Tonto** (lê `f3Hazards.isDizzy()`): pose clássica de cartoon — joelhos bambos, cabeça pendendo, **3 passarinhos brancos com bico laranja** orbitando a cabeça + tweet SFX.
+  - **Pintar** (quando nasce obstáculo): pega um **pincelão** (adicionado ao osso `r_arm`) e faz movimento de pintura; os espinhos "inkam" embaixo.
+  - **Floreio de desenho**: SFX de risco + flick do braço.
+- Quando `f3Progress.fell` vira true, o rival do gameplay **se esconde** e publica `f3DevilPos` (a cutscene dedicada assume).
+- **Intro 3D** (`CartoonIntro3D.tsx`): iris creme (PlaneGeometry + shader `uRadius`), luvas toon que dão "puck puck", título "ANDAR 3". Não dá pra skipar. Gating: dispara em `currentLevel===3 && !doorsClosed` (na CHEGADA, não no meio da viagem).
+- **Cutscene de apresentação** (`Floor3Cutscene.tsx` + `diabreteScript.ts` + `Floor3CutsceneUI.tsx`): o Diabrete atua cada fala (lean/point/throw/laugh/taunt) e dispara correndo no fim. Usa a trava de câmera de diálogo (reaproveitada).
+
+### 3. Loop de sabotagem — `f3Hazards.ts` + `Floor3Hazards.tsx` (NOVOS)
+- `f3Hazards.ts`: estado mutável compartilhado (igual `f3Parkour.ts`). `f3Progress = {jumps, obstacles, brushes, dizzyUntil, drawFlashAt, drawZ, fell, fellAt, needed:3}`.
+  - `registerJump(z)` (Player chama a cada pulo) → a cada 10 → `spawnObstacle` (espinhos numa plataforma ~12 à frente); a cada 2 obstáculos → `spawnBrush` (~16 à frente).
+  - `tryCollectBrush`, `hazardKnockback` (Player chama), `tickHazards` (renderer).
+  - `f3DevilPos` (Vector3) e `f3Demo` (flag do atalho do criador) exportados aqui.
+  - `setOnWin`/`setOnProgress`/`fireWin` (callbacks pra App) — **OBS: `fireWin`/`setOnWin` hoje estão DEAD** (o win real vai por `onDone` da cutscene → `advanceToFloor4AfterWin`). Ver riscos.
+- `Floor3Hazards.tsx`: desenha os espinhos (reveal escalonado de tinta + linha de base que varre) e os pincéis (cabo + virola + cerdas + ponta vermelha, bob + spin).
+- SFX novos em `floor3Sfx.ts`: `playFloor3Draw` (risco), `playFloor3Brush` (coleta), `playFloor3Dizzy` (passarinhos, retorna stop()), `playFloor3Fall` (apito + splat). Além dos já existentes step/jump/land.
+- HUD: contador 🖌️ x/3 no topo.
+
+### 4. A CUTSCENE DE DERROTA — `Floor3FallCutscene.tsx` (NOVO, MUITO iterado)
+Estado final (depois de vários feedbacks do Felipe):
+- Câmera **própria** (renderizada DEPOIS do `<Player>` no Canvas, então sobrescreve a câmera dele) — **nunca** fica em 1ª pessoa.
+- O Diabrete **encara a plataforma/player** (`rotation.y = π`) e se agarra na **borda que a própria cutscene renderiza** (laje creme + borda de tinta) — antes ele flutuava porque não tinha plataforma garantida no spot.
+- **Máquina de estados**: `intro` (tropeça→escorrega→agarra a beira) → `beg` (pendurado por UMA mão, estica a outra implorando, segura pra escolha) → `stomp` | `climb`.
+- **Câmera de cima (top-down)** no beg: o player olha por cima da beira pra ele (visão de cima, mãozinha na borda, rosto pra cima). **Múltiplos ângulos com cortes** (plano aberto no tropeço → ângulo baixo na pegada → top-down no implorar → close de cima no pisão → ângulo heroico no sorriso → câmera caindo no empurrão).
+- **Props estilizados** (toon + contorno de tinta): **sapato cartoon** bulboso (PISAR) e **luva branca** (SALVAR). (Substituíram um boot tosco.)
+- **Conversa** (8 falas vai-e-vem entre Diabrete e player, com chantagem emocional) — UI no App (`FALL_DIALOGUE`). Os **botões SALVAR/PISAR só aparecem na última fala**.
+- **Desfechos**:
+  - **PISAR (não salvar)** → sapato esmaga a mão → ele despenca → `onDone('stomp')` → `advanceToFloor4AfterWin` → sobe pro **Floor 4**.
+  - **SALVAR** → luva o puxa pra cima → ele sobe, vira pra ENCARAR o player, dá o sorriso maligno e **EMPURRA** (a câmera = player é jogada pra trás e despenca olhando pra cima pro Diabrete encolhendo) → `onDone('save')` → **GAME OVER** (card vermelho) → volta pro **LOBBY**.
+- **FIX crítico**: a câmera ficava bugada ao fim porque o `camera.up` ficava rolado. Agora **reseto `camera.up=(0,1,0)` no cleanup do unmount** (verificado: `[0.96,0.27,0]` no empurrão → `[0,1,0]` depois).
+- **Hooks DEV** (`import.meta.env.DEV`): `window.__fallScrub`/`__fallPhase`/`__fallT` pra travar fase/tempo e testar — no-op em produção.
+
+Wiring no App (`App.tsx`): estados `cartoonFall`, `fallBegging`, `fallChoice`, `fallGameOver`, `fallLine` (+ effect que avança o diálogo); `handleFallOutcome` (stomp→Floor4, save→`handleGameOver`→lobby); reset de tudo no enter/leave do Floor 3.
+
+### 5. Floor 4 — FUNDAÇÃO (base plate) — `Floor4.tsx` + `floor4Sfx.ts` (NOVOS)
+- **Tema ainda NÃO definido** — Felipe vai dizer depois. É um **scaffold neutro e themeável**: bloco `FLOOR4` (cores/névoa/luz) no topo pra reskin de 1 bloco; slots marcados no JSX (`ENV PROPS / ENTITIES / HAZARDS / CUTSCENE`); cabeçalho documenta cada "seam" (look, movimento, áudio, entidades via `buildDiabreteRig`, objetivo via `f3Hazards`+`setOnWin`, cutscene).
+- Base plate cinza 40×40 com grid + elevador. Movimento usa o branch flat-walk padrão do Player (y=0).
+- `floor4Sfx.ts`: scaffold de SFX (mirror do floor3Sfx).
+- App reserva o bus `floor4` (música) no enter; progressão é **aberta** (sem objetivo ainda).
+- **Vencer o Floor 3 (PISAR) → sobe pro Floor 4** (`setNextElevatorDestination(4)`).
+
+### 6. Atalhos no Modo Criador (`CreatorMode.tsx`)
+- Lista agora é **scrollável** (`max-h-[46vh] overflow-y-auto` + scrollbar roxa).
+- Card **"Andar 4"** (base plate).
+- Card **"Queda do Diabrete"** (variant `fallDemo`): seta `f3Demo.fall=true`, entra no Floor 3, **pula a intro** e dispara a cutscene de derrota ~1.6s depois — pra ver a cena na hora.
+
+### 7. Padrões técnicos / aprendizados desta sessão
+- **Rig procedural**: dá pra riggar um GLB sem esqueleto em runtime (esqueleto + pesos por proximidade + 2 SkinnedMesh no mesmo Skeleton).
+- **Como TESTAR no sandbox** (importante — o jogo completo NÃO carrega offline porque depende de assets do GitHub + dev server instável):
+  - **Harness isolado**: `falltest.html` + `src/falltest.tsx` montando SÓ o componente (ex: a cutscene) numa cena simples — o único asset é `/diabrete.glb` (local), então roda offline.
+  - **Hooks de scrub DEV** (`__fallScrub`/`__fallPhase`) pra capturar cada beat deterministicamente.
+  - **Playwright** (`node_modules/playwright-core`, `--use-gl=swiftshader`) pra screenshot + ler `window` (estado/erros).
+  - ⚠️ Os arquivos `falltest.*` são temporários — **apagar antes de commitar**.
+  - Vite no sandbox é instável (portas trocam, processo cai). Truque: matar tudo (`pkill -9 -f vite`), subir UM via background, e LER a porta real do log.
+- **Controle de câmera em cutscene**: renderizar o componente DEPOIS do `<Player>` faz o `useFrame` dele rodar por último → a câmera dele vence. SEMPRE resetar `camera.up` no unmount.
+- **Reaproveitar a trava de câmera de diálogo**: passar `dialogueOpen=true` + um `dialogueTargetRef` congela o player e some o avatar.
+
+### 8. Arquivos novos/alterados (principais)
+- **NOVOS**: `diabreteRig.ts`, `Floor3Rival.tsx`, `Floor3Cutscene.tsx`, `Floor3CutsceneUI.tsx`, `diabreteScript.ts`, `CartoonIntro3D.tsx`, `CartoonIntro.tsx`, `f3Hazards.ts`, `Floor3Hazards.tsx`, `floor3Sfx.ts`, `Floor3FallCutscene.tsx`, `Floor4.tsx`, `floor4Sfx.ts`, `musicDirector.ts`, `public/diabrete.glb`.
+- **ALTERADOS**: `App.tsx` (muito — todo o wiring de Floor 3/4), `Floor3.tsx`, `Player.tsx` (pulos/knockback/coleta no Floor 3), `CreatorMode.tsx`, `AudioEngine.tsx`, `Atmosphere.tsx`, `cartoonAudio.ts`, `f3Parkour.ts`.
+
+### 9. Commits desta sessão (do mais novo)
+`e5a15e8e` fall cutscene (ledge real, empurrão claro, conversa+escolha, game over, reset câmera) · `165d6ffc` rework top-down/multi-ângulo/estilizado/chantagem · `c7e24126` derrota interativa (SALVAR/PISAR) · `3710899d` cutscene de derrota dedicada · `827f4df8` derrota vira cutscene · `fe679037` atalho "Queda do Diabrete" · `3be2bb1a` Floor 4 fundação · `11dadd14` Floor 3→Floor 4 · `9c1e6793` Floor 4 base plate + criador scrollável · `4ca6b018`/`33bdc5a3` loop de sabotagem · `31324fc2`/`9acad390`/`be9b4b1e` Diabrete (rig+anim+cutscene) · `1352a70c` music director · `60265d86` SFX 1930 · `553523f1`/`9aded5cc` intro cartoon 3D.
+
+### 10. ⏸️ MESA REDONDA — MISSÃO PAUSADA (retomar daqui)
+**O que a gente estava fazendo quando parou:** o Felipe pediu os **retoques finais do Floor 3** via uma "**mesa redonda de agentes**" — vários agentes especialistas que analisam o nível, **interagem entre si**, decidem o que polir, e aí eu implemento.
+
+**Plano da mesa (desenhado):**
+- **Rodada 1** — 4 críticos em paralelo, cada um com uma lente: **Design** (feel/pacing/clareza do loop), **Arte/Animação** (consistência rubber-hose, staging das cutscenes, luz), **Áudio** (SFX 1930, mix, sons faltando) e **QA** (bugs/edge cases).
+- **Rodada 2** — um **moderador** recebe as 4 listas, reconcilia/debate trade-offs e cospe um plano final priorizado.
+- **Rodada 3** — eu implemento + testo + push.
+
+**O que rodou:** SÓ o agente de **QA** (os de Design/Arte/Áudio e o moderador **NÃO** rodaram — Felipe mandou abortar e atualizar o memory primeiro).
+
+**Achados do QA (preservados — viram TODO quando retomar):**
+1. **[ALTO]** `f3DevilPos` pode estar no sentinel `(0,0,14)` quando a cutscene monta (race entre `fell=true` e o rival publicar a posição) → ela encena no lugar errado. **Fix:** fallback pra `f3PlayerZ.current + LEAD_Z` quando `f3DevilPos` ainda for o sentinel, ou setar `f3DevilPos` no momento do win/registerJump.
+2. **[ALTO]** Knockback dos espinhos sem cooldown de tempo (`h.hit` só reseta atrás de `z0-1.2`, mas o shove joga pra `z0-0.5` → pode oscilar/grudar). **Fix:** cooldown por tempo (`hitAt`) + empurrar pra trás de `z0-1.3`.
+3. **[MÉDIO]** Pincel pode nascer na plataforma/região de um espinho (collect radius 1.3 vs gap 3.0) → espinho impossível de pular sem pegar o pincel. **Fix:** exigir separação mínima de ≥1 plataforma entre brush e hazard.
+4. **[MÉDIO]** `resetHazards()` não reseta `f3Progress.needed`. Hoje é constante 3, mas é uma armadilha futura. **Fix:** add `f3Progress.needed = 3`.
+5. **[MÉDIO]** `fireWin`/`setOnWin` estão **armados mas mortos** (o win real vai por `onDone`). Risco de double-advance se algo chamar `fireWin`. **Fix:** remover o caminho morto OU rotear tudo por ele (não deixar os dois).
+6. **[MÉDIO]** Hooks DEV `__fallScrub`/`__fallPhase` não são limpos no unmount — um dev que scrubou trava os próximos playthroughs na aba até reload. **Fix:** `delete` no cleanup.
+7. **[BAIXO-MÉDIO]** Cleanup reseta `camera.up` mas NÃO o `fov` — no caminho save→gameover→lobby pode flashar fov errado. **Fix:** restaurar fov (75/90) no cleanup.
+8. **[BAIXO]** Demo (`f3Demo.fall`) usa timer cru de 1600ms — se o player sair do Floor 3 antes, o timer ainda suja `fell`/`cartoonFall`. **Fix:** capturar um epoch/level no callback e no-op se mudou.
+
+**Quando retomar:** rodar os 3 críticos que faltam (Design/Arte/Áudio) + o moderador, juntar com os achados do QA acima, e implementar o plano consolidado.
+
+### 11. ⚠️ Riscos/notas conhecidos
+- **Landmine possível**: em `Floor3Rival.tsx` o pincelão é adicionado a um OSSO (`rig.bones[B.r_arm].add(brush)`) — o MEMORY antigo lista "Zero `bone.add(mesh)` em hierarquia de esqueleto" como landmine. Funcionou nos testes, mas **vigiar** (se der bug de transform/render, é candidato).
+- O jogo depende de **assets externos do GitHub** (texturas + o GLB do personagem do player). Sem rede, o Canvas trava no loader / cai no ErrorBoundary. Considerar mover pra `/public`.
+- ESLint tem ~179 problemas **pré-existentes** (não introduzidos nesta sessão) em arquivos antigos (`UI.tsx`, `f3Parkour.ts` cz/bx, etc.). O CI roda só `lint:types && test && audit` (não o eslint), então não bloqueia.
+- Suíte do projeto passando: `tsc` limpo, **39/39 vitest**, `audit` 0 erros, `vite build` ok.
+
+### Próximos passos sugeridos
+- [ ] **Retomar a mesa redonda** (seção 10) — rodar Design/Arte/Áudio + moderador, implementar polimento.
+- [ ] Felipe definir o **tema do Floor 4** → aí eu construo em cima do scaffold.
+- [ ] Atacar os achados de QA (sobretudo os [ALTO]: race do `f3DevilPos` e cooldown do knockback).
+- [ ] Felipe testar a cutscene de derrota no preview real (card "Queda do Diabrete").
+
+
