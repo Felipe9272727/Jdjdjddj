@@ -4,7 +4,10 @@ import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
-import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS } from './Floor2Underwater';
+import { platforms as f3Platforms, f3PlayerZ, f3PlayerY, f3HandState, respawnPoint as f3RespawnPoint } from './f3Parkour';
+import { playFloor3Step, playFloor3Jump, playFloor3Land, playFloor3Brush } from './floor3Sfx';
+import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, tryCollectBrush as f3TryCollectBrush } from './f3Hazards';
+import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
 useGLTF.preload(WALKING_URL);
@@ -312,15 +315,23 @@ interface PlayerProps {
   sharedRotationYRef: React.MutableRefObject<number>;
   cameraThetaRef: React.MutableRefObject<number>;
   cameraShakeRef: React.MutableRefObject<boolean>;
+  /** Current diver dialogue beat (-1 = none). Drives emotion-reactive framing. */
+  diverBeatRef?: React.MutableRefObject<number>;
   positionCmdRef: React.MutableRefObject<{ x: number; y: number; z: number } | null>;
   onElevatorZoneChange: (inside: boolean) => void;
   pickupTrigger?: number;
   armExtended?: boolean;
   pickupItem?: PickupItem;
   onRightHandAnchor?: (a: THREE.Object3D | null) => void;
+  /** Swim-sprint button held (Floor 2 underwater). */
+  sprintHeldRef?: React.MutableRefObject<boolean>;
+  /** Swim stamina 0..1, written every frame for the HUD bar to read. */
+  staminaRef?: React.MutableRefObject<number>;
+  /** Floor 3 jump trigger — set true to initiate a jump. Cleared after use. */
+  jumpRef?: React.MutableRefObject<boolean>;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -333,6 +344,12 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const _v = _vRef;
 
   const timeRef = useRef(0);
+  const jumpVelYRef = useRef(0);
+  const f3StepAccumRef = useRef(0);       // footstep cadence timer (Floor 3)
+  const f3PrevGroundedRef = useRef(true); // for landing edge-detection (Floor 3)
+  const diverCineRef = useRef(0); // elapsed time inside the Floor 2 cinematic camera
+  // Emotion-reactive framing: smoothed dist/fov offsets driven by dialogue beat.
+  const diverFrameRef = useRef({ dist: 0, fov: 0 });
   const camPosRef = useRef(new Vector3(0, 0, 8)); // smooth camera position
   const camInitRef = useRef(false); // sync camera to player pos on first frame
   const walls = useMemo(() => wallsForState(currentLevel, doorsClosed, houseDoorOpen), [currentLevel, doorsClosed, houseDoorOpen]);
@@ -355,6 +372,13 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     
     if (positionCmdRef && positionCmdRef.current) {
         pos.current.set(positionCmdRef.current.x, positionCmdRef.current.y, positionCmdRef.current.z);
+        // Optional facing reset (e.g. Floor 3 arrival should face the parkour
+        // at +z, not whatever free-look angle the diver had underwater).
+        const cmdTheta = (positionCmdRef.current as any).theta;
+        if (typeof cmdTheta === 'number') {
+            camAng.current.theta = cmdTheta;
+            charRot.current.y = cmdTheta;
+        }
         positionCmdRef.current = null;
         camInitRef.current = false; // force camera re-sync after teleport
         // If the teleport drops the player inside the elevator zone (e.g.
@@ -401,19 +425,71 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     // is talking to: lobby NPC, Barney, etc.) and falls back to the lobby NPC ref so
     // existing call sites that don't pass a target still work.
     const dialogueFocusRef = dialogueTargetRef ?? npcPositionRef;
+    if (!(dialogueOpen && currentLevel === 2)) {
+      diverCineRef.current = 0;
+      diverFrameRef.current.dist = 0;
+      diverFrameRef.current.fov = 0;
+    }
     if (dialogueOpen && dialogueFocusRef?.current) {
         if (animRef.current !== 'Idle') { animRef.current = 'Idle'; setAnim('Idle'); }
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
         const nP = dialogueFocusRef.current; const pP = pos.current;
         const d2p = _v.current[0].subVectors(pP, nP).normalize(); if (d2p.lengthSq() < 1e-3) d2p.set(0,0,1);
-        const tCam = _v.current[1].copy(nP).addScaledVector(d2p, 2.2); tCam.y += 1.75;
-        const tLook = _v.current[2].copy(nP); tLook.y += 1.35;
+        // Floor 2 diver cutscene needs a pulled-back, wider frame so the
+        // letterbox bars never crop the 2.3m model. lookAt is biased low so
+        // he sits inside the (asymmetric) window between the bars rather
+        // than at the optical centre of the full frame.
+        const isDiverScene = currentLevel === 2;
+        // Cinematic camera life — a slow dolly push-in plus a gentle
+        // handheld drift so the shot is never dead-still (AA feel). The
+        // look target stays fixed, so the diver holds frame while the
+        // camera breathes around him for subtle parallax.
+        let camDist = isDiverScene ? 5.8 : 2.2;
+        let driftX = 0, driftY = 0;
+        let beatFov = 0;
+        if (isDiverScene) {
+          diverCineRef.current += safeDt;
+          const ct = diverCineRef.current;
+          const pushEase = 1 - Math.pow(1 - Math.min(1, ct / 16), 3);
+          camDist = 6.2 - pushEase * 0.8;  // slow dolly 6.2→5.4 over 16s
+          // Handheld cinematographer arc — primary slow sweep + faster micro-tremor.
+          // X swings ±0.22m so the diver shifts within the frame; Y floats ±0.09m.
+          driftX = Math.sin(ct * 0.38) * 0.18 + Math.sin(ct * 1.10 + 0.7) * 0.04;
+          driftY = Math.cos(ct * 0.29) * 0.09 + Math.sin(ct * 0.85 + 1.4) * 0.025;
+          // ── Emotion-reactive framing — the camera responds to the beat ──
+          // Memory beat pulls back & widens; intimate/authority beats push in
+          // and tighten the lens so the diver fills more of the frame.
+          const beat = diverBeatRef?.current ?? -1;
+          const distTarget =
+            beat === 1 ?  0.55 :   // memory — pull back, give him room
+            beat === 2 ? -0.35 :   // caring — lean the lens in
+            beat === 3 ? -0.55 :   // handover — focus tight on the mask
+            beat === 4 ? -0.70 :   // authority — in your face
+                          0;
+          const fovTarget =
+            beat === 1 ?  2.2 :    // wider — airy, distant
+            beat === 2 ? -1.6 :    // tighter — intimate
+            beat === 3 ? -2.4 :    // tighter still
+            beat === 4 ? -3.2 :    // tightest — claustrophobic
+                          0;
+          const smooth = Math.min(1, safeDt * 1.6);
+          diverFrameRef.current.dist += (distTarget - diverFrameRef.current.dist) * smooth;
+          diverFrameRef.current.fov  += (fovTarget  - diverFrameRef.current.fov)  * smooth;
+          camDist += diverFrameRef.current.dist;
+          beatFov = diverFrameRef.current.fov;
+        }
+        const camHeight  = isDiverScene ? 1.55 : 1.75;
+        const lookHeight = isDiverScene ? 1.3  : 1.35;
+        const targetFov  = (isDiverScene ? 46 : 40) + beatFov;
+        const tCam = _v.current[1].copy(nP).addScaledVector(d2p, camDist);
+        tCam.y += camHeight + driftY; tCam.x += driftX;
+        const tLook = _v.current[2].copy(nP); tLook.y += lookHeight;
         const dlgAlpha = Math.min(5 * safeDt, 0.4);
         camera.position.lerp(tCam, dlgAlpha);
         if (camLookRef.current.distanceTo(tLook) > 10) { camLookRef.current.copy(pP); camLookRef.current.y += 1.6; }
         camLookRef.current.lerp(tLook, dlgAlpha);
         camera.lookAt(camLookRef.current);
-        (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, 40, dlgAlpha); camera.updateProjectionMatrix();
+        (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, targetFov, dlgAlpha); camera.updateProjectionMatrix();
         // Sync smooth refs for transition back to 3P
         camPosRef.current.copy(camera.position);
     } else if (currentLevel === 2 && pos.current.y < SWIM_THRESHOLD_Y) {
@@ -431,7 +507,24 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         camAng.current.phi = Math.max(-1.5, Math.min(1.5, camAng.current.phi));
 
         const fwd = -moveInput.current.y; const strafe = moveInput.current.x; let moving = false;
-        if (Math.abs(fwd) > 0.01 || Math.abs(strafe) > 0.01) {
+        // ── Swim sprint + stamina ──────────────────────────────────────────
+        // Holding the swim-fast button burns stamina for a big speed boost;
+        // releasing (or running dry) regenerates it. Stamina is written to a
+        // shared ref every frame so the HUD bar can read it without re-renders.
+        const SWIM_SPRINT_MULT = 2.7;  // dash now clearly OUTRUNS the shark's hunt
+        const STAMINA_DRAIN = 0.26;   // full bar ≈ 3.8s of sprint
+        const STAMINA_REGEN = 0.26;   // refills in ≈ 3.8s
+        const wantSprint = !!sprintHeldRef?.current;
+        const stam = staminaRef ? staminaRef.current : 1;
+        const willMove = Math.abs(fwd) > 0.01 || Math.abs(strafe) > 0.01;
+        const sprinting = wantSprint && willMove && stam > 0.02;
+        if (staminaRef) {
+            staminaRef.current = sprinting
+                ? Math.max(0, stam - STAMINA_DRAIN * safeDt)
+                : Math.min(1, stam + STAMINA_REGEN * safeDt);
+        }
+        const sprintMult = sprinting ? SWIM_SPRINT_MULT : 1;
+        if (willMove) {
             moving = true;
             const cosPhi = Math.cos(camAng.current.phi);
             // Camera-forward (XYZ). Existing FP code subtracts sin(theta)*cos(phi)
@@ -445,7 +538,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
             // Normalize then scale by water-speed. Length of (fwd, strafe) clamped to 1.
             const inputMag = Math.min(1, Math.sqrt(fwd * fwd + strafe * strafe));
-            const k = SPEED * 0.55 * safeDt * inputMag;
+            const k = SPEED * 0.6 * sprintMult * safeDt * inputMag;
             // Same -fwd / -strafe sign convention as existing land code.
             pos.current.x += (-fX * fwd - rX * strafe) * k;
             pos.current.y += (-fY * fwd) * k;
@@ -470,14 +563,48 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             }
         }
 
-        // Y clamps: underwater floor at Y=-29 and surface at SWIM_THRESHOLD_Y.
-        if (pos.current.y < -29) pos.current.y = -29;
-        // Underwater XZ bounds — keep the swimmer inside the 80x80 rocky
-        // bowl so they can't drift off into the void past the boulders.
-        if (pos.current.x < -39) pos.current.x = -39;
-        if (pos.current.x >  39) pos.current.x =  39;
-        if (pos.current.z < -39) pos.current.z = -39;
-        if (pos.current.z >  39) pos.current.z =  39;
+        // ─── Underwater wall collision (XZ only)
+        for (const wall of CAVE_WALL_COLLIDERS) {
+            const dx = pos.current.x - wall.x;
+            const dz = pos.current.z - wall.z;
+            const distSq = dx * dx + dz * dz;
+            const minDist = wall.r + 0.5;
+            if (distSq < minDist * minDist && distSq > 0.0001) {
+                const dist = Math.sqrt(distSq);
+                const push = (minDist - dist) / dist;
+                pos.current.x += dx * push;
+                pos.current.z += dz * push;
+            }
+        }
+
+        // ─── Coral pillar collision (XZ only — pillars are tall cylinders)
+        for (const pillar of UW_PILLAR_COLLIDERS) {
+            const dx = pos.current.x - pillar.x;
+            const dz = pos.current.z - pillar.z;
+            const distSq = dx * dx + dz * dz;
+            const minDist = pillar.r + 0.5;
+            if (distSq < minDist * minDist && distSq > 0.0001) {
+                const dist = Math.sqrt(distSq);
+                const push = (minDist - dist) / dist;
+                pos.current.x += dx * push;
+                pos.current.z += dz * push;
+            }
+        }
+
+        // ─── Organic deformation collision (walls + seafloor ridges) ──
+        // The underwater walls bulge inward and the seafloor heaves up into
+        // ridges. A flat ±26 box let the player swim straight through those
+        // beautiful lumps; now we stop them at the real displaced surface,
+        // sampled from the rendered geometry. Outer ±28.5 box is a safety net
+        // for the far corners the wall profile doesn't cover.
+        if (pos.current.x < -28.5) pos.current.x = -28.5;
+        if (pos.current.x >  28.5) pos.current.x =  28.5;
+        if (pos.current.z < -28.5) pos.current.z = -28.5;
+        if (pos.current.z >  28.5) pos.current.z =  28.5;
+        resolveUWWalls(pos.current, 0.6);
+        // Ride above the seafloor ridges (but never above the hard floor plane).
+        const floorY = Math.max(-29, uwFloorHeight(pos.current.x, pos.current.z) + 0.8);
+        if (pos.current.y < floorY) pos.current.y = floorY;
         if (pos.current.y > SWIM_THRESHOLD_Y) {
             // Surfaced — if inside the hole, allow popping out into the cave.
             const dxHole = pos.current.x - HOLE_CENTER_X;
@@ -489,16 +616,22 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             }
         }
 
-        // FP-style camera (zoom is locked to 0 on level 2 by App.tsx)
+        // FP-style camera (zoom is locked to 0 on level 2 by App.tsx).
+        // Underwater adds a slow buoyancy sway + breathing bob to the
+        // camera position — a small but powerful realism cue.
         charRot.current.y = camAng.current.theta + Math.PI;
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
-        const ly = pos.current.y + HH * 0.3;  // crouched-ish head height while swimming
-        camera.position.set(pos.current.x, ly, pos.current.z);
+        const tNow = state.clock.elapsedTime;
+        const swayX = Math.sin(tNow * 0.55) * 0.06;
+        const swayY = Math.sin(tNow * 0.85 + 1.3) * 0.04 + Math.sin(tNow * 0.35) * 0.02;
+        const swayZ = Math.cos(tNow * 0.45) * 0.05;
+        const ly = pos.current.y + HH * 0.3 + swayY;  // crouched-ish head height while swimming
+        camera.position.set(pos.current.x + swayX, ly, pos.current.z + swayZ);
         const ld = 5;
         camera.lookAt(
-            pos.current.x - Math.sin(camAng.current.theta) * ld * Math.cos(camAng.current.phi),
+            pos.current.x - Math.sin(camAng.current.theta) * ld * Math.cos(camAng.current.phi) + swayX * 0.4,
             ly - Math.sin(camAng.current.phi) * ld,
-            pos.current.z - Math.cos(camAng.current.theta) * ld * Math.cos(camAng.current.phi)
+            pos.current.z - Math.cos(camAng.current.theta) * ld * Math.cos(camAng.current.phi) + swayZ * 0.4
         );
         (camera as THREE.PerspectiveCamera).fov = 95; camera.updateProjectionMatrix();
         camPosRef.current.copy(camera.position);
@@ -532,7 +665,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             // teleport-aware setter at line ~152, the trigger only fires on
             // GENUINE walk-ins (never on respawn teleports).
             if (pos.current.z >= EZ_START - 1) elevTriggered.current = false;
-            else if (!elevTriggered.current) { elevTriggered.current = true; onEnterElevator(); }
+            else if (!elevTriggered.current && !dialogueOpen) { elevTriggered.current = true; onEnterElevator(); }
         }
         // ─── Y axis handling (runs every frame, even when standing still) ──
         // Default: feet on the floor.
@@ -565,6 +698,20 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
                 }
             }
 
+            // ─── Stalagmite collision (XZ only — tall spires the player can't climb) ──
+            for (const s of STALAGMITE_COLLIDERS) {
+                const dx = pos.current.x - s.x;
+                const dz = pos.current.z - s.z;
+                const distSq = dx * dx + dz * dz;
+                const minDist = s.r + 0.4;
+                if (distSq < minDist * minDist && distSq > 0.0001) {
+                    const dist = Math.sqrt(distSq);
+                    const push = (minDist - dist) / dist;
+                    pos.current.x += dx * push;
+                    pos.current.z += dz * push;
+                }
+            }
+
             // Hard XZ clamp as a last-resort barrier.
             // Organic walls can bulge ~5m inward, so clamp tighter
             if (pos.current.x < -25) pos.current.x = -25;
@@ -582,6 +729,91 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
                 pos.current.y -= 5.0 * safeDt;                 // fall speed
             } else {
                 pos.current.y = 0;                              // cave floor
+            }
+        } else if (currentLevel === 3) {
+            // ── Floor 3 platform physics ──────────────────────────────────
+            // 1. Apply gravity and integrate Y every frame.
+            const F3_GRAVITY = 22;
+            const F3_JUMP    = 9.5;
+            jumpVelYRef.current -= F3_GRAVITY * safeDt;
+            pos.current.y += jumpVelYRef.current * safeDt;
+
+            // Publish player Z/Y so the endless-parkour engine (owned by
+            // Floor3's useFrame) recycles the pool ahead of us and the sky
+            // backdrop follows the climb.
+            f3PlayerZ.current = pos.current.z;
+            f3PlayerY.current = pos.current.y;
+
+            // 2. Find the highest platform directly underfoot (XZ bounds).
+            //    Reads the LIVE recycling pool — p.x already includes the
+            //    moving-bridge oscillation written by f3Parkour.tick().
+            let groundY = -Infinity;
+            for (const p of f3Platforms) {
+                if (pos.current.x >= p.x - p.hw && pos.current.x <= p.x + p.hw &&
+                    pos.current.z >= p.cz - p.hd && pos.current.z <= p.cz + p.hd) {
+                    if (p.topY > groundY) groundY = p.topY;
+                }
+            }
+            // Elevator interior floor (global ElevatorInterior at z=-13, EW=6.5,
+            // ED=6 → footprint x∈[-3.25,3.25], z∈[-16,-10]). The parkour pool
+            // doesn't cover it, so add it explicitly — otherwise the player
+            // falls through the cabin on arrival. Extended to z=-9.0 to bridge
+            // the small gap to the START platform (back edge z=-9.5).
+            if (pos.current.x >= -3.25 && pos.current.x <= 3.25 &&
+                pos.current.z >= -16.5 && pos.current.z <= -9.0) {
+                if (0 > groundY) groundY = 0;
+            }
+
+            // 3. Land: snap to ground when falling through it from above.
+            const wasFalling = jumpVelYRef.current < -1.5;
+            if (groundY > -Infinity && pos.current.y <= groundY && jumpVelYRef.current <= 0) {
+                pos.current.y = groundY;
+                jumpVelYRef.current = 0;
+                // Landing SFX — only on a real fall (edge: was airborne+falling).
+                if (wasFalling && !f3PrevGroundedRef.current) playFloor3Land();
+            }
+
+            // 4. Jump trigger — only fires when grounded. Each jump feeds the
+            //    sabotage loop (every 10 → the Diabrete inks a new obstacle).
+            if (jumpRef?.current) {
+                const grounded = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;
+                if (grounded) { jumpVelYRef.current = F3_JUMP; playFloor3Jump(); f3RegisterJump(pos.current.z); }
+                jumpRef.current = false;
+            }
+
+            // 4b. Spike knockback — crossing a fully-drawn ink-strip too low
+            //     bounces the player back (they must hop it).
+            const kb = f3HazardKnockback(pos.current.x, pos.current.y, pos.current.z);
+            if (kb) { pos.current.z = kb.z; jumpVelYRef.current = kb.vy; playFloor3Land(); }
+
+            // 4c. Paintbrush pickup — steal a brush off the course (dazes the
+            //     devil; the 3rd ends the chase).
+            if (f3TryCollectBrush(pos.current.x, pos.current.y, pos.current.z)) playFloor3Brush();
+
+            // ── 1930s footstep "tok" cadence — only while walking on ground.
+            const groundedNow = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;
+            if (moving && groundedNow) {
+                f3StepAccumRef.current += safeDt;
+                // ~3 steps/sec; play one immediately on the first stride too.
+                if (f3StepAccumRef.current >= 0.33) { playFloor3Step(); f3StepAccumRef.current = 0; }
+            } else {
+                // Prime so the next stride taps right away instead of after 0.33s.
+                f3StepAccumRef.current = 0.33;
+            }
+            f3PrevGroundedRef.current = groundedNow;
+
+            // 5. Respawn when fallen into the void — drop back onto the
+            //    furthest-back live platform so the endless climb resumes near
+            //    where we were instead of restarting.
+            // Publish motion state for the first-person hands' procedural anim.
+            f3HandState.vy = jumpVelYRef.current;
+            f3HandState.grounded = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;
+            f3HandState.moving = moving;
+
+            if (pos.current.y < -8) {
+                const rp = f3RespawnPoint(pos.current.z);
+                pos.current.set(rp.x, rp.y, rp.z);
+                jumpVelYRef.current = 0;
             }
         } else {
             pos.current.y = 0;

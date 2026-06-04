@@ -5,17 +5,22 @@
 // ─── CREATOR MODE ─────────────────────────────────────────────────────────
 
 import React, { useState } from 'react';
+import { f3Demo } from './f3Hazards';
 
 export interface FloorOption {
+  id: string;           // unique (cards can share a level, e.g. the cutscene)
   level: number;
   name: string;
+  label?: string;       // overrides the "Andar N" prefix in the card header
   description: string;
   color: string;        // Tailwind gradient classes
   icon: React.ReactNode;
+  variant?: string;     // optional dev variant (e.g. 'fallDemo' → Floor 3 fall cutscene)
 }
 
 export const FLOORS: FloorOption[] = [
   {
+    id: 'floor-0',
     level: 0,
     name: 'Saguão',
     description: 'Lobby do elevador — ponto de partida',
@@ -27,6 +32,7 @@ export const FLOORS: FloorOption[] = [
     ),
   },
   {
+    id: 'floor-1',
     level: 1,
     name: 'Casa do Barney',
     description: 'Visita noturna — sobreviva até o elevador',
@@ -38,6 +44,7 @@ export const FLOORS: FloorOption[] = [
     ),
   },
   {
+    id: 'floor-2',
     level: 2,
     name: 'Submerso',
     description: 'Abismo subaquático — colete os fragmentos',
@@ -45,6 +52,59 @@ export const FLOORS: FloorOption[] = [
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c-1.2 0-2.4.6-3 1.5C8.4 3.6 7.2 3 6 3c-2.4 0-4.5 2.1-4.5 4.5C1.5 12 12 21 12 21s10.5-9 10.5-13.5C22.5 5.1 20.4 3 18 3c-1.2 0-2.4.6-3 1.5-.6-.9-1.8-1.5-3-1.5z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'floor-3',
+    level: 3,
+    name: 'Andar 3',
+    description: 'Parkour rubber-hose nas nuvens',
+    color: 'from-emerald-400 via-green-500 to-emerald-400',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'floor-4',
+    level: 4,
+    name: 'Andar 4',
+    label: 'Andar 4',
+    description: 'Base plate (em construção) — blockout',
+    color: 'from-slate-400 via-zinc-300 to-slate-400',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75L12 4.5l8.25 5.25L12 15 3.75 9.75z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 14.25L12 19.5l8.25-5.25" />
+      </svg>
+    ),
+  },
+  {
+    id: 'transition-2-3',
+    level: 3,
+    name: 'Transição 2 → 3',
+    label: 'Cutscene',
+    description: 'Intro cartoon: as luvas dão "puck puck" + ragtime',
+    color: 'from-orange-300 via-amber-400 to-rose-400',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'floor-3-fall',
+    level: 3,
+    name: 'Queda do Diabrete',
+    label: 'Cutscene',
+    description: 'Vai direto pra cutscene da derrota (o Diabrete tropeça e cai)',
+    color: 'from-rose-500 via-red-500 to-rose-600',
+    variant: 'fallDemo',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 12l-3 3m0 0l-3-3m3 3V9" />
       </svg>
     ),
   },
@@ -56,7 +116,8 @@ interface CreatorModeProps {
 }
 
 export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerEnabled }) => {
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedFloor = FLOORS.find((f) => f.id === selectedId) ?? null;
 
   return (
     <div className="flex flex-col items-center gap-4 w-full max-w-sm mx-auto animate-fade-in-up">
@@ -70,14 +131,21 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
         Escolha um andar para começar diretamente. O fluxo normal do jogo será pulado.
       </p>
 
-      {/* Floor cards */}
-      <div className="flex flex-col gap-2.5 w-full">
+      {/* Floor cards — scrollable so the list never overflows the menu */}
+      <div className="flex flex-col gap-2.5 w-full max-h-[46vh] overflow-y-auto overflow-x-hidden px-1 py-0.5 creator-scroll">
+        <style>{`
+          .creator-scroll::-webkit-scrollbar { width: 7px; }
+          .creator-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 8px; }
+          .creator-scroll::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.45); border-radius: 8px; }
+          .creator-scroll::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,0.7); }
+          .creator-scroll { scrollbar-width: thin; scrollbar-color: rgba(168,85,247,0.5) rgba(255,255,255,0.04); }
+        `}</style>
         {FLOORS.map((floor) => {
-          const isSelected = selected === floor.level;
+          const isSelected = selectedId === floor.id;
           return (
             <button
-              key={floor.level}
-              onClick={() => setSelected(floor.level)}
+              key={floor.id}
+              onClick={() => setSelectedId(floor.id)}
               className={`
                 group relative w-full text-left rounded-xl transition-all duration-200
                 ${isSelected
@@ -101,7 +169,7 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-white/80'}`}>
-                      Andar {floor.level}
+                      {floor.label ?? `Andar ${floor.level}`}
                     </span>
                     <span className={`text-xs ${isSelected ? 'text-white/70' : 'text-white/40'}`}>
                       — {floor.name}
@@ -127,22 +195,25 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
       {/* Play button */}
       <button
         onClick={() => {
-          if (selected !== null) onSelect(selected, multiplayerEnabled);
+          if (selectedFloor) {
+            f3Demo.fall = selectedFloor.variant === 'fallDemo';   // arm the Floor-3 fall preview
+            onSelect(selectedFloor.level, multiplayerEnabled);
+          }
         }}
-        disabled={selected === null}
+        disabled={selectedFloor === null}
         className={`
           group relative w-full overflow-hidden rounded-xl transition-all duration-300
-          ${selected !== null ? 'hover:scale-[1.02] active:scale-[0.98]' : 'opacity-40 cursor-not-allowed'}
+          ${selectedFloor !== null ? 'hover:scale-[1.02] active:scale-[0.98]' : 'opacity-40 cursor-not-allowed'}
         `}
       >
-        <div className={`absolute -inset-0.5 bg-gradient-to-r from-purple-500 via-pink-400 to-purple-500 rounded-xl ${selected !== null ? 'opacity-70 group-hover:opacity-100 blur-sm' : 'opacity-30'} transition-opacity`} />
+        <div className={`absolute -inset-0.5 bg-gradient-to-r from-purple-500 via-pink-400 to-purple-500 rounded-xl ${selectedFloor !== null ? 'opacity-70 group-hover:opacity-100 blur-sm' : 'opacity-30'} transition-opacity`} />
         <div className="relative bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600 rounded-xl">
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent rounded-xl" />
           <div className="relative flex items-center justify-center gap-3 px-6 py-3.5 text-white font-bold text-sm tracking-widest">
             <span className="group-hover:tracking-[0.25em] transition-all duration-300">
-              {selected !== null ? `INICIAR NO ANDAR ${selected}` : 'SELECIONE UM ANDAR'}
+              {selectedFloor ? (selectedFloor.label ? selectedFloor.name.toUpperCase() : `INICIAR NO ANDAR ${selectedFloor.level}`) : 'SELECIONE UM ANDAR'}
             </span>
-            {selected !== null && (
+            {selectedFloor !== null && (
               <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z"/>
               </svg>

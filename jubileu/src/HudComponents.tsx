@@ -86,7 +86,7 @@ interface ElevatorHudProps {
 }
 
 export const ElevatorHud = React.memo(({ currentLevel, elevatorTimer, doorsClosed, arrivalPulse }: ElevatorHudProps) => (
-  <div className="absolute left-1/2 -translate-x-1/2 px-2 max-w-[calc(100%-1rem)] pe-none top-2 landscape:top-1">
+  <div className={`absolute left-1/2 -translate-x-1/2 px-2 max-w-[calc(100%-1rem)] pe-none top-2 landscape:top-1 ${currentLevel === 3 ? 'f3-hud' : ''}`}>
     <div className="relative">
       <div className={`absolute -inset-2 rounded-2xl blur-xl transition-opacity duration-500 ${(elevatorTimer !== null && elevatorTimer <= 5) ? 'bg-red-500/40 opacity-100' : arrivalPulse ? 'bg-green-400/50 opacity-100' : 'bg-amber-500/20 opacity-70'}`} />
       <div className="relative bg-gradient-to-b from-black/95 to-black/80 backdrop-blur-xl ring-1 ring-amber-500/40 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
@@ -316,21 +316,30 @@ export const NightBanner = ({ elevatorActive }: { elevatorActive: boolean }) => 
   </div>
 );
 
-export const ChaseBanner = ({ elevatorActive }: { elevatorActive: boolean }) => {
-  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+export const ChaseBanner = ({
+  elevatorActive,
+  barneyDistRef,
+}: {
+  elevatorActive: boolean;
+  barneyDistRef?: React.MutableRefObject<number>;
+}) => {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Heartbeat sound loop — speed increases over time
-    let beatCount = 0;
-    heartbeatRef.current = setInterval(() => {
-      beatCount++;
-      const speed = Math.min(1.0 + beatCount * 0.03, 2.5);
+    // Recursive setTimeout so interval shrinks as Barney closes in.
+    const scheduleBeat = () => {
+      const dist = barneyDistRef?.current ?? 12;
+      // danger 0 = far (≥12u), 1 = very close (≤2u)
+      const danger = Math.max(0, Math.min(1, (12 - dist) / 10));
+      const speed = 1.0 + danger * 1.4;
       playHeartbeat(speed);
-    }, 700);
-    return () => {
-      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+      timerRef.current = setTimeout(scheduleBeat, Math.round(700 - danger * 350));
     };
-  }, []);
+    scheduleBeat();
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [barneyDistRef]);
 
   return (
     <>

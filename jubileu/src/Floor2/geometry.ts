@@ -8,7 +8,11 @@
 
 import * as THREE from 'three';
 import { createNoise3D } from 'simplex-noise';
-import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS } from './constants';
+import { mergeBufferGeometries as mergeGeometries } from 'three-stdlib';
+import {
+    HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, STALAGMITES, STALACTITES,
+    UW_ROCK_COLLIDERS, UW_PILLAR_COLLIDERS,
+} from './constants';
 
 // ─── Simplex noise instance (shared across all procedural geometry) ─────
 // MUST be defined before any geometry that uses it (CAVE_FLOOR_GEO, etc.)
@@ -164,9 +168,11 @@ export const CAVE_FLOOR_GEO = (() => {
     shape.lineTo(-size,  size);
     shape.closePath();
     const hole = new THREE.Path();
-    hole.absarc(HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, 0, Math.PI * 2, false);
+    hole.absarc(HOLE_CENTER_X, -HOLE_CENTER_Z, HOLE_RADIUS, 0, Math.PI * 2, false);
     shape.holes.push(hole);
-    const geo = new THREE.ShapeGeometry(shape, 64);
+    // 64 → 96 curve segments around the hole — smoother circle silhouette
+    // and finer noise-displaced floor near the well rim.
+    const geo = new THREE.ShapeGeometry(shape, 96);
     const positions = geo.attributes.position;
     // ── Override UVs: map world-space XY → UV based on the full floor span.
     // ShapeGeometry auto-UVs can be wrong with holes, so we compute our own.
@@ -175,7 +181,7 @@ export const CAVE_FLOOR_GEO = (() => {
     for (let i = 0; i < positions.count; i++) {
         v.fromBufferAttribute(positions, i);
         const dxH = v.x - HOLE_CENTER_X;
-        const dyH = v.y - HOLE_CENTER_Z;
+        const dyH = v.y + HOLE_CENTER_Z;
         const distToHole = Math.sqrt(dxH * dxH + dyH * dyH);
         const holeFade = Math.min(1, Math.max(0, (distToHole - HOLE_RADIUS) / 3));
         const edgeDist = Math.min(
@@ -204,8 +210,29 @@ export const CAVE_FLOOR_GEO = (() => {
     return geo;
 })();
 
-// Cave ceiling — 3D organic, not flat
-export const CAVE_CEILING_GEO = createCaveCeiling(62, 62, 80, 99);
+// ─── Cave floor UNDERSIDE — flat slab WITH the same well hole ──────────
+// Sits just below the main floor to block X-ray from underwater looking up.
+// Must share the floor's circular hole, otherwise it becomes a solid "lid"
+// over the well mouth and you see rock instead of the water column below.
+export const CAVE_FLOOR_UNDERSIDE_GEO = (() => {
+    const shape = new THREE.Shape();
+    const size = 32;
+    shape.moveTo(-size, -size);
+    shape.lineTo( size, -size);
+    shape.lineTo( size,  size);
+    shape.lineTo(-size,  size);
+    shape.closePath();
+    const hole = new THREE.Path();
+    hole.absarc(HOLE_CENTER_X, -HOLE_CENTER_Z, HOLE_RADIUS, 0, Math.PI * 2, false);
+    shape.holes.push(hole);
+    const geo = new THREE.ShapeGeometry(shape, 96);
+    geo.setAttribute('uv2', geo.attributes.uv.clone());
+    return geo;
+})();
+
+// Cave ceiling — 3D organic, not flat. 80→64 segments: ~36% fewer vertices,
+// the stalactite-bump silhouette is visually identical from the floor.
+export const CAVE_CEILING_GEO = createCaveCeiling(62, 62, 64, 99);
 
 // DRY cave walls — organic displaced planes (above water, Y > 0)
 export const CAVE_WALL_N_GEO = createOrganicCaveWall(62, 10, 64, 0, 3.5);
@@ -220,40 +247,82 @@ export const UW_WALL_WEST_GEO  = createOrganicCaveWall(62, 35, 64, 60, 3.5);
 export const UW_WALL_EAST_GEO  = createOrganicCaveWall(62, 35, 64, 70, 3.5);
 
 // Pre-computed procedural rock geometries
-export const PROC_ROCK_A = createProceduralRock(1, 2, 0.35, 0);
-export const PROC_ROCK_B = createProceduralRock(1, 2, 0.3, 50);
-export const PROC_ROCK_C = createProceduralRock(1, 2, 0.4, 100);
-export const PROC_ROCK_D = createProceduralRock(1, 2, 0.25, 150);
+// Detail 2 → 3 quadruples the face count (80 → 320) so rocks read as smooth
+// silhouettes against the cave instead of obvious low-poly icosahedrons.
+export const PROC_ROCK_A = createProceduralRock(1, 3, 0.35, 0);
+export const PROC_ROCK_B = createProceduralRock(1, 3, 0.3, 50);
+export const PROC_ROCK_C = createProceduralRock(1, 3, 0.4, 100);
+export const PROC_ROCK_D = createProceduralRock(1, 3, 0.25, 150);
 
-// Pre-computed procedural stalactite/stalagmite geometries
+// Pre-computed procedural stalactite/stalagmite geometries.
+// Segment counts raised (10→18, 15→24) so the cone silhouette and Phong
+// shading hide the polygonal edges that read as "low poly" on close inspection.
 export const PROC_STALAGMITE_GEOS = [
-  createProceduralStalactite(2.5, 0.6, 0.05, 10, 15, 200),
-  createProceduralStalactite(3.2, 0.8, 0.05, 10, 15, 210),
-  createProceduralStalactite(2.0, 0.5, 0.05, 10, 15, 220),
-  createProceduralStalactite(2.8, 0.7, 0.05, 10, 15, 230),
-  createProceduralStalactite(1.8, 0.5, 0.05, 10, 15, 240),
-  createProceduralStalactite(2.1, 0.6, 0.05, 10, 15, 250),
-  createProceduralStalactite(2.4, 0.7, 0.05, 10, 15, 260),
-  createProceduralStalactite(1.5, 0.4, 0.05, 10, 15, 270),
-  createProceduralStalactite(3.0, 0.9, 0.05, 10, 15, 280),
+  createProceduralStalactite(2.5, 0.6, 0.05, 14, 16,200),
+  createProceduralStalactite(3.2, 0.8, 0.05, 14, 16,210),
+  createProceduralStalactite(2.0, 0.5, 0.05, 14, 16,220),
+  createProceduralStalactite(2.8, 0.7, 0.05, 14, 16,230),
+  createProceduralStalactite(1.8, 0.5, 0.05, 14, 16,240),
+  createProceduralStalactite(2.1, 0.6, 0.05, 14, 16,250),
+  createProceduralStalactite(2.4, 0.7, 0.05, 14, 16,260),
+  createProceduralStalactite(1.5, 0.4, 0.05, 14, 16,270),
+  createProceduralStalactite(3.0, 0.9, 0.05, 14, 16,280),
 ];
 export const PROC_STALACTITE_GEOS = [
-  createProceduralStalactite(1.5, 0.4, 0.05, 10, 15, 300),
-  createProceduralStalactite(1.8, 0.5, 0.05, 10, 15, 310),
-  createProceduralStalactite(1.2, 0.4, 0.05, 10, 15, 320),
-  createProceduralStalactite(2.0, 0.55, 0.05, 10, 15, 330),
-  createProceduralStalactite(1.4, 0.4, 0.05, 10, 15, 340),
-  createProceduralStalactite(1.6, 0.5, 0.05, 10, 15, 350),
-  createProceduralStalactite(1.3, 0.4, 0.05, 10, 15, 360),
-  createProceduralStalactite(1.7, 0.5, 0.05, 10, 15, 370),
-  createProceduralStalactite(2.5, 0.6, 0.05, 10, 15, 380),
-  createProceduralStalactite(2.2, 0.5, 0.05, 10, 15, 390),
+  createProceduralStalactite(1.5, 0.4, 0.05, 14, 16,300),
+  createProceduralStalactite(1.8, 0.5, 0.05, 14, 16,310),
+  createProceduralStalactite(1.2, 0.4, 0.05, 14, 16,320),
+  createProceduralStalactite(2.0, 0.55, 0.05, 14, 16,330),
+  createProceduralStalactite(1.4, 0.4, 0.05, 14, 16,340),
+  createProceduralStalactite(1.6, 0.5, 0.05, 14, 16,350),
+  createProceduralStalactite(1.3, 0.4, 0.05, 14, 16,360),
+  createProceduralStalactite(1.7, 0.5, 0.05, 14, 16,370),
+  createProceduralStalactite(2.5, 0.6, 0.05, 14, 16,380),
+  createProceduralStalactite(2.2, 0.5, 0.05, 14, 16,390),
 ];
+
+// ─── Merged stalagmite / stalactite geometry ────────────────────────────
+// Bakes all 15+15 individual meshes into 2 draw calls.
+const _mergeObj = new THREE.Object3D();
+export const MERGED_STALAGMITE_GEO: THREE.BufferGeometry = (() => {
+    const geos: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < STALAGMITES.length; i++) {
+        const [x, z, h] = STALAGMITES[i];
+        const geo = PROC_STALAGMITE_GEOS[i % PROC_STALAGMITE_GEOS.length].clone();
+        _mergeObj.position.set(x, h / 2, z);
+        _mergeObj.rotation.set(0, 0, 0);
+        _mergeObj.updateMatrix();
+        geo.applyMatrix4(_mergeObj.matrix);
+        geos.push(geo);
+    }
+    const merged = mergeGeometries(geos, false)!;
+    geos.forEach(g => g.dispose());
+    return merged;
+})();
+
+export const MERGED_STALACTITE_GEO: THREE.BufferGeometry = (() => {
+    const geos: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < STALACTITES.length; i++) {
+        const [x, z, h] = STALACTITES[i];
+        const geo = PROC_STALACTITE_GEOS[i % PROC_STALACTITE_GEOS.length].clone();
+        _mergeObj.position.set(x, 8 - h / 2, z);
+        _mergeObj.rotation.set(Math.PI, 0, 0);
+        _mergeObj.updateMatrix();
+        geo.applyMatrix4(_mergeObj.matrix);
+        geos.push(geo);
+    }
+    const merged = mergeGeometries(geos, false)!;
+    geos.forEach(g => g.dispose());
+    return merged;
+})();
 
 // Procedural underwater terrain — displaced PlaneGeometry (extends past walls)
 export const UW_FLOOR_GEO = (() => {
-    // 90×90 plane so it extends well past the ±30 UW walls, no edge gaps
-    const geo = new THREE.PlaneGeometry(90, 90, 200, 200);
+    // 90×90 plane so it extends well past the ±30 UW walls, no edge gaps.
+    // Segments 200→144: the displaced ridge silhouette is unchanged to the eye
+    // but the vertex count drops ~48% (40 401 → 21 025), a clean perf win since
+    // this full-floor mesh always fills the underwater view (no culling benefit).
+    const geo = new THREE.PlaneGeometry(90, 90, 144, 144);
     const positions = geo.attributes.position;
     const v = new THREE.Vector3();
     for (let i = 0; i < positions.count; i++) {
@@ -280,3 +349,147 @@ export const UW_FLOOR_GEO = (() => {
     geo.computeVertexNormals();
     return geo;
 })();
+
+// ─── Collision for the organic deformations ─────────────────────────────────
+// The underwater walls bulge inward (up to ~6 units) and the seafloor rises
+// into ridges (up to ~12 units). Both are displaced by a noise field that is
+// re-seeded randomly every load (createNoise3D() above), so colliders CANNOT
+// be recomputed independently — they must be read back from the SAME geometry
+// buffers that get rendered, or they won't line up. We extract two cheap
+// collision proxies at module load:
+//   • per-wall inward "inset" profile (24 buckets along each wall), so the
+//     player/shark are stopped at the real bulge surface instead of a flat ±26
+//     box that let them clip straight through the lumps.
+//   • a coarse seafloor height-field, so swimmers ride above the ridges
+//     instead of phasing through them.
+// Lookups are O(1), adding negligible per-frame cost for either agent.
+
+const WALL_BUCKETS = 24;
+const WALL_HALF    = 31;          // local half-width of the 62-wide wall plane
+const WALL_PLANE   = 30;          // |world coord| of each wall plane
+
+function _extractWallProfile(geo: THREE.BufferGeometry): Float32Array {
+    const prof = new Float32Array(WALL_BUCKETS);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+        // Walls sit at world y=-15; swimmers occupy world y∈[-29,-3] → the
+        // wall's LOCAL y band [-15, 13]. Ignoring the ceiling-side bulges keeps
+        // the proxy from feeling like an invisible wall up high.
+        const ly = pos.getY(i);
+        if (ly < -15 || ly > 13) continue;
+        const lx    = pos.getX(i);
+        const inset = pos.getZ(i);   // baked displacement, ≥ 0 (points inward)
+        const b = Math.min(WALL_BUCKETS - 1, Math.max(0,
+            Math.floor((lx + WALL_HALF) / (2 * WALL_HALF) * WALL_BUCKETS)));
+        if (inset > prof[b]) prof[b] = inset;
+    }
+    return prof;
+}
+
+const _profN = _extractWallProfile(UW_WALL_NORTH_GEO);
+const _profS = _extractWallProfile(UW_WALL_SOUTH_GEO);
+const _profW = _extractWallProfile(UW_WALL_WEST_GEO);
+const _profE = _extractWallProfile(UW_WALL_EAST_GEO);
+
+function _bucketAt(localAlong: number): number {
+    return Math.min(WALL_BUCKETS - 1, Math.max(0,
+        Math.floor((localAlong + WALL_HALF) / (2 * WALL_HALF) * WALL_BUCKETS)));
+}
+
+/**
+ * Push an XZ point out of the four organic underwater walls, following their
+ * real bulged surface. `radius` is the agent's body radius. Mutates `p`.
+ * (Y is irrelevant — the walls are vertical, so this is a pure XZ constraint.)
+ */
+export function resolveUWWalls(p: { x: number; z: number }, radius: number): void {
+    // North: plane z=-30, bulges toward +Z, along = world x (= local x)
+    const sN = -WALL_PLANE + _profN[_bucketAt(p.x)] + radius;
+    if (p.z < sN) p.z = sN;
+    // South: plane z=+30, bulges toward -Z, along = world x (= -local x)
+    const sS = WALL_PLANE - _profS[_bucketAt(-p.x)] - radius;
+    if (p.z > sS) p.z = sS;
+    // West: plane x=-30, bulges toward +X, along = world z (= -local x)
+    const sW = -WALL_PLANE + _profW[_bucketAt(-p.z)] + radius;
+    if (p.x < sW) p.x = sW;
+    // East: plane x=+30, bulges toward -X, along = world z (= local x)
+    const sE = WALL_PLANE - _profE[_bucketAt(p.z)] - radius;
+    if (p.x > sE) p.x = sE;
+}
+
+// ── Seafloor height-field ──────────────────────────────────────────────────
+const FLOOR_N    = 48;
+const FLOOR_HALF = 45;            // floor plane spans [-45, 45]
+const _floorH    = (() => {
+    const grid = new Float32Array(FLOOR_N * FLOOR_N).fill(-Infinity);
+    const pos = UW_FLOOR_GEO.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+        // Floor mesh: rotation [-π/2,0,0], position y=-30. local (x,y,z=disp) →
+        // world x = x, world z = -y, world height = -30 + disp.
+        const xw = pos.getX(i);
+        const zw = -pos.getY(i);
+        const h  = -30 + pos.getZ(i);
+        const cx = Math.min(FLOOR_N - 1, Math.max(0,
+            Math.floor((xw + FLOOR_HALF) / (2 * FLOOR_HALF) * FLOOR_N)));
+        const cz = Math.min(FLOOR_N - 1, Math.max(0,
+            Math.floor((zw + FLOOR_HALF) / (2 * FLOOR_HALF) * FLOOR_N)));
+        const idx = cz * FLOOR_N + cx;
+        if (h > grid[idx]) grid[idx] = h;
+    }
+    // Fill any empty cell (none expected) with the seafloor base.
+    for (let i = 0; i < grid.length; i++) if (!isFinite(grid[i])) grid[i] = -30;
+    return grid;
+})();
+
+/** World-space seafloor height (top of the ridges) at (x, z). */
+export function uwFloorHeight(x: number, z: number): number {
+    const cx = Math.min(FLOOR_N - 1, Math.max(0,
+        Math.floor((x + FLOOR_HALF) / (2 * FLOOR_HALF) * FLOOR_N)));
+    const cz = Math.min(FLOOR_N - 1, Math.max(0,
+        Math.floor((z + FLOOR_HALF) / (2 * FLOOR_HALF) * FLOOR_N)));
+    return _floorH[cz * FLOOR_N + cx];
+}
+
+// ── Hard obstacle push-out ──────────────────────────────────────────────────
+// The shark previously only ever AVOIDED the rocks and coral pillars via the
+// context-steering danger field — a soft preference, not a constraint. With
+// momentum (or a wall-peel nudge) it would drift bodily INTO a pillar/rock and
+// nothing pushed it back out, so it stayed embedded and vibrated in place (the
+// "enroscado" bug). This is the missing collision response: it ejects an XYZ
+// point out of every rock sphere and coral-pillar cylinder it penetrates,
+// exactly like resolveUWWalls does for the walls. Mutates `p`; returns true if
+// any correction was applied so the caller can kill the velocity digging in.
+export function resolveUWObstacles(p: { x: number; y: number; z: number }, radius: number): boolean {
+    let pushed = false;
+    // Coral pillars + arch legs — full-height XZ cylinders (Y ignored).
+    for (let i = 0; i < UW_PILLAR_COLLIDERS.length; i++) {
+        const c = UW_PILLAR_COLLIDERS[i];
+        const dx = p.x - c.x, dz = p.z - c.z;
+        const rr = c.r + radius;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < rr * rr) {
+            if (d2 > 1e-6) {
+                const d = Math.sqrt(d2);
+                const push = (rr - d) / d;
+                p.x += dx * push; p.z += dz * push;
+            } else {
+                p.x += rr;   // dead-centre — pick an arbitrary outward axis
+            }
+            pushed = true;
+        }
+    }
+    // Boulders / scattered rocks — 3D spheres (respect depth, so a shark gliding
+    // well above a seafloor boulder is never falsely pushed).
+    for (let i = 0; i < UW_ROCK_COLLIDERS.length; i++) {
+        const c = UW_ROCK_COLLIDERS[i];
+        const dx = p.x - c.x, dy = p.y - c.y, dz = p.z - c.z;
+        const rr = c.r + radius;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 < rr * rr && d2 > 1e-6) {
+            const d = Math.sqrt(d2);
+            const push = (rr - d) / d;
+            p.x += dx * push; p.y += dy * push; p.z += dz * push;
+            pushed = true;
+        }
+    }
+    return pushed;
+}

@@ -112,7 +112,7 @@ export const QUALITY_PROFILES: Record<Quality, QualityProfile> = {
         remoteLimit: 3,
     },
     medium: {
-        dpr: [1, 1.25],
+        dpr: [0.75, 1.0],
         far: 80,
         antialias: false,
         atmosphere: false,

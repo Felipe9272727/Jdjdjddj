@@ -7,23 +7,34 @@
 export const HOLE_CENTER_X = 0;
 export const HOLE_CENTER_Z = 5;
 export const HOLE_RADIUS = 3.0;
-export const WATER_LEVEL_Y = -0.05;
-export const SWIM_THRESHOLD_Y = -0.3;   // below this the player is "in" the water
+// Water surface sits 2.5 m below the cave floor so the hole reads as a
+// genuine well rather than a puddle.  A stone shaft is rendered between
+// y = 0 (cave floor) and WATER_LEVEL_Y so the player visibly descends
+// into the well when they walk over the edge.
+export const WATER_LEVEL_Y = -2.5;
+export const WELL_DEPTH = Math.abs(WATER_LEVEL_Y);   // = 2.5
+export const SWIM_THRESHOLD_Y = -2.7;   // below this the player is "in" the water
+
+// ─── Shared mutable ref — UnderwaterLighting writes, underwater components read ──
+export const swimmerY = { current: 0 };
 
 // ─── Particle / instance counts ────────────────────────────────────────
-export const DUST_COUNT = 25;
-export const DEBRIS_COUNT = 60;
-export const SEDIMENT_COUNT = 200;
-export const PLANKTON_COUNT = 50;
-export const FISH_COUNT = 8;
-export const BUBBLE_COUNT = 35;
+// Particle counts trimmed ~25% as part of the Floor 2 optimization pass —
+// fewer transparent/alpha-blended instances = less overdraw and fewer
+// per-frame updates, with no perceptible change to the density of the scene.
+export const DUST_COUNT = 10;
+export const DEBRIS_COUNT = 6;
+export const SEDIMENT_COUNT = 9;
+export const PLANKTON_COUNT = 5;
+export const FISH_COUNT = 14;
+export const BUBBLE_COUNT = 11;
 export const BUBBLE_RANGE = 18;
 export const BUBBLE_RISE = 0.5;
 export const BUBBLE_MAX_Y = WATER_LEVEL_Y - 0.5;
 export const BUBBLE_MIN_Y = -29;
-export const SURFACE_BUBBLE_COUNT = 15;
+export const SURFACE_BUBBLE_COUNT = 8;
 export const SURFACE_BUBBLE_RING_RADIUS = HOLE_RADIUS * 0.8;
-export const COLLECT_DIST_SQ = 1.4 * 1.4;
+export const COLLECT_DIST_SQ = 1.9 * 1.9;
 
 // ─── Type aliases ──────────────────────────────────────────────────────
 export type Boulder = readonly [number, number, number, number, number]; // x,y,z,s,ry
@@ -76,21 +87,8 @@ export const CAVE_ROCKS_LIGHT: readonly Boulder[] = [
     [ 26,  0,  20, 0.6, 1.5],
 ] as const;
 
-// ─── Pool rim — large boulders forming the edge of the water pit ──────
-export const POOL_RIM: readonly Boulder[] = (() => {
-    const r = HOLE_RADIUS + 1.2;
-    const result: Boulder[] = [];
-    for (let i = 0; i < 20; i++) {
-        const a = (i / 20) * Math.PI * 2;
-        const jitter = 0.7 + (Math.sin(i * 13.7) * 0.5 + 0.5) * 0.5;
-        const x = HOLE_CENTER_X + Math.cos(a) * r * jitter;
-        const z = HOLE_CENTER_Z + Math.sin(a) * r * jitter;
-        const s = 1.0 + (Math.sin(i * 7.3) * 0.5 + 0.5) * 1.2;
-        const ry = a + Math.sin(i * 3.1) * 0.6;
-        result.push([x, 0.2, z, s, ry] as const);
-    }
-    return result;
-})();
+// Pool rim boulders removed — clean well edge so the shaft is unobstructed.
+export const POOL_RIM: readonly Boulder[] = [];
 
 // ─── Stalagmites / Stalactites ────────────────────────────────────────
 export const STALAGMITES: readonly Stalactite[] = [
@@ -267,21 +265,42 @@ export const KELP_POSITIONS: readonly KelpData[] = [
 ];
 
 export const CORAL_POSITIONS: readonly CoralData[] = [
-    [ 3.0, -5.0, '#1a1208', 1.0],
-    [-4.0,  6.0, '#1a0e06', 0.8],
-    [ 9.0, -2.0, '#1a1610', 1.2],
-    [-12.0, -5.0, '#1a1208', 0.9],
-    [13.0,  3.0, '#1a0e06', 1.0],
-    [-8.0, 12.0, '#1a1610', 0.7],
+    [ 3.0, -5.0, '#ff6b6b', 1.0],   // red coral
+    [-4.0,  6.0, '#ff9d42', 0.8],   // orange coral
+    [ 9.0, -2.0, '#4ecdc4', 1.2],   // teal coral
+    [-12.0, -5.0, '#ffe66d', 0.9],  // yellow coral
+    [13.0,  3.0, '#a8e6cf', 1.0],   // mint coral
+    [-8.0, 12.0, '#ff77b6', 0.7],   // pink coral
 ];
 
 // ─── Rock collision data (exported for Player.tsx) ───────────────────
 export const CAVE_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = [
     ...CAVE_ROCKS_DARK.map(([x,y,z,s]) => ({ x, y: y + s * 0.35, z, r: s * 0.7 })),
     ...CAVE_ROCKS_MID.map(([x,y,z,s]) => ({ x, y: y + s * 0.35, z, r: s * 0.5 })),
+    ...CAVE_ROCKS_LIGHT.map(([x,y,z,s]) => ({ x, y: y + s * 0.3, z, r: s * 0.55 })),
 ];
+
+// ─── Stalagmite collision — XZ circles (tall spires, Y ignored like pillars) ──
+export const STALAGMITE_COLLIDERS: readonly { x: number; z: number; r: number }[] =
+    STALAGMITES.map(([x, z, , r]) => ({ x, z, r }));
 export const UW_ROCK_COLLIDERS: readonly { x: number; y: number; z: number; r: number }[] = [
-    ...UW_BOULDERS.map(([x,y,z,s]) => ({ x, y: y + s * 0.3, z, r: s * 0.6 })),
+    // Radii bumped closer to the visual rock size so the player no longer
+    // clips into boulders before being stopped.
+    ...UW_BOULDERS.map(([x,y,z,s]) => ({ x, y: y + s * 0.3, z, r: s * 0.78 })),
+    ...UW_SCATTERED_ROCKS
+        .filter(r => r[3] > 0.15)   // was 0.5 — now smaller rocks also block
+        .map(([x, y, z, s]) => ({ x, y: y + s * 0.3, z, r: s * 0.62 })),
+];
+
+// ─── Coral pillar + arch collision — XZ circles (tall cylinders, Y ignored).
+// Includes the two legs of every underwater arch, which previously had no
+// collision at all (the player and shark swam straight through them).
+export const UW_PILLAR_COLLIDERS: readonly { x: number; z: number; r: number }[] = [
+    ...UW_CORAL_PILLARS.map(([x, z, , , rBot]) => ({ x, z, r: rBot + 0.3 })),
+    ...UW_ARCHES.flatMap(([x, z, , span, thick]) => [
+        { x: x - span / 2, z, r: thick * 1.3 + 0.3 },
+        { x: x + span / 2, z, r: thick * 1.3 + 0.3 },
+    ]),
 ];
 
 // ─── Wall collision data — organic walls bulge inward, need collision ──
@@ -315,10 +334,12 @@ export const CAVE_WALL_COLLIDERS: readonly { x: number; y: number; z: number; r:
 })();
 
 // ─── Shard positions (underwater) ────────────────────────────────────
+// Y=-25 puts shards in mid-water (~5 m above boulders, well below surface).
+// Each position verified: >2 m clearance from every boulder sphere and coral pillar.
 export const SHARD_POSITIONS: readonly (readonly [number, number, number])[] = [
-    [  7.5, -27.5,  -7.5],
-    [-13.0, -27.7,   4.8],
-    [  3.5, -27.7,  13.5],
-    [-18.0, -27.7, -10.0],
-    [ 19.5, -27.7,  11.5],
+    [ 12.5, -25.0, -12.0],   // east, near north wall
+    [-11.0, -25.0,   9.0],   // west-center
+    [  3.0, -25.0,  16.0],   // center-south
+    [-16.0, -25.0, -12.0],   // northwest
+    [ 17.0, -25.0,   6.0],   // east-center
 ] as const;

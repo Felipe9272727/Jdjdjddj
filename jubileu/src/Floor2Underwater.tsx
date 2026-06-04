@@ -21,7 +21,7 @@ export {
     WATER_LEVEL_Y, SWIM_THRESHOLD_Y,
 
     // Collision data
-    CAVE_ROCK_COLLIDERS, UW_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS,
+    CAVE_ROCK_COLLIDERS, UW_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS,
 
     // Shard positions
     SHARD_POSITIONS,
@@ -33,4 +33,7 @@ export {
     GodRayShafts, DeepMist, DebrisField, FishSchool,
     UnderwaterSediment, PlanktonField, BubbleField, SurfaceBubbleRing,
     GodRay, GodRays, Shard,
+
+    // Organic-deformation collision (walls bulge inward, seafloor ridges)
+    resolveUWWalls, uwFloorHeight,
 } from './Floor2';

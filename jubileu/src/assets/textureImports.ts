@@ -54,3 +54,7 @@ export { default as rockModelC }   from './models/rocks/rock_c.glb';
 export { default as rockModelD }   from './models/rocks/rock_d.glb';
 export { default as boulderModel } from './models/rocks/boulder.glb';
 export { default as pebbleModel }  from './models/rocks/pebble.glb';
+
+// ─── NPC models ────────────────────────────────────────────────────
+// Hotel concierge — Floor 2 bearded diver NPC. GLB delivered by Felipe.
+export { default as hotelConciergeModel } from './models/hotel-concierge.glb';

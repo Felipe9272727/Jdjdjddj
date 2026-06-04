@@ -1,6 +1,13 @@
 /**
  * InventorySystem.tsx — Session inventory + HUD.
  *
+ * Items:
+ *  - flashlight: cone of light + 3D model. Toggle on/off.
+ *  - cookie:     consumable. Eats one, plays heal flash.
+ *  - rebreather: passive. Lets the player breathe underwater (Floor 2).
+ *                Owned-only (no toggle). Shown as a tiny equipped indicator.
+ *  - nightVision: toggle. Greenish vision + ambient light boost on Floor 2.
+ *
  * Stack:
  *  - useInventory(): hook that owns the inventory state and exposes actions.
  *  - InventoryHUD: amber/black HUD chip that mirrors the lobby's Undertale
@@ -15,16 +22,20 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 
-export type ItemId = 'flashlight' | 'cookie';
+export type ItemId = 'flashlight' | 'cookie' | 'rebreather' | 'nightVision';
 
 export interface InventoryState {
   flashlight: { owned: boolean; active: boolean };
   cookie: { count: number };
+  rebreather: { owned: boolean };
+  nightVision: { owned: boolean; active: boolean };
 }
 
 const EMPTY: InventoryState = {
   flashlight: { owned: false, active: false },
   cookie: { count: 0 },
+  rebreather: { owned: false },
+  nightVision: { owned: false, active: false },
 };
 
 export function useInventory() {
@@ -39,6 +50,14 @@ export function useInventory() {
       if (id === 'cookie') {
         return { ...prev, cookie: { count: prev.cookie.count + 1 } };
       }
+      if (id === 'rebreather') {
+        if (prev.rebreather.owned) return prev;
+        return { ...prev, rebreather: { owned: true } };
+      }
+      if (id === 'nightVision') {
+        if (prev.nightVision.owned) return prev;
+        return { ...prev, nightVision: { owned: true, active: false } };
+      }
       return prev;
     });
   }, []);
@@ -47,6 +66,13 @@ export function useInventory() {
     setInventory(prev => {
       if (!prev.flashlight.owned) return prev;
       return { ...prev, flashlight: { ...prev.flashlight, active: !prev.flashlight.active } };
+    });
+  }, []);
+
+  const toggleNightVision = useCallback(() => {
+    setInventory(prev => {
+      if (!prev.nightVision.owned) return prev;
+      return { ...prev, nightVision: { ...prev.nightVision, active: !prev.nightVision.active } };
     });
   }, []);
 
@@ -60,9 +86,20 @@ export function useInventory() {
     return ok;
   }, []);
 
-  const hasAnyItem = inventory.flashlight.owned || inventory.cookie.count > 0;
+  const hasAnyItem =
+    inventory.flashlight.owned ||
+    inventory.cookie.count > 0 ||
+    inventory.rebreather.owned ||
+    inventory.nightVision.owned;
 
-  return { inventory, addItem, toggleFlashlight, useCookie, hasAnyItem };
+  return {
+    inventory,
+    addItem,
+    toggleFlashlight,
+    toggleNightVision,
+    useCookie,
+    hasAnyItem,
+  };
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -71,6 +108,7 @@ export function useInventory() {
 interface InventoryHUDProps {
   inventory: InventoryState;
   onToggleFlashlight: () => void;
+  onToggleNightVision: () => void;
   onUseCookie: () => boolean;
   hasAnyItem: boolean;
 }
@@ -78,6 +116,7 @@ interface InventoryHUDProps {
 export const InventoryHUD: React.FC<InventoryHUDProps> = ({
   inventory,
   onToggleFlashlight,
+  onToggleNightVision,
   onUseCookie,
   hasAnyItem,
 }) => {
@@ -85,8 +124,10 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
   const [cookieEffect, setCookieEffect] = useState(false);
   // "New item" flash for the icon — toggled true briefly when the item is
   // first acquired, so the icon does its appearance animation.
-  const [flashNew, setFlashNew] = useState(false);
+  const [flashNew, setFlashNew] = useState<null | ItemId>(null);
   const prevFlashlight = useRef(inventory.flashlight.owned);
+  const prevRebreather = useRef(inventory.rebreather.owned);
+  const prevNightVision = useRef(inventory.nightVision.owned);
   const prevCookies = useRef(inventory.cookie.count);
   const notifTimerRef = useRef<number | null>(null);
 
@@ -101,14 +142,26 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
     if (notifTimerRef.current !== null) window.clearTimeout(notifTimerRef.current);
   }, []);
 
-  // Detect first-time flashlight acquisition
+  // Detect first-time acquisitions (during render — safe because state mutations
+  // are guarded by the prev ref).
   if (inventory.flashlight.owned && !prevFlashlight.current) {
     prevFlashlight.current = true;
-    setFlashNew(true);
-    window.setTimeout(() => setFlashNew(false), 700);
+    setFlashNew('flashlight');
+    window.setTimeout(() => setFlashNew(null), 700);
     showNotif('* Você adquiriu a {Lanterna}.');
   }
-  // Detect new cookie
+  if (inventory.rebreather.owned && !prevRebreather.current) {
+    prevRebreather.current = true;
+    setFlashNew('rebreather');
+    window.setTimeout(() => setFlashNew(null), 700);
+    showNotif('* Você equipou o {Respirador}.');
+  }
+  if (inventory.nightVision.owned && !prevNightVision.current) {
+    prevNightVision.current = true;
+    setFlashNew('nightVision');
+    window.setTimeout(() => setFlashNew(null), 700);
+    showNotif('* Você adquiriu a {Visão Noturna}.');
+  }
   if (inventory.cookie.count > prevCookies.current) {
     showNotif('* Você adquiriu um {Biscoito}.');
   }
@@ -124,7 +177,7 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
 
   if (!hasAnyItem && !notification && !cookieEffect) return null;
 
-  const { flashlight, cookie } = inventory;
+  const { flashlight, cookie, rebreather, nightVision } = inventory;
 
   return (
     <>
@@ -164,11 +217,10 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
                   ${flashlight.active
                     ? 'bg-amber-500/15 border-amber-400 shadow-[0_0_18px_rgba(251,191,36,0.65)] animate-flash-breath'
                     : 'bg-black/40 border-amber-500/30 hover:border-amber-400/60'}
-                  ${flashNew ? 'animate-flash-appear' : ''}
+                  ${flashNew === 'flashlight' ? 'animate-flash-appear' : ''}
                 `}
                 aria-label={flashlight.active ? 'Desligar lanterna' : 'Ligar lanterna'}
               >
-                {/* Keyboard hint chip — only on devices that have a keyboard. */}
                 <span className="hidden md:block absolute -top-1.5 -left-1.5 px-1 text-[8px] font-mono font-bold
                                  bg-amber-500 text-black rounded-sm pointer-events-none leading-none py-0.5">
                   F
@@ -188,6 +240,75 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
                   )}
                 </svg>
               </button>
+            )}
+
+            {nightVision.owned && (
+              <button
+                type="button"
+                onClick={onToggleNightVision}
+                title={nightVision.active ? 'Desligar visão noturna (N)' : 'Ligar visão noturna (N)'}
+                className={`
+                  relative w-12 h-12 flex items-center justify-center
+                  rounded-sm border transition-all touch-manipulation
+                  active:scale-90
+                  ${nightVision.active
+                    ? 'bg-emerald-500/20 border-emerald-300 shadow-[0_0_22px_rgba(74,222,128,0.75)] animate-nv-breath'
+                    : 'bg-black/40 border-emerald-500/35 hover:border-emerald-400/60'}
+                  ${flashNew === 'nightVision' ? 'animate-flash-appear' : ''}
+                `}
+                aria-label={nightVision.active ? 'Desligar visão noturna' : 'Ligar visão noturna'}
+              >
+                <span className="hidden md:block absolute -top-1.5 -left-1.5 px-1 text-[8px] font-mono font-bold
+                                 bg-emerald-400 text-black rounded-sm pointer-events-none leading-none py-0.5">
+                  N
+                </span>
+                {/* Goggles SVG — two lenses + nose bridge */}
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <circle cx="7.5" cy="13" r="4"
+                    fill={nightVision.active ? '#A7F3D0' : '#333'}
+                    stroke={nightVision.active ? '#10B981' : '#666'} strokeWidth="1.2"/>
+                  <circle cx="16.5" cy="13" r="4"
+                    fill={nightVision.active ? '#A7F3D0' : '#333'}
+                    stroke={nightVision.active ? '#10B981' : '#666'} strokeWidth="1.2"/>
+                  <rect x="10.6" y="12.2" width="2.8" height="1.6" rx="0.3"
+                    fill={nightVision.active ? '#10B981' : '#444'}/>
+                  <path d="M3.5 11.5 L5 9.5 M18.5 9.5 L20 11.5"
+                    stroke={nightVision.active ? '#10B981' : '#666'} strokeWidth="1.1" strokeLinecap="round"/>
+                  {nightVision.active && (
+                    <>
+                      <circle cx="7.5" cy="13" r="1.2" fill="#FFFFFF" opacity="0.85"/>
+                      <circle cx="16.5" cy="13" r="1.2" fill="#FFFFFF" opacity="0.85"/>
+                    </>
+                  )}
+                </svg>
+              </button>
+            )}
+
+            {rebreather.owned && (
+              <div
+                title="Respirador equipado"
+                className={`
+                  relative w-12 h-12 flex items-center justify-center
+                  rounded-sm border border-cyan-500/40
+                  bg-cyan-500/5 shadow-[0_0_12px_rgba(34,211,238,0.18)]
+                  ${flashNew === 'rebreather' ? 'animate-flash-appear' : ''}
+                `}
+                aria-label="Respirador equipado"
+              >
+                {/* Diving mask SVG — round lens + strap + breathing tube */}
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <ellipse cx="12" cy="11.5" rx="6.2" ry="5"
+                    fill="#0E7490" stroke="#155E75" strokeWidth="0.9" opacity="0.9"/>
+                  <ellipse cx="12" cy="11" rx="4.6" ry="3.6" fill="#67E8F9" opacity="0.6"/>
+                  <ellipse cx="13.2" cy="9.9" rx="1.4" ry="1.0" fill="#FFFFFF" opacity="0.75"/>
+                  <path d="M5.8 11.5 H3.5 M18.2 11.5 H20.5"
+                    stroke="#0E7490" strokeWidth="1.2" strokeLinecap="round"/>
+                  <rect x="11" y="16" width="2" height="4.5" rx="0.6" fill="#155E75"/>
+                  <rect x="10.2" y="19.8" width="3.6" height="1.2" rx="0.3" fill="#0E7490"/>
+                </svg>
+                {/* Subtle breathing pulse */}
+                <span className="pointer-events-none absolute inset-0 rounded-sm animate-rebr-pulse" />
+              </div>
             )}
 
             {cookie.count > 0 && (
@@ -280,6 +401,16 @@ export const InventoryHUD: React.FC<InventoryHUDProps> = ({
           50%      { box-shadow: 0 0 22px rgba(251,191,36,0.85); }
         }
         .animate-flash-breath { animation: flashBreath 2.2s ease-in-out infinite; }
+        @keyframes nvBreath {
+          0%, 100% { box-shadow: 0 0 18px rgba(74,222,128,0.55); }
+          50%      { box-shadow: 0 0 28px rgba(74,222,128,0.95); }
+        }
+        .animate-nv-breath { animation: nvBreath 1.6s ease-in-out infinite; }
+        @keyframes rebrPulse {
+          0%, 100% { box-shadow: inset 0 0 6px rgba(34,211,238,0.25); }
+          50%      { box-shadow: inset 0 0 14px rgba(34,211,238,0.55); }
+        }
+        .animate-rebr-pulse { animation: rebrPulse 3.4s ease-in-out infinite; }
         @keyframes flashAppear {
           0%   { opacity: 0; transform: scale(0.5) rotate(-8deg); }
           60%  { opacity: 1; transform: scale(1.1) rotate(2deg); }

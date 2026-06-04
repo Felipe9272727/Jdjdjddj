@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { attachMusicBus, detachMusicBus, getMusicBus, setMusicActive } from './musicDirector';
 
-export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameState, currentLevel = 0, doorsClosed = false, masterVolume = 1 }: any) => {
+export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode, gameState, currentLevel = 0, doorsClosed = false, masterVolume = 1, busRef }: any) => {
   const lobbyGainRef = useRef<any>(null);
   const elevatorGainRef = useRef<any>(null);
   const masterGainRef = useRef<any>(null);
@@ -147,7 +148,19 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
            if (elapsed >= duration) { tracksRef.current[from as keyof typeof tracksRef.current].active = false; tracksRef.current[from as keyof typeof tracksRef.current].volume = 0; tracksRef.current[to as keyof typeof tracksRef.current].volume = 1; crossfadeRef.current.active = false; }
            else { const t = elapsed / duration; tracksRef.current[from as keyof typeof tracksRef.current].volume = 1 - t; tracksRef.current[to as keyof typeof tracksRef.current].volume = t; }
       }
+      // Lobby music belongs ONLY in the saguão (level 0). On every other floor
+      // it must be silent — otherwise it bleeds under the Barney theme / Floor-2
+      // bed / Floor-3 ragtime ("algumas músicas se sobrepõem"), and when Creator
+      // Mode jumps straight to a floor (skipping the lobby→elevator crossfade
+      // that normally fades it out) it just keeps looping forever. Force its
+      // target to 0 whenever we're off level 0.
+      if (currentLevel !== 0) { tracksRef.current.lobby.volume = 0; tracksRef.current.lobby.active = false; }
       if (lobbyGainRef.current) lobbyGainRef.current.gain.setTargetAtTime(tracksRef.current.lobby.volume, now, 0.05);
+
+      // Tell the director when this engine actually wants the floor: the lobby
+      // (level 0), the Barney theme (level 1), or an elevator ride. Off those,
+      // the engine group is muted so it can't bleed under another floor's music.
+      setMusicActive('engine', currentLevel === 0 || currentLevel === 1 || tracksRef.current.elevator.active);
       if (elevatorGainRef.current) elevatorGainRef.current.gain.setTargetAtTime(tracksRef.current.elevator.volume, now, 0.05);
       
       const elevatorTrack = tracksRef.current.elevator;
@@ -209,16 +222,30 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
       compressor.connect(makeupGain); makeupGain.connect(ctx.destination);
       const reverbInput = setupReverb(ctx, compressor);
       masterGainRef.current = reverbInput;
-      const lobbyGain = ctx.createGain(); lobbyGain.gain.value = 1.0; lobbyGain.connect(reverbInput); lobbyGainRef.current = lobbyGain;
-      const elevatorGain = ctx.createGain(); elevatorGain.gain.value = 0; elevatorGain.connect(reverbInput); elevatorGainRef.current = elevatorGain;
-      
-      const barneyGain = ctx.createGain(); barneyGain.gain.value = 0; 
-      const barneyFilter = ctx.createBiquadFilter(); 
-      barneyFilter.type = 'lowpass'; 
+      // Expose the master bus (post-mute, post-volume, pre-reverb) so other
+      // systems — e.g. the Floor-3 cartoon ragtime/SFX — can route through the
+      // same mix instead of wiring straight to ctx.destination (which would
+      // bypass mute + the volume slider and overlap everything).
+      if (busRef) busRef.current = reverbInput;
+
+      // Hand the director the master bus, then route ALL three of this engine's
+      // tracks through one shared "engine" group bus. The director guarantees
+      // only the top-priority active group is ever audible, so this engine's
+      // music can never overlap the Floor-2 bed / Floor-3 ragtime / chase.
+      // (lobby↔elevator↔barney still crossfade among themselves BELOW this bus.)
+      attachMusicBus(ctx, reverbInput);
+      const engineBus = getMusicBus('engine', 10) ?? reverbInput;
+
+      const lobbyGain = ctx.createGain(); lobbyGain.gain.value = 1.0; lobbyGain.connect(engineBus); lobbyGainRef.current = lobbyGain;
+      const elevatorGain = ctx.createGain(); elevatorGain.gain.value = 0; elevatorGain.connect(engineBus); elevatorGainRef.current = elevatorGain;
+
+      const barneyGain = ctx.createGain(); barneyGain.gain.value = 0;
+      const barneyFilter = ctx.createBiquadFilter();
+      barneyFilter.type = 'lowpass';
       barneyFilter.frequency.value = 20000;
       barneyFilter.Q.value = 1;
       barneyFilter.connect(barneyGain);
-      barneyGain.connect(reverbInput);
+      barneyGain.connect(engineBus);
       barneyGainRef.current = barneyGain;
       barneyFilterRef.current = barneyFilter;
 
@@ -236,23 +263,13 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
       }
       
       // Barney theme: load on mount so it's ready when the chase starts.
-      // The ~2MB file loads in background while the player is in the lobby.
-      // Try repo first (same host as other tracks, CORS-friendly), fallback to archive.org
-      const BARNEY_URLS = [
-          'https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/Barney%20Theme%20Song.mp3',
-          'https://archive.org/download/barneysgreatesthits/Barney%20Theme%20Song.mp3'
-      ];
-      const fetchWithFallback = async (urls: string[]): Promise<ArrayBuffer> => {
-          for (const url of urls) {
-              try {
-                  const r = await fetch(url);
-                  if (r.ok) return await r.arrayBuffer();
-              } catch (e) { /* try next */ }
-          }
-          throw new Error(`All URLs failed for ${urls[0]}`);
-      };
+      // Bundled locally in public/ — the old raw.githubusercontent URL
+      // pointed at a file that was never committed, so it 404'd on every
+      // boot. Serving it from the app origin removes the network dependency
+      // entirely (no 404, no CORS, works offline).
       if (!barneyBufferRef.current) {
-          fetchWithFallback(BARNEY_URLS)
+          fetch(`${import.meta.env.BASE_URL}barney-theme.mp3`)
+              .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
               .then(b => ctx.decodeAudioData(b))
               .then(audioBuf => {
                   if (!isMounted) return;
@@ -290,6 +307,8 @@ export const LiminalAudioEngine = ({ doorTrigger, audioContext, muted, nightMode
           try { reverbInput.disconnect(); } catch(e) {}
           try { compressor.disconnect(); } catch(e) {}
           try { makeupGain.disconnect(); } catch(e) {}
+          detachMusicBus();
+          if (busRef) busRef.current = null;
           masterGainRef.current = null;
           lobbyGainRef.current = null;
           elevatorGainRef.current = null;

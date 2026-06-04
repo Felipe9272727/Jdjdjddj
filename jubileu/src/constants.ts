@@ -77,6 +77,58 @@ export const DIALOGUE_TREE: Record<string, any> = {
   "joke": { "text": "Eu não tenho senso de humor. Fui fabricado sem ele.", "options": [{ "text": "Ah.", "next": "start" }] }
 };
 
+// Bearded diver on Floor 2 — uses `EQUIP` and `LEAVE` as terminal action
+// keys (handled in App.tsx, not as further nodes).
+export const DIVER_DIALOGUE: Record<string, any> = {
+  "greet": {
+    "text": "Ahh... mais um turista. Eu estava te esperando, sabe? Há quanto tempo? Os relógios aqui embaixo... ficam confusos.",
+    "options": [
+      { "text": "Quem é você?", "next": "who" },
+      { "text": "O que tem aí na sua mão?", "next": "what" }
+    ]
+  },
+  "who": {
+    "text": "Eu fui o mergulhador da casa. Antes dela ser uma casa. Antes dela ser qualquer coisa. Agora eu... eu cuido das pessoas que descem.",
+    "options": [
+      { "text": "E o que é isso aí?", "next": "what" },
+      { "text": "Cuida como?", "next": "care" }
+    ]
+  },
+  "care": {
+    "text": "Faço com que vocês respirem. E faço com que vocês vejam. As duas coisas são igualmente importantes. Especialmente aqui embaixo.",
+    "options": [
+      { "text": "Me dá esse troço.", "next": "offer" }
+    ]
+  },
+  "what": {
+    "text": "Um respirador. Com binóculos. Você vai precisar dos dois. A água lá embaixo... não é só água. E está bem escuro lá embaixo.",
+    "options": [
+      { "text": "Por que está me oferecendo isso?", "next": "why" },
+      { "text": "Tá, pode passar.", "next": "offer" }
+    ]
+  },
+  "why": {
+    "text": "Porque eu não quero ver mais ninguém afogado lá em baixo. Já tem gente demais lá embaixo. Coloca isso e vai.",
+    "options": [
+      { "text": "Tá bom, me dá.", "next": "offer" }
+    ]
+  },
+  "offer": {
+    "text": "Toma. Encaixa direitinho na cara. Depois é só apertar o botãozinho na lateral pra acender a visão. Aperta a tecla N — vai te lembrar disso.",
+    "options": [
+      { "text": "[Colocar o respirador]", "next": "EQUIP" },
+      { "text": "Prefiro nadar sem.", "next": "refuse" }
+    ]
+  },
+  "refuse": {
+    "text": "Bem... então boa sorte. Eu fico aqui. Caso você mude de ideia, é só voltar. Se conseguir voltar.",
+    "options": [
+      { "text": "Pensando bem...", "next": "offer" },
+      { "text": "[Sair]", "next": "LEAVE" }
+    ]
+  }
+};
+
 export const SPEED = 4.0;
 export const PR = 0.5;
 export const EZ_START = -10.0;
@@ -140,6 +192,51 @@ const _HOUSE_BASE = [...ELEV_W, ...L1_BND, ...ELEV_BLD, ...HOUSE_EX, ...HOUSE_IN
 
 const _WALLS_LOBBY_OPEN          = _LOBBY_BASE;
 const _WALLS_LOBBY_SEALED        = [..._LOBBY_BASE, DOOR_SEAL];
+
+// Floor 3 — Endless Cartoon Parkour. Side walls at X: ±14 keep the player in
+// the corridor; they run far into +Z because the climb is now infinite (see
+// f3Parkour.ts). No far wall — falling into the void (y < -8) is the only way
+// off the course, handled by the respawn logic in Player.tsx.
+const F3_CORRIDOR_FAR_Z = 100000;   // effectively infinite — the climb never ends
+const FLOOR3_BND: number[][] = [
+    [-14, -10, -1.3, -10],            // left of elevator doorway
+    [1.3,  -10,  14, -10],            // right of elevator doorway
+    [-14,  -10, -14,  F3_CORRIDOR_FAR_Z],   // left boundary (endless)
+    [ 14,  -10,  14,  F3_CORRIDOR_FAR_Z],   // right boundary (endless)
+];
+
+// Platform definitions for the Floor 3 obby.
+// cx/cz = center, hw/hd = half-extents in XZ, topY = player foot level, h = visual height.
+export interface F3Platform {
+    cx: number; cz: number;
+    hw: number; hd: number;
+    topY: number;
+    h: number;
+    moving?: boolean;   // oscillates ±F3_MOVE_AMP in X
+}
+
+export const F3_MOVE_AMP = 2.8;   // moving platform X amplitude
+
+export const F3_PLATFORMS: readonly F3Platform[] = [
+    // Start floor (matches elevator area)
+    { cx: 0,    cz: -5.0, hw: 6.5, hd: 4.5, topY: 0,   h: 0.5 },
+    // Step 1 — tutorial hop (same height)
+    { cx: 0,    cz:  2.0, hw: 1.8, hd: 1.8, topY: 0.1, h: 0.5 },
+    // Step 2 — up, straight
+    { cx: 0,    cz:  6.0, hw: 1.3, hd: 1.3, topY: 1.5, h: 0.5 },
+    // Step 3 — up, offset left
+    { cx: -1.5, cz: 10.0, hw: 1.3, hd: 1.3, topY: 3.0, h: 0.5 },
+    // Step 4 — moving platform
+    { cx: 0,    cz: 13.5, hw: 1.1, hd: 1.1, topY: 4.5, h: 0.5, moving: true },
+    // GOAL
+    { cx: 0,    cz: 17.5, hw: 2.5, hd: 2.5, topY: 6.0, h: 1.0 },
+];
+
+// Shared mutable: Floor3Environment writes the current X offset of the
+// moving platform every frame; Player.tsx physics reads it for collision.
+export const f3MovingX = { current: 0 };
+const _WALLS_FLOOR3              = [...ELEV_W, ...FLOOR3_BND];
+const _WALLS_FLOOR3_SEALED       = [..._WALLS_FLOOR3, DOOR_SEAL];
 const _WALLS_HOUSE_OPEN          = _HOUSE_BASE;
 const _WALLS_HOUSE_DOOR          = [..._HOUSE_BASE, HOUSE_DW];
 const _WALLS_HOUSE_SEALED        = [..._HOUSE_BASE, DOOR_SEAL];
@@ -165,6 +262,7 @@ const _WALLS_LEVEL2_SEALED        = [..._LEVEL2_BASE, DOOR_SEAL];
 export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
     if (level === 0) return doorsClosed ? _WALLS_LOBBY_SEALED : _WALLS_LOBBY_OPEN;
     if (level === 2) return doorsClosed ? _WALLS_LEVEL2_SEALED : _WALLS_LEVEL2_OPEN;
+    if (level === 3) return doorsClosed ? _WALLS_FLOOR3_SEALED : _WALLS_FLOOR3;
     if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
     return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;
 };

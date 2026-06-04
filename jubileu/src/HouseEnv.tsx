@@ -3,6 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF, Instances, Instance, useTexture } from '@react-three/drei';
 import { ASSETS, COLORS, BARNEY_URL } from './constants';
 import { TextureMaterial } from './Materials';
+import { ContextSteer, interceptTime } from './ai/contextSteering';
+import { AIDirector } from './ai/AIDirector';
 
 useTexture.preload(BARNEY_URL);
 import { ElevatorFacade } from './Elevator';
@@ -158,6 +160,17 @@ export const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRe
     const materialRef = useRef<any>(null);
     const timeRef = useRef(0);
     const scaleRef = useRef(0);
+    // ── Smart-chase AI — reuses the exact brains the Floor 2 shark uses, so
+    // Barney now hunts instead of sliding straight at you: he predicts your
+    // run to the elevator (interception), weaves around the trees (context
+    // steering) and paces the chase (drama director: surges then eases). ──
+    const steer      = useMemo(() => new ContextSteer(), []);
+    const director   = useMemo(() => new AIDirector(), []);
+    const chaseVel   = useRef({ x: 0, z: 0 });
+    const playerVel  = useRef({ x: 0, z: 0 });
+    const lastPlayer = useRef<{ x: number; z: number } | null>(null);
+    const wasChasing = useRef(false);
+    const _steerOut  = useMemo(() => new THREE.Vector3(), []);
     const texture = useTexture(BARNEY_URL);
     
     useEffect(() => {
@@ -186,14 +199,64 @@ export const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRe
         const target = barneyTargetRef?.current || { x: b.x, z: b.z, scale: 1 };
 
         if (gameState === 'chase' && p) {
-            const dx = p.x - b.x, dz = p.z - b.z;
-            const d = Math.sqrt(dx*dx + dz*dz);
-            if (d > 0.01) {
-                const spd = 3.3 * dt;
-                b.x += (dx/d) * spd;
-                b.z += (dz/d) * spd;
+            // Fresh chase → reset pacing + velocity memory.
+            if (!wasChasing.current) {
+                wasChasing.current = true;
+                director.reset();
+                chaseVel.current.x = 0; chaseVel.current.z = 0;
+                playerVel.current.x = 0; playerVel.current.z = 0;
+                lastPlayer.current = { x: p.x, z: p.z };
             }
+            // Smoothed player velocity (for prediction).
+            if (lastPlayer.current) {
+                const vx = (p.x - lastPlayer.current.x) / Math.max(dt, 1e-3);
+                const vz = (p.z - lastPlayer.current.z) / Math.max(dt, 1e-3);
+                const k = Math.min(1, dt * 4);
+                playerVel.current.x += (vx - playerVel.current.x) * k;
+                playerVel.current.z += (vz - playerVel.current.z) * k;
+                lastPlayer.current.x = p.x; lastPlayer.current.z = p.z;
+            }
+            const dx = p.x - b.x, dz = p.z - b.z;
+            const dist = Math.hypot(dx, dz) || 0.001;
+
+            // Drama pacing — surges in a "peak", eases in "respite". The shared
+            // director also drives the chase music intensity (see App.tsx).
+            const pSpeed = Math.hypot(playerVel.current.x, playerVel.current.z);
+            director.update({
+                dt, dist, awareness: 26, perceived: true, alertness: 1,
+                playerSpeed: pSpeed, shards: 0, inLunge: false, berserk: false,
+                px: p.x, pz: p.z,
+            });
+            const speed = 3.0 + director.intensity * 1.1;   // 3.0 → 4.1 u/s
+
+            // Predictive interception — cut off the run to the elevator.
+            let it = interceptTime(b.x, 0, b.z, p.x, 0, p.z,
+                                   playerVel.current.x, 0, playerVel.current.z, speed);
+            if (it < 0) it = dist / speed;
+            it = Math.min(it, 1.5);
+            const aimx = p.x + playerVel.current.x * it;
+            const aimz = p.z + playerVel.current.z * it;
+
+            // Context steering — weave around the trees toward the aim point.
+            steer.reset();
+            steer.addInterest(aimx - b.x, aimz - b.z, 1);
+            const RANGE = 4.5;
+            for (let i = 0; i < TREE_POSITIONS.length; i++) {
+                const odx = TREE_POSITIONS[i][0] - b.x;
+                const odz = TREE_POSITIONS[i][1] - b.z;
+                const od  = Math.hypot(odx, odz);
+                if (od - 1.2 < RANGE) steer.addDanger(odx, odz, od, 1.2, RANGE);
+            }
+            steer.pick(_steerOut);
+
+            // Momentum-limited move — he has mass, so turns are smooth not snappy.
+            const mk = Math.min(1, dt * 4.5);
+            chaseVel.current.x += (_steerOut.x * speed - chaseVel.current.x) * mk;
+            chaseVel.current.z += (_steerOut.z * speed - chaseVel.current.z) * mk;
+            b.x += chaseVel.current.x * dt;
+            b.z += chaseVel.current.z * dt;
         } else {
+            wasChasing.current = false;
             b.x = THREE.MathUtils.lerp(b.x, target.x, Math.min(1, dt * 2.5));
             b.z = THREE.MathUtils.lerp(b.z, target.z, Math.min(1, dt * 2.5));
         }
