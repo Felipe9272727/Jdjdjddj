@@ -168,7 +168,28 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
         let camRoll = 0;
         const cam = { x: gx, y: gripY + 3, z: gz - 2.4, lx: gx, ly: gripY - 0.7, lz: edgeZ, fov: 44 };
 
-        const grip = () => { b[B.l_arm].rotation.set(-0.2, 0, 2.5); };   // left hand clamped on the ledge
+        // ── Enhanced grip animation: realistic hand clamping on the ledge ──────────
+    // Simulates fingers wrapping over the edge with forearm tension
+    const grip = (strain = 0, slip = 0) => {
+        // Base grip: arm reaches UP and OVER the ledge, forearm twisted
+        const baseRotX = -1.85;  // arm reaches up
+        const baseRotZ = 2.65;   // arm crosses body to grip
+        const baseRotY = 0.15;   // slight inward twist
+        
+        // Add strain tremor (high-frequency micro-shakes from effort)
+        const tremor = Math.sin(T * 38) * 0.04 * (1 + strain * 2);
+        const tremorZ = Math.cos(T * 42) * 0.03 * (1 + strain * 2);
+        
+        // On slip: arm stretches down slightly, grip weakens
+        const slipDrop = slip * 0.18;
+        const slipWeaken = slip * 0.25;
+        
+        b[B.l_arm].rotation.set(
+            baseRotX + tremor - slipDrop,
+            baseRotY + tremorZ * 0.5,
+            baseRotZ + tremorZ - slipWeaken
+        );
+    };
 
         // ── INTRO: trip → slip → SLAP the ledge ──────────────────────────────
         if (ph === 'intro') {
@@ -216,20 +237,64 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
             const sway   = Math.sin(T * 1.7) * 0.06;          // pendulum on the gripping arm
             const reach  = Math.sin(T * 4.5) * 0.5 + 0.5;
             const grasp  = Math.sin(T * 6) * 0.5 + 0.5;       // free hand opens/closes, grabbing
-            g.position.set(gx + sway * 0.12 + strain, HANG_Y - sag - slip * 0.24, edgeZ);
-            g.rotation.set(-0.04 + slip * 0.12, FACE_Y, sway + strain);
-            // gripping (left) hand clamped on the lip — trembling, straining on a slip
-            b[B.l_arm].rotation.set(-0.2 + strain, 0, 2.5 - slip * 0.28);
-            // free (right) hand pleads UP toward the player, grasping — but on a
-            // slip it whips back to the ledge to re-grab.
-            if (slip > 0.45) b[B.r_arm].rotation.set(-0.1, 0, 2.25 - slip * 0.2);
-            else b[B.r_arm].rotation.set(lerp(-0.5, -1.0, reach), 0, lerp(1.6, 2.4, reach * grasp));
-            b[B.head].rotation.set(-0.6 + Math.sin(T * 4.5) * 0.1 + slip * 0.28, Math.sin(T * 2.6) * 0.12, sway * 0.4);
-            // legs scramble/bicycle-kick for a foothold, frantic on a slip
-            const kick = 7 + slip * 9;
-            b[B.l_leg].rotation.set(Math.sin(T * kick) * (0.55 + slip * 0.5), 0, 0.18);
-            b[B.r_leg].rotation.set(-Math.sin(T * kick + 1.1) * (0.55 + slip * 0.5), 0, -0.18);
-            b[B.body].rotation.set(-0.06 + slip * 0.14, sway * 0.5, 0);
+            // Body hangs with realistic weight distribution - shoulders below ledge, body sways
+            const bodyDrop = 0.08 + Math.sin(T * 1.8) * 0.04;  // subtle breathing sag
+            g.position.set(gx + sway * 0.15 + strain, HANG_Y - sag - slip * 0.28 - bodyDrop, edgeZ);
+            // Body tilts back from the ledge, twisted by sway, drops forward on slip
+            g.rotation.set(-0.12 + slip * 0.18, FACE_Y + sway * 0.3, sway + strain * 1.2);
+            // gripping (left) hand clamped on the lip — using enhanced grip with strain/slip
+            grip(slip, slip);
+            // free (right) hand pleads UP toward the player - more expressive grasping
+            // On slip: whips back to ledge to re-grab
+            if (slip > 0.45) {
+                // Panic grab: arm shoots up to catch the ledge
+                const panicReach = (slip - 0.45) / 0.55;
+                b[B.r_arm].rotation.set(
+                    lerp(-0.8, -0.1, panicReach),
+                    0,
+                    lerp(2.0, 2.4, panicReach)
+                );
+            } else {
+                // Pleading: arm reaches up, hand opens/closes desperately
+                const reachHeight = lerp(-0.6, -1.3, reach);  // reaches higher
+                const reachWidth = lerp(1.4, 2.6, reach * grasp);  // opens wide
+                // Add desperate tremor to the reaching hand
+                const handTremor = Math.sin(T * 28) * 0.08 * reach;
+                b[B.r_arm].rotation.set(
+                    reachHeight + handTremor,
+                    Math.sin(T * 5) * 0.15,  // hand waves side to side
+                    reachWidth + handTremor * 0.5
+                );
+            }
+            // Head looks up at player, shakes with desperation, drops on slip
+            const headDespair = Math.sin(T * 3.8) * 0.15;
+            const headShake = Math.sin(T * 12) * 0.08 * (1 + slip * 2);  // shakes more when slipping
+            b[B.head].rotation.set(
+                -0.7 + headDespair + slip * 0.35,  // looks up, drops on slip
+                Math.sin(T * 2.6) * 0.18 + headShake,  // turns side to side
+                sway * 0.5 + Math.sin(T * 8) * 0.06  // tilts with sway
+            );
+            // legs dangle and scramble for foothold - more realistic hanging physics
+            const kick = 6 + slip * 11;
+            const legSwing = 0.6 + slip * 0.7;  // wider swings when slipping
+            // Legs swing like pendulums, kick frantically on slip
+            b[B.l_leg].rotation.set(
+                Math.sin(T * kick) * legSwing + 0.15,  // slight forward bend
+                Math.sin(T * 3) * 0.1,  // subtle hip rotation
+                0.22 + Math.sin(T * 2.5) * 0.08  // spread out
+            );
+            b[B.r_leg].rotation.set(
+                -Math.sin(T * kick + 1.3) * legSwing + 0.15,
+                -Math.sin(T * 3 + 0.5) * 0.1,
+                -0.22 - Math.sin(T * 2.5 + 0.5) * 0.08
+            );
+            // Torso twists and strains with the effort of holding on
+            const torsoStrain = Math.sin(T * 2.2) * 0.08;  // breathing/effort
+            b[B.body].rotation.set(
+                -0.15 + slip * 0.2 + torsoStrain,  // leans back, drops on slip
+                sway * 0.7 + Math.sin(T * 1.5) * 0.1,  // twists with sway
+                Math.sin(T * 3.5) * 0.06  // subtle side strain
+            );
             topDownBeg(cam, gx, gripY, edgeZ, T);
             const c = choiceRef.current;
             if (c === 'stomp') { phase.current = 'stomp'; pt.current = 0; }
