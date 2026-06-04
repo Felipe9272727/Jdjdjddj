@@ -42,10 +42,10 @@ export function devilStageBase(): { x: number; y: number; z: number } {
     return best ? { x: best.x, y: best.topY, z: targetZ } : { x: 0, y: 0, z: targetZ };
 }
 
-// Creator-Mode preview flag: when set (by the "Queda do Diabrete" card), Floor 3
-// skips the intro and triggers the defeat fall cutscene a moment after arrival,
-// so the fall can be watched on demand. App consumes (and clears) it on entry.
-export const f3Demo = { fall: false };
+// Creator-Mode preview flags: when set (by the Creator Mode cards), Floor 3
+// skips the intro and triggers special cutscenes a moment after arrival,
+// so they can be watched on demand. App consumes (and clears) them on entry.
+export const f3Demo = { fall: false, transition3to4: false };
 
 // ── Records ───────────────────────────────────────────────────────────────────
 export interface Hazard {
