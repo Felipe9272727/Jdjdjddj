@@ -2809,3 +2809,24 @@ componente do mapa, então casam por construção. A POSIÇÃO/quantidade é sub
 ajustar com feedback do Felipe.
 
 **Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado.
+
+### Continuação 2026-06-04 — Cutscene: layout realista do parkour + cling melhorado
+
+Felipe: o set parecia uma TORRE, não o mapa. Causa: meus tiles tinham Z apertado
+e quedas grandes em Y (empilhamento vertical). O parkour real é uma escada de
+inclinação SUAVE (gap 3.0–3.8 em Z, passo 0.4–1.4 em Y, wander ±1.9).
+
+**Fix layout:** `buildCutsceneTiles()` em `Floor3FallCutscene` gera os tiles com o
+MESMO gerador do `f3Parkour` (mulberry32 + os mesmos parâmetros), descendo pra
+FRENTE no abismo (a escada tombando pra baixo à frente do diabo), wander lateral
+±1.9, footprints {1.0,1.2,1.4}, palette alternada. Primeiro tile = o que ele agarra
+(maior). Veer inicial pra fora da linha de queda. Agora tem a cara do obby, não torre.
+
+**Cling melhorado:** o beg ganhou peso e desespero — tremor de força na mão que
+segura, **escorregão periódico** (~a cada 2.4s ele perde a pegada, despenca um tico,
+a mão livre chicoteia de volta pra re-agarrar, pernas batem frenéticas + cabeça
+sacode + thud), bob pesado do peso, pêndulo lateral, e a mão livre implorando com a
+garra abrindo/fechando.
+
+⚠️ Sem screenshot WebGL no sandbox (dev server é morto). Layout/cling pedem o olho
+do Felipe. **Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado.

@@ -55,25 +55,39 @@ interface Props {
     onDone: (outcome: Outcome) => void;
 }
 
-// The cutscene's own little map, built from the SAME PlatformView tiles as the
-// real obby (ink rim + toon top + arrow + palette). Local coords inside the
-// ledge group: the first tile is the one he clings to (its front edge ≈ his
-// grip), the rest are the climb scattered far BELOW + around (descending topY),
-// so it reads as "deep up the obby, miles from the elevator" — not the start.
-// Kept off the centre fall-line (bx≈0) so he plummets cleanly into the void.
-const mkTile = (id: number, bx: number, cz: number, topY: number, half: number, palette: number): F3Plat =>
-    ({ id, bx, cz, hw: half, hd: half, h: 0.6, topY, moving: false, amp: 0, phase: 0, x: bx, palette });
+// The cutscene's own map slice, generated with the SAME rules as the real obby
+// (f3Parkour): gentle ~3.0–3.8 forward gaps, ~0.4–1.4 step in Y, ±1.9 lateral
+// wander, footprints from {1.0,1.2,1.4} — so it reads as the actual parkour
+// (floating tiles on a shallow slope), NOT a vertical tower. Here it DESCENDS
+// forward, the climb tumbling down into the abyss the devil dangles over; the
+// first tile is the big one he clings to. Deterministic (seeded), built once.
+function buildCutsceneTiles(): F3Plat[] {
+    let seed = 0x1a2b3c4d | 0;
+    const rng = () => {
+        seed = (seed + 0x6d2b79f5) | 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const rand = (a: number, b: number) => a + (b - a) * rng();
+    const HALF = [1.0, 1.2, 1.4], X_LIMIT = 11;
+    const mk = (id: number, bx: number, cz: number, topY: number, half: number, palette: number): F3Plat =>
+        ({ id, bx, cz, hw: half, hd: half, h: 0.6, topY, moving: false, amp: 0, phase: 0, x: bx, palette });
 
-const CUTSCENE_TILES: F3Plat[] = [
-    mkTile(0,  0.0, -2.4,   0.0, 2.6, 0),   // the tile he clings to (front edge ≈ grip)
-    mkTile(1, -5.0, -1.0,  -3.0, 1.4, 1),
-    mkTile(2,  5.0, -5.0,  -4.8, 1.3, 2),
-    mkTile(3, -6.0,  3.0,  -6.8, 1.3, 3),
-    mkTile(4,  6.0, -2.0,  -9.4, 1.2, 4),
-    mkTile(5, -5.0,  4.0, -12.5, 1.1, 5),
-    mkTile(6,  5.0, -6.0, -15.8, 1.0, 0),
-    mkTile(7, -4.0, -8.0, -19.5, 0.9, 1),
-];
+    const tiles: F3Plat[] = [mk(0, 0, -2.4, 0, 2.4, 0)];   // the tile he clings to (front edge ≈ grip)
+    let bx = 0, cz = -2.4, topY = 0;
+    for (let i = 1; i < 11; i++) {
+        const half = HALF[Math.floor(rng() * HALF.length)];
+        cz += rand(3.0, 3.8) + half;                          // step FORWARD (matches GAP)
+        topY -= rand(0.4, 1.4);                               // step DOWN into the abyss (matches RISE)
+        // veer off the centre fall-line on the first step, then wander like the obby
+        bx += i === 1 ? -2.6 : rand(-1.9, 1.9);
+        bx = Math.max(-X_LIMIT + half, Math.min(X_LIMIT - half, bx));
+        tiles.push(mk(i, bx, cz, topY, half, i % 6));
+    }
+    return tiles;
+}
+const CUTSCENE_TILES: F3Plat[] = buildCutsceneTiles();
 
 const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
@@ -189,19 +203,33 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
             if (T >= 1.4) { phase.current = 'beg'; pt.current = 0; }
         }
 
-        // ── BEG: hang by one hand, reach the other up, plead — TOP-DOWN, HOLD ─
+        // ── BEG: dangle by one straining hand, scramble + plead, PANIC-SLIP ──
         else if (ph === 'beg') {
             if (!begFired.current) { begFired.current = true; onBeg(); if (!sfx.current.beg) { sfx.current.beg = true; playFloor3Dizzy(900); } }
-            const reach = Math.sin(T * 5) * 0.5 + 0.5;
-            g.position.set(gx + Math.sin(T * 22) * 0.02, HANG_Y + Math.sin(T * 5) * 0.04, edgeZ);
-            g.rotation.set(0, FACE_Y, Math.sin(T * 4) * 0.06);
-            grip();
-            // free arm stretches UP toward the player (the camera, above)
-            b[B.r_arm].rotation.set(lerp(-0.5, -0.9, reach), 0, lerp(1.7, 2.3, reach));
-            b[B.head].rotation.set(-0.6 + Math.sin(T * 5) * 0.08, Math.sin(T * 3) * 0.1, 0);   // craned up, pleading
-            b[B.l_leg].rotation.set(Math.sin(T * 7) * 0.5, 0, 0.15);
-            b[B.r_leg].rotation.set(-Math.sin(T * 7) * 0.5, 0, -0.15);
-            b[B.body].rotation.set(-0.05, 0, 0);
+            // Every ~2.4s his grip fails for a beat: he drops a little, legs go
+            // wild and his free hand shoots back to re-clamp — then he hauls back.
+            const slipPhase = T % 2.4;
+            const slip = slipPhase < 0.34 ? Math.sin((slipPhase / 0.34) * Math.PI) : 0;   // 0→1→0
+            if (slip > 0.5 && !sfx.current['slip' + Math.floor(T / 2.4)]) { sfx.current['slip' + Math.floor(T / 2.4)] = true; playFloor3Land(); }
+            const strain = Math.sin(T * 34) * 0.025;          // high-freq hold tremor
+            const sag    = 0.05 + Math.sin(T * 2.2) * 0.05;   // heavy weight bob
+            const sway   = Math.sin(T * 1.7) * 0.06;          // pendulum on the gripping arm
+            const reach  = Math.sin(T * 4.5) * 0.5 + 0.5;
+            const grasp  = Math.sin(T * 6) * 0.5 + 0.5;       // free hand opens/closes, grabbing
+            g.position.set(gx + sway * 0.12 + strain, HANG_Y - sag - slip * 0.24, edgeZ);
+            g.rotation.set(-0.04 + slip * 0.12, FACE_Y, sway + strain);
+            // gripping (left) hand clamped on the lip — trembling, straining on a slip
+            b[B.l_arm].rotation.set(-0.2 + strain, 0, 2.5 - slip * 0.28);
+            // free (right) hand pleads UP toward the player, grasping — but on a
+            // slip it whips back to the ledge to re-grab.
+            if (slip > 0.45) b[B.r_arm].rotation.set(-0.1, 0, 2.25 - slip * 0.2);
+            else b[B.r_arm].rotation.set(lerp(-0.5, -1.0, reach), 0, lerp(1.6, 2.4, reach * grasp));
+            b[B.head].rotation.set(-0.6 + Math.sin(T * 4.5) * 0.1 + slip * 0.28, Math.sin(T * 2.6) * 0.12, sway * 0.4);
+            // legs scramble/bicycle-kick for a foothold, frantic on a slip
+            const kick = 7 + slip * 9;
+            b[B.l_leg].rotation.set(Math.sin(T * kick) * (0.55 + slip * 0.5), 0, 0.18);
+            b[B.r_leg].rotation.set(-Math.sin(T * kick + 1.1) * (0.55 + slip * 0.5), 0, -0.18);
+            b[B.body].rotation.set(-0.06 + slip * 0.14, sway * 0.5, 0);
             topDownBeg(cam, gx, gripY, edgeZ, T);
             const c = choiceRef.current;
             if (c === 'stomp') { phase.current = 'stomp'; pt.current = 0; }
