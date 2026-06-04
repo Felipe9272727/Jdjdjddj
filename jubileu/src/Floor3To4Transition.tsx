@@ -206,3 +206,6 @@ export const Floor3To4Transition: React.FC<TransitionProps> = ({
         </mesh>
     );
 };
+
+
+export default Floor3To4Transition;
