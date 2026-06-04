@@ -2830,3 +2830,72 @@ garra abrindo/fechando.
 
 ⚠️ Sem screenshot WebGL no sandbox (dev server é morto). Layout/cling pedem o olho
 do Felipe. **Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado.
+
+
+---
+
+## 🎬 Floor3 Fall Cutscene - Hang Animation Polish (2026-06-04)
+
+### Commit: `7660ed2` — feat(floor3): polish hang animation - realistic grip strain + expressive pleading
+
+**Arquivo modificado:** `jubileu/src/Floor3FallCutscene.tsx`
+
+### O que foi melhorado:
+
+#### 🤚 **1. Função `grip()` - Grip Realista na Beirada**
+- **Multi-frequency tremor:** Adicionado tremor de esforço em múltiplas frequências (38Hz, 42Hz, 36Hz, 44Hz) para simular fadiga muscular
+- **Pronação do antebraço:** Quando escorrega (`slip`), o antebraço torce naturalmente (`slipPronation`)
+- **Tremor mais intenso:** Aumenta com o esforço (`strain * 2.5`) e com o slip (`slip * 0.30`)
+- **Resultado:** Parece que ele realmente está segurando na beirada com força, tremendo de esforço
+
+#### 🏋️ **2. Física do Corpo Pendurado**
+- **Ombros abaixo da beirada:** `shoulderDrop = 0.15 + slip * 0.12` - ombros caem quando escorrega
+- **Arqueamento das costas:** `backArch = Math.sin(T * 2.1) * 0.06` - movimento sutil de esforço
+- **Inclinação para trás mais pronunciada:** `backLean = -0.18 + slip * 0.22` - corpo inclina mais quando escorrega
+- **Rotação do corpo:** Torção natural com o sway + movimento de respiração
+
+#### 🙏 **3. Mão Livre (Right Arm) - MUITO Mais Expressiva**
+- **PANIC GRAB (slip > 0.45):** Braço dispara para cima com tremor de pânico (48Hz), procurando desesperadamente a beirada
+- **PLEADING (normal):** 
+  - Alcança mais alto (`reachHeight = lerp(-0.7, -1.4, reach)`)
+  - Abre mais a mão (`reachWidth = lerp(1.5, 2.8, reach * grasp)`)
+  - Acena de lado a lado (`handWave = Math.sin(T * 5.2) * 0.22`)
+  - Estica para cima (`stretchReach = Math.sin(T * 3.8) * 0.08`)
+  - Tremor de desespero (`handTremor = Math.sin(T * 28) * 0.10 * reach`)
+
+#### 🦵 **4. Pernas - Física de Pêndulo Realista**
+- **Movimento de pêndulo natural:** `pendulum = Math.sin(T * 1.6) * 0.12`
+- **Chute mais rápido no slip:** `kick = 6 + slip * 12` (vs 6+slip*11 antes)
+- **Balanço mais amplo:** `legSwing = 0.65 + slip * 0.85` (vs 0.6+slip*0.7)
+- **Pernas abertas:** `leftSpread = 0.25 + Math.sin(T * 2.8) * 0.10` - como alguém pendurado de verdade
+- **Rotação de quadril:** Movimento sutil de rotação nos quadris
+
+#### 💪 **5. Torso - Expressivo Mostrando Esforço**
+- **Mais inclinação para trás:** `-0.18 + slipPanic` (vs -0.15 antes)
+- **Torção do esforço:** `torsoTwist = Math.sin(T * 1.8) * 0.12`
+- **Pânico no slip:** `slipPanic = slip * 0.25` (vs slip*0.2 antes)
+- **Respiração pesada:** Múltiplas frequências de movimento (2.2Hz, 4.2Hz)
+
+#### 😰 **6. Cabeça - Desespero Real**
+- **Olha mais para cima:** `-0.75` (vs -0.7 antes)
+- **Shake mais intenso:** `headShake = Math.sin(T * 13) * 0.12 * (1 + slip * 2.5)` (vs 12Hz * 0.08 * (1+slip*2))
+- **Nodding frenético:** `panicNod = Math.sin(T * 6) * 0.08 * slip` - concorda desesperadamente quando escorrega
+- **Tilt com tremor:** `headTilt + Math.sin(T * 7) * 0.10` - cabeça treme de lado
+
+### Como testar:
+1. Chega no Floor3
+2. Completa o parkour até o final
+3. Quando o diabo cair e se pendurar, observa:
+   - O braço segurando treme de esforço (múltiplas frequências)
+   - O corpo balança como peso morto (pêndulo natural)
+   - A mão livre pede ajuda desesperadamente (acena, alcança, treme)
+   - Quando escorrega (a cada ~2.4s), ele se recupera com pânico
+   - Pernas chutam freneticamente quando escorrega
+   - Cabeça concorda e balança de desespero
+
+### Próximo passo:
+- Fazer build local: `npm run build:reproducible`
+- Testar no jogo
+- Se gostar, merge para a branch principal
+- Se quiser ajustar mais, me fala o que melhorar!
+
