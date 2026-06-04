@@ -168,7 +168,15 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
         let camRoll = 0;
         const cam = { x: gx, y: gripY + 3, z: gz - 2.4, lx: gx, ly: gripY - 0.7, lz: edgeZ, fov: 44 };
 
-        const grip = () => { b[B.l_arm].rotation.set(-0.2, 0, 2.5); };   // left hand clamped on the ledge
+        const grip = () => {
+            // IMPROVED CLING: multi-bone tension, straining shoulder, body effort
+            b[B.l_arm].rotation.set(-0.25, 0, 2.6);  // left arm reaching up and back
+            b[B.r_arm].rotation.set(-0.15, 0, 1.8);  // right arm also trying to grab
+            b[B.body].rotation.set(-0.08, 0, 0.06);  // body leaning into the grip
+            b[B.head].rotation.set(-0.45, 0, 0.1);   // head looking up at player
+            b[B.l_leg].rotation.set(0.35, 0, 0.2);   // legs dangling, searching
+            b[B.r_leg].rotation.set(0.35, 0, -0.2);
+        };   // left hand clamped on the ledge - IMPROVED with full body tension
 
         // ── INTRO: trip → slip → SLAP the ledge ──────────────────────────────
         if (ph === 'intro') {
@@ -195,9 +203,12 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
                 const k = clamp01((T - 0.95) / 0.45);
                 g.position.set(gx, HANG_Y, edgeZ);
                 grip();
-                b[B.r_arm].rotation.set(lerp(-0.2, -0.1, k), 0, lerp(2.5, 1.4, k));    // settle toward a reach
-                b[B.head].rotation.set(-0.55, 0, 0);
-                b[B.l_leg].rotation.set(0.3, 0, 0.15); b[B.r_leg].rotation.set(0.3, 0, -0.15);
+                // IMPROVED: settling into the cling with visible effort
+                b[B.r_arm].rotation.set(lerp(-0.2, -0.15, k), 0, lerp(2.5, 1.8, k));  // right arm also reaching
+                b[B.head].rotation.set(-0.55, 0, lerp(0, 0.15, k));                   // head tilts up to player
+                b[B.body].rotation.set(lerp(0, -0.08, k), 0, lerp(0, 0.06, k));       // body tenses
+                b[B.l_leg].rotation.set(lerp(0.3, 0.35, k), 0, lerp(0.15, 0.2, k));   // legs dangling
+                b[B.r_leg].rotation.set(lerp(0.3, 0.35, k), 0, lerp(-0.15, -0.2, k));
                 topDownBeg(cam, gx, gripY, edgeZ, T);
             }
             if (T >= 1.4) { phase.current = 'beg'; pt.current = 0; }
@@ -211,25 +222,40 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
             const slipPhase = T % 2.4;
             const slip = slipPhase < 0.34 ? Math.sin((slipPhase / 0.34) * Math.PI) : 0;   // 0→1→0
             if (slip > 0.5 && !sfx.current['slip' + Math.floor(T / 2.4)]) { sfx.current['slip' + Math.floor(T / 2.4)] = true; playFloor3Land(); }
-            const strain = Math.sin(T * 34) * 0.025;          // high-freq hold tremor
-            const sag    = 0.05 + Math.sin(T * 2.2) * 0.05;   // heavy weight bob
-            const sway   = Math.sin(T * 1.7) * 0.06;          // pendulum on the gripping arm
+            
+            // IMPROVED: More realistic strain and tremor
+            const strain = Math.sin(T * 38) * 0.035;          // higher-freq, stronger tremor
+            const sag    = 0.08 + Math.sin(T * 2.2) * 0.06;   // deeper weight bob
+            const sway   = Math.sin(T * 1.7) * 0.08;          // stronger pendulum
             const reach  = Math.sin(T * 4.5) * 0.5 + 0.5;
-            const grasp  = Math.sin(T * 6) * 0.5 + 0.5;       // free hand opens/closes, grabbing
-            g.position.set(gx + sway * 0.12 + strain, HANG_Y - sag - slip * 0.24, edgeZ);
-            g.rotation.set(-0.04 + slip * 0.12, FACE_Y, sway + strain);
-            // gripping (left) hand clamped on the lip — trembling, straining on a slip
-            b[B.l_arm].rotation.set(-0.2 + strain, 0, 2.5 - slip * 0.28);
-            // free (right) hand pleads UP toward the player, grasping — but on a
-            // slip it whips back to the ledge to re-grab.
-            if (slip > 0.45) b[B.r_arm].rotation.set(-0.1, 0, 2.25 - slip * 0.2);
-            else b[B.r_arm].rotation.set(lerp(-0.5, -1.0, reach), 0, lerp(1.6, 2.4, reach * grasp));
-            b[B.head].rotation.set(-0.6 + Math.sin(T * 4.5) * 0.1 + slip * 0.28, Math.sin(T * 2.6) * 0.12, sway * 0.4);
-            // legs scramble/bicycle-kick for a foothold, frantic on a slip
-            const kick = 7 + slip * 9;
-            b[B.l_leg].rotation.set(Math.sin(T * kick) * (0.55 + slip * 0.5), 0, 0.18);
-            b[B.r_leg].rotation.set(-Math.sin(T * kick + 1.1) * (0.55 + slip * 0.5), 0, -0.18);
-            b[B.body].rotation.set(-0.06 + slip * 0.14, sway * 0.5, 0);
+            const grasp  = Math.sin(T * 6) * 0.5 + 0.5;       // free hand opens/closes
+            const breathe = Math.sin(T * 1.1) * 0.015;        // heavy breathing
+            
+            g.position.set(gx + sway * 0.15 + strain, HANG_Y - sag - slip * 0.32, edgeZ);
+            g.rotation.set(-0.06 + slip * 0.15, FACE_Y, sway + strain);
+            
+            // IMPROVED: gripping (left) hand - full body tension visible
+            b[B.l_arm].rotation.set(-0.25 + strain * 1.5, 0, 2.6 - slip * 0.35);
+            // Shoulder visibly straining up
+            b[B.body].rotation.set(-0.08 + slip * 0.18, sway * 0.6, 0.06 + strain * 0.5);
+            
+            // IMPROVED: free (right) hand pleads UP, grasping desperately
+            if (slip > 0.45) {
+                b[B.r_arm].rotation.set(-0.2, 0, 2.4 - slip * 0.3);  // whip back to grab
+            } else {
+                b[B.r_arm].rotation.set(lerp(-0.6, -1.1, reach), 0, lerp(1.5, 2.5, reach * grasp));
+            }
+            
+            // IMPROVED: head looking up desperately at player
+            b[B.head].rotation.set(-0.65 + Math.sin(T * 4.5) * 0.12 + slip * 0.32, 
+                                   Math.sin(T * 2.6) * 0.15, 
+                                   sway * 0.5);
+            
+            // IMPROVED: legs scramble desperately, more frantic
+            const kick = 8 + slip * 12;
+            b[B.l_leg].rotation.set(Math.sin(T * kick) * (0.65 + slip * 0.6), 0, 0.22);
+            b[B.r_leg].rotation.set(-Math.sin(T * kick + 1.1) * (0.65 + slip * 0.6), 0, -0.22);
+            
             topDownBeg(cam, gx, gripY, edgeZ, T);
             const c = choiceRef.current;
             if (c === 'stomp') { phase.current = 'stomp'; pt.current = 0; }
