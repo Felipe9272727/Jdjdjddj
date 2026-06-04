@@ -2787,3 +2787,25 @@ de início). Agora:
 **Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado. Branch
 `claude/memory-map-review-V8IIf`. (Visual do set + rim só dá pra confirmar 100%
 renderizando — pedir feedback do Felipe.)
+
+### Continuação 2026-06-04 — Cutscene usa CLONE real do mapa (PlatformView)
+
+Felipe: "o set que vc fez não tem nada a ver com o mapa do jogo". Verdade — eram
+caixas genéricas. Agora a cutscene de queda **reusa o próprio `PlatformView`** (o
+componente que desenha cada plataforma do obby: bloco de borda preta + topo
+creme/branco toon via `createToonMaterial` + seta preta + `<Outlines>` + palette
+alternada). 
+- `PlatformView` exportado de `Floor3.tsx`.
+- `Floor3FallCutscene` monta `CUTSCENE_TILES: F3Plat[]` — 8 tiles reais: o que ele
+  agarra (front edge ≈ grip) + 7 descendo/recuando no vazio (topY −3..−19.5, bx ±,
+  palette variada), fora da linha de queda central. Removidas as caixas genéricas
+  (FallStep/pilar/materiais).
+- O parkour vivo continua escondido na cutscene (`fallActive`), então o set clonado
+  + céu é tudo que aparece → "mapa separado, lá no alto, longe do início".
+
+⚠️ Não consegui screenshot WebGL (o sandbox mata qualquer dev server — testei spawn
+foreground/background, todos exit 1 sem output). Mas os tiles são LITERALMENTE o
+componente do mapa, então casam por construção. A POSIÇÃO/quantidade é subjetiva →
+ajustar com feedback do Felipe.
+
+**Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado.

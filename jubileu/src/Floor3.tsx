@@ -160,7 +160,9 @@ function platToon(p: F3Plat): ToonOpts {
 // ─── One platform in the endless pool ────────────────────────────────────────
 // Sized from the platform record (NOT scaled — avoids outline/bevel distortion).
 // Re-mounts only when the pool recycles (keyed by stable id in the parent).
-const PlatformView = React.forwardRef<THREE.Group, { plat: F3Plat }>(({ plat }, ref) => {
+// Exported so the fall cutscene can build its OWN little set out of the EXACT
+// same tiles (same ink rim, toon top, arrow, palette) — a real clone of the map.
+export const PlatformView = React.forwardRef<THREE.Group, { plat: F3Plat }>(({ plat }, ref) => {
     const w = plat.hw * 2, d = plat.hd * 2;
     const cy = plat.topY - plat.h / 2;
     const big = plat.palette < 0;          // the Aperture landing
