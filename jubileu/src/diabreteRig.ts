@@ -146,6 +146,31 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         color: srcMat?.map ? 0xffffff : 0xf2e8d0,
         gradientMap: _grad,
     });
+    // Add a crisp fresnel RIM LIGHT on top of the toon banding so the Diabrete
+    // reads with the same stylised "edge pop" as the floor's createToonMaterial
+    // (cartoonToon.ts) — the single biggest cue that made him look like he was
+    // from another renderer. Done via onBeforeCompile so MeshToonMaterial keeps
+    // its built-in SKINNING (a raw ShaderMaterial would freeze the rig). Guarded:
+    // if the expected chunk isn't present (three.js internals changed) we skip
+    // the injection and fall back to plain toon rather than ship a broken shader.
+    fillMat.onBeforeCompile = (shader) => {
+        if (!shader.fragmentShader.includes('#include <opaque_fragment>')) return;
+        shader.uniforms.uRimColor = { value: new THREE.Color(0xfff3d4) };
+        shader.uniforms.uRimPow   = { value: 2.6 };
+        shader.uniforms.uRimStr   = { value: 0.5 };
+        // Use the view-space normal's Z as the fresnel term (normal.z→1 faces the
+        // camera, →0 at the silhouette). MeshToonMaterial doesn't expose
+        // vViewPosition, but `normal` is always defined by normal_fragment_begin,
+        // so this is robust. No new varyings, no vertex-shader changes.
+        shader.fragmentShader = shader.fragmentShader
+            .replace('void main() {', 'uniform vec3 uRimColor;\nuniform float uRimPow;\nuniform float uRimStr;\nvoid main() {')
+            .replace('#include <opaque_fragment>',
+                'float _rimF = pow(1.0 - clamp(normal.z, 0.0, 1.0), uRimPow);\n'
+                + 'outgoingLight += uRimColor * (smoothstep(0.4, 0.75, _rimF) * uRimStr);\n'
+                + '#include <opaque_fragment>');
+    };
+    // Distinct cache key so the patched program isn't shared with a plain toon.
+    fillMat.customProgramCacheKey = () => 'diabrete-toon-rim';
 
     // Bones (parented hierarchy, local offsets from parent rest position).
     const bones: THREE.Bone[] = BNAME.map((name) => { const b = new THREE.Bone(); b.name = name; return b; });

@@ -138,7 +138,18 @@ const Floor3Rival: React.FC = () => {
         // ── Target & ground ─────────────────────────────────────────────────
         const dazed = isDizzy();
         const leadZ = f3PlayerZ.current + LEAD_Z;
-        if (!inited.current) { inited.current = true; posRef.current.z = leadZ; }
+        // (Re)spawn at the lead on first run AND whenever he's grossly desynced —
+        // e.g. after a SALVAR respawn the course is rebuilt and the player is
+        // teleported to the start, but this component stays mounted with a stale
+        // position far up the (old) climb, so he'd appear to vanish and slowly
+        // slide back. Snapping him to the fresh lead fixes that.
+        if (!inited.current || Math.abs(posRef.current.z - leadZ) > 20) {
+            inited.current = true;
+            posRef.current.z = leadZ;
+            const g0 = nearestPlatform(leadZ);
+            posRef.current.x = g0.x; posRef.current.y = g0.topY;
+            velY.current = 0; onGnd.current = true;
+        }
 
         // Trigger a paint set-piece when a new obstacle is inked.
         if (f3Progress.drawFlashAt !== prevDraw.current) {
@@ -182,6 +193,18 @@ const Floor3Rival: React.FC = () => {
         if (dazed) {
             if (brushRef.current) brushRef.current.visible = false;
             if (!wasDizzy.current) { wasDizzy.current = true; if (dizzyStop.current) dizzyStop.current(); dizzyStop.current = playFloor3Dizzy(3000); }
+            // Stagger ALONG WITH the lead instead of freezing in place. If he froze
+            // here while the player kept climbing, the platform under him would
+            // recycle away — his ground reference would jump to a far platform and
+            // he'd float, then skip jumping while sliding back to catch up (the
+            // reported bug). Drifting keeps him on live ground the whole time and
+            // already at the lead when he recovers, so the hop-run resumes at once.
+            posRef.current.z += (leadZ - posRef.current.z) * (1 - Math.exp(-2.5 * safeDt));
+            const dg = nearestPlatform(posRef.current.z);
+            posRef.current.x += (dg.x - posRef.current.x) * (1 - Math.exp(-2.5 * safeDt));
+            posRef.current.y = dg.topY;                 // stay planted on real ground (no float)
+            velY.current = 0; onGnd.current = true;
+            groupRef.current.position.copy(posRef.current);
             groupRef.current.rotation.set(0, Math.sin(t * 1.5) * 0.3, Math.sin(t * 2.5) * 0.18);  // teetering
             bones[B.body].position.y = 0.46 - 0.08;                 // knees buckle → slump
             bones[B.body].rotation.set(sLean.current.tick(0.05, safeDt), 0, Math.sin(t * 3) * 0.12);

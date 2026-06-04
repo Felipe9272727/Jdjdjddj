@@ -2703,3 +2703,37 @@ direção horizontal:
 
 Comportamento normal (quando o diabo está alcançado, posRef.z ≈ leadZ) é idêntico ao
 anterior — a mudança só corrige os casos congelado/atrasado.
+
+### Continuação 2026-06-04 — Diabrete some no respawn + não pula pós-tontura + material
+
+Felipe reportou 2 bugs e liberou o material:
+
+**Bug A — some ao reiniciar via SALVAR:** o `Floor3Rival` fica MONTADO durante a
+cutscene/respawn, então seu `posRef` ficava obsoleto (lá no alto do curso antigo)
+enquanto o respawn reconstrói o curso e teleporta o player pro início → o diabo
+aparecia "sumido" e voltava deslizando. **Fix:** re-init em desync grosso —
+`if (!inited || |posRef.z - leadZ| > 20) { snap pra leadZ + chão }`. Self-healing,
+sem plumbing de key.
+
+**Bug B — "flutua" = não pula obstáculos por um tempo depois da tontura:** a causa
+real é que durante a tontura o diabo CONGELAVA, mas o player continua subindo, então
+a plataforma sob ele **reciclava** (sai da janela viva) → o chão de referência saltava
+pra uma plataforma distante (flutua) e na recuperação ele deslizava (sem pular) por um
+trecho até alcançar. **Fix:** durante a tontura ele agora **cambaleia acompanhando o
+lead** (`posRef.z` faz lerp pra `leadZ`, `posRef.y` plantado no chão real) em vez de
+congelar — fica sempre em plataforma viva (zero float) e já está no lead ao recuperar,
+então o hop-run volta na hora. Sim numérica: gap pós-tontura caiu de ~8.9u → ~1.1u.
+
+**Material do Diabrete (autorizado):** adicionado **rim fresnel** ao `MeshToonMaterial`
+do fill via `onBeforeCompile` (mantém o skinning nativo — um ShaderMaterial cru
+congelaria o rig). Casa o "edge pop" estilizado do shader do andar (`cartoonToon.ts`).
+Verificação possível sem GPU: **expandi os #include do shader toon do three r184 e
+confirmei** que `normal` (view space) e `outgoingLight` existem e estão em escopo antes
+do `opaque_fragment` (e que `vViewPosition` NÃO está no fragment de topo — por isso a
+fresnel usa `normal.z`, não view dir). Guarda: se `#include <opaque_fragment>` sumir
+numa versão futura, a injeção é pulada (cai no toon normal, sem quebrar). 
+⚠️ O rim em si só dá pra confirmar 100% renderizando — se ficar estranho, é isolado no
+`fillMat` de `buildDiabreteRig` (fácil reverter).
+
+**Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado. Branch
+`claude/memory-map-review-V8IIf`.
