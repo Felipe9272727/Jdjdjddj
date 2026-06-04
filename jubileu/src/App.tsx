@@ -26,11 +26,12 @@ import CartoonIntro3D from './CartoonIntro3D';
 import Floor3FallCutscene from './Floor3FallCutscene';
 import Floor3Cutscene from './Floor3Cutscene';
 import Floor3CutsceneUI from './Floor3CutsceneUI';
-import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic } from './cartoonAudio';
+import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic, playCartoonSfx } from './cartoonAudio';
 import { getMusicBus, setMusicActive } from './musicDirector';
-import { configureFloor3Sfx, clearFloor3Sfx } from './floor3Sfx';
+import { configureFloor3Sfx, clearFloor3Sfx, playFloor3GameOver } from './floor3Sfx';
 import { configureFloor4Sfx, clearFloor4Sfx } from './floor4Sfx';
-import { resetHazards, setOnWin, setOnProgress, f3Progress, f3DevilPos, f3Demo } from './f3Hazards';
+import { resetHazards, setOnProgress, f3Progress, f3DevilPos, f3Demo } from './f3Hazards';
+import { reset as f3Reset, f3PlayerZ, f3PlayerY } from './f3Parkour';
 import { ShopOverlay } from './ShopOverlay';
 import { Player, FPArmModel } from './Player';
 import { ShadowBlob } from './ShadowBlob';
@@ -418,7 +419,7 @@ export default function App() {
   const [cartoonFall, setCartoonFall] = useState(false);           // cinematic camera-lock on the devil's defeat fall
   const [fallBegging, setFallBegging] = useState(false);           // devil is pleading — show the save/stomp choice
   const [fallChoice, setFallChoice] = useState<'none' | 'save' | 'stomp'>('none');
-  const [fallGameOver, setFallGameOver] = useState(false);         // SAVE branch → he betrays you → game over card
+  const [fallGameOver, setFallGameOver] = useState(false);         // SAVE branch → he betrays you → brief "back to start" card
   // The devil's last-ditch conversation; the SALVAR/PISAR choice only appears
   // once it reaches the final line.
   const FALL_DIALOGUE: { s: 'diabrete' | 'player'; t: string }[] = [
@@ -1141,7 +1142,11 @@ export default function App() {
     setCartoonFall(false);                       // end the fall camera-lock; flash takes over
     setFallBegging(false); setFallChoice('none');
     setTeleportCutscene(true);
-    if (audioCtx && !muted) { playEquipChime(audioCtx); playArrivalDing(audioCtx); }
+    // Cartoon victory fanfare — the long-orphaned tada clip finally gets played.
+    if (audioCtx && !muted) {
+      playCartoonSfx(audioCtx, 'tada', { gain: 0.8, destination: cartoonBusRef.current ?? undefined });
+      playArrivalDing(audioCtx);
+    }
     scheduleTimeout(() => {
       playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
       setTeleportCutscene(false);
@@ -1155,45 +1160,49 @@ export default function App() {
     }, 1400);
   }, [audioCtx, muted, scheduleTimeout]);
 
-  // ── Player SAVED the devil → BETRAYAL: he shoves the player into the abyss.
-  // GAME OVER: show the card, then drop the player back in the lobby.
-  const handleGameOver = useCallback(() => {
-    setFallGameOver(true);
-    if (audioCtx && !muted) playJumpscareStab(audioCtx);
+  // ── Player SAVED the devil → BETRAYAL: he shoves the player off the ledge.
+  // Instead of a full Game Over to the lobby (too punishing for the "nice"
+  // choice), the player tumbles back to the START of Floor 3 and re-climbs —
+  // no intro/meet cutscene replay, just a quick "you fell for it" sting.
+  const respawnFloor3FromStart = useCallback(() => {
+    setFallGameOver(true);            // brief "he tricked you → back to the start" card
+    // 1930s cartoon "wah-wah" sad-trombone — you got played.
+    if (!muted) playFloor3GameOver();
     scheduleTimeout(() => {
       f3Progress.fell = false;
+      // Rebuild the climb from the very first platform (deterministic seed) and
+      // drop the player back on the elevator landing — the start of the course.
+      f3Reset();
       resetHazards();
       setBrushCount(0);
+      f3PlayerZ.current = -8; f3PlayerY.current = 0;
+      playerPositionCmdRef.current = { x: 0, y: 0, z: -8, theta: 0 };
       setCartoonFall(false);
       setFallBegging(false);
       setFallChoice('none');
-      // back to the lobby (centre, outside the elevator zone)
-      setGameState('lobby');
-      setNightMode(false);
-      setHouseDoorOpen(false);
-      setDoorOpenAmount(0);
-      playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
-      setCurrentLevel(0);
-      setFloorReveal(true);
+      setCartoonIntro(false);         // NO intro/meet cutscene replay on respawn
+      setCartoonCutscene(false);
       setFallGameOver(false);
-    }, 2600);
-  }, [audioCtx, muted, scheduleTimeout]);
+    }, 2200);
+  }, [muted, scheduleTimeout]);
 
-  // Branch the defeat cutscene's outcome: stomp → Floor 4, save → game over.
+  // Branch the defeat cutscene's outcome: stomp → Floor 4, save → betrayed,
+  // shoved, and dropped back at the start of Floor 3.
   const handleFallOutcome = useCallback((outcome: 'save' | 'stomp') => {
     setFallBegging(false);
     if (outcome === 'stomp') advanceToFloor4AfterWin();
-    else handleGameOver();
-  }, [advanceToFloor4AfterWin, handleGameOver]);
+    else respawnFloor3FromStart();
+  }, [advanceToFloor4AfterWin, respawnFloor3FromStart]);
 
-  // Arm the sabotage-loop callbacks while on Floor 3 (re-armed each entry; the
-  // win callback is one-shot — fireWin nulls it after the devil falls).
+  // Arm the sabotage-loop HUD callback while on Floor 3 (re-armed each entry).
+  // The 3rd brush sets `fell`, which fires this and opens the defeat cutscene;
+  // the cutscene's outcome (stomp→Floor 4, save→betrayed→restart) is the single path
+  // that advances the floor — there's no separate win callback to double-fire.
   useEffect(() => {
     if (currentLevel !== 3) return;
     setOnProgress(() => { setBrushCount(f3Progress.brushes); if (f3Progress.fell) setCartoonFall(true); });
-    setOnWin(() => advanceToFloor4AfterWin());
-    return () => { setOnProgress(null); setOnWin(null); };
-  }, [currentLevel, advanceToFloor4AfterWin]);
+    return () => { setOnProgress(null); };
+  }, [currentLevel]);
 
   const [joystickVisual, setJoystickVisual] = useState({ active: false, originX: 0, originY: 0, currentX: 0, currentY: 0 });
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches);
@@ -1958,8 +1967,8 @@ export default function App() {
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '12%', background: '#0a0712', transformOrigin: 'bottom', animation: 'f3fall-bars .4s ease-out both' }} />
         </div>
       )}
-      {/* Diabrete's conversation + (at the end) the choice: SALVAR (→ game over,
-          back to lobby) or PISAR (→ Floor 4) */}
+      {/* Diabrete's conversation + (at the end) the choice: SALVAR (→ betrayed,
+          shoved, back to the start of Floor 3) or PISAR (→ Floor 4) */}
       {cartoonFall && fallBegging && fallChoice === 'none' && (
         <div style={{ position: 'fixed', left: 0, right: 0, bottom: '12%', zIndex: 88,
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
@@ -2002,7 +2011,7 @@ export default function App() {
           )}
         </div>
       )}
-      {/* GAME OVER — the devil betrayed you and shoved you into the abyss */}
+      {/* BETRAYED — the devil shoved you off; you tumble back to the start */}
       {fallGameOver && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 95, background: '#0a0712',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18,
@@ -2012,10 +2021,10 @@ export default function App() {
             @keyframes f3go-pop{0%{transform:scale(0) rotate(-8deg)}65%{transform:scale(1.15) rotate(3deg)}100%{transform:scale(1) rotate(-2deg)}}`}</style>
           <div style={{ fontSize: 'min(15vw,110px)', color: '#c0271a', WebkitTextStroke: 'min(1vw,7px) #f6efe0',
             paintOrder: 'stroke', letterSpacing: '.04em', animation: 'f3go-pop .5s cubic-bezier(.2,1.5,.4,1) both' }}>
-            GAME OVER
+            ENGANADO!
           </div>
           <div style={{ fontSize: 'min(4.6vw,26px)', color: '#f6efe0', letterSpacing: '.06em', textAlign: 'center', padding: '0 24px' }}>
-            Você caiu na conversa do Diabrete… e no abismo.
+            Você caiu na conversa do Diabrete… e lá pro começo da escadaria.
           </div>
         </div>
       )}

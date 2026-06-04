@@ -167,7 +167,10 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     fill.add(bones[0]);
     fill.bind(skeleton);
 
-    const outlineGeo = makeOutlineGeo(fillGeo, 0.026);
+    // Ink outline: fixed-width inverted hull. Bumped from 0.026 → 0.04 so the
+    // silhouette stays readable at gameplay distance (the devil leads ~14u
+    // ahead) without a distance-scaled shader (which would need skinning).
+    const outlineGeo = makeOutlineGeo(fillGeo, 0.04);
     const outline = new THREE.SkinnedMesh(outlineGeo, _outlineMat);
     outline.frustumCulled = false;
     outline.bind(skeleton);

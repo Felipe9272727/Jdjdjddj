@@ -2630,3 +2630,48 @@ Não consigo verificar visualmente neste ambiente (jogo depende de assets extern
 - [ ] Felipe decidir os itens DEFERIDOS de design (SALVAR→respawn? cortar diálogo?)
 - [ ] Iterar os retoques visuais de Arte no device (material/poses/mãos/squash)
 - [ ] Tema do Floor 4
+
+### Continuação 2026-06-04 — Decisões do Felipe + visuais (mesa redonda, parte 2)
+
+Felipe respondeu os itens deferidos. Implementado:
+
+**SALVAR → respawn no Floor 3 (não mais lobby):** Felipe pediu "respawna no Floor 3,
+do início, sem a cutscene". Novo `respawnFloor3FromStart` em `App.tsx` (substitui o
+antigo `handleGameOver`): após o empurrão da traição, toca o wah-wah, mostra um card
+breve "ENGANADO! …de volta pro começo da escadaria", e então `f3Reset()` (reconstrói o
+curso determinístico) + `resetHazards()` + teleporta o player pra START (z=-8) +
+`currentLevel` continua 3 + NÃO re-dispara intro/meet cutscene. As 8 falas do
+FALL_DIALOGUE foram MANTIDAS (Felipe pediu).
+
+**Visuais (escopo seguro, sem shader novo):**
+- `diabreteRig.ts`: outline inverted-hull de `0.026 → 0.04` (silhueta legível à
+  distância de gameplay sem precisar do shader distância-escalado). [Arte#2 paliativo]
+- `Floor3Rival.tsx`: **squash no pouso** — `landImpact` ref (0→1 por velocidade de
+  impacto, decai em 0.16s) multiplica `strY` na escala da corrida; strX preserva volume.
+  [Arte landing]
+
+**🔎 Falso-positivo resolvido (mesa vs. código):** o crítico de Arte alegou que a
+"convenção de braço" estava quebrada em throw/laugh (braço direito atravessando o
+corpo). **Lendo o código, é FALSO:** Floor3Cutscene:183-184, Rival:227-228 e
+FallCutscene:250 aplicam consistentemente `l_arm.z=+valor` / `r_arm.z=−valor` (alvos
+positivos, direito negado NA APLICAÇÃO = espelho correto). Não há bug → não mexi nas
+poses. (Cheguei a criar um helper `setArms` + harness pra validar; removidos depois de
+confirmar que não havia o que consertar.)
+
+**🧪 Como testei (o sandbox NÃO roda screenshot WebGL):** tentei subir o dev server +
+Playwright/swiftshader pra screenshot do Diabrete, mas o ambiente em nuvem MATA
+qualquer servidor em background (exit 1, sem output). Build self-contained pra `file://`
+sairia caro demais. Então a verificação possível aqui é **teste de unidade no esqueleto**:
+`src/__tests__/diabreteRig.test.ts` constrói o rig e prova via `SkinnedMesh.applyBoneTransform`
+(CPU puro) que os vértices DEFORMAM quando os ossos giram — ou seja, o personagem
+**não congela** (a regressão #1 que o moderador temia). 53/53 testes verdes.
+
+**⏸️ DEFERIDO pra device (precisa de olho/GPU que o sandbox não dá):**
+- Rim fresnel + colored shadow no material do Diabrete (via `onBeforeCompile` no
+  MeshToonMaterial, pra manter skinning) — única forma segura, mas exige ver renderizado
+  pra confirmar que compila e não dá tela preta. **Recomendo fazer no seu device.**
+- Mãos brancas no Diabrete (posicionamento depende de eixo do osso — preciso ver).
+- Ângulo oblíquo do "beg", asas dos pássaros, springs nas poses.
+
+**Estado:** tsc 0 · 53/53 vitest · audit 0 erros · index.html rebuildado. Branch
+`claude/memory-map-review-V8IIf`.

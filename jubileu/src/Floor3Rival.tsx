@@ -75,6 +75,7 @@ const Floor3Rival: React.FC = () => {
 
     const sBob  = useRef(new Spring(24, 8));
     const sLean = useRef(new Spring(14, 5));
+    const landImpact = useRef(0);   // 0→1 squash spike on touchdown, decays fast
 
     useEffect(() => {
         const group = groupRef.current;
@@ -121,6 +122,8 @@ const Floor3Rival: React.FC = () => {
         const bones  = rig.bones;
         tRef.current += safeDt;
         const t = tRef.current;
+        // Landing squash decays fast back to neutral (set on touchdown below).
+        landImpact.current = Math.max(0, landImpact.current - safeDt / 0.16);
 
         // ── Defeated — hand off to the dedicated fall cutscene
         //    (Floor3FallCutscene), which owns its own cinematic camera + staging
@@ -168,7 +171,10 @@ const Floor3Rival: React.FC = () => {
         if (onGnd.current && yDiff > 0.28 && !dazed && !painting) { velY.current = Math.sqrt(2 * GRAVITY * (yDiff + 0.5)) * 1.05; onGnd.current = false; }
         if (!onGnd.current) {
             velY.current -= GRAVITY * safeDt; posRef.current.y += velY.current * safeDt;
-            if (posRef.current.y <= groundY && velY.current <= 0) { posRef.current.y = groundY; velY.current = 0; onGnd.current = true; }
+            if (posRef.current.y <= groundY && velY.current <= 0) {
+                landImpact.current = Math.min(1, Math.abs(velY.current) / 9);   // squash scaled by impact speed
+                posRef.current.y = groundY; velY.current = 0; onGnd.current = true;
+            }
         } else { posRef.current.y += yDiff * (1 - Math.exp(-14 * safeDt)); }
         groupRef.current.position.copy(posRef.current);
         groupRef.current.scale.setScalar(DIABRETE_SCALE);
@@ -229,8 +235,9 @@ const Floor3Rival: React.FC = () => {
         bones[B.l_arm].rotation.set(air ? -0.7 : -sw * 1.05, 0,  (air ? 1.3 : ARM_DROP));
         bones[B.r_arm].rotation.set(air ? -0.7 :  sw * 1.05, 0, -(air ? 1.3 : ARM_DROP));
 
-        const strY = air ? 1 + Math.abs(velY.current) * 0.011 : 1 - Math.abs(sw) * 0.06;
-        const strX = 1 / Math.sqrt(Math.max(0.55, strY));
+        let strY = air ? 1 + Math.abs(velY.current) * 0.011 : 1 - Math.abs(sw) * 0.06;
+        strY *= 1 - 0.26 * landImpact.current;             // cartoon landing squash
+        const strX = 1 / Math.sqrt(Math.max(0.5, strY));
         rig.group.scale.set(strX, strY, strX);
     });
 
