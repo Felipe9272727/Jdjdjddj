@@ -70,16 +70,30 @@ export const FLOORS: FloorOption[] = [
   {
     id: 'floor-4',
     level: 4,
-    name: 'Andar 4',
+    name: 'Andar 4 (2D)',
     label: 'Andar 4',
-    description: 'Base plate (em construção) — blockout',
-    color: 'from-slate-400 via-zinc-300 to-slate-400',
+    description: 'Pixel art 2D — transição do Floor 3',
+    color: 'from-purple-500 via-indigo-500 to-purple-600',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75L12 4.5l8.25 5.25L12 15 3.75 9.75z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 14.25L12 19.5l8.25-5.25" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
       </svg>
     ),
+    variant: 'mode2D',
+  },
+  {
+    id: 'transition-3-4',
+    level: 4,
+    name: 'Transição 3 → 4',
+    label: 'Cutscene',
+    description: 'Cutscene de pixelização: 3D vira 2D pixelado',
+    color: 'from-pink-500 via-purple-500 to-indigo-500',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+      </svg>
+    ),
+    variant: 'transition3to4',
   },
   {
     id: 'transition-2-3',
@@ -197,6 +211,7 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
         onClick={() => {
           if (selectedFloor) {
             f3Demo.fall = selectedFloor.variant === 'fallDemo';   // arm the Floor-3 fall preview
+            f3Demo.transition3to4 = selectedFloor.variant === 'transition3to4'; // arm the 3→4 transition
             onSelect(selectedFloor.level, multiplayerEnabled);
           }
         }}
