@@ -2675,3 +2675,31 @@ sairia caro demais. Então a verificação possível aqui é **teste de unidade 
 
 **Estado:** tsc 0 · 53/53 vitest · audit 0 erros · index.html rebuildado. Branch
 `claude/memory-map-review-V8IIf`.
+
+### Continuação 2026-06-04 — Fix: Diabrete flutua depois da tontura
+
+**Sintoma (Felipe):** ao sair da tontura e voltar a correr, o Diabrete flutua.
+
+**Causa raiz:** em `Floor3Rival.tsx` a altura do chão (`groundY`) era resolvida a
+partir de `targetZ` (= `leadZ` = `f3PlayerZ + 14`, bem À FRENTE do player), não da
+posição real do diabo. Durante a tontura o movimento congela (`if (!dazed)` pula o
+passo), mas o player segue subindo → `leadZ` dispara → `groundY` vira a altura de
+uma plataforma lá em cima e o `posRef.y` é suavizado em direção a ela → ele sobe
+flutuando. Como sai muito atrás, **continua flutuando durante a corrida de
+recuperação** (posRef.z ainda atrás do alvo). 
+
+**Fix:** resolver a ALTURA pela posição real (`posRef.z`) e usar o alvo só pra
+direção horizontal:
+- Novo helper exportado `nearestPlatform(z)` em `f3Parkour.ts`.
+- `Floor3Rival.tsx`: `standGnd = nearestPlatform(posRef.z)` → `groundY`; `moveGnd =
+  nearestPlatform(targetZ)` → `groundX`. Removido o `nearestGround` local duplicado.
+
+**Verificação (já que WebGL screenshot não roda no sandbox):**
+- Simulação numérica da cinemática de Y (player subindo, 3s de tontura, corrida):
+  float máximo ANTIGO **+4.80u** vs NOVO **+0.16u**. Confirma o "volta a andar
+  flutuando" e a correção.
+- Teste novo `src/__tests__/f3Parkour.test.ts` guarda o `nearestPlatform` (resolve
+  pela posição própria → plataforma certa). 58/58 vitest, tsc 0.
+
+Comportamento normal (quando o diabo está alcançado, posRef.z ≈ leadZ) é idêntico ao
+anterior — a mudança só corrige os casos congelado/atrasado.

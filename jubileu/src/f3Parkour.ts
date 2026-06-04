@@ -197,6 +197,22 @@ export function tick(t: number, playerZ: number): void {
 }
 
 /**
+ * The live platform whose center Z is nearest to `z` — i.e. the one a character
+ * at depth `z` is standing on. Returns its live X (moving bridges included) and
+ * top surface. Used by the rival to resolve the ground UNDER it (its own Z), so
+ * its height never chases a platform far ahead while it's stunned/lagging.
+ */
+export function nearestPlatform(z: number): { x: number; topY: number } {
+    let best: F3Plat | null = null;
+    let bd = Infinity;
+    for (const p of platforms) {
+        const d = Math.abs(p.cz - z);
+        if (d < bd) { bd = d; best = p; }
+    }
+    return best ? { x: best.x, topY: best.topY } : { x: 0, topY: 0 };
+}
+
+/**
  * Where to drop the player after a void fall: the top of the furthest-back live
  * platform that's still at/behind them, so they resume near where they were
  * rather than restarting the whole climb.

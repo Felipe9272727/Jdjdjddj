@@ -22,7 +22,7 @@ import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-import { platforms as f3Platforms, f3PlayerZ } from './f3Parkour';
+import { f3PlayerZ, nearestPlatform } from './f3Parkour';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
 import { f3Progress, isDizzy, f3DevilPos, f3DevilPosValid } from './f3Hazards';
 import { playFloor3Draw, playFloor3Dizzy } from './floor3Sfx';
@@ -109,12 +109,6 @@ const Floor3Rival: React.FC = () => {
         };
     }, [gltf]);
 
-    const nearestGround = (z: number) => {
-        let best: { topY: number; x: number } | null = null; let bd = Infinity;
-        for (const p of f3Platforms) { const d = Math.abs(p.cz - z); if (d < bd) { bd = d; best = { topY: p.topY, x: p.x }; } }
-        return best ?? { topY: 0, x: 0 };
-    };
-
     useFrame((_, dt) => {
         const rig = rigRef.current;
         if (!groupRef.current || !rig) return;
@@ -156,8 +150,13 @@ const Floor3Rival: React.FC = () => {
 
         // Where he wants to be: at the obstacle while painting, else his lead.
         const targetZ = painting ? paintZ.current : leadZ;
-        const gnd = nearestGround(targetZ);
-        const groundY = gnd.topY, groundX = gnd.x;
+        // Resolve the resting ground from his ACTUAL Z (the platform underfoot),
+        // not the target — otherwise, while he's frozen dizzy (or sprinting to
+        // catch up after) his Y chases a platform far ahead and he FLOATS. The
+        // target only steers his horizontal weave toward the platform ahead.
+        const standGnd = nearestPlatform(posRef.current.z);
+        const moveGnd  = nearestPlatform(targetZ);
+        const groundY = standGnd.topY, groundX = moveGnd.x;
 
         if (!dazed) {
             const dz = targetZ - posRef.current.z;
