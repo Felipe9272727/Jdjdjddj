@@ -2965,3 +2965,42 @@ No **Modo Criador** (menu principal):
 - [ ] Adicionar sprites 2D para NPCs e objetos no Floor 4
 - [ ] Criar tileset pixel art para o chão e paredes
 - [ ] Implementar movimentação 2D (side-scrolling) no Player.tsx
+
+
+## 🎬 Transição Floor 3 → Floor 4 (3D para 2D) - Implementada em 05/06/2026
+
+### Visão Geral
+Cutscene de transição que converte o jogo de 3D para 2D pixelado ao entrar no Floor 4.
+
+### Arquivos Criados/Modificados
+- jubileu/src/Floor3To4Transition.tsx - Componente de transição usando EffectComposer
+- jubileu/src/App.tsx - Integração da transição com EffectComposer wrapper
+- jubileu/src/CreatorMode.tsx - Botão "Transição 3 → 4" no modo criador
+
+### Como Funciona
+1. Usuário clica em "Transição 3 → 4" no CreatorMode
+2. Flag f3Demo.transition3to4 é ativada
+3. App.tsx detecta startLevel === 4 && f3Demo.transition3to4
+4. showTransition3to4 é definido como true
+5. Floor3To4Transition é renderizado dentro de EffectComposer
+6. Durante 8 segundos:
+   - 0-60%: Pixelização progressiva (1 → 8 pixels), posterização (16 → 4 cores)
+   - 60-90%: Mantém pixelado máximo
+   - 90-100%: Fade out para preto
+7. handleTransitionComplete é chamado
+8. Jogo move para Floor 4 (level 4, gameState 'outdoor')
+
+### Problemas Corrigidos
+- Antes: Floor3To4Transition não estava funcionando (teleportava direto pro Floor 4)
+- Causa: Componente não estava dentro de EffectComposer, então os shaders não eram aplicados
+- Solução: Envolver Floor3To4Transition com EffectComposer
+- Resultado: Transição agora funciona corretamente com pixelização e posterização visíveis
+
+### Técnico
+- Usa @react-three/postprocessing EffectComposer
+- Custom Effect com shader GLSL para pixelização e posterização
+- Bayer matrix 4x4 para dithering retro
+- Renderização fullscreen via Effect (não mesh 3D)
+
+### Teste
+No jogo: Modo Criador → "Transição 3 → 4" → Aguarde 8 segundos → Floor 4 em 2D
