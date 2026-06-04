@@ -18,13 +18,29 @@
  *   • grab the 3rd brush     → the devil falls into the abyss → back to elevator
  */
 
-import { platforms as f3Platforms, type F3Plat } from './f3Parkour';
+import { platforms as f3Platforms, f3PlayerZ, type F3Plat } from './f3Parkour';
 import * as THREE from 'three';
 
 // Live world position of the Diabrete (feet), written every frame by
 // Floor3Rival. The fall-cutscene camera in App reads this (via the dialogue
 // camera lock) so the shot tracks the devil as he topples into the void.
 export const f3DevilPos = { current: new THREE.Vector3(0, 0, 14) };
+// True once Floor3Rival has published a REAL devil position (set the frame the
+// devil falls, cleared on reset). The fall cutscene checks this so it never
+// stages on the (0,0,14) sentinel if it mounts a frame before the rival writes.
+export const f3DevilPosValid = { current: false };
+
+/** Best-guess stage spot for the fall cutscene when the rival hasn't published
+ *  a real position yet (race guard). Puts the devil his usual lead ahead of the
+ *  player, on top of the nearest live platform so he never floats. */
+export function devilStageBase(): { x: number; y: number; z: number } {
+    const targetZ = f3PlayerZ.current + 12;
+    let best: F3Plat | null = null;
+    for (const p of f3Platforms) {
+        if (!best || Math.abs(p.cz - targetZ) < Math.abs(best.cz - targetZ)) best = p;
+    }
+    return best ? { x: best.x, y: best.topY, z: targetZ } : { x: 0, y: 0, z: targetZ };
+}
 
 // Creator-Mode preview flag: when set (by the "Queda do Diabrete" card), Floor 3
 // skips the intro and triggers the defeat fall cutscene a moment after arrival,
@@ -35,9 +51,10 @@ export const f3Demo = { fall: false };
 export interface Hazard {
     id: number;
     platId: number;    // the platform this spike-strip is inked onto (live lookup)
-    reveal: number;    // 0→1 ink-in progress (drawing); collidable past ~0.6
+    reveal: number;    // 0→1 ink-in progress (drawing); collidable once fully inked
     spikes: number;    // how many spikes across
     hit: boolean;      // already knocked the player back (one-shot per pass)
+    hitAt: number;     // ms of the last knockback (time-based re-arm cooldown)
 }
 export interface Brush {
     id: number;
@@ -64,12 +81,11 @@ export const f3Progress = {
 };
 
 let _nextId = 1;
-let _onWin: (() => void) | null = null;
 let _onProgress: (() => void) | null = null;   // nudges React HUD to re-render
 
-/** App wires this so the win (devil fell) returns the player to the elevator. */
-export function setOnWin(cb: (() => void) | null): void { _onWin = cb; }
-/** App wires this to re-render the brush HUD when the count changes. */
+/** App wires this to re-render the brush HUD when the count changes. It also
+ *  fires when the 3rd brush sets `fell`, which is the single source of truth for
+ *  the win → App opens the defeat cutscene, whose outcome advances the floor. */
 export function setOnProgress(cb: (() => void) | null): void { _onProgress = cb; }
 
 export function resetHazards(): void {
@@ -82,11 +98,27 @@ export function resetHazards(): void {
     f3Progress.drawFlashAt = 0;
     f3Progress.fell = false;
     f3Progress.fellAt = 0;
+    f3Progress.needed = 3;
+    f3DevilPos.current.set(0, 0, 14);
+    f3DevilPosValid.current = false;
     _nextId = 1;
 }
 
 // ── Spawning ──────────────────────────────────────────────────────────────────
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+/** Expand a set of occupied platform ids to also block their immediate
+ *  array-neighbors, so a spike and a brush can never land on touching platforms
+ *  (which would force the player through a hazard to reach the reward). */
+function withNeighbors(ids: Set<number>): Set<number> {
+    const out = new Set<number>(ids);
+    for (let i = 0; i < f3Platforms.length; i++) {
+        if (!ids.has(f3Platforms[i].id)) continue;
+        if (i > 0) out.add(f3Platforms[i - 1].id);
+        if (i < f3Platforms.length - 1) out.add(f3Platforms[i + 1].id);
+    }
+    return out;
+}
 
 /** Pick the platform NEAREST to targetZ (but at least minZ ahead) that's free. */
 function pickNear(targetZ: number, minZ: number, used: Set<number>): F3Plat | null {
@@ -103,20 +135,22 @@ function pickNear(targetZ: number, minZ: number, used: Set<number>): F3Plat | nu
 /** Ink a spiked obstacle onto a platform up where the Diabrete is (so he can be
  *  seen painting it), still well ahead of the player. */
 function spawnObstacle(playerZ: number): void {
-    const used = new Set<number>([...hazards.map(h => h.platId), ...brushes.map(b => b.platId)]);
+    // Block spike + brush platforms AND their neighbors so the two never touch.
+    const used = withNeighbors(new Set<number>([...hazards.map(h => h.platId), ...brushes.map(b => b.platId)]));
     const plat = pickNear(playerZ + 12, playerZ + 5, used);
     if (!plat) return;
-    hazards.push({ id: _nextId++, platId: plat.id, reveal: 0, spikes: 5, hit: false });
+    hazards.push({ id: _nextId++, platId: plat.id, reveal: 0, spikes: 5, hit: false, hitAt: 0 });
     f3Progress.obstacles += 1;
     f3Progress.drawZ = plat.cz;                 // the rival runs here to paint it
     f3Progress.drawFlashAt = now();
-    // Every 2 obstacles, drop a paintbrush still further up.
-    if (f3Progress.obstacles % 2 === 0) spawnBrush(playerZ);
+    // Drop a paintbrush further up: the FIRST one right away (teaches the steal
+    // mechanic immediately), then on every other obstacle after that.
+    if (f3Progress.obstacles % 2 === 1) spawnBrush(playerZ);
     _onProgress?.();
 }
 
 function spawnBrush(playerZ: number): void {
-    const used = new Set<number>([...hazards.map(h => h.platId), ...brushes.map(b => b.platId)]);
+    const used = withNeighbors(new Set<number>([...hazards.map(h => h.platId), ...brushes.map(b => b.platId)]));
     const plat = pickNear(playerZ + 16, playerZ + 9, used);
     if (!plat) return;
     brushes.push({ id: _nextId++, platId: plat.id, bob: Math.random() * Math.PI * 2, collected: false, fade: 1 });
@@ -125,6 +159,9 @@ function spawnBrush(playerZ: number): void {
 /** Player.tsx calls this on every successful Floor-3 jump. */
 export function registerJump(playerZ: number): void {
     if (f3Progress.fell) return;
+    // While the devil is dazed he's in no state to sabotage — pause the jump
+    // tally so an obstacle never "inks itself" with no one there to paint it.
+    if (isDizzy()) return;
     f3Progress.jumps += 1;
     if (f3Progress.jumps % 10 === 0) spawnObstacle(playerZ);
 }
@@ -166,8 +203,9 @@ export function brushPos(b: Brush): { x: number; y: number; z: number } | null {
  */
 export function hazardKnockback(px: number, py: number, pz: number):
     { z: number; vy: number } | null {
+    const tNow = now();
     for (const h of hazards) {
-        if (h.reveal < 0.6) continue;
+        if (h.reveal < 0.85) continue;           // only a FULLY-inked strip bites (fair telegraph)
         const box = hazardBox(h);
         if (!box) continue;
         const inX = px >= box.x - box.hw && px <= box.x + box.hw;
@@ -175,11 +213,13 @@ export function hazardKnockback(px: number, py: number, pz: number):
         const low = py < box.topY + 0.45;        // feet below the spike tips → hit
         if (inX && inZ && low) {
             if (h.hit) return null;              // already bounced on this pass
-            h.hit = true;
-            return { z: box.z0 - 0.5, vy: 4.2 }; // shove back to the strip's near edge + bounce
+            h.hit = true; h.hitAt = tNow;
+            return { z: box.z0 - 1.3, vy: 4.2 }; // shove clear of the strip's near edge + bounce
         }
-        // Reset the one-shot once the player has retreated well behind the strip.
-        if (h.hit && pz < box.z0 - 1.2) h.hit = false;
+        // Re-arm the one-shot once the player has retreated clear of the strip
+        // AND a short cooldown has elapsed — the time guard stops it oscillating
+        // when the shove leaves the player hovering near the near edge.
+        if (h.hit && pz < box.z0 - 1.3 && tNow - h.hitAt > 600) h.hit = false;
     }
     return null;
 }
@@ -205,8 +245,5 @@ export function tryCollectBrush(px: number, py: number, pz: number): boolean {
     }
     return false;
 }
-
-/** The rival calls this once after its fall animation finishes. */
-export function fireWin(): void { const cb = _onWin; _onWin = null; cb?.(); }
 
 export function isDizzy(): boolean { return now() < f3Progress.dizzyUntil && !f3Progress.fell; }

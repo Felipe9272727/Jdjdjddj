@@ -25,6 +25,7 @@ export const DIABRETE_SCRIPT: Line[] = [
     { speaker: 'diabrete', text: 'E adivinha? Vou desenhar o teu fracasso, degrau por degrau!', dur: 3.6, gesture: 'throw' },
     { speaker: 'diabrete', text: 'Bora apostar corrida? Eu na frente, tu comendo a minha poeira!', dur: 3.6, gesture: 'taunt' },
     { speaker: 'diabrete', text: 'HÁ! Me alcança, perna-curta… SE FOR CAPAZ! HAHAHA!',       dur: 3.2, gesture: 'laugh' },
+    { speaker: 'diabrete', text: 'Só num CONTA: sem os meus PINCÉIS eu não rabisco nada. Rouba os TRÊS e a brincadeira ACABA… mas tu nem é rápido o bastante, né?', dur: 4.4, gesture: 'point' },
     { speaker: 'diabrete', text: 'Até já… ou nunca! WHOOSH!',                                 dur: 1.8, gesture: 'dash' },
 ];
 

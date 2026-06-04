@@ -24,8 +24,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
-import { f3DevilPos } from './f3Hazards';
-import { playFloor3Land, playFloor3Fall, playFloor3Dizzy } from './floor3Sfx';
+import { f3DevilPos, f3DevilPosValid, devilStageBase } from './f3Hazards';
+import { playFloor3Land, playFloor3Fall, playFloor3Dizzy, playFloor3Stomp, playFloor3Shove } from './floor3Sfx';
 
 const RIVAL_URL = '/diabrete.glb';
 const HANG_DROP = 1.55;     // how far below the ledge his feet dangle (head+hands clear the lip)
@@ -80,14 +80,29 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
         if (!rig) { console.warn('[Diabrete fall] no mesh in GLB'); return; }
         group.add(rig.group);
         rigRef.current = rig;
-        base.current.copy(f3DevilPos.current);
+        // Stage where the rival actually fell — but if it hasn't published a real
+        // spot yet (mounted a frame too early), fall back to a sane guess instead
+        // of the (0,0,14) sentinel, so the cutscene never plays in the wrong place.
+        if (f3DevilPosValid.current) base.current.copy(f3DevilPos.current);
+        else { const s = devilStageBase(); base.current.set(s.x, s.y, s.z); }
         phase.current = 'intro'; pt.current = 0; begFired.current = false; doneRef.current = false;
         sfx.current = {};
+        // Remember the player's FOV so we can hand the camera back untouched.
+        const prevFov = (camera as THREE.PerspectiveCamera).fov;
         playFloor3Land();
         return () => {
             group.remove(rig.group); rig.dispose(); rigRef.current = null;
-            // CRITICAL: restore the camera so the player's view isn't left rolled.
-            camera.up.set(0, 1, 0); camera.updateProjectionMatrix();
+            // CRITICAL: restore the camera so the player's view isn't left rolled
+            // or zoomed — reset the up vector AND the FOV the cutscene was bending.
+            camera.up.set(0, 1, 0);
+            (camera as THREE.PerspectiveCamera).fov = prevFov;
+            camera.updateProjectionMatrix();
+            // Clear the DEV scrub hooks so a scrubbed playthrough doesn't freeze
+            // the next one in this tab until a reload.
+            if (import.meta.env?.DEV && typeof window !== 'undefined') {
+                const w = window as any;
+                delete w.__fallScrub; delete w.__fallPhase; delete w.__fallT; delete w.__fallPh;
+            }
         };
     }, [gltf, camera]);
 
@@ -187,7 +202,7 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
                     shoeRef.current.position.set(gx, lerp(gripY + 4, gripY + 0.32, k), edgeZ - 0.18);
                     shoeRef.current.rotation.set(-0.5, 0, 0);
                 }
-                if (T > 0.5 && !sfx.current.stomp) { sfx.current.stomp = true; playFloor3Land(); }
+                if (T > 0.5 && !sfx.current.stomp) { sfx.current.stomp = true; playFloor3Stomp(); }
                 if (T > 0.5) rig.group.scale.set(1.06, 0.92, 1.06);
                 cam.x = gx + 2.0; cam.y = gripY + 3.0; cam.z = edgeZ + 2.6; cam.ly = gripY - 0.3; cam.lz = edgeZ; cam.fov = 46;
             } else {
@@ -253,7 +268,7 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
                 camRoll = ff * 1.3;
                 cam.x = gx + ff * 1.2; cam.y = gripY + 1.0 - ff * 9.0; cam.z = gz + 3.0 + ff * 5.0;
                 cam.lx = gx; cam.ly = gripY + 0.8; cam.lz = gz; cam.fov = 48;
-                if (e > 0.4 && !sfx.current.shove) { sfx.current.shove = true; playFloor3Fall(); }
+                if (e > 0.4 && !sfx.current.shove) { sfx.current.shove = true; playFloor3Shove(); }
                 if (e > 1.2 && !doneRef.current) { doneRef.current = true; onDone('save'); }
             }
         }

@@ -17,7 +17,8 @@
  *                track (App.tsx Floor-4 enter effect: getMusicBus('floor4', 65)).
  *  • ENTITIES  → reuse buildDiabreteRig (diabreteRig.ts) or createToonMaterial
  *                (cartoonToon.ts) + the Spring class; mount in the ENTITIES slot.
- *  • OBJECTIVE → clone the f3Hazards.ts shared-state + setOnWin pattern and add
+ *  • OBJECTIVE → clone the f3Hazards.ts shared-state + setOnProgress pattern
+ *                (a progress flag opens a cutscene whose outcome advances) and add
  *                an advanceToFloor5AfterWin handler in App.tsx (copy of
  *                advanceToFloor4AfterWin). Progression is OPEN for now.
  *  • CUTSCENE  → reuse Floor3Cutscene + the dialogue-camera lock (dialogueOpen).

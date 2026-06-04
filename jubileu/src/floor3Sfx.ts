@@ -163,7 +163,123 @@ export function playFloor3Dizzy(durationMs = 3000): () => void {
         o.connect(g).connect(d); o.start(ts); o.stop(ts + 0.18);
         oscs.push(o);
     }
-    return () => { for (const o of oscs) { try { o.stop(); } catch { /* already stopped */ } } };
+    return () => { for (const o of oscs) { try { o.stop(); o.disconnect(); } catch { /* already stopped */ } } };
+}
+
+/** Spiky "BONK!" — the player runs into a fully-inked spike strip and is shoved
+ *  back. A hard rubber-hose twang (rising square stab + a downward "boing" mola)
+ *  so the hit reads as DAMAGE, not a soft landing. */
+export function playFloor3Hit(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t = ctx.currentTime;
+    // Bonk — a tight square stab that snaps up then cracks back down.
+    const o = ctx.createOscillator(); o.type = 'square';
+    o.frequency.setValueAtTime(180, t);
+    o.frequency.exponentialRampToValueAtTime(520, t + 0.03);
+    o.frequency.exponentialRampToValueAtTime(120, t + 0.18);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 1.2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.26, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + 0.20);
+    o.connect(bp).connect(g).connect(d);
+    o.start(t); o.stop(t + 0.22);
+    // "Boing" tail — a quick vibrato sine that sells the cartoon recoil.
+    const b = ctx.createOscillator(); b.type = 'sine';
+    b.frequency.setValueAtTime(420, t + 0.04);
+    b.frequency.exponentialRampToValueAtTime(150, t + 0.30);
+    const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 22;
+    const lfoG = ctx.createGain(); lfoG.gain.value = 40;
+    lfo.connect(lfoG).connect(b.frequency); lfo.start(t + 0.04); lfo.stop(t + 0.32);
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.0001, t + 0.04);
+    bg.gain.exponentialRampToValueAtTime(0.12, t + 0.06);
+    bg.gain.exponentialRampToValueAtTime(0.0006, t + 0.32);
+    b.connect(bg).connect(d); b.start(t + 0.04); b.stop(t + 0.34);
+}
+
+/** Heavy comic "BWOMP" — the stylized cartoon shoe stomping the devil's hand.
+ *  A low sine thud with a tiny accelerando, distinct from the soft `Land` plop. */
+export function playFloor3Stomp(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(220, t);
+    o.frequency.exponentialRampToValueAtTime(58, t + 0.22);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.34, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0006, t + 0.30);
+    o.connect(g).connect(d);
+    o.start(t); o.stop(t + 0.32);
+    // A short noise "smack" on top for the impact transient.
+    const nb = ctx.createBuffer(1, 512, ctx.sampleRate);
+    const ch = nb.getChannelData(0);
+    for (let i = 0; i < 512; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / 512);
+    const ns = ctx.createBufferSource(); ns.buffer = nb;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.22, t);
+    ng.gain.exponentialRampToValueAtTime(0.0006, t + 0.08);
+    ns.connect(lp).connect(ng).connect(d);
+    ns.start(t); ns.stop(t + 0.1);
+}
+
+/** "WHUMP-whoosh" — the betrayed shove that knocks the PLAYER off the ledge.
+ *  A short shove thump into a falling whoosh, deliberately WITHOUT the comic
+ *  splat of `Fall` (the player doesn't splat — the game-over sting follows). */
+export function playFloor3Shove(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t = ctx.currentTime;
+    // Shove thump.
+    const p = ctx.createOscillator(); p.type = 'sine';
+    p.frequency.setValueAtTime(260, t);
+    p.frequency.exponentialRampToValueAtTime(90, t + 0.14);
+    const pg = ctx.createGain();
+    pg.gain.setValueAtTime(0.0001, t);
+    pg.gain.exponentialRampToValueAtTime(0.26, t + 0.01);
+    pg.gain.exponentialRampToValueAtTime(0.0006, t + 0.18);
+    p.connect(pg).connect(d); p.start(t); p.stop(t + 0.2);
+    // Falling whoosh — wind/air, no splat at the bottom.
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(900, t + 0.06);
+    o.frequency.exponentialRampToValueAtTime(180, t + 0.9);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1600;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.10, t + 0.12);
+    g.gain.exponentialRampToValueAtTime(0.0006, t + 0.92);
+    o.connect(lp).connect(g).connect(d); o.start(t + 0.06); o.stop(t + 0.94);
+}
+
+/** "Wah-wah-wah-waaah" — the classic muted-trumpet sad trombone for the cartoon
+ *  game over (replaces the generic horror stab on this 1930s floor). */
+export function playFloor3GameOver(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t0 = ctx.currentTime;
+    const steps = [233, 207, 185, 156];   // Bb3 → Ab3 → F#3 → Eb3, descending
+    steps.forEach((f, i) => {
+        const ts = t0 + i * 0.26;
+        const last = i === steps.length - 1;
+        const o = ctx!.createOscillator(); o.type = 'sawtooth';
+        // Each note bends down a touch — the muted "wah" droop.
+        o.frequency.setValueAtTime(f * 1.06, ts);
+        o.frequency.exponentialRampToValueAtTime(f, ts + (last ? 0.5 : 0.2));
+        // Wah-wah mute: a moving bandpass.
+        const bp = ctx!.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 4;
+        bp.frequency.setValueAtTime(700, ts);
+        bp.frequency.exponentialRampToValueAtTime(420, ts + (last ? 0.55 : 0.22));
+        const wob = ctx!.createOscillator(); wob.type = 'sine'; wob.frequency.value = last ? 7 : 0.01;
+        const wobG = ctx!.createGain(); wobG.gain.value = last ? 120 : 0;
+        wob.connect(wobG).connect(bp.frequency); wob.start(ts); wob.stop(ts + (last ? 0.6 : 0.24));
+        const g = ctx!.createGain();
+        g.gain.setValueAtTime(0.0001, ts);
+        g.gain.exponentialRampToValueAtTime(0.16, ts + 0.03);
+        g.gain.setValueAtTime(0.16, ts + (last ? 0.4 : 0.16));
+        g.gain.exponentialRampToValueAtTime(0.0006, ts + (last ? 0.62 : 0.24));
+        o.connect(bp).connect(g).connect(d!);
+        o.start(ts); o.stop(ts + (last ? 0.64 : 0.26));
+    });
 }
 
 /** Long descending slide-whistle + splat — the Diabrete plummeting into the void. */

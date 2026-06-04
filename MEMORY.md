@@ -2540,3 +2540,93 @@ Wiring no App (`App.tsx`): estados `cartoonFall`, `fallBegging`, `fallChoice`, `
 - [ ] Felipe testar a cutscene de derrota no preview real (card "Queda do Diabrete").
 
 
+
+---
+
+## 🎲 Sessão 2026-06-04: Mesa Redonda de Agentes → Retoques Finais do Floor 3
+
+### Contexto
+Felipe pediu os retoques finais do Floor 3 via uma **mesa redonda de agentes que
+interagem entre si** (retomando a missão pausada na sessão anterior). Montei:
+- **Rodada 1** — 3 críticos em paralelo: **Design** (feel/pacing/clareza),
+  **Arte/Animação** (rubber-hose, staging, poses), **Áudio** (SFX 1930, mix,
+  cobertura). O **QA** já tinha rodado antes (8 achados preservados).
+- **Rodada 2** — um **Moderador** recebeu as 4 listas, encenou o debate
+  (concordâncias/conflitos/dependências), adjudicou alegações lendo o código e
+  cuspiu um plano final em ondas.
+- **Rodada 3** — implementei o batch "correto por construção" (verificável por
+  tsc/testes), defiri o que não dá pra verificar sem renderizar.
+
+### Descoberta crítica do Moderador
+`createToonMaterial`/`createOutlineMaterial` (cartoonToon.ts) **NÃO têm skinning**
+(sem `#include <skinning_*>`). Trocar o material do Diabrete (SkinnedMesh) por
+eles **congelaria o personagem na pose de descanso**. Isso rebaixou o item TOP de
+Arte ("unificar material") de "swap trivial" pra risco médio/blind → **DEFERIDO**.
+
+### ✅ IMPLEMENTADO (verificável: tsc 0, 49/49 testes, audit 0 erros)
+
+**Fairness / lógica (`f3Hazards.ts`):**
+- **Knockback justo**: gate de colisão `reveal >= 0.85` (era 0.6 — só morde quando
+  o espinho está visualmente cravado); empurrão pra `box.z0 - 1.3` (clear da
+  borda, não mais `-0.5`); **cooldown por tempo** via novo campo `hitAt` (re-arma
+  só após 600ms + recuo) — mata o grude/oscilação. [QA#2 + Design#3 + Áudio#1]
+- **Supressão de spawn durante dizzy**: `registerJump` faz `if (isDizzy()) return`
+  → nunca mais um espinho "aparece sozinho" sem o Diabrete pintando. [Design#6]
+- **Separação mínima brush↔espinho**: helper `withNeighbors()` bloqueia também as
+  plataformas adjacentes às já usadas pelo outro tipo. [QA#3 + Design#5]
+- **1º pincel adiantado**: agora nasce no **obstáculo #1** (era no 2º, ~20 pulos)
+  → ensina a mecânica de roubo logo de cara. [Design#2]
+- `resetHazards()` reseta `needed = 3` + zera `f3DevilPos`/`f3DevilPosValid`. [QA#4]
+- **Caminho morto removido**: `fireWin`/`setOnWin`/`_onWin` deletados (o win real
+  sempre foi por `onDone` da cutscene → `handleFallOutcome`). Sem risco de
+  double-advance. [QA#5]
+- **Anti-sentinel da cutscene**: flag `f3DevilPosValid` (setada pelo Rival quando
+  publica a posição real) + helper `devilStageBase()` (fallback pra
+  `f3PlayerZ + 12` na plataforma mais próxima). A fall cutscene encena no lugar
+  certo mesmo se montar 1 frame antes do Rival escrever. [QA#1]
+
+**Áudio no idioma 1930 (`floor3Sfx.ts` + wiring):**
+- `playFloor3Hit()` — "BONK!" (square stab + boing) pro knockback do espinho;
+  era `playFloor3Land` (soava "pousei", leitura invertida). [Áudio#1] (Player.tsx:787)
+- `playFloor3Stomp()` — "BWOMP" grave dedicado pro pisão (era `playFloor3Land`).
+  [Áudio#3] (Floor3FallCutscene stomp)
+- `playFloor3Shove()` — whoosh da traição **sem splat** (era `playFloor3Fall`, que
+  confundia quem caía). [Áudio#4] (Floor3FallCutscene shove)
+- `playFloor3GameOver()` — sad-trombone "wah-wah-wah" no game over, trocando o
+  `playJumpscareStab` de terror genérico. [Áudio#5] (App handleGameOver)
+- **`tada` na vitória**: o `sfx-tada.wav` órfão (carregado mas nunca tocado)
+  finalmente toca em `advanceToFloor4AfterWin`. [Áudio#6]
+- Cleanup defensivo no `playFloor3Dizzy().stop()` (`disconnect`). [Áudio low]
+
+**Onboarding aditivo (`diabreteScript.ts`):**
+- Nova fala (não corta as piadas existentes) ensinando "rouba os TRÊS pincéis e a
+  brincadeira ACABA" — o objetivo nunca era explicado, só revelado pelo HUD. [Design#1]
+
+**Housekeeping (`Floor3FallCutscene.tsx`):**
+- Cleanup do unmount agora restaura o **`fov`** (antes só `camera.up`) [QA#7] e
+  **limpa os hooks DEV** `__fallScrub`/`__fallPhase`/`__fallT`/`__fallPh` [QA#6].
+
+**Teste novo:** `src/__tests__/f3Hazards.test.ts` (10 casos) trava cadência,
+separação, supressão por dizzy, knockback justo/one-shot e o fallback do devil.
+
+### ⏸️ DEFERIDO (precisa do olho do Felipe / é decisão dele)
+Não consigo verificar visualmente neste ambiente (jogo depende de assets externos
++ WebGL), então NÃO mexi no que pode quebrar sem eu ver, nem na design deliberada:
+- **Visual/animação (blind risk):** unificar material/outline do Diabrete (com
+  skinning injetado), helper `setArms` + corrigir poses throw/laugh, mãos brancas
+  no Diabrete (add `bone.add` — watchlist), reorientar pincel da pose paint,
+  squash no pouso, asas dos pássaros, springs nas poses, ângulo oblíquo do "beg".
+- **Decisão de design do Felipe:** SALVAR mandar pro lobby vs. respawnar no Floor 3
+  (consequência da escolha moral — design deliberado dele); encurtar o
+  FALL_DIALOGUE de 8→4-5 linhas (cortaria as piadas autorais dele).
+
+### Estado
+- Branch: `claude/memory-map-review-V8IIf` (mergeei `claude/review-project-context-QkfHZ`
+  pra trabalhar em cima do código mais recente do Floor 3)
+- tsc ✅ · 49/49 vitest ✅ · audit 0 erros ✅
+- `index.html` rebuildado (regra de ouro #1) e commitado junto com o source (#3)
+
+### Próximos passos
+- [ ] Felipe decidir os itens DEFERIDOS de design (SALVAR→respawn? cortar diálogo?)
+- [ ] Iterar os retoques visuais de Arte no device (material/poses/mãos/squash)
+- [ ] Tema do Floor 4

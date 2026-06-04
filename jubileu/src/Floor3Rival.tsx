@@ -11,7 +11,8 @@
  *     back, three little birds tweeting in orbit.
  *   • FALL   — once the third brush is gone he TRIPS (Huggy-Wuggy style):
  *     lurch, windmill-arm teeter on the edge, then topples forward and plummets
- *     tumbling into the void, after which he reports his defeat (fireWin).
+ *     tumbling into the void, handing off to the dedicated fall cutscene (which
+ *     stages at the position published here via f3DevilPos).
  *
  * The skeleton + skinning is built in diabreteRig.ts (the GLB is rig-less);
  * here we only DRIVE the bones each frame with spring-damped rubber-hose motion.
@@ -23,7 +24,7 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { platforms as f3Platforms, f3PlayerZ } from './f3Parkour';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
-import { f3Progress, isDizzy, f3DevilPos } from './f3Hazards';
+import { f3Progress, isDizzy, f3DevilPos, f3DevilPosValid } from './f3Hazards';
 import { playFloor3Draw, playFloor3Dizzy } from './floor3Sfx';
 
 const RIVAL_URL = '/diabrete.glb';
@@ -128,6 +129,7 @@ const Floor3Rival: React.FC = () => {
         //    only the cutscene's devil is on screen.
         if (f3Progress.fell) {
             f3DevilPos.current.copy(groupRef.current.position);
+            f3DevilPosValid.current = true;     // tell the fall cutscene this spot is real (not the sentinel)
             groupRef.current.visible = false;
             if (brushRef.current) brushRef.current.visible = false;
             for (const b of birdRefs.current) if (b) b.visible = false;
