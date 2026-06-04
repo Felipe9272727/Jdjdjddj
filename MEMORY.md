@@ -2899,3 +2899,69 @@ do Felipe. **Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebu
 - Se gostar, merge para a branch principal
 - Se quiser ajustar mais, me fala o que melhorar!
 
+
+
+---
+
+## 🎬 Transição Floor 3 → Floor 4 (3D para 2D Pixelado)
+
+**Branch:** `qwen/floor4-2d-transition`  
+**Data:** 05/06/2026  
+**Status:** ✅ Implementado
+
+### O que foi feito
+
+Criado sistema completo de transição do andar 3 (3D cartoon) para o andar 4 (2D pixel art):
+
+#### Arquivos criados:
+
+1. **`Floor3To4Transition.tsx`** — Cutscene de transição
+   - Timeline de 8 segundos com 4 fases:
+     - 0-2s: Cena 3D normal
+     - 2-5s: Pixelização progressiva (resolution ↓, posterização de cores)
+     - 5-7s: Transição de câmera (perspectiva → ortográfica)
+     - 7-8s: Fade out para Floor 4 em modo 2D
+   - Usa render targets para aplicar efeitos de pixelização em tempo real
+
+2. **`PixelArtRenderer.tsx`** — Sistema de renderização 2D pixelado
+   - `PixelArtRenderer`: Aplica shaders de pixelização e posterização
+   - `PixelArtScene`: Wrapper que converte câmera para ortográfica
+   - Configurações: `pixelSize` (tamanho do pixel), `colorDepth` (profundidade de cor)
+
+3. **`Floor4.tsx` (atualizado)** — Andar 4 com suporte a modo 2D
+   - Prop `mode2D` para alternar entre renderização 3D e 2D
+   - Paleta de cores limitada estilo pixel art
+   - Grid mais visível, lighting mais plano
+   - Materiais com `flatShading` para look retro
+
+#### Arquivos modificados:
+
+4. **`CreatorMode.tsx`** — Modo criador com opção de transição
+   - Adicionado card "Transição 3 → 4" na lista de andares
+   - Variante `transition3to4` ativa a cutscene automaticamente
+   - Floor 4 agora tem variante `mode2D` para testar o andar já em 2D
+
+5. **`f3Hazards.ts`** — Flag de preview da transição
+   - Adicionado `f3Demo.transition3to4` (similar ao `f3Demo.fall`)
+   - Permite ativar a transição direto do modo criador
+
+### Como testar
+
+No **Modo Criador** (menu principal):
+
+1. **"Transição 3 → 4"** — Executa a cutscene completa de pixelização
+2. **"Andar 4"** — Vai direto para o Floor 4 já em modo 2D pixelado
+
+### Técnico
+
+- **Pixelização:** Shader GLSL que reduz resolução via snap de UVs e posteriza cores
+- **Câmera:** Transição suave de FOV (75° → 30°) simulando ortográfica
+- **Performance:** Render targets com `NearestFilter` (sem anti-aliasing)
+- **Paleta:** 4-8 cores por canal no modo 2D (vs 256 no 3D)
+
+### Próximos passos
+
+- [ ] Integrar cutscene automaticamente após completar Floor 3
+- [ ] Adicionar sprites 2D para NPCs e objetos no Floor 4
+- [ ] Criar tileset pixel art para o chão e paredes
+- [ ] Implementar movimentação 2D (side-scrolling) no Player.tsx
