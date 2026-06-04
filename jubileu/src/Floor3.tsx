@@ -232,7 +232,7 @@ const SkyBackground: React.FC = () => {
 };
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; gloves?: boolean }> = ({ elevator = true, hands = true, gloves = hands }) => {
+export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; gloves?: boolean; fallActive?: boolean }> = ({ elevator = true, hands = true, gloves = hands, fallActive = false }) => {
     // Live group refs by platform id, so the single frame loop can drive the
     // moving bridges imperatively (no per-platform useFrame, correct ordering).
     const groupRefs = useRef<Map<number, THREE.Group>>(new Map());
@@ -277,7 +277,10 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
                 floating in the open cloud sky (no chamber — matches the
                 rubber-hose reference). Keyed by stable id so React reuses
                 slots across recycles; moving bridges driven in the frame loop. */}
-            {f3Platforms.map((p) => (
+            {/* The live climb is hidden during the defeat cutscene — that scene
+                renders its OWN staged "high up the obby" set so it never looks
+                like the starting landing. */}
+            {!fallActive && f3Platforms.map((p) => (
                 <PlatformView
                     key={p.id}
                     plat={p}
@@ -289,7 +292,7 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
             ))}
 
             {/* Elevator facade */}
-            {elevator && (
+            {elevator && !fallActive && (
                 <group position={[0, 0, -10]}>
                     <ElevatorFacade z={0} height={5} width={10} />
                 </group>
@@ -297,21 +300,22 @@ export const Floor3Environment: React.FC<{ elevator?: boolean; hands?: boolean; 
 
             {/* First-person cartoon gloves (procedural idle/walk/jump) — hidden
                 during the fall cutscene (camera leaves first-person to frame the devil) */}
-            {gloves && (
+            {gloves && !fallActive && (
                 <Suspense fallback={null}>
                     <FpHands />
                 </Suspense>
             )}
 
-            {/* O Diabrete — rival that runs ahead, intro must be done first */}
-            {hands && (
+            {/* O Diabrete — rival that runs ahead, intro must be done first
+                (hidden during the fall cutscene; that scene shows its own devil) */}
+            {hands && !fallActive && (
                 <Suspense fallback={null}>
                     <Floor3Rival />
                 </Suspense>
             )}
 
             {/* The devil's sabotage: drawn spike-strips + paintbrush pickups */}
-            {hands && <Floor3Hazards />}
+            {hands && !fallActive && <Floor3Hazards />}
         </group>
     );
 };

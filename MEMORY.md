@@ -2763,3 +2763,27 @@ vértices coincidentes na MESMA direção → casca estanque, silhueta limpa com
 linhas pretas.)
 
 **Estado:** tsc 0 · 59/59 vitest · audit 0 erros · index.html rebuildado.
+
+### Continuação 2026-06-04 — Tira outline do Diabrete + mapa dedicado da cutscene
+
+**Outline removido SÓ do Diabrete:** o contorno inverted-hull saiu de
+`buildDiabreteRig` (removidos `makeOutlineGeo` + `_outlineMat`). Ele agora carrega
+a silhueta só com o toon fill + rim. O cenário e as mãos do player mantêm seus
+outlines (via `cartoonToon.ts`, intactos). Testes ajustados (1 skinned mesh, sem
+mesh BackSide).
+
+**Mapa dedicado da cutscene de queda:** o Felipe reclamou que a plataforma da
+cutscene parecia a inicial (o Floor 3 é P&B, então o ledge creme = igual ao landing
+de início). Agora:
+- Durante a cutscene (`cartoonFall`), o `Floor3Environment` esconde o parkour vivo,
+  o elevador, os hazards, o rival de gameplay e as FpHands (novo prop `fallActive`,
+  threadado App→World→Floor3Environment). Sobra só o céu + o set da cutscene + o diabo.
+- `Floor3FallCutscene` renderiza um **set próprio "lá no alto da escalada"**: um degrau
+  (menor que o landing inicial, com `<Outlines>`), um **pilar de suporte** mergulhando
+  no vazio, e **8 plataformas** espalhadas descendo/recuando (e 2 subindo atrás) — fora
+  da linha de queda central pro diabo despencar limpo no vazio. Lê como "fundo da obby,
+  longe do elevador".
+
+**Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado. Branch
+`claude/memory-map-review-V8IIf`. (Visual do set + rim só dá pra confirmar 100%
+renderizando — pedir feedback do Felipe.)

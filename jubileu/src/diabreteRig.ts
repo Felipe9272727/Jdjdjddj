@@ -99,46 +99,7 @@ function paintWeights(pos: Float32Array): { joints: Uint16Array; weights: Float3
     return { joints: J, weights: W };
 }
 
-// Pre-expand a geometry copy along its normals for the inverted-hull outline.
-//
-// The Diabrete GLB (from Tripo) has SPLIT vertices at UV/normal seams — many
-// verts sharing a position but carrying different normals. Extruding each along
-// its own normal tears the hull open at every seam, which reads as ugly black
-// streaks crawling across his body ("looks like a bugged texture"). The scenery
-// avoids this because its outlines are on clean primitives. The fix: WELD the
-// normals — average every normal that shares a position and extrude all coincident
-// verts along that single averaged direction, so the shell stays watertight and
-// the outline becomes a clean silhouette like the rest of the world.
-function makeOutlineGeo(src: THREE.BufferGeometry, thickness: number): THREE.BufferGeometry {
-    const geo = src.clone();
-    const P = geo.attributes.position.array as Float32Array;
-    const Nn = geo.attributes.normal.array as Float32Array;
-    const n = P.length / 3;
-
-    const key = (x: number, y: number, z: number) =>
-        `${Math.round(x * 1e4)},${Math.round(y * 1e4)},${Math.round(z * 1e4)}`;
-    const acc = new Map<string, [number, number, number]>();
-    for (let i = 0; i < n; i++) {
-        const k = key(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]);
-        let e = acc.get(k);
-        if (!e) { e = [0, 0, 0]; acc.set(k, e); }
-        e[0] += Nn[i * 3]; e[1] += Nn[i * 3 + 1]; e[2] += Nn[i * 3 + 2];
-    }
-    for (const e of acc.values()) {
-        const l = Math.hypot(e[0], e[1], e[2]) || 1;
-        e[0] /= l; e[1] /= l; e[2] /= l;
-    }
-    for (let i = 0; i < n; i++) {
-        const e = acc.get(key(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]))!;
-        P[i * 3]     += e[0] * thickness;
-        P[i * 3 + 1] += e[1] * thickness;
-        P[i * 3 + 2] += e[2] * thickness;
-    }
-    geo.attributes.position.needsUpdate = true;
-    return geo;
-}
-
-// 3-band toon gradient + shared ink outline material.
+// 3-band toon gradient for the fill cel-ramp.
 const _grad = (() => {
     const d = new Uint8Array([230, 220, 200, 190, 178, 155, 140, 128, 106, 90, 80, 65]);
     const t = new THREE.DataTexture(d, 4, 1, THREE.RGBFormat);
@@ -146,7 +107,6 @@ const _grad = (() => {
     t.needsUpdate = true;
     return t;
 })();
-const _outlineMat = new THREE.MeshBasicMaterial({ color: 0x0a0712, side: THREE.BackSide });
 
 /**
  * Build the rig from a loaded GLTF scene. Returns a group containing the bound
@@ -217,16 +177,11 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
     fill.add(bones[0]);
     fill.bind(skeleton);
 
-    // Ink outline: fixed-width inverted hull. Bumped from 0.026 → 0.04 so the
-    // silhouette stays readable at gameplay distance (the devil leads ~14u
-    // ahead) without a distance-scaled shader (which would need skinning).
-    const outlineGeo = makeOutlineGeo(fillGeo, 0.04);
-    const outline = new THREE.SkinnedMesh(outlineGeo, _outlineMat);
-    outline.frustumCulled = false;
-    outline.bind(skeleton);
-
+    // NOTE: no ink outline on the Diabrete. The inverted-hull read as torn black
+    // streaks on his split-vertex GLB mesh; the toon fill + fresnel rim carry his
+    // silhouette instead. (The scenery + player hands keep their own outlines via
+    // cartoonToon.ts — those are clean primitives and are untouched.)
     const group = new THREE.Group();
-    group.add(outline);   // behind
     group.add(fill);
 
     return {
@@ -235,7 +190,6 @@ export function buildDiabreteRig(gltf: THREE.Object3D): DiabreteRig | null {
         dispose: () => {
             skeleton.dispose();
             fillGeo.dispose();
-            outlineGeo.dispose();
             fillMat.dispose();
         },
     };

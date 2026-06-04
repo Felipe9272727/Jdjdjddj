@@ -45,6 +45,8 @@ const gloveWhite = new THREE.MeshToonMaterial({ color: '#f4f0e6' });
 const gloveCuff  = new THREE.MeshToonMaterial({ color: '#c0271a' });
 const ledgeTop = new THREE.MeshToonMaterial({ color: '#f3ecdd' });   // cream platform (matches Floor 3)
 const ledgeInk = new THREE.MeshToonMaterial({ color: '#0a0712' });   // ink rim
+const ledgeFar = new THREE.MeshToonMaterial({ color: '#d8d2c4' });   // dimmer cream for the climb receding below
+const ledgeCol = new THREE.MeshToonMaterial({ color: '#cdc7b9' });   // the support pillar under the ledge
 
 type Phase = 'intro' | 'beg' | 'stomp' | 'climb';
 type Outcome = 'save' | 'stomp';
@@ -54,6 +56,32 @@ interface Props {
     onBeg: () => void;
     onDone: (outcome: Outcome) => void;
 }
+
+// One cartoon climb platform for the cutscene's "high up the obby" backdrop —
+// clean ink Outline like the rest of the scenery (only the Diabrete dropped his).
+const FallStep: React.FC<{ p: [number, number, number]; w: number; d?: number; far?: boolean }> =
+    ({ p, w, d = w, far }) => (
+        <mesh position={p}>
+            <boxGeometry args={[w, 0.7, d]} />
+            <primitive object={far ? ledgeFar : ledgeTop} attach="material" />
+            <Outlines thickness={0.05} color={INK} />
+        </mesh>
+    );
+
+// The climb scattered far BELOW + behind the ledge (and a little still rising
+// above) so the staging reads as "deep into the obby, miles from the elevator"
+// instead of the flat starting landing. Kept off the centre fall-line (x≈0,
+// z≈+0.35) so the Diabrete plummets cleanly into the void between them.
+const FALL_STEPS: { p: [number, number, number]; w: number; far?: boolean }[] = [
+    { p: [-6.5, -4.0,  1.5], w: 3.0 },
+    { p: [ 6.8, -6.0, -1.0], w: 2.7, far: true },
+    { p: [-7.5, -9.5,  2.6], w: 2.5, far: true },
+    { p: [ 7.4, -12.5, -3.0], w: 2.3, far: true },
+    { p: [-5.6, -16.0, 1.2], w: 2.0, far: true },
+    { p: [ 5.0, -19.5, -4.0], w: 1.8, far: true },
+    { p: [-4.6,  3.6, -6.5], w: 2.6, far: true },   // climb continues UP behind him
+    { p: [ 4.2,  6.2, -9.5], w: 2.3, far: true },
+];
 
 const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
     const { scene: gltf } = useGLTF(RIVAL_URL);
@@ -283,16 +311,30 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
 
     return (
         <group>
-            {/* the cliff edge he clings to — top at this group's Y, front face at its Z */}
+            {/* The cutscene's OWN little map: a climb platform high up the obby
+                (smaller than the big starting landing), a support pillar dropping
+                into the void, and the rest of the climb scattered far below +
+                behind — so it never reads as "back at the start". Top at this
+                group's Y, front face at its Z. */}
             <group ref={ledgeRef}>
-                <mesh position={[0, -1.5, -2.5]}>{/* cream slab */}
-                    <boxGeometry args={[7, 3, 5]} />
+                {/* the step he clings to — a normal climb tile, NOT the start landing */}
+                <mesh position={[0, -1.2, -2.0]}>
+                    <boxGeometry args={[5.4, 2.4, 4.2]} />
                     <primitive object={ledgeTop} attach="material" />
+                    <Outlines thickness={0.05} color={INK} />
                 </mesh>
-                <mesh position={[0, -0.18, 0.02]}>{/* black ink rim along the front edge */}
-                    <boxGeometry args={[7.05, 0.42, 0.14]} />
+                {/* black ink lip along the front edge (what he grips) */}
+                <mesh position={[0, -0.18, 0.02]}>
+                    <boxGeometry args={[5.5, 0.42, 0.14]} />
                     <primitive object={ledgeInk} attach="material" />
                 </mesh>
+                {/* tall support pillar plunging into the abyss under the tile */}
+                <mesh position={[0, -9.5, -2.2]}>
+                    <boxGeometry args={[1.8, 15, 1.8]} />
+                    <primitive object={ledgeCol} attach="material" />
+                    <Outlines thickness={0.04} color={INK} />
+                </mesh>
+                {FALL_STEPS.map((s, i) => <FallStep key={i} p={s.p} w={s.w} far={s.far} />)}
             </group>
 
             <group ref={groupRef} scale={[DIABRETE_SCALE, DIABRETE_SCALE, DIABRETE_SCALE]} />

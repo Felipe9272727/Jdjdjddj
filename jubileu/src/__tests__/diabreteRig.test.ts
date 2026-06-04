@@ -45,12 +45,12 @@ function snapshot(mesh: THREE.SkinnedMesh): THREE.Vector3[] {
 }
 
 describe('buildDiabreteRig', () => {
-    it('binds a fill + outline SkinnedMesh to a 7-bone skeleton', () => {
+    it('binds a single fill SkinnedMesh to a 7-bone skeleton (no ink outline on him)', () => {
         const rig = buildDiabreteRig(fakeGltf());
         expect(rig).not.toBeNull();
         expect(rig!.bones.length).toBe(7);
         const skinned = findSkinned(rig!.group);
-        expect(skinned.length).toBe(2);              // fill + ink outline
+        expect(skinned.length).toBe(1);              // fill only — outline removed
         rig!.dispose();
     });
 
@@ -76,44 +76,11 @@ describe('buildDiabreteRig', () => {
         rig.dispose();
     });
 
-    it('the ink outline is WATERTIGHT (coincident verts extrude together — no torn black streaks)', () => {
+    it('has NO ink-outline mesh (the Diabrete carries his silhouette with fill + rim only)', () => {
         const rig = buildDiabreteRig(fakeGltf())!;
-        const skinned = findSkinned(rig.group);
-        const fill = skinned.find((m) => (m.material as THREE.Material).type === 'MeshToonMaterial')!;
-        const outline = skinned.find((m) => (m.material as THREE.Material).type === 'MeshBasicMaterial')!;
-        const fp = fill.geometry.attributes.position;
-        const op = outline.geometry.attributes.position;
-        // Group vertex indices by their (shared) fill position; for any position
-        // touched by >1 vertex (a seam), all those verts must map to the SAME
-        // outline position — otherwise the hull is torn open there.
-        const groups = new Map<string, number[]>();
-        for (let i = 0; i < fp.count; i++) {
-            const k = `${Math.round(fp.getX(i) * 1e4)},${Math.round(fp.getY(i) * 1e4)},${Math.round(fp.getZ(i) * 1e4)}`;
-            (groups.get(k) ?? groups.set(k, []).get(k)!).push(i);
-        }
-        let seamsChecked = 0;
-        for (const idxs of groups.values()) {
-            if (idxs.length < 2) continue;
-            seamsChecked++;
-            const a = idxs[0];
-            for (const b of idxs.slice(1)) {
-                expect(Math.abs(op.getX(a) - op.getX(b))).toBeLessThan(1e-4);
-                expect(Math.abs(op.getY(a) - op.getY(b))).toBeLessThan(1e-4);
-                expect(Math.abs(op.getZ(a) - op.getZ(b))).toBeLessThan(1e-4);
-            }
-        }
-        expect(seamsChecked).toBeGreaterThan(0);     // the box really does have seams
-        rig.dispose();
-    });
-
-    it('the ink-outline mesh deforms in lock-step with the fill (shares the skeleton)', () => {
-        const rig = buildDiabreteRig(fakeGltf())!;
-        const [a, b] = findSkinned(rig.group);
-        rig.group.updateMatrixWorld(true); a.skeleton.update(); b.skeleton.update();
-        const restB = snapshot(b);
-        rig.bones[B.r_leg].rotation.set(1.2, 0, 0);
-        rig.group.updateMatrixWorld(true); a.skeleton.update(); b.skeleton.update();
-        expect(maxDisplacement(b, restB)).toBeGreaterThan(0.05);
+        const hasBackSideOutline = findSkinned(rig.group)
+            .some((m) => (m.material as THREE.Material).type === 'MeshBasicMaterial');
+        expect(hasBackSideOutline).toBe(false);
         rig.dispose();
     });
 });
