@@ -2856,3 +2856,13 @@ ficava escondida abaixo da plataforma. Esse era o "erro" real.
 
 **Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado. Branch
 `claude/memory-map-review-V8IIf`.
+
+### Continuação 2026-06-04 — Revert do ângulo da cutscene (Felipe não curtiu)
+
+Felipe não gostou do ângulo 3/4 lateral que pus pra mostrar o cling — pediu pra voltar
+pro ANTERIOR (top-down "olhando por cima da borda"). Revertido o `topDownBeg` pro
+original. `HANG_DROP` voltou pra 1.5 (de 1.95) pra as mãos agarrarem no lábio visível
+de cima. Mantido o cling melhorado (duas mãos no lábio, head vira pro player, plead
+reach pra cima, escorregão, pernas). Plead reach ajustado pra subir por cima da borda
+em direção à câmera (o "money beat" do top-down). Verificado em render (top-down mostra
+cabeça/peito implorando por cima da borda — a intenção original). tsc 0 · 58/58 · audit 0.

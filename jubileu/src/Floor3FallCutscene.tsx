@@ -30,7 +30,7 @@ import { PlatformView } from './Floor3';
 import { type F3Plat } from './f3Parkour';
 
 const RIVAL_URL = '/diabrete.glb';
-const HANG_DROP = 1.95;     // how far below the ledge he dangles (hands clamp the lip, head hangs below)
+const HANG_DROP = 1.5;      // how far below the ledge he dangles (hands clamp the lip, head just under)
 const EDGE_Z    = 0.35;     // he hangs just off the front edge (abyss side)
 const FACE_Y    = Math.PI;  // turn him to FACE the platform / the player
 const INK = '#0a0712';
@@ -214,8 +214,6 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
             const strain = Math.sin(T * 34) * 0.025;          // high-freq hold tremor
             const sag    = 0.05 + Math.sin(T * 2.2) * 0.05;   // heavy weight bob
             const sway   = Math.sin(T * 1.7) * 0.06;          // pendulum on the gripping arm
-            const reach  = Math.sin(T * 4.5) * 0.5 + 0.5;
-            const grasp  = Math.sin(T * 6) * 0.5 + 0.5;       // free hand opens/closes, grabbing
             g.position.set(gx + sway * 0.12 + strain, HANG_Y - sag - slip * 0.24, edgeZ);
             g.rotation.set(-0.04 + slip * 0.12, FACE_Y, sway + strain);
             // BOTH hands clamp the lip so he clearly hangs by his arms (head below
@@ -227,7 +225,9 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
             const pleading = pCyc > 0.45 && pCyc < 1.25 && slip < 0.2;
             if (pleading) {
                 const pr = Math.sin(((pCyc - 0.45) / 0.8) * Math.PI);            // 0→1→0 reach
-                b[B.r_arm].rotation.set(lerp(0.1, -1.1, pr), 0, lerp(-2.45, -1.7, pr * grasp));   // fling up, begging
+                // fling the free hand UP over the lip toward the player (the camera
+                // above) — the money beat for the top-down "looking down at him" shot
+                b[B.r_arm].rotation.set(lerp(0.1, -2.0, pr), lerp(0, 0.5, pr), lerp(-2.45, -0.8, pr));
             } else {
                 b[B.r_arm].rotation.set(0.1 + strain, 0, -2.45 + slip * 0.1);    // right clamped too
             }
@@ -386,21 +386,12 @@ const Floor3FallCutscene: React.FC<Props> = ({ choice, onBeg, onDone }) => {
     );
 };
 
-// Shared "look at the dangling devil" framing for the catch + beg beats. A high
-// 3/4 angle from the side, a touch out over the abyss, looking down the cliff —
-// it clears the ledge lip so his gripping hands, body AND kicking legs all read
-// (a straight top-down hid everything below the edge).
+// Shared "player looks down over the edge" framing for the catch + beg beats.
 function topDownBeg(cam: { x: number; y: number; z: number; lx: number; ly: number; lz: number; fov: number },
                     gx: number, gripY: number, edgeZ: number, T: number) {
-    const push = 1 - clamp01((T - 0.95) / 3.0) * 0.12;     // gentle push-in
-    const hangY = gripY - HANG_DROP;
-    cam.x = gx + 3.3 * push;
-    cam.y = gripY + 1.9;
-    cam.z = edgeZ + 2.7 * push;
-    cam.lx = gx - 0.2;
-    cam.ly = (gripY + hangY) / 2 - 0.05;                   // centre on his torso
-    cam.lz = edgeZ - 0.2;
-    cam.fov = 50;
+    const push = 1 - clamp01((T - 0.95) / 2.5) * 0.16;     // slow push-in
+    cam.x = gx + 0.7; cam.y = gripY + (2.7 * push); cam.z = edgeZ + 1.3 - 3.0 * push;
+    cam.lx = gx; cam.ly = gripY - 0.45; cam.lz = edgeZ; cam.fov = 48;
 }
 
 useGLTF.preload(RIVAL_URL);
