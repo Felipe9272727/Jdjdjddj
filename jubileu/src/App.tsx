@@ -29,7 +29,6 @@ import Floor3CutsceneUI from './Floor3CutsceneUI';
 import { preloadCartoonAudio, startCartoonMusic, stopCartoonMusic, playCartoonSfx } from './cartoonAudio';
 import { getMusicBus, setMusicActive } from './musicDirector';
 import { configureFloor3Sfx, clearFloor3Sfx, playFloor3GameOver } from './floor3Sfx';
-import { configureFloor4Sfx, clearFloor4Sfx } from './floor4Sfx';
 import { resetHazards, setOnProgress, f3Progress, f3DevilPos, f3Demo } from './f3Hazards';
 import { reset as f3Reset, f3PlayerZ, f3PlayerY } from './f3Parkour';
 import { ShopOverlay } from './ShopOverlay';
@@ -46,7 +45,7 @@ import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { Floor2Environment, SHARD_POSITIONS } from './Floor2Underwater';
 import { Floor3Environment } from './Floor3';
-import { Floor4Environment } from './Floor4';
+import { Floor4Environment, useFloor4Audio } from './Floor4';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -797,20 +796,9 @@ export default function App() {
       }
   }, [currentLevel, audioCtx, doorsClosed]);
 
-  // ── Floor 4 (foundation, theme TBD) — reserve its audio bus + SFX so the
-  // theme can plug straight in, and keep lobby/engine music off this floor.
-  useEffect(() => {
-      if (currentLevel === 4) {
-          configureFloor4Sfx(audioCtx, cartoonBusRef.current);
-          // Reserve the exclusive music group now; no track yet (TODO: theme music).
-          getMusicBus('floor4', 65);
-          setMusicActive('floor4', true);
-      } else {
-          setMusicActive('floor4', false);
-          clearFloor4Sfx();
-      }
-  }, [currentLevel, audioCtx]);
-  
+  // ── Floor 4 audio lifecycle lives in the Floor4 module (self-contained app).
+  useFloor4Audio(currentLevel === 4, audioCtx, cartoonBusRef);
+
   useEffect(() => {
       if (gameState !== 'chase') return;
       setNightMode(true);

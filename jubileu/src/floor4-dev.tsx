@@ -1,15 +1,16 @@
 /**
- * floor4-dev.tsx — STANDALONE dev workbench for the Andar 4.
+ * floor4-dev.tsx — isolated RUNNER for the REAL Floor 4.
  *
- * Mounts ONLY the Floor 4 environment (no App.tsx, no other floors, no Firebase),
- * so Floor 4 can be built and screenshot-tested in isolation — without touching
- * the 2140-line App.tsx until the very end. Develop everything here (env, props,
- * entities, hazards, cutscenes), then do the small App.tsx wiring last
- * (see jubileu/FLOOR4.md §2).
+ * It mounts the SAME `Floor4` components that ship in the game (imported from
+ * ./Floor4), just on their own — no App.tsx, no other floors, no Firebase — so
+ * the floor can be built + screenshot-tested in isolation without re-reading the
+ * 2140-line App.tsx. Edit Floor4.tsx (+ its helpers) and it both shows up here
+ * AND ships in the game (App mounts it at level 4). Tiny App wiring is left for
+ * the very end (see jubileu/FLOOR4.md §2).
  *
- * This file is DEV-ONLY: the production build (npm run build) inlines index.html
- * only, so floor4.html / this file never ship in the game's index.html. Vite's
- * dev server still serves it at /floor4.html.
+ * Only THIS runner (floor4.html / this file / dev-shot.cjs) is dev-only: the
+ * production build inlines index.html, so the runner never ships — but the
+ * Floor4.tsx it renders DOES. Vite's dev server serves it at /floor4.html.
  *
  * Run:    cd jubileu && npm run dev    →    http://localhost:3000/floor4.html
  * Shot:   node dev-shot.cjs floor4.html floor4   (needs the dev server up; see FLOOR4.md §4)

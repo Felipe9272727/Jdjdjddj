@@ -28,6 +28,30 @@ import React, { useEffect, useMemo } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ElevatorFacade } from './Elevator';
+import { configureFloor4Sfx, clearFloor4Sfx } from './floor4Sfx';
+import { getMusicBus, setMusicActive } from './musicDirector';
+
+/**
+ * Floor 4's AUDIO LIFECYCLE — owned by this module, NOT App.tsx, so building the
+ * floor's sound stays in here. Call once at the top of App:
+ *   useFloor4Audio(currentLevel === 4, audioCtx, cartoonBusRef);
+ * On enter it points the floor's SFX at the master bus and reserves the
+ * exclusive 'floor4' music group (no track yet — theme TBD); on leave it tears
+ * down. No-op without an AudioContext (e.g. the offline dev workbench).
+ */
+export function useFloor4Audio(
+    active: boolean,
+    audioCtx: AudioContext | null,
+    busRef: React.MutableRefObject<AudioNode | null>,
+): void {
+    useEffect(() => {
+        if (!active || !audioCtx) return;
+        configureFloor4Sfx(audioCtx, busRef.current);
+        getMusicBus('floor4', 65);
+        setMusicActive('floor4', true);
+        return () => { setMusicActive('floor4', false); clearFloor4Sfx(); };
+    }, [active, audioCtx, busRef]);
+}
 
 // ── Theme block — edit here to reskin (size, palette, lighting, fog) ──────────
 const FLOOR4 = {

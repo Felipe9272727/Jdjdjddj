@@ -2906,3 +2906,28 @@ O elevador volta no wiring real do App.
 **Testado renderizando:** base plate + grid + céu neutro + cápsula no origin + eixos. ✅
 FLOOR4.md §0 atualizado com o fluxo da bancada. Como nenhum source DO JOGO mudou, o
 `index.html` ficou intacto (sem rebuild). tsc 0 · 58/58 · audit 0.
+
+### Continuação 2026-06-04 — Floor 4 autocontido (SHIP) + runner isolado (correção)
+
+Felipe esclareceu: o Floor 4 É pra entrar no jogo, só de forma SEPARADA pra economizar
+tokens. Eu tinha conflatado — o "dev-only" era só o runner (floor4.html/floor4-dev.tsx/
+dev-shot.cjs), mas o `Floor4.tsx` SEMPRE foi o andar real que ship (wired no App em
+`level===4`).
+
+**Tornei o Floor4 mais autocontido (mexo nele, não no App):**
+- Movido o ciclo de áudio do Floor 4 do `App.tsx` pro próprio módulo: novo hook
+  `useFloor4Audio(active, audioCtx, busRef)` em `Floor4.tsx`. App agora só chama
+  `useFloor4Audio(currentLevel === 4, audioCtx, cartoonBusRef)` (1 linha, era efeito de 11).
+  Removido o import de configureFloor4Sfx/clearFloor4Sfx do App (agora só no Floor4).
+- `floor4-dev.tsx` reescrito o header: é o RUNNER do Floor 4 REAL (importa os mesmos
+  componentes do `./Floor4` que ship). Eu edito `Floor4.tsx` → aparece na bancada E vai
+  pro jogo.
+
+**Confirmado no build:** `grep useFloor4Audio index.html` = 2 (Floor4 SHIP ✅);
+`grep floor4-dev index.html` = 0 (runner não ship ✅). Bancada renderiza igual.
+tsc 0 · 58/58 · audit 0 · index.html rebuildado.
+
+**Arquitetura final do Floor 4:** Floor4.tsx = app autocontido (3D + áudio próprios) →
+ship via App (mount + hook, footprint mínimo). floor4-dev.tsx = roda o mesmo isolado.
+Conforme o andar crescer, novos arquivos floor4* + hooks expostos pelo módulo mantêm o
+App quase intocado.
