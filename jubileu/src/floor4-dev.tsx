@@ -27,29 +27,28 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import Floor4Environment from './Floor4';
 
-/** ~1.8 m capsule at the origin — where the player would stand (scale reference). */
+/** ~1.8 m capsule at the origin — player scale reference. Unlit (Floor 4 is 2D). */
 const PlayerStandin: React.FC = () => (
-    <mesh position={[0, 0.9, 0]} castShadow>
+    <mesh position={[0, 0.9, 0]}>
         <capsuleGeometry args={[0.35, 1.1, 8, 16]} />
-        <meshStandardMaterial color="#d05a3a" roughness={0.6} />
+        <meshBasicMaterial color="#d05a3a" toneMapped={false} />
     </mesh>
 );
 
 const Floor4Dev: React.FC = () => (
-    <Canvas shadows camera={{ position: [11, 8, 15], fov: 45 }} gl={{ preserveDrawingBuffer: true }}>
+    <Canvas camera={{ position: [5, 4, 6], fov: 50 }} gl={{ preserveDrawingBuffer: true }}>
         <Suspense fallback={null}>
-            {/* elevator={false}: its facade streams a texture from GitHub, which
-                fails offline and would blank the render. The exit elevator isn't
-                needed to build the floor; it's added back in the real App wiring. */}
-            <Floor4Environment elevator={false} />
+            {/* The 2D pixel elevator uses procedural canvas textures (no external
+                assets), so the full floor renders offline now. */}
+            <Floor4Environment />
         </Suspense>
 
         {/* ── DEV STAND-INS (remove/replace as Floor 4 gets real content) ── */}
         <PlayerStandin />
 
         {/* Orbit camera + axes for inspecting the scene (X red / Y green / Z blue). */}
-        <OrbitControls target={[0, 1, 0]} enableDamping />
-        <axesHelper args={[3]} />
+        <OrbitControls target={[0, 2.5, -6]} enableDamping />
+        <axesHelper args={[2]} />
     </Canvas>
 );
 

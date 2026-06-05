@@ -2931,3 +2931,31 @@ tsc 0 · 58/58 · audit 0 · index.html rebuildado.
 ship via App (mount + hook, footprint mínimo). floor4-dev.tsx = roda o mesmo isolado.
 Conforme o andar crescer, novos arquivos floor4* + hooks expostos pelo módulo mantêm o
 App quase intocado.
+
+### Continuação 2026-06-04 — Floor 4 vira 100% 2D pixel + elevador 2D (visão do Felipe)
+
+Felipe: Floor 4 é literalmente 2D pixel-art em 1ª pessoa (Doom/2.5D), com transição
+animada do 3D pro 2D. Primeira entrega pedida: elevador 100% 2D + base plate. Também
+mandou corrigir o FLOOR4.md que dava a entender "dev only" (o ANDAR ship; só o runner é dev).
+
+**Feito (tudo SHIP no jogo, testado renderizando na bancada):**
+- `Floor4Elevator.tsx` — **elevador 100% 2D pixel-art**: batente beveled (centro
+  transparente) + 2 portas que deslizam (`open` 0..1, demo lento sem prop) + poço escuro
+  com trilhos + indicador (seta subir + "4"). CanvasTexture NearestFilter, sem asset externo.
+- `floor4-pixels.ts` — helper `pixelTex`/`px` compartilhado (CanvasTexture NearestFilter).
+- `Floor4.tsx` reescrito pra **100% 2D**: `Sky2D` (cor flat, SEM fog), **chão pixel tiled
+  unlit** (meshBasic, plano flat), elevador 2D. Removidas luzes/sombras/fog/grid 3D.
+  Mantido o hook `useFloor4Audio`.
+- `floor4-dev.tsx` — stand-in unlit, Canvas sem shadows.
+- `FLOOR4.md` — corrigido §0 (ANDAR ship vs RUNNER dev-only; elevador 2D offline; áudio é
+  hook), §2 item3 (hook), e §8 (visão 2D + spec do sprite do player + plano da transição).
+
+**Spec do sprite do player (pro Felipe fazer)** em FLOOR4.md §8: billboard pixel vista de
+FRENTE, PNG transparente, ~48×64px/frame, tira horizontal, idle(2)+walk(4), paleta enxuta.
+Opcional: mãos 1ª pessoa estilo Doom.
+
+**Transição 3D→2D (plano em §8, a iterar in-game):** ramp de pixelação ~2s na viagem de
+elevador (bloco cresce + quantiza cor + dessatura), corta pro 2D, + sfx 8-bit downsample.
+
+**Confirmado:** `grep Floor4Elevator2D index.html` = 4 (ship ✅), `grep floor4-dev` = 0
+(runner isolado ✅). tsc 0 · 58/58 · audit 0 · index.html rebuildado.

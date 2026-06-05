@@ -9,26 +9,32 @@
 
 ## 0. Estado atual do Floor 4
 
-- **🛠️ BANCADA DE DEV ISOLADA (use isto pra construir SEM tocar no App.tsx):**
-  - `floor4.html` + `src/floor4-dev.tsx` — app TSX standalone que monta SÓ o
-    `Floor4Environment` (sem App.tsx, sem outros andares, sem Firebase) com OrbitControls
-    + um cápsula de escala. É **dev-only**: o build de produção inlina só o `index.html`,
-    então isso NUNCA entra no jogo final.
+> **IMPORTANTE — o que ship e o que é dev-only:** o ANDAR (`Floor4.tsx` + `Floor4Elevator.tsx`
+> + `floor4-pixels.ts` + helpers) **ENTRA NO JOGO** (App monta em `level === 4`). Só o
+> RUNNER (`floor4.html`, `src/floor4-dev.tsx`, `dev-shot.cjs`) é dev-only — ele apenas roda
+> os MESMOS componentes do andar isolados pra eu ver na tela. O build de produção inlina só
+> o `index.html`, então o runner não ship, mas o `Floor4.tsx` que ele renderiza SIM.
+
+- **🛠️ BANCADA DE DEV ISOLADA (construa o andar SEM tocar no App.tsx):**
+  - `floor4.html` + `src/floor4-dev.tsx` — monta os componentes REAIS do Floor 4 (de
+    `./Floor4`) num `<Canvas>` próprio (sem App.tsx/outros andares/Firebase), com OrbitControls
+    + um cápsula de escala. Edite `Floor4.tsx` → aparece aqui E vai pro jogo.
   - **Rodar:** `cd jubileu && npm run dev` → `http://localhost:3000/floor4.html`.
   - **Screenshot:** `node dev-shot.cjs floor4.html floor4` (com o dev server up) → `/tmp/floor4.png`.
-  - **Fluxo:** desenvolva TUDO do Floor 4 aqui (env/props/entidades/hazards/cutscenes),
-    veja na tela via screenshot, e só no FIM faça o wiring pequeno no App.tsx (§2).
-  - ⚠️ A bancada usa `<Floor4Environment elevator={false} />` — o `ElevatorFacade` puxa
-    textura externa do GitHub que falha offline e quebra o render. O elevador volta no App.
-- `src/Floor4.tsx` — scaffold themeável pronto (base plate + grid + céu + luz neutra +
-  elevador). Bloco `FLOOR4 = {...}` no topo pra reskin de 1 bloco. Slots marcados no JSX:
+  - **Fluxo:** desenvolva TUDO do Floor 4 aqui, veja via screenshot, e só no FIM faça o
+    wiring pequeno no App.tsx (§2). Tudo usa textura procedural (sem asset externo) → roda offline.
+- `src/Floor4.tsx` — o andar (100% 2D): `useFloor4Audio` hook + `Floor4Environment` (céu flat
+  + chão pixel unlit + elevador). Bloco `FLOOR4 = {...}` pra reskin. Slots no JSX:
   `ENV PROPS / ENTITIES / HAZARDS / CUTSCENE`.
+- `src/Floor4Elevator.tsx` — ✅ elevador 100% 2D pixel-art (batente + portas que deslizam +
+  poço + indicador). `src/floor4-pixels.ts` — helper `pixelTex`/`px` (CanvasTexture NearestFilter).
 - `src/floor4Sfx.ts` — scaffold de SFX (espelho do floor3Sfx, vazio).
 - `dev-shot.cjs` — ferramenta de screenshot reutilizável (`node dev-shot.cjs <html> <tag>`).
-- **Já wired no App.tsx** (não precisa criar do zero): import + render (`level === 4`),
-  efeito de áudio (`currentLevel === 4` reserva o bus `floor4`), e a CHEGADA
+- **Já wired no App.tsx** (mínimo): import + render (`level === 4`), o hook
+  `useFloor4Audio(currentLevel === 4, audioCtx, cartoonBusRef)`, e a CHEGADA
   (`advanceToFloor4AfterWin` → `setNextElevatorDestination(4)` quando vence o Floor 3).
-- **Tema NÃO definido** — o Felipe dita depois. Não invente o tema; espere o pedido.
+- **Estilo definido:** 100% 2D pixel-art em 1ª pessoa (ver §8). Conteúdo do mapa/tema: a
+  decidir com o Felipe.
 
 ---
 
@@ -59,14 +65,10 @@
 1. **Imports** — `grep "from './Floor4'"` e `grep "floor4Sfx'"`. Adicione imports de
    novos arquivos do andar aqui.
 2. **Render do ambiente** — `grep "level === 4 &&"` (no componente `World`, ~`grep "const World = React.memo"`). Já tem `{level === 4 && <Floor4Environment />}`. Se o andar precisar de flags (tipo `floor3FallActive`), adicione prop em `WorldProps` (`grep "interface WorldProps"`), no destructure do `World`, e na chamada `<World ... />` (`grep "<World timer="`).
-3. **Áudio/música na entrada/saída** — `grep "currentLevel === 4"` (efeito que reserva o
-   bus). Padrão:
-   ```ts
-   if (currentLevel === 4) {
-       configureFloor4Sfx(audioCtx, cartoonBusRef.current);
-       // quando tiver música: startXxx(audioCtx, { destination: getMusicBus('floor4', 65) ?? undefined }); setMusicActive('floor4', true);
-   } else { setMusicActive('floor4', false); clearFloor4Sfx(); }
-   ```
+3. **Áudio/música** — já encapsulado no MÓDULO: o hook `useFloor4Audio` (em `Floor4.tsx`)
+   é chamado uma vez no App (`grep "useFloor4Audio" src/App.tsx`) e reserva o bus + SFX na
+   entrada/saída. Pra dar música ao andar, edite o hook (não o App): adicione
+   `startXxx(audioCtx, { destination: getMusicBus('floor4', 65) ?? undefined })` dentro dele.
 4. **Chegada (elevador → andar)** — o fluxo é `setNextElevatorDestination(N)` e, na
    abertura das portas no destino, `setCurrentLevel(nextElevatorDestination)`
    (`grep "setNextElevatorDestination"` e `grep "setCurrentLevel(nextElevatorDestination)"`).
@@ -173,3 +175,66 @@ Erros normais e inofensivos no console: 404 (favicon) e ERR_CERT (recurso extern
 | Chamada do `<Player>` | `<Player active=` |
 
 *Criado 2026-06-04 para preparar o Floor 4 (economia de tokens).*
+
+---
+
+## 8. Floor 4 = 2D PIXELADO (visão do Felipe) — em construção
+
+O Floor 4 é literalmente 2D pixel-art, jogado em PRIMEIRA PESSOA (câmera FP normal,
+mundo feito de sprites flat pixelados — estilo Doom/2.5D). Transição BEM animada do
+3D (Floor 3) → 2D pixelado.
+
+### Abordagem de render (decidida)
+- **Sprites flat + pixel-art procedural**: `PlaneGeometry` + `meshBasicMaterial`
+  (`toneMapped={false}`) + `CanvasTexture` com `NearestFilter` (pixel crisp). Sem assets
+  externos → renderiza offline na bancada (`floor4.html`).
+- Entidades (player, NPCs) = **billboards** (planos que encaram a câmera) → precisam de
+  UMA direção (frente) só. Estilo 2.5D clássico, minimiza sprites.
+- Look "pixelado global" da tela (pra unificar + pra transição): render em baixa
+  resolução / pixelate pass — DEFERIDO (precisa wiring + iteração in-game). Por ora o
+  pixel vem das texturas NearestFilter.
+
+### ✅ Elevador 2D — FEITO (`Floor4Elevator.tsx`)
+- `Floor4Elevator2D` — batente beveled (centro transparente) + 2 portas que deslizam +
+  poço escuro com trilhos + indicador (seta de subir + "4"). Tudo CanvasTexture pixel.
+- Prop `open` (0..1) desliza as portas; sem prop = demo lento (bancada). **TODO:** wirar
+  ao `doorsClosed` real (passar via World props quando integrar a chegada).
+- Já montado no `Floor4Environment` no lugar do `ElevatorFacade` 3D.
+
+### Base plate — mantida (scaffold do Floor4.tsx). O mapa a gente resolve depois.
+
+### 🎞️ Transição Floor 3 → Floor 4 (plano)
+Acontece na viagem de elevador (câmera travada). O 3D "vira pixel 2D":
+1. **Ramp de pixelação** ~1.5–2.5s: bloco de pixel cresce 1px→grande + quantiza cor +
+   dessatura → o mundo 3D vira pixel art. Implementar como pixelate pass leve (NÃO N8AO)
+   OU render-to-low-res-target com upscale Nearest, com `amount` rampando.
+2. No pico, corta pro Floor 4 já 2D (portas 2D abrindo).
+3. Som: descer o ragtime + um "glitch/8-bit downsample" sfx (floor4Sfx).
+- Hook de entrada: o efeito de chegada do Floor 4 (`grep "currentLevel === 4"`) + o
+  estado de viagem (`travelPhase`/`teleportCutscene`). Reusar a camada de overlay do App.
+- ⚠️ Precisa iterar in-game (chegar no Floor 4 = vencer Floor 3 ou atalho do Modo Criador
+  "Andar 4"). Testável aos poucos na bancada com um `amount` controlado por `window.__pix`.
+
+### 🕹️ SPEC DO SPRITE DO PLAYER (pro Felipe fazer e mandar)
+Decidido: **billboard pixel-art, vista de FRENTE** (encara a câmera). Assim você só
+desenha uma direção. Quando der, a gente adiciona laterais/costas.
+
+- **Formato:** PNG, fundo TRANSPARENTE, pixels limpos (sem anti-alias — vai com
+  NearestFilter). Paleta enxuta (≤ ~16 cores) pra ficar coeso com o pixel-art.
+- **Tamanho por frame:** sugestão **48 × 64 px** (largura × altura). Pode escalar, mas
+  mantenha proporção ~3:4 e múltiplos de 8 ajudam.
+- **Layout:** sprite sheet em TIRA HORIZONTAL, todos os frames do MESMO tamanho, em
+  ordem, sem espaçamento (eu fatio por índice). Mande 1 arquivo por animação OU um sheet
+  só com as linhas: idle, walk.
+- **Animações mínimas:**
+  - **idle** — 2 frames (respiração leve).
+  - **walk** — 4 frames (ciclo de caminhada, vista de frente, perninhas alternando).
+  - (Opcional depois: jump 1, fall 1, e laterais.)
+- **Estilo:** o personagem do jogo (o "bacon hair"/boneco) reimaginado em pixel art
+  chunky, leitura clara em ~64px de altura, contorno escuro fino opcional (combina com o
+  resto do jogo que usa outline). Mande do jeito que curtir — eu adapto o tamanho no código.
+- **1ª pessoa (viewmodel):** opcional. Se quiser, mande também um par de **mãos/braços
+  pixel** (vista de baixo, estilo Doom) ~64×48 pra aparecer na base da tela. Se não, eu
+  faço procedural por enquanto.
+
+Manda os sprites que eu ligo no jogo (billboard + animação por frame via CanvasTexture/atlas).
