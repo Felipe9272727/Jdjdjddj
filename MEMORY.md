@@ -3013,3 +3013,28 @@ Validado renderizando: cena 2D + player + botões ◄►. tsc 0 · 58/58 · audi
 - Movimento é só andar esq/dir num baseplate flat (sem pulo/plataformas ainda).
 - FALTA: a TRANSIÇÃO 3D→2D (pixelação na viagem do elevador) — próxima. E os sprites de
   perfil do Felipe (spec em FLOOR4.md §8) pra trocar o placeholder.
+
+### Continuação 2026-06-04 — Transição 3D→2D + elevador 2D estilo 3D
+
+Felipe: começar a transição (começa em 1ª pessoa, NÃO pode ir pra 3ª, depois vira o mundo
+2D) + melhorar o elevador 2D pra parecer o 3D.
+
+**Elevador 2D redesenhado (`Floor4Elevator.tsx`) pra casar com o 3D real (Elevator.tsx):**
+portas PRATEADAS (#B0BEC5) com grooves/painel, batente escuro, **trim DOURADO**, header
+escuro com a placa DOURADA **"THE NORMAL ELEVATOR"**, painel de chamada com LEDs
+vermelho/verde + display "4". Usado na cena side-scroller (`Floor4Scene2D`) no lugar do
+elevador genérico antigo. Validado em render — ficou a cara do 3D.
+
+**Transição (entrada no Floor 4):** o overlay 2D (`Floor4Canvas2D`) faz um **pixel-resolve**
+ao montar — `ResolveFX` rampa o pixelRatio do PRÓPRIO canvas 2D de super-chunky → nítido
+em ~1.5s + um black flash que some (0.9s). Lê como "o mundo se materializa a partir de
+pixels grandes → 2D nítido". Confirmado: frame cedo sai pixelado/blocado, frame tarde nítido.
+- **Trava de 1ª pessoa:** `currentLevel === 4` adicionado ao disable do zoom (onWheel) +
+  efeito `if (currentLevel===4) setZoomLevel(0)`. A viagem pro Floor 4 já é FP (Floor 3 é FP).
+
+**⚠️ Deferido — o literal "3D pixelando na viagem":** o Canvas 3D usa `<AdaptiveDpr pixelated>`
++ PerformanceMonitor (gerenciam o pixelRatio). Mexer no gl.setPixelRatio do canvas 3D
+brigaria com eles (flicker/quebra). Então a pixelação foi feita no canvas 2D próprio (seguro).
+Fazer o 3D pixelar de verdade precisa de trabalho cuidadoso com o AdaptiveDpr — próxima iteração.
+
+**Estado:** tsc 0 · 58/58 · audit 0 · index.html rebuildado. ship=6, runner isolado=0.

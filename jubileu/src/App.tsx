@@ -799,6 +799,9 @@ export default function App() {
 
   // ── Floor 4 audio lifecycle lives in the Floor4 module (self-contained app).
   useFloor4Audio(currentLevel === 4, audioCtx, cartoonBusRef);
+  // Floor 4 is the 2D side-scroller: lock the 3D camera to first person under the
+  // overlay (no third-person) — the transition begins in FP and stays there.
+  useEffect(() => { if (currentLevel === 4) setZoomLevel(0); }, [currentLevel]);
 
   useEffect(() => {
       if (gameState !== 'chase') return;
@@ -1361,7 +1364,7 @@ export default function App() {
   const { info: botInfo } = useBotStore();
 
   return (
-    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2 || currentLevel === 3) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
+    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2 || currentLevel === 3 || currentLevel === 4) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted || shopOpen} masterVolume={settings.masterVolume} nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} doorsClosed={doorsClosed} busRef={cartoonBusRef} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}

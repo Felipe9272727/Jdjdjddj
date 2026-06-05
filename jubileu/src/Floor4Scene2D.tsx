@@ -14,6 +14,7 @@
 import React from 'react';
 import * as THREE from 'three';
 import { pixelTex, px } from './floor4-pixels';
+import { Floor4Elevator2D } from './Floor4Elevator';
 
 // ── Palette (from the reference) ──────────────────────────────────────────────
 const P = {
@@ -82,16 +83,6 @@ const roomFloorTex = pixelTex(16, 8, (ctx) => {
 });
 roomFloorTex.wrapS = THREE.RepeatWrapping;
 
-const elevatorTex = pixelTex(40, 64, (ctx) => {       // side-scroller elevator cabin
-    px(ctx, 0, 0, 40, 64, P.metalDk);                 // frame
-    px(ctx, 0, 0, 40, 2, P.metalLt); px(ctx, 0, 0, 2, 64, P.metalLt);
-    px(ctx, 0, 62, 40, 2, P.roomDk); px(ctx, 38, 0, 2, 64, P.roomDk);
-    px(ctx, 4, 4, 32, 56, P.metal);                   // door area
-    px(ctx, 19, 4, 2, 56, P.metalDk);                 // door seam
-    for (const dx of [9, 27]) { px(ctx, dx, 8, 4, 48, P.door); px(ctx, dx, 8, 1, 48, P.metalLt); }
-    // call panel
-    px(ctx, 33, 26, 4, 10, P.panel); px(ctx, 34, 28, 2, 2, '#ffd24a'); px(ctx, 34, 32, 2, 2, '#7CFF6B');
-});
 const potTex = pixelTex(20, 24, (ctx) => {
     ctx.clearRect(0, 0, 20, 24);
     // leaves
@@ -101,7 +92,6 @@ const potTex = pixelTex(20, 24, (ctx) => {
     px(ctx, 5, 14, 10, 9, P.pot); px(ctx, 4, 13, 12, 3, P.potDk); px(ctx, 5, 14, 10, 1, '#d06a40');
 });
 const signTexB = labelTex('BASEPLATE', P.panel, P.text);
-const signTexE = labelTex('ELEVADOR', P.panel, '#7CFF6B');
 const postTex = pixelTex(4, 16, (ctx) => { px(ctx, 0, 0, 4, 16, P.signWood); px(ctx, 0, 0, 1, 16, P.signWoodDk); });
 
 // "go right" hint arrow.
@@ -138,9 +128,9 @@ export const Floor4Scene2D: React.FC = () => {
             {/* room right-edge pillar = the doorway out */}
             <S tex={roomTex} w={0.5} h={8} x={ROOM_X1} y={4} z={-1} />
 
-            {/* ELEVATOR + sign */}
-            <S tex={elevatorTex} w={2.6} h={4.2} x={-8} y={2.1} z={-1} />
-            <S tex={signTexE} w={2.4} h={0.7} x={-8} y={4.6} z={-1} transparent />
+            {/* ELEVATOR — 2D pixel, styled like the real 3D one (silver doors +
+                gold "THE NORMAL ELEVATOR" sign + trim + LED panel) */}
+            <Floor4Elevator2D position={[-8, 0, -1]} />
 
             {/* PLANT (room, near the doorway) */}
             <S tex={potTex} w={1.0} h={1.2} x={-3.6} y={0.6} z={0} transparent />
