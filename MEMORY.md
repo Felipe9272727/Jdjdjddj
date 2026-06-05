@@ -2985,3 +2985,31 @@ ramp de pixelação no 3D durante a viagem → corta pro side-scroller 2D. A faz
 virado pra direita (espelho no código), ~32×48px, idle(2)+walk(4-6)+jump/fall opcional.
 
 Nenhum source do jogo mudou nesta etapa → index.html intacto. tsc 0 · 58/58 · audit n/a.
+
+### Continuação 2026-06-04 — Sidescroller 2D AGORA NO JOGO (Felipe: "cadê o sidescroller?")
+
+Felipe printou o Floor 4 no jogo (vercel) = a versão 3D 1ª pessoa achatada. O side-scroller
+só existia na bancada, nunca tinha sido ligado no jogo. Consertado: criado o **modo 2D
+in-game** e plugado no App.
+
+**Novos arquivos (SHIP):**
+- `Floor4Canvas2D.tsx` — overlay full-screen com Canvas PRÓPRIO ortográfico (side-scroller
+  real, separado do canvas 3D) + cena + player + controles. Teclado (←/→/A/D) + botões de
+  toque ◄ ► (mobile). `onExit` quando anda pra esquerda no elevador.
+- `Floor4Player2D.tsx` — player de perfil controlável: anda esq/dir, vira, walk-cycle 2
+  frames (placeholder), câmera ortográfica segue o X (clamp no mundo), sai pelo elevador.
+- `Floor4Scene2D.tsx` — o mundo (sem o player; exporta `FLOOR4_WORLD`/`FLOOR4_ELEVATOR_X`).
+
+**Wiring no App (mínimo):** import + `{currentLevel === 4 && <Floor4Canvas2D onExit={handleFloor4Exit} />}`
+(overlay z-60 sobre o canvas 3D) + `handleFloor4Exit` (volta pro lobby por enquanto).
+A bancada (`floor4-dev.tsx`) renderiza o MESMO `Floor4Canvas2D`.
+
+**Confirmado:** `grep Floor4Canvas2D index.html` = 6 (SHIP ✅), `floor4-dev` = 0 (isolado ✅).
+Validado renderizando: cena 2D + player + botões ◄►. tsc 0 · 58/58 · audit 0 · index.html rebuildado.
+
+**Notas/observações:**
+- O `Floor4Environment` 3D antigo ainda monta no World (coberto pelo overlay) + `useFloor4Audio`
+  roda. Inofensivo; otimizar depois (parar de montar o 3D no level 4).
+- Movimento é só andar esq/dir num baseplate flat (sem pulo/plataformas ainda).
+- FALTA: a TRANSIÇÃO 3D→2D (pixelação na viagem do elevador) — próxima. E os sprites de
+  perfil do Felipe (spec em FLOOR4.md §8) pra trocar o placeholder.

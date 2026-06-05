@@ -104,16 +104,6 @@ const signTexB = labelTex('BASEPLATE', P.panel, P.text);
 const signTexE = labelTex('ELEVADOR', P.panel, '#7CFF6B');
 const postTex = pixelTex(4, 16, (ctx) => { px(ctx, 0, 0, 4, 16, P.signWood); px(ctx, 0, 0, 1, 16, P.signWoodDk); });
 
-// Placeholder side-view character (replaced by Felipe's sprite later).
-const heroTex = pixelTex(16, 24, (ctx) => {
-    ctx.clearRect(0, 0, 16, 24);
-    px(ctx, 4, 1, 8, 6, P.hair);                       // hair
-    px(ctx, 5, 4, 7, 5, P.skin);                       // face
-    px(ctx, 10, 5, 2, 2, P.panel);                     // eye (facing right)
-    px(ctx, 4, 9, 8, 7, P.shirt);                      // torso
-    px(ctx, 4, 16, 3, 5, P.pants); px(ctx, 9, 16, 3, 5, P.pants);  // legs
-    px(ctx, 4, 21, 4, 2, P.shoe); px(ctx, 9, 21, 4, 2, P.shoe);    // shoes
-});
 // "go right" hint arrow.
 const arrowTex = pixelTex(16, 10, (ctx) => {
     ctx.clearRect(0, 0, 16, 10);
@@ -122,6 +112,9 @@ const arrowTex = pixelTex(16, 10, (ctx) => {
 
 // ── Scene ─────────────────────────────────────────────────────────────────────
 const ROOM_X0 = -11, ROOM_X1 = -2.5;   // elevator room spans this; opens to the right
+// World bounds (for the controllable player + camera follow) and the elevator X.
+export const FLOOR4_WORLD = { left: -13, right: 14, groundY: 0 };
+export const FLOOR4_ELEVATOR_X = -8;
 
 export const Floor4Scene2D: React.FC = () => {
     const ground = React.useMemo(() => { const t = groundTex.clone(); t.wrapS = THREE.RepeatWrapping; t.repeat.set(14, 1); return t; }, []);
@@ -156,9 +149,8 @@ export const Floor4Scene2D: React.FC = () => {
             <S tex={postTex} w={0.25} h={1.6} x={4} y={0.8} z={-0.6} />
             <S tex={signTexB} w={2.6} h={0.7} x={4} y={1.9} z={-0.5} transparent />
 
-            {/* PLAYER placeholder (side view) + go-right hint */}
-            <S tex={heroTex} w={1.0} h={1.5} x={-2.8} y={0.75} z={0.2} transparent />
-            <S tex={arrowTex} w={1.0} h={0.6} x={-1.4} y={1.1} z={0.2} transparent />
+            {/* go-right hint (the controllable player is mounted by Floor4Canvas2D) */}
+            <S tex={arrowTex} w={1.0} h={0.6} x={-1.4} y={1.1} z={0.1} transparent />
         </group>
     );
 };

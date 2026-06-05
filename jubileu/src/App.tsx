@@ -46,6 +46,7 @@ import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { Floor2Environment, SHARD_POSITIONS } from './Floor2Underwater';
 import { Floor3Environment } from './Floor3';
 import { Floor4Environment, useFloor4Audio } from './Floor4';
+import Floor4Canvas2D from './Floor4Canvas2D';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -1151,6 +1152,15 @@ export default function App() {
     }, 1400);
   }, [audioCtx, muted, scheduleTimeout]);
 
+  // ── Leave the 2D Floor 4 (walked into its elevator) → ride back to the lobby.
+  const handleFloor4Exit = useCallback(() => {
+    setCurrentLevel(0);
+    setGameState('lobby');
+    setNightMode(false);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
+    setFloorReveal(true);
+  }, []);
+
   // ── Player SAVED the devil → BETRAYAL: he shoves the player off the ledge.
   // Instead of a full Game Over to the lobby (too punishing for the "nice"
   // choice), the player tumbles back to the START of Floor 3 and re-climbs —
@@ -2002,6 +2012,11 @@ export default function App() {
           )}
         </div>
       )}
+      {/* FLOOR 4 — the real 2D side-scroller, its own orthographic canvas over
+          the 3D game (Felipe: Floor 4 is literally 2D). Walk left into the
+          elevator to ride back down. */}
+      {currentLevel === 4 && <Floor4Canvas2D onExit={handleFloor4Exit} />}
+
       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}
       {fallGameOver && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 95, background: '#0a0712',
