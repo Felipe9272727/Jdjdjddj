@@ -2886,3 +2886,23 @@ pra construir qualquer andar novo, ancorado em `grep` (não em nº de linha):
 
 Ponteiro adicionado no topo do `MAP.md`. Floor4.tsx/floor4Sfx.ts já são scaffolds prontos;
 o tema ainda NÃO foi definido (esperar o Felipe). Nada de source mudou → index.html intacto.
+
+### Continuação 2026-06-04 — Bancada de dev ISOLADA pro Floor 4 (ideia do Felipe)
+
+Felipe: fazer um app TSX separado pro Floor 4 economizaria muitos tokens. Feito —
+agora dá pra construir o andar SEM tocar no App.tsx de 2140 linhas até o fim.
+
+**Criado (dev-only, NÃO entra no build de produção — confirmado: `grep floor4-dev index.html` = 0):**
+- `jubileu/floor4.html` + `src/floor4-dev.tsx` — app standalone que monta SÓ o
+  `Floor4Environment` (sem App.tsx/outros andares/Firebase) com OrbitControls + cápsula de
+  escala. Roda em `npm run dev` → `/floor4.html`.
+- `jubileu/dev-shot.cjs` — ferramenta de screenshot reutilizável (`node dev-shot.cjs <html> <tag>`),
+  Playwright/swiftshader, com fallback de path do chromium via `PW_CHROMIUM`.
+
+**Detalhe:** a bancada usa `<Floor4Environment elevator={false} />` — o `ElevatorFacade`
+puxa textura externa do GitHub que falha offline e quebrava o render (screenshot vinha vazia).
+O elevador volta no wiring real do App.
+
+**Testado renderizando:** base plate + grid + céu neutro + cápsula no origin + eixos. ✅
+FLOOR4.md §0 atualizado com o fluxo da bancada. Como nenhum source DO JOGO mudou, o
+`index.html` ficou intacto (sem rebuild). tsc 0 · 58/58 · audit 0.

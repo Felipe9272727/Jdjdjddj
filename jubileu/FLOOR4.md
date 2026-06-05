@@ -9,10 +9,22 @@
 
 ## 0. Estado atual do Floor 4
 
+- **🛠️ BANCADA DE DEV ISOLADA (use isto pra construir SEM tocar no App.tsx):**
+  - `floor4.html` + `src/floor4-dev.tsx` — app TSX standalone que monta SÓ o
+    `Floor4Environment` (sem App.tsx, sem outros andares, sem Firebase) com OrbitControls
+    + um cápsula de escala. É **dev-only**: o build de produção inlina só o `index.html`,
+    então isso NUNCA entra no jogo final.
+  - **Rodar:** `cd jubileu && npm run dev` → `http://localhost:3000/floor4.html`.
+  - **Screenshot:** `node dev-shot.cjs floor4.html floor4` (com o dev server up) → `/tmp/floor4.png`.
+  - **Fluxo:** desenvolva TUDO do Floor 4 aqui (env/props/entidades/hazards/cutscenes),
+    veja na tela via screenshot, e só no FIM faça o wiring pequeno no App.tsx (§2).
+  - ⚠️ A bancada usa `<Floor4Environment elevator={false} />` — o `ElevatorFacade` puxa
+    textura externa do GitHub que falha offline e quebra o render. O elevador volta no App.
 - `src/Floor4.tsx` — scaffold themeável pronto (base plate + grid + céu + luz neutra +
   elevador). Bloco `FLOOR4 = {...}` no topo pra reskin de 1 bloco. Slots marcados no JSX:
   `ENV PROPS / ENTITIES / HAZARDS / CUTSCENE`.
 - `src/floor4Sfx.ts` — scaffold de SFX (espelho do floor3Sfx, vazio).
+- `dev-shot.cjs` — ferramenta de screenshot reutilizável (`node dev-shot.cjs <html> <tag>`).
 - **Já wired no App.tsx** (não precisa criar do zero): import + render (`level === 4`),
   efeito de áudio (`currentLevel === 4` reserva o bus `floor4`), e a CHEGADA
   (`advanceToFloor4AfterWin` → `setNextElevatorDestination(4)` quando vence o Floor 3).
