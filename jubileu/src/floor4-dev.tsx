@@ -1,57 +1,29 @@
 /**
- * floor4-dev.tsx — isolated RUNNER for the REAL Floor 4.
+ * floor4-dev.tsx — isolated RUNNER for the REAL Floor 4 (the 2D side-scroller).
  *
- * It mounts the SAME `Floor4` components that ship in the game (imported from
- * ./Floor4), just on their own — no App.tsx, no other floors, no Firebase — so
- * the floor can be built + screenshot-tested in isolation without re-reading the
- * 2140-line App.tsx. Edit Floor4.tsx (+ its helpers) and it both shows up here
- * AND ships in the game (App mounts it at level 4). Tiny App wiring is left for
- * the very end (see jubileu/FLOOR4.md §2).
+ * Mounts the SAME Floor 4 scene that ships in the game — under an ORTHOGRAPHIC
+ * camera, so it's a TRUE 2D view (zero perspective), not a 3D scene with flat
+ * textures. No App.tsx / other floors / Firebase. Edit Floor4Scene2D.tsx → it
+ * shows here AND ships. Only this runner (floor4.html / this file / dev-shot.cjs)
+ * is dev-only; the Floor 4 scene it renders DOES ship.
  *
- * Only THIS runner (floor4.html / this file / dev-shot.cjs) is dev-only: the
- * production build inlines index.html, so the runner never ships — but the
- * Floor4.tsx it renders DOES. Vite's dev server serves it at /floor4.html.
- *
- * Run:    cd jubileu && npm run dev    →    http://localhost:3000/floor4.html
- * Shot:   node dev-shot.cjs floor4.html floor4   (needs the dev server up; see FLOOR4.md §4)
- *
- * Camera: OrbitControls — drag to orbit, scroll to zoom. The red capsule at the
- * origin is a ~1.8 m stand-in for the player (scale reference).
- *
- * As Floor 4 grows, drop new components into the marked slots and add window dev
- * hooks (e.g. cutscene scrubbing like Floor 3's __fallScrub) for deterministic shots.
+ * Run:  cd jubileu && npm run dev  →  http://localhost:3000/floor4.html
+ * Shot: node dev-shot.cjs floor4.html floor4
  */
-import React, { Suspense } from 'react';
+import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import Floor4Environment from './Floor4';
-
-/** ~1.8 m capsule at the origin — player scale reference. Unlit (Floor 4 is 2D). */
-const PlayerStandin: React.FC = () => (
-    <mesh position={[0, 0.9, 0]}>
-        <capsuleGeometry args={[0.35, 1.1, 8, 16]} />
-        <meshBasicMaterial color="#d05a3a" toneMapped={false} />
-    </mesh>
-);
+import Floor4Scene2D from './Floor4Scene2D';
 
 const Floor4Dev: React.FC = () => (
-    <Canvas camera={{ position: [5, 4, 6], fov: 50 }} gl={{ preserveDrawingBuffer: true }}>
-        <Suspense fallback={null}>
-            {/* The 2D pixel elevator uses procedural canvas textures (no external
-                assets), so the full floor renders offline now. */}
-            <Floor4Environment />
-        </Suspense>
-
-        {/* ── DEV STAND-INS (remove/replace as Floor 4 gets real content) ── */}
-        <PlayerStandin />
-
-        {/* Orbit camera + axes for inspecting the scene (X red / Y green / Z blue). */}
-        <OrbitControls target={[0, 2.5, -6]} enableDamping />
-        <axesHelper args={[2]} />
+    <Canvas
+        orthographic
+        camera={{ position: [0, 3, 10], zoom: 48, near: 0.1, far: 100 }}
+        gl={{ preserveDrawingBuffer: true }}
+    >
+        <Floor4Scene2D />
     </Canvas>
 );
 
 createRoot(document.getElementById('root')!).render(<Floor4Dev />);
-// Signal for the Playwright screenshot tool that the app mounted.
 setTimeout(() => { (window as Window & { __ready?: boolean }).__ready = true; }, 200);

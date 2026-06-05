@@ -2959,3 +2959,29 @@ elevador (bloco cresce + quantiza cor + dessatura), corta pro 2D, + sfx 8-bit do
 
 **Confirmado:** `grep Floor4Elevator2D index.html` = 4 (ship ✅), `grep floor4-dev` = 0
 (runner isolado ✅). tsc 0 · 58/58 · audit 0 · index.html rebuildado.
+
+### Continuação 2026-06-04 — Floor 4 vira SIDE-SCROLLER 2D DE VERDADE (correção)
+
+Felipe mandou um exemplo (sala de elevador à esquerda + baseplate/céu à direita, personagem
+de PERFIL) e disse: (1) a transição não existe, (2) "nada está em 2d, só com o aspecto" — o
+que eu fiz era 3D achatado em 1ª pessoa. Ele quer **2D de verdade**.
+
+**Reconstruído como side-scroller 2D ORTOGRÁFICO (`Floor4Scene2D.tsx`):**
+- Câmera ortográfica (zero perspectiva) + camadas de sprite pixel flat (meshBasic + Nearest).
+- Cena batendo com a referência: sky+nuvens, chão grama/terra tiled, sala escura do elevador,
+  elevador 2D + placa "ELEVADOR", planta, placa "BASEPLATE" no poste, setinha →, e PLACEHOLDER
+  de personagem de PERFIL.
+- Validado na bancada (`floor4-dev.tsx` agora usa câmera ortográfica) — screenshot confere
+  com o exemplo do Felipe. Helpers em `floor4-pixels.ts`.
+
+**Ainda NÃO shipa** (`grep Floor4Scene2D index.html` = 0): o jogo é 3D 1ª pessoa; pra o
+side-scroller entrar precisa do **"modo 2D"** = câmera ortográfica no level 4 + controles 2D
+(esq/dir/pulo + câmera segue X) + montar a cena no lugar do `Floor4Environment`. Próxima etapa.
+
+**Transição 3D→2D**: ainda não existe (era reclamação do Felipe). Plano em FLOOR4.md §8:
+ramp de pixelação no 3D durante a viagem → corta pro side-scroller 2D. A fazer junto do modo 2D.
+
+**Spec do sprite ATUALIZADO** (FLOOR4.md §8): agora **vista de PERFIL** (não frente),
+virado pra direita (espelho no código), ~32×48px, idle(2)+walk(4-6)+jump/fall opcional.
+
+Nenhum source do jogo mudou nesta etapa → index.html intacto. tsc 0 · 58/58 · audit n/a.

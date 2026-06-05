@@ -178,63 +178,58 @@ Erros normais e inofensivos no console: 404 (favicon) e ERR_CERT (recurso extern
 
 ---
 
-## 8. Floor 4 = 2D PIXELADO (visão do Felipe) — em construção
+## 8. Floor 4 = SIDE-SCROLLER 2D DE VERDADE (visão do Felipe)
 
-O Floor 4 é literalmente 2D pixel-art, jogado em PRIMEIRA PESSOA (câmera FP normal,
-mundo feito de sprites flat pixelados — estilo Doom/2.5D). Transição BEM animada do
-3D (Floor 3) → 2D pixelado.
+Floor 4 é um **side-scroller 2D real** (estilo Mario/Celeste), NÃO 1ª pessoa, NÃO 3D
+achatado. Câmera **ORTOGRÁFICA** (zero perspectiva), camadas de sprite pixel-art planas,
+personagem de **PERFIL**. Referência: sala do elevador (esquerda, interior escuro,
+"ELEVADOR" + planta) abrindo pra uma BASEPLATE ao ar livre (céu azul + nuvens + chão de
+grama/terra), com o player andando pra direita.
 
 ### Abordagem de render (decidida)
-- **Sprites flat + pixel-art procedural**: `PlaneGeometry` + `meshBasicMaterial`
-  (`toneMapped={false}`) + `CanvasTexture` com `NearestFilter` (pixel crisp). Sem assets
-  externos → renderiza offline na bancada (`floor4.html`).
-- Entidades (player, NPCs) = **billboards** (planos que encaram a câmera) → precisam de
-  UMA direção (frente) só. Estilo 2.5D clássico, minimiza sprites.
-- Look "pixelado global" da tela (pra unificar + pra transição): render em baixa
-  resolução / pixelate pass — DEFERIDO (precisa wiring + iteração in-game). Por ora o
-  pixel vem das texturas NearestFilter.
+- **Câmera ortográfica** (`<Canvas orthographic>` / `OrthographicCamera`) → 2D verdadeiro.
+- Camadas planas: `PlaneGeometry` + `meshBasicMaterial` (`toneMapped={false}`) +
+  `CanvasTexture` `NearestFilter`. Empilhadas em Z (sky→ground→room→props→player). Tudo
+  procedural (sem asset externo) → roda offline na bancada.
+- Unidades: chão TOPO em y=0; +x direita, +y cima.
 
-### ✅ Elevador 2D — FEITO (`Floor4Elevator.tsx`)
-- `Floor4Elevator2D` — batente beveled (centro transparente) + 2 portas que deslizam +
-  poço escuro com trilhos + indicador (seta de subir + "4"). Tudo CanvasTexture pixel.
-- Prop `open` (0..1) desliza as portas; sem prop = demo lento (bancada). **TODO:** wirar
-  ao `doorsClosed` real (passar via World props quando integrar a chegada).
-- Já montado no `Floor4Environment` no lugar do `ElevatorFacade` 3D.
+### ✅ Cena 2D — FEITA e validada na bancada (`Floor4Scene2D.tsx`)
+Bate com a referência: sky+nuvens, chão grama/terra tiled, sala escura do elevador,
+elevador 2D + placa "ELEVADOR", planta, placa "BASEPLATE" no poste, setinha →, e um
+PLACEHOLDER de personagem de perfil (trocar pelo sprite do Felipe). Rode:
+`npm run dev` → `/floor4.html` (a bancada usa câmera ortográfica).
 
-### Base plate — mantida (scaffold do Floor4.tsx). O mapa a gente resolve depois.
+### ⏳ Falta pra ENTRAR no jogo (próxima etapa — "modo 2D")
+O jogo é 3D 1ª pessoa (Canvas perspectivo + `<Player>`). Pra o side-scroller shipar:
+1. **Câmera ortográfica no Floor 4** (montar `<OrthographicCamera makeDefault>` quando
+   `level===4`; desligar o controle de câmera do `<Player>` nesse andar).
+2. **Controles 2D**: esquerda/direita + pulo (gravidade), câmera segue o X do player.
+   Novo branch em `Player.tsx` (`else if (currentLevel === 4)`) OU um controlador 2D dedicado.
+3. Montar `Floor4Scene2D` no lugar do `Floor4Environment` 3D quando o modo 2D estiver pronto.
 
-### 🎞️ Transição Floor 3 → Floor 4 (plano)
-Acontece na viagem de elevador (câmera travada). O 3D "vira pixel 2D":
-1. **Ramp de pixelação** ~1.5–2.5s: bloco de pixel cresce 1px→grande + quantiza cor +
-   dessatura → o mundo 3D vira pixel art. Implementar como pixelate pass leve (NÃO N8AO)
-   OU render-to-low-res-target com upscale Nearest, com `amount` rampando.
-2. No pico, corta pro Floor 4 já 2D (portas 2D abrindo).
-3. Som: descer o ragtime + um "glitch/8-bit downsample" sfx (floor4Sfx).
-- Hook de entrada: o efeito de chegada do Floor 4 (`grep "currentLevel === 4"`) + o
-  estado de viagem (`travelPhase`/`teleportCutscene`). Reusar a camada de overlay do App.
-- ⚠️ Precisa iterar in-game (chegar no Floor 4 = vencer Floor 3 ou atalho do Modo Criador
-  "Andar 4"). Testável aos poucos na bancada com um `amount` controlado por `window.__pix`.
+### 🎞️ Transição 3D → 2D (o "BEM animada" — ainda NÃO existe)
+Na viagem de elevador Floor 3 → Floor 4: o 3D "colapsa em pixel 2D".
+1. **Ramp de pixelação** ~1.5–2.5s no 3D: bloco cresce 1px→grande + quantiza cor +
+   dessatura (pixelate pass leve OU render-to-low-res + upscale Nearest; `amount` rampando).
+2. No pico, **corta pro side-scroller 2D** (câmera ortográfica + a cena 2D; portas 2D abrindo).
+3. Áudio: descer o ragtime + sfx "8-bit downsample" (floor4Sfx).
+- Iterar in-game (chegar = vencer Floor 3 ou atalho Modo Criador "Andar 4"). Dá pra
+  prototipar o pixelate na bancada com `amount` via `window.__pix`.
 
-### 🕹️ SPEC DO SPRITE DO PLAYER (pro Felipe fazer e mandar)
-Decidido: **billboard pixel-art, vista de FRENTE** (encara a câmera). Assim você só
-desenha uma direção. Quando der, a gente adiciona laterais/costas.
+### 🕹️ SPEC DO SPRITE DO PLAYER (pro Felipe — ATUALIZADO p/ side-scroller)
+Agora é **vista de PERFIL (lado)**, não de frente — é um platformer 2D.
 
-- **Formato:** PNG, fundo TRANSPARENTE, pixels limpos (sem anti-alias — vai com
-  NearestFilter). Paleta enxuta (≤ ~16 cores) pra ficar coeso com o pixel-art.
-- **Tamanho por frame:** sugestão **48 × 64 px** (largura × altura). Pode escalar, mas
-  mantenha proporção ~3:4 e múltiplos de 8 ajudam.
-- **Layout:** sprite sheet em TIRA HORIZONTAL, todos os frames do MESMO tamanho, em
-  ordem, sem espaçamento (eu fatio por índice). Mande 1 arquivo por animação OU um sheet
-  só com as linhas: idle, walk.
-- **Animações mínimas:**
-  - **idle** — 2 frames (respiração leve).
-  - **walk** — 4 frames (ciclo de caminhada, vista de frente, perninhas alternando).
-  - (Opcional depois: jump 1, fall 1, e laterais.)
-- **Estilo:** o personagem do jogo (o "bacon hair"/boneco) reimaginado em pixel art
-  chunky, leitura clara em ~64px de altura, contorno escuro fino opcional (combina com o
-  resto do jogo que usa outline). Mande do jeito que curtir — eu adapto o tamanho no código.
-- **1ª pessoa (viewmodel):** opcional. Se quiser, mande também um par de **mãos/braços
-  pixel** (vista de baixo, estilo Doom) ~64×48 pra aparecer na base da tela. Se não, eu
-  faço procedural por enquanto.
+- **Formato:** PNG, fundo TRANSPARENTE, pixels limpos (sem anti-alias — vai NearestFilter).
+  Paleta enxuta (~≤16 cores).
+- **Direção:** desenhe virado pra DIREITA (eu espelho pra esquerda no código).
+- **Tamanho por frame:** sugestão **32 × 48 px** (l×a), proporção ~2:3, múltiplos de 8 ajudam.
+- **Layout:** TIRA HORIZONTAL, frames do MESMO tamanho, em ordem, sem espaçamento (eu fatio
+  por índice). 1 arquivo por animação OU um sheet com linhas.
+- **Animações:**
+  - **idle** — 2 frames (respirando, parado de lado).
+  - **walk/run** — 4–6 frames (ciclo de caminhada de PERFIL).
+  - (Opcional: **jump** 1 + **fall** 1, pro pulo do platformer.)
+- **Estilo:** o boneco do jogo ("bacon hair") reimaginado em pixel chunky de perfil,
+  legível em ~48px de altura, contorno escuro fino opcional. Manda do teu jeito que eu adapto.
 
-Manda os sprites que eu ligo no jogo (billboard + animação por frame via CanvasTexture/atlas).
+Manda os sprites que eu fatio em frames (CanvasTexture/atlas), espelho por direção e animo.
