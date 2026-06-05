@@ -70,14 +70,28 @@ export const FLOORS: FloorOption[] = [
   {
     id: 'floor-4',
     level: 4,
-    name: 'Andar 4',
+    name: 'Andar 4 (2D)',
     label: 'Andar 4',
-    description: 'Base plate (em construção) — blockout',
+    description: 'Side-scroller 2D pixel — a transição 3D→2D toca na entrada',
     color: 'from-slate-400 via-zinc-300 to-slate-400',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75L12 4.5l8.25 5.25L12 15 3.75 9.75z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 14.25L12 19.5l8.25-5.25" />
+      </svg>
+    ),
+  },
+  {
+    id: 'floor-4-transition',
+    level: 4,
+    name: 'Transição → 2D',
+    label: 'Transição',
+    description: 'Entra no Andar 4 vendo o mundo virar pixel 2D (1ª pessoa travada)',
+    color: 'from-fuchsia-500 via-purple-500 to-indigo-500',
+    variant: 'floor4Transition',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h4v4H4zM10 6h4v4h-4zM16 6h4v4h-4zM4 14h6v6H4zM14 14h6v6h-6z" />
       </svg>
     ),
   },

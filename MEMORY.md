@@ -3038,3 +3038,18 @@ brigaria com eles (flicker/quebra). Então a pixelação foi feita no canvas 2D 
 Fazer o 3D pixelar de verdade precisa de trabalho cuidadoso com o AdaptiveDpr — próxima iteração.
 
 **Estado:** tsc 0 · 58/58 · audit 0 · index.html rebuildado. ship=6, runner isolado=0.
+
+### Continuação 2026-06-04 — Transição acessível no Creator Mode
+
+Felipe: "coloque a transição no creator mode". Como a transição (pixel-resolve + black flash
+do `ResolveFX`) toca ao MONTAR o overlay do Floor 4, qualquer card que comece no level 4 já
+dispara. Em `CreatorMode.tsx`:
+- Atualizado o card "Andar 4" (era "base plate em construção" desatualizado) → "Andar 4 (2D)"
+  com descrição do side-scroller + transição.
+- Novo card dedicado **"Transição → 2D"** (id `floor-4-transition`, level 4, variant
+  `floor4Transition`) — entra no Andar 4 vendo o mundo virar pixel 2D (1ª pessoa travada).
+Sem wiring extra (level 4 já dispara o overlay+ResolveFX; o variant não-fallDemo é inofensivo).
+
+tsc 0 · 58/58 · audit 0 · index.html rebuildado (card no build = 2).
+Obs: a transição atual é o pixel-resolve 2D na entrada (o literal "3D pixelando na viagem"
+segue deferido pelo conflito com AdaptiveDpr).
