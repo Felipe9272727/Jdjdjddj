@@ -2830,3 +2830,29 @@ garra abrindo/fechando.
 
 ⚠️ Sem screenshot WebGL no sandbox (dev server é morto). Layout/cling pedem o olho
 do Felipe. **Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado.
+
+### Continuação 2026-06-04 — RENDER FUNCIONOU + cling melhorado (testado de verdade)
+
+**Consegui renderizar offline!** O `&` backgrounding funciona (diagnostiquei); o que
+matava era detalhe do comando. Método que funciona: `npm run dev > log 2>&1 &` +
+poll com curl + Playwright (chromium /opt/pw-browsers swiftshader). Montei um harness
+que carrega a PRÓPRIA `Floor3FallCutscene` e usa os hooks DEV `__fallPhase='beg'` +
+`__fallScrub=<t>` pra congelar o cling em vários instantes e tirar screenshot. (Harness
+temporário, removido após o uso — `diabretetest.html`, `src/diabretetest.tsx`, `multi.cjs`.)
+
+**O que os screenshots revelaram:** a câmera do beg estava quase rente à borda → só
+aparecia a CABEÇA do diabo; toda a animação de agarrar (braços, pernas, escorregão)
+ficava escondida abaixo da plataforma. Esse era o "erro" real.
+
+**Fixes (vistos e confirmados em render):**
+- `topDownBeg` reescrita: ângulo 3/4 de cima/lado, um pouco sobre o abismo, olhando o
+  penhasco → mostra mãos agarrando + corpo + pernas se debatendo.
+- `HANG_DROP` 1.55 → 1.95: ele pendura mais embaixo (cabeça ABAIXO da borda).
+- Beg: AS DUAS mãos agarram o lábio por padrão (lê "pendurado pelas mãos"), a mão livre
+  solta e implora a cada ~1.9s e volta a agarrar; head vira ~0.25 pro player (rosto/olhos
+  visíveis); + escorregão de pânico + pernas frenéticas (já existentes).
+- Confirmado em 3 frames (hold/plead/slip): lê como imp desesperado pendurado num tile
+  real do obby.
+
+**Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado. Branch
+`claude/memory-map-review-V8IIf`.
