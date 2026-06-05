@@ -2,6 +2,9 @@
 
 > **Mapa definitivo do projeto. Leia isto antes de qualquer outra coisa.**
 > Se você é uma IA chegando ao repositório agora, este arquivo + `MEMORY.md` te dão 90% do contexto.
+> **Vai construir o Floor 4 (ou qualquer andar novo)?** Leia `jubileu/FLOOR4.md` — guia
+> focado e ancorado em `grep` pra fazer isso gastando POUCOS tokens (não releia o
+> `App.tsx` de 2140 linhas).
 
 ---
 

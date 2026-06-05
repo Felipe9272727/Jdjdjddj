@@ -2866,3 +2866,23 @@ de cima. Mantido o cling melhorado (duas mãos no lábio, head vira pro player, 
 reach pra cima, escorregão, pernas). Plead reach ajustado pra subir por cima da borda
 em direção à câmera (o "money beat" do top-down). Verificado em render (top-down mostra
 cabeça/peito implorando por cima da borda — a intenção original). tsc 0 · 58/58 · audit 0.
+
+### Continuação 2026-06-04 — Prep do Floor 4 pra gastar menos tokens
+
+Felipe: organizar os arquivos pra eu gastar menos tokens, mirando o Floor 4 (que vai ser
+difícil). O ladrão de tokens é o `App.tsx` (2140 linhas) + re-derivar como um andar se
+conecta toda sessão.
+
+**Solução (doc-only, zero risco, sem rebuild):** criado `jubileu/FLOOR4.md` — guia único
+pra construir qualquer andar novo, ancorado em `grep` (não em nº de linha):
+- Anatomia de um andar (tabela: env/geração/rival/objetivo/sfx/música/cutscene/movimento → arquivos Floor 3).
+- Checklist de integração no App.tsx, cada item com a âncora de `grep` (imports, render por
+  level, áudio/bus na entrada, chegada via elevador, gatilho de cutscene, movimento custom
+  no Player, estados de cutscene, vitória→próximo andar).
+- Music director (prioridades dos buses), landmines, regras de ouro.
+- **Método de TESTAR com render offline** (vite bg + Playwright/swiftshader + hooks DEV de
+  scrub) — que me custou caro descobrir; agora documentado pra não repetir.
+- Mapa rápido "o que grepar no App.tsx pra não ler tudo".
+
+Ponteiro adicionado no topo do `MAP.md`. Floor4.tsx/floor4Sfx.ts já são scaffolds prontos;
+o tema ainda NÃO foi definido (esperar o Felipe). Nada de source mudou → index.html intacto.
