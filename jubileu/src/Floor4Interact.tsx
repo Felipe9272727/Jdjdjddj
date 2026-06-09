@@ -195,11 +195,12 @@ export const Floor4Interact: React.FC<{
                 </div>
             )}
 
-            {/* contextual prompt */}
+            {/* contextual prompt — above the jump button, NEVER over the player
+                (the camera keeps the player center-frame, so center is taken) */}
             {prompt && panel.kind === 'none' && !finale && (
                 <button
                     onClick={() => activate(prompt)}
-                    style={{ ...btn, position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(env(safe-area-inset-bottom) + 116px)' }}>
+                    style={{ ...btn, position: 'absolute', right: 'calc(env(safe-area-inset-right) + 22px)', bottom: 'calc(env(safe-area-inset-bottom) + 116px)' }}>
                     {isTouch ? prompt.label : `[E] ${prompt.label}`}
                 </button>
             )}

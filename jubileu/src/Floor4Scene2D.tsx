@@ -174,6 +174,10 @@ const wallTex = pixelTex(SPAN * PXU, wallH * PXU, (ctx) => {
     ctx.globalAlpha = 1;
     px(ctx, wx(5.9), 70, 5, 7, P.blood);                                   // handprint (palm)
     for (let f = 0; f < 4; f++) px(ctx, wx(5.9) + 1 + f, 66, 1, 4, P.blood);
+    // baked AO — the wall sinks into shadow toward the floor line
+    ctx.globalAlpha = 0.05;
+    for (let i = 0; i < 10; i++) px(ctx, 0, H - 2 - i * 2, W, 2 + i * 2, '#1d140f');
+    ctx.globalAlpha = 1;
     // graffiti — the floor's lore, scrawled by whoever was here before
     scrawl(ctx, 'ELE AINDA SOBE', wx(-12.4), 22, 8, P.crack, -0.06);
     scrawl(ctx, 'O ANDAR 4', wx(3.4), 26, 11, P.bloodDk, -0.03);
@@ -373,6 +377,56 @@ const arrowTex = pixelTex(16, 10, (ctx) => {
     px(ctx, 1, 4, 10, 2, P.text); px(ctx, 9, 2, 2, 6, P.text); px(ctx, 11, 3, 2, 4, P.text); px(ctx, 13, 4, 2, 2, P.text);
 });
 
+// Distant ruined skyline (seen above the wall / through the ceiling gaps) —
+// dark towers against the dusk, a few windows still weakly lit.
+const skylineTex = pixelTex(180, 40, (ctx) => {
+    ctx.clearRect(0, 0, 180, 40);
+    let bx = 0;
+    while (bx < 176) {
+        const bw = 10 + Math.round(rnd() * 16), bh = 10 + Math.round(rnd() * 26);
+        px(ctx, bx, 40 - bh, bw, bh, '#1d0e14');
+        px(ctx, bx, 40 - bh, bw, 1, '#2a141d');                               // dusk rim light
+        if (rnd() > 0.6) px(ctx, bx + Math.round(bw * 0.3), 40 - bh - 3, 2, 3, '#1d0e14');  // antenna
+        for (let i = 0; i < 4; i++) if (rnd() > 0.62)
+            px(ctx, bx + 2 + Math.round(rnd() * (bw - 5)), 43 - bh + Math.round(rnd() * (bh - 8)), 2, 2, rnd() > 0.5 ? '#4a2630' : '#6e3a44');
+        bx += bw + 2 + Math.round(rnd() * 6);
+    }
+});
+
+// Soft radial aura (the elevator's warmth on the wall behind it).
+const auraTex = pixelTex(64, 64, (ctx) => {
+    ctx.clearRect(0, 0, 64, 64);
+    const g = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+    g.addColorStop(0, 'rgba(255,233,176,0.5)'); g.addColorStop(1, 'rgba(255,233,176,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+});
+
+// Flattened light pool (the fluorescent's flicker hitting the tiles).
+const poolTex = pixelTex(64, 16, (ctx) => {
+    ctx.clearRect(0, 0, 64, 16);
+    ctx.save(); ctx.translate(32, 8); ctx.scale(1, 0.25);
+    const g = ctx.createRadialGradient(0, 0, 2, 0, 0, 30);
+    g.addColorStop(0, 'rgba(255,233,176,0.5)'); g.addColorStop(1, 'rgba(255,233,176,0)');
+    ctx.fillStyle = g; ctx.fillRect(-32, -32, 64, 64);
+    ctx.restore();
+});
+
+// Gloom with a soft left edge (no more hard darkness wall).
+const gloomTex = pixelTex(64, 8, (ctx) => {
+    const g = ctx.createLinearGradient(0, 0, 17, 0);
+    g.addColorStop(0, 'rgba(5,3,10,0)'); g.addColorStop(1, 'rgba(5,3,10,1)');
+    ctx.clearRect(0, 0, 64, 8);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 8);
+});
+
+// Foreground silhouettes (z in FRONT of the player, negative parallax).
+const foreCableTex = pixelTex(2, 64, (ctx) => { ctx.clearRect(0, 0, 2, 64); px(ctx, 0, 0, 2, 64, '#0b0709'); });
+const foreBeamTex = pixelTex(56, 8, (ctx) => {
+    ctx.clearRect(0, 0, 56, 8);
+    px(ctx, 0, 1, 56, 6, '#0d0709'); px(ctx, 0, 1, 56, 1, '#1a1014');
+    px(ctx, 12, 0, 3, 8, '#0d0709'); px(ctx, 38, 0, 3, 8, '#0d0709');         // splinters
+});
+
 // ── Lore/puzzle props (FLOOR4_LORE.md) ────────────────────────────────────────
 
 // Diary page on the ground (picked up via the interact layer).
@@ -495,6 +549,7 @@ const DyingLight: React.FC<{ x: number }> = ({ x }) => {
     const swing = useRef<THREE.Group>(null!);
     const glowMat = useRef<THREE.MeshBasicMaterial>(null!);
     const sparkMat = useRef<THREE.MeshBasicMaterial>(null!);
+    const poolMat = useRef<THREE.MeshBasicMaterial>(null!);
     const t = useRef(0);
     useFrame((_, dt) => {
         t.current += Math.min(dt, 0.05);
@@ -509,6 +564,7 @@ const DyingLight: React.FC<{ x: number }> = ({ x }) => {
             f = on ? 0.6 : 0.05;
         }
         if (glowMat.current) glowMat.current.opacity = f;
+        if (poolMat.current) poolMat.current.opacity = f * 0.42;           // the flicker lands on the tiles
         if (sparkMat.current) sparkMat.current.opacity = !f4.breakerSolved && Math.sin(tt * 17.3) > 0.96 ? 0.9 : 0;
     });
     return (
@@ -521,6 +577,11 @@ const DyingLight: React.FC<{ x: number }> = ({ x }) => {
                     <meshBasicMaterial ref={glowMat} map={glowTex} transparent opacity={0.5} depthWrite={false} toneMapped={false} />
                 </mesh>
             </group>
+            {/* the light pool on the checkered floor, flickering in sync */}
+            <mesh position={[0, -7.02, 0.02]}>
+                <planeGeometry args={[3.8, 1.0]} />
+                <meshBasicMaterial ref={poolMat} map={poolTex} transparent opacity={0.2} depthWrite={false} toneMapped={false} />
+            </mesh>
             <mesh position={[0.05, -0.1, 0.03]}>
                 <planeGeometry args={[0.38, 0.38]} />
                 <meshBasicMaterial ref={sparkMat} map={sparkTex} transparent opacity={0} depthWrite={false} toneMapped={false} />
@@ -612,6 +673,94 @@ const SmokeWisps: React.FC = () => {
     );
 };
 
+/** Manual parallax under the ortho camera: the wrapped layer chases a fraction
+ *  of the camera's X. factor > 0 lags (reads as FAR), factor < 0 overshoots
+ *  (reads as NEAR). The interactive wall/props stay at factor 0 — gameplay
+ *  positions never move. */
+const PARA_CX = (W0 + W1) / 2;
+const Parallax: React.FC<{ factor: number; children: React.ReactNode }> = ({ factor, children }) => {
+    const g = useRef<THREE.Group>(null!);
+    useFrame(({ camera }) => {
+        if (g.current) g.current.position.x = (camera.position.x - PARA_CX) * factor;
+    });
+    return <group ref={g}>{children}</group>;
+};
+
+/** Dust trickling down from the ceiling collapse gaps. */
+const FallingDust: React.FC = () => {
+    const refs = useRef<(THREE.Mesh | null)[]>([]);
+    const seeds = useMemo(() => Array.from({ length: 6 }, (_, i) => ({
+        gx: [-2.2, 8.9, 14.6][i % 3] + (rnd() - 0.5) * 1.8,
+        sp: 0.8 + rnd() * 1.2, ph: rnd() * 7,
+    })), []);
+    const t = useRef(0);
+    useFrame((_, dt) => {
+        t.current += Math.min(dt, 0.05);
+        seeds.forEach((s, i) => {
+            const m = refs.current[i];
+            if (!m) return;
+            const cyc = (t.current * s.sp + s.ph) % 7.4;
+            m.position.y = 7.3 - cyc;
+            m.position.x = s.gx + Math.sin((t.current + s.ph) * 2.4) * 0.07;
+            (m.material as THREE.MeshBasicMaterial).opacity = cyc < 7.1 && m.position.y > 0.12 ? 0.45 : 0;
+        });
+    });
+    return (
+        <group>
+            {seeds.map((s, i) => (
+                <mesh key={i} ref={(el) => { refs.current[i] = el; }} position={[s.gx, 7.3, -2.5]}>
+                    <planeGeometry args={[0.06, 0.1]} />
+                    <meshBasicMaterial map={moteTex} transparent opacity={0} depthWrite={false} toneMapped={false} />
+                </mesh>
+            ))}
+        </group>
+    );
+};
+
+/** A torn cable hanging INTO the frame, swinging slowly (foreground layer). */
+const ForeCable: React.FC<{ x: number; len: number; ph: number }> = ({ x, len, ph }) => {
+    const g = useRef<THREE.Group>(null!);
+    const t = useRef(ph);
+    useFrame((_, dt) => {
+        t.current += Math.min(dt, 0.05);
+        if (g.current) g.current.rotation.z = Math.sin(t.current * 0.55) * 0.07;
+    });
+    return (
+        <group ref={g} position={[x, 8.4, 0]}>
+            <S tex={foreCableTex} w={0.1} h={len} x={0} y={-len / 2} z={0} transparent opacity={0.55} />
+        </group>
+    );
+};
+
+/** Foreground dressing — dark silhouettes IN FRONT of the player with negative
+ *  parallax: cheap, huge depth. Kept high (y > 2.5) so the play lane stays clear. */
+const Foreground: React.FC = () => (
+    <Parallax factor={-0.22}>
+        <group position={[0, 0, 3.4]}>
+            <ForeCable x={-0.8} len={3.0} ph={2.1} />
+            <ForeCable x={7.5} len={4.2} ph={5.6} />
+            <S tex={foreBeamTex} w={4.6} h={0.55} x={12.9} y={5.9} z={0} transparent rot={-0.55} opacity={0.5} />
+            <S tex={foreBeamTex} w={3.6} h={0.45} x={-3.2} y={6.4} z={0} transparent rot={0.35} flipX opacity={0.45} />
+        </group>
+    </Parallax>
+);
+
+/** The pristine elevator's warmth, breathing on the wall behind it. */
+const ElevatorAura: React.FC = () => {
+    const mat = useRef<THREE.MeshBasicMaterial>(null!);
+    const t = useRef(0);
+    useFrame((_, dt) => {
+        t.current += Math.min(dt, 0.05);
+        if (mat.current) mat.current.opacity = 0.13 + Math.sin(t.current * 1.3) * 0.05;
+    });
+    return (
+        <mesh position={[FLOOR4_ELEVATOR_X, 2.3, -7.6]}>
+            <planeGeometry args={[6.4, 7.2]} />
+            <meshBasicMaterial ref={mat} map={auraTex} transparent opacity={0.13} depthWrite={false} toneMapped={false} />
+        </mesh>
+    );
+};
+
 /** A diary page on the ground, pulsing with a faint warm glow. */
 const PageSprite: React.FC<{ x: number; y: number; z?: number; visible: boolean }> = ({ x, y, z = -2.2, visible }) => {
     const glowMat = useRef<THREE.MeshBasicMaterial>(null!);
@@ -674,7 +823,7 @@ const Marker: React.FC<{ x: number; y: number; kind: 'must' | 'info' }> = ({ x, 
                     <meshBasicMaterial map={glowTex} transparent opacity={0.3} depthWrite={false} toneMapped={false} />
                 </mesh>
             )}
-            <S tex={kind === 'must' ? exclTex : questTex} w={kind === 'must' ? 0.46 : 0.42} h={kind === 'must' ? 0.7 : 0.6} x={0} y={0} z={0} transparent opacity={kind === 'must' ? 1 : 0.72} />
+            <S tex={kind === 'must' ? exclTex : questTex} w={kind === 'must' ? 0.46 : 0.4} h={kind === 'must' ? 0.7 : 0.58} x={0} y={0} z={0} transparent opacity={kind === 'must' ? 1 : 0.58} />
         </group>
     );
 };
@@ -714,7 +863,7 @@ const Gloom: React.FC = () => {
     return (
         <mesh position={[10.9, 1.5, 3]}>
             <planeGeometry args={[12.6, 30]} />
-            <meshBasicMaterial ref={mat} color="#05030a" transparent opacity={0.58} depthWrite={false} toneMapped={false} />
+            <meshBasicMaterial ref={mat} map={gloomTex} transparent opacity={0.58} depthWrite={false} toneMapped={false} />
         </mesh>
     );
 };
@@ -727,11 +876,19 @@ export const Floor4Scene2D: React.FC<{ doorOpenRef?: React.MutableRefObject<numb
     const slab2 = React.useMemo(() => { const t = slabTex.clone(); t.wrapS = THREE.RepeatWrapping; t.repeat.set(SPAN / 4, 1); return t; }, []);
     return (
         <group>
-            {/* DUSK SKY — bleeds in through the collapsed ceiling */}
-            <S tex={skyTex} w={SPAN + 6} h={24} x={CX} y={8} z={-12} />
+            {/* DUSK SKY + ruined skyline — parallax: the far world lags the camera */}
+            <Parallax factor={0.5}>
+                <S tex={skyTex} w={SPAN + 18} h={24} x={CX} y={8} z={-12} />
+            </Parallax>
+            <Parallax factor={0.32}>
+                <S tex={skylineTex} w={SPAN + 14} h={2.6} x={CX} y={7.95} z={-11.5} transparent />
+            </Parallax>
 
             {/* RUINED LOBBY BACK WALL (all destruction + graffiti baked in) */}
             <S tex={wallTex} w={SPAN} h={wallH} x={CX} y={wallH / 2} z={-8} transparent />
+
+            {/* the elevator's warmth on the wall — only IT is remembered */}
+            <ElevatorAura />
 
             {/* CEILING strip with collapse gaps; smoke drifts out of them */}
             <S tex={ceilTex} w={SPAN} h={1.25} x={CX} y={7.5 + 0.625 - 0.55} z={-7.5} transparent />
@@ -797,6 +954,10 @@ export const Floor4Scene2D: React.FC<{ doorOpenRef?: React.MutableRefObject<numb
             <HangingSign x={-5.1} />
             <DyingLight x={0.4} />
             <DustMotes />
+            <FallingDust />
+
+            {/* foreground silhouettes (negative parallax — depth in FRONT) */}
+            <Foreground />
 
             {/* THE ELEVATOR — untouched. Always untouched. */}
             <Floor4Elevator2D position={[FLOOR4_ELEVATOR_X, 0, -1]} openRef={doorOpenRef} />

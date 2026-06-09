@@ -123,6 +123,16 @@ const IDLE_FRAMES = [
 ];
 const SPEED = 5;
 const GRAVITY = 26, JUMP_V = 8.5;       // ~1.4u jump apex
+
+// Soft contact shadow under the player (squashed radial blob).
+const shadowTex = pixelTex(32, 10, (ctx) => {
+    ctx.clearRect(0, 0, 32, 10);
+    ctx.save(); ctx.translate(16, 5); ctx.scale(1, 0.3);
+    const g = ctx.createRadialGradient(0, 0, 1, 0, 0, 15);
+    g.addColorStop(0, 'rgba(8,5,8,0.6)'); g.addColorStop(1, 'rgba(8,5,8,0)');
+    ctx.fillStyle = g; ctx.fillRect(-16, -16, 32, 32);
+    ctx.restore();
+});
 // While locked inside, sit between the 2D elevator's cab (z=-1.0) and its
 // doors (z=-0.95) so the doors visually reveal the player as they slide open.
 const Z_INSIDE = -0.975, Z_OUT = 0.3;
@@ -141,6 +151,7 @@ export const Floor4Player2D: React.FC<{
     const { camera, size } = useThree();
     const ref = useRef<THREE.Mesh>(null!);
     const matRef = useRef<THREE.MeshBasicMaterial>(null!);
+    const shadowRef = useRef<THREE.Mesh>(null!);
     const x = useRef(FLOOR4_ELEVATOR_X);    // arrives inside the elevator
     const facing = useRef(1);
     const walkT = useRef(0);
@@ -187,11 +198,25 @@ export const Floor4Player2D: React.FC<{
             ref.current.scale.x = facing.current;     // flip to face the move direction
         }
 
-        // camera follows X, clamped so it never shows past the world edges
+        // contact shadow: stays on the ground, shrinks/fades as the player rises
+        if (shadowRef.current) {
+            shadowRef.current.position.x = x.current;
+            shadowRef.current.position.y = FLOOR4_WORLD.groundY + 0.05;
+            const sh = Math.max(0.45, 1 - airY.current * 0.32);
+            shadowRef.current.scale.set(sh, sh, 1);
+            const sm = shadowRef.current.material as THREE.MeshBasicMaterial;
+            sm.opacity = (lockRef?.current ? 0 : 1) * Math.max(0.12, 0.5 - airY.current * 0.18);
+        }
+
+        // camera: eased follow with a touch of look-ahead toward the facing side
         const oc = camera as THREE.OrthographicCamera;
         const half = (size.width / 2) / oc.zoom;
         const minX = FLOOR4_WORLD.left + half, maxX = FLOOR4_WORLD.right - half;
-        camera.position.x = minX <= maxX ? THREE.MathUtils.clamp(x.current, minX, maxX) : (FLOOR4_WORLD.left + FLOOR4_WORLD.right) / 2;
+        const camTarget = minX <= maxX
+            ? THREE.MathUtils.clamp(x.current + facing.current * 0.5, minX, maxX)
+            : (FLOOR4_WORLD.left + FLOOR4_WORLD.right) / 2;
+        const dx = camTarget - camera.position.x;
+        camera.position.x = Math.abs(dx) > 6 ? camTarget : camera.position.x + dx * Math.min(1, sdt * 5.5);
 
         // walk left back into the elevator → leave the floor
         if (!exited.current && !locked && wasOut.current && x.current <= FLOOR4_ELEVATOR_X + 0.3 && d < 0) {
@@ -200,10 +225,16 @@ export const Floor4Player2D: React.FC<{
     });
 
     return (
-        <mesh ref={ref} position={[FLOOR4_ELEVATOR_X, 0.75, Z_INSIDE]}>
-            <planeGeometry args={[1.0, 1.5]} />
-            <meshBasicMaterial ref={matRef} map={FRAMES[0]} transparent alphaTest={0.5} toneMapped={false} />
-        </mesh>
+        <>
+            <mesh ref={ref} position={[FLOOR4_ELEVATOR_X, 0.75, Z_INSIDE]}>
+                <planeGeometry args={[1.0, 1.5]} />
+                <meshBasicMaterial ref={matRef} map={FRAMES[0]} transparent alphaTest={0.5} toneMapped={false} />
+            </mesh>
+            <mesh ref={shadowRef} position={[FLOOR4_ELEVATOR_X, FLOOR4_WORLD.groundY + 0.05, 0.25]}>
+                <planeGeometry args={[1.0, 0.32]} />
+                <meshBasicMaterial map={shadowTex} transparent opacity={0} depthWrite={false} toneMapped={false} />
+            </mesh>
+        </>
     );
 };
 

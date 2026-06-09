@@ -144,6 +144,17 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
             {/* lore discovery layer: prompts, diary, puzzles, finale */}
             <Floor4Interact playerXRef={playerXRef} uiLockRef={uiLockRef} shakeRef={shakeRef} />
 
+            {/* grade pass: vignette pulls the eye center-frame, faint scanlines
+                sell the CRT-pixel mood — both static DOM, zero render cost */}
+            <div style={{
+                position: 'absolute', inset: 0, pointerEvents: 'none',
+                background: 'radial-gradient(ellipse 120% 95% at 50% 42%, rgba(0,0,0,0) 54%, rgba(10,4,12,0.46) 100%)',
+            }} />
+            <div style={{
+                position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.08,
+                background: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.6) 0px, rgba(0,0,0,0.6) 1px, transparent 1px, transparent 3px)',
+            }} />
+
             {/* entry black veil (fades once — the pixel continuity does the rest) */}
             <div style={{
                 position: 'absolute', inset: 0, background: '#000', pointerEvents: 'none',
