@@ -1,8 +1,19 @@
 # FLOOR4_LORE.md — Lore, Descoberta e Puzzles do Andar 4
 
 > Design doc do conteúdo narrativo do Andar 4 (o Saguão Destruído).
-> Status: **PROPOSTA — aguardando aprovação do Felipe.** Nada disto está implementado.
+> Status: ✅ **IMPLEMENTADO** (2026-06-09, aprovado pelo Felipe) — todas as 5 fases.
+> Código: `f4Lore.ts` (estado/regras, testado), `Floor4Interact.tsx` (UI DOM),
+> sprites/payoffs em `Floor4Scene2D.tsx`, cues em `floor4Sfx.ts`.
 > Companheiro técnico: `FLOOR4.md` (como construir/testar o andar).
+>
+> Desvios do plano original (motivos práticos):
+> • O disjuntor ficou em x=-4.4 (lado DIREITO do elevador) — tudo à esquerda do
+>   elevador é zona de saída do andar (andar pra lá dispara o exit).
+> • O lado direito do saguão começa em PENUMBRA (Gloom) até o P1 ser resolvido —
+>   motiva o puzzle e faz o "acender" ser um payoff visível.
+> • O mural revelado ficou em x≈14.7 (parede livre à direita da porta).
+> • A luminária pisca o padrão real (curto·curto·curto·longo, ciclo 3.1s) e fica
+>   ESTÁVEL depois do P1.
 
 ---
 

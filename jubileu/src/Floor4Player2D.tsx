@@ -129,8 +129,12 @@ const Z_INSIDE = -0.975, Z_OUT = 0.3;
 export const Floor4Player2D: React.FC<{
     dirRef: React.MutableRefObject<number>;
     lockRef?: React.MutableRefObject<boolean>;
+    /** Frozen while a lore panel is open (Floor4Interact). */
+    uiLockRef?: React.MutableRefObject<boolean>;
+    /** Written every frame — the interact layer reads the player's x. */
+    playerXRef?: React.MutableRefObject<number>;
     onExit?: () => void;
-}> = ({ dirRef, lockRef, onExit }) => {
+}> = ({ dirRef, lockRef, uiLockRef, playerXRef, onExit }) => {
     const { camera, size } = useThree();
     const ref = useRef<THREE.Mesh>(null!);
     const matRef = useRef<THREE.MeshBasicMaterial>(null!);
@@ -143,11 +147,12 @@ export const Floor4Player2D: React.FC<{
 
     useFrame((_, dt) => {
         const sdt = Math.min(dt, 0.05);
-        const locked = lockRef?.current ?? false;
+        const locked = (lockRef?.current ?? false) || (uiLockRef?.current ?? false);
         const d = locked ? 0 : dirRef.current;
         if (d !== 0) { facing.current = d; x.current += d * SPEED * sdt; walkT.current += sdt; idleT.current = 0; }
         else idleT.current += sdt;
         x.current = THREE.MathUtils.clamp(x.current, FLOOR4_ELEVATOR_X, FLOOR4_WORLD.right - 0.5);
+        if (playerXRef) playerXRef.current = x.current;
         if (x.current > FLOOR4_ELEVATOR_X + 1.2) wasOut.current = true;
 
         // animation frame: 4-frame walk cycle / 2-frame breathing idle

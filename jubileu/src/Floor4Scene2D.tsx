@@ -21,6 +21,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { pixelTex, px } from './floor4-pixels';
 import { Floor4Elevator2D } from './Floor4Elevator';
+import { f4, F4_POINTS } from './f4Lore';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const P = {
@@ -273,7 +274,8 @@ slabTex.wrapS = THREE.RepeatWrapping;
 
 // ── Prop sprites ──────────────────────────────────────────────────────────────
 
-// The back door (porta de fundo): dark double door, ajar on void, boarded shut.
+// The back door (porta de fundo): dark double door, ajar on void. The three
+// BOARDS are separate sprites now (the puzzles tear them off one by one).
 const backDoorTex = pixelTex(36, 60, (ctx) => {
     ctx.clearRect(0, 0, 36, 60);
     px(ctx, 0, 0, 36, 60, P.woodDk);                       // frame
@@ -281,14 +283,12 @@ const backDoorTex = pixelTex(36, 60, (ctx) => {
     px(ctx, 16, 4, 4, 56, P.voidDk);                       // ajar gap, pure dark
     px(ctx, 5, 28, 2, 4, P.metalDk); px(ctx, 29, 28, 2, 4, P.metalDk);   // handles
     for (let y = 6; y < 58; y += 10) { px(ctx, 2, y, 15, 1, P.woodDk); px(ctx, 19, y, 15, 1, P.woodDk); }
-    const board = (yy: number, rot: number) => {
-        ctx.save(); ctx.translate(18, yy); ctx.rotate(rot);
-        px(ctx, -19, -3, 38, 6, P.plank); px(ctx, -19, -3, 38, 1, '#b08a52');
-        px(ctx, -15, -1, 2, 2, P.nail); px(ctx, 13, -1, 2, 2, P.nail);
-        ctx.restore();
-    };
-    board(14, -0.22); board(30, 0.18); board(46, -0.12);
     for (let i = 0; i < 4; i++) crackAt(ctx, 4 + rnd() * 28, 8 + rnd() * 40, 6, rnd() * Math.PI);
+});
+const boardTex = pixelTex(40, 8, (ctx) => {
+    ctx.clearRect(0, 0, 40, 8);
+    px(ctx, 0, 1, 40, 6, P.plank); px(ctx, 0, 1, 40, 1, '#b08a52'); px(ctx, 0, 6, 40, 1, P.woodDk);
+    px(ctx, 4, 3, 2, 2, P.nail); px(ctx, 34, 3, 2, 2, P.nail);
 });
 const saidaTex = pixelTex(26, 10, (ctx) => {
     px(ctx, 0, 0, 26, 10, P.panel);
@@ -373,22 +373,143 @@ const arrowTex = pixelTex(16, 10, (ctx) => {
     px(ctx, 1, 4, 10, 2, P.text); px(ctx, 9, 2, 2, 6, P.text); px(ctx, 11, 3, 2, 4, P.text); px(ctx, 13, 4, 2, 2, P.text);
 });
 
+// ── Lore/puzzle props (FLOOR4_LORE.md) ────────────────────────────────────────
+
+// Diary page on the ground (picked up via the interact layer).
+const pageTex = pixelTex(12, 14, (ctx) => {
+    ctx.clearRect(0, 0, 12, 14);
+    px(ctx, 1, 1, 10, 12, P.paper);
+    px(ctx, 1, 1, 10, 1, '#fff8e8'); px(ctx, 9, 11, 2, 2, '#cfc5ab');     // fold
+    for (let y = 4; y < 11; y += 2) px(ctx, 3, y, 6, 1, '#8a816b');       // scrawled lines
+});
+
+// Reception bell, fallen beside the desk.
+const bellTex = pixelTex(14, 12, (ctx) => {
+    ctx.clearRect(0, 0, 14, 12);
+    px(ctx, 3, 2, 8, 6, P.gold); px(ctx, 2, 4, 10, 3, P.gold);
+    px(ctx, 3, 2, 8, 1, '#ffe9a0'); px(ctx, 2, 6, 10, 1, P.goldDk);
+    px(ctx, 6, 0, 2, 2, P.goldDk);                                        // plunger
+    px(ctx, 1, 8, 12, 2, P.metalDk);                                      // base
+    px(ctx, 0, 10, 14, 2, P.voidDk);                                      // shadow
+});
+
+// Breaker box on the wall (closed → green LED variant when solved).
+function breakerBox(solved: boolean): THREE.CanvasTexture {
+    return pixelTex(20, 26, (ctx) => {
+        px(ctx, 0, 0, 20, 26, P.metalDk);
+        px(ctx, 1, 1, 18, 24, '#454c57');
+        px(ctx, 1, 1, 18, 2, '#5c6571');
+        for (let i = 0; i < 4; i++) px(ctx, 4 + i * 4, 8, 2, 9, '#22262d');   // lever slots
+        px(ctx, 3, 20, 14, 3, P.gold); px(ctx, 3, 20, 7, 3, '#1d1f24');      // hazard stripe
+        px(ctx, 15, 3, 3, 3, solved ? '#46e06a' : '#7d2424');                // status LED
+    });
+}
+const breakerTexOff = breakerBox(false);
+const breakerTexOn = breakerBox(true);
+
+// Crooked picture (hides the safe) → fallen + open safe variant.
+const safePicTex = pixelTex(26, 20, (ctx) => {
+    ctx.clearRect(0, 0, 26, 20);
+    px(ctx, 0, 0, 26, 20, P.goldDk); px(ctx, 2, 2, 22, 16, '#2a2418');
+    px(ctx, 5, 5, 16, 8, '#3d3526'); crackAt(ctx, 8, 7, 9, 0.6);          // torn canvas
+});
+const safeOpenTex = pixelTex(26, 24, (ctx) => {
+    ctx.clearRect(0, 0, 26, 24);
+    px(ctx, 0, 0, 26, 24, P.metalDk);                                      // safe body
+    px(ctx, 2, 2, 22, 20, '#0a0b10');                                      // open mouth, dark
+    px(ctx, 3, 3, 4, 18, '#454c57'); px(ctx, 3, 3, 4, 2, '#5c6571');       // swung door
+    px(ctx, 10, 14, 8, 6, P.paper);                                        // the photo inside
+});
+
+// Hidden mural (revealed by P1): the building, floor 4 crossed out.
+const muralTex = pixelTex(64, 44, (ctx) => {
+    ctx.clearRect(0, 0, 64, 44);
+    ctx.globalAlpha = 0.85;
+    px(ctx, 18, 2, 28, 40, P.crack);                                       // building outline
+    px(ctx, 20, 4, 24, 36, P.wall);
+    for (let f = 0; f < 5; f++) {
+        px(ctx, 20, 4 + f * 7, 24, 1, P.crack);                            // floor lines
+        ctx.fillStyle = P.crack; ctx.font = 'bold 5px monospace'; ctx.textAlign = 'left';
+        ctx.fillText(String(5 - f), 14, 10 + f * 7);
+    }
+    // the 4th floor scratched out in dried blood
+    px(ctx, 20, 11, 24, 6, P.bloodDk);
+    ctx.strokeStyle = P.blood; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(20, 11); ctx.lineTo(44, 17); ctx.moveTo(44, 11); ctx.lineTo(20, 17); ctx.stroke();
+    // arrow pointing below the building
+    px(ctx, 31, 40, 2, 3, P.bloodDk);
+    ctx.globalAlpha = 1;
+});
+
+// The PHOTO inside the safe: the original lobby, intact and warm (P3 payoff).
+// Exported as a data URL — the interact layer shows it full-screen.
+export const lobbyPhotoUrl: string = (() => {
+    const t = pixelTex(192, 108, (ctx) => {
+        px(ctx, 0, 0, 192, 108, '#e7dcc0');                                // clean wallpaper
+        for (let x = 0; x < 192; x += 9) px(ctx, x, 0, 1, 108, '#dccfae');
+        px(ctx, 0, 0, 192, 8, '#8a6a40');                                  // crown
+        px(ctx, 0, 74, 192, 14, '#7d5835'); px(ctx, 0, 74, 192, 2, '#96704a'); // wainscot
+        px(ctx, 0, 88, 192, 20, '#c9bc9c');                                // floor
+        for (let x = 0; x < 192; x += 12) for (let y = 88; y < 108; y += 6)
+            if (((x / 12 + (y - 88) / 6) % 2) === 0) px(ctx, x, y, 12, 6, '#a99c7e');
+        // elevator (gold + silver), pristine
+        px(ctx, 18, 22, 44, 66, '#2b3238'); px(ctx, 22, 30, 36, 58, '#B0BEC5');
+        px(ctx, 39, 30, 2, 58, '#5b6770');
+        px(ctx, 20, 24, 40, 5, '#141414');
+        ctx.fillStyle = '#FFD54F'; ctx.font = 'bold 4px monospace'; ctx.textAlign = 'center';
+        ctx.fillText('THE NORMAL ELEVATOR', 40, 28);
+        // straight SAGUÃO sign
+        px(ctx, 86, 16, 40, 11, '#141414');
+        ctx.fillStyle = '#FFD54F'; ctx.font = 'bold 7px monospace'; ctx.fillText('SAGUÃO', 106, 24);
+        // reception desk upright + bell
+        px(ctx, 96, 62, 50, 26, '#7d5835'); px(ctx, 94, 58, 54, 6, '#96704a');
+        px(ctx, 104, 66, 34, 5, '#141414');
+        ctx.font = 'bold 4px monospace'; ctx.fillStyle = '#FFD54F'; ctx.fillText('RECEPÇÃO', 121, 70);
+        px(ctx, 138, 54, 6, 4, '#FFD54F');
+        // living plant
+        px(ctx, 165, 70, 12, 10, '#b5532e'); px(ctx, 163, 68, 16, 3, '#7e3a20');
+        px(ctx, 166, 56, 10, 12, '#4ea04b'); px(ctx, 169, 50, 4, 8, '#357a37');
+        // warm ceiling lights
+        for (const lx of [40, 106, 168]) { px(ctx, lx - 8, 8, 16, 3, '#fff3d6'); }
+        ctx.globalAlpha = 0.1; px(ctx, 0, 8, 192, 50, '#ffdf9e'); ctx.globalAlpha = 1;
+        // two guests (whose names are blurred now)
+        const guy = (gx: number, shirt: string) => {
+            px(ctx, gx, 70, 6, 8, shirt); px(ctx, gx + 1, 64, 4, 6, '#e8b48a');
+            px(ctx, gx, 62, 6, 3, '#5a3315'); px(ctx, gx, 78, 6, 8, '#2c3550');
+        };
+        guy(76, '#3b6fb0'); guy(152, '#a04848');
+        // photo border + age
+        px(ctx, 0, 0, 192, 2, '#fff'); px(ctx, 0, 106, 192, 2, '#fff');
+        px(ctx, 0, 0, 2, 108, '#fff'); px(ctx, 190, 0, 2, 108, '#fff');
+        ctx.globalAlpha = 0.12; px(ctx, 0, 0, 192, 108, '#7a5230'); ctx.globalAlpha = 1;
+    });
+    return (t.image as HTMLCanvasElement).toDataURL();
+})();
+
 // ── Animated bits ─────────────────────────────────────────────────────────────
 
-/** The broken fluorescent: sways on its cable, light sputters, cable sparks. */
+/** The broken fluorescent: sways on its cable, sparks — and BLINKS THE PATTERN
+ *  (P1 clue: short, short, short, long — it's not broken, it's insisting).
+ *  Once the breaker is solved it settles into a steady hum. */
 const DyingLight: React.FC<{ x: number }> = ({ x }) => {
     const swing = useRef<THREE.Group>(null!);
     const glowMat = useRef<THREE.MeshBasicMaterial>(null!);
     const sparkMat = useRef<THREE.MeshBasicMaterial>(null!);
-    const t = useRef(rnd() * 10);
+    const t = useRef(0);
     useFrame((_, dt) => {
         t.current += Math.min(dt, 0.05);
         const tt = t.current;
         if (swing.current) swing.current.rotation.z = Math.sin(tt * 0.9) * 0.09;
-        // sputter: mostly on, with random dropouts (deterministic-ish hash flicker)
-        const f = Math.sin(tt * 13.7) * Math.sin(tt * 3.1) > -0.75 ? (0.55 + Math.sin(tt * 31) * 0.1) : 0.04;
+        let f: number;
+        if (f4.breakerSolved) {
+            f = 0.62 + Math.sin(tt * 2.1) * 0.04;                         // steady at last
+        } else {
+            const cyc = tt % 3.1;                                          // ▪ ▪ ▪ ▬ …pause
+            const on = cyc < 0.16 || (cyc >= 0.4 && cyc < 0.56) || (cyc >= 0.8 && cyc < 0.96) || (cyc >= 1.2 && cyc < 1.9);
+            f = on ? 0.6 : 0.05;
+        }
         if (glowMat.current) glowMat.current.opacity = f;
-        if (sparkMat.current) sparkMat.current.opacity = Math.sin(tt * 17.3) > 0.96 ? 0.9 : 0;
+        if (sparkMat.current) sparkMat.current.opacity = !f4.breakerSolved && Math.sin(tt * 17.3) > 0.96 ? 0.9 : 0;
     });
     return (
         <group position={[x, 7.1, -2.8]}>
@@ -491,10 +612,47 @@ const SmokeWisps: React.FC = () => {
     );
 };
 
+/** A diary page on the ground, pulsing with a faint warm glow. */
+const PageSprite: React.FC<{ x: number; y: number; z?: number; visible: boolean }> = ({ x, y, z = -2.2, visible }) => {
+    const glowMat = useRef<THREE.MeshBasicMaterial>(null!);
+    const t = useRef(rnd() * 9);
+    useFrame((_, dt) => {
+        t.current += Math.min(dt, 0.05);
+        if (glowMat.current) glowMat.current.opacity = 0.28 + Math.sin(t.current * 2.6) * 0.16;
+    });
+    if (!visible) return null;
+    return (
+        <group position={[x, y, z]}>
+            <mesh position={[0, 0.08, -0.01]}>
+                <planeGeometry args={[1.5, 1.1]} />
+                <meshBasicMaterial ref={glowMat} map={glowTex} transparent opacity={0.3} depthWrite={false} toneMapped={false} />
+            </mesh>
+            <S tex={pageTex} w={0.62} h={0.72} x={0} y={0.05} z={0} transparent />
+        </group>
+    );
+};
+
+/** Right-side gloom — the dark half of the floor until the breaker is solved. */
+const Gloom: React.FC = () => {
+    const mat = useRef<THREE.MeshBasicMaterial>(null!);
+    useFrame((_, dt) => {
+        if (!mat.current) return;
+        const target = f4.breakerSolved ? 0 : 0.58;
+        mat.current.opacity += (target - mat.current.opacity) * Math.min(1, dt * 1.4);
+    });
+    return (
+        <mesh position={[10.9, 1.5, 3]}>
+            <planeGeometry args={[12.6, 30]} />
+            <meshBasicMaterial ref={mat} color="#05030a" transparent opacity={0.58} depthWrite={false} toneMapped={false} />
+        </mesh>
+    );
+};
+
 // ── Scene ─────────────────────────────────────────────────────────────────────
 const CX = (W0 + W1) / 2;   // wall/floor strips center
+const PX_OF = (id: string) => F4_POINTS.find((p) => p.id === id)?.x ?? 0;
 
-export const Floor4Scene2D: React.FC<{ doorOpenRef?: React.MutableRefObject<number> }> = ({ doorOpenRef }) => {
+export const Floor4Scene2D: React.FC<{ doorOpenRef?: React.MutableRefObject<number>; loreVersion?: number }> = ({ doorOpenRef }) => {
     const slab2 = React.useMemo(() => { const t = slabTex.clone(); t.wrapS = THREE.RepeatWrapping; t.repeat.set(SPAN / 4, 1); return t; }, []);
     return (
         <group>
@@ -508,9 +666,38 @@ export const Floor4Scene2D: React.FC<{ doorOpenRef?: React.MutableRefObject<numb
             <S tex={ceilTex} w={SPAN} h={1.25} x={CX} y={7.5 + 0.625 - 0.55} z={-7.5} transparent />
             <SmokeWisps />
 
-            {/* BACK DOOR (porta de fundo) — boarded shut, ajar on darkness */}
+            {/* BACK DOOR (porta de fundo) — ajar on darkness; the three BOARDS
+                come off one per puzzle. Solving all three creaks it wider. */}
             <S tex={backDoorTex} w={2.25} h={3.75} x={11.5} y={1.875} z={-7.8} transparent />
+            {f4.doorTried && <mesh position={[11.5, 1.8, -7.78]}><planeGeometry args={[0.3, 3.4]} /><meshBasicMaterial color="#040305" toneMapped={false} /></mesh>}
+            {!f4.breakerSolved && <S tex={boardTex} w={2.4} h={0.48} x={11.5} y={2.875} z={-7.75} transparent rot={-0.22} />}
+            {!f4.bellSolved && <S tex={boardTex} w={2.4} h={0.48} x={11.5} y={1.875} z={-7.75} transparent rot={0.18} />}
+            {!f4.safeSolved && <S tex={boardTex} w={2.4} h={0.48} x={11.5} y={0.875} z={-7.75} transparent rot={-0.12} />}
             <ExitSign x={11.5} y={4.35} />
+
+            {/* LORE PROPS — breaker box, fallen bell, the picture hiding the safe */}
+            <S tex={f4.breakerSolved ? breakerTexOn : breakerTexOff} w={1.25} h={1.6} x={PX_OF('breaker')} y={2.3} z={-7.7} transparent />
+            <S tex={bellTex} w={0.85} h={0.72} x={PX_OF('bell')} y={0.36} z={-2.2} transparent />
+            {!f4.safeSolved
+                ? <S tex={safePicTex} w={1.6} h={1.25} x={PX_OF('safe')} y={3.1} z={-7.7} transparent rot={-0.14} />
+                : <>
+                    <S tex={safeOpenTex} w={1.6} h={1.5} x={PX_OF('safe')} y={3.1} z={-7.7} transparent />
+                    <S tex={safePicTex} w={1.6} h={1.25} x={PX_OF('safe') + 0.7} y={0.4} z={-2.3} transparent rot={1.35} />
+                </>}
+
+            {/* hidden MURAL (revealed when the lights come back): the building,
+                floor 4 scratched out in blood, an arrow pointing further down */}
+            {f4.breakerSolved && <S tex={muralTex} w={3.8} h={2.6} x={14.7} y={4.5} z={-7.68} transparent />}
+
+            {/* the Forgotten One's diary pages */}
+            <PageSprite x={PX_OF('page1')} y={0.12} visible={!f4.pages[0]} />
+            <PageSprite x={PX_OF('page2')} y={0.12} visible={f4.breakerSolved && !f4.pages[1]} />
+            <PageSprite x={PX_OF('page3')} y={-1.05} z={-4.5} visible={f4.bellSolved && !f4.pages[2]} />
+            <PageSprite x={PX_OF('page4')} y={0.12} visible={f4.safeSolved && !f4.pages[3]} />
+            <PageSprite x={FLOOR4_ELEVATOR_X} y={0.42} z={-0.965} visible={f4.doorTried && !f4.pages[4]} />
+
+            {/* right-side gloom until the power is back (P1) */}
+            <Gloom />
 
             {/* MAIN FLOOR cross-section (checker band + slab) with the torn HOLES */}
             <S tex={floorTex} w={SPAN} h={0.625} x={CX} y={-0.3125} z={-2} transparent />

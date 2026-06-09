@@ -3159,3 +3159,52 @@ portas abrem → sai andando no saguão destruído. Zero erros de console.
 **Estado:** tsc 0 · 58/58 · audit 0 · index.html rebuildado. Branch `claude/oi-vfpz3w`.
 ⚠️ Se o Felipe testou no vercel de MAIN, ele viu o build velho — lembrar ele de mergear
 a branch (ou apontar o deploy pra ela) antes de testar.
+
+### Sessão 2026-06-09 (parte 3) — LORE + PUZZLES do Andar 4 (design aprovado → implementado)
+
+Felipe pediu (modo planejamento): como o player descobre a lore, puzzles, e uma ótima
+lore. Design escrito em **`jubileu/FLOOR4_LORE.md`** (lore canon completa + textos
+prontos + roadmap), aprovado ("pode fazer"), e implementado nas 5 fases.
+
+**Lore canon (resumo):** andares vivem de MEMÓRIA (Supervisor: "memórias são tijolos",
+"andares aparecem quando são lembrados"). O Andar 4 era o SAGUÃO ORIGINAL; após um
+incidente foi des-lembrado → decai pra 2D (a pixelação da viagem é o prédio sem memória
+pra renderizar 3D). O saguão do Andar 03 é construído com os tijolos reciclados do 4
+(Dussekar: "roubaram o chão"; "as partes que sobram são bem tratadas" = a reciclagem,
+inclusive dos hóspedes → o gore). A voz do andar é **o Esquecido** (1º Supervisor,
+preso por não poder ser lembrado), que deixou 5 páginas de diário + grafites. O
+elevador é intacto porque é a única coisa que TODOS os andares lembram.
+
+**Mecânicas de descoberta:** 4 camadas — ambiente → exames de 1 linha (prompt [E]/touch
++ typewriter) → 5 páginas do diário (HUD "PÁGINAS n/5") → 3 puzzles que soltam as 3
+tábuas da porta de fundo. Convergência: porta range, "ainda não." (conteúdo da porta
+fica pro Felipe), página 5 aparece NA CABINE, e fecha com "VOCÊ LEMBROU DO ANDAR 4".
+
+**Puzzles:** P1 Disjuntor (a luminária pisca curto·curto·curto·longo = posição das 4
+alavancas; payoff: o lado direito que começa em PENUMBRA acende + mural escondido com
+o prédio e o 4 riscado). P2 Sino (tally 4+1 interrompido → tocar 5x; payoff: 1.2s de
+silêncio e BATIDAS DE BAIXO + screen shake). P3 Cofre 404 (atrás do quadro torto;
+pistas: grafite "O ANDAR 4 NÃO EXISTE" + exame da placa "SAGUÃO 04"; payoff: a FOTO do
+saguão original intacto, gerada em pixel-art).
+
+**Arquitetura:** `f4Lore.ts` — estado/regras PURO (padrão f3Hazards; pontos de
+interação com gating `when()`, posições únicas pra cena e UI) — **13 testes vitest**.
+`Floor4Interact.tsx` — camada DOM (prompt contextual via playerXRef poll, painel
+typewriter, alavancas, keypad, foto, toast, finale; uiLockRef congela o player).
+`Floor4Scene2D.tsx` — sprites reativos (tábuas separadas do bake, sino, caixa de
+disjuntor c/ LED, cofre 2 estados, páginas com glow pulsante, mural, Gloom com fade,
+porta mais aberta, DyingLight agora pisca O PADRÃO e estabiliza pós-P1) + export
+`lobbyPhotoUrl` (dataURL). `floor4Sfx.ts` — 10 cues sintetizados (sino, batidas,
+clack, power-on, tábua, keypad, cofre, rangido, papel, chime de memória).
+`Floor4Canvas2D` é o DONO da assinatura f4SetOnChange (listener único!) e do shake.
+
+**Regra de level design descoberta:** tudo à ESQUERDA do elevador (x < -7.5) é
+inalcançável — andar pra lá dispara o exit do andar. Todos os pontos em x ≥ -7.4.
+
+**Validado com bot e2e na bancada** (Playwright joga o fluxo inteiro: lê páginas,
+resolve os 3 puzzles clicando na UI, empurra a porta, finale — zero erros, todos os
+passos OK). Fix achado no teste: fillText do SAGUÃO na foto saía preto-sobre-preto.
+
+**Estado:** tsc 0 · **71/71** vitest · audit 0 · index.html rebuildado (lore no build).
+Falta (futuro): conteúdo atrás da porta, sprites do Felipe, pulo/plataformas,
+persistência em localStorage, sfx 8-bit no ramp.

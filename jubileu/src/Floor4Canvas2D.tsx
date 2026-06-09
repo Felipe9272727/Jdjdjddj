@@ -21,6 +21,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import Floor4Scene2D from './Floor4Scene2D';
 import { Floor4Player2D } from './Floor4Player2D';
+import { Floor4Interact } from './Floor4Interact';
+import { f4Reset, f4SetOnChange } from './f4Lore';
 
 /** R3F aims the default camera at the origin, so position [0,3,10] arrives with
  *  a subtle DOWNWARD TILT — which, under an orthographic camera, parallax-shears
@@ -68,9 +70,35 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
     const dirRef = useRef(0);
     const doorRef = useRef(0);          // 2D elevator doors (0 closed → 1 open)
     const lockRef = useRef(true);       // player frozen inside until the doors open
+    const uiLockRef = useRef(false);    // frozen while a lore panel is open
+    const playerXRef = useRef(-8);      // live player x for the interact layer
+    const shakeRef = useRef(0);         // 0..1 screen shake (knocks from below)
+    const wrapRef = useRef<HTMLDivElement>(null);
     const [flash, setFlash] = useState(true);   // black veil that fades on entry
+    const [loreV, setLoreV] = useState(0);      // re-render scene on lore changes
 
     useEffect(() => { const id = setTimeout(() => setFlash(false), 50); return () => clearTimeout(id); }, []);
+
+    // lore state: fresh run per visit; scene re-renders on every change
+    useEffect(() => {
+        f4Reset();
+        f4SetOnChange(() => setLoreV((v) => v + 1));
+        return () => f4SetOnChange(null);
+    }, []);
+
+    // decaying screen shake (driven by shakeRef — e.g. the knocks from below)
+    useEffect(() => {
+        const id = setInterval(() => {
+            const el = wrapRef.current;
+            if (!el) return;
+            if (shakeRef.current > 0.02) {
+                shakeRef.current *= 0.9;
+                const s = shakeRef.current;
+                el.style.transform = `translate(${(Math.random() - 0.5) * 18 * s}px, ${(Math.random() - 0.5) * 14 * s}px)`;
+            } else if (el.style.transform) { el.style.transform = ''; }
+        }, 33);
+        return () => clearInterval(id);
+    }, []);
 
     // Keyboard: ←/A and →/D (held).
     useEffect(() => {
@@ -102,14 +130,17 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
     };
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#160b10', touchAction: 'none' }}>
+        <div ref={wrapRef} style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#160b10', touchAction: 'none' }}>
             <Canvas orthographic camera={{ position: [0, 3, 10], zoom: 48, near: 0.1, far: 100 }} gl={{ preserveDrawingBuffer: true }}>
                 <AxisAlignedCamera />
                 <ResolveFX />
                 <IntroDirector doorRef={doorRef} lockRef={lockRef} />
-                <Floor4Scene2D doorOpenRef={doorRef} />
-                <Floor4Player2D dirRef={dirRef} lockRef={lockRef} onExit={onExit} />
+                <Floor4Scene2D doorOpenRef={doorRef} loreVersion={loreV} />
+                <Floor4Player2D dirRef={dirRef} lockRef={lockRef} uiLockRef={uiLockRef} playerXRef={playerXRef} onExit={onExit} />
             </Canvas>
+
+            {/* lore discovery layer: prompts, diary, puzzles, finale */}
+            <Floor4Interact playerXRef={playerXRef} uiLockRef={uiLockRef} shakeRef={shakeRef} />
 
             {/* entry black veil (fades once — the pixel continuity does the rest) */}
             <div style={{
