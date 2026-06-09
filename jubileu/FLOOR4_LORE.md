@@ -200,3 +200,53 @@ bonita; quem fuça é recompensado com a história inteira.
 1. Senha do cofre = **404**. 2. A porta de fundo **não abre** nesta entrega.
 3. O Esquecido nunca aparece em pessoa. 4. Gore segue "meio gore" (sugestão, sem corpos).
 5. Textos em PT-BR (o resto do jogo mistura EN/PT — lore deste andar toda em PT).
+
+---
+
+## ★ V2 — O ARCO PROFUNDO (2026-06-09, pedido do Felipe: "aprofunde a lore")
+
+> Status: ✅ IMPLEMENTADO. Substitui o fluxo de 3 puzzles soltos por UMA CADEIA
+> com áreas separadas, cinemática, NPC com diálogo e payoffs encenados.
+
+### A cadeia (cada elo entrega o próximo — nada de "só o criador sabe")
+1. **Chegada no ESCURO** — o saguão inteiro está apagado (LobbyDark).
+2. **O ZELADOR (cinemática)** — nos primeiros passos fora do elevador, um vulto
+   sorridente atravessa o saguão, BATE e CADEIA a porta da SAÍDA (cadeado), e
+   mergulha no buraco do chão. A câmera segue ele (f4Cam.override).
+3. **SUBSOLO (sala nova)** — desce pelo buraco (DESCER). Sala do GERADOR:
+   escura, lâmpada de emergência piscando o MESMO ritmo da luz do saguão
+   (curto·curto·curto·longo). Alavancas: baixo·baixo·baixo·CIMA → energia.
+   As alavancas aparecem AO VIVO no sprite do gerador.
+4. **O SINO** — com luz, o saguão acorda: sino em destaque num caixote com
+   4 riscos + o 5º interrompido (spotlight + contador ao vivo 🔔 |||).
+5. **O HÓSPEDE DO 404** — no 5º toque, um ESQUELETO LEVANTA dos escombros
+   (animação com chacoalhar + ossos), segurando o COMPROVANTE DE RESERVA:
+   "QUARTO 404 — NÃO ENCONTRADO".
+6. **O COFRE** — atrás do quadro torto, senha 404 → CHAVE-MESTRA + a foto do
+   saguão original + página 4.
+7. **O BREU (sala nova)** — destranca a porta, atravessa: escuridão total,
+   uma fogueira, e O PRIMEIRO RECEPCIONISTA — ferido, sem um olho (bandagem).
+   Levanta a cabeça quando o player se aproxima.
+8. **DIÁLOGO COM PERGUNTAS** — retrato pixel-art detalhado (96×96, iluminado
+   pela fogueira) + 5 perguntas: quem é você / o que houve com o andar /
+   quem trancou a porta / o esqueleto / como eu saio. A última entrega a
+   página 5 → "VOCÊ LEMBROU DO ANDAR 4".
+
+### O canon expandido
+- **O Primeiro Recepcionista** é o autor do diário (páginas 1–5). Ficou pra
+  "lembrar o andar por dentro"; o olho foi o preço.
+- **O Zelador** faz a manutenção do esquecimento: prega tábuas, tranca saídas,
+  apaga riscos. Sorri igual aos supervisores.
+- **O Hóspede do 404** chegou no dia em que apagaram o quarto dele. Tocou o
+  sino, riscou o balcão, esperou. O player completa a chamada — e o atende.
+- Cada página do diário ENSINA seu puzzle dentro da lore (pág 2 = ritmo do
+  gerador; pág 3 = os 5 riscos do sino; pág 4 = cofre/chave-mestra).
+
+### Técnica
+- 3 SALAS: `f4.room` ('lobby' | 'basement' | 'beyond'), bounds por sala
+  (f4Bounds), transições com fade (Floor4Interact.transition) e spawn por
+  token (f4.spawnToken consumido pelo player).
+- Cinemática: f4TriggerRunner (poll de posição) → Runner (cena) anima e
+  trava o player via uiLockRef; f4RunnerDone libera.
+- 20 testes vitest cobrindo o arco inteiro (inclusive a linha de OBJETIVO).
+- Bot Playwright (dev: window.__f4dbg) joga o arco completo de ponta a ponta.

@@ -22,7 +22,7 @@ import * as THREE from 'three';
 import Floor4Scene2D from './Floor4Scene2D';
 import { Floor4Player2D } from './Floor4Player2D';
 import { Floor4Interact } from './Floor4Interact';
-import { f4Reset, f4SetOnChange } from './f4Lore';
+import { f4, f4Reset, f4SetOnChange } from './f4Lore';
 
 /** R3F aims the default camera at the origin, so position [0,3,10] arrives with
  *  a subtle DOWNWARD TILT — which, under an orthographic camera, parallax-shears
@@ -84,6 +84,8 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
     useEffect(() => {
         f4Reset();
         f4SetOnChange(() => setLoreV((v) => v + 1));
+        // dev-only handle for the e2e bot (precise navigation, state asserts)
+        if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f4dbg = { playerXRef, f4 };
         return () => f4SetOnChange(null);
     }, []);
 
@@ -137,7 +139,7 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
                 <AxisAlignedCamera />
                 <ResolveFX />
                 <IntroDirector doorRef={doorRef} lockRef={lockRef} />
-                <Floor4Scene2D doorOpenRef={doorRef} loreVersion={loreV} />
+                <Floor4Scene2D doorOpenRef={doorRef} playerXRef={playerXRef} loreVersion={loreV} />
                 <Floor4Player2D dirRef={dirRef} lockRef={lockRef} uiLockRef={uiLockRef} playerXRef={playerXRef} jumpRef={jumpRef} onExit={onExit} />
             </Canvas>
 

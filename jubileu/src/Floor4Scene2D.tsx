@@ -16,12 +16,13 @@
  *
  * World units: main floor TOP at y=0; +x right, +y up; layers stacked on z.
  */
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { pixelTex, px } from './floor4-pixels';
 import { Floor4Elevator2D } from './Floor4Elevator';
-import { f4, F4_POINTS, f4BoardsGone } from './f4Lore';
+import { f4, F4_POINTS, F4_LIGHT_PATTERN, f4RunnerDone, f4SkeletonRisen, f4Cam } from './f4Lore';
+import { playF4Slam, playF4Lock, playF4Bones } from './floor4Sfx';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const P = {
@@ -556,7 +557,7 @@ const DyingLight: React.FC<{ x: number }> = ({ x }) => {
         const tt = t.current;
         if (swing.current) swing.current.rotation.z = Math.sin(tt * 0.9) * 0.09;
         let f: number;
-        if (f4.breakerSolved) {
+        if (f4.powerOn) {
             f = 0.62 + Math.sin(tt * 2.1) * 0.04;                         // steady at last
         } else {
             const cyc = tt % 3.1;                                          // ▪ ▪ ▪ ▬ …pause
@@ -565,7 +566,7 @@ const DyingLight: React.FC<{ x: number }> = ({ x }) => {
         }
         if (glowMat.current) glowMat.current.opacity = f;
         if (poolMat.current) poolMat.current.opacity = f * 0.42;           // the flicker lands on the tiles
-        if (sparkMat.current) sparkMat.current.opacity = !f4.breakerSolved && Math.sin(tt * 17.3) > 0.96 ? 0.9 : 0;
+        if (sparkMat.current) sparkMat.current.opacity = !f4.powerOn && Math.sin(tt * 17.3) > 0.96 ? 0.9 : 0;
     });
     return (
         <group position={[x, 7.1, -2.8]}>
@@ -830,23 +831,28 @@ const Marker: React.FC<{ x: number; y: number; kind: 'must' | 'info' }> = ({ x, 
 
 /** Where each marker floats (above its prop; defaults to head height). */
 const MARKER_Y: Record<string, number> = {
-    breaker: 3.5, bell: 1.35, safe: 4.2, door: 4.15,
-    page1: 1.05, page2: 1.05, page3: 0.95, page4: 1.05, page5: 1.9,
-    plant: 1.95, light: 1.8, desk: 2.3, drag: 1.15, hole: 1.0, sign: 1.8, tally: 1.9,
+    // lobby
+    hole: 1.15, bell: 1.85, paper: 2.1, safe: 4.2, door: 4.15, door_unlock: 4.15, door_enter: 4.15,
+    page1: 1.05, page3: 1.05, page4: 1.05,
+    sign: 1.8, deadpanel: 3.5, plant: 1.95, light: 1.8, tally: 1.75, desk: 2.3, drag: 1.15, bones: 2.1, mural: 1.95,
+    // basement
+    climb: 2.5, page2: 1.05, pipes: 1.9, lamp: 2.7, generator: 2.9, genhum: 2.9, dark: 1.8,
+    // beyond
+    floorless: 1.5, keeper: 2.1, picture: 4.2,
 };
 
 /** Computed every render (the parent re-renders the scene on lore changes). */
 function markerList(): Array<{ id: string; x: number; y: number; kind: 'must' | 'info' }> {
     const out: Array<{ id: string; x: number; y: number; kind: 'must' | 'info' }> = [];
     for (const p of F4_POINTS) {
+        if (p.room !== f4.room) continue;
         if (p.when && !p.when()) continue;
         if (p.id === 'elevator') continue;                       // a "?" there invites an accidental exit
         let kind: 'must' | 'info' = p.kind === 'examine' ? 'info' : 'must';
         if (p.kind === 'bell' && f4.bellSolved) continue;        // solved — still rings, no longer flagged
-        if (p.kind === 'door') {
-            if (f4.doorTried) continue;
-            kind = f4BoardsGone() >= 3 ? 'must' : 'info';        // boarded: flavor; loose: PUSH IT
-        }
+        if (p.id === 'door') kind = 'info';                      // locked — pushing only tells you it's locked
+        if (p.kind === 'descend' && f4.powerOn) kind = 'info';   // chain moved on; hole stays browsable
+        if (p.kind === 'climb' && !f4.powerOn) kind = 'info';    // first deal with the generator
         out.push({ id: p.id, x: p.x, y: MARKER_Y[p.id] ?? 1.7, kind });
     }
     return out;
@@ -857,7 +863,7 @@ const Gloom: React.FC = () => {
     const mat = useRef<THREE.MeshBasicMaterial>(null!);
     useFrame((_, dt) => {
         if (!mat.current) return;
-        const target = f4.breakerSolved ? 0 : 0.58;
+        const target = f4.powerOn ? 0 : 0.58;
         mat.current.opacity += (target - mat.current.opacity) * Math.min(1, dt * 1.4);
     });
     return (
@@ -868,11 +874,512 @@ const Gloom: React.FC = () => {
     );
 };
 
+// ════════════════════════════════════════════════════════════════════════════
+// NEW STORY PROPS — the Zelador, the guest of 404, the bell stand, the rooms
+// ════════════════════════════════════════════════════════════════════════════
+
+// Heavy padlock + chain (the Zelador's work).
+const padlockTex = pixelTex(14, 18, (ctx) => {
+    ctx.clearRect(0, 0, 14, 18);
+    px(ctx, 4, 1, 6, 2, P.metalDk); px(ctx, 3, 2, 2, 6, P.metalDk); px(ctx, 9, 2, 2, 6, P.metalDk);   // shackle
+    px(ctx, 1, 8, 12, 9, '#8a8f99'); px(ctx, 1, 8, 12, 2, '#aab0bb'); px(ctx, 1, 15, 12, 2, '#5c6371');
+    px(ctx, 6, 11, 2, 4, '#16181d');                                                                  // keyhole
+});
+const chainLinkTex = pixelTex(3, 20, (ctx) => {
+    ctx.clearRect(0, 0, 3, 20);
+    for (let y = 0; y < 20; y += 4) px(ctx, 0, y, 3, 3, P.metalDk);
+});
+
+// The ZELADOR — a smiling silhouette in a cap. Two run frames.
+function zeladorFrame(stride: 0 | 1): THREE.CanvasTexture {
+    return pixelTex(18, 30, (ctx) => {
+        ctx.clearRect(0, 0, 18, 30);
+        const C = '#0c0810';
+        px(ctx, 4, 1, 10, 3, '#080509');                  // cap
+        px(ctx, 12, 3, 5, 1, '#080509');                  // brim (faces right)
+        px(ctx, 5, 4, 8, 6, C);                           // head
+        px(ctx, 8, 8, 4, 1, '#d9a43c');                   // the smile. always the smile.
+        px(ctx, 5, 10, 8, 10, C);                         // torso (lean)
+        if (stride === 0) {
+            px(ctx, 2, 11, 3, 6, C); px(ctx, 13, 13, 3, 6, C);                 // arms pumping
+            px(ctx, 3, 20, 3, 8, C); px(ctx, 12, 20, 3, 8, C);                 // legs spread
+            px(ctx, 2, 27, 4, 2, C); px(ctx, 12, 27, 4, 2, C);
+        } else {
+            px(ctx, 13, 11, 3, 6, C); px(ctx, 2, 13, 3, 6, C);
+            px(ctx, 7, 20, 3, 8, C); px(ctx, 9, 19, 3, 7, C);                  // pass
+            px(ctx, 7, 27, 4, 2, C);
+        }
+    });
+}
+const zelA = zeladorFrame(0), zelB = zeladorFrame(1);
+
+// The GUEST OF 404 — a patient skeleton. armOut = offering the slip.
+function skeletonFrame(armOut: boolean): THREE.CanvasTexture {
+    return pixelTex(24, 34, (ctx) => {
+        ctx.clearRect(0, 0, 24, 34);
+        const B = '#ddd6c2', BD = '#b3ac96', K = '#14161c';
+        px(ctx, 7, 1, 8, 7, B); px(ctx, 7, 1, 8, 1, '#efe9d6');               // skull
+        px(ctx, 9, 3, 2, 2, K); px(ctx, 13, 3, 2, 2, K);                      // sockets
+        px(ctx, 11, 5, 1, 2, K);                                              // nasal
+        px(ctx, 8, 8, 6, 2, BD); px(ctx, 9, 8, 1, 2, K); px(ctx, 12, 8, 1, 2, K);   // jaw + teeth gaps
+        px(ctx, 10, 10, 2, 2, BD);                                            // neck
+        px(ctx, 10, 12, 2, 8, BD);                                            // spine
+        for (let r = 0; r < 3; r++) {                                         // ribs
+            px(ctx, 6, 12 + r * 3, 10, 1, B);
+            px(ctx, 6, 12 + r * 3, 1, 2, BD); px(ctx, 15, 12 + r * 3, 1, 2, BD);
+        }
+        px(ctx, 7, 20, 8, 3, B); px(ctx, 9, 21, 1, 2, K); px(ctx, 12, 21, 1, 2, K);  // pelvis
+        px(ctx, 8, 23, 2, 8, B); px(ctx, 12, 23, 2, 8, BD);                   // legs
+        px(ctx, 6, 31, 4, 2, BD); px(ctx, 12, 31, 4, 2, BD);                  // feet
+        px(ctx, 5, 12, 2, 9, BD); px(ctx, 5, 21, 2, 2, B);                    // left arm down
+        if (armOut) {
+            px(ctx, 16, 12, 6, 2, B); px(ctx, 21, 12, 2, 4, B);               // right arm OUT, hand up
+        } else {
+            px(ctx, 16, 12, 2, 9, BD); px(ctx, 16, 21, 2, 2, B);              // right arm down
+        }
+    });
+}
+const skelOffer = skeletonFrame(true), skelRest = skeletonFrame(false);
+const slipTex = pixelTex(8, 10, (ctx) => {
+    ctx.clearRect(0, 0, 8, 10);
+    px(ctx, 0, 0, 8, 10, P.paper); px(ctx, 0, 0, 8, 1, '#fff8e8');
+    px(ctx, 1, 3, 6, 1, '#8a816b'); px(ctx, 1, 5, 6, 1, '#8a816b'); px(ctx, 2, 7, 4, 1, P.bloodDk);
+});
+
+// Bell STAND (crate) — the guest's tally carved on its face: ||||  + a half 5th.
+const crateTex = pixelTex(22, 18, (ctx) => {
+    ctx.clearRect(0, 0, 22, 18);
+    px(ctx, 0, 2, 22, 16, P.wood); px(ctx, 0, 2, 22, 2, P.plank);
+    px(ctx, 0, 16, 22, 2, P.woodDk); px(ctx, 0, 2, 2, 16, P.woodDk); px(ctx, 20, 2, 2, 16, P.woodDk);
+    for (let i = 0; i < 4; i++) px(ctx, 5 + i * 3, 7, 1, 7, P.crack);          // four tallies
+    px(ctx, 17, 7, 1, 3, P.crack);                                             // the interrupted 5th
+});
+
+// ── BASEMENT (generator room) ─────────────────────────────────────────────────
+const B_W0 = -8.5, B_W1 = 10.0, BSPAN = B_W1 - B_W0;
+const B_CX = (B_W0 + B_W1) / 2;
+
+const baseWallTex = pixelTex(BSPAN * PXU, 5.2 * PXU, (ctx) => {
+    const W = BSPAN * PXU, H = 5.2 * PXU;
+    px(ctx, 0, 0, W, H, '#241a1e');
+    for (let y = 0; y < H; y += 5) {                                           // brick courses
+        const off = (y / 5) % 2 === 0 ? 0 : 5;
+        for (let x = -5; x < W; x += 10) {
+            px(ctx, x + off, y, 9, 4, rnd() > 0.85 ? '#332227' : '#2e2024');
+        }
+    }
+    ctx.globalAlpha = 0.3;                                                     // moisture creeping up
+    for (let i = 0; i < 26; i++) px(ctx, Math.round(rnd() * W), H - 16 + Math.round(rnd() * 14), 3 + Math.round(rnd() * 8), 2 + Math.round(rnd() * 4), '#233026');
+    ctx.globalAlpha = 1;
+    for (let i = 0; i < 5; i++) crackAt(ctx, rnd() * W, rnd() * H * 0.6, 12 + rnd() * 16, Math.PI / 2 + (rnd() - 0.5));
+    scrawl(ctx, 'O RITMO', Math.round((3.0 - B_W0) * PXU), 26, 7, '#544238', -0.04);
+    scrawl(ctx, '▽▽▽△', Math.round((3.0 - B_W0) * PXU), 38, 8, '#544238', -0.02);   // ▽▽▽△ scratched by the receptionist
+});
+
+const basePipesTex = pixelTex(BSPAN * PXU, 12, (ctx) => {
+    const W = BSPAN * PXU;
+    ctx.clearRect(0, 0, W, 12);
+    px(ctx, 0, 1, W, 3, P.pipeDk); px(ctx, 0, 1, W, 1, P.pipe);
+    px(ctx, 0, 7, W, 2, P.pipeDk);
+    for (let x = 14; x < W; x += 48) { px(ctx, x, 0, 3, 6, P.pipe); px(ctx, x + 1, 5, 1, 7, P.pipeDk); }  // joints + drips
+});
+
+const baseFloorTex = pixelTex(BSPAN * PXU, 8, (ctx) => {
+    const W = BSPAN * PXU;
+    px(ctx, 0, 0, W, 8, P.concreteDk);
+    px(ctx, 0, 0, W, 1, '#6e675c');
+    for (let i = 0; i < 30; i++) px(ctx, Math.round(rnd() * W), 1 + Math.round(rnd() * 5), 2 + Math.round(rnd() * 5), 1, '#4a443c');
+});
+
+/** Generator body — levers mirror f4.levers LIVE in the world sprite. */
+function generatorTex(levers: ReadonlyArray<0 | 1>, on: boolean): THREE.CanvasTexture {
+    return pixelTex(46, 32, (ctx) => {
+        ctx.clearRect(0, 0, 46, 32);
+        px(ctx, 1, 6, 44, 24, '#3a4048'); px(ctx, 1, 6, 44, 3, '#4c545e'); px(ctx, 1, 28, 44, 2, '#23262c');
+        for (let v = 0; v < 4; v++) px(ctx, 4, 12 + v * 4, 6, 1, '#23262c');   // side vents
+        px(ctx, 36, 9, 7, 7, '#1d2126'); px(ctx, 38, 11, 3, 3, on ? '#46e06a' : '#7d2424');   // gauge
+        for (let i = 0; i < 4; i++) {                                          // the four levers
+            const lx = 13 + i * 6;
+            px(ctx, lx, 11, 3, 12, '#15181d');
+            px(ctx, lx - 1, levers[i] ? 11 : 19, 5, 4, levers[i] ? '#81C784' : '#FF5252');
+        }
+        px(ctx, 12, 26, 26, 1, P.gold); px(ctx, 12, 26, 13, 1, '#1d1f24');     // hazard stripe
+        ctx.fillStyle = '#c9b88a'; ctx.font = 'bold 5px monospace'; ctx.textAlign = 'center';
+        ctx.fillText('GERADOR', 23, 5);
+        px(ctx, 45, 14, 1, 10, P.cable);                                       // feed exiting right
+    });
+}
+
+const emergLampTex = pixelTex(12, 14, (ctx) => {
+    ctx.clearRect(0, 0, 12, 14);
+    px(ctx, 4, 0, 4, 2, P.metalDk);                                            // mount
+    px(ctx, 2, 2, 8, 9, '#3a3f46');                                            // housing
+    px(ctx, 3, 3, 6, 7, '#ff8866');                                            // bulb
+    for (let y = 3; y < 10; y += 2) px(ctx, 2, y, 8, 1, '#23262c');            // cage bars
+});
+
+const bulbStringTex = pixelTex(BSPAN * PXU, 8, (ctx) => {
+    const W = BSPAN * PXU;
+    ctx.clearRect(0, 0, W, 8);
+    px(ctx, 0, 1, W, 1, P.cable);
+    for (let x = 10; x < W; x += 26) { px(ctx, x, 2, 1, 2, P.cable); px(ctx, x - 1, 4, 3, 3, '#ffd98a'); }
+});
+
+/** Warm shaft of light falling through the hole from the lobby above. */
+const shaftTex = pixelTex(24, 56, (ctx) => {
+    ctx.clearRect(0, 0, 24, 56);
+    const g = ctx.createLinearGradient(0, 0, 0, 56);
+    g.addColorStop(0, 'rgba(255,225,170,0.4)'); g.addColorStop(1, 'rgba(255,225,170,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(17, 0); ctx.lineTo(24, 56); ctx.lineTo(0, 56); ctx.closePath(); ctx.fill();
+});
+
+// ── BEYOND (the breu) ─────────────────────────────────────────────────────────
+const flameFrame = (k: number) => pixelTex(14, 18, (ctx) => {
+    ctx.clearRect(0, 0, 14, 18);
+    const lobes = [[4, 6, 6, 11], [3, 4, 8, 13], [5, 5, 5, 12]][k];
+    px(ctx, lobes[0], lobes[1], lobes[2], lobes[3], '#ff7a2e');                // body
+    px(ctx, lobes[0] + 1, lobes[1] + 3, lobes[2] - 2, lobes[3] - 5, '#ffb84d');// core
+    px(ctx, 6, lobes[1] + 5, 2, 4, '#fff3c4');                                 // heart
+    px(ctx, 5 + k, lobes[1] - 3, 2, 3, '#ff7a2e');                             // licking tip
+});
+const flameFrames = [flameFrame(0), flameFrame(1), flameFrame(2)];
+const logsTex = pixelTex(18, 7, (ctx) => {
+    ctx.clearRect(0, 0, 18, 7);
+    px(ctx, 1, 3, 16, 3, '#3a2417'); px(ctx, 1, 3, 16, 1, '#54371d');
+    px(ctx, 3, 1, 12, 3, '#2c1b10'); px(ctx, 3, 1, 12, 1, '#3f2a18');
+    px(ctx, 8, 4, 3, 2, '#ff7a2e');                                            // embers in the stack
+});
+
+// The FIRST RECEPTIONIST in the world: slumped by the fire / head up when near.
+function keeperFrame(up: boolean): THREE.CanvasTexture {
+    return pixelTex(22, 26, (ctx) => {
+        ctx.clearRect(0, 0, 22, 26);
+        const UNI = '#4a1e28', UNID = '#33141c', RIM = '#c46a3a', SKIN = '#b98b66';
+        // seated body (facing LEFT, toward the fire)
+        px(ctx, 6, 10, 11, 10, UNI);                       // torso slumped
+        px(ctx, 6, 10, 2, 10, RIM);                        // fire rim light (left side)
+        px(ctx, 5, 18, 13, 4, UNID);                       // folded legs
+        px(ctx, 3, 19, 5, 3, UNID);                        // knees toward fire
+        if (up) {
+            px(ctx, 7, 2, 9, 8, SKIN);                     // head raised
+            px(ctx, 7, 2, 2, 8, RIM);
+            px(ctx, 8, 1, 8, 2, '#8d8478');                // grey hair
+            px(ctx, 9, 5, 2, 2, '#ffb84d');                // the one amber eye, catching fire
+            px(ctx, 12, 4, 4, 3, '#b9ad92');               // the bandage over the other
+            px(ctx, 13, 5, 1, 1, '#7e1416');               // ...stained
+        } else {
+            px(ctx, 8, 5, 9, 7, SKIN);                     // head bowed
+            px(ctx, 8, 5, 2, 7, RIM);
+            px(ctx, 9, 4, 8, 2, '#8d8478');
+            px(ctx, 13, 7, 4, 3, '#b9ad92');               // bandage still visible
+        }
+        px(ctx, 5, 12, 2, 6, UNI); px(ctx, 5, 17, 3, 2, SKIN);   // arm resting
+        px(ctx, 9, 13, 6, 1, '#d9a43c');                   // a thread of gold trim left
+    });
+}
+const keeperSit = keeperFrame(false), keeperUp = keeperFrame(true);
+
+// ── The keeper's PORTRAIT (dialogue close-up) — detailed, fire-lit, one-eyed ──
+export const keeperPortraitUrl: string = (() => {
+    const t = pixelTex(96, 96, (ctx) => {
+        // night backdrop with the fire's warmth bleeding in from the left
+        px(ctx, 0, 0, 96, 96, '#0a0608');
+        for (let y = 0; y < 96; y += 2) {
+            ctx.globalAlpha = 0.16 * (1 - y / 96);
+            px(ctx, 0, y, 30 - Math.round(y * 0.2), 2, '#5a2c16');
+        }
+        ctx.globalAlpha = 1;
+        // shoulders + the old uniform (burgundy, gold trim, torn right shoulder)
+        px(ctx, 10, 72, 76, 24, '#4a1e28');
+        px(ctx, 10, 72, 10, 24, '#7e3a34');                // fire-lit side
+        px(ctx, 70, 72, 16, 24, '#33141c');                // shadow side
+        px(ctx, 10, 76, 70, 2, '#d9a43c');                 // gold trim
+        px(ctx, 74, 72, 12, 6, '#0a0608');                 // torn shoulder gap
+        px(ctx, 16, 82, 12, 8, '#1d1f24'); ctx.fillStyle = '#d9a43c';
+        ctx.font = 'bold 6px monospace'; ctx.textAlign = 'center'; ctx.fillText('01', 22, 89);   // first badge
+        // neck
+        px(ctx, 40, 64, 18, 10, '#a87a58'); px(ctx, 40, 64, 4, 10, '#d8a273');
+        // head block (3/4, fire on his right = viewer LEFT)
+        px(ctx, 28, 18, 42, 48, '#c39a73');
+        px(ctx, 28, 18, 8, 48, '#ecbf8d');                 // lit edge
+        px(ctx, 60, 18, 10, 48, '#8f6c52');                // dark edge
+        // gaunt hollows
+        px(ctx, 36, 44, 8, 10, '#a87f60'); px(ctx, 56, 44, 8, 10, '#7e5e47');
+        // brow ridge + the long scar crossing it
+        px(ctx, 30, 28, 38, 3, '#a87f60');
+        px(ctx, 34, 24, 2, 12, '#7e1416'); px(ctx, 36, 33, 2, 4, '#7e1416');   // scar
+        // the good eye (his right): heavy lid, amber iris catching the fire
+        px(ctx, 34, 34, 12, 7, '#f2e3cf'); px(ctx, 34, 34, 12, 2, '#8f6c52');
+        px(ctx, 38, 36, 5, 5, '#ffb84d'); px(ctx, 40, 37, 2, 2, '#141414'); px(ctx, 38, 36, 2, 1, '#fff3c4');
+        // the LOST eye: bandage wrap, knotted, stained over the socket
+        px(ctx, 50, 30, 20, 10, '#e3d9bd'); px(ctx, 50, 30, 20, 2, '#f2ead2');
+        px(ctx, 50, 39, 20, 2, '#8f8468');                 // shadow under the wrap
+        px(ctx, 46, 22, 30, 6, '#e3d9bd'); px(ctx, 46, 27, 30, 1, '#8f8468');  // wrap going up over the brow
+        px(ctx, 70, 26, 8, 26, '#d6cbb0'); px(ctx, 70, 26, 2, 26, '#8f8468');  // ...and around the head
+        px(ctx, 55, 33, 7, 5, '#7e1416'); px(ctx, 57, 35, 3, 3, '#54090e');    // the stain, soaked through
+        px(ctx, 72, 48, 5, 8, '#c9bfa2'); px(ctx, 73, 54, 3, 2, '#8f8468');    // loose knot end
+        // nose, broken once
+        px(ctx, 46, 40, 6, 12, '#b78f6d'); px(ctx, 46, 40, 2, 12, '#e0b487'); px(ctx, 48, 46, 4, 2, '#8f6c52');
+        // mouth — a tired line, almost a smile, not the supervisors' kind
+        px(ctx, 38, 58, 22, 2, '#6e4a38'); px(ctx, 38, 58, 6, 2, '#8a5a42');
+        px(ctx, 36, 56, 2, 2, '#8f6c52'); px(ctx, 60, 56, 2, 2, '#8f6c52');    // crease corners
+        // grey stubble
+        ctx.globalAlpha = 0.5;
+        for (let i = 0; i < 40; i++) px(ctx, 32 + Math.round(rnd() * 32), 52 + Math.round(rnd() * 12), 1, 1, '#9a8d80');
+        ctx.globalAlpha = 1;
+        // grey hair escaping the cap, fire-lit
+        px(ctx, 26, 12, 46, 8, '#8d8478'); px(ctx, 26, 12, 8, 8, '#b5ab9c');
+        px(ctx, 24, 16, 6, 10, '#8d8478'); px(ctx, 68, 16, 6, 8, '#6e665c');
+        // the bellhop cap, askew
+        px(ctx, 24, 4, 50, 10, '#4a1e28'); px(ctx, 24, 4, 50, 2, '#7e3a34');
+        px(ctx, 24, 12, 50, 2, '#d9a43c');
+        px(ctx, 44, 6, 10, 6, '#1d1f24'); ctx.fillStyle = '#d9a43c';
+        ctx.font = 'bold 5px monospace'; ctx.fillText('4', 49, 11);            // he kept the floor's number
+        // dust motes in the firelight
+        ctx.globalAlpha = 0.6;
+        px(ctx, 14, 30, 1, 1, '#ffd98a'); px(ctx, 10, 52, 1, 1, '#ffd98a'); px(ctx, 18, 70, 1, 1, '#ffd98a');
+        ctx.globalAlpha = 1;
+    });
+    return (t.image as HTMLCanvasElement).toDataURL();
+})();
+
+// ── Story-beat components ─────────────────────────────────────────────────────
+
+/** THE ZELADOR CINEMATIC: first steps out of the elevator → a smiling
+ *  silhouette bursts across the lobby, SLAMS + padlocks the exit, then sprints
+ *  back and dives into the floor hole. Steers the camera via f4Cam.override.
+ *  Also owns the padlock sprite (it appears mid-cinematic and stays). */
+const Runner: React.FC = () => {
+    const t = useRef(0);
+    const ref = useRef<THREE.Mesh>(null!);
+    const matRef = useRef<THREE.MeshBasicMaterial>(null!);
+    const slammed = useRef(false);
+    const clicked = useRef(false);
+    const [lockOn, setLockOn] = useState(f4.runnerSeen);
+    useFrame((_, dt) => {
+        if (!f4.runnerActive) return;
+        t.current += Math.min(dt, 0.05);
+        const tt = t.current;
+        let x = 1.6, y = 0.75, rot = 0, run = true, vis = true;
+        if (tt < 0.35) {                                   // a beat: he's just THERE
+            vis = tt > 0.12; run = false;
+        } else if (tt < 1.75) {                            // sprint to the door
+            x = THREE.MathUtils.lerp(1.6, 11.3, (tt - 0.35) / 1.4);
+        } else if (tt < 2.75) {                            // slam + padlock
+            x = 11.3; run = false;
+            if (!slammed.current) { slammed.current = true; playF4Slam(); }
+            if (tt > 2.25 && !clicked.current) { clicked.current = true; playF4Lock(); setLockOn(true); }
+        } else if (tt < 3.85) {                            // sprint back to the hole
+            x = THREE.MathUtils.lerp(11.3, 6.3, (tt - 2.75) / 1.1);
+        } else if (tt < 4.35) {                            // dive
+            x = 6.3; run = false;
+            const k = (tt - 3.85) / 0.5;
+            y = 0.75 - k * 1.9;
+            rot = -k * 1.2;
+        } else {
+            vis = false;
+            if (tt > 4.8) { f4RunnerDone(); return; }
+        }
+        f4Cam.override = x;
+        if (ref.current) {
+            ref.current.visible = vis;
+            ref.current.position.set(x, y, 0.32);
+            ref.current.rotation.z = rot;
+            // face the move direction (sprite faces right)
+            ref.current.scale.x = tt >= 2.75 && tt < 4.35 ? -1 : 1;
+        }
+        const tex = run ? (Math.floor(tt * 12) % 2 === 0 ? zelA : zelB) : zelA;
+        if (matRef.current && matRef.current.map !== tex) { matRef.current.map = tex; matRef.current.needsUpdate = true; }
+    });
+    return (
+        <>
+            {f4.runnerActive && (
+                <mesh ref={ref} position={[1.6, 0.75, 0.32]} visible={false}>
+                    <planeGeometry args={[0.95, 1.55]} />
+                    <meshBasicMaterial ref={matRef} map={zelA} transparent alphaTest={0.4} toneMapped={false} />
+                </mesh>
+            )}
+            {(lockOn || f4.runnerSeen) && !f4.doorUnlocked && (
+                <group>
+                    <S tex={chainLinkTex} w={0.16} h={1.1} x={11.5} y={1.95} z={-7.72} transparent rot={1.35} />
+                    <S tex={padlockTex} w={0.55} h={0.72} x={11.5} y={1.55} z={-7.7} transparent />
+                </group>
+            )}
+        </>
+    );
+};
+
+/** THE GUEST OF 404 rises from the rubble when the 5th ring lands — offering
+ *  the reservation slip. After it's taken he rests, finally attended. */
+const Skeleton: React.FC = () => {
+    const g = useRef<THREE.Group>(null!);
+    const t = useRef(0);
+    const rattled = useRef(false);
+    useFrame((_, dt) => {
+        if (!f4.bellSolved || !g.current) return;
+        t.current += Math.min(dt, 0.05);
+        if (!f4.skeletonRisen) {
+            if (!rattled.current) { rattled.current = true; playF4Bones(); }
+            const k = Math.min(1, t.current / 2.3);
+            const e = k * k * (3 - 2 * k);
+            g.current.position.y = -1.5 + e * 1.5 + Math.sin(t.current * 22) * 0.03 * (1 - e);   // shudder up
+            g.current.rotation.z = (1 - e) * -0.45;
+            if (k >= 1) f4SkeletonRisen();
+        } else {
+            g.current.position.y = Math.sin(t.current * 1.1) * 0.02;          // the faintest sway
+            g.current.rotation.z = 0;
+        }
+    });
+    if (!f4.bellSolved) return null;
+    return (
+        <group position={[5.0, 0, 0]}>
+            <group ref={g} position={[0, -1.5, 0]}>
+                <S tex={f4.codeTaken ? skelRest : skelOffer} w={1.2} h={1.7} x={0} y={0.85} z={-2.4} transparent />
+                {f4.skeletonRisen && !f4.codeTaken && (
+                    <S tex={slipTex} w={0.34} h={0.42} x={0.62} y={1.32} z={-2.35} transparent />
+                )}
+            </group>
+            {/* the mound he was under (in FRONT — he rises out of it) */}
+            <S tex={rubbleTex} w={2.5} h={0.95} x={0} y={0.45} z={-2.0} transparent />
+        </group>
+    );
+};
+
+/** Emergency lamp blinking the SAME pattern as the lobby light (basement clue). */
+const EmergencyLamp: React.FC<{ x: number; y: number }> = ({ x, y }) => {
+    const mat = useRef<THREE.MeshBasicMaterial>(null!);
+    const glow = useRef<THREE.MeshBasicMaterial>(null!);
+    const t = useRef(0);
+    useFrame((_, dt) => {
+        t.current += Math.min(dt, 0.05);
+        let f: number;
+        if (f4.powerOn) f = 0.25;                          // demoted once the mains hum
+        else {
+            const cyc = t.current % 3.1;                   // ▪ ▪ ▪ ▬ …pause (same as upstairs)
+            const on = cyc < 0.16 || (cyc >= 0.4 && cyc < 0.56) || (cyc >= 0.8 && cyc < 0.96) || (cyc >= 1.2 && cyc < 1.9);
+            f = on ? 0.9 : 0.06;
+        }
+        if (mat.current) mat.current.opacity = 0.35 + f * 0.65;
+        if (glow.current) glow.current.opacity = f * 0.4;
+    });
+    return (
+        <group position={[x, y, -7.2]}>
+            <mesh><planeGeometry args={[0.65, 0.78]} /><meshBasicMaterial ref={mat} map={emergLampTex} transparent toneMapped={false} /></mesh>
+            <mesh position={[0, -0.5, 0.02]}>
+                <planeGeometry args={[3.4, 2.4]} />
+                <meshBasicMaterial ref={glow} map={auraTex} color="#ff9a55" transparent opacity={0.2} depthWrite={false} toneMapped={false} />
+            </mesh>
+        </group>
+    );
+};
+
+/** The keeper's campfire — flickering frames, breathing glow, rising embers. */
+const Campfire: React.FC<{ x: number }> = ({ x }) => {
+    const flameMat = useRef<THREE.MeshBasicMaterial>(null!);
+    const glowMat = useRef<THREE.MeshBasicMaterial>(null!);
+    const poolMat = useRef<THREE.MeshBasicMaterial>(null!);
+    const embers = useRef<(THREE.Mesh | null)[]>([]);
+    const seeds = useMemo(() => Array.from({ length: 4 }, () => ({ sp: 0.5 + rnd() * 0.5, ph: rnd() * 6 })), []);
+    const t = useRef(0);
+    useFrame((_, dt) => {
+        t.current += Math.min(dt, 0.05);
+        const tt = t.current;
+        const flick = 0.85 + Math.sin(tt * 9.7) * 0.08 + Math.sin(tt * 23.3) * 0.06;
+        const tex = flameFrames[Math.floor(tt * 9) % 3];
+        if (flameMat.current) {
+            if (flameMat.current.map !== tex) { flameMat.current.map = tex; flameMat.current.needsUpdate = true; }
+            flameMat.current.opacity = flick;
+        }
+        if (glowMat.current) glowMat.current.opacity = 0.4 * flick;
+        if (poolMat.current) poolMat.current.opacity = 0.34 * flick;
+        seeds.forEach((s, i) => {
+            const m = embers.current[i];
+            if (!m) return;
+            const cyc = (tt * s.sp + s.ph) % 2.6;
+            m.position.set(x + Math.sin((tt + s.ph) * 3) * 0.18, 0.5 + cyc * 1.1, -2.1);
+            (m.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.8 - cyc / 2.2);
+        });
+    });
+    return (
+        <group>
+            <S tex={logsTex} w={1.1} h={0.42} x={x} y={0.2} z={-2.2} transparent />
+            <mesh position={[x, 0.78, -2.21]}>
+                <planeGeometry args={[0.85, 1.1]} />
+                <meshBasicMaterial ref={flameMat} map={flameFrames[0]} transparent opacity={0.9} depthWrite={false} toneMapped={false} />
+            </mesh>
+            <mesh position={[x, 1.5, -2.5]}>
+                <planeGeometry args={[9.5, 7.0]} />
+                <meshBasicMaterial ref={glowMat} map={auraTex} color="#ff8a3c" transparent opacity={0.4} depthWrite={false} toneMapped={false} />
+            </mesh>
+            <mesh position={[x, 0.06, -2.1]}>
+                <planeGeometry args={[6.0, 0.9]} />
+                <meshBasicMaterial ref={poolMat} map={poolTex} color="#ff9a55" transparent opacity={0.3} depthWrite={false} toneMapped={false} />
+            </mesh>
+            {seeds.map((_, i) => (
+                <mesh key={i} ref={(el) => { embers.current[i] = el; }} position={[x, 0.6, -2.1]}>
+                    <planeGeometry args={[0.05, 0.05]} />
+                    <meshBasicMaterial color="#ffb84d" transparent opacity={0.8} depthWrite={false} toneMapped={false} />
+                </mesh>
+            ))}
+        </group>
+    );
+};
+
+/** The first receptionist in the world — slumped; raises his head when the
+ *  player comes close (the "approach detail" beat before the dialogue). */
+const KeeperFigure: React.FC<{ x: number; playerXRef?: React.MutableRefObject<number> }> = ({ x, playerXRef }) => {
+    const matRef = useRef<THREE.MeshBasicMaterial>(null!);
+    useFrame(() => {
+        const near = playerXRef ? Math.abs(playerXRef.current - x) < 2.8 : false;
+        const tex = near || f4.metKeeper ? keeperUp : keeperSit;
+        if (matRef.current && matRef.current.map !== tex) { matRef.current.map = tex; matRef.current.needsUpdate = true; }
+    });
+    return (
+        <mesh position={[x, 0.68, -2.3]}>
+            <planeGeometry args={[1.15, 1.35]} />
+            <meshBasicMaterial ref={matRef} map={keeperSit} transparent alphaTest={0.4} toneMapped={false} />
+        </mesh>
+    );
+};
+
 // ── Scene ─────────────────────────────────────────────────────────────────────
 const CX = (W0 + W1) / 2;   // wall/floor strips center
 const PX_OF = (id: string) => F4_POINTS.find((p) => p.id === id)?.x ?? 0;
 
-export const Floor4Scene2D: React.FC<{ doorOpenRef?: React.MutableRefObject<number>; loreVersion?: number }> = ({ doorOpenRef }) => {
+/** Full-lobby darkness until the generator runs (the floor arrives DEAD). */
+const LobbyDark: React.FC = () => {
+    const mat = useRef<THREE.MeshBasicMaterial>(null!);
+    useFrame((_, dt) => {
+        if (!mat.current) return;
+        const target = f4.powerOn ? 0 : 0.46;
+        mat.current.opacity += (target - mat.current.opacity) * Math.min(1, dt * 1.2);
+    });
+    return (
+        <mesh position={[CX, 1.5, 2.9]}>
+            <planeGeometry args={[SPAN + 8, 30]} />
+            <meshBasicMaterial ref={mat} color="#05030a" transparent opacity={0.46} depthWrite={false} toneMapped={false} />
+        </mesh>
+    );
+};
+
+/** Spotlight beat on the bell once the power returns (THIS is next). */
+const BellSpot: React.FC<{ x: number }> = ({ x }) => {
+    const mat = useRef<THREE.MeshBasicMaterial>(null!);
+    const t = useRef(0);
+    useFrame((_, dt) => {
+        t.current += Math.min(dt, 0.05);
+        if (mat.current) mat.current.opacity = f4.powerOn && !f4.bellSolved ? 0.34 + Math.sin(t.current * 2.2) * 0.08 : 0;
+    });
+    return (
+        <mesh position={[x, 1.9, -2.15]}>
+            <planeGeometry args={[2.6, 2.6]} />
+            <meshBasicMaterial ref={mat} map={glowTex} transparent opacity={0} depthWrite={false} toneMapped={false} />
+        </mesh>
+    );
+};
+
+const LobbyScene: React.FC<{ doorOpenRef?: React.MutableRefObject<number> }> = ({ doorOpenRef }) => {
     const slab2 = React.useMemo(() => { const t = slabTex.clone(); t.wrapS = THREE.RepeatWrapping; t.repeat.set(SPAN / 4, 1); return t; }, []);
     return (
         <group>
@@ -894,18 +1401,17 @@ export const Floor4Scene2D: React.FC<{ doorOpenRef?: React.MutableRefObject<numb
             <S tex={ceilTex} w={SPAN} h={1.25} x={CX} y={7.5 + 0.625 - 0.55} z={-7.5} transparent />
             <SmokeWisps />
 
-            {/* BACK DOOR (porta de fundo) — ajar on darkness; the three BOARDS
-                come off one per puzzle. Solving all three creaks it wider. */}
+            {/* THE EXIT DOOR — the Zelador padlocks it in the opening cinematic;
+                the master key (safe) unlocks it; entering leads into the breu. */}
             <S tex={backDoorTex} w={2.25} h={3.75} x={11.5} y={1.875} z={-7.8} transparent />
-            {f4.doorTried && <mesh position={[11.5, 1.8, -7.78]}><planeGeometry args={[0.3, 3.4]} /><meshBasicMaterial color="#040305" toneMapped={false} /></mesh>}
-            {!f4.breakerSolved && <S tex={boardTex} w={2.4} h={0.48} x={11.5} y={2.875} z={-7.75} transparent rot={-0.22} />}
-            {!f4.bellSolved && <S tex={boardTex} w={2.4} h={0.48} x={11.5} y={1.875} z={-7.75} transparent rot={0.18} />}
-            {!f4.safeSolved && <S tex={boardTex} w={2.4} h={0.48} x={11.5} y={0.875} z={-7.75} transparent rot={-0.12} />}
+            {f4.doorUnlocked && <mesh position={[11.5, 1.8, -7.78]}><planeGeometry args={[0.62, 3.4]} /><meshBasicMaterial color="#040305" toneMapped={false} /></mesh>}
             <ExitSign x={11.5} y={4.35} />
 
-            {/* LORE PROPS — breaker box, fallen bell, the picture hiding the safe */}
-            <S tex={f4.breakerSolved ? breakerTexOn : breakerTexOff} w={1.25} h={1.6} x={PX_OF('breaker')} y={2.3} z={-7.7} transparent />
-            <S tex={bellTex} w={0.85} h={0.72} x={PX_OF('bell')} y={0.36} z={-2.2} transparent />
+            {/* LORE PROPS — dead power panel, the BELL on its stand, the safe picture */}
+            <S tex={f4.powerOn ? breakerTexOn : breakerTexOff} w={1.25} h={1.6} x={-4.4} y={2.3} z={-7.7} transparent />
+            <S tex={crateTex} w={1.3} h={1.05} x={PX_OF('bell')} y={0.53} z={-2.25} transparent />
+            <S tex={bellTex} w={0.95} h={0.8} x={PX_OF('bell')} y={1.42} z={-2.2} transparent />
+            <BellSpot x={PX_OF('bell')} />
             {!f4.safeSolved
                 ? <S tex={safePicTex} w={1.6} h={1.25} x={PX_OF('safe')} y={3.1} z={-7.7} transparent rot={-0.14} />
                 : <>
@@ -915,16 +1421,18 @@ export const Floor4Scene2D: React.FC<{ doorOpenRef?: React.MutableRefObject<numb
 
             {/* hidden MURAL (revealed when the lights come back): the building,
                 floor 4 scratched out in blood, an arrow pointing further down */}
-            {f4.breakerSolved && <S tex={muralTex} w={3.8} h={2.6} x={14.7} y={4.5} z={-7.68} transparent />}
+            {f4.powerOn && <S tex={muralTex} w={3.8} h={2.6} x={14.7} y={4.5} z={-7.68} transparent />}
 
-            {/* the Forgotten One's diary pages */}
+            {/* the receptionist's diary pages */}
             <PageSprite x={PX_OF('page1')} y={0.12} visible={!f4.pages[0]} />
-            <PageSprite x={PX_OF('page2')} y={0.12} visible={f4.breakerSolved && !f4.pages[1]} />
-            <PageSprite x={PX_OF('page3')} y={-1.05} z={-4.5} visible={f4.bellSolved && !f4.pages[2]} />
+            <PageSprite x={PX_OF('page3')} y={0.12} visible={f4.powerOn && !f4.pages[2]} />
             <PageSprite x={PX_OF('page4')} y={0.12} visible={f4.safeSolved && !f4.pages[3]} />
-            <PageSprite x={FLOOR4_ELEVATOR_X} y={0.42} z={-0.965} visible={f4.doorTried && !f4.pages[4]} />
 
-            {/* right-side gloom until the power is back (P1) */}
+            {/* THE GUEST OF 404 (rises by the desk once the 5th ring lands) */}
+            <Skeleton />
+
+            {/* whole-lobby darkness until the power, plus the deeper right side */}
+            <LobbyDark />
             <Gloom />
 
             {/* MAIN FLOOR cross-section (checker band + slab) with the torn HOLES */}
@@ -937,7 +1445,7 @@ export const Floor4Scene2D: React.FC<{ doorOpenRef?: React.MutableRefObject<numb
             <mesh position={[CX, -9.7, -4.5]}><planeGeometry args={[SPAN + 6, 5]} /><meshBasicMaterial color={'#060406'} toneMapped={false} /></mesh>
 
             {/* WRECKAGE on the main floor */}
-            <S tex={deskTex} w={4} h={1.875} x={3.1} y={0.9} z={-3} transparent />
+            <S tex={deskTex} w={4} h={1.875} x={3.6} y={0.9} z={-3} transparent />
             <S tex={shardTex} w={1.5} h={1.25} x={0.6} y={0.6} z={-2.6} transparent />
             <S tex={shardTex} w={1.2} h={1.0} x={9.8} y={0.5} z={-2.6} transparent flipX />
             <S tex={rubbleTex} w={2.5} h={0.875} x={-4.7} y={0.42} z={-1.8} transparent />
@@ -965,10 +1473,113 @@ export const Floor4Scene2D: React.FC<{ doorOpenRef?: React.MutableRefObject<numb
             {/* go-right hint by the doorway */}
             <S tex={arrowTex} w={1.0} h={0.6} x={-5.9} y={1.15} z={0.1} transparent />
 
+            {/* THE ZELADOR (cinematic) + his padlock */}
+            <Runner />
+
             {/* GUIDANCE — "!" floats over what the player can act on, "?" over flavor */}
             {markerList().map((m) => <Marker key={m.id} x={m.x} y={m.y} kind={m.kind} />)}
         </group>
     );
+};
+
+/** BASEMENT — the generator room. Near-black until the levers find the rhythm. */
+const BasementScene: React.FC = () => {
+    const darkMat = useRef<THREE.MeshBasicMaterial>(null!);
+    const genGlow = useRef<THREE.MeshBasicMaterial>(null!);
+    const t = useRef(0);
+    useFrame((_, dt) => {
+        t.current += Math.min(dt, 0.05);
+        if (darkMat.current) {
+            const target = f4.powerOn ? 0.1 : 0.58;
+            darkMat.current.opacity += (target - darkMat.current.opacity) * Math.min(1, dt * 1.4);
+        }
+        if (genGlow.current) genGlow.current.opacity = f4.powerOn ? 0.3 + Math.sin(t.current * 3.1) * 0.06 : 0.05;
+    });
+    const genTex = useMemo(() => generatorTex(f4.levers, f4.powerOn), [f4.version]);   // eslint-disable-line react-hooks/exhaustive-deps
+    return (
+        <group>
+            {/* brick walls / pipes / slab ceiling with the hole you fell through */}
+            <S tex={baseWallTex} w={BSPAN} h={5.2} x={B_CX} y={2.6} z={-8} />
+            <S tex={basePipesTex} w={BSPAN} h={0.75} x={B_CX} y={4.55} z={-7.4} transparent />
+            <S tex={slabTex} w={(-3.9) - B_W0} h={0.5} x={(B_W0 + (-3.9)) / 2} y={5.0} z={-7.3} />
+            <S tex={slabTex} w={B_W1 - (-2.5)} h={0.5} x={((-2.5) + B_W1) / 2} y={5.0} z={-7.3} />
+            <S tex={baseFloorTex} w={BSPAN} h={0.5} x={B_CX} y={-0.25} z={-2} />
+            <mesh position={[B_CX, -3.4, -4.5]}><planeGeometry args={[BSPAN + 6, 6]} /><meshBasicMaterial color="#060406" toneMapped={false} /></mesh>
+            <mesh position={[B_CX, 8.4, -7.2]}><planeGeometry args={[BSPAN + 6, 6]} /><meshBasicMaterial color="#0a0709" toneMapped={false} /></mesh>
+
+            {/* the light shaft falling through the hole + the rubble you ride up */}
+            <S tex={shaftTex} w={2.0} h={4.4} x={-3.2} y={2.7} z={-6.5} transparent opacity={0.7} />
+            <S tex={rubbleTex} w={2.6} h={1.1} x={-3.2} y={0.5} z={-1.9} transparent />
+            <S tex={rubbleTex} w={1.9} h={0.85} x={-3.0} y={1.2} z={-2.0} transparent flipX />
+            <S tex={arrowTex} w={0.9} h={0.55} x={-3.2} y={2.2} z={0.1} transparent rot={1.57} />
+
+            {/* THE GENERATOR (levers mirror the panel live) + emergency lamp */}
+            <S tex={genTex} w={2.9} h={2.0} x={5.2} y={1.0} z={-7.0} transparent />
+            <mesh position={[5.2, 1.3, -6.9]}>
+                <planeGeometry args={[4.2, 3.2]} />
+                <meshBasicMaterial ref={genGlow} map={auraTex} color="#7fe09a" transparent opacity={0.05} depthWrite={false} toneMapped={false} />
+            </mesh>
+            <EmergencyLamp x={3.4} y={3.4} />
+
+            {/* string bulbs wake with the power */}
+            {f4.powerOn && <S tex={bulbStringTex} w={BSPAN} h={0.5} x={B_CX} y={4.1} z={-6.8} transparent />}
+
+            {/* page 2 — the rhythm, in the receptionist's hand */}
+            <PageSprite x={1.0} y={0.12} visible={!f4.pages[1]} />
+
+            {/* scattered storage junk */}
+            <S tex={rubbleTex} w={1.8} h={0.7} x={0.0} y={0.34} z={-1.8} transparent flipX />
+            <S tex={shardTex} w={1.2} h={1.0} x={6.9} y={0.5} z={-2.6} transparent />
+            <S tex={deadPlantTex} w={1.1} h={1.25} x={2.2} y={0.62} z={-2.4} transparent flipX />
+
+            {/* basement darkness (lifts when the generator hums) */}
+            <mesh position={[B_CX, 1.5, 3.2]}>
+                <planeGeometry args={[BSPAN + 8, 22]} />
+                <meshBasicMaterial ref={darkMat} color="#04030a" transparent opacity={0.58} depthWrite={false} toneMapped={false} />
+            </mesh>
+
+            <DustMotes />
+            {markerList().map((m) => <Marker key={m.id} x={m.x} y={m.y} kind={m.kind} />)}
+        </group>
+    );
+};
+
+/** BEYOND THE DOOR — the breu. Black, broken, one small fire, one old man. */
+const BeyondScene: React.FC<{ playerXRef?: React.MutableRefObject<number> }> = ({ playerXRef }) => (
+    <group>
+        {/* the void */}
+        <mesh position={[5, 2, -12]}><planeGeometry args={[40, 30]} /><meshBasicMaterial color="#050304" toneMapped={false} /></mesh>
+        {/* the door you came through, barely there behind you */}
+        <S tex={backDoorTex} w={2.25} h={3.75} x={-0.4} y={1.875} z={-7.8} transparent opacity={0.4} />
+        <ExitSign x={-0.4} y={4.35} />
+        {/* what's left of the floor — silhouettes against deeper black */}
+        <mesh position={[5, -0.18, -2]}><planeGeometry args={[26, 0.36]} /><meshBasicMaterial color="#0a0708" toneMapped={false} /></mesh>
+        <S tex={rubbleTex} w={3.0} h={1.1} x={1.4} y={0.5} z={-2.6} transparent opacity={0.55} />
+        <S tex={shardTex} w={1.6} h={1.3} x={4.6} y={0.62} z={-2.7} transparent opacity={0.45} />
+        <S tex={rubbleTex} w={2.4} h={0.9} x={6.3} y={0.42} z={-2.6} transparent opacity={0.5} flipX />
+        {/* fallen column silhouettes */}
+        <mesh position={[3.2, 2.6, -6]} rotation={[0, 0, 0.35]}><planeGeometry args={[0.7, 5.5]} /><meshBasicMaterial color="#0b0709" toneMapped={false} /></mesh>
+        <mesh position={[10.6, 2.2, -6]} rotation={[0, 0, -0.2]}><planeGeometry args={[0.8, 5]} /><meshBasicMaterial color="#0b0709" toneMapped={false} /></mesh>
+        {/* the wall sealing the far end */}
+        <S tex={rubbleTex} w={4.0} h={1.5} x={11.0} y={0.7} z={-1.8} transparent opacity={0.6} />
+        <S tex={rubbleTex} w={3.0} h={1.2} x={11.3} y={1.7} z={-1.8} transparent opacity={0.55} flipX />
+
+        {/* the fire and the man who kept the floor */}
+        <Campfire x={8.0} />
+        <KeeperFigure x={8.85} playerXRef={playerXRef} />
+
+        {markerList().map((m) => <Marker key={m.id} x={m.x} y={m.y} kind={m.kind} />)}
+    </group>
+);
+
+export const Floor4Scene2D: React.FC<{
+    doorOpenRef?: React.MutableRefObject<number>;
+    playerXRef?: React.MutableRefObject<number>;
+    loreVersion?: number;
+}> = ({ doorOpenRef, playerXRef }) => {
+    if (f4.room === 'basement') return <BasementScene />;
+    if (f4.room === 'beyond') return <BeyondScene playerXRef={playerXRef} />;
+    return <LobbyScene doorOpenRef={doorOpenRef} />;
 };
 
 export default Floor4Scene2D;

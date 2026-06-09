@@ -178,6 +178,57 @@ export function playF4DoorCreak(): void {
     v.start(t); v.stop(t + 1.25);
 }
 
+/** The Zelador SLAMMING the exit door (runner cinematic). */
+export function playF4Slam(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(110, t);
+    o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.7, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + 0.5);
+    o.connect(g).connect(d); o.start(t); o.stop(t + 0.55);
+    // wood burst on top
+    const len = 0.12, buf = ctx.createBuffer(1, ctx.sampleRate * len, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / ch.length, 2);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 480; bp.Q.value = 1.2;
+    const ng = ctx.createGain(); ng.gain.setValueAtTime(0.45, t);
+    src.connect(bp).connect(ng).connect(d); src.start(t);
+}
+
+/** Bone rattle — the guest of 404 assembling himself upright. */
+export function playF4Bones(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t0 = ctx.currentTime;
+    for (let k = 0; k < 7; k++) {
+        const t = t0 + k * 0.16 + Math.random() * 0.05;
+        const o = ctx.createOscillator(); o.type = 'square';
+        o.frequency.value = 320 + Math.random() * 480;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.09, t);
+        g.gain.exponentialRampToValueAtTime(0.0004, t + 0.05);
+        o.connect(g).connect(d); o.start(t); o.stop(t + 0.06);
+    }
+}
+
+/** Heavy padlock click (locking AND unlocking the exit). */
+export function playF4Lock(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t = ctx.currentTime;
+    [0, 0.09].forEach((dt, i) => {
+        const o = ctx!.createOscillator(); o.type = 'square';
+        o.frequency.value = i === 0 ? 340 : 190;
+        const g = ctx!.createGain();
+        g.gain.setValueAtTime(0.16, t + dt);
+        g.gain.exponentialRampToValueAtTime(0.0005, t + dt + 0.06);
+        o.connect(g).connect(d!); o.start(t + dt); o.stop(t + dt + 0.07);
+    });
+}
+
 /** Soft memory chime — finishing the arc ("VOCÊ LEMBROU DO ANDAR 4"). */
 export function playF4MemoryChime(): void {
     if (!ctx) return; const d = out(); if (!d) return;

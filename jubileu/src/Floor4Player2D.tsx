@@ -19,6 +19,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { pixelTex, px } from './floor4-pixels';
 import { FLOOR4_WORLD, FLOOR4_ELEVATOR_X } from './Floor4Scene2D';
+import { f4, f4Bounds, f4Cam } from './f4Lore';
 
 const PC = {
     hair: '#7a4a24', hairDk: '#5a3315', hairLt: '#94613a',
@@ -160,16 +161,27 @@ export const Floor4Player2D: React.FC<{
     const vy = useRef(0);
     const wasOut = useRef(false);           // must actually LEAVE before re-entering exits
     const exited = useRef(false);
+    const spawnTok = useRef(f4.spawnToken); // consume room-transition teleports
 
     useFrame((_, dt) => {
         const sdt = Math.min(dt, 0.05);
+        // room transition: land at the new spawn, grounded, camera snapping along
+        if (spawnTok.current !== f4.spawnToken) {
+            spawnTok.current = f4.spawnToken;
+            x.current = f4.spawnX;
+            airY.current = 0; vy.current = 0;
+            camera.position.x = f4.spawnX;
+        }
+        const inLobby = f4.room === 'lobby';
         const locked = (lockRef?.current ?? false) || (uiLockRef?.current ?? false);
         const d = locked ? 0 : dirRef.current;
         if (d !== 0) { facing.current = d; x.current += d * SPEED * sdt; walkT.current += sdt; idleT.current = 0; }
         else idleT.current += sdt;
-        x.current = THREE.MathUtils.clamp(x.current, FLOOR4_ELEVATOR_X, FLOOR4_WORLD.right - 0.5);
+        const bounds = f4Bounds();
+        const leftLim = inLobby ? FLOOR4_ELEVATOR_X : bounds.left + 0.4;
+        x.current = THREE.MathUtils.clamp(x.current, leftLim, bounds.right - 0.5);
         if (playerXRef) playerXRef.current = x.current;
-        if (x.current > FLOOR4_ELEVATOR_X + 1.2) wasOut.current = true;
+        if (inLobby && x.current > FLOOR4_ELEVATOR_X + 1.2) wasOut.current = true;
 
         // jump physics (flat ground at groundY)
         if (jumpRef?.current) {
@@ -209,17 +221,19 @@ export const Floor4Player2D: React.FC<{
         }
 
         // camera: eased follow with a touch of look-ahead toward the facing side
+        // (a cinematic — the Zelador — may take the wheel via f4Cam.override)
         const oc = camera as THREE.OrthographicCamera;
         const half = (size.width / 2) / oc.zoom;
-        const minX = FLOOR4_WORLD.left + half, maxX = FLOOR4_WORLD.right - half;
+        const minX = bounds.left + half, maxX = bounds.right - half;
+        const want = f4Cam.override ?? (x.current + facing.current * 0.5);
         const camTarget = minX <= maxX
-            ? THREE.MathUtils.clamp(x.current + facing.current * 0.5, minX, maxX)
-            : (FLOOR4_WORLD.left + FLOOR4_WORLD.right) / 2;
+            ? THREE.MathUtils.clamp(want, minX, maxX)
+            : (bounds.left + bounds.right) / 2;
         const dx = camTarget - camera.position.x;
         camera.position.x = Math.abs(dx) > 6 ? camTarget : camera.position.x + dx * Math.min(1, sdt * 5.5);
 
-        // walk left back into the elevator → leave the floor
-        if (!exited.current && !locked && wasOut.current && x.current <= FLOOR4_ELEVATOR_X + 0.3 && d < 0) {
+        // walk left back into the elevator → leave the floor (lobby only)
+        if (inLobby && !exited.current && !locked && wasOut.current && x.current <= FLOOR4_ELEVATOR_X + 0.3 && d < 0) {
             exited.current = true; onExit?.();
         }
     });
