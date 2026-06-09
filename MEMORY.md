@@ -3111,3 +3111,51 @@ do jogo completo) — lógica simples, validar no vercel.
 Branch `claude/oi-vfpz3w`. FLOOR4.md §8 atualizado (transição FEITA + spec da cena).
 Falta: sprites de perfil do Felipe (spec §8), sfx 8-bit no ramp, pulo/plataformas,
 conteúdo da porta de fundo, e parar de montar o Floor4Environment 3D atrás do overlay.
+
+### Sessão 2026-06-09 (parte 2) — "não funcionou": e2e do jogo REAL + rodada de melhorias
+
+Felipe: "não funcionou" + pediu: visual do player 2D melhor, SÓ 1ª pessoa (na transição
+tbm), 2Dficação melhor, e o interior do elevador 2D visível na saída.
+
+**🔬 Consegui testar o JOGO COMPLETO no sandbox** (novidade — antes só harness isolado):
+o sandbox TEM rede; os assets externos (raw.githubusercontent) falham por cert MITM →
+`ignoreHTTPSErrors: true` no contexto Playwright resolve TUDO. E2e: `npm run dev` + script
+que clica MainMenu → MODO CRIADOR → card → INICIAR e screenshota a viagem inteira.
+⚠️ No sandbox o tick do elevador leva ~2s (CPU render lento) — esticar os tempos do
+script (viagem de 20s ≈ 45s de wall time). Botões: usar `>> visible=true` (o botão
+mobile escondido vem primeiro no DOM).
+
+**Causa raiz do "não funcionou":** a pixelação com ease CÚBICO + relógio próprio de 9s
+era imperceptível até os ~2s finais (e dessincronizava se os ticks atrasassem). A viagem
+em si FUNCIONAVA (o breu que vi primeiro era o overlay intencional do switch no timer
+18 + texturas falhando só no sandbox — o ElevatorInterior tem pointLight próprio).
+
+**Melhorias aplicadas:**
+1. **Pixelate3DRamp v2 — dirigido pelo TIMER** (prop `timer`, não relógio próprio): cada
+   frame persegue `(10-timer)/10` com taxa máx 0.14/s → sempre culmina exatamente quando
+   as portas abrem, suave entre ticks. Curva ^1.5 (visível desde ~1/3) + saturate até
+   0.25 + contrast/brightness. App passa `timer={elevatorTimer}`.
+2. **Letterbox cinematográfico**: barras pretas top/bottom (11vh) fecham junto com a
+   pixelação (div com transition 1.15s linear por tick, monta no timer 11 com altura 0).
+3. **1ª pessoa TOTAL**: `setZoomLevel(0)` ao armar a viagem (advanceToFloor4AfterWin +
+   creator ride); wheel gate ganhou `|| nextElevatorDestination === 4`; pinch gate ganhou
+   `currentLevel !== 4 && nextElevatorDestination !== 4`.
+4. **Cabine 2D iluminada** (`Floor4Elevator.tsx`): o "poço escuro" virou interior de
+   cabine (paredes prata com painéis, barra de luz no teto + wash, corrimão, painel de
+   botões com LEDs, chão escuro com losango dourado) + **luz quente vazando** pelo vão
+   conforme as portas abrem (spillTex, opacity = open) + **casings laterais** (colunas
+   escuras) escondendo o overshoot das portas deslizando.
+5. **Sprite do player v2** (`Floor4Player2D.tsx`): bacon hair de perfil 20×30 com
+   **outline automático** (two-pass ImageData), shading (cabelo com shine, sombra de
+   mandíbula, camisa com luz/sombra), braço da frente balançando + braço de trás,
+   walk de 4 frames (stride/pass/stride/pass) + idle de 2 frames (respiração).
+6. **Floor4Environment = shell**: o baseplate 3D morto virou só o backdrop escuro
+   (Sky2D) — o andar é 100% o overlay 2D.
+
+**Validado no e2e real:** viagem iluminada → letterbox + pixelação progressiva clara
+(painel em blocos, cores lavando) → chegada com player novo DENTRO da cabine acesa →
+portas abrem → sai andando no saguão destruído. Zero erros de console.
+
+**Estado:** tsc 0 · 58/58 · audit 0 · index.html rebuildado. Branch `claude/oi-vfpz3w`.
+⚠️ Se o Felipe testou no vercel de MAIN, ele viu o build velho — lembrar ele de mergear
+a branch (ou apontar o deploy pra ela) antes de testar.

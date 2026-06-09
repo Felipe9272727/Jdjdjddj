@@ -1063,6 +1063,7 @@ export default function App() {
           setDoorsClosed(true);
           setDoorSoundTrigger(prev => prev + 1);
           setNextElevatorDestination(4);
+          setZoomLevel(0);                      // 1st person for the whole ride
           setElevatorTimer(20);
           setTravelPhase('closing');
           if (elevatorHumStopRef.current) elevatorHumStopRef.current();
@@ -1169,6 +1170,7 @@ export default function App() {
       setDoorsClosed(true);
       setDoorSoundTrigger((prev) => prev + 1);
       setNextElevatorDestination(4);            // beat the devil → up to Floor 4
+      setZoomLevel(0);                          // the whole ride/transition is 1st person
       setElevatorTimer(20);
       setTravelPhase('closing');
       if (elevatorHumStopRef.current) elevatorHumStopRef.current();
@@ -1318,8 +1320,8 @@ export default function App() {
       if (isPinch && !dialogueOpen && !barneyDialogueOpen) {
           const pts = Array.from(activePointers.current.values()); const p1 = pts[0]; const p2 = pts[1];
           const dist = Math.sqrt(Math.pow(p1.currX-p2.currX, 2) + Math.pow(p1.currY-p2.currY, 2));
-          // Floor 2 locks the camera in 1st person — ignore pinch zoom there.
-          if (prevPinchDist.current !== null && currentLevel !== 2 && currentLevel !== 3) { const delta = dist - prevPinchDist.current; setZoomLevel(prev => Math.min(Math.max(prev - delta * 0.02, 0), 10)); }
+          // Floors 2/3/4 (and the ride up to 4) lock the camera in 1st person — ignore pinch zoom there.
+          if (prevPinchDist.current !== null && currentLevel !== 2 && currentLevel !== 3 && currentLevel !== 4 && nextElevatorDestination !== 4) { const delta = dist - prevPinchDist.current; setZoomLevel(prev => Math.min(Math.max(prev - delta * 0.02, 0), 10)); }
           prevPinchDist.current = dist;
       }
     }
@@ -1385,7 +1387,7 @@ export default function App() {
   const { info: botInfo } = useBotStore();
 
   return (
-    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2 || currentLevel === 3 || currentLevel === 4) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
+    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2 || currentLevel === 3 || currentLevel === 4 || nextElevatorDestination === 4) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted || shopOpen} masterVolume={settings.masterVolume} nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} doorsClosed={doorsClosed} busRef={cartoonBusRef} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
@@ -1420,7 +1422,7 @@ export default function App() {
             while active so the two never fight over the dpr; when the doors open
             (doorsClosed flips) AdaptiveDpr remounts and restores it. */}
         {(currentLevel === 4 && doorsClosed && elevatorTimer !== null && elevatorTimer <= 10)
-          ? <Pixelate3DRamp durationMs={9000} />
+          ? <Pixelate3DRamp timer={elevatorTimer} />
           : <AdaptiveDpr pixelated />}
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
@@ -2045,6 +2047,16 @@ export default function App() {
       {/* FLOOR 4 — the real 2D side-scroller, its own orthographic canvas over
           the 3D game (Felipe: Floor 4 is literally 2D). Walk left into the
           elevator to ride back down. */}
+      {/* 3D→2D ride: cinematic black bars close in while the world pixelates
+          (mounted one tick early at height 0 so the CSS transition can run). */}
+      {currentLevel === 4 && doorsClosed && elevatorTimer !== null && elevatorTimer <= 11 && (
+        <>
+          <div className="absolute left-0 right-0 top-0 z-30 bg-black pointer-events-none"
+            style={{ height: `${((10 - Math.min(elevatorTimer, 10)) / 10) * 11}vh`, transition: 'height 1.15s linear' }} />
+          <div className="absolute left-0 right-0 bottom-0 z-30 bg-black pointer-events-none"
+            style={{ height: `${((10 - Math.min(elevatorTimer, 10)) / 10) * 11}vh`, transition: 'height 1.15s linear' }} />
+        </>
+      )}
       {/* Floor 4 (2D) mounts only when the elevator DOORS OPEN — the player rides
           the full 20s inside the 3D elevator (the 3D side pixelates from T-10s),
           then arrives inside the 2D elevator, whose doors slide open. */}

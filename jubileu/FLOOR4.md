@@ -122,6 +122,13 @@ kill -9 $VPID
 (`/public/*.glb`), então roda offline. Para cutscenes, use os hooks DEV de scrub:
 `window.__fallPhase='beg'; window.__fallScrub=<t>` congela um beat pra screenshot.
 
+**🔬 E2E DO JOGO COMPLETO funciona no sandbox** (descoberto 2026-06-09): o sandbox tem
+rede; os assets externos só falham por cert MITM → `ignoreHTTPSErrors: true` no
+`browser.newContext` resolve. Playwright clica MainMenu → "MODO CRIADOR" → card →
+INICIAR (use `'button:has-text("X") >> visible=true'` — o botão mobile escondido vem
+primeiro no DOM) e screenshota a gameplay real. ⚠️ Ticks do elevador levam ~2s no
+swiftshader (CPU) — estique os tempos (viagem de 20s ≈ 45s de wall time).
+
 **Playwright** (`require('playwright')`, já instalado):
 ```js
 chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
@@ -211,8 +218,10 @@ O jogo é 3D 1ª pessoa (Canvas perspectivo + `<Player>`). Pra o side-scroller s
 O player fica os **20s INTEIROS dentro do elevador 3D** (`ElevatorInterior`); o overlay
 2D só monta quando as portas abrem (`currentLevel === 4 && !doorsClosed` no App).
 1. **T-10s → T0:** `Pixelate3DRamp` (exportado de `Floor4.tsx`, montado no Canvas 3D do
-   App) derruba o dpr do render 3D em degraus quantizados (ease-in cúbico — começa
-   imperceptível) + dessatura via CSS filter. Ele SUBSTITUI o `<AdaptiveDpr>` enquanto
+   App) — **dirigido pelo TIMER do elevador** (prop `timer`; persegue `(10-timer)/10` a
+   0.14/s máx → culmina exato na abertura mesmo com ticks lentos). Derruba o dpr em
+   degraus quantizados (curva ^1.5) + dessatura/contrasta via CSS filter + **letterbox**
+   (barras pretas no App fecham junto). Ele SUBSTITUI o `<AdaptiveDpr>` enquanto
    ativo (nunca brigam pelo dpr); quando as portas abrem o AdaptiveDpr remonta e restaura.
 2. **T0 (portas abrem):** `Floor4Canvas2D` monta começando TÃO pixelado quanto o 3D
    terminou e resolve pra nítido (`ResolveFX`, ~2.6s) sob um véu preto curto —
