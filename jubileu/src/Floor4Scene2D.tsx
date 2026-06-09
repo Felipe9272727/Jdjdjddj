@@ -21,7 +21,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { pixelTex, px } from './floor4-pixels';
 import { Floor4Elevator2D } from './Floor4Elevator';
-import { f4, F4_POINTS } from './f4Lore';
+import { f4, F4_POINTS, f4BoardsGone } from './f4Lore';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const P = {
@@ -632,6 +632,77 @@ const PageSprite: React.FC<{ x: number; y: number; z?: number; visible: boolean 
     );
 };
 
+// ── GUIDANCE markers ("nada de puzzle que só o criador entende") ─────────────
+// A bold gold "!" floats over whatever the player can ACT on right now, and a
+// pale "?" over optional flavor examines. Both bob gently to catch the eye.
+
+const drawExcl = (ctx: CanvasRenderingContext2D, ox: number, oy: number, c: string) => {
+    px(ctx, 4 + ox, 1 + oy, 3, 9, c);       // bar
+    px(ctx, 4 + ox, 12 + oy, 3, 3, c);      // dot
+};
+const exclTex = pixelTex(11, 17, (ctx) => {
+    ctx.clearRect(0, 0, 11, 17);
+    for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) drawExcl(ctx, ox, oy, P.header);
+    drawExcl(ctx, 0, 0, P.gold);
+});
+const drawQuest = (ctx: CanvasRenderingContext2D, ox: number, oy: number, c: string) => {
+    px(ctx, 3 + ox, 1 + oy, 5, 2, c);       // top
+    px(ctx, 2 + ox, 3 + oy, 2, 2, c);       // left shoulder
+    px(ctx, 7 + ox, 3 + oy, 2, 3, c);       // right side
+    px(ctx, 5 + ox, 6 + oy, 3, 2, c);       // curve in
+    px(ctx, 5 + ox, 8 + oy, 2, 2, c);       // stem
+    px(ctx, 5 + ox, 12 + oy, 2, 2, c);      // dot
+};
+const questTex = pixelTex(11, 16, (ctx) => {
+    ctx.clearRect(0, 0, 11, 16);
+    for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) drawQuest(ctx, ox, oy, P.header);
+    drawQuest(ctx, 0, 0, '#cfc3a5');
+});
+
+const Marker: React.FC<{ x: number; y: number; kind: 'must' | 'info' }> = ({ x, y, kind }) => {
+    const ref = useRef<THREE.Group>(null!);
+    const t = useRef(rnd() * 7);
+    useFrame((_, dt) => {
+        t.current += Math.min(dt, 0.05);
+        if (ref.current) ref.current.position.y = y + Math.sin(t.current * 3) * 0.09;
+    });
+    return (
+        <group ref={ref} position={[x, y, 0.4]}>
+            {kind === 'must' && (
+                <mesh position={[0, 0, -0.01]}>
+                    <planeGeometry args={[1.1, 1.3]} />
+                    <meshBasicMaterial map={glowTex} transparent opacity={0.3} depthWrite={false} toneMapped={false} />
+                </mesh>
+            )}
+            <S tex={kind === 'must' ? exclTex : questTex} w={kind === 'must' ? 0.46 : 0.42} h={kind === 'must' ? 0.7 : 0.6} x={0} y={0} z={0} transparent opacity={kind === 'must' ? 1 : 0.72} />
+        </group>
+    );
+};
+
+/** Where each marker floats (above its prop; defaults to head height). */
+const MARKER_Y: Record<string, number> = {
+    breaker: 3.5, bell: 1.35, safe: 4.2, door: 4.15,
+    page1: 1.05, page2: 1.05, page3: 0.95, page4: 1.05, page5: 1.9,
+    plant: 1.95, light: 1.8, desk: 2.3, drag: 1.15, hole: 1.0, sign: 1.8, tally: 1.9,
+};
+
+/** Computed every render (the parent re-renders the scene on lore changes). */
+function markerList(): Array<{ id: string; x: number; y: number; kind: 'must' | 'info' }> {
+    const out: Array<{ id: string; x: number; y: number; kind: 'must' | 'info' }> = [];
+    for (const p of F4_POINTS) {
+        if (p.when && !p.when()) continue;
+        if (p.id === 'elevator') continue;                       // a "?" there invites an accidental exit
+        let kind: 'must' | 'info' = p.kind === 'examine' ? 'info' : 'must';
+        if (p.kind === 'bell' && f4.bellSolved) continue;        // solved — still rings, no longer flagged
+        if (p.kind === 'door') {
+            if (f4.doorTried) continue;
+            kind = f4BoardsGone() >= 3 ? 'must' : 'info';        // boarded: flavor; loose: PUSH IT
+        }
+        out.push({ id: p.id, x: p.x, y: MARKER_Y[p.id] ?? 1.7, kind });
+    }
+    return out;
+}
+
 /** Right-side gloom — the dark half of the floor until the breaker is solved. */
 const Gloom: React.FC = () => {
     const mat = useRef<THREE.MeshBasicMaterial>(null!);
@@ -732,6 +803,9 @@ export const Floor4Scene2D: React.FC<{ doorOpenRef?: React.MutableRefObject<numb
 
             {/* go-right hint by the doorway */}
             <S tex={arrowTex} w={1.0} h={0.6} x={-5.9} y={1.15} z={0.1} transparent />
+
+            {/* GUIDANCE — "!" floats over what the player can act on, "?" over flavor */}
+            {markerList().map((m) => <Marker key={m.id} x={m.x} y={m.y} kind={m.kind} />)}
         </group>
     );
 };

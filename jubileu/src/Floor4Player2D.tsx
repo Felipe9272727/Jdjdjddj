@@ -122,6 +122,7 @@ const IDLE_FRAMES = [
     heroFrame({ legs: 3, arm: 0.2, bob: 1 }),     // breathing
 ];
 const SPEED = 5;
+const GRAVITY = 26, JUMP_V = 8.5;       // ~1.4u jump apex
 // While locked inside, sit between the 2D elevator's cab (z=-1.0) and its
 // doors (z=-0.95) so the doors visually reveal the player as they slide open.
 const Z_INSIDE = -0.975, Z_OUT = 0.3;
@@ -133,8 +134,10 @@ export const Floor4Player2D: React.FC<{
     uiLockRef?: React.MutableRefObject<boolean>;
     /** Written every frame — the interact layer reads the player's x. */
     playerXRef?: React.MutableRefObject<number>;
+    /** Queued jump (set by the ▲ button / Space) — consumed when grounded. */
+    jumpRef?: React.MutableRefObject<boolean>;
     onExit?: () => void;
-}> = ({ dirRef, lockRef, uiLockRef, playerXRef, onExit }) => {
+}> = ({ dirRef, lockRef, uiLockRef, playerXRef, jumpRef, onExit }) => {
     const { camera, size } = useThree();
     const ref = useRef<THREE.Mesh>(null!);
     const matRef = useRef<THREE.MeshBasicMaterial>(null!);
@@ -142,6 +145,8 @@ export const Floor4Player2D: React.FC<{
     const facing = useRef(1);
     const walkT = useRef(0);
     const idleT = useRef(0);
+    const airY = useRef(0);                 // height above the ground
+    const vy = useRef(0);
     const wasOut = useRef(false);           // must actually LEAVE before re-entering exits
     const exited = useRef(false);
 
@@ -155,15 +160,29 @@ export const Floor4Player2D: React.FC<{
         if (playerXRef) playerXRef.current = x.current;
         if (x.current > FLOOR4_ELEVATOR_X + 1.2) wasOut.current = true;
 
-        // animation frame: 4-frame walk cycle / 2-frame breathing idle
-        const tex = d !== 0
-            ? FRAMES[Math.floor(walkT.current * 9) % 4]
-            : IDLE_FRAMES[Math.floor(idleT.current * 1.6) % 2];
+        // jump physics (flat ground at groundY)
+        if (jumpRef?.current) {
+            jumpRef.current = false;                  // consume the queued press
+            if (!locked && airY.current <= 0.001) vy.current = JUMP_V;
+        }
+        if (airY.current > 0 || vy.current !== 0) {
+            airY.current += vy.current * sdt;
+            vy.current -= GRAVITY * sdt;
+            if (airY.current <= 0) { airY.current = 0; vy.current = 0; }
+        }
+        const airborne = airY.current > 0.01;
+
+        // animation frame: airborne tuck / 4-frame walk cycle / breathing idle
+        const tex = airborne
+            ? FRAMES[1]
+            : d !== 0
+                ? FRAMES[Math.floor(walkT.current * 9) % 4]
+                : IDLE_FRAMES[Math.floor(idleT.current * 1.6) % 2];
         if (matRef.current && matRef.current.map !== tex) { matRef.current.map = tex; matRef.current.needsUpdate = true; }
 
         if (ref.current) {
             ref.current.position.x = x.current;
-            ref.current.position.y = FLOOR4_WORLD.groundY + 0.75 + (d !== 0 ? Math.abs(Math.sin(walkT.current * 10)) * 0.04 : 0);
+            ref.current.position.y = FLOOR4_WORLD.groundY + 0.75 + airY.current + (!airborne && d !== 0 ? Math.abs(Math.sin(walkT.current * 10)) * 0.04 : 0);
             ref.current.position.z = locked ? Z_INSIDE : Z_OUT;
             ref.current.scale.x = facing.current;     // flip to face the move direction
         }

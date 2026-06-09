@@ -167,6 +167,35 @@ export const F4_POINTS: F4Point[] = [
     { id: 'elevator', x: -7.0, radius: 1.0, kind: 'examine', label: 'OLHAR', text: 'Nem um arranhão. Aqui, só ele é lembrado.', when: () => !(f4.doorTried && !f4.pages[4]) },
 ];
 
+// ── Guidance (the floor must NOT feel like only the creator knows the way) ───
+
+/** The current objective line for the HUD — always tells the player the next move. */
+export function f4Objective(): string | null {
+    if (f4.finished) return null;
+    if (f4.doorTried) return 'Algo apareceu DENTRO do elevador. Vá ler.';
+    if (f4BoardsGone() >= 3) return 'A porta dos fundos está solta. EMPURRE.';
+    if (!f4.pages[0]) return 'Explore o saguão. Interaja com o que BRILHA ( ! ).';
+    const left: string[] = [];
+    if (!f4.breakerSolved) left.push('a luz que pisca');
+    if (!f4.bellSolved) left.push('o sino');
+    if (!f4.safeSolved) left.push('o quadro torto');
+    return `Solte as 3 tábuas da porta (${f4BoardsGone()}/3): investigue ${left.join(', ')}.`;
+}
+
+/** Progressive hints for the puzzle panels (DICA button cycles them). */
+export const F4_HINTS: Record<'breaker' | 'safe', string[]> = {
+    breaker: [
+        'A luminária do teto não pisca à toa. Vá olhar o RITMO dela.',
+        'Três piscadas CURTAS e uma LONGA. Curto = alavanca pra BAIXO, longo = pra CIMA.',
+        'Baixo, baixo, baixo… CIMA.',
+    ],
+    safe: [
+        'Que andar não existe?',
+        'A placa caída dizia: SAGUÃO 04. E o grafite grita o resto.',
+        'Não encontrado: 4 · 0 · 4.',
+    ],
+};
+
 /** Nearest available point within reach of player x (or null). */
 export function f4NearestPoint(playerX: number): F4Point | null {
     let best: F4Point | null = null;

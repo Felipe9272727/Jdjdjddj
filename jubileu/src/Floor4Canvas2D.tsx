@@ -71,6 +71,7 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
     const doorRef = useRef(0);          // 2D elevator doors (0 closed → 1 open)
     const lockRef = useRef(true);       // player frozen inside until the doors open
     const uiLockRef = useRef(false);    // frozen while a lore panel is open
+    const jumpRef = useRef(false);      // queued jump (▲ button / Space)
     const playerXRef = useRef(-8);      // live player x for the interact layer
     const shakeRef = useRef(0);         // 0..1 screen shake (knocks from below)
     const wrapRef = useRef<HTMLDivElement>(null);
@@ -100,7 +101,7 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
         return () => clearInterval(id);
     }, []);
 
-    // Keyboard: ←/A and →/D (held).
+    // Keyboard: ←/A and →/D (held); Space/W/↑ queues a jump.
     useEffect(() => {
         const keys = { left: false, right: false };
         const upd = () => { dirRef.current = (keys.right ? 1 : 0) + (keys.left ? -1 : 0); };
@@ -108,6 +109,7 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
             const k = e.key.toLowerCase();
             if (k === 'arrowleft' || k === 'a') { keys.left = true; upd(); }
             if (k === 'arrowright' || k === 'd') { keys.right = true; upd(); }
+            if ((k === ' ' || k === 'arrowup' || k === 'w') && !e.repeat) { e.preventDefault(); jumpRef.current = true; }
         };
         const ku = (e: KeyboardEvent) => {
             const k = e.key.toLowerCase();
@@ -136,7 +138,7 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
                 <ResolveFX />
                 <IntroDirector doorRef={doorRef} lockRef={lockRef} />
                 <Floor4Scene2D doorOpenRef={doorRef} loreVersion={loreV} />
-                <Floor4Player2D dirRef={dirRef} lockRef={lockRef} uiLockRef={uiLockRef} playerXRef={playerXRef} onExit={onExit} />
+                <Floor4Player2D dirRef={dirRef} lockRef={lockRef} uiLockRef={uiLockRef} playerXRef={playerXRef} jumpRef={jumpRef} onExit={onExit} />
             </Canvas>
 
             {/* lore discovery layer: prompts, diary, puzzles, finale */}
@@ -148,10 +150,14 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
                 opacity: flash ? 1 : 0, transition: 'opacity 0.6s ease-out',
             }} />
 
+            {/* walk arrows together on the LEFT (where the 3D joystick sits)… */}
             <div style={{ ...btn, left: 'calc(env(safe-area-inset-left) + 22px)' }}
                 onPointerDown={set(-1)} onPointerUp={clr} onPointerLeave={clr} onPointerCancel={clr}>◄</div>
-            <div style={{ ...btn, right: 'calc(env(safe-area-inset-right) + 22px)' }}
+            <div style={{ ...btn, left: 'calc(env(safe-area-inset-left) + 112px)' }}
                 onPointerDown={set(1)} onPointerUp={clr} onPointerLeave={clr} onPointerCancel={clr}>►</div>
+            {/* …and JUMP on the RIGHT (where the 3D action button sits) */}
+            <div style={{ ...btn, right: 'calc(env(safe-area-inset-right) + 22px)' }}
+                onPointerDown={(e) => { e.preventDefault(); jumpRef.current = true; }}>▲</div>
         </div>
     );
 };

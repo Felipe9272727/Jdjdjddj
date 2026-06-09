@@ -8,7 +8,10 @@
  *  • puzzle UIs: breaker levers (P1), reception bell (P2), safe keypad 404 (P3,
  *    + the photo of the original lobby), the back door ("ainda não.");
  *  • pages HUD ("PÁGINAS n/5"), screen shake (knocks from below), and the
- *    final card ("VOCÊ LEMBROU DO ANDAR 4").
+ *    final card ("VOCÊ LEMBROU DO ANDAR 4");
+ *  • GUIDANCE: an OBJETIVO line (top-left) always states the next move, the
+ *    puzzle panels carry a 3-level DICA button (F4_HINTS), and the bell shows
+ *    a live ring tally — no more creator-only puzzles.
  *
  * While any panel is open `uiLockRef` freezes the player. State changes
  * re-render through the PARENT (Floor4Canvas2D owns the f4SetOnChange
@@ -18,7 +21,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     f4, f4NearestPoint, f4CollectPage, f4FinishIfLastPage,
     f4SetLever, f4RingBell, f4TrySafe, f4TryDoor, f4PagesCollected,
-    F4_DIARY, type F4Point,
+    f4Objective, F4_HINTS, F4_BELL_RINGS, F4_DIARY, type F4Point,
 } from './f4Lore';
 import {
     playF4Paper, playF4Bell, playF4Knocks, playF4Clack, playF4PowerOn,
@@ -60,6 +63,8 @@ export const Floor4Interact: React.FC<{
     const [safeCode, setSafeCode] = useState('');
     const [toast, setToast] = useState<string | null>(null);     // brief center text ("ainda não.")
     const [finale, setFinale] = useState(false);
+    // DICA progress per puzzle panel (0 = none revealed yet; resets per visit)
+    const [hintN, setHintN] = useState<{ breaker: number; safe: number }>({ breaker: 0, safe: 0 });
     const panelRef = useRef(panel);
     panelRef.current = panel;
     const isTouch = typeof window !== 'undefined' && 'ontouchstart' in window;
@@ -88,7 +93,15 @@ export const Floor4Interact: React.FC<{
         if (p.kind === 'bell') {
             playF4Bell();
             const r = f4RingBell(Date.now());
+            if (r === 'ring') {
+                // live tally so the player SEES the count building toward the 5th risco
+                const msg = '🔔 ' + '|'.repeat(f4.bellCount);
+                setToast(msg);
+                setTimeout(() => setToast((t) => (t === msg ? null : t)), 1100);
+            }
             if (r === 'solved') {
+                setToast('🔔 ' + '|'.repeat(F4_BELL_RINGS));
+                setTimeout(() => setToast(null), 1100);
                 playF4Knocks();
                 setTimeout(() => { shakeRef.current = 1; }, 1200);   // shake when the knocks land
                 setTimeout(boardOff, 2600);
@@ -164,8 +177,17 @@ export const Floor4Interact: React.FC<{
         cursor: 'pointer', userSelect: 'none',
     };
 
+    const objective = f4Objective();
     return (
         <>
+            {/* OBJETIVO HUD — always tells the player the next move */}
+            {objective && !finale && panel.kind === 'none' && (
+                <div style={{ ...PIX, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 14px)', left: 'calc(env(safe-area-inset-left) + 14px)', maxWidth: 'min(60vw, 440px)', padding: '7px 11px', fontSize: 11, lineHeight: 1.55, border: '2px solid #f4f0e6', opacity: 0.92 }}>
+                    <span style={{ color: '#FFD54F', fontWeight: 700, letterSpacing: 2 }}>OBJETIVO</span>
+                    <span style={{ opacity: 0.9 }}> — {objective}</span>
+                </div>
+            )}
+
             {/* pages HUD */}
             {pages > 0 && !finale && (
                 <div style={{ ...PIX, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 14px)', right: 'calc(env(safe-area-inset-right) + 14px)', padding: '6px 10px', fontSize: 12, fontWeight: 700, letterSpacing: 2, border: '2px solid #f4f0e6', opacity: 0.92 }}>
@@ -208,7 +230,19 @@ export const Floor4Interact: React.FC<{
                                 </button>
                             ))}
                         </div>
-                        <button onClick={() => setPanel({ kind: 'none' })} style={{ ...btn, marginTop: 34, fontSize: 11, padding: '6px 12px' }}>FECHAR</button>
+                        {hintN.breaker > 0 && (
+                            <div style={{ marginTop: 30, maxWidth: 280, fontSize: 11, lineHeight: 1.55, color: '#FFD54F' }}>
+                                💡 {F4_HINTS.breaker[hintN.breaker - 1]}
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: hintN.breaker > 0 ? 12 : 34 }}>
+                            {hintN.breaker < F4_HINTS.breaker.length && (
+                                <button onClick={() => setHintN((h) => ({ ...h, breaker: h.breaker + 1 }))} style={{ ...btn, fontSize: 11, padding: '6px 12px', color: '#FFD54F' }}>
+                                    DICA ({hintN.breaker + 1}/{F4_HINTS.breaker.length})
+                                </button>
+                            )}
+                            <button onClick={() => setPanel({ kind: 'none' })} style={{ ...btn, fontSize: 11, padding: '6px 12px' }}>FECHAR</button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -229,7 +263,19 @@ export const Floor4Interact: React.FC<{
                                 </button>
                             ))}
                         </div>
-                        <button onClick={() => setPanel({ kind: 'none' })} style={{ ...btn, marginTop: 14, fontSize: 11, padding: '6px 12px' }}>FECHAR</button>
+                        {hintN.safe > 0 && (
+                            <div style={{ marginTop: 14, maxWidth: 240, fontSize: 11, lineHeight: 1.55, color: '#FFD54F' }}>
+                                💡 {F4_HINTS.safe[hintN.safe - 1]}
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: hintN.safe > 0 ? 12 : 14 }}>
+                            {hintN.safe < F4_HINTS.safe.length && (
+                                <button onClick={() => setHintN((h) => ({ ...h, safe: h.safe + 1 }))} style={{ ...btn, fontSize: 11, padding: '6px 12px', color: '#FFD54F' }}>
+                                    DICA ({hintN.safe + 1}/{F4_HINTS.safe.length})
+                                </button>
+                            )}
+                            <button onClick={() => setPanel({ kind: 'none' })} style={{ ...btn, fontSize: 11, padding: '6px 12px' }}>FECHAR</button>
+                        </div>
                     </div>
                 </div>
             )}
