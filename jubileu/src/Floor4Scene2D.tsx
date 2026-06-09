@@ -853,6 +853,10 @@ function markerList(): Array<{ id: string; x: number; y: number; kind: 'must' | 
         if (p.id === 'door') kind = 'info';                      // locked — pushing only tells you it's locked
         if (p.kind === 'descend' && f4.powerOn) kind = 'info';   // chain moved on; hole stays browsable
         if (p.kind === 'climb' && !f4.powerOn) kind = 'info';    // first deal with the generator
+        if (p.kind === 'leave') {
+            if (!f4.finished) continue;                          // no flag luring players out early
+            kind = 'must';                                       // arc done — going home IS the move
+        }
         out.push({ id: p.id, x: p.x, y: MARKER_Y[p.id] ?? 1.7, kind });
     }
     return out;
@@ -1052,93 +1056,122 @@ const logsTex = pixelTex(18, 7, (ctx) => {
 });
 
 // The FIRST RECEPTIONIST in the world: slumped by the fire / head up when near.
+// Outfit matches the portrait: white shirt sleeves, dark vest, red tie, badge.
 function keeperFrame(up: boolean): THREE.CanvasTexture {
     return pixelTex(22, 26, (ctx) => {
         ctx.clearRect(0, 0, 22, 26);
-        const UNI = '#4a1e28', UNID = '#33141c', RIM = '#c46a3a', SKIN = '#b98b66';
+        const VEST = '#23252e', VESTD = '#16171d', SHIRT = '#cfc8b8', RIM = '#e8b070', SKIN = '#cfa178', HAIR = '#2e211a';
         // seated body (facing LEFT, toward the fire)
-        px(ctx, 6, 10, 11, 10, UNI);                       // torso slumped
-        px(ctx, 6, 10, 2, 10, RIM);                        // fire rim light (left side)
-        px(ctx, 5, 18, 13, 4, UNID);                       // folded legs
-        px(ctx, 3, 19, 5, 3, UNID);                        // knees toward fire
+        px(ctx, 6, 10, 11, 10, VEST);                      // vest torso, slumped forward
+        px(ctx, 6, 10, 2, 10, '#3a3d4d');                  // lit lapel edge
+        px(ctx, 14, 10, 3, 10, VESTD);
+        px(ctx, 8, 11, 2, 4, '#a3242c');                   // the tie, slipping out
+        px(ctx, 12, 13, 3, 2, '#e8e2d4');                  // the badge, still pinned
+        px(ctx, 5, 18, 13, 4, '#1a1c24');                  // folded legs (dark slacks)
+        px(ctx, 3, 19, 5, 3, '#1a1c24');                   // knees toward the fire
+        px(ctx, 2, 21, 3, 2, '#0e0f14');                   // shoes
         if (up) {
             px(ctx, 7, 2, 9, 8, SKIN);                     // head raised
-            px(ctx, 7, 2, 2, 8, RIM);
-            px(ctx, 8, 1, 8, 2, '#8d8478');                // grey hair
-            px(ctx, 9, 5, 2, 2, '#ffb84d');                // the one amber eye, catching fire
-            px(ctx, 12, 4, 4, 3, '#b9ad92');               // the bandage over the other
-            px(ctx, 13, 5, 1, 1, '#7e1416');               // ...stained
+            px(ctx, 7, 2, 2, 8, RIM);                      // firelight on the face
+            px(ctx, 7, 0, 10, 3, HAIR);                    // dark messy hair
+            px(ctx, 6, 2, 2, 4, HAIR); px(ctx, 15, 1, 3, 3, HAIR);
+            px(ctx, 9, 5, 2, 2, '#6e3f22');                // the one eye, catching fire
+            px(ctx, 12, 4, 5, 3, '#e9e0c6');               // the bandage over the other
+            px(ctx, 14, 5, 1, 1, '#8a3a30');               // ...old stain
         } else {
             px(ctx, 8, 5, 9, 7, SKIN);                     // head bowed
             px(ctx, 8, 5, 2, 7, RIM);
-            px(ctx, 9, 4, 8, 2, '#8d8478');
-            px(ctx, 13, 7, 4, 3, '#b9ad92');               // bandage still visible
+            px(ctx, 8, 3, 10, 3, HAIR);                    // hair falling forward
+            px(ctx, 7, 5, 2, 3, HAIR); px(ctx, 16, 4, 2, 3, HAIR);
+            px(ctx, 13, 8, 5, 3, '#e9e0c6');               // bandage still visible
         }
-        px(ctx, 5, 12, 2, 6, UNI); px(ctx, 5, 17, 3, 2, SKIN);   // arm resting
-        px(ctx, 9, 13, 6, 1, '#d9a43c');                   // a thread of gold trim left
+        px(ctx, 5, 12, 2, 6, SHIRT); px(ctx, 5, 17, 3, 2, SKIN);   // shirt-sleeve arm resting on knee
     });
 }
 const keeperSit = keeperFrame(false), keeperUp = keeperFrame(true);
 
-// ── The keeper's PORTRAIT (dialogue close-up) — detailed, fire-lit, one-eyed ──
+// ── The keeper's PORTRAIT (dialogue close-up) — receptionist uniform: white
+// shirt, dark vest, red tie, badge. Young-ish, tired, fire-lit, one eye
+// bandaged. (Reference: Felipe's pixel-art mock — calm, not crazed.)
 export const keeperPortraitUrl: string = (() => {
-    const t = pixelTex(96, 96, (ctx) => {
-        // night backdrop with the fire's warmth bleeding in from the left
-        px(ctx, 0, 0, 96, 96, '#0a0608');
-        for (let y = 0; y < 96; y += 2) {
-            ctx.globalAlpha = 0.16 * (1 - y / 96);
-            px(ctx, 0, y, 30 - Math.round(y * 0.2), 2, '#5a2c16');
+    const t = pixelTex(96, 112, (ctx) => {
+        // night backdrop: dark brick hints + the fire's warmth from the left
+        px(ctx, 0, 0, 96, 112, '#0c0709');
+        ctx.globalAlpha = 0.25;
+        for (let y = 6; y < 112; y += 10) for (let x = 64; x < 96; x += 14) px(ctx, x + ((y / 10) % 2) * 7, y, 12, 8, '#1d1216');
+        ctx.globalAlpha = 1;
+        for (let y = 0; y < 112; y += 2) {
+            ctx.globalAlpha = 0.18 * (1 - y / 112);
+            px(ctx, 0, y, 26 - Math.round(y * 0.15), 2, '#6e3318');
         }
         ctx.globalAlpha = 1;
-        // shoulders + the old uniform (burgundy, gold trim, torn right shoulder)
-        px(ctx, 10, 72, 76, 24, '#4a1e28');
-        px(ctx, 10, 72, 10, 24, '#7e3a34');                // fire-lit side
-        px(ctx, 70, 72, 16, 24, '#33141c');                // shadow side
-        px(ctx, 10, 76, 70, 2, '#d9a43c');                 // gold trim
-        px(ctx, 74, 72, 12, 6, '#0a0608');                 // torn shoulder gap
-        px(ctx, 16, 82, 12, 8, '#1d1f24'); ctx.fillStyle = '#d9a43c';
-        ctx.font = 'bold 6px monospace'; ctx.textAlign = 'center'; ctx.fillText('01', 22, 89);   // first badge
-        // neck
-        px(ctx, 40, 64, 18, 10, '#a87a58'); px(ctx, 40, 64, 4, 10, '#d8a273');
-        // head block (3/4, fire on his right = viewer LEFT)
-        px(ctx, 28, 18, 42, 48, '#c39a73');
-        px(ctx, 28, 18, 8, 48, '#ecbf8d');                 // lit edge
-        px(ctx, 60, 18, 10, 48, '#8f6c52');                // dark edge
-        // gaunt hollows
-        px(ctx, 36, 44, 8, 10, '#a87f60'); px(ctx, 56, 44, 8, 10, '#7e5e47');
-        // brow ridge + the long scar crossing it
-        px(ctx, 30, 28, 38, 3, '#a87f60');
-        px(ctx, 34, 24, 2, 12, '#7e1416'); px(ctx, 36, 33, 2, 4, '#7e1416');   // scar
-        // the good eye (his right): heavy lid, amber iris catching the fire
-        px(ctx, 34, 34, 12, 7, '#f2e3cf'); px(ctx, 34, 34, 12, 2, '#8f6c52');
-        px(ctx, 38, 36, 5, 5, '#ffb84d'); px(ctx, 40, 37, 2, 2, '#141414'); px(ctx, 38, 36, 2, 1, '#fff3c4');
-        // the LOST eye: bandage wrap, knotted, stained over the socket
-        px(ctx, 50, 30, 20, 10, '#e3d9bd'); px(ctx, 50, 30, 20, 2, '#f2ead2');
-        px(ctx, 50, 39, 20, 2, '#8f8468');                 // shadow under the wrap
-        px(ctx, 46, 22, 30, 6, '#e3d9bd'); px(ctx, 46, 27, 30, 1, '#8f8468');  // wrap going up over the brow
-        px(ctx, 70, 26, 8, 26, '#d6cbb0'); px(ctx, 70, 26, 2, 26, '#8f8468');  // ...and around the head
-        px(ctx, 55, 33, 7, 5, '#7e1416'); px(ctx, 57, 35, 3, 3, '#54090e');    // the stain, soaked through
-        px(ctx, 72, 48, 5, 8, '#c9bfa2'); px(ctx, 73, 54, 3, 2, '#8f8468');    // loose knot end
-        // nose, broken once
-        px(ctx, 46, 40, 6, 12, '#b78f6d'); px(ctx, 46, 40, 2, 12, '#e0b487'); px(ctx, 48, 46, 4, 2, '#8f6c52');
-        // mouth — a tired line, almost a smile, not the supervisors' kind
-        px(ctx, 38, 58, 22, 2, '#6e4a38'); px(ctx, 38, 58, 6, 2, '#8a5a42');
-        px(ctx, 36, 56, 2, 2, '#8f6c52'); px(ctx, 60, 56, 2, 2, '#8f6c52');    // crease corners
-        // grey stubble
-        ctx.globalAlpha = 0.5;
-        for (let i = 0; i < 40; i++) px(ctx, 32 + Math.round(rnd() * 32), 52 + Math.round(rnd() * 12), 1, 1, '#9a8d80');
+
+        // ── shoulders: white shirt sleeves under a dark VEST ──
+        px(ctx, 8, 76, 80, 36, '#cfc8b8');                  // shirt base (both arms)
+        px(ctx, 8, 76, 10, 36, '#efe9da');                  // fire-lit sleeve edge
+        px(ctx, 76, 78, 12, 34, '#9a937f');                 // far sleeve in shadow
+        for (let y = 82; y < 110; y += 7) { px(ctx, 12, y, 12, 1, '#b3ac9a'); px(ctx, 74, y + 3, 10, 1, '#857e6c'); }  // sleeve folds
+        // vest body (deep navy-charcoal, V opening)
+        px(ctx, 26, 78, 44, 34, '#23252e');
+        px(ctx, 26, 78, 4, 34, '#3a3d4d');                  // lit lapel edge
+        px(ctx, 64, 80, 6, 32, '#16171d');                  // shadow side
+        // V opening showing shirt + tie
+        px(ctx, 42, 76, 14, 14, '#e8e2d4');
+        px(ctx, 41, 76, 1, 14, '#b3ac9a'); px(ctx, 56, 76, 1, 12, '#b3ac9a');
+        // collar wings
+        px(ctx, 36, 70, 10, 7, '#efe9da'); px(ctx, 52, 70, 10, 7, '#dcd4c2');
+        px(ctx, 36, 75, 10, 2, '#b3ac9a'); px(ctx, 52, 75, 10, 2, '#a39c89');
+        // the red tie: knot + tail slipping under the vest
+        px(ctx, 45, 74, 8, 6, '#a3242c'); px(ctx, 45, 74, 8, 1, '#c43a40'); px(ctx, 51, 75, 2, 5, '#6e161c');
+        px(ctx, 46, 80, 6, 12, '#a3242c'); px(ctx, 50, 80, 2, 12, '#6e161c');
+        // vest buttons (brass)
+        px(ctx, 47, 94, 2, 2, '#d9a43c'); px(ctx, 47, 100, 2, 2, '#d9a43c'); px(ctx, 47, 106, 2, 2, '#d9a43c');
+        // the badge he never took off (his left chest = viewer right)
+        px(ctx, 56, 92, 16, 9, '#e8e2d4'); px(ctx, 56, 92, 16, 1, '#fff8e8'); px(ctx, 56, 100, 16, 1, '#a39c89');
+        px(ctx, 58, 95, 12, 1, '#6e675c'); px(ctx, 58, 97, 8, 1, '#8f8878');
+
+        // ── neck + head (3/4, fire on viewer LEFT) ──
+        px(ctx, 42, 62, 14, 10, '#c79670'); px(ctx, 42, 62, 3, 10, '#e8b88a');
+        px(ctx, 30, 22, 38, 44, '#d9a87e');                 // face block
+        px(ctx, 30, 22, 6, 44, '#f0c79a');                  // lit edge
+        px(ctx, 62, 22, 6, 44, '#a87a58');                  // shadow edge
+        px(ctx, 32, 60, 34, 6, '#c79670');                  // jaw turn
+        // cheek hollows — tired, not gaunt
+        px(ctx, 36, 46, 7, 8, '#c39472'); px(ctx, 56, 46, 7, 8, '#a87f60');
+        // the good eye (viewer left): heavy lid, warm brown iris, eyebag
+        px(ctx, 35, 36, 11, 6, '#f2ead8'); px(ctx, 35, 36, 11, 2, '#a87a58');   // lid half down
+        px(ctx, 39, 37, 4, 4, '#6e3f22'); px(ctx, 40, 38, 2, 2, '#1d130c'); px(ctx, 39, 37, 1, 1, '#ffd9a8');
+        px(ctx, 35, 42, 11, 2, '#b08260');                  // the eyebag
+        px(ctx, 34, 33, 12, 2, '#3a2a22');                  // brow
+        // the LOST eye: clean bandage wrap, faint stain
+        px(ctx, 50, 33, 18, 9, '#e9e0c6'); px(ctx, 50, 33, 18, 2, '#f6efdb'); px(ctx, 50, 41, 18, 1, '#9a9176');
+        px(ctx, 46, 26, 24, 5, '#e9e0c6'); px(ctx, 46, 30, 24, 1, '#9a9176');  // diagonal up over the brow
+        px(ctx, 64, 26, 6, 22, '#ded4ba'); px(ctx, 64, 26, 1, 22, '#9a9176');  // around the head
+        px(ctx, 55, 36, 5, 4, '#8a3a30'); px(ctx, 57, 37, 2, 2, '#5e1f1a');    // old stain, dried
+        // nose
+        px(ctx, 47, 40, 5, 11, '#c79670'); px(ctx, 47, 40, 2, 11, '#e8b88a'); px(ctx, 48, 49, 5, 2, '#a87a58');
+        // mouth — calm, a tired half-smile (warm, NOT the Zelador's)
+        px(ctx, 41, 56, 15, 2, '#8a5a48'); px(ctx, 54, 55, 3, 2, '#a87a58');
+        px(ctx, 39, 54, 2, 2, '#b08260');
+        // faint stubble shadow on the jaw
+        ctx.globalAlpha = 0.3;
+        px(ctx, 36, 56, 26, 8, '#6e503c');
         ctx.globalAlpha = 1;
-        // grey hair escaping the cap, fire-lit
-        px(ctx, 26, 12, 46, 8, '#8d8478'); px(ctx, 26, 12, 8, 8, '#b5ab9c');
-        px(ctx, 24, 16, 6, 10, '#8d8478'); px(ctx, 68, 16, 6, 8, '#6e665c');
-        // the bellhop cap, askew
-        px(ctx, 24, 4, 50, 10, '#4a1e28'); px(ctx, 24, 4, 50, 2, '#7e3a34');
-        px(ctx, 24, 12, 50, 2, '#d9a43c');
-        px(ctx, 44, 6, 10, 6, '#1d1f24'); ctx.fillStyle = '#d9a43c';
-        ctx.font = 'bold 5px monospace'; ctx.fillText('4', 49, 11);            // he kept the floor's number
-        // dust motes in the firelight
-        ctx.globalAlpha = 0.6;
-        px(ctx, 14, 30, 1, 1, '#ffd98a'); px(ctx, 10, 52, 1, 1, '#ffd98a'); px(ctx, 18, 70, 1, 1, '#ffd98a');
+
+        // ── dark messy hair (younger — brown, not grey) ──
+        px(ctx, 26, 8, 46, 16, '#2e211a');                  // mass
+        px(ctx, 26, 8, 8, 16, '#57402f');                   // fire-lit side
+        px(ctx, 30, 4, 34, 6, '#2e211a');                   // crown
+        px(ctx, 24, 14, 6, 14, '#2e211a'); px(ctx, 68, 14, 6, 12, '#241a14');  // sides over ears
+        // messy tufts + fringe falling over the bandage side
+        px(ctx, 34, 2, 6, 4, '#2e211a'); px(ctx, 48, 1, 7, 5, '#2e211a'); px(ctx, 60, 3, 6, 4, '#241a14');
+        px(ctx, 30, 20, 10, 6, '#2e211a'); px(ctx, 44, 21, 8, 5, '#2e211a');
+        px(ctx, 56, 20, 12, 8, '#241a14');                  // fringe brushing the wrap
+        px(ctx, 27, 9, 3, 12, '#8a5530');                   // rim light
+
+        // embers drifting in the firelight
+        ctx.globalAlpha = 0.7;
+        px(ctx, 12, 28, 1, 1, '#ffb84d'); px(ctx, 8, 56, 1, 1, '#ff9a55'); px(ctx, 16, 84, 1, 1, '#ffd98a'); px(ctx, 6, 14, 1, 1, '#ffd98a');
         ctx.globalAlpha = 1;
     });
     return (t.image as HTMLCanvasElement).toDataURL();

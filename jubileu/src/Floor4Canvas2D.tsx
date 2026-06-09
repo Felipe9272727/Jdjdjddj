@@ -140,11 +140,11 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
                 <ResolveFX />
                 <IntroDirector doorRef={doorRef} lockRef={lockRef} />
                 <Floor4Scene2D doorOpenRef={doorRef} playerXRef={playerXRef} loreVersion={loreV} />
-                <Floor4Player2D dirRef={dirRef} lockRef={lockRef} uiLockRef={uiLockRef} playerXRef={playerXRef} jumpRef={jumpRef} onExit={onExit} />
+                <Floor4Player2D dirRef={dirRef} lockRef={lockRef} uiLockRef={uiLockRef} playerXRef={playerXRef} jumpRef={jumpRef} />
             </Canvas>
 
-            {/* lore discovery layer: prompts, diary, puzzles, finale */}
-            <Floor4Interact playerXRef={playerXRef} uiLockRef={uiLockRef} shakeRef={shakeRef} />
+            {/* lore discovery layer: prompts, diary, puzzles, dialogue, finale */}
+            <Floor4Interact playerXRef={playerXRef} uiLockRef={uiLockRef} shakeRef={shakeRef} onExit={onExit} />
 
             {/* grade pass: vignette pulls the eye center-frame, faint scanlines
                 sell the CRT-pixel mood — both static DOM, zero render cost */}

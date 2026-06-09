@@ -147,8 +147,7 @@ export const Floor4Player2D: React.FC<{
     playerXRef?: React.MutableRefObject<number>;
     /** Queued jump (set by the ▲ button / Space) — consumed when grounded. */
     jumpRef?: React.MutableRefObject<boolean>;
-    onExit?: () => void;
-}> = ({ dirRef, lockRef, uiLockRef, playerXRef, jumpRef, onExit }) => {
+}> = ({ dirRef, lockRef, uiLockRef, playerXRef, jumpRef }) => {
     const { camera, size } = useThree();
     const ref = useRef<THREE.Mesh>(null!);
     const matRef = useRef<THREE.MeshBasicMaterial>(null!);
@@ -159,8 +158,6 @@ export const Floor4Player2D: React.FC<{
     const idleT = useRef(0);
     const airY = useRef(0);                 // height above the ground
     const vy = useRef(0);
-    const wasOut = useRef(false);           // must actually LEAVE before re-entering exits
-    const exited = useRef(false);
     const spawnTok = useRef(f4.spawnToken); // consume room-transition teleports
 
     useFrame((_, dt) => {
@@ -181,7 +178,6 @@ export const Floor4Player2D: React.FC<{
         const leftLim = inLobby ? FLOOR4_ELEVATOR_X : bounds.left + 0.4;
         x.current = THREE.MathUtils.clamp(x.current, leftLim, bounds.right - 0.5);
         if (playerXRef) playerXRef.current = x.current;
-        if (inLobby && x.current > FLOOR4_ELEVATOR_X + 1.2) wasOut.current = true;
 
         // jump physics (flat ground at groundY)
         if (jumpRef?.current) {
@@ -231,11 +227,8 @@ export const Floor4Player2D: React.FC<{
             : (bounds.left + bounds.right) / 2;
         const dx = camTarget - camera.position.x;
         camera.position.x = Math.abs(dx) > 6 ? camTarget : camera.position.x + dx * Math.min(1, sdt * 5.5);
-
-        // walk left back into the elevator → leave the floor (lobby only)
-        if (inLobby && !exited.current && !locked && wasOut.current && x.current <= FLOOR4_ELEVATOR_X + 0.3 && d < 0) {
-            exited.current = true; onExit?.();
-        }
+        // NOTE: leaving the floor is now an EXPLICIT interaction (the 'leave'
+        // point + confirm in Floor4Interact) — walking left just stops here.
     });
 
     return (

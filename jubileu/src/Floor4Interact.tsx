@@ -39,7 +39,8 @@ type Panel =
     | { kind: 'safe' }
     | { kind: 'photo' }
     | { kind: 'slip' }
-    | { kind: 'talk' };
+    | { kind: 'talk' }
+    | { kind: 'leave' };
 
 const PIX: React.CSSProperties = {
     fontFamily: 'monospace', color: '#f4f0e6', background: 'rgba(13,15,22,0.96)',
@@ -61,7 +62,9 @@ export const Floor4Interact: React.FC<{
     playerXRef: React.MutableRefObject<number>;
     uiLockRef: React.MutableRefObject<boolean>;
     shakeRef: React.MutableRefObject<number>;
-}> = ({ playerXRef, uiLockRef, shakeRef }) => {
+    /** Ride the elevator back down (confirmed via the 'leave' point). */
+    onExit?: () => void;
+}> = ({ playerXRef, uiLockRef, shakeRef, onExit }) => {
     const [prompt, setPrompt] = useState<F4Point | null>(null);
     const [panel, setPanel] = useState<Panel>({ kind: 'none' });
     const [safeCode, setSafeCode] = useState('');
@@ -146,6 +149,7 @@ export const Floor4Interact: React.FC<{
             setTalkAnswer(null);
             setPanel({ kind: 'talk' });
         }
+        if (p.kind === 'leave') setPanel({ kind: 'leave' });
     };
 
     const closeRead = () => {
@@ -345,36 +349,56 @@ export const Floor4Interact: React.FC<{
                 </div>
             )}
 
-            {/* THE KEEPER — detailed portrait + questions (the deep talk) */}
+            {/* THE KEEPER — RPG-style bottom box: he stays visible at the fire,
+                the portrait sits in the box corner, the questions below */}
             {panel.kind === 'talk' && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.66)' }}>
-                    <div style={{ ...PIX, display: 'flex', gap: 16, padding: 16, margin: '0 14px', maxWidth: 640, width: 'min(92vw, 640px)' }}>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,0.62) 100%)' }}>
+                    <div style={{ ...PIX, display: 'flex', gap: 12, padding: 12, width: 'min(96vw, 660px)', margin: '0 10px calc(env(safe-area-inset-bottom) + 12px)' }}>
                         <div style={{ flexShrink: 0, alignSelf: 'flex-start' }}>
-                            <img src={keeperPortraitUrl} alt="O primeiro recepcionista" style={{ width: 'min(34vw, 190px)', imageRendering: 'pixelated', border: '3px solid #f4f0e6', borderRadius: 4, display: 'block' }} />
-                            <div style={{ fontSize: 9, letterSpacing: 1.5, textAlign: 'center', marginTop: 6, opacity: 0.75 }}>O PRIMEIRO<br />RECEPCIONISTA</div>
+                            <img src={keeperPortraitUrl} alt="O primeiro recepcionista" style={{ width: 'min(24vw, 118px)', imageRendering: 'pixelated', border: '3px solid #f4f0e6', borderRadius: 4, display: 'block' }} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                            <div style={{ fontSize: 13, lineHeight: 1.6, minHeight: 86 }}>
+                            <div style={{ color: '#FFD54F', fontSize: 10, letterSpacing: 2.5, fontWeight: 700, marginBottom: 5 }}>O PRIMEIRO RECEPCIONISTA</div>
+                            <div style={{ fontSize: 12.5, lineHeight: 1.55, minHeight: 58 }}>
                                 {talkAnswer
                                     ? <Type text={talkAnswer} />
-                                    : <Type text={'…você completou o quinto risco, não foi? Eu ouvi o sino daqui. Senta. Pergunta o que quiser — lembrar em voz alta também conta.'} />}
+                                    : <Type text={'Senta, filho. Faz muito tempo que ninguém senta aqui comigo. Pergunta o que quiser — lembrar em voz alta também conta.'} />}
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginTop: 10 }}>
                                 {F4_KEEPER_DIALOG.map((d) => (
                                     <button key={d.id} onClick={() => ask(d.id)}
                                         style={{
-                                            ...PIX, textAlign: 'left', padding: '7px 10px', fontSize: 12, cursor: 'pointer',
+                                            ...PIX, textAlign: 'left', padding: '5px 8px', fontSize: 10.5, cursor: 'pointer',
                                             border: '2px solid #f4f0e6',
-                                            opacity: f4.asked[d.id] ? 0.5 : 1,
+                                            opacity: f4.asked[d.id] ? 0.45 : 1,
                                             color: d.final ? '#FFD54F' : '#f4f0e6',
+                                            gridColumn: d.final ? '1 / -1' : undefined,
                                         }}>
                                         {f4.asked[d.id] ? '· ' : '? '}{d.q}
                                     </button>
                                 ))}
-                                <button onClick={() => setPanel({ kind: 'none' })} style={{ ...PIX, padding: '6px 10px', fontSize: 11, cursor: 'pointer', border: '2px solid #f4f0e6', opacity: 0.7 }}>
+                                <button onClick={() => setPanel({ kind: 'none' })} style={{ ...PIX, gridColumn: '1 / -1', padding: '4px 8px', fontSize: 10, cursor: 'pointer', border: '2px solid #f4f0e6', opacity: 0.65 }}>
                                     SAIR DA CONVERSA
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* the elevator — leaving is a CHOICE now (the old walk-out was a bug) */}
+            {panel.kind === 'leave' && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
+                    <div style={{ ...PIX, padding: 18, textAlign: 'center', maxWidth: 340 }}>
+                        <div style={{ color: '#FFD54F', fontSize: 12, letterSpacing: 3, fontWeight: 700, marginBottom: 10 }}>O ELEVADOR</div>
+                        <div style={{ fontSize: 12.5, lineHeight: 1.6, marginBottom: 14 }}>
+                            {f4.finished
+                                ? 'Ele lembra o caminho. Descer?'
+                                : 'Descer agora? O andar ainda não foi lembrado por inteiro.'}
+                        </div>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                            <button onClick={() => { setPanel({ kind: 'none' }); onExit?.(); }} style={{ ...btn, fontSize: 12, padding: '8px 16px', color: '#FFD54F' }}>DESCER</button>
+                            <button onClick={() => setPanel({ kind: 'none' })} style={{ ...btn, fontSize: 12, padding: '8px 16px' }}>FICAR</button>
                         </div>
                     </div>
                 </div>

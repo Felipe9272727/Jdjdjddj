@@ -200,26 +200,36 @@ export function f4UseDoor(): 'locked' | 'unlock' | 'enter' {
 
 // ── The first receptionist (the keeper in the breu) ───────────────────────────
 export interface F4Dialog { id: string; q: string; a: string; final?: boolean }
+// O tom dele é o OPOSTO do Zelador: calmo, gentil, cansado. Um homem que ficou
+// quarenta anos fazendo o trabalho mais silencioso do mundo — lembrar.
 export const F4_KEEPER_DIALOG: ReadonlyArray<F4Dialog> = [
     {
         id: 'who', q: 'Quem é você?',
-        a: 'O primeiro recepcionista deste hotel. Primeira chave, primeiro turno, primeiro sorriso de verdade. Quando decidiram esquecer o andar, alguém precisava ficar pra lembrar dele por dentro. Eu fiquei. O olho foi o preço — quem lembra demais perde um pedaço do que vê.',
+        a: 'Fui o primeiro recepcionista deste hotel. Quarenta anos atrás eu abri a porta da frente pela primeira vez, de gravata nova, morrendo de medo de errar o nome de alguém. Eu sabia o andar de cada hóspede, o jeito que cada um pedia café. Quando decidiram esquecer este andar… eu não consegui descer com os outros. Alguém precisava ficar e lembrar dele por dentro.',
+    },
+    {
+        id: 'eye', q: 'O que aconteceu com o seu olho?',
+        a: 'O teto do corredor leste, na noite em que levaram o chão. Eu voltei lá pra salvar o livro de hóspedes — bobagem, eu sei. Não doeu do jeito que você imagina. O que dói é o outro lado: o olho que ficou enxerga tudo o que falta. Toda parede que não está mais lá, eu ainda vejo onde ficava.',
     },
     {
         id: 'floor', q: 'O que aconteceu com este andar?',
-        a: 'Não demoliram nada. Demolir deixa prova. Eles DES-LEMBRARAM. Tiraram o quarto andar dos botões, dos mapas, das conversas. E um lugar que ninguém lembra cai sozinho — tijolo por tijolo, pro andar de baixo. Você caminhou em cima do que sobrou da minha recepção.',
+        a: 'Ninguém derrubou nada, filho. O prédio vive de memória — andar lembrado fica de pé, andar esquecido vai sendo desmontado, devagar. Primeiro tiraram o 4 dos botões do elevador. Depois dos mapas. Depois das conversas. Quando ninguém mais falava dele, os tijolos começaram a se soltar sozinhos. Eu vi acontecer aos poucos. É pior aos poucos.',
     },
     {
         id: 'runner', q: 'Quem trancou a porta?',
-        a: 'O Zelador. Sorri igual aos supervisores. Ele prega as tábuas, tranca as saídas, apaga os riscos da parede. Não é mau — é eficiente. O esquecimento precisa de manutenção, sabe… lembrar também. Por isso eu ainda estou aqui.',
+        a: 'O Zelador. Não tenha raiva dele. Ele prega as tábuas, tranca as saídas, apaga os riscos — é o trabalho dele: manter o esquecimento em ordem. Eu acho que um dia ele foi alguém daqui, como eu. A diferença é que eu escolhi guardar… e ele escolheu apagar. O sorriso é só o que sobrou do rosto que ele tinha.',
     },
     {
         id: 'guest', q: 'Tinha um esqueleto na recepção…',
-        a: 'O hóspede do 404. Chegou no exato dia em que apagaram o quarto dele. Tocou o sino, riscou o balcão, esperou. Quatro riscos. O quinto, sempre interrompiam. Você completou a chamada — você o ATENDEU. Era tudo o que ele segurava: a reserva. Ninguém nunca esperou tanto por tão pouco.',
+        a: 'O hóspede do quarto 404. Ele chegou no dia exato em que apagaram o quarto dele dos registros. Eu não tive coragem de contar. Então ele tocava o sino, fazia um risco no balcão, e esperava. Todos os dias. Quatro riscos… Hoje você completou o quinto. Você fez por ele o que eu nunca consegui fazer: atendeu até o fim. Obrigado por isso.',
+    },
+    {
+        id: 'elevator', q: 'Por que o elevador ainda funciona?',
+        a: 'Porque máquina não esquece — guarda o caminho no ferro, não na cabeça. Os supervisores tiraram o botão do painel, mas o poço continua lá, e ele lembra de cada andar que já serviu. Foi por isso que ele te trouxe. Repara: é a única coisa intacta do andar inteiro. Aqui, ser lembrado é ser cuidado.',
     },
     {
         id: 'leave', q: 'Como eu saio daqui?', final: true,
-        a: 'Pela porta você só volta. Sair, mesmo, é com o elevador — ele ainda lembra o caminho, é o único que lembra. Antes de ir… leva a última página do meu diário. Não é pra você LER. É pra você LEMBRAR. É só disso que este andar precisa.',
+        a: 'Por essa porta você só volta pro saguão. Quem desce é o elevador — entra nele, e ele te leva pra casa. Mas antes… leva a última página do meu diário. Eu escrevi pra alguém que eu nem sabia se existia. Era você. Não precisa ler agora. Só não deixa este andar virar silêncio de novo. Lembrar é o único tijolo que eles não conseguem roubar.',
     },
 ];
 
@@ -262,7 +272,7 @@ export const F4_DIARY: ReadonlyArray<{ title: string; text: string }> = [
 // ── Interaction points (positions live HERE so scene + UI agree) ──────────────
 export type F4PointKind =
     | 'examine' | 'page' | 'bell' | 'generator' | 'safe'
-    | 'door' | 'descend' | 'climb' | 'paper' | 'keeper';
+    | 'door' | 'descend' | 'climb' | 'paper' | 'keeper' | 'leave';
 
 export interface F4Point {
     id: string;
@@ -307,7 +317,9 @@ export const F4_POINTS: F4Point[] = [
     { id: 'drag', room: 'lobby', x: 4.6, radius: 0.7, kind: 'examine', label: 'OLHAR', text: 'Foi arrastado na direção do buraco. E não foi sozinho.', when: () => !f4.skeletonRisen },
     { id: 'bones', room: 'lobby', x: 5.0, radius: 0.9, kind: 'examine', label: 'OLHAR', text: 'Ele esperou. Você atendeu.', when: () => f4.codeTaken },
     { id: 'mural', room: 'lobby', x: 14.4, radius: 0.9, kind: 'examine', label: 'OLHAR', text: 'O prédio inteiro, desenhado. O quarto andar riscado de vermelho. E uma seta apontando pra BAIXO.', when: () => f4.powerOn },
-    { id: 'elevator', room: 'lobby', x: -7.0, radius: 1.0, kind: 'examine', label: 'OLHAR', text: 'Nem um arranhão. Aqui, só ele é lembrado.' },
+    // leaving is now an EXPLICIT choice (no more accidental walk-out exits)
+    { id: 'leave', room: 'lobby', x: -7.4, radius: 0.9, kind: 'leave', label: 'ELEVADOR' },
+    { id: 'elevator', room: 'lobby', x: -6.2, radius: 0.6, kind: 'examine', label: 'OLHAR', text: 'Nem um arranhão. Aqui, só ele é lembrado.' },
 
     // ════ BASEMENT ════
     { id: 'climb', room: 'basement', x: -3.2, radius: 1.0, kind: 'climb', label: 'SUBIR' },
