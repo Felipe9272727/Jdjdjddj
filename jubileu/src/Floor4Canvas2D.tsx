@@ -3,14 +3,18 @@
  * OWN orthographic <Canvas> (a real 2D side-scroller, separate from the 3D game
  * canvas) + the scene + the controllable player + touch/keyboard controls.
  *
- * ENTRY TRANSITION: on mount the 2D world "resolves" out of pixels — it starts
- * heavily pixelated (low pixelRatio on THIS canvas) and sharpens to crisp over
- * ~1.5s, with a black flash fading off. Combined with the 3D-side pixelate +
- * first-person lock (App), it sells "the world turns into a 2D pixel world".
+ * ARRIVAL CHOREOGRAPHY (the back half of the 3D→2D transition): App keeps this
+ * UNMOUNTED for the whole 20s elevator ride — the player rides INSIDE the 3D
+ * elevator, and from T-10s the 3D render pixelates down (Pixelate3DRamp). When
+ * the doors open (timer 0) this mounts and:
+ *   1. the 2D world starts as chunky as the 3D ended and RESOLVES to crisp
+ *      (ResolveFX ramps this canvas's pixelRatio) under a brief black veil —
+ *      pixel-to-pixel continuity, never an abrupt cut;
+ *   2. the player is INSIDE the 2D elevator, doors closed;
+ *   3. the 2D doors slide open (IntroDirector) and control unlocks.
  *
- * App mounts this when currentLevel === 4 (over the 3D canvas). The workbench
- * (floor4.html) mounts the exact same component. `onExit` fires when the player
- * walks left into the elevator (ride back down).
+ * The workbench (floor4.html) mounts this exact same component. `onExit` fires
+ * when the player walks back into the elevator (ride back down).
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
@@ -18,10 +22,20 @@ import * as THREE from 'three';
 import Floor4Scene2D from './Floor4Scene2D';
 import { Floor4Player2D } from './Floor4Player2D';
 
+/** R3F aims the default camera at the origin, so position [0,3,10] arrives with
+ *  a subtle DOWNWARD TILT — which, under an orthographic camera, parallax-shears
+ *  the flat layers apart (each z-layer slides vertically). Zero the rotation so
+ *  the camera is truly axis-aligned: every layer maps 1:1, real 2D. */
+export const AxisAlignedCamera: React.FC = () => {
+    const camera = useThree((s) => s.camera);
+    useEffect(() => { camera.rotation.set(0, 0, 0); camera.updateMatrixWorld(); }, [camera]);
+    return null;
+};
+
 /** Ramps THIS canvas's pixelRatio from chunky → crisp, so the 2D world resolves
  *  out of big pixels on entry. Self-contained (own canvas) — never touches the
  *  3D game renderer. */
-const ResolveFX: React.FC<{ durationMs?: number }> = ({ durationMs = 1500 }) => {
+const ResolveFX: React.FC<{ durationMs?: number }> = ({ durationMs = 2600 }) => {
     const { gl } = useThree();
     const t0 = useRef(performance.now());
     const base = useRef(Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2));
@@ -37,9 +51,24 @@ const ResolveFX: React.FC<{ durationMs?: number }> = ({ durationMs = 1500 }) => 
     return null;
 };
 
+/** Drives the arrival beat: a short hold while the pixels resolve, then the 2D
+ *  elevator doors slide open (smoothstep) and the player is unlocked. */
+const IntroDirector: React.FC<{ doorRef: React.MutableRefObject<number>; lockRef: React.MutableRefObject<boolean> }> = ({ doorRef, lockRef }) => {
+    const t = useRef(0);
+    useFrame((_, dt) => {
+        t.current += Math.min(dt, 0.05);
+        const k = THREE.MathUtils.clamp((t.current - 1.6) / 1.4, 0, 1);
+        doorRef.current = k * k * (3 - 2 * k);
+        if (k >= 0.92 && lockRef.current) lockRef.current = false;
+    });
+    return null;
+};
+
 export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const dirRef = useRef(0);
-    const [flash, setFlash] = useState(true);   // black flash that fades on entry
+    const doorRef = useRef(0);          // 2D elevator doors (0 closed → 1 open)
+    const lockRef = useRef(true);       // player frozen inside until the doors open
+    const [flash, setFlash] = useState(true);   // black veil that fades on entry
 
     useEffect(() => { const id = setTimeout(() => setFlash(false), 50); return () => clearTimeout(id); }, []);
 
@@ -73,17 +102,19 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
     };
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#1a1d26', touchAction: 'none' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#160b10', touchAction: 'none' }}>
             <Canvas orthographic camera={{ position: [0, 3, 10], zoom: 48, near: 0.1, far: 100 }} gl={{ preserveDrawingBuffer: true }}>
+                <AxisAlignedCamera />
                 <ResolveFX />
-                <Floor4Scene2D />
-                <Floor4Player2D dirRef={dirRef} onExit={onExit} />
+                <IntroDirector doorRef={doorRef} lockRef={lockRef} />
+                <Floor4Scene2D doorOpenRef={doorRef} />
+                <Floor4Player2D dirRef={dirRef} lockRef={lockRef} onExit={onExit} />
             </Canvas>
 
-            {/* entry black flash (fades once) */}
+            {/* entry black veil (fades once — the pixel continuity does the rest) */}
             <div style={{
                 position: 'absolute', inset: 0, background: '#000', pointerEvents: 'none',
-                opacity: flash ? 1 : 0, transition: 'opacity 0.9s ease-out',
+                opacity: flash ? 1 : 0, transition: 'opacity 0.6s ease-out',
             }} />
 
             <div style={{ ...btn, left: 'calc(env(safe-area-inset-left) + 22px)' }}

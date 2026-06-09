@@ -207,14 +207,34 @@ O jogo é 3D 1ª pessoa (Canvas perspectivo + `<Player>`). Pra o side-scroller s
    Novo branch em `Player.tsx` (`else if (currentLevel === 4)`) OU um controlador 2D dedicado.
 3. Montar `Floor4Scene2D` no lugar do `Floor4Environment` 3D quando o modo 2D estiver pronto.
 
-### 🎞️ Transição 3D → 2D (o "BEM animada" — ainda NÃO existe)
-Na viagem de elevador Floor 3 → Floor 4: o 3D "colapsa em pixel 2D".
-1. **Ramp de pixelação** ~1.5–2.5s no 3D: bloco cresce 1px→grande + quantiza cor +
-   dessatura (pixelate pass leve OU render-to-low-res + upscale Nearest; `amount` rampando).
-2. No pico, **corta pro side-scroller 2D** (câmera ortográfica + a cena 2D; portas 2D abrindo).
-3. Áudio: descer o ragtime + sfx "8-bit downsample" (floor4Sfx).
-- Iterar in-game (chegar = vencer Floor 3 ou atalho Modo Criador "Andar 4"). Dá pra
-  prototipar o pixelate na bancada com `amount` via `window.__pix`.
+### 🎞️ Transição 3D → 2D — ✅ FEITA (viagem completa de 20s)
+O player fica os **20s INTEIROS dentro do elevador 3D** (`ElevatorInterior`); o overlay
+2D só monta quando as portas abrem (`currentLevel === 4 && !doorsClosed` no App).
+1. **T-10s → T0:** `Pixelate3DRamp` (exportado de `Floor4.tsx`, montado no Canvas 3D do
+   App) derruba o dpr do render 3D em degraus quantizados (ease-in cúbico — começa
+   imperceptível) + dessatura via CSS filter. Ele SUBSTITUI o `<AdaptiveDpr>` enquanto
+   ativo (nunca brigam pelo dpr); quando as portas abrem o AdaptiveDpr remonta e restaura.
+2. **T0 (portas abrem):** `Floor4Canvas2D` monta começando TÃO pixelado quanto o 3D
+   terminou e resolve pra nítido (`ResolveFX`, ~2.6s) sob um véu preto curto —
+   continuidade pixel-a-pixel, nada abrupto.
+3. **Chegada 2D:** o player nasce DENTRO do elevador 2D (entre poço e portas), as portas
+   2D deslizam (`IntroDirector` → `openRef` do `Floor4Elevator2D`) e o controle destrava.
+- Modo Criador: card **"Transição → 2D"** (variant `floor4Transition` arma `f4Demo.ride`
+  em `floor4Sfx.ts`) = a viagem completa; card "Andar 4" = spawn direto.
+- ⚠️ `AxisAlignedCamera` (Floor4Canvas2D): o R3F mira a câmera default na origem →
+  position [0,3,10] chega INCLINADA, e ortográfica inclinada cisalha as camadas 2D por
+  paralaxe (cada z desliza na vertical). SEMPRE zere a rotação em cenas 2D novas.
+- Áudio: sfx "8-bit downsample" no ramp ainda é seam aberto (floor4Sfx).
+
+### 🏚️ Cena 2D = o SAGUÃO DESTRUÍDO (v1 FEITA — `Floor4Scene2D.tsx`)
+O lobby em ruínas, meio gore: papel creme + lambri + checker do saguão real, buracos na
+parede/chão ("ROUBARAM O CHÃO" — callback do Dussekar), sangue seco/arrasto/handprint,
+grafites de lore ("O ANDAR 4 NÃO EXISTE", "ELE AINDA SOBE", "NÃO DURMA."), placa SAGUÃO
+pendurada por uma corrente, fluorescente agonizando (sway+flicker+faísca), RECEPÇÃO
+tombada, planta morta, **andares de baixo em cutaway** (2 níveis + void), **porta de
+fundo lacrada com tábuas** + placa SAÍDA piscando (conteúdo TBD — Felipe decide), e o
+elevador **intacto** no meio do caos. Tudo `pixelTex` procedural (~16px/unidade) +
+componentes animados leves (useFrame em refs). Mundo: x -13..15.2, chão y=0.
 
 ### 🕹️ SPEC DO SPRITE DO PLAYER (pro Felipe — ATUALIZADO p/ side-scroller)
 Agora é **vista de PERFIL (lado)**, não de frente — é um platformer 2D.

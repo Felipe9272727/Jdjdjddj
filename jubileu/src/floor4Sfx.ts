@@ -12,6 +12,15 @@
  *   clearFloor4Sfx()                                      // on leave
  */
 
+/**
+ * Creator-Mode flag (mirrors f3Demo in f3Hazards.ts): the "Transição → 2D" card
+ * arms this so the jump becomes the FULL 20s elevator ride (3D interior →
+ * pixelate ramp at 10s → doors open into the 2D floor) instead of an instant
+ * spawn. Lives here (pure module, no three/DOM imports) so CreatorMode can set
+ * it without pulling the 3D world in.
+ */
+export const f4Demo = { ride: false };
+
 let ctx: AudioContext | null = null;
 let dest: AudioNode | null = null;
 

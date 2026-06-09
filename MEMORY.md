@@ -3053,3 +3053,61 @@ Sem wiring extra (level 4 já dispara o overlay+ResolveFX; o variant não-fallDe
 tsc 0 · 58/58 · audit 0 · index.html rebuildado (card no build = 2).
 Obs: a transição atual é o pixel-resolve 2D na entrada (o literal "3D pixelando na viagem"
 segue deferido pelo conflito com AdaptiveDpr).
+
+### Sessão 2026-06-09 — Viagem de 20s + transição 3D→2D DE VERDADE + saguão destruído
+
+Felipe: (1) a viagem tem que ser 20s DENTRO do elevador, com estrutura interna, abrindo
+no fim; (2) aos 10s restantes o mundo 3D vira 2D GRADUALMENTE (nada abrupto); (3) lore do
+Floor 4 = o LOBBY completamente destruído/caótico (meio gore), com andares de baixo,
+porta de fundo (conteúdo ele decide depois) e visual caprichado.
+
+**1. Viagem de 20s dentro do elevador (App.tsx):** o overlay 2D agora só monta em
+`currentLevel === 4 && !doorsClosed` — antes montava no timer 18 e cobria a viagem
+inteira. O player fica os 20s no `ElevatorInterior` 3D que já existia.
+
+**2. Transição gradual (o deferido virou real):** `Pixelate3DRamp` (em `Floor4.tsx`)
+monta no Canvas 3D quando `currentLevel===4 && doorsClosed && timer<=10`: derruba o dpr
+em 26 degraus quantizados com ease-in CÚBICO (9s — começa imperceptível, termina em
+blocões) + dessatura/contrasta via CSS filter no canvas. **Resolvi o conflito com o
+AdaptiveDpr trocando um pelo outro**: o ramp SUBSTITUI o `<AdaptiveDpr>` no JSX enquanto
+ativo; no unmount o AdaptiveDpr remonta e restaura o dpr sozinho (comportamento do drei).
+Na abertura das portas o `Floor4Canvas2D` monta começando tão pixelado quanto o 3D
+terminou e resolve pra nítido (ResolveFX 2.6s) — continuidade pixel-a-pixel.
+
+**3. Chegada coreografada:** player nasce DENTRO do elevador 2D (z entre poço e portas),
+`IntroDirector` abre as portas (smoothstep, ~1.6s..3s) via novo `openRef` do
+`Floor4Elevator2D`, e destrava o controle (`lockRef` no `Floor4Player2D`). Exit de volta
+exige ter SAÍDO do elevador antes (sem exit acidental no spawn).
+
+**4. Cena nova — o saguão destruído (`Floor4Scene2D.tsx` reescrito):** versão em ruínas
+do lobby com a MESMA linguagem (papel creme, lambri, checker, placa dourada): buracos na
+parede/teto/chão, sangue seco + arrasto + handprint (meio gore), grafites de lore
+("O ANDAR 4 NÃO EXISTE", "ROUBARAM O CHÃO" + seta pro buraco — callback do Dussekar,
+"ELE AINDA SOBE", "NÃO DURMA.", "AS PARTES QUE SOBRAM" meio apagado), SAGUÃO pendurada
+por uma corrente (sway), fluorescente agonizando (pêndulo + flicker + faísca), RECEPÇÃO
+tombada com papéis, planta morta, poeira flutuando, fumaça no colapso do teto,
+**andares de baixo em cutaway** (corredor destruído + nível silhueta + void, sangue
+escorrendo do buraco), **porta de fundo lacrada** + SAÍDA vermelha piscando, entulho
+selando a direita. Mundo x -13..15.2. Tudo procedural (pixelTex, sem assets).
+
+**5. Creator Mode:** card "Transição → 2D" agora dispara a VIAGEM COMPLETA de 20s
+(flag `f4Demo.ride` em floor4Sfx.ts, espelho do f3Demo; App inicia no elevador do lobby
+com portas fechadas + destino 4). Card "Andar 4" = spawn direto (sem viagem).
+
+**🐛 Descoberta importante (`AxisAlignedCamera`):** o R3F mira a câmera default na
+origem → `position:[0,3,10]` chegava INCLINADA ~16° pra baixo, e câmera ortográfica
+inclinada CISALHA as camadas 2D por paralaxe (cada plano z desliza verticalmente — era
+por isso que o céu "vazava" no meio da parede e o chão desalinhava do player).
+Diagnostiquei com um harness de calibração (quads em y conhecidos) e fixei zerando
+`camera.rotation` ao montar. REGRA: toda cena ortográfica 2D nova precisa disso.
+
+Validado renderizando (bancada + Playwright): chegada portas fechadas → portas abertas
+com player dentro → caminhada até a porta de fundo. 3 iterações de arte (grafite
+realocado 2x, mancha de arrasto quebrada em streaks, monte de entulho no lugar do
+"prancha caindo"). ⚠️ O ramp 3D (Pixelate3DRamp) não dá pra screenshotar offline (precisa
+do jogo completo) — lógica simples, validar no vercel.
+
+**Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado (~28.5MB, +21KB).
+Branch `claude/oi-vfpz3w`. FLOOR4.md §8 atualizado (transição FEITA + spec da cena).
+Falta: sprites de perfil do Felipe (spec §8), sfx 8-bit no ramp, pulo/plataformas,
+conteúdo da porta de fundo, e parar de montar o Floor4Environment 3D atrás do overlay.

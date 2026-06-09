@@ -1,8 +1,12 @@
 /**
  * Floor4Player2D.tsx — the controllable side-view player for the 2D Floor 4.
- * Walks left/right on the flat baseplate, flips to face its direction, a 2-frame
- * walk cycle, and the ORTHOGRAPHIC camera follows its X (clamped to the world).
- * Walking left into the elevator fires onExit (ride back down).
+ * Walks left/right, flips to face its direction, a 2-frame walk cycle, and the
+ * ORTHOGRAPHIC camera follows its X (clamped to the world).
+ *
+ * ARRIVAL: spawns INSIDE the elevator (tucked between the 2D shaft and its
+ * doors) and stays locked while `lockRef` is true — the intro director flips it
+ * once the doors finish sliding open, and the player steps out. Walking back
+ * left into the elevator (after having actually left it) fires onExit.
  *
  * Placeholder pixel sprite for now — swap FRAMES for Felipe's side-view sheet
  * (FLOOR4.md §8) when it arrives; the movement/flip/follow stays the same.
@@ -30,21 +34,31 @@ function heroFrame(step: 0 | 1): THREE.CanvasTexture {
 }
 const FRAMES = [heroFrame(0), heroFrame(1)];
 const SPEED = 5;
+// While locked inside, sit between the 2D elevator's shaft (z=-1.0) and its
+// doors (z=-0.95) so the doors visually reveal the player as they slide open.
+const Z_INSIDE = -0.975, Z_OUT = 0.3;
 
-export const Floor4Player2D: React.FC<{ dirRef: React.MutableRefObject<number>; onExit?: () => void }> = ({ dirRef, onExit }) => {
+export const Floor4Player2D: React.FC<{
+    dirRef: React.MutableRefObject<number>;
+    lockRef?: React.MutableRefObject<boolean>;
+    onExit?: () => void;
+}> = ({ dirRef, lockRef, onExit }) => {
     const { camera, size } = useThree();
     const ref = useRef<THREE.Mesh>(null!);
     const matRef = useRef<THREE.MeshBasicMaterial>(null!);
-    const x = useRef(-3);
+    const x = useRef(FLOOR4_ELEVATOR_X);    // arrives inside the elevator
     const facing = useRef(1);
     const walkT = useRef(0);
+    const wasOut = useRef(false);           // must actually LEAVE before re-entering exits
     const exited = useRef(false);
 
     useFrame((_, dt) => {
         const sdt = Math.min(dt, 0.05);
-        const d = dirRef.current;
+        const locked = lockRef?.current ?? false;
+        const d = locked ? 0 : dirRef.current;
         if (d !== 0) { facing.current = d; x.current += d * SPEED * sdt; walkT.current += sdt; }
         x.current = THREE.MathUtils.clamp(x.current, FLOOR4_ELEVATOR_X, FLOOR4_WORLD.right - 0.5);
+        if (x.current > FLOOR4_ELEVATOR_X + 1.2) wasOut.current = true;
 
         // walk-cycle frame
         const frame = d !== 0 ? (Math.floor(walkT.current * 8) % 2) : 0;
@@ -53,6 +67,7 @@ export const Floor4Player2D: React.FC<{ dirRef: React.MutableRefObject<number>; 
         if (ref.current) {
             ref.current.position.x = x.current;
             ref.current.position.y = FLOOR4_WORLD.groundY + 0.75 + (d !== 0 ? Math.abs(Math.sin(walkT.current * 10)) * 0.04 : 0);
+            ref.current.position.z = locked ? Z_INSIDE : Z_OUT;
             ref.current.scale.x = facing.current;     // flip to face the move direction
         }
 
@@ -62,12 +77,14 @@ export const Floor4Player2D: React.FC<{ dirRef: React.MutableRefObject<number>; 
         const minX = FLOOR4_WORLD.left + half, maxX = FLOOR4_WORLD.right - half;
         camera.position.x = minX <= maxX ? THREE.MathUtils.clamp(x.current, minX, maxX) : (FLOOR4_WORLD.left + FLOOR4_WORLD.right) / 2;
 
-        // walk left into the elevator → leave the floor
-        if (!exited.current && x.current <= FLOOR4_ELEVATOR_X + 0.3 && d < 0) { exited.current = true; onExit?.(); }
+        // walk left back into the elevator → leave the floor
+        if (!exited.current && !locked && wasOut.current && x.current <= FLOOR4_ELEVATOR_X + 0.3 && d < 0) {
+            exited.current = true; onExit?.();
+        }
     });
 
     return (
-        <mesh ref={ref} position={[-3, 0.75, 0.3]}>
+        <mesh ref={ref} position={[FLOOR4_ELEVATOR_X, 0.75, Z_INSIDE]}>
             <planeGeometry args={[1.0, 1.5]} />
             <meshBasicMaterial ref={matRef} map={FRAMES[0]} transparent alphaTest={0.5} toneMapped={false} />
         </mesh>

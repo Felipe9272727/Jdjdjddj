@@ -6,6 +6,7 @@
 
 import React, { useState } from 'react';
 import { f3Demo } from './f3Hazards';
+import { f4Demo } from './floor4Sfx';
 
 export interface FloorOption {
   id: string;           // unique (cards can share a level, e.g. the cutscene)
@@ -72,7 +73,7 @@ export const FLOORS: FloorOption[] = [
     level: 4,
     name: 'Andar 4 (2D)',
     label: 'Andar 4',
-    description: 'Side-scroller 2D pixel — a transição 3D→2D toca na entrada',
+    description: 'O saguão destruído em 2D pixel (spawn direto, sem a viagem)',
     color: 'from-slate-400 via-zinc-300 to-slate-400',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -86,7 +87,7 @@ export const FLOORS: FloorOption[] = [
     level: 4,
     name: 'Transição → 2D',
     label: 'Transição',
-    description: 'Entra no Andar 4 vendo o mundo virar pixel 2D (1ª pessoa travada)',
+    description: 'A viagem completa de 20s: elevador 3D → pixelação aos 10s → 2D',
     color: 'from-fuchsia-500 via-purple-500 to-indigo-500',
     variant: 'floor4Transition',
     icon: (
@@ -211,6 +212,7 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
         onClick={() => {
           if (selectedFloor) {
             f3Demo.fall = selectedFloor.variant === 'fallDemo';   // arm the Floor-3 fall preview
+            f4Demo.ride = selectedFloor.variant === 'floor4Transition';   // arm the full 20s ride to Floor 4
             onSelect(selectedFloor.level, multiplayerEnabled);
           }
         }}

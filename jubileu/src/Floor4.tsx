@@ -17,8 +17,8 @@
  *                advanceToFloor5AfterWin in App.tsx (copy of advanceToFloor4AfterWin).
  */
 
-import React, { useEffect, useMemo } from 'react';
-import { useThree } from '@react-three/fiber';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Floor4Elevator2D } from './Floor4Elevator';
 import { pixelTex, px } from './floor4-pixels';
@@ -46,6 +46,50 @@ export function useFloor4Audio(
         return () => { setMusicActive('floor4', false); clearFloor4Sfx(); };
     }, [active, audioCtx, busRef]);
 }
+
+/**
+ * Pixelate3DRamp — the 3D→2D TRANSITION, ridden from INSIDE the elevator.
+ * App mounts this in the 3D Canvas during the last ~10s of the ride to Floor 4
+ * (and unmounts <AdaptiveDpr> while it's up, so nothing fights over the dpr).
+ * The 3D render gradually collapses into chunky 2D pixels:
+ *   • dpr steps DOWN in quantized notches (ease-in cubic — imperceptible at
+ *     first, accelerating into full blocks right before the doors open);
+ *   • the colour drains via a CSS filter on the canvas (desaturate + contrast),
+ *     selling "the world is flattening into 2D" without a postprocessing pass.
+ * On unmount (doors open → the 2D overlay takes the screen) it clears the
+ * filter; the remounted <AdaptiveDpr> restores the dpr by itself.
+ */
+export const Pixelate3DRamp: React.FC<{ durationMs?: number }> = ({ durationMs = 9000 }) => {
+    const gl = useThree((s) => s.gl);
+    const setDpr = useThree((s) => s.setDpr);
+    const t0 = useRef(performance.now());
+    const base = useRef<number | null>(null);
+    const lastStep = useRef(-1);
+
+    useFrame(() => {
+        if (base.current === null) base.current = gl.getPixelRatio();
+        const k = Math.min(1, (performance.now() - t0.current) / durationMs);
+        const e = k * k * k;                              // ease-in: NOT abrupt
+        // Stepped dpr (re-sizing buffers every frame would thrash; notches also
+        // read as "blockifying" rather than a continuous blur).
+        const STEPS = 26;
+        const step = Math.floor(e * STEPS);
+        if (step !== lastStep.current) {
+            lastStep.current = step;
+            const q = step / STEPS;
+            setDpr(Math.max(0.05, base.current * (1 - q * 0.96)));
+            gl.domElement.style.imageRendering = step > 0 ? 'pixelated' : 'auto';
+        }
+        gl.domElement.style.filter = `saturate(${(1 - 0.65 * e).toFixed(3)}) contrast(${(1 + 0.14 * e).toFixed(3)})`;
+    });
+
+    useEffect(() => () => {
+        gl.domElement.style.filter = '';
+        gl.domElement.style.imageRendering = 'auto';
+    }, [gl]);
+
+    return null;
+};
 
 // ── Theme block — Floor 4 is 100% 2D: flat, UNLIT pixel-art (meshBasic +
 //    NearestFilter), no 3D lights/shadows/fog. Edit here to reskin. ────────────

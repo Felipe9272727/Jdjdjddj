@@ -5,7 +5,9 @@
  * and a dark shaft behind the doors. Flat planes + procedural CanvasTexture
  * (NearestFilter) — no external assets, renders offline.
  *
- * `open` (0..1) slides the doors apart (default 0 = closed). Layering front→back:
+ * `open` (0..1) slides the doors apart (default 0 = closed). `openRef` does the
+ * same but is read per-frame (no re-render) — used by the arrival intro, where
+ * the doors slide open after the pixel-resolve. Layering front→back:
  * frame (transparent center) > doors > shaft.
  */
 import React, { useMemo, useRef } from 'react';
@@ -32,8 +34,8 @@ const Sprite: React.FC<{ tex: THREE.Texture; w: number; h: number; position?: [n
 
 const FW = 72, FH = 112;   // frame texture res
 
-export const Floor4Elevator2D: React.FC<{ open?: number; position?: [number, number, number]; scale?: number }> = ({
-    open = 0, position = [0, 0, 0], scale = 1,
+export const Floor4Elevator2D: React.FC<{ open?: number; openRef?: React.MutableRefObject<number>; position?: [number, number, number]; scale?: number }> = ({
+    open = 0, openRef, position = [0, 0, 0], scale = 1,
 }) => {
     const leftRef = useRef<THREE.Group>(null!);
     const rightRef = useRef<THREE.Group>(null!);
@@ -80,10 +82,11 @@ export const Floor4Elevator2D: React.FC<{ open?: number; position?: [number, num
         px(ctx, 22, 0, 4, 80, C.shaftLt);   // cable
     }), []);
 
-    const DOORW = 1.55, DOORH = 4.0, OPEN_X = 1.45, OPEN = THREE.MathUtils.clamp(open, 0, 1);
+    const DOORW = 1.55, DOORH = 4.0, OPEN_X = 1.45;
 
     useFrame(() => {
-        const slide = OPEN * OPEN_X;
+        const o = THREE.MathUtils.clamp(openRef ? openRef.current : open, 0, 1);
+        const slide = o * OPEN_X;
         if (leftRef.current) leftRef.current.position.x = -DOORW / 2 - slide;
         if (rightRef.current) rightRef.current.position.x = DOORW / 2 + slide;
     });

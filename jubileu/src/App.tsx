@@ -45,8 +45,9 @@ import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { Floor2Environment, SHARD_POSITIONS } from './Floor2Underwater';
 import { Floor3Environment } from './Floor3';
-import { Floor4Environment, useFloor4Audio } from './Floor4';
+import { Floor4Environment, useFloor4Audio, Pixelate3DRamp } from './Floor4';
 import Floor4Canvas2D from './Floor4Canvas2D';
+import { f4Demo } from './floor4Sfx';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -1049,13 +1050,33 @@ export default function App() {
         setDoorOpenAmount(0);
         setDoorsClosed(false);
       } else if (startLevel === 4) {
-        // Floor 4 (WIP base plate). Flat walking; spawn near the elevator.
-        setGameState('outdoor');
-        setNightMode(false);
-        setHouseDoorOpen(false);
-        setDoorOpenAmount(0);
-        setDoorsClosed(false);
-        playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
+        if (f4Demo.ride) {
+          // Creator "Transição → 2D": the FULL 20s elevator ride — start inside
+          // the lobby's elevator with the doors shut; at T-10s the 3D pixelates,
+          // at T0 the doors open into the 2D floor. (Mirrors the post-Floor-3
+          // win flow in advanceToFloor4AfterWin.)
+          f4Demo.ride = false;
+          setCurrentLevel(0);
+          setGameState('lobby');
+          setNightMode(false);
+          playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+          setDoorsClosed(true);
+          setDoorSoundTrigger(prev => prev + 1);
+          setNextElevatorDestination(4);
+          setElevatorTimer(20);
+          setTravelPhase('closing');
+          if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+          elevatorHumStopRef.current = createElevatorHum(ctx);
+        } else {
+          // Floor 4 (2D) instant jump: doors already open → the 2D overlay
+          // mounts straight away (with its own pixel-resolve entry).
+          setGameState('outdoor');
+          setNightMode(false);
+          setHouseDoorOpen(false);
+          setDoorOpenAmount(0);
+          setDoorsClosed(false);
+          playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
+        }
       }
     }
     // ─── CREATOR MODE: end jump ───
@@ -1394,7 +1415,13 @@ export default function App() {
           onIncline={() => { if (typeof window !== 'undefined') (window as any).__lowPerf = false; }}
           flipflops={3}
         />
-        <AdaptiveDpr pixelated />
+        {/* Riding up to Floor 4, the last 10s of the 20s trip gradually collapse
+            the 3D render into 2D pixels (Pixelate3DRamp). It REPLACES AdaptiveDpr
+            while active so the two never fight over the dpr; when the doors open
+            (doorsClosed flips) AdaptiveDpr remounts and restores it. */}
+        {(currentLevel === 4 && doorsClosed && elevatorTimer !== null && elevatorTimer <= 10)
+          ? <Pixelate3DRamp durationMs={9000} />
+          : <AdaptiveDpr pixelated />}
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} onPlayerCaught={() => {
@@ -2018,7 +2045,10 @@ export default function App() {
       {/* FLOOR 4 — the real 2D side-scroller, its own orthographic canvas over
           the 3D game (Felipe: Floor 4 is literally 2D). Walk left into the
           elevator to ride back down. */}
-      {currentLevel === 4 && <Floor4Canvas2D onExit={handleFloor4Exit} />}
+      {/* Floor 4 (2D) mounts only when the elevator DOORS OPEN — the player rides
+          the full 20s inside the 3D elevator (the 3D side pixelates from T-10s),
+          then arrives inside the 2D elevator, whose doors slide open. */}
+      {currentLevel === 4 && !doorsClosed && <Floor4Canvas2D onExit={handleFloor4Exit} />}
 
       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}
       {fallGameOver && (
