@@ -256,7 +256,7 @@ export const F4_DIARY: ReadonlyArray<{ title: string; text: string }> = [
     },
     {
         title: 'PÁGINA 2 — DIÁRIO DO RECEPCIONISTA',
-        text: 'Dia 9. Cortaram a força do andar inteiro, mas o GERADOR do subsolo ainda vira. Eu testei de madrugada. A partida é um ritmo: três curtas e uma LONGA. A luz do saguão pisca isso até hoje. Ela lembra por mim.',
+        text: 'Dia 9. Cortaram a força do andar inteiro, mas o GERADOR do subsolo ainda vira. Eu testei de madrugada. A partida é um ritmo: três curtas e uma LONGA. Liguei a lâmpada de emergência na bateria pra piscar isso até hoje. Ela lembra por mim.',
     },
     {
         title: 'PÁGINA 3 — DIÁRIO DO RECEPCIONISTA',
@@ -328,7 +328,7 @@ export const F4_POINTS: F4Point[] = [
     { id: 'climb', room: 'basement', x: -3.2, radius: 1.0, kind: 'climb', label: 'SUBIR' },
     { id: 'page2', room: 'basement', x: 1.0, radius: 0.9, kind: 'page', page: 1, label: 'LER', when: () => !f4.pages[1] },
     { id: 'pipes', room: 'basement', x: -0.8, radius: 0.9, kind: 'examine', label: 'OLHAR', text: 'Os canos descem. Tudo neste prédio desce.' },
-    { id: 'lamp', room: 'basement', x: 3.4, radius: 0.9, kind: 'examine', label: 'OLHAR', text: 'A lâmpada de emergência pisca o MESMO ritmo da luz lá de cima. Três curtas. Uma LONGA.', when: () => !f4.powerOn },
+    { id: 'lamp', room: 'basement', x: 3.4, radius: 0.9, kind: 'examine', label: 'OLHAR', text: 'Uma lâmpada de emergência, ligada numa bateria. Pisca um ritmo, sempre o mesmo. Três curtas. Uma LONGA.', when: () => !f4.powerOn },
     { id: 'generator', room: 'basement', x: 5.2, radius: 1.0, kind: 'generator', label: 'LIGAR', when: () => !f4.powerOn },
     { id: 'genhum', room: 'basement', x: 5.2, radius: 1.0, kind: 'examine', label: 'OLHAR', text: 'O gerador ronrona. O prédio lembrou o ritmo.', when: () => f4.powerOn },
     { id: 'dark', room: 'basement', x: 7.4, radius: 0.8, kind: 'examine', label: 'OLHAR', text: 'O corredor segue, mas aqui o escuro é dono.' },

@@ -34,16 +34,28 @@ export function clearFloor4Sfx(): void { ctx = null; dest = null; }
 
 function out(): AudioNode | null { return dest ?? ctx?.destination ?? null; }
 
-// ── RENDERED AUDIO (scripts/renderF4Audio.mjs → src/assets/*.mp3) ─────────────
-// Real composed/recorded-grade samples — vite inlines them as data URLs (see
+// ── REAL RECORDED AUDIO (src/assets/*.mp3) ────────────────────────────────────
+// All sourced from freesound.org under CC0 (public domain — no attribution
+// required, credited anyway). Vite inlines them as data URLs (see
 // assetsInlineLimit), so the single-file build carries its own soundtrack.
+//   floor4-theme.mp3 "Ghost Music Box BGM"  ChristmasKrumble666  freesound.org/s/753583
+//   f4-fire.mp3      "Crackling Flames"     NickTayloe           freesound.org/s/813328
+//   f4-hum.mp3       "Light Buzz Loop"      Nox_Sound            freesound.org/s/553075
+//   f4-strike.mp3    "Luz fluorescente"     mialena24            freesound.org/s/364341
+//   f4-bell.mp3      "hotel bell"           iwanPlays            freesound.org/s/532751
+//   f4-slam.mp3      "Door slamming hard"   NachtmahrTV          freesound.org/s/571797
+//   f4-bones.mp3     "Rattling Bones"       spookymodem          freesound.org/s/202102
+//   f4-knock.mp3     "Knock on door #2"     SoundsForHim         freesound.org/s/399665
+//   f4-creak.mp3     "Creaky Door Closing"  Rudmer_Rotteveel     freesound.org/s/590950
 import f4ThemeUrl from './assets/floor4-theme.mp3';
 import f4FireUrl from './assets/f4-fire.mp3';
-import f4BuzzShortUrl from './assets/f4-buzz-short.mp3';
-import f4BuzzLongUrl from './assets/f4-buzz-long.mp3';
+import f4HumUrl from './assets/f4-hum.mp3';
+import f4StrikeUrl from './assets/f4-strike.mp3';
 import f4BellUrl from './assets/f4-bell.mp3';
 import f4SlamUrl from './assets/f4-slam.mp3';
 import f4BonesUrl from './assets/f4-bones.mp3';
+import f4KnockUrl from './assets/f4-knock.mp3';
+import f4CreakUrl from './assets/f4-creak.mp3';
 
 const bufCache = new Map<string, Promise<AudioBuffer>>();
 function getBuf(url: string): Promise<AudioBuffer> | null {
@@ -57,14 +69,21 @@ function getBuf(url: string): Promise<AudioBuffer> | null {
     return p;
 }
 
-/** Fire-and-forget sample playback through the master bus. */
-function playSample(url: string, gain = 1, rate = 1): void {
+/** Fire-and-forget sample playback through the master bus. `at` delays the
+ *  start; `offset`/`dur` play just a slice (with a click-free fade tail). */
+function playSample(url: string, gain = 1, rate = 1, opts?: { at?: number; offset?: number; dur?: number }): void {
     const p = getBuf(url); if (!p) return;
     p.then((buf) => {
         if (!ctx) return; const d = out(); if (!d) return;
+        const t0 = ctx.currentTime + (opts?.at ?? 0);
         const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate;
         const g = ctx.createGain(); g.gain.value = gain;
-        src.connect(g).connect(d); src.start();
+        if (opts?.dur !== undefined) {
+            g.gain.setValueAtTime(gain, t0 + Math.max(0, opts.dur - 0.04));
+            g.gain.linearRampToValueAtTime(0.0001, t0 + opts.dur);
+        }
+        src.connect(g).connect(d);
+        src.start(t0, opts?.offset ?? 0, opts?.dur !== undefined ? opts.dur + 0.02 : undefined);
     }).catch(() => { /* decode failed — stay silent */ });
 }
 
@@ -136,26 +155,15 @@ export function playF4Paper(): void {
     src.connect(hp).connect(g).connect(d); src.start(t);
 }
 
-/** Reception bell ding (rendered FM bell, slight ring-to-ring variation). */
+/** Reception bell ding (real hotel bell, slight ring-to-ring variation). */
 export function playF4Bell(): void {
-    playSample(f4BellUrl, 0.55, 0.97 + Math.random() * 0.06);
+    playSample(f4BellUrl, 0.7, 0.96 + Math.random() * 0.08);
 }
 
-/** Three slow knocks from BELOW the floor (P2 payoff). */
+/** Slow knocks from BELOW the floor (P2 payoff): a real door knock, pitched
+ *  way down so it lands in the slab under your feet. */
 export function playF4Knocks(): void {
-    if (!ctx) return; const d = out(); if (!d) return;
-    const t0 = ctx.currentTime + 1.2;                  // a beat of silence first
-    for (let k = 0; k < 3; k++) {
-        const t = t0 + k * 0.55;
-        const o = ctx.createOscillator(); o.type = 'sine';
-        o.frequency.setValueAtTime(95, t);
-        o.frequency.exponentialRampToValueAtTime(48, t + 0.18);
-        const g = ctx.createGain();
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.55, t + 0.012);
-        g.gain.exponentialRampToValueAtTime(0.0008, t + 0.4);
-        o.connect(g).connect(d); o.start(t); o.stop(t + 0.45);
-    }
+    playSample(f4KnockUrl, 0.95, 0.58, { at: 1.2 });   // a beat of silence first
 }
 
 /** Breaker lever clack. */
@@ -215,30 +223,16 @@ export function playF4SafeOpen(): void {
     o.connect(g).connect(d); o.start(t); o.stop(t + 0.55);
 }
 
-/** The unboarded door creaking ajar ("ainda não."). */
+/** The unboarded door creaking ajar ("ainda não.") — real hinges. */
 export function playF4DoorCreak(): void {
-    if (!ctx) return; const d = out(); if (!d) return;
-    const t = ctx.currentTime;
-    const o = ctx.createOscillator(); o.type = 'sawtooth';
-    o.frequency.setValueAtTime(95, t);
-    o.frequency.linearRampToValueAtTime(70, t + 1.1);
-    const v = ctx.createOscillator(); v.type = 'sine'; v.frequency.value = 6.5;
-    const vg = ctx.createGain(); vg.gain.value = 14;
-    v.connect(vg).connect(o.frequency);
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.13, t + 0.15);
-    g.gain.exponentialRampToValueAtTime(0.0005, t + 1.2);
-    o.connect(lp).connect(g).connect(d); o.start(t); o.stop(t + 1.25);
-    v.start(t); v.stop(t + 1.25);
+    playSample(f4CreakUrl, 0.75, 0.82);
 }
 
-/** The Zelador SLAMMING the exit door (rendered: thump + wood burst). */
-export function playF4Slam(): void { playSample(f4SlamUrl, 0.9); }
+/** The Zelador SLAMMING the exit door (real recorded slam). */
+export function playF4Slam(): void { playSample(f4SlamUrl, 0.95); }
 
-/** Bone rattle — the guest of 404 assembling himself upright (rendered). */
-export function playF4Bones(): void { playSample(f4BonesUrl, 0.7); }
+/** Bone rattle — the guest of 404 assembling himself upright. */
+export function playF4Bones(): void { playSample(f4BonesUrl, 0.85); }
 
 /** Heavy padlock click (locking AND unlocking the exit). */
 export function playF4Lock(): void {
@@ -253,28 +247,41 @@ export function playF4Lock(): void {
         o.connect(g).connect(d!); o.start(t + dt); o.stop(t + dt + 0.07);
     });
 }
-// ── AMBIENCE: the floor's music + background noises (rendered samples) ───────
+// ── AMBIENCE: the floor's music + background noises (real samples) ───────────
 
-/** The fluorescent striking: sputter → buzz → the static crack of the curto.
- *  DyingLight calls this on every rising edge of the blink pattern. */
-export function playF4LampBuzz(longBlink: boolean, gainMul = 1): void {
-    playSample(longBlink ? f4BuzzLongUrl : f4BuzzShortUrl, 0.5 * gainMul);
+/** The fluorescent's mains hum — only exists while the power is ON (when the
+ *  floor is dead, nothing is energized, nothing hums). DyingLight starts this
+ *  the moment the breaker brings the lobby light back. Idempotent. */
+let f4Hum: { stop: () => void } | null = null;
+export function startF4Hum(): void {
+    if (f4Hum) return;
+    f4Hum = loopSample(f4HumUrl, 0.12, 1.5);
+}
+export function stopF4Hum(): void { f4Hum?.stop(); f4Hum = null; }
+
+/** The CURTO — a sputtering strike from a real faulty fluorescent. Played when
+ *  the powered lamp recovers from one of its shorts (a random slice each time
+ *  so no two sputters sound alike). */
+export function playF4Strike(gainMul = 1): void {
+    playSample(f4StrikeUrl, 0.5 * gainMul, 0.96 + Math.random() * 0.08,
+        { offset: Math.random() * 8.6, dur: 0.3 + Math.random() * 0.5 });
 }
 
-/** FLOOR 4 MUSIC — the rendered dark-ambient theme (64s seamless loop in
- *  D minor: pads, a worn music-box motif, sub drone). */
+/** FLOOR 4 MUSIC — "Ghost Music Box": a real music box recorded in an
+ *  abandoned building, turned dark-ambient (71s loop). The hotel remembering
+ *  its own lobby tune. */
 let f4Music: { stop: () => void } | null = null;
 export function startF4Music(): void {
     if (f4Music) return;
-    f4Music = loopSample(f4ThemeUrl, 0.5, 3);
+    f4Music = loopSample(f4ThemeUrl, 0.55, 3);
 }
 export function stopF4Music(): void { f4Music?.stop(); f4Music = null; }
 
-/** Fire crackle loop (the keeper's campfire in the breu). */
+/** Fire crackle loop (the keeper's campfire in the breu) — real flames. */
 let f4Fire: { stop: () => void } | null = null;
 export function startF4Fire(): void {
     if (f4Fire) return;
-    f4Fire = loopSample(f4FireUrl, 0.6, 1.2);
+    f4Fire = loopSample(f4FireUrl, 0.55, 1.2);
 }
 export function stopF4Fire(): void { f4Fire?.stop(); f4Fire = null; }
 

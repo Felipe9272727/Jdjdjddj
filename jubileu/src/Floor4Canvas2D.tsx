@@ -23,7 +23,7 @@ import Floor4Scene2D from './Floor4Scene2D';
 import { Floor4Player2D } from './Floor4Player2D';
 import { Floor4Interact } from './Floor4Interact';
 import { f4, f4Reset, f4SetOnChange, f4GoRoom } from './f4Lore';
-import { f4Demo, startF4Music, stopF4Music, startF4Fire, stopF4Fire } from './floor4Sfx';
+import { f4Demo, startF4Music, stopF4Music, startF4Fire, stopF4Fire, stopF4Hum } from './floor4Sfx';
 
 /** R3F aims the default camera at the origin, so position [0,3,10] arrives with
  *  a subtle DOWNWARD TILT — which, under an orthographic camera, parallax-shears
@@ -106,7 +106,7 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
     // ambience: the floor's dark music bed for the whole visit…
     useEffect(() => {
         startF4Music();
-        return () => { stopF4Music(); stopF4Fire(); };
+        return () => { stopF4Music(); stopF4Fire(); stopF4Hum(); };
     }, []);
     // …and the campfire crackle only in the breu
     useEffect(() => {
