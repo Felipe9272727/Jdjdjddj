@@ -22,7 +22,7 @@ import * as THREE from 'three';
 import { pixelTex, px } from './floor4-pixels';
 import { Floor4Elevator2D } from './Floor4Elevator';
 import { f4, F4_POINTS, F4_LIGHT_PATTERN, f4RunnerDone, f4SkeletonRisen, f4Cam } from './f4Lore';
-import { playF4Slam, playF4Lock, playF4Bones } from './floor4Sfx';
+import { playF4Slam, playF4Lock, playF4Bones, playF4LampBuzz } from './floor4Sfx';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const P = {
@@ -552,6 +552,7 @@ const DyingLight: React.FC<{ x: number }> = ({ x }) => {
     const sparkMat = useRef<THREE.MeshBasicMaterial>(null!);
     const poolMat = useRef<THREE.MeshBasicMaterial>(null!);
     const t = useRef(0);
+    const wasOn = useRef(false);
     useFrame((_, dt) => {
         t.current += Math.min(dt, 0.05);
         const tt = t.current;
@@ -559,9 +560,14 @@ const DyingLight: React.FC<{ x: number }> = ({ x }) => {
         let f: number;
         if (f4.powerOn) {
             f = 0.62 + Math.sin(tt * 2.1) * 0.04;                         // steady at last
+            wasOn.current = true;
         } else {
             const cyc = tt % 3.1;                                          // ▪ ▪ ▪ ▬ …pause
-            const on = cyc < 0.16 || (cyc >= 0.4 && cyc < 0.56) || (cyc >= 0.8 && cyc < 0.96) || (cyc >= 1.2 && cyc < 1.9);
+            const isLong = cyc >= 1.2 && cyc < 1.9;
+            const on = cyc < 0.16 || (cyc >= 0.4 && cyc < 0.56) || (cyc >= 0.8 && cyc < 0.96) || isLong;
+            // the strike-buzz-short of the lamp, synced to the blink edges
+            if (on && !wasOn.current) playF4LampBuzz(isLong);
+            wasOn.current = on;
             f = on ? 0.6 : 0.05;
         }
         if (glowMat.current) glowMat.current.opacity = f;
@@ -838,7 +844,7 @@ const MARKER_Y: Record<string, number> = {
     // basement
     climb: 2.5, page2: 1.05, pipes: 1.9, lamp: 2.7, generator: 2.9, genhum: 2.9, dark: 1.8,
     // beyond
-    floorless: 1.5, keeper: 2.1, picture: 4.2,
+    floorless: 1.5, keeper: 2.1, picture: 4.2, back: 4.15,
 };
 
 /** Computed every render (the parent re-renders the scene on lore changes). */
@@ -853,6 +859,7 @@ function markerList(): Array<{ id: string; x: number; y: number; kind: 'must' | 
         if (p.id === 'door') kind = 'info';                      // locked — pushing only tells you it's locked
         if (p.kind === 'descend' && f4.powerOn) kind = 'info';   // chain moved on; hole stays browsable
         if (p.kind === 'climb' && !f4.powerOn) kind = 'info';    // first deal with the generator
+        if (p.id === 'back') kind = 'info';                      // the move out here is the keeper
         if (p.kind === 'leave') {
             if (!f4.finished) continue;                          // no flag luring players out early
             kind = 'must';                                       // arc done — going home IS the move
@@ -1090,88 +1097,382 @@ function keeperFrame(up: boolean): THREE.CanvasTexture {
 }
 const keeperSit = keeperFrame(false), keeperUp = keeperFrame(true);
 
-// ── The keeper's PORTRAIT (dialogue close-up) — receptionist uniform: white
-// shirt, dark vest, red tie, badge. Young-ish, tired, fire-lit, one eye
-// bandaged. (Reference: Felipe's pixel-art mock — calm, not crazed.)
-export const keeperPortraitUrl: string = (() => {
-    const t = pixelTex(96, 112, (ctx) => {
-        // night backdrop: dark brick hints + the fire's warmth from the left
-        px(ctx, 0, 0, 96, 112, '#0c0709');
-        ctx.globalAlpha = 0.25;
-        for (let y = 6; y < 112; y += 10) for (let x = 64; x < 96; x += 14) px(ctx, x + ((y / 10) % 2) * 7, y, 12, 8, '#1d1216');
-        ctx.globalAlpha = 1;
-        for (let y = 0; y < 112; y += 2) {
-            ctx.globalAlpha = 0.18 * (1 - y / 112);
-            px(ctx, 0, y, 26 - Math.round(y * 0.15), 2, '#6e3318');
+// ── THE FIRESIDE SCENE — the dialogue's full-screen cinematic (visual-novel
+// style, per Felipe: "a imagem dele completo na fogueira, e a gente
+// conversando — não uma moldura"). One 480×270 pixel-art painting: the FIRST
+// RECEPTIONIST full body on a rubble seat, the campfire between him and the
+// PLAYER, the breu all around. Shown full-bleed under the dialogue text.
+export const keeperSceneUrl: string = (() => {
+    const t = pixelTex(480, 270, (ctx) => {
+        /** Checkerboard dither — soft transitions between tones. */
+        const dith = (x: number, y: number, w: number, h: number, c: string) => {
+            for (let yy = 0; yy < h; yy++) for (let xx = yy % 2; xx < w; xx += 2) px(ctx, x + xx, y + yy, 1, 1, c);
+        };
+
+        // ── the breu: near-black, warm only where the fire reaches ──
+        px(ctx, 0, 0, 480, 270, '#060409');
+        // far brick wall fragment behind the keeper (broken top edge)
+        for (let y = 56; y < 208; y += 7) {
+            const off = ((y / 7) % 2) * 6;
+            for (let x = 286; x < 470; x += 12) {
+                if (y < 70 && rnd() > 0.55) continue;                        // crumbled crown
+                px(ctx, x + off, y, 11, 6, rnd() > 0.88 ? '#241218' : '#1a0f13');
+            }
+        }
+        px(ctx, 286, 56, 184, 1, '#2a161c');
+        // fallen column silhouettes, leaning out of the dark
+        ctx.save(); ctx.translate(86, 30); ctx.rotate(0.18);
+        px(ctx, 0, 0, 22, 200, '#0c080c'); px(ctx, 2, 0, 4, 200, '#140d11');
+        ctx.restore();
+        ctx.save(); ctx.translate(420, 16); ctx.rotate(-0.12);
+        px(ctx, 0, 0, 18, 150, '#0b070b');
+        ctx.restore();
+        // the exit door, tiny and far at the left, with its dying red sign
+        px(ctx, 20, 130, 26, 56, '#171019'); px(ctx, 31, 134, 3, 50, '#070409');
+        px(ctx, 22, 118, 22, 9, '#1d0c0e');
+        ctx.globalAlpha = 0.8; px(ctx, 25, 120, 16, 5, '#7e1416'); ctx.globalAlpha = 1;
+
+        // ── ground: rubble field ──
+        px(ctx, 0, 208, 480, 62, '#0e0a0d');
+        px(ctx, 0, 208, 480, 2, '#1a1216');
+        for (let i = 0; i < 40; i++) {
+            const gx = Math.round(rnd() * 470), gy = 212 + Math.round(rnd() * 50);
+            px(ctx, gx, gy, 3 + Math.round(rnd() * 9), 2 + Math.round(rnd() * 3), rnd() > 0.5 ? '#16100f' : '#1d1514');
+        }
+
+        // ── the fire's LIGHT (baked): concentric warmth around the campfire ──
+        const FCX = 238, FCY = 218;
+        for (let r = 150; r > 18; r -= 8) {
+            ctx.globalAlpha = 0.045;
+            ctx.fillStyle = r > 80 ? '#5a2c14' : '#8a4a1e';
+            ctx.beginPath(); ctx.ellipse(FCX, FCY - 10, r, r * 0.62, 0, 0, Math.PI * 2); ctx.fill();
         }
         ctx.globalAlpha = 1;
-
-        // ── shoulders: white shirt sleeves under a dark VEST ──
-        px(ctx, 8, 76, 80, 36, '#cfc8b8');                  // shirt base (both arms)
-        px(ctx, 8, 76, 10, 36, '#efe9da');                  // fire-lit sleeve edge
-        px(ctx, 76, 78, 12, 34, '#9a937f');                 // far sleeve in shadow
-        for (let y = 82; y < 110; y += 7) { px(ctx, 12, y, 12, 1, '#b3ac9a'); px(ctx, 74, y + 3, 10, 1, '#857e6c'); }  // sleeve folds
-        // vest body (deep navy-charcoal, V opening)
-        px(ctx, 26, 78, 44, 34, '#23252e');
-        px(ctx, 26, 78, 4, 34, '#3a3d4d');                  // lit lapel edge
-        px(ctx, 64, 80, 6, 32, '#16171d');                  // shadow side
-        // V opening showing shirt + tie
-        px(ctx, 42, 76, 14, 14, '#e8e2d4');
-        px(ctx, 41, 76, 1, 14, '#b3ac9a'); px(ctx, 56, 76, 1, 12, '#b3ac9a');
-        // collar wings
-        px(ctx, 36, 70, 10, 7, '#efe9da'); px(ctx, 52, 70, 10, 7, '#dcd4c2');
-        px(ctx, 36, 75, 10, 2, '#b3ac9a'); px(ctx, 52, 75, 10, 2, '#a39c89');
-        // the red tie: knot + tail slipping under the vest
-        px(ctx, 45, 74, 8, 6, '#a3242c'); px(ctx, 45, 74, 8, 1, '#c43a40'); px(ctx, 51, 75, 2, 5, '#6e161c');
-        px(ctx, 46, 80, 6, 12, '#a3242c'); px(ctx, 50, 80, 2, 12, '#6e161c');
-        // vest buttons (brass)
-        px(ctx, 47, 94, 2, 2, '#d9a43c'); px(ctx, 47, 100, 2, 2, '#d9a43c'); px(ctx, 47, 106, 2, 2, '#d9a43c');
-        // the badge he never took off (his left chest = viewer right)
-        px(ctx, 56, 92, 16, 9, '#e8e2d4'); px(ctx, 56, 92, 16, 1, '#fff8e8'); px(ctx, 56, 100, 16, 1, '#a39c89');
-        px(ctx, 58, 95, 12, 1, '#6e675c'); px(ctx, 58, 97, 8, 1, '#8f8878');
-
-        // ── neck + head (3/4, fire on viewer LEFT) ──
-        px(ctx, 42, 62, 14, 10, '#c79670'); px(ctx, 42, 62, 3, 10, '#e8b88a');
-        px(ctx, 30, 22, 38, 44, '#d9a87e');                 // face block
-        px(ctx, 30, 22, 6, 44, '#f0c79a');                  // lit edge
-        px(ctx, 62, 22, 6, 44, '#a87a58');                  // shadow edge
-        px(ctx, 32, 60, 34, 6, '#c79670');                  // jaw turn
-        // cheek hollows — tired, not gaunt
-        px(ctx, 36, 46, 7, 8, '#c39472'); px(ctx, 56, 46, 7, 8, '#a87f60');
-        // the good eye (viewer left): heavy lid, warm brown iris, eyebag
-        px(ctx, 35, 36, 11, 6, '#f2ead8'); px(ctx, 35, 36, 11, 2, '#a87a58');   // lid half down
-        px(ctx, 39, 37, 4, 4, '#6e3f22'); px(ctx, 40, 38, 2, 2, '#1d130c'); px(ctx, 39, 37, 1, 1, '#ffd9a8');
-        px(ctx, 35, 42, 11, 2, '#b08260');                  // the eyebag
-        px(ctx, 34, 33, 12, 2, '#3a2a22');                  // brow
-        // the LOST eye: clean bandage wrap, faint stain
-        px(ctx, 50, 33, 18, 9, '#e9e0c6'); px(ctx, 50, 33, 18, 2, '#f6efdb'); px(ctx, 50, 41, 18, 1, '#9a9176');
-        px(ctx, 46, 26, 24, 5, '#e9e0c6'); px(ctx, 46, 30, 24, 1, '#9a9176');  // diagonal up over the brow
-        px(ctx, 64, 26, 6, 22, '#ded4ba'); px(ctx, 64, 26, 1, 22, '#9a9176');  // around the head
-        px(ctx, 55, 36, 5, 4, '#8a3a30'); px(ctx, 57, 37, 2, 2, '#5e1f1a');    // old stain, dried
-        // nose
-        px(ctx, 47, 40, 5, 11, '#c79670'); px(ctx, 47, 40, 2, 11, '#e8b88a'); px(ctx, 48, 49, 5, 2, '#a87a58');
-        // mouth — calm, a tired half-smile (warm, NOT the Zelador's)
-        px(ctx, 41, 56, 15, 2, '#8a5a48'); px(ctx, 54, 55, 3, 2, '#a87a58');
-        px(ctx, 39, 54, 2, 2, '#b08260');
-        // faint stubble shadow on the jaw
-        ctx.globalAlpha = 0.3;
-        px(ctx, 36, 56, 26, 8, '#6e503c');
+        // lit ground pool
+        ctx.globalAlpha = 0.35; ctx.fillStyle = '#b06226';
+        ctx.beginPath(); ctx.ellipse(FCX, FCY + 4, 64, 12, 0, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
 
-        // ── dark messy hair (younger — brown, not grey) ──
-        px(ctx, 26, 8, 46, 16, '#2e211a');                  // mass
-        px(ctx, 26, 8, 8, 16, '#57402f');                   // fire-lit side
-        px(ctx, 30, 4, 34, 6, '#2e211a');                   // crown
-        px(ctx, 24, 14, 6, 14, '#2e211a'); px(ctx, 68, 14, 6, 12, '#241a14');  // sides over ears
-        // messy tufts + fringe falling over the bandage side
-        px(ctx, 34, 2, 6, 4, '#2e211a'); px(ctx, 48, 1, 7, 5, '#2e211a'); px(ctx, 60, 3, 6, 4, '#241a14');
-        px(ctx, 30, 20, 10, 6, '#2e211a'); px(ctx, 44, 21, 8, 5, '#2e211a');
-        px(ctx, 56, 20, 12, 8, '#241a14');                  // fringe brushing the wrap
-        px(ctx, 27, 9, 3, 12, '#8a5530');                   // rim light
+        // ── the CAMPFIRE: stone ring, crossed logs, layered flame ──
+        for (let i = 0; i < 9; i++) {
+            const a = (i / 9) * Math.PI * 2;
+            px(ctx, Math.round(FCX + Math.cos(a) * 26) - 3, Math.round(FCY + 6 + Math.sin(a) * 7) - 2, 7, 5, i % 2 ? '#2e2424' : '#3a2e2c');
+        }
+        ctx.save(); ctx.translate(FCX, FCY + 2); ctx.rotate(0.3);
+        px(ctx, -22, -3, 44, 7, '#3a2417'); px(ctx, -22, -3, 44, 2, '#54371d');
+        ctx.restore();
+        ctx.save(); ctx.translate(FCX, FCY + 2); ctx.rotate(-0.35);
+        px(ctx, -20, -3, 40, 7, '#2c1b10'); px(ctx, -20, -3, 40, 2, '#3f2a18');
+        ctx.restore();
+        // flame: jagged pixel tongues, banded outer → core → heart
+        const flameRow = (yOff: number, half: number, c: string, jx = 0) => px(ctx, FCX - half + jx, FCY - yOff, half * 2, 2, c);
+        for (let i = 0; i < 24; i++) {                       // outer tongue
+            const k = i / 24;
+            const half = Math.max(1, Math.round(16 * (1 - k) * (0.8 + rnd() * 0.5)));
+            flameRow(4 + i * 2, half, '#ff7a2e', Math.round((rnd() - 0.5) * 6 * k));
+        }
+        for (let i = 0; i < 15; i++) {                       // core
+            const k = i / 15;
+            const half = Math.max(1, Math.round(10 * (1 - k) * (0.85 + rnd() * 0.35)));
+            flameRow(4 + i * 2, half, '#ffb84d', Math.round((rnd() - 0.5) * 4 * k));
+        }
+        for (let i = 0; i < 7; i++) {                        // white heart
+            const half = Math.max(1, Math.round(5 * (1 - i / 7)));
+            flameRow(4 + i * 2, half, '#fff3c4');
+        }
+        // stray licking tongues
+        px(ctx, FCX - 14, FCY - 40, 3, 7, '#ff7a2e'); px(ctx, FCX - 13, FCY - 44, 2, 4, '#ff7a2e');
+        px(ctx, FCX + 11, FCY - 48, 3, 8, '#ff7a2e'); px(ctx, FCX + 12, FCY - 53, 2, 5, '#ffb84d');
+        // embers rising
+        for (const [ex, ey, c] of [[FCX - 14, FCY - 52, '#ffb84d'], [FCX + 10, FCY - 64, '#ff9a55'], [FCX - 4, FCY - 78, '#ffd98a'], [FCX + 20, FCY - 46, '#ff9a55'], [FCX - 24, FCY - 70, '#ffd98a'], [FCX + 4, FCY - 94, '#ff9a55']] as const) {
+            px(ctx, ex, ey, 2, 2, c);
+        }
+        // smoke curling into the dark
+        ctx.globalAlpha = 0.22;
+        px(ctx, FCX - 6, FCY - 110, 14, 8, '#2a161c'); px(ctx, FCX + 4, FCY - 126, 18, 9, '#2a161c'); px(ctx, FCX - 12, FCY - 140, 16, 8, '#241318');
+        ctx.globalAlpha = 1;
 
-        // embers drifting in the firelight
-        ctx.globalAlpha = 0.7;
-        px(ctx, 12, 28, 1, 1, '#ffb84d'); px(ctx, 8, 56, 1, 1, '#ff9a55'); px(ctx, 16, 84, 1, 1, '#ffd98a'); px(ctx, 6, 14, 1, 1, '#ffd98a');
+        // ════ THE FIRST RECEPTIONIST — full body, seated right of the fire ════
+        // (facing LEFT toward the fire/player; fire light hits his front)
+        const KX = 322, KY = 128;                            // top-left of the figure box
+        // his seat: a slab of the old checkered floor on bricks
+        px(ctx, KX - 10, KY + 74, 64, 9, '#8e8470');
+        for (let i = 0; i < 8; i++) px(ctx, KX - 10 + i * 8, KY + 74, 8, 4, i % 2 ? '#b9ad92' : '#8e8470');
+        px(ctx, KX - 10, KY + 81, 64, 2, '#4a443c');
+        px(ctx, KX - 4, KY + 83, 14, 12, '#3c241e'); px(ctx, KX + 34, KY + 83, 14, 12, '#5d3a30');
+        // ── legs: dark slacks, knees up, ankles crossed toward the fire ──
+        px(ctx, KX + 2, KY + 52, 18, 26, '#1d1f28');         // near thigh (lit side)
+        px(ctx, KX + 2, KY + 52, 4, 26, '#33364a');          // fire light on the crease
+        px(ctx, KX + 18, KY + 56, 16, 22, '#15161d');        // far thigh
+        px(ctx, KX - 6, KY + 70, 14, 26, '#1d1f28');         // near shin, dropping to the ground
+        px(ctx, KX - 6, KY + 70, 3, 26, '#2c2f40');
+        px(ctx, KX + 6, KY + 74, 12, 22, '#15161d');         // far shin
+        px(ctx, KX - 6, KY + 78, 1, 14, '#3a3d52');          // crease line
+        // shoes, worn black leather catching the fire
+        px(ctx, KX - 14, KY + 94, 16, 7, '#16130f'); px(ctx, KX - 14, KY + 94, 16, 2, '#3a3026');
+        px(ctx, KX + 0, KY + 96, 14, 6, '#100e0b'); px(ctx, KX + 0, KY + 96, 14, 1, '#2a221a');
+        // ── torso: white shirt + charcoal vest, leaning forward a little ──
+        px(ctx, KX + 8, KY + 16, 26, 40, '#23252e');         // vest
+        px(ctx, KX + 8, KY + 16, 5, 40, '#3d4156');          // lit lapel
+        dith(KX + 13, KY + 18, 3, 36, '#3d4156');
+        px(ctx, KX + 30, KY + 18, 4, 38, '#13141a');         // back shadow
+        px(ctx, KX + 8, KY + 54, 26, 3, '#13141a');          // hem
+        for (const by of [KY + 30, KY + 40, KY + 50]) px(ctx, KX + 12, by, 2, 2, '#d9a43c');   // brass buttons
+        // shirt: collar + the sleeves rolled to the elbow, forearms on knees
+        px(ctx, KX + 10, KY + 12, 16, 8, '#e8e2d4'); px(ctx, KX + 10, KY + 18, 16, 2, '#b3ac9a');
+        px(ctx, KX + 2, KY + 22, 12, 18, '#d9d2c0');         // near upper-arm sleeve
+        px(ctx, KX + 2, KY + 22, 3, 18, '#f4eede');
+        px(ctx, KX + 0, KY + 38, 10, 4, '#b3ac9a');          // rolled cuff
+        px(ctx, KX - 2, KY + 42, 9, 14, '#cfa178');          // forearm (skin, fire-lit)
+        px(ctx, KX - 2, KY + 42, 3, 14, '#e8b88a');
+        px(ctx, KX - 4, KY + 54, 10, 7, '#cfa178');          // hands clasped over the knees
+        px(ctx, KX - 4, KY + 56, 10, 2, '#a87a58');
+        // the red tie, loosened, swinging free of the vest
+        px(ctx, KX + 14, KY + 18, 7, 5, '#a3242c'); px(ctx, KX + 19, KY + 19, 2, 4, '#6e161c');
+        px(ctx, KX + 12, KY + 23, 6, 16, '#a3242c'); px(ctx, KX + 16, KY + 23, 2, 16, '#6e161c');
+        px(ctx, KX + 12, KY + 39, 5, 4, '#8a1d24');
+        // badge on the vest
+        px(ctx, KX + 24, KY + 26, 9, 6, '#e8e2d4'); px(ctx, KX + 25, KY + 28, 7, 1, '#6e675c'); px(ctx, KX + 25, KY + 30, 5, 1, '#8f8878');
+        // ── head: 3/4 facing the fire ──
+        px(ctx, KX + 10, KY - 8, 20, 22, '#d9a87e');         // face block
+        px(ctx, KX + 10, KY - 8, 5, 22, '#f0c79a');          // fire-lit profile edge
+        px(ctx, KX + 26, KY - 6, 4, 20, '#a87a58');          // back of jaw shadow
+        px(ctx, KX + 12, KY + 10, 14, 4, '#c79670');         // jaw
+        px(ctx, KX + 10, KY - 1, 3, 3, '#c79670');           // nose against the light
+        px(ctx, KX + 9, KY + 2, 2, 2, '#e8b88a');            // nose tip catching fire
+        // the good eye (toward the fire): dark, calm
+        px(ctx, KX + 13, KY - 2, 5, 3, '#f2ead8'); px(ctx, KX + 15, KY - 2, 2, 3, '#3a2417');
+        px(ctx, KX + 13, KY + 2, 5, 1, '#b08260');           // tired line under it
+        // calm mouth
+        px(ctx, KX + 11, KY + 7, 6, 1, '#8a5a48');
+        // bandage: ONE clean bright band across the far eye, around the skull
+        px(ctx, KX + 19, KY - 3, 12, 6, '#f2ead2'); px(ctx, KX + 19, KY - 3, 12, 1, '#fffae8');
+        px(ctx, KX + 19, KY + 2, 12, 1, '#a39c80');
+        px(ctx, KX + 28, KY - 7, 3, 12, '#e0d6ba');
+        px(ctx, KX + 23, KY - 1, 3, 2, '#8a3a30');           // the old stain, small
+        // dark messy hair, strands falling over the wrap
+        px(ctx, KX + 8, KY - 16, 24, 10, '#2e211a');
+        px(ctx, KX + 8, KY - 16, 5, 10, '#57402f');          // lit side
+        px(ctx, KX + 6, KY - 12, 4, 10, '#2e211a'); px(ctx, KX + 30, KY - 12, 4, 9, '#241a14');
+        px(ctx, KX + 12, KY - 19, 6, 4, '#2e211a'); px(ctx, KX + 22, KY - 20, 7, 5, '#241a14');
+        px(ctx, KX + 9, KY - 7, 6, 4, '#33241a'); px(ctx, KX + 24, KY - 8, 8, 5, '#241a14');
+        px(ctx, KX + 7, KY - 14, 2, 8, '#9a5e32');           // fire rim on the hair
+        // fire rim down his whole front silhouette
+        px(ctx, KX + 1, KY + 22, 1, 18, '#c46a3a'); px(ctx, KX - 3, KY + 42, 1, 14, '#c46a3a');
+        px(ctx, KX + 9, KY - 8, 1, 20, '#e8945a');
+
+        // ════ THE PLAYER — seated left of the fire, back 3/4 to camera ════
+        const PXx = 148, PXy = 150;
+        // his brick seat
+        px(ctx, PXx - 6, PXy + 56, 40, 10, '#3c241e'); px(ctx, PXx - 6, PXy + 56, 40, 3, '#5d3a30');
+        // legs folded (green pants, fire hits the far edge)
+        px(ctx, PXx + 6, PXy + 40, 16, 18, '#2b4d24');
+        px(ctx, PXx + 18, PXy + 40, 4, 18, '#3d6b35');       // fire-lit edge
+        px(ctx, PXx + 10, PXy + 54, 18, 10, '#2b4d24');
+        px(ctx, PXx + 24, PXy + 56, 6, 8, '#1f3a1a');
+        px(ctx, PXx + 26, PXy + 60, 10, 6, '#2a2118');       // shoe toward the fire
+        // torso: blue shirt from behind
+        px(ctx, PXx, PXy + 10, 24, 32, '#2c5489');
+        px(ctx, PXx + 18, PXy + 10, 6, 32, '#3b6fb0');       // fire-lit edge
+        px(ctx, PXx, PXy + 10, 4, 32, '#1f3a61');            // dark camera side
+        px(ctx, PXx - 4, PXy + 16, 8, 20, '#2c5489');        // near arm
+        px(ctx, PXx + 20, PXy + 18, 8, 18, '#3b6fb0');       // far arm reaching knee
+        px(ctx, PXx + 24, PXy + 34, 6, 6, '#e8b48a');        // far hand
+        // head from behind: bacon hair
+        px(ctx, PXx + 2, PXy - 8, 20, 20, '#7a4a24');
+        px(ctx, PXx + 2, PXy - 8, 20, 4, '#94613a');
+        px(ctx, PXx + 16, PXy + 2, 6, 8, '#e8b48a');         // cheek turned toward the keeper
+        px(ctx, PXx + 18, PXy - 2, 4, 4, '#94613a');         // hair over the temple
+        px(ctx, PXx + 2, PXy - 8, 3, 20, '#5a3315');         // camera-side shadow
+        px(ctx, PXx + 20, PXy - 6, 2, 14, '#b07a4a');        // fire rim
+
+        // ── baked cinema vignette ──
+        for (let i = 0; i < 26; i++) {
+            ctx.globalAlpha = 0.05;
+            px(ctx, 0, i, 480, 1, '#000'); px(ctx, 0, 269 - i, 480, 1, '#000');
+            px(ctx, i, 0, 1, 270, '#000'); px(ctx, 479 - i, 0, 1, 270, '#000');
+        }
+        ctx.globalAlpha = 1;
+    });
+    return (t.image as HTMLCanvasElement).toDataURL();
+})();
+
+// (kept for reference panels — the close-up bust, no longer the dialogue art)
+const _unusedKeeperPortrait = (() => {
+    const t = pixelTex(144, 176, (ctx) => {
+        /** Checkerboard dither — soft transitions between ramp tones. */
+        const dith = (x: number, y: number, w: number, h: number, c: string) => {
+            for (let yy = 0; yy < h; yy++) for (let xx = yy % 2; xx < w; xx += 2) px(ctx, x + xx, y + yy, 1, 1, c);
+        };
+
+        // ── backdrop: night bricks + the fire's breath from the left ──
+        px(ctx, 0, 0, 144, 176, '#0b0708');
+        ctx.globalAlpha = 0.5;
+        for (let y = 4; y < 176; y += 12) {
+            const off = ((y / 12) % 2) * 9;
+            for (let x = -9; x < 144; x += 18) px(ctx, x + off, y, 16, 9, '#150d10');
+        }
+        ctx.globalAlpha = 1;
+        for (let x = 0; x < 40; x++) {                       // warm glow, dithered falloff
+            ctx.globalAlpha = 0.30 * (1 - x / 40);
+            px(ctx, x, 0, 1, 176, '#6e3318');
+        }
+        ctx.globalAlpha = 1;
+        dith(0, 120, 30, 56, '#8a4520');                     // fire flicker low-left
+
+        // ── SHOULDERS & ARMS: white shirt sleeves ──
+        // (bust cuts at the chest, arms relaxed — reference pose)
+        px(ctx, 6, 118, 42, 58, '#cfc8b8');                  // near sleeve (lit)
+        px(ctx, 6, 118, 8, 58, '#efe9da');
+        dith(14, 118, 6, 58, '#efe9da');
+        px(ctx, 96, 122, 42, 54, '#a8a18d');                 // far sleeve (shadow)
+        px(ctx, 130, 122, 8, 54, '#857e6c');
+        dith(124, 122, 6, 54, '#857e6c');
+        // fabric folds (sleeves pull at the shoulder seam)
+        for (const [fx, fy, fw] of [[10, 130, 14], [12, 144, 18], [9, 158, 15], [104, 136, 14], [108, 152, 12]] as const) {
+            px(ctx, fx, fy, fw, 1, '#9a937f'); px(ctx, fx, fy + 1, fw - 3, 1, '#dcd4c2');
+        }
+        // shoulder seams
+        px(ctx, 44, 118, 2, 58, '#9a937f'); px(ctx, 96, 122, 2, 54, '#6e6858');
+
+        // ── VEST: charcoal, V-neck, brass buttons, welt pockets ──
+        px(ctx, 44, 116, 54, 60, '#23252e');
+        px(ctx, 44, 116, 5, 60, '#3a3d4d');                  // lit lapel edge
+        dith(49, 116, 4, 60, '#3a3d4d');
+        px(ctx, 92, 118, 6, 58, '#14151b');                  // shadow side
+        dith(88, 118, 4, 58, '#14151b');
+        // V opening (shirt shows through, tie down the middle)
+        for (let i = 0; i < 14; i++) {                       // tapered V
+            const half = 13 - i;
+            px(ctx, 71 - half, 116 + i, half * 2 + 2, 1, '#e8e2d4');
+        }
+        px(ctx, 58, 116, 1, 8, '#b3ac9a'); px(ctx, 85, 116, 1, 8, '#b3ac9a');
+        // vest edge stitching down the V
+        for (let i = 0; i < 14; i++) { px(ctx, 70 - (13 - i) - 1, 116 + i, 1, 1, '#454a5e'); px(ctx, 73 + (13 - i), 116 + i, 1, 1, '#454a5e'); }
+        // buttons (brass, specular dot)
+        for (const by of [136, 150, 164]) {
+            px(ctx, 69, by, 4, 4, '#b8862e'); px(ctx, 69, by, 2, 2, '#e8c050'); px(ctx, 71, by + 2, 2, 2, '#7e5a1d');
+        }
+        // welt pocket
+        px(ctx, 50, 156, 16, 2, '#14151b'); px(ctx, 50, 158, 16, 1, '#3a3d4d');
+        // vest fold shadows
+        px(ctx, 54, 128, 1, 40, '#1b1d24'); px(ctx, 84, 132, 1, 36, '#101116');
+
+        // ── COLLAR + the red TIE ──
+        px(ctx, 54, 102, 14, 12, '#efe9da');                 // collar wing L (lit)
+        px(ctx, 76, 102, 14, 12, '#dcd4c2');                 // collar wing R
+        px(ctx, 54, 112, 14, 2, '#b3ac9a'); px(ctx, 76, 112, 14, 2, '#a39c89');
+        px(ctx, 56, 104, 10, 1, '#fff8e8');                  // collar crease light
+        // knot: trapezoid with sheen
+        px(ctx, 66, 106, 12, 9, '#a3242c'); px(ctx, 66, 106, 12, 2, '#c43a40');
+        px(ctx, 75, 108, 3, 7, '#6e161c'); px(ctx, 67, 107, 3, 2, '#d8555a');
+        // tail down to the vest V, swinging slightly
+        px(ctx, 67, 115, 10, 16, '#a3242c'); px(ctx, 74, 115, 3, 16, '#6e161c');
+        px(ctx, 68, 115, 2, 14, '#c43a40');
+        px(ctx, 68, 131, 8, 4, '#8a1d24'); px(ctx, 70, 135, 4, 2, '#6e161c');   // tip
+        dith(67, 124, 9, 3, '#8a1d24');                      // fabric shimmer
+
+        // ── BADGE (his left chest = viewer right) ──
+        px(ctx, 100, 134, 24, 13, '#e8e2d4'); px(ctx, 100, 134, 24, 2, '#fff8e8');
+        px(ctx, 100, 145, 24, 2, '#9a9176'); px(ctx, 99, 134, 1, 13, '#9a9176');
+        px(ctx, 103, 138, 18, 2, '#6e675c'); px(ctx, 103, 142, 12, 1, '#8f8878');
+        px(ctx, 110, 132, 4, 2, '#b8862e');                  // pin
+
+        // ── NECK (turned 3/4, tendon hint) ──
+        px(ctx, 62, 92, 20, 14, '#c79670');
+        px(ctx, 62, 92, 4, 14, '#e8b88a'); px(ctx, 78, 92, 4, 14, '#a87a58');
+        px(ctx, 70, 94, 1, 10, '#b98a64');                   // tendon
+        px(ctx, 62, 104, 20, 3, '#9a7050');                  // collar cast shadow
+
+        // ── HEAD: 4-tone face ramp, lit from viewer-left ──
+        // skull block
+        px(ctx, 46, 30, 52, 66, '#d9a87e');                  // base
+        px(ctx, 46, 30, 8, 66, '#f2c79a');                   // lit plane
+        dith(54, 34, 5, 60, '#f2c79a');
+        px(ctx, 90, 30, 8, 66, '#8f6749');                   // shadow plane
+        dith(85, 34, 5, 60, '#a87a58');
+        // jaw taper (cut corners → a believable chin)
+        px(ctx, 46, 88, 8, 8, '#0b0708'); px(ctx, 90, 86, 8, 10, '#0b0708');
+        px(ctx, 52, 92, 8, 4, '#0b0708'); px(ctx, 84, 90, 8, 6, '#0b0708');
+        px(ctx, 60, 92, 24, 4, '#c79670');                   // chin mass
+        px(ctx, 60, 94, 24, 2, '#a87a58');
+        // ear (viewer right, shadow side)
+        px(ctx, 94, 56, 6, 12, '#b98a64'); px(ctx, 96, 59, 3, 6, '#8f6749');
+        // brow ridge + tired crease
+        px(ctx, 50, 48, 20, 2, '#3a2a22');                   // good brow
+        px(ctx, 49, 45, 22, 1, '#b98a64');                   // crease above
+        // cheekbone planes
+        dith(52, 64, 10, 6, '#c79670'); dith(80, 64, 10, 7, '#a87a58');
+        px(ctx, 54, 70, 8, 1, '#b98a64'); px(ctx, 82, 71, 8, 1, '#8f6749');     // hollow lines
+        // ── the GOOD eye (viewer left): heavy lid, warm brown iris ──
+        px(ctx, 52, 52, 16, 9, '#f4ecdc');                   // white
+        px(ctx, 52, 52, 16, 3, '#a87a58');                   // lid half down (tired)
+        px(ctx, 52, 51, 16, 1, '#5e463a');                   // lash line
+        px(ctx, 57, 54, 7, 6, '#6e3f22');                    // iris
+        px(ctx, 59, 55, 3, 4, '#1d130c');                    // pupil
+        px(ctx, 57, 54, 2, 2, '#ffd9a8');                    // fire catchlight
+        px(ctx, 63, 58, 1, 1, '#c4936a');                    // iris lower edge
+        px(ctx, 52, 61, 16, 1, '#9a7050');                   // waterline
+        px(ctx, 51, 63, 18, 2, '#b08260'); dith(52, 65, 16, 2, '#b08260');      // the eyebag
+        // ── the LOST eye: bandage wrap with weave + cast shadow ──
+        px(ctx, 74, 50, 26, 13, '#ece3c9');                  // main pad
+        px(ctx, 74, 50, 26, 2, '#f8f2de');
+        for (let y = 53; y < 62; y += 3) px(ctx, 75, y, 24, 1, '#d9cfb2');      // weave lines
+        px(ctx, 74, 62, 26, 2, '#9a9176');                   // under-shadow
+        px(ctx, 74, 64, 24, 2, '#8f6749');                   // cast shadow on cheek
+        // diagonal band up across the forehead
+        for (let i = 0; i < 7; i++) px(ctx, 64 - i * 2, 44 - i, 26, 2, i % 2 ? '#ece3c9' : '#e0d6ba');
+        // wrap around the skull (shadow side)
+        px(ctx, 96, 42, 6, 28, '#d9cfb2'); px(ctx, 96, 42, 1, 28, '#9a9176');
+        // the old stain, dried dark at the socket
+        px(ctx, 82, 54, 8, 6, '#8a3a30'); px(ctx, 85, 56, 4, 3, '#5e1f1a'); dith(81, 53, 10, 8, '#8a3a30');
+        // loose knot tail
+        px(ctx, 100, 66, 5, 10, '#d9cfb2'); px(ctx, 101, 74, 3, 4, '#b3a98c');
+        // ── NOSE: bridge, tip, nostril shadow ──
+        px(ctx, 68, 58, 5, 16, '#c79670'); px(ctx, 68, 58, 2, 16, '#e8b88a');
+        px(ctx, 67, 72, 8, 3, '#b98a64'); px(ctx, 70, 74, 6, 2, '#8f6749');     // tip + base
+        px(ctx, 74, 73, 2, 2, '#6e503c');                    // nostril
+        px(ctx, 73, 70, 2, 4, '#a87a58');                    // side plane
+        // smile line (the years at the desk)
+        px(ctx, 62, 76, 1, 6, '#b98a64'); px(ctx, 80, 77, 1, 5, '#9a7050');
+        // ── MOUTH: calm, tired, kind ──
+        px(ctx, 60, 84, 22, 2, '#7e4a3a');                   // lip line
+        px(ctx, 78, 83, 4, 2, '#8f5a45');                    // soft upturn corner
+        px(ctx, 60, 86, 18, 1, '#c79670'); px(ctx, 62, 87, 14, 1, '#a87a58');   // lower lip + shadow
+        px(ctx, 58, 83, 2, 3, '#9a7050');                    // corner crease
+        // faint stubble (dithered, not an old man's beard)
+        dith(58, 88, 28, 7, '#8a6248'); dith(54, 80, 6, 8, '#8a6248');
+
+        // ── HAIR: dark brown, messy, drawn in directional strands ──
+        const H1 = '#1f1610', H2 = '#33241a', H3 = '#4a3322', H4 = '#6e4c30';
+        px(ctx, 42, 8, 60, 26, H2);                          // mass
+        px(ctx, 38, 16, 10, 30, H2); px(ctx, 96, 14, 10, 26, H1);   // sides
+        // strand clusters (each: dark base, mid, lit tip toward the fire)
+        for (const [sx, sy, sw, sh] of [
+            [44, 4, 12, 10], [56, 2, 14, 9], [70, 1, 13, 10], [84, 4, 12, 9],
+            [40, 12, 10, 8], [94, 10, 10, 9],
+        ] as const) {
+            px(ctx, sx, sy, sw, sh, H2);
+            px(ctx, sx + 1, sy + 1, sw - 4, sh - 3, H3);
+            px(ctx, sx + 1, sy + 1, 3, sh - 4, H4);
+        }
+        // fringe falling over the forehead + brushing the bandage
+        px(ctx, 46, 30, 14, 8, H2); px(ctx, 48, 30, 8, 6, H3);
+        px(ctx, 60, 28, 12, 9, H2); px(ctx, 62, 30, 6, 5, H3);
+        px(ctx, 74, 28, 16, 8, H1); px(ctx, 88, 30, 12, 10, H1);    // shadow-side fringe
+        px(ctx, 92, 36, 8, 8, H1);
+        // flyaway strands (the mess)
+        px(ctx, 52, 1, 2, 4, H2); px(ctx, 66, 0, 2, 3, H2); px(ctx, 80, 1, 2, 4, H1);
+        px(ctx, 38, 10, 2, 6, H2); px(ctx, 104, 12, 2, 6, H1);
+        // fire rim along the lit silhouette
+        px(ctx, 41, 10, 2, 22, '#9a5e32'); px(ctx, 44, 5, 2, 6, '#9a5e32');
+        dith(43, 8, 3, 24, '#7e4a26');
+
+        // ── atmosphere: embers drifting in the warm air ──
+        ctx.globalAlpha = 0.8;
+        for (const [ex, ey, c] of [[10, 30, '#ffb84d'], [6, 70, '#ff9a55'], [16, 104, '#ffd98a'], [22, 50, '#ff9a55'], [12, 140, '#ffd98a'], [30, 20, '#ffb84d']] as const) px(ctx, ex, ey, 1, 1, c);
+        ctx.globalAlpha = 0.4;
+        px(ctx, 11, 31, 1, 1, '#6e3318'); px(ctx, 17, 105, 1, 1, '#6e3318');
         ctx.globalAlpha = 1;
     });
     return (t.image as HTMLCanvasElement).toDataURL();
@@ -1284,13 +1585,17 @@ const EmergencyLamp: React.FC<{ x: number; y: number }> = ({ x, y }) => {
     const mat = useRef<THREE.MeshBasicMaterial>(null!);
     const glow = useRef<THREE.MeshBasicMaterial>(null!);
     const t = useRef(0);
+    const wasOn = useRef(false);
     useFrame((_, dt) => {
         t.current += Math.min(dt, 0.05);
         let f: number;
         if (f4.powerOn) f = 0.25;                          // demoted once the mains hum
         else {
             const cyc = t.current % 3.1;                   // ▪ ▪ ▪ ▬ …pause (same as upstairs)
-            const on = cyc < 0.16 || (cyc >= 0.4 && cyc < 0.56) || (cyc >= 0.8 && cyc < 0.96) || (cyc >= 1.2 && cyc < 1.9);
+            const isLong = cyc >= 1.2 && cyc < 1.9;
+            const on = cyc < 0.16 || (cyc >= 0.4 && cyc < 0.56) || (cyc >= 0.8 && cyc < 0.96) || isLong;
+            if (on && !wasOn.current) playF4LampBuzz(isLong, 0.5);   // quieter down here
+            wasOn.current = on;
             f = on ? 0.9 : 0.06;
         }
         if (mat.current) mat.current.opacity = 0.35 + f * 0.65;

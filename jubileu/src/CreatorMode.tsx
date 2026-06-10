@@ -97,6 +97,18 @@ export const FLOORS: FloorOption[] = [
     ),
   },
   {
+    id: 'floor-5',
+    level: 5,
+    name: 'Andar 5',
+    description: 'O Novo Baseplate — pra onde foram as partes que sobram',
+    color: 'from-sky-400 via-cyan-300 to-sky-400',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5h18M3 16.5l3-9h12l3 9M7.5 16.5V21m9-4.5V21M9 10.5h.01M12 10.5h.01M15 10.5h.01" />
+      </svg>
+    ),
+  },
+  {
     id: 'transition-2-3',
     level: 3,
     name: 'Transição 2 → 3',

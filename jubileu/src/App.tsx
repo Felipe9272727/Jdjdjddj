@@ -48,6 +48,8 @@ import { Floor3Environment } from './Floor3';
 import { Floor4Environment, useFloor4Audio, Pixelate3DRamp } from './Floor4';
 import Floor4Canvas2D from './Floor4Canvas2D';
 import { f4Demo } from './floor4Sfx';
+import { f4 } from './f4Lore';
+import Floor5Environment from './Floor5';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -132,6 +134,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
       {level === 3 && <Floor3Environment hands={floor3Hands} gloves={floor3Gloves} fallActive={floor3FallActive} />}
       {level === 4 && <Floor4Environment />}
+      {level === 5 && <Floor5Environment />}
       {level === 2 && (
         <Suspense fallback={null}>
           <Floor2Environment
@@ -888,10 +891,14 @@ export default function App() {
   // changed every second during a ride — which forced <Player/> to
   // re-render once per tick. Reading the latest values via a ref keeps
   // the function ref stable across renders.
-  const elevatorStateRef = useRef({ elevatorTimer, doorsClosed });
-  elevatorStateRef.current = { elevatorTimer, doorsClosed };
+  const elevatorStateRef = useRef({ elevatorTimer, doorsClosed, currentLevel });
+  elevatorStateRef.current = { elevatorTimer, doorsClosed, currentLevel };
   const handlePlayerEnterElevator = useCallback(() => {
-    const { elevatorTimer: t, doorsClosed: d } = elevatorStateRef.current;
+    const { elevatorTimer: t, doorsClosed: d, currentLevel: lv } = elevatorStateRef.current;
+    // Floor 4 is the 2D overlay — the 3D avatar idles INSIDE the 3D elevator
+    // zone beneath it, so this proximity trigger would re-arm the elevator and
+    // silently yank the player back to the lobby ("volto do nada pro lobby").
+    if (lv === 4) return;
     if (t === null && !d) setElevatorTimer(5);
   }, []);
   const handleInteractionUpdate = useCallback((c: boolean) => { setCanInteractDoor(p => p !== c ? c : p); }, []);
@@ -1078,6 +1085,14 @@ export default function App() {
           setDoorsClosed(false);
           playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
         }
+      } else if (startLevel === 5) {
+        // Andar 5 — O NOVO BASEPLATE: spawn out on the plate by the kiosk.
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
       }
     }
     // ─── CREATOR MODE: end jump ───
@@ -1178,14 +1193,31 @@ export default function App() {
     }, 1400);
   }, [audioCtx, muted, scheduleTimeout]);
 
-  // ── Leave the 2D Floor 4 (walked into its elevator) → ride back to the lobby.
+  // ── Leave the 2D Floor 4 (confirmed at its elevator). Where it goes depends
+  // on the arc: finished ("VOCÊ LEMBROU DO ANDAR 4") → the elevator remembers
+  // the way UP and rides to Floor 5, O NOVO BASEPLATE — where the salvaged
+  // pieces went. Unfinished → straight back down to the lobby.
   const handleFloor4Exit = useCallback(() => {
+    if (f4.finished) {
+      setGameState('outdoor');
+      setNightMode(false);
+      playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+      setDoorsClosed(true);
+      setDoorSoundTrigger(prev => prev + 1);
+      setNextElevatorDestination(5);
+      setZoomLevel(0);
+      setElevatorTimer(20);
+      setTravelPhase('closing');
+      if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+      elevatorHumStopRef.current = createElevatorHum(audioCtx);
+      return;
+    }
     setCurrentLevel(0);
     setGameState('lobby');
     setNightMode(false);
     playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
     setFloorReveal(true);
-  }, []);
+  }, [audioCtx]);
 
   // ── Player SAVED the devil → BETRAYAL: he shoves the player off the ledge.
   // Instead of a full Game Over to the lobby (too punishing for the "nice"

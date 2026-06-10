@@ -258,11 +258,21 @@ const _LEVEL2_BASE = [...ELEV_W, ...ELEV_BLD, ...CAVE_WALLS_L2];
 const _WALLS_LEVEL2_OPEN          = _LEVEL2_BASE;
 const _WALLS_LEVEL2_SEALED        = [..._LEVEL2_BASE, DOOR_SEAL];
 
+// Floors 4/5 — the 3D side is just the elevator on open ground (Floor 4 is the
+// 2D overlay; Floor 5 is O NOVO BASEPLATE). Elevator shell + a far boundary at
+// the plate's edge so nobody walks off the world.
+const BASEPLATE_BND: number[][] = [
+    [-58, -58, -58, 58], [58, -58, 58, 58], [-58, -58, 58, -58], [-58, 58, 58, 58],
+];
+const _WALLS_FLOOR5        = [...ELEV_W, ...ELEV_BLD, ...BASEPLATE_BND];
+const _WALLS_FLOOR5_SEALED = [..._WALLS_FLOOR5, DOOR_SEAL];
+
 /** Pick the right pre-built wall list. No allocation per frame. */
 export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
     if (level === 0) return doorsClosed ? _WALLS_LOBBY_SEALED : _WALLS_LOBBY_OPEN;
     if (level === 2) return doorsClosed ? _WALLS_LEVEL2_SEALED : _WALLS_LEVEL2_OPEN;
     if (level === 3) return doorsClosed ? _WALLS_FLOOR3_SEALED : _WALLS_FLOOR3;
+    if (level >= 4) return doorsClosed ? _WALLS_FLOOR5_SEALED : _WALLS_FLOOR5;
     if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
     return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;
 };

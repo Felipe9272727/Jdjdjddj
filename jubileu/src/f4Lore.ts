@@ -200,36 +200,36 @@ export function f4UseDoor(): 'locked' | 'unlock' | 'enter' {
 
 // ── The first receptionist (the keeper in the breu) ───────────────────────────
 export interface F4Dialog { id: string; q: string; a: string; final?: boolean }
-// O tom dele é o OPOSTO do Zelador: calmo, gentil, cansado. Um homem que ficou
-// quarenta anos fazendo o trabalho mais silencioso do mundo — lembrar.
+// O tom dele é o OPOSTO do Zelador: calmo, gentil, cansado. Falas CURTAS —
+// duas, três frases — cada uma com um espinho dentro.
 export const F4_KEEPER_DIALOG: ReadonlyArray<F4Dialog> = [
     {
         id: 'who', q: 'Quem é você?',
-        a: 'Fui o primeiro recepcionista deste hotel. Quarenta anos atrás eu abri a porta da frente pela primeira vez, de gravata nova, morrendo de medo de errar o nome de alguém. Eu sabia o andar de cada hóspede, o jeito que cada um pedia café. Quando decidiram esquecer este andar… eu não consegui descer com os outros. Alguém precisava ficar e lembrar dele por dentro.',
+        a: 'Fui o primeiro recepcionista deste hotel. Quando decidiram esquecer este andar, alguém precisava ficar pra lembrar dele por dentro. Eu fiquei.',
     },
     {
         id: 'eye', q: 'O que aconteceu com o seu olho?',
-        a: 'O teto do corredor leste, na noite em que levaram o chão. Eu voltei lá pra salvar o livro de hóspedes — bobagem, eu sei. Não doeu do jeito que você imagina. O que dói é o outro lado: o olho que ficou enxerga tudo o que falta. Toda parede que não está mais lá, eu ainda vejo onde ficava.',
+        a: 'O teto, na noite em que levaram o chão. Não doeu como você imagina — o que dói é o olho que ficou: ele enxerga tudo o que falta.',
     },
     {
         id: 'floor', q: 'O que aconteceu com este andar?',
-        a: 'Ninguém derrubou nada, filho. O prédio vive de memória — andar lembrado fica de pé, andar esquecido vai sendo desmontado, devagar. Primeiro tiraram o 4 dos botões do elevador. Depois dos mapas. Depois das conversas. Quando ninguém mais falava dele, os tijolos começaram a se soltar sozinhos. Eu vi acontecer aos poucos. É pior aos poucos.',
+        a: 'O prédio vive de memória. Tiraram o 4 dos botões, dos mapas, das conversas… e o que ninguém lembra se desmonta sozinho. Eu vi acontecer devagar. É pior devagar.',
     },
     {
         id: 'runner', q: 'Quem trancou a porta?',
-        a: 'O Zelador. Não tenha raiva dele. Ele prega as tábuas, tranca as saídas, apaga os riscos — é o trabalho dele: manter o esquecimento em ordem. Eu acho que um dia ele foi alguém daqui, como eu. A diferença é que eu escolhi guardar… e ele escolheu apagar. O sorriso é só o que sobrou do rosto que ele tinha.',
+        a: 'O Zelador. Ele prega, tranca, apaga — faz a manutenção do esquecimento. Um dia ele foi alguém daqui, como eu. O sorriso é só o que sobrou do rosto dele.',
     },
     {
         id: 'guest', q: 'Tinha um esqueleto na recepção…',
-        a: 'O hóspede do quarto 404. Ele chegou no dia exato em que apagaram o quarto dele dos registros. Eu não tive coragem de contar. Então ele tocava o sino, fazia um risco no balcão, e esperava. Todos os dias. Quatro riscos… Hoje você completou o quinto. Você fez por ele o que eu nunca consegui fazer: atendeu até o fim. Obrigado por isso.',
+        a: 'O hóspede do 404. Esperou anos pelo atendimento, riscando o balcão. Hoje você completou o quinto risco — fez por ele o que eu nunca tive coragem. Obrigado.',
     },
     {
         id: 'elevator', q: 'Por que o elevador ainda funciona?',
-        a: 'Porque máquina não esquece — guarda o caminho no ferro, não na cabeça. Os supervisores tiraram o botão do painel, mas o poço continua lá, e ele lembra de cada andar que já serviu. Foi por isso que ele te trouxe. Repara: é a única coisa intacta do andar inteiro. Aqui, ser lembrado é ser cuidado.',
+        a: 'Máquina não esquece — guarda o caminho no ferro, não na cabeça. Repara: é a única coisa intacta do andar. Aqui, ser lembrado é ser cuidado.',
     },
     {
         id: 'leave', q: 'Como eu saio daqui?', final: true,
-        a: 'Por essa porta você só volta pro saguão. Quem desce é o elevador — entra nele, e ele te leva pra casa. Mas antes… leva a última página do meu diário. Eu escrevi pra alguém que eu nem sabia se existia. Era você. Não precisa ler agora. Só não deixa este andar virar silêncio de novo. Lembrar é o único tijolo que eles não conseguem roubar.',
+        a: 'Pela porta você só volta. Quem desce é o elevador. Antes… leva a última página do meu diário. E não deixa este andar virar silêncio de novo.',
     },
 ];
 
@@ -331,6 +331,7 @@ export const F4_POINTS: F4Point[] = [
     { id: 'dark', room: 'basement', x: 7.4, radius: 0.8, kind: 'examine', label: 'OLHAR', text: 'O corredor segue, mas aqui o escuro é dono.' },
 
     // ════ BEYOND ════
+    { id: 'back', room: 'beyond', x: -0.4, radius: 0.9, kind: 'climb', label: 'VOLTAR' },
     { id: 'floorless', room: 'beyond', x: 2.4, radius: 0.9, kind: 'examine', label: 'OLHAR', text: 'O chão aqui desistiu de ser chão.' },
     { id: 'keeper', room: 'beyond', x: 8.7, radius: 1.4, kind: 'keeper', label: 'FALAR' },
 ];

@@ -23,6 +23,7 @@ import Floor4Scene2D from './Floor4Scene2D';
 import { Floor4Player2D } from './Floor4Player2D';
 import { Floor4Interact } from './Floor4Interact';
 import { f4, f4Reset, f4SetOnChange } from './f4Lore';
+import { startF4Music, stopF4Music, startF4Fire, stopF4Fire } from './floor4Sfx';
 
 /** R3F aims the default camera at the origin, so position [0,3,10] arrives with
  *  a subtle DOWNWARD TILT — which, under an orthographic camera, parallax-shears
@@ -89,6 +90,16 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
         return () => f4SetOnChange(null);
     }, []);
 
+    // ambience: the floor's dark music bed for the whole visit…
+    useEffect(() => {
+        startF4Music();
+        return () => { stopF4Music(); stopF4Fire(); };
+    }, []);
+    // …and the campfire crackle only in the breu
+    useEffect(() => {
+        if (f4.room === 'beyond') startF4Fire(); else stopF4Fire();
+    }, [loreV]);
+
     // decaying screen shake (driven by shakeRef — e.g. the knocks from below)
     useEffect(() => {
         const id = setInterval(() => {
@@ -143,6 +154,17 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
                 <Floor4Player2D dirRef={dirRef} lockRef={lockRef} uiLockRef={uiLockRef} playerXRef={playerXRef} jumpRef={jumpRef} />
             </Canvas>
 
+            {/* touch controls FIRST in the stack — the interact layer's panels
+                (especially the full-screen fireside cinematic) paint OVER them */}
+            {/* walk arrows together on the LEFT (where the 3D joystick sits)… */}
+            <div style={{ ...btn, left: 'calc(env(safe-area-inset-left) + 22px)' }}
+                onPointerDown={set(-1)} onPointerUp={clr} onPointerLeave={clr} onPointerCancel={clr}>◄</div>
+            <div style={{ ...btn, left: 'calc(env(safe-area-inset-left) + 112px)' }}
+                onPointerDown={set(1)} onPointerUp={clr} onPointerLeave={clr} onPointerCancel={clr}>►</div>
+            {/* …and JUMP on the RIGHT (where the 3D action button sits) */}
+            <div style={{ ...btn, right: 'calc(env(safe-area-inset-right) + 22px)' }}
+                onPointerDown={(e) => { e.preventDefault(); jumpRef.current = true; }}>▲</div>
+
             {/* lore discovery layer: prompts, diary, puzzles, dialogue, finale */}
             <Floor4Interact playerXRef={playerXRef} uiLockRef={uiLockRef} shakeRef={shakeRef} onExit={onExit} />
 
@@ -162,15 +184,6 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
                 position: 'absolute', inset: 0, background: '#000', pointerEvents: 'none',
                 opacity: flash ? 1 : 0, transition: 'opacity 0.6s ease-out',
             }} />
-
-            {/* walk arrows together on the LEFT (where the 3D joystick sits)… */}
-            <div style={{ ...btn, left: 'calc(env(safe-area-inset-left) + 22px)' }}
-                onPointerDown={set(-1)} onPointerUp={clr} onPointerLeave={clr} onPointerCancel={clr}>◄</div>
-            <div style={{ ...btn, left: 'calc(env(safe-area-inset-left) + 112px)' }}
-                onPointerDown={set(1)} onPointerUp={clr} onPointerLeave={clr} onPointerCancel={clr}>►</div>
-            {/* …and JUMP on the RIGHT (where the 3D action button sits) */}
-            <div style={{ ...btn, right: 'calc(env(safe-area-inset-right) + 22px)' }}
-                onPointerDown={(e) => { e.preventDefault(); jumpRef.current = true; }}>▲</div>
         </div>
     );
 };

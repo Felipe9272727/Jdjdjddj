@@ -30,7 +30,7 @@ import {
     playF4SafeTick, playF4SafeOpen, playF4DoorCreak, playF4Lock,
     playF4MemoryChime,
 } from './floor4Sfx';
-import { lobbyPhotoUrl, keeperPortraitUrl } from './Floor4Scene2D';
+import { lobbyPhotoUrl, keeperSceneUrl } from './Floor4Scene2D';
 
 type Panel =
     | { kind: 'none' }
@@ -80,17 +80,12 @@ export const Floor4Interact: React.FC<{
 
     useEffect(() => { uiLockRef.current = panel.kind !== 'none' || finale || fade || f4.runnerActive; });
 
-    // poll the player position: nearest point, the runner trigger, the way back
+    // poll the player position: nearest point + the runner trigger
     useEffect(() => {
         const id = setInterval(() => {
             const px = playerXRef.current;
             // the Zelador bursts in on the first real steps out of the elevator
             if (f4.room === 'lobby' && !f4.runnerSeen && !f4.runnerActive && px > -4.6) f4TriggerRunner();
-            // beyond: walking back to the left edge returns through the door
-            if (f4.room === 'beyond' && px <= -0.45 && panelRef.current.kind === 'none') {
-                transition(() => f4GoRoom('lobby', 11.5));
-                return;
-            }
             setPrompt(panelRef.current.kind === 'none' && !f4.runnerActive ? f4NearestPoint(px) : null);
         }, 120);
         return () => clearInterval(id);
@@ -143,7 +138,9 @@ export const Floor4Interact: React.FC<{
             if (r === 'enter') transition(() => f4GoRoom('beyond', 0.4));
         }
         if (p.kind === 'descend') transition(() => f4GoRoom('basement', -3.2));
-        if (p.kind === 'climb') transition(() => f4GoRoom('lobby', 6.2));
+        // 'climb' covers both ways back UP: the basement rubble (→ the hole)
+        // and the beyond door (→ in front of the exit door)
+        if (p.kind === 'climb') transition(() => f4GoRoom('lobby', p.id === 'back' ? 11.5 : 6.2));
         if (p.kind === 'keeper') {
             f4MeetKeeper();
             setTalkAnswer(null);
@@ -212,7 +209,7 @@ export const Floor4Interact: React.FC<{
                 f4CollectPage(4);
                 playF4Paper();
                 setPanel({ kind: 'read', title: F4_DIARY[4].title, text: F4_DIARY[4].text, finishPage: 4 });
-            }, 5200);
+            }, 3600);
         }
     };
 
@@ -349,40 +346,49 @@ export const Floor4Interact: React.FC<{
                 </div>
             )}
 
-            {/* THE KEEPER — RPG-style bottom box: he stays visible at the fire,
-                the portrait sits in the box corner, the questions below */}
+            {/* THE KEEPER — full-screen CINEMATIC: the fireside painting fills
+                the screen (him full body + you, no frame), the dialogue floats
+                over the bottom like a visual novel */}
             {panel.kind === 'talk' && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,0.62) 100%)' }}>
-                    <div style={{ ...PIX, display: 'flex', gap: 12, padding: 12, width: 'min(96vw, 660px)', margin: '0 10px calc(env(safe-area-inset-bottom) + 12px)' }}>
-                        <div style={{ flexShrink: 0, alignSelf: 'flex-start' }}>
-                            <img src={keeperPortraitUrl} alt="O primeiro recepcionista" style={{ width: 'min(24vw, 118px)', imageRendering: 'pixelated', border: '3px solid #f4f0e6', borderRadius: 4, display: 'block' }} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                            <div style={{ color: '#FFD54F', fontSize: 10, letterSpacing: 2.5, fontWeight: 700, marginBottom: 5 }}>O PRIMEIRO RECEPCIONISTA</div>
-                            <div style={{ fontSize: 12.5, lineHeight: 1.55, minHeight: 58 }}>
+                <div style={{ position: 'absolute', inset: 0, background: '#000', animation: 'f4TalkIn 0.5s ease-out' }}>
+                    <img src={keeperSceneUrl} alt="A fogueira do primeiro recepcionista"
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', imageRendering: 'pixelated' }} />
+                    {/* thin cinema bar up top */}
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, background: 'linear-gradient(180deg, rgba(0,0,0,0.85), rgba(0,0,0,0))' }} />
+                    {/* dialogue band — pure gradient, no box */}
+                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '70px 0 calc(env(safe-area-inset-bottom) + 12px)', background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(3,2,5,0.92) 52%)' }}>
+                        <div style={{ width: 'min(92vw, 620px)', margin: '0 auto', fontFamily: 'monospace' }}>
+                            <div style={{ color: '#FFD54F', fontSize: 10, letterSpacing: 3, fontWeight: 700, marginBottom: 6, textShadow: '0 2px 0 #000' }}>
+                                O PRIMEIRO RECEPCIONISTA
+                            </div>
+                            <div style={{ color: '#f4f0e6', fontSize: 13.5, lineHeight: 1.6, minHeight: 48, textShadow: '0 2px 0 rgba(0,0,0,0.8)' }}>
                                 {talkAnswer
                                     ? <Type text={talkAnswer} />
-                                    : <Type text={'Senta, filho. Faz muito tempo que ninguém senta aqui comigo. Pergunta o que quiser — lembrar em voz alta também conta.'} />}
+                                    : <Type text={'Senta, filho. Faz tempo que ninguém senta aqui comigo. Pergunta o que quiser.'} />}
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginTop: 10 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 18px', marginTop: 10 }}>
                                 {F4_KEEPER_DIALOG.map((d) => (
                                     <button key={d.id} onClick={() => ask(d.id)}
                                         style={{
-                                            ...PIX, textAlign: 'left', padding: '5px 8px', fontSize: 10.5, cursor: 'pointer',
-                                            border: '2px solid #f4f0e6',
-                                            opacity: f4.asked[d.id] ? 0.45 : 1,
-                                            color: d.final ? '#FFD54F' : '#f4f0e6',
+                                            background: 'none', border: 'none', textAlign: 'left', padding: '3px 0',
+                                            fontFamily: 'monospace', fontSize: 11.5, cursor: 'pointer', letterSpacing: 0.4,
+                                            opacity: f4.asked[d.id] ? 0.42 : 1,
+                                            color: d.final ? '#FFD54F' : '#d8d2c4',
+                                            textShadow: '0 2px 0 rgba(0,0,0,0.8)',
                                             gridColumn: d.final ? '1 / -1' : undefined,
                                         }}>
-                                        {f4.asked[d.id] ? '· ' : '? '}{d.q}
+                                        <span style={{ color: '#FFD54F' }}>▸ </span>{d.q}
                                     </button>
                                 ))}
-                                <button onClick={() => setPanel({ kind: 'none' })} style={{ ...PIX, gridColumn: '1 / -1', padding: '4px 8px', fontSize: 10, cursor: 'pointer', border: '2px solid #f4f0e6', opacity: 0.65 }}>
-                                    SAIR DA CONVERSA
-                                </button>
                             </div>
                         </div>
                     </div>
+                    {/* leave the fire */}
+                    <button onClick={() => setPanel({ kind: 'none' })}
+                        style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 8px)', right: 'calc(env(safe-area-inset-right) + 12px)', background: 'none', border: 'none', color: '#d8d2c4', fontFamily: 'monospace', fontSize: 12, letterSpacing: 1.5, cursor: 'pointer', textShadow: '0 2px 0 #000', opacity: 0.8 }}>
+                        ✕ SAIR
+                    </button>
+                    <style>{'@keyframes f4TalkIn { from { opacity: 0 } to { opacity: 1 } }'}</style>
                 </div>
             )}
 
