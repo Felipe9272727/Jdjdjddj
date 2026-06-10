@@ -1192,75 +1192,91 @@ export const keeperSceneUrl: string = (() => {
         px(ctx, FCX - 6, FCY - 110, 14, 8, '#2a161c'); px(ctx, FCX + 4, FCY - 126, 18, 9, '#2a161c'); px(ctx, FCX - 12, FCY - 140, 16, 8, '#241318');
         ctx.globalAlpha = 1;
 
-        // ════ THE FIRST RECEPTIONIST — full body, seated right of the fire ════
-        // (facing LEFT toward the fire/player; fire light hits his front)
-        const KX = 322, KY = 128;                            // top-left of the figure box
-        // his seat: a slab of the old checkered floor on bricks
-        px(ctx, KX - 10, KY + 74, 64, 9, '#8e8470');
-        for (let i = 0; i < 8; i++) px(ctx, KX - 10 + i * 8, KY + 74, 8, 4, i % 2 ? '#b9ad92' : '#8e8470');
-        px(ctx, KX - 10, KY + 81, 64, 2, '#4a443c');
-        px(ctx, KX - 4, KY + 83, 14, 12, '#3c241e'); px(ctx, KX + 34, KY + 83, 14, 12, '#5d3a30');
-        // ── legs: dark slacks, knees up, ankles crossed toward the fire ──
-        px(ctx, KX + 2, KY + 52, 18, 26, '#1d1f28');         // near thigh (lit side)
-        px(ctx, KX + 2, KY + 52, 4, 26, '#33364a');          // fire light on the crease
-        px(ctx, KX + 18, KY + 56, 16, 22, '#15161d');        // far thigh
-        px(ctx, KX - 6, KY + 70, 14, 26, '#1d1f28');         // near shin, dropping to the ground
-        px(ctx, KX - 6, KY + 70, 3, 26, '#2c2f40');
-        px(ctx, KX + 6, KY + 74, 12, 22, '#15161d');         // far shin
-        px(ctx, KX - 6, KY + 78, 1, 14, '#3a3d52');          // crease line
-        // shoes, worn black leather catching the fire
-        px(ctx, KX - 14, KY + 94, 16, 7, '#16130f'); px(ctx, KX - 14, KY + 94, 16, 2, '#3a3026');
-        px(ctx, KX + 0, KY + 96, 14, 6, '#100e0b'); px(ctx, KX + 0, KY + 96, 14, 1, '#2a221a');
-        // ── torso: white shirt + charcoal vest, leaning forward a little ──
-        px(ctx, KX + 8, KY + 16, 26, 40, '#23252e');         // vest
-        px(ctx, KX + 8, KY + 16, 5, 40, '#3d4156');          // lit lapel
-        dith(KX + 13, KY + 18, 3, 36, '#3d4156');
-        px(ctx, KX + 30, KY + 18, 4, 38, '#13141a');         // back shadow
-        px(ctx, KX + 8, KY + 54, 26, 3, '#13141a');          // hem
-        for (const by of [KY + 30, KY + 40, KY + 50]) px(ctx, KX + 12, by, 2, 2, '#d9a43c');   // brass buttons
-        // shirt: collar + the sleeves rolled to the elbow, forearms on knees
-        px(ctx, KX + 10, KY + 12, 16, 8, '#e8e2d4'); px(ctx, KX + 10, KY + 18, 16, 2, '#b3ac9a');
-        px(ctx, KX + 2, KY + 22, 12, 18, '#d9d2c0');         // near upper-arm sleeve
-        px(ctx, KX + 2, KY + 22, 3, 18, '#f4eede');
-        px(ctx, KX + 0, KY + 38, 10, 4, '#b3ac9a');          // rolled cuff
-        px(ctx, KX - 2, KY + 42, 9, 14, '#cfa178');          // forearm (skin, fire-lit)
-        px(ctx, KX - 2, KY + 42, 3, 14, '#e8b88a');
-        px(ctx, KX - 4, KY + 54, 10, 7, '#cfa178');          // hands clasped over the knees
-        px(ctx, KX - 4, KY + 56, 10, 2, '#a87a58');
-        // the red tie, loosened, swinging free of the vest
-        px(ctx, KX + 14, KY + 18, 7, 5, '#a3242c'); px(ctx, KX + 19, KY + 19, 2, 4, '#6e161c');
-        px(ctx, KX + 12, KY + 23, 6, 16, '#a3242c'); px(ctx, KX + 16, KY + 23, 2, 16, '#6e161c');
-        px(ctx, KX + 12, KY + 39, 5, 4, '#8a1d24');
-        // badge on the vest
-        px(ctx, KX + 24, KY + 26, 9, 6, '#e8e2d4'); px(ctx, KX + 25, KY + 28, 7, 1, '#6e675c'); px(ctx, KX + 25, KY + 30, 5, 1, '#8f8878');
-        // ── head: 3/4 facing the fire ──
-        px(ctx, KX + 10, KY - 8, 20, 22, '#d9a87e');         // face block
-        px(ctx, KX + 10, KY - 8, 5, 22, '#f0c79a');          // fire-lit profile edge
-        px(ctx, KX + 26, KY - 6, 4, 20, '#a87a58');          // back of jaw shadow
-        px(ctx, KX + 12, KY + 10, 14, 4, '#c79670');         // jaw
-        px(ctx, KX + 10, KY - 1, 3, 3, '#c79670');           // nose against the light
-        px(ctx, KX + 9, KY + 2, 2, 2, '#e8b88a');            // nose tip catching fire
-        // the good eye (toward the fire): dark, calm
-        px(ctx, KX + 13, KY - 2, 5, 3, '#f2ead8'); px(ctx, KX + 15, KY - 2, 2, 3, '#3a2417');
-        px(ctx, KX + 13, KY + 2, 5, 1, '#b08260');           // tired line under it
-        // calm mouth
-        px(ctx, KX + 11, KY + 7, 6, 1, '#8a5a48');
-        // bandage: ONE clean bright band across the far eye, around the skull
-        px(ctx, KX + 19, KY - 3, 12, 6, '#f2ead2'); px(ctx, KX + 19, KY - 3, 12, 1, '#fffae8');
-        px(ctx, KX + 19, KY + 2, 12, 1, '#a39c80');
-        px(ctx, KX + 28, KY - 7, 3, 12, '#e0d6ba');
-        px(ctx, KX + 23, KY - 1, 3, 2, '#8a3a30');           // the old stain, small
-        // dark messy hair, strands falling over the wrap
-        px(ctx, KX + 8, KY - 16, 24, 10, '#2e211a');
-        px(ctx, KX + 8, KY - 16, 5, 10, '#57402f');          // lit side
-        px(ctx, KX + 6, KY - 12, 4, 10, '#2e211a'); px(ctx, KX + 30, KY - 12, 4, 9, '#241a14');
-        px(ctx, KX + 12, KY - 19, 6, 4, '#2e211a'); px(ctx, KX + 22, KY - 20, 7, 5, '#241a14');
-        px(ctx, KX + 9, KY - 7, 6, 4, '#33241a'); px(ctx, KX + 24, KY - 8, 8, 5, '#241a14');
-        px(ctx, KX + 7, KY - 14, 2, 8, '#9a5e32');           // fire rim on the hair
-        // fire rim down his whole front silhouette
-        px(ctx, KX + 1, KY + 22, 1, 18, '#c46a3a'); px(ctx, KX - 3, KY + 42, 1, 14, '#c46a3a');
-        px(ctx, KX + 9, KY - 8, 1, 20, '#e8945a');
-
+        // ════ THE FIRST RECEPTIONIST — full body, STANDING by the fire ════
+        // (reference pose: straight, hands behind his back, 1.90m of patience;
+        //  fire on his left → warm rim down his whole front)
+        const KX = 330, KFEET = 236;
+        // cast shadow stretching away from the fire
+        ctx.globalAlpha = 0.4; ctx.fillStyle = '#04030a';
+        ctx.beginPath(); ctx.ellipse(KX + 26, KFEET + 3, 34, 6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        // ── shoes: worn black leather, 3/4 toward the fire ──
+        px(ctx, KX - 2, KFEET - 7, 17, 7, '#14110d'); px(ctx, KX - 2, KFEET - 7, 17, 2, '#332a1e');
+        px(ctx, KX - 4, KFEET - 3, 6, 3, '#1d1812');                    // toe highlight
+        px(ctx, KX + 18, KFEET - 7, 16, 7, '#100d0a'); px(ctx, KX + 18, KFEET - 7, 16, 1, '#272015');
+        // ── slacks: long, pressed, a crease catching the light ──
+        px(ctx, KX + 1, KFEET - 62, 14, 56, '#1b1d26');                 // near leg
+        px(ctx, KX + 1, KFEET - 62, 3, 56, '#363a52');                  // fire-lit crease
+        dith(KX + 4, KFEET - 58, 3, 50, '#262a3c');
+        px(ctx, KX + 19, KFEET - 62, 14, 56, '#13141b');                // far leg
+        px(ctx, KX + 19, KFEET - 62, 2, 56, '#212433');
+        dith(KX + 30, KFEET - 58, 3, 52, '#0d0e13');
+        // knee folds
+        px(ctx, KX + 2, KFEET - 34, 11, 1, '#2c3045'); px(ctx, KX + 20, KFEET - 32, 11, 1, '#1b1d29');
+        px(ctx, KX + 3, KFEET - 20, 9, 1, '#2c3045');
+        // hips
+        px(ctx, KX + 1, KFEET - 70, 32, 10, '#191b24');
+        // ── torso: charcoal VEST over the white shirt, arms behind his back ──
+        px(ctx, KX - 1, KFEET - 118, 36, 50, '#23252e');                // vest body
+        px(ctx, KX - 1, KFEET - 118, 5, 50, '#3d4156');                 // lit lapel column
+        dith(KX + 4, KFEET - 114, 4, 44, '#31344a');
+        px(ctx, KX + 30, KFEET - 116, 5, 48, '#121319');                // shadow side
+        dith(KX + 26, KFEET - 112, 4, 44, '#191b24');
+        px(ctx, KX - 1, KFEET - 70, 36, 2, '#121319');                  // vest hem
+        // vest V opening: shirt + the red tie
+        for (let i = 0; i < 12; i++) {
+            const half = 9 - Math.floor(i * 0.75);
+            px(ctx, KX + 16 - half, KFEET - 118 + i, half * 2 + 2, 1, '#e8e2d4');
+        }
+        px(ctx, KX + 12, KFEET - 119, 10, 4, '#efe9da');                // collar band
+        px(ctx, KX + 8, KFEET - 118, 6, 5, '#f4eede'); px(ctx, KX + 20, KFEET - 118, 6, 5, '#dcd4c2');   // wings
+        px(ctx, KX + 13, KFEET - 115, 8, 5, '#a3242c'); px(ctx, KX + 19, KFEET - 114, 2, 4, '#6e161c'); // knot
+        px(ctx, KX + 14, KFEET - 110, 6, 16, '#a3242c'); px(ctx, KX + 18, KFEET - 110, 2, 16, '#6e161c');
+        px(ctx, KX + 15, KFEET - 94, 5, 3, '#8a1d24');                  // tip, tucked at the vest
+        // brass buttons + the badge he never took off
+        for (const by of [KFEET - 100, KFEET - 90, KFEET - 80]) px(ctx, KX + 15, by, 2, 2, '#d9a43c');
+        px(ctx, KX + 22, KFEET - 104, 10, 6, '#e8e2d4'); px(ctx, KX + 23, KFEET - 102, 8, 1, '#6e675c');
+        px(ctx, KX + 23, KFEET - 100, 6, 1, '#8f8878');
+        // arms: white sleeves hugging the body, hands clasped BEHIND the back
+        px(ctx, KX - 6, KFEET - 114, 7, 30, '#d9d2c0');                 // near sleeve (lit)
+        px(ctx, KX - 6, KFEET - 114, 2, 30, '#f4eede');
+        dith(KX - 4, KFEET - 110, 3, 26, '#e6dfcd');
+        px(ctx, KX - 5, KFEET - 86, 6, 10, '#c4bca8');                  // elbow turning back
+        px(ctx, KX + 33, KFEET - 112, 6, 28, '#a39c89');                // far sleeve (shadow)
+        px(ctx, KX + 33, KFEET - 86, 5, 9, '#8f8876');
+        // ── neck + head: 3/4 toward the fire ──
+        px(ctx, KX + 10, KFEET - 126, 13, 9, '#c79670'); px(ctx, KX + 10, KFEET - 126, 3, 9, '#e8b88a');
+        px(ctx, KX + 10, KFEET - 120, 13, 3, '#9a7050');                // collar shadow
+        px(ctx, KX + 5, KFEET - 150, 24, 26, '#d9a87e');                // face block
+        px(ctx, KX + 5, KFEET - 150, 5, 26, '#f0c79a');                 // lit profile
+        px(ctx, KX + 24, KFEET - 148, 5, 24, '#a87a58');                // shadow side
+        px(ctx, KX + 7, KFEET - 128, 18, 4, '#c79670');                 // jaw
+        px(ctx, KX + 4, KFEET - 141, 3, 5, '#e8b88a');                  // nose toward the light
+        px(ctx, KX + 4, KFEET - 137, 3, 2, '#a87a58');
+        // the good eye + brow (calm, tired)
+        px(ctx, KX + 8, KFEET - 144, 7, 2, '#3a2a22');                  // brow
+        px(ctx, KX + 8, KFEET - 141, 6, 3, '#f2ead8'); px(ctx, KX + 10, KFEET - 141, 3, 3, '#4a2e1a');
+        px(ctx, KX + 8, KFEET - 138, 7, 1, '#b08260');                  // eyebag
+        // mouth: the almost-smile
+        px(ctx, KX + 7, KFEET - 131, 8, 1, '#8a5a48'); px(ctx, KX + 14, KFEET - 132, 2, 1, '#a87a58');
+        // bandage: clean band over the far eye, around the skull
+        px(ctx, KX + 15, KFEET - 144, 14, 6, '#f2ead2'); px(ctx, KX + 15, KFEET - 144, 14, 1, '#fffae8');
+        px(ctx, KX + 15, KFEET - 139, 14, 1, '#a39c80');
+        px(ctx, KX + 26, KFEET - 150, 3, 14, '#e0d6ba');
+        px(ctx, KX + 19, KFEET - 142, 4, 3, '#8a3a30');                 // the old stain
+        // dark messy hair: mass + strands + flyaways
+        px(ctx, KX + 3, KFEET - 160, 28, 12, '#2e211a');
+        px(ctx, KX + 3, KFEET - 160, 5, 12, '#57402f');
+        px(ctx, KX + 1, KFEET - 154, 4, 12, '#2e211a'); px(ctx, KX + 29, KFEET - 153, 4, 10, '#241a14');
+        px(ctx, KX + 7, KFEET - 164, 7, 5, '#2e211a'); px(ctx, KX + 17, KFEET - 165, 8, 6, '#241a14');
+        px(ctx, KX + 26, KFEET - 162, 5, 4, '#241a14');
+        px(ctx, KX + 5, KFEET - 150, 8, 4, '#33241a'); px(ctx, KX + 20, KFEET - 151, 10, 5, '#241a14');  // fringe
+        px(ctx, KX + 12, KFEET - 167, 2, 3, '#2e211a'); px(ctx, KX + 23, KFEET - 168, 2, 4, '#241a14');  // flyaways
+        px(ctx, KX + 2, KFEET - 158, 2, 10, '#9a5e32');                 // fire rim on the hair
+        // the warm rim down his whole lit edge
+        px(ctx, KX - 7, KFEET - 112, 1, 26, '#c46a3a');
+        px(ctx, KX - 2, KFEET - 118, 1, 8, '#e8945a');
+        px(ctx, KX + 0, KFEET - 60, 1, 24, '#7e4626');
         // ════ THE PLAYER — seated left of the fire, back 3/4 to camera ════
         const PXx = 148, PXy = 150;
         // his brick seat

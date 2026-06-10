@@ -22,8 +22,8 @@ import * as THREE from 'three';
 import Floor4Scene2D from './Floor4Scene2D';
 import { Floor4Player2D } from './Floor4Player2D';
 import { Floor4Interact } from './Floor4Interact';
-import { f4, f4Reset, f4SetOnChange } from './f4Lore';
-import { startF4Music, stopF4Music, startF4Fire, stopF4Fire } from './floor4Sfx';
+import { f4, f4Reset, f4SetOnChange, f4GoRoom } from './f4Lore';
+import { f4Demo, startF4Music, stopF4Music, startF4Fire, stopF4Fire } from './floor4Sfx';
 
 /** R3F aims the default camera at the origin, so position [0,3,10] arrives with
  *  a subtle DOWNWARD TILT — which, under an orthographic camera, parallax-shears
@@ -84,9 +84,22 @@ export const Floor4Canvas2D: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
     // lore state: fresh run per visit; scene re-renders on every change
     useEffect(() => {
         f4Reset();
+        // creator jump "Diálogo do Recepcionista": arrive with the whole arc
+        // done, already in the breu beside the fire, dialogue opening itself
+        if (f4Demo.keeper) {
+            f4Demo.keeper = false;
+            f4.runnerSeen = true; f4.powerOn = true; f4.bellSolved = true;
+            f4.skeletonRisen = true; f4.codeTaken = true; f4.safeSolved = true;
+            f4.doorUnlocked = true; f4.pages = [true, true, true, true, false];
+            f4.autoTalk = true;
+            lockRef.current = false;
+            f4GoRoom('beyond', 7.4);
+            playerXRef.current = 7.4;
+        }
         f4SetOnChange(() => setLoreV((v) => v + 1));
+        setLoreV((v) => v + 1);
         // dev-only handle for the e2e bot (precise navigation, state asserts)
-        if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f4dbg = { playerXRef, f4 };
+        if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f4dbg = { playerXRef, f4, go: f4GoRoom };
         return () => f4SetOnChange(null);
     }, []);
 

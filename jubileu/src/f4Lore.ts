@@ -44,6 +44,7 @@ export interface F4State {
     doorUnlocked: boolean;                    // used the key on the exit
     metKeeper: boolean;                       // reached the first receptionist
     asked: Record<string, boolean>;           // keeper questions already asked
+    autoTalk: boolean;                        // creator jump: open the dialogue on arrival
     pages: boolean[];                         // 5 diary pages collected
     finished: boolean;                        // read page 5 → "VOCÊ LEMBROU DO ANDAR 4"
     levers: (0 | 1)[];                        // generator levers (1 = up)
@@ -66,6 +67,7 @@ export const f4: F4State = {
     doorUnlocked: false,
     metKeeper: false,
     asked: {},
+    autoTalk: false,
     pages: [false, false, false, false, false],
     finished: false,
     levers: [1, 0, 1, 0],                     // scrambled start (≠ pattern)
@@ -89,6 +91,7 @@ export function f4Reset(): void {
     f4.skeletonRisen = false; f4.codeTaken = false;
     f4.safeSolved = false; f4.doorUnlocked = false;
     f4.metKeeper = false; f4.asked = {};
+    f4.autoTalk = false;
     f4.pages = [false, false, false, false, false];
     f4.finished = false;
     f4.levers = [1, 0, 1, 0];

@@ -86,6 +86,14 @@ export const Floor4Interact: React.FC<{
             const px = playerXRef.current;
             // the Zelador bursts in on the first real steps out of the elevator
             if (f4.room === 'lobby' && !f4.runnerSeen && !f4.runnerActive && px > -4.6) f4TriggerRunner();
+            // creator jump: open the fireside dialogue on arrival
+            if (f4.autoTalk && f4.room === 'beyond' && panelRef.current.kind === 'none') {
+                f4.autoTalk = false;
+                f4MeetKeeper();
+                setTalkAnswer(null);
+                setPanel({ kind: 'talk' });
+                return;
+            }
             setPrompt(panelRef.current.kind === 'none' && !f4.runnerActive ? f4NearestPoint(px) : null);
         }, 120);
         return () => clearInterval(id);

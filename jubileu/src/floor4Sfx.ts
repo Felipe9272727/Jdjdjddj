@@ -19,19 +19,83 @@
  * spawn. Lives here (pure module, no three/DOM imports) so CreatorMode can set
  * it without pulling the 3D world in.
  */
-export const f4Demo = { ride: false };
+export const f4Demo = { ride: false, keeper: false };
 
 let ctx: AudioContext | null = null;
 let dest: AudioNode | null = null;
 
 /** Point the SFX at the live context + master bus (call on Floor 4 entry). */
 export function configureFloor4Sfx(context: AudioContext | null, destination?: AudioNode | null): void {
+    if (context !== ctx) bufCache.clear();      // decoded buffers belong to the old ctx
     ctx = context;
     dest = destination ?? null;
 }
 export function clearFloor4Sfx(): void { ctx = null; dest = null; }
 
 function out(): AudioNode | null { return dest ?? ctx?.destination ?? null; }
+
+// ── RENDERED AUDIO (scripts/renderF4Audio.mjs → src/assets/*.mp3) ─────────────
+// Real composed/recorded-grade samples — vite inlines them as data URLs (see
+// assetsInlineLimit), so the single-file build carries its own soundtrack.
+import f4ThemeUrl from './assets/floor4-theme.mp3';
+import f4FireUrl from './assets/f4-fire.mp3';
+import f4BuzzShortUrl from './assets/f4-buzz-short.mp3';
+import f4BuzzLongUrl from './assets/f4-buzz-long.mp3';
+import f4BellUrl from './assets/f4-bell.mp3';
+import f4SlamUrl from './assets/f4-slam.mp3';
+import f4BonesUrl from './assets/f4-bones.mp3';
+
+const bufCache = new Map<string, Promise<AudioBuffer>>();
+function getBuf(url: string): Promise<AudioBuffer> | null {
+    if (!ctx) return null;
+    let p = bufCache.get(url);
+    if (!p) {
+        const c = ctx;
+        p = fetch(url).then((r) => r.arrayBuffer()).then((ab) => c.decodeAudioData(ab));
+        bufCache.set(url, p);
+    }
+    return p;
+}
+
+/** Fire-and-forget sample playback through the master bus. */
+function playSample(url: string, gain = 1, rate = 1): void {
+    const p = getBuf(url); if (!p) return;
+    p.then((buf) => {
+        if (!ctx) return; const d = out(); if (!d) return;
+        const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate;
+        const g = ctx.createGain(); g.gain.value = gain;
+        src.connect(g).connect(d); src.start();
+    }).catch(() => { /* decode failed — stay silent */ });
+}
+
+/** Looping sample (music/ambience); returns a fading stop handle. */
+function loopSample(url: string, gain = 1, fadeInS = 2): { stop: () => void } | null {
+    const p = getBuf(url); if (!p) return null;
+    let stopped = false;
+    let live: { src: AudioBufferSourceNode; g: GainNode } | null = null;
+    p.then((buf) => {
+        if (stopped || !ctx) return; const d = out(); if (!d) return;
+        const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+        // skip the encoder padding at the seam
+        src.loopStart = 0.05; src.loopEnd = buf.duration - 0.06;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), ctx.currentTime + fadeInS);
+        src.connect(g).connect(d); src.start();
+        live = { src, g };
+    }).catch(() => { /* decode failed — stay silent */ });
+    return {
+        stop: () => {
+            stopped = true;
+            if (live && ctx) {
+                try {
+                    live.g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.8);
+                    live.src.stop(ctx.currentTime + 1);
+                } catch { /* already stopped */ }
+            }
+        },
+    };
+}
 
 let stepFoot = 0;
 /**
@@ -72,17 +136,9 @@ export function playF4Paper(): void {
     src.connect(hp).connect(g).connect(d); src.start(t);
 }
 
-/** Reception bell ding. */
+/** Reception bell ding (rendered FM bell, slight ring-to-ring variation). */
 export function playF4Bell(): void {
-    if (!ctx) return; const d = out(); if (!d) return;
-    const t = ctx.currentTime;
-    [1400, 2100].forEach((f, i) => {
-        const o = ctx!.createOscillator(); o.type = 'sine'; o.frequency.value = f;
-        const g = ctx!.createGain();
-        g.gain.setValueAtTime(i === 0 ? 0.22 : 0.08, t);
-        g.gain.exponentialRampToValueAtTime(0.0004, t + 0.9);
-        o.connect(g).connect(d!); o.start(t); o.stop(t + 1.0);
-    });
+    playSample(f4BellUrl, 0.55, 0.97 + Math.random() * 0.06);
 }
 
 /** Three slow knocks from BELOW the floor (P2 payoff). */
@@ -178,42 +234,11 @@ export function playF4DoorCreak(): void {
     v.start(t); v.stop(t + 1.25);
 }
 
-/** The Zelador SLAMMING the exit door (runner cinematic). */
-export function playF4Slam(): void {
-    if (!ctx) return; const d = out(); if (!d) return;
-    const t = ctx.currentTime;
-    const o = ctx.createOscillator(); o.type = 'sine';
-    o.frequency.setValueAtTime(110, t);
-    o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.7, t + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0008, t + 0.5);
-    o.connect(g).connect(d); o.start(t); o.stop(t + 0.55);
-    // wood burst on top
-    const len = 0.12, buf = ctx.createBuffer(1, ctx.sampleRate * len, ctx.sampleRate);
-    const ch = buf.getChannelData(0);
-    for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / ch.length, 2);
-    const src = ctx.createBufferSource(); src.buffer = buf;
-    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 480; bp.Q.value = 1.2;
-    const ng = ctx.createGain(); ng.gain.setValueAtTime(0.45, t);
-    src.connect(bp).connect(ng).connect(d); src.start(t);
-}
+/** The Zelador SLAMMING the exit door (rendered: thump + wood burst). */
+export function playF4Slam(): void { playSample(f4SlamUrl, 0.9); }
 
-/** Bone rattle — the guest of 404 assembling himself upright. */
-export function playF4Bones(): void {
-    if (!ctx) return; const d = out(); if (!d) return;
-    const t0 = ctx.currentTime;
-    for (let k = 0; k < 7; k++) {
-        const t = t0 + k * 0.16 + Math.random() * 0.05;
-        const o = ctx.createOscillator(); o.type = 'square';
-        o.frequency.value = 320 + Math.random() * 480;
-        const g = ctx.createGain();
-        g.gain.setValueAtTime(0.09, t);
-        g.gain.exponentialRampToValueAtTime(0.0004, t + 0.05);
-        o.connect(g).connect(d); o.start(t); o.stop(t + 0.06);
-    }
-}
+/** Bone rattle — the guest of 404 assembling himself upright (rendered). */
+export function playF4Bones(): void { playSample(f4BonesUrl, 0.7); }
 
 /** Heavy padlock click (locking AND unlocking the exit). */
 export function playF4Lock(): void {
@@ -228,116 +253,30 @@ export function playF4Lock(): void {
         o.connect(g).connect(d!); o.start(t + dt); o.stop(t + dt + 0.07);
     });
 }
+// ── AMBIENCE: the floor's music + background noises (rendered samples) ───────
 
-// ── AMBIENCE: the floor's music + background noises ───────────────────────────
-
-/** The fluorescent striking: sputter → buzz (longer on the LONG blink), with a
- *  tiny electric crack when it cuts out (the "curto"). DyingLight calls this on
- *  every rising edge of the blink pattern. */
+/** The fluorescent striking: sputter → buzz → the static crack of the curto.
+ *  DyingLight calls this on every rising edge of the blink pattern. */
 export function playF4LampBuzz(longBlink: boolean, gainMul = 1): void {
-    if (!ctx) return; const d = out(); if (!d) return;
-    const t = ctx.currentTime;
-    const dur = longBlink ? 0.62 : 0.13;
-    // mains buzz: 100Hz square + harmonics through a bandpass
-    const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = 100;
-    const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = 200;
-    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 0.8;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.05 * gainMul, t + 0.015);            // strike
-    g.gain.exponentialRampToValueAtTime(0.022 * gainMul, t + 0.05);            // settle
-    g.gain.setValueAtTime(0.022 * gainMul, t + dur - 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);                      // cut
-    o.connect(bp); o2.connect(bp); bp.connect(g).connect(d);
-    o.start(t); o2.start(t); o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
-    // the short: a static crack right as it dies
-    const len = 0.05, buf = ctx.createBuffer(1, ctx.sampleRate * len, ctx.sampleRate);
-    const ch = buf.getChannelData(0);
-    for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / ch.length, 3);
-    const src = ctx.createBufferSource(); src.buffer = buf;
-    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2600;
-    const ng = ctx.createGain(); ng.gain.setValueAtTime(0.09 * gainMul, t + dur);
-    src.connect(hp).connect(ng).connect(d); src.start(t + dur);
+    playSample(longBlink ? f4BuzzLongUrl : f4BuzzShortUrl, 0.5 * gainMul);
 }
 
-/** FLOOR 4 MUSIC — a slow dark-ambient bed: detuned drone + a sparse, sad
- *  music-box melody + a distant sub thump. Built live (no assets), looped via
- *  timers, all routed through out() so it obeys mute/volume. */
-let f4MusicTimers: ReturnType<typeof setInterval>[] = [];
-let f4MusicNodes: { stop: () => void }[] = [];
-const F4_SCALE = [293.66, 349.23, 392.0, 440.0, 523.25, 587.33];   // D minor-ish
-
+/** FLOOR 4 MUSIC — the rendered dark-ambient theme (64s seamless loop in
+ *  D minor: pads, a worn music-box motif, sub drone). */
+let f4Music: { stop: () => void } | null = null;
 export function startF4Music(): void {
-    if (!ctx || f4MusicTimers.length) return; const d = out(); if (!d) return;
-    const c = ctx;
-    // drone: two detuned saws sunk under a dark lowpass, slowly breathing
-    const drone = (freq: number, detune: number) => {
-        const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = freq; o.detune.value = detune;
-        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 190; lp.Q.value = 0.6;
-        const lfo = c.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.06;
-        const lg = c.createGain(); lg.gain.value = 60;
-        lfo.connect(lg).connect(lp.frequency);
-        const g = c.createGain(); g.gain.value = 0.0001;
-        g.gain.exponentialRampToValueAtTime(0.035, c.currentTime + 4);          // fade in
-        o.connect(lp).connect(g).connect(d);
-        o.start(); lfo.start();
-        f4MusicNodes.push({ stop: () => { try { g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 1); o.stop(c.currentTime + 1.2); lfo.stop(c.currentTime + 1.2); } catch { /* already stopped */ } } });
-    };
-    drone(55, 0); drone(55, 9);
-    // sparse melody: a detuned music box remembering a tune
-    const note = () => {
-        const dd = out(); if (!dd) return;
-        const f = F4_SCALE[Math.floor(Math.random() * Math.random() * F4_SCALE.length)];   // biased low
-        const t = c.currentTime;
-        for (const [mult, amp] of [[1, 0.045], [2.01, 0.012], [3.0, 0.005]] as const) {
-            const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = f * mult; o.detune.value = 5;
-            const g = c.createGain();
-            g.gain.setValueAtTime(0.0001, t);
-            g.gain.exponentialRampToValueAtTime(amp, t + 0.02);
-            g.gain.exponentialRampToValueAtTime(0.0004, t + 2.8);
-            o.connect(g).connect(dd); o.start(t); o.stop(t + 3);
-        }
-    };
-    f4MusicTimers.push(setInterval(() => { if (Math.random() < 0.62) note(); }, 3400));
-    // a distant heartbeat under the building
-    f4MusicTimers.push(setInterval(() => {
-        const dd = out(); if (!dd) return;
-        const t = c.currentTime;
-        const o = c.createOscillator(); o.type = 'sine';
-        o.frequency.setValueAtTime(52, t); o.frequency.exponentialRampToValueAtTime(34, t + 0.25);
-        const g = c.createGain();
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.07, t + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0005, t + 0.5);
-        o.connect(g).connect(dd); o.start(t); o.stop(t + 0.55);
-    }, 7300));
+    if (f4Music) return;
+    f4Music = loopSample(f4ThemeUrl, 0.5, 3);
 }
-
-export function stopF4Music(): void {
-    f4MusicTimers.forEach(clearInterval); f4MusicTimers = [];
-    f4MusicNodes.forEach((n) => n.stop()); f4MusicNodes = [];
-}
+export function stopF4Music(): void { f4Music?.stop(); f4Music = null; }
 
 /** Fire crackle loop (the keeper's campfire in the breu). */
-let f4FireTimer: ReturnType<typeof setInterval> | null = null;
+let f4Fire: { stop: () => void } | null = null;
 export function startF4Fire(): void {
-    if (!ctx || f4FireTimer) return;
-    const c = ctx;
-    f4FireTimer = setInterval(() => {
-        const d = out(); if (!d || Math.random() > 0.4) return;
-        const t = c.currentTime;
-        const len = 0.02 + Math.random() * 0.05;
-        const buf = c.createBuffer(1, Math.max(1, Math.floor(c.sampleRate * len)), c.sampleRate);
-        const ch = buf.getChannelData(0);
-        for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / ch.length, 2);
-        const src = c.createBufferSource(); src.buffer = buf;
-        const bp = c.createBiquadFilter(); bp.type = 'bandpass';
-        bp.frequency.value = 900 + Math.random() * 2200; bp.Q.value = 1.6;
-        const g = c.createGain(); g.gain.setValueAtTime(0.025 + Math.random() * 0.045, t);
-        src.connect(bp).connect(g).connect(d); src.start(t);
-    }, 130);
+    if (f4Fire) return;
+    f4Fire = loopSample(f4FireUrl, 0.6, 1.2);
 }
-export function stopF4Fire(): void { if (f4FireTimer) { clearInterval(f4FireTimer); f4FireTimer = null; } }
+export function stopF4Fire(): void { f4Fire?.stop(); f4Fire = null; }
 
 /** Soft memory chime — finishing the arc ("VOCÊ LEMBROU DO ANDAR 4"). */
 export function playF4MemoryChime(): void {
