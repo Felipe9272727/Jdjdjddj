@@ -16,7 +16,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
     f5, f5Reset, f5SetOnChange, f5Bump, makeRacer, type Racer,
-    F5_TALK, F5_WIN_PLAYER, F5_WIN_ROBOT, LANE_PLAYER, LANE_ROBOT, FINISH_Z,
+    F5_TALK, F5_WIN_PLAYER_LINES, F5_WIN_ROBOT_LINES, F5_FAREWELL,
+    LANE_PLAYER, LANE_ROBOT, FINISH_Z,
 } from './f5Race';
 import { Floor5Track } from './Floor5Track';
 import { Floor5Player64 } from './Floor5Player64';
@@ -132,19 +133,19 @@ const CameraRig: React.FC<{
 };
 
 // ── speech bubble with the robot's blip-voice typewriter ─────────────────────
-const TypeText: React.FC<{ text: string; onDone: () => void; fastRef: React.MutableRefObject<boolean> }> =
-    ({ text, onDone, fastRef }) => {
+const TypeText: React.FC<{ text: string; onDone: () => void; fastRef: React.MutableRefObject<boolean>; noBlip?: boolean }> =
+    ({ text, onDone, fastRef, noBlip }) => {
         const [n, setN] = useState(0);
         useEffect(() => { setN(0); }, [text]);
         useEffect(() => {
             if (n >= text.length) { onDone(); return; }
             const id = setTimeout(() => {
                 const step = fastRef.current ? text.length : 1;
-                if (!fastRef.current && n % 3 === 0 && text[n] !== ' ') playF5RobotBlip();
+                if (!fastRef.current && !noBlip && n % 3 === 0 && text[n] !== ' ') playF5RobotBlip();
                 setN((v) => Math.min(text.length, v + step));
             }, fastRef.current ? 0 : 26);
             return () => clearTimeout(id);
-        }, [n, text, onDone, fastRef]);
+        }, [n, text, onDone, fastRef, noBlip]);
         return <>{text.slice(0, n)}</>;
     };
 
@@ -249,15 +250,33 @@ export const Floor5Race3D: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
 
     // dialogue flow
     const phase = f5.phase;
+    const finishLines = f5.winner === 'player' ? F5_WIN_PLAYER_LINES : F5_WIN_ROBOT_LINES;
+    const talkSpeaker: 'robot' | 'player' = phase === 'farewell'
+        ? (F5_FAREWELL[f5.subLine]?.speaker ?? 'robot')
+        : 'robot';
     const talkText = phase === 'talk' ? F5_TALK[f5.talkLine]
-        : phase === 'finish' ? (f5.winner === 'player' ? F5_WIN_PLAYER : F5_WIN_ROBOT) : null;
-    talkingRef.current = talkText !== null && !typed;
+        : phase === 'finish' ? (finishLines[f5.subLine] ?? null)
+        : phase === 'farewell' ? (F5_FAREWELL[f5.subLine]?.text ?? null)
+        : null;
+    talkingRef.current = talkText !== null && !typed && talkSpeaker === 'robot';
     useEffect(() => { setTyped(false); fastRef.current = false; }, [talkText]);
     const advanceTalk = () => {
         if (!typed) { fastRef.current = true; return; }            // first tap: reveal all
         if (phase === 'talk') {
             if (f5.talkLine < F5_TALK.length - 1) { f5.talkLine++; playF5RobotTalk(); f5Bump(); }
             else { f5.phase = 'reveal'; f5Bump(); }
+        } else if (phase === 'finish') {
+            if (f5.subLine < finishLines.length - 1) {
+                f5.subLine++;
+                playF5RobotTalk();
+                f5Bump();
+            }
+        } else if (phase === 'farewell') {
+            if (f5.subLine < F5_FAREWELL.length - 1) {
+                f5.subLine++;
+                if (F5_FAREWELL[f5.subLine]?.speaker === 'robot') playF5RobotTalk();
+                f5Bump();
+            }
         }
     };
     const rematch = () => {
@@ -265,7 +284,7 @@ export const Floor5Race3D: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
         player.current.vx = player.current.vy = player.current.vz = 0; player.current.stun = 0; player.current.facing = 0;
         robot.current.x = LANE_ROBOT; robot.current.y = 0; robot.current.z = -2.2;
         robot.current.vx = robot.current.vy = robot.current.vz = 0; robot.current.stun = 0; robot.current.facing = 0;
-        f5.winner = null; f5.phase = 'countdown'; f5.countT = 0; countShownRef.current = 9;
+        f5.winner = null; f5.phase = 'countdown'; f5.countT = 0; f5.subLine = 0; countShownRef.current = 9;
         lockRef.current = true;
         startF5Music();
         f5Bump();
@@ -284,6 +303,8 @@ export const Floor5Race3D: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     };
     const countN = phase === 'countdown' ? countShownRef.current : null;
     const showPads = phase === 'walk' || phase === 'countdown' || phase === 'race' || phase === 'finish';
+    const isLastFinishLine = phase === 'finish' && f5.subLine === finishLines.length - 1;
+    const isLastFarewellLine = phase === 'farewell' && f5.subLine === F5_FAREWELL.length - 1;
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#7ec0ef', touchAction: 'none' }}>
@@ -324,14 +345,20 @@ export const Floor5Race3D: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                 </>
             )}
 
-            {/* ── speech bubble (talk + podium) ── */}
+            {/* ── speech bubble (talk + podium + farewell) ── */}
             {talkText !== null && (
-                <div onPointerDown={phase === 'talk' ? advanceTalk : undefined}
-                    style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 14px calc(env(safe-area-inset-bottom) + 16px)', cursor: phase === 'talk' ? 'pointer' : 'default' }}>
-                    <div style={{ maxWidth: 660, margin: '0 auto', background: '#fffef2', border: '4px solid #11131a', borderRadius: 16, boxShadow: '0 6px 0 rgba(0,0,0,0.45)', padding: '12px 16px 14px' }}>
-                        <div style={{ ...t64, fontSize: 13, color: '#e8503a', textShadow: 'none', marginBottom: 4 }}>● TROCO-64</div>
+                <div onPointerDown={advanceTalk}
+                    style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 14px calc(env(safe-area-inset-bottom) + 16px)', cursor: 'pointer' }}>
+                    <div style={{
+                        maxWidth: 660, margin: '0 auto', background: '#fffef2',
+                        border: `4px solid ${talkSpeaker === 'player' ? '#3b6fb0' : '#11131a'}`,
+                        borderRadius: 16, boxShadow: '0 6px 0 rgba(0,0,0,0.45)', padding: '12px 16px 14px',
+                    }}>
+                        <div style={{ ...t64, fontSize: 13, color: talkSpeaker === 'player' ? '#3b6fb0' : '#e8503a', textShadow: 'none', marginBottom: 4 }}>
+                            {talkSpeaker === 'player' ? '▶ VOCÊ' : '● TROCO-64'}
+                        </div>
                         <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 17, lineHeight: 1.45, color: '#1c2433', minHeight: 50 }}>
-                            <TypeText text={talkText} onDone={() => setTyped(true)} fastRef={fastRef} />
+                            <TypeText text={talkText} onDone={() => setTyped(true)} fastRef={fastRef} noBlip={talkSpeaker === 'player'} />
                         </div>
                         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10, flexWrap: 'wrap' }}>
                             {phase === 'talk' && typed && f5.talkLine < F5_TALK.length - 1 && (
@@ -341,11 +368,24 @@ export const Floor5Race3D: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
                                 <button style={{ ...btn64, background: 'linear-gradient(180deg,#58b84d,#3f9638)' }}
                                     onPointerDown={(e) => { e.stopPropagation(); advanceTalk(); }}>BORA CORRER! 🏁</button>
                             )}
-                            {phase === 'finish' && typed && (
+                            {phase === 'finish' && typed && !isLastFinishLine && (
+                                <button style={btn64} onPointerDown={(e) => { e.stopPropagation(); advanceTalk(); }}>▶</button>
+                            )}
+                            {phase === 'finish' && typed && isLastFinishLine && (
                                 <>
-                                    <button style={{ ...btn64, background: 'linear-gradient(180deg,#e8503a,#b03426)' }} onPointerDown={rematch}>REVANCHE!</button>
-                                    <button style={btn64} onPointerDown={() => onExit?.()}>ELEVADOR ⬆</button>
+                                    <button style={{ ...btn64, background: 'linear-gradient(180deg,#e8503a,#b03426)' }} onPointerDown={(e) => { e.stopPropagation(); rematch(); }}>REVANCHE!</button>
+                                    <button style={btn64} onPointerDown={(e) => {
+                                        e.stopPropagation();
+                                        f5.phase = 'farewell'; f5.subLine = 0; playF5RobotTalk(); f5Bump();
+                                    }}>ELEVADOR ⬆</button>
                                 </>
+                            )}
+                            {phase === 'farewell' && typed && !isLastFarewellLine && (
+                                <button style={btn64} onPointerDown={(e) => { e.stopPropagation(); advanceTalk(); }}>▶</button>
+                            )}
+                            {phase === 'farewell' && typed && isLastFarewellLine && (
+                                <button style={{ ...btn64, background: 'linear-gradient(180deg,#555,#333)', color: '#aaa' }}
+                                    onPointerDown={(e) => { e.stopPropagation(); onExit?.(); }}>PARTIR...</button>
                             )}
                         </div>
                     </div>

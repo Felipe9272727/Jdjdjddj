@@ -18,7 +18,8 @@ export type F5Phase =
     | 'walk'        // free roam to the start line
     | 'countdown'   // 3·2·1·JÁ
     | 'race'        // green light
-    | 'finish';     // someone crossed — podium talk, rematch/leave
+    | 'finish'      // someone crossed — podium talk, lore reveal, rematch/leave
+    | 'farewell';   // player chose the elevator; robot says goodbye and shuts down
 
 export interface F5State {
     phase: F5Phase;
@@ -27,13 +28,14 @@ export interface F5State {
     countT: number;                   // seconds into the countdown
     winner: 'player' | 'robot' | null;
     wins: { player: number; robot: number };
-    talkLine: number;                 // current speech-bubble index
+    talkLine: number;                 // current speech-bubble index (intro talk phase)
+    subLine: number;                  // current line within finish / farewell sequences
     version: number;                  // bump → React re-render
 }
 
 export const f5: F5State = {
     phase: 'intro', clock: 0, raceT: 0, countT: 0,
-    winner: null, wins: { player: 0, robot: 0 }, talkLine: 0, version: 0,
+    winner: null, wins: { player: 0, robot: 0 }, talkLine: 0, subLine: 0, version: 0,
 };
 
 let onChange: (() => void) | null = null;
@@ -42,19 +44,35 @@ export function f5Bump(): void { f5.version++; onChange?.(); }
 
 export function f5Reset(): void {
     f5.phase = 'intro'; f5.clock = 0; f5.raceT = 0; f5.countT = 0;
-    f5.winner = null; f5.wins = { player: 0, robot: 0 }; f5.talkLine = 0;
+    f5.winner = null; f5.wins = { player: 0, robot: 0 }; f5.talkLine = 0; f5.subLine = 0;
     f5Bump();
 }
 
-// ── The robot's script (talk-phase bubbles + podium lines) ───────────────────
+// ── The robot's script (talk-phase bubbles + podium lines + lore + farewell) ──
 export const F5_TALK: ReadonlyArray<string> = [
     'BIP-BUP! UM HÓSPEDE!! Faz 412 dias, 7 horas e 3 minutos que ninguém aperta o botão deste andar!',
     'Eu sou o TROCO-64, robô de recreação oficial do hotel! Minha única função registrada: CORRIDA!',
     'Duas pistas, dois corredores! Você na pista AZUL, eu na VERMELHA! O primeiro a cruzar a linha VENCE!',
     'Cuidado com os obstáculos… eu mesmo instalei cada um. BIP! Vá até a LARGADA quando estiver pronto!',
 ];
-export const F5_WIN_PLAYER = 'PROCESSANDO RESULTADO… VOCÊ VENCEU!! Recalibrando meu orgulho… BIP. Foi a melhor corrida em 412 dias!';
-export const F5_WIN_ROBOT = 'VITÓRIA DO TROCO-64! Hehehe… BIP! Não fique triste, hóspede — até meus erros são programados. REVANCHE?';
+
+// two-line podium sequence: [resultado, lore_reveal]
+export const F5_WIN_PLAYER_LINES: ReadonlyArray<string> = [
+    'PROCESSANDO RESULTADO… VOCÊ VENCEU!! Recalibrando meu orgulho… BIP. Foi a melhor corrida em 412 dias!',
+    '...protocolo de transparência desbloqueado. BIP. Você é o primeiro a me vencer em 412 dias. Este hotel tem sete andares. Cada um guarda algo diferente. Eu só sei do meu. Mas você... vai descobrir tudo.',
+];
+export const F5_WIN_ROBOT_LINES: ReadonlyArray<string> = [
+    'VITÓRIA DO TROCO-64! Hehehe… BIP! Não fique triste, hóspede — até meus erros são programados. REVANCHE?',
+    '[BIP-GLITCH]... memória de longo prazo acessada SEM AUTORIZAÇÃO. Eu me lembro quando havia hóspedes em TODOS os andares. Isso foi há muito tempo. [beep] ...não deveria ter dito isso.',
+];
+
+export interface F5DialogueLine { speaker: 'robot' | 'player'; text: string; }
+export const F5_FAREWELL: ReadonlyArray<F5DialogueLine> = [
+    { speaker: 'robot', text: 'Você... está indo embora? BIP. Mas você acabou de chegar. Faz 412 dias, 8 horas e 27 minutos desde a última partida.' },
+    { speaker: 'robot', text: 'Eu posso reprogramar TUDO! Obstáculos mais fáceis, mais difíceis, com confete! BIP-BOP. Só... não vá ainda.' },
+    { speaker: 'player', text: 'Obrigado, TROCO-64. Foi a melhor corrida que já fiz. Mas preciso continuar minha jornada pelo hotel.' },
+    { speaker: 'robot', text: '...Entendido. Protocolo de espera ativado. Que a próxima visita seja... [LED FADE] ...em breve. Até logo, hóspede. [CLIQUE]' },
+];
 
 // ── Track layout (z runs forward; lanes mirrored about x=0) ──────────────────
 export const LANE_PLAYER = -5.5;

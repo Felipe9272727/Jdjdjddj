@@ -19,6 +19,7 @@ import * as THREE from 'three';
 import {
     f5, stepRacer, makeRacer, groundHeightAt, ballsAt, hazardHit,
     type Racer, LANE_ROBOT, GAP, BALLS, SPINNERS, PUSHERS, PUSHER, HAMMER, STEPS, FINISH_Z,
+    F5_FAREWELL,
 } from './f5Race';
 import { mat64, BlobShadow } from './Floor5Player64';
 import { playF5Bonk, playF5Jump } from './floor5RaceSfx';
@@ -51,7 +52,7 @@ export const Floor5Robot64: React.FC<{
         legL: null, legR: null, shadow: null, bulb: null, eyeL: null, eyeR: null, leds: [],
     });
     // AI scratchpad
-    const ai = useRef({ revealT: 0, mistakeRolledAtZ: -999, blindUntilZ: -999, entered: false, waitT: 0, lastZ: -999, stallT: 0 });
+    const ai = useRef({ revealT: 0, mistakeRolledAtZ: -999, blindUntilZ: -999, entered: false, waitT: 0, lastZ: -999, stallT: 0, sadT: 0 });
 
     const mats = useMemo(() => ({
         chrome: mat64('#9aa3ad'), chromeDk: mat64('#6a7480'), panel: mat64('#4a525c'),
@@ -214,6 +215,11 @@ export const Floor5Robot64: React.FC<{
             r.facing = Math.atan2(px.x - r.x, px.z - r.z);
             if (f5.winner === 'robot') r.y = Math.abs(Math.sin(t * 7)) * 0.45;
             else r.y = 0;
+        } else if (phase === 'farewell') {
+            // player is leaving — robot stands still, facing the elevator, slowly powering down
+            r.vx = 0; r.vz = 0; r.y = 0;
+            r.facing = Math.PI;
+            ai.current.sadT += dt;
         }
 
         // ── pose the model ──
@@ -234,7 +240,10 @@ export const Floor5Robot64: React.FC<{
         const run = Math.min(1, speed / 7);
         const ph = r.runPhase * 1.25;                              // scrappy little legs
         const rot = (gr: THREE.Group | null, rx: number) => { if (gr) gr.rotation.x = rx; };
-        const talking = talkingRef.current && (phase === 'talk' || phase === 'finish');
+        const talking = talkingRef.current && (phase === 'talk' || phase === 'finish' ||
+            (phase === 'farewell' && F5_FAREWELL[f5.subLine]?.speaker === 'robot'));
+        // sadness factor: 0 = normal, 1 = fully shut down (used during farewell)
+        const sadness = phase === 'farewell' ? Math.min(1, ai.current.sadT / 7) : 0;
         if (!r.onGround && phase === 'race') {
             rot(refs.legL, -0.9); rot(refs.legR, -0.5);
             rot(refs.armL, -2.4); rot(refs.armR, -2.4);
@@ -244,38 +253,53 @@ export const Floor5Robot64: React.FC<{
             if (body) body.rotation.x = run * 0.16;
         } else if (talking) {
             // full-body pitch: alternating arm waves, head bobs and tilts
-            rot(refs.armL, -0.6 + Math.sin(t * 7) * 0.55);
-            rot(refs.armR, -0.6 + Math.sin(t * 7 + Math.PI) * 0.55);
+            const energy = 1 - sadness * 0.7;                      // sad = less energetic
+            rot(refs.armL, -0.6 + Math.sin(t * 7) * 0.55 * energy);
+            rot(refs.armR, -0.6 + Math.sin(t * 7 + Math.PI) * 0.55 * energy);
             if (refs.armL) refs.armL.rotation.z = 0.5 + Math.sin(t * 3.4) * 0.25;
             if (refs.armR) refs.armR.rotation.z = -0.5 - Math.sin(t * 3.1) * 0.25;
             if (refs.head) {
-                refs.head.position.y = 1.62 + Math.abs(Math.sin(t * 6.6)) * 0.06;
+                refs.head.position.y = 1.62 + Math.abs(Math.sin(t * 6.6)) * 0.06 * energy - sadness * 0.12;
                 refs.head.rotation.z = Math.sin(t * 2.2) * 0.10;
+                refs.head.rotation.x = sadness * 0.35;             // droops forward as sadness grows
             }
             if (body) body.rotation.x = Math.sin(t * 6.6) * 0.03;
+            rot(refs.legL, 0); rot(refs.legR, 0);
+        } else if (phase === 'farewell') {
+            // sad idle: arms hanging, head drooped
+            rot(refs.armL, 0.4 + sadness * 0.3); rot(refs.armR, 0.4 + sadness * 0.3);
+            if (refs.armL) refs.armL.rotation.z = 0.08;
+            if (refs.armR) refs.armR.rotation.z = -0.08;
+            if (refs.head) {
+                refs.head.position.y = 1.62 - sadness * 0.14;
+                refs.head.rotation.x = sadness * 0.45;
+                refs.head.rotation.z = 0;
+            }
+            if (body) body.rotation.x = sadness * 0.08;
             rot(refs.legL, 0); rot(refs.legR, 0);
         } else {
             rot(refs.legL, 0); rot(refs.legR, 0);
             rot(refs.armL, Math.sin(t * 1.8) * 0.08); rot(refs.armR, -Math.sin(t * 1.8) * 0.08);
             if (refs.armL) refs.armL.rotation.z = 0.12;
             if (refs.armR) refs.armR.rotation.z = -0.12;
-            if (refs.head) { refs.head.position.y = 1.62 + Math.sin(t * 2.6) * 0.02; refs.head.rotation.z = 0; }
+            if (refs.head) { refs.head.position.y = 1.62 + Math.sin(t * 2.6) * 0.02; refs.head.rotation.z = 0; refs.head.rotation.x = 0; }
             if (body) body.rotation.x = 0;
         }
 
         // ── the LIGHTS (his whole personality) ──
+        const alive = 1 - sadness;                                  // fades to 0 on shutdown
         const bulb = refs.bulb;
-        if (bulb) bulb.emissiveIntensity = talking ? 1.6 + Math.sin(t * 14) * 1.2 : (phase === 'race' ? 2.2 : 0.7 + Math.sin(t * 2.2) * 0.3);
+        if (bulb) bulb.emissiveIntensity = (talking ? 1.6 + Math.sin(t * 14) * 1.2 : (phase === 'race' ? 2.2 : 0.7 + Math.sin(t * 2.2) * 0.3)) * alive;
         const blink = Math.sin(t * 0.9) > 0.97;                    // a slow robot blink
         const eyeScale = talking ? 1 + Math.sin(t * 16) * 0.25 : 1;
-        for (const e of [refs.eyeL, refs.eyeR]) if (e) e.emissiveIntensity = blink ? 0.1 : eyeScale;
+        for (const e of [refs.eyeL, refs.eyeR]) if (e) e.emissiveIntensity = (blink ? 0.1 : eyeScale) * alive;
         refs.leds.forEach((led, i) => {
             const chase = talking
                 ? (Math.floor(t * 8) % 3 === i ? 1.8 : 0.1)        // chasing while he talks
                 : phase === 'race'
                     ? (Math.floor(t * 12) % 3 === i ? 1.6 : 0.2)   // strobing at speed
                     : (Math.sin(t * 2 + i * 1.1) > 0.4 ? 0.9 : 0.12);
-            led.emissiveIntensity = chase;
+            led.emissiveIntensity = chase * alive;
         });
         // shadow
         if (refs.shadow) {
