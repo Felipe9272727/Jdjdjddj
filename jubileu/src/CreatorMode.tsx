@@ -113,8 +113,22 @@ export const FLOORS: FloorOption[] = [
   {
     id: 'floor-5',
     level: 5,
-    name: 'Andar 5',
-    description: 'O Novo Baseplate — pra onde foram as partes que sobram',
+    name: 'A Corrida (N64)',
+    description: 'Corrida estilo Mario 64 contra o robô TROCO-64 — duas pistas',
+    color: 'from-lime-400 via-emerald-400 to-teal-400',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h2.25L7.5 19.5h9l2.25-15H21M7.5 8.25h13.1M6.75 12.75h13.1" />
+        <circle cx="9" cy="21" r="1" /><circle cx="16.5" cy="21" r="1" />
+      </svg>
+    ),
+  },
+  {
+    id: 'floor-6-template',
+    level: 6,
+    name: 'Template (ainda não existe)',
+    label: 'Andar 6',
+    description: 'O Novo Baseplate — molde do próximo andar',
     color: 'from-sky-400 via-cyan-300 to-sky-400',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

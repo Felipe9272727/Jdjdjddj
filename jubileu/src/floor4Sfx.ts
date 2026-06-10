@@ -116,6 +116,21 @@ function loopSample(url: string, gain = 1, fadeInS = 2): { stop: () => void } | 
     };
 }
 
+/** loopSample that RETRIES until the AudioContext exists. The 2D canvas can
+ *  mount before App's effect configures the context (creator jumps) — without
+ *  this the whole floor went silent (Felipe: "está sem música de fundo"). */
+function persistentLoop(url: string, gain: number, fadeInS: number): { stop: () => void } {
+    let stopped = false;
+    let inner: { stop: () => void } | null = null;
+    const attempt = () => {
+        if (stopped) return;
+        inner = loopSample(url, gain, fadeInS);
+        if (!inner) setTimeout(attempt, 350);
+    };
+    attempt();
+    return { stop: () => { stopped = true; inner?.stop(); } };
+}
+
 let stepFoot = 0;
 /**
  * Generic neutral footstep — a soft filtered thump, pitch-jittered and
@@ -255,7 +270,7 @@ export function playF4Lock(): void {
 let f4Hum: { stop: () => void } | null = null;
 export function startF4Hum(): void {
     if (f4Hum) return;
-    f4Hum = loopSample(f4HumUrl, 0.12, 1.5);
+    f4Hum = persistentLoop(f4HumUrl, 0.12, 1.5);
 }
 export function stopF4Hum(): void { f4Hum?.stop(); f4Hum = null; }
 
@@ -273,7 +288,7 @@ export function playF4Strike(gainMul = 1): void {
 let f4Music: { stop: () => void } | null = null;
 export function startF4Music(): void {
     if (f4Music) return;
-    f4Music = loopSample(f4ThemeUrl, 0.55, 3);
+    f4Music = persistentLoop(f4ThemeUrl, 0.55, 3);
 }
 export function stopF4Music(): void { f4Music?.stop(); f4Music = null; }
 
@@ -281,7 +296,7 @@ export function stopF4Music(): void { f4Music?.stop(); f4Music = null; }
 let f4Fire: { stop: () => void } | null = null;
 export function startF4Fire(): void {
     if (f4Fire) return;
-    f4Fire = loopSample(f4FireUrl, 0.55, 1.2);
+    f4Fire = persistentLoop(f4FireUrl, 0.55, 1.2);
 }
 export function stopF4Fire(): void { f4Fire?.stop(); f4Fire = null; }
 

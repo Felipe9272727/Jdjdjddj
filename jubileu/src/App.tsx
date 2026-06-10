@@ -50,6 +50,8 @@ import Floor4Canvas2D from './Floor4Canvas2D';
 import { f4Demo } from './floor4Sfx';
 import { f4 } from './f4Lore';
 import Floor5Environment from './Floor5';
+import Floor5Race3D from './Floor5Race3D';
+import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -134,7 +136,9 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
       {level === 3 && <Floor3Environment hands={floor3Hands} gloves={floor3Gloves} fallActive={floor3FallActive} />}
       {level === 4 && <Floor4Environment />}
-      {level === 5 && <Floor5Environment />}
+      {/* the old baseplate is the FLOOR 6 TEMPLATE now (Felipe: "o floor 6
+          ainda não existe, é o template") — reachable via Creator Mode only */}
+      {level === 6 && <Floor5Environment />}
       {level === 2 && (
         <Suspense fallback={null}>
           <Floor2Environment
@@ -803,9 +807,15 @@ export default function App() {
 
   // ── Floor 4 audio lifecycle lives in the Floor4 module (self-contained app).
   useFloor4Audio(currentLevel === 4, audioCtx, cartoonBusRef);
-  // Floor 4 is the 2D side-scroller: lock the 3D camera to first person under the
-  // overlay (no third-person) — the transition begins in FP and stays there.
-  useEffect(() => { if (currentLevel === 4) setZoomLevel(0); }, [currentLevel]);
+  // Floors 4/5 are overlays: lock the 3D camera to first person beneath them —
+  // both transitions begin in FP (Floor 5 then pulls out to its own 3rd person).
+  useEffect(() => { if (currentLevel === 4 || currentLevel === 5) setZoomLevel(0); }, [currentLevel]);
+  // ── Floor 5 audio: point the race SFX at the master bus while up there.
+  useEffect(() => {
+    if (currentLevel !== 5 || !audioCtx) return;
+    configureFloor5RaceSfx(audioCtx, cartoonBusRef.current);
+    return () => clearFloor5RaceSfx();
+  }, [currentLevel, audioCtx]);
 
   useEffect(() => {
       if (gameState !== 'chase') return;
@@ -895,10 +905,10 @@ export default function App() {
   elevatorStateRef.current = { elevatorTimer, doorsClosed, currentLevel };
   const handlePlayerEnterElevator = useCallback(() => {
     const { elevatorTimer: t, doorsClosed: d, currentLevel: lv } = elevatorStateRef.current;
-    // Floor 4 is the 2D overlay — the 3D avatar idles INSIDE the 3D elevator
-    // zone beneath it, so this proximity trigger would re-arm the elevator and
-    // silently yank the player back to the lobby ("volto do nada pro lobby").
-    if (lv === 4) return;
+    // Floors 4 and 5 are full-screen overlays — the 3D avatar idles INSIDE the
+    // 3D elevator zone beneath them, so this proximity trigger would re-arm the
+    // elevator and silently yank the player back ("volto do nada pro lobby").
+    if (lv === 4 || lv === 5) return;
     if (t === null && !d) setElevatorTimer(5);
   }, []);
   const handleInteractionUpdate = useCallback((c: boolean) => { setCanInteractDoor(p => p !== c ? c : p); }, []);
@@ -1086,7 +1096,17 @@ export default function App() {
           playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
         }
       } else if (startLevel === 5) {
-        // Andar 5 — O NOVO BASEPLATE: spawn out on the plate by the kiosk.
+        // Andar 5 — A CORRIDA: doors open → the N64 overlay mounts with its
+        // own 1st→3rd-person intro (ding, TROCO-64, the pitch).
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        setZoomLevel(0);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
+      } else if (startLevel === 6) {
+        // Andar 6 — ainda não existe: o template (o velho baseplate).
         setGameState('outdoor');
         setNightMode(false);
         setHouseDoorOpen(false);
@@ -1195,8 +1215,8 @@ export default function App() {
 
   // ── Leave the 2D Floor 4 (confirmed at its elevator). Where it goes depends
   // on the arc: finished ("VOCÊ LEMBROU DO ANDAR 4") → the elevator remembers
-  // the way UP and rides to Floor 5, O NOVO BASEPLATE — where the salvaged
-  // pieces went. Unfinished → straight back down to the lobby.
+  // the way UP and rides to Floor 5 — A CORRIDA, where TROCO-64 has been
+  // waiting 412 days. Unfinished → straight back down to the lobby.
   const handleFloor4Exit = useCallback(() => {
     if (f4.finished) {
       setGameState('outdoor');
@@ -1218,6 +1238,15 @@ export default function App() {
     playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
     setFloorReveal(true);
   }, [audioCtx]);
+
+  // ── Leave Floor 5 (the podium's ELEVADOR button): straight back to the lobby.
+  const handleFloor5RaceExit = useCallback(() => {
+    setCurrentLevel(0);
+    setGameState('lobby');
+    setNightMode(false);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
+    setFloorReveal(true);
+  }, []);
 
   // ── Player SAVED the devil → BETRAYAL: he shoves the player off the ledge.
   // Instead of a full Game Over to the lobby (too punishing for the "nice"
@@ -2093,6 +2122,7 @@ export default function App() {
           the full 20s inside the 3D elevator (the 3D side pixelates from T-10s),
           then arrives inside the 2D elevator, whose doors slide open. */}
       {currentLevel === 4 && !doorsClosed && <Floor4Canvas2D onExit={handleFloor4Exit} />}
+      {currentLevel === 5 && !doorsClosed && <Floor5Race3D onExit={handleFloor5RaceExit} />}
 
       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}
       {fallGameOver && (
