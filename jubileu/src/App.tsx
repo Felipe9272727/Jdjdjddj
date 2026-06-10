@@ -1213,40 +1213,39 @@ export default function App() {
     }, 1400);
   }, [audioCtx, muted, scheduleTimeout]);
 
-  // ── Leave the 2D Floor 4 (confirmed at its elevator). Where it goes depends
-  // on the arc: finished ("VOCÊ LEMBROU DO ANDAR 4") → the elevator remembers
-  // the way UP and rides to Floor 5 — A CORRIDA, where TROCO-64 has been
-  // waiting 412 days. Unfinished → straight back down to the lobby.
+  // ── Leave the 2D Floor 4 (confirmed at its elevator). The hotel only goes
+  // UP from here (Felipe: "pós o floor 4 não é pro player descer"): the
+  // elevator always rides to Floor 5 — A CORRIDA, where TROCO-64 has been
+  // waiting 412 days.
   const handleFloor4Exit = useCallback(() => {
-    if (f4.finished) {
-      setGameState('outdoor');
-      setNightMode(false);
-      playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
-      setDoorsClosed(true);
-      setDoorSoundTrigger(prev => prev + 1);
-      setNextElevatorDestination(5);
-      setZoomLevel(0);
-      setElevatorTimer(20);
-      setTravelPhase('closing');
-      if (elevatorHumStopRef.current) elevatorHumStopRef.current();
-      elevatorHumStopRef.current = createElevatorHum(audioCtx);
-      return;
-    }
-    setCurrentLevel(0);
-    setGameState('lobby');
+    setGameState('outdoor');
     setNightMode(false);
-    playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
-    setFloorReveal(true);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    setNextElevatorDestination(5);
+    setZoomLevel(0);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
   }, [audioCtx]);
 
-  // ── Leave Floor 5 (the podium's ELEVADOR button): straight back to the lobby.
+  // ── Leave Floor 5 (the podium's ELEVADOR button): still going UP — the
+  // ride continues to Floor 6, the fresh baseplate waiting to become a floor.
   const handleFloor5RaceExit = useCallback(() => {
-    setCurrentLevel(0);
-    setGameState('lobby');
+    setGameState('outdoor');
     setNightMode(false);
-    playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
-    setFloorReveal(true);
-  }, []);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    setNextElevatorDestination(6);
+    setZoomLevel(0);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
 
   // ── Player SAVED the devil → BETRAYAL: he shoves the player off the ledge.
   // Instead of a full Game Over to the lobby (too punishing for the "nice"
