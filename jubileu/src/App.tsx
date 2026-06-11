@@ -52,6 +52,10 @@ import { f4 } from './f4Lore';
 import Floor5Environment from './Floor5';
 import Floor5Race3D from './Floor5Race3D';
 import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
+import Floor6Suite from './Floor6Suite';
+import Floor6Overlay from './Floor6Overlay';
+import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
+import { f6Reset } from './f6Escape';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -136,9 +140,10 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
       {level === 3 && <Floor3Environment hands={floor3Hands} gloves={floor3Gloves} fallActive={floor3FallActive} />}
       {level === 4 && <Floor4Environment />}
-      {/* the old baseplate is the FLOOR 6 TEMPLATE now (Felipe: "o floor 6
-          ainda não existe, é o template") — reachable via Creator Mode only */}
-      {level === 6 && <Floor5Environment />}
+      {/* Floor 6 — a Suíte 612: "O Hóspede que Sabia Demais" (escape room) */}
+      {level === 6 && <Floor6Suite playerPositionRef={playerPositionRef} />}
+      {/* the old baseplate is the FLOOR 7 TEMPLATE now — Creator Mode only */}
+      {level === 7 && <Floor5Environment />}
       {level === 2 && (
         <Suspense fallback={null}>
           <Floor2Environment
@@ -706,6 +711,12 @@ export default function App() {
       setInsideElevator(inside);
   }, []);
 
+  // Floor 6 (Suíte 612): true while any escape-room UI is up (examine card,
+  // keypad, crank, the guest's dialogue) — freezes the Player and drops
+  // pointer lock, same contract as the shop/dialogue overlays.
+  const [f6UiOpen, setF6UiOpen] = useState(false);
+  const handleF6UiOpenChange = useCallback((open: boolean) => setF6UiOpen(open), []);
+
   useEffect(() => { cameraShakeRef.current = cameraShake; }, [cameraShake]);
   
   useEffect(() => {
@@ -809,12 +820,22 @@ export default function App() {
   useFloor4Audio(currentLevel === 4, audioCtx, cartoonBusRef);
   // Floors 4/5 are overlays: lock the 3D camera to first person beneath them —
   // both transitions begin in FP (Floor 5 then pulls out to its own 3rd person).
-  useEffect(() => { if (currentLevel === 4 || currentLevel === 5) setZoomLevel(0); }, [currentLevel]);
+  useEffect(() => { if (currentLevel === 4 || currentLevel === 5 || currentLevel === 6) setZoomLevel(0); }, [currentLevel]);
   // ── Floor 5 audio: point the race SFX at the master bus while up there.
   useEffect(() => {
     if (currentLevel !== 5 || !audioCtx) return;
     configureFloor5RaceSfx(audioCtx, cartoonBusRef.current);
     return () => clearFloor5RaceSfx();
+  }, [currentLevel, audioCtx]);
+  // ── Floor 6 audio + fresh escape-room state on every arrival.
+  useEffect(() => {
+    if (currentLevel !== 6) return;
+    f6Reset();
+  }, [currentLevel]);
+  useEffect(() => {
+    if (currentLevel !== 6 || !audioCtx) return;
+    configureFloor6Sfx(audioCtx, cartoonBusRef.current);
+    return () => clearFloor6Sfx();
   }, [currentLevel, audioCtx]);
 
   useEffect(() => {
@@ -908,7 +929,8 @@ export default function App() {
     // Floors 4 and 5 are full-screen overlays — the 3D avatar idles INSIDE the
     // 3D elevator zone beneath them, so this proximity trigger would re-arm the
     // elevator and silently yank the player back ("volto do nada pro lobby").
-    if (lv === 4 || lv === 5) return;
+    // Floor 6's elevator is BROKEN (and later blocked by the guest) — no rides.
+    if (lv === 4 || lv === 5 || lv === 6) return;
     if (t === null && !d) setElevatorTimer(5);
   }, []);
   const handleInteractionUpdate = useCallback((c: boolean) => { setCanInteractDoor(p => p !== c ? c : p); }, []);
@@ -1106,7 +1128,18 @@ export default function App() {
         setZoomLevel(0);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
       } else if (startLevel === 6) {
-        // Andar 6 — ainda não existe: o template (o velho baseplate).
+        // Andar 6 — a Suíte 612 (escape room). First person, fresh state,
+        // spawn just outside the doors so the BANG beat fires on the walk-in.
+        f6Reset();
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        setZoomLevel(0);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -8.6, theta: Math.PI };
+      } else if (startLevel === 7) {
+        // Andar 7 — ainda não existe: o template (o velho baseplate).
         setGameState('outdoor');
         setNightMode(false);
         setHouseDoorOpen(false);
@@ -1307,14 +1340,14 @@ export default function App() {
   const activePointers = useRef(new Map<number, { type: 'move' | 'look' | 'aux'; startX: number; startY: number; currX: number; currY: number }>());
 
   useEffect(() => {
-    if (!dialogueOpen && !barneyDialogueOpen) return;
+    if (!dialogueOpen && !barneyDialogueOpen && !f6UiOpen) return;
     moveInput.current = { x: 0, y: 0 };
     lookInput.current = { x: 0, y: 0 };
     keysRef.current = { w: false, a: false, s: false, d: false };
     activePointers.current.clear();
     prevPinchDist.current = null;
     setJoystickVisual(p => ({ ...p, active: false }));
-  }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen]);
+  }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen, f6UiOpen]);
 
   useEffect(() => {
     if (!dialogueOpen && !barneyDialogueOpen && !diverDialogueOpen) return;
@@ -1326,8 +1359,8 @@ export default function App() {
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!hasStarted) return;
-    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
-    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen) return;
+    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen && !f6UiOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
+    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen) return;
     e.preventDefault(); e.stopPropagation();
     const { pointerId, clientX, clientY } = e; const screenW = window.innerWidth; const screenH = window.innerHeight;
     const isPortrait = screenH > screenW; const zoneLimit = isPortrait ? 0.5 : 0.4;
@@ -1396,7 +1429,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isDesktop || !hasStarted) return;
-    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen) { document.exitPointerLock(); return; }
+    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen) { document.exitPointerLock(); return; }
     const upd = () => { const k = keysRef.current; let x=0, y=0; if (k.w) y-=1; if (k.s) y+=1; if (k.a) x-=1; if (k.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
     const kd = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -1405,7 +1438,7 @@ export default function App() {
         setSettingsOpen((v) => !v);
         return;
       }
-      if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen) return;
+      if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen) return;
       const k = keysRef.current;
       switch(e.key.toLowerCase()) {
         case 'w': k.w=true; break;
@@ -1447,7 +1480,7 @@ export default function App() {
   const { info: botInfo } = useBotStore();
 
   return (
-    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2 || currentLevel === 3 || currentLevel === 4 || nextElevatorDestination === 4) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
+    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2 || currentLevel === 3 || currentLevel === 4 || currentLevel === 6 || nextElevatorDestination === 4) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted || shopOpen} masterVolume={settings.masterVolume} nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} doorsClosed={doorsClosed} busRef={cartoonBusRef} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
@@ -1515,7 +1548,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)))} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
+            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)))} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -2122,6 +2155,9 @@ export default function App() {
           then arrives inside the 2D elevator, whose doors slide open. */}
       {currentLevel === 4 && !doorsClosed && <Floor4Canvas2D onExit={handleFloor4Exit} />}
       {currentLevel === 5 && !doorsClosed && <Floor5Race3D onExit={handleFloor5RaceExit} />}
+      {hasStarted && currentLevel === 6 && !doorsClosed && (
+        <Floor6Overlay playerPositionRef={sharedPlayerPositionRef} onUiOpenChange={handleF6UiOpenChange} />
+      )}
 
       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}
       {fallGameOver && (

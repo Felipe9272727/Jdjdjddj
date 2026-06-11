@@ -9,6 +9,7 @@ import { playFloor3Step, playFloor3Jump, playFloor3Land, playFloor3Brush, playFl
 import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, tryCollectBrush as f3TryCollectBrush } from './f3Hazards';
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
+import { f6DoorWalls } from './f6Escape';
 
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
@@ -658,6 +659,17 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
             const [rx, rz] = _resolve(nx, nz, PR, walls);
             pos.current.x = rx; pos.current.z = rz;
+
+            // Floor 6 (Suíte 612): the LOCKED doors are live state, not part of
+            // the memoized wall list — resolve against them separately so
+            // opening a door takes effect the same frame.
+            if (currentLevel === 6) {
+                const dw = f6DoorWalls();
+                if (dw.length) {
+                    const [rx6, rz6] = _resolve(pos.current.x, pos.current.z, PR, dw);
+                    pos.current.x = rx6; pos.current.z = rz6;
+                }
+            }
 
             if (fp) { charRot.current.y = camAng.current.theta + Math.PI; } else { const a = Math.atan2(mv.x, mv.z); let d = a - charRot.current.y; while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; charRot.current.y += d*10*safeDt; }
             // Re-arm when player walks back out of the elevator zone, so a

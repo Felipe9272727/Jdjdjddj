@@ -1,5 +1,6 @@
 import { Vector3, Euler } from 'three';
 import { boxCollider } from './physics';
+import { F6_STATIC_WALLS, F6_FURNITURE } from './f6Escape';
 
 // Keep in sync with `data.level <= MAX_LEVEL` in firestore.rules.
 export const MAX_LEVEL = 100;
@@ -267,11 +268,19 @@ const BASEPLATE_BND: number[][] = [
 const _WALLS_FLOOR5        = [...ELEV_W, ...ELEV_BLD, ...BASEPLATE_BND];
 const _WALLS_FLOOR5_SEALED = [..._WALLS_FLOOR5, DOOR_SEAL];
 
+// Floor 6 — a Suíte 612 (the escape room). Static shell + furniture; the
+// LOCKED doors are dynamic (f6DoorWalls, resolved per-frame in Player.tsx)
+// so unlocking them doesn't need a wallsForState recompute.
+const F6_FURN_W = F6_FURNITURE.flatMap(([cx, cz, w, d]) => boxCollider(cx, cz, w, d));
+const _WALLS_FLOOR6        = [...ELEV_W, ...F6_STATIC_WALLS, ...F6_FURN_W];
+const _WALLS_FLOOR6_SEALED = [..._WALLS_FLOOR6, DOOR_SEAL];
+
 /** Pick the right pre-built wall list. No allocation per frame. */
 export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
     if (level === 0) return doorsClosed ? _WALLS_LOBBY_SEALED : _WALLS_LOBBY_OPEN;
     if (level === 2) return doorsClosed ? _WALLS_LEVEL2_SEALED : _WALLS_LEVEL2_OPEN;
     if (level === 3) return doorsClosed ? _WALLS_FLOOR3_SEALED : _WALLS_FLOOR3;
+    if (level === 6) return doorsClosed ? _WALLS_FLOOR6_SEALED : _WALLS_FLOOR6;
     if (level >= 4) return doorsClosed ? _WALLS_FLOOR5_SEALED : _WALLS_FLOOR5;
     if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
     return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;
