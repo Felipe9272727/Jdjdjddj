@@ -66,7 +66,7 @@ const carpetTex = canvasTex(256, 256, (ctx) => {
         ctx.fillStyle = `rgba(255,240,220,${rnd(s) * 0.04})`;
         ctx.fillRect(rnd(s) * 256, rnd(s) * 256, 2, 2);
     }
-}, 5, 5);
+}, 5, 9);
 
 /** Bathroom tile, dark grout. */
 const tileTex = canvasTex(256, 256, (ctx) => {
@@ -79,7 +79,7 @@ const tileTex = canvasTex(256, 256, (ctx) => {
         ctx.fillStyle = `rgba(80,70,55,${rnd(s) * 0.18})`;          // grime per tile
         ctx.fillRect(x * 64 + 3, y * 64 + 40, 58, 21);
     }
-}, 3, 3);
+}, 3.5, 5.5);
 
 /** Kitchen vinyl — old checkerboard. */
 const vinylTex = canvasTex(128, 128, (ctx) => {
@@ -89,7 +89,7 @@ const vinylTex = canvasTex(128, 128, (ctx) => {
     }
     ctx.fillStyle = 'rgba(40,34,26,0.25)';
     ctx.fillRect(0, 0, 128, 6); ctx.fillRect(0, 0, 6, 128);
-}, 4, 5);
+}, 4, 9);
 
 /** Dark wood for furniture. */
 const woodTex = canvasTex(128, 128, (ctx) => {
@@ -133,6 +133,16 @@ const truthTex = canvasTex(256, 320, (ctx) => {
     ctx.beginPath(); ctx.moveTo(196, 296); ctx.lineTo(64, 36); ctx.stroke();
 });
 
+/** Suite number plate. */
+const plate612Tex = canvasTex(128, 64, (ctx) => {
+    ctx.fillStyle = '#23211c'; ctx.fillRect(0, 0, 128, 64);
+    ctx.strokeStyle = '#9a7d3a'; ctx.lineWidth = 4; ctx.strokeRect(4, 4, 120, 56);
+    ctx.fillStyle = '#d9b96a';
+    ctx.font = 'bold 17px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('SUÍTE', 64, 22);
+    ctx.fillText('612', 64, 43);
+});
+
 /** Crooked painting — a faded landscape. */
 const paintingTex = canvasTex(128, 96, (ctx) => {
     ctx.fillStyle = '#283a30'; ctx.fillRect(0, 0, 128, 96);
@@ -144,8 +154,6 @@ const paintingTex = canvasTex(128, 96, (ctx) => {
 });
 
 const M = {
-    wall: new THREE.MeshStandardMaterial({ map: wallpaperTex }),
-    tileWall: new THREE.MeshStandardMaterial({ map: tileTex }),
     carpet: new THREE.MeshStandardMaterial({ map: carpetTex }),
     tile: new THREE.MeshStandardMaterial({ map: tileTex }),
     vinyl: new THREE.MeshStandardMaterial({ map: vinylTex }),
@@ -157,7 +165,7 @@ const M = {
     pillow: new THREE.MeshStandardMaterial({ color: '#ddd6c4' }),
     porcelain: new THREE.MeshStandardMaterial({ color: '#e8e6df', roughness: 0.25 }),
     chrome: new THREE.MeshStandardMaterial({ color: '#b8bcc0', metalness: 0.85, roughness: 0.3 }),
-    steel: new THREE.MeshStandardMaterial({ color: '#9aa0a6', metalness: 0.7, roughness: 0.45 }),
+    steel: new THREE.MeshStandardMaterial({ color: '#6e747a', metalness: 0.7, roughness: 0.45 }),
     appliance: new THREE.MeshStandardMaterial({ color: '#d8d4cc', roughness: 0.5 }),
     dark: new THREE.MeshStandardMaterial({ color: '#1c1a17' }),
     door: new THREE.MeshStandardMaterial({ color: '#5b4630' }),
@@ -169,32 +177,111 @@ const M = {
 const B: React.FC<{ a: [number, number, number]; p: [number, number, number]; m: THREE.Material; r?: [number, number, number] }> =
     ({ a, p, m, r }) => <mesh position={p} rotation={r ?? [0, 0, 0]} material={m}><boxGeometry args={a} /></mesh>;
 
-/** A wall slab along a collision segment (x1,z1)→(x2,z2). */
-const Wall: React.FC<{ seg: [number, number, number, number]; m?: THREE.Material; h?: number; y?: number; th?: number }> =
-    ({ seg, m = M.wall, h = F6_CEIL, y = 0, th = 0.22 }) => {
+/** Per-face wall finish. UVs are scaled to REAL wall size so a stripe is a
+ *  stripe and a tile is 32cm on every wall, long or short. */
+type WallFinish = 'paper' | 'tile';
+const finishCache = new Map<string, THREE.MeshStandardMaterial>();
+function wallFaceMat(kind: WallFinish, len: number, h: number): THREE.MeshStandardMaterial {
+    const key = `${kind}:${len.toFixed(2)}:${h.toFixed(2)}`;
+    let m = finishCache.get(key);
+    if (!m) {
+        const base = kind === 'paper' ? wallpaperTex : tileTex;
+        const map = base.clone();
+        map.needsUpdate = true;
+        if (kind === 'paper') map.repeat.set(len / 2.6, 1);          // AO baked vertically — never tile in Y
+        else map.repeat.set(len / 1.28, h / 1.28);                   // 32cm tiles everywhere
+        m = new THREE.MeshStandardMaterial({ map });
+        finishCache.set(key, m);
+    }
+    return m;
+}
+const wallEdgeMat = new THREE.MeshStandardMaterial({ color: '#6e6354' });
+
+/** A wall slab along a collision segment (x1,z1)→(x2,z2) — with its OWN
+ *  finish per side (a = local +X face, b = local −X face), so the bedroom
+ *  side of the bathroom partition is wallpaper, not tile. */
+const Wall: React.FC<{
+    seg: [number, number, number, number];
+    a?: WallFinish; b?: WallFinish;
+    h?: number; y?: number; th?: number;
+}> = ({ seg, a = 'paper', b = 'paper', h = F6_CEIL, y = 0, th = 0.22 }) => {
+    const [x1, z1, x2, z2] = seg;
+    const len = Math.hypot(x2 - x1, z2 - z1);
+    const ang = Math.atan2(x2 - x1, z2 - z1);
+    const mats = useMemo<THREE.Material[]>(() => [
+        wallFaceMat(a, len, h),     // +x
+        wallFaceMat(b, len, h),     // −x
+        wallEdgeMat, wallEdgeMat, wallEdgeMat, wallEdgeMat,
+    ], [a, b, len, h]);
+    return (
+        <mesh position={[(x1 + x2) / 2, y + h / 2, (z1 + z2) / 2]} rotation={[0, ang, 0]} material={mats}>
+            <boxGeometry args={[th, h, len]} />
+        </mesh>
+    );
+};
+
+/** Baseboard strip hugging a wall face (offset toward the room). */
+const Baseboard: React.FC<{ seg: [number, number, number, number]; side?: 1 | -1 }> =
+    ({ seg, side = 1 }) => {
         const [x1, z1, x2, z2] = seg;
         const len = Math.hypot(x2 - x1, z2 - z1);
         const ang = Math.atan2(x2 - x1, z2 - z1);
         return (
-            <mesh position={[(x1 + x2) / 2, y + h / 2, (z1 + z2) / 2]} rotation={[0, ang, 0]} material={m}>
-                <boxGeometry args={[th, h, len]} />
+            <mesh position={[(x1 + x2) / 2, 0.07, (z1 + z2) / 2]} rotation={[0, ang, 0]} material={M.woodDk}>
+                <boxGeometry args={[0.26 * (side === 1 ? 1 : 1), 0.14, len]} />
             </mesh>
         );
     };
+
+/** Door frame (batente) around a partition gap at x=1.5, z∈[z0,z0+1.4]. */
+const DoorFrame: React.FC<{ z0: number }> = ({ z0 }) => (
+    <group position={[1.5, 0, z0]}>
+        <B a={[0.3, 2.24, 0.09]} p={[0, 1.12, -0.045]} m={M.woodDk} />
+        <B a={[0.3, 2.24, 0.09]} p={[0, 1.12, 1.445]} m={M.woodDk} />
+        <B a={[0.3, 0.1, 1.58]} p={[0, 2.25, 0.7]} m={M.woodDk} />
+    </group>
+);
+
+/** Ceiling fixture: plafon + warm bulb, so the light HAS a source. */
+const CeilLamp: React.FC<{ x: number; z: number; on?: boolean; cool?: boolean }> = ({ x, z, on = true, cool }) => (
+    <group position={[x, F6_CEIL, z]}>
+        <mesh position={[0, -0.03, 0]} material={M.appliance}>
+            <cylinderGeometry args={[0.24, 0.3, 0.06, 16]} />
+        </mesh>
+        <mesh position={[0, -0.1, 0]}>
+            <sphereGeometry args={[0.13, 12, 8]} />
+            <meshStandardMaterial
+                color={on ? '#fff4da' : '#777068'}
+                emissive={cool ? '#dff0f4' : '#ffe7b0'}
+                emissiveIntensity={on ? 1.6 : 0}
+            />
+        </mesh>
+    </group>
+);
 
 // ── pieces ────────────────────────────────────────────────────────────────────
 
 const Bed: React.FC = () => (
     <group position={[-7.0, 0, 2.5]}>
-        <B a={[1.9, 0.32, 2.5]} p={[0, 0.3, 0]} m={M.woodDk} />
-        <B a={[1.8, 0.26, 2.3]} p={[0, 0.56, 0]} m={M.sheet} />
-        <B a={[1.8, 0.1, 1.3]} p={[0, 0.7, -0.4]} m={M.fabric} />
-        <B a={[0.7, 0.14, 0.45]} p={[-0.35, 0.72, 0.85]} m={M.pillow} r={[0, 0.12, 0]} />
-        <B a={[1.9, 0.9, 0.14]} p={[0, 0.85, 1.22]} m={M.wood} />
+        {/* frame on short legs + tall mattress */}
+        {[[-0.85, -1.15], [0.85, -1.15], [-0.85, 1.15], [0.85, 1.15]].map(([x, z], i) => (
+            <B key={i} a={[0.1, 0.18, 0.1]} p={[x, 0.09, z]} m={M.woodDk} />
+        ))}
+        <B a={[1.9, 0.16, 2.5]} p={[0, 0.26, 0]} m={M.woodDk} />
+        <B a={[1.78, 0.3, 2.38]} p={[0, 0.49, 0]} m={M.sheet} />
+        {/* blanket, slept-in and hanging over one side */}
+        <B a={[1.84, 0.07, 1.55]} p={[0, 0.665, -0.38]} m={M.fabric} r={[0.012, 0, 0.01]} />
+        <B a={[0.07, 0.42, 1.5]} p={[0.92, 0.46, -0.38]} m={M.fabric} />
+        {/* two pillows, one knocked askew */}
+        <B a={[0.66, 0.15, 0.42]} p={[-0.42, 0.71, 0.92]} m={M.pillow} r={[0, 0.1, 0.02]} />
+        <B a={[0.66, 0.14, 0.42]} p={[0.38, 0.7, 0.86]} m={M.pillow} r={[0, -0.24, 0]} />
+        {/* headboard */}
+        <B a={[1.94, 1.0, 0.12]} p={[0, 0.95, 1.26]} m={M.wood} />
+        <B a={[1.94, 0.1, 0.16]} p={[0, 1.46, 1.26]} m={M.woodDk} />
         {/* the mattress tear (manivela hiding place) */}
-        <B a={[0.5, 0.04, 0.18]} p={[0.35, 0.7, -0.9]} m={M.dark} r={[0, 0.4, 0]} />
+        <B a={[0.5, 0.05, 0.2]} p={[0.35, 0.655, -0.9]} m={M.dark} r={[0, 0.4, 0]} />
         {/* the diary on the blanket */}
-        <B a={[0.26, 0.05, 0.34]} p={[0.25, 0.72, 0.42]} m={M.fabric} r={[0, -0.3, 0]} />
+        <B a={[0.26, 0.05, 0.34]} p={[0.25, 0.71, 0.3]} m={M.fabric} r={[0, -0.3, 0]} />
     </group>
 );
 
@@ -261,38 +348,137 @@ const CrookedPainting: React.FC = () => (
 
 const Window612: React.FC = () => (
     <group position={[-7.88, 1.65, -2.0]} rotation={[0, Math.PI / 2, 0]}>
-        <B a={[1.6, 1.4, 0.1]} p={[0, 0, -0.02]} m={M.woodDk} />
-        <mesh position={[0, 0, 0.04]}>
-            <planeGeometry args={[1.4, 1.2]} />
-            <meshStandardMaterial color="#6f7d86" emissive="#56626c" emissiveIntensity={0.5} />
+        {/* frame + cross bars + sill */}
+        <B a={[1.7, 1.5, 0.1]} p={[0, 0, -0.02]} m={M.woodDk} />
+        <mesh position={[0, 0, 0.045]}>
+            <planeGeometry args={[1.46, 1.26]} />
+            {/* the dead fog outside — cold, matte, never moving */}
+            <meshStandardMaterial color="#73797c" emissive="#3e4548" emissiveIntensity={0.18} />
         </mesh>
-        <mesh position={[-0.55, 0, 0.1]} rotation={[0, 0, 0.04]} material={M.curtain}>
-            <planeGeometry args={[0.7, 1.5]} />
-        </mesh>
-        <mesh position={[0.62, 0, 0.1]} rotation={[0, 0, -0.03]} material={M.curtain}>
-            <planeGeometry args={[0.5, 1.5]} />
-        </mesh>
+        <B a={[0.05, 1.3, 0.04]} p={[0, 0, 0.06]} m={M.woodDk} />
+        <B a={[1.5, 0.05, 0.04]} p={[0, 0, 0.06]} m={M.woodDk} />
+        <B a={[1.8, 0.07, 0.22]} p={[0, -0.72, 0.06]} m={M.wood} />
+        {/* curtains with body, gathered at the sides */}
+        <B a={[0.42, 1.62, 0.07]} p={[-0.72, 0.05, 0.1]} m={M.curtain} r={[0, 0, 0.015]} />
+        <B a={[0.3, 1.62, 0.07]} p={[0.78, 0.05, 0.1]} m={M.curtain} r={[0, 0, -0.012]} />
+        <B a={[1.9, 0.05, 0.05]} p={[0, 0.88, 0.1]} m={M.brass} />
     </group>
 );
 
-/** Locked door (+padlock / chain). Swings open against the wall when unlocked. */
-const SuiteDoor: React.FC<{ z: number; open: boolean; chain?: boolean }> = ({ z, open, chain }) => (
-    <group position={[1.5, 0, z + 0.7]} rotation={[0, open ? 1.45 : 0, 0]}>
-        <B a={[0.09, 2.2, 1.4]} p={[0, 1.1, -0.7]} m={M.door} />
-        <B a={[0.05, 0.16, 0.05]} p={[-0.08, 1.05, -1.22]} m={M.brass} />
-        {!open && !chain && (
-            <group position={[-0.09, 1.05, -1.32]}>
-                <B a={[0.05, 0.22, 0.16]} p={[0, 0, 0]} m={M.steel} />
-                <mesh position={[0, 0.16, 0]} material={M.steel}>
-                    <torusGeometry args={[0.06, 0.018, 6, 12]} />
-                </mesh>
+/** Locked door. Hinge sits at the START of the wall gap (z0); the slab fills
+ *  the gap exactly and swings INTO the room behind it when unlocked.
+ *  The padlock hangs on the DOOR's free edge; the chain crosses the slab. */
+const SuiteDoor: React.FC<{ z0: number; open: boolean; chain?: boolean }> = ({ z0, open, chain }) => {
+    const g = useRef<THREE.Group>(null!);
+    useFrame((_, rawDt) => {
+        const dt = Math.min(rawDt, 0.05);
+        if (!g.current) return;
+        const target = open ? 1.35 : 0;
+        g.current.rotation.y += (target - g.current.rotation.y) * Math.min(1, dt * 4);
+    });
+    return (
+        <group ref={g} position={[1.5, 0, z0]}>
+            {/* the slab: local z 0 → 1.4 fills the gap, flush with the lintel */}
+            <B a={[0.08, 2.14, 1.36]} p={[0, 1.07, 0.7]} m={M.door} />
+            {/* recessed panels, both faces */}
+            {[-0.045, 0.045].map((x) => (
+                <group key={x}>
+                    <B a={[0.012, 0.78, 0.94]} p={[x, 1.62, 0.7]} m={M.woodDk} />
+                    <B a={[0.012, 0.78, 0.94]} p={[x, 0.62, 0.7]} m={M.woodDk} />
+                </group>
+            ))}
+            {/* handle at the free edge (bedroom side) */}
+            <B a={[0.05, 0.05, 0.16]} p={[-0.08, 1.02, 1.2]} m={M.brass} />
+            {!open && !chain && (
+                /* hasp + padlock hanging on the free edge */
+                <group position={[-0.07, 1.32, 1.22]}>
+                    <B a={[0.04, 0.08, 0.22]} p={[0, 0.1, -0.02]} m={M.steel} />
+                    <mesh position={[0, 0.0, 0]} rotation={[0, Math.PI / 2, 0]} material={M.steel}>
+                        <torusGeometry args={[0.05, 0.016, 6, 12, Math.PI]} />
+                    </mesh>
+                    <B a={[0.05, 0.14, 0.12]} p={[0, -0.1, 0]} m={M.steel} />
+                </group>
+            )}
+            {!open && chain && (
+                <>
+                    {/* chain strung tight across the slab + slack tail */}
+                    <B a={[0.05, 0.06, 1.34]} p={[-0.07, 1.32, 0.7]} m={M.steel} r={[0.06, 0, 0]} />
+                    <B a={[0.05, 0.4, 0.06]} p={[-0.07, 1.1, 1.3]} m={M.steel} r={[0.15, 0, 0]} />
+                    <B a={[0.07, 0.16, 0.12]} p={[-0.08, 1.28, 0.66]} m={M.steel} />
+                </>
+            )}
+        </group>
+    );
+};
+
+/** The elevator façade: sliding metal doors that SLAM crooked at the bang
+ *  (with pitch-black behind the gap — the cab is dead) and grind back open
+ *  when the power returns. Sells "quebrado" without touching the global cab. */
+const BrokenLift: React.FC = () => {
+    const L = useRef<THREE.Group>(null!);
+    const R = useRef<THREE.Group>(null!);
+    const dark = useRef<THREE.MeshBasicMaterial>(null!);
+    const smoke = useRef<THREE.Group>(null!);
+    const smokeT = useRef(0);
+    useFrame((_, rawDt) => {
+        const dt = Math.min(rawDt, 0.05);
+        const broken = f6.phase === 'explore';
+        // door targets: parked open / slammed crooked
+        const lx = broken ? -0.62 : -1.95;
+        const rx = broken ? 0.66 : 1.95;
+        const rTilt = broken ? -0.055 : 0;
+        const k = Math.min(1, dt * (broken ? 10 : 1.6));            // slam fast, reopen slow
+        if (L.current) L.current.position.x += (lx - L.current.position.x) * k;
+        if (R.current) {
+            R.current.position.x += (rx - R.current.position.x) * k;
+            R.current.rotation.z += (rTilt - R.current.rotation.z) * k;
+        }
+        if (dark.current) {
+            const t = broken ? 1 : 0;
+            dark.current.opacity += (t - dark.current.opacity) * Math.min(1, dt * 2.5);
+        }
+        if (smoke.current) {
+            smoke.current.visible = broken;
+            if (broken) {
+                smokeT.current += dt;
+                smoke.current.children.forEach((c, i) => {
+                    const ph = (smokeT.current * 0.25 + i * 0.37) % 1;
+                    c.position.y = 0.4 + ph * 2.2;
+                    c.scale.setScalar(0.5 + ph * 1.1);
+                    const m = (c as THREE.Mesh).material as THREE.MeshBasicMaterial;
+                    m.opacity = 0.16 * (1 - ph);
+                });
+            }
+        }
+    });
+    return (
+        <group position={[0, 0, -9.97]}>
+            {/* pitch black behind the doors — the dead cab */}
+            <mesh position={[0, 1.25, -0.12]}>
+                <planeGeometry args={[2.8, 2.6]} />
+                <meshBasicMaterial ref={dark} color="#000000" transparent opacity={0} />
+            </mesh>
+            {/* sliding panels */}
+            <group ref={L} position={[-1.95, 0, 0]}>
+                <B a={[1.3, 2.42, 0.09]} p={[0, 1.21, 0]} m={M.steel} />
+                <B a={[0.06, 2.3, 0.1]} p={[0.6, 1.21, 0.01]} m={M.dark} />
             </group>
-        )}
-        {!open && chain && (
-            <B a={[0.06, 0.07, 1.5]} p={[-0.07, 1.3, -0.7]} m={M.steel} r={[0, 0, 0.06]} />
-        )}
-    </group>
-);
+            <group ref={R} position={[1.95, 0, 0]}>
+                <B a={[1.3, 2.42, 0.09]} p={[0, 1.21, 0]} m={M.steel} />
+                <B a={[0.06, 2.3, 0.1]} p={[-0.6, 1.21, 0.01]} m={M.dark} />
+            </group>
+            {/* smoke curling out of the panel side */}
+            <group ref={smoke} position={[-1.6, 0, 0.3]} visible={false}>
+                {[0, 1, 2].map((i) => (
+                    <mesh key={i} position={[i * 0.14 - 0.1, 0.5, i * 0.06]}>
+                        <planeGeometry args={[0.5, 0.5]} />
+                        <meshBasicMaterial color="#9a948c" transparent opacity={0.1} depthWrite={false} />
+                    </mesh>
+                ))}
+            </group>
+        </group>
+    );
+};
 
 const Bathroom: React.FC<{ fog01: number }> = ({ fog01 }) => (
     <group>
@@ -301,9 +487,10 @@ const Bathroom: React.FC<{ fog01: number }> = ({ fog01 }) => (
             <B a={[0.95, 0.12, 0.55]} p={[0, 0.82, 0]} m={M.porcelain} />
             <B a={[0.3, 0.78, 0.3]} p={[0, 0.4, 0]} m={M.porcelain} />
             <B a={[0.06, 0.12, 0.2]} p={[0, 0.95, -0.14]} m={M.chrome} />
-            <mesh position={[0, 1.75, -0.22]}>
+            <B a={[0.93, 0.83, 0.04]} p={[0, 1.75, -0.24]} m={M.woodDk} />
+            <mesh position={[0, 1.75, -0.215]}>
                 <planeGeometry args={[0.85, 0.75]} />
-                <meshStandardMaterial color="#aebfc6" metalness={0.9} roughness={0.12} />
+                <meshStandardMaterial color="#46525a" metalness={0.5} roughness={0.12} emissive="#161c20" emissiveIntensity={0.6} />
             </mesh>
             {/* steam film: opacity follows fogT; the message is overlay-side */}
             <mesh position={[0, 1.75, -0.21]}>
@@ -381,14 +568,14 @@ const BlownPanel: React.FC<{ blown: boolean; sparkRef: React.MutableRefObject<nu
     useFrame(({ clock }) => {
         const sparking = sparkRef.current > 0;
         if (light.current) {
-            light.current.intensity = sparking ? (Math.random() < 0.5 ? 38 : 3) : 0;
+            light.current.intensity = sparking ? (Math.random() < 0.5 ? 20 : 2) : 0;
         }
         if (plate.current) {
             plate.current.emissiveIntensity = sparking ? 0.7 + Math.sin(clock.elapsedTime * 60) * 0.5 : 0;
         }
     });
     return (
-        <group position={[2.05, 1.25, -9.83]}>
+        <group position={[-1.85, 1.25, -9.82]}>
             <mesh rotation={[0, 0, blown ? -0.34 : 0]} position={blown ? [0.05, -0.07, 0.04] : [0, 0, 0]}>
                 <boxGeometry args={[0.5, 0.7, 0.08]} />
                 <meshStandardMaterial ref={plate} color="#6a7076" metalness={0.6} roughness={0.5} emissive="#ff8c3a" emissiveIntensity={0} />
@@ -480,8 +667,8 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             bathFlicker.current = Math.max(0, bathFlicker.current - dt);
             const on = f6.bathOpen;
             bathLight.current.intensity = !on ? 0
-                : bathFlicker.current > 0 ? (Math.random() < 0.6 ? 24 : 1.5)
-                : 24;
+                : bathFlicker.current > 0 ? (Math.random() < 0.6 ? 15 : 1)
+                : 15;
         }
 
         // tap loop follows the state
@@ -537,22 +724,41 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             <mesh rotation={[Math.PI / 2, 0, 0]} position={[-1, F6_CEIL, -1.5]} material={M.ceil}>
                 <planeGeometry args={[14, 17]} />
             </mesh>
-            {/* walls (match F6_STATIC_WALLS) */}
-            <Wall seg={[-8, -10, -8, 7]} />
-            <Wall seg={[6, -10, 6, -3]} m={M.tileWall} />
-            <Wall seg={[6, -3, 6, 7]} />
-            <Wall seg={[-8, 7, 6, 7]} />
-            <Wall seg={[-8, -10, -1.3, -10]} />
-            <Wall seg={[1.3, -10, 6, -10]} m={M.wall} />
-            <Wall seg={[1.5, -10, 1.5, -6.2]} m={M.tileWall} />
-            <Wall seg={[1.5, -4.8, 1.5, 2.3]} />
-            <Wall seg={[1.5, 3.7, 1.5, 7]} />
-            <Wall seg={[1.5, -3, 6, -3]} m={M.tileWall} />
-            {/* lintels over the two doorways */}
-            <Wall seg={[1.5, -6.2, 1.5, -4.8]} h={F6_CEIL - 2.2} y={2.2} />
-            <Wall seg={[1.5, 2.3, 1.5, 3.7]} h={F6_CEIL - 2.2} y={2.2} />
+            {/* walls (collision-matched to F6_STATIC_WALLS; finish per FACE so
+                the bedroom never shows bathroom tile) */}
+            <Wall seg={[-8, -10, -8, 7]} a="paper" b="paper" />
+            <Wall seg={[6, -10, 6, -3]} a="paper" b="tile" />
+            <Wall seg={[6, -3, 6, 7]} a="paper" b="paper" />
+            <Wall seg={[-8, 7, 6, 7]} a="paper" b="paper" />
+            <Wall seg={[-8, -10, -1.3, -10]} a="paper" b="paper" />
+            <Wall seg={[1.3, -10, 6, -10]} a="paper" b="tile" />
+            <Wall seg={[1.5, -10, 1.5, -6.2]} a="tile" b="paper" />
+            {/* visual split of the long partition at the room divider (z=-3):
+                tile on the bathroom stretch, wallpaper on the kitchen stretch */}
+            <Wall seg={[1.5, -4.8, 1.5, -3]} a="tile" b="paper" />
+            <Wall seg={[1.5, -3, 1.5, 2.3]} a="paper" b="paper" />
+            <Wall seg={[1.5, 3.7, 1.5, 7]} a="paper" b="paper" />
+            <Wall seg={[1.5, -3, 6, -3]} a="tile" b="paper" />
+            {/* lintels over the two doorways (meet the door top — no light gap) */}
+            <Wall seg={[1.5, -6.2, 1.5, -4.8]} h={F6_CEIL - 2.14} y={2.14} a="tile" b="paper" />
+            <Wall seg={[1.5, 2.3, 1.5, 3.7]} h={F6_CEIL - 2.14} y={2.14} a="paper" b="paper" />
             {/* header over the elevator doorway */}
-            <Wall seg={[-1.3, -10, 1.3, -10]} h={F6_CEIL - 2.4} y={2.4} />
+            <Wall seg={[-1.3, -10, 1.3, -10]} h={F6_CEIL - 2.4} y={2.4} a="paper" b="paper" />
+
+            {/* baseboards (bedroom + kitchen runs; tile rooms keep dark grout) */}
+            <Baseboard seg={[-7.95, -10, -7.95, 7]} />
+            <Baseboard seg={[-8, 6.95, 1.5, 6.95]} />
+            <Baseboard seg={[1.45, -4.8, 1.45, 2.3]} />
+            <Baseboard seg={[1.45, 3.7, 1.45, 7]} />
+            <Baseboard seg={[-8, -9.95, -1.3, -9.95]} />
+            <Baseboard seg={[1.55, -3, 1.55, 2.3]} />
+            <Baseboard seg={[1.5, 6.95, 6, 6.95]} />
+            <Baseboard seg={[5.95, -3, 5.95, 7]} />
+
+            {/* ceiling fixtures — every light has a SOURCE you can see */}
+            <CeilLamp x={-3} z={-1.5} />
+            <CeilLamp x={3.75} z={-6.5} on={f6.bathOpen} cool />
+            <CeilLamp x={3.75} z={2.0} on={f6.kitchenOpen} />
 
             {/* ── bedroom ── */}
             <Bed />
@@ -562,15 +768,20 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             <TvRack on={f6.tvOn} staticMat={staticMat} />
             <CrookedPainting />
             <Window612 />
-            {/* room number plate beside the elevator */}
-            <mesh position={[-2.2, 2.1, -9.86]}>
-                <boxGeometry args={[0.5, 0.2, 0.04]} />
-                <meshStandardMaterial color="#2b2b2b" />
+            {/* suite plate over the elevator doorway */}
+            <mesh position={[0, 2.62, -9.86]}>
+                <boxGeometry args={[0.62, 0.32, 0.04]} />
+                <meshStandardMaterial map={plate612Tex} />
             </mesh>
 
-            {/* ── doors ── */}
-            <SuiteDoor z={-6.2} open={f6.bathOpen} />
-            <SuiteDoor z={2.3} open={f6.kitchenOpen} chain />
+            {/* ── doors (hinge at gap start; padlock/chain ride the slab) ── */}
+            <DoorFrame z0={-6.2} />
+            <DoorFrame z0={2.3} />
+            <SuiteDoor z0={-6.2} open={f6.bathOpen} />
+            <SuiteDoor z0={2.3} open={f6.kitchenOpen} chain />
+
+            {/* ── the broken-elevator façade ── */}
+            <BrokenLift />
 
             {/* ── locked rooms ── */}
             <Bathroom fog01={fog01} />
@@ -585,12 +796,12 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
                     <hemisphereLight args={['#9a948a', '#4a423a', 0.85]} />
                     {/* abajur warmth */}
                     <pointLight position={[-7.5, 1.15, 4.3]} color="#ffc580" intensity={26} distance={11} decay={2} />
-                    {/* dim bedroom ceiling bulb */}
-                    <pointLight position={[-3, 2.7, -1]} color="#e8d9b8" intensity={20} distance={16} decay={2} />
+                    {/* bedroom ceiling bulb — anchored to its fixture */}
+                    <pointLight position={[-3, 2.65, -1.5]} color="#e8d9b8" intensity={20} distance={16} decay={2} />
                     {/* bathroom fluorescent (flickers alive on unlock) */}
-                    <pointLight ref={bathLight} position={[3.75, 2.7, -6.5]} color="#cfe4e8" intensity={0} distance={10} decay={2} />
+                    <pointLight ref={bathLight} position={[3.75, 2.65, -6.5]} color="#cfe4e8" intensity={0} distance={10} decay={2} />
                     {/* kitchen bulb */}
-                    {f6.kitchenOpen && <pointLight position={[3.75, 2.7, 2.5]} color="#f4e2b8" intensity={18} distance={11} decay={2} />}
+                    {f6.kitchenOpen && <pointLight position={[3.75, 2.65, 2.0]} color="#f4e2b8" intensity={18} distance={11} decay={2} />}
                     {/* TV glow */}
                     <pointLight ref={tvLight} position={[0.4, 1.1, 1.2]} color="#bcd2da" intensity={0} distance={5} decay={2} />
                 </>

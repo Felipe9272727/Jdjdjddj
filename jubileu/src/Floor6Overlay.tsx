@@ -180,7 +180,7 @@ export const Floor6Overlay: React.FC<{
             {/* objective line */}
             {objective && !uiOpen && (
                 <div style={{
-                    ...mono, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 14px)', left: 0, right: 0,
+                    ...mono, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 62px)', left: 0, right: 0,
                     textAlign: 'center', fontSize: 13, letterSpacing: 1, color: '#cfc7b0',
                     textShadow: '0 1px 3px #000',
                 }}>{objective}</div>

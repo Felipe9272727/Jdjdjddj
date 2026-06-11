@@ -35,6 +35,7 @@ const DevWalker: React.FC = () => {
     const keys = useRef<Record<string, boolean>>({});
     const ang = useRef({ theta: Math.PI, phi: 0 });
     const drag = useRef<{ x: number; y: number } | null>(null);
+    if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f6ang = ang;
 
     useEffect(() => {
         const kd = (e: KeyboardEvent) => { keys.current[e.key.toLowerCase()] = true; };

@@ -117,9 +117,11 @@ const _DW_KITCHEN = [DOOR_KITCHEN];
 const _DW_NONE: number[][] = [];
 
 /** Live LOCKED-door segments (resolved per-frame by Player.tsx on level 6).
- *  Prebuilt lists — zero allocation. */
+ *  Prebuilt lists — zero allocation. The elevator doorway is only passable
+ *  during 'arrive' (walking out): after the bang the metal doors are SHUT,
+ *  and once repaired the guest stands in the way. */
 export function f6DoorWalls(): number[][] {
-    const block = f6.phase === 'guest' || f6.phase === 'guestIdle' || f6.phase === 'blackout';
+    const block = f6.phase !== 'arrive';
     const base = !f6.bathOpen
         ? (!f6.kitchenOpen ? _DW_BOTH : _DW_BATH)
         : (!f6.kitchenOpen ? _DW_KITCHEN : _DW_NONE);
@@ -141,7 +143,7 @@ export function f6Hotspots(): F6Hotspot[] {
     const s = f6;
     if (s.phase === 'arrive') return [];
     const list: F6Hotspot[] = [
-        H('panel', 0.6, -9.5, allInstalled() ? 'Girar a manivela' : 'Painel do elevador'),
+        H('panel', -1.85, -9.4, allInstalled() ? 'Girar a manivela' : 'Painel do elevador'),
         H('quadro', -2.5, -9.4, 'Quadro torto'),
         H('maquina', -5.5, -8.9, 'Máquina de escrever'),
         H('cama', -6.6, 1.2, s.inv.manivela || s.installed.manivela ? 'Colchão rasgado' : 'Colchão'),
