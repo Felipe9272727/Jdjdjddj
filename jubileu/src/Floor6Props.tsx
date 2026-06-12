@@ -11,6 +11,7 @@
  */
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { f6 } from './f6Escape';
 import { F6M, blobMat, paintingTex, nineTex, tvScreen } from './Floor6Textures';
@@ -35,6 +36,16 @@ export const B: React.FC<{
     <mesh position={p} rotation={r ?? [0, 0, 0]} material={m}>
         <boxGeometry args={a} />
     </mesh>
+);
+
+/** Rounded box — soft edges are what separates furniture from cardboard.
+ *  Radius is clamped so thin slabs never invert. */
+export const RB: React.FC<{
+    a: [number, number, number]; p: [number, number, number];
+    m: THREE.Material; r?: [number, number, number]; rad?: number;
+}> = ({ a, p, m, r, rad = 0.035 }) => (
+    <RoundedBox args={a} radius={Math.min(rad, Math.min(a[0], a[1], a[2]) / 2.2)}
+        smoothness={2} position={p} rotation={r ?? [0, 0, 0]} material={m} />
 );
 
 /** Baked contact shadow under a piece of furniture — kills the floaty look. */
@@ -170,19 +181,20 @@ export const Bed: React.FC<{ fx: F6Fx }> = ({ fx }) => {
             ))}
             <B a={[1.9, 0.16, 2.5]} p={[0, 0.26, 0]} m={F6M.woodDk} />
             <group ref={bulge}>
-                <B a={[1.78, 0.3, 2.38]} p={[0, 0.49, 0]} m={F6M.sheet} />
-                {/* mattress piping lines */}
-                <B a={[1.79, 0.02, 2.39]} p={[0, 0.41, 0]} m={F6M.pillow} />
-                <B a={[1.79, 0.02, 2.39]} p={[0, 0.57, 0]} m={F6M.pillow} />
-                {/* blanket, slept-in, hanging over one side, fold ridge */}
-                <B a={[1.84, 0.07, 1.55]} p={[0, 0.665, -0.38]} m={F6M.fabric} r={[0.012, 0, 0.01]} />
-                <B a={[1.84, 0.045, 0.3]} p={[0, 0.695, 0.32]} m={F6M.fabricDk} r={[0.06, 0, 0]} />
-                <B a={[0.07, 0.42, 1.5]} p={[0.92, 0.46, -0.38]} m={F6M.fabric} />
-                {/* two pillows, one knocked askew */}
-                <B a={[0.66, 0.15, 0.42]} p={[-0.42, 0.71, 0.92]} m={F6M.pillow} r={[0, 0.1, 0.02]} />
-                <B a={[0.66, 0.14, 0.42]} p={[0.38, 0.7, 0.86]} m={F6M.pillow} r={[0, -0.24, 0]} />
+                {/* box spring + soft mattress with piping seam */}
+                <RB a={[1.8, 0.14, 2.4]} p={[0, 0.4, 0]} m={F6M.pillow} rad={0.04} />
+                <RB a={[1.78, 0.26, 2.38]} p={[0, 0.55, 0]} m={F6M.sheet} rad={0.07} />
+                {/* blanket draped in three falls: top, fold ridge, side drop */}
+                <RB a={[1.84, 0.06, 1.55]} p={[0, 0.69, -0.38]} m={F6M.fabric} r={[0.012, 0, 0.01]} rad={0.025} />
+                <RB a={[1.84, 0.05, 0.34]} p={[0, 0.715, 0.34]} m={F6M.fabricDk} r={[0.1, 0, 0]} rad={0.022} />
+                <RB a={[1.8, 0.05, 0.4]} p={[0, 0.69, -1.07]} m={F6M.fabric} r={[-0.5, 0, 0]} rad={0.022} />
+                <RB a={[0.06, 0.4, 1.5]} p={[0.93, 0.49, -0.38]} m={F6M.fabric} rad={0.025} />
+                <RB a={[0.06, 0.34, 1.4]} p={[-0.93, 0.52, -0.3]} m={F6M.fabric} r={[0, 0, -0.06]} rad={0.025} />
+                {/* two pillows, slept on (squashed + askew) */}
+                <RB a={[0.68, 0.18, 0.44]} p={[-0.42, 0.73, 0.92]} m={F6M.pillow} r={[0.06, 0.1, 0.02]} rad={0.07} />
+                <RB a={[0.68, 0.16, 0.44]} p={[0.38, 0.72, 0.86]} m={F6M.pillow} r={[0.1, -0.24, -0.03]} rad={0.07} />
                 {/* the diary on the blanket */}
-                <B a={[0.26, 0.05, 0.34]} p={[0.25, 0.71, 0.3]} m={F6M.fabricDk} r={[0, -0.3, 0]} />
+                <RB a={[0.26, 0.05, 0.34]} p={[0.25, 0.73, 0.3]} m={F6M.fabricDk} r={[0, -0.3, 0]} rad={0.012} />
                 {/* the mattress tear + flap (hinged at its far edge) */}
                 <B a={[0.52, 0.012, 0.22]} p={[0.35, 0.652, -0.9]} m={F6M.dark} r={[0, 0.4, 0]} />
                 <group position={[0.35, 0.66, -1.0]} rotation={[0, 0.4, 0]}>
@@ -196,13 +208,21 @@ export const Bed: React.FC<{ fx: F6Fx }> = ({ fx }) => {
                     <ItemMesh kind="manivela" />
                 </group>
             )}
-            {/* headboard with two posts */}
-            <B a={[1.94, 1.0, 0.12]} p={[0, 0.95, 1.26]} m={F6M.wood} />
+            {/* tufted headboard between turned posts */}
+            <B a={[1.94, 1.0, 0.1]} p={[0, 0.95, 1.28]} m={F6M.wood} />
+            {[0.72, 1.18].map((y) => [-0.6, -0.2, 0.2, 0.6].map((x) => (
+                <RB key={`${x}${y}`} a={[0.36, 0.42, 0.07]} p={[x, y, 1.22]} m={F6M.fabricDk} rad={0.05} />
+            )))}
             <B a={[1.94, 0.1, 0.16]} p={[0, 1.46, 1.26]} m={F6M.woodDk} />
             {[-0.93, 0.93].map((x) => (
-                <mesh key={x} position={[x, 0.9, 1.26]} material={F6M.woodDk}>
-                    <cylinderGeometry args={[0.05, 0.05, 1.5, 8]} />
-                </mesh>
+                <group key={x}>
+                    <mesh position={[x, 0.9, 1.26]} material={F6M.woodDk}>
+                        <cylinderGeometry args={[0.045, 0.055, 1.5, 10]} />
+                    </mesh>
+                    <mesh position={[x, 1.68, 1.26]} material={F6M.woodDk}>
+                        <sphereGeometry args={[0.07, 10, 8]} />
+                    </mesh>
+                </group>
             ))}
             {/* slippers half under the bed */}
             <B a={[0.12, 0.05, 0.3]} p={[-0.6, 0.03, -1.35]} m={F6M.pillow} r={[0, 0.2, 0]} />
@@ -213,9 +233,15 @@ export const Bed: React.FC<{ fx: F6Fx }> = ({ fx }) => {
 
 export const Nightstand: React.FC = () => (
     <group position={[-7.6, 0, 4.4]}>
-        <B a={[0.72, 0.62, 0.72]} p={[0, 0.31, 0]} m={F6M.wood} />
-        <B a={[0.6, 0.14, 0.02]} p={[0, 0.42, 0.36]} m={F6M.woodDk} />
-        <B a={[0.1, 0.03, 0.03]} p={[0, 0.42, 0.38]} m={F6M.brassOld} />
+        <B a={[0.72, 0.54, 0.72]} p={[0, 0.33, 0]} m={F6M.wood} />
+        <RB a={[0.78, 0.05, 0.78]} p={[0, 0.625, 0]} m={F6M.woodDk} rad={0.02} />
+        {[[-0.28, -0.28], [0.28, -0.28], [-0.28, 0.28], [0.28, 0.28]].map(([x, z], i) => (
+            <mesh key={i} position={[x, 0.04, z]} material={F6M.woodDk}>
+                <sphereGeometry args={[0.05, 8, 6]} />
+            </mesh>
+        ))}
+        <B a={[0.6, 0.14, 0.02]} p={[0, 0.45, 0.36]} m={F6M.woodDk} />
+        <B a={[0.1, 0.03, 0.03]} p={[0, 0.45, 0.38]} m={F6M.brassOld} />
         {/* abajur: brass stem + warm shade with a visible bulb */}
         <mesh position={[0, 0.72, -0.12]} material={F6M.brass}><cylinderGeometry args={[0.03, 0.06, 0.22, 10]} /></mesh>
         <mesh position={[0, 0.86, -0.12]}>
@@ -298,14 +324,22 @@ export const Wardrobe: React.FC<{ fx: F6Fx }> = ({ fx }) => {
             </group>
             {/* doors hinged at the outer edges */}
             <group ref={dl} position={[-0.84, 1.05, 0.43]}>
-                <B a={[0.04, 1.9, 0.0]} p={[0, 0, 0]} m={F6M.woodDk} />
                 <B a={[0.84, 1.9, 0.04]} p={[0.42, 0, 0]} m={F6M.woodDk} />
+                <B a={[0.62, 0.74, 0.015]} p={[0.42, 0.5, 0.025]} m={F6M.wood} />
+                <B a={[0.62, 0.74, 0.015]} p={[0.42, -0.52, 0.025]} m={F6M.wood} />
                 <B a={[0.05, 0.18, 0.05]} p={[0.76, 0.05, 0.04]} m={F6M.brassOld} />
             </group>
             <group ref={dr} position={[0.84, 1.05, 0.43]}>
                 <B a={[0.84, 1.9, 0.04]} p={[-0.42, 0, 0]} m={F6M.woodDk} />
+                <B a={[0.62, 0.74, 0.015]} p={[-0.42, 0.5, 0.025]} m={F6M.wood} />
+                <B a={[0.62, 0.74, 0.015]} p={[-0.42, -0.52, 0.025]} m={F6M.wood} />
                 <B a={[0.05, 0.18, 0.05]} p={[-0.76, 0.05, 0.04]} m={F6M.brassOld} />
             </group>
+            {[[-0.7, -0.32], [0.7, -0.32], [-0.7, 0.32], [0.7, 0.32]].map(([x, z], i) => (
+                <mesh key={i} position={[x, 0.05, z]} material={F6M.woodDk}>
+                    <sphereGeometry args={[0.06, 8, 6]} />
+                </mesh>
+            ))}
         </group>
     );
 };
@@ -328,9 +362,20 @@ export const Desk: React.FC = () => {
     });
     return (
         <group position={[-5.5, 0, -9.5]}>
-            <B a={[1.7, 0.07, 0.85]} p={[0, 0.78, 0]} m={F6M.wood} />
-            {[-0.75, 0.75].map((x) => <B key={x} a={[0.09, 0.78, 0.7]} p={[x, 0.39, 0]} m={F6M.woodDk} />)}
-            <B a={[1.55, 0.05, 0.7]} p={[0, 0.12, 0]} m={F6M.woodDk} />
+            <RB a={[1.7, 0.07, 0.85]} p={[0, 0.78, 0]} m={F6M.wood} rad={0.02} />
+            <B a={[1.6, 0.1, 0.75]} p={[0, 0.7, 0]} m={F6M.woodDk} />
+            {[-0.75, 0.75].map((x) => [-0.32, 0.32].map((z) => (
+                <group key={`${x}${z}`}>
+                    <mesh position={[x, 0.38, z]} material={F6M.woodDk}>
+                        <cylinderGeometry args={[0.032, 0.045, 0.66, 10]} />
+                    </mesh>
+                    <mesh position={[x, 0.6, z]} material={F6M.woodDk}>
+                        <sphereGeometry args={[0.05, 8, 6]} />
+                    </mesh>
+                </group>
+            )))}
+            <B a={[1.55, 0.04, 0.06]} p={[0, 0.16, 0.32]} m={F6M.woodDk} />
+            <B a={[1.55, 0.04, 0.06]} p={[0, 0.16, -0.32]} m={F6M.woodDk} />
             {/* typewriter + the half page */}
             <group position={[-0.3, 0, 0]}>
                 <B a={[0.5, 0.18, 0.4]} p={[0, 0.91, 0]} m={F6M.dark} />
@@ -415,11 +460,17 @@ export const TvSet: React.FC = () => {
     });
     return (
         <group position={[1.15, 0, 1.2]} rotation={[0, -Math.PI / 2, 0]}>
-            <B a={[1.35, 0.5, 0.62]} p={[0, 0.25, 0]} m={F6M.wood} />
+            <RB a={[1.35, 0.5, 0.62]} p={[0, 0.25, 0]} m={F6M.wood} rad={0.025} />
             <B a={[1.35, 0.04, 0.62]} p={[0, 0.49, 0]} m={F6M.woodDk} />
             {/* CRT body, wood-grain era */}
-            <B a={[0.82, 0.62, 0.6]} p={[0, 0.83, 0]} m={F6M.wood} />
-            <B a={[0.74, 0.54, 0.04]} p={[0, 0.83, 0.3]} m={F6M.dark} />
+            <RB a={[0.82, 0.62, 0.6]} p={[0, 0.83, 0]} m={F6M.wood} rad={0.05} />
+            <RB a={[0.74, 0.54, 0.05]} p={[0, 0.83, 0.295]} m={F6M.dark} rad={0.04} />
+            {/* feet */}
+            {[-0.3, 0.3].map((x) => (
+                <mesh key={x} position={[x, 0.51, 0.2]} material={F6M.dark}>
+                    <cylinderGeometry args={[0.02, 0.03, 0.05, 8]} />
+                </mesh>
+            ))}
             {/* the tube — slightly curved feel via inset frame */}
             <mesh ref={scr} position={[0, 0.84, 0.325]}>
                 <planeGeometry args={[0.56, 0.42]} />
@@ -570,18 +621,23 @@ export const SittingArea: React.FC = () => (
     <group>
         {/* armchair at (-4.6, 1.6), facing the TV (+x) */}
         <group position={[-4.6, 0, 1.6]} rotation={[0, -Math.PI / 2 + 0.18, 0]}>
-            {/* seat + cushion */}
-            <B a={[0.8, 0.3, 0.75]} p={[0, 0.3, 0]} m={F6M.fabricDk} />
-            <B a={[0.74, 0.14, 0.68]} p={[0, 0.5, 0.02]} m={F6M.fabric} r={[0.03, 0, 0]} />
-            {/* backrest, leaning */}
-            <B a={[0.8, 0.85, 0.22]} p={[0, 0.82, -0.42]} m={F6M.fabric} r={[-0.13, 0, 0]} />
-            <B a={[0.74, 0.3, 0.14]} p={[0, 0.62, -0.32]} m={F6M.fabricDk} r={[-0.13, 0, 0]} />
-            {/* wings + armrests */}
+            {/* seat base + soft cushion */}
+            <RB a={[0.8, 0.3, 0.75]} p={[0, 0.3, 0]} m={F6M.fabricDk} rad={0.05} />
+            <RB a={[0.72, 0.17, 0.66]} p={[0, 0.52, 0.02]} m={F6M.fabric} r={[0.03, 0, 0]} rad={0.07} />
+            {/* backrest with a lumbar pillow, leaning */}
+            <RB a={[0.8, 0.85, 0.24]} p={[0, 0.82, -0.42]} m={F6M.fabric} r={[-0.13, 0, 0]} rad={0.08} />
+            <RB a={[0.66, 0.32, 0.16]} p={[0, 0.66, -0.3]} m={F6M.fabricDk} r={[-0.13, 0, 0]} rad={0.07} />
+            {/* wings + arm rolls */}
             {[-0.44, 0.44].map((x) => (
                 <group key={x}>
-                    <B a={[0.14, 0.5, 0.7]} p={[x, 0.52, -0.03]} m={F6M.fabric} />
-                    <B a={[0.16, 0.1, 0.72]} p={[x, 0.74, -0.03]} m={F6M.fabricDk} />
-                    <B a={[0.12, 0.5, 0.18]} p={[x, 1.0, -0.42]} m={F6M.fabric} r={[-0.1, 0, 0]} />
+                    <RB a={[0.15, 0.48, 0.7]} p={[x, 0.5, -0.03]} m={F6M.fabric} rad={0.05} />
+                    <mesh position={[x, 0.76, -0.03]} rotation={[Math.PI / 2, 0, 0]} material={F6M.fabricDk}>
+                        <cylinderGeometry args={[0.085, 0.085, 0.72, 12]} />
+                    </mesh>
+                    <mesh position={[x, 0.76, 0.33]} material={F6M.fabricDk}>
+                        <sphereGeometry args={[0.085, 12, 8]} />
+                    </mesh>
+                    <RB a={[0.13, 0.5, 0.2]} p={[x, 1.0, -0.44]} m={F6M.fabric} r={[-0.1, 0, 0]} rad={0.06} />
                 </group>
             ))}
             {/* turned wood feet */}
@@ -595,8 +651,8 @@ export const SittingArea: React.FC = () => (
         </group>
         {/* ottoman between chair and TV */}
         <group position={[-3.5, 0, 1.45]} rotation={[0, 0.3, 0]}>
-            <B a={[0.55, 0.18, 0.45]} p={[0, 0.26, 0]} m={F6M.fabric} />
-            <B a={[0.5, 0.1, 0.4]} p={[0, 0.4, 0]} m={F6M.fabricDk} />
+            <RB a={[0.55, 0.18, 0.45]} p={[0, 0.26, 0]} m={F6M.fabric} rad={0.05} />
+            <RB a={[0.5, 0.12, 0.4]} p={[0, 0.41, 0]} m={F6M.fabricDk} rad={0.055} />
             {[[-0.2, -0.15], [0.2, -0.15], [-0.2, 0.15], [0.2, 0.15]].map(([x, z], i) => (
                 <mesh key={i} position={[x, 0.09, z]} material={F6M.woodDk}>
                     <cylinderGeometry args={[0.03, 0.04, 0.18, 8]} />
@@ -630,9 +686,9 @@ export const SittingArea: React.FC = () => (
             <mesh position={[0, 0.8, 0]} material={F6M.brassOld}>
                 <cylinderGeometry args={[0.018, 0.022, 1.5, 8]} />
             </mesh>
-            <mesh position={[0, 1.62, 0]}>
-                <cylinderGeometry args={[0.14, 0.21, 0.3, 12, 1, true]} />
-                <meshStandardMaterial color="#e2cda2" emissive="#ffd9a0" emissiveIntensity={0.9}
+            <mesh position={[0, 1.6, 0]}>
+                <cylinderGeometry args={[0.11, 0.16, 0.24, 12, 1, true]} />
+                <meshStandardMaterial color="#cdb288" emissive="#ffd9a0" emissiveIntensity={0.5}
                     side={THREE.DoubleSide} />
             </mesh>
             <mesh position={[0, 1.58, 0]}>

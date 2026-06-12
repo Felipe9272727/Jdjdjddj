@@ -254,13 +254,18 @@ export function f6Hotspots(): F6Hotspot[] {
                 !s.tapOn && !s.fogDone ? 'Pia (torneira quente)'
                     : s.fogDone && s.mirrorRead && !s.inv.chave && !s.kitchenOpen ? 'Pescar no ralo'
                     : 'Pia do banheiro'),
-            H('espelho', 3.2, -9.0, s.fogDone && !s.mirrorRead ? 'Espelho embaçado' : 'Espelho'),
             H('privada', 5.5, -8.3,
                 !s.lidOff ? 'Caixa de descarga'
                     : !s.inv.fusivel && !s.installed.fusivel ? 'Pegar o fusível'
                     : 'Caixa de descarga'),
             H('banheira', 3.75, -4.2, s.curtainOpen ? 'Banheira' : 'Cortina da banheira'),
         );
+        // The mirror sits 30cm in front of the sink hotspot and would shadow
+        // it forever — it only becomes a hotspot while there's something to
+        // read in the steam (and again once the fishing chain is done).
+        if (s.fogDone && (!s.mirrorRead || s.kitchenOpen)) {
+            list.push(H('espelho', 3.2, -9.0, !s.mirrorRead ? 'Espelho embaçado' : 'Espelho'));
+        }
     }
     if (s.kitchenOpen) {
         list.push(

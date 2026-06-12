@@ -11,7 +11,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { f6 } from './f6Escape';
 import { F6M, dndTex, truthTex, mirrorFog, puffTex } from './Floor6Textures';
-import { B, ItemMesh, type F6Fx, since } from './Floor6Props';
+import { B, RB, ItemMesh, type F6Fx, since } from './Floor6Props';
 import { playF6Thud } from './floor6Sfx';
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -270,16 +270,29 @@ const SinkMirror: React.FC<{ fx: F6Fx }> = ({ fx }) => {
     });
     return (
         <group position={[3.2, 0, -9.6]}>
-            {/* pedestal basin */}
-            <B a={[0.95, 0.12, 0.55]} p={[0, 0.84, 0]} m={F6M.porcelain} />
-            <mesh position={[0, 0.86, 0.02]} material={F6M.porcelain}>
-                <cylinderGeometry args={[0.3, 0.24, 0.1, 16, 1, true]} />
+            {/* pedestal basin: rolled-rim bowl on a waisted column */}
+            <mesh position={[0, 0.84, 0.02]} scale={[1.5, 1, 1]} material={F6M.porcelain}>
+                <cylinderGeometry args={[0.3, 0.18, 0.16, 20, 1, true]} />
             </mesh>
-            <mesh position={[0, 0.45, 0]} material={F6M.porcelain}>
-                <cylinderGeometry args={[0.12, 0.17, 0.78, 12]} />
+            <mesh position={[0, 0.92, 0.02]} scale={[1.5, 1, 1]} rotation={[-Math.PI / 2, 0, 0]}
+                material={F6M.porcelain}>
+                <torusGeometry args={[0.295, 0.035, 10, 20]} />
+            </mesh>
+            <mesh position={[0, 0.77, 0.02]} scale={[1.35, 1, 0.9]} rotation={[-Math.PI / 2, 0, 0]}
+                material={F6M.porcelain}>
+                <circleGeometry args={[0.22, 18]} />
+            </mesh>
+            <mesh position={[0, 0.42, 0]} material={F6M.porcelain}>
+                <cylinderGeometry args={[0.09, 0.13, 0.72, 14]} />
+            </mesh>
+            <mesh position={[0, 0.06, 0]} material={F6M.porcelain}>
+                <cylinderGeometry args={[0.13, 0.17, 0.12, 14]} />
+            </mesh>
+            <mesh position={[0, 0.78, 0]} material={F6M.porcelain}>
+                <cylinderGeometry args={[0.14, 0.09, 0.08, 14]} />
             </mesh>
             {/* drain dot */}
-            <mesh position={[0, 0.83, 0.02]} rotation={[-Math.PI / 2, 0, 0]} material={F6M.dark}>
+            <mesh position={[0, 0.78, 0.02]} rotation={[-Math.PI / 2, 0, 0]} material={F6M.dark}>
                 <circleGeometry args={[0.035, 10]} />
             </mesh>
             {/* taps: cold + the HOT one that matters */}
@@ -348,15 +361,28 @@ const Toilet: React.FC = () => {
     const fuseVisible = f6.lidOff && !f6.inv.fusivel && !f6.installed.fusivel;
     return (
         <group position={[5.6, 0, -8.5]}>
-            {/* bowl + seat */}
-            <mesh position={[-0.16, 0.3, 0]} material={F6M.porcelain}>
-                <cylinderGeometry args={[0.21, 0.15, 0.42, 12]} />
+            {/* oval bowl on a waisted pedestal + seat + raised lid against the tank */}
+            <mesh position={[-0.16, 0.14, 0]} scale={[1, 1, 0.85]} material={F6M.porcelain}>
+                <cylinderGeometry args={[0.13, 0.17, 0.28, 16]} />
             </mesh>
-            <mesh position={[-0.16, 0.52, 0]} rotation={[-Math.PI / 2, 0, 0]} material={F6M.porcelain}>
-                <torusGeometry args={[0.19, 0.05, 8, 14]} />
+            <mesh position={[-0.16, 0.38, 0]} scale={[1.15, 1, 0.9]} material={F6M.porcelain}>
+                <cylinderGeometry args={[0.2, 0.12, 0.22, 18]} />
+            </mesh>
+            <mesh position={[-0.16, 0.5, 0]} scale={[1.15, 1, 0.9]} rotation={[-Math.PI / 2, 0, 0]}
+                material={F6M.porcelain}>
+                <torusGeometry args={[0.185, 0.045, 10, 18]} />
+            </mesh>
+            <mesh position={[-0.16, 0.49, 0]} scale={[1.1, 1, 0.85]} rotation={[-Math.PI / 2, 0, 0]}>
+                <circleGeometry args={[0.15, 16]} />
+                <meshStandardMaterial color="#23282c" roughness={0.4} />
+            </mesh>
+            {/* seat lid leaning up against the cistern */}
+            <mesh position={[0.02, 0.62, 0]} scale={[1.15, 1, 0.9]} rotation={[0, 0, Math.PI / 2 - 0.35]}
+                material={F6M.porcelain}>
+                <cylinderGeometry args={[0.21, 0.21, 0.025, 18]} />
             </mesh>
             {/* cistern, open at the top */}
-            <B a={[0.24, 0.66, 0.55]} p={[0.18, 0.62, 0]} m={F6M.porcelain} />
+            <RB a={[0.24, 0.66, 0.55]} p={[0.18, 0.62, 0]} m={F6M.porcelain} rad={0.03} />
             <B a={[0.02, 0.1, 0.5]} p={[0.08, 0.93, 0]} m={F6M.porcelain} />
             {/* still water inside */}
             <mesh position={[0.18, 0.9, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -372,7 +398,7 @@ const Toilet: React.FC = () => {
             )}
             {/* the lid */}
             <group ref={lid}>
-                <B a={[0.3, 0.05, 0.62]} p={[0.18, 1.0, 0]} m={F6M.porcelain} />
+                <RB a={[0.3, 0.05, 0.62]} p={[0.18, 1.0, 0]} m={F6M.porcelain} rad={0.02} />
             </group>
             {/* flush handle + paper holder */}
             <B a={[0.04, 0.03, 0.1]} p={[0.05, 0.84, 0.24]} m={F6M.chrome} />
@@ -401,17 +427,42 @@ const Tub: React.FC = () => {
     });
     return (
         <group position={[3.75, 0, -3.6]}>
-            {/* clawfoot-ish tub: shell + rim + feet */}
-            <B a={[1.85, 0.58, 0.9]} p={[0, 0.33, 0]} m={F6M.porcelain} />
-            <B a={[1.95, 0.07, 1.0]} p={[0, 0.65, 0]} m={F6M.porcelain} />
-            <B a={[1.55, 0.4, 0.6]} p={[0, 0.46, 0]} m={F6M.dark} />
-            {[[-0.8, -0.38], [0.8, -0.38], [-0.8, 0.38], [0.8, 0.38]].map(([x, z], i) => (
-                <mesh key={i} position={[x, 0.05, z]} material={F6M.brassOld}>
-                    <sphereGeometry args={[0.06, 8, 6]} />
-                </mesh>
+            {/* clawfoot tub: elliptical shell, rolled rim, shadowed bowl */}
+            <mesh position={[0, 0.38, 0]} scale={[2.0, 1, 0.93]} material={F6M.porcelain}>
+                <cylinderGeometry args={[0.45, 0.36, 0.52, 28, 1, true]} />
+            </mesh>
+            <mesh position={[0, 0.64, 0]} scale={[2.0, 1, 0.93]} rotation={[-Math.PI / 2, 0, 0]}
+                material={F6M.porcelain}>
+                <torusGeometry args={[0.44, 0.05, 10, 28]} />
+            </mesh>
+            {/* inner wall + waterline grime ring + floor of the bowl */}
+            <mesh position={[0, 0.42, 0]} scale={[1.86, 1, 0.82]} material={F6M.porcelain}>
+                <cylinderGeometry args={[0.44, 0.34, 0.44, 28, 1, true]} />
+            </mesh>
+            <mesh position={[0, 0.21, 0]} scale={[1.7, 1, 0.7]} rotation={[-Math.PI / 2, 0, 0]}>
+                <circleGeometry args={[0.36, 24]} />
+                <meshStandardMaterial color="#d9d6cc" roughness={0.3} />
+            </mesh>
+            <mesh position={[0, 0.56, 0]} scale={[1.88, 1, 0.83]} rotation={[-Math.PI / 2, 0, 0]}>
+                <ringGeometry args={[0.4, 0.44, 28]} />
+                <meshStandardMaterial color="#9a917e" transparent opacity={0.4} roughness={1} />
+            </mesh>
+            {/* skirt under the shell so the belly doesn't float */}
+            <mesh position={[0, 0.13, 0]} scale={[1.9, 1, 0.86]} material={F6M.porcelain}>
+                <cylinderGeometry args={[0.37, 0.41, 0.1, 28, 1, true]} />
+            </mesh>
+            {[[-0.72, -0.3], [0.72, -0.3], [-0.72, 0.3], [0.72, 0.3]].map(([x, z], i) => (
+                <group key={i} position={[x, 0, z]}>
+                    <mesh position={[0, 0.07, 0]} material={F6M.brassOld}>
+                        <sphereGeometry args={[0.065, 10, 8]} />
+                    </mesh>
+                    <mesh position={[0, 0.015, 0]} material={F6M.brassOld}>
+                        <cylinderGeometry args={[0.045, 0.06, 0.03, 10]} />
+                    </mesh>
+                </group>
             ))}
             {/* the towel bundle — "PARTE QUE SOBRA" */}
-            <group position={[0.3, 0.66, 0]} rotation={[0, 0.25, 0]}>
+            <group position={[0.35, 0.24, 0]} rotation={[0, 0.25, 0]}>
                 <B a={[0.5, 0.2, 0.35]} p={[0, 0.1, 0]} m={F6M.sheet} />
                 <B a={[0.52, 0.06, 0.1]} p={[0, 0.12, 0]} m={F6M.fabricDk} />
                 <B a={[0.1, 0.06, 0.37]} p={[0.08, 0.12, 0]} m={F6M.fabricDk} />
@@ -508,18 +559,48 @@ const Stove: React.FC = () => {
     });
     return (
         <group position={[5.55, 0, 1.2]}>
-            {/* cabinet + counter top */}
-            <B a={[0.85, 0.86, 3.6]} p={[0, 0.43, 0]} m={F6M.appliance} />
-            <B a={[0.89, 0.07, 3.66]} p={[0, 0.9, 0]} m={F6M.woodDk} />
-            {/* cabinet doors + knobs */}
-            {[-1.2, -0.4, 0.4, 1.2].map((z) => (
+            {/* cabinet + stone-look counter top with a drip edge */}
+            <B a={[0.85, 0.82, 3.6]} p={[0, 0.41, 0]} m={F6M.appliance} />
+            <RB a={[0.92, 0.07, 3.68]} p={[-0.01, 0.895, 0]} m={F6M.woodDk} rad={0.02} />
+            <B a={[0.85, 0.1, 3.6]} p={[0, 0.05, 0]} m={F6M.applianceDk} />
+            {/* backsplash */}
+            <B a={[0.06, 0.3, 3.6]} p={[0.41, 1.07, 0]} m={F6M.woodDk} />
+            {/* panelled doors with real gaps + brass knobs */}
+            {[-1.2, -0.4, 1.2].map((z) => (
                 <group key={z}>
-                    <B a={[0.03, 0.6, 0.68]} p={[-0.435, 0.42, z]} m={F6M.applianceDk} />
-                    <mesh position={[-0.46, 0.42, z + 0.24]} material={F6M.brassOld}>
+                    <RB a={[0.035, 0.58, 0.66]} p={[-0.435, 0.45, z]} m={F6M.applianceDk} rad={0.012} />
+                    <B a={[0.012, 0.42, 0.5]} p={[-0.45, 0.45, z]} m={F6M.appliance} />
+                    <mesh position={[-0.465, 0.45, z + 0.24]} material={F6M.brassOld}>
                         <sphereGeometry args={[0.022, 6, 5]} />
                     </mesh>
                 </group>
             ))}
+            {/* the oven under the stove: window + steel handle */}
+            <group position={[-0.435, 0.45, 0.4]}>
+                <RB a={[0.035, 0.58, 0.66]} p={[0, 0, 0]} m={F6M.applianceDk} rad={0.012} />
+                <B a={[0.014, 0.3, 0.46]} p={[-0.015, 0.02, 0]} m={F6M.dark} />
+                <mesh position={[-0.03, 0.24, 0]} rotation={[Math.PI / 2, 0, 0]} material={F6M.chrome}>
+                    <cylinderGeometry args={[0.014, 0.014, 0.5, 8]} />
+                </mesh>
+            </group>
+            {/* inox sink sunk into the counter + gooseneck faucet */}
+            <group position={[0, 0.93, -1.3]}>
+                <B a={[0.56, 0.02, 0.5]} p={[0, 0.005, 0]} m={F6M.steelPlain} />
+                <B a={[0.46, 0.16, 0.4]} p={[0, -0.08, 0]} m={F6M.steelPlain} />
+                <mesh position={[0, 0.0, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                    <planeGeometry args={[0.44, 0.38]} />
+                    <meshStandardMaterial color="#43484c" metalness={0.8} roughness={0.35} />
+                </mesh>
+                <mesh position={[0.2, 0.1, 0]} material={F6M.chrome}>
+                    <cylinderGeometry args={[0.018, 0.022, 0.2, 8]} />
+                </mesh>
+                <mesh position={[0.13, 0.2, 0]} rotation={[0, 0, Math.PI / 2]} material={F6M.chrome}>
+                    <cylinderGeometry args={[0.015, 0.015, 0.18, 8]} />
+                </mesh>
+                <mesh position={[0.05, 0.15, 0]} material={F6M.chrome}>
+                    <cylinderGeometry args={[0.013, 0.013, 0.12, 8]} />
+                </mesh>
+            </group>
             {/* stove recess: black top, burner ring, grate */}
             <B a={[0.72, 0.045, 0.92]} p={[0, 0.945, -0.6]} m={F6M.dark} />
             <mesh position={[0, 0.97, -0.6]} material={F6M.rubber}>
@@ -617,8 +698,8 @@ const Fridge: React.FC<{ fx: F6Fx }> = ({ fx }) => {
     });
     return (
         <group position={[5.55, 0, -1.9]}>
-            {/* body, opening toward -x */}
-            <B a={[0.82, 1.85, 0.88]} p={[0.03, 0.93, 0]} m={F6M.appliance} />
+            {/* body, opening toward -x — rounded like a 60s Kelvinator */}
+            <RB a={[0.82, 1.85, 0.88]} p={[0.03, 0.93, 0]} m={F6M.appliance} rad={0.07} />
             {/* interior cavity */}
             <B a={[0.6, 1.6, 0.74]} p={[-0.05, 0.95, 0]} m={F6M.applianceDk} />
             {/* interior light panel */}
@@ -645,7 +726,7 @@ const Fridge: React.FC<{ fx: F6Fx }> = ({ fx }) => {
             )}
             {/* the door (hinge on the +z edge) */}
             <group ref={door} position={[-0.38, 0, 0.44]}>
-                <B a={[0.1, 1.85, 0.88]} p={[0.04, 0.93, -0.44]} m={F6M.appliance} />
+                <RB a={[0.12, 1.85, 0.88]} p={[0.04, 0.93, -0.44]} m={F6M.appliance} rad={0.06} />
                 {/* freezer seam + rubber gasket lines on the face */}
                 <B a={[0.012, 0.035, 0.86]} p={[-0.012, 1.36, -0.44]} m={F6M.applianceDk} />
                 <B a={[0.012, 1.78, 0.03]} p={[-0.012, 0.93, -0.86]} m={F6M.applianceDk} />
