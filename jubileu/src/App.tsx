@@ -55,7 +55,7 @@ import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
 import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
-import { f6Reset } from './f6Escape';
+import { f6, f6Reset, f6Subscribe } from './f6Escape';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
@@ -119,9 +119,12 @@ interface WorldProps {
   /** During the defeat fall cutscene, hide the live parkour/elevator/hazards so
    *  the cutscene shows its OWN staged "high up the climb" set, not the start. */
   floor3FallActive: boolean;
+  /** Floor 6: true once the cab blows — Floor6Suite renders its own DEAD cab
+   *  (crooked, enterable), so the global "alive" interior must unmount. */
+  f6CabDead: boolean;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves, floor3FallActive }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves, floor3FallActive, f6CabDead }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -170,7 +173,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
           dialogueBeatRef={diverBeatRef}
         />
       )}
-      <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
+      {!(level === 6 && f6CabDead) && <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />}
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
       {profile.nightLights && <NightAmbient active={nightMode && level === 1} />}
       {/* Night-vision boost. Only mounts when active — adds bright green
@@ -832,6 +835,15 @@ export default function App() {
     if (currentLevel !== 6) return;
     f6Reset();
   }, [currentLevel]);
+  // Mirrors f6.phase into React so World can swap the live cab for the dead
+  // one the moment the panel blows (f6 itself mutates outside React).
+  const [f6CabDead, setF6CabDead] = useState(false);
+  useEffect(() => f6Subscribe(() => {
+    setF6CabDead((prev) => {
+      const dead = f6.phase !== 'arrive';
+      return prev !== dead ? dead : prev;
+    });
+  }), []);
   useEffect(() => {
     if (currentLevel !== 6 || !audioCtx) return;
     configureFloor6Sfx(audioCtx, cartoonBusRef.current);
@@ -1519,7 +1531,7 @@ export default function App() {
           : <AdaptiveDpr pixelated />}
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} onPlayerCaught={() => {
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} f6CabDead={f6CabDead} onPlayerCaught={() => {
                 setFishJumpscareKey(k => k + 1);
                 setDevoured(true);
                 playJumpscareStab(audioCtx);

@@ -52,12 +52,14 @@ export const Floor6Guest: React.FC<{ playerPositionRef: React.MutableRefObject<T
         while (d < -Math.PI) d += Math.PI * 2;
         root.current.rotation.y += d * Math.min(1, dt * 1.6);
 
-        // breathing + a faint tremor
+        // breathing + a faint tremor + a slow weight shift, heel to heel
         if (chest.current) {
             const br = Math.sin(t * 1.7);
             chest.current.scale.set(1 + br * 0.015, 1 + br * 0.03, 1 + br * 0.02);
             chest.current.position.x = Math.sin(t * 13.7) * 0.004;
         }
+        root.current.rotation.z = Math.sin(t * 0.31) * 0.012;
+        root.current.position.y = Math.abs(Math.sin(t * 0.31)) * -0.008;
         if (head.current) {
             headYaw.current += (Math.sin(t * 0.43) * 0.12 - headYaw.current) * Math.min(1, dt * 2);
             head.current.rotation.y = headYaw.current;

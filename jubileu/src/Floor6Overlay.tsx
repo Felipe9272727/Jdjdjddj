@@ -1,8 +1,9 @@
 /**
  * Floor6Overlay.tsx — the DOM layer of the Suíte 612 escape room: the
- * proximity prompt ([E] / tap), examine cards, the padlock keypad, the
- * hold-to-crank panel, the item chips, the objective line, the blackout
- * veil and the guest's dialogue box.
+ * proximity prompt ([E] / tap), examine cards (delayed so the 3D animation
+ * plays first), the padlock keypad, the hold-to-crank panel (bottom-anchored
+ * and undimmed — the player WATCHES the 3D crank turn), the item chips, the
+ * objective line, the blackout veil and the guest's dialogue box.
  *
  * Mounted by App OUTSIDE the canvas when level === 6 and the doors are open.
  * Reports "UI open" upward so App can pause the Player + drop pointer lock
@@ -12,22 +13,28 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Vector3 } from 'three';
 import {
     f6, f6SetOnChange, f6Hotspots, f6Interact, f6TryCode, f6Crank,
-    f6AdvanceGuest, f6Objective, F6_GUEST_LINES, type F6Action, type F6Sfx,
+    f6AdvanceGuest, f6Objective, f6SetInspecting, F6_GUEST_LINES,
+    type F6Action, type F6Sfx,
 } from './f6Escape';
 import {
     playF6Paper, playF6Click, playF6Clank, playF6Drawer, playF6Water,
-    playF6Static, playF6Chain, playF6Breath, playF6Beep,
+    playF6Static, playF6Breath, playF6Beep, playF6Creak,
 } from './floor6Sfx';
 
 const SFX: Record<F6Sfx, () => void> = {
     paper: playF6Paper, click: playF6Click, clank: playF6Clank,
-    water: playF6Water, static: playF6Static, unlock: () => {}, // event-side
-    chain: () => {},                                            // event-side
+    water: playF6Water, static: playF6Static, creak: () => playF6Creak(0.6),
+    unlock: () => {}, chain: () => {},          // event-side (the scene owns them)
     drawer: playF6Drawer, breath: () => playF6Breath(0.7), none: () => {},
 };
 
 const mono: React.CSSProperties = {
     fontFamily: 'monospace', color: '#e8e2d2', userSelect: 'none',
+};
+
+const ITEM_LABEL: Record<string, string> = {
+    cabide: 'CABIDE', chave: 'CHAVE', gelo: 'GELO', abridor: 'ABRIDOR',
+    fosforos: 'FÓSFOROS', manivela: 'MANIVELA', fusivel: 'FUSÍVEL', rele: 'RELÉ',
 };
 
 /** Slow human typewriter for the guest. */
@@ -50,7 +57,7 @@ export const Floor6Overlay: React.FC<{
     onUiOpenChange: (open: boolean) => void;
 }> = ({ playerPositionRef, onUiOpenChange }) => {
     const [, setV] = useState(0);
-    const [card, setCard] = useState<{ title: string; text: string } | null>(null);
+    const [card, setCard] = useState<{ title: string; text: string; id: string } | null>(null);
     const [keypadOpen, setKeypadOpen] = useState(false);
     const [code, setCode] = useState('');
     const [codeShake, setCodeShake] = useState(false);
@@ -63,6 +70,7 @@ export const Floor6Overlay: React.FC<{
     const crankRaf = useRef(0);
     const crankBar = useRef<HTMLDivElement>(null);
     const crankTick = useRef(0);
+    const pendingCard = useRef(0);
 
     useEffect(() => {
         f6SetOnChange(() => setV((x) => x + 1));
@@ -77,6 +85,8 @@ export const Floor6Overlay: React.FC<{
             let best: { id: string; label: string } | null = null;
             let bestD = Infinity;
             for (const h of f6Hotspots()) {
+                if (h.zMax !== undefined && p.z > h.zMax) continue;   // cab spots: only from inside
+                if (h.zMin !== undefined && p.z < h.zMin) continue;   // room spots near the doorway
                 const d = Math.hypot(p.x - h.x, p.z - h.z);
                 if (d < (h.reach ?? 1.8) && d < bestD) { bestD = d; best = { id: h.id, label: h.label }; }
             }
@@ -86,11 +96,27 @@ export const Floor6Overlay: React.FC<{
         return () => clearInterval(id);
     }, [playerPositionRef]);
 
-    const runAction = useCallback((a: F6Action) => {
-        if (a.kind === 'text') { SFX[a.sfx](); setCard({ title: a.title, text: a.text }); }
+    const openCard = useCallback((id: string, title: string, text: string) => {
+        setCard({ id, title, text });
+        f6SetInspecting(id);
+    }, []);
+    const closeCard = useCallback(() => {
+        setCard(null);
+        f6SetInspecting(null);
+    }, []);
+
+    const runAction = useCallback((id: string, a: F6Action) => {
+        if (a.kind === 'text') {
+            SFX[a.sfx]();
+            window.clearTimeout(pendingCard.current);
+            if (a.delay) {
+                pendingCard.current = window.setTimeout(() => openCard(id, a.title, a.text), a.delay);
+            } else openCard(id, a.title, a.text);
+        }
+        else if (a.kind === 'fx') SFX[a.sfx]();
         else if (a.kind === 'keypad') { playF6Click(); setCode(''); setKeypadOpen(true); }
         else if (a.kind === 'crank') { setCrankOpen(true); }
-    }, []);
+    }, [openCard]);
 
     // Always reads promptRef (the poll keeps it fresh) — the prompt can flip
     // between a React commit and the effect re-subscription, and a player
@@ -98,21 +124,29 @@ export const Floor6Overlay: React.FC<{
     const interact = useCallback(() => {
         const p = promptRef.current;
         if (!p) return;
-        runAction(f6Interact(p.id));
+        runAction(p.id, f6Interact(p.id));
     }, [runAction]);
 
-    // [E] interacts / closes
+    // [E] interacts / closes; holding E winds the crank
     useEffect(() => {
         const kd = (e: KeyboardEvent) => {
             if (e.key.toLowerCase() !== 'e' && e.key !== 'Escape') return;
-            if (card) { setCard(null); return; }
+            if (card) { closeCard(); return; }
             if (keypadOpen) { if (e.key === 'Escape') setKeypadOpen(false); return; }
-            if (crankOpen) { if (e.key === 'Escape') setCrankOpen(false); return; }
+            if (crankOpen) {
+                if (e.key === 'Escape') setCrankOpen(false);
+                else crankHeld.current = true;
+                return;
+            }
             if (e.key.toLowerCase() === 'e') interact();
         };
+        const ku = (e: KeyboardEvent) => {
+            if (e.key.toLowerCase() === 'e' && crankOpen) crankHeld.current = false;
+        };
         window.addEventListener('keydown', kd);
-        return () => window.removeEventListener('keydown', kd);
-    }, [card, keypadOpen, crankOpen, interact]);
+        window.addEventListener('keyup', ku);
+        return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
+    }, [card, keypadOpen, crankOpen, interact, closeCard]);
 
     // tell App when the player should be frozen (cards, keypad, crank, the guest)
     const uiOpen = card !== null || keypadOpen || crankOpen
@@ -131,7 +165,10 @@ export const Floor6Overlay: React.FC<{
                 if (f6TryCode(next)) {
                     playF6Beep(true);
                     setKeypadOpen(false);
-                    setCard({ title: 'CADEADO', text: 'O cadeado cede com um clique gordo e cai no carpete.\n\nO banheiro dele, aberto.' });
+                    // the shackle pops, the lock drops, the door creaks — THEN the card
+                    window.clearTimeout(pendingCard.current);
+                    pendingCard.current = window.setTimeout(() => openCard('portabanheiro', 'CADEADO',
+                        'O cadeado cede com um clique gordo e cai morto no carpete.\n\nO banheiro dele, aberto.'), 1500);
                 } else {
                     playF6Beep(false);
                     setCodeShake(true);
@@ -161,11 +198,7 @@ export const Floor6Overlay: React.FC<{
     }, [crankOpen]);
 
     const objective = f6Objective();
-    const items: Array<[keyof typeof f6.inv, string]> = [
-        ['cabide', 'CABIDE'], ['chave', 'CHAVE'], ['gelo', 'GELO'],
-        ['manivela', 'MANIVELA'], ['fusivel', 'FUSÍVEL'], ['rele', 'RELÉ'],
-    ];
-    const carried = items.filter(([k]) => f6.inv[k]);
+    const carried = (Object.keys(ITEM_LABEL) as Array<keyof typeof f6.inv>).filter((k) => f6.inv[k]);
 
     const advanceGuest = () => {
         if (!guestTyped) { guestFastRef.current = true; return; }
@@ -189,15 +222,15 @@ export const Floor6Overlay: React.FC<{
             {/* item chips */}
             {carried.length > 0 && !uiOpen && (
                 <div style={{
-                    position: 'absolute', top: 'calc(env(safe-area-inset-top) + 40px)', right: 12,
+                    position: 'absolute', top: 'calc(env(safe-area-inset-top) + 86px)', right: 12,
                     display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end',
                 }}>
-                    {carried.map(([k, label]) => (
+                    {carried.map((k) => (
                         <div key={k} style={{
                             ...mono, fontSize: 11, letterSpacing: 1, padding: '4px 10px',
                             background: 'rgba(12,12,14,0.72)', border: '1px solid rgba(232,226,210,0.35)',
-                            borderRadius: 6,
-                        }}>{label}</div>
+                            borderRadius: 6, animation: 'f6chip 0.45s',
+                        }}>{ITEM_LABEL[k]}</div>
                     ))}
                 </div>
             )}
@@ -217,14 +250,15 @@ export const Floor6Overlay: React.FC<{
 
             {/* examine card */}
             {card && (
-                <div onPointerDown={() => setCard(null)} style={{
+                <div onPointerDown={closeCard} style={{
                     position: 'absolute', inset: 0, pointerEvents: 'auto', cursor: 'pointer',
-                    background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    padding: 18,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 18, animation: 'f6fadein 0.22s',
                 }}>
                     <div style={{
                         maxWidth: 520, width: '100%', background: '#15130f', border: '1px solid #6a5c44',
                         borderRadius: 10, padding: '18px 20px 16px', boxShadow: '0 12px 40px rgba(0,0,0,0.8)',
+                        animation: 'f6card 0.3s',
                     }}>
                         <div style={{ ...mono, fontSize: 12, letterSpacing: 3, color: '#d9b96a', marginBottom: 10 }}>{card.title}</div>
                         <div style={{ ...mono, fontSize: 15, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{card.text}</div>
@@ -238,11 +272,12 @@ export const Floor6Overlay: React.FC<{
                 <div onPointerDown={(e) => { if (e.target === e.currentTarget) setKeypadOpen(false); }} style={{
                     position: 'absolute', inset: 0, pointerEvents: 'auto',
                     background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    animation: 'f6fadein 0.22s',
                 }}>
                     <div style={{
-                        background: '#191713', border: '1px solid #6a5c44', borderRadius: 12,
+                        background: 'linear-gradient(165deg,#23201a,#15130f)', border: '1px solid #6a5c44', borderRadius: 12,
                         padding: 18, width: 250, boxShadow: '0 12px 40px rgba(0,0,0,0.8)',
-                        animation: codeShake ? 'f6shake 0.4s' : undefined,
+                        animation: codeShake ? 'f6shake 0.4s' : 'f6card 0.3s',
                     }}>
                         <div style={{ ...mono, fontSize: 12, letterSpacing: 3, color: '#d9b96a', textAlign: 'center' }}>CADEADO — 4 DÍGITOS</div>
                         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', margin: '14px 0' }}>
@@ -250,6 +285,7 @@ export const Floor6Overlay: React.FC<{
                                 <div key={i} style={{
                                     ...mono, width: 38, height: 46, lineHeight: '46px', textAlign: 'center', fontSize: 24,
                                     background: '#0c0b09', border: `1px solid ${codeShake ? '#a33' : '#4a4234'}`, borderRadius: 6,
+                                    boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.8)',
                                 }}>{code[i] ?? ''}</div>
                             ))}
                         </div>
@@ -261,7 +297,8 @@ export const Floor6Overlay: React.FC<{
                                     else pushDigit(k);
                                 }} style={{
                                     ...mono, fontSize: 18, padding: '10px 0', cursor: 'pointer',
-                                    background: '#26221b', border: '1px solid #4a4234', borderRadius: 8, color: '#e8e2d2',
+                                    background: 'linear-gradient(180deg,#2c2820,#211d16)', border: '1px solid #4a4234',
+                                    borderRadius: 8, color: '#e8e2d2',
                                 }}>{k}</button>
                             ))}
                         </div>
@@ -269,18 +306,20 @@ export const Floor6Overlay: React.FC<{
                 </div>
             )}
 
-            {/* hold-to-crank */}
+            {/* hold-to-crank — bottom panel, UNDIMMED: watch the crank turn */}
             {crankOpen && (
                 <div style={{
-                    position: 'absolute', inset: 0, pointerEvents: 'auto',
-                    background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    position: 'absolute', left: 0, right: 0,
+                    bottom: 'calc(env(safe-area-inset-bottom) + 24px)',
+                    display: 'flex', justifyContent: 'center', pointerEvents: 'none',
                 }}>
                     <div style={{
-                        background: '#191713', border: '1px solid #6a5c44', borderRadius: 12,
-                        padding: 22, width: 290, textAlign: 'center', boxShadow: '0 12px 40px rgba(0,0,0,0.8)',
+                        background: 'rgba(18,16,12,0.88)', border: '1px solid #6a5c44', borderRadius: 12,
+                        padding: '14px 18px', width: 280, textAlign: 'center', pointerEvents: 'auto',
+                        boxShadow: '0 10px 36px rgba(0,0,0,0.8)', animation: 'f6card 0.25s',
                     }}>
-                        <div style={{ ...mono, fontSize: 12, letterSpacing: 3, color: '#d9b96a' }}>MANIVELA DE EMERGÊNCIA</div>
-                        <div style={{ height: 10, background: '#0c0b09', border: '1px solid #4a4234', borderRadius: 6, margin: '16px 0', overflow: 'hidden' }}>
+                        <div style={{ ...mono, fontSize: 12, letterSpacing: 3, color: '#d9b96a' }}>GUINCHO DE EMERGÊNCIA</div>
+                        <div style={{ height: 10, background: '#0c0b09', border: '1px solid #4a4234', borderRadius: 6, margin: '12px 0', overflow: 'hidden' }}>
                             <div ref={crankBar} style={{ height: '100%', width: `${f6.crankT * 100}%`, background: 'linear-gradient(90deg,#8a6d2c,#d9b96a)' }} />
                         </div>
                         <button
@@ -288,12 +327,12 @@ export const Floor6Overlay: React.FC<{
                             onPointerUp={() => { crankHeld.current = false; }}
                             onPointerCancel={() => { crankHeld.current = false; }}
                             style={{
-                                ...mono, fontSize: 17, padding: '16px 0', width: '100%', cursor: 'pointer',
-                                background: '#26221b', border: '1px solid #6a5c44', borderRadius: 10, color: '#e8e2d2',
-                                touchAction: 'none',
+                                ...mono, fontSize: 16, padding: '14px 0', width: '100%', cursor: 'pointer',
+                                background: 'linear-gradient(180deg,#2c2820,#211d16)', border: '1px solid #6a5c44',
+                                borderRadius: 10, color: '#e8e2d2', touchAction: 'none',
                             }}>SEGURE PARA GIRAR</button>
                         <button onPointerDown={() => setCrankOpen(false)} style={{
-                            ...mono, fontSize: 11, marginTop: 10, background: 'none', border: 'none',
+                            ...mono, fontSize: 11, marginTop: 8, background: 'none', border: 'none',
                             color: '#7a715c', cursor: 'pointer',
                         }}>sair</button>
                     </div>
@@ -346,6 +385,8 @@ export const Floor6Overlay: React.FC<{
                 @keyframes f6shake { 0%,100% { transform: translateX(0) } 25% { transform: translateX(-7px) } 75% { transform: translateX(7px) } }
                 @keyframes f6fadein { from { opacity: 0 } to { opacity: 1 } }
                 @keyframes f6whisper { from { opacity: 0 } to { opacity: 0.9 } }
+                @keyframes f6card { from { opacity: 0; transform: translateY(10px) scale(0.98) } to { opacity: 1; transform: none } }
+                @keyframes f6chip { 0% { transform: scale(0.6); opacity: 0 } 60% { transform: scale(1.12) } 100% { transform: scale(1); opacity: 1 } }
             `}</style>
         </div>
     );
