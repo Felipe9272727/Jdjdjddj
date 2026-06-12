@@ -11,7 +11,7 @@ export default defineConfig(({mode: _mode}) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
-    assetsInclude: ['**/*.glb'],
+    assetsInclude: ['**/*.glb', '**/*.hdr'],
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.

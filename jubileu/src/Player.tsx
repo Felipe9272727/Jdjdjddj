@@ -431,7 +431,11 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
       diverFrameRef.current.dist = 0;
       diverFrameRef.current.fov = 0;
     }
-    if (dialogueOpen && dialogueFocusRef?.current) {
+    // Floor 6 (Suíte 612): the escape-room cards/keypad/crank freeze input
+    // (App gates WASD/joystick/look while f6UiOpen), but the camera must STAY
+    // first-person exactly where it was — the dialogue rig would yank it out
+    // to a third-person shot of an NPC ref that doesn't even live on this floor.
+    if (dialogueOpen && dialogueFocusRef?.current && currentLevel !== 6) {
         if (animRef.current !== 'Idle') { animRef.current = 'Idle'; setAnim('Idle'); }
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
         const nP = dialogueFocusRef.current; const pP = pos.current;

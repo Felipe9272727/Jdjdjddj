@@ -622,22 +622,22 @@ export const SittingArea: React.FC = () => (
         {/* armchair at (-4.6, 1.6), facing the TV (+x) */}
         <group position={[-4.6, 0, 1.6]} rotation={[0, -Math.PI / 2 + 0.18, 0]}>
             {/* seat base + soft cushion */}
-            <RB a={[0.8, 0.3, 0.75]} p={[0, 0.3, 0]} m={F6M.fabricDk} rad={0.05} />
-            <RB a={[0.72, 0.17, 0.66]} p={[0, 0.52, 0.02]} m={F6M.fabric} r={[0.03, 0, 0]} rad={0.07} />
+            <RB a={[0.8, 0.3, 0.75]} p={[0, 0.3, 0]} m={F6M.leatherDk} rad={0.05} />
+            <RB a={[0.72, 0.17, 0.66]} p={[0, 0.52, 0.02]} m={F6M.leather} r={[0.03, 0, 0]} rad={0.07} />
             {/* backrest with a lumbar pillow, leaning */}
-            <RB a={[0.8, 0.85, 0.24]} p={[0, 0.82, -0.42]} m={F6M.fabric} r={[-0.13, 0, 0]} rad={0.08} />
-            <RB a={[0.66, 0.32, 0.16]} p={[0, 0.66, -0.3]} m={F6M.fabricDk} r={[-0.13, 0, 0]} rad={0.07} />
+            <RB a={[0.8, 0.85, 0.24]} p={[0, 0.82, -0.42]} m={F6M.leather} r={[-0.13, 0, 0]} rad={0.08} />
+            <RB a={[0.66, 0.32, 0.16]} p={[0, 0.66, -0.3]} m={F6M.leatherDk} r={[-0.13, 0, 0]} rad={0.07} />
             {/* wings + arm rolls */}
             {[-0.44, 0.44].map((x) => (
                 <group key={x}>
-                    <RB a={[0.15, 0.48, 0.7]} p={[x, 0.5, -0.03]} m={F6M.fabric} rad={0.05} />
-                    <mesh position={[x, 0.76, -0.03]} rotation={[Math.PI / 2, 0, 0]} material={F6M.fabricDk}>
+                    <RB a={[0.15, 0.48, 0.7]} p={[x, 0.5, -0.03]} m={F6M.leather} rad={0.05} />
+                    <mesh position={[x, 0.76, -0.03]} rotation={[Math.PI / 2, 0, 0]} material={F6M.leatherDk}>
                         <cylinderGeometry args={[0.085, 0.085, 0.72, 12]} />
                     </mesh>
-                    <mesh position={[x, 0.76, 0.33]} material={F6M.fabricDk}>
+                    <mesh position={[x, 0.76, 0.33]} material={F6M.leatherDk}>
                         <sphereGeometry args={[0.085, 12, 8]} />
                     </mesh>
-                    <RB a={[0.13, 0.5, 0.2]} p={[x, 1.0, -0.44]} m={F6M.fabric} r={[-0.1, 0, 0]} rad={0.06} />
+                    <RB a={[0.13, 0.5, 0.2]} p={[x, 1.0, -0.44]} m={F6M.leather} r={[-0.1, 0, 0]} rad={0.06} />
                 </group>
             ))}
             {/* turned wood feet */}
@@ -651,8 +651,8 @@ export const SittingArea: React.FC = () => (
         </group>
         {/* ottoman between chair and TV */}
         <group position={[-3.5, 0, 1.45]} rotation={[0, 0.3, 0]}>
-            <RB a={[0.55, 0.18, 0.45]} p={[0, 0.26, 0]} m={F6M.fabric} rad={0.05} />
-            <RB a={[0.5, 0.12, 0.4]} p={[0, 0.41, 0]} m={F6M.fabricDk} rad={0.055} />
+            <RB a={[0.55, 0.18, 0.45]} p={[0, 0.26, 0]} m={F6M.leather} rad={0.05} />
+            <RB a={[0.5, 0.12, 0.4]} p={[0, 0.41, 0]} m={F6M.leatherDk} rad={0.055} />
             {[[-0.2, -0.15], [0.2, -0.15], [-0.2, 0.15], [0.2, 0.15]].map(([x, z], i) => (
                 <mesh key={i} position={[x, 0.09, z]} material={F6M.woodDk}>
                     <cylinderGeometry args={[0.03, 0.04, 0.18, 8]} />

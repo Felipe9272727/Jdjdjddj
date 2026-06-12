@@ -18,7 +18,7 @@ import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { f6 } from './f6Escape';
-import { F6M, puffTex } from './Floor6Textures';
+import { F6M, puffTex, botoeiraTex } from './Floor6Textures';
 import { B, ItemMesh, type F6Fx, since } from './Floor6Props';
 import { playF6Spark, playF6Slam, playF6Creak, playF6Groan } from './floor6Sfx';
 
@@ -221,6 +221,22 @@ const CommandPanel: React.FC = () => {
         </group>
     );
 };
+
+/** The button column beside the command panel. Floors 1·2·3·5·6·7 — and a
+ *  burnt empty socket where the 4 should be. The diary points here. */
+const Botoeira: React.FC = () => (
+    <group position={[3.04, 1.5, 2.3]} rotation={[0, -Math.PI / 2, 0]}>
+        <B a={[0.22, 1.08, 0.03]} p={[0, 0, 0]} m={F6M.steel} />
+        <mesh position={[0, 0, 0.017]}>
+            <planeGeometry args={[0.19, 1.0]} />
+            <meshStandardMaterial map={botoeiraTex} roughness={0.55} metalness={0.3} envMapIntensity={0.6} />
+        </mesh>
+        {/* the 4's socket, recessed for real */}
+        <mesh position={[0, 0.002, 0.012]} rotation={[Math.PI / 2, 0, 0]} material={F6M.rubber}>
+            <cylinderGeometry args={[0.036, 0.036, 0.02, 12]} />
+        </mesh>
+    </group>
+);
 
 /** The emergency winch on the back wall — shaft, plaque, and the crank that
  *  REALLY turns while the player winds it. */
@@ -439,6 +455,7 @@ export const DeadCab: React.FC<{ fx: F6Fx }> = ({ fx }) => {
                         {/* the part homes */}
                         <FuseBox />
                         <CommandPanel />
+                        <Botoeira />
                         <Winch />
                         {/* cables spilling from the ceiling near the panel */}
                         <mesh position={[2.9, 2.1, 1.2]} rotation={[0.4, 0, 0.3]} material={F6M.rubber}>

@@ -10,6 +10,71 @@
  * All textures are built ONCE at module scope and shared.
  */
 import * as THREE from 'three';
+import carpetDiffUrl from './assets/f6/carpet-diff.jpg';
+import carpetNorUrl from './assets/f6/carpet-nor.jpg';
+import carpetRoughUrl from './assets/f6/carpet-rough.jpg';
+import wallpaperDiffUrl from './assets/f6/wallpaper-diff.jpg';
+import wallpaperNorUrl from './assets/f6/wallpaper-nor.jpg';
+import wallpaperRoughUrl from './assets/f6/wallpaper-rough.jpg';
+import tileDiffUrl from './assets/f6/tile-diff.jpg';
+import tileNorUrl from './assets/f6/tile-nor.jpg';
+import tileRoughUrl from './assets/f6/tile-rough.jpg';
+import linoDiffUrl from './assets/f6/lino-diff.jpg';
+import linoNorUrl from './assets/f6/lino-nor.jpg';
+import linoRoughUrl from './assets/f6/lino-rough.jpg';
+import woodDiffUrl from './assets/f6/wood-diff.jpg';
+import woodNorUrl from './assets/f6/wood-nor.jpg';
+import woodRoughUrl from './assets/f6/wood-rough.jpg';
+import metalDiffUrl from './assets/f6/metal-diff.jpg';
+import metalNorUrl from './assets/f6/metal-nor.jpg';
+import metalRoughUrl from './assets/f6/metal-rough.jpg';
+import leatherDiffUrl from './assets/f6/leather-diff.jpg';
+import leatherNorUrl from './assets/f6/leather-nor.jpg';
+import leatherRoughUrl from './assets/f6/leather-rough.jpg';
+
+// ── REAL photo PBR maps (PolyHaven CC0, 1k, bundled as data-URIs) ────────────
+const texLoader = new THREE.TextureLoader();
+function photoTex(url: string, srgb: boolean, rx = 1, ry = 1): THREE.Texture {
+    const t = texLoader.load(url);
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(rx, ry);
+    t.anisotropy = 4;
+    return t;
+}
+/** diff+normal+rough triple with one repeat. */
+function pbrMaps(diff: string, nor: string, rough: string, rx: number, ry: number) {
+    return {
+        map: photoTex(diff, true, rx, ry),
+        normalMap: photoTex(nor, false, rx, ry),
+        roughnessMap: photoTex(rough, false, rx, ry),
+    };
+}
+export const PBR = {
+    carpet: (rx = 4.75, ry = 8.5) => pbrMaps(carpetDiffUrl, carpetNorUrl, carpetRoughUrl, rx, ry),
+    wallpaper: (rx = 1, ry = 1) => pbrMaps(wallpaperDiffUrl, wallpaperNorUrl, wallpaperRoughUrl, rx, ry),
+    tile: (rx = 1, ry = 1) => pbrMaps(tileDiffUrl, tileNorUrl, tileRoughUrl, rx, ry),
+    lino: (rx = 3, ry = 6.7) => pbrMaps(linoDiffUrl, linoNorUrl, linoRoughUrl, rx, ry),
+    wood: (rx = 1.4, ry = 1) => pbrMaps(woodDiffUrl, woodNorUrl, woodRoughUrl, rx, ry),
+    metal: (rx = 1.4, ry = 1.2) => pbrMaps(metalDiffUrl, metalNorUrl, metalRoughUrl, rx, ry),
+    leather: (rx = 1.7, ry = 1.7) => pbrMaps(leatherDiffUrl, leatherNorUrl, leatherRoughUrl, rx, ry),
+};
+export { default as hdrUrl } from './assets/f6/hotel_room_1k.hdr';
+
+/** Vertical AO strip (dark at ceiling line and baseboard) for wall faces —
+ *  photo textures tile in Y, so the grounding shadow lives in this aoMap. */
+export const wallAoTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = 4; c.height = 256;
+    const ctx = c.getContext('2d')!;
+    const g = ctx.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0, '#9a9a9a'); g.addColorStop(0.18, '#ffffff');
+    g.addColorStop(0.8, '#ffffff'); g.addColorStop(1, '#787878');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 256);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    return t;
+})();
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 type Draw = (ctx: CanvasRenderingContext2D, w: number, h: number) => void;
@@ -494,6 +559,47 @@ export const nineTex = colorTex(128, 128, (ctx) => {
 });
 nineTex.wrapS = nineTex.wrapT = THREE.ClampToEdgeWrapping;
 
+/** The cab's button column plate: floors 1·2·3·▢·5·6·7 — the burnt hole
+ *  where 4 should be IS the clue. Canvas so it never depends on a CDN font. */
+export const botoeiraTex = colorTex(128, 512, (ctx) => {
+    const g = ctx.createLinearGradient(0, 0, 128, 0);
+    g.addColorStop(0, '#73787e'); g.addColorStop(0.5, '#8b9097'); g.addColorStop(1, '#6c7177');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 512);
+    ctx.strokeStyle = '#4a4e54'; ctx.lineWidth = 4; ctx.strokeRect(6, 6, 116, 500);
+    const r = rng(61);
+    for (let i = 0; i < 160; i++) {                          // grime
+        ctx.fillStyle = `rgba(30,28,24,${r() * 0.12})`;
+        ctx.fillRect(r() * 128, r() * 512, 2, 2);
+    }
+    [7, 6, 5, 4, 3, 2, 1].forEach((n, i) => {
+        const y = 60 + i * 66;
+        if (n === 4) {
+            // the hole — scorched ring, void center
+            ctx.fillStyle = '#0a0908';
+            ctx.beginPath(); ctx.arc(64, y, 21, 0, Math.PI * 2); ctx.fill();
+            for (let k = 0; k < 14; k++) {
+                ctx.strokeStyle = `rgba(22,16,10,${0.3 + r() * 0.3})`;
+                ctx.lineWidth = 2;
+                const a = r() * Math.PI * 2;
+                ctx.beginPath(); ctx.moveTo(64 + Math.cos(a) * 22, y + Math.sin(a) * 22);
+                ctx.lineTo(64 + Math.cos(a) * (26 + r() * 8), y + Math.sin(a) * (26 + r() * 8)); ctx.stroke();
+            }
+            return;
+        }
+        // worn brass button
+        const bg = ctx.createRadialGradient(60, y - 4, 3, 64, y, 20);
+        bg.addColorStop(0, '#d9c489'); bg.addColorStop(0.7, '#a8893f'); bg.addColorStop(1, '#6e5a24');
+        ctx.fillStyle = bg;
+        ctx.beginPath(); ctx.arc(64, y, 19, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#3c3010'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(64, y, 19, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = '#2c2414';
+        ctx.font = 'bold 24px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(n), 64, y + 1);
+    });
+});
+botoeiraTex.wrapS = botoeiraTex.wrapT = THREE.ClampToEdgeWrapping;
+
 /** "NÃO PERTURBE" door hanger. */
 export const dndTex = colorTex(96, 192, (ctx) => {
     ctx.fillStyle = '#a8332a'; ctx.fillRect(0, 0, 96, 192);
@@ -510,15 +616,12 @@ dndTex.wrapS = dndTex.wrapT = THREE.ClampToEdgeWrapping;
 
 // ── shared materials ──────────────────────────────────────────────────────────
 export const F6M = {
-    carpet: new THREE.MeshStandardMaterial({ map: carpetTex, bumpMap: carpetBump, bumpScale: 0.6, roughness: 0.96 }),
+    carpet: new THREE.MeshStandardMaterial({ ...PBR.carpet(), roughness: 1 }),
     tileFloor: new THREE.MeshStandardMaterial({ map: tileTex, bumpMap: tileBump, bumpScale: 0.15, roughnessMap: tileRough, roughness: 1.0, envMapIntensity: 0.7 }),
-    vinyl: new THREE.MeshStandardMaterial({ map: vinylTex, roughness: 0.55, envMapIntensity: 0.4 }),
+    vinyl: new THREE.MeshStandardMaterial({ ...PBR.lino(), roughness: 1, envMapIntensity: 0.5 }),
     ceil: new THREE.MeshStandardMaterial({ map: ceilTex, roughness: 0.95 }),
-    wood: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.62, envMapIntensity: 0.5 }),
-    woodBig: new THREE.MeshStandardMaterial({
-        map: (() => { const t = woodTex.clone(); t.repeat.set(2.6, 1.6); t.needsUpdate = true; return t; })(),
-        roughness: 0.62, envMapIntensity: 0.5,
-    }),
+    wood: new THREE.MeshStandardMaterial({ ...PBR.wood(), roughness: 1, envMapIntensity: 0.6 }),
+    woodBig: new THREE.MeshStandardMaterial({ ...PBR.wood(), roughness: 1, envMapIntensity: 0.6 }),
     woodDk: new THREE.MeshStandardMaterial({ color: '#33251a', roughness: 0.7, envMapIntensity: 0.3 }),
     fabric: new THREE.MeshStandardMaterial({ color: '#7e2b26', roughness: 1 }),
     fabricDk: new THREE.MeshStandardMaterial({ color: '#5e1f1c', roughness: 1 }),
@@ -526,7 +629,7 @@ export const F6M = {
     pillow: new THREE.MeshStandardMaterial({ color: '#ddd6c4', roughness: 0.92 }),
     porcelain: new THREE.MeshStandardMaterial({ color: '#e9e7e0', roughness: 0.16, envMapIntensity: 0.9 }),
     chrome: new THREE.MeshStandardMaterial({ color: '#cdd2d6', metalness: 0.95, roughness: 0.18, envMapIntensity: 1.1 }),
-    steel: new THREE.MeshStandardMaterial({ map: steelTex, bumpMap: steelBump, bumpScale: 0.8, metalness: 0.75, roughness: 0.42, envMapIntensity: 0.8 }),
+    steel: new THREE.MeshStandardMaterial({ ...PBR.metal(), metalness: 0.85, roughness: 1, envMapIntensity: 0.9 }),
     steelPlain: new THREE.MeshStandardMaterial({ color: '#6e747a', metalness: 0.7, roughness: 0.45, envMapIntensity: 0.6 }),
     appliance: new THREE.MeshStandardMaterial({ color: '#d8d4cc', roughness: 0.38, envMapIntensity: 0.55 }),
     applianceDk: new THREE.MeshStandardMaterial({ color: '#b9b4aa', roughness: 0.5, envMapIntensity: 0.4 }),
@@ -540,8 +643,10 @@ export const F6M = {
     glass: new THREE.MeshStandardMaterial({ color: '#aebfc4', metalness: 0.4, roughness: 0.05, transparent: true, opacity: 0.3, envMapIntensity: 1.4 }),
     paper: new THREE.MeshStandardMaterial({ color: '#ded6bd', roughness: 0.9 }),
     ice: new THREE.MeshPhysicalMaterial({ color: '#bfe2ec', transparent: true, opacity: 0.78, roughness: 0.12, transmission: 0, envMapIntensity: 1.3 }),
-    cabWall: new THREE.MeshStandardMaterial({ map: steelTex, bumpMap: steelBump, bumpScale: 0.9, metalness: 0.6, roughness: 0.5, color: '#9aa0a6', envMapIntensity: 0.7 }),
+    cabWall: new THREE.MeshStandardMaterial({ ...PBR.metal(), metalness: 0.7, roughness: 1, color: '#b8bcc2', envMapIntensity: 0.8 }),
     cabFloor: new THREE.MeshStandardMaterial({ map: cabFloorTex, color: '#7d776c', roughness: 0.6, envMapIntensity: 0.3 }),
+    leather: new THREE.MeshStandardMaterial({ ...PBR.leather(), roughness: 1, envMapIntensity: 0.7 }),
+    leatherDk: new THREE.MeshStandardMaterial({ ...PBR.leather(), color: '#8a6a60', roughness: 1, envMapIntensity: 0.5 }),
 };
 
 // ── contact-shadow blob (radial gradient, multiplied onto the floor) ─────────

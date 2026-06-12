@@ -280,13 +280,22 @@ export const Floor6Overlay: React.FC<{
                         animation: codeShake ? 'f6shake 0.4s' : 'f6card 0.3s',
                     }}>
                         <div style={{ ...mono, fontSize: 12, letterSpacing: 3, color: '#d9b96a', textAlign: 'center' }}>CADEADO — 4 DÍGITOS</div>
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', margin: '14px 0' }}>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', margin: '14px 0 4px' }}>
                             {[0, 1, 2, 3].map((i) => (
                                 <div key={i} style={{
                                     ...mono, width: 38, height: 46, lineHeight: '46px', textAlign: 'center', fontSize: 24,
                                     background: '#0c0b09', border: `1px solid ${codeShake ? '#a33' : '#4a4234'}`, borderRadius: 6,
                                     boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.8)',
                                 }}>{code[i] ?? ''}</div>
+                            ))}
+                        </div>
+                        {/* scratched under the dials, in HIS hand — the order */}
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }}>
+                            {['QUADRO', 'FONE', 'ANDAR', 'CANAL'].map((l) => (
+                                <div key={l} style={{
+                                    ...mono, width: 38, textAlign: 'center', fontSize: 7.5,
+                                    letterSpacing: 0.5, color: '#8a7d5e',
+                                }}>{l}</div>
                             ))}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>

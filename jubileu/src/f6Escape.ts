@@ -241,6 +241,7 @@ export function f6Hotspots(): F6Hotspot[] {
             H('soq_rele', 2.6, -11.2,
                 s.installed.rele ? 'Painel de comando' : 'Painel de comando (soquete vazio)',
                 { zMax: -10.1 }),
+            H('botoeira', 2.6, -10.6, 'Botoeira do elevador', { zMax: -10.1 }),
             H('eixo', 0, -15.2,
                 allInstalled() ? 'Girar a manivela'
                     : s.installed.manivela ? 'Guincho de emergência'
@@ -297,7 +298,7 @@ export const F6_TXT: Record<string, { title: string; text: string }> = {
     aviso: { title: 'BILHETE NO BATENTE', text: F6_NOTE_PANEL },
     maquina: {
         title: 'MÁQUINA DE ESCREVER',
-        text: 'Uma página pela metade, ainda presa no rolo:\n\n"eu contei os andares. não são sete como o robô do 5 jura — coitado, ele só conhece o dele. são VINTE. eu subi de serviço, contei as portas, FOTOGRAFEI.\n\namanhã fazem o meu check-out.\n\nse você está lendo isto, escondi os números onde eles não olham: atrás do quadro torto, embaixo do telefone, no andar que não existe, e no canal que só dá estática."',
+        text: 'Uma página pela metade, ainda presa no rolo:\n\n"eu contei os andares. não são sete como o robô do 5 jura — coitado, ele só conhece o dele. são VINTE. eu subi de serviço, contei as portas, FOTOGRAFEI.\n\namanhã fazem o meu check-out.\n\nse você está lendo isto, escondi os números do cadeado NESTA ORDEM:\n\n1º — atrás do quadro torto\n2º — embaixo do telefone\n3º — o andar que não existe\n4º — o canal que só dá estática"',
     },
     quadro: {
         title: 'QUADRO TORTO',
@@ -318,7 +319,7 @@ export const F6_TXT: Record<string, { title: string; text: string }> = {
     },
     diario: {
         title: 'DIÁRIO',
-        text: '"dia 47. eles sorriem quando eu pergunto do último andar. sorriem igual.\n\no terceiro número eu deixei onde só quem LEMBRA encontra: é o andar que não existe."',
+        text: '"dia 47. eles sorriem quando eu pergunto do último andar. sorriem igual.\n\no terceiro número é o andar que não existe. o ELEVADOR sabe qual é: olha a botoeira lá dentro e conta o buraco entre os botões."',
     },
     tvon: {
         title: 'TELEVISÃO',
@@ -451,6 +452,10 @@ export const F6_TXT: Record<string, { title: string; text: string }> = {
         text: 'O fusível encaixa nos bornes com um estalo gordo.\n\nEm algum lugar atrás da chapa, um zumbido tenta começar.',
     },
     soq_fusivel_done: { title: 'CAIXA DE FUSÍVEIS', text: 'O fusível novo, firme nos bornes.' },
+    botoeira: {
+        title: 'BOTOEIRA',
+        text: 'Uma coluna de botões amarelados, mortos:\n\n1 · 2 · 3 · ▢ · 5 · 6 · 7\n\nEntre o 3 e o 5, um soquete vazio, queimado há muito tempo. O hotel nunca deu botão ao andar que não existe.\n\n« 4 »',
+    },
     soq_rele: {
         title: 'PAINEL DE COMANDO',
         text: 'A chapa do painel pende torta, por dentro é fumaça seca e cobre derretido.\n\nNo meio, um soquete octal vazio — o RELÉ de comando evaporou.',
@@ -652,6 +657,7 @@ export function f6Interact(id: string): F6Action {
                 return TXT('soq_fusivel_in', 'none', 800);
             }
             return TXT('soq_fusivel', 'click');
+        case 'botoeira': return TXT('botoeira', 'click');
         case 'soq_rele':
             if (s.installed.rele) return TXT('soq_rele_done', 'none');
             if (s.inv.rele) {

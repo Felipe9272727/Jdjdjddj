@@ -195,6 +195,14 @@ describe('o cab morto (sockets + crank)', () => {
         expect(f6DoorWalls().some((w) => w[0] === -1.45 && w[2] === 1.45)).toBe(true);
     });
 
+    it('the botoeira gives the missing 4', () => {
+        f6Tick(0.016, -6.5);
+        expect(f6Hotspots().some((h) => h.id === 'botoeira')).toBe(true);
+        const a = f6Interact('botoeira');
+        expect(a.kind).toBe('text');
+        if (a.kind === 'text') expect(a.text).toContain('« 4 »');
+    });
+
     it('cab hotspots only exist while exploring', () => {
         f6Tick(0.016, -6.5);
         expect(f6Hotspots().some((h) => h.id === 'eixo')).toBe(true);

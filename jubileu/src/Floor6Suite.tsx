@@ -17,12 +17,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { f6, f6Tick, f6DrainEvents, F6_CEIL } from './f6Escape';
 import { Floor6Guest } from './Floor6Guest';
 import {
-    F6M, wallpaperTex, wallpaperBump, tileTex, tileBump, tileRough, plate612Tex, puffTex,
-    paintingTex,
+    F6M, PBR, hdrUrl, wallAoTex, tileTex, tileBump, tileRough, plate612Tex, puffTex, paintingTex,
 } from './Floor6Textures';
 import {
     type F6Fx, B, GroundBlob, ItemMesh, F6_ITEM_SOURCE, F6_INSTALL_TARGET,
@@ -47,21 +46,24 @@ function wallFaceMat(kind: WallFinish, len: number, h: number): THREE.MeshStanda
     const key = `${kind}:${len.toFixed(2)}:${h.toFixed(2)}`;
     let m = finishCache.get(key);
     if (!m) {
+        // paper: photo PBR (decrepit wallpaper), ONE wall-height per tile so
+        // the peeling pattern reads at architectural scale; tile: the painted
+        // 32cm porcelain (the 1k photo tile turns to mush at this distance).
         if (kind === 'paper') {
-            const map = wallpaperTex.clone(); map.needsUpdate = true;
-            const bump = wallpaperBump.clone(); bump.needsUpdate = true;
-            map.repeat.set(len / 2.0, 1);          // AO baked vertically — never tile in Y
-            bump.repeat.set(len / 2.0, 1);
-            m = new THREE.MeshStandardMaterial({ map, bumpMap: bump, bumpScale: 0.35, roughness: 0.9 });
+            m = new THREE.MeshStandardMaterial({
+                ...PBR.wallpaper(len / 2.8, 1.04), roughness: 1,
+                aoMap: wallAoTex, aoMapIntensity: 1,
+            });
         } else {
             const map = tileTex.clone(); map.needsUpdate = true;
             const bump = tileBump.clone(); bump.needsUpdate = true;
             const rough = tileRough.clone(); rough.needsUpdate = true;
-            map.repeat.set(len / 1.28, h / 1.28);  // 32cm tiles everywhere
+            map.repeat.set(len / 1.28, h / 1.28);
             bump.repeat.set(len / 1.28, h / 1.28);
             rough.repeat.set(len / 1.28, h / 1.28);
             m = new THREE.MeshStandardMaterial({
-                map, bumpMap: bump, bumpScale: 0.15, roughnessMap: rough, envMapIntensity: 0.7,
+                map, bumpMap: bump, bumpScale: 0.15, roughnessMap: rough,
+                aoMap: wallAoTex, aoMapIntensity: 0.8, envMapIntensity: 0.7,
             });
         }
         finishCache.set(key, m);
@@ -241,16 +243,25 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
 
     const { gl, scene } = useThree();
 
-    // PMREM room environment — this is what makes the metals/porcelain real.
-    // Intensity LOW: it's there for reflections, not to light the room (the
-    // practicals own the mood).
+    // REAL HDRI environment (PolyHaven "hotel_room", bundled) — true image-
+    // based lighting and reflections. Intensity LOW: it's there for realism,
+    // not to light the room (the practicals own the mood).
     useEffect(() => {
+        let disposed = false;
+        let envRT: THREE.WebGLRenderTarget | null = null;
         const pmrem = new THREE.PMREMGenerator(gl);
-        const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
-        scene.environment = envRT.texture;
-        scene.environmentIntensity = 0.28;
-        pmrem.dispose();
-        return () => { scene.environment = null; scene.environmentIntensity = 1; envRT.dispose(); };
+        new RGBELoader().load(hdrUrl, (tex) => {
+            if (disposed) { tex.dispose(); pmrem.dispose(); return; }
+            envRT = pmrem.fromEquirectangular(tex);
+            tex.dispose(); pmrem.dispose();
+            scene.environment = envRT.texture;
+            scene.environmentIntensity = 0.36;
+        });
+        return () => {
+            disposed = true;
+            scene.environment = null; scene.environmentIntensity = 1;
+            envRT?.dispose();
+        };
     }, [gl, scene]);
 
     useEffect(() => {
@@ -315,7 +326,7 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
         // bedroom bulb breathes, barely — and dips when the cab sparks
         if (bedLight.current) {
             const sparkDip = fx.t['bang'] !== undefined && now - fx.t['bang'] < 0.5 ? 0.45 : 1;
-            bedLight.current.intensity = (17 + Math.sin(now * 0.9) * 0.7) * sparkDip;
+            bedLight.current.intensity = (21 + Math.sin(now * 0.9) * 0.8) * sparkDip;
         }
 
         // tap loop follows the state
