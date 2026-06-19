@@ -3349,3 +3349,24 @@ Comportamento equivalente. tsc 0 · 99/99 vitest.
 
 **Regressão checada:** smoke e2e multi-andar (lobby c/ física + corrida + suíte) — todos
 renderizam com 0 erros fatais de console. index.html rebuildado.
+
+### Sessão 2026-06-19 (cont.) — Floor 6 rodada 2: overdraw + correção de regressão
+
+Empurrei o Floor 6 mais longe (o hook pediu pra não parar esperando feedback). Atribuí os
+365 draw calls restantes e achei o vilão de overdraw: **15 `GroundBlob`** (sombras de
+contato = planos transparentes) + DustMotes. Gateei ambos no lite (`!profile.atmosphere`).
+
+**Regressão pega e corrigida no caminho:** eu tinha desligado o env map HDRI no lite —
+mas isso ESCURECEU a sala (o env dava boa parte da luz ambiente) e medindo deu ~0 ganho de
+fps isolado. Reverti: **env map fica ON em todas as qualidades** (visual preservado, sem
+regressão). O ganho do lite vem 100% de cortar overdraw transparente (não de escurecer).
+
+**Medido (swiftshader):** Floor 6 medium **507 → 323 draw calls (−36%)**, FPS 1.5 → 2.2;
+o corte de overdraw sozinho (sombras+dust) leva a ~4.3 fps se o env também sair, mas mantive
+o env pelo visual. HIGH = 365 dc (mantém tudo). **Sem regressão visual** — screenshot do
+medium bate com o high (sala quente e iluminada), só sem as sombras de contato sutis (LOD
+aceitável no mobile).
+
+⚠️ O env map é o maior custo restante (≈dobra o fps quando removido) mas é um trade
+look-vs-perf — deixei a cargo do Felipe: se ainda lagar no device dele, dá pra adicionar um
+"modo performance" explícito que dropa o env. tsc 0 · 99/99 vitest · single-file smoke OK.

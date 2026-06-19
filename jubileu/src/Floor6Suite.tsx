@@ -256,10 +256,10 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
     // based lighting and reflections. Intensity LOW: it's there for realism,
     // not to light the room (the practicals own the mood).
     useEffect(() => {
-        // Lite (medium/low): skip image-based lighting entirely. Sampling the
-        // PMREM env cubemap per fragment on every PBR surface is a big mobile
-        // cost; the practical lights + a brighter hemisphere carry the room.
-        if (lite) return;
+        // Image-based lighting kept at ALL qualities — it carries most of the
+        // room's ambient fill, and dropping it darkened the suite for no
+        // measurable win. The lite savings come from culling transparent
+        // overdraw (contact shadows, dust) instead. See lite gates below.
         let disposed = false;
         let envRT: THREE.WebGLRenderTarget | null = null;
         const pmrem = new THREE.PMREMGenerator(gl);
@@ -275,7 +275,7 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             scene.environment = null; scene.environmentIntensity = 1;
             envRT?.dispose();
         };
-    }, [gl, scene, lite]);
+    }, [gl, scene]);
 
     useEffect(() => {
         startF6RoomTone();
@@ -450,7 +450,10 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
                 <mesh material={F6M.brassOld}><cylinderGeometry args={[0.03, 0.02, 0.09, 8]} /></mesh>
             </group>
 
-            {/* ── contact shadows under everything heavy ── */}
+            {/* ── contact shadows under everything heavy ──
+                15 transparent decal planes — pure realism + heavy transparent
+                overdraw, so high quality only. */}
+            {!lite && (<>
             <GroundBlob x={-7.0} z={2.5} w={2.4} d={3.0} />
             <GroundBlob x={-7.6} z={4.4} w={1.1} d={1.1} />
             <GroundBlob x={-3.5} z={6.5} w={2.2} d={1.3} />
@@ -466,6 +469,7 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             <GroundBlob x={5.5} z={1.2} w={1.2} d={4.0} />
             <GroundBlob x={5.5} z={-1.9} w={1.3} d={1.3} />
             <GroundBlob x={3.75} z={6.5} w={3.8} d={1.0} />
+            </>)}
 
             {/* ── bedroom ── */}
             <Bed fx={fx} />
@@ -524,8 +528,7 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             {/* ── light rig (three r184: physical units — pointLights in candela) ── */}
             {!lightsOut && (
                 <>
-                    {/* hemisphere fill — brighter in lite to make up for the dropped env map */}
-                    <hemisphereLight args={['#8d8780', '#463f36', lite ? 0.52 : 0.34]} />
+                    <hemisphereLight args={['#8d8780', '#463f36', 0.34]} />
                     {/* abajur warmth */}
                     <pointLight position={[-7.5, 1.15, 4.3]} color="#ffc580" intensity={24} distance={10} decay={2} />
                     {/* bedroom ceiling bulb — anchored to its fixture */}
