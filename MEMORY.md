@@ -3370,3 +3370,16 @@ aceitável no mobile).
 ⚠️ O env map é o maior custo restante (≈dobra o fps quando removido) mas é um trade
 look-vs-perf — deixei a cargo do Felipe: se ainda lagar no device dele, dá pra adicionar um
 "modo performance" explícito que dropa o env. tsc 0 · 99/99 vitest · single-file smoke OK.
+
+### Sessão 2026-06-19 (cont.) — Floor 6 rodada 3: merge de geometria do trim
+
+Mais um ganho de draw call SEM regressão e em TODAS as qualidades: os baseboards + crown
+molding eram 8 segmentos × 4 boxes = 32 meshes, todos `F6M.woodDk`. Criei `MergedTrim` que
+funde os 32 numa única BufferGeometry (mesma matemática de transform dos `<Baseboard>`/
+`<Crown>` originais, T(group)·R(ang)·T(local)) → **1 draw call**. Removidos os componentes
+`Baseboard`/`Crown` (mortos). Verificado em render: trim idêntico (baseboards na junção
+parede-piso, crown no teto). Colisão é independente (`wallsForState`), então merge visual
+não afeta gameplay.
+
+**Floor 6 acumulado (swiftshader, medium): 507 → 294 draw calls (−42%)**; high 507 → 335
+(−34%). Sem regressão visual, env map preservado. tsc 0 · 99/99 vitest · single-file smoke OK.

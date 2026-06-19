@@ -18,6 +18,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { QualityProfile } from './Settings';
 import { f6, f6Tick, f6DrainEvents, F6_CEIL } from './f6Escape';
 import { Floor6Guest } from './Floor6Guest';
@@ -96,30 +97,41 @@ const Wall: React.FC<{
     );
 };
 
-/** Baseboard strip hugging a wall face. */
-const Baseboard: React.FC<{ seg: [number, number, number, number] }> = ({ seg }) => {
-    const [x1, z1, x2, z2] = seg;
-    const len = Math.hypot(x2 - x1, z2 - z1);
-    const ang = Math.atan2(x2 - x1, z2 - z1);
-    return (
-        <group position={[(x1 + x2) / 2, 0, (z1 + z2) / 2]} rotation={[0, ang, 0]}>
-            <B a={[0.26, 0.14, len]} p={[0, 0.07, 0]} m={F6M.woodDk} />
-            <B a={[0.3, 0.03, len]} p={[0, 0.145, 0]} m={F6M.woodDk} />
-        </group>
-    );
-};
-
-/** Crown molding along the ceiling line. */
-const Crown: React.FC<{ seg: [number, number, number, number] }> = ({ seg }) => {
-    const [x1, z1, x2, z2] = seg;
-    const len = Math.hypot(x2 - x1, z2 - z1);
-    const ang = Math.atan2(x2 - x1, z2 - z1);
-    return (
-        <group position={[(x1 + x2) / 2, F6_CEIL, (z1 + z2) / 2]} rotation={[0, ang, 0]}>
-            <B a={[0.3, 0.1, len]} p={[0, -0.05, 0]} m={F6M.woodDk} />
-            <B a={[0.24, 0.06, len]} p={[0, -0.13, 0]} m={F6M.woodDk} />
-        </group>
-    );
+/** The room's baseboards + crown molding share one material (woodDk) and never
+ *  move, so all 32 little boxes (8 walls × 2 baseboard + 2 crown profiles) are
+ *  baked into ONE merged geometry = 1 draw call instead of 32. Geometry matches
+ *  the old <Baseboard>/<Crown> output exactly (same per-segment transform). */
+const TRIM_SEGS: [number, number, number, number][] = [
+    [-7.87, -10, -7.87, 7], [-8, 6.87, 1.5, 6.87], [1.37, -4.8, 1.37, 2.3], [1.37, 3.7, 1.37, 7],
+    [-8, -9.87, -1.3, -9.87], [1.63, -3, 1.63, 2.3], [1.5, 6.87, 6, 6.87], [5.87, -3, 5.87, 7],
+];
+const MergedTrim: React.FC = () => {
+    const geo = useMemo(() => {
+        const parts: THREE.BufferGeometry[] = [];
+        const m = new THREE.Matrix4(), r = new THREE.Matrix4(), tl = new THREE.Matrix4();
+        const addBox = (w: number, h: number, d: number, gx: number, gy: number, gz: number, ang: number, lx: number, ly: number, lz: number) => {
+            const g = new THREE.BoxGeometry(w, h, d);
+            r.makeRotationY(ang);
+            m.makeTranslation(gx, gy, gz).multiply(r).multiply(tl.makeTranslation(lx, ly, lz)); // T(group)·R·T(local)
+            g.applyMatrix4(m);
+            parts.push(g);
+        };
+        for (const [x1, z1, x2, z2] of TRIM_SEGS) {
+            const len = Math.hypot(x2 - x1, z2 - z1);
+            const ang = Math.atan2(x2 - x1, z2 - z1);
+            const mx = (x1 + x2) / 2, mz = (z1 + z2) / 2;
+            addBox(0.26, 0.14, len, mx, 0, mz, ang, 0, 0.07, 0);        // baseboard
+            addBox(0.3, 0.03, len, mx, 0, mz, ang, 0, 0.145, 0);
+            addBox(0.3, 0.1, len, mx, F6_CEIL, mz, ang, 0, -0.05, 0);   // crown
+            addBox(0.24, 0.06, len, mx, F6_CEIL, mz, ang, 0, -0.13, 0);
+        }
+        const merged = mergeGeometries(parts, false);
+        parts.forEach((p) => p.dispose());
+        return merged;
+    }, []);
+    useEffect(() => () => { geo?.dispose(); }, [geo]);
+    if (!geo) return null;
+    return <mesh geometry={geo} material={F6M.woodDk} />;
 };
 
 /** Ceiling fixture: plafon + glass dome with a real glow. */
@@ -415,24 +427,8 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
                 <B a={[2.9, 0.02, 0.34]} p={[0, 0.012, -0.05]} m={F6M.steel} />
             </group>
 
-            {/* baseboards (paper rooms; tile rooms keep dark grout) */}
-            <Baseboard seg={[-7.87, -10, -7.87, 7]} />
-            <Baseboard seg={[-8, 6.87, 1.5, 6.87]} />
-            <Baseboard seg={[1.37, -4.8, 1.37, 2.3]} />
-            <Baseboard seg={[1.37, 3.7, 1.37, 7]} />
-            <Baseboard seg={[-8, -9.87, -1.3, -9.87]} />
-            <Baseboard seg={[1.63, -3, 1.63, 2.3]} />
-            <Baseboard seg={[1.5, 6.87, 6, 6.87]} />
-            <Baseboard seg={[5.87, -3, 5.87, 7]} />
-            {/* crown molding, bedroom + kitchen */}
-            <Crown seg={[-7.87, -10, -7.87, 7]} />
-            <Crown seg={[-8, 6.87, 1.5, 6.87]} />
-            <Crown seg={[1.37, -4.8, 1.37, 2.3]} />
-            <Crown seg={[1.37, 3.7, 1.37, 7]} />
-            <Crown seg={[-8, -9.87, -1.3, -9.87]} />
-            <Crown seg={[1.63, -3, 1.63, 2.3]} />
-            <Crown seg={[1.5, 6.87, 6, 6.87]} />
-            <Crown seg={[5.87, -3, 5.87, 7]} />
+            {/* baseboards + crown molding — merged into one mesh (was 32 draws) */}
+            <MergedTrim />
 
             {/* ceiling hardware */}
             <CeilLamp x={-3} z={-1.5} on={!lightsOut} />
