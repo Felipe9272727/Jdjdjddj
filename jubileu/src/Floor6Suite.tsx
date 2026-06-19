@@ -18,6 +18,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import type { QualityProfile } from './Settings';
 import { f6, f6Tick, f6DrainEvents, F6_CEIL } from './f6Escape';
 import { Floor6Guest } from './Floor6Guest';
 import {
@@ -229,7 +230,12 @@ const FlightLayer: React.FC<{ flights: Flight[]; onDone: (id: number) => void }>
     };
 
 // ── the suite ─────────────────────────────────────────────────────────────────
-export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
+export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3>; profile?: QualityProfile }> = ({ playerPositionRef, profile }) => {
+    // "lite" = medium/low quality (atmosphere is high-only). Floor 6 used to
+    // ignore quality entirely and always render the full HDRI env + every light,
+    // which is what made it lag on phones. Lite drops the per-fragment env-map
+    // cost (compensated by a brighter hemisphere) and trims the light count.
+    const lite = profile ? !profile.atmosphere : false;
     const fx = useMemo<F6Fx>(() => ({ t: {} }), []);
     const bathFlicker = useRef(0);
     const bathLight = useRef<THREE.PointLight>(null!);
@@ -250,6 +256,10 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
     // based lighting and reflections. Intensity LOW: it's there for realism,
     // not to light the room (the practicals own the mood).
     useEffect(() => {
+        // Lite (medium/low): skip image-based lighting entirely. Sampling the
+        // PMREM env cubemap per fragment on every PBR surface is a big mobile
+        // cost; the practical lights + a brighter hemisphere carry the room.
+        if (lite) return;
         let disposed = false;
         let envRT: THREE.WebGLRenderTarget | null = null;
         const pmrem = new THREE.PMREMGenerator(gl);
@@ -265,7 +275,7 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             scene.environment = null; scene.environmentIntensity = 1;
             envRT?.dispose();
         };
-    }, [gl, scene]);
+    }, [gl, scene, lite]);
 
     useEffect(() => {
         startF6RoomTone();
@@ -486,7 +496,8 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
                 <boxGeometry args={[0.62, 0.32, 0.04]} />
                 <meshStandardMaterial map={plate612Tex} roughness={0.4} metalness={0.4} envMapIntensity={1} />
             </mesh>
-            <DustMotes />
+            {/* purely-atmospheric billboards — high only (transparent overdraw) */}
+            {!lite && <DustMotes />}
 
             {/* ── doors ── */}
             <DoorFrame z0={-6.2} />
@@ -497,9 +508,14 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             {/* ── the dead elevator ── */}
             <DeadCab fx={fx} />
 
-            {/* ── locked rooms ── */}
-            <Bathroom fx={fx} />
-            <Kitchen fx={fx} />
+            {/* ── locked rooms ──
+                Mounted only once their door is actually open. While locked, a
+                solid door slab + the partition wall fully hide the interior, so
+                rendering it is pure waste — this is ~140 draw calls (and a lot of
+                fill) skipped during the whole first half of the floor. They mount
+                exactly as the door swings open. */}
+            {f6.bathOpen && <Bathroom fx={fx} />}
+            {f6.kitchenOpen && <Kitchen fx={fx} />}
 
             {/* ── flights ── */}
             <FlightLayer flights={flights}
@@ -508,17 +524,19 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             {/* ── light rig (three r184: physical units — pointLights in candela) ── */}
             {!lightsOut && (
                 <>
-                    <hemisphereLight args={['#8d8780', '#463f36', 0.34]} />
+                    {/* hemisphere fill — brighter in lite to make up for the dropped env map */}
+                    <hemisphereLight args={['#8d8780', '#463f36', lite ? 0.52 : 0.34]} />
                     {/* abajur warmth */}
                     <pointLight position={[-7.5, 1.15, 4.3]} color="#ffc580" intensity={24} distance={10} decay={2} />
                     {/* bedroom ceiling bulb — anchored to its fixture */}
                     <pointLight ref={bedLight} position={[-3, 2.6, -1.5]} color="#e8d9b8" intensity={17} distance={16} decay={2} />
-                    {/* bathroom fluorescent (flickers alive on unlock) */}
-                    <pointLight ref={bathLight} position={[3.75, 2.6, -6.5]} color="#cfe4e8" intensity={0} distance={10} decay={2} />
+                    {/* bathroom fluorescent — only mounted once unlocked so it isn't a
+                        dead (intensity-0) light baked into every material's shader. */}
+                    {f6.bathOpen && <pointLight ref={bathLight} position={[3.75, 2.6, -6.5]} color="#cfe4e8" intensity={0} distance={10} decay={2} />}
                     {/* kitchen bulb */}
                     {f6.kitchenOpen && <pointLight position={[3.75, 2.6, 2.0]} color="#f4e2b8" intensity={16} distance={11} decay={2} />}
-                    {/* TV glow */}
-                    <pointLight ref={tvLight} position={[0.4, 1.1, 1.2]} color="#bcd2da" intensity={0} distance={5} decay={2} />
+                    {/* TV glow — only while the TV is actually on */}
+                    {f6.tvOn && <pointLight ref={tvLight} position={[0.4, 1.1, 1.2]} color="#bcd2da" intensity={0} distance={5} decay={2} />}
                 </>
             )}
             {lightsOut && <hemisphereLight args={['#1a1a20', '#050507', 0.3]} />}

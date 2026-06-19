@@ -3270,3 +3270,39 @@ Sub-agente read-only caçou bugs nos andares mais novos. Validei cada achado no 
 
 Verde: tsc 0 · 99/99 vitest · index.html rebuildado. Próximo: Fase 2 (Photo Mode / path
 tracer, guardado — só validável em GPU real) + mais varredura de perf.
+
+### Sessão 2026-06-19 (cont.) — Floor 6 "lagando muito": otimização de render
+
+Felipe acrescentou ao goal: Floor 6 está LAGANDO muito. Medi com um profiler
+não-invasivo (Playwright + patch de drawElements/drawArrays pra contar draw calls/
+frame + FPS; swiftshader). **Baseline Floor 6: 507 draw calls/frame** (idêntico em
+medium e high → descoberta: o `<Floor6Suite>` era renderizado SEM receber o profile de
+qualidade, então ignorava 100% a config e sempre rodava a cena cara, mesmo no mobile).
+
+Nota honesta: lag de Floor 6 é GPU/render-bound (luzes + env HDRI + overdraw + draw calls),
+não CPU — então WASM não conserta isso (WASM é a física, onde há CPU). Fix = otimização de
+render de verdade:
+
+**Quality-gating do Floor 6 (novo — antes inexistente):** `Floor6Suite` agora recebe
+`profile`; deriva `lite = !profile.atmosphere` (medium/low). No lite:
+- **Env map HDRI PMREM DESLIGADO** (samplear o cubemap por-fragmento em todo PBR é caro no
+  mobile) — compensado com hemisphereLight mais forte (0.34→0.52). Visualmente confirmado
+  em render: a sala continua bem iluminada, nada escuro/quebrado.
+- Point lights de intensidade-0 (bath/tv) agora montam SÓ quando acendem (`f6.bathOpen`/
+  `f6.tvOn`) — antes ficavam no shader como luzes ativas mesmo apagadas (custo por-fragmento
+  em TODOS os materiais). Vale pra todas as qualidades.
+
+**Gating de salas trancadas (todas as qualidades, −142 draw calls):** `<Bathroom>` e
+`<Kitchen>` montam só quando `f6.bathOpen`/`f6.kitchenOpen`. Enquanto trancadas, a porta
+sólida + a parede escondem 100% o interior → renderizá-lo era puro desperdício. Verifiquei
+que a `BathDoor` é um slab opaco fechado antes do unlock (sem pop-in visível). Montam
+exatamente quando a porta abre.
+
+**DustMotes** (12 billboards transparentes) → só high (`!lite`).
+
+**Resultado medido: 507 → 365 draw calls/frame (−28%)** em todas as qualidades, mais o corte
+de custo de fragmento (env+luzes) no lite pro mobile. (swiftshader fica ~1.5fps pinned — é
+mau proxy de FPS; o ganho objetivo são draw calls + custo de fragmento, que aliviam o device
+real do Felipe.) tsc 0 · 99/99 vitest · audit 0 · index.html rebuildado · smoke OK.
+⚠️ Validar o FPS final na GPU real do Felipe; dá pra otimizar mais (merge de geometria do
+shell/props) se ainda lagar.

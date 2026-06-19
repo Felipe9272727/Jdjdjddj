@@ -166,7 +166,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 3 && <Floor3Environment hands={floor3Hands} gloves={floor3Gloves} fallActive={floor3FallActive} />}
       {level === 4 && <Floor4Environment />}
       {/* Floor 6 — a Suíte 612: "O Hóspede que Sabia Demais" (escape room) */}
-      {level === 6 && <Floor6Suite playerPositionRef={playerPositionRef} />}
+      {level === 6 && <Floor6Suite playerPositionRef={playerPositionRef} profile={profile} />}
       {/* the old baseplate is the FLOOR 7 TEMPLATE now — Creator Mode only */}
       {level === 7 && <Floor5Environment />}
       {level === 2 && (
