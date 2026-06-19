@@ -3306,3 +3306,29 @@ mau proxy de FPS; o ganho objetivo são draw calls + custo de fragmento, que ali
 real do Felipe.) tsc 0 · 99/99 vitest · audit 0 · index.html rebuildado · smoke OK.
 ⚠️ Validar o FPS final na GPU real do Felipe; dá pra otimizar mais (merge de geometria do
 shell/props) se ainda lagar.
+
+### Sessão 2026-06-19 (cont.) — Fase 2: Photo Mode (path tracer GPU) ENTREGUE
+
+Ray tracing DE VERDADE, no único lugar viável nesse stack: um "modo foto" não-realtime.
+Deps (versões core three/react INALTERADAS): `three-gpu-pathtracer@0.0.24` +
+`three-mesh-bvh@0.9.10`.
+
+- `src/PhotoMode.tsx`:
+  - `PhotoModeRig` (DENTRO do Canvas): com `useFrame(cb, 1)` (prioridade 1 = assume o
+    render) acumula amostras path-traced da cena congelada via `WebGLPathTracer` (GI real,
+    sombras suaves, reflexos). TUDO em try/catch — GPU que não suporta cai no fallback, não
+    crasha. Quando inativo, prioridade 0 + early-return → ZERO impacto no jogo normal.
+  - `PhotoModeOverlay` (DOM): letterbox + barra de progresso + "Salvar PNG"
+    (canvas.toDataURL) + Fechar. Estados: REVELANDO / FOTO PRONTA / INDISPONÍVEL.
+  - `PhotoModeButton` (📷) + hook `usePhotoMode`.
+- Wiring no App: rig dentro do Canvas; botão+overlay fora (gated aos andares fotográficos
+  0/1/6, só com portas abertas); player PAUSA enquanto ativo; **EffectComposer desligado
+  durante o photo mode** (senão briga pelo render loop).
+
+**Verificado:** tsc 0 · 99/99 vitest · audit 0 · build = 1 chunk (sem worker separado,
+inlineDynamicImports segura) · single-file inca o path tracer · smoke OK. E2e do photo
+mode: botão presente → abre → em swiftshader cai no **fallback "INDISPONÍVEL" sem crash**,
+jogo segue a 60fps (esperado: software GL não path-traceia). ⚠️ A imagem ray-traced em si
+só dá pra ver na GPU REAL do Felipe (validar no Vercel) — swiftshader não roda o tracer.
+Obs UX: no desktop com pointer-lock o 📷 (como os outros botões de HUD) precisa do cursor
+livre (Esc); no mobile/touch funciona direto.
