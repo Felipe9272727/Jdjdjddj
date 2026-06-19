@@ -93,7 +93,7 @@ const Floor3Hazards: React.FC = () => {
     const spikeGroups = useRef<Map<number, THREE.Group>>(new Map());
     const brushGroups = useRef<Map<number, THREE.Group>>(new Map());
     const [, bump] = useReducer((n: number) => n + 1, 0);
-    const sig = useRef('');
+    const sig = useRef(0);
 
     useFrame((_, dt) => {
         const safeDt = Math.min(dt, 0.05);
@@ -134,8 +134,11 @@ const Floor3Hazards: React.FC = () => {
             g.visible = !(b.collected && b.fade <= 0.02);
         }
 
-        // Re-render the React lists only when the id sets change.
-        const s = hazards.map(h => h.id).join(',') + '|' + brushes.map(b => b.id).join(',');
+        // Re-render the React lists only when the id sets change. Hash the ids
+        // numerically (no per-frame string/array allocation — this runs 60×/s).
+        let s = (hazards.length * 1000003 + brushes.length) | 0;
+        for (let i = 0; i < hazards.length; i++) s = (s * 31 + hazards[i].id) | 0;
+        for (let i = 0; i < brushes.length; i++) s = (s * 31 + brushes[i].id) | 0;
         if (s !== sig.current) { sig.current = s; bump(); }
     });
 

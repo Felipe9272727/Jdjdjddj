@@ -3332,3 +3332,20 @@ jogo segue a 60fps (esperado: software GL não path-traceia). ⚠️ A imagem ra
 só dá pra ver na GPU REAL do Felipe (validar no Vercel) — swiftshader não roda o tracer.
 Obs UX: no desktop com pointer-lock o 📷 (como os outros botões de HUD) precisa do cursor
 livre (Esc); no mobile/touch funciona direto.
+
+### Sessão 2026-06-19 (cont.) — Varredura de bugs nos hot paths restantes
+
+Sub-agente auditou Player/Multiplayer/AudioEngine/Atmosphere/Floor2/Floor3/Bot/RemotePlayer.
+Verifiquei cada achado no código: a maioria foi FALSO POSITIVO (os "leaks de timer" do
+Atmosphere já limpam com `if (timer) clearInterval(timer)` antes de re-armar + no stop; o
+`scheduleDrip` do cave tem guard `if (stopped) return` no topo). Os hot paths principais
+estão limpos — bom sinal de saúde do código.
+
+**Único bug real corrigido — Floor3Hazards.tsx:** a assinatura pra detectar mudança no
+conjunto de hazards/brushes era `hazards.map(h=>h.id).join(',')+...` construída TODO FRAME
+(2 .map + join + concat = lixo de GC 60×/s). Troquei por um **hash numérico** sobre os ids
+(zero alocação, O(n) com n pequeno, detecta qualquer mudança incl. troca com mesmo tamanho).
+Comportamento equivalente. tsc 0 · 99/99 vitest.
+
+**Regressão checada:** smoke e2e multi-andar (lobby c/ física + corrida + suíte) — todos
+renderizam com 0 erros fatais de console. index.html rebuildado.
