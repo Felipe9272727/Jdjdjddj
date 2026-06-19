@@ -26,6 +26,13 @@ export default defineConfig(({mode: _mode}) => {
         output: {
           // Preserve readable variable names in the bundle
           compact: false,
+          // Emit ONE self-contained chunk (no code-splitting). The game ships
+          // as a single inlined index.html and inline-build.mjs only inlines the
+          // main chunk — any split chunk (the creator previews, or Rapier's WASM)
+          // would 404 in the standalone file, and a main chunk that `export`s to
+          // split chunks can't be wrapped in a classic <script>. One chunk = no
+          // top-level export + every dynamic import folded in (offline-safe).
+          inlineDynamicImports: true,
         },
       },
     },

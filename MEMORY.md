@@ -3208,3 +3208,49 @@ passos OK). Fix achado no teste: fillText do SAGUÃO na foto saía preto-sobre-p
 **Estado:** tsc 0 · **71/71** vitest · audit 0 · index.html rebuildado (lore no build).
 Falta (futuro): conteúdo atrás da porta, sprites do Felipe, pulo/plataformas,
 persistência em localStorage, sfx 8-bit no ramp.
+
+### Sessão 2026-06-19 — Goal: WASM no jogo (gráfico/ray tracing/física, sem bugs)
+
+Felipe abriu um goal: usar WebAssembly pra melhorar o jogo (gráfico, ray tracing,
+física), sem bugs, até ficar "incrível". Dei o reality-check técnico (WASM é CPU,
+não mexe em gráfico WebGL; ray tracing real-time não roda nesse stack mobile/MP a
+60fps — eles já arrancaram postprocessing por lag). Felipe escolheu 3 direções REAIS:
+**(1) Modo Foto / path tracer** (ray tracing de verdade, não-realtime), **(2) Física
+em WASM (Rapier)**, **(3) Perf + caça-bugs geral**.
+
+Branch trazido pro dia: fiz `--ff-only` do `claude/floor-6-escape-room-polish-mlz5t7`
+pro meu branch `claude/review-commits-memory-y6iqnf` (peguei Floors 5 e 6). Baseline
+verde: tsc 0 · 91/91 · audit 0.
+
+**Fase 1 — Física em WASM (Rapier) ENTREGUE:**
+- `@dimforge/rapier3d-compat@0.14.0` (engine Rust→WASM, WASM embutido em base64). Travei
+  e confirmei: three/react/fiber/drei NÃO mudaram de versão.
+- `src/rapierPhysics.ts` — núcleo PURO (sem three/react, roda headless): `initRapier()`
+  (init idempotente), classe `PropsWorld` (ground, static boxes, paredes a partir dos
+  segmentos `wallsForState`, caixas dinâmicas com CCD, **capsule cinemático que segue o
+  player**, step com timestep fixo 1/60 + acumulador → determinístico).
+- `src/__tests__/rapierPhysics.test.ts` — **8 testes headless** (queda+repouso,
+  DETERMINISMO bit-a-bit, separação sem interpenetração, capsule empurra caixa, parede
+  contém sem tunneling, clamp de dt gigante). Provam "sem bugs" na física de verdade.
+- `src/PhysicsProps.tsx` — bridge R3F: instancedMesh, useFrame faz updateCapsule+step+
+  escreve matrizes. Gated por `profile.physicsProps` (NOVA flag — só `high`).
+- Wiring: pilha de "bagagem" (7 caixas) num canto do lobby (x≈-6,-8.5; z≈-6..-7), longe
+  do NPC/loja/elevador, contida pelas paredes seladas do lobby. Level 0 + high only.
+- A física do PLAYER (resolveCollision em physics.ts) NÃO foi tocada — Rapier é camada
+  aditiva de props. Zero risco pro movimento.
+
+**🐛 Bug de build achado e corrigido (importante):** o `inline-build.mjs` só inca o
+chunk PRINCIPAL. O Rapier (e os previews do creator) viravam **chunks dinâmicos
+separados** → 404 no single-file; pior, o rollup passou a `export{}` do main pros chunks,
+e embrulhar ESM com `export` num `<script>` clássico QUEBRA o jogo inteiro ("Unexpected
+token 'export'"). Fix em `vite.config.ts`: `output.inlineDynamicImports: true` → UM chunk
+autocontido, sem export, com os `import()` dinâmicos foldados (de quebra conserta os
+previews do creator que davam 404 offline). O single-file volta a ser 100% autocontido.
+
+**Verificação:** tsc 0 · **99/99 vitest** (+8) · audit 0 erros · build reprodutível
+(1 chunk, 41.8MB) · **smoke test Playwright** no index.html buildado (chromium
+swiftshader): root monta, conteúdo renderiza, **0 erros fatais de console**, Rapier WASM
+inlined sem ref a chunk externo. index.html rebuildado.
+⚠️ Falta verificar IN-GAME no lobby high (entrar no jogo) — a física é unit-testada
+headless e a integração é type-checked, mas o "feel" das caixas só dá pra ver renderizando
+o jogo completo. Próximo: Fase 2 (path tracer photo mode) + Fase 3 (perf/bugs) + e2e in-game.

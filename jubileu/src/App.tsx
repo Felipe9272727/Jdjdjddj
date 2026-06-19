@@ -56,7 +56,8 @@ import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
-import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
+import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState } from './constants';
+import PhysicsProps, { type CrateSpec } from './PhysicsProps';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES, type QualityProfile } from './Settings';
@@ -124,6 +125,22 @@ interface WorldProps {
   f6CabDead: boolean;
 }
 
+// A small stack of hotel "luggage" crates in a back corner of the lobby (away
+// from the NPC, the shop counter at x≈7, and the elevator mouth at z=-10).
+// Rapier (WASM) makes them fall, settle and get shoved when the player walks
+// into them — high quality only (see profile.physicsProps).
+const LOBBY_CRATES: CrateSpec[] = [
+    { hx: 0.4, hy: 0.4, hz: 0.4, x: -6.0, y: 0.4, z: -6.0, color: '#9a753f' },
+    { hx: 0.4, hy: 0.4, hz: 0.4, x: -6.85, y: 0.4, z: -6.1, color: '#8a6a3a' },
+    { hx: 0.4, hy: 0.4, hz: 0.4, x: -6.0, y: 0.4, z: -6.9, color: '#a87f45' },
+    { hx: 0.35, hy: 0.35, hz: 0.35, x: -6.45, y: 1.2, z: -6.45, color: '#7d5f33' },
+    { hx: 0.3, hy: 0.3, hz: 0.3, x: -6.1, y: 1.95, z: -6.2, color: '#b5904e' },
+    { hx: 0.45, hy: 0.3, hz: 0.45, x: -8.4, y: 0.3, z: -7.2, color: '#6f5530' },
+    { hx: 0.35, hy: 0.35, hz: 0.35, x: -8.5, y: 1.0, z: -7.1, color: '#9a753f' },
+];
+// Sealed lobby perimeter — keeps debris in the room no matter the door state.
+const LOBBY_PHYS_WALLS = wallsForState(0, true, false);
+
 const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves, floor3FallActive, f6CabDead }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
@@ -140,6 +157,11 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 0 && profile.atmosphere && <CeilingFan x={-5} z={0} speed={0.6} />}
       {level === 0 && profile.atmosphere && <CeilingFan x={5} z={-5} speed={0.8} />}
       {level === 0 && profile.atmosphere && <WallClock x={9.5} z={-7} />}
+      {/* Rapier (WASM) dynamic debris — high quality only. Purely cosmetic
+          physics; the player can kick the crates around. */}
+      {level === 0 && profile.physicsProps && (
+          <PhysicsProps playerPositionRef={playerPositionRef} groundY={0} crates={LOBBY_CRATES} walls={LOBBY_PHYS_WALLS} paused={isPaused} />
+      )}
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
       {level === 3 && <Floor3Environment hands={floor3Hands} gloves={floor3Gloves} fallActive={floor3FallActive} />}
       {level === 4 && <Floor4Environment />}

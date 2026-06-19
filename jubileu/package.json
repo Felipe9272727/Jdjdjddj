@@ -21,6 +21,7 @@
     "build:reproducible": "npm ci && npm run build && node inline-build.mjs"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "0.14.0",
     "@google/genai": "^1.29.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.0",
