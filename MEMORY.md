@@ -3254,3 +3254,19 @@ inlined sem ref a chunk externo. index.html rebuildado.
 ⚠️ Falta verificar IN-GAME no lobby high (entrar no jogo) — a física é unit-testada
 headless e a integração é type-checked, mas o "feel" das caixas só dá pra ver renderizando
 o jogo completo. Próximo: Fase 2 (path tracer photo mode) + Fase 3 (perf/bugs) + e2e in-game.
+
+### Sessão 2026-06-19 (cont.) — Fase 3 parcial: perf/leak fixes (Floor 5 + 6)
+
+Sub-agente read-only caçou bugs nos andares mais novos. Validei cada achado no código
+(descartei 2 falsos positivos) e corrigi os reais:
+- **Floor5Race3D.tsx (CameraRig):** criava 3–5 `new THREE.Vector3()` POR FRAME durante a
+  corrida (eye/chase/chaseLook + 2 introLook) → GC stutter. Pré-aloquei como refs e troquei
+  pra `.set()`/refs. Hot path agora zero-alloc.
+- **Floor5Robot64.tsx:86:** `GATE_POS.clone().sub(new Vector3(...))` por frame nas fases de
+  largada → scratch ref + `.set()` (comportamento idêntico, GATE_POS.y - 0 = GATE_POS.y).
+- **Floor6Suite.tsx:313:** `setTimeout(playF6Pickup)` dentro do useFrame sem cleanup →
+  disparava após sair do andar (callback num audio graph já destruído). Agora rastreia os ids
+  num `pickupTimers` ref (Set), auto-remove ao disparar, e limpa todos no unmount.
+
+Verde: tsc 0 · 99/99 vitest · index.html rebuildado. Próximo: Fase 2 (Photo Mode / path
+tracer, guardado — só validável em GPU real) + mais varredura de perf.

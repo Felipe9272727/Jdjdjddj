@@ -102,30 +102,36 @@ const CameraRig: React.FC<{
     const camera = useThree((s) => s.camera);
     const revealT = useRef(0);
     const look = useRef(new THREE.Vector3(0.5, 1.5, -11.2));
+    // Pre-allocated scratch vectors — reused every frame so the race camera
+    // never allocates on the hot path (was 3-5 new Vector3() per frame = GC stutter).
+    const eye = useRef(new THREE.Vector3());
+    const chase = useRef(new THREE.Vector3());
+    const chaseLook = useRef(new THREE.Vector3());
+    const introLook = useRef(new THREE.Vector3(0.5, 1.35, -11.2));
     useFrame((_, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const p = player.current;
-        const eye = new THREE.Vector3(p.x, p.y + 1.5, p.z + 0.2);
-        const chase = new THREE.Vector3(p.x * 0.85, p.y * 0.6 + 4.7, p.z - 8.4);
-        const chaseLook = new THREE.Vector3(p.x * 0.85, p.y * 0.6 + 1.3, p.z + 6);
+        eye.current.set(p.x, p.y + 1.5, p.z + 0.2);
+        chase.current.set(p.x * 0.85, p.y * 0.6 + 4.7, p.z - 8.4);
+        chaseLook.current.set(p.x * 0.85, p.y * 0.6 + 1.3, p.z + 6);
         if (f5.phase === 'intro' || f5.phase === 'talk') {
             hiddenNearCamRef.current = true;
-            camera.position.copy(eye);
-            look.current.lerp(new THREE.Vector3(0.5, 1.35, -11.2), Math.min(1, dt * 3));
+            camera.position.copy(eye.current);
+            look.current.lerp(introLook.current, Math.min(1, dt * 3));
             camera.lookAt(look.current);
         } else if (f5.phase === 'reveal') {
             revealT.current = Math.min(1, revealT.current + dt / 2.3);
             const k = revealT.current;
             const e = k * k * (3 - 2 * k);                         // smoothstep
-            camera.position.lerpVectors(eye, chase, e);
-            look.current.lerpVectors(new THREE.Vector3(0.5, 1.35, -11.2), chaseLook, e);
+            camera.position.lerpVectors(eye.current, chase.current, e);
+            look.current.lerpVectors(introLook.current, chaseLook.current, e);
             camera.lookAt(look.current);
             hiddenNearCamRef.current = e < 0.18;                   // the avatar fades into frame
             if (k >= 1) { f5.phase = 'walk'; f5Bump(); }
         } else {
             hiddenNearCamRef.current = false;
-            camera.position.lerp(chase, Math.min(1, dt * 5.5));
-            look.current.lerp(chaseLook, Math.min(1, dt * 6));
+            camera.position.lerp(chase.current, Math.min(1, dt * 5.5));
+            look.current.lerp(chaseLook.current, Math.min(1, dt * 6));
             camera.lookAt(look.current);
         }
     });

@@ -53,6 +53,7 @@ export const Floor5Robot64: React.FC<{
     });
     // AI scratchpad
     const ai = useRef({ revealT: 0, mistakeRolledAtZ: -999, blindUntilZ: -999, entered: false, waitT: 0, lastZ: -999, stallT: 0, sadT: 0 });
+    const scratch = useRef(new THREE.Vector3()); // reused per frame (no alloc on the trot-to-gate path)
 
     const mats = useMemo(() => ({
         chrome: mat64('#9aa3ad'), chromeDk: mat64('#6a7480'), panel: mat64('#4a525c'),
@@ -83,7 +84,7 @@ export const Floor5Robot64: React.FC<{
             r.facing = Math.PI;                                    // face the elevator (the camera)
         } else if (phase === 'reveal' || phase === 'walk' || phase === 'countdown') {
             // trot to the start gate, idle there facing the track
-            const d = GATE_POS.clone().sub(new THREE.Vector3(r.x, 0, r.z));
+            const d = scratch.current.set(GATE_POS.x - r.x, GATE_POS.y, GATE_POS.z - r.z);
             if (d.length() > 0.3) {
                 d.normalize();
                 r.x += d.x * dt * 5.2; r.z += d.z * dt * 5.2;

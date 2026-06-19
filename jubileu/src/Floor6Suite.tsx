@@ -237,6 +237,9 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
     const tvLight = useRef<THREE.PointLight>(null!);
     const tapLoop = useRef(false);
     const breathTimer = useRef(0);
+    // Pending pickup-sfx timers — tracked so they don't fire after the player
+    // leaves Floor 6 (post-unmount callback into a torn-down audio graph).
+    const pickupTimers = useRef<Set<number>>(new Set());
     const [flights, setFlights] = useState<Flight[]>([]);
     const [, force] = React.useReducer((v: number) => v + 1, 0);
     const versionSeen = useRef(f6.version);
@@ -267,7 +270,11 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
     useEffect(() => {
         startF6RoomTone();
         if (f6.stoveLit) startF6Flame();
-        return () => { stopF6RoomTone(); stopF6Tap(); stopF6Flame(); };
+        return () => {
+            stopF6RoomTone(); stopF6Tap(); stopF6Flame();
+            pickupTimers.current.forEach(clearTimeout);
+            pickupTimers.current.clear();
+        };
     }, []);
 
     useFrame(({ clock }, rawDt) => {
@@ -310,7 +317,8 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
                 const kind = ev.slice(7);
                 const from = F6_ITEM_SOURCE[kind];
                 const delay = kind === 'chave' ? 1.15 : 0.1;
-                window.setTimeout(playF6Pickup, delay * 1000);
+                const tid = window.setTimeout(() => { pickupTimers.current.delete(tid); playF6Pickup(); }, delay * 1000);
+                pickupTimers.current.add(tid);
                 if (from) setFlights((fl) => [...fl, { id: ++flightId, kind, from, to: null, t0: now, delay }]);
             }
         }
