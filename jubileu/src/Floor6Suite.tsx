@@ -247,7 +247,8 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
     // ignore quality entirely and always render the full HDRI env + every light,
     // which is what made it lag on phones. Lite drops the per-fragment env-map
     // cost (compensated by a brighter hemisphere) and trims the light count.
-    const lite = profile ? !profile.atmosphere : false;
+    const lite = profile ? !profile.atmosphere : false;   // medium + low
+    const lowTier = profile ? !profile.overlay : false;    // low only (max-performance)
     const fx = useMemo<F6Fx>(() => ({ t: {} }), []);
     const bathFlicker = useRef(0);
     const bathLight = useRef<THREE.PointLight>(null!);
@@ -268,10 +269,12 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
     // based lighting and reflections. Intensity LOW: it's there for realism,
     // not to light the room (the practicals own the mood).
     useEffect(() => {
-        // Image-based lighting kept at ALL qualities — it carries most of the
-        // room's ambient fill, and dropping it darkened the suite for no
-        // measurable win. The lite savings come from culling transparent
-        // overdraw (contact shadows, dust) instead. See lite gates below.
+        // Image-based lighting is the single biggest GPU cost here (the PMREM
+        // env sample on every PBR fragment ~doubles the frame cost). It's kept
+        // on high+medium because it carries the room's ambient fill and looks
+        // great. Only the LOW tier — an explicit "max performance" choice —
+        // drops it; the brighter hemisphere below stands in for the fill.
+        if (lowTier) return;
         let disposed = false;
         let envRT: THREE.WebGLRenderTarget | null = null;
         const pmrem = new THREE.PMREMGenerator(gl);
@@ -287,7 +290,7 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             scene.environment = null; scene.environmentIntensity = 1;
             envRT?.dispose();
         };
-    }, [gl, scene]);
+    }, [gl, scene, lowTier]);
 
     useEffect(() => {
         startF6RoomTone();
@@ -524,7 +527,9 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             {/* ── light rig (three r184: physical units — pointLights in candela) ── */}
             {!lightsOut && (
                 <>
-                    <hemisphereLight args={['#8d8780', '#463f36', 0.34]} />
+                    {/* low tier drops the env map, so brighten the fill to compensate */}
+                    <hemisphereLight args={['#8d8780', '#463f36', lowTier ? 1.15 : 0.34]} />
+                    {lowTier && <ambientLight color="#d4c8b0" intensity={0.75} />}
                     {/* abajur warmth */}
                     <pointLight position={[-7.5, 1.15, 4.3]} color="#ffc580" intensity={24} distance={10} decay={2} />
                     {/* bedroom ceiling bulb — anchored to its fixture */}
