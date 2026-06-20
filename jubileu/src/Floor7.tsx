@@ -18,7 +18,7 @@ import { Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
-import { makeWood, makeJollyRoger } from './floor7Textures';
+import { makeWood, makeJollyRoger, makeCloud } from './floor7Textures';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
 const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
@@ -73,6 +73,7 @@ const M = {
     bucket: new THREE.MeshStandardMaterial({ color: '#7e5a33', roughness: 0.7 }),
     cloth: new THREE.MeshStandardMaterial({ color: '#cfcabb', roughness: 1 }),
     water: new THREE.MeshStandardMaterial({ color: '#2f6d86', roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.6 }),
+    foam: new THREE.MeshStandardMaterial({ color: '#eef6f7', roughness: 1, transparent: true, opacity: 0.55, depthWrite: false }),
     puddle: new THREE.MeshStandardMaterial({ color: '#86b6c8', roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.75 }),
     elev: new THREE.MeshStandardMaterial({ color: '#b0bec5', roughness: 0.4, metalness: 0.5, transparent: true }),
     elevTrim: new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.4, metalness: 0.6, transparent: true }),
@@ -87,15 +88,19 @@ const ShipBody: React.FC = () => {
         return arr;
     }, []);
     // proper hull: a pointed-bow boat footprint extruded downward (no more box)
-    const { hullGeo, hullLow } = useMemo(() => {
+    const { hullGeo, hullLow, foamGeo } = useMemo(() => {
         const beam = 3.2, bow = 8.2, stern = -7.0;
-        const s = new THREE.Shape();
-        s.moveTo(-beam * 0.86, stern);                       // port transom corner
-        s.lineTo(beam * 0.86, stern);                        // flat transom
-        s.bezierCurveTo(beam + 0.2, stern + 3, beam + 0.2, bow - 4, beam * 0.55, bow - 1.6);
-        s.bezierCurveTo(beam * 0.34, bow - 0.4, beam * 0.16, bow, 0, bow);   // to the bow point
-        s.bezierCurveTo(-beam * 0.16, bow, -beam * 0.34, bow - 0.4, -beam * 0.55, bow - 1.6);
-        s.bezierCurveTo(-beam - 0.2, bow - 4, -beam - 0.2, stern + 3, -beam * 0.86, stern);
+        const mk = (k: number) => {
+            const s = new THREE.Shape();
+            s.moveTo(-beam * 0.86 * k, stern * k);
+            s.lineTo(beam * 0.86 * k, stern * k);
+            s.bezierCurveTo((beam + 0.2) * k, (stern + 3) * k, (beam + 0.2) * k, (bow - 4) * k, beam * 0.55 * k, (bow - 1.6) * k);
+            s.bezierCurveTo(beam * 0.34 * k, (bow - 0.4) * k, beam * 0.16 * k, bow * k, 0, bow * k);
+            s.bezierCurveTo(-beam * 0.16 * k, bow * k, -beam * 0.34 * k, (bow - 0.4) * k, -beam * 0.55 * k, (bow - 1.6) * k);
+            s.bezierCurveTo(-(beam + 0.2) * k, (bow - 4) * k, -(beam + 0.2) * k, (stern + 3) * k, -beam * 0.86 * k, stern * k);
+            return s;
+        };
+        const s = mk(1);
         const ex = (depth: number) => {
             const g = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: true, bevelThickness: 0.35, bevelSize: 0.3, bevelSegments: 2, steps: 1 });
             g.rotateX(Math.PI / 2);           // footprint → XZ, extrude → downward
@@ -103,13 +108,18 @@ const ShipBody: React.FC = () => {
         };
         const top = ex(1.5);
         const low = ex(2.4); low.scale(0.62, 1, 0.86);       // narrower keel taper below
-        return { hullGeo: top, hullLow: low };
+        // a flat foam collar at the waterline, slightly bigger than the hull
+        const foam = new THREE.ShapeGeometry(mk(1.16));
+        foam.rotateX(-Math.PI / 2);
+        return { hullGeo: top, hullLow: low, foamGeo: foam };
     }, []);
     return (
         <group>
             {/* hull — pointed-bow extruded body + a tapered lower belly */}
             <mesh geometry={hullGeo} position={[0, 0.02, 0]} material={M.hull} />
             <mesh geometry={hullLow} position={[0, -1.35, 0]} material={M.hullDk} />
+            {/* foam collar where the hull meets the sea */}
+            <mesh geometry={foamGeo} position={[0, -1.16, 0]} material={M.foam} renderOrder={2} />
             {/* deck */}
             <mesh position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M.plankDk}>
                 <planeGeometry args={[6, 14.4]} />
@@ -210,6 +220,26 @@ const ShipBody: React.FC = () => {
                 </mesh>
             ))}
 
+            {/* cannons at the gunwales, pointing out to sea */}
+            {[[2.55, -2.5, 1], [-2.55, 1.5, -1], [2.55, 0.5, 1]].map(([x, z, s], i) => (
+                <group key={'cn' + i} position={[x, 0.32, z]} rotation={[0, (s as number) * Math.PI / 2, 0]}>
+                    <mesh rotation={[0, 0, Math.PI / 2]} material={M.iron}><cylinderGeometry args={[0.11, 0.14, 0.8, 12]} /></mesh>
+                    <mesh position={[0.42, 0, 0]} material={M.iron}><sphereGeometry args={[0.09, 8, 6]} /></mesh>
+                    <mesh position={[-0.1, -0.16, 0]} material={M.wheel}><boxGeometry args={[0.5, 0.22, 0.36]} /></mesh>
+                    {[-0.18, 0.18].map((wz) => (
+                        <mesh key={wz} position={[-0.1, -0.28, wz]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><cylinderGeometry args={[0.1, 0.1, 0.05, 10]} /></mesh>
+                    ))}
+                </group>
+            ))}
+            {/* coiled ropes on the deck */}
+            {[[-1.8, -3.2], [1.7, 3.3]].map(([x, z], i) => (
+                <group key={'rp' + i} position={[x, 0.06, z]}>
+                    {[0.22, 0.16, 0.1].map((r, j) => (
+                        <mesh key={j} position={[0, j * 0.05, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.rope}><torusGeometry args={[r, 0.03, 6, 16]} /></mesh>
+                    ))}
+                </group>
+            ))}
+
             {/* a hanging lantern by the helm (warm glow) */}
             <group position={[1.4, 1.5, -5.9]}>
                 <mesh material={M.iron}><cylinderGeometry args={[0.02, 0.02, 0.5, 6]} /></mesh>
@@ -219,6 +249,36 @@ const ShipBody: React.FC = () => {
                 </mesh>
                 <pointLight position={[0, -0.32, 0]} color="#ffb347" intensity={6} distance={5} decay={2} />
             </group>
+        </group>
+    );
+};
+
+// ── procedural drifting clouds (self-contained billboards, no external assets) ──
+const CloudField: React.FC = () => {
+    const ref = useRef<THREE.Group>(null);
+    const clouds = useMemo(() => {
+        const r = (n: number) => ((Math.sin(n * 127.1) * 43758.5) % 1 + 1) % 1;
+        return Array.from({ length: 7 }, (_, i) => ({
+            tex: makeCloud(i + 1),
+            x: -60 + r(i) * 120, y: 14 + r(i + 9) * 14, z: -30 - r(i + 3) * 55,
+            s: 14 + r(i + 5) * 18, sp: 0.4 + r(i + 7) * 0.7,
+        }));
+    }, []);
+    useFrame((_, dt) => {
+        const g = ref.current; if (!g) return;
+        for (let i = 0; i < g.children.length; i++) {
+            const ch = g.children[i]; ch.position.x += clouds[i].sp * dt;
+            if (ch.position.x > 75) ch.position.x = -75;
+        }
+    });
+    return (
+        <group ref={ref}>
+            {clouds.map((c, i) => (
+                <mesh key={i} position={[c.x, c.y, c.z]} scale={[c.s, c.s * 0.5, 1]}>
+                    <planeGeometry args={[1, 1]} />
+                    <meshBasicMaterial map={c.tex} transparent opacity={0.85} depthWrite={false} fog={false} toneMapped={false} />
+                </mesh>
+            ))}
         </group>
     );
 };
@@ -396,8 +456,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
 
     return (
         <group>
-            {/* atmospheric golden-hour sky */}
+            {/* atmospheric golden-hour sky + procedural drifting clouds */}
             <Sky sunPosition={SUN_POS} turbidity={9} rayleigh={2.2} mieCoefficient={0.008} mieDirectionalG={0.92} />
+            <CloudField />
             {/* light rig — warm key sun + cool sky fill */}
             <hemisphereLight args={['#e6ddc4', '#3e4a52', 0.85]} />
             <directionalLight position={SUN_POS} intensity={2.6} color="#ffdca0" />

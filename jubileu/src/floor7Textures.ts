@@ -78,6 +78,28 @@ export function makeWood(opts: WoodOpts = {}): { map: THREE.CanvasTexture; rough
     return { map, rough };
 }
 
+// a soft puffy cloud (alpha) drawn from overlapping radial blobs — self-contained.
+export function makeCloud(seed = 1, size = 256): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = size; c.height = size / 2;
+    const x = c.getContext('2d')!;
+    const r = rnd(seed * 99 + 7);
+    const cy = c.height * 0.62;
+    const blobs = 9 + Math.floor(r() * 5);
+    for (let i = 0; i < blobs; i++) {
+        const bx = size * (0.12 + r() * 0.76);
+        const by = cy - r() * c.height * 0.4;
+        const rad = (0.10 + r() * 0.16) * size;
+        const g = x.createRadialGradient(bx, by, 0, bx, by, rad);
+        const a = 0.5 + r() * 0.4;
+        g.addColorStop(0, `rgba(255,255,255,${a})`);
+        g.addColorStop(0.55, `rgba(252,250,245,${a * 0.5})`);
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        x.fillStyle = g; x.beginPath(); x.arc(bx, by, rad, 0, 7); x.fill();
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
 // black Jolly Roger: white skull + crossed bones on black, drawn procedurally.
 export function makeJollyRoger(size = 256): THREE.CanvasTexture {
     const c = document.createElement('canvas'); c.width = c.height = size;
