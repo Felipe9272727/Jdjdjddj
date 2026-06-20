@@ -28,8 +28,8 @@ _deckWood.map.repeat.set(3, 7); _deckWood.rough.repeat.set(3, 7);
 _hullWood.map.repeat.set(4, 2); _hullWood.rough.repeat.set(4, 2);
 _trimWood.map.repeat.set(6, 1); _trimWood.rough.repeat.set(6, 1);
 
-// warm low sun shared by the Sky, the key light and the water glitter
-const SUN_POS: [number, number, number] = [18, 7, -22];
+// warm low sun (golden hour) shared by the Sky, the key light and water glitter
+const SUN_POS: [number, number, number] = [26, 4.5, -30];
 const SUN_DIR = new THREE.Vector3(...SUN_POS).normalize();
 
 // ── shared per-mount handle so the DOM overlay can read the brain ──
@@ -61,9 +61,15 @@ const M = {
     iron: new THREE.MeshStandardMaterial({ color: '#3a3a3e', roughness: 0.5, metalness: 0.8 }),
     metal: new THREE.MeshStandardMaterial({ color: '#b9c2c8', roughness: 0.35, metalness: 0.7 }),
     wheel: new THREE.MeshStandardMaterial({ color: '#5b3d22', roughness: 0.7 }),
-    coat: new THREE.MeshStandardMaterial({ color: '#7a1f1f', roughness: 0.7 }),
-    skin: new THREE.MeshStandardMaterial({ color: '#caa07a', roughness: 0.7 }),
-    hat: new THREE.MeshStandardMaterial({ color: '#1c1c1c', roughness: 0.8 }),
+    coat: new THREE.MeshStandardMaterial({ color: '#8a2222', roughness: 0.6 }),
+    coatDk: new THREE.MeshStandardMaterial({ color: '#5c1414', roughness: 0.6 }),
+    skin: new THREE.MeshStandardMaterial({ color: '#c9966a', roughness: 0.75 }),
+    hat: new THREE.MeshStandardMaterial({ color: '#16161a', roughness: 0.75 }),
+    gold: new THREE.MeshStandardMaterial({ color: '#e8c45a', roughness: 0.35, metalness: 0.8 }),
+    boot: new THREE.MeshStandardMaterial({ color: '#2a1d12', roughness: 0.7 }),
+    beard: new THREE.MeshStandardMaterial({ color: '#6b5a4a', roughness: 0.95 }),
+    sash: new THREE.MeshStandardMaterial({ color: '#caa024', roughness: 0.7 }),
+    steel: new THREE.MeshStandardMaterial({ color: '#c8ccd2', roughness: 0.3, metalness: 0.85 }),
     bucket: new THREE.MeshStandardMaterial({ color: '#7e5a33', roughness: 0.7 }),
     cloth: new THREE.MeshStandardMaterial({ color: '#cfcabb', roughness: 1 }),
     water: new THREE.MeshStandardMaterial({ color: '#2f6d86', roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.6 }),
@@ -80,22 +86,30 @@ const ShipBody: React.FC = () => {
         for (let i = -3; i <= 3; i++) arr.push({ x: i * 0.84, m: i % 2 ? M.plank : M.plankDk });
         return arr;
     }, []);
+    // proper hull: a pointed-bow boat footprint extruded downward (no more box)
+    const { hullGeo, hullLow } = useMemo(() => {
+        const beam = 3.2, bow = 8.2, stern = -7.0;
+        const s = new THREE.Shape();
+        s.moveTo(-beam * 0.86, stern);                       // port transom corner
+        s.lineTo(beam * 0.86, stern);                        // flat transom
+        s.bezierCurveTo(beam + 0.2, stern + 3, beam + 0.2, bow - 4, beam * 0.55, bow - 1.6);
+        s.bezierCurveTo(beam * 0.34, bow - 0.4, beam * 0.16, bow, 0, bow);   // to the bow point
+        s.bezierCurveTo(-beam * 0.16, bow, -beam * 0.34, bow - 0.4, -beam * 0.55, bow - 1.6);
+        s.bezierCurveTo(-beam - 0.2, bow - 4, -beam - 0.2, stern + 3, -beam * 0.86, stern);
+        const ex = (depth: number) => {
+            const g = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: true, bevelThickness: 0.35, bevelSize: 0.3, bevelSegments: 2, steps: 1 });
+            g.rotateX(Math.PI / 2);           // footprint → XZ, extrude → downward
+            return g;
+        };
+        const top = ex(1.5);
+        const low = ex(2.4); low.scale(0.62, 1, 0.86);       // narrower keel taper below
+        return { hullGeo: top, hullLow: low };
+    }, []);
     return (
         <group>
-            {/* hull — a tapered tub */}
-            <mesh position={[0, -0.85, 0]} material={M.hull}>
-                <boxGeometry args={[6.2, 1.7, 15]} />
-            </mesh>
-            <mesh position={[0, -0.4, -8]} rotation={[0.5, 0, 0]} material={M.hull}>
-                <boxGeometry args={[5.6, 1.7, 3]} />
-            </mesh>
-            <mesh position={[0, -0.2, 8]} rotation={[-0.35, 0, 0]} material={M.hull}>
-                <boxGeometry args={[5.6, 1.9, 3]} />
-            </mesh>
-            {/* keel strake */}
-            <mesh position={[0, -1.55, 0]} material={M.hullDk}>
-                <boxGeometry args={[1.2, 0.5, 15.6]} />
-            </mesh>
+            {/* hull — pointed-bow extruded body + a tapered lower belly */}
+            <mesh geometry={hullGeo} position={[0, 0.02, 0]} material={M.hull} />
+            <mesh geometry={hullLow} position={[0, -1.35, 0]} material={M.hullDk} />
             {/* deck */}
             <mesh position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M.plankDk}>
                 <planeGeometry args={[6, 14.4]} />
@@ -234,16 +248,60 @@ const Flag: React.FC<{ y: number }> = ({ y }) => {
 // ── the captain (stylized) — transform set per frame ──
 const Captain = React.forwardRef<THREE.Group>((_, ref) => (
     <group ref={ref}>
-        <mesh position={[0, 0.55, 0]} material={M.coat}><cylinderGeometry args={[0.26, 0.34, 1.1, 10]} /></mesh>
-        <mesh position={[0, 1.25, 0]} material={M.skin}><sphereGeometry args={[0.22, 12, 10]} /></mesh>
-        {/* tricorne hat */}
-        <mesh position={[0, 1.45, 0]} material={M.hat}><cylinderGeometry args={[0.05, 0.34, 0.16, 12]} /></mesh>
-        <mesh position={[0, 1.38, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.hat}><torusGeometry args={[0.28, 0.06, 6, 14]} /></mesh>
-        {/* arms */}
-        <mesh position={[-0.32, 0.7, 0.05]} rotation={[0, 0, 0.3]} material={M.coat}><cylinderGeometry args={[0.08, 0.08, 0.7, 8]} /></mesh>
-        <mesh position={[0.32, 0.7, 0.05]} rotation={[0, 0, -0.3]} material={M.coat}><cylinderGeometry args={[0.08, 0.08, 0.7, 8]} /></mesh>
-        {/* belt */}
-        <mesh position={[0, 0.35, 0]} material={M.hat}><cylinderGeometry args={[0.3, 0.3, 0.12, 10]} /></mesh>
+        {/* legs + boots (one peg leg for pirate flair) */}
+        <mesh position={[-0.13, 0.3, 0]} material={M.boot}><cylinderGeometry args={[0.1, 0.12, 0.62, 8]} /></mesh>
+        <mesh position={[-0.13, 0.04, 0.05]} material={M.boot}><boxGeometry args={[0.18, 0.12, 0.34]} /></mesh>
+        <mesh position={[0.13, 0.34, 0]} material={M.boot}><cylinderGeometry args={[0.055, 0.085, 0.5, 8]} /></mesh>{/* peg */}
+        <mesh position={[0.13, 0.06, 0]} material={M.boot}><cylinderGeometry args={[0.09, 0.07, 0.1, 8]} /></mesh>
+
+        {/* long coat — flared skirt + torso */}
+        <mesh position={[0, 0.78, 0]} material={M.coat}><cylinderGeometry args={[0.27, 0.36, 0.62, 12]} /></mesh>
+        <mesh position={[0, 1.16, 0]} material={M.coat}><cylinderGeometry args={[0.24, 0.27, 0.42, 12]} /></mesh>
+        {/* open-coat front panels (darker lining) */}
+        <mesh position={[0, 0.95, 0.235]} rotation={[0.05, 0, 0]} material={M.coatDk}><boxGeometry args={[0.34, 0.95, 0.04]} /></mesh>
+        {/* gold buttons */}
+        {[1.28, 1.13, 0.98].map((y, i) => (
+            <mesh key={i} position={[0, y, 0.255]} material={M.gold}><sphereGeometry args={[0.028, 8, 6]} /></mesh>
+        ))}
+        {/* sash + belt + gold buckle */}
+        <mesh position={[0, 0.92, 0]} rotation={[0, 0, 0.25]} material={M.sash}><cylinderGeometry args={[0.30, 0.30, 0.12, 12]} /></mesh>
+        <mesh position={[0, 0.78, 0]} material={M.hat}><cylinderGeometry args={[0.31, 0.31, 0.08, 12]} /></mesh>
+        <mesh position={[0, 0.78, 0.30]} material={M.gold}><boxGeometry args={[0.1, 0.07, 0.03]} /></mesh>
+
+        {/* arms with cuffs + hands */}
+        {[-1, 1].map((s) => (
+            <group key={s}>
+                <mesh position={[s * 0.30, 1.0, 0.04]} rotation={[0.2, 0, s * 0.32]} material={M.coat}><cylinderGeometry args={[0.075, 0.085, 0.62, 8]} /></mesh>
+                <mesh position={[s * 0.40, 0.72, 0.12]} material={M.gold}><cylinderGeometry args={[0.085, 0.085, 0.08, 8]} /></mesh>
+                <mesh position={[s * 0.42, 0.66, 0.15]} material={M.skin}><sphereGeometry args={[0.07, 8, 6]} /></mesh>
+            </group>
+        ))}
+
+        {/* neck + head + beard + face */}
+        <mesh position={[0, 1.40, 0]} material={M.skin}><cylinderGeometry args={[0.09, 0.11, 0.12, 8]} /></mesh>
+        <mesh position={[0, 1.56, 0]} material={M.skin}><sphereGeometry args={[0.19, 14, 12]} /></mesh>
+        {/* big beard */}
+        <mesh position={[0, 1.46, 0.06]} material={M.beard}><sphereGeometry args={[0.18, 12, 10, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.55]} /></mesh>
+        <mesh position={[0, 1.34, 0.05]} material={M.beard}><coneGeometry args={[0.14, 0.22, 10]} /></mesh>
+        {/* nose + eyes */}
+        <mesh position={[0, 1.55, 0.18]} rotation={[Math.PI / 2, 0, 0]} material={M.skin}><coneGeometry args={[0.035, 0.09, 6]} /></mesh>
+        {[-0.07, 0.07].map((x) => (
+            <mesh key={x} position={[x, 1.61, 0.165]} material={M.hat}><sphereGeometry args={[0.022, 6, 6]} /></mesh>
+        ))}
+
+        {/* tricorne hat with gold trim */}
+        <mesh position={[0, 1.70, 0]} material={M.hat}><cylinderGeometry args={[0.04, 0.18, 0.18, 12]} /></mesh>
+        <mesh position={[0, 1.66, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.hat}><torusGeometry args={[0.27, 0.07, 8, 16]} /></mesh>
+        <mesh position={[0, 1.66, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.gold}><torusGeometry args={[0.27, 0.018, 6, 16]} /></mesh>
+        {/* a little skull badge */}
+        <mesh position={[0, 1.74, 0.16]} material={M.gold}><sphereGeometry args={[0.03, 8, 6]} /></mesh>
+
+        {/* cutlass at the hip */}
+        <group position={[0.34, 0.7, -0.05]} rotation={[0, 0, -0.5]}>
+            <mesh position={[0, -0.3, 0]} material={M.steel}><boxGeometry args={[0.03, 0.6, 0.008]} /></mesh>
+            <mesh material={M.gold}><torusGeometry args={[0.06, 0.012, 6, 12]} /></mesh>
+            <mesh position={[0, 0.06, 0]} material={M.hat}><cylinderGeometry args={[0.018, 0.018, 0.12, 6]} /></mesh>
+        </group>
     </group>
 ));
 Captain.displayName = 'Captain';
@@ -338,12 +396,12 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
 
     return (
         <group>
-            {/* atmospheric sky with a warm low sun */}
-            <Sky sunPosition={SUN_POS} turbidity={6} rayleigh={1.4} mieCoefficient={0.006} mieDirectionalG={0.85} />
+            {/* atmospheric golden-hour sky */}
+            <Sky sunPosition={SUN_POS} turbidity={9} rayleigh={2.2} mieCoefficient={0.008} mieDirectionalG={0.92} />
             {/* light rig — warm key sun + cool sky fill */}
-            <hemisphereLight args={['#dcebf7', '#46525a', 0.9]} />
-            <directionalLight position={SUN_POS} intensity={2.2} color="#fff0d0" />
-            <ambientLight intensity={0.18} color="#9fc0d8" />
+            <hemisphereLight args={['#e6ddc4', '#3e4a52', 0.85]} />
+            <directionalLight position={SUN_POS} intensity={2.6} color="#ffdca0" />
+            <ambientLight intensity={0.2} color="#9fc0d8" />
 
             {/* the Gerstner-wave ocean */}
             <Floor7Water sunDir={SUN_DIR} />

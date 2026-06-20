@@ -36,16 +36,17 @@ void main() {
     vec3 p = position;
     vec3 o = vec3(0.0);
     vec3 nrm = vec3(0.0, 1.0, 0.0);
-    o += gerstner(vec2( 1.0,  0.3), 0.55, 7.0, 0.34, 1.0, p, nrm);
-    o += gerstner(vec2(-0.6,  1.0), 0.45, 4.2, 0.20, 1.1, p, nrm);
-    o += gerstner(vec2( 0.8, -0.7), 0.40, 2.6, 0.11, 1.3, p, nrm);
-    o += gerstner(vec2(-0.3, -1.0), 0.30, 1.5, 0.06, 1.6, p, nrm);
+    o += gerstner(vec2( 1.0,  0.3), 0.62, 9.5, 0.50, 0.9, p, nrm);
+    o += gerstner(vec2(-0.5,  1.0), 0.55, 5.6, 0.30, 1.0, p, nrm);
+    o += gerstner(vec2( 0.8, -0.6), 0.48, 3.1, 0.16, 1.25, p, nrm);
+    o += gerstner(vec2(-0.3, -1.0), 0.40, 1.7, 0.085, 1.55, p, nrm);
+    o += gerstner(vec2( 0.5,  0.85), 0.35, 0.95, 0.04, 1.9, p, nrm);
     vec3 disp = p + o;
     vec4 wp = modelMatrix * vec4(disp, 1.0);
     vWorldPos = wp.xyz;
     vNormal = normalize(nrm);
     // foam where crests pinch (high + steep)
-    vFoam = smoothstep(0.18, 0.42, o.y);
+    vFoam = smoothstep(0.40, 0.78, o.y);
     gl_Position = projectionMatrix * viewMatrix * wp;
 }
 `;
@@ -100,10 +101,10 @@ export const Floor7Water: React.FC<{ sunDir: THREE.Vector3 }> = ({ sunDir }) => 
     const uniforms = useMemo(() => ({
         uTime: { value: 0 },
         uSunDir: { value: sunDir.clone().normalize() },
-        uSunColor: { value: new THREE.Color('#fff3d6') },
-        uDeep: { value: new THREE.Color('#0d3a4a') },
-        uShallow: { value: new THREE.Color('#2f8aa3') },
-        uSky: { value: new THREE.Color('#bcd9ec') },
+        uSunColor: { value: new THREE.Color('#ffe9c0') },
+        uDeep: { value: new THREE.Color('#08303f') },
+        uShallow: { value: new THREE.Color('#1f7e9c') },
+        uSky: { value: new THREE.Color('#cfe4f2') },
     }), [sunDir]);
 
     useFrame((_, dt) => {
