@@ -3502,3 +3502,29 @@ Validado renderizando (dev + medium): água com ondas, céu atmosférico, madeir
 mastro/velas/bandeira de frente — mas compilam e renderizam (0 erros); pedir o olho do Felipe
 in-game. C++ pro casco curvo: planejado mas ainda não feito (a permissão fica pra próxima
 iteração se ele quiser mais).
+
+### Sessão 2026-06-20 — Loop visual do Floor 7 (render→crítica→conserto, eu mesmo testando)
+
+Felipe (/loop): parar de fazer às cegas — eu mesmo renderizo, vejo os erros gráficos e
+conserto, iterando, pq estava "terrível" e o pirata parecia placeholder.
+
+**Bancada de inspeção:** `floor7.html` + `src/floor7-dev.tsx` (OrbitControls + fast-forward
+do cérebro WASM pra pular a intro e esconder o elevador) + `shot7.cjs` → renderizo o navio de
+qualquer ângulo offline. (Sem ScheduleWakeup/Cron nesse ambiente, então iterei dentro da sessão.)
+
+**Iteração 1:** casco caixa→**casco extrudado com proa pontuda** (ExtrudeGeometry de um
+footprint de barco + belly inferior afilado); **capitão placeholder→pirata estilizado**
+(pernas+bota+perna-de-pau, casaco com botões dourados, cinto/fivela, braços com punhos+mãos,
+cabeça com barba/nariz/olhos, tricorne com trim dourado, cutelo); água com ondas Gerstner mais
+fortes (5 bandas) + cor mais rica; sol golden-hour.
+**Iteração 2:** **espuma na linha d'água** (colar de espuma do contorno do casco); canhões +
+cordas enroladas no convés; **nuvens procedurais** (billboard canvas via `makeCloud`) — troquei
+o `<Cloud>` do drei que baixava PNG de CDN (quebra offline/single-file). 0 refs de CDN no build.
+**Iteração 3:** halo do sol (`makeGlow`, additive), **gaivotas** voando (flap+círculo), céu
+mais quente/atmosférico.
+
+Verificado renderizando vários ângulos: oceano rolando + espuma + navio detalhado + nuvens +
+gaivotas = navio pirata bonito de verdade (vs o blocão marrom de antes). Tudo self-contained
+(sem assets externos). tsc 0 · 105/105 vitest · index.html rebuildado. Bancada é dev-only
+(não vaza pro build). Próximo (se quiser mais): refinar rosto do capitão, mais props de convés,
+sun-streak na água, talvez casco em C++.

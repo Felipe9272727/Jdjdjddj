@@ -78,6 +78,20 @@ export function makeWood(opts: WoodOpts = {}): { map: THREE.CanvasTexture; rough
     return { map, rough };
 }
 
+// a warm soft radial glow (for the sun halo) — self-contained.
+export function makeGlow(size = 256): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d')!;
+    const g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, 'rgba(255,250,235,1)');
+    g.addColorStop(0.12, 'rgba(255,236,190,0.95)');
+    g.addColorStop(0.4, 'rgba(255,196,120,0.35)');
+    g.addColorStop(1, 'rgba(255,180,110,0)');
+    x.fillStyle = g; x.fillRect(0, 0, size, size);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
 // a soft puffy cloud (alpha) drawn from overlapping radial blobs — self-contained.
 export function makeCloud(seed = 1, size = 256): THREE.CanvasTexture {
     const c = document.createElement('canvas'); c.width = size; c.height = size / 2;

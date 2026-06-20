@@ -18,7 +18,7 @@ import { Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
-import { makeWood, makeJollyRoger, makeCloud } from './floor7Textures';
+import { makeWood, makeJollyRoger, makeCloud, makeGlow } from './floor7Textures';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
 const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
@@ -74,6 +74,7 @@ const M = {
     cloth: new THREE.MeshStandardMaterial({ color: '#cfcabb', roughness: 1 }),
     water: new THREE.MeshStandardMaterial({ color: '#2f6d86', roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.6 }),
     foam: new THREE.MeshStandardMaterial({ color: '#eef6f7', roughness: 1, transparent: true, opacity: 0.55, depthWrite: false }),
+    bird: new THREE.MeshStandardMaterial({ color: '#3a3a40', roughness: 0.9 }),
     puddle: new THREE.MeshStandardMaterial({ color: '#86b6c8', roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.75 }),
     elev: new THREE.MeshStandardMaterial({ color: '#b0bec5', roughness: 0.4, metalness: 0.5, transparent: true }),
     elevTrim: new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.4, metalness: 0.6, transparent: true }),
@@ -283,6 +284,48 @@ const CloudField: React.FC = () => {
     );
 };
 
+// ── a warm sun halo on the horizon ──
+const SunGlow: React.FC = () => {
+    const tex = useMemo(() => makeGlow(), []);
+    const p = SUN_DIR.clone().multiplyScalar(180);
+    return (
+        <mesh position={[p.x, p.y, p.z]}>
+            <planeGeometry args={[120, 120]} />
+            <meshBasicMaterial map={tex} transparent depthWrite={false} blending={THREE.AdditiveBlending} fog={false} toneMapped={false} />
+        </mesh>
+    );
+};
+
+// ── a small flock of seagulls (simple flapping V's) ──
+const Birds: React.FC = () => {
+    const ref = useRef<THREE.Group>(null);
+    const birds = useMemo(() => Array.from({ length: 6 }, (_, i) => ({
+        r: 18 + i * 5, h: 11 + (i % 3) * 3, ph: i * 1.4, sp: 0.12 + (i % 4) * 0.03, flap: 5 + i,
+    })), []);
+    useFrame(({ clock }) => {
+        const g = ref.current; if (!g) return;
+        const t = clock.elapsedTime;
+        g.children.forEach((b, i) => {
+            const d = birds[i]; const a = t * d.sp + d.ph;
+            b.position.set(Math.cos(a) * d.r, d.h + Math.sin(a * 1.3) * 1.2, -20 + Math.sin(a) * d.r);
+            b.rotation.y = -a + Math.PI / 2;
+            const fl = Math.sin(t * d.flap) * 0.5;
+            (b.children[0] as THREE.Mesh).rotation.z = 0.3 + fl;
+            (b.children[1] as THREE.Mesh).rotation.z = -0.3 - fl;
+        });
+    });
+    return (
+        <group ref={ref}>
+            {birds.map((_, i) => (
+                <group key={i}>
+                    <mesh position={[0.22, 0, 0]} material={M.bird}><boxGeometry args={[0.5, 0.04, 0.16]} /></mesh>
+                    <mesh position={[-0.22, 0, 0]} material={M.bird}><boxGeometry args={[0.5, 0.04, 0.16]} /></mesh>
+                </group>
+            ))}
+        </group>
+    );
+};
+
 // ── a waving pirate flag (black with a skull) ──
 const Flag: React.FC<{ y: number }> = ({ y }) => {
     const ref = useRef<THREE.Mesh>(null);
@@ -457,8 +500,10 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     return (
         <group>
             {/* atmospheric golden-hour sky + procedural drifting clouds */}
-            <Sky sunPosition={SUN_POS} turbidity={9} rayleigh={2.2} mieCoefficient={0.008} mieDirectionalG={0.92} />
+            <Sky sunPosition={SUN_POS} turbidity={10} rayleigh={2.8} mieCoefficient={0.01} mieDirectionalG={0.94} />
+            <SunGlow />
             <CloudField />
+            <Birds />
             {/* light rig — warm key sun + cool sky fill */}
             <hemisphereLight args={['#e6ddc4', '#3e4a52', 0.85]} />
             <directionalLight position={SUN_POS} intensity={2.6} color="#ffdca0" />
