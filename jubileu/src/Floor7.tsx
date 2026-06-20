@@ -14,8 +14,14 @@
  */
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
+import { Floor7Water } from './Floor7Water';
+
+// warm low sun shared by the Sky, the key light and the water glitter
+const SUN_POS: [number, number, number] = [18, 7, -22];
+const SUN_DIR = new THREE.Vector3(...SUN_POS).normalize();
 
 // ── shared per-mount handle so the DOM overlay can read the brain ──
 export interface Floor7Handle {
@@ -167,7 +173,6 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const captainRef = useRef<THREE.Group>(null);
     const bucketRef = useRef<THREE.Group>(null);
     const elevatorRef = useRef<THREE.Group>(null);
-    const seaRef = useRef<THREE.Mesh>(null);
     const puddleRefs = useRef<(THREE.Mesh | null)[]>([]);
     const brainRef = useRef<Floor7Brain | null>(null);
     const _local = useRef(new THREE.Vector3());
@@ -241,13 +246,6 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             m.visible = p.prog < 0.995;
         }
 
-        // sea drifts past (sells the forward motion)
-        if (seaRef.current) {
-            const t = performance.now() / 1000;
-            seaRef.current.position.z = -((t * 2.2) % 4);
-            seaRef.current.position.y = -1.7 + Math.sin(t * 0.8) * 0.05;
-        }
-
         // publish a snapshot for the DOM overlay
         const h = handleRef.current;
         h.dialogue = b.dialogue(); h.cleaned = b.cleaned(); h.cleanPct = b.cleanPct(); h.state = b.state();
@@ -255,14 +253,15 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
 
     return (
         <group>
-            {/* sky tint + light (background + fog set on the scene above) */}
-            <hemisphereLight args={['#cfe0ee', '#4a5a60', 0.85]} />
-            <directionalLight position={[6, 12, 6]} intensity={1.7} color="#fff2d8" />
+            {/* atmospheric sky with a warm low sun */}
+            <Sky sunPosition={SUN_POS} turbidity={6} rayleigh={1.4} mieCoefficient={0.006} mieDirectionalG={0.85} />
+            {/* light rig — warm key sun + cool sky fill */}
+            <hemisphereLight args={['#dcebf7', '#46525a', 0.9]} />
+            <directionalLight position={SUN_POS} intensity={2.2} color="#fff0d0" />
+            <ambientLight intensity={0.18} color="#9fc0d8" />
 
-            {/* open sea (large, drifting) */}
-            <mesh ref={seaRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.7, 0]} material={M.water}>
-                <planeGeometry args={[120, 120, 1, 1]} />
-            </mesh>
+            {/* the Gerstner-wave ocean */}
+            <Floor7Water sunDir={SUN_DIR} />
 
             {/* the ship (sways) */}
             <group ref={shipRef}>
