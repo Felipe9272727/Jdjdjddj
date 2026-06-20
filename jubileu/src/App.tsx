@@ -218,7 +218,7 @@ export default function App() {
   // mix (obeying mute + the volume slider) instead of straight to the speakers.
   const cartoonBusRef = useRef<AudioNode | null>(null);
   const [muted, setMuted] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(4.0);
+  const [zoomLevel, setZoomLevel] = useState(0); // first-person only (third person removed permanently)
   const prevPinchDist = useRef<number | null>(null);
   const moveInput = useRef({ x: 0, y: 0 }); const lookInput = useRef({ x: 0, y: 0 });
   const keysRef = useRef({ w: false, a: false, s: false, d: false });
@@ -1453,7 +1453,7 @@ export default function App() {
           const pts = Array.from(activePointers.current.values()); const p1 = pts[0]; const p2 = pts[1];
           const dist = Math.sqrt(Math.pow(p1.currX-p2.currX, 2) + Math.pow(p1.currY-p2.currY, 2));
           // Floors 2/3/4 (and the ride up to 4) lock the camera in 1st person — ignore pinch zoom there.
-          if (prevPinchDist.current !== null && currentLevel !== 2 && currentLevel !== 3 && currentLevel !== 4 && nextElevatorDestination !== 4) { const delta = dist - prevPinchDist.current; setZoomLevel(prev => Math.min(Math.max(prev - delta * 0.02, 0), 10)); }
+          /* pinch-zoom disabled — first-person only (third person removed permanently) */
           prevPinchDist.current = dist;
       }
     }
@@ -1519,7 +1519,7 @@ export default function App() {
   const { info: botInfo } = useBotStore();
 
   return (
-    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2 || currentLevel === 3 || currentLevel === 4 || currentLevel === 6 || nextElevatorDestination === 4) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
+    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={() => { /* scroll-zoom disabled — first-person only (third person removed permanently) */ }}>
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted || shopOpen} masterVolume={settings.masterVolume} nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} doorsClosed={doorsClosed} busRef={cartoonBusRef} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}

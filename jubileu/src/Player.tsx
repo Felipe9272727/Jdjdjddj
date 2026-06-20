@@ -389,7 +389,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         if (pos.current.z < EZ_START - 1) elevTriggered.current = true;
     }
     
-    const fp = zoomLevel < 0.5;
+    const fp = true; // third-person removed permanently — the game is first-person only
     if (sharedPositionRef) sharedPositionRef.current.copy(pos.current);
     if (sharedRotationYRef) sharedRotationYRef.current = charRot.current.y;
     // Bot reads this to map world deltas into camera-frame moveInput.
@@ -871,7 +871,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
     }
   });
-  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} pickupItem={pickupItem} onHandAnchor={onRightHandAnchor} /></group>);
+  return (<group ref={avRef} visible={false}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} pickupItem={pickupItem} onHandAnchor={onRightHandAnchor} /></group>);
 };
 
 // ─── FPArmModel: first-person viewmodel — simple 3D arm in camera space ──
