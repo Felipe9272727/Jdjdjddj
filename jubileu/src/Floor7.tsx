@@ -19,6 +19,7 @@ import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow } from './floor7Textures';
+import { buildHullGeometry } from './floor7Geo';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
 const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
@@ -48,7 +49,7 @@ export function useFloor7Handle(): React.MutableRefObject<Floor7Handle> {
 
 // ── materials (module-scope, shared) ──
 const M = {
-    hull: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, color: '#caa066', roughness: 0.85 }),
+    hull: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, color: '#caa066', roughness: 0.85, side: THREE.DoubleSide }),
     hullDk: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, color: '#8c6e44', roughness: 0.92 }),
     plank: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, color: '#c79a5e', roughness: 0.78 }),
     plankDk: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, color: '#ac8049', roughness: 0.82 }),
@@ -88,37 +89,27 @@ const ShipBody: React.FC = () => {
         for (let i = -3; i <= 3; i++) arr.push({ x: i * 0.84, m: i % 2 ? M.plank : M.plankDk });
         return arr;
     }, []);
-    // proper hull: a pointed-bow boat footprint extruded downward (no more box)
-    const { hullGeo, hullLow, foamGeo } = useMemo(() => {
-        const beam = 3.2, bow = 8.2, stern = -7.0;
-        const mk = (k: number) => {
-            const s = new THREE.Shape();
-            s.moveTo(-beam * 0.86 * k, stern * k);
-            s.lineTo(beam * 0.86 * k, stern * k);
-            s.bezierCurveTo((beam + 0.2) * k, (stern + 3) * k, (beam + 0.2) * k, (bow - 4) * k, beam * 0.55 * k, (bow - 1.6) * k);
-            s.bezierCurveTo(beam * 0.34 * k, (bow - 0.4) * k, beam * 0.16 * k, bow * k, 0, bow * k);
-            s.bezierCurveTo(-beam * 0.16 * k, bow * k, -beam * 0.34 * k, (bow - 0.4) * k, -beam * 0.55 * k, (bow - 1.6) * k);
-            s.bezierCurveTo(-(beam + 0.2) * k, (bow - 4) * k, -(beam + 0.2) * k, (stern + 3) * k, -beam * 0.86 * k, stern * k);
-            return s;
-        };
-        const s = mk(1);
-        const ex = (depth: number) => {
-            const g = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: true, bevelThickness: 0.35, bevelSize: 0.3, bevelSegments: 2, steps: 1 });
-            g.rotateX(Math.PI / 2);           // footprint → XZ, extrude → downward
-            return g;
-        };
-        const top = ex(1.5);
-        const low = ex(2.4); low.scale(0.62, 1, 0.86);       // narrower keel taper below
-        // a flat foam collar at the waterline, slightly bigger than the hull
-        const foam = new THREE.ShapeGeometry(mk(1.16));
+    // hull MODELLED IN C++ (floor7_geo.cpp → WASM): a lofted, faired, pointed-bow
+    // hull. JS only uploads the buffers. Plus a flat foam collar at the waterline.
+    const { hullGeo, foamGeo } = useMemo(() => {
+        const hull = buildHullGeometry();
+        const beam = 3.2, bow = 8.2, stern = -7.0, k = 1.18;
+        const s = new THREE.Shape();
+        s.moveTo(-beam * 0.86 * k, stern * k);
+        s.lineTo(beam * 0.86 * k, stern * k);
+        s.bezierCurveTo((beam + 0.2) * k, (stern + 3) * k, (beam + 0.2) * k, (bow - 4) * k, beam * 0.55 * k, (bow - 1.6) * k);
+        s.bezierCurveTo(beam * 0.34 * k, (bow - 0.4) * k, beam * 0.16 * k, bow * k, 0, bow * k);
+        s.bezierCurveTo(-beam * 0.16 * k, bow * k, -beam * 0.34 * k, (bow - 0.4) * k, -beam * 0.55 * k, (bow - 1.6) * k);
+        s.bezierCurveTo(-(beam + 0.2) * k, (bow - 4) * k, -(beam + 0.2) * k, (stern + 3) * k, -beam * 0.86 * k, stern * k);
+        const foam = new THREE.ShapeGeometry(s);
         foam.rotateX(-Math.PI / 2);
-        return { hullGeo: top, hullLow: low, foamGeo: foam };
+        return { hullGeo: hull, foamGeo: foam };
     }, []);
     return (
         <group>
-            {/* hull — pointed-bow extruded body + a tapered lower belly */}
-            <mesh geometry={hullGeo} position={[0, 0.02, 0]} material={M.hull} />
-            <mesh geometry={hullLow} position={[0, -1.35, 0]} material={M.hullDk} />
+            {/* hull — generated in C++ (lofted cross-sections), double-sided so the
+                inner planking shows above the deck line */}
+            <mesh geometry={hullGeo} position={[0, -0.15, 0]} material={M.hull} />
             {/* foam collar where the hull meets the sea */}
             <mesh geometry={foamGeo} position={[0, -1.16, 0]} material={M.foam} renderOrder={2} />
             {/* deck */}

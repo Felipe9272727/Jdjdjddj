@@ -11,15 +11,16 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const wasmOut = path.join(dir, 'floor7.wasm');
 const tsOut = path.join(dir, '..', 'src', 'floor7-wasm.ts');
 
-const cmd = [
-    'clang', '--target=wasm32', '-nostdlib', '-O2',
-    '-Wl,--no-entry', '-Wl,--export-dynamic', '-Wl,--allow-undefined',
-    '-o', wasmOut,
-    path.join(dir, 'floor7.c'), path.join(dir, 'floor7_asm.s'),
-].join(' ');
-
-console.log('> ' + cmd);
-execSync(cmd, { stdio: 'inherit' });
+// Compile C + hand-written assembly + C++ each to a wasm object, then link.
+const o = (f) => path.join(dir, f);
+const steps = [
+    `clang --target=wasm32 -nostdlib -O2 -c ${o('floor7.c')} -o ${o('floor7.o')}`,
+    `clang --target=wasm32 -nostdlib -O2 -c ${o('floor7_asm.s')} -o ${o('floor7_asm.o')}`,
+    `clang++ --target=wasm32 -nostdlib -O2 -fno-exceptions -fno-rtti -c ${o('floor7_geo.cpp')} -o ${o('floor7_geo.o')}`,
+    `clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-dynamic -Wl,--allow-undefined -o ${wasmOut} ${o('floor7.o')} ${o('floor7_asm.o')} ${o('floor7_geo.o')}`,
+];
+for (const cmd of steps) { console.log('> ' + cmd); execSync(cmd, { stdio: 'inherit' }); }
+for (const f of ['floor7.o', 'floor7_asm.o', 'floor7_geo.o']) { try { fs.unlinkSync(o(f)); } catch (e) { /* ignore */ } }
 
 const bytes = fs.readFileSync(wasmOut);
 const b64 = bytes.toString('base64');
