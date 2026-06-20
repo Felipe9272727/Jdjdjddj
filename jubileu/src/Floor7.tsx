@@ -18,6 +18,15 @@ import { Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
+import { makeWood, makeJollyRoger } from './floor7Textures';
+
+// procedural wood (browser-only canvas; Floor7 is never imported by tests)
+const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
+const _hullWood = makeWood({ base: '#5f4226', dark: '#3a2715', light: '#7a5634', plankW: 80, knots: 4 });
+const _trimWood = makeWood({ base: '#6e4a28', dark: '#46301a', light: '#8a5f34', plankW: 40, knots: 2 });
+_deckWood.map.repeat.set(3, 7); _deckWood.rough.repeat.set(3, 7);
+_hullWood.map.repeat.set(4, 2); _hullWood.rough.repeat.set(4, 2);
+_trimWood.map.repeat.set(6, 1); _trimWood.rough.repeat.set(6, 1);
 
 // warm low sun shared by the Sky, the key light and the water glitter
 const SUN_POS: [number, number, number] = [18, 7, -22];
@@ -39,14 +48,17 @@ export function useFloor7Handle(): React.MutableRefObject<Floor7Handle> {
 
 // ── materials (module-scope, shared) ──
 const M = {
-    hull: new THREE.MeshStandardMaterial({ color: '#5a3a22', roughness: 0.85 }),
-    hullDk: new THREE.MeshStandardMaterial({ color: '#3f2817', roughness: 0.9 }),
-    plank: new THREE.MeshStandardMaterial({ color: '#9b7748', roughness: 0.8 }),
-    plankDk: new THREE.MeshStandardMaterial({ color: '#86653b', roughness: 0.85 }),
-    rail: new THREE.MeshStandardMaterial({ color: '#6b4a2c', roughness: 0.8 }),
-    mast: new THREE.MeshStandardMaterial({ color: '#7a5a36', roughness: 0.8 }),
+    hull: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, color: '#caa066', roughness: 0.85 }),
+    hullDk: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, color: '#8c6e44', roughness: 0.92 }),
+    plank: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, color: '#c79a5e', roughness: 0.78 }),
+    plankDk: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, color: '#ac8049', roughness: 0.82 }),
+    rail: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#b07f48', roughness: 0.55 }),
+    mast: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#b58a52', roughness: 0.6 }),
     sail: new THREE.MeshStandardMaterial({ color: '#efe7d4', roughness: 0.95, side: THREE.DoubleSide, emissive: '#6b5f44', emissiveIntensity: 0.35 }),
     rope: new THREE.MeshStandardMaterial({ color: '#caa56a', roughness: 1 }),
+    flag: new THREE.MeshStandardMaterial({ map: makeJollyRoger(), roughness: 0.95, side: THREE.DoubleSide }),
+    barrel: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#9c7038', roughness: 0.7 }),
+    iron: new THREE.MeshStandardMaterial({ color: '#3a3a3e', roughness: 0.5, metalness: 0.8 }),
     metal: new THREE.MeshStandardMaterial({ color: '#b9c2c8', roughness: 0.35, metalness: 0.7 }),
     wheel: new THREE.MeshStandardMaterial({ color: '#5b3d22', roughness: 0.7 }),
     coat: new THREE.MeshStandardMaterial({ color: '#7a1f1f', roughness: 0.7 }),
@@ -104,7 +116,7 @@ const ShipBody: React.FC = () => {
                     <boxGeometry args={[6.1, 0.9, 0.18]} />
                 </mesh>
             ))}
-            {/* main mast + yard + sail */}
+            {/* main mast + yard + sail + flag + crow's nest */}
             <group position={[0, 0, -1]}>
                 <mesh position={[0, 3.4, 0]} material={M.mast}>
                     <cylinderGeometry args={[0.16, 0.2, 6.8, 10]} />
@@ -112,9 +124,13 @@ const ShipBody: React.FC = () => {
                 <mesh position={[0, 5.2, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
                     <cylinderGeometry args={[0.08, 0.08, 4.6, 8]} />
                 </mesh>
-                <mesh position={[0, 4.0, 0.05]} material={M.sail}>
-                    <planeGeometry args={[4.2, 2.6]} />
+                <mesh position={[0, 4.0, 0.06]} material={M.sail}>
+                    <planeGeometry args={[4.2, 2.6, 8, 6]} />
                 </mesh>
+                {/* crow's nest */}
+                <mesh position={[0, 6.0, 0]} material={M.rail}><cylinderGeometry args={[0.34, 0.28, 0.4, 10, 1, true]} /></mesh>
+                <mesh position={[0, 5.8, 0]} material={M.rail}><cylinderGeometry args={[0.32, 0.32, 0.04, 10]} /></mesh>
+                <Flag y={6.7} />
             </group>
             {/* foremast */}
             <group position={[0, 0, 4]}>
@@ -142,7 +158,76 @@ const ShipBody: React.FC = () => {
             <mesh position={[0, 0.7, 8.2]} rotation={[0.5, 0, 0]} material={M.mast}>
                 <cylinderGeometry args={[0.1, 0.13, 3, 8]} />
             </mesh>
+
+            {/* rounded rail caps on the bulwarks */}
+            {[-3.05, 3.05].map((x) => (
+                <mesh key={'rc' + x} position={[x, 0.93, 0]} material={M.rail}><boxGeometry args={[0.28, 0.12, 14.2]} /></mesh>
+            ))}
+            {[-7.1, 7.1].map((z) => (
+                <mesh key={'rc' + z} position={[0, 0.93, z]} material={M.rail}><boxGeometry args={[6.1, 0.12, 0.28]} /></mesh>
+            ))}
+
+            {/* rope shrouds — mast to rail */}
+            {[-1, 1].map((s) => [-0.8, 0, 0.8].map((zoff, i) => {
+                const x2 = s * 2.9, z2 = -1 + zoff * 2.2;
+                const mx = s * 0.18, mz = -1 + zoff * 0.4, my = 3.2;
+                const dx = x2 - mx, dy = 0.5 - my, dz = z2 - mz;
+                const len = Math.hypot(dx, dy, dz);
+                return (
+                    <mesh key={'sh' + s + i} position={[(mx + x2) / 2, (my + 0.5) / 2, (mz + z2) / 2]}
+                        quaternion={new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx, dy, dz).normalize())}
+                        material={M.rope}>
+                        <cylinderGeometry args={[0.018, 0.018, len, 5]} />
+                    </mesh>
+                );
+            }))}
+
+            {/* barrels (bow corner) + a crate stack (by the foremast) */}
+            {[[2.2, 5.6], [2.55, 6.1], [-2.4, 5.8]].map(([x, z], i) => (
+                <group key={'bar' + i} position={[x, 0.34, z]}>
+                    <mesh material={M.barrel}><cylinderGeometry args={[0.3, 0.26, 0.68, 12]} /></mesh>
+                    <mesh position={[0, 0.18, 0]} material={M.iron}><torusGeometry args={[0.3, 0.022, 6, 16]} /></mesh>
+                    <mesh position={[0, -0.18, 0]} material={M.iron}><torusGeometry args={[0.3, 0.022, 6, 16]} /></mesh>
+                </group>
+            ))}
+            {[[0, 0], [0.05, 0.55], [0.5, 0.05]].map(([dy, dx], i) => (
+                <mesh key={'cr' + i} position={[-2.2 + dx, 0.3 + dy, 4.0]} rotation={[0, i * 0.4, 0]} material={M.plank}>
+                    <boxGeometry args={[0.55, 0.55, 0.55]} />
+                </mesh>
+            ))}
+
+            {/* a hanging lantern by the helm (warm glow) */}
+            <group position={[1.4, 1.5, -5.9]}>
+                <mesh material={M.iron}><cylinderGeometry args={[0.02, 0.02, 0.5, 6]} /></mesh>
+                <mesh position={[0, -0.32, 0]}>
+                    <boxGeometry args={[0.16, 0.22, 0.16]} />
+                    <meshStandardMaterial color="#ffd98a" emissive="#ffb347" emissiveIntensity={2.2} />
+                </mesh>
+                <pointLight position={[0, -0.32, 0]} color="#ffb347" intensity={6} distance={5} decay={2} />
+            </group>
         </group>
+    );
+};
+
+// ── a waving pirate flag (black with a skull) ──
+const Flag: React.FC<{ y: number }> = ({ y }) => {
+    const ref = useRef<THREE.Mesh>(null);
+    const geo = useMemo(() => new THREE.PlaneGeometry(1.4, 0.85, 14, 6), []);
+    const base = useMemo(() => geo.attributes.position.array.slice(0), [geo]);
+    useFrame(({ clock }) => {
+        if (!ref.current) return;
+        const t = clock.elapsedTime;
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            const bx = (base as Float32Array)[i * 3];
+            const u = (bx + 0.7) / 1.4;                // 0 at mast, 1 at fly
+            const z = Math.sin(u * 7 - t * 6) * 0.12 * u + Math.sin(u * 3 - t * 3) * 0.05 * u;
+            pos.setZ(i, z);
+        }
+        pos.needsUpdate = true;
+    });
+    return (
+        <mesh ref={ref} geometry={geo} position={[0.7, y, 0]} material={M.flag} />
     );
 };
 
