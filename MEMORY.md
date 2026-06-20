@@ -3414,3 +3414,15 @@ mesclado, luzes apagadas desmontadas. Essas reduções de draw call + overdraw *
 real do Felipe** mesmo que o swiftshader (env-bound) não mostre no FPS. O env (beleza) fica no
 medium; quem precisar de FPS máximo usa o tier low (env off, ~4.8× mais rápido).
 tsc 0 · 99/99 vitest · audit 0.
+
+### Sessão 2026-06-19 (cont.) — Garantia de FPS no medium: piso de dpr mais baixo
+
+Pra fechar o "medium bem level" sem eu poder validar na GPU real: o jogo JÁ tem AdaptiveDpr
++ PerformanceMonitor (baixam a resolução sob carga pra segurar FPS), ativos no Floor 6. Mas o
+piso de dpr do medium era 0.75 — pouca margem pro andar pesado (env-bound) se recuperar num
+phone fraco. **Aumentei o range do medium: dpr [0.75,1.0] → [0.6,1.0].** Mais headroom pro
+auto-scaling recuperar FPS no Floor 6; fica nítido (1.0) quando o device aguenta, só suaviza
+sob carga sustentada (suave-mas-fluido > travado). Systemic e seguro (auto-recupera).
+
+Smoke multi-andar (medium): lobby/submerso/parkour/corrida/suíte — todos renderizam, 0 erros.
+tsc 0 · 99/99 vitest.

@@ -114,7 +114,11 @@ export const QUALITY_PROFILES: Record<Quality, QualityProfile> = {
         physicsProps: false,
     },
     medium: {
-        dpr: [0.75, 1.0],
+        // Wider dpr range than before (floor 0.75 → 0.6): gives AdaptiveDpr more
+        // headroom to recover FPS on heavy floors (the env-heavy Floor 6) on
+        // weak phones. Stays crisp at 1.0 when the device can afford it; only
+        // softens under sustained load, which beats lag. Default tier.
+        dpr: [0.6, 1.0],
         far: 80,
         antialias: false,
         atmosphere: false,
