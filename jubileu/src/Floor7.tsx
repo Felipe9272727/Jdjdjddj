@@ -96,7 +96,9 @@ const M = {
     sudsy: new THREE.MeshPhysicalMaterial({ color: '#cfe2e6', roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.2 }),
     cloth: new THREE.MeshStandardMaterial({ color: '#d6d0c2', roughness: 1 }),
     water: new THREE.MeshStandardMaterial({ color: '#2f6d86', roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.6 }),
-    foam: new THREE.MeshStandardMaterial({ color: '#eef6f7', roughness: 1, transparent: true, opacity: 0.55, depthWrite: false }),
+    foam: new THREE.MeshStandardMaterial({ color: '#eef6f7', roughness: 1, transparent: true, opacity: 0.7, depthWrite: false }),
+    bootTop: new THREE.MeshStandardMaterial({ color: '#14322a', roughness: 0.55, envMapIntensity: 0.5 }),
+    grate: new THREE.MeshStandardMaterial({ color: '#3a2817', roughness: 0.85 }),
     bird: new THREE.MeshStandardMaterial({ color: '#3a3a40', roughness: 0.9 }),
     puddle: new THREE.MeshPhysicalMaterial({ color: '#244e5e', roughness: 0.12, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.04, transparent: true, opacity: 0.82, envMapIntensity: 1.3 }),
     glass: new THREE.MeshPhysicalMaterial({ color: '#11242e', roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#5a3a12', emissiveIntensity: 0.45, envMapIntensity: 1.5 }),
@@ -184,18 +186,50 @@ const RatlineShrouds: React.FC<{ side: number; railX: number; railY: number; bas
         );
     };
 
+// ── deck furniture (mast partners, grated hatch, capstan) — all on the centre
+// lane (x≈0), which the brain keeps clear of puddles, so it never blocks the
+// mopping gameplay. ──
+const DeckFurniture: React.FC = () => (
+    <group>
+        {/* mast partner collars where the masts pierce the deck */}
+        {[-1, 4].map((z) => (
+            <mesh key={'mp' + z} position={[0, 0.11, z]} material={M.rail}><cylinderGeometry args={[0.32, 0.4, 0.2, 8]} /></mesh>
+        ))}
+        {/* grated cargo hatch with a raised coaming */}
+        <group position={[0, 0.06, 1.2]}>
+            <mesh position={[0, 0.04, 0]} material={M.rail}><boxGeometry args={[1.04, 0.16, 1.24]} /></mesh>
+            <mesh position={[0, 0.02, 0]} material={M.hat}><boxGeometry args={[0.86, 0.06, 1.06]} /></mesh>
+            {[-0.36, -0.18, 0, 0.18, 0.36].map((x) => (
+                <mesh key={'gx' + x} position={[x, 0.1, 0]} material={M.grate}><boxGeometry args={[0.05, 0.05, 1.06]} /></mesh>
+            ))}
+            {[-0.45, -0.225, 0, 0.225, 0.45].map((z) => (
+                <mesh key={'gz' + z} position={[0, 0.1, z]} material={M.grate}><boxGeometry args={[0.86, 0.05, 0.05]} /></mesh>
+            ))}
+        </group>
+        {/* capstan amidships */}
+        <group position={[0, 0, 2.7]}>
+            <mesh position={[0, 0.3, 0]} material={M.barrel}><cylinderGeometry args={[0.2, 0.27, 0.58, 12]} /></mesh>
+            <mesh position={[0, 0.6, 0]} material={M.wheel}><cylinderGeometry args={[0.29, 0.24, 0.12, 12]} /></mesh>
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+                <mesh key={i} position={[0, 0.52, 0]} rotation={[0, (i * Math.PI) / 3, 0]} material={M.mast}><boxGeometry args={[0.92, 0.05, 0.05]} /></mesh>
+            ))}
+        </group>
+    </group>
+);
+
 // ── the static ship hull + deck + masts (no per-frame logic) ──
 const ShipBody: React.FC = () => {
     // hull + deck + rail caps are ALL MODELLED IN C++ (floor7_geo.cpp → WASM):
     // the deck and rails sample the same sheer/beam curves as the hull, so the
     // whole ship sweeps together. JS only uploads the buffers. Plus a thin spray
     // band hugging the waterline.
-    const { hullGeo, deckGeo, railGeo, foamGeo, waleHi, waleLo } = useMemo(() => {
+    const { hullGeo, deckGeo, railGeo, foamGeo, waleHi, waleLo, bootGeo } = useMemo(() => {
         const hull = buildHullGeometry();
         const deck = buildDeckGeometry();
         const rail = buildRailGeometry();
         const wHi = buildWaleGeometry(0.74, 0.07, 0.09);   // below the gunports / deck edge
         const wLo = buildWaleGeometry(0.52, 0.06, 0.08);   // at the turn of the topside
+        const boot = buildWaleGeometry(0.45, 0.015, 0.07); // boot-top stripe at the waterline
         // a slim spray/foam band tracing the waterline outline (thin, not a disc)
         const beam = 3.05, bow = 8.0, stern = -6.9, k = 1.06;
         const s = new THREE.Shape();
@@ -216,7 +250,7 @@ const ShipBody: React.FC = () => {
         s.holes.push(hole);
         const foam = new THREE.ShapeGeometry(s);
         foam.rotateX(-Math.PI / 2);
-        return { hullGeo: hull, deckGeo: deck, railGeo: rail, foamGeo: foam, waleHi: wHi, waleLo: wLo };
+        return { hullGeo: hull, deckGeo: deck, railGeo: rail, foamGeo: foam, waleHi: wHi, waleLo: wLo, bootGeo: boot };
     }, []);
     return (
         <group>
@@ -230,8 +264,12 @@ const ShipBody: React.FC = () => {
             {/* wales — proud rubbing-strakes laid on the C++ hull surface */}
             <mesh geometry={waleHi} material={M.hullDk} />
             <mesh geometry={waleLo} material={M.hullDk} />
+            {/* boot-top stripe marking the load waterline (kills the bathtub look) */}
+            <mesh geometry={bootGeo} material={M.bootTop} />
             {/* ornamented stern (windows, galleries, gilt) */}
             <Transom />
+            {/* deck furniture on the puddle-free centre lane */}
+            <DeckFurniture />
             {/* thin spray band at the waterline */}
             <mesh geometry={foamGeo} position={[0, -0.66, 0]} material={M.foam} renderOrder={2} />
             {/* main mast + yard + sail + flag + crow's nest */}
