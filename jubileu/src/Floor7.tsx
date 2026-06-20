@@ -19,7 +19,7 @@ import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth } from './floor7Textures';
-import { buildHullGeometry } from './floor7Geo';
+import { buildHullGeometry, buildDeckGeometry, buildRailGeometry } from './floor7Geo';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
 const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
@@ -105,55 +105,47 @@ const M = {
 
 // ── the static ship hull + deck + masts (no per-frame logic) ──
 const ShipBody: React.FC = () => {
-    // deck planks: a few long boards
-    const planks = useMemo(() => {
-        const arr: { x: number; m: THREE.Material }[] = [];
-        for (let i = -3; i <= 3; i++) arr.push({ x: i * 0.84, m: i % 2 ? M.plank : M.plankDk });
-        return arr;
-    }, []);
-    // hull MODELLED IN C++ (floor7_geo.cpp → WASM): a lofted, faired, pointed-bow
-    // hull. JS only uploads the buffers. Plus a flat foam collar at the waterline.
-    const { hullGeo, foamGeo } = useMemo(() => {
+    // hull + deck + rail caps are ALL MODELLED IN C++ (floor7_geo.cpp → WASM):
+    // the deck and rails sample the same sheer/beam curves as the hull, so the
+    // whole ship sweeps together. JS only uploads the buffers. Plus a thin spray
+    // band hugging the waterline.
+    const { hullGeo, deckGeo, railGeo, foamGeo } = useMemo(() => {
         const hull = buildHullGeometry();
-        const beam = 3.2, bow = 8.2, stern = -7.0, k = 1.18;
+        const deck = buildDeckGeometry();
+        const rail = buildRailGeometry();
+        // a slim spray/foam band tracing the waterline outline (thin, not a disc)
+        const beam = 3.05, bow = 8.0, stern = -6.9, k = 1.06;
         const s = new THREE.Shape();
-        s.moveTo(-beam * 0.86 * k, stern * k);
-        s.lineTo(beam * 0.86 * k, stern * k);
-        s.bezierCurveTo((beam + 0.2) * k, (stern + 3) * k, (beam + 0.2) * k, (bow - 4) * k, beam * 0.55 * k, (bow - 1.6) * k);
-        s.bezierCurveTo(beam * 0.34 * k, (bow - 0.4) * k, beam * 0.16 * k, bow * k, 0, bow * k);
-        s.bezierCurveTo(-beam * 0.16 * k, bow * k, -beam * 0.34 * k, (bow - 0.4) * k, -beam * 0.55 * k, (bow - 1.6) * k);
-        s.bezierCurveTo(-(beam + 0.2) * k, (bow - 4) * k, -(beam + 0.2) * k, (stern + 3) * k, -beam * 0.86 * k, stern * k);
+        s.moveTo(-beam * 0.7 * k, stern * k);
+        s.lineTo(beam * 0.7 * k, stern * k);
+        s.bezierCurveTo((beam + 0.15) * k, (stern + 3) * k, (beam + 0.15) * k, (bow - 4) * k, beam * 0.4 * k, (bow - 1.4) * k);
+        s.bezierCurveTo(beam * 0.22 * k, (bow - 0.3) * k, beam * 0.1 * k, bow * k, 0, bow * k);
+        s.bezierCurveTo(-beam * 0.1 * k, bow * k, -beam * 0.22 * k, (bow - 0.3) * k, -beam * 0.4 * k, (bow - 1.4) * k);
+        s.bezierCurveTo(-(beam + 0.15) * k, (bow - 4) * k, -(beam + 0.15) * k, (stern + 3) * k, -beam * 0.7 * k, stern * k);
+        const hole = new THREE.Path();
+        const ki = 0.9;
+        hole.moveTo(-beam * 0.7 * ki, stern * ki);
+        hole.lineTo(beam * 0.7 * ki, stern * ki);
+        hole.bezierCurveTo((beam + 0.15) * ki, (stern + 3) * ki, (beam + 0.15) * ki, (bow - 4) * ki, beam * 0.4 * ki, (bow - 1.4) * ki);
+        hole.bezierCurveTo(beam * 0.22 * ki, (bow - 0.3) * ki, beam * 0.1 * ki, bow * ki, 0, bow * ki);
+        hole.bezierCurveTo(-beam * 0.1 * ki, bow * ki, -beam * 0.22 * ki, (bow - 0.3) * ki, -beam * 0.4 * ki, (bow - 1.4) * ki);
+        hole.bezierCurveTo(-(beam + 0.15) * ki, (bow - 4) * ki, -(beam + 0.15) * ki, (stern + 3) * ki, -beam * 0.7 * ki, stern * ki);
+        s.holes.push(hole);
         const foam = new THREE.ShapeGeometry(s);
         foam.rotateX(-Math.PI / 2);
-        return { hullGeo: hull, foamGeo: foam };
+        return { hullGeo: hull, deckGeo: deck, railGeo: rail, foamGeo: foam };
     }, []);
     return (
         <group>
-            {/* hull — generated in C++ (lofted cross-sections), double-sided so the
-                inner planking shows above the deck line */}
-            <mesh geometry={hullGeo} position={[0, -0.15, 0]} material={M.hull} />
-            {/* foam collar where the hull meets the sea */}
-            <mesh geometry={foamGeo} position={[0, -1.16, 0]} material={M.foam} renderOrder={2} />
-            {/* deck */}
-            <mesh position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M.plankDk}>
-                <planeGeometry args={[6, 14.4]} />
-            </mesh>
-            {planks.map((p, i) => (
-                <mesh key={i} position={[p.x, 0.011, 0]} rotation={[-Math.PI / 2, 0, 0]} material={p.m}>
-                    <planeGeometry args={[0.78, 14]} />
-                </mesh>
-            ))}
-            {/* bulwarks (rails) around the deck */}
-            {[-3.05, 3.05].map((x) => (
-                <mesh key={x} position={[x, 0.45, 0]} material={M.rail}>
-                    <boxGeometry args={[0.18, 0.9, 14.2]} />
-                </mesh>
-            ))}
-            {[-7.1, 7.1].map((z) => (
-                <mesh key={z} position={[0, 0.45, z]} material={M.rail}>
-                    <boxGeometry args={[6.1, 0.9, 0.18]} />
-                </mesh>
-            ))}
+            {/* hull — generated in C++ (sheer + tumblehome + raked stem + bulwarks),
+                double-sided so the inner planking shows */}
+            <mesh geometry={hullGeo} position={[0, 0, 0]} material={M.hull} />
+            {/* deck surface (C++ sheer curve) */}
+            <mesh geometry={deckGeo} material={M.plankDk} />
+            {/* rail caps swept along the sheer (C++ curve) */}
+            <mesh geometry={railGeo} material={M.rail} />
+            {/* thin spray band at the waterline */}
+            <mesh geometry={foamGeo} position={[0, -0.66, 0]} material={M.foam} renderOrder={2} />
             {/* main mast + yard + sail + flag + crow's nest */}
             <group position={[0, 0, -1]}>
                 <mesh position={[0, 3.4, 0]} material={M.mast}>
@@ -193,13 +185,6 @@ const ShipBody: React.FC = () => {
                 <cylinderGeometry args={[0.1, 0.13, 3, 8]} />
             </mesh>
 
-            {/* rounded rail caps on the bulwarks */}
-            {[-3.05, 3.05].map((x) => (
-                <mesh key={'rc' + x} position={[x, 0.93, 0]} material={M.rail}><boxGeometry args={[0.28, 0.12, 14.2]} /></mesh>
-            ))}
-            {[-7.1, 7.1].map((z) => (
-                <mesh key={'rc' + z} position={[0, 0.93, z]} material={M.rail}><boxGeometry args={[6.1, 0.12, 0.28]} /></mesh>
-            ))}
 
             {/* rope shrouds — mast to rail */}
             {[-1, 1].map((s) => [-0.8, 0, 0.8].map((zoff, i) => {

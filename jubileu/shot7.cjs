@@ -1,7 +1,14 @@
 const { chromium } = require('playwright');
 (async()=>{
   const b=await chromium.launch({executablePath:process.env.PW_CHROMIUM||'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox','--use-gl=swiftshader']});
-  const A={ capclose:{p:[0.6,1.6,3.2]}, deck:{p:[1.5,2.4,3.0]}, hull:{p:[6,0.5,4]}, bucket:{p:[2.1,0.9,-1.3],t:[2.1,0.15,-2.2]} };
+  const A={
+    hero:{p:[12,5.5,14],t:[0,1.4,0]},
+    broadside:{p:[16,2.6,1],t:[0,1.4,0]},
+    bow:{p:[1.5,3.2,16],t:[0,0.8,4]},
+    stern:{p:[2,3.6,-14],t:[0,1.2,-4]},
+    topdown:{p:[0.5,16,1],t:[0,0,-1]},
+    capclose:{p:[0.6,1.6,3.2]},
+  };
   for(const [tag,cfg] of Object.entries(A)){
     const pg=await(await b.newContext({viewport:{width:900,height:760}})).newPage();
     await pg.addInitScript((c)=>{window.__orbit=c.p; if(c.t)window.__target=c.t;}, cfg);
