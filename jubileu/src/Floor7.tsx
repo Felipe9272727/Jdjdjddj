@@ -99,8 +99,44 @@ const M = {
     foam: new THREE.MeshStandardMaterial({ color: '#eef6f7', roughness: 1, transparent: true, opacity: 0.55, depthWrite: false }),
     bird: new THREE.MeshStandardMaterial({ color: '#3a3a40', roughness: 0.9 }),
     puddle: new THREE.MeshPhysicalMaterial({ color: '#244e5e', roughness: 0.12, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.04, transparent: true, opacity: 0.82, envMapIntensity: 1.3 }),
+    glass: new THREE.MeshPhysicalMaterial({ color: '#11242e', roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#5a3a12', emissiveIntensity: 0.45, envMapIntensity: 1.5 }),
     elev: new THREE.MeshStandardMaterial({ color: '#b0bec5', roughness: 0.4, metalness: 0.5, transparent: true }),
     elevTrim: new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.4, metalness: 0.6, transparent: true }),
+};
+
+// ── the ornamented stern: the galleon's "face" — framed stern windows with
+// glass, a gilt name-board, taffrail + counter moldings, and quarter galleries
+// at the corners. Mounted on the raked transom at the stern (z=-7). ──
+const Transom: React.FC = () => {
+    const xs = [-0.86, 0, 0.86];
+    const winW = 0.46, winH = 0.5, winY = 0.62;
+    return (
+        <group position={[0, 0, -7.0]} rotation={[0.1, 0, 0]}>
+            {/* counter molding below the windows + taffrail across the top */}
+            <mesh position={[0, 0.30, -0.04]} material={M.rail}><boxGeometry args={[3.0, 0.13, 0.14]} /></mesh>
+            <mesh position={[0, 1.02, -0.02]} material={M.rail}><boxGeometry args={[2.9, 0.15, 0.18]} /></mesh>
+            {/* gilt name-board */}
+            <mesh position={[0, 0.92, -0.07]} material={M.gold}><boxGeometry args={[1.9, 0.12, 0.03]} /></mesh>
+            {/* three framed stern windows */}
+            {xs.map((x, i) => (
+                <group key={i} position={[x, winY, 0]}>
+                    <mesh position={[0, 0, -0.04]} material={M.gold}><boxGeometry args={[winW + 0.09, winH + 0.09, 0.05]} /></mesh>
+                    <mesh position={[0, 0, -0.07]} material={M.glass}><boxGeometry args={[winW, winH, 0.04]} /></mesh>
+                    <mesh position={[0, 0, -0.1]} material={M.rail}><boxGeometry args={[0.03, winH, 0.03]} /></mesh>
+                    <mesh position={[0, 0, -0.1]} material={M.rail}><boxGeometry args={[winW, 0.03, 0.03]} /></mesh>
+                </group>
+            ))}
+            {/* quarter galleries (corner turrets with a little window + gilt cap) */}
+            {[-1, 1].map((s) => (
+                <group key={s} position={[s * 1.42, 0.6, 0.12]}>
+                    <mesh material={M.hull}><cylinderGeometry args={[0.2, 0.24, 0.8, 10]} /></mesh>
+                    <mesh position={[0, 0, -0.18]} material={M.glass}><boxGeometry args={[0.2, 0.36, 0.05]} /></mesh>
+                    <mesh position={[0, 0.46, 0]} material={M.gold}><coneGeometry args={[0.24, 0.22, 10]} /></mesh>
+                    <mesh position={[0, 0.27, 0]} material={M.gold}><cylinderGeometry args={[0.23, 0.21, 0.06, 10]} /></mesh>
+                </group>
+            ))}
+        </group>
+    );
 };
 
 // ── the static ship hull + deck + masts (no per-frame logic) ──
@@ -149,6 +185,8 @@ const ShipBody: React.FC = () => {
             {/* wales — proud rubbing-strakes laid on the C++ hull surface */}
             <mesh geometry={waleHi} material={M.hullDk} />
             <mesh geometry={waleLo} material={M.hullDk} />
+            {/* ornamented stern (windows, galleries, gilt) */}
+            <Transom />
             {/* thin spray band at the waterline */}
             <mesh geometry={foamGeo} position={[0, -0.66, 0]} material={M.foam} renderOrder={2} />
             {/* main mast + yard + sail + flag + crow's nest */}

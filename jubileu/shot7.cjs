@@ -6,6 +6,7 @@ const { chromium } = require('playwright');
     broadside:{p:[16,2.6,1],t:[0,1.4,0]},
     bow:{p:[1.5,3.2,16],t:[0,0.8,4]},
     stern:{p:[2,3.6,-14],t:[0,1.2,-4]},
+    sternclose:{p:[1.2,1.0,-10],t:[0,0.55,-7]},
     topdown:{p:[0.5,16,1],t:[0,0,-1]},
     capclose:{p:[0.6,1.6,3.2]},
   };
