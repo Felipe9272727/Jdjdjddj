@@ -3528,3 +3528,28 @@ gaivotas = navio pirata bonito de verdade (vs o blocão marrom de antes). Tudo s
 (sem assets externos). tsc 0 · 105/105 vitest · index.html rebuildado. Bancada é dev-only
 (não vaza pro build). Próximo (se quiser mais): refinar rosto do capitão, mais props de convés,
 sun-streak na água, talvez casco em C++.
+
+### Sessão 2026-06-20 (cont.) — Capitão de verdade + materiais molhados + casco em C++
+
+Felipe (/loop, irritado): "isso que vc considera bonito? as texturas, o pirata, está tudo
+péssimo" — de volta ao loop render→crítica→conserto.
+
+Renderizei close-ups e confirmei os 2 piores defeitos: **chapéu = um torus preto gigante (rosca)**
+e **cabeça = esfera bege sem rosto** (os "olhos" eram pontinhos escondidos sob a aba enorme).
+
+**Conserto do capitão (Floor7.tsx `Captain`):**
+- **Tricorne de verdade**: coroa (cilindro+domo) + **3 abas viradas pra cima a 120 graus** com
+  galao dourado e uma pluma vermelha — silhueta de chapeu armado (confere de cima/lado/frente).
+- **Rosto real**: olho com esclera+iris(marrom)+pupila+sobrancelha arqueada; **tapa-olho** com
+  alca atravessando a cabeca; nariz definido; **bigode** repartido; **barba** cheia + costeletas.
+- Casaco vermelho com 2 fileiras de botoes dourados, gola, faixa, fivela, cutelo.
+
+**Materiais:** **PMREM environment map** de um ceu equiretangular proprio (`makeSkyEquirect`) →
+todo material PBR reflete o ceu. **Pocas = MeshPhysicalMaterial com clearcoat** (molhadas:
+escuras de cima, brilhantes de raspao — fresnel) em vez de manchas azuis chapadas. Madeira
+(casco/conves/corrimao) ganhou **bumpMap + envMapIntensity** pra pegar luz.
+
+**Casco ja e C++** (`wasm/floor7_geo.cpp` → secoes lofted, proa pontuda; JS so sobe os buffers).
+Verificado: tsc 0 · 105/105 vitest · build single-file OK · push em claude/review-commits-memory-y6iqnf.
+Proximo (se quiser): velas menos chapadas (sombrear/curvar), streak do sol na agua, mais geometria
+de conves migrada pra C++.
