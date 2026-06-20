@@ -19,7 +19,7 @@ import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth } from './floor7Textures';
-import { buildHullGeometry, buildDeckGeometry, buildRailGeometry } from './floor7Geo';
+import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry } from './floor7Geo';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
 const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
@@ -109,10 +109,12 @@ const ShipBody: React.FC = () => {
     // the deck and rails sample the same sheer/beam curves as the hull, so the
     // whole ship sweeps together. JS only uploads the buffers. Plus a thin spray
     // band hugging the waterline.
-    const { hullGeo, deckGeo, railGeo, foamGeo } = useMemo(() => {
+    const { hullGeo, deckGeo, railGeo, foamGeo, waleHi, waleLo } = useMemo(() => {
         const hull = buildHullGeometry();
         const deck = buildDeckGeometry();
         const rail = buildRailGeometry();
+        const wHi = buildWaleGeometry(0.74, 0.07, 0.09);   // below the gunports / deck edge
+        const wLo = buildWaleGeometry(0.52, 0.06, 0.08);   // at the turn of the topside
         // a slim spray/foam band tracing the waterline outline (thin, not a disc)
         const beam = 3.05, bow = 8.0, stern = -6.9, k = 1.06;
         const s = new THREE.Shape();
@@ -133,7 +135,7 @@ const ShipBody: React.FC = () => {
         s.holes.push(hole);
         const foam = new THREE.ShapeGeometry(s);
         foam.rotateX(-Math.PI / 2);
-        return { hullGeo: hull, deckGeo: deck, railGeo: rail, foamGeo: foam };
+        return { hullGeo: hull, deckGeo: deck, railGeo: rail, foamGeo: foam, waleHi: wHi, waleLo: wLo };
     }, []);
     return (
         <group>
@@ -144,6 +146,9 @@ const ShipBody: React.FC = () => {
             <mesh geometry={deckGeo} material={M.plankDk} />
             {/* rail caps swept along the sheer (C++ curve) */}
             <mesh geometry={railGeo} material={M.rail} />
+            {/* wales — proud rubbing-strakes laid on the C++ hull surface */}
+            <mesh geometry={waleHi} material={M.hullDk} />
+            <mesh geometry={waleLo} material={M.hullDk} />
             {/* thin spray band at the waterline */}
             <mesh geometry={foamGeo} position={[0, -0.66, 0]} material={M.foam} renderOrder={2} />
             {/* main mast + yard + sail + flag + crow's nest */}

@@ -43,13 +43,22 @@ constexpr float WL     = -0.70f;  // waterline height (max beam here)
 constexpr float KEELMID= -1.70f;  // keel depth amidships
 constexpr float BULW   = 0.62f;   // bulwark height above the deck edge
 
-// half-beam along the length (t: 0=stern .. 1=bow)
+// half-beam along the length (t: 0=stern .. 1=bow). Bow and stern are DECOUPLED:
+// a fine raked entry at the bow, a wide BLUFF stern that holds its width to a
+// flat transom (so the ship is not a symmetric canoe).
+constexpr float TRANSOM_T = 0.13f;   // sections aft of this form the transom plateau
 float halfBeam(float t) {
-    float body = fuller(s_(t * PI));                 // fuller midbody
-    float w = 0.30f + 0.70f * body;
-    float bow = (t > 0.78f) ? (1.0f - smooth((t - 0.78f) / 0.22f) * 0.86f) : 1.0f;  // fine entry
-    float stern = (t < 0.12f) ? (0.62f + (t / 0.12f) * 0.38f) : 1.0f;               // bluff transom
-    return BEAM * w * bow * stern;
+    float w;
+    if (t < TRANSOM_T) {                 // transom: hold a wide, slightly growing beam
+        w = lerp(0.66f, 0.82f, t / TRANSOM_T);
+    } else if (t < 0.55f) {              // run aft to max beam (fullest a touch abaft midships)
+        w = lerp(0.82f, 1.0f, (t - TRANSOM_T) / (0.55f - TRANSOM_T));
+    } else if (t < 0.80f) {              // fore body easing in
+        w = lerp(1.0f, 0.72f, (t - 0.55f) / 0.25f);
+    } else {                            // fine bow entry
+        w = lerp(0.72f, 0.08f, smooth((t - 0.80f) / 0.20f));
+    }
+    return BEAM * w;
 }
 float keelY(float t) {
     float rise = (t - 0.5f); rise = rise * rise;     // 0 mid .. 0.25 ends
@@ -95,8 +104,8 @@ float sectionY(float h, float ky, float wy, float dy, float ry) {
 // loft resolution
 constexpr int LSEG = 44;          // sections along the length
 constexpr int ARING = 36;         // points around a section (rail..keel..rail)
-constexpr int NV = (LSEG + 1) * (ARING + 1);
-constexpr int NI = LSEG * ARING * 6;
+constexpr int NV = (LSEG + 1) * (ARING + 1) + 4;     // + transom centre vertex
+constexpr int NI = LSEG * ARING * 6 + ARING * 3 + 12; // + transom fan
 
 float gVerts[NV * 3];
 float gNorms[NV * 3];
@@ -141,6 +150,20 @@ int f7_hull_build() {
             gIdx[gIdxCount++] = a1; gIdx[gIdxCount++] = b0; gIdx[gIdxCount++] = b1;
         }
     }
+    // TRANSOM: close the stern (ring li=0) with a flat raked panel. Add a centre
+    // vertex at the ring's mid-height and fan the U-shaped stern ring to it; the
+    // panel is raked (its z leans aft toward the bottom) so it reads as a transom.
+    {
+        float ry0 = railY(0.0f), ky0 = keelY(0.0f);
+        float cy = (ry0 + ky0) * 0.5f;
+        int c = gVertCount++;
+        gVerts[c * 3 + 0] = 0.0f; gVerts[c * 3 + 1] = cy; gVerts[c * 3 + 2] = STERNZ - 0.25f;
+        gUVs[c * 2 + 0] = 0.5f; gUVs[c * 2 + 1] = 0.0f;
+        for (int ai = 0; ai < ARING; ai++) {
+            int v0 = ai, v1 = ai + 1;          // consecutive ring verts (port-rail..keel..stbd-rail)
+            gIdx[gIdxCount++] = c; gIdx[gIdxCount++] = v1; gIdx[gIdxCount++] = v0;
+        }
+    }
     return gVertCount;
 }
 
@@ -155,5 +178,9 @@ __attribute__((export_name("f7_hull_icount"))) int f7_hull_icount() { return gId
 __attribute__((export_name("f7_hull_deckY"))) float f7_hull_deckY(float t) { return deckY(t); }
 __attribute__((export_name("f7_hull_railY"))) float f7_hull_railY(float t) { return railY(t); }
 __attribute__((export_name("f7_hull_beam")))  float f7_hull_beam(float t)  { return halfBeam(t); }
+// sample the exact hull surface (one side) at length t, height fraction h, so JS
+// can lay wales / channels / rubbing strakes flush on the planking.
+__attribute__((export_name("f7_hull_sx"))) float f7_hull_sx(float t, float h) { return sectionX(h, halfBeam(t)); }
+__attribute__((export_name("f7_hull_sy"))) float f7_hull_sy(float t, float h) { return sectionY(h, keelY(t), WL, deckY(t), railY(t)); }
 
 } // extern C

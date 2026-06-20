@@ -16,6 +16,8 @@ interface GeoExports {
     f7_hull_deckY(t: number): number;
     f7_hull_railY(t: number): number;
     f7_hull_beam(t: number): number;
+    f7_hull_sx(t: number, h: number): number;
+    f7_hull_sy(t: number, h: number): number;
 }
 
 // keep in sync with floor7_geo.cpp
@@ -112,6 +114,48 @@ export function buildRailGeometry(): THREE.BufferGeometry {
     g.setIndex(idx);
     g.computeVertexNormals();
     _rail = g;
+    return g;
+}
+
+// A wale: a proud horizontal rubbing-strake swept along the hull at height
+// fraction h (0 keel .. 1 rail), laid flush on the C++ hull surface (sampled via
+// f7_hull_sx/sy) and pushed out so it stands proud — a box section (outer face +
+// top/bottom bevels) so it reads as real structure breaking up the slab.
+export function buildWaleGeometry(h: number, proud = 0.07, halfThick = 0.08): THREE.BufferGeometry {
+    const e = exports(); e.f7_hull_build();
+    const N = 64;
+    const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+    let base = 0;
+    for (const side of [-1, 1]) {
+        const start = base;
+        for (let i = 0; i <= N; i++) {
+            const t = i / N;
+            const z = STERNZ + (BOWZ - STERNZ) * t;
+            const sx = e.f7_hull_sx(t, h), sy = e.f7_hull_sy(t, h);
+            const xIn = side * sx;                  // flush on the hull
+            const xOut = side * (sx + proud);       // proud lip
+            // 4 verts per station: in-top, out-top, out-bot, in-bot
+            pos.push(xIn, sy + halfThick, z); uv.push(0, t * 10);
+            pos.push(xOut, sy + halfThick * 0.6, z); uv.push(0.3, t * 10);
+            pos.push(xOut, sy - halfThick * 0.6, z); uv.push(0.7, t * 10);
+            pos.push(xIn, sy - halfThick, z); uv.push(1, t * 10);
+        }
+        const stride = 4;
+        for (let i = 0; i < N; i++) {
+            const a = start + i * stride, b = a + stride;
+            for (let k = 0; k < 3; k++) {           // 3 quads: top bevel, outer face, bottom bevel
+                const p0 = a + k, p1 = a + k + 1, q0 = b + k, q1 = b + k + 1;
+                if (side < 0) idx.push(p0, q0, p1, p1, q0, q1);
+                else idx.push(p0, p1, q0, p1, q1, q0);
+            }
+        }
+        base += (N + 1) * stride;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
     return g;
 }
 
