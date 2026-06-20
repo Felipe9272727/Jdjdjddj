@@ -3383,3 +3383,34 @@ não afeta gameplay.
 
 **Floor 6 acumulado (swiftshader, medium): 507 → 294 draw calls (−42%)**; high 507 → 335
 (−34%). Sem regressão visual, env map preservado. tsc 0 · 99/99 vitest · single-file smoke OK.
+
+### Sessão 2026-06-19 (cont.) — Floor 6: investigação de modelos pesados + análise de custo (medium é o default)
+
+Felipe: medium é o DEFAULT e o mais importante; checar modelo 3D pesado e substituir; ver
+como outros levels otimizam e aplicar; manter bonito.
+
+**Modelos 3D pesados: NÃO EXISTEM.** `grep useGLTF|GLTFLoader|.glb|.fbx` no Floor 6 = 0.
+A suíte é 100% PROCEDURAL (boxes + canvas textures). Não há modelo pra substituir.
+
+**Como o Floor 2 (mais otimizado) faz:** geometria estática pré-construída 1× no module load
+(IIFE: CAVE_WALL/FLOOR/CEILING) + geometria compartilhada + InstancedMesh pra repetidos +
+`mergeGeometries`. **Apliquei o merge** no trim do Floor 6 (rodada anterior, −30 draws).
+
+**Análise de custo do medium (medido):** o gargalo dominante no swiftshader é o **env map
+HDRI** (env-off leva medium de 2.2→7.2 fps no MESMO nº de draw calls). Mas:
+- O env é o que deixa a sala BONITA (IBL: reflexos + fill quente) → mantido no medium/high
+  conforme a prioridade do Felipe. Só o tier LOW dropa (escolha explícita de perf).
+- O custo do env é ALL-OR-NOTHING: o sampling por-fragmento é fixo pelo tamanho do cubemap
+  do PMREM; não dá pra baratear sem remover (testado o raciocínio: envMapIntensity=0 não pula
+  o sample; RoomEnvironment gera PMREM do mesmo tamanho → mesmo custo). Então não há meio-termo.
+- Sombras: NÃO usadas (Canvas sem `shadows`, 0 castShadow no Floor 6) → nada a cortar aí.
+- Shell (piso/teto) já são planos eficientes. Paredes são multi-material por-comprimento
+  (UV escala por parede) → merge arriscaria o visual. Props de mobília são MISTOS de material
+  e muitos ANIMADOS (useFrame: Bed/Wardrobe/Desk/TvSet/Window/Painting) → merge inseguro.
+
+**Conclusão:** o que dava pra otimizar com segurança SEM perder beleza foi feito: draw calls
+507→294 no medium (−42%), overdraw transparente cortado (sombras de contato + dust), trim
+mesclado, luzes apagadas desmontadas. Essas reduções de draw call + overdraw **ajudam o mobile
+real do Felipe** mesmo que o swiftshader (env-bound) não mostre no FPS. O env (beleza) fica no
+medium; quem precisar de FPS máximo usa o tier low (env off, ~4.8× mais rápido).
+tsc 0 · 99/99 vitest · audit 0.
