@@ -52,10 +52,18 @@ export function makeWood(opts: WoodOpts = {}): { map: THREE.CanvasTexture; rough
             rx.stroke();
         }
         ctx.globalAlpha = 1; rx.globalAlpha = 1;
-        // plank seam (dark groove) + a highlight bevel
-        ctx.fillStyle = '#2c1d0f'; ctx.fillRect(x, 0, 2, size);
-        ctx.fillStyle = light; ctx.globalAlpha = 0.12; ctx.fillRect(x + 2, 0, 2, size); ctx.globalAlpha = 1;
-        rx.fillStyle = '#5a5a5a'; rx.fillRect(x, 0, 2, size); // grooves are smoother/darker
+        // butt joints: staggered cross-seams where plank lengths meet
+        const buttN = 2 + Math.floor(r() * 2);
+        for (let bj = 0; bj < buttN; bj++) {
+            const by = (r() * 0.9 + 0.05) * size;
+            ctx.fillStyle = '#241608'; ctx.fillRect(x + 1, by, plankW - 2, 2.2);
+            ctx.fillStyle = light; ctx.globalAlpha = 0.1; ctx.fillRect(x + 1, by + 2.2, plankW - 2, 1.4); ctx.globalAlpha = 1;
+            rx.fillStyle = '#4a4a4a'; rx.fillRect(x + 1, by, plankW - 2, 2.2);
+        }
+        // plank seam (deep dark caulk groove) + a highlight bevel
+        ctx.fillStyle = '#241608'; ctx.fillRect(x - 1, 0, 3, size);
+        ctx.fillStyle = light; ctx.globalAlpha = 0.16; ctx.fillRect(x + 2, 0, 2, size); ctx.globalAlpha = 1;
+        rx.fillStyle = '#3a3a3a'; rx.fillRect(x - 1, 0, 3, size); // deep groove for the bump map
     }
 
     // a few knots

@@ -45,8 +45,8 @@ function billowSail(w: number, h: number, bulge: number): THREE.PlaneGeometry {
     g.computeVertexNormals();
     return g;
 }
-const _mainSailGeo = billowSail(4.2, 2.6, 0.55);
-const _foreSailGeo = billowSail(3.0, 1.9, 0.42);
+const _mainSailGeo = billowSail(4.2, 2.6, 0.78);
+const _foreSailGeo = billowSail(3.0, 1.9, 0.6);
 
 // warm low sun (golden hour) shared by the Sky, the key light and water glitter
 const SUN_POS: [number, number, number] = [26, 4.5, -30];
@@ -139,6 +139,51 @@ const Transom: React.FC = () => {
     );
 };
 
+// a straight tube between two points (props for a unit-cylinder mesh)
+function tube(a: THREE.Vector3, b: THREE.Vector3): { pos: [number, number, number]; quat: THREE.Quaternion; len: number } {
+    const d = new THREE.Vector3().subVectors(b, a);
+    const len = d.length();
+    const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+    return { pos: [(a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2], quat, len };
+}
+
+// ── ratline shrouds: a fan of shroud ropes from the channel (rail) up to the
+// masthead, with horizontal ratline rungs forming the climbable rope ladder ──
+const RatlineShrouds: React.FC<{ side: number; railX: number; railY: number; baseZ: number; spread: number; topY: number; topZ: number; count: number }>
+    = ({ side, railX, railY, baseZ, spread, topY, topZ, count }) => {
+        const { shrouds, rungs, deadeyes } = useMemo(() => {
+            const top = new THREE.Vector3(side * 0.13, topY, topZ);
+            const anchors: THREE.Vector3[] = [];
+            for (let i = 0; i < count; i++) {
+                const f = count > 1 ? i / (count - 1) : 0.5;
+                anchors.push(new THREE.Vector3(side * railX, railY, baseZ + (f - 0.5) * spread));
+            }
+            const shrouds = anchors.map((a) => tube(a, top));
+            const rungs: ReturnType<typeof tube>[] = [];
+            const H = 8;
+            for (let h = 1; h <= H; h++) {
+                const t = (h / (H + 1)) * 0.82;            // stop before they converge
+                for (let i = 0; i < count - 1; i++) {
+                    rungs.push(tube(anchors[i].clone().lerp(top, t), anchors[i + 1].clone().lerp(top, t)));
+                }
+            }
+            return { shrouds, rungs, deadeyes: anchors };
+        }, [side, railX, railY, baseZ, spread, topY, topZ, count]);
+        return (
+            <group>
+                {shrouds.map((s, i) => (
+                    <mesh key={'s' + i} position={s.pos} quaternion={s.quat} material={M.rope}><cylinderGeometry args={[0.016, 0.016, s.len, 5]} /></mesh>
+                ))}
+                {rungs.map((s, i) => (
+                    <mesh key={'r' + i} position={s.pos} quaternion={s.quat} material={M.rope}><cylinderGeometry args={[0.008, 0.008, s.len, 4]} /></mesh>
+                ))}
+                {deadeyes.map((d, i) => (
+                    <mesh key={'d' + i} position={[d.x, d.y - 0.06, d.z]} material={M.barrel}><sphereGeometry args={[0.05, 8, 6]} /></mesh>
+                ))}
+            </group>
+        );
+    };
+
 // ── the static ship hull + deck + masts (no per-frame logic) ──
 const ShipBody: React.FC = () => {
     // hull + deck + rail caps are ALL MODELLED IN C++ (floor7_geo.cpp → WASM):
@@ -229,20 +274,13 @@ const ShipBody: React.FC = () => {
             </mesh>
 
 
-            {/* rope shrouds — mast to rail */}
-            {[-1, 1].map((s) => [-0.8, 0, 0.8].map((zoff, i) => {
-                const x2 = s * 2.9, z2 = -1 + zoff * 2.2;
-                const mx = s * 0.18, mz = -1 + zoff * 0.4, my = 3.2;
-                const dx = x2 - mx, dy = 0.5 - my, dz = z2 - mz;
-                const len = Math.hypot(dx, dy, dz);
-                return (
-                    <mesh key={'sh' + s + i} position={[(mx + x2) / 2, (my + 0.5) / 2, (mz + z2) / 2]}
-                        quaternion={new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx, dy, dz).normalize())}
-                        material={M.rope}>
-                        <cylinderGeometry args={[0.018, 0.018, len, 5]} />
-                    </mesh>
-                );
-            }))}
+            {/* ratline shrouds (rope ladders) — main mast + foremast, both sides */}
+            {[-1, 1].map((s) => (
+                <RatlineShrouds key={'ms' + s} side={s} railX={2.55} railY={0.55} baseZ={-1.0} spread={1.7} topY={5.0} topZ={-1.0} count={4} />
+            ))}
+            {[-1, 1].map((s) => (
+                <RatlineShrouds key={'fs' + s} side={s} railX={2.3} railY={0.5} baseZ={4.0} spread={1.3} topY={3.6} topZ={4.0} count={3} />
+            ))}
 
             {/* barrels (bow corner) + a crate stack (by the foremast) */}
             {[[2.2, 5.6], [2.55, 6.1], [-2.4, 5.8]].map(([x, z], i) => (
