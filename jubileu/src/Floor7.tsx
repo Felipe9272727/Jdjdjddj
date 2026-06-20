@@ -39,7 +39,7 @@ const M = {
     plankDk: new THREE.MeshStandardMaterial({ color: '#86653b', roughness: 0.85 }),
     rail: new THREE.MeshStandardMaterial({ color: '#6b4a2c', roughness: 0.8 }),
     mast: new THREE.MeshStandardMaterial({ color: '#7a5a36', roughness: 0.8 }),
-    sail: new THREE.MeshStandardMaterial({ color: '#e8e0cf', roughness: 0.95, side: THREE.DoubleSide }),
+    sail: new THREE.MeshStandardMaterial({ color: '#efe7d4', roughness: 0.95, side: THREE.DoubleSide, emissive: '#6b5f44', emissiveIntensity: 0.35 }),
     rope: new THREE.MeshStandardMaterial({ color: '#caa56a', roughness: 1 }),
     metal: new THREE.MeshStandardMaterial({ color: '#b9c2c8', roughness: 0.35, metalness: 0.7 }),
     wheel: new THREE.MeshStandardMaterial({ color: '#5b3d22', roughness: 0.7 }),
@@ -256,8 +256,8 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     return (
         <group>
             {/* sky tint + light (background + fog set on the scene above) */}
-            <hemisphereLight args={['#bcd3e8', '#3a4a55', 0.7]} />
-            <directionalLight position={[6, 12, 4]} intensity={1.4} color="#fff2d8" />
+            <hemisphereLight args={['#cfe0ee', '#4a5a60', 0.85]} />
+            <directionalLight position={[6, 12, 6]} intensity={1.7} color="#fff2d8" />
 
             {/* open sea (large, drifting) */}
             <mesh ref={seaRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.7, 0]} material={M.water}>
