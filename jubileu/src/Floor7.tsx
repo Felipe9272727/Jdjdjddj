@@ -92,8 +92,9 @@ const M = {
     eyewhite: new THREE.MeshStandardMaterial({ color: '#f2efe6', roughness: 0.35 }),
     sash: new THREE.MeshStandardMaterial({ color: '#caa024', roughness: 0.7 }),
     steel: new THREE.MeshStandardMaterial({ color: '#c8ccd2', roughness: 0.3, metalness: 0.85 }),
-    bucket: new THREE.MeshStandardMaterial({ color: '#7e5a33', roughness: 0.7 }),
-    cloth: new THREE.MeshStandardMaterial({ color: '#cfcabb', roughness: 1 }),
+    bucket: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, bumpMap: _trimWood.rough, bumpScale: 0.02, color: '#9c7038', roughness: 0.7, envMapIntensity: 0.6 }),
+    sudsy: new THREE.MeshPhysicalMaterial({ color: '#cfe2e6', roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.2 }),
+    cloth: new THREE.MeshStandardMaterial({ color: '#d6d0c2', roughness: 1 }),
     water: new THREE.MeshStandardMaterial({ color: '#2f6d86', roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.6 }),
     foam: new THREE.MeshStandardMaterial({ color: '#eef6f7', roughness: 1, transparent: true, opacity: 0.55, depthWrite: false }),
     bird: new THREE.MeshStandardMaterial({ color: '#3a3a40', roughness: 0.9 }),
@@ -573,11 +574,22 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 </group>
                 {/* captain */}
                 <Captain ref={captainRef} />
-                {/* bucket + cloth */}
+                {/* bucket + cloth — wooden staved pail with iron bands, soapy
+                    water surface and a draped wet rag (a hero prop up close) */}
                 <group ref={bucketRef} position={[2.1, 0.18, -2.2]}>
-                    <mesh material={M.bucket}><cylinderGeometry args={[0.16, 0.13, 0.3, 12]} /></mesh>
-                    <mesh position={[0, 0.16, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.metal}><torusGeometry args={[0.16, 0.02, 6, 14]} /></mesh>
-                    <mesh position={[0.05, 0.2, 0.05]} rotation={[0.4, 0.3, 0]} material={M.cloth}><boxGeometry args={[0.22, 0.04, 0.18]} /></mesh>
+                    <mesh material={M.bucket}><cylinderGeometry args={[0.16, 0.13, 0.3, 16, 1, true]} /></mesh>
+                    <mesh position={[0, -0.15, 0]} material={M.bucket}><cylinderGeometry args={[0.13, 0.13, 0.02, 16]} /></mesh>
+                    {/* iron hoops */}
+                    {[0.12, -0.1].map((y) => (
+                        <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><torusGeometry args={[y > 0 ? 0.162 : 0.142, 0.012, 6, 18]} /></mesh>
+                    ))}
+                    {/* soapy water surface just below the rim */}
+                    <mesh position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M.sudsy}><circleGeometry args={[0.15, 18]} /></mesh>
+                    {/* swing handle (iron arc) */}
+                    <mesh position={[0, 0.18, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><torusGeometry args={[0.155, 0.01, 6, 18, Math.PI]} /></mesh>
+                    {/* draped wet rag over the rim */}
+                    <mesh position={[0.1, 0.13, 0.05]} rotation={[0.5, 0.4, 0.2]} material={M.cloth}><boxGeometry args={[0.2, 0.03, 0.16]} /></mesh>
+                    <mesh position={[0.16, 0.04, 0.08]} rotation={[0.1, 0.4, 0.6]} material={M.cloth}><boxGeometry args={[0.12, 0.02, 0.14]} /></mesh>
                 </group>
                 {/* puddles */}
                 {Array.from({ length: 6 }).map((_, i) => (

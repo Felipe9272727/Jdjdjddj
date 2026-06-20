@@ -8,7 +8,7 @@ import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Environment, useFloor7Handle } from './Floor7';
 
-declare global { interface Window { __ready?: boolean; __orbit?: [number, number, number]; } }
+declare global { interface Window { __ready?: boolean; __orbit?: [number, number, number]; __target?: [number, number, number]; } }
 
 function Dev() {
     const handle = useFloor7Handle();
@@ -29,7 +29,7 @@ function Dev() {
     return (
         <>
             <Floor7Environment playerPositionRef={playerRef} handleRef={handle} />
-            <OrbitControls target={[0, 1.4, 0]} />
+            <OrbitControls target={window.__target ?? [0, 1.4, 0]} />
         </>
     );
 }
