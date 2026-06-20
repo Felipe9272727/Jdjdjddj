@@ -3470,3 +3470,35 @@ essas poças, marujo!"); **0 erros fatais** no dev E no single-file de produçã
 do base64 inlined). tsc 0 · **105/105 vitest** (+6) · audit 0 · index.html rebuildado.
 Obs: o swiftshader roda ~5fps então a intro de sim demora (dt clampado) — na GPU real a 60fps
 a intro fecha em 3.9s. Falta (Felipe vai dizer depois): o resto do level além da limpeza.
+
+### Sessão 2026-06-19 (cont.) — 1ª pessoa global + Floor 7 graficamente reformulado
+
+Felipe: tirar a 3ª pessoa PERMANENTE (todos os levels) + deixar o Floor 7 "extremamente
+bonito" (estava feio/mal acabado); pesquisar técnicas; C++ liberado pra gráficos.
+
+**3ª pessoa removida (todos os levels):** `fp=true` forçado no Player, avatar sempre oculto,
+`zoomLevel` travado em 0, controles de scroll/pinch desabilitados. Câmeras de corrida/cutscene
+(Floor 5/3) são sistemas próprios, intactas. Validado: lobby em 1ª pessoa.
+
+**Pesquisa (web):** confirmou Gerstner + fresnel + foam (Jacobian/cristas) + fade pro horizonte
+pra água; e low-poly estilizado + texturas PBR (diffuse/rough/normal/AO) + paleta coesa +
+espuma onde a água toca o casco pro navio. (FFT/WebGPU = overkill, quebraria WebGL/single-file.)
+Fontes: discoverthreejs PBR, sbcode gerstner, threejs ocean examples, pirate-sea-jam devlog.
+
+**Floor 7 reformulado (3 stages, tudo self-contained pro single-file):**
+- A) `Floor7Water.tsx` — **shader Gerstner custom** (4 ondas, gradiente fundo/raso, fresnel,
+  brilho do sol agudo, foam nas cristas, fade pro céu no horizonte). + drei `<Sky>` atmosférico
+  com sol baixo quente + key light casado. Substitui o plano azul flat.
+- B) `floor7Textures.ts` — **madeira procedural** (grão+tábuas+nós + roughness map) no
+  convés/casco/trim; **Jolly Roger** procedural (caveira+ossos) numa bandeira que tremula;
+  crow's nest, cordame (shrouds), barris com aros de ferro, pilha de caixotes, lanterna do leme
+  com glow+pointLight.
+- C) Bloom/EffectComposer habilitado no Floor 7 em TODAS as qualidades (inclui o medium/default)
+  pro brilho do sol na água/lanterna/velas.
+
+Validado renderizando (dev + medium): água com ondas, céu atmosférico, madeira texturizada,
+0 erros fatais. tsc 0 · 105/105 vitest · audit 0 · index.html rebuildado.
+⚠️ A câmera FP é difícil de tiltar no Playwright headless, então não consegui um print do
+mastro/velas/bandeira de frente — mas compilam e renderizam (0 erros); pedir o olho do Felipe
+in-game. C++ pro casco curvo: planejado mas ainda não feito (a permissão fica pra próxima
+iteração se ele quiser mais).

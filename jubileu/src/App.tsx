@@ -1680,7 +1680,7 @@ export default function App() {
             Medium/low: no postprocessing pass at all. */}
         {/* Photo mode takes over the render loop, so the raster post stack is
             disabled while it accumulates samples. */}
-        {hasStarted && !photo.progress.active && (settings.quality === 'high' || currentLevel === 3) && (
+        {hasStarted && !photo.progress.active && (settings.quality === 'high' || currentLevel === 3 || currentLevel === 7) && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
                 {/* N8AO — screen-space ambient occlusion (Floor 3 only). Tuned
                     conservatively: tight screen-space radius + low intensity +
@@ -1704,10 +1704,10 @@ export default function App() {
                     low enough to avoid washing the whole cave cyan.
                     High quality only — on medium/low the Floor-3 composer runs
                     just the cheap grayscale pass below. */}
-                {settings.quality === 'high' && (
+                {(settings.quality === 'high' || currentLevel === 7) && (
                 <Bloom
-                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 0.22 : 0.35}
-                    luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 3 ? 0.95 : 0.95}
+                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 0.22 : currentLevel === 7 ? 0.6 : 0.35}
+                    luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 7 ? 0.68 : 0.95}
                     luminanceSmoothing={currentLevel === 2 ? 0.25 : currentLevel === 3 ? 0.20 : 0.2}
                     mipmapBlur
                     kernelSize={currentLevel === 2 ? KernelSize.SMALL : KernelSize.MEDIUM}
