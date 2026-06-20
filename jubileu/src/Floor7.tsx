@@ -217,6 +217,42 @@ const DeckFurniture: React.FC = () => (
     </group>
 );
 
+// ── the head rig at the bow: a triangular jib on the forestay, a bobstay
+// loading the bowsprit, swept head rails and a small gilt figurehead. ──
+const HeadRig: React.FC = () => {
+    const jib = useMemo(() => {
+        const g = new THREE.BufferGeometry();
+        const A = [0, 1.7, 9.5], B = [0, 3.5, 4.1], C = [0.18, 1.45, 5.4]; // tack, head, clew (slight belly)
+        g.setAttribute('position', new THREE.Float32BufferAttribute([...A, ...B, ...C], 3));
+        g.setIndex([0, 1, 2]); g.computeVertexNormals();
+        return g;
+    }, []);
+    const lines = useMemo(() => {
+        const v = (a: number[]) => new THREE.Vector3(a[0], a[1], a[2]);
+        return {
+            bob: tube(v([0, 1.7, 9.5]), v([0, -0.45, 8.1])),       // bobstay: tip down to stem
+            fore: tube(v([0, 1.7, 9.5]), v([0, 3.5, 4.1])),        // forestay: tip to foremast head
+            rails: [-1, 1].map((s) => tube(v([s * 0.5, 1.0, 6.9]), v([s * 0.12, 0.78, 8.4]))),
+        };
+    }, []);
+    return (
+        <group>
+            <mesh geometry={jib} material={M.sail} />
+            {[lines.bob, lines.fore].map((l, i) => (
+                <mesh key={'l' + i} position={l.pos} quaternion={l.quat} material={M.rope}><cylinderGeometry args={[0.012, 0.012, l.len, 5]} /></mesh>
+            ))}
+            {lines.rails.map((l, i) => (
+                <mesh key={'hr' + i} position={l.pos} quaternion={l.quat} material={M.rail}><cylinderGeometry args={[0.05, 0.05, l.len, 6]} /></mesh>
+            ))}
+            {/* gilt figurehead under the bowsprit */}
+            <group position={[0, 0.5, 8.5]} rotation={[0.35, 0, 0]}>
+                <mesh material={M.gold}><sphereGeometry args={[0.12, 10, 8]} /></mesh>
+                <mesh position={[0, -0.28, 0]} material={M.gold}><coneGeometry args={[0.13, 0.5, 8]} /></mesh>
+            </group>
+        </group>
+    );
+};
+
 // ── the static ship hull + deck + masts (no per-frame logic) ──
 const ShipBody: React.FC = () => {
     // hull + deck + rail caps are ALL MODELLED IN C++ (floor7_geo.cpp → WASM):
@@ -306,10 +342,11 @@ const ShipBody: React.FC = () => {
                 ))}
                 <mesh material={M.metal}><cylinderGeometry args={[0.07, 0.07, 0.2, 8]} /></mesh>
             </group>
-            {/* bowsprit */}
-            <mesh position={[0, 0.7, 8.2]} rotation={[0.5, 0, 0]} material={M.mast}>
-                <cylinderGeometry args={[0.1, 0.13, 3, 8]} />
+            {/* bowsprit + head rig (jib, stays, head rails, figurehead) */}
+            <mesh position={[0, 0.95, 8.5]} rotation={[0.5, 0, 0]} material={M.mast}>
+                <cylinderGeometry args={[0.08, 0.13, 3.2, 8]} />
             </mesh>
+            <HeadRig />
 
 
             {/* ratline shrouds (rope ladders) — main mast + foremast, both sides */}
