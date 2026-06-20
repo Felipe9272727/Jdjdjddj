@@ -78,6 +78,34 @@ export function makeWood(opts: WoodOpts = {}): { map: THREE.CanvasTexture; rough
     return { map, rough };
 }
 
+// an equirectangular sky image (sky->horizon->sea + a warm sun) for a PMREM
+// environment map, so every PBR material gets real reflections. Self-contained.
+export function makeSkyEquirect(w = 1024): THREE.CanvasTexture {
+    const h = w / 2;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d')!;
+    // vertical gradient: zenith blue -> warm horizon -> deep sea
+    const g = x.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0.0, '#3b78c4');
+    g.addColorStop(0.42, '#a9cde8');
+    g.addColorStop(0.5, '#ffe6c0');   // horizon haze
+    g.addColorStop(0.52, '#3f7e98');
+    g.addColorStop(1.0, '#0c3142');   // sea
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    // warm sun disk near the horizon
+    const sx = w * 0.7, sy = h * 0.44;
+    const sg = x.createRadialGradient(sx, sy, 0, sx, sy, w * 0.13);
+    sg.addColorStop(0, 'rgba(255,250,235,1)');
+    sg.addColorStop(0.18, 'rgba(255,238,200,0.95)');
+    sg.addColorStop(0.5, 'rgba(255,210,150,0.3)');
+    sg.addColorStop(1, 'rgba(255,200,150,0)');
+    x.fillStyle = sg; x.fillRect(0, 0, w, h);
+    const t = new THREE.CanvasTexture(c);
+    t.mapping = THREE.EquirectangularReflectionMapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
 // a warm soft radial glow (for the sun halo) — self-contained.
 export function makeGlow(size = 256): THREE.CanvasTexture {
     const c = document.createElement('canvas'); c.width = c.height = size;

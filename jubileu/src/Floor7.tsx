@@ -18,7 +18,7 @@ import { Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
-import { makeWood, makeJollyRoger, makeCloud, makeGlow } from './floor7Textures';
+import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect } from './floor7Textures';
 import { buildHullGeometry } from './floor7Geo';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
@@ -49,11 +49,11 @@ export function useFloor7Handle(): React.MutableRefObject<Floor7Handle> {
 
 // ── materials (module-scope, shared) ──
 const M = {
-    hull: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, color: '#caa066', roughness: 0.85, side: THREE.DoubleSide }),
-    hullDk: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, color: '#8c6e44', roughness: 0.92 }),
-    plank: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, color: '#c79a5e', roughness: 0.78 }),
-    plankDk: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, color: '#ac8049', roughness: 0.82 }),
-    rail: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#b07f48', roughness: 0.55 }),
+    hull: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, bumpMap: _hullWood.rough, bumpScale: 0.04, color: '#caa066', roughness: 0.85, envMapIntensity: 0.7, side: THREE.DoubleSide }),
+    hullDk: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, bumpMap: _hullWood.rough, bumpScale: 0.04, color: '#8c6e44', roughness: 0.92 }),
+    plank: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.03, color: '#c79a5e', roughness: 0.78, envMapIntensity: 0.6 }),
+    plankDk: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.03, color: '#ac8049', roughness: 0.82, envMapIntensity: 0.6 }),
+    rail: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, bumpMap: _trimWood.rough, bumpScale: 0.025, color: '#b07f48', roughness: 0.55, envMapIntensity: 0.8 }),
     mast: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#b58a52', roughness: 0.6 }),
     sail: new THREE.MeshStandardMaterial({ color: '#efe7d4', roughness: 0.95, side: THREE.DoubleSide, emissive: '#6b5f44', emissiveIntensity: 0.35 }),
     rope: new THREE.MeshStandardMaterial({ color: '#caa56a', roughness: 1 }),
@@ -64,11 +64,13 @@ const M = {
     wheel: new THREE.MeshStandardMaterial({ color: '#5b3d22', roughness: 0.7 }),
     coat: new THREE.MeshStandardMaterial({ color: '#8a2222', roughness: 0.6 }),
     coatDk: new THREE.MeshStandardMaterial({ color: '#5c1414', roughness: 0.6 }),
-    skin: new THREE.MeshStandardMaterial({ color: '#c9966a', roughness: 0.75 }),
-    hat: new THREE.MeshStandardMaterial({ color: '#16161a', roughness: 0.75 }),
-    gold: new THREE.MeshStandardMaterial({ color: '#e8c45a', roughness: 0.35, metalness: 0.8 }),
-    boot: new THREE.MeshStandardMaterial({ color: '#2a1d12', roughness: 0.7 }),
-    beard: new THREE.MeshStandardMaterial({ color: '#6b5a4a', roughness: 0.95 }),
+    skin: new THREE.MeshStandardMaterial({ color: '#cd9a6e', roughness: 0.62 }),
+    hat: new THREE.MeshStandardMaterial({ color: '#17161b', roughness: 0.62, envMapIntensity: 0.6 }),
+    gold: new THREE.MeshStandardMaterial({ color: '#e8c45a', roughness: 0.28, metalness: 0.9, envMapIntensity: 1.4 }),
+    boot: new THREE.MeshStandardMaterial({ color: '#2a1d12', roughness: 0.55 }),
+    beard: new THREE.MeshStandardMaterial({ color: '#7d6552', roughness: 0.95 }),
+    hair: new THREE.MeshStandardMaterial({ color: '#26201a', roughness: 0.9 }),
+    eyewhite: new THREE.MeshStandardMaterial({ color: '#f2efe6', roughness: 0.35 }),
     sash: new THREE.MeshStandardMaterial({ color: '#caa024', roughness: 0.7 }),
     steel: new THREE.MeshStandardMaterial({ color: '#c8ccd2', roughness: 0.3, metalness: 0.85 }),
     bucket: new THREE.MeshStandardMaterial({ color: '#7e5a33', roughness: 0.7 }),
@@ -76,7 +78,7 @@ const M = {
     water: new THREE.MeshStandardMaterial({ color: '#2f6d86', roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.6 }),
     foam: new THREE.MeshStandardMaterial({ color: '#eef6f7', roughness: 1, transparent: true, opacity: 0.55, depthWrite: false }),
     bird: new THREE.MeshStandardMaterial({ color: '#3a3a40', roughness: 0.9 }),
-    puddle: new THREE.MeshStandardMaterial({ color: '#86b6c8', roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.75 }),
+    puddle: new THREE.MeshPhysicalMaterial({ color: '#244e5e', roughness: 0.12, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.04, transparent: true, opacity: 0.82, envMapIntensity: 1.3 }),
     elev: new THREE.MeshStandardMaterial({ color: '#b0bec5', roughness: 0.4, metalness: 0.5, transparent: true }),
     elevTrim: new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.4, metalness: 0.6, transparent: true }),
 };
@@ -340,55 +342,86 @@ const Flag: React.FC<{ y: number }> = ({ y }) => {
 };
 
 // ── the captain (stylized) — transform set per frame ──
+// Designed in pieces so it reads as a real pirate captain up close: a cocked
+// tricorne (crown + three upturned brim flaps), a face with eyes/brow/eyepatch/
+// nose/mustache, a full beard, brocaded red coat, sash, belt and cutlass.
 const Captain = React.forwardRef<THREE.Group>((_, ref) => (
     <group ref={ref}>
         {/* legs + boots (one peg leg for pirate flair) */}
-        <mesh position={[-0.13, 0.3, 0]} material={M.boot}><cylinderGeometry args={[0.1, 0.12, 0.62, 8]} /></mesh>
+        <mesh position={[-0.13, 0.3, 0]} material={M.boot}><cylinderGeometry args={[0.1, 0.12, 0.62, 10]} /></mesh>
         <mesh position={[-0.13, 0.04, 0.05]} material={M.boot}><boxGeometry args={[0.18, 0.12, 0.34]} /></mesh>
+        <mesh position={[-0.13, 0.56, 0]} material={M.boot}><cylinderGeometry args={[0.15, 0.12, 0.14, 10]} /></mesh>{/* boot cuff */}
         <mesh position={[0.13, 0.34, 0]} material={M.boot}><cylinderGeometry args={[0.055, 0.085, 0.5, 8]} /></mesh>{/* peg */}
         <mesh position={[0.13, 0.06, 0]} material={M.boot}><cylinderGeometry args={[0.09, 0.07, 0.1, 8]} /></mesh>
 
         {/* long coat — flared skirt + torso */}
-        <mesh position={[0, 0.78, 0]} material={M.coat}><cylinderGeometry args={[0.27, 0.36, 0.62, 12]} /></mesh>
-        <mesh position={[0, 1.16, 0]} material={M.coat}><cylinderGeometry args={[0.24, 0.27, 0.42, 12]} /></mesh>
+        <mesh position={[0, 0.78, 0]} material={M.coat}><cylinderGeometry args={[0.27, 0.38, 0.62, 16]} /></mesh>
+        <mesh position={[0, 1.16, 0]} material={M.coat}><cylinderGeometry args={[0.23, 0.27, 0.44, 16]} /></mesh>
         {/* open-coat front panels (darker lining) */}
-        <mesh position={[0, 0.95, 0.235]} rotation={[0.05, 0, 0]} material={M.coatDk}><boxGeometry args={[0.34, 0.95, 0.04]} /></mesh>
-        {/* gold buttons */}
-        {[1.28, 1.13, 0.98].map((y, i) => (
-            <mesh key={i} position={[0, y, 0.255]} material={M.gold}><sphereGeometry args={[0.028, 8, 6]} /></mesh>
+        <mesh position={[0, 0.95, 0.235]} rotation={[0.05, 0, 0]} material={M.coatDk}><boxGeometry args={[0.30, 0.95, 0.04]} /></mesh>
+        {/* gold buttons (two rows) */}
+        {[1.30, 1.16, 1.02, 0.88].map((y, i) => (
+            <React.Fragment key={i}>
+                <mesh position={[-0.085, y, 0.245]} material={M.gold}><sphereGeometry args={[0.024, 8, 6]} /></mesh>
+                <mesh position={[0.085, y, 0.245]} material={M.gold}><sphereGeometry args={[0.024, 8, 6]} /></mesh>
+            </React.Fragment>
         ))}
-        {/* sash + belt + gold buckle */}
-        <mesh position={[0, 0.92, 0]} rotation={[0, 0, 0.25]} material={M.sash}><cylinderGeometry args={[0.30, 0.30, 0.12, 12]} /></mesh>
-        <mesh position={[0, 0.78, 0]} material={M.hat}><cylinderGeometry args={[0.31, 0.31, 0.08, 12]} /></mesh>
-        <mesh position={[0, 0.78, 0.30]} material={M.gold}><boxGeometry args={[0.1, 0.07, 0.03]} /></mesh>
+        {/* shoulder/coat collar */}
+        <mesh position={[0, 1.33, 0]} material={M.coatDk}><cylinderGeometry args={[0.21, 0.16, 0.12, 14]} /></mesh>
+        {/* sash across the chest */}
+        <mesh position={[0, 0.98, 0.04]} rotation={[0, 0, 0.55]} material={M.sash}><boxGeometry args={[0.11, 0.74, 0.44]} /></mesh>
+        {/* belt + gold buckle */}
+        <mesh position={[0, 0.74, 0]} material={M.boot}><cylinderGeometry args={[0.30, 0.32, 0.09, 16]} /></mesh>
+        <mesh position={[0, 0.74, 0.31]} material={M.gold}><boxGeometry args={[0.12, 0.08, 0.03]} /></mesh>
 
-        {/* arms with cuffs + hands */}
+        {/* arms with gold cuffs + hands */}
         {[-1, 1].map((s) => (
             <group key={s}>
-                <mesh position={[s * 0.30, 1.0, 0.04]} rotation={[0.2, 0, s * 0.32]} material={M.coat}><cylinderGeometry args={[0.075, 0.085, 0.62, 8]} /></mesh>
-                <mesh position={[s * 0.40, 0.72, 0.12]} material={M.gold}><cylinderGeometry args={[0.085, 0.085, 0.08, 8]} /></mesh>
-                <mesh position={[s * 0.42, 0.66, 0.15]} material={M.skin}><sphereGeometry args={[0.07, 8, 6]} /></mesh>
+                <mesh position={[s * 0.30, 1.0, 0.04]} rotation={[0.2, 0, s * 0.34]} material={M.coat}><cylinderGeometry args={[0.075, 0.09, 0.62, 8]} /></mesh>
+                <mesh position={[s * 0.41, 0.72, 0.12]} material={M.gold}><cylinderGeometry args={[0.092, 0.092, 0.09, 10]} /></mesh>
+                <mesh position={[s * 0.44, 0.65, 0.15]} material={M.skin}><sphereGeometry args={[0.066, 10, 8]} /></mesh>
             </group>
         ))}
 
-        {/* neck + head + beard + face */}
-        <mesh position={[0, 1.40, 0]} material={M.skin}><cylinderGeometry args={[0.09, 0.11, 0.12, 8]} /></mesh>
-        <mesh position={[0, 1.56, 0]} material={M.skin}><sphereGeometry args={[0.19, 14, 12]} /></mesh>
-        {/* big beard */}
-        <mesh position={[0, 1.46, 0.06]} material={M.beard}><sphereGeometry args={[0.18, 12, 10, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.55]} /></mesh>
-        <mesh position={[0, 1.34, 0.05]} material={M.beard}><coneGeometry args={[0.14, 0.22, 10]} /></mesh>
-        {/* nose + eyes */}
-        <mesh position={[0, 1.55, 0.18]} rotation={[Math.PI / 2, 0, 0]} material={M.skin}><coneGeometry args={[0.035, 0.09, 6]} /></mesh>
-        {[-0.07, 0.07].map((x) => (
-            <mesh key={x} position={[x, 1.61, 0.165]} material={M.hat}><sphereGeometry args={[0.022, 6, 6]} /></mesh>
+        {/* neck + head */}
+        <mesh position={[0, 1.41, 0]} material={M.skin}><cylinderGeometry args={[0.085, 0.1, 0.1, 10]} /></mesh>
+        <mesh position={[0, 1.58, 0]} scale={[1, 1.05, 0.96]} material={M.skin}><sphereGeometry args={[0.185, 20, 18]} /></mesh>
+
+        {/* === FACE === */}
+        {/* brow over the seeing eye (slight angry arch) */}
+        <mesh position={[-0.072, 1.64, 0.168]} rotation={[0, 0, 0.18]} material={M.hair}><boxGeometry args={[0.07, 0.016, 0.03]} /></mesh>
+        {/* left eye: white sclera + brown iris + dark pupil + glint */}
+        <mesh position={[-0.072, 1.607, 0.158]} scale={[1, 0.85, 0.6]} material={M.eyewhite}><sphereGeometry args={[0.03, 14, 12]} /></mesh>
+        <mesh position={[-0.072, 1.605, 0.18]} material={M.barrel}><sphereGeometry args={[0.016, 10, 8]} /></mesh>
+        <mesh position={[-0.072, 1.604, 0.187]} material={M.hair}><sphereGeometry args={[0.009, 8, 8]} /></mesh>
+        {/* right eye: eyepatch + strap across the head */}
+        <mesh position={[0.075, 1.605, 0.176]} material={M.hat}><sphereGeometry args={[0.042, 12, 10]} /></mesh>
+        <mesh position={[0.02, 1.66, 0]} rotation={[0, 0, 0.5]} material={M.hair}><torusGeometry args={[0.185, 0.011, 6, 28]} /></mesh>
+        {/* nose */}
+        <mesh position={[0, 1.575, 0.185]} rotation={[Math.PI / 2, 0, 0]} material={M.skin}><coneGeometry args={[0.042, 0.12, 8]} /></mesh>
+        {/* mustache (two swept halves) */}
+        {[-1, 1].map((s) => (
+            <mesh key={s} position={[s * 0.055, 1.525, 0.165]} rotation={[0, 0, s * 0.55]} material={M.hair}><capsuleGeometry args={[0.02, 0.075, 3, 8]} /></mesh>
+        ))}
+        {/* full beard: rounded mass + chin point + sideburns */}
+        <mesh position={[0, 1.47, 0.075]} scale={[1, 1, 0.9]} material={M.beard}><sphereGeometry args={[0.165, 16, 14, 0, Math.PI * 2, Math.PI * 0.4, Math.PI * 0.6]} /></mesh>
+        <mesh position={[0, 1.40, 0.07]} material={M.beard}><coneGeometry args={[0.125, 0.26, 14]} /></mesh>
+        {[-1, 1].map((s) => (
+            <mesh key={s} position={[s * 0.155, 1.55, 0.04]} material={M.beard}><sphereGeometry args={[0.058, 10, 10]} /></mesh>
         ))}
 
-        {/* tricorne hat with gold trim */}
-        <mesh position={[0, 1.70, 0]} material={M.hat}><cylinderGeometry args={[0.04, 0.18, 0.18, 12]} /></mesh>
-        <mesh position={[0, 1.66, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.hat}><torusGeometry args={[0.27, 0.07, 8, 16]} /></mesh>
-        <mesh position={[0, 1.66, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.gold}><torusGeometry args={[0.27, 0.018, 6, 16]} /></mesh>
-        {/* a little skull badge */}
-        <mesh position={[0, 1.74, 0.16]} material={M.gold}><sphereGeometry args={[0.03, 8, 6]} /></mesh>
+        {/* === TRICORNE HAT === crown + three upturned brim flaps */}
+        <mesh position={[0, 1.79, 0]} material={M.hat}><cylinderGeometry args={[0.155, 0.175, 0.17, 18]} /></mesh>
+        <mesh position={[0, 1.87, 0]} material={M.hat}><sphereGeometry args={[0.155, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.5]} /></mesh>
+        {[0, 2.0944, 4.1888].map((ang, i) => (
+            <group key={i} rotation={[0, ang, 0]}>
+                {/* flap plate (tilts outward edge up) + gold rim braid along its edge */}
+                <mesh position={[0, 1.745, 0.20]} rotation={[-0.5, 0, 0]} material={M.hat}><boxGeometry args={[0.46, 0.035, 0.28]} /></mesh>
+                <mesh position={[0, 1.815, 0.335]} rotation={[-0.5, 0, 0]} material={M.gold}><boxGeometry args={[0.45, 0.02, 0.03]} /></mesh>
+            </group>
+        ))}
+        {/* red plume on the front-left corner */}
+        <mesh position={[-0.18, 1.93, 0.18]} rotation={[0.2, 0, 0.5]} material={M.coat}><coneGeometry args={[0.04, 0.32, 8]} /></mesh>
 
         {/* cutlass at the hip */}
         <group position={[0.34, 0.7, -0.05]} rotation={[0, 0, -0.5]}>
@@ -414,15 +447,25 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const brainRef = useRef<Floor7Brain | null>(null);
     const _local = useRef(new THREE.Vector3());
     const _pud = useRef<F7Puddle>({ x: 0, z: 0, r: 0, prog: 0 });
-    const { scene } = useThree();
+    const { scene, gl } = useThree();
 
-    // ocean sky + fog, restored when leaving the floor
+    // ocean sky + fog + a PMREM environment so every PBR material reflects the
+    // sky (metals, varnished wood, the wet puddles) — restored on unmount.
     useEffect(() => {
-        const prevBg = scene.background, prevFog = scene.fog;
+        const prevBg = scene.background, prevFog = scene.fog, prevEnv = scene.environment;
         scene.background = new THREE.Color('#9cc0d8');
         scene.fog = new THREE.Fog('#9cc0d8', 24, 70);
-        return () => { scene.background = prevBg; scene.fog = prevFog; };
-    }, [scene]);
+        const pmrem = new THREE.PMREMGenerator(gl);
+        const sky = makeSkyEquirect();
+        const envRT = pmrem.fromEquirectangular(sky);
+        scene.environment = envRT.texture;
+        scene.environmentIntensity = 1.0;
+        sky.dispose(); pmrem.dispose();
+        return () => {
+            scene.background = prevBg; scene.fog = prevFog; scene.environment = prevEnv;
+            envRT.dispose();
+        };
+    }, [scene, gl]);
 
     // build the brain once
     useEffect(() => {
