@@ -3426,3 +3426,47 @@ sob carga sustentada (suave-mas-fluido > travado). Systemic e seguro (auto-recup
 
 Smoke multi-andar (medium): lobby/submerso/parkour/corrida/suíte — todos renderizam, 0 erros.
 tsc 0 · 99/99 vitest.
+
+### Sessão 2026-06-19 (cont.) — ANDAR 7: o Navio Pirata, 100% em WebAssembly (C + Assembly)
+
+Felipe pediu o Andar 7 feito **100% em WebAssembly, em C e Assembly**: navio pirata 3D de
+tamanho médio, player nasce no convés de um navio EM MOVIMENTO, o elevador faz uma animação
+de sumir, o capitão aparece e pede pra pegar um balde com pano e limpar as poças do convés;
+quando termina de limpar não tem mais nada pra fazer MAS não pode sair (level parcial, de
+propósito).
+
+**Toolchain achada no ambiente:** `clang 18` com target **wasm32** + `wasm-ld` + `llc`
+(sem emscripten/wat2wasm). Compilo C freestanding (-nostdlib) direto pra wasm. Provei o
+pipeline (C→wasm rodando no Node) E que dá pra escrever **WASM assembly à mão (.s)** e linkar.
+
+**A FÍSICA/LÓGICA do andar é 100% C+Assembly compilado pra WASM** (o Three.js só LÊ os números
+e desenha — rendering precisa de WebGL, inevitável):
+- `wasm/floor7_asm.s` — **assembly WASM escrita à mão**: `f7_sinp` (seno polinomial Horner) e
+  `f7_inv_len2` (1/sqrt guardado). Toda a oscilação do mar, bob do capitão e direções saem daí.
+- `wasm/floor7.c` — o CÉREBRO: movimento do navio (heave/pitch/roll via o seno do asm), máquina
+  de estados da quest (INTRO→GREET→FETCH→CLEAN→DONE), fade do elevador, capitão que caminha da
+  proa, balde (pega/segura), 6 poças com progresso de limpeza, RNG xorshift, atan2 próprio.
+  `f7_can_leave()` retorna SEMPRE 0 (não pode sair). Exporta getters + ponteiro do array de
+  poças na memória linear.
+- `wasm/build-wasm.mjs` (`npm run build:wasm`) — compila C+asm → wasm → **base64 embutido em
+  `src/floor7-wasm.ts`** (commitado) pro build de produção (Vercel sem clang) inlinar no
+  single-file. O `.wasm` em si é gitignorado (a fonte-da-verdade é o .ts).
+- `src/Floor7Brain.ts` — bridge TS tipado (instancia síncrono, lê poças da memória WASM).
+- `src/__tests__/floor7Brain.test.ts` — **6 testes headless** validam a quest inteira no WASM
+  (intro→limpeza→DONE), o movimento do mar (asm), e que NUNCA pode sair.
+- `src/Floor7.tsx` — renderer R3F: casco/convés/mastros/velas/leme/proa procedurais, mar com
+  névoa que desliza (sensação de movimento), capitão estilizado (casaco+tricorne), balde+pano,
+  poças que encolhem ao limpar, elevador que desmaterializa (fade+sobe). Cada frame mapeia a
+  posição do player pro frame LOCAL do navio (worldToLocal) e alimenta o cérebro → limpeza
+  alinhada mesmo com o balanço. `Floor7Overlay` (DOM): diálogo do capitão + HUD "CONVÉS LIMPO
+  n/6" + botão ESFREGAR + tecla E/Espaço.
+- Wiring no App: spawn no convés (z=4.2), elevador padrão suprimido no level 7, ambiente
+  montado como sibling do World (precisa do handle do WASM), overlay fora do Canvas. Paredes do
+  convés (`_WALLS_FLOOR7`, 6×14) no `wallsForState`. Card do creator atualizado.
+
+**Validado renderizando (Playwright/swiftshader):** navio+oceano+capitão+poças+balde+elevador
+renderizam; o capitão caminha até o player e dá a missão ("Ahá, um novo grumete!… esfrega
+essas poças, marujo!"); **0 erros fatais** no dev E no single-file de produção (WASM instancia
+do base64 inlined). tsc 0 · **105/105 vitest** (+6) · audit 0 · index.html rebuildado.
+Obs: o swiftshader roda ~5fps então a intro de sim demora (dt clampado) — na GPU real a 60fps
+a intro fecha em 3.9s. Falta (Felipe vai dizer depois): o resto do level além da limpeza.

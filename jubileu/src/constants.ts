@@ -275,12 +275,20 @@ const F6_FURN_W = F6_FURNITURE.flatMap(([cx, cz, w, d]) => boxCollider(cx, cz, w
 const _WALLS_FLOOR6        = [...ELEV_W, ...F6_STATIC_WALLS, ...F6_FURN_W];
 const _WALLS_FLOOR6_SEALED = [..._WALLS_FLOOR6, DOOR_SEAL];
 
+// Floor 7 (pirate ship): the deck bulwarks — a 6x14 rectangle that keeps the
+// player on the ship. No elevator gap: the lift dematerialises, you're stuck.
+const _WALLS_FLOOR7 = [
+    [-2.85, -6.9, -2.85, 6.9], [2.85, -6.9, 2.85, 6.9],
+    [-2.85, -6.9, 2.85, -6.9], [-2.85, 6.9, 2.85, 6.9],
+];
+
 /** Pick the right pre-built wall list. No allocation per frame. */
 export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
     if (level === 0) return doorsClosed ? _WALLS_LOBBY_SEALED : _WALLS_LOBBY_OPEN;
     if (level === 2) return doorsClosed ? _WALLS_LEVEL2_SEALED : _WALLS_LEVEL2_OPEN;
     if (level === 3) return doorsClosed ? _WALLS_FLOOR3_SEALED : _WALLS_FLOOR3;
     if (level === 6) return doorsClosed ? _WALLS_FLOOR6_SEALED : _WALLS_FLOOR6;
+    if (level === 7) return _WALLS_FLOOR7;
     if (level >= 4) return doorsClosed ? _WALLS_FLOOR5_SEALED : _WALLS_FLOOR5;
     if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
     return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;

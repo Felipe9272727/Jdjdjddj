@@ -49,7 +49,7 @@ import { Floor4Environment, useFloor4Audio, Pixelate3DRamp } from './Floor4';
 import Floor4Canvas2D from './Floor4Canvas2D';
 import { f4Demo } from './floor4Sfx';
 import { f4 } from './f4Lore';
-import Floor5Environment from './Floor5';
+import { Floor7Environment, Floor7Overlay, useFloor7Handle } from './Floor7';
 import Floor5Race3D from './Floor5Race3D';
 import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
 import Floor6Suite from './Floor6Suite';
@@ -169,7 +169,8 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {/* Floor 6 — a Suíte 612: "O Hóspede que Sabia Demais" (escape room) */}
       {level === 6 && <Floor6Suite playerPositionRef={playerPositionRef} profile={profile} />}
       {/* the old baseplate is the FLOOR 7 TEMPLATE now — Creator Mode only */}
-      {level === 7 && <Floor5Environment />}
+      {/* Andar 7 (navio pirata) is mounted as a Canvas sibling below — it needs
+          the Floor7 WASM handle ref that this memoized World doesn't carry. */}
       {level === 2 && (
         <Suspense fallback={null}>
           <Floor2Environment
@@ -196,7 +197,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
           dialogueBeatRef={diverBeatRef}
         />
       )}
-      {!(level === 6 && f6CabDead) && <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />}
+      {!(level === 6 && f6CabDead) && level !== 7 && <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />}
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
       {profile.nightLights && <NightAmbient active={nightMode && level === 1} />}
       {/* Night-vision boost. Only mounts when active — adds bright green
@@ -210,6 +211,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const photo = usePhotoMode(); // GPU path-tracer "photo mode" (off until the camera button)
+  const floor7Handle = useFloor7Handle(); // Andar 7 (pirate ship) — bridge to the WASM brain
   const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
   // Master audio bus (the AudioEngine's muteable/volume-controlled input).
   // The Floor-3 cartoon ragtime + SFX route through this so they sit inside the
@@ -1175,13 +1177,14 @@ export default function App() {
         setZoomLevel(0);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -8.6, theta: Math.PI };
       } else if (startLevel === 7) {
-        // Andar 7 — ainda não existe: o template (o velho baseplate).
+        // Andar 7 — o navio pirata. Player nasce no convés em frente ao elevador
+        // (que então se desmaterializa); o capitão vem da proa dar a missão.
         setGameState('outdoor');
         setNightMode(false);
         setHouseDoorOpen(false);
         setDoorOpenAmount(0);
         setDoorsClosed(false);
-        playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
+        playerPositionCmdRef.current = { x: 0, y: 0, z: 4.2, theta: Math.PI };
       }
     }
     // ─── CREATOR MODE: end jump ───
@@ -1577,6 +1580,9 @@ export default function App() {
                   setPendingPostDeathDialogue(true);
                 }, 2800);
               }} />
+            {/* Andar 7 — the pirate ship, 100% driven by the WASM (C + assembly)
+                brain. Mounted here (not in World) so it gets the Floor7 handle. */}
+            {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} />}
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -1755,6 +1761,8 @@ export default function App() {
           <PhotoModeButton onClick={photo.open} />
       )}
       <PhotoModeOverlay progress={photo.progress} onClose={photo.close} />
+      {/* Andar 7 (pirate ship) — captain dialogue + cleaning HUD + interact button */}
+      {hasStarted && currentLevel === 7 && <Floor7Overlay handleRef={floor7Handle} />}
       {/* Empty lobby atmospheric touches — thuds, flickers, wall text */}
       {hasStarted && currentLevel === 0 && gameState === 'lobby' && (
           <EmptyLobbyAmbience playerCount={otherPlayerIds.length} />

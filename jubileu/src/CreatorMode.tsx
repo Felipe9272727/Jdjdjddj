@@ -139,9 +139,9 @@ export const FLOORS: FloorOption[] = [
   {
     id: 'floor-7-template',
     level: 7,
-    name: 'Template (ainda não existe)',
+    name: 'O Navio Pirata',
     label: 'Andar 7',
-    description: 'O Novo Baseplate — molde do próximo andar',
+    description: 'Convés de um navio em alto-mar — o capitão te põe pra esfregar as poças (100% WebAssembly/C)',
     color: 'from-sky-400 via-cyan-300 to-sky-400',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
