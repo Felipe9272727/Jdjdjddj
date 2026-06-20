@@ -142,6 +142,50 @@ export function makeCloud(seed = 1, size = 256): THREE.CanvasTexture {
     return t;
 }
 
+// weathered sailcloth: warm canvas with vertical panel seams, horizontal
+// reef-band stitching and faint stains — so the sails read as cloth, not card.
+export function makeSailcloth(w = 512, h = 384): { map: THREE.CanvasTexture; rough: THREE.CanvasTexture } {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d')!;
+    const rc = document.createElement('canvas'); rc.width = w; rc.height = h;
+    const rx = rc.getContext('2d')!;
+    const r = rnd(0x5A11);
+    // base cream with a gentle vertical shade (top a touch brighter)
+    const g = x.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#efe6d0'); g.addColorStop(0.5, '#e6dcc2'); g.addColorStop(1, '#d8ccae');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    rx.fillStyle = '#d2d2d2'; rx.fillRect(0, 0, w, h); // cloth is fairly rough/matte
+    // woven texture (fine speckle)
+    for (let i = 0; i < 9000; i++) {
+        x.fillStyle = r() > 0.5 ? 'rgba(255,250,235,0.06)' : 'rgba(150,135,105,0.06)';
+        x.fillRect(r() * w, r() * h, 1.4, 1.4);
+    }
+    // vertical panel seams (sails are sewn from cloth strips)
+    const panelW = w / 7;
+    for (let px = panelW; px < w; px += panelW) {
+        x.strokeStyle = 'rgba(120,104,76,0.5)'; x.lineWidth = 2;
+        x.beginPath(); x.moveTo(px, 0); x.lineTo(px, h); x.stroke();
+        x.strokeStyle = 'rgba(255,250,235,0.4)'; x.lineWidth = 1;
+        x.beginPath(); x.moveTo(px + 1.5, 0); x.lineTo(px + 1.5, h); x.stroke();
+        rx.strokeStyle = '#9a9a9a'; rx.lineWidth = 2; rx.beginPath(); rx.moveTo(px, 0); rx.lineTo(px, h); rx.stroke();
+    }
+    // horizontal reef bands (rows of stitch dashes)
+    for (const by of [h * 0.34, h * 0.66]) {
+        x.strokeStyle = 'rgba(110,94,68,0.45)'; x.lineWidth = 1.5; x.setLineDash([6, 5]);
+        x.beginPath(); x.moveTo(0, by); x.lineTo(w, by); x.stroke(); x.setLineDash([]);
+    }
+    // a few faint weather stains
+    for (let i = 0; i < 7; i++) {
+        const sx = r() * w, sy = r() * h, sr = 24 + r() * 60;
+        const sg = x.createRadialGradient(sx, sy, 0, sx, sy, sr);
+        sg.addColorStop(0, 'rgba(150,130,95,0.10)'); sg.addColorStop(1, 'rgba(150,130,95,0)');
+        x.fillStyle = sg; x.fillRect(sx - sr, sy - sr, sr * 2, sr * 2);
+    }
+    const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 4;
+    const rough = new THREE.CanvasTexture(rc);
+    return { map, rough };
+}
+
 // black Jolly Roger: white skull + crossed bones on black, drawn procedurally.
 export function makeJollyRoger(size = 256): THREE.CanvasTexture {
     const c = document.createElement('canvas'); c.width = c.height = size;

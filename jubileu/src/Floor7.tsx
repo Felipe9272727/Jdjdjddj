@@ -18,7 +18,7 @@ import { Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
-import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect } from './floor7Textures';
+import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth } from './floor7Textures';
 import { buildHullGeometry } from './floor7Geo';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
@@ -28,6 +28,25 @@ const _trimWood = makeWood({ base: '#6e4a28', dark: '#46301a', light: '#8a5f34',
 _deckWood.map.repeat.set(3, 7); _deckWood.rough.repeat.set(3, 7);
 _hullWood.map.repeat.set(4, 2); _hullWood.rough.repeat.set(4, 2);
 _trimWood.map.repeat.set(6, 1); _trimWood.rough.repeat.set(6, 1);
+const _sailCloth = makeSailcloth();
+
+// a billowing sail: a plane bulged outward (wind-filled) with a sagging foot,
+// so the canvas reads as cloth catching wind instead of a flat card.
+function billowSail(w: number, h: number, bulge: number): THREE.PlaneGeometry {
+    const g = new THREE.PlaneGeometry(w, h, 12, 8);
+    const p = g.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < p.count; i++) {
+        const u = p.getX(i) / w + 0.5;        // 0..1 across
+        const v = p.getY(i) / h + 0.5;        // 0..1 up
+        const belly = Math.sin(u * Math.PI) * Math.sin(v * Math.PI);
+        p.setZ(i, belly * bulge);             // bulge toward +z (lee side)
+        p.setY(i, p.getY(i) - (1 - Math.cos((u - 0.5) * Math.PI * 0.9)) * h * 0.06); // scalloped foot
+    }
+    g.computeVertexNormals();
+    return g;
+}
+const _mainSailGeo = billowSail(4.2, 2.6, 0.55);
+const _foreSailGeo = billowSail(3.0, 1.9, 0.42);
 
 // warm low sun (golden hour) shared by the Sky, the key light and water glitter
 const SUN_POS: [number, number, number] = [26, 4.5, -30];
@@ -55,7 +74,7 @@ const M = {
     plankDk: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.03, color: '#ac8049', roughness: 0.82, envMapIntensity: 0.6 }),
     rail: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, bumpMap: _trimWood.rough, bumpScale: 0.025, color: '#b07f48', roughness: 0.55, envMapIntensity: 0.8 }),
     mast: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#b58a52', roughness: 0.6 }),
-    sail: new THREE.MeshStandardMaterial({ color: '#efe7d4', roughness: 0.95, side: THREE.DoubleSide, emissive: '#6b5f44', emissiveIntensity: 0.35 }),
+    sail: new THREE.MeshStandardMaterial({ map: _sailCloth.map, roughnessMap: _sailCloth.rough, color: '#f2ead6', roughness: 0.92, side: THREE.DoubleSide, envMapIntensity: 0.4 }),
     rope: new THREE.MeshStandardMaterial({ color: '#caa56a', roughness: 1 }),
     flag: new THREE.MeshStandardMaterial({ map: makeJollyRoger(), roughness: 0.95, side: THREE.DoubleSide }),
     barrel: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#9c7038', roughness: 0.7 }),
@@ -142,9 +161,7 @@ const ShipBody: React.FC = () => {
                 <mesh position={[0, 5.2, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
                     <cylinderGeometry args={[0.08, 0.08, 4.6, 8]} />
                 </mesh>
-                <mesh position={[0, 4.0, 0.06]} material={M.sail}>
-                    <planeGeometry args={[4.2, 2.6, 8, 6]} />
-                </mesh>
+                <mesh position={[0, 4.0, 0.06]} geometry={_mainSailGeo} material={M.sail} />
                 {/* crow's nest */}
                 <mesh position={[0, 6.0, 0]} material={M.rail}><cylinderGeometry args={[0.34, 0.28, 0.4, 10, 1, true]} /></mesh>
                 <mesh position={[0, 5.8, 0]} material={M.rail}><cylinderGeometry args={[0.32, 0.32, 0.04, 10]} /></mesh>
@@ -158,9 +175,7 @@ const ShipBody: React.FC = () => {
                 <mesh position={[0, 3.7, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
                     <cylinderGeometry args={[0.07, 0.07, 3.4, 8]} />
                 </mesh>
-                <mesh position={[0, 2.9, 0.05]} material={M.sail}>
-                    <planeGeometry args={[3.0, 1.9]} />
-                </mesh>
+                <mesh position={[0, 2.9, 0.05]} geometry={_foreSailGeo} material={M.sail} />
             </group>
             {/* helm (ship's wheel) at the stern */}
             <group position={[0, 0.7, -6.2]}>
