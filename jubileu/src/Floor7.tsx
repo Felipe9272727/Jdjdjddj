@@ -106,6 +106,30 @@ const M = {
     elevTrim: new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.4, metalness: 0.6, transparent: true }),
 };
 
+// Weather the hull by WORLD height: below the (world-fixed) waterline it goes
+// dark, wet and green; up toward the cap rail it sun-bleaches. Driven by world
+// Y so the wet band tracks the real sea line even as the ship heaves/rolls.
+function weatherByHeight(mat: THREE.MeshStandardMaterial) {
+    mat.onBeforeCompile = (shader) => {
+        shader.vertexShader = 'varying vec3 vWPosF7;\n' + shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            '#include <begin_vertex>\n vWPosF7 = (modelMatrix * vec4(transformed,1.0)).xyz;');
+        shader.fragmentShader = 'varying vec3 vWPosF7;\n' + shader.fragmentShader.replace(
+            '#include <color_fragment>',
+            `#include <color_fragment>
+             {
+                float wet = smoothstep(-0.45, -1.5, vWPosF7.y);
+                float sun = smoothstep(0.25, 1.5, vWPosF7.y);
+                diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.42,0.5,0.48), wet);
+                diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.16,1.1,0.98), sun);
+             }`);
+    };
+    mat.needsUpdate = true;
+    return mat;
+}
+weatherByHeight(M.hull);
+weatherByHeight(M.hullDk);
+
 // ── the ornamented stern: the galleon's "face" — framed stern windows with
 // glass, a gilt name-board, taffrail + counter moldings, and quarter galleries
 // at the corners. Mounted on the raked transom at the stern (z=-7). ──
