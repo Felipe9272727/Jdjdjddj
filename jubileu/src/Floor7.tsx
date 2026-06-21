@@ -903,6 +903,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const bucketRef = useRef<THREE.Group>(null);
     const handsRef = useRef<THREE.Group>(null);
     const brushRef = useRef<THREE.Group>(null);
+    const leftHandRef = useRef<THREE.Group>(null);
     const islandRef = useRef<THREE.Group>(null);
     const elevatorRef = useRef<THREE.Group>(null);
     const puddleRefs = useRef<(THREE.Group | null)[]>([]);
@@ -1050,6 +1051,14 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 }
             }
         }
+        // left hand carrying the bucket (lower-left), shown once it's grabbed
+        if (leftHandRef.current) {
+            const cam = state.camera;
+            leftHandRef.current.position.copy(cam.position);
+            leftHandRef.current.quaternion.copy(cam.quaternion);
+            leftHandRef.current.translateX(-0.26); leftHandRef.current.translateY(-0.34 + Math.sin(t * 1.5) * 0.01); leftHandRef.current.translateZ(-0.4);
+            leftHandRef.current.visible = b.bucket().held && b.elevFade() < 0.85;
+        }
 
         // payoff: land rises on the horizon once the deck is clean (state DONE)
         if (islandRef.current) {
@@ -1172,15 +1181,29 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             {/* first-person hands + scrub-brush (rides the camera, world-space) */}
             <group ref={handsRef} frustumCulled={false}>
                 <group ref={brushRef}>
-                    {/* coat sleeve forearm coming up from lower-right */}
-                    <mesh position={[0.02, -0.12, 0.16]} rotation={[0.7, 0, 0.1]} material={M.coat}><cylinderGeometry args={[0.05, 0.065, 0.42, 10]} /></mesh>
-                    <mesh position={[0.02, -0.18, 0.32]} material={M.gold}><cylinderGeometry args={[0.066, 0.066, 0.05, 10]} /></mesh>
-                    {/* hand */}
-                    <mesh position={[0.01, 0.0, -0.01]} material={M.skin}><sphereGeometry args={[0.062, 12, 10]} /></mesh>
-                    {/* scrub brush: wooden block + pale bristles */}
-                    <mesh position={[0, -0.015, -0.06]} rotation={[0.5, 0, 0]} material={M.barrel}><boxGeometry args={[0.17, 0.05, 0.11]} /></mesh>
-                    <mesh position={[0, -0.055, -0.07]} rotation={[0.5, 0, 0]} material={M.cloth}><boxGeometry args={[0.16, 0.045, 0.1]} /></mesh>
+                    {/* coat sleeve entering from the lower-right corner + gold cuff */}
+                    <mesh position={[0.07, -0.16, 0.16]} rotation={[0.95, 0.12, 0.22]} material={M.coat}><cylinderGeometry args={[0.052, 0.075, 0.4, 10]} /></mesh>
+                    <mesh position={[0.035, -0.055, 0.02]} rotation={[0.95, 0.12, 0.22]} material={M.gold}><cylinderGeometry args={[0.072, 0.072, 0.045, 10]} /></mesh>
+                    {/* flattened palm gripping the brush */}
+                    <mesh position={[0, -0.035, -0.085]} rotation={[0.42, 0, 0]} material={M.skin}><boxGeometry args={[0.088, 0.03, 0.1]} /></mesh>
+                    {/* thumb + four fingers curling over the brush block */}
+                    <mesh position={[-0.052, -0.05, -0.08]} rotation={[0.42, 0, 0.35]} material={M.skin}><capsuleGeometry args={[0.014, 0.05, 3, 6]} /></mesh>
+                    {[-0.03, -0.01, 0.01, 0.03].map((fx, i) => (
+                        <mesh key={i} position={[fx, -0.062, -0.125]} rotation={[1.15, 0, 0]} material={M.skin}><capsuleGeometry args={[0.011, 0.045, 3, 6]} /></mesh>
+                    ))}
+                    {/* scrub brush: wooden block + pale bristles, forward under the palm */}
+                    <mesh position={[0, -0.078, -0.12]} rotation={[0.35, 0, 0]} material={M.barrel}><boxGeometry args={[0.16, 0.045, 0.1]} /></mesh>
+                    <mesh position={[0, -0.112, -0.13]} rotation={[0.35, 0, 0]} material={M.cloth}><boxGeometry args={[0.15, 0.04, 0.09]} /></mesh>
                 </group>
+            </group>
+
+            {/* left hand carrying the bucket by its handle (camera-attached) */}
+            <group ref={leftHandRef} frustumCulled={false} visible={false}>
+                <mesh position={[-0.04, 0.0, 0.1]} rotation={[1.0, 0, -0.2]} material={M.coat}><cylinderGeometry args={[0.05, 0.07, 0.34, 10]} /></mesh>
+                <mesh position={[0, 0.02, 0.0]} material={M.skin}><boxGeometry args={[0.08, 0.05, 0.09]} /></mesh>
+                {/* the iron bail (handle) the fist grips, dropping to the bucket below */}
+                <mesh position={[0, -0.04, 0.0]} rotation={[0, 0, 0]} material={M.iron}><torusGeometry args={[0.09, 0.012, 6, 14, Math.PI]} /></mesh>
+                <mesh position={[0.02, -0.22, 0.02]} material={M.bucket}><cylinderGeometry args={[0.1, 0.085, 0.16, 12, 1, true]} /></mesh>
             </group>
         </group>
     );
