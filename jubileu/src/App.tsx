@@ -1194,6 +1194,13 @@ export default function App() {
     }
   };
 
+  // DEBUG/playtest hook: window.__startFloor(7) jumps straight onto a floor
+  // (used by the offline playtest harness + the critic to actually play). Inert
+  // unless something calls it.
+  useEffect(() => {
+    (window as unknown as { __startFloor?: (n: number) => void }).__startFloor = (n: number) => handleStartGame(false, 'Tester', n);
+  });
+
   useEffect(() => {
     let timerId: ReturnType<typeof setTimeout> | undefined;
     if (elevatorTimer !== null && elevatorTimer > 0) {

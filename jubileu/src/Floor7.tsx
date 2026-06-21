@@ -79,6 +79,7 @@ const M = {
     flag: new THREE.MeshStandardMaterial({ map: makeJollyRoger(), roughness: 0.95, side: THREE.DoubleSide }),
     barrel: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#9c7038', roughness: 0.7 }),
     iron: new THREE.MeshStandardMaterial({ color: '#3a3a3e', roughness: 0.5, metalness: 0.8 }),
+    cannon: new THREE.MeshStandardMaterial({ color: '#2e3034', roughness: 0.34, metalness: 0.92, envMapIntensity: 1.1 }),
     metal: new THREE.MeshStandardMaterial({ color: '#b9c2c8', roughness: 0.35, metalness: 0.7 }),
     wheel: new THREE.MeshStandardMaterial({ color: '#5b3d22', roughness: 0.7 }),
     coat: new THREE.MeshStandardMaterial({ color: '#8a2222', roughness: 0.6 }),
@@ -382,6 +383,12 @@ const ShipBody: React.FC = () => {
                     <cylinderGeometry args={[0.08, 0.08, 4.6, 8]} />
                 </mesh>
                 <mesh position={[0, 3.45, 0.06]} geometry={_mainSailGeo} material={M.sail} />
+                {/* foot-rope slung under the main yard */}
+                <mesh position={[0, 5.05, 0.04]} rotation={[0, 0, Math.PI / 2]} material={M.rope}><cylinderGeometry args={[0.012, 0.012, 4.3, 5]} /></mesh>
+                {/* a row of reef-point ties across the course */}
+                {[-1.8, -1.2, -0.6, 0, 0.6, 1.2, 1.8].map((rx) => (
+                    <mesh key={'rf' + rx} position={[rx, 4.25, 0.16]} material={M.rope}><cylinderGeometry args={[0.008, 0.008, 0.16, 4]} /></mesh>
+                ))}
                 {/* crow's nest */}
                 <mesh position={[0, 6.0, 0]} material={M.rail}><cylinderGeometry args={[0.34, 0.28, 0.4, 10, 1, true]} /></mesh>
                 <mesh position={[0, 5.8, 0]} material={M.rail}><cylinderGeometry args={[0.32, 0.32, 0.04, 10]} /></mesh>
@@ -439,8 +446,14 @@ const ShipBody: React.FC = () => {
             {/* cannons at the gunwales, pointing out to sea */}
             {[[2.55, -2.5, 1], [-2.55, 1.5, -1], [2.55, 0.5, 1]].map(([x, z, s], i) => (
                 <group key={'cn' + i} position={[x, 0.32, z]} rotation={[0, (s as number) * Math.PI / 2, 0]}>
-                    <mesh rotation={[0, 0, Math.PI / 2]} material={M.iron}><cylinderGeometry args={[0.11, 0.14, 0.8, 12]} /></mesh>
-                    <mesh position={[0.42, 0, 0]} material={M.iron}><sphereGeometry args={[0.09, 8, 6]} /></mesh>
+                    {/* tapered barrel (thin muzzle to fat breech) + reinforcing rings */}
+                    <mesh rotation={[0, 0, Math.PI / 2]} material={M.cannon}><cylinderGeometry args={[0.085, 0.13, 0.88, 16]} /></mesh>
+                    {[0.0, 0.3, -0.28].map((bx, k) => (
+                        <mesh key={k} position={[bx, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={M.cannon}><torusGeometry args={[0.105 - Math.abs(bx) * 0.05, 0.018, 6, 14]} /></mesh>
+                    ))}
+                    {/* dark muzzle bore + breech cascabel */}
+                    <mesh position={[-0.46, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={M.hat}><cylinderGeometry args={[0.06, 0.06, 0.06, 12]} /></mesh>
+                    <mesh position={[0.46, 0, 0]} material={M.cannon}><sphereGeometry args={[0.07, 10, 8]} /></mesh>
                     <mesh position={[-0.1, -0.16, 0]} material={M.wheel}><boxGeometry args={[0.5, 0.22, 0.36]} /></mesh>
                     {[-0.18, 0.18].map((wz) => (
                         <mesh key={wz} position={[-0.1, -0.28, wz]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><cylinderGeometry args={[0.1, 0.1, 0.05, 10]} /></mesh>
