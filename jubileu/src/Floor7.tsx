@@ -790,9 +790,13 @@ interface CaptainRig {
     armL: React.RefObject<THREE.Group>; armR: React.RefObject<THREE.Group>;
     head: React.RefObject<THREE.Group>; jaw: React.RefObject<THREE.Group>;
     eye: React.RefObject<THREE.Mesh>;
-    // cloth + grip that follow-through on stride / deck roll (secondary motion)
-    coatHem: React.RefObject<THREE.Group>; sash: React.RefObject<THREE.Group>;
-    feather: React.RefObject<THREE.Group>; gripR: React.RefObject<THREE.Group>;
+    // cloth + grip that follow-through on stride / deck roll (secondary motion).
+    // The hem and finger are 2-bone chains (each lower joint lags the one above)
+    // so cloth bends along its length and fingers curl mid-segment, not rigidly.
+    coatHem: React.RefObject<THREE.Group>; coatHem2: React.RefObject<THREE.Group>;
+    sash: React.RefObject<THREE.Group>;
+    feather: React.RefObject<THREE.Group>;
+    gripR: React.RefObject<THREE.Group>; gripR2: React.RefObject<THREE.Group>;
 }
 const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref) => (
     <group ref={ref}>
@@ -808,9 +812,14 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             <mesh position={[0, -0.56, 0]} material={M.boot}><cylinderGeometry args={[0.09, 0.07, 0.1, 8]} /></mesh>
         </group>
 
-        {/* long coat — flared skirt swings from the waist (secondary motion) + torso */}
+        {/* long coat — flared skirt as a 2-BONE cloth chain: an upper panel that
+            swings from the waist, and a lower hem nested at its base that lags
+            further, so the skirt bends along its length instead of as a rigid bell */}
         <group ref={rig.coatHem} position={[0, 1.05, 0]}>
-            <mesh position={[0, -0.27, 0]} material={M.coat}><cylinderGeometry args={[0.27, 0.38, 0.62, 16]} /></mesh>
+            <mesh position={[0, -0.155, 0]} material={M.coat}><cylinderGeometry args={[0.27, 0.325, 0.31, 16]} /></mesh>
+            <group ref={rig.coatHem2} position={[0, -0.31, 0]}>
+                <mesh position={[0, -0.155, 0]} material={M.coat}><cylinderGeometry args={[0.325, 0.39, 0.31, 16]} /></mesh>
+            </group>
         </group>
         <mesh position={[0, 1.16, 0]} material={M.coat}><cylinderGeometry args={[0.23, 0.27, 0.44, 16]} /></mesh>
         <mesh position={[0, 0.95, 0.235]} rotation={[0.05, 0, 0]} material={M.coatDk}><boxGeometry args={[0.30, 0.95, 0.04]} /></mesh>
@@ -837,11 +846,18 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             <mesh position={[0, -0.22, 0]} material={M.coat}><cylinderGeometry args={[0.075, 0.09, 0.5, 8]} /></mesh>
             <mesh position={[0, -0.46, 0.04]} material={M.gold}><cylinderGeometry args={[0.092, 0.092, 0.09, 10]} /></mesh>
             <mesh position={[0, -0.53, 0.06]} material={M.skin}><sphereGeometry args={[0.066, 10, 8]} /></mesh>
-            {/* fingers — curl to grip the wheel when he takes the helm (ST_DONE) */}
-            <group ref={rig.gripR} position={[0, -0.55, 0.11]}>
+            {/* fingers as a 2-KNUCKLE chain: proximal segments hinge at the
+                palm, the nested distal segments curl further — so the grip
+                closes around the wheel mid-finger when he takes the helm (ST_DONE) */}
+            <group ref={rig.gripR} position={[0, -0.55, 0.10]}>
                 {[-0.032, -0.011, 0.011, 0.032].map((fx, i) => (
-                    <mesh key={i} position={[fx, 0, 0]} material={M.skin}><capsuleGeometry args={[0.013, 0.058, 3, 6]} /></mesh>
+                    <mesh key={i} position={[fx, 0, 0.018]} material={M.skin}><capsuleGeometry args={[0.013, 0.04, 3, 6]} /></mesh>
                 ))}
+                <group ref={rig.gripR2} position={[0, -0.02, 0.04]}>
+                    {[-0.032, -0.011, 0.011, 0.032].map((fx, i) => (
+                        <mesh key={i} position={[fx, 0, 0]} material={M.skin}><capsuleGeometry args={[0.012, 0.036, 3, 6]} /></mesh>
+                    ))}
+                </group>
                 <mesh position={[-0.05, 0.01, -0.02]} rotation={[0, 0, 0.6]} material={M.skin}><capsuleGeometry args={[0.014, 0.05, 3, 6]} /></mesh>
             </group>
         </group>
@@ -908,15 +924,17 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         armL: useRef<THREE.Group>(null), armR: useRef<THREE.Group>(null),
         head: useRef<THREE.Group>(null), jaw: useRef<THREE.Group>(null),
         eye: useRef<THREE.Mesh>(null),
-        coatHem: useRef<THREE.Group>(null), sash: useRef<THREE.Group>(null),
-        feather: useRef<THREE.Group>(null), gripR: useRef<THREE.Group>(null),
+        coatHem: useRef<THREE.Group>(null), coatHem2: useRef<THREE.Group>(null),
+        sash: useRef<THREE.Group>(null),
+        feather: useRef<THREE.Group>(null),
+        gripR: useRef<THREE.Group>(null), gripR2: useRef<THREE.Group>(null),
     };
     const _capWorld = useRef(new THREE.Vector3());
     const _prevPP = useRef(new THREE.Vector3());
     const _vel = useRef(new THREE.Vector3());
     const _brushHeading = useRef(0); // last drag direction, held through slow passes
     // trailing cloth state (hem/sash/feather/grip) for follow-through lag
-    const _cloth = useRef({ hemX: 0, hemZ: 0, sashZ: 0, featX: 0, featZ: 0, grip: 0.3, face: 0 });
+    const _cloth = useRef({ hemX: 0, hemZ: 0, hem2X: 0, hem2Z: 0, sashZ: 0, featX: 0, featZ: 0, grip: 0.3, grip2: 0.3, face: 0 });
     const _sfx = useRef({ held: 0, cleaned: 0, dialogue: 0, step: 0, scrub: 0, px: 0, pz: 0, drainHit: false, tideArmed: 0 });
     // suds particle pool (ship-local) for scrub juice
     const SUDS_N = 48;
@@ -1093,16 +1111,24 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 const featZt = roll * 1.5 + turn * 3.0;
                 const k = Math.min(1, dt * 6);
                 cl.hemX += (hemXt - cl.hemX) * k; cl.hemZ += (hemZt - cl.hemZ) * k;
+                // lower hem CASCADES off the upper with extra lag + amplification,
+                // so the skirt whips along its length (cloth chain, not a rigid bell)
+                const k2 = Math.min(1, dt * 4);
+                cl.hem2X += (cl.hemX * 1.25 - cl.hem2X) * k2; cl.hem2Z += (cl.hemZ * 1.25 - cl.hem2Z) * k2;
                 cl.sashZ += (sashZt - cl.sashZ) * k;
                 cl.featX += (featXt - cl.featX) * Math.min(1, dt * 9);
                 cl.featZ += (featZt - cl.featZ) * Math.min(1, dt * 9);
                 if (capRig.coatHem.current) { capRig.coatHem.current.rotation.x = cl.hemX; capRig.coatHem.current.rotation.z = cl.hemZ; }
+                if (capRig.coatHem2.current) { capRig.coatHem2.current.rotation.x = cl.hem2X - cl.hemX; capRig.coatHem2.current.rotation.z = cl.hem2Z - cl.hemZ; }
                 if (capRig.sash.current) capRig.sash.current.rotation.z = cl.sashZ;
                 if (capRig.feather.current) { capRig.feather.current.rotation.x = cl.featX; capRig.feather.current.rotation.z = cl.featZ; }
-                // fingers: relaxed normally, curl tight to grip the wheel at the helm
+                // fingers: relaxed normally, curl tight to grip the wheel at the helm;
+                // the distal knuckle curls further and lags the proximal one
                 const gripTo = b.state() === F7_STATE.DONE ? 1.15 : 0.35;
                 cl.grip += (gripTo - cl.grip) * Math.min(1, dt * 4);
+                cl.grip2 += (cl.grip * 1.2 - cl.grip2) * Math.min(1, dt * 3);
                 if (capRig.gripR.current) capRig.gripR.current.rotation.x = cl.grip;
+                if (capRig.gripR2.current) capRig.gripR2.current.rotation.x = cl.grip2 - cl.grip * 0.5;
             }
         }
         // bucket
