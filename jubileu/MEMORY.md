@@ -30,3 +30,24 @@ cwd reseta pra raiz toda hora -> rodar tudo com `cd .../jubileu` antes.
 CRITICO ja reconheceu: popa "convincente", ratlines "parecem cordame". Pendente (proximo):
 proa = beakhead/headrails/jib/bobstay (parte mais fraca agora), gunports com recesso+tampa+canhao
 real, bow-wave/foam animada, yards+reef points nas velas, capitao (suavizar facetas/maos).
+
+### Sessao 2026-06-21 — placar do CRITICO e estado do navio
+
+Loop do subagente CRITICO rodou 6 rodadas de critica. Placar do proprio critico:
+**R1 = 2/10 (caixa com varas) -> R6 = 7/10 ("believable game pirate ship", cruzou o limiar)**.
+
+Rodadas extras desta sessao (cada uma = commit, tudo verde, push em claude/review-commits-memory-y6iqnf):
+- R5: parede interna da amurada (espessura real do bulwark) + mobilia de meia-nau (escaler
+  emborcado, capela/companionway, aneis de cravelhos nos mastros) -> 6/10.
+- velas ampliadas pra encher o cordame (course deck->verga, barriga mais funda).
+- weathering do casco por altura-MUNDO (onBeforeCompile): molhado/escuro abaixo da linha d'agua,
+  desbotado no topo; acompanha a linha do mar conforme o navio joga.
+- R6: RELEVO das tabuas — costuras/butt joints com perfil chanfrado no bump (aresta clara saliente +
+  groove escuro) + bumpScale ↑ -> casco parece "construido de tabuas", nao moldado.
+- proa: beakhead (plataforma gradeada) + turcos (catheads) + escovéns (hawse) + figurehead alado
+  dourado legivel (era um blob).
+
+Pendentes que o critico ainda apontaria (P1/P2, retorno decrescente): topsails (2a fileira de vela),
+foot-ropes/reef points/clew lines nas velas, canhao com cano/anéis melhores, mais sujeira/streaks de
+escupier, e o capitao (suavizar facetas/maos). Bancada: shot7.cjs (PORT=3001) + floor7-dev.tsx
+(window.__orbit/__target). clang 18 recompila o WASM; checar sempre imports==[] (sqrt ok, expf/logf/memset nao).
