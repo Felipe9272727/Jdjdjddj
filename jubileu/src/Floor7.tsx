@@ -91,6 +91,10 @@ const M = {
     skin: new THREE.MeshStandardMaterial({ color: '#cd9a6e', roughness: 0.62 }),
     hat: new THREE.MeshStandardMaterial({ color: '#17161b', roughness: 0.62, envMapIntensity: 0.6 }),
     gold: new THREE.MeshStandardMaterial({ color: '#e8c45a', roughness: 0.28, metalness: 0.9, envMapIntensity: 1.4 }),
+    // first-person cuff: same gold, but a near-mirror metal this close to camera
+    // reflects the teal sea band of the env map and reads as a green blob — so
+    // dial the reflection way down and let the warm gold albedo carry it.
+    goldFp: new THREE.MeshStandardMaterial({ color: '#e3bb55', roughness: 0.45, metalness: 0.5, envMapIntensity: 0.35 }),
     boot: new THREE.MeshStandardMaterial({ color: '#2a1d12', roughness: 0.55 }),
     beard: new THREE.MeshStandardMaterial({ color: '#7d6552', roughness: 0.95 }),
     hair: new THREE.MeshStandardMaterial({ color: '#26201a', roughness: 0.9 }),
@@ -881,7 +885,8 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const _capWorld = useRef(new THREE.Vector3());
     const _prevPP = useRef(new THREE.Vector3());
     const _vel = useRef(new THREE.Vector3());
-    const _sfx = useRef({ held: 0, cleaned: 0, dialogue: 0, step: 0, scrub: 0, px: 0, pz: 0 });
+    const _brushHeading = useRef(0); // last drag direction, held through slow passes
+    const _sfx = useRef({ held: 0, cleaned: 0, dialogue: 0, step: 0, scrub: 0, px: 0, pz: 0, drainHit: false });
     // suds particle pool (ship-local) for scrub juice
     const SUDS_N = 48;
     const sudsPts = useRef<THREE.Points>(null);
@@ -912,6 +917,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const brainRef = useRef<Floor7Brain | null>(null);
     const _local = useRef(new THREE.Vector3());
     const _pud = useRef<F7Puddle>({ x: 0, z: 0, r: 0, prog: 0, cell: new Float32Array(16).fill(1) });
+    // previous-frame wetness per cell (6 puddles x 16), so we can catch the exact
+    // wet->dry crossing and throw a fleck + scrub accent right where the brush bit.
+    const _prevCells = useRef<Float32Array | null>(null);
     // per-puddle materials with a 4x4 wetness MASK TEXTURE: the fragment samples
     // the player's scrubbed-away cells and discards them, so the puddle erodes
     // directionally under the brush (texture lookup avoids dynamic array indexing).
@@ -1059,7 +1067,23 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             (halo.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - p.prog);
             if (p.cell) {
                 const mm = puddleMats[i] as unknown as { _cellData: Uint8Array; _cellTex: THREE.DataTexture };
-                for (let c = 0; c < 16; c++) mm._cellData[c * 4] = Math.max(0, Math.min(255, p.cell[c] * 255));
+                if (!_prevCells.current) { _prevCells.current = new Float32Array(b.npud * 16); _prevCells.current.set(p.cell, i * 16); }
+                const prev = _prevCells.current;
+                for (let c = 0; c < 16; c++) {
+                    const v = p.cell[c];
+                    mm._cellData[c * 4] = Math.max(0, Math.min(255, v * 255));
+                    // wet -> (mostly) dry crossing under the brush: pop a fleck at
+                    // that cell's world spot and arm a scrub accent, so erosion is
+                    // legible exactly where it happens (not on a blind metronome).
+                    const pc = prev[i * 16 + c];
+                    if (pc > 0.5 && v <= 0.5) {
+                        const ci = c & 3, cj = c >> 2;
+                        const cx = (ci * 0.5 - 0.75) * p.r, cy = (cj * 0.5 - 0.75) * p.r;
+                        sudsBurst(p.x + cx, 0.1, p.z - cy);
+                        _sfx.current.drainHit = true;
+                    }
+                    prev[i * 16 + c] = v;
+                }
                 mm._cellTex.needsUpdate = true;
             }
         }
@@ -1083,9 +1107,12 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 const vf = -(_vel.current.x * e[8] + _vel.current.z * e[10]); // along camera forward
                 const speed = Math.hypot(vr, vf);
                 if (scrubbing) {
-                    const heading = speed > 0.0006 ? Math.atan2(vr, -vf) : 0;
+                    // hold the last drag direction when you slow to clean a spot
+                    // precisely (don't snap forward) — the stroke stays deliberate
+                    if (speed > 0.0006) _brushHeading.current = Math.atan2(vr, -vf);
+                    const heading = _brushHeading.current;
                     brushRef.current.rotation.y += (heading - brushRef.current.rotation.y) * 0.2;
-                    const amp = Math.min(0.12, 0.03 + speed * 7.0);           // bigger sweep when moving faster
+                    const amp = Math.min(0.12, 0.035 + speed * 7.0);          // bigger sweep when moving faster
                     const s = Math.sin(t * 12);
                     brushRef.current.position.x = Math.sin(heading) * s * amp;
                     brushRef.current.position.z = -Math.cos(heading) * s * amp;
@@ -1123,8 +1150,12 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         const dStep = Math.hypot(pw.x - sf.px, pw.z - sf.pz);
         sf.px = pw.x; sf.pz = pw.z;
         if (dStep > 0.002) { sf.step += dStep; if (sf.step > 1.5) { sf.step = 0; f7Footstep(); } }
-        if (b.state() === F7_STATE.CLEAN && handleRef.current.interact) {
-            sf.scrub -= dt; if (sf.scrub <= 0) { sf.scrub = 0.22; f7Scrub(); sudsBurst(_local.current.x, 0.12, _local.current.z); }
+        // scrub SFX: an accent locked to each wet->dry cell drain (so the sound
+        // lands where the brush actually bites), over a quieter bristle metronome
+        // while you're working the brush — feedback, not a blind tick.
+        if (sf.drainHit) { f7Scrub(); sf.scrub = 0.34; sf.drainHit = false; }
+        else if (b.state() === F7_STATE.CLEAN && handleRef.current.interact) {
+            sf.scrub -= dt; if (sf.scrub <= 0) { sf.scrub = 0.34; f7Scrub(); }
         }
         // advance suds particles (gravity + fade)
         {
@@ -1230,7 +1261,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 <group ref={brushRef} scale={1.4}>
                     {/* coat sleeve entering from the lower-right corner + gold cuff */}
                     <mesh position={[0.07, -0.16, 0.16]} rotation={[0.95, 0.12, 0.22]} material={M.coat}><cylinderGeometry args={[0.052, 0.075, 0.4, 10]} /></mesh>
-                    <mesh position={[0.035, -0.055, 0.02]} rotation={[0.95, 0.12, 0.22]} material={M.gold}><cylinderGeometry args={[0.072, 0.072, 0.045, 10]} /></mesh>
+                    <mesh position={[0.035, -0.055, 0.02]} rotation={[0.95, 0.12, 0.22]} material={M.goldFp}><cylinderGeometry args={[0.072, 0.072, 0.045, 10]} /></mesh>
                     {/* flattened palm gripping the brush */}
                     <mesh position={[0, -0.035, -0.085]} rotation={[0.42, 0, 0]} material={M.skin}><boxGeometry args={[0.088, 0.03, 0.1]} /></mesh>
                     {/* thumb + four fingers curling over the brush block */}

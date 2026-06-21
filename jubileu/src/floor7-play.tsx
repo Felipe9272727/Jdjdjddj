@@ -30,11 +30,32 @@ declare global {
 }
 
 const Controller: React.FC<{ posRef: React.MutableRefObject<THREE.Vector3> }> = ({ posRef }) => {
-    const { camera } = useThree();
+    const { camera, scene } = useThree();
     const yaw = useRef(0);            // 0 faces +z (toward the bow / captain)
     const pitch = useRef(0);
     const move = useRef({ f: 0, s: 0 });
     useEffect(() => {
+        // dev probe: dump meshes near the camera with their material colors,
+        // to hunt down a stray-colored prop the critic flagged in FP frames.
+        (window as unknown as { __dumpNear?: () => unknown }).__dumpNear = () => {
+            const out: unknown[] = [];
+            const wp = new THREE.Vector3();
+            scene.traverse((o: THREE.Object3D) => {
+                const mesh = o as THREE.Mesh;
+                if (!(mesh.isMesh || mesh.type === 'Points')) return;
+                o.getWorldPosition(wp);
+                const dist = wp.distanceTo(camera.position);
+                const m = mesh.material as THREE.MeshStandardMaterial | undefined;
+                out.push({
+                    name: o.name || o.type, dist: +dist.toFixed(2),
+                    hex: m && m.color ? '#' + m.color.getHexString() : null,
+                    emissive: m && m.emissive ? '#' + m.emissive.getHexString() : null,
+                    map: !!(m && m.map), geo: (mesh.geometry && mesh.geometry.type) || null,
+                    local: o.position.toArray().map((n) => +n.toFixed(3)),
+                });
+            });
+            return out.sort((a, b) => (a as { dist: number }).dist - (b as { dist: number }).dist).slice(0, 16);
+        };
         window.__setMove = (f, s) => { move.current = { f, s }; };
         window.__setYaw = (y) => { yaw.current = y; };
         window.__setPitch = (p) => { pitch.current = p; };
