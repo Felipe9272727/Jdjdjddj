@@ -29,12 +29,14 @@ export function makeWood(opts: WoodOpts = {}): { map: THREE.CanvasTexture; rough
     ctx.fillStyle = base; ctx.fillRect(0, 0, size, size);
     rx.fillStyle = '#b8b8b8'; rx.fillRect(0, 0, size, size); // fairly rough by default
 
-    // per-plank tint + grain
+    // per-plank tint + grain — strong board-to-board tone variation so the
+    // planking doesn't tile like brick (each board reads as its own timber)
     for (let x = 0; x < size; x += plankW) {
         const tint = r();
         ctx.fillStyle = tint > 0.5 ? light : dark;
-        ctx.globalAlpha = 0.06 + tint * 0.10;
+        ctx.globalAlpha = 0.1 + tint * 0.22;
         ctx.fillRect(x, 0, plankW, size);
+        if (r() > 0.68) { ctx.fillStyle = r() > 0.5 ? '#2c1d0f' : '#b89058'; ctx.globalAlpha = 0.12 + r() * 0.14; ctx.fillRect(x, 0, plankW, size); }
         ctx.globalAlpha = 1;
         // grain streaks down the plank
         for (let g = 0; g < 26; g++) {
