@@ -19,7 +19,7 @@ import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow } from './floor7Textures';
-import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams, deckYAt, railYAt, beamAt } from './floor7Geo';
+import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams, buildWaterwayGeometry, deckYAt, railYAt, beamAt } from './floor7Geo';
 import { FLOOR7_SCALE, F7_DECK_PROPS } from './constants';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
@@ -522,8 +522,9 @@ const ShipBody: React.FC = () => {
             <mesh geometry={innerGeo} material={M.plank} />
             {/* rail caps swept along the sheer (C++ curve) */}
             <mesh geometry={railGeo} material={M.rail} />
-            {/* bulwark frame timbers + scuppers */}
+            {/* bulwark frame timbers + scuppers + the perimeter waterway beam */}
             <BulwarkFrames />
+            <mesh geometry={buildWaterwayGeometry()} material={M.rail} />
             {/* wales — proud rubbing-strakes laid on the C++ hull surface */}
             <mesh geometry={waleHi} material={M.hullDk} />
             <mesh geometry={waleLo} material={M.hullDk} />

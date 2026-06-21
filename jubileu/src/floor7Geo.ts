@@ -194,6 +194,40 @@ export function buildInnerWallGeometry(inset = 0.72): THREE.BufferGeometry {
     return g;
 }
 
+// The waterway: a chamfered timber beam running the full perimeter in the
+// deck-to-bulwark corner (where the deck planking meets the ship's side) — the
+// structural beam the critic asked for, swept along the C++ deck edge.
+let _waterway: THREE.BufferGeometry | null = null;
+export function buildWaterwayGeometry(): THREE.BufferGeometry {
+    if (_waterway) return _waterway;
+    const e = exports(); e.f7_hull_build();
+    const N = 56;
+    const pos: number[] = [], idx: number[] = [];
+    let base = 0;
+    for (const side of [-1, 1]) {
+        const start = base;
+        for (let i = 0; i <= N; i++) {
+            const t = i / N;
+            const z = STERNZ + (BOWZ - STERNZ) * t;
+            const dy = e.f7_hull_deckY(t), hb = e.f7_hull_beam(t);
+            const xo = side * hb * 0.76, xi = side * hb * 0.69;
+            // chamfer: outer-top high, inner-top a touch lower (drains inboard)
+            pos.push(xo, dy + 0.1, z); pos.push(xi, dy + 0.07, z);
+        }
+        for (let i = 0; i < N; i++) {
+            const a = start + i * 2, b = a + 1, c = a + 2, d = a + 3;
+            if (side < 0) idx.push(a, c, b, b, c, d); else idx.push(a, b, c, b, d, c);
+        }
+        base += (N + 1) * 2;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    _waterway = g;
+    return g;
+}
+
 // Caulk seams: thin dark fore-and-aft lines laid on the deck at regular beam
 // fractions (they fan with the hull taper, converging toward the bow) so the
 // deck reads as laid planking with black caulk, not laminate.
