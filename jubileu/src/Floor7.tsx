@@ -927,8 +927,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const puddleMats = useMemo(() => Array.from({ length: 6 }, () => {
         const data = new Uint8Array(16 * 4).fill(255);
         const tex = new THREE.DataTexture(data, 4, 4, THREE.RGBAFormat);
-        tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.needsUpdate = true;
-        const m = new THREE.MeshPhysicalMaterial({ color: '#0a1316', roughness: 0.06, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, bumpMap: _puddleRipple, bumpScale: 0.05, transparent: true, opacity: 0.92, envMapIntensity: 1.1 });
+        // LINEAR (not nearest) so the wetness mask interpolates: the puddle edge
+        // and the scrubbed boundary read as a smooth organic shoreline, which we
+        // then trim with a bright foam meniscus instead of a chunky pixel step.
+        tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.needsUpdate = true;
+        const m = new THREE.MeshPhysicalMaterial({ color: '#0d1a20', roughness: 0.05, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, bumpMap: _puddleRipple, bumpScale: 0.06, transparent: true, opacity: 0.94, envMapIntensity: 1.2 });
         m.onBeforeCompile = (shader) => {
             shader.uniforms.uCellTex = { value: tex };
             shader.vertexShader = 'varying vec2 vF7Uv;\n' + shader.vertexShader.replace(
@@ -936,7 +939,19 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             shader.fragmentShader = 'uniform sampler2D uCellTex;\nvarying vec2 vF7Uv;\n' + shader.fragmentShader.replace(
                 '#include <color_fragment>',
                 `#include <color_fragment>
-                 { float wet = texture2D(uCellTex, vF7Uv).r; if (wet < 0.05) discard; diffuseColor.a *= wet; }`);
+                 {
+                   float wet = texture2D(uCellTex, vF7Uv).r;
+                   if (wet < 0.04) discard;
+                   // foam meniscus 1: the receding shoreline under the brush — the
+                   // band where the mask is mid-value glistens as it dries off.
+                   float erodeRim = smoothstep(0.04, 0.30, wet) * (1.0 - smoothstep(0.30, 0.62, wet));
+                   // foam meniscus 2: the static outer lip of the puddle disc.
+                   float rad = length(vF7Uv - 0.5) * 2.0;
+                   float outerRim = smoothstep(0.80, 1.0, rad);
+                   float foam = clamp(max(erodeRim, outerRim * 0.65), 0.0, 1.0);
+                   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.50, 0.62, 0.68), foam * 0.85);
+                   diffuseColor.a *= clamp(wet * 1.35, 0.0, 1.0);
+                 }`);
         };
         (m as unknown as { _cellData: Uint8Array; _cellTex: THREE.DataTexture })._cellData = data;
         (m as unknown as { _cellData: Uint8Array; _cellTex: THREE.DataTexture })._cellTex = tex;
@@ -1238,7 +1253,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                             <meshBasicMaterial map={_contactTex} color="#0a181c" transparent opacity={0.6} depthWrite={false} />
                         </mesh>
                         <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={2} material={puddleMats[i]}>
-                            <circleGeometry args={[1, 24]} />
+                            <circleGeometry args={[1, 48]} />
                         </mesh>
                     </group>
                 ))}
