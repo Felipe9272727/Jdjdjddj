@@ -21,7 +21,7 @@ interface F7Exports {
     f7_state(): number; f7_dialogue(): number;
     f7_capX(): number; f7_capZ(): number; f7_capFace(): number; f7_capBob(): number; f7_capWalk(): number;
     f7_bucX(): number; f7_bucZ(): number; f7_bucHeld(): number;
-    f7_elevFade(): number;
+    f7_elevFade(): number; f7_tide_warn(): number;
     f7_npud(): number; f7_cleaned(): number; f7_can_leave(): number; f7_clean_pct(): number;
     f7_puddles(): number;
 }
@@ -69,6 +69,8 @@ export class Floor7Brain {
         return { x: this.e.f7_bucX(), z: this.e.f7_bucZ(), held: this.e.f7_bucHeld() === 1 };
     }
     elevFade(): number { return this.e.f7_elevFade(); }
+    /** 0..1 swell-incoming warning (ramps in the ~2s before a tide re-wets a puddle). */
+    tideWarn(): number { return this.e.f7_tide_warn(); }
     cleaned(): number { return this.e.f7_cleaned(); }
     cleanPct(): number { return this.e.f7_clean_pct(); }
     canLeave(): boolean { return this.e.f7_can_leave() === 1; }

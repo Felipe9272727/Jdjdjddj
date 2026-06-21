@@ -63,6 +63,26 @@ describe('Floor7Brain — the WASM (C + assembly) pirate-ship brain', () => {
         expect(b.state()).toBe(F7_STATE.DONE);
     });
 
+    it('the rising tide washes back a puddle you leave half-mopped', () => {
+        const b = new Floor7Brain();
+        step(b, 4.2, 0, 5, false);                              // -> GREET
+        b.tick(1 / 60, 0, 0, 5, false); b.tick(1 / 60, 0, 0, 5, true);   // -> FETCH
+        const buc = b.bucket();
+        b.tick(1 / 60, buc.x, 0, buc.z, false); b.tick(1 / 60, buc.x, 0, buc.z, true); // -> CLEAN
+        const p0: F7Puddle = { x: 0, z: 0, r: 0, prog: 0, cell: new Float32Array(16) };
+        b.puddle(0, p0);
+        // partially mop puddle 0 (centre scrub), but do NOT finish it
+        step(b, 0.6, p0.x, p0.z, true);
+        b.puddle(0, p0);
+        const partial = p0.prog;
+        expect(partial).toBeGreaterThan(0.05);
+        expect(partial).toBeLessThan(0.985);
+        // now neglect it: idle far from every puddle for ~16s so swells fire
+        step(b, 16.0, 3.2, 6.5, false);
+        b.puddle(0, p0);
+        expect(p0.prog).toBeLessThan(partial);                  // the sea washed it back
+    });
+
     it('you can NEVER leave (partial level)', () => {
         const b = new Floor7Brain();
         expect(b.canLeave()).toBe(false);

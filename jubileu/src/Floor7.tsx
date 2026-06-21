@@ -23,7 +23,7 @@ import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSai
 const _puddleRipple = makePuddleRipple();
 import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams, buildWaterwayGeometry, deckYAt, railYAt, beamAt } from './floor7Geo';
 import { FLOOR7_SCALE, F7_DECK_PROPS } from './constants';
-import { f7Footstep, f7Scrub, f7BucketClunk, f7CaptainGrunt, f7PuddleDone, updateF7Roll } from './floor7Sfx';
+import { f7Footstep, f7Scrub, f7BucketClunk, f7CaptainGrunt, f7PuddleDone, f7Wave, updateF7Roll } from './floor7Sfx';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
 const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
@@ -1255,7 +1255,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         if (cl > sf.cleaned) f7PuddleDone();
         sf.cleaned = cl;
         const dlg = b.dialogue();
-        if (dlg !== sf.dialogue) { if (dlg === 1 || dlg === 4 || dlg === 5) f7CaptainGrunt(); sf.dialogue = dlg; }
+        if (dlg !== sf.dialogue) {
+            if (dlg === 1 || dlg === 4 || dlg === 5) f7CaptainGrunt();
+            if (dlg === 6) { f7Wave(); f7CaptainGrunt(); }   // a swell broke over the rail
+            sf.dialogue = dlg;
+        }
 
         // publish a snapshot for the DOM overlay
         const h = handleRef.current;
@@ -1371,6 +1375,7 @@ const DIALOGUE: Record<number, string> = {
     3: 'Objetivo: esfregue todas as poças do convés.',
     4: 'Capitão: Bom trabalho, grumete! Olha lá na proa… TERRA À VISTA! Vou assumir o leme — segura firme, que a gente chega já.',
     5: 'Capitão: Isso, marujo! Já tá ficando decente — não para agora!',
+    6: 'Capitão: Segura! Uma onda lavou o convés — voltou a molhar uma poça. Não deixa nenhuma pela metade!',
 };
 
 export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7Handle> }> = ({ handleRef }) => {

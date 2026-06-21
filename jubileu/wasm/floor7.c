@@ -69,6 +69,10 @@ static struct {
     int   capWalk;      /* 1 while the captain is striding (drives the walk anim) */
     float barkTimer;    /* >0 while a milestone bark line is showing           */
     int   barked3;      /* fired the 3/6 bark already?                          */
+    /* rising tide — the sea re-wets a neglected puddle on a timer (stakes) */
+    float tideTimer;    /* counts down to the next swell                       */
+    float tideWarn;     /* 0..1, ramps up in the seconds before a swell        */
+    float tideBark;     /* >0 while the "a wave washed the deck" line shows     */
     /* bucket */
     float bucX, bucZ;
     int   bucHeld;
@@ -96,6 +100,8 @@ void f7_init(unsigned int seed) {
     S.capX = CAP_X; S.capZ = CAP_BOW_Z; S.capFace = 0.0f; S.capBob = 0.0f;
     S.bucX = 1.35f; S.bucZ = -1.8f; S.bucHeld = 0;
     S.cleaned = 0; S.elevFade = 1.0f; S.dialogue = 0; S.prevInteract = 0;
+    S.capWalk = 0; S.barkTimer = 0.0f; S.barked3 = 0;
+    S.tideTimer = 12.0f; S.tideWarn = 0.0f; S.tideBark = 0.0f;
     /* scatter puddles across the WALKABLE deck — inside the bulwark with room
        for the player to stand on them, clear of the centre-lane structures and
        the bow/stern. Radii kept small so they never poke past the rail. */
@@ -163,6 +169,7 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
         float d2 = dx * dx + dz * dz;
         if (d2 < (1.3f * 1.3f) && rising) {
             S.bucHeld = 1; S.state = ST_CLEAN; S.stTimer = 0.0f; S.dialogue = 3;
+            S.tideTimer = 12.0f; S.tideWarn = 0.0f;   /* first swell ~12s into cleaning */
         }
         break;
     }
@@ -204,6 +211,43 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
         /* halfway bark — the captain reacts to your progress */
         if (S.cleaned >= 3 && !S.barked3) { S.barked3 = 1; S.barkTimer = 3.5f; }
         if (S.barkTimer > 0.0f) { S.barkTimer -= dt; S.dialogue = 5; }   /* "tá ficando decente!" */
+
+        /* --- rising tide: the sea fights back --- */
+        S.tideTimer -= dt;
+        S.tideWarn = f7_clamp01((2.0f - S.tideTimer) / 2.0f);   /* ramps in the last 2s */
+        if (S.tideTimer <= 0.0f) {
+            S.tideTimer = 13.0f + frand() * 4.0f;
+            S.tideWarn = 0.0f;
+            /* re-wet the MOST-progressed puddle you've left half-mopped (most to
+               lose) — never the one you're currently standing on (you can always
+               finish what you're working), never a finished one (those stay done),
+               and never an untouched one (re-wetting full cells is a no-op). This
+               punishes spreading yourself thin, not methodical work. */
+            int worst = -1; float wp = 0.02f;
+            for (int i = 0; i < NPUD; i++) {
+                if (S.pud[i].prog >= 1.0f || S.pud[i].prog <= 0.02f) continue;
+                float ddx = px - S.pud[i].x, ddz = pz - S.pud[i].z;
+                float rr = S.pud[i].r + 0.45f;
+                if (ddx * ddx + ddz * ddz < rr * rr) continue;   /* skip the active puddle */
+                if (S.pud[i].prog > wp) { wp = S.pud[i].prog; worst = i; }
+            }
+            if (worst >= 0) {
+                /* a band floods back in, heavier on the lee (down-rolled) side */
+                int leeRight = (S.roll < 0.0f);
+                for (int cj = 0; cj < 4; cj++) for (int ci = 0; ci < 4; ci++) {
+                    float cx = ci * 0.5f - 0.75f, cy = cj * 0.5f - 0.75f;
+                    if (cx * cx + cy * cy > 1.0f) continue;       /* corners stay dry */
+                    float side = leeRight ? (float)ci : (float)(3 - ci);
+                    float *c = &S.pud[worst].cell[cj * 4 + ci];
+                    *c += 0.22f + 0.08f * side; if (*c > 1.0f) *c = 1.0f;
+                }
+                float sum = 0.0f; for (int c = 0; c < 16; c++) sum += S.pud[worst].cell[c];
+                S.pud[worst].prog = 1.0f - sum / 16.0f;
+                S.tideBark = 2.6f;
+            }
+        }
+        if (S.tideBark > 0.0f) { S.tideBark -= dt; S.dialogue = 6; }   /* "uma onda lavou o convés!" */
+
         if (S.cleaned >= NPUD) { S.state = ST_DONE; S.stTimer = 0.0f; S.dialogue = 4; }
         break;
     }
@@ -251,6 +295,7 @@ __attribute__((export_name("f7_bucX")))  float f7_bucX(void) { return S.bucX; }
 __attribute__((export_name("f7_bucZ")))  float f7_bucZ(void) { return S.bucZ; }
 __attribute__((export_name("f7_bucHeld")))int  f7_bucHeld(void){ return S.bucHeld; }
 __attribute__((export_name("f7_elevFade")))float f7_elevFade(void){ return S.elevFade; }
+__attribute__((export_name("f7_tide_warn")))float f7_tide_warn(void){ return S.tideWarn; }
 __attribute__((export_name("f7_npud")))    int  f7_npud(void) { return NPUD; }
 __attribute__((export_name("f7_cleaned")))  int  f7_cleaned(void){ return S.cleaned; }
 __attribute__((export_name("f7_can_leave")))int  f7_can_leave(void){ return 0; } /* partial level: never */

@@ -110,3 +110,15 @@ export function f7PuddleDone(): void {
     g.gain.linearRampToValueAtTime(0.06, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
     osc.start(t); osc.stop(t + 0.32);
 }
+
+// a swell breaking over the rail: a swooshing noise burst that swells then
+// crashes — the audio half of the rising-tide re-wetting.
+export function f7Wave(): void {
+    const c = ctx, o = out(); if (!c || !o) return; const t = c.currentTime;
+    const src = c.createBufferSource(); src.buffer = noiseBuf(c); src.playbackRate.value = 0.85;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(300, t); lp.frequency.linearRampToValueAtTime(1700, t + 0.35); lp.frequency.linearRampToValueAtTime(500, t + 1.1);
+    const g = c.createGain(); g.gain.value = 0; src.connect(lp).connect(g).connect(o);
+    g.gain.linearRampToValueAtTime(0.16, t + 0.35); g.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+    src.start(t); src.stop(t + 1.25);
+}
