@@ -23,6 +23,7 @@ import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSai
 const _puddleRipple = makePuddleRipple();
 import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams, buildWaterwayGeometry, deckYAt, railYAt, beamAt } from './floor7Geo';
 import { FLOOR7_SCALE, F7_DECK_PROPS } from './constants';
+import { f7Footstep, f7Scrub, f7BucketClunk, f7CaptainGrunt, f7PuddleDone, updateF7Roll } from './floor7Sfx';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
 const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
@@ -876,6 +877,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         eye: useRef<THREE.Mesh>(null),
     };
     const _capWorld = useRef(new THREE.Vector3());
+    const _sfx = useRef({ held: 0, cleaned: 0, dialogue: 0, step: 0, scrub: 0, px: 0, pz: 0 });
     const bucketRef = useRef<THREE.Group>(null);
     const elevatorRef = useRef<THREE.Group>(null);
     const puddleRefs = useRef<(THREE.Group | null)[]>([]);
@@ -991,6 +993,25 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             (halo.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - p.prog);
             (water.material as THREE.MeshStandardMaterial).opacity = 0.92 * (1 - p.prog);
         }
+
+        // ── audio cues ──
+        const sf = _sfx.current;
+        updateF7Roll(b.roll());
+        const pw = playerPositionRef.current;
+        const dStep = Math.hypot(pw.x - sf.px, pw.z - sf.pz);
+        sf.px = pw.x; sf.pz = pw.z;
+        if (dStep > 0.002) { sf.step += dStep; if (sf.step > 1.5) { sf.step = 0; f7Footstep(); } }
+        if (b.state() === F7_STATE.CLEAN && handleRef.current.interact) {
+            sf.scrub -= dt; if (sf.scrub <= 0) { sf.scrub = 0.22; f7Scrub(); }
+        }
+        const held = b.bucket().held ? 1 : 0;
+        if (held && !sf.held) f7BucketClunk();
+        sf.held = held;
+        const cl = b.cleaned();
+        if (cl > sf.cleaned) f7PuddleDone();
+        sf.cleaned = cl;
+        const dlg = b.dialogue();
+        if (dlg !== sf.dialogue) { if (dlg === 1 || dlg === 4) f7CaptainGrunt(); sf.dialogue = dlg; }
 
         // publish a snapshot for the DOM overlay
         const h = handleRef.current;

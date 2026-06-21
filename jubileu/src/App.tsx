@@ -55,6 +55,7 @@ import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
 import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
+import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient } from './floor7Sfx';
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE } from './constants';
 import PhysicsProps, { type CrateSpec } from './PhysicsProps';
@@ -875,6 +876,13 @@ export default function App() {
     configureFloor6Sfx(audioCtx, cartoonBusRef.current);
     return () => clearFloor6Sfx();
   }, [currentLevel, audioCtx]);
+
+  useEffect(() => {
+    if (currentLevel !== 7 || !audioCtx) return;
+    configureFloor7Sfx(audioCtx, cartoonBusRef.current);
+    if (!muted) startFloor7Ambient();
+    return () => { stopFloor7Ambient(); clearFloor7Sfx(); };
+  }, [currentLevel, audioCtx, muted]);
 
   useEffect(() => {
       if (gameState !== 'chase') return;
