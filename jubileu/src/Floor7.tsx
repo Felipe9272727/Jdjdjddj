@@ -765,85 +765,93 @@ const Flag: React.FC<{ y: number }> = ({ y }) => {
 // Designed in pieces so it reads as a real pirate captain up close: a cocked
 // tricorne (crown + three upturned brim flaps), a face with eyes/brow/eyepatch/
 // nose/mustache, a full beard, brocaded red coat, sash, belt and cutlass.
-const Captain = React.forwardRef<THREE.Group>((_, ref) => (
+// the captain — now RIGGED into pivot groups (hips, shoulders, neck, jaw, eye)
+// so the parent useFrame can drive a peg-leg walk cycle, jaw flap, blink and
+// head-tracking instead of a sliding statue.
+interface CaptainRig {
+    legL: React.RefObject<THREE.Group>; legR: React.RefObject<THREE.Group>;
+    armL: React.RefObject<THREE.Group>; armR: React.RefObject<THREE.Group>;
+    head: React.RefObject<THREE.Group>; jaw: React.RefObject<THREE.Group>;
+    eye: React.RefObject<THREE.Mesh>;
+}
+const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref) => (
     <group ref={ref}>
-        {/* legs + boots (one peg leg for pirate flair) */}
-        <mesh position={[-0.13, 0.3, 0]} material={M.boot}><cylinderGeometry args={[0.1, 0.12, 0.62, 10]} /></mesh>
-        <mesh position={[-0.13, 0.04, 0.05]} material={M.boot}><boxGeometry args={[0.18, 0.12, 0.34]} /></mesh>
-        <mesh position={[-0.13, 0.56, 0]} material={M.boot}><cylinderGeometry args={[0.15, 0.12, 0.14, 10]} /></mesh>{/* boot cuff */}
-        <mesh position={[0.13, 0.34, 0]} material={M.boot}><cylinderGeometry args={[0.055, 0.085, 0.5, 8]} /></mesh>{/* peg */}
-        <mesh position={[0.13, 0.06, 0]} material={M.boot}><cylinderGeometry args={[0.09, 0.07, 0.1, 8]} /></mesh>
+        {/* LEFT booted leg — hip pivot at y=0.62 */}
+        <group ref={rig.legL} position={[-0.13, 0.62, 0]}>
+            <mesh position={[0, -0.32, 0]} material={M.boot}><cylinderGeometry args={[0.1, 0.12, 0.62, 10]} /></mesh>
+            <mesh position={[0, -0.58, 0.05]} material={M.boot}><boxGeometry args={[0.18, 0.12, 0.34]} /></mesh>
+            <mesh position={[0, -0.06, 0]} material={M.boot}><cylinderGeometry args={[0.15, 0.12, 0.14, 10]} /></mesh>
+        </group>
+        {/* RIGHT peg leg — hip pivot */}
+        <group ref={rig.legR} position={[0.13, 0.62, 0]}>
+            <mesh position={[0, -0.28, 0]} material={M.boot}><cylinderGeometry args={[0.055, 0.085, 0.5, 8]} /></mesh>
+            <mesh position={[0, -0.56, 0]} material={M.boot}><cylinderGeometry args={[0.09, 0.07, 0.1, 8]} /></mesh>
+        </group>
 
-        {/* long coat — flared skirt + torso */}
+        {/* long coat — flared skirt + torso (static) */}
         <mesh position={[0, 0.78, 0]} material={M.coat}><cylinderGeometry args={[0.27, 0.38, 0.62, 16]} /></mesh>
         <mesh position={[0, 1.16, 0]} material={M.coat}><cylinderGeometry args={[0.23, 0.27, 0.44, 16]} /></mesh>
-        {/* open-coat front panels (darker lining) */}
         <mesh position={[0, 0.95, 0.235]} rotation={[0.05, 0, 0]} material={M.coatDk}><boxGeometry args={[0.30, 0.95, 0.04]} /></mesh>
-        {/* gold buttons (two rows) */}
         {[1.30, 1.16, 1.02, 0.88].map((y, i) => (
             <React.Fragment key={i}>
                 <mesh position={[-0.085, y, 0.245]} material={M.gold}><sphereGeometry args={[0.024, 8, 6]} /></mesh>
                 <mesh position={[0.085, y, 0.245]} material={M.gold}><sphereGeometry args={[0.024, 8, 6]} /></mesh>
             </React.Fragment>
         ))}
-        {/* shoulder/coat collar */}
         <mesh position={[0, 1.33, 0]} material={M.coatDk}><cylinderGeometry args={[0.21, 0.16, 0.12, 14]} /></mesh>
-        {/* sash across the chest */}
         <mesh position={[0, 0.98, 0.04]} rotation={[0, 0, 0.55]} material={M.sash}><boxGeometry args={[0.11, 0.74, 0.44]} /></mesh>
-        {/* belt + gold buckle */}
         <mesh position={[0, 0.74, 0]} material={M.boot}><cylinderGeometry args={[0.30, 0.32, 0.09, 16]} /></mesh>
         <mesh position={[0, 0.74, 0.31]} material={M.gold}><boxGeometry args={[0.12, 0.08, 0.03]} /></mesh>
 
-        {/* arms with gold cuffs + hands */}
-        {[-1, 1].map((s) => (
-            <group key={s}>
-                <mesh position={[s * 0.30, 1.0, 0.04]} rotation={[0.2, 0, s * 0.34]} material={M.coat}><cylinderGeometry args={[0.075, 0.09, 0.62, 8]} /></mesh>
-                <mesh position={[s * 0.41, 0.72, 0.12]} material={M.gold}><cylinderGeometry args={[0.092, 0.092, 0.09, 10]} /></mesh>
-                <mesh position={[s * 0.44, 0.65, 0.15]} material={M.skin}><sphereGeometry args={[0.066, 10, 8]} /></mesh>
-            </group>
-        ))}
+        {/* ARMS — shoulder pivots at y=1.18 */}
+        <group ref={rig.armL} position={[-0.30, 1.18, 0.04]}>
+            <mesh position={[0, -0.22, 0]} material={M.coat}><cylinderGeometry args={[0.075, 0.09, 0.5, 8]} /></mesh>
+            <mesh position={[0, -0.46, 0.04]} material={M.gold}><cylinderGeometry args={[0.092, 0.092, 0.09, 10]} /></mesh>
+            <mesh position={[0, -0.53, 0.06]} material={M.skin}><sphereGeometry args={[0.066, 10, 8]} /></mesh>
+        </group>
+        <group ref={rig.armR} position={[0.30, 1.18, 0.04]}>
+            <mesh position={[0, -0.22, 0]} material={M.coat}><cylinderGeometry args={[0.075, 0.09, 0.5, 8]} /></mesh>
+            <mesh position={[0, -0.46, 0.04]} material={M.gold}><cylinderGeometry args={[0.092, 0.092, 0.09, 10]} /></mesh>
+            <mesh position={[0, -0.53, 0.06]} material={M.skin}><sphereGeometry args={[0.066, 10, 8]} /></mesh>
+        </group>
 
-        {/* neck + head */}
+        {/* neck (static) */}
         <mesh position={[0, 1.41, 0]} material={M.skin}><cylinderGeometry args={[0.085, 0.1, 0.1, 10]} /></mesh>
-        <mesh position={[0, 1.58, 0]} scale={[1, 1.05, 0.96]} material={M.skin}><sphereGeometry args={[0.185, 20, 18]} /></mesh>
 
-        {/* === FACE === */}
-        {/* brow over the seeing eye (slight angry arch) */}
-        <mesh position={[-0.072, 1.64, 0.168]} rotation={[0, 0, 0.18]} material={M.hair}><boxGeometry args={[0.07, 0.016, 0.03]} /></mesh>
-        {/* left eye: white sclera + brown iris + dark pupil + glint */}
-        <mesh position={[-0.072, 1.607, 0.158]} scale={[1, 0.85, 0.6]} material={M.eyewhite}><sphereGeometry args={[0.03, 14, 12]} /></mesh>
-        <mesh position={[-0.072, 1.605, 0.18]} material={M.barrel}><sphereGeometry args={[0.016, 10, 8]} /></mesh>
-        <mesh position={[-0.072, 1.604, 0.187]} material={M.hair}><sphereGeometry args={[0.009, 8, 8]} /></mesh>
-        {/* right eye: eyepatch + strap across the head */}
-        <mesh position={[0.075, 1.605, 0.176]} material={M.hat}><sphereGeometry args={[0.042, 12, 10]} /></mesh>
-        <mesh position={[0.02, 1.66, 0]} rotation={[0, 0, 0.5]} material={M.hair}><torusGeometry args={[0.185, 0.011, 6, 28]} /></mesh>
-        {/* nose */}
-        <mesh position={[0, 1.575, 0.185]} rotation={[Math.PI / 2, 0, 0]} material={M.skin}><coneGeometry args={[0.042, 0.12, 8]} /></mesh>
-        {/* mustache (two swept halves) */}
-        {[-1, 1].map((s) => (
-            <mesh key={s} position={[s * 0.055, 1.525, 0.165]} rotation={[0, 0, s * 0.55]} material={M.hair}><capsuleGeometry args={[0.02, 0.075, 3, 8]} /></mesh>
-        ))}
-        {/* full beard: rounded mass + chin point + sideburns */}
-        <mesh position={[0, 1.47, 0.075]} scale={[1, 1, 0.9]} material={M.beard}><sphereGeometry args={[0.165, 16, 14, 0, Math.PI * 2, Math.PI * 0.4, Math.PI * 0.6]} /></mesh>
-        <mesh position={[0, 1.40, 0.07]} material={M.beard}><coneGeometry args={[0.125, 0.26, 14]} /></mesh>
-        {[-1, 1].map((s) => (
-            <mesh key={s} position={[s * 0.155, 1.55, 0.04]} material={M.beard}><sphereGeometry args={[0.058, 10, 10]} /></mesh>
-        ))}
-
-        {/* === TRICORNE HAT === crown + three upturned brim flaps */}
-        <mesh position={[0, 1.79, 0]} material={M.hat}><cylinderGeometry args={[0.155, 0.175, 0.17, 18]} /></mesh>
-        <mesh position={[0, 1.87, 0]} material={M.hat}><sphereGeometry args={[0.155, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.5]} /></mesh>
-        {[0, 2.0944, 4.1888].map((ang, i) => (
-            <group key={i} rotation={[0, ang, 0]}>
-                {/* flap plate (tilts outward edge up) + gold rim braid along its edge */}
-                <mesh position={[0, 1.745, 0.20]} rotation={[-0.5, 0, 0]} material={M.hat}><boxGeometry args={[0.46, 0.035, 0.28]} /></mesh>
-                <mesh position={[0, 1.815, 0.335]} rotation={[-0.5, 0, 0]} material={M.gold}><boxGeometry args={[0.45, 0.02, 0.03]} /></mesh>
+        {/* HEAD group — neck pivot at y=1.42 (rotates to track the player) */}
+        <group ref={rig.head} position={[0, 1.42, 0]}>
+            <mesh position={[0, 0.16, 0]} scale={[1, 1.05, 0.96]} material={M.skin}><sphereGeometry args={[0.185, 20, 18]} /></mesh>
+            <mesh position={[-0.072, 0.22, 0.168]} rotation={[0, 0, 0.18]} material={M.hair}><boxGeometry args={[0.07, 0.016, 0.03]} /></mesh>
+            <mesh ref={rig.eye} position={[-0.072, 0.187, 0.158]} scale={[1, 0.85, 0.6]} material={M.eyewhite}><sphereGeometry args={[0.03, 14, 12]} /></mesh>
+            <mesh position={[-0.072, 0.185, 0.18]} material={M.barrel}><sphereGeometry args={[0.016, 10, 8]} /></mesh>
+            <mesh position={[-0.072, 0.184, 0.187]} material={M.hair}><sphereGeometry args={[0.009, 8, 8]} /></mesh>
+            <mesh position={[0.075, 0.185, 0.176]} material={M.hat}><sphereGeometry args={[0.042, 12, 10]} /></mesh>
+            <mesh position={[0.02, 0.24, 0]} rotation={[0, 0, 0.5]} material={M.hair}><torusGeometry args={[0.185, 0.011, 6, 28]} /></mesh>
+            <mesh position={[0, 0.155, 0.185]} rotation={[Math.PI / 2, 0, 0]} material={M.skin}><coneGeometry args={[0.042, 0.12, 8]} /></mesh>
+            {[-1, 1].map((s) => (
+                <mesh key={s} position={[s * 0.055, 0.105, 0.165]} rotation={[0, 0, s * 0.55]} material={M.hair}><capsuleGeometry args={[0.02, 0.075, 3, 8]} /></mesh>
+            ))}
+            <mesh position={[0, 0.05, 0.075]} scale={[1, 1, 0.9]} material={M.beard}><sphereGeometry args={[0.165, 16, 14, 0, Math.PI * 2, Math.PI * 0.4, Math.PI * 0.6]} /></mesh>
+            {[-1, 1].map((s) => (
+                <mesh key={s} position={[s * 0.155, 0.13, 0.04]} material={M.beard}><sphereGeometry args={[0.058, 10, 10]} /></mesh>
+            ))}
+            {/* JAW group — chin hinge (flaps while talking) */}
+            <group ref={rig.jaw} position={[0, 0.06, 0.04]}>
+                <mesh position={[0, -0.08, 0.03]} material={M.beard}><coneGeometry args={[0.125, 0.26, 14]} /></mesh>
             </group>
-        ))}
-        {/* red plume on the front-left corner */}
-        <mesh position={[-0.18, 1.93, 0.18]} rotation={[0.2, 0, 0.5]} material={M.coat}><coneGeometry args={[0.04, 0.32, 8]} /></mesh>
+            {/* TRICORNE */}
+            <mesh position={[0, 0.37, 0]} material={M.hat}><cylinderGeometry args={[0.155, 0.175, 0.17, 18]} /></mesh>
+            <mesh position={[0, 0.45, 0]} material={M.hat}><sphereGeometry args={[0.155, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.5]} /></mesh>
+            {[0, 2.0944, 4.1888].map((ang, i) => (
+                <group key={i} rotation={[0, ang, 0]}>
+                    <mesh position={[0, 0.325, 0.20]} rotation={[-0.5, 0, 0]} material={M.hat}><boxGeometry args={[0.46, 0.035, 0.28]} /></mesh>
+                    <mesh position={[0, 0.395, 0.335]} rotation={[-0.5, 0, 0]} material={M.gold}><boxGeometry args={[0.45, 0.02, 0.03]} /></mesh>
+                </group>
+            ))}
+            <mesh position={[-0.18, 0.51, 0.18]} rotation={[0.2, 0, 0.5]} material={M.coat}><coneGeometry args={[0.04, 0.32, 8]} /></mesh>
+        </group>
 
-        {/* cutlass at the hip */}
+        {/* cutlass at the hip (static) */}
         <group position={[0.34, 0.7, -0.05]} rotation={[0, 0, -0.5]}>
             <mesh position={[0, -0.3, 0]} material={M.steel}><boxGeometry args={[0.03, 0.6, 0.008]} /></mesh>
             <mesh material={M.gold}><torusGeometry args={[0.06, 0.012, 6, 12]} /></mesh>
@@ -861,6 +869,13 @@ interface Floor7Props {
 export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, handleRef }) => {
     const shipRef = useRef<THREE.Group>(null);
     const captainRef = useRef<THREE.Group>(null);
+    const capRig: CaptainRig = {
+        legL: useRef<THREE.Group>(null), legR: useRef<THREE.Group>(null),
+        armL: useRef<THREE.Group>(null), armR: useRef<THREE.Group>(null),
+        head: useRef<THREE.Group>(null), jaw: useRef<THREE.Group>(null),
+        eye: useRef<THREE.Mesh>(null),
+    };
+    const _capWorld = useRef(new THREE.Vector3());
     const bucketRef = useRef<THREE.Group>(null);
     const elevatorRef = useRef<THREE.Group>(null);
     const puddleRefs = useRef<(THREE.Group | null)[]>([]);
@@ -896,10 +911,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         return () => { brainRef.current = null; handleRef.current.brain = null; };
     }, [handleRef]);
 
-    useFrame((_, dt) => {
+    useFrame((state, dt) => {
         const b = brainRef.current;
         const ship = shipRef.current;
         if (!b || !ship) return;
+        const t = state.clock.elapsedTime;
 
         // map player world pos into the ship's local frame, feed the brain
         ship.updateWorldMatrix(true, false);
@@ -912,12 +928,40 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         ship.rotation.x = b.pitch();
         ship.rotation.z = b.roll();
 
-        // captain
+        // captain — rigged: peg-leg walk cycle, jaw flap, blink, head-track
         if (captainRef.current) {
             const c = b.captain();
-            captainRef.current.position.set(c.x, c.bob, c.z);
+            const walking = b.state() === F7_STATE.INTRO;
+            const ph = t * 7.0;
+            const lurch = walking ? Math.max(0, Math.sin(ph)) * 0.05 : 0;  // peg down-beat
+            captainRef.current.position.set(c.x, c.bob - lurch, c.z);
             captainRef.current.rotation.y = c.face;
-            captainRef.current.visible = b.elevFade() < 0.85; // appears as the lift fades
+            captainRef.current.visible = b.elevFade() < 0.85;
+            const { legL, legR, armL, armR, head, jaw, eye } = capRig;
+            if (legL.current && legR.current && armL.current && armR.current) {
+                if (walking) {
+                    legL.current.rotation.x = Math.sin(ph) * 0.5;
+                    legR.current.rotation.x = Math.sin(ph + Math.PI) * 0.42;
+                    armL.current.rotation.x = Math.sin(ph + Math.PI) * 0.4;
+                    armR.current.rotation.x = Math.sin(ph) * 0.4;
+                } else {
+                    const idle = Math.sin(t * 1.6) * 0.05;
+                    legL.current.rotation.x *= 0.8; legR.current.rotation.x *= 0.8;
+                    armL.current.rotation.x = idle; armR.current.rotation.x = -idle;
+                }
+            }
+            if (jaw.current) {
+                const dlg = b.dialogue();
+                jaw.current.rotation.x = (dlg === 1 || dlg === 4) ? Math.abs(Math.sin(t * 9)) * 0.4 : 0;
+            }
+            if (eye.current) eye.current.scale.y = (t % 4.0 > 3.89) ? 0.06 : 0.85;
+            if (head.current && captainRef.current.visible) {
+                captainRef.current.updateMatrixWorld();
+                _capWorld.current.copy(playerPositionRef.current);
+                captainRef.current.worldToLocal(_capWorld.current);
+                const yawTo = Math.max(-0.7, Math.min(0.7, Math.atan2(_capWorld.current.x, _capWorld.current.z)));
+                head.current.rotation.y += (yawTo - head.current.rotation.y) * 0.1;
+            }
         }
         // bucket
         if (bucketRef.current) {
@@ -979,7 +1023,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     <mesh position={[0, 2.45, 0.6]} material={M.elevTrim}><boxGeometry args={[2.4, 0.16, 1.4]} /></mesh>
                 </group>
                 {/* captain */}
-                <Captain ref={captainRef} />
+                <Captain ref={captainRef} rig={capRig} />
                 {/* bucket + cloth — wooden staved pail with iron bands, soapy
                     water surface and a draped wet rag (a hero prop up close) */}
                 <group ref={bucketRef} position={[1.35, 0.18, -1.8]}>
