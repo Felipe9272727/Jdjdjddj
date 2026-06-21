@@ -21,6 +21,10 @@ declare global {
         __setYaw?: (y: number) => void;
         __setPitch?: (p: number) => void;
         __teleport?: (x: number, z: number) => void;
+        __interact?: (v: boolean) => void;
+        __forceTick?: (n: number, lx: number, lz: number, it: boolean) => void;
+        __state?: () => { state: number; cleaned: number; npud: number };
+        __puddles?: () => { x: number; z: number }[];
         __playerPos?: () => [number, number, number];
     }
 }
@@ -75,6 +79,24 @@ const Play: React.FC = () => {
             clearInterval(iv);
         }, 100);
         return () => clearInterval(iv);
+    }, [handle]);
+    useEffect(() => {
+        window.__interact = (v: boolean) => { handle.current.interact = v; };
+        // deterministic brain advance for offline verification (RAF throttles in
+        // headless waits) — tick the WASM brain n times with the player at a given
+        // ship-local spot; mirrors exactly what the frame loop feeds it.
+        window.__forceTick = (n: number, lx: number, lz: number, it: boolean) => {
+            const b = handle.current.brain; if (!b) return;
+            for (let i = 0; i < n; i++) b.tick(0.05, lx, 0, lz, it);
+        };
+        window.__state = () => ({ state: handle.current.state, cleaned: handle.current.cleaned, npud: handle.current.npud });
+        window.__puddles = () => {
+            const b = handle.current.brain; if (!b) return [];
+            const out: { x: number; z: number }[] = [];
+            const tmp = { x: 0, z: 0, r: 0, prog: 0 };
+            for (let i = 0; i < b.npud; i++) { const p = b.puddle(i, tmp); out.push({ x: p.x, z: p.z }); }
+            return out;
+        };
     }, [handle]);
     return (
         <>
