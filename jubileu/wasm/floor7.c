@@ -230,7 +230,7 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
 
         /* --- rising tide: the sea fights back --- */
         S.tideTimer -= dt;
-        S.tideWarn = f7_clamp01((2.0f - S.tideTimer) / 2.0f);   /* ramps in the last 2s */
+        S.tideWarn = f7_clamp01((3.6f - S.tideTimer) / 3.6f);   /* ~3.6s window — time to choose a route */
         if (S.tideTimer <= 0.0f) {
             S.tideTimer = 13.0f + frand() * 4.0f;
             S.tideWarn = 0.0f;
