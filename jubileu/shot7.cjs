@@ -10,9 +10,11 @@ const { chromium } = require('playwright');
     topdown:{p:[0.5,16,1],t:[0,0,-1]},
     capclose:{p:[0.6,1.6,3.2]},
   };
+  const S=1.45; // ship was scaled up; frame from proportionally further out
   for(const [tag,cfg] of Object.entries(A)){
     const pg=await(await b.newContext({viewport:{width:900,height:760}})).newPage();
-    await pg.addInitScript((c)=>{window.__orbit=c.p; if(c.t)window.__target=c.t;}, cfg);
+    const sc={p:cfg.p.map(v=>v*S), t:cfg.t?cfg.t.map(v=>v*S):undefined};
+    await pg.addInitScript((c)=>{window.__orbit=c.p; if(c.t)window.__target=c.t;}, sc);
     await pg.goto(`http://127.0.0.1:${process.env.PORT||3000}/floor7.html`,{waitUntil:'domcontentloaded',timeout:30000});
     try{await pg.waitForFunction(()=>window.__ready===true,{timeout:20000});}catch{}
     await pg.waitForTimeout(2200); await pg.screenshot({path:`/tmp/c-${tag}.png`}); console.log(tag,'ok'); await pg.close();

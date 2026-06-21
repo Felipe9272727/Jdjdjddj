@@ -275,12 +275,37 @@ const F6_FURN_W = F6_FURNITURE.flatMap(([cx, cz, w, d]) => boxCollider(cx, cz, w
 const _WALLS_FLOOR6        = [...ELEV_W, ...F6_STATIC_WALLS, ...F6_FURN_W];
 const _WALLS_FLOOR6_SEALED = [..._WALLS_FLOOR6, DOOR_SEAL];
 
-// Floor 7 (pirate ship): the deck bulwarks — a 6x14 rectangle that keeps the
-// player on the ship. No elevator gap: the lift dematerialises, you're stuck.
-const _WALLS_FLOOR7 = [
-    [-2.85, -6.9, -2.85, 6.9], [2.85, -6.9, 2.85, 6.9],
-    [-2.85, -6.9, 2.85, -6.9], [-2.85, 6.9, 2.85, 6.9],
+// Floor 7 (pirate ship). The whole ship is scaled up so it reads as a SHIP, not
+// a dinghy; the deck/spawn/water all use this one factor.
+export const FLOOR7_SCALE = 1.45;
+
+// The bulwark boundary follows the actual DECK OUTLINE (narrow at the pointed
+// bow + bluff stern), not a rectangle, so the player can't walk through the
+// hull where it tapers. Plus box colliders for the masts, capstan, ship's boat,
+// companionway and the stern deckhouse so you can't walk through them. All in
+// ship-local units, scaled by FLOOR7_SCALE to match the enlarged ship.
+const _F7_DECK_HALF: [number, number][] = [
+    [1.40, -6.6], [1.75, -5.0], [1.90, -2.4], [2.14, 1.0], [1.95, 3.0], [1.60, 4.8], [1.05, 6.2], [0.45, 7.2],
 ];
+const _WALLS_FLOOR7 = (() => {
+    const S = FLOOR7_SCALE;
+    const port = _F7_DECK_HALF.map(([x, z]) => [-x * S, z * S]);
+    const star = [..._F7_DECK_HALF].reverse().map(([x, z]) => [x * S, z * S]);
+    const loop = [...port, [0, 7.9 * S], ...star];
+    const segs: number[][] = [];
+    for (let i = 0; i < loop.length - 1; i++) segs.push([loop[i][0], loop[i][1], loop[i + 1][0], loop[i + 1][1]]);
+    segs.push([1.40 * S, -6.6 * S, -1.40 * S, -6.6 * S]); // close across the transom
+    // deck obstacles (centre-lane props the brain keeps clear of puddles)
+    const obs: [number, number, number, number][] = [
+        [0, -1, 0.7, 0.7],    // main mast
+        [0, 4, 0.6, 0.6],     // foremast
+        [0, 2.7, 0.55, 0.55], // capstan
+        [0, -3.1, 0.7, 0.6],  // companionway
+        [0, -5.9, 2.2, 1.4],  // stern deckhouse
+    ];
+    for (const [cx, cz, w, d] of obs) segs.push(...boxCollider(cx * S, cz * S, w * S, d * S));
+    return segs;
+})();
 
 /** Pick the right pre-built wall list. No allocation per frame. */
 export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {

@@ -56,7 +56,7 @@ import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
-import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState } from './constants';
+import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE } from './constants';
 import PhysicsProps, { type CrateSpec } from './PhysicsProps';
 import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from './PhotoMode';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
@@ -1184,7 +1184,7 @@ export default function App() {
         setHouseDoorOpen(false);
         setDoorOpenAmount(0);
         setDoorsClosed(false);
-        playerPositionCmdRef.current = { x: 0, y: 0, z: 4.2, theta: Math.PI };
+        playerPositionCmdRef.current = { x: 0, y: 0, z: 4.2 * FLOOR7_SCALE, theta: Math.PI };
       }
     }
     // ─── CREATOR MODE: end jump ───
@@ -1198,7 +1198,9 @@ export default function App() {
   // (used by the offline playtest harness + the critic to actually play). Inert
   // unless something calls it.
   useEffect(() => {
-    (window as unknown as { __startFloor?: (n: number) => void }).__startFloor = (n: number) => handleStartGame(false, 'Tester', n);
+    const w = window as unknown as { __startFloor?: (n: number) => void; __playerPos?: () => [number, number, number] };
+    w.__startFloor = (n: number) => handleStartGame(false, 'Tester', n);
+    w.__playerPos = () => [sharedPlayerPositionRef.current.x, sharedPlayerPositionRef.current.y, sharedPlayerPositionRef.current.z];
   });
 
   useEffect(() => {

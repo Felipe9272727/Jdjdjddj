@@ -20,6 +20,7 @@ import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth } from './floor7Textures';
 import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry } from './floor7Geo';
+import { FLOOR7_SCALE } from './constants';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
 const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
@@ -228,11 +229,16 @@ const DeckFurniture: React.FC = () => {
                 })}
             </group>
         ))}
-        {/* stowed ship's boat (a mini hull, keel-up on skids) forward */}
-        <group position={[0, 0.42, 5.7]}>
-            <mesh geometry={boatGeo} scale={[0.16, 0.15, 0.16]} rotation={[Math.PI, 0, 0]} material={M.plank} />
-            {[-0.5, 0.5].map((z) => (
-                <mesh key={z} position={[0, -0.18, z]} material={M.rail}><boxGeometry args={[1.0, 0.1, 0.12]} /></mesh>
+        {/* ship's boat stowed keel-up on skid BOOMS above head height (amidships),
+            so the player walks underneath it — no deck obstruction */}
+        <group position={[0, 1.78, 2.2]}>
+            <mesh geometry={boatGeo} scale={[0.17, 0.16, 0.17]} rotation={[Math.PI, 0, 0]} material={M.plank} />
+            {[-1.4, 1.4].map((z) => (
+                <mesh key={'skid' + z} position={[0, -0.05, z]} material={M.rail}><boxGeometry args={[1.1, 0.12, 0.14]} /></mesh>
+            ))}
+            {/* the stanchions holding the booms up off the deck */}
+            {[[-0.5, -1.4], [0.5, -1.4], [-0.5, 1.4], [0.5, 1.4]].map(([px, pz], i) => (
+                <mesh key={'st' + i} position={[px, -0.95, pz]} material={M.mast}><cylinderGeometry args={[0.05, 0.05, 1.8, 6]} /></mesh>
             ))}
         </group>
         {/* companionway (deck hatch house with a slanted lid) aft of the main mast */}
@@ -316,6 +322,28 @@ const HeadRig: React.FC = () => {
     );
 };
 
+// ── the stern deckhouse / quarterdeck cabin (the "galpão") — a planked cabin
+// with a door, windows and gilt trim, just forward of the helm. ──
+const SternCabin: React.FC = () => (
+    <group position={[0, 0, -5.9]}>
+        <mesh position={[0, 0.62, 0]} material={M.plankDk}><boxGeometry args={[2.1, 1.24, 1.3]} /></mesh>
+        <mesh position={[0, 1.28, 0]} material={M.rail}><boxGeometry args={[2.34, 0.12, 1.54]} /></mesh>
+        <mesh position={[0, 1.15, 0]} material={M.gold}><boxGeometry args={[2.12, 0.05, 1.32]} /></mesh>
+        {/* door (faces forward, toward the deck) */}
+        <mesh position={[0, 0.5, 0.66]} material={M.hat}><boxGeometry args={[0.42, 0.84, 0.05]} /></mesh>
+        <mesh position={[0.15, 0.5, 0.7]} material={M.gold}><sphereGeometry args={[0.035, 8, 6]} /></mesh>
+        {/* windows flanking the door */}
+        {[-0.68, 0.68].map((x) => (
+            <group key={x} position={[x, 0.72, 0.66]}>
+                <mesh material={M.gold}><boxGeometry args={[0.46, 0.46, 0.04]} /></mesh>
+                <mesh position={[0, 0, 0.02]} material={M.glass}><boxGeometry args={[0.38, 0.38, 0.04]} /></mesh>
+                <mesh position={[0, 0, 0.05]} material={M.rail}><boxGeometry args={[0.04, 0.38, 0.03]} /></mesh>
+                <mesh position={[0, 0, 0.05]} material={M.rail}><boxGeometry args={[0.38, 0.04, 0.03]} /></mesh>
+            </group>
+        ))}
+    </group>
+);
+
 // ── the static ship hull + deck + masts (no per-frame logic) ──
 const ShipBody: React.FC = () => {
     // hull + deck + rail caps are ALL MODELLED IN C++ (floor7_geo.cpp → WASM):
@@ -372,6 +400,8 @@ const ShipBody: React.FC = () => {
             <Transom />
             {/* deck furniture on the puddle-free centre lane */}
             <DeckFurniture />
+            {/* the stern deckhouse / quarterdeck cabin */}
+            <SternCabin />
             {/* thin spray band at the waterline */}
             <mesh geometry={foamGeo} position={[0, -0.66, 0]} material={M.foam} renderOrder={2} />
             {/* main mast + yard + sail + flag + crow's nest */}
@@ -782,7 +812,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             <Floor7Water sunDir={SUN_DIR} />
 
             {/* the ship (sways) */}
-            <group ref={shipRef}>
+            <group ref={shipRef} scale={FLOOR7_SCALE}>
                 <ShipBody />
                 {/* the elevator the player rode in on — dematerialises */}
                 <group ref={elevatorRef} position={[0, 0, 5.2]}>
