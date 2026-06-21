@@ -51,3 +51,30 @@ Pendentes que o critico ainda apontaria (P1/P2, retorno decrescente): topsails (
 foot-ropes/reef points/clew lines nas velas, canhao com cano/anéis melhores, mais sujeira/streaks de
 escupier, e o capitao (suavizar facetas/maos). Bancada: shot7.cjs (PORT=3001) + floor7-dev.tsx
 (window.__orbit/__target). clang 18 recompila o WASM; checar sempre imports==[] (sqrt ok, expf/logf/memset nao).
+
+### Sessao 2026-06-21 — /goal ADICAO: o CRITICO joga + navio maior + colisao + convés
+
+Felipe: tem bug de colisao, navio pequeno demais (parece barco), sem convés/galpao; alem de
+printar, faca o CRITICO JOGAR (primeira pessoa), ele fica mais exigente. (E: "quem bate a cota
+e vc", o subagente usa minha cota.)
+
+**Harness jogavel:** floor7-play.tsx + floor7play.html = controlador 1a pessoa que anda no convés
+com as colisoes REAIS (wallsForState(7)+resolveCollision). playtest7.cjs dirige (WASD) e detecta
+fuga do convés; playshots7.cjs captura 8 angulos FP pro critico. App.tsx ganhou window.__startFloor(n)
+/__playerPos() + game.html. (O game completo NAO carrega offline: avatar GLB e baixado do GitHub ->
+trava em "Loading 88%"; por isso o harness proprio.)
+
+**Mudancas grandes:**
+- FLOOR7_SCALE=1.45: navio inteiro escalado (grupo shipRef), spawn/agua/colisao derivam do fator.
+- Colisao segue o CONTORNO do convés (poligono do _F7_DECK_HALF, nao retangulo) + boxColliders
+  pra mastros/cabrestante/companionway/deckhouse/props. Pocas (brain) afinadas pro centro.
+- Deckhouse/galpao na popa; escaler içado em turcos acima da cabeca (nao bloqueia mais o spawn).
+- F7_DECK_PROPS (constants, compartilhado com colisores): barris/caixotes/cordas/sino nas amuradas.
+- Cabrestante de verdade (tambor com gomos, pawl, barras, volta de corda).
+- Convés = tabuas com costuras de calafeto (buildDeckSeams, abrem em leque pra proa) + king plank.
+- Amurada com costelas (frame timbers) + escupiers (buildXxx via samplers deckYAt/railYAt/beamAt).
+- Cabine: giltTrim fosco, cantoneiras, beira de telhado escalonada (sem Z-fight), vidro recuado.
+
+**Placar do CRITICO jogando:** 4.5 -> 5.5 (props) -> 6.5 (convés calafetado + spawn pra proa) ->
+agora amurada+cabine. Pendente que ele aponta: NPC capitao tosco em 1a pessoa (mas foco e o NAVIO),
+velas chapadas vistas de baixo, lashing dos props. Tudo verde sempre (tsc/105 testes/build/push).
