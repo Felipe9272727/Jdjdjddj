@@ -20,7 +20,7 @@ import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth } from './floor7Textures';
 import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry } from './floor7Geo';
-import { FLOOR7_SCALE } from './constants';
+import { FLOOR7_SCALE, F7_DECK_PROPS } from './constants';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
 const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
@@ -257,12 +257,21 @@ const DeckFurniture: React.FC = () => {
                 <mesh key={'gz' + z} position={[0, 0.1, z]} material={M.grate}><boxGeometry args={[0.86, 0.05, 0.05]} /></mesh>
             ))}
         </group>
-        {/* capstan amidships */}
+        {/* capstan amidships — ribbed drum with staves, drumhead, pawl rim,
+            inserted bars and a rope turn round the barrel */}
         <group position={[0, 0, 2.7]}>
-            <mesh position={[0, 0.3, 0]} material={M.barrel}><cylinderGeometry args={[0.2, 0.27, 0.58, 12]} /></mesh>
-            <mesh position={[0, 0.6, 0]} material={M.wheel}><cylinderGeometry args={[0.29, 0.24, 0.12, 12]} /></mesh>
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-                <mesh key={i} position={[0, 0.52, 0]} rotation={[0, (i * Math.PI) / 3, 0]} material={M.mast}><boxGeometry args={[0.92, 0.05, 0.05]} /></mesh>
+            <mesh position={[0, 0.06, 0]} material={M.wheel}><cylinderGeometry args={[0.34, 0.37, 0.12, 12]} /></mesh>
+            <mesh position={[0, 0.37, 0]} material={M.barrel}><cylinderGeometry args={[0.24, 0.3, 0.56, 12]} /></mesh>
+            {Array.from({ length: 10 }).map((_, i) => { const a = (i / 10) * Math.PI * 2; return (
+                <mesh key={'sv' + i} position={[Math.cos(a) * 0.28, 0.37, Math.sin(a) * 0.28]} material={M.wheel}><boxGeometry args={[0.05, 0.52, 0.08]} /></mesh>
+            ); })}
+            <mesh position={[0, 0.7, 0]} material={M.wheel}><cylinderGeometry args={[0.33, 0.26, 0.15, 12]} /></mesh>
+            <mesh position={[0, 0.61, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><torusGeometry args={[0.31, 0.022, 6, 16]} /></mesh>
+            {[0, 1].map((i) => (
+                <mesh key={'bar' + i} position={[0, 0.7, 0]} rotation={[0, i * Math.PI + 0.4, 0]} material={M.mast}><boxGeometry args={[1.5, 0.06, 0.08]} /></mesh>
+            ))}
+            {[0, 0.07, 0.14].map((dy, j) => (
+                <mesh key={'rw' + j} position={[0, 0.3 + dy, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.rope}><torusGeometry args={[0.31, 0.026, 6, 16]} /></mesh>
             ))}
         </group>
     </group>
@@ -344,6 +353,50 @@ const SternCabin: React.FC = () => (
     </group>
 );
 
+// ── reachable deck props (barrels, crates, rope coils, a bell) placed from the
+// shared F7_DECK_PROPS list so the visuals match the colliders exactly. ──
+const DeckProps: React.FC = () => (
+    <group>
+        {F7_DECK_PROPS.map((p, i) => {
+            if (p.kind === 'barrel') return (
+                <group key={i} position={[p.x, 0.34, p.z]}>
+                    <mesh material={M.barrel}><cylinderGeometry args={[0.3, 0.26, 0.68, 12]} /></mesh>
+                    <mesh position={[0, 0.19, 0]} material={M.iron}><torusGeometry args={[0.3, 0.022, 6, 16]} /></mesh>
+                    <mesh position={[0, -0.19, 0]} material={M.iron}><torusGeometry args={[0.3, 0.022, 6, 16]} /></mesh>
+                    <mesh position={[0, 0.35, 0]} material={M.barrel}><cylinderGeometry args={[0.24, 0.24, 0.03, 12]} /></mesh>
+                </group>
+            );
+            if (p.kind === 'crate') return (
+                <group key={i} position={[p.x, 0.28, p.z]} rotation={[0, p.rot ?? 0, 0]}>
+                    <mesh material={M.plank}><boxGeometry args={[0.56, 0.56, 0.56]} /></mesh>
+                    {/* corner battens */}
+                    {[[-0.27, -0.27], [0.27, -0.27], [0.27, 0.27], [-0.27, 0.27]].map(([bx, bz], k) => (
+                        <mesh key={k} position={[bx, 0, bz]} material={M.rail}><boxGeometry args={[0.05, 0.58, 0.05]} /></mesh>
+                    ))}
+                </group>
+            );
+            if (p.kind === 'rope') return (
+                <group key={i} position={[p.x, 0.05, p.z]}>
+                    {[0.22, 0.16, 0.1].map((r, j) => (
+                        <mesh key={j} position={[0, j * 0.05, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.rope}><torusGeometry args={[r, 0.035, 6, 16]} /></mesh>
+                    ))}
+                </group>
+            );
+            // ship's bell on a small frame
+            return (
+                <group key={i} position={[p.x, 0, p.z]}>
+                    {[-0.18, 0.18].map((bx) => (
+                        <mesh key={bx} position={[bx, 0.5, 0]} rotation={[0, 0, bx < 0 ? 0.18 : -0.18]} material={M.rail}><cylinderGeometry args={[0.03, 0.03, 1.0, 6]} /></mesh>
+                    ))}
+                    <mesh position={[0, 0.98, 0]} rotation={[0, 0, Math.PI / 2]} material={M.rail}><cylinderGeometry args={[0.03, 0.03, 0.5, 6]} /></mesh>
+                    <mesh position={[0, 0.82, 0]} material={M.gold}><cylinderGeometry args={[0.02, 0.13, 0.22, 12, 1, true]} /></mesh>
+                    <mesh position={[0, 0.7, 0]} material={M.gold}><sphereGeometry args={[0.04, 8, 6]} /></mesh>
+                </group>
+            );
+        })}
+    </group>
+);
+
 // ── the static ship hull + deck + masts (no per-frame logic) ──
 const ShipBody: React.FC = () => {
     // hull + deck + rail caps are ALL MODELLED IN C++ (floor7_geo.cpp → WASM):
@@ -402,6 +455,8 @@ const ShipBody: React.FC = () => {
             <DeckFurniture />
             {/* the stern deckhouse / quarterdeck cabin */}
             <SternCabin />
+            {/* reachable deck props (barrels/crates/ropes/bell) — match colliders */}
+            <DeckProps />
             {/* thin spray band at the waterline */}
             <mesh geometry={foamGeo} position={[0, -0.66, 0]} material={M.foam} renderOrder={2} />
             {/* main mast + yard + sail + flag + crow's nest */}
@@ -459,20 +514,6 @@ const ShipBody: React.FC = () => {
                 <RatlineShrouds key={'fs' + s} side={s} railX={2.3} railY={0.5} baseZ={4.0} spread={1.3} topY={3.6} topZ={4.0} count={3} />
             ))}
 
-            {/* barrels (bow corner) + a crate stack (by the foremast) */}
-            {[[2.2, 5.6], [2.55, 6.1], [-2.4, 5.8]].map(([x, z], i) => (
-                <group key={'bar' + i} position={[x, 0.34, z]}>
-                    <mesh material={M.barrel}><cylinderGeometry args={[0.3, 0.26, 0.68, 12]} /></mesh>
-                    <mesh position={[0, 0.18, 0]} material={M.iron}><torusGeometry args={[0.3, 0.022, 6, 16]} /></mesh>
-                    <mesh position={[0, -0.18, 0]} material={M.iron}><torusGeometry args={[0.3, 0.022, 6, 16]} /></mesh>
-                </group>
-            ))}
-            {[[0, 0], [0.05, 0.55], [0.5, 0.05]].map(([dy, dx], i) => (
-                <mesh key={'cr' + i} position={[-2.2 + dx, 0.3 + dy, 4.0]} rotation={[0, i * 0.4, 0]} material={M.plank}>
-                    <boxGeometry args={[0.55, 0.55, 0.55]} />
-                </mesh>
-            ))}
-
             {/* cannons at the gunwales, pointing out to sea */}
             {[[2.55, -2.5, 1], [-2.55, 1.5, -1], [2.55, 0.5, 1]].map(([x, z, s], i) => (
                 <group key={'cn' + i} position={[x, 0.32, z]} rotation={[0, (s as number) * Math.PI / 2, 0]}>
@@ -487,14 +528,6 @@ const ShipBody: React.FC = () => {
                     <mesh position={[-0.1, -0.16, 0]} material={M.wheel}><boxGeometry args={[0.5, 0.22, 0.36]} /></mesh>
                     {[-0.18, 0.18].map((wz) => (
                         <mesh key={wz} position={[-0.1, -0.28, wz]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><cylinderGeometry args={[0.1, 0.1, 0.05, 10]} /></mesh>
-                    ))}
-                </group>
-            ))}
-            {/* coiled ropes on the deck */}
-            {[[-1.8, -3.2], [1.7, 3.3]].map(([x, z], i) => (
-                <group key={'rp' + i} position={[x, 0.06, z]}>
-                    {[0.22, 0.16, 0.1].map((r, j) => (
-                        <mesh key={j} position={[0, j * 0.05, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.rope}><torusGeometry args={[r, 0.03, 6, 16]} /></mesh>
                     ))}
                 </group>
             ))}

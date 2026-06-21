@@ -19,6 +19,8 @@ declare global {
         __ready?: boolean;
         __setMove?: (f: number, s: number) => void;
         __setYaw?: (y: number) => void;
+        __setPitch?: (p: number) => void;
+        __teleport?: (x: number, z: number) => void;
         __playerPos?: () => [number, number, number];
     }
 }
@@ -26,10 +28,13 @@ declare global {
 const Controller: React.FC<{ posRef: React.MutableRefObject<THREE.Vector3> }> = ({ posRef }) => {
     const { camera } = useThree();
     const yaw = useRef(0);            // 0 faces +z (toward the bow / captain)
+    const pitch = useRef(0);
     const move = useRef({ f: 0, s: 0 });
     useEffect(() => {
         window.__setMove = (f, s) => { move.current = { f, s }; };
         window.__setYaw = (y) => { yaw.current = y; };
+        window.__setPitch = (p) => { pitch.current = p; };
+        window.__teleport = (x, z) => { posRef.current.set(x, 0, z); };
         window.__playerPos = () => [posRef.current.x, posRef.current.y, posRef.current.z];
         const keys: Record<string, number> = { w: 0, a: 0, s: 0, d: 0 };
         const upd = () => { move.current = { f: keys.w - keys.s, s: keys.d - keys.a }; };
@@ -51,7 +56,8 @@ const Controller: React.FC<{ posRef: React.MutableRefObject<THREE.Vector3> }> = 
             posRef.current.set(rx, 0, rz);
         }
         camera.position.set(posRef.current.x, EYE, posRef.current.z);
-        camera.lookAt(posRef.current.x + Math.sin(y), EYE - 0.06, posRef.current.z + Math.cos(y));
+        const p = pitch.current;
+        camera.lookAt(posRef.current.x + Math.sin(y) * Math.cos(p), EYE + Math.sin(p), posRef.current.z + Math.cos(y) * Math.cos(p));
     });
     return null;
 };

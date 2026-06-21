@@ -287,6 +287,20 @@ export const FLOOR7_SCALE = 1.45;
 const _F7_DECK_HALF: [number, number][] = [
     [1.40, -6.6], [1.75, -5.0], [1.90, -2.4], [2.14, 1.0], [1.95, 3.0], [1.60, 4.8], [1.05, 6.2], [0.45, 7.2],
 ];
+
+// Reachable deck props (ship-local, unscaled) clustered along the bulwarks and
+// at the mast bases so the deck feels like a working ship at eye level. Shared:
+// Floor7.tsx renders them, and the solid ones get colliders below. Kept clear
+// of the central puddle-mopping zone (|x|<1.9, |z|<5).
+export type F7PropKind = 'barrel' | 'crate' | 'rope' | 'bell';
+export interface F7Prop { kind: F7PropKind; x: number; z: number; rot?: number; }
+export const F7_DECK_PROPS: F7Prop[] = [
+    { kind: 'barrel', x: 2.05, z: -2.0 }, { kind: 'barrel', x: 2.28, z: -2.5 }, { kind: 'barrel', x: 1.98, z: -1.5 },
+    { kind: 'barrel', x: -2.05, z: 2.6 }, { kind: 'barrel', x: -2.25, z: 3.1 },
+    { kind: 'crate', x: -2.1, z: -3.4, rot: 0.3 }, { kind: 'crate', x: -2.25, z: -2.85, rot: -0.2 }, { kind: 'crate', x: 2.15, z: 3.6, rot: 0.5 },
+    { kind: 'rope', x: 1.95, z: 0.6 }, { kind: 'rope', x: -1.95, z: -0.6 }, { kind: 'rope', x: 2.0, z: 4.2 }, { kind: 'rope', x: -2.0, z: 4.4 },
+    { kind: 'bell', x: 0.75, z: -5.0 },
+];
 const _WALLS_FLOOR7 = (() => {
     const S = FLOOR7_SCALE;
     const port = _F7_DECK_HALF.map(([x, z]) => [-x * S, z * S]);
@@ -304,6 +318,12 @@ const _WALLS_FLOOR7 = (() => {
         [0, -5.9, 2.2, 1.4],  // stern deckhouse
     ];
     for (const [cx, cz, w, d] of obs) segs.push(...boxCollider(cx * S, cz * S, w * S, d * S));
+    // colliders for the solid deck props (barrels/crates/bell); rope coils are flat
+    for (const p of F7_DECK_PROPS) {
+        if (p.kind === 'rope') continue;
+        const sz = p.kind === 'bell' ? 0.5 : 0.62;
+        segs.push(...boxCollider(p.x * S, p.z * S, sz * S, sz * S));
+    }
     return segs;
 })();
 
