@@ -863,8 +863,15 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
         <group ref={rig.sash} position={[0, 1.30, 0]}>
             <mesh position={[0, -0.32, 0.04]} rotation={[0, 0, 0.55]} material={M.sash}><boxGeometry args={[0.11, 0.74, 0.44]} /></mesh>
         </group>
-        <mesh position={[0, 0.74, 0]} material={M.boot}><cylinderGeometry args={[0.30, 0.32, 0.09, 16]} /></mesh>
-        <mesh position={[0, 0.74, 0.31]} material={M.gold}><boxGeometry args={[0.12, 0.08, 0.03]} /></mesh>
+        <mesh position={[0, 0.74, 0]} material={M.boot}><cylinderGeometry args={[0.30, 0.32, 0.1, 16]} /></mesh>
+        {/* big brass belt buckle */}
+        <mesh position={[0, 0.74, 0.32]} rotation={[Math.PI / 2, 0, 0]} material={M.gold}><torusGeometry args={[0.058, 0.02, 8, 18]} /></mesh>
+        <mesh position={[0, 0.74, 0.325]} material={M.gold}><boxGeometry args={[0.05, 0.05, 0.012]} /></mesh>
+        {/* gold waistcoat showing in the open coat vent, with a button row */}
+        <mesh position={[0, 0.92, 0.2]} rotation={[0.05, 0, 0]} material={M.sash}><boxGeometry args={[0.24, 0.4, 0.04]} /></mesh>
+        {[1.0, 0.9, 0.8].map((y, i) => (
+            <mesh key={'wb' + i} position={[0, y, 0.225]} material={M.gold}><sphereGeometry args={[0.016, 8, 6]} /></mesh>
+        ))}
 
         {/* SHOULDER YOKE + deltoid caps — broaden the bottle-shoulder silhouette
             into a barrel chest, with the coat draping over real shoulder mass */}
@@ -886,7 +893,10 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             {/* big turn-back cuff, flared wider than the sleeve + gold band */}
             <mesh position={[0, -0.46, 0.04]} material={M.coatDk}><cylinderGeometry args={[0.115, 0.082, 0.14, 12]} /></mesh>
             <mesh position={[0, -0.525, 0.04]} material={M.gold}><cylinderGeometry args={[0.118, 0.112, 0.03, 12]} /></mesh>
-            <mesh position={[0, -0.55, 0.06]} material={M.skin}><sphereGeometry args={[0.06, 10, 8]} /></mesh>
+            {/* white lace cuff ruffle + a blocky mitt with a thumb (not a nub) */}
+            <mesh position={[0, -0.5, 0.04]} rotation={[Math.PI / 2, 0, 0]} material={M.cloth}><torusGeometry args={[0.1, 0.026, 6, 16]} /></mesh>
+            <mesh position={[0, -0.585, 0.06]} material={M.skin}><boxGeometry args={[0.09, 0.052, 0.115]} /></mesh>
+            <mesh position={[-0.054, -0.56, 0.07]} rotation={[0, 0, 0.55]} material={M.skin}><capsuleGeometry args={[0.018, 0.042, 3, 6]} /></mesh>
         </group>
         <group ref={rig.armR} position={[0.30, 1.18, 0.04]}>
             <mesh position={[0, -0.125, 0]} material={M.coat}><cylinderGeometry args={[0.09, 0.082, 0.25, 12]} /></mesh>
@@ -894,25 +904,29 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             <mesh position={[0, -0.37, 0.025]} material={M.coat}><cylinderGeometry args={[0.078, 0.068, 0.22, 12]} /></mesh>
             <mesh position={[0, -0.46, 0.04]} material={M.coatDk}><cylinderGeometry args={[0.115, 0.082, 0.14, 12]} /></mesh>
             <mesh position={[0, -0.525, 0.04]} material={M.gold}><cylinderGeometry args={[0.118, 0.112, 0.03, 12]} /></mesh>
-            <mesh position={[0, -0.55, 0.06]} material={M.skin}><sphereGeometry args={[0.06, 10, 8]} /></mesh>
+            <mesh position={[0, -0.5, 0.04]} rotation={[Math.PI / 2, 0, 0]} material={M.cloth}><torusGeometry args={[0.1, 0.026, 6, 16]} /></mesh>
+            {/* a fuller palm so the hand isn't a nub */}
+            <mesh position={[0, -0.565, 0.06]} material={M.skin}><boxGeometry args={[0.092, 0.05, 0.1]} /></mesh>
             {/* fingers as a 2-KNUCKLE chain: proximal segments hinge at the
                 palm, the nested distal segments curl further — so the grip
                 closes around the wheel mid-finger when he takes the helm (ST_DONE) */}
-            <group ref={rig.gripR} position={[0, -0.55, 0.10]}>
-                {[-0.032, -0.011, 0.011, 0.032].map((fx, i) => (
-                    <mesh key={i} position={[fx, 0, 0.018]} material={M.skin}><capsuleGeometry args={[0.013, 0.04, 3, 6]} /></mesh>
+            <group ref={rig.gripR} position={[0, -0.585, 0.10]}>
+                {[-0.036, -0.012, 0.012, 0.036].map((fx, i) => (
+                    <mesh key={i} position={[fx, 0, 0.018]} material={M.skin}><capsuleGeometry args={[0.017, 0.05, 3, 6]} /></mesh>
                 ))}
-                <group ref={rig.gripR2} position={[0, -0.02, 0.04]}>
-                    {[-0.032, -0.011, 0.011, 0.032].map((fx, i) => (
-                        <mesh key={i} position={[fx, 0, 0]} material={M.skin}><capsuleGeometry args={[0.012, 0.036, 3, 6]} /></mesh>
+                <group ref={rig.gripR2} position={[0, -0.025, 0.05]}>
+                    {[-0.036, -0.012, 0.012, 0.036].map((fx, i) => (
+                        <mesh key={i} position={[fx, 0, 0]} material={M.skin}><capsuleGeometry args={[0.015, 0.044, 3, 6]} /></mesh>
                     ))}
                 </group>
-                <mesh position={[-0.05, 0.01, -0.02]} rotation={[0, 0, 0.6]} material={M.skin}><capsuleGeometry args={[0.014, 0.05, 3, 6]} /></mesh>
+                <mesh position={[-0.058, 0.012, -0.02]} rotation={[0, 0, 0.6]} material={M.skin}><capsuleGeometry args={[0.018, 0.055, 3, 6]} /></mesh>
             </group>
         </group>
 
-        {/* neck (static) */}
-        <mesh position={[0, 1.41, 0]} material={M.skin}><cylinderGeometry args={[0.085, 0.1, 0.1, 10]} /></mesh>
+        {/* neck (static) — a touch longer so the head isn't bolted to the chest */}
+        <mesh position={[0, 1.42, 0]} material={M.skin}><cylinderGeometry args={[0.083, 0.1, 0.15, 12]} /></mesh>
+        {/* standing coat collar — a high wrap open at the front, frames the beard */}
+        <mesh position={[0, 1.45, -0.02]} rotation={[-0.18, 0, 0]} material={M.coatDk}><cylinderGeometry args={[0.15, 0.13, 0.16, 16, 1, true, Math.PI * 0.32, Math.PI * 1.36]} /></mesh>
 
         {/* HEAD group — neck pivot at y=1.42 (rotates to track the player) */}
         <group ref={rig.head} position={[0, 1.42, 0]}>
@@ -954,6 +968,15 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             <mesh position={[0, 0.05, 0.075]} scale={[1.04, 1.05, 0.95]} material={M.beard}><sphereGeometry args={[0.168, 18, 16, 0, Math.PI * 2, Math.PI * 0.38, Math.PI * 0.62]} /></mesh>
             {[-1, 1].map((s) => (
                 <mesh key={'bd' + s} position={[s * 0.155, 0.13, 0.04]} material={M.beard}><sphereGeometry args={[0.06, 10, 10]} /></mesh>
+            ))}
+            {/* beard LOCKS — cones around the lower rim break the smooth bib edge
+                into a forked, characterful beard */}
+            {[-0.5, -0.22, 0, 0.22, 0.5].map((a, i) => (
+                <mesh key={'bl' + i} position={[Math.sin(a) * 0.13, -0.06 - (i === 2 ? 0.05 : 0), 0.085 + Math.cos(a) * 0.04]} rotation={[0.5, 0, a * 0.8]} material={M.beard}><coneGeometry args={[0.034, 0.13, 7]} /></mesh>
+            ))}
+            {/* a few thick hair locks at the temple/brow edge under the hat brim */}
+            {[-1, 1].map((s) => (
+                <mesh key={'hl' + s} position={[s * 0.165, 0.16, 0.06]} rotation={[0, 0, s * 0.4]} material={M.hair}><capsuleGeometry args={[0.026, 0.08, 3, 7]} /></mesh>
             ))}
             {/* QUEUE — a tied ponytail down the nape (fills the bald back of the head) */}
             <mesh position={[0, 0.04, -0.175]} rotation={[0.25, 0, 0]} material={M.hair}><capsuleGeometry args={[0.038, 0.18, 4, 10]} /></mesh>
