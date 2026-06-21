@@ -861,7 +861,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const captainRef = useRef<THREE.Group>(null);
     const bucketRef = useRef<THREE.Group>(null);
     const elevatorRef = useRef<THREE.Group>(null);
-    const puddleRefs = useRef<(THREE.Mesh | null)[]>([]);
+    const puddleRefs = useRef<(THREE.Group | null)[]>([]);
     const brainRef = useRef<Floor7Brain | null>(null);
     const _local = useRef(new THREE.Vector3());
     const _pud = useRef<F7Puddle>({ x: 0, z: 0, r: 0, prog: 0 });
@@ -932,16 +932,18 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             elevatorRef.current.scale.setScalar(0.6 + f * 0.4);
             M.elev.opacity = f; M.elevTrim.opacity = f;
         }
-        // puddles shrink + fade as they're mopped
+        // puddles shrink + fade as they're mopped (group = wet halo + water surface)
         for (let i = 0; i < b.npud; i++) {
-            const m = puddleRefs.current[i];
-            if (!m) continue;
+            const g = puddleRefs.current[i];
+            if (!g) continue;
             const p = b.puddle(i, _pud.current);
             const s = (1 - p.prog) * p.r;
-            m.scale.setScalar(Math.max(0.0001, s));
-            m.position.set(p.x, 0.02, p.z);
-            (m.material as THREE.MeshStandardMaterial).opacity = 0.75 * (1 - p.prog);
-            m.visible = p.prog < 0.995;
+            g.scale.setScalar(Math.max(0.0001, s));
+            g.position.set(p.x, 0.02, p.z);
+            g.visible = p.prog < 0.995;
+            const halo = g.children[0] as THREE.Mesh, water = g.children[1] as THREE.Mesh;
+            (halo.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - p.prog);
+            (water.material as THREE.MeshStandardMaterial).opacity = 0.92 * (1 - p.prog);
         }
 
         // publish a snapshot for the DOM overlay
@@ -993,17 +995,17 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     <mesh position={[0.1, 0.13, 0.05]} rotation={[0.5, 0.4, 0.2]} material={M.cloth}><boxGeometry args={[0.2, 0.03, 0.16]} /></mesh>
                     <mesh position={[0.16, 0.04, 0.08]} rotation={[0.1, 0.4, 0.6]} material={M.cloth}><boxGeometry args={[0.12, 0.02, 0.14]} /></mesh>
                 </group>
-                {/* puddles */}
+                {/* puddles: a wet halo soaking the planks + a reflective water disc */}
                 {Array.from({ length: 6 }).map((_, i) => (
-                    <mesh
-                        key={i}
-                        ref={(m) => { puddleRefs.current[i] = m; }}
-                        rotation={[-Math.PI / 2, 0, 0]}
-                        position={[0, 0.02, 0]}
-                        material={M.puddle.clone()}
-                    >
-                        <circleGeometry args={[1, 20]} />
-                    </mesh>
+                    <group key={i} ref={(g) => { puddleRefs.current[i] = g; }} position={[0, 0.02, 0]}>
+                        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.012, 0]} renderOrder={1}>
+                            <circleGeometry args={[1.28, 20]} />
+                            <meshBasicMaterial map={_contactTex} color="#0a181c" transparent opacity={0.6} depthWrite={false} />
+                        </mesh>
+                        <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={2} material={M.puddle.clone()}>
+                            <circleGeometry args={[1, 24]} />
+                        </mesh>
+                    </group>
                 ))}
             </group>
         </group>
