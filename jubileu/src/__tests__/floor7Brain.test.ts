@@ -6,6 +6,13 @@ const step = (b: Floor7Brain, secs: number, px: number, pz: number, interact: bo
     for (let i = 0; i < n; i++) b.tick(1 / 60, px, 0, pz, interact);
 };
 
+// puddles erode directionally now, so you must SWEEP the brush across the whole
+// disc (not just stand on the centre) to clean it.
+const mopPuddle = (b: Floor7Brain, p: F7Puddle) => {
+    const o = p.r * 0.6;
+    for (const dz of [-o, 0, o]) for (const dx of [-o, 0, o]) step(b, 0.8, p.x + dx, p.z + dz, true);
+};
+
 describe('Floor7Brain — the WASM (C + assembly) pirate-ship brain', () => {
     it('instantiates and starts in INTRO with the elevator present', () => {
         const b = new Floor7Brain();
@@ -46,10 +53,10 @@ describe('Floor7Brain — the WASM (C + assembly) pirate-ship brain', () => {
         expect(b.state()).toBe(F7_STATE.CLEAN);
         expect(b.bucket().held).toBe(true);
         // mop every puddle
-        const p: F7Puddle = { x: 0, z: 0, r: 0, prog: 0 };
+        const p: F7Puddle = { x: 0, z: 0, r: 0, prog: 0, cell: new Float32Array(16) };
         for (let i = 0; i < b.npud; i++) {
             b.puddle(i, p);
-            step(b, 2.5, p.x, p.z, true);
+            mopPuddle(b, p);
         }
         expect(b.cleaned()).toBe(b.npud);
         expect(b.cleanPct()).toBeCloseTo(1, 2);
@@ -67,8 +74,8 @@ describe('Floor7Brain — the WASM (C + assembly) pirate-ship brain', () => {
         const buc = b.bucket();
         b.tick(1 / 60, buc.x, 0, buc.z, false);
         b.tick(1 / 60, buc.x, 0, buc.z, true);
-        const p: F7Puddle = { x: 0, z: 0, r: 0, prog: 0 };
-        for (let i = 0; i < b.npud; i++) { b.puddle(i, p); step(b, 2.5, p.x, p.z, true); }
+        const p: F7Puddle = { x: 0, z: 0, r: 0, prog: 0, cell: new Float32Array(16) };
+        for (let i = 0; i < b.npud; i++) { b.puddle(i, p); mopPuddle(b, p); }
         expect(b.state()).toBe(F7_STATE.DONE);
         expect(b.canLeave()).toBe(false);
     });
