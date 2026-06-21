@@ -90,11 +90,12 @@ const M = {
     coatDk: new THREE.MeshStandardMaterial({ color: '#5c1414', roughness: 0.6 }),
     skin: new THREE.MeshStandardMaterial({ color: '#cd9a6e', roughness: 0.62 }),
     hat: new THREE.MeshStandardMaterial({ color: '#17161b', roughness: 0.62, envMapIntensity: 0.6 }),
-    gold: new THREE.MeshStandardMaterial({ color: '#e8c45a', roughness: 0.28, metalness: 0.9, envMapIntensity: 1.4 }),
-    // first-person cuff: same gold, but a near-mirror metal this close to camera
-    // reflects the teal sea band of the env map and reads as a green blob — so
-    // dial the reflection way down and let the warm gold albedo carry it.
-    goldFp: new THREE.MeshStandardMaterial({ color: '#e3bb55', roughness: 0.45, metalness: 0.5, envMapIntensity: 0.35 }),
+    // warm gold for ALL exterior trim: a faint emissive + a calmer reflection so
+    // the gold albedo carries it and the sea reflection can't tint it olive
+    // (the env-map sea band is also desaturated to blue-grey for the same reason).
+    gold: new THREE.MeshStandardMaterial({ color: '#e8c45a', roughness: 0.34, metalness: 0.7, envMapIntensity: 0.6, emissive: '#3a2b08', emissiveIntensity: 0.18 }),
+    // first-person cuff: even calmer, since it fills the frame next to the camera.
+    goldFp: new THREE.MeshStandardMaterial({ color: '#e3bb55', roughness: 0.45, metalness: 0.5, envMapIntensity: 0.3, emissive: '#3a2b08', emissiveIntensity: 0.16 }),
     boot: new THREE.MeshStandardMaterial({ color: '#2a1d12', roughness: 0.55 }),
     beard: new THREE.MeshStandardMaterial({ color: '#7d6552', roughness: 0.95 }),
     hair: new THREE.MeshStandardMaterial({ color: '#26201a', roughness: 0.9 }),
@@ -109,7 +110,7 @@ const M = {
     bootTop: new THREE.MeshStandardMaterial({ color: '#14322a', roughness: 0.55, envMapIntensity: 0.5 }),
     grate: new THREE.MeshStandardMaterial({ color: '#3a2817', roughness: 0.85 }),
     caulk: new THREE.MeshStandardMaterial({ color: '#140f08', roughness: 1 }),
-    giltTrim: new THREE.MeshStandardMaterial({ color: '#a8822f', roughness: 0.55, metalness: 0.7, envMapIntensity: 0.8 }),
+    giltTrim: new THREE.MeshStandardMaterial({ color: '#a8822f', roughness: 0.55, metalness: 0.6, envMapIntensity: 0.45, emissive: '#2e2207', emissiveIntensity: 0.16 }),
     island: new THREE.MeshStandardMaterial({ color: '#3f5346', roughness: 1, transparent: true, opacity: 0, fog: false }),
     islandBeach: new THREE.MeshStandardMaterial({ color: '#9c8a63', roughness: 1, transparent: true, opacity: 0, fog: false }),
     bird: new THREE.MeshStandardMaterial({ color: '#3a3a40', roughness: 0.9 }),

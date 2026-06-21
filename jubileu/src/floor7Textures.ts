@@ -97,13 +97,18 @@ export function makeSkyEquirect(w = 1024): THREE.CanvasTexture {
     const h = w / 2;
     const c = document.createElement('canvas'); c.width = w; c.height = h;
     const x = c.getContext('2d')!;
-    // vertical gradient: zenith blue -> warm horizon -> deep sea
+    // vertical gradient: zenith blue -> warm horizon -> deep sea.
+    // NOTE: this equirect is REFLECTION-ONLY (feeds the PMREM env, not the
+    // visible sky). The sea band is kept BLUE-dominant and desaturated on
+    // purpose: a saturated teal band (g≈b) makes warm GOLD metals reflect olive
+    // (gold×teal = green), which read as a green blob next to the camera. A
+    // blue-grey sea keeps metals warm at every angle.
     const g = x.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0.0, '#3b78c4');
     g.addColorStop(0.42, '#a9cde8');
     g.addColorStop(0.5, '#ffe6c0');   // horizon haze
-    g.addColorStop(0.52, '#3f7e98');
-    g.addColorStop(1.0, '#0c3142');   // sea
+    g.addColorStop(0.52, '#5f7990');  // sea — blue-grey, not teal
+    g.addColorStop(1.0, '#27323d');   // deep sea — desaturated, blue-dominant
     x.fillStyle = g; x.fillRect(0, 0, w, h);
     // warm sun disk near the horizon
     const sx = w * 0.7, sy = h * 0.44;
