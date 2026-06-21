@@ -1,7 +1,7 @@
 // playshots7.cjs — capture a rich set of FIRST-PERSON gameplay views of Floor 7
 // (the playable harness) for the critic to judge the actual playing experience.
 const { chromium } = require('playwright');
-const S = 1.45;
+const S = 1.85;
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox', '--use-gl=swiftshader'] });
   const pg = await (await b.newContext({ viewport: { width: 1100, height: 720 } })).newPage();

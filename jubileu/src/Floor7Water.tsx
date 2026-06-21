@@ -112,7 +112,7 @@ export const Floor7Water: React.FC<{ sunDir: THREE.Vector3 }> = ({ sunDir }) => 
     });
 
     return (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.0, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.3, 0]}>
             <planeGeometry args={[200, 200, 180, 180]} />
             <shaderMaterial
                 ref={matRef}

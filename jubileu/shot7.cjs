@@ -10,7 +10,7 @@ const { chromium } = require('playwright');
     topdown:{p:[0.5,16,1],t:[0,0,-1]},
     capclose:{p:[0.6,1.6,3.2]},
   };
-  const S=1.45; // ship was scaled up; frame from proportionally further out
+  const S=1.85; // ship was scaled up; frame from proportionally further out
   for(const [tag,cfg] of Object.entries(A)){
     const pg=await(await b.newContext({viewport:{width:900,height:760}})).newPage();
     const sc={p:cfg.p.map(v=>v*S), t:cfg.t?cfg.t.map(v=>v*S):undefined};

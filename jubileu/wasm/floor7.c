@@ -87,17 +87,17 @@ void f7_init(unsigned int seed) {
     S.t = 0.0f; S.state = ST_INTRO; S.stTimer = 0.0f;
     S.heave = S.pitch = S.roll = 0.0f;
     S.capX = CAP_X; S.capZ = CAP_BOW_Z; S.capFace = 0.0f; S.capBob = 0.0f;
-    S.bucX = 2.1f; S.bucZ = -2.2f; S.bucHeld = 0;
+    S.bucX = 1.35f; S.bucZ = -1.8f; S.bucHeld = 0;
     S.cleaned = 0; S.elevFade = 1.0f; S.dialogue = 0; S.prevInteract = 0;
-    /* scatter puddles across the central deck (avoid the centre lane where the
-       masts/capstan/cabin sit, and stay inside the bulwark + clear of the bow
-       forecastle and stern cabin) */
+    /* scatter puddles across the WALKABLE deck — inside the bulwark with room
+       for the player to stand on them, clear of the centre-lane structures and
+       the bow/stern. Radii kept small so they never poke past the rail. */
     for (int i = 0; i < NPUD; i++) {
-        float x = (frand() * 3.8f) - 1.9f;
-        float z = (frand() * 9.8f) - 4.8f;
-        if (f7_absf(x) < 0.6f) x += (x < 0 ? -0.7f : 0.7f);
+        float x = (frand() * 2.6f) - 1.3f;
+        float z = (frand() * 8.0f) - 3.9f;
+        if (f7_absf(x) < 0.55f) x += (x < 0 ? -0.6f : 0.6f);
         S.pud[i].x = x; S.pud[i].z = z;
-        S.pud[i].r = 0.55f + frand() * 0.45f;
+        S.pud[i].r = 0.45f + frand() * 0.35f;
         S.pud[i].prog = 0.0f;
     }
 }

@@ -277,7 +277,7 @@ const _WALLS_FLOOR6_SEALED = [..._WALLS_FLOOR6, DOOR_SEAL];
 
 // Floor 7 (pirate ship). The whole ship is scaled up so it reads as a SHIP, not
 // a dinghy; the deck/spawn/water all use this one factor.
-export const FLOOR7_SCALE = 1.45;
+export const FLOOR7_SCALE = 1.85;
 
 // The bulwark boundary follows the actual DECK OUTLINE (narrow at the pointed
 // bow + bluff stern), not a rectangle, so the player can't walk through the

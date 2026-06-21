@@ -982,7 +982,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 <Captain ref={captainRef} />
                 {/* bucket + cloth — wooden staved pail with iron bands, soapy
                     water surface and a draped wet rag (a hero prop up close) */}
-                <group ref={bucketRef} position={[2.1, 0.18, -2.2]}>
+                <group ref={bucketRef} position={[1.35, 0.18, -1.8]}>
                     <mesh material={M.bucket}><cylinderGeometry args={[0.16, 0.13, 0.3, 16, 1, true]} /></mesh>
                     <mesh position={[0, -0.15, 0]} material={M.bucket}><cylinderGeometry args={[0.13, 0.13, 0.02, 16]} /></mesh>
                     {/* iron hoops */}
