@@ -109,3 +109,31 @@ programador) -> 9.0. Ultimo gate era 1 material: poca lia como tinta azul chapad
 superficie quase-preta reflexiva com bump de ripple (reflexo faz a cor) + halo molhado = agua.
 Polish que o critico ainda faria (nao bloqueante): normal nas tabuas da cabine, AO nos nos do
 mastro, weave/wear nas velas, topsails. Tudo verde sempre. Branch claude/review-commits-memory-y6iqnf.
+
+### Sessao 2026-06-21 — CRITICO testa o JOGO (AAA): animacao/audio/mecanicas/quest
+
+Crítico expandido (subagente le screenshots FP + o CODIGO floor7.c/Floor7.tsx/floor7Sfx.ts) fez
+playtest AAA completo. Veredito inicial: OVERALL **5/10** ("a 9/10 photograph of a 3/10 game"):
+Char/Anim 3, Quest 5, Mecanica/Feel 3.5, Agua 7.5. #1 = capitao estatua deslizante + player sem
+maos; #2 = ZERO audio; feel sem juice.
+
+Consertos (cada = commit verde + push em claude/review-commits-memory-y6iqnf):
+- **Capitao riggado + animado**: grupos-pivot (perna bota, perna-de-pau, bracos, cabeca, mandibula,
+  olho) -> walk cycle com perna-de-pau (lurch assimetrico), mandibula fala, piscar, head-track no
+  player. Flag `capWalk` (brain) dirige o walk. **Foot-lift** (levanta o pe na passada) mata o skate.
+- **Audio**: `floor7Sfx.ts` 100% sintetizado (sem samples): sea wash c/ LFO, creak modulado pelo
+  roll, gaivotas, passos, squelch da esfrega, clunk do balde, grunt do capitao, chime de poca limpa.
+  Wired no App (lifecycle floor 7) + cues no frame loop.
+- **Scrub juice**: particulas de espuma (Points pool, gravidade/fade) na esfrega + **balde com slosh**
+  (spring/lag + inclina com roll/pitch).
+- **MAOS em 1a pessoa**: braco+mao+escova procedurais presos a camera; faz o gesto de esfregar.
+- **Payoff do fim**: ao limpar tudo, capitao ANDA ATE O LEME (reusa walk), **terra surge no horizonte**
+  (ilha que faz fade-in), dialogo 4 virou gancho ("terra a vista") em vez de "senta e espera".
+- BUGS reais consertados: nascer preso (tirei colisores dos mastros), balde inalcancavel (estava x=2.1,
+  fora do convés -> 1.35), pocas fora do convés (afinei scatter), navio pequeno (escala 1.45->1.85).
+
+Re-score do critico apos capitao+audio+juice: **6.5/10** ("a 9/10 photo of a 6/10 game", nada faked,
+verificado no codigo). Verifiquei o loop completo jogavel: questtest7.cjs => greet->balde->limpar 6
+pocas->DONE = **QUEST COMPLETE**. Pendente AAA: char facial/lip-sync fino, quest com escalacao/stakes,
+bow-wake na agua, mais vida ambiente. Harness: floor7-play (__interact/__forceTick/__state/__puddles),
+questtest7.cjs, playshots7.cjs (11 views FP).
