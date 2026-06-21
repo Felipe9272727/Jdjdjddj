@@ -289,10 +289,27 @@ const HeadRig: React.FC = () => {
             {lines.rails.map((l, i) => (
                 <mesh key={'hr' + i} position={l.pos} quaternion={l.quat} material={M.rail}><cylinderGeometry args={[0.05, 0.05, l.len, 6]} /></mesh>
             ))}
-            {/* gilt figurehead under the bowsprit */}
-            <group position={[0, 0.5, 8.5]} rotation={[0.35, 0, 0]}>
-                <mesh material={M.gold}><sphereGeometry args={[0.12, 10, 8]} /></mesh>
-                <mesh position={[0, -0.28, 0]} material={M.gold}><coneGeometry args={[0.13, 0.5, 8]} /></mesh>
+            {/* beakhead grating platform projecting forward at the bow */}
+            <mesh position={[0, 0.86, 7.8]} rotation={[-0.18, 0, 0]} material={M.grate}><boxGeometry args={[0.7, 0.05, 1.1]} /></mesh>
+            {[-0.28, 0, 0.28].map((x) => (
+                <mesh key={'bk' + x} position={[x, 0.9, 7.8]} rotation={[-0.18, 0, 0]} material={M.rail}><boxGeometry args={[0.05, 0.04, 1.1]} /></mesh>
+            ))}
+            {/* catheads projecting from the bow corners */}
+            {[-1, 1].map((s) => (
+                <mesh key={'ct' + s} position={[s * 0.5, 1.0, 7.1]} rotation={[1.1, s * 0.3, 0]} material={M.rail}><boxGeometry args={[0.1, 0.7, 0.1]} /></mesh>
+            ))}
+            {/* hawse holes on the bow cheeks */}
+            {[-1, 1].map((s) => (
+                <mesh key={'hw' + s} position={[s * 0.42, 0.75, 7.3]} rotation={[0, s * 0.5, 0]} material={M.hat}><cylinderGeometry args={[0.07, 0.07, 0.1, 10]} /></mesh>
+            ))}
+            {/* gilt winged figurehead leaning out over the water */}
+            <group position={[0, 0.5, 8.6]} rotation={[0.55, 0, 0]}>
+                <mesh material={M.gold}><cylinderGeometry args={[0.08, 0.13, 0.5, 8]} /></mesh>
+                <mesh position={[0, 0.33, 0.05]} material={M.gold}><sphereGeometry args={[0.1, 10, 8]} /></mesh>
+                {[-1, 1].map((s) => (
+                    <mesh key={s} position={[s * 0.13, 0.05, -0.04]} rotation={[0.5, 0, s * 0.8]} material={M.gold}><coneGeometry args={[0.05, 0.42, 6]} /></mesh>
+                ))}
+                <mesh position={[0, -0.3, -0.02]} rotation={[Math.PI / 2, 0, 0]} material={M.gold}><torusGeometry args={[0.1, 0.04, 6, 12]} /></mesh>
             </group>
         </group>
     );
