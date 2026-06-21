@@ -119,6 +119,28 @@ export function makeSkyEquirect(w = 1024): THREE.CanvasTexture {
     return t;
 }
 
+// a ripple height/bump map for puddles: concentric rings + speckle, so the
+// reflection breaks up and the water reads as rippled instead of flat paint.
+export function makePuddleRipple(size = 128): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d')!;
+    const r = rnd(0x9A7);
+    x.fillStyle = '#808080'; x.fillRect(0, 0, size, size);
+    const cx = size / 2, cy = size / 2;
+    for (let rad = 4; rad < size * 0.6; rad += 5 + r() * 3) {
+        x.strokeStyle = 'rgba(255,255,255,0.45)'; x.lineWidth = 1.4;
+        x.beginPath(); x.arc(cx, cy, rad, 0, 7); x.stroke();
+        x.strokeStyle = 'rgba(0,0,0,0.4)'; x.lineWidth = 1.4;
+        x.beginPath(); x.arc(cx, cy, rad + 2.2, 0, 7); x.stroke();
+    }
+    for (let i = 0; i < 2400; i++) {
+        x.fillStyle = r() > 0.5 ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)';
+        x.fillRect(r() * size, r() * size, 2, 2);
+    }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
+}
+
 // a soft dark radial blob for fake AO contact shadows under deck props.
 export function makeContactShadow(size = 128): THREE.CanvasTexture {
     const c = document.createElement('canvas'); c.width = c.height = size;

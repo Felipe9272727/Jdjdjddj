@@ -18,7 +18,9 @@ import { Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
-import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow } from './floor7Textures';
+import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow, makePuddleRipple } from './floor7Textures';
+
+const _puddleRipple = makePuddleRipple();
 import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams, buildWaterwayGeometry, deckYAt, railYAt, beamAt } from './floor7Geo';
 import { FLOOR7_SCALE, F7_DECK_PROPS } from './constants';
 
@@ -104,7 +106,7 @@ const M = {
     caulk: new THREE.MeshStandardMaterial({ color: '#140f08', roughness: 1 }),
     giltTrim: new THREE.MeshStandardMaterial({ color: '#a8822f', roughness: 0.55, metalness: 0.7, envMapIntensity: 0.8 }),
     bird: new THREE.MeshStandardMaterial({ color: '#3a3a40', roughness: 0.9 }),
-    puddle: new THREE.MeshPhysicalMaterial({ color: '#13262c', roughness: 0.06, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.03, transparent: true, opacity: 0.9, envMapIntensity: 1.8 }),
+    puddle: new THREE.MeshPhysicalMaterial({ color: '#0a1316', roughness: 0.05, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.04, bumpMap: _puddleRipple, bumpScale: 0.05, transparent: true, opacity: 0.92, envMapIntensity: 1.1 }),
     glass: new THREE.MeshPhysicalMaterial({ color: '#11242e', roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#4a3010', emissiveIntensity: 0.28, envMapIntensity: 1.5 }),
     elev: new THREE.MeshStandardMaterial({ color: '#b0bec5', roughness: 0.4, metalness: 0.5, transparent: true }),
     elevTrim: new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.4, metalness: 0.6, transparent: true }),
