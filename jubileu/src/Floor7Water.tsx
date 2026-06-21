@@ -86,6 +86,15 @@ void main() {
     float foam = clamp(vFoam, 0.0, 1.0);
     col = mix(col, vec3(0.92, 0.96, 0.97), foam * 0.85);
 
+    // hull contact foam — an animated band hugging the ship's waterline
+    // footprint (ellipse, semi-axes ~beam x ~length), stronger toward the bow
+    // so the ship reads as sitting IN the water, parting it, not pasted on
+    float hr = length(vWorldPos.xz / vec2(5.9, 14.6));
+    float contact = smoothstep(1.34, 1.02, hr) * smoothstep(0.90, 1.06, hr);
+    contact *= 0.5 + 0.5 * sin(uTime * 2.4 + hr * 26.0);
+    contact *= 1.0 + 0.6 * smoothstep(0.0, 14.0, vWorldPos.z);   // heavier bow wave
+    col = mix(col, vec3(0.93, 0.97, 0.98), clamp(contact, 0.0, 1.0) * 0.65);
+
     // fade distant water into the sky so the plane meets the horizon seamlessly
     float dist = length(cameraPosition - vWorldPos);
     float horizon = smoothstep(55.0, 150.0, dist);

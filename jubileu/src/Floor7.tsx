@@ -980,6 +980,10 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     legL.current.rotation.x *= 0.8; legR.current.rotation.x *= 0.8;
                     legL.current.position.y = 0.62; legR.current.position.y = 0.62;
                     armL.current.rotation.x = idle; armR.current.rotation.x = -idle;
+                    // weight-shift foot to foot so he isn't a frozen statue
+                    const wsh = Math.sin(t * 0.8);
+                    captainRef.current.position.x += wsh * 0.022;
+                    captainRef.current.rotation.z = wsh * 0.02;
                 }
             }
             if (jaw.current) {
@@ -1038,16 +1042,18 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             const cam = state.camera;
             handsRef.current.position.copy(cam.position);
             handsRef.current.quaternion.copy(cam.quaternion);
-            handsRef.current.translateX(0.2); handsRef.current.translateY(-0.26); handsRef.current.translateZ(-0.42);
+            handsRef.current.translateX(0.18); handsRef.current.translateY(-0.2); handsRef.current.translateZ(-0.34);
             handsRef.current.visible = b.elevFade() < 0.85;
             if (brushRef.current) {
                 const scrubbing = b.state() === F7_STATE.CLEAN && handleRef.current.interact;
                 if (scrubbing) {
                     brushRef.current.position.z = Math.sin(t * 12) * 0.06;
                     brushRef.current.position.y = -Math.abs(Math.sin(t * 12)) * 0.02;
+                    brushRef.current.rotation.x = Math.sin(t * 12) * 0.12;      // wrist supinates with the stroke
                 } else {
                     const sway = Math.sin(t * 1.6) * 0.012;
                     brushRef.current.position.z = sway; brushRef.current.position.y = sway * 0.5;
+                    brushRef.current.rotation.x = sway;
                 }
             }
         }
@@ -1180,7 +1186,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
 
             {/* first-person hands + scrub-brush (rides the camera, world-space) */}
             <group ref={handsRef} frustumCulled={false}>
-                <group ref={brushRef}>
+                <group ref={brushRef} scale={1.4}>
                     {/* coat sleeve entering from the lower-right corner + gold cuff */}
                     <mesh position={[0.07, -0.16, 0.16]} rotation={[0.95, 0.12, 0.22]} material={M.coat}><cylinderGeometry args={[0.052, 0.075, 0.4, 10]} /></mesh>
                     <mesh position={[0.035, -0.055, 0.02]} rotation={[0.95, 0.12, 0.22]} material={M.gold}><cylinderGeometry args={[0.072, 0.072, 0.045, 10]} /></mesh>
