@@ -23,7 +23,7 @@ declare global {
         __teleport?: (x: number, z: number) => void;
         __interact?: (v: boolean) => void;
         __forceTick?: (n: number, lx: number, lz: number, it: boolean) => void;
-        __state?: () => { state: number; cleaned: number; npud: number };
+        __state?: () => { state: number; cleaned: number; npud: number; tideWarn?: number };
         __puddles?: () => { x: number; z: number }[];
         __playerPos?: () => [number, number, number];
     }
@@ -110,7 +110,7 @@ const Play: React.FC = () => {
             const b = handle.current.brain; if (!b) return;
             for (let i = 0; i < n; i++) b.tick(0.05, lx, 0, lz, it);
         };
-        window.__state = () => ({ state: handle.current.state, cleaned: handle.current.cleaned, npud: handle.current.npud });
+        window.__state = () => ({ state: handle.current.state, cleaned: handle.current.cleaned, npud: handle.current.npud, tideWarn: handle.current.tideWarn });
         window.__puddles = () => {
             const b = handle.current.brain; if (!b) return [];
             const out: { x: number; z: number }[] = [];

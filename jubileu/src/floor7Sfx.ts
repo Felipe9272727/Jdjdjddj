@@ -111,6 +111,18 @@ export function f7PuddleDone(): void {
     osc.start(t); osc.stop(t + 0.32);
 }
 
+// the TELEGRAPH before a swell hits: a low, rising suck/draw of water pulling
+// back off the deck — the warning the player learns to react to.
+export function f7TideWarn(): void {
+    const c = ctx, o = out(); if (!c || !o) return; const t = c.currentTime;
+    const src = c.createBufferSource(); src.buffer = noiseBuf(c); src.playbackRate.value = 0.6;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.8;
+    bp.frequency.setValueAtTime(160, t); bp.frequency.exponentialRampToValueAtTime(620, t + 1.6);
+    const g = c.createGain(); g.gain.value = 0; src.connect(bp).connect(g).connect(o);
+    g.gain.linearRampToValueAtTime(0.07, t + 1.2); g.gain.exponentialRampToValueAtTime(0.001, t + 1.7);
+    src.start(t); src.stop(t + 1.75);
+}
+
 // a swell breaking over the rail: a swooshing noise burst that swells then
 // crashes — the audio half of the rising-tide re-wetting.
 export function f7Wave(): void {

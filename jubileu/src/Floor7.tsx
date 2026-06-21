@@ -23,7 +23,7 @@ import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSai
 const _puddleRipple = makePuddleRipple();
 import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams, buildWaterwayGeometry, deckYAt, railYAt, beamAt } from './floor7Geo';
 import { FLOOR7_SCALE, F7_DECK_PROPS } from './constants';
-import { f7Footstep, f7Scrub, f7BucketClunk, f7CaptainGrunt, f7PuddleDone, f7Wave, updateF7Roll } from './floor7Sfx';
+import { f7Footstep, f7Scrub, f7BucketClunk, f7CaptainGrunt, f7PuddleDone, f7Wave, f7TideWarn, updateF7Roll } from './floor7Sfx';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
 const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
@@ -65,9 +65,10 @@ export interface Floor7Handle {
     npud: number;
     cleanPct: number;
     state: number;
+    tideWarn: number;           // 0..1 incoming-swell telegraph
 }
 export function useFloor7Handle(): React.MutableRefObject<Floor7Handle> {
-    return useRef<Floor7Handle>({ brain: null, interact: false, dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0 });
+    return useRef<Floor7Handle>({ brain: null, interact: false, dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0, tideWarn: 0 });
 }
 
 // ── materials (module-scope, shared) ──
@@ -916,7 +917,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const _brushHeading = useRef(0); // last drag direction, held through slow passes
     // trailing cloth state (hem/sash/feather/grip) for follow-through lag
     const _cloth = useRef({ hemX: 0, hemZ: 0, sashZ: 0, featX: 0, featZ: 0, grip: 0.3, face: 0 });
-    const _sfx = useRef({ held: 0, cleaned: 0, dialogue: 0, step: 0, scrub: 0, px: 0, pz: 0, drainHit: false });
+    const _sfx = useRef({ held: 0, cleaned: 0, dialogue: 0, step: 0, scrub: 0, px: 0, pz: 0, drainHit: false, tideArmed: 0 });
     // suds particle pool (ship-local) for scrub juice
     const SUDS_N = 48;
     const sudsPts = useRef<THREE.Points>(null);
@@ -1130,6 +1131,10 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         // puddles erode directionally: the disc stays full-size; the per-cell
         // wetness mask (driven from the brain) discards the scrubbed cells, and
         // the wet halo fades with overall progress.
+        // TELEGRAPH: as a swell approaches (tideWarn 0..1) the wet halos surge
+        // and shimmer, so the player SEES the deck about to flood before it does.
+        const warn = b.tideWarn();
+        const haloSurge = 1 + warn * (1.0 + 0.6 * Math.sin(t * 13));
         for (let i = 0; i < b.npud; i++) {
             const g = puddleRefs.current[i];
             if (!g) continue;
@@ -1138,7 +1143,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             g.position.set(p.x, 0.02, p.z);
             g.visible = p.prog < 0.995;
             const halo = g.children[0] as THREE.Mesh;
-            (halo.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - p.prog);
+            (halo.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - p.prog) * haloSurge;
             if (p.cell) {
                 const mm = puddleMats[i] as unknown as { _cellData: Uint8Array; _cellTex: THREE.DataTexture };
                 if (!_prevCells.current) { _prevCells.current = new Float32Array(b.npud * 16); _prevCells.current.set(p.cell, i * 16); }
@@ -1260,10 +1265,14 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             if (dlg === 6) { f7Wave(); f7CaptainGrunt(); }   // a swell broke over the rail
             sf.dialogue = dlg;
         }
+        // tide telegraph: fire the rising warning pre-roll once as warn ramps up
+        if (warn > 0.04 && !sf.tideArmed) { sf.tideArmed = 1; f7TideWarn(); }
+        if (warn <= 0.001) sf.tideArmed = 0;
 
         // publish a snapshot for the DOM overlay
         const h = handleRef.current;
         h.dialogue = b.dialogue(); h.cleaned = b.cleaned(); h.cleanPct = b.cleanPct(); h.state = b.state();
+        h.tideWarn = warn;
     });
 
     return (
@@ -1379,13 +1388,13 @@ const DIALOGUE: Record<number, string> = {
 };
 
 export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7Handle> }> = ({ handleRef }) => {
-    const [snap, setSnap] = useState({ dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0 });
+    const [snap, setSnap] = useState({ dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0, tideWarn: 0 });
     useEffect(() => {
         let raf = 0;
         const loop = () => {
             const h = handleRef.current;
-            setSnap((s) => (s.dialogue !== h.dialogue || s.cleaned !== h.cleaned || Math.abs(s.cleanPct - h.cleanPct) > 0.01 || s.state !== h.state)
-                ? { dialogue: h.dialogue, cleaned: h.cleaned, npud: h.npud, cleanPct: h.cleanPct, state: h.state } : s);
+            setSnap((s) => (s.dialogue !== h.dialogue || s.cleaned !== h.cleaned || Math.abs(s.cleanPct - h.cleanPct) > 0.01 || s.state !== h.state || Math.abs(s.tideWarn - h.tideWarn) > 0.04)
+                ? { dialogue: h.dialogue, cleaned: h.cleaned, npud: h.npud, cleanPct: h.cleanPct, state: h.state, tideWarn: h.tideWarn } : s);
             raf = requestAnimationFrame(loop);
         };
         raf = requestAnimationFrame(loop);
@@ -1404,6 +1413,16 @@ export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7H
     const cleaning = snap.state === F7_STATE.CLEAN;
     return (
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 45, fontFamily: '"Source Sans 3","Segoe UI",sans-serif' }}>
+            {/* rising-tide telegraph: a cold spray vignette creeps in from the
+                screen edges as a swell approaches (tideWarn 0..1) */}
+            {cleaning && snap.tideWarn > 0.02 && (
+                <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: snap.tideWarn, boxShadow: 'inset 0 0 140px 30px rgba(60,120,150,0.75)', transition: 'opacity 0.12s linear' }} />
+            )}
+            {cleaning && snap.tideWarn > 0.45 && (
+                <div style={{ position: 'absolute', left: '50%', top: 'calc(env(safe-area-inset-top,0px) + 92px)', transform: 'translateX(-50%)', color: '#dff2fb', fontSize: 13, fontWeight: 700, letterSpacing: '0.18em', textShadow: '0 1px 4px #04263a', opacity: Math.min(1, (snap.tideWarn - 0.45) * 3) }}>
+                    ◣ VAGALHÃO CHEGANDO ◢
+                </div>
+            )}
             {txt && (
                 <div style={{ position: 'absolute', left: '50%', bottom: 'calc(env(safe-area-inset-bottom,0px) + 92px)', transform: 'translateX(-50%)', maxWidth: 'min(92vw, 640px)', background: 'rgba(20,14,8,0.86)', border: '1px solid rgba(202,165,106,0.5)', borderRadius: 12, padding: '12px 16px', color: '#f3e7cf', fontSize: 15, lineHeight: 1.35, textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.6)' }}>
                     {txt}
