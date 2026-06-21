@@ -45,8 +45,8 @@ function billowSail(w: number, h: number, bulge: number): THREE.PlaneGeometry {
     g.computeVertexNormals();
     return g;
 }
-const _mainSailGeo = billowSail(4.2, 2.6, 0.78);
-const _foreSailGeo = billowSail(3.0, 1.9, 0.6);
+const _mainSailGeo = billowSail(4.5, 3.4, 0.92);
+const _foreSailGeo = billowSail(3.3, 2.9, 0.74);
 
 // warm low sun (golden hour) shared by the Sky, the key light and water glitter
 const SUN_POS: [number, number, number] = [26, 4.5, -30];
@@ -340,7 +340,7 @@ const ShipBody: React.FC = () => {
                 <mesh position={[0, 5.2, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
                     <cylinderGeometry args={[0.08, 0.08, 4.6, 8]} />
                 </mesh>
-                <mesh position={[0, 4.0, 0.06]} geometry={_mainSailGeo} material={M.sail} />
+                <mesh position={[0, 3.45, 0.06]} geometry={_mainSailGeo} material={M.sail} />
                 {/* crow's nest */}
                 <mesh position={[0, 6.0, 0]} material={M.rail}><cylinderGeometry args={[0.34, 0.28, 0.4, 10, 1, true]} /></mesh>
                 <mesh position={[0, 5.8, 0]} material={M.rail}><cylinderGeometry args={[0.32, 0.32, 0.04, 10]} /></mesh>
@@ -354,7 +354,7 @@ const ShipBody: React.FC = () => {
                 <mesh position={[0, 3.7, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
                     <cylinderGeometry args={[0.07, 0.07, 3.4, 8]} />
                 </mesh>
-                <mesh position={[0, 2.9, 0.05]} geometry={_foreSailGeo} material={M.sail} />
+                <mesh position={[0, 2.25, 0.05]} geometry={_foreSailGeo} material={M.sail} />
             </group>
             {/* helm (ship's wheel) at the stern */}
             <group position={[0, 0.7, -6.2]}>
