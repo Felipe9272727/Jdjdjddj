@@ -101,7 +101,11 @@ const M = {
     // first-person cuff: even calmer, since it fills the frame next to the camera.
     goldFp: new THREE.MeshStandardMaterial({ color: '#e3bb55', roughness: 0.45, metalness: 0.5, envMapIntensity: 0.3, emissive: '#3a2b08', emissiveIntensity: 0.16 }),
     boot: new THREE.MeshStandardMaterial({ color: '#2a1d12', roughness: 0.55 }),
-    beard: new THREE.MeshStandardMaterial({ color: '#7d6552', roughness: 0.98, bumpMap: _sailCloth.rough, bumpScale: 0.02 }),
+    // beard warmed toward the hair so the two cohere (AAA rule: analogous hues)
+    beard: new THREE.MeshStandardMaterial({ color: '#4a3526', roughness: 0.98, bumpMap: _sailCloth.rough, bumpScale: 0.022 }),
+    // baldric/sash — a deep navy leather so it reads SEPARATELY from the gold
+    // waistcoat (was the same gold, an unreadable yellow mush on the chest)
+    baldric: new THREE.MeshStandardMaterial({ color: '#1f2b44', roughness: 0.6, bumpMap: _sailCloth.rough, bumpScale: 0.015 }),
     hair: new THREE.MeshStandardMaterial({ color: '#26201a', roughness: 0.9 }),
     eyewhite: new THREE.MeshStandardMaterial({ color: '#f2efe6', roughness: 0.35 }),
     // recessed eye socket (dark, sits behind the white so the eye reads sunken)
@@ -110,6 +114,9 @@ const M = {
     iris: new THREE.MeshStandardMaterial({ color: '#5a6b6e', roughness: 0.32, metalness: 0.1 }),
     // ruddy, weathered captain skin (cheeks/nose catch a warmer tone)
     skinR: new THREE.MeshStandardMaterial({ color: '#c4805c', roughness: 0.66 }),
+    // pale old scar tissue, and a darker shadow-skin for socket/crease AO
+    scar: new THREE.MeshStandardMaterial({ color: '#d9a98a', roughness: 0.5 }),
+    skinD: new THREE.MeshStandardMaterial({ color: '#9c6a4a', roughness: 0.66 }),
     sash: new THREE.MeshStandardMaterial({ color: '#caa024', roughness: 0.7 }),
     steel: new THREE.MeshStandardMaterial({ color: '#c8ccd2', roughness: 0.3, metalness: 0.85 }),
     bucket: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, bumpMap: _trimWood.rough, bumpScale: 0.02, color: '#9c7038', roughness: 0.7, envMapIntensity: 0.6 }),
@@ -873,8 +880,11 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             </React.Fragment>
         ))}
         <mesh position={[0, 1.33, 0]} material={M.coatDk}><cylinderGeometry args={[0.21, 0.16, 0.12, 14]} /></mesh>
+        {/* baldric — a single clean navy-leather diagonal with a gold edge, so it
+            reads as its own strap (not merged into the gold waistcoat) */}
         <group ref={rig.sash} position={[0, 1.30, 0]}>
-            <mesh position={[0, -0.32, 0.04]} rotation={[0, 0, 0.55]} material={M.sash}><boxGeometry args={[0.11, 0.74, 0.44]} /></mesh>
+            <mesh position={[0, -0.32, 0.04]} rotation={[0, 0, 0.55]} material={M.baldric}><boxGeometry args={[0.1, 0.78, 0.46]} /></mesh>
+            <mesh position={[0.022, -0.32, 0.27]} rotation={[0, 0, 0.55]} material={M.gold}><boxGeometry args={[0.016, 0.78, 0.018]} /></mesh>
         </group>
         <mesh position={[0, 0.74, 0]} material={M.boot}><cylinderGeometry args={[0.30, 0.32, 0.1, 16]} /></mesh>
         {/* big brass belt buckle */}
@@ -946,8 +956,9 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
         <mesh position={[0, 1.5, -0.025]} rotation={[-0.22, 0, 0]} material={M.giltTrim}><cylinderGeometry args={[0.185, 0.14, 0.19, 16, 1, true, Math.PI * 0.34, Math.PI * 1.32]} /></mesh>
         <mesh position={[0, 1.49, -0.03]} rotation={[-0.22, 0, 0]} material={M.coatDk}><cylinderGeometry args={[0.165, 0.13, 0.17, 16, 1, true, Math.PI * 0.36, Math.PI * 1.28]} /></mesh>
 
-        {/* HEAD group — neck pivot at y=1.42 (rotates to track the player) */}
-        <group ref={rig.head} position={[0, 1.42, 0]}>
+        {/* HEAD group — neck pivot at y=1.42 (rotates to track the player).
+            Scaled down to ~7-head proportion (was a bobblehead vs the AAA bar). */}
+        <group ref={rig.head} position={[0, 1.44, 0]} scale={0.86}>
             {/* SKULL */}
             <mesh position={[0, 0.16, 0]} scale={[1, 1.06, 0.97]} material={M.skin}><sphereGeometry args={[0.185, 22, 20]} /></mesh>
             {/* hair skull-cap under the hat — no more bald temples/nape */}
@@ -957,15 +968,23 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             {[-1, 1].map((s) => (
                 <mesh key={'br' + s} position={[s * 0.075, 0.205, 0.175]} rotation={[0.34, 0, s * 0.16]} material={M.skin}><boxGeometry args={[0.092, 0.036, 0.09]} /></mesh>
             ))}
-            {/* bushy eyebrows riding the ridge */}
+            {/* bushy eyebrows riding the ridge — the patch-side brow cocked higher
+                (gammy asymmetry the AAA bar demands) */}
             {[-1, 1].map((s) => (
-                <mesh key={'eb' + s} position={[s * 0.075, 0.216, 0.2]} rotation={[0.2, 0, s * -0.16]} material={M.hair}><boxGeometry args={[0.08, 0.022, 0.026]} /></mesh>
+                <mesh key={'eb' + s} position={[s * 0.075, 0.216 + (s > 0 ? 0.014 : 0), 0.2]} rotation={[0.2, 0, s * -0.16 + (s > 0 ? 0.12 : 0)]} material={M.hair}><boxGeometry args={[0.08, 0.022, 0.026]} /></mesh>
             ))}
             {/* cheekbones — a flat MALAR PLANE that flows toward the jaw (not two
                 clown-balls): wide + flat + angled, catching the key light */}
             {[-1, 1].map((s) => (
                 <mesh key={'ck' + s} position={[s * 0.14, 0.1, 0.115]} rotation={[0, s * -0.22, 0.08 * s]} scale={[1.35, 0.5, 0.6]} material={M.skinR}><sphereGeometry args={[0.05, 10, 8]} /></mesh>
             ))}
+            {/* darker shadow-skin pooled in the eye/nose creases — fake AO so the
+                brow, nose and sockets read as ONE fused surface, not floating blocks */}
+            {[-1, 1].map((s) => (
+                <mesh key={'sh' + s} position={[s * 0.072, 0.162, 0.16]} scale={[1.1, 0.72, 0.45]} material={M.skinD}><sphereGeometry args={[0.046, 10, 8]} /></mesh>
+            ))}
+            {/* an OLD SCAR slashing down across the patched eye (weathering) */}
+            <mesh position={[0.086, 0.215, 0.182]} rotation={[0, 0, -0.62]} material={M.scar}><capsuleGeometry args={[0.0072, 0.14, 3, 6]} /></mesh>
             {/* LEFT working eye — recessed socket + a SMALLER white with a BIGGER
                 iris (no more wall-eye), dropped under the brow so it reads sunken */}
             <mesh position={[-0.072, 0.184, 0.152]} scale={[1.15, 0.92, 0.55]} material={M.socket}><sphereGeometry args={[0.05, 12, 10]} /></mesh>
