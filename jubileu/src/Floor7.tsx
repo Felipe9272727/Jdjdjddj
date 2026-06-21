@@ -878,6 +878,26 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     };
     const _capWorld = useRef(new THREE.Vector3());
     const _sfx = useRef({ held: 0, cleaned: 0, dialogue: 0, step: 0, scrub: 0, px: 0, pz: 0 });
+    // suds particle pool (ship-local) for scrub juice
+    const SUDS_N = 48;
+    const sudsPts = useRef<THREE.Points>(null);
+    const _suds = useRef({ vel: new Float32Array(SUDS_N * 3), life: new Float32Array(SUDS_N), head: 0 });
+    const sudsGeo = useMemo(() => {
+        const g = new THREE.BufferGeometry();
+        const pos = new Float32Array(SUDS_N * 3); for (let i = 0; i < SUDS_N; i++) pos[i * 3 + 1] = -999;
+        g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        return g;
+    }, []);
+    const sudsBurst = (x: number, y: number, z: number) => {
+        const d = _suds.current, pos = sudsGeo.attributes.position.array as Float32Array;
+        for (let k = 0; k < 5; k++) {
+            const i = d.head; d.head = (d.head + 1) % SUDS_N;
+            pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+            const a = Math.random() * 6.283, sp = 0.4 + Math.random() * 0.7;
+            d.vel[i * 3] = Math.cos(a) * sp; d.vel[i * 3 + 1] = 1.3 + Math.random() * 0.9; d.vel[i * 3 + 2] = Math.sin(a) * sp;
+            d.life[i] = 0.45 + Math.random() * 0.3;
+        }
+    };
     const bucketRef = useRef<THREE.Group>(null);
     const elevatorRef = useRef<THREE.Group>(null);
     const puddleRefs = useRef<(THREE.Group | null)[]>([]);
@@ -968,7 +988,15 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         // bucket
         if (bucketRef.current) {
             const bu = b.bucket();
-            bucketRef.current.position.set(bu.x, bu.held ? 0.5 : 0.18, bu.z);
+            // when carried, the bucket follows the player with spring lag + sways
+            // on the rolling deck (slosh) instead of snapping to a fixed offset
+            const br = bucketRef.current, k = bu.held ? Math.min(1, dt * 9) : Math.min(1, dt * 16);
+            const ty = bu.held ? 0.5 : 0.18;
+            br.position.x += (bu.x - br.position.x) * k;
+            br.position.z += (bu.z - br.position.z) * k;
+            br.position.y += (ty - br.position.y) * k;
+            br.rotation.z = bu.held ? -b.roll() * 1.3 + Math.sin(t * 3) * 0.04 : 0;
+            br.rotation.x = bu.held ? b.pitch() * 1.0 : 0;
             const glow = (b.state() === F7_STATE.FETCH) ? 0.5 + 0.5 * Math.sin(performance.now() / 200) : 0;
             (M.cloth as THREE.MeshStandardMaterial).emissive.setRGB(glow * 0.4, glow * 0.4, glow * 0.2);
         }
@@ -1002,7 +1030,21 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         sf.px = pw.x; sf.pz = pw.z;
         if (dStep > 0.002) { sf.step += dStep; if (sf.step > 1.5) { sf.step = 0; f7Footstep(); } }
         if (b.state() === F7_STATE.CLEAN && handleRef.current.interact) {
-            sf.scrub -= dt; if (sf.scrub <= 0) { sf.scrub = 0.22; f7Scrub(); }
+            sf.scrub -= dt; if (sf.scrub <= 0) { sf.scrub = 0.22; f7Scrub(); sudsBurst(_local.current.x, 0.12, _local.current.z); }
+        }
+        // advance suds particles (gravity + fade)
+        {
+            const d = _suds.current, pos = sudsGeo.attributes.position.array as Float32Array;
+            let any = false;
+            for (let i = 0; i < SUDS_N; i++) {
+                if (d.life[i] > 0) {
+                    d.life[i] -= dt; d.vel[i * 3 + 1] -= 4.5 * dt;
+                    pos[i * 3] += d.vel[i * 3] * dt; pos[i * 3 + 1] += d.vel[i * 3 + 1] * dt; pos[i * 3 + 2] += d.vel[i * 3 + 2] * dt;
+                    if (d.life[i] <= 0) pos[i * 3 + 1] = -999;
+                    any = true;
+                }
+            }
+            if (any) sudsGeo.attributes.position.needsUpdate = true;
         }
         const held = b.bucket().held ? 1 : 0;
         if (held && !sf.held) f7BucketClunk();
@@ -1074,6 +1116,10 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                         </mesh>
                     </group>
                 ))}
+                {/* suds particles thrown up by scrubbing */}
+                <points ref={sudsPts} geometry={sudsGeo} frustumCulled={false}>
+                    <pointsMaterial size={0.07} color="#eef7f8" transparent opacity={0.92} depthWrite={false} sizeAttenuation />
+                </points>
             </group>
         </group>
     );
