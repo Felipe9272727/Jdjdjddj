@@ -545,8 +545,16 @@ const ShipBody: React.FC = () => {
             {/* main mast + yard + sail + flag + crow's nest */}
             <group position={[0, 0, -1]}>
                 <mesh position={[0, 3.4, 0]} material={M.mast}>
-                    <cylinderGeometry args={[0.16, 0.2, 6.8, 10]} />
+                    <cylinderGeometry args={[0.11, 0.23, 6.8, 12]} />
                 </mesh>
+                {/* woolding (rope bands) on the lower mast */}
+                {[0.55, 0.95, 1.35, 1.75].map((y, i) => (
+                    <mesh key={'wd' + i} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.rope}><torusGeometry args={[0.215 - i * 0.004, 0.024, 6, 14]} /></mesh>
+                ))}
+                {/* mast wedges ringing the deck partners */}
+                {Array.from({ length: 8 }).map((_, i) => { const a = (i / 8) * Math.PI * 2; return (
+                    <mesh key={'wg' + i} position={[Math.cos(a) * 0.25, 0.2, Math.sin(a) * 0.25]} rotation={[0, -a, 0.14]} material={M.wheel}><boxGeometry args={[0.09, 0.36, 0.17]} /></mesh>
+                ); })}
                 <mesh position={[0, 5.2, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
                     <cylinderGeometry args={[0.08, 0.08, 4.6, 8]} />
                 </mesh>
@@ -565,8 +573,14 @@ const ShipBody: React.FC = () => {
             {/* foremast */}
             <group position={[0, 0, 4]}>
                 <mesh position={[0, 2.6, 0]} material={M.mast}>
-                    <cylinderGeometry args={[0.13, 0.16, 5.2, 10]} />
+                    <cylinderGeometry args={[0.09, 0.18, 5.2, 12]} />
                 </mesh>
+                {[0.5, 0.85, 1.2].map((y, i) => (
+                    <mesh key={'fwd' + i} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.rope}><torusGeometry args={[0.17 - i * 0.004, 0.02, 6, 14]} /></mesh>
+                ))}
+                {Array.from({ length: 8 }).map((_, i) => { const a = (i / 8) * Math.PI * 2; return (
+                    <mesh key={'fwg' + i} position={[Math.cos(a) * 0.2, 0.18, Math.sin(a) * 0.2]} rotation={[0, -a, 0.14]} material={M.wheel}><boxGeometry args={[0.07, 0.3, 0.14]} /></mesh>
+                ); })}
                 <mesh position={[0, 3.7, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
                     <cylinderGeometry args={[0.07, 0.07, 3.4, 8]} />
                 </mesh>
