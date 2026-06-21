@@ -825,22 +825,32 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             swings from the waist, and a lower hem nested at its base that lags
             further, so the skirt bends along its length instead of as a rigid bell */}
         <group ref={rig.coatHem} position={[0, 1.05, 0]}>
-            <mesh position={[0, -0.155, 0]} material={M.coat}><cylinderGeometry args={[0.27, 0.325, 0.31, 16]} /></mesh>
-            {/* front-vent seams break the round bell into cloth panels */}
-            {[0.34, -0.34].map((s, i) => (
-                <mesh key={i} position={[s * 0.3, -0.155, 0.31]} rotation={[0, s, 0]} material={M.coatDk}><boxGeometry args={[0.02, 0.31, 0.03]} /></mesh>
-            ))}
-            <group ref={rig.coatHem2} position={[0, -0.31, 0]}>
-                <mesh position={[0, -0.155, 0]} material={M.coat}><cylinderGeometry args={[0.325, 0.39, 0.31, 16]} /></mesh>
-                {/* two tails hang off the BACK of the hem — a frock-coat silhouette,
-                    not a cone; they swing with the lower hem's follow-through */}
-                {[-1, 1].map((s) => (
-                    <mesh key={s} position={[s * 0.17, -0.30, -0.28]} rotation={[0.32, s * 0.12, 0]} material={M.coatDk}><boxGeometry args={[0.2, 0.5, 0.045]} /></mesh>
+            {/* waistband ring */}
+            <mesh position={[0, -0.04, 0]} material={M.coat}><cylinderGeometry args={[0.255, 0.275, 0.13, 16]} /></mesh>
+            {/* OPEN frock-coat skirt: separate hanging panels with a front-centre
+                VENT, so the breeches + boots show through instead of a closed cone */}
+            <group ref={rig.coatHem2} position={[0, -0.1, 0]}>
+                {/* side + back panels (skip the front centre to leave the vent) */}
+                {[-0.62, 0.62, -1.45, 1.45, Math.PI - 0.6, Math.PI + 0.6].map((ang, i) => (
+                    <mesh key={i} position={[Math.sin(ang) * 0.3, -0.27, Math.cos(ang) * 0.3]} rotation={[0.05, ang, 0]} material={M.coat}>
+                        <boxGeometry args={[0.26, 0.58, 0.055]} />
+                    </mesh>
                 ))}
-                {/* a slim front skirt placket flares forward between the legs */}
-                <mesh position={[0, -0.26, 0.27]} rotation={[-0.2, 0, 0]} material={M.coat}><boxGeometry args={[0.26, 0.42, 0.05]} /></mesh>
+                {/* two front flaps angled open, framing the vent (gilt-edged) */}
+                {[-1, 1].map((s) => (
+                    <React.Fragment key={'ff' + s}>
+                        <mesh position={[s * 0.16, -0.27, 0.29]} rotation={[0.05, s * 0.5, 0]} material={M.coat}><boxGeometry args={[0.2, 0.6, 0.05]} /></mesh>
+                        <mesh position={[s * 0.075, -0.27, 0.33]} rotation={[0.05, s * 0.5, 0]} material={M.giltTrim}><boxGeometry args={[0.02, 0.6, 0.02]} /></mesh>
+                    </React.Fragment>
+                ))}
+                {/* longer back tails */}
+                {[-1, 1].map((s) => (
+                    <mesh key={'t' + s} position={[s * 0.16, -0.34, -0.31]} rotation={[0.3, s * 0.1, 0]} material={M.coatDk}><boxGeometry args={[0.2, 0.64, 0.05]} /></mesh>
+                ))}
             </group>
         </group>
+        {/* breeches behind the open vent + a polished boot-top showing through */}
+        <mesh position={[0, 0.66, 0.04]} material={M.bootTop}><boxGeometry args={[0.34, 0.34, 0.26]} /></mesh>
         <mesh position={[0, 1.16, 0]} material={M.coat}><cylinderGeometry args={[0.23, 0.27, 0.44, 16]} /></mesh>
         <mesh position={[0, 0.95, 0.235]} rotation={[0.05, 0, 0]} material={M.coatDk}><boxGeometry args={[0.30, 0.95, 0.04]} /></mesh>
         {[1.30, 1.16, 1.02, 0.88].map((y, i) => (
