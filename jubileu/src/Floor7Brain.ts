@@ -22,6 +22,7 @@ interface F7Exports {
     f7_capX(): number; f7_capZ(): number; f7_capFace(): number; f7_capBob(): number; f7_capWalk(): number;
     f7_bucX(): number; f7_bucZ(): number; f7_bucHeld(): number; f7_buc_water(): number;
     f7_elevFade(): number; f7_tide_warn(): number;
+    f7_tide_target(): number; f7_tide_tx(): number; f7_tide_tz(): number;
     f7_npud(): number; f7_cleaned(): number; f7_can_leave(): number; f7_clean_pct(): number;
     f7_puddles(): number;
 }
@@ -69,8 +70,13 @@ export class Floor7Brain {
         return { x: this.e.f7_bucX(), z: this.e.f7_bucZ(), held: this.e.f7_bucHeld() === 1, water: this.e.f7_buc_water() };
     }
     elevFade(): number { return this.e.f7_elevFade(); }
-    /** 0..1 swell-incoming warning (ramps in the ~2s before a tide re-wets a puddle). */
+    /** 0..1 swell-incoming warning (ramps in the ~3.6s before a tide re-wets a puddle). */
     tideWarn(): number { return this.e.f7_tide_warn(); }
+    /** the puddle the next swell will re-wet (idx -1 if none) + its ship-local pos,
+     *  so the telegraph (surge + halo flash) can point at the at-risk patch. */
+    tideTarget(): { idx: number; x: number; z: number } {
+        return { idx: this.e.f7_tide_target(), x: this.e.f7_tide_tx(), z: this.e.f7_tide_tz() };
+    }
     cleaned(): number { return this.e.f7_cleaned(); }
     cleanPct(): number { return this.e.f7_clean_pct(); }
     canLeave(): boolean { return this.e.f7_can_leave() === 1; }

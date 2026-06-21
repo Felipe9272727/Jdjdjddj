@@ -73,6 +73,7 @@ static struct {
     float tideTimer;    /* counts down to the next swell                       */
     float tideWarn;     /* 0..1, ramps up in the seconds before a swell        */
     float tideBark;     /* >0 while the "a wave washed the deck" line shows     */
+    int   tideTarget;   /* index of the puddle the next swell will re-wet (-1)  */
     /* bucket */
     float bucX, bucZ;
     int   bucHeld;
@@ -102,7 +103,7 @@ void f7_init(unsigned int seed) {
     S.bucX = 1.35f; S.bucZ = -1.8f; S.bucHeld = 0; S.bucWater = 1.0f;
     S.cleaned = 0; S.elevFade = 1.0f; S.dialogue = 0; S.prevInteract = 0;
     S.capWalk = 0; S.barkTimer = 0.0f; S.barked3 = 0;
-    S.tideTimer = 12.0f; S.tideWarn = 0.0f; S.tideBark = 0.0f;
+    S.tideTimer = 12.0f; S.tideWarn = 0.0f; S.tideBark = 0.0f; S.tideTarget = -1;
     /* scatter puddles across the WALKABLE deck — inside the bulwark with room
        for the player to stand on them, clear of the centre-lane structures and
        the bow/stern. Radii kept small so they never poke past the rail. */
@@ -231,14 +232,11 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
         /* --- rising tide: the sea fights back --- */
         S.tideTimer -= dt;
         S.tideWarn = f7_clamp01((3.6f - S.tideTimer) / 3.6f);   /* ~3.6s window — time to choose a route */
-        if (S.tideTimer <= 0.0f) {
-            S.tideTimer = 13.0f + frand() * 4.0f;
-            S.tideWarn = 0.0f;
-            /* re-wet the MOST-progressed puddle you've left half-mopped (most to
-               lose) — never the one you're currently standing on (you can always
-               finish what you're working), never a finished one (those stay done),
-               and never an untouched one (re-wetting full cells is a no-op). This
-               punishes spreading yourself thin, not methodical work. */
+        /* continuously pick the AT-RISK puddle so the telegraph can point at it:
+           the most-progressed puddle you've left half-mopped (most to lose) —
+           never the one you're currently on, never a finished one, never an
+           untouched one. Punishes spreading thin, not methodical work. */
+        {
             int worst = -1; float wp = 0.02f;
             for (int i = 0; i < NPUD; i++) {
                 if (S.pud[i].prog >= 1.0f || S.pud[i].prog <= 0.02f) continue;
@@ -247,6 +245,12 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
                 if (ddx * ddx + ddz * ddz < rr * rr) continue;   /* skip the active puddle */
                 if (S.pud[i].prog > wp) { wp = S.pud[i].prog; worst = i; }
             }
+            S.tideTarget = worst;
+        }
+        if (S.tideTimer <= 0.0f) {
+            S.tideTimer = 13.0f + frand() * 4.0f;
+            S.tideWarn = 0.0f;
+            int worst = S.tideTarget;
             if (worst >= 0) {
                 /* a band floods back in, heavier on the lee (down-rolled) side */
                 int leeRight = (S.roll < 0.0f);
@@ -313,6 +317,11 @@ __attribute__((export_name("f7_bucHeld")))int  f7_bucHeld(void){ return S.bucHel
 __attribute__((export_name("f7_buc_water")))float f7_buc_water(void){ return S.bucWater; }
 __attribute__((export_name("f7_elevFade")))float f7_elevFade(void){ return S.elevFade; }
 __attribute__((export_name("f7_tide_warn")))float f7_tide_warn(void){ return S.tideWarn; }
+/* index of the puddle the next swell targets (-1 none), and its position, so the
+   renderer can point the telegraph (surge + halo flash) at the at-risk patch */
+__attribute__((export_name("f7_tide_target")))int f7_tide_target(void){ return S.tideTarget; }
+__attribute__((export_name("f7_tide_tx")))float f7_tide_tx(void){ return S.tideTarget >= 0 ? S.pud[S.tideTarget].x : 0.0f; }
+__attribute__((export_name("f7_tide_tz")))float f7_tide_tz(void){ return S.tideTarget >= 0 ? S.pud[S.tideTarget].z : 0.0f; }
 __attribute__((export_name("f7_npud")))    int  f7_npud(void) { return NPUD; }
 __attribute__((export_name("f7_cleaned")))  int  f7_cleaned(void){ return S.cleaned; }
 __attribute__((export_name("f7_can_leave")))int  f7_can_leave(void){ return 0; } /* partial level: never */

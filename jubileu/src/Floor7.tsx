@@ -971,6 +971,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const bucketRef = useRef<THREE.Group>(null);
     const sudsSurfRef = useRef<THREE.Mesh>(null);
     const _tideWarnRef = useRef(0);   // shared with the water shader for the surge
+    const _tideDirRef = useRef(new THREE.Vector2(0, 0)); // dir to the at-risk puddle
     const handsRef = useRef<THREE.Group>(null);
     const brushRef = useRef<THREE.Group>(null);
     const leftHandRef = useRef<THREE.Group>(null);
@@ -1178,10 +1179,13 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         // puddles erode directionally: the disc stays full-size; the per-cell
         // wetness mask (driven from the brain) discards the scrubbed cells, and
         // the wet halo fades with overall progress.
-        // TELEGRAPH: as a swell approaches (tideWarn 0..1) the wet halos surge
-        // and shimmer, so the player SEES the deck about to flood before it does.
+        // TELEGRAPH: as a swell approaches (tideWarn 0..1) the wet halos surge and
+        // shimmer — and the AT-RISK puddle (the one this swell will re-wet) pulses
+        // far brighter, so the player sees not just THAT a swell is coming but WHERE.
         const warn = b.tideWarn();
-        const haloSurge = 1 + warn * (1.0 + 0.6 * Math.sin(t * 13));
+        const tideT = b.tideTarget();
+        const haloSurge = 1 + warn * (0.6 + 0.4 * Math.sin(t * 13));
+        const targetPulse = 1 + warn * (2.4 + 1.6 * Math.sin(t * 9));
         for (let i = 0; i < b.npud; i++) {
             const g = puddleRefs.current[i];
             if (!g) continue;
@@ -1190,7 +1194,12 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             g.position.set(p.x, 0.02, p.z);
             g.visible = p.prog < 0.995;
             const halo = g.children[0] as THREE.Mesh;
-            (halo.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - p.prog) * haloSurge;
+            const hm = halo.material as THREE.MeshBasicMaterial;
+            const atRisk = i === tideT.idx;
+            hm.opacity = 0.6 * (1 - p.prog) * (atRisk ? targetPulse : haloSurge);
+            // the at-risk halo also flushes toward a cold spray-white as it pulses
+            if (atRisk && warn > 0.02) hm.color.setRGB(0.18 + warn * 0.5, 0.42 + warn * 0.45, 0.5 + warn * 0.45);
+            else hm.color.setRGB(0.039, 0.094, 0.11);
             if (p.cell) {
                 const mm = puddleMats[i] as unknown as { _cellData: Uint8Array; _cellTex: THREE.DataTexture };
                 if (!_prevCells.current) { _prevCells.current = new Float32Array(b.npud * 16); _prevCells.current.set(p.cell, i * 16); }
@@ -1322,6 +1331,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         h.dialogue = b.dialogue(); h.cleaned = b.cleaned(); h.cleanPct = b.cleanPct(); h.state = b.state();
         h.tideWarn = warn; h.bucWater = b.bucket().water;
         _tideWarnRef.current = warn;
+        // direction (ship-local xz) toward the at-risk puddle, for the directional surge
+        if (tideT.idx >= 0) { _tideDirRef.current.set(tideT.x, tideT.z); if (_tideDirRef.current.lengthSq() > 1e-4) _tideDirRef.current.normalize(); }
+        else _tideDirRef.current.set(0, 0);
     });
 
     return (
