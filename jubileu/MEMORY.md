@@ -78,3 +78,25 @@ trava em "Loading 88%"; por isso o harness proprio.)
 **Placar do CRITICO jogando:** 4.5 -> 5.5 (props) -> 6.5 (convés calafetado + spawn pra proa) ->
 agora amurada+cabine. Pendente que ele aponta: NPC capitao tosco em 1a pessoa (mas foco e o NAVIO),
 velas chapadas vistas de baixo, lashing dos props. Tudo verde sempre (tsc/105 testes/build/push).
+
+### Sessao 2026-06-21 (cont.) — CRITICO jogando levou de 4.5 a 8.0/10 ("believable SoT tier")
+
+Loop critico-joga continuou. Placar do subagente jogando: 4.5 -> 5.5 -> 6.5 -> 7.0 -> 7.4 ->
+7.7 -> **8.0/10** ("a deck you can stand on", tier Sea-of-Thieves estilizado). Visual do navio
+(beauty) chegou a ~8 tambem (era 2).
+
+Rodadas recentes (cada = commit verde + push):
+- Convés calafetado (buildDeckSeams em leque pra proa) + king plank.
+- Amurada: frame timbers (costelas) + escupiers + **waterway** (viga no canto convés/borda,
+  buildWaterwayGeometry varrida na curva C++).
+- Grounding: decais de **sombra de contato** (makeContactShadow, AO falso) sob cada prop, depois
+  apertados/feathered pro tamanho do prop; pocas escurecidas (agua reflexiva, nao tinta azul).
+- Madeira: variacao tom-a-tom por tabua (mata o "tijolo" de tiling).
+- Janelas (deckhouse + popa galeao): caixilho 4-pecas saliente + vidro fundo recuado (auto-sombra)
+  + peitoril; friso de madeira na cabine.
+- Mastros viram **mastaréus**: taper ~30%, **woolding** (aneis de corda), **cunhas** na enora.
+- Standing rig: mainstay + backstays com barriga (catenaria, TubeGeometry sobre bezier).
+
+Pendente que o critico ainda cobraria: capitao NPC tosco aparece grande em 1a pessoa (foco e o
+NAVIO, mas atrapalha algumas views), velas poderiam ter topsails/reef. Ferramentas: floor7play.html
+(+__setMove/__setYaw/__setPitch/__teleport), playshots7.cjs (8 views FP), shot7.cjs (orbit, escala x1.45).
