@@ -100,3 +100,12 @@ Rodadas recentes (cada = commit verde + push):
 Pendente que o critico ainda cobraria: capitao NPC tosco aparece grande em 1a pessoa (foco e o
 NAVIO, mas atrapalha algumas views), velas poderiam ter topsails/reef. Ferramentas: floor7play.html
 (+__setMove/__setYaw/__setPitch/__teleport), playshots7.cjs (8 views FP), shot7.cjs (orbit, escala x1.45).
+
+### Sessao 2026-06-21 — CRITICO joga: NAVIO chegou a 9.0/10 "shippable, YES"
+
+O subagente CRITICO, jogando em 1a pessoa e exigindo nivel Unreal, deu o veredito final:
+**9.0/10, "shippable stylized-AAA (Sea-of-Thieves) tier — YES"**. Arco: 2/10 (caixa de
+programador) -> 9.0. Ultimo gate era 1 material: poca lia como tinta azul chapada; troquei por
+superficie quase-preta reflexiva com bump de ripple (reflexo faz a cor) + halo molhado = agua.
+Polish que o critico ainda faria (nao bloqueante): normal nas tabuas da cabine, AO nos nos do
+mastro, weave/wear nas velas, topsails. Tudo verde sempre. Branch claude/review-commits-memory-y6iqnf.
