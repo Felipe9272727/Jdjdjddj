@@ -382,9 +382,17 @@ const SternCabin: React.FC = () => (
         {[-1.02, 1.02].map((x) => (
             <mesh key={'cp' + x} position={[x, 0.62, 0.66]} material={M.rail}><boxGeometry args={[0.07, 1.24, 0.07]} /></mesh>
         ))}
-        {/* door (faces forward, toward the deck), recessed in a frame */}
-        <mesh position={[0, 0.5, 0.64]} material={M.giltTrim}><boxGeometry args={[0.5, 0.92, 0.04]} /></mesh>
-        <mesh position={[0, 0.5, 0.66]} material={M.hat}><boxGeometry args={[0.42, 0.84, 0.05]} /></mesh>
+        {/* door (faces forward, toward the deck), recessed in a gilt frame: a
+            planked dark-wood door with two raised panels, not a flat black void */}
+        <mesh position={[0, 0.5, 0.63]} material={M.giltTrim}><boxGeometry args={[0.5, 0.92, 0.04]} /></mesh>
+        <mesh position={[0, 0.5, 0.655]} material={M.wheel}><boxGeometry args={[0.42, 0.84, 0.05]} /></mesh>
+        {/* raised panel frames + darker recessed centres = self-shadowed depth */}
+        {[0.69, 0.31].map((y, i) => (
+            <React.Fragment key={i}>
+                <mesh position={[0, y, 0.682]} material={M.barrel}><boxGeometry args={[0.30, 0.30, 0.012]} /></mesh>
+                <mesh position={[0, y, 0.686]} material={M.grate}><boxGeometry args={[0.22, 0.22, 0.012]} /></mesh>
+            </React.Fragment>
+        ))}
         <mesh position={[0.15, 0.5, 0.7]} material={M.gold}><sphereGeometry args={[0.035, 8, 6]} /></mesh>
         {/* windows flanking the door — glass deeply recessed behind a proud
             4-piece cased frame with a sill, so the wall thickness self-shadows */}
@@ -781,6 +789,9 @@ interface CaptainRig {
     armL: React.RefObject<THREE.Group>; armR: React.RefObject<THREE.Group>;
     head: React.RefObject<THREE.Group>; jaw: React.RefObject<THREE.Group>;
     eye: React.RefObject<THREE.Mesh>;
+    // cloth + grip that follow-through on stride / deck roll (secondary motion)
+    coatHem: React.RefObject<THREE.Group>; sash: React.RefObject<THREE.Group>;
+    feather: React.RefObject<THREE.Group>; gripR: React.RefObject<THREE.Group>;
 }
 const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref) => (
     <group ref={ref}>
@@ -796,8 +807,10 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             <mesh position={[0, -0.56, 0]} material={M.boot}><cylinderGeometry args={[0.09, 0.07, 0.1, 8]} /></mesh>
         </group>
 
-        {/* long coat — flared skirt + torso (static) */}
-        <mesh position={[0, 0.78, 0]} material={M.coat}><cylinderGeometry args={[0.27, 0.38, 0.62, 16]} /></mesh>
+        {/* long coat — flared skirt swings from the waist (secondary motion) + torso */}
+        <group ref={rig.coatHem} position={[0, 1.05, 0]}>
+            <mesh position={[0, -0.27, 0]} material={M.coat}><cylinderGeometry args={[0.27, 0.38, 0.62, 16]} /></mesh>
+        </group>
         <mesh position={[0, 1.16, 0]} material={M.coat}><cylinderGeometry args={[0.23, 0.27, 0.44, 16]} /></mesh>
         <mesh position={[0, 0.95, 0.235]} rotation={[0.05, 0, 0]} material={M.coatDk}><boxGeometry args={[0.30, 0.95, 0.04]} /></mesh>
         {[1.30, 1.16, 1.02, 0.88].map((y, i) => (
@@ -807,7 +820,9 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             </React.Fragment>
         ))}
         <mesh position={[0, 1.33, 0]} material={M.coatDk}><cylinderGeometry args={[0.21, 0.16, 0.12, 14]} /></mesh>
-        <mesh position={[0, 0.98, 0.04]} rotation={[0, 0, 0.55]} material={M.sash}><boxGeometry args={[0.11, 0.74, 0.44]} /></mesh>
+        <group ref={rig.sash} position={[0, 1.30, 0]}>
+            <mesh position={[0, -0.32, 0.04]} rotation={[0, 0, 0.55]} material={M.sash}><boxGeometry args={[0.11, 0.74, 0.44]} /></mesh>
+        </group>
         <mesh position={[0, 0.74, 0]} material={M.boot}><cylinderGeometry args={[0.30, 0.32, 0.09, 16]} /></mesh>
         <mesh position={[0, 0.74, 0.31]} material={M.gold}><boxGeometry args={[0.12, 0.08, 0.03]} /></mesh>
 
@@ -821,6 +836,13 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             <mesh position={[0, -0.22, 0]} material={M.coat}><cylinderGeometry args={[0.075, 0.09, 0.5, 8]} /></mesh>
             <mesh position={[0, -0.46, 0.04]} material={M.gold}><cylinderGeometry args={[0.092, 0.092, 0.09, 10]} /></mesh>
             <mesh position={[0, -0.53, 0.06]} material={M.skin}><sphereGeometry args={[0.066, 10, 8]} /></mesh>
+            {/* fingers — curl to grip the wheel when he takes the helm (ST_DONE) */}
+            <group ref={rig.gripR} position={[0, -0.55, 0.11]}>
+                {[-0.032, -0.011, 0.011, 0.032].map((fx, i) => (
+                    <mesh key={i} position={[fx, 0, 0]} material={M.skin}><capsuleGeometry args={[0.013, 0.058, 3, 6]} /></mesh>
+                ))}
+                <mesh position={[-0.05, 0.01, -0.02]} rotation={[0, 0, 0.6]} material={M.skin}><capsuleGeometry args={[0.014, 0.05, 3, 6]} /></mesh>
+            </group>
         </group>
 
         {/* neck (static) */}
@@ -856,7 +878,10 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
                     <mesh position={[0, 0.395, 0.335]} rotation={[-0.5, 0, 0]} material={M.gold}><boxGeometry args={[0.45, 0.02, 0.03]} /></mesh>
                 </group>
             ))}
-            <mesh position={[-0.18, 0.51, 0.18]} rotation={[0.2, 0, 0.5]} material={M.coat}><coneGeometry args={[0.04, 0.32, 8]} /></mesh>
+            {/* plume — whips with a lag off head/body motion */}
+            <group ref={rig.feather} position={[-0.18, 0.39, 0.18]}>
+                <mesh position={[0, 0.14, 0]} rotation={[0.2, 0, 0.5]} material={M.coat}><coneGeometry args={[0.04, 0.32, 8]} /></mesh>
+            </group>
         </group>
 
         {/* cutlass at the hip (static) */}
@@ -882,11 +907,15 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         armL: useRef<THREE.Group>(null), armR: useRef<THREE.Group>(null),
         head: useRef<THREE.Group>(null), jaw: useRef<THREE.Group>(null),
         eye: useRef<THREE.Mesh>(null),
+        coatHem: useRef<THREE.Group>(null), sash: useRef<THREE.Group>(null),
+        feather: useRef<THREE.Group>(null), gripR: useRef<THREE.Group>(null),
     };
     const _capWorld = useRef(new THREE.Vector3());
     const _prevPP = useRef(new THREE.Vector3());
     const _vel = useRef(new THREE.Vector3());
     const _brushHeading = useRef(0); // last drag direction, held through slow passes
+    // trailing cloth state (hem/sash/feather/grip) for follow-through lag
+    const _cloth = useRef({ hemX: 0, hemZ: 0, sashZ: 0, featX: 0, featZ: 0, grip: 0.3, face: 0 });
     const _sfx = useRef({ held: 0, cleaned: 0, dialogue: 0, step: 0, scrub: 0, px: 0, pz: 0, drainHit: false });
     // suds particle pool (ship-local) for scrub juice
     const SUDS_N = 48;
@@ -1047,6 +1076,32 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 head.current.rotation.y += (yawTo - head.current.rotation.y) * 0.1;
                 head.current.rotation.x = Math.sin(t * 0.9) * 0.04;  // slow idle nod, always alive
                 head.current.rotation.z = Math.sin(t * 0.7) * 0.025;
+            }
+            // ── secondary motion: cloth + grip trail the body (follow-through) ──
+            {
+                const cl = _cloth.current;
+                const roll = b.roll(), pitch = b.pitch();
+                // turn rate (how fast he's rotating) drives the hem/sash swinging out
+                const turn = c.face - cl.face; cl.face = c.face;
+                const strideX = walking ? Math.sin(ph) * 0.16 : 0;   // hem kicks with the peg-leg stride
+                // targets, then a one-pole trail so the cloth lags the motion
+                const hemXt = pitch * 1.1 + strideX + Math.sin(t * 1.1) * 0.02;
+                const hemZt = -roll * 1.2 - turn * 2.2;
+                const sashZt = -roll * 0.9 - turn * 1.6 + Math.sin(t * 1.3) * 0.03;
+                const featXt = -pitch * 1.4 - strideX * 0.6 + Math.sin(t * 2.1) * 0.05;
+                const featZt = roll * 1.5 + turn * 3.0;
+                const k = Math.min(1, dt * 6);
+                cl.hemX += (hemXt - cl.hemX) * k; cl.hemZ += (hemZt - cl.hemZ) * k;
+                cl.sashZ += (sashZt - cl.sashZ) * k;
+                cl.featX += (featXt - cl.featX) * Math.min(1, dt * 9);
+                cl.featZ += (featZt - cl.featZ) * Math.min(1, dt * 9);
+                if (capRig.coatHem.current) { capRig.coatHem.current.rotation.x = cl.hemX; capRig.coatHem.current.rotation.z = cl.hemZ; }
+                if (capRig.sash.current) capRig.sash.current.rotation.z = cl.sashZ;
+                if (capRig.feather.current) { capRig.feather.current.rotation.x = cl.featX; capRig.feather.current.rotation.z = cl.featZ; }
+                // fingers: relaxed normally, curl tight to grip the wheel at the helm
+                const gripTo = b.state() === F7_STATE.DONE ? 1.15 : 0.35;
+                cl.grip += (gripTo - cl.grip) * Math.min(1, dt * 4);
+                if (capRig.gripR.current) capRig.gripR.current.rotation.x = cl.grip;
             }
         }
         // bucket
