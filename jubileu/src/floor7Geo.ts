@@ -159,6 +159,41 @@ export function buildWaleGeometry(h: number, proud = 0.07, halfThick = 0.08): TH
     return g;
 }
 
+// The inner bulwark face: a vertical wall swept just inboard of the hull's top
+// edge, from deck level up to the rail, so the bulwark reads as a THICK timber
+// (deck -> inner planking -> cap rail -> outer hull) instead of a knife edge.
+let _inner: THREE.BufferGeometry | null = null;
+export function buildInnerWallGeometry(inset = 0.72): THREE.BufferGeometry {
+    if (_inner) return _inner;
+    const e = exports(); e.f7_hull_build();
+    const N = 56;
+    const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+    let base = 0;
+    for (const side of [-1, 1]) {
+        const start = base;
+        for (let i = 0; i <= N; i++) {
+            const t = i / N;
+            const z = STERNZ + (BOWZ - STERNZ) * t;
+            const x = side * e.f7_hull_beam(t) * inset;
+            pos.push(x, e.f7_hull_railY(t) + 0.07, z); uv.push(0, t * 6);
+            pos.push(x, e.f7_hull_deckY(t), z); uv.push(1, t * 6);
+        }
+        for (let i = 0; i < N; i++) {
+            const a = start + i * 2, b = a + 1, c = a + 2, d = a + 3;
+            if (side > 0) idx.push(a, c, b, b, c, d);   // face inboard
+            else idx.push(a, b, c, b, d, c);
+        }
+        base += (N + 1) * 2;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    _inner = g;
+    return g;
+}
+
 // sheer-curve samplers (for placing props/masts along the deck line in JS)
 export function deckYAt(t: number): number { return exports().f7_hull_deckY(t); }
 export function railYAt(t: number): number { return exports().f7_hull_railY(t); }

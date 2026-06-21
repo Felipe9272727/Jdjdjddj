@@ -19,7 +19,7 @@ import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth } from './floor7Textures';
-import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry } from './floor7Geo';
+import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry } from './floor7Geo';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
 const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
@@ -189,12 +189,32 @@ const RatlineShrouds: React.FC<{ side: number; railX: number; railY: number; bas
 // ── deck furniture (mast partners, grated hatch, capstan) — all on the centre
 // lane (x≈0), which the brain keeps clear of puddles, so it never blocks the
 // mopping gameplay. ──
-const DeckFurniture: React.FC = () => (
+const DeckFurniture: React.FC = () => {
+    const boatGeo = useMemo(() => buildHullGeometry(), []);
+    return (
     <group>
-        {/* mast partner collars where the masts pierce the deck */}
+        {/* mast partner collars + a ring of belaying pins (pin rail) */}
         {[-1, 4].map((z) => (
-            <mesh key={'mp' + z} position={[0, 0.11, z]} material={M.rail}><cylinderGeometry args={[0.32, 0.4, 0.2, 8]} /></mesh>
+            <group key={'mp' + z} position={[0, 0, z]}>
+                <mesh position={[0, 0.11, 0]} material={M.rail}><cylinderGeometry args={[0.32, 0.4, 0.2, 8]} /></mesh>
+                {Array.from({ length: 8 }).map((_, i) => {
+                    const a = (i / 8) * Math.PI * 2;
+                    return <mesh key={i} position={[Math.cos(a) * 0.43, 0.2, Math.sin(a) * 0.43]} material={M.rail}><cylinderGeometry args={[0.022, 0.022, 0.22, 6]} /></mesh>;
+                })}
+            </group>
         ))}
+        {/* stowed ship's boat (a mini hull, keel-up on skids) forward */}
+        <group position={[0, 0.42, 5.7]}>
+            <mesh geometry={boatGeo} scale={[0.16, 0.15, 0.16]} rotation={[Math.PI, 0, 0]} material={M.plank} />
+            {[-0.5, 0.5].map((z) => (
+                <mesh key={z} position={[0, -0.18, z]} material={M.rail}><boxGeometry args={[1.0, 0.1, 0.12]} /></mesh>
+            ))}
+        </group>
+        {/* companionway (deck hatch house with a slanted lid) aft of the main mast */}
+        <group position={[0, 0.0, -3.1]}>
+            <mesh position={[0, 0.22, 0]} material={M.plankDk}><boxGeometry args={[0.74, 0.44, 0.66]} /></mesh>
+            <mesh position={[0, 0.46, 0.05]} rotation={[-0.35, 0, 0]} material={M.rail}><boxGeometry args={[0.78, 0.05, 0.6]} /></mesh>
+        </group>
         {/* grated cargo hatch with a raised coaming */}
         <group position={[0, 0.06, 1.2]}>
             <mesh position={[0, 0.04, 0]} material={M.rail}><boxGeometry args={[1.04, 0.16, 1.24]} /></mesh>
@@ -215,7 +235,8 @@ const DeckFurniture: React.FC = () => (
             ))}
         </group>
     </group>
-);
+    );
+};
 
 // ── the head rig at the bow: a triangular jib on the forestay, a bobstay
 // loading the bowsprit, swept head rails and a small gilt figurehead. ──
@@ -259,13 +280,14 @@ const ShipBody: React.FC = () => {
     // the deck and rails sample the same sheer/beam curves as the hull, so the
     // whole ship sweeps together. JS only uploads the buffers. Plus a thin spray
     // band hugging the waterline.
-    const { hullGeo, deckGeo, railGeo, foamGeo, waleHi, waleLo, bootGeo } = useMemo(() => {
+    const { hullGeo, deckGeo, railGeo, foamGeo, waleHi, waleLo, bootGeo, innerGeo } = useMemo(() => {
         const hull = buildHullGeometry();
         const deck = buildDeckGeometry();
         const rail = buildRailGeometry();
         const wHi = buildWaleGeometry(0.74, 0.07, 0.09);   // below the gunports / deck edge
         const wLo = buildWaleGeometry(0.52, 0.06, 0.08);   // at the turn of the topside
         const boot = buildWaleGeometry(0.45, 0.015, 0.07); // boot-top stripe at the waterline
+        const inner = buildInnerWallGeometry(0.72);         // inboard bulwark face (real thickness)
         // a slim spray/foam band tracing the waterline outline (thin, not a disc)
         const beam = 3.05, bow = 8.0, stern = -6.9, k = 1.06;
         const s = new THREE.Shape();
@@ -286,7 +308,7 @@ const ShipBody: React.FC = () => {
         s.holes.push(hole);
         const foam = new THREE.ShapeGeometry(s);
         foam.rotateX(-Math.PI / 2);
-        return { hullGeo: hull, deckGeo: deck, railGeo: rail, foamGeo: foam, waleHi: wHi, waleLo: wLo, bootGeo: boot };
+        return { hullGeo: hull, deckGeo: deck, railGeo: rail, foamGeo: foam, waleHi: wHi, waleLo: wLo, bootGeo: boot, innerGeo: inner };
     }, []);
     return (
         <group>
@@ -295,6 +317,8 @@ const ShipBody: React.FC = () => {
             <mesh geometry={hullGeo} position={[0, 0, 0]} material={M.hull} />
             {/* deck surface (C++ sheer curve) */}
             <mesh geometry={deckGeo} material={M.plankDk} />
+            {/* inboard bulwark face — gives the bulwark real timber thickness */}
+            <mesh geometry={innerGeo} material={M.plank} />
             {/* rail caps swept along the sheer (C++ curve) */}
             <mesh geometry={railGeo} material={M.rail} />
             {/* wales — proud rubbing-strakes laid on the C++ hull surface */}
