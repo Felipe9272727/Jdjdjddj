@@ -117,6 +117,19 @@ export function makeSkyEquirect(w = 1024): THREE.CanvasTexture {
     return t;
 }
 
+// a soft dark radial blob for fake AO contact shadows under deck props.
+export function makeContactShadow(size = 128): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d')!;
+    const g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, 'rgba(0,0,0,0.5)');
+    g.addColorStop(0.55, 'rgba(0,0,0,0.22)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g; x.fillRect(0, 0, size, size);
+    const t = new THREE.CanvasTexture(c);
+    return t;
+}
+
 // a warm soft radial glow (for the sun halo) — self-contained.
 export function makeGlow(size = 256): THREE.CanvasTexture {
     const c = document.createElement('canvas'); c.width = c.height = size;

@@ -18,7 +18,7 @@ import { Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
-import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth } from './floor7Textures';
+import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow } from './floor7Textures';
 import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams, deckYAt, railYAt, beamAt } from './floor7Geo';
 import { FLOOR7_SCALE, F7_DECK_PROPS } from './constants';
 
@@ -104,7 +104,7 @@ const M = {
     caulk: new THREE.MeshStandardMaterial({ color: '#140f08', roughness: 1 }),
     giltTrim: new THREE.MeshStandardMaterial({ color: '#a8822f', roughness: 0.55, metalness: 0.7, envMapIntensity: 0.8 }),
     bird: new THREE.MeshStandardMaterial({ color: '#3a3a40', roughness: 0.9 }),
-    puddle: new THREE.MeshPhysicalMaterial({ color: '#244e5e', roughness: 0.12, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.04, transparent: true, opacity: 0.82, envMapIntensity: 1.3 }),
+    puddle: new THREE.MeshPhysicalMaterial({ color: '#13262c', roughness: 0.06, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.03, transparent: true, opacity: 0.9, envMapIntensity: 1.8 }),
     glass: new THREE.MeshPhysicalMaterial({ color: '#11242e', roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#4a3010', emissiveIntensity: 0.28, envMapIntensity: 1.5 }),
     elev: new THREE.MeshStandardMaterial({ color: '#b0bec5', roughness: 0.4, metalness: 0.5, transparent: true }),
     elevTrim: new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.4, metalness: 0.6, transparent: true }),
@@ -439,6 +439,32 @@ const BulwarkFrames: React.FC = () => {
     );
 };
 
+// ── fake AO contact shadows: a soft dark blob on the deck under every vertical
+// prop so nothing floats (the cheap grounding the critic demanded). ──
+const _contactTex = makeContactShadow();
+const ContactShadows: React.FC = () => {
+    const blobs = useMemo(() => {
+        const arr: { x: number; z: number; r: number }[] = [
+            { x: 0, z: -1, r: 0.7 }, { x: 0, z: 4, r: 0.6 },      // masts
+            { x: 0, z: 2.7, r: 0.55 },                            // capstan
+            { x: 0, z: -5.9, r: 1.5 },                            // deckhouse
+            { x: 0, z: 1.2, r: 0.8 }, { x: 0, z: -3.1, r: 0.6 },  // hatch, companionway
+        ];
+        for (const p of F7_DECK_PROPS) arr.push({ x: p.x, z: p.z, r: p.kind === 'rope' ? 0.32 : p.kind === 'bell' ? 0.3 : 0.45 });
+        return arr;
+    }, []);
+    return (
+        <group>
+            {blobs.map((b, i) => (
+                <mesh key={i} position={[b.x, deckYAt((b.z + 7.0) / 15.2) + 0.012, b.z]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2}>
+                    <planeGeometry args={[b.r * 2, b.r * 2]} />
+                    <meshBasicMaterial map={_contactTex} transparent depthWrite={false} opacity={0.85} />
+                </mesh>
+            ))}
+        </group>
+    );
+};
+
 // ── the static ship hull + deck + masts (no per-frame logic) ──
 const ShipBody: React.FC = () => {
     // hull + deck + rail caps are ALL MODELLED IN C++ (floor7_geo.cpp → WASM):
@@ -503,6 +529,8 @@ const ShipBody: React.FC = () => {
             <SternCabin />
             {/* reachable deck props (barrels/crates/ropes/bell) — match colliders */}
             <DeckProps />
+            {/* fake AO contact shadows grounding the props */}
+            <ContactShadows />
             {/* thin spray band at the waterline */}
             <mesh geometry={foamGeo} position={[0, -0.66, 0]} material={M.foam} renderOrder={2} />
             {/* main mast + yard + sail + flag + crow's nest */}
