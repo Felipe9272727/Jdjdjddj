@@ -19,6 +19,9 @@ const S = 1.85;
     [1.4, 0.5 * S, -Math.PI / 2, -0.05, 'fp-stbd-in'],// starboard, look inboard
     [0, -4.5 * S, Math.PI, 0.0, 'fp-cabin'],         // aft -> the deckhouse/helm
     [0, 3.0 * S, 0, 0.1, 'fp-foremast'],             // look at the foremast/boat booms
+    [1.1, 6.6, Math.PI, -0.12, 'fp-captain'],        // the captain (pirate model) up close
+    [2.5, -1.0, Math.PI, -0.25, 'fp-bucket'],        // the bucket+cloth to fetch
+    [3.4, 0.5 * S, Math.PI / 2, 0.02, 'fp-sea'],     // look out over the water/horizon
   ];
   for (const [x, z, yaw, pitch, tag] of views) {
     await pg.evaluate(({ x, z, yaw, pitch }) => { window.__teleport(x, z); window.__setYaw(yaw); window.__setPitch(pitch); }, { x, z, yaw, pitch });
