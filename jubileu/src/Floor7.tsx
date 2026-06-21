@@ -445,12 +445,12 @@ const _contactTex = makeContactShadow();
 const ContactShadows: React.FC = () => {
     const blobs = useMemo(() => {
         const arr: { x: number; z: number; r: number }[] = [
-            { x: 0, z: -1, r: 0.7 }, { x: 0, z: 4, r: 0.6 },      // masts
-            { x: 0, z: 2.7, r: 0.55 },                            // capstan
-            { x: 0, z: -5.9, r: 1.5 },                            // deckhouse
-            { x: 0, z: 1.2, r: 0.8 }, { x: 0, z: -3.1, r: 0.6 },  // hatch, companionway
+            { x: 0, z: -1, r: 0.5 }, { x: 0, z: 4, r: 0.42 },     // masts
+            { x: 0, z: 2.7, r: 0.42 },                            // capstan
+            { x: -0.95, z: -5.9, r: 0.85 }, { x: 0.95, z: -5.9, r: 0.85 }, // deckhouse (two tighter blobs)
+            { x: 0, z: 1.2, r: 0.62 }, { x: 0, z: -3.1, r: 0.46 },// hatch, companionway
         ];
-        for (const p of F7_DECK_PROPS) arr.push({ x: p.x, z: p.z, r: p.kind === 'rope' ? 0.32 : p.kind === 'bell' ? 0.3 : 0.45 });
+        for (const p of F7_DECK_PROPS) arr.push({ x: p.x, z: p.z, r: p.kind === 'rope' ? 0.26 : p.kind === 'bell' ? 0.24 : 0.36 });
         return arr;
     }, []);
     return (
@@ -458,7 +458,7 @@ const ContactShadows: React.FC = () => {
             {blobs.map((b, i) => (
                 <mesh key={i} position={[b.x, deckYAt((b.z + 7.0) / 15.2) + 0.012, b.z]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2}>
                     <planeGeometry args={[b.r * 2, b.r * 2]} />
-                    <meshBasicMaterial map={_contactTex} transparent depthWrite={false} opacity={0.85} />
+                    <meshBasicMaterial map={_contactTex} transparent depthWrite={false} opacity={0.8} polygonOffset polygonOffsetFactor={-2} />
                 </mesh>
             ))}
         </group>

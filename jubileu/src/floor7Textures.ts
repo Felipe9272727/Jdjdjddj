@@ -122,8 +122,9 @@ export function makeContactShadow(size = 128): THREE.CanvasTexture {
     const c = document.createElement('canvas'); c.width = c.height = size;
     const x = c.getContext('2d')!;
     const g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    g.addColorStop(0, 'rgba(0,0,0,0.5)');
-    g.addColorStop(0.55, 'rgba(0,0,0,0.22)');
+    g.addColorStop(0, 'rgba(0,0,0,0.55)');
+    g.addColorStop(0.35, 'rgba(0,0,0,0.3)');
+    g.addColorStop(0.7, 'rgba(0,0,0,0.08)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     x.fillStyle = g; x.fillRect(0, 0, size, size);
     const t = new THREE.CanvasTexture(c);
