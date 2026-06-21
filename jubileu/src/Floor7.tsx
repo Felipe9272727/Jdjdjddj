@@ -909,7 +909,28 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const puddleRefs = useRef<(THREE.Group | null)[]>([]);
     const brainRef = useRef<Floor7Brain | null>(null);
     const _local = useRef(new THREE.Vector3());
-    const _pud = useRef<F7Puddle>({ x: 0, z: 0, r: 0, prog: 0 });
+    const _pud = useRef<F7Puddle>({ x: 0, z: 0, r: 0, prog: 0, cell: new Float32Array(16).fill(1) });
+    // per-puddle materials with a 4x4 wetness MASK TEXTURE: the fragment samples
+    // the player's scrubbed-away cells and discards them, so the puddle erodes
+    // directionally under the brush (texture lookup avoids dynamic array indexing).
+    const puddleMats = useMemo(() => Array.from({ length: 6 }, () => {
+        const data = new Uint8Array(16 * 4).fill(255);
+        const tex = new THREE.DataTexture(data, 4, 4, THREE.RGBAFormat);
+        tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.needsUpdate = true;
+        const m = new THREE.MeshPhysicalMaterial({ color: '#0a1316', roughness: 0.06, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, bumpMap: _puddleRipple, bumpScale: 0.05, transparent: true, opacity: 0.92, envMapIntensity: 1.1 });
+        m.onBeforeCompile = (shader) => {
+            shader.uniforms.uCellTex = { value: tex };
+            shader.vertexShader = 'varying vec2 vF7Uv;\n' + shader.vertexShader.replace(
+                '#include <begin_vertex>', '#include <begin_vertex>\n vF7Uv = uv;');
+            shader.fragmentShader = 'uniform sampler2D uCellTex;\nvarying vec2 vF7Uv;\n' + shader.fragmentShader.replace(
+                '#include <color_fragment>',
+                `#include <color_fragment>
+                 { float wet = texture2D(uCellTex, vF7Uv).r; if (wet < 0.05) discard; diffuseColor.a *= wet; }`);
+        };
+        (m as unknown as { _cellData: Uint8Array; _cellTex: THREE.DataTexture })._cellData = data;
+        (m as unknown as { _cellData: Uint8Array; _cellTex: THREE.DataTexture })._cellTex = tex;
+        return m;
+    }), []);
     const { scene, gl } = useThree();
 
     // ocean sky + fog + a PMREM environment so every PBR material reflects the
@@ -1022,18 +1043,23 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             elevatorRef.current.scale.setScalar(0.6 + f * 0.4);
             M.elev.opacity = f; M.elevTrim.opacity = f;
         }
-        // puddles shrink + fade as they're mopped (group = wet halo + water surface)
+        // puddles erode directionally: the disc stays full-size; the per-cell
+        // wetness mask (driven from the brain) discards the scrubbed cells, and
+        // the wet halo fades with overall progress.
         for (let i = 0; i < b.npud; i++) {
             const g = puddleRefs.current[i];
             if (!g) continue;
             const p = b.puddle(i, _pud.current);
-            const s = (1 - p.prog) * p.r;
-            g.scale.setScalar(Math.max(0.0001, s));
+            g.scale.setScalar(Math.max(0.0001, p.r));
             g.position.set(p.x, 0.02, p.z);
             g.visible = p.prog < 0.995;
-            const halo = g.children[0] as THREE.Mesh, water = g.children[1] as THREE.Mesh;
+            const halo = g.children[0] as THREE.Mesh;
             (halo.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - p.prog);
-            (water.material as THREE.MeshStandardMaterial).opacity = 0.92 * (1 - p.prog);
+            if (p.cell) {
+                const mm = puddleMats[i] as unknown as { _cellData: Uint8Array; _cellTex: THREE.DataTexture };
+                for (let c = 0; c < 16; c++) mm._cellData[c * 4] = Math.max(0, Math.min(255, p.cell[c] * 255));
+                mm._cellTex.needsUpdate = true;
+            }
         }
 
         // first-person hands holding the scrub-brush — ride the camera, stroke
@@ -1164,7 +1190,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                             <circleGeometry args={[1.28, 20]} />
                             <meshBasicMaterial map={_contactTex} color="#0a181c" transparent opacity={0.6} depthWrite={false} />
                         </mesh>
-                        <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={2} material={M.puddle.clone()}>
+                        <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={2} material={puddleMats[i]}>
                             <circleGeometry args={[1, 24]} />
                         </mesh>
                     </group>

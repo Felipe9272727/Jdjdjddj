@@ -54,7 +54,9 @@ enum {
 };
 
 #define NPUD 6
-typedef struct { float x, z, r, prog; } Puddle; /* prog 0..1 cleaned */
+/* prog 0..1 cleaned (mean), plus a 4x4 wetness grid so the puddle erodes
+   directionally under the brush instead of shrinking uniformly */
+typedef struct { float x, z, r, prog; float cell[16]; } Puddle;
 
 /* ---- the whole floor state ---- */
 static struct {
@@ -104,6 +106,13 @@ void f7_init(unsigned int seed) {
         S.pud[i].x = x; S.pud[i].z = z;
         S.pud[i].r = 0.45f + frand() * 0.35f;
         S.pud[i].prog = 0.0f;
+        /* only cells whose centre falls inside the circle start wet; the 4
+           corner cells are outside the disc, so they begin dry (0) and don't
+           keep prog from ever reaching 1 */
+        for (int cj = 0; cj < 4; cj++) for (int ci = 0; ci < 4; ci++) {
+            float cx = ci * 0.5f - 0.75f, cy = cj * 0.5f - 0.75f;
+            S.pud[i].cell[cj * 4 + ci] = (cx * cx + cy * cy <= 1.0f) ? 1.0f : 0.0f;
+        }
     }
 }
 
@@ -164,15 +173,31 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
         if (S.bucHeld) {
             /* the bucket trails the player */
             S.bucX = px + 0.35f; S.bucZ = pz + 0.15f;
-            /* mop whichever puddle you're standing over (hold to clean) */
+            /* mop the puddle UNDER THE BRUSH: drain the 4x4 cell the player is
+               over (plus a little bleed to neighbours), so the wet patch eats
+               inward from where you're scrubbing rather than shrinking whole */
             for (int i = 0; i < NPUD; i++) {
                 if (S.pud[i].prog >= 1.0f) continue;
                 float dx = px - S.pud[i].x, dz = pz - S.pud[i].z;
-                float d2 = dx * dx + dz * dz;
                 float rr = S.pud[i].r + 0.45f;
-                if (d2 < rr * rr && interact) {
-                    S.pud[i].prog += dt / 1.6f;    /* ~1.6s to mop a puddle */
-                    if (S.pud[i].prog >= 1.0f) { S.pud[i].prog = 1.0f; S.cleaned++; }
+                if (dx * dx + dz * dz < rr * rr && interact) {
+                    /* local position in the puddle (normalised to radius r, the
+                       visual extent), mapped to the 4x4 grid */
+                    float u = (dx / S.pud[i].r) * 0.5f + 0.5f, v = (dz / S.pud[i].r) * 0.5f + 0.5f;
+                    int gi = (int)(u * 4.0f); if (gi < 0) gi = 0; if (gi > 3) gi = 3;
+                    int gj = (int)(v * 4.0f); if (gj < 0) gj = 0; if (gj > 3) gj = 3;
+                    for (int cj = gj - 1; cj <= gj + 1; cj++) {
+                        for (int ci = gi - 1; ci <= gi + 1; ci++) {
+                            if (ci < 0 || ci > 3 || cj < 0 || cj > 3) continue;
+                            float rate = (ci == gi && cj == gj) ? 3.2f : 1.1f;   /* centre drains fastest */
+                            float *c = &S.pud[i].cell[cj * 4 + ci];
+                            *c -= dt * rate; if (*c < 0.0f) *c = 0.0f;
+                        }
+                    }
+                    /* prog = how much is cleaned (1 - mean wetness) */
+                    float sum = 0.0f; for (int c = 0; c < 16; c++) sum += S.pud[i].cell[c];
+                    S.pud[i].prog = 1.0f - sum / 16.0f;
+                    if (S.pud[i].prog >= 0.985f) { S.pud[i].prog = 1.0f; S.cleaned++; }
                 }
             }
         }

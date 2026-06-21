@@ -11,7 +11,7 @@ export const F7_STATE = {
     INTRO: 0, GREET: 1, FETCH: 2, CLEAN: 3, DONE: 4,
 } as const;
 
-export interface F7Puddle { x: number; z: number; r: number; prog: number; }
+export interface F7Puddle { x: number; z: number; r: number; prog: number; cell?: Float32Array; }
 
 interface F7Exports {
     memory: WebAssembly.Memory;
@@ -73,10 +73,12 @@ export class Floor7Brain {
     cleanPct(): number { return this.e.f7_clean_pct(); }
     canLeave(): boolean { return this.e.f7_can_leave() === 1; }
 
-    /** Read puddle i (x,z,r,prog) straight out of WASM linear memory. */
+    /** Read puddle i (x,z,r,prog + 4x4 wetness cells) out of WASM memory.
+     *  Struct stride is 20 floats: {x,z,r,prog, cell[16]}. */
     puddle(i: number, out: F7Puddle): F7Puddle {
-        const o = this.pudPtr + i * 4;
+        const o = this.pudPtr + i * 20;
         out.x = this.f32[o]; out.z = this.f32[o + 1]; out.r = this.f32[o + 2]; out.prog = this.f32[o + 3];
+        if (out.cell) for (let c = 0; c < 16; c++) out.cell[c] = this.f32[o + 4 + c];
         return out;
     }
 }

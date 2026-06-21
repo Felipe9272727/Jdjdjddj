@@ -25,8 +25,13 @@ const S = 1.85;
   const puds = await pg.evaluate(() => window.__puddles());
   console.log('puddles', puds.length);
   for (let i = 0; i < puds.length; i++) {
-    // deterministically scrub this puddle (~40 ticks * 0.05s = 2s sim, > 1.6s)
-    await pg.evaluate(({ x, z }) => window.__forceTick(40, x, z, true), { x: puds[i].x, z: puds[i].z });
+    // scrub ACROSS the puddle (directional erosion needs every cell wiped), not
+    // just the centre — sweep a 3x3 of spots within the puddle radius
+    const R = 0.45; // a bit under typical puddle radius (local)
+    for (const dz of [-R, 0, R]) for (const dx of [-R, 0, R]) {
+      await pg.evaluate(({ x, z }) => window.__forceTick(12, x, z, true), { x: puds[i].x + dx, z: puds[i].z + dz });
+      if ((await st()).state === 4) break;
+    }
     const s = await st();
     console.log(`puddle ${i} -> cleaned ${s.cleaned}/${s.npud} state ${s.state}`);
     if (s.state === 4) break;
