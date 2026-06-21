@@ -172,6 +172,27 @@ const Transom: React.FC = () => {
     );
 };
 
+// a gently sagging rope (catenary) between two points, as tube geometry
+function sagTube(a: THREE.Vector3, b: THREE.Vector3, sag: number, r = 0.02): THREE.TubeGeometry {
+    const mid = a.clone().lerp(b, 0.5); mid.y -= sag;
+    return new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(a, mid, b), 14, r, 5);
+}
+
+// ── standing rig: a mainstay between the mastheads and stays fore and aft, with
+// a little catenary sag so the cordage reads as rope under its own weight. ──
+const Stays: React.FC = () => {
+    const geos = useMemo(() => {
+        const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+        return [
+            sagTube(v(0, 5.4, -1), v(0, 4.6, 4), 0.35, 0.022),      // mainstay (mast to mast)
+            sagTube(v(0, 6.2, -1), v(0, 1.4, -6.4), 0.3, 0.022),    // main backstay to the stern
+            sagTube(v(0.13, 6.0, -1), v(2.4, 1.2, -3.2), 0.25),     // running backstays
+            sagTube(v(-0.13, 6.0, -1), v(-2.4, 1.2, -3.2), 0.25),
+        ];
+    }, []);
+    return <group>{geos.map((g, i) => <mesh key={i} geometry={g} material={M.rope} />)}</group>;
+};
+
 // a straight tube between two points (props for a unit-cylinder mesh)
 function tube(a: THREE.Vector3, b: THREE.Vector3): { pos: [number, number, number]; quat: THREE.Quaternion; len: number } {
     const d = new THREE.Vector3().subVectors(b, a);
@@ -596,6 +617,8 @@ const ShipBody: React.FC = () => {
                 ))}
                 <mesh material={M.metal}><cylinderGeometry args={[0.07, 0.07, 0.2, 8]} /></mesh>
             </group>
+            {/* standing rig: mainstay + fore/aft stays with catenary sag */}
+            <Stays />
             {/* bowsprit + head rig (jib, stays, head rails, figurehead) */}
             <mesh position={[0, 0.95, 8.5]} rotation={[0.5, 0, 0]} material={M.mast}>
                 <cylinderGeometry args={[0.08, 0.13, 3.2, 8]} />

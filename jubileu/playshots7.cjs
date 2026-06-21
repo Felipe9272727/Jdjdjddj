@@ -14,7 +14,7 @@ const S = 1.45;
     [0, 4.2 * S, 0, -0.12, 'fp-spawn'],             // spawn faces the bow (the real in-game view)
     [0, 1.0 * S, Math.PI, -0.1, 'fp-mid-aft'],       // amidships -> stern/deckhouse
     [0, 1.0 * S, 0, -0.1, 'fp-mid-bow'],             // amidships -> bow
-    [0, 1.0 * S, 0.3, 0.55, 'fp-mid-rig'],           // look up at the rig/sails
+    [0, -3.2 * S, 0, 0.5, 'fp-mid-rig'],             // look up the main mast at the rig/sails/stays
     [0, 1.0 * S, Math.PI, -0.7, 'fp-mid-deck'],      // look down at the deck/puddles
     [1.4, 0.5 * S, -Math.PI / 2, -0.05, 'fp-stbd-in'],// starboard, look inboard
     [0, -4.5 * S, Math.PI, 0.0, 'fp-cabin'],         // aft -> the deckhouse/helm
