@@ -66,11 +66,24 @@ varying float vFoam;
 void main() {
     vec3 N = normalize(vNormal);
     vec3 V = normalize(cameraPosition - vWorldPos);
+    float dist = length(cameraPosition - vWorldPos);
+
+    // fine fragment-space ripple normal: the wave MESH is coarse, so at grazing
+    // angles its quad rows terrace into horizontal bands. Perturbing the normal
+    // per-pixel breaks that banding into shimmer. Attenuate with distance so the
+    // far sea (which melts into the horizon) stays calm instead of sparkle-aliasing.
+    float detAtt = 1.0 - smoothstep(10.0, 58.0, dist);
+    vec2 q = vWorldPos.xz;
+    float nx = (sin(q.x * 1.7 + uTime * 1.3) + 0.6 * sin(q.x * 3.3 - q.y * 1.1 + uTime * 1.9)) * 0.05 * detAtt;
+    float nz = (sin(q.y * 1.9 - uTime * 1.1) + 0.6 * sin(q.y * 3.1 + q.x * 1.3 - uTime * 1.7)) * 0.05 * detAtt;
+    N = normalize(N + vec3(nx, 0.0, nz));
+
     float fres = pow(clamp(1.0 - max(dot(N, V), 0.0), 0.0, 1.0), 3.0);
 
-    // base water colour: deeper in troughs, brighter facing up
+    // base water colour: deeper in troughs, brighter facing up (softened so the
+    // up-facing/tilted rows don't read as hard light/dark terraces)
     float up = clamp(N.y, 0.0, 1.0);
-    vec3 base = mix(uDeep, uShallow, up * up);
+    vec3 base = mix(uDeep, uShallow, up * 0.7 + 0.15);
 
     // sky reflection via fresnel
     vec3 col = mix(base, uSky, fres * 0.7);
@@ -96,8 +109,8 @@ void main() {
     col = mix(col, vec3(0.93, 0.97, 0.98), clamp(contact, 0.0, 1.0) * 0.65);
 
     // fade distant water into the sky so the plane meets the horizon seamlessly
-    float dist = length(cameraPosition - vWorldPos);
-    float horizon = smoothstep(55.0, 150.0, dist);
+    // (pulled closer so any residual far banding melts into the haze)
+    float horizon = smoothstep(40.0, 120.0, dist);
     col = mix(col, uSky, horizon);
     float a = mix(0.93, 1.0, horizon);
 
