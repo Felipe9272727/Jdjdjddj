@@ -25,13 +25,13 @@ const { chromium } = require('playwright');
     if (tag) await pg.screenshot({ path: `/tmp/play-${tag}.png` });
   };
 
-  await yaw(0); await drive(0, 0, 50, 'spawn');     // face the bow
-  await drive(1, 0, 1600, 'bow1');                  // walk to the bow — should stop at foremast/rail
-  await drive(1, 0, 1600, 'bow2');
-  await drive(0, 1, 1600, 'stbd');                  // strafe to starboard rail — should stop
-  await drive(0, -1, 3000, 'port');                 // strafe across to port rail — should stop
-  await yaw(Math.PI); await drive(1, 0, 200, 'turnaft');
-  await drive(1, 0, 2600, 'aft1');                  // walk aft toward the cabin/helm
-  await drive(1, 0, 1800, 'aft2');                  // should stop at the deckhouse
+  await yaw(0); await drive(0, 0, 50, 'spawn');     // spawn (facing bow)
+  // FIRST test: can the player walk AFT from spawn toward the captain? (the
+  // direction that was blocked by the foremast collider = "born stuck")
+  await drive(-1, 0, 1500, 'aft1');                 // walk aft (toward captain/mop area)
+  await drive(-1, 0, 1500, 'aft2');                 // keep going aft
+  await drive(1, 0, 2200, 'bow1');                  // walk forward to the bow
+  await drive(0, 1, 1800, 'stbd');                  // strafe to starboard rail
+  await drive(0, -1, 3200, 'port');                 // strafe across to port rail
   await b.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

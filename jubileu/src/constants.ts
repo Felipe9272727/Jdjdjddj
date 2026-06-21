@@ -310,9 +310,11 @@ const _WALLS_FLOOR7 = (() => {
     for (let i = 0; i < loop.length - 1; i++) segs.push([loop[i][0], loop[i][1], loop[i + 1][0], loop[i + 1][1]]);
     segs.push([1.40 * S, -6.6 * S, -1.40 * S, -6.6 * S]); // close across the transom
     // deck obstacles (centre-lane props the brain keeps clear of puddles)
+    // NOTE: the thin masts deliberately have NO colliders — the player spawns
+    // right by the foremast and must walk aft past it to reach the captain, so a
+    // mast collider there pins them ("born stuck"). Walking through a thin mast
+    // is far less bad than being unable to move.
     const obs: [number, number, number, number][] = [
-        [0, -1, 0.7, 0.7],    // main mast
-        [0, 4, 0.6, 0.6],     // foremast
         [0, 2.7, 0.55, 0.55], // capstan
         [0, -3.1, 0.7, 0.6],  // companionway
         [0, -5.9, 2.2, 1.4],  // stern deckhouse

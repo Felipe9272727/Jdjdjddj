@@ -49,12 +49,12 @@ const Controller: React.FC<{ posRef: React.MutableRefObject<THREE.Vector3> }> = 
         const fwd = new THREE.Vector3(Math.sin(y), 0, Math.cos(y));
         const right = new THREE.Vector3(Math.cos(y), 0, -Math.sin(y));
         const d = new THREE.Vector3().addScaledVector(fwd, m.f).addScaledVector(right, m.s);
-        if (d.lengthSq() > 0) {
-            d.normalize().multiplyScalar(SPEED * Math.min(dt, 0.05));
-            const walls = wallsForState(7, false, false);
-            const [rx, rz] = resolveCollision(posRef.current.x + d.x, posRef.current.z + d.z, PR, walls);
-            posRef.current.set(rx, 0, rz);
-        }
+        // resolve EVERY frame (like the real Player) so a spawn inside a collider
+        // would visibly pin the player here too — not just when moving
+        let nx = posRef.current.x, nz = posRef.current.z;
+        if (d.lengthSq() > 0) { d.normalize().multiplyScalar(SPEED * Math.min(dt, 0.05)); nx += d.x; nz += d.z; }
+        const [rx, rz] = resolveCollision(nx, nz, PR, wallsForState(7, false, false));
+        posRef.current.set(rx, 0, rz);
         camera.position.set(posRef.current.x, EYE, posRef.current.z);
         const p = pitch.current;
         camera.lookAt(posRef.current.x + Math.sin(y) * Math.cos(p), EYE + Math.sin(p), posRef.current.z + Math.cos(y) * Math.cos(p));
