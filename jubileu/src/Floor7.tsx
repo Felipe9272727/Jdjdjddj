@@ -92,6 +92,9 @@ const M = {
     // not wet plastic (the sailcloth rough map doubles as a weave bump)
     coat: new THREE.MeshStandardMaterial({ color: '#8a2222', roughness: 0.88, bumpMap: _sailCloth.rough, bumpScale: 0.014, envMapIntensity: 0.25 }),
     coatDk: new THREE.MeshStandardMaterial({ color: '#5c1414', roughness: 0.9, bumpMap: _sailCloth.rough, bumpScale: 0.014, envMapIntensity: 0.2 }),
+    // weathered lower coat — darker, dirtier red for the skirt/hems so the
+    // garment has a tonal zone (grime pools low) instead of one flat plastic red
+    coatWorn: new THREE.MeshStandardMaterial({ color: '#6b1c1c', roughness: 0.95, bumpMap: _sailCloth.rough, bumpScale: 0.02, envMapIntensity: 0.18 }),
     skin: new THREE.MeshStandardMaterial({ color: '#cd9a6e', roughness: 0.62 }),
     hat: new THREE.MeshStandardMaterial({ color: '#17161b', roughness: 0.62, envMapIntensity: 0.6 }),
     // warm gold for ALL exterior trim: a faint emissive + a calmer reflection so
@@ -842,9 +845,10 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             <group ref={rig.coatHem2} position={[0, -0.1, 0]}>
                 {/* a hem cross-piece behind the vent so no black void shows through */}
                 <mesh position={[0, -0.42, 0.12]} material={M.coatDk}><boxGeometry args={[0.32, 0.2, 0.05]} /></mesh>
-                {/* side + back panels (thicker, so edges catch light not vanish) */}
+                {/* side + back panels — WORN (darker/dirtier) so the skirt is a
+                    tonal zone below the brighter chest, not one flat plastic red */}
                 {[-0.62, 0.62, -1.45, 1.45, Math.PI - 0.6, Math.PI + 0.6].map((ang, i) => (
-                    <mesh key={i} position={[Math.sin(ang) * 0.27, -0.27, Math.cos(ang) * 0.27]} rotation={[0.12, ang, 0]} material={M.coat}>
+                    <mesh key={i} position={[Math.sin(ang) * 0.27, -0.27, Math.cos(ang) * 0.27]} rotation={[0.12, ang, 0]} material={M.coatWorn}>
                         <boxGeometry args={[0.34, 0.58, 0.09]} />
                     </mesh>
                 ))}
@@ -1045,6 +1049,14 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
                     <mesh position={[0, 0.325, 0.20]} rotation={[-0.5, 0, 0]} material={M.hat}><boxGeometry args={[0.46, 0.035, 0.28]} /></mesh>
                     <mesh position={[0, 0.395, 0.335]} rotation={[-0.5, 0, 0]} material={M.gold}><boxGeometry args={[0.45, 0.02, 0.03]} /></mesh>
                 </group>
+            ))}
+            {/* hat BADGE — a gold cockade + skull on the front crown (the AAA bar
+                requires the tricorne to carry a symbol) */}
+            <mesh position={[0, 0.4, 0.155]} rotation={[0.2, 0, 0]} material={M.gold}><cylinderGeometry args={[0.05, 0.05, 0.016, 16]} /></mesh>
+            <mesh position={[0, 0.402, 0.166]} rotation={[0.2, 0, 0]} material={M.eyewhite}><sphereGeometry args={[0.028, 12, 10]} /></mesh>
+            <mesh position={[0, 0.384, 0.166]} material={M.eyewhite}><boxGeometry args={[0.026, 0.016, 0.012]} /></mesh>
+            {[-1, 1].map((s) => (
+                <mesh key={'es' + s} position={[s * 0.011, 0.404, 0.18]} material={M.hat}><sphereGeometry args={[0.006, 6, 6]} /></mesh>
             ))}
             {/* plume — whips with a lag off head/body motion */}
             <group ref={rig.feather} position={[-0.18, 0.39, 0.18]}>
