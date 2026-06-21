@@ -137,3 +137,24 @@ verificado no codigo). Verifiquei o loop completo jogavel: questtest7.cjs => gre
 pocas->DONE = **QUEST COMPLETE**. Pendente AAA: char facial/lip-sync fino, quest com escalacao/stakes,
 bow-wake na agua, mais vida ambiente. Harness: floor7-play (__interact/__forceTick/__state/__puddles),
 questtest7.cjs, playshots7.cjs (11 views FP).
+
+### Sessao 2026-06-21 (cont.) — fechando o playtest AAA: erosao direcional + mais
+
+Continuei atacando o veredito do critico (subagente que joga + le codigo). Re-scores: 6.5 -> 6.8
+(maos+payoff) -> 7.0 (hand-mesh rebuild + capitao reativo no CLEAN). Depois:
+- **Erosao DIRECIONAL das pocas** (o #1 do critico, aberto 3 rodadas — "o verbo do jogo"): cada poca
+  tem grid 4x4 de molhado no cerebro (Puddle.cell[16]); esfregar drena so a celula sob a escova
+  (+ bleed pros vizinhos), prog = media; cantos comecam secos pra chegar a 100%. Render: textura
+  mascara 4x4 (DataTexture NearestFilter) por poca, shader descarta celulas limpas -> a agua RECUA
+  sob a escova. Verificado: tem que VARRER a poca; ficar parado no centro nao limpa mais.
+  (Bug pego: indexar array uniforme dinamicamente nao funciona em GLSL ES -> usei DataTexture.)
+- Mao FP reenquadrada (puxada pra cima/dentro + escala 1.4, leitura de mao-na-escova) + giro de pulso.
+- Capitao idle com troca de peso (nao mais estatua).
+- Agua: faixa de espuma de contato animada no casco (mais forte na proa).
+- Maos FP: direita com palma+dedos+escova, esquerda segurando a alça do balde quando carregado.
+
+ARMADILHAS: testes do floor7Brain quebraram porque a erosao direcional mudou a mecanica (parado no
+centro nao limpa) -> atualizei o teste pra VARRER (mopPuddle 3x3). SEMPRE rodar `npm run test` e olhar
+o resultado (nao mascarar com grep) — commitei uma vez com 2 testes vermelhos sem querer. 105/105 agora.
+Harness de verificacao: questtest7.cjs (quest completa end-to-end), playshots7.cjs (11 views FP),
+floor7-play.tsx (__interact/__forceTick/__state/__puddles/__teleport).
