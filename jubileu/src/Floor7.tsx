@@ -899,6 +899,8 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         }
     };
     const bucketRef = useRef<THREE.Group>(null);
+    const handsRef = useRef<THREE.Group>(null);
+    const brushRef = useRef<THREE.Group>(null);
     const elevatorRef = useRef<THREE.Group>(null);
     const puddleRefs = useRef<(THREE.Group | null)[]>([]);
     const brainRef = useRef<Floor7Brain | null>(null);
@@ -1022,6 +1024,26 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             (water.material as THREE.MeshStandardMaterial).opacity = 0.92 * (1 - p.prog);
         }
 
+        // first-person hands holding the scrub-brush — ride the camera, stroke
+        // when scrubbing so the player is doing the cleaning, not watching it
+        if (handsRef.current) {
+            const cam = state.camera;
+            handsRef.current.position.copy(cam.position);
+            handsRef.current.quaternion.copy(cam.quaternion);
+            handsRef.current.translateX(0.2); handsRef.current.translateY(-0.26); handsRef.current.translateZ(-0.42);
+            handsRef.current.visible = b.elevFade() < 0.85;
+            if (brushRef.current) {
+                const scrubbing = b.state() === F7_STATE.CLEAN && handleRef.current.interact;
+                if (scrubbing) {
+                    brushRef.current.position.z = Math.sin(t * 12) * 0.06;
+                    brushRef.current.position.y = -Math.abs(Math.sin(t * 12)) * 0.02;
+                } else {
+                    const sway = Math.sin(t * 1.6) * 0.012;
+                    brushRef.current.position.z = sway; brushRef.current.position.y = sway * 0.5;
+                }
+            }
+        }
+
         // ── audio cues ──
         const sf = _sfx.current;
         updateF7Roll(b.roll());
@@ -1120,6 +1142,20 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 <points ref={sudsPts} geometry={sudsGeo} frustumCulled={false}>
                     <pointsMaterial size={0.07} color="#eef7f8" transparent opacity={0.92} depthWrite={false} sizeAttenuation />
                 </points>
+            </group>
+
+            {/* first-person hands + scrub-brush (rides the camera, world-space) */}
+            <group ref={handsRef} frustumCulled={false}>
+                <group ref={brushRef}>
+                    {/* coat sleeve forearm coming up from lower-right */}
+                    <mesh position={[0.02, -0.12, 0.16]} rotation={[0.7, 0, 0.1]} material={M.coat}><cylinderGeometry args={[0.05, 0.065, 0.42, 10]} /></mesh>
+                    <mesh position={[0.02, -0.18, 0.32]} material={M.gold}><cylinderGeometry args={[0.066, 0.066, 0.05, 10]} /></mesh>
+                    {/* hand */}
+                    <mesh position={[0.01, 0.0, -0.01]} material={M.skin}><sphereGeometry args={[0.062, 12, 10]} /></mesh>
+                    {/* scrub brush: wooden block + pale bristles */}
+                    <mesh position={[0, -0.015, -0.06]} rotation={[0.5, 0, 0]} material={M.barrel}><boxGeometry args={[0.17, 0.05, 0.11]} /></mesh>
+                    <mesh position={[0, -0.055, -0.07]} rotation={[0.5, 0, 0]} material={M.cloth}><boxGeometry args={[0.16, 0.045, 0.1]} /></mesh>
+                </group>
             </group>
         </group>
     );
