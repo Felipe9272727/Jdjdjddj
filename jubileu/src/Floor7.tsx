@@ -106,6 +106,8 @@ const M = {
     grate: new THREE.MeshStandardMaterial({ color: '#3a2817', roughness: 0.85 }),
     caulk: new THREE.MeshStandardMaterial({ color: '#140f08', roughness: 1 }),
     giltTrim: new THREE.MeshStandardMaterial({ color: '#a8822f', roughness: 0.55, metalness: 0.7, envMapIntensity: 0.8 }),
+    island: new THREE.MeshStandardMaterial({ color: '#3f5346', roughness: 1, transparent: true, opacity: 0, fog: false }),
+    islandBeach: new THREE.MeshStandardMaterial({ color: '#9c8a63', roughness: 1, transparent: true, opacity: 0, fog: false }),
     bird: new THREE.MeshStandardMaterial({ color: '#3a3a40', roughness: 0.9 }),
     puddle: new THREE.MeshPhysicalMaterial({ color: '#0a1316', roughness: 0.05, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.04, bumpMap: _puddleRipple, bumpScale: 0.05, transparent: true, opacity: 0.92, envMapIntensity: 1.1 }),
     glass: new THREE.MeshPhysicalMaterial({ color: '#11242e', roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#4a3010', emissiveIntensity: 0.28, envMapIntensity: 1.5 }),
@@ -901,6 +903,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const bucketRef = useRef<THREE.Group>(null);
     const handsRef = useRef<THREE.Group>(null);
     const brushRef = useRef<THREE.Group>(null);
+    const islandRef = useRef<THREE.Group>(null);
     const elevatorRef = useRef<THREE.Group>(null);
     const puddleRefs = useRef<(THREE.Group | null)[]>([]);
     const brainRef = useRef<Floor7Brain | null>(null);
@@ -955,7 +958,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         // captain — rigged: peg-leg walk cycle, jaw flap, blink, head-track
         if (captainRef.current) {
             const c = b.captain();
-            const walking = b.state() === F7_STATE.INTRO;
+            const walking = b.capWalking();
             const ph = t * 7.0;
             const lurch = walking ? Math.max(0, Math.sin(ph)) * 0.05 : 0;  // peg down-beat
             captainRef.current.position.set(c.x, c.bob - lurch, c.z);
@@ -966,11 +969,15 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 if (walking) {
                     legL.current.rotation.x = Math.sin(ph) * 0.5;
                     legR.current.rotation.x = Math.sin(ph + Math.PI) * 0.42;
+                    // lift the swinging foot off the deck (kills the skate)
+                    legL.current.position.y = 0.62 + Math.max(0, Math.sin(ph)) * 0.07;
+                    legR.current.position.y = 0.62 + Math.max(0, Math.sin(ph + Math.PI)) * 0.05;
                     armL.current.rotation.x = Math.sin(ph + Math.PI) * 0.4;
                     armR.current.rotation.x = Math.sin(ph) * 0.4;
                 } else {
                     const idle = Math.sin(t * 1.6) * 0.05;
                     legL.current.rotation.x *= 0.8; legR.current.rotation.x *= 0.8;
+                    legL.current.position.y = 0.62; legR.current.position.y = 0.62;
                     armL.current.rotation.x = idle; armR.current.rotation.x = -idle;
                 }
             }
@@ -1042,6 +1049,15 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     brushRef.current.position.z = sway; brushRef.current.position.y = sway * 0.5;
                 }
             }
+        }
+
+        // payoff: land rises on the horizon once the deck is clean (state DONE)
+        if (islandRef.current) {
+            const target = b.state() === F7_STATE.DONE ? 0.92 : 0;
+            const op = (M.island as THREE.MeshStandardMaterial).opacity + (target - (M.island as THREE.MeshStandardMaterial).opacity) * Math.min(1, dt * 0.6);
+            (M.island as THREE.MeshStandardMaterial).opacity = op;
+            (M.islandBeach as THREE.MeshStandardMaterial).opacity = op;
+            islandRef.current.visible = op > 0.01;
         }
 
         // ── audio cues ──
@@ -1144,6 +1160,15 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 </points>
             </group>
 
+            {/* "terra à vista" — land rises on the horizon when the deck is clean */}
+            <group ref={islandRef} visible={false} position={[14, -0.6, 90]}>
+                <mesh position={[0, 0, 0]} scale={[1, 0.5, 1]} material={M.island}><sphereGeometry args={[14, 16, 10]} /></mesh>
+                <mesh position={[-12, -0.5, 4]} scale={[1, 0.42, 1]} material={M.island}><sphereGeometry args={[8, 14, 10]} /></mesh>
+                <mesh position={[13, -0.8, -3]} scale={[1, 0.38, 1]} material={M.island}><sphereGeometry args={[7, 14, 10]} /></mesh>
+                <mesh position={[2, 5, 1]} material={M.island}><coneGeometry args={[5, 9, 12]} /></mesh>
+                <mesh position={[0, -1.2, 12]} rotation={[-Math.PI / 2, 0, 0]} material={M.islandBeach}><circleGeometry args={[16, 24]} /></mesh>
+            </group>
+
             {/* first-person hands + scrub-brush (rides the camera, world-space) */}
             <group ref={handsRef} frustumCulled={false}>
                 <group ref={brushRef}>
@@ -1166,7 +1191,7 @@ const DIALOGUE: Record<number, string> = {
     1: 'Capitão: Ahá, um novo grumete! Antes de zarparmos de vez… o convés tá um brejo. Pega aquele balde com o pano e esfrega essas poças, marujo!',
     2: 'Objetivo: pegue o balde com o pano (perto do mastro).',
     3: 'Objetivo: esfregue todas as poças do convés.',
-    4: 'Capitão: Bom trabalho, grumete! …agora senta e espera. Ainda não chegamos a lugar nenhum.',
+    4: 'Capitão: Bom trabalho, grumete! Olha lá na proa… TERRA À VISTA! Vou assumir o leme — segura firme, que a gente chega já.',
 };
 
 export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7Handle> }> = ({ handleRef }) => {

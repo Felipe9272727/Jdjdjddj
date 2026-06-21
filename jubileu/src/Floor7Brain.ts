@@ -19,7 +19,7 @@ interface F7Exports {
     f7_tick(dt: number, px: number, py: number, pz: number, interact: number): void;
     f7_heave(): number; f7_pitch(): number; f7_roll(): number;
     f7_state(): number; f7_dialogue(): number;
-    f7_capX(): number; f7_capZ(): number; f7_capFace(): number; f7_capBob(): number;
+    f7_capX(): number; f7_capZ(): number; f7_capFace(): number; f7_capBob(): number; f7_capWalk(): number;
     f7_bucX(): number; f7_bucZ(): number; f7_bucHeld(): number;
     f7_elevFade(): number;
     f7_npud(): number; f7_cleaned(): number; f7_can_leave(): number; f7_clean_pct(): number;
@@ -64,6 +64,7 @@ export class Floor7Brain {
     captain(): { x: number; z: number; face: number; bob: number } {
         return { x: this.e.f7_capX(), z: this.e.f7_capZ(), face: this.e.f7_capFace(), bob: this.e.f7_capBob() };
     }
+    capWalking(): boolean { return this.e.f7_capWalk() !== 0; }
     bucket(): { x: number; z: number; held: boolean } {
         return { x: this.e.f7_bucX(), z: this.e.f7_bucZ(), held: this.e.f7_bucHeld() === 1 };
     }

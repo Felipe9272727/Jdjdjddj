@@ -64,6 +64,7 @@ static struct {
     float stTimer;      /* time in current state                    */
     /* captain */
     float capX, capZ, capFace, capBob;
+    int   capWalk;      /* 1 while the captain is striding (drives the walk anim) */
     /* bucket */
     float bucX, bucZ;
     int   bucHeld;
@@ -80,6 +81,8 @@ static struct {
 #define CAP_BOW_Z   (-6.0f)
 #define CAP_TALK_Z  ( 2.2f)
 #define CAP_X       ( 0.6f)
+#define HELM_X      (-0.45f)
+#define HELM_Z      (-5.3f)
 
 __attribute__((export_name("f7_init")))
 void f7_init(unsigned int seed) {
@@ -117,6 +120,7 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
 
     /* --- captain bob (idle breathing) --- */
     S.capBob = f7_sin(S.t * 2.1f) * 0.03f;
+    S.capWalk = 0;                                 /* default: standing */
 
     switch (S.state) {
     case ST_INTRO: {
@@ -128,6 +132,7 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
         S.capZ = CAP_BOW_Z + (CAP_TALK_Z - CAP_BOW_Z) * e;
         /* face the way he's walking, then face the player at the end */
         S.capFace = 0.0f;                          /* walking toward +z (stern) */
+        S.capWalk = (k < 1.0f) ? 1 : 0;
         S.dialogue = 0;
         if (S.stTimer > 3.9f) { S.state = ST_GREET; S.stTimer = 0.0f; }
         break;
@@ -171,10 +176,18 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
         break;
     }
     case ST_DONE:
-    default:
-        S.dialogue = 4;                            /* "bom trabalho… e agora?" */
+    default: {
+        S.dialogue = 4;                            /* "bom trabalho — terra à vista!" */
         if (S.bucHeld) { S.bucX = px + 0.35f; S.bucZ = pz + 0.15f; }
+        /* PAYOFF: the captain strides aft to the helm and takes the wheel */
+        float k = f7_clamp01((S.stTimer - 0.8f) / 3.2f);
+        float e = k * k * (3.0f - 2.0f * k);       /* smoothstep */
+        S.capX = CAP_X + (HELM_X - CAP_X) * e;
+        S.capZ = CAP_TALK_Z + (HELM_Z - CAP_TALK_Z) * e;
+        S.capWalk = (k > 0.02f && k < 0.99f) ? 1 : 0;
+        S.capFace = 3.14159f;                      /* face the wheel (toward the stern, -z) */
         break;
+    }
     }
     (void)py;
 }
@@ -201,6 +214,7 @@ __attribute__((export_name("f7_capX")))  float f7_capX(void) { return S.capX; }
 __attribute__((export_name("f7_capZ")))  float f7_capZ(void) { return S.capZ; }
 __attribute__((export_name("f7_capFace")))float f7_capFace(void){ return S.capFace; }
 __attribute__((export_name("f7_capBob"))) float f7_capBob(void){ return S.capBob; }
+__attribute__((export_name("f7_capWalk"))) int f7_capWalk(void){ return S.capWalk; }
 __attribute__((export_name("f7_bucX")))  float f7_bucX(void) { return S.bucX; }
 __attribute__((export_name("f7_bucZ")))  float f7_bucZ(void) { return S.bucZ; }
 __attribute__((export_name("f7_bucHeld")))int  f7_bucHeld(void){ return S.bucHeld; }
