@@ -959,6 +959,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     };
     const bucketRef = useRef<THREE.Group>(null);
     const sudsSurfRef = useRef<THREE.Mesh>(null);
+    const _tideWarnRef = useRef(0);   // shared with the water shader for the surge
     const handsRef = useRef<THREE.Group>(null);
     const brushRef = useRef<THREE.Group>(null);
     const leftHandRef = useRef<THREE.Group>(null);
@@ -1128,9 +1129,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 // the distal knuckle curls further and lags the proximal one
                 const gripTo = b.state() === F7_STATE.DONE ? 1.15 : 0.35;
                 cl.grip += (gripTo - cl.grip) * Math.min(1, dt * 4);
-                cl.grip2 += (cl.grip * 1.2 - cl.grip2) * Math.min(1, dt * 3);
+                cl.grip2 += (cl.grip - cl.grip2) * Math.min(1, dt * 3);   // distal lags the proximal
                 if (capRig.gripR.current) capRig.gripR.current.rotation.x = cl.grip;
-                if (capRig.gripR2.current) capRig.gripR2.current.rotation.x = cl.grip2 - cl.grip * 0.5;
+                // distal knuckle adds its OWN curl ON TOP of the proximal (it's a
+                // child group), so the fingertip closes further than the base joint
+                if (capRig.gripR2.current) capRig.gripR2.current.rotation.x = cl.grip2 * 0.8;
             }
         }
         // bucket
@@ -1307,6 +1310,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         const h = handleRef.current;
         h.dialogue = b.dialogue(); h.cleaned = b.cleaned(); h.cleanPct = b.cleanPct(); h.state = b.state();
         h.tideWarn = warn; h.bucWater = b.bucket().water;
+        _tideWarnRef.current = warn;
     });
 
     return (
@@ -1322,7 +1326,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             <ambientLight intensity={0.2} color="#9fc0d8" />
 
             {/* the Gerstner-wave ocean */}
-            <Floor7Water sunDir={SUN_DIR} />
+            <Floor7Water sunDir={SUN_DIR} warnRef={_tideWarnRef} />
 
             {/* the ship (sways) */}
             <group ref={shipRef} scale={FLOOR7_SCALE}>

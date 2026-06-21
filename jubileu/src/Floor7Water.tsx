@@ -13,9 +13,11 @@ import * as THREE from 'three';
 
 const vert = /* glsl */`
 uniform float uTime;
+uniform float uTideWarn;   // 0..1 incoming swell — surges the sea around the hull
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 varying float vFoam;
+varying float vSurge;
 
 // one Gerstner wave: dir(xz), steepness Q, wavelength, amplitude, speed
 vec3 gerstner(vec2 dir, float Q, float wl, float amp, float speed,
@@ -41,12 +43,26 @@ void main() {
     o += gerstner(vec2( 0.8, -0.6), 0.48, 3.1, 0.16, 1.25, p, nrm);
     o += gerstner(vec2(-0.3, -1.0), 0.40, 1.7, 0.085, 1.55, p, nrm);
     o += gerstner(vec2( 0.5,  0.85), 0.35, 0.95, 0.04, 1.9, p, nrm);
+
+    // TIDE SURGE: as a swell approaches (uTideWarn), a ring of water heaps up
+    // and breaks around the ship's waterline footprint — the sea you're about to
+    // fight visibly rises and foams over the rail, instead of nothing happening.
+    float hr = length(p.xz / vec2(5.9, 14.6));
+    float ring = smoothstep(1.45, 1.02, hr) * smoothstep(0.72, 1.02, hr);
+    float crest = 0.5 + 0.5 * sin(uTime * 3.2 + hr * 14.0);
+    float surge = uTideWarn * ring * (0.55 + 0.65 * crest);
+    o.y += surge;
+    // tilt the normal up the surge ring so it catches light as it heaves
+    nrm.x -= surge * 0.6 * sign(p.x);
+    nrm.z -= surge * 0.6 * sign(p.z);
+    vSurge = surge;
+
     vec3 disp = p + o;
     vec4 wp = modelMatrix * vec4(disp, 1.0);
     vWorldPos = wp.xyz;
     vNormal = normalize(nrm);
-    // foam where crests pinch (high + steep)
-    vFoam = smoothstep(0.40, 0.78, o.y);
+    // foam where crests pinch (high + steep), plus the breaking surge ring
+    vFoam = max(smoothstep(0.40, 0.78, o.y), smoothstep(0.25, 0.85, surge));
     gl_Position = projectionMatrix * viewMatrix * wp;
 }
 `;
@@ -62,6 +78,7 @@ uniform float uTime;
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 varying float vFoam;
+varying float vSurge;
 
 void main() {
     vec3 N = normalize(vNormal);
@@ -100,9 +117,11 @@ void main() {
     // broad sun sheen
     col += uSunColor * pow(max(dot(N, H), 0.0), 16.0) * 0.12;
 
-    // foam
+    // foam (crests + the breaking tide-surge ring)
     float foam = clamp(vFoam, 0.0, 1.0);
     col = mix(col, vec3(0.92, 0.96, 0.97), foam * 0.85);
+    // the surge ring froths a brighter, greener-white as it breaks over the rail
+    col = mix(col, vec3(0.86, 0.94, 0.95), clamp(vSurge * 1.6, 0.0, 1.0) * 0.6);
 
     // hull contact foam — an animated band hugging the ship's waterline
     // footprint (ellipse, semi-axes ~beam x ~length), stronger toward the bow
@@ -123,10 +142,11 @@ void main() {
 }
 `;
 
-export const Floor7Water: React.FC<{ sunDir: THREE.Vector3 }> = ({ sunDir }) => {
+export const Floor7Water: React.FC<{ sunDir: THREE.Vector3; warnRef?: React.MutableRefObject<number> }> = ({ sunDir, warnRef }) => {
     const matRef = useRef<THREE.ShaderMaterial>(null);
     const uniforms = useMemo(() => ({
         uTime: { value: 0 },
+        uTideWarn: { value: 0 },
         uSunDir: { value: sunDir.clone().normalize() },
         uSunColor: { value: new THREE.Color('#ffe9c0') },
         uDeep: { value: new THREE.Color('#08303f') },
@@ -135,7 +155,12 @@ export const Floor7Water: React.FC<{ sunDir: THREE.Vector3 }> = ({ sunDir }) => 
     }), [sunDir]);
 
     useFrame((_, dt) => {
-        if (matRef.current) (matRef.current.uniforms.uTime.value as number) += dt;
+        if (!matRef.current) return;
+        (matRef.current.uniforms.uTime.value as number) += dt;
+        // ease toward the brain's swell-warning so the surge ramps smoothly
+        const target = warnRef?.current ?? 0;
+        const u = matRef.current.uniforms.uTideWarn;
+        (u.value as number) += (target - (u.value as number)) * Math.min(1, dt * 6);
     });
 
     return (
