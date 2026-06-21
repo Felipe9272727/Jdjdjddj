@@ -150,10 +150,13 @@ const Transom: React.FC = () => {
             {/* three framed stern windows */}
             {xs.map((x, i) => (
                 <group key={i} position={[x, winY, 0]}>
-                    <mesh position={[0, 0, -0.04]} material={M.gold}><boxGeometry args={[winW + 0.09, winH + 0.09, 0.05]} /></mesh>
-                    <mesh position={[0, 0, -0.07]} material={M.glass}><boxGeometry args={[winW, winH, 0.04]} /></mesh>
-                    <mesh position={[0, 0, -0.1]} material={M.rail}><boxGeometry args={[0.03, winH, 0.03]} /></mesh>
-                    <mesh position={[0, 0, -0.1]} material={M.rail}><boxGeometry args={[winW, 0.03, 0.03]} /></mesh>
+                    {/* glass deeply recessed; proud 4-piece cased frame */}
+                    <mesh position={[0, 0, -0.14]} material={M.glass}><boxGeometry args={[winW, winH, 0.03]} /></mesh>
+                    <mesh position={[0, 0, -0.11]} material={M.rail}><boxGeometry args={[0.03, winH, 0.03]} /></mesh>
+                    <mesh position={[0, 0, -0.11]} material={M.rail}><boxGeometry args={[winW, 0.03, 0.03]} /></mesh>
+                    {([[0, winH / 2 + 0.03, winW + 0.12, 0.07], [0, -winH / 2 - 0.03, winW + 0.12, 0.07], [-winW / 2 - 0.04, 0, 0.07, winH + 0.12], [winW / 2 + 0.04, 0, 0.07, winH + 0.12]] as const).map(([cx, cy, w, h], k) => (
+                        <mesh key={k} position={[cx, cy, -0.06]} material={M.giltTrim}><boxGeometry args={[w, h, 0.06]} /></mesh>
+                    ))}
                 </group>
             ))}
             {/* quarter galleries (corner turrets with a little window + gilt cap) */}
@@ -342,8 +345,9 @@ const SternCabin: React.FC = () => (
         {/* cornice drip-edge: a stepped overhang between wall and roof (proud, so
             it casts a shadow line instead of co-planar Z-fighting) */}
         <mesh position={[0, 1.23, 0]} material={M.plankDk}><boxGeometry args={[2.22, 0.07, 1.42]} /></mesh>
-        {/* gilt belt molding + corner-post battens to break the flat wall */}
+        {/* gilt belt molding + a lower wood rubbing strake + corner-post battens */}
         <mesh position={[0, 0.95, 0]} material={M.giltTrim}><boxGeometry args={[2.12, 0.05, 1.32]} /></mesh>
+        <mesh position={[0, 0.22, 0]} material={M.rail}><boxGeometry args={[2.16, 0.08, 1.36]} /></mesh>
         {[-1.02, 1.02].map((x) => (
             <mesh key={'cp' + x} position={[x, 0.62, 0.66]} material={M.rail}><boxGeometry args={[0.07, 1.24, 0.07]} /></mesh>
         ))}
@@ -351,13 +355,17 @@ const SternCabin: React.FC = () => (
         <mesh position={[0, 0.5, 0.64]} material={M.giltTrim}><boxGeometry args={[0.5, 0.92, 0.04]} /></mesh>
         <mesh position={[0, 0.5, 0.66]} material={M.hat}><boxGeometry args={[0.42, 0.84, 0.05]} /></mesh>
         <mesh position={[0.15, 0.5, 0.7]} material={M.gold}><sphereGeometry args={[0.035, 8, 6]} /></mesh>
-        {/* windows flanking the door — glass recessed behind the frame */}
+        {/* windows flanking the door — glass deeply recessed behind a proud
+            4-piece cased frame with a sill, so the wall thickness self-shadows */}
         {[-0.68, 0.68].map((x) => (
-            <group key={x} position={[x, 0.74, 0.66]}>
-                <mesh material={M.giltTrim}><boxGeometry args={[0.46, 0.46, 0.04]} /></mesh>
-                <mesh position={[0, 0, -0.04]} material={M.glass}><boxGeometry args={[0.38, 0.38, 0.04]} /></mesh>
-                <mesh position={[0, 0, 0.02]} material={M.rail}><boxGeometry args={[0.04, 0.4, 0.04]} /></mesh>
-                <mesh position={[0, 0, 0.02]} material={M.rail}><boxGeometry args={[0.4, 0.04, 0.04]} /></mesh>
+            <group key={x} position={[x, 0.74, 0.65]}>
+                <mesh position={[0, 0, -0.1]} material={M.glass}><boxGeometry args={[0.42, 0.42, 0.03]} /></mesh>
+                <mesh position={[0, 0, -0.08]} material={M.rail}><boxGeometry args={[0.03, 0.42, 0.03]} /></mesh>
+                <mesh position={[0, 0, -0.08]} material={M.rail}><boxGeometry args={[0.42, 0.03, 0.03]} /></mesh>
+                {([[0, 0.25, 0.5, 0.08], [0, -0.25, 0.5, 0.08], [-0.25, 0, 0.08, 0.58], [0.25, 0, 0.08, 0.58]] as const).map(([cx, cy, w, h], k) => (
+                    <mesh key={k} position={[cx, cy, 0.03]} material={M.giltTrim}><boxGeometry args={[w, h, 0.07]} /></mesh>
+                ))}
+                <mesh position={[0, -0.28, 0.06]} rotation={[-0.4, 0, 0]} material={M.rail}><boxGeometry args={[0.54, 0.05, 0.13]} /></mesh>
             </group>
         ))}
     </group>
