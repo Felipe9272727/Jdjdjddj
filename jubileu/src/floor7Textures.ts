@@ -52,18 +52,21 @@ export function makeWood(opts: WoodOpts = {}): { map: THREE.CanvasTexture; rough
             rx.stroke();
         }
         ctx.globalAlpha = 1; rx.globalAlpha = 1;
-        // butt joints: staggered cross-seams where plank lengths meet
+        // butt joints: staggered cross-seams where plank lengths meet (deep groove)
         const buttN = 2 + Math.floor(r() * 2);
         for (let bj = 0; bj < buttN; bj++) {
             const by = (r() * 0.9 + 0.05) * size;
-            ctx.fillStyle = '#241608'; ctx.fillRect(x + 1, by, plankW - 2, 2.2);
-            ctx.fillStyle = light; ctx.globalAlpha = 0.1; ctx.fillRect(x + 1, by + 2.2, plankW - 2, 1.4); ctx.globalAlpha = 1;
-            rx.fillStyle = '#4a4a4a'; rx.fillRect(x + 1, by, plankW - 2, 2.2);
+            ctx.fillStyle = '#1c1206'; ctx.fillRect(x + 1, by, plankW - 2, 2.6);
+            ctx.fillStyle = light; ctx.globalAlpha = 0.12; ctx.fillRect(x + 1, by + 2.6, plankW - 2, 1.4); ctx.globalAlpha = 1;
+            rx.fillStyle = '#e0e0e0'; rx.fillRect(x + 1, by - 1.4, plankW - 2, 1.4);  // raised edge
+            rx.fillStyle = '#101010'; rx.fillRect(x + 1, by, plankW - 2, 2.6);        // deep groove
         }
-        // plank seam (deep dark caulk groove) + a highlight bevel
-        ctx.fillStyle = '#241608'; ctx.fillRect(x - 1, 0, 3, size);
-        ctx.fillStyle = light; ctx.globalAlpha = 0.16; ctx.fillRect(x + 2, 0, 2, size); ctx.globalAlpha = 1;
-        rx.fillStyle = '#3a3a3a'; rx.fillRect(x - 1, 0, 3, size); // deep groove for the bump map
+        // plank seam: a beveled caulk groove (bright raised edge + deep dark groove)
+        // in both the colour and the bump (rough) map, so strakes catch grazing light
+        ctx.fillStyle = '#1c1206'; ctx.fillRect(x - 1, 0, 3, size);
+        ctx.fillStyle = light; ctx.globalAlpha = 0.2; ctx.fillRect(x + 2, 0, 2, size); ctx.globalAlpha = 1;
+        rx.fillStyle = '#e2e2e2'; rx.fillRect(x - 2.5, 0, 1.6, size);  // raised plank edge (bright = proud)
+        rx.fillStyle = '#0c0c0c'; rx.fillRect(x - 1, 0, 3, size);      // deep caulk groove (dark = recessed)
     }
 
     // a few knots
