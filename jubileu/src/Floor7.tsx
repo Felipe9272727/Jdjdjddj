@@ -92,9 +92,11 @@ const M = {
     // not wet plastic (the sailcloth rough map doubles as a weave bump)
     coat: new THREE.MeshStandardMaterial({ color: '#8a2222', roughness: 0.88, bumpMap: _sailCloth.rough, bumpScale: 0.014, envMapIntensity: 0.25 }),
     coatDk: new THREE.MeshStandardMaterial({ color: '#5c1414', roughness: 0.9, bumpMap: _sailCloth.rough, bumpScale: 0.014, envMapIntensity: 0.2 }),
-    // weathered lower coat — darker, dirtier red for the skirt/hems so the
-    // garment has a tonal zone (grime pools low) instead of one flat plastic red
-    coatWorn: new THREE.MeshStandardMaterial({ color: '#6b1c1c', roughness: 0.95, bumpMap: _sailCloth.rough, bumpScale: 0.02, envMapIntensity: 0.18 }),
+    // weathered lower coat — much darker grime at the hem (the subtle delta
+    // before was invisible on-screen), plus a desaturated dusty SALT bloom for
+    // the light-catching shoulders/forearms: real value variation per the AAA bar
+    coatWorn: new THREE.MeshStandardMaterial({ color: '#4a1010', roughness: 0.98, bumpMap: _sailCloth.rough, bumpScale: 0.022, envMapIntensity: 0.15 }),
+    coatSalt: new THREE.MeshStandardMaterial({ color: '#a8675f', roughness: 0.96, bumpMap: _sailCloth.rough, bumpScale: 0.02, envMapIntensity: 0.2 }),
     skin: new THREE.MeshStandardMaterial({ color: '#cd9a6e', roughness: 0.62 }),
     hat: new THREE.MeshStandardMaterial({ color: '#17161b', roughness: 0.62, envMapIntensity: 0.6 }),
     // warm gold for ALL exterior trim: a faint emissive + a calmer reflection so
@@ -845,11 +847,12 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             <group ref={rig.coatHem2} position={[0, -0.1, 0]}>
                 {/* a hem cross-piece behind the vent so no black void shows through */}
                 <mesh position={[0, -0.42, 0.12]} material={M.coatDk}><boxGeometry args={[0.32, 0.2, 0.05]} /></mesh>
-                {/* side + back panels — WORN (darker/dirtier) so the skirt is a
-                    tonal zone below the brighter chest, not one flat plastic red */}
+                {/* side + back panels — WORN (darker/dirtier) tonal zone, and FLARED
+                    out at the hem with a staggered edge so the skirt breaks like
+                    cloth instead of reading as a stiff cylinder billboard */}
                 {[-0.62, 0.62, -1.45, 1.45, Math.PI - 0.6, Math.PI + 0.6].map((ang, i) => (
-                    <mesh key={i} position={[Math.sin(ang) * 0.27, -0.27, Math.cos(ang) * 0.27]} rotation={[0.12, ang, 0]} material={M.coatWorn}>
-                        <boxGeometry args={[0.34, 0.58, 0.09]} />
+                    <mesh key={i} position={[Math.sin(ang) * 0.31, -0.27 + (i % 2 ? 0.04 : -0.04), Math.cos(ang) * 0.31]} rotation={[0.2, ang, 0]} material={M.coatWorn}>
+                        <boxGeometry args={[0.4, 0.62, 0.09]} />
                     </mesh>
                 ))}
                 {/* two front flaps — wider + swung toward centre so they nearly
@@ -904,7 +907,7 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             into a barrel chest, with the coat draping over real shoulder mass */}
         <mesh position={[0, 1.28, 0.02]} rotation={[0, 0, Math.PI / 2]} material={M.coat}><cylinderGeometry args={[0.155, 0.155, 0.62, 16]} /></mesh>
         {[-1, 1].map((s) => (
-            <mesh key={'dl' + s} position={[s * 0.31, 1.2, 0.04]} material={M.coat}><sphereGeometry args={[0.135, 12, 10]} /></mesh>
+            <mesh key={'dl' + s} position={[s * 0.31, 1.2, 0.04]} material={M.coatSalt}><sphereGeometry args={[0.135, 12, 10]} /></mesh>
         ))}
         {/* gilt lapel edging down the front placket (FIX: break the flat coat) */}
         {[-1, 1].map((s) => (
@@ -916,7 +919,7 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             {/* upper arm -> elbow -> tapered forearm */}
             <mesh position={[0, -0.125, 0]} material={M.coat}><cylinderGeometry args={[0.09, 0.082, 0.25, 12]} /></mesh>
             <mesh position={[0, -0.26, 0.01]} material={M.coat}><sphereGeometry args={[0.083, 10, 8]} /></mesh>
-            <mesh position={[0, -0.37, 0.025]} material={M.coat}><cylinderGeometry args={[0.078, 0.068, 0.22, 12]} /></mesh>
+            <mesh position={[0, -0.37, 0.025]} material={M.coatSalt}><cylinderGeometry args={[0.078, 0.068, 0.22, 12]} /></mesh>
             {/* big turn-back cuff, flared wider than the sleeve + gold band */}
             <mesh position={[0, -0.46, 0.04]} material={M.coatDk}><cylinderGeometry args={[0.115, 0.082, 0.14, 12]} /></mesh>
             <mesh position={[0, -0.525, 0.04]} material={M.gold}><cylinderGeometry args={[0.118, 0.112, 0.03, 12]} /></mesh>
@@ -924,15 +927,23 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             <mesh position={[0, -0.5, 0.04]} rotation={[Math.PI / 2, 0, 0]} material={M.cloth}><torusGeometry args={[0.1, 0.026, 6, 16]} /></mesh>
             <mesh position={[0, -0.585, 0.06]} material={M.skin}><boxGeometry args={[0.09, 0.052, 0.115]} /></mesh>
             <mesh position={[-0.054, -0.56, 0.07]} rotation={[0, 0, 0.55]} material={M.skin}><capsuleGeometry args={[0.018, 0.042, 3, 6]} /></mesh>
-            {/* four fingers, tapered + length-varied (middle two longest) */}
-            {[-0.036, -0.012, 0.012, 0.036].map((fx, i) => (
-                <mesh key={'lf' + i} position={[fx, -0.625, 0.105]} rotation={[0.55, 0, 0]} material={M.skin}><capsuleGeometry args={[0.013, [0.04, 0.052, 0.052, 0.044][i], 3, 6]} /></mesh>
-            ))}
+            {/* fingers as a 2-KNUCKLE chain in a soft static curl — same fidelity
+                as the right hand (the dossier demands both equally articulated) */}
+            <group position={[0, -0.625, 0.1]} rotation={[0.4, 0, 0]}>
+                {[-0.036, -0.012, 0.012, 0.036].map((fx, i) => (
+                    <mesh key={'lf' + i} position={[fx, 0, 0.012]} material={M.skin}><capsuleGeometry args={[0.013, [0.04, 0.052, 0.052, 0.044][i], 3, 6]} /></mesh>
+                ))}
+                <group position={[0, -0.025, 0.04]} rotation={[0.5, 0, 0]}>
+                    {[-0.036, -0.012, 0.012, 0.036].map((fx, i) => (
+                        <mesh key={'ld' + i} position={[fx, 0, 0]} material={M.skin}><capsuleGeometry args={[0.012, 0.04, 3, 6]} /></mesh>
+                    ))}
+                </group>
+            </group>
         </group>
         <group ref={rig.armR} position={[0.30, 1.18, 0.04]}>
             <mesh position={[0, -0.125, 0]} material={M.coat}><cylinderGeometry args={[0.09, 0.082, 0.25, 12]} /></mesh>
             <mesh position={[0, -0.26, 0.01]} material={M.coat}><sphereGeometry args={[0.083, 10, 8]} /></mesh>
-            <mesh position={[0, -0.37, 0.025]} material={M.coat}><cylinderGeometry args={[0.078, 0.068, 0.22, 12]} /></mesh>
+            <mesh position={[0, -0.37, 0.025]} material={M.coatSalt}><cylinderGeometry args={[0.078, 0.068, 0.22, 12]} /></mesh>
             <mesh position={[0, -0.46, 0.04]} material={M.coatDk}><cylinderGeometry args={[0.115, 0.082, 0.14, 12]} /></mesh>
             <mesh position={[0, -0.525, 0.04]} material={M.gold}><cylinderGeometry args={[0.118, 0.112, 0.03, 12]} /></mesh>
             <mesh position={[0, -0.5, 0.04]} rotation={[Math.PI / 2, 0, 0]} material={M.cloth}><torusGeometry args={[0.1, 0.026, 6, 16]} /></mesh>
@@ -993,15 +1004,21 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
                 iris (no more wall-eye), dropped under the brow so it reads sunken */}
             <mesh position={[-0.072, 0.184, 0.152]} scale={[1.15, 0.92, 0.55]} material={M.socket}><sphereGeometry args={[0.05, 12, 10]} /></mesh>
             <mesh ref={rig.eye} position={[-0.072, 0.184, 0.162]} scale={[1, 0.92, 0.7]} material={M.eyewhite}><sphereGeometry args={[0.03, 14, 12]} /></mesh>
-            <mesh position={[-0.072, 0.184, 0.184]} material={M.iris}><sphereGeometry args={[0.022, 12, 10]} /></mesh>
-            <mesh position={[-0.072, 0.184, 0.2]} material={M.hat}><sphereGeometry args={[0.01, 8, 8]} /></mesh>
+            <mesh position={[-0.072, 0.184, 0.184]} material={M.iris}><sphereGeometry args={[0.018, 12, 10]} /></mesh>
+            <mesh position={[-0.072, 0.184, 0.198]} material={M.hat}><sphereGeometry args={[0.009, 8, 8]} /></mesh>
+            {/* EYELIDS — an upper lid drooping over the top third of the iris + a
+                thin lower lid, so the eye is SEATED, not a floating sphere-in-a-bowl */}
+            <mesh position={[-0.072, 0.2, 0.176]} rotation={[0.55, 0, 0.06]} material={M.skin}><boxGeometry args={[0.054, 0.014, 0.022]} /></mesh>
+            <mesh position={[-0.072, 0.168, 0.18]} rotation={[-0.35, 0, 0]} material={M.skinD}><boxGeometry args={[0.05, 0.01, 0.018]} /></mesh>
             {/* RIGHT eye — a recessed socket with a slightly CONVEX leather patch
                 seated in it (covering a real hole), strap denting up under the hat */}
             <mesh position={[0.072, 0.184, 0.15]} scale={[1.1, 0.95, 0.5]} material={M.socket}><sphereGeometry args={[0.05, 12, 10]} /></mesh>
             <mesh position={[0.072, 0.184, 0.168]} rotation={[Math.PI / 2, 0, 0.1]} material={M.boot}><sphereGeometry args={[0.05, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.55]} /></mesh>
             <mesh position={[0.082, 0.30, 0.05]} rotation={[0.55, 0, 0.14]} material={M.boot}><boxGeometry args={[0.022, 0.3, 0.016]} /></mesh>
-            {/* NOSE — bridge cone + bulbous ruddy tip + nostril wings */}
-            <mesh position={[0, 0.178, 0.175]} rotation={[Math.PI / 2.3, 0, 0]} material={M.skin}><coneGeometry args={[0.046, 0.14, 8]} /></mesh>
+            {/* NOSE — a bridge FILL fuses it into the brow (no air-gap seam),
+                then the bridge cone + bulbous ruddy tip + nostril wings */}
+            <mesh position={[0, 0.2, 0.172]} material={M.skin}><boxGeometry args={[0.032, 0.07, 0.05]} /></mesh>
+            <mesh position={[0, 0.172, 0.175]} rotation={[Math.PI / 2.3, 0, 0]} material={M.skin}><coneGeometry args={[0.046, 0.14, 8]} /></mesh>
             <mesh position={[0, 0.142, 0.2]} material={M.skinR}><sphereGeometry args={[0.03, 10, 8]} /></mesh>
             {[-1, 1].map((s) => (
                 <mesh key={'no' + s} position={[s * 0.032, 0.135, 0.185]} material={M.skin}><sphereGeometry args={[0.02, 8, 8]} /></mesh>
