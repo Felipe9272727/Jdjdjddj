@@ -837,8 +837,8 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
                 <mesh position={[0, -0.42, 0.12]} material={M.coatDk}><boxGeometry args={[0.32, 0.2, 0.05]} /></mesh>
                 {/* side + back panels (thicker, so edges catch light not vanish) */}
                 {[-0.62, 0.62, -1.45, 1.45, Math.PI - 0.6, Math.PI + 0.6].map((ang, i) => (
-                    <mesh key={i} position={[Math.sin(ang) * 0.3, -0.27, Math.cos(ang) * 0.3]} rotation={[0.05, ang, 0]} material={M.coat}>
-                        <boxGeometry args={[0.26, 0.58, 0.09]} />
+                    <mesh key={i} position={[Math.sin(ang) * 0.27, -0.27, Math.cos(ang) * 0.27]} rotation={[0.12, ang, 0]} material={M.coat}>
+                        <boxGeometry args={[0.34, 0.58, 0.09]} />
                     </mesh>
                 ))}
                 {/* two front flaps — wider + swung toward centre so they nearly
@@ -904,9 +904,9 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             <mesh position={[0, -0.5, 0.04]} rotation={[Math.PI / 2, 0, 0]} material={M.cloth}><torusGeometry args={[0.1, 0.026, 6, 16]} /></mesh>
             <mesh position={[0, -0.585, 0.06]} material={M.skin}><boxGeometry args={[0.09, 0.052, 0.115]} /></mesh>
             <mesh position={[-0.054, -0.56, 0.07]} rotation={[0, 0, 0.55]} material={M.skin}><capsuleGeometry args={[0.018, 0.042, 3, 6]} /></mesh>
-            {/* four fingers — match the right hand so he isn't one-fingered */}
+            {/* four fingers, tapered + length-varied (middle two longest) */}
             {[-0.036, -0.012, 0.012, 0.036].map((fx, i) => (
-                <mesh key={'lf' + i} position={[fx, -0.625, 0.105]} rotation={[0.55, 0, 0]} material={M.skin}><capsuleGeometry args={[0.016, 0.05, 3, 6]} /></mesh>
+                <mesh key={'lf' + i} position={[fx, -0.625, 0.105]} rotation={[0.55, 0, 0]} material={M.skin}><capsuleGeometry args={[0.013, [0.04, 0.052, 0.052, 0.044][i], 3, 6]} /></mesh>
             ))}
         </group>
         <group ref={rig.armR} position={[0.30, 1.18, 0.04]}>
@@ -923,7 +923,7 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
                 closes around the wheel mid-finger when he takes the helm (ST_DONE) */}
             <group ref={rig.gripR} position={[0, -0.585, 0.10]}>
                 {[-0.036, -0.012, 0.012, 0.036].map((fx, i) => (
-                    <mesh key={i} position={[fx, 0, 0.018]} material={M.skin}><capsuleGeometry args={[0.017, 0.05, 3, 6]} /></mesh>
+                    <mesh key={i} position={[fx, 0, 0.018]} material={M.skin}><capsuleGeometry args={[0.013, [0.04, 0.052, 0.052, 0.044][i], 3, 6]} /></mesh>
                 ))}
                 <group ref={rig.gripR2} position={[0, -0.025, 0.05]}>
                     {[-0.036, -0.012, 0.012, 0.036].map((fx, i) => (
@@ -946,17 +946,19 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             <mesh position={[0, 0.16, 0]} scale={[1, 1.06, 0.97]} material={M.skin}><sphereGeometry args={[0.185, 22, 20]} /></mesh>
             {/* hair skull-cap under the hat — no more bald temples/nape */}
             <mesh position={[0, 0.175, -0.012]} scale={[1.02, 1, 1.03]} material={M.hair}><sphereGeometry args={[0.182, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.6]} /></mesh>
-            {/* brow ridge — angled skin boxes that throw a shadow over the eyes */}
+            {/* brow ridge — pushed FORWARD + DOWN so it physically overhangs the
+                eyeballs and throws a real sunken shadow (not a high shelf) */}
             {[-1, 1].map((s) => (
-                <mesh key={'br' + s} position={[s * 0.075, 0.222, 0.158]} rotation={[0.18, 0, s * 0.16]} material={M.skin}><boxGeometry args={[0.09, 0.034, 0.07]} /></mesh>
+                <mesh key={'br' + s} position={[s * 0.075, 0.205, 0.175]} rotation={[0.34, 0, s * 0.16]} material={M.skin}><boxGeometry args={[0.092, 0.036, 0.09]} /></mesh>
             ))}
-            {/* bushy eyebrows on the ridge */}
+            {/* bushy eyebrows riding the ridge */}
             {[-1, 1].map((s) => (
-                <mesh key={'eb' + s} position={[s * 0.075, 0.23, 0.188]} rotation={[0, 0, s * -0.14]} material={M.hair}><boxGeometry args={[0.078, 0.02, 0.024]} /></mesh>
+                <mesh key={'eb' + s} position={[s * 0.075, 0.216, 0.2]} rotation={[0.2, 0, s * -0.16]} material={M.hair}><boxGeometry args={[0.08, 0.022, 0.026]} /></mesh>
             ))}
-            {/* cheekbones — ruddier weathered skin, catch the key light */}
+            {/* cheekbones — a flat MALAR PLANE that flows toward the jaw (not two
+                clown-balls): wide + flat + angled, catching the key light */}
             {[-1, 1].map((s) => (
-                <mesh key={'ck' + s} position={[s * 0.122, 0.125, 0.12]} scale={[1, 0.8, 0.7]} material={M.skinR}><sphereGeometry args={[0.06, 10, 8]} /></mesh>
+                <mesh key={'ck' + s} position={[s * 0.14, 0.1, 0.115]} rotation={[0, s * -0.22, 0.08 * s]} scale={[1.35, 0.5, 0.6]} material={M.skinR}><sphereGeometry args={[0.05, 10, 8]} /></mesh>
             ))}
             {/* LEFT working eye — recessed socket + a SMALLER white with a BIGGER
                 iris (no more wall-eye), dropped under the brow so it reads sunken */}
@@ -996,9 +998,10 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             {/* QUEUE — a TAPERED tied ponytail down the nape (apex points down) */}
             <mesh position={[0, 0.0, -0.18]} rotation={[Math.PI - 0.28, 0, 0]} material={M.hair}><coneGeometry args={[0.052, 0.26, 9]} /></mesh>
             <mesh position={[0, 0.135, -0.16]} material={M.coatDk}><torusGeometry args={[0.034, 0.011, 6, 12]} /></mesh>
-            {/* hairline lock clumps breaking the felt-cap edge at the brow/temples */}
+            {/* hairline locks — flattened clumps lying tangent to the skull (not a
+                row of golf balls), irregular in height + size */}
             {[-0.13, -0.05, 0.05, 0.13].map((x, i) => (
-                <mesh key={'hf' + i} position={[x, 0.305, 0.12]} material={M.hair}><sphereGeometry args={[0.042, 8, 7]} /></mesh>
+                <mesh key={'hf' + i} position={[x, 0.3 + (i % 2 === 0 ? 0.014 : -0.012), 0.1]} rotation={[1.3, 0, x * 1.6]} scale={[1, 1, 0.55]} material={M.hair}><capsuleGeometry args={[0.028 + (i % 2) * 0.009, 0.05, 3, 7]} /></mesh>
             ))}
             {/* JAW group — chin hinge (flaps while talking) */}
             <group ref={rig.jaw} position={[0, 0.06, 0.04]}>
