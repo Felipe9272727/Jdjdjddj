@@ -1009,7 +1009,8 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             const walking = b.capWalking();
             const ph = t * 7.0;
             const lurch = walking ? Math.max(0, Math.sin(ph)) * 0.05 : 0;  // peg down-beat
-            captainRef.current.position.set(c.x, c.bob - lurch, c.z);
+            const breath = Math.sin(t * 1.1) * 0.011;                      // always-on chest rise
+            captainRef.current.position.set(c.x, c.bob - lurch + breath, c.z);
             captainRef.current.rotation.y = c.face;
             captainRef.current.visible = b.elevFade() < 0.85;
             const { legL, legR, armL, armR, head, jaw, eye } = capRig;
@@ -1044,6 +1045,8 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 captainRef.current.worldToLocal(_capWorld.current);
                 const yawTo = Math.max(-0.7, Math.min(0.7, Math.atan2(_capWorld.current.x, _capWorld.current.z)));
                 head.current.rotation.y += (yawTo - head.current.rotation.y) * 0.1;
+                head.current.rotation.x = Math.sin(t * 0.9) * 0.04;  // slow idle nod, always alive
+                head.current.rotation.z = Math.sin(t * 0.7) * 0.025;
             }
         }
         // bucket
@@ -1135,8 +1138,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     brushRef.current.position.y = -Math.abs(s) * 0.02;
                     brushRef.current.rotation.x = s * 0.12;
                 } else {
+                    // idle: a gentle breathing bob + sway so the hand is never a
+                    // frozen prop, even in a still frame
                     const sway = Math.sin(t * 1.6) * 0.012;
-                    brushRef.current.position.set(0, sway * 0.5, sway);
+                    const breathe = Math.sin(t * 1.1) * 0.008;
+                    brushRef.current.position.set(Math.sin(t * 0.8) * 0.006, sway * 0.5 + breathe, sway);
                     brushRef.current.rotation.x = sway; brushRef.current.rotation.y *= 0.85;
                 }
             }
