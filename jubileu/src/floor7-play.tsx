@@ -34,6 +34,7 @@ const Controller: React.FC<{ posRef: React.MutableRefObject<THREE.Vector3> }> = 
     const yaw = useRef(0);            // 0 faces +z (toward the bow / captain)
     const pitch = useRef(0);
     const move = useRef({ f: 0, s: 0 });
+    const camO = useRef<{ p: THREE.Vector3; t: THREE.Vector3 } | null>(null);
     useEffect(() => {
         // dev probe: dump meshes near the camera with their material colors,
         // to hunt down a stray-colored prop the critic flagged in FP frames.
@@ -66,10 +67,18 @@ const Controller: React.FC<{ posRef: React.MutableRefObject<THREE.Vector3> }> = 
         const kd = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (k in keys) { keys[k] = 1; upd(); } if (e.key === 'ArrowLeft') yaw.current += 0.1; if (e.key === 'ArrowRight') yaw.current -= 0.1; };
         const ku = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (k in keys) { keys[k] = 0; upd(); } };
         window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
+        // DEV portrait hook: detach the camera from the player and orbit it freely
+        // (the brain-player stays frozen wherever __teleport put it, so the captain
+        // keeps facing that spot) — lets the model critic see him from any angle.
+        (window as unknown as { __cam?: (px: number, py: number, pz: number, tx: number, ty: number, tz: number) => void }).__cam =
+            (px, py, pz, tx, ty, tz) => { camO.current = { p: new THREE.Vector3(px, py, pz), t: new THREE.Vector3(tx, ty, tz) }; };
+        (window as unknown as { __camOff?: () => void }).__camOff = () => { camO.current = null; };
         window.__ready = true;
         return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
     }, [posRef]);
     useFrame((_, dt) => {
+        // portrait-orbit override: place the camera directly, leave the player frozen
+        if (camO.current) { camera.position.copy(camO.current.p); camera.lookAt(camO.current.t); return; }
         const m = move.current, y = yaw.current;
         const fwd = new THREE.Vector3(Math.sin(y), 0, Math.cos(y));
         const right = new THREE.Vector3(Math.cos(y), 0, -Math.sin(y));
