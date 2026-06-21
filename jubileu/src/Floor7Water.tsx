@@ -68,15 +68,19 @@ void main() {
     vec3 V = normalize(cameraPosition - vWorldPos);
     float dist = length(cameraPosition - vWorldPos);
 
-    // fine fragment-space ripple normal: the wave MESH is coarse, so at grazing
-    // angles its quad rows terrace into horizontal bands. Perturbing the normal
-    // per-pixel breaks that banding into shimmer. Attenuate with distance so the
-    // far sea (which melts into the horizon) stays calm instead of sparkle-aliasing.
-    float detAtt = 1.0 - smoothstep(10.0, 58.0, dist);
+    // fragment-space ripple normal in TWO octaves so the coarse wave mesh never
+    // terraces into bands AND the far sea never goes mirror-flat ("poured resin"):
+    //  - a FINE octave, attenuated with distance (would sparkle-alias far away)
+    //  - a COARSE, long-wavelength octave kept ALIVE to the horizon (a small
+    //    floor of micro-chop so distant water still breathes).
     vec2 q = vWorldPos.xz;
-    float nx = (sin(q.x * 1.7 + uTime * 1.3) + 0.6 * sin(q.x * 3.3 - q.y * 1.1 + uTime * 1.9)) * 0.05 * detAtt;
-    float nz = (sin(q.y * 1.9 - uTime * 1.1) + 0.6 * sin(q.y * 3.1 + q.x * 1.3 - uTime * 1.7)) * 0.05 * detAtt;
-    N = normalize(N + vec3(nx, 0.0, nz));
+    float detAtt = mix(0.16, 1.0, 1.0 - smoothstep(10.0, 58.0, dist));
+    float fnx = (sin(q.x * 1.7 + uTime * 1.3) + 0.6 * sin(q.x * 3.3 - q.y * 1.1 + uTime * 1.9)) * 0.05 * detAtt;
+    float fnz = (sin(q.y * 1.9 - uTime * 1.1) + 0.6 * sin(q.y * 3.1 + q.x * 1.3 - uTime * 1.7)) * 0.05 * detAtt;
+    // long-wavelength swell chop — survives all the way out
+    float cnx = sin(q.x * 0.32 + q.y * 0.17 + uTime * 0.6) * 0.028;
+    float cnz = sin(q.y * 0.29 - q.x * 0.21 + uTime * 0.5) * 0.028;
+    N = normalize(N + vec3(fnx + cnx, 0.0, fnz + cnz));
 
     float fres = pow(clamp(1.0 - max(dot(N, V), 0.0), 0.0, 1.0), 3.0);
 
@@ -88,10 +92,11 @@ void main() {
     // sky reflection via fresnel
     vec3 col = mix(base, uSky, fres * 0.7);
 
-    // sun glitter (sharp specular off the wave normals)
+    // sun glitter (specular off the wave normals) — exponent eased so the
+    // glitter spreads into a believable streak instead of a hard pinpoint
     vec3 H = normalize(V + uSunDir);
-    float spec = pow(max(dot(N, H), 0.0), 220.0);
-    col += uSunColor * spec * 1.6;
+    float spec = pow(max(dot(N, H), 0.0), 150.0);
+    col += uSunColor * spec * 1.5;
     // broad sun sheen
     col += uSunColor * pow(max(dot(N, H), 0.0), 16.0) * 0.12;
 
