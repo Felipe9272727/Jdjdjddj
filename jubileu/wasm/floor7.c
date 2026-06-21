@@ -65,6 +65,8 @@ static struct {
     /* captain */
     float capX, capZ, capFace, capBob;
     int   capWalk;      /* 1 while the captain is striding (drives the walk anim) */
+    float barkTimer;    /* >0 while a milestone bark line is showing           */
+    int   barked3;      /* fired the 3/6 bark already?                          */
     /* bucket */
     float bucX, bucZ;
     int   bucHeld;
@@ -157,6 +159,8 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
     }
     case ST_CLEAN: {
         S.dialogue = 3;                            /* objective: mop the puddles */
+        /* the captain watches you work — face the player */
+        S.capFace = -f7_atan2_like(px - S.capX, pz - S.capZ);
         if (S.bucHeld) {
             /* the bucket trails the player */
             S.bucX = px + 0.35f; S.bucZ = pz + 0.15f;
@@ -172,6 +176,9 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
                 }
             }
         }
+        /* halfway bark — the captain reacts to your progress */
+        if (S.cleaned >= 3 && !S.barked3) { S.barked3 = 1; S.barkTimer = 3.5f; }
+        if (S.barkTimer > 0.0f) { S.barkTimer -= dt; S.dialogue = 5; }   /* "tá ficando decente!" */
         if (S.cleaned >= NPUD) { S.state = ST_DONE; S.stTimer = 0.0f; S.dialogue = 4; }
         break;
     }

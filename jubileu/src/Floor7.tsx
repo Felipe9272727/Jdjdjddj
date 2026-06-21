@@ -984,7 +984,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             }
             if (jaw.current) {
                 const dlg = b.dialogue();
-                jaw.current.rotation.x = (dlg === 1 || dlg === 4) ? Math.abs(Math.sin(t * 9)) * 0.4 : 0;
+                jaw.current.rotation.x = (dlg === 1 || dlg === 4 || dlg === 5) ? Math.abs(Math.sin(t * 9)) * 0.4 : 0;
             }
             if (eye.current) eye.current.scale.y = (t % 4.0 > 3.89) ? 0.06 : 0.85;
             if (head.current && captainRef.current.visible) {
@@ -1100,7 +1100,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         if (cl > sf.cleaned) f7PuddleDone();
         sf.cleaned = cl;
         const dlg = b.dialogue();
-        if (dlg !== sf.dialogue) { if (dlg === 1 || dlg === 4) f7CaptainGrunt(); sf.dialogue = dlg; }
+        if (dlg !== sf.dialogue) { if (dlg === 1 || dlg === 4 || dlg === 5) f7CaptainGrunt(); sf.dialogue = dlg; }
 
         // publish a snapshot for the DOM overlay
         const h = handleRef.current;
@@ -1215,6 +1215,7 @@ const DIALOGUE: Record<number, string> = {
     2: 'Objetivo: pegue o balde com o pano (perto do mastro).',
     3: 'Objetivo: esfregue todas as poças do convés.',
     4: 'Capitão: Bom trabalho, grumete! Olha lá na proa… TERRA À VISTA! Vou assumir o leme — segura firme, que a gente chega já.',
+    5: 'Capitão: Isso, marujo! Já tá ficando decente — não para agora!',
 };
 
 export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7Handle> }> = ({ handleRef }) => {
