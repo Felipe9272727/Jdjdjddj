@@ -19,7 +19,7 @@ import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth } from './floor7Textures';
-import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams } from './floor7Geo';
+import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams, deckYAt, railYAt, beamAt } from './floor7Geo';
 import { FLOOR7_SCALE, F7_DECK_PROPS } from './constants';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
@@ -406,6 +406,38 @@ const DeckProps: React.FC = () => (
     </group>
 );
 
+// ── bulwark carpentry: vertical frame timbers (futtock tops) standing proud of
+// the inner planking every ~0.8m along the sheer, plus scupper slots at deck
+// level — so the walls read as built timber, not a flat extruded ribbon. ──
+const BulwarkFrames: React.FC = () => {
+    const { frames, scuppers } = useMemo(() => {
+        const frames: { x: number; y: number; z: number; h: number }[] = [];
+        const scuppers: { x: number; z: number; y: number }[] = [];
+        const N = 20, stern = -7.0, bow = 8.2;
+        for (let i = 1; i < N; i++) {
+            const t = i / N;
+            const dy = deckYAt(t), ry = railYAt(t), hb = beamAt(t);
+            const z = stern + (bow - stern) * t;
+            const x = hb * 0.745;
+            const h = ry - dy;
+            if (h < 0.2) continue;
+            for (const s of [-1, 1]) frames.push({ x: s * x, y: dy + h / 2, z, h });
+            if (i % 4 === 0) for (const s of [-1, 1]) scuppers.push({ x: s * hb * 0.78, z, y: dy + 0.05 });
+        }
+        return { frames, scuppers };
+    }, []);
+    return (
+        <group>
+            {frames.map((f, i) => (
+                <mesh key={'fr' + i} position={[f.x, f.y, f.z]} material={M.rail}><boxGeometry args={[0.09, f.h, 0.13]} /></mesh>
+            ))}
+            {scuppers.map((s, i) => (
+                <mesh key={'sc' + i} position={[s.x, s.y, s.z]} material={M.caulk}><boxGeometry args={[0.12, 0.09, 0.2]} /></mesh>
+            ))}
+        </group>
+    );
+};
+
 // ── the static ship hull + deck + masts (no per-frame logic) ──
 const ShipBody: React.FC = () => {
     // hull + deck + rail caps are ALL MODELLED IN C++ (floor7_geo.cpp → WASM):
@@ -455,6 +487,8 @@ const ShipBody: React.FC = () => {
             <mesh geometry={innerGeo} material={M.plank} />
             {/* rail caps swept along the sheer (C++ curve) */}
             <mesh geometry={railGeo} material={M.rail} />
+            {/* bulwark frame timbers + scuppers */}
+            <BulwarkFrames />
             {/* wales — proud rubbing-strakes laid on the C++ hull surface */}
             <mesh geometry={waleHi} material={M.hullDk} />
             <mesh geometry={waleLo} material={M.hullDk} />
