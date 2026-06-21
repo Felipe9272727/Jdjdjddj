@@ -879,6 +879,8 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         eye: useRef<THREE.Mesh>(null),
     };
     const _capWorld = useRef(new THREE.Vector3());
+    const _prevPP = useRef(new THREE.Vector3());
+    const _vel = useRef(new THREE.Vector3());
     const _sfx = useRef({ held: 0, cleaned: 0, dialogue: 0, step: 0, scrub: 0, px: 0, pz: 0 });
     // suds particle pool (ship-local) for scrub juice
     const SUDS_N = 48;
@@ -1072,14 +1074,27 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             handsRef.current.visible = b.elevFade() < 0.85;
             if (brushRef.current) {
                 const scrubbing = b.state() === F7_STATE.CLEAN && handleRef.current.interact;
+                // player velocity in CAMERA-local XZ (so the stroke sweeps where
+                // you're actually dragging the brush, not a fixed wiggle)
+                _vel.current.copy(playerPositionRef.current).sub(_prevPP.current);
+                _prevPP.current.copy(playerPositionRef.current);
+                const e = cam.matrixWorld.elements;
+                const vr = _vel.current.x * e[0] + _vel.current.z * e[2];   // along camera right
+                const vf = -(_vel.current.x * e[8] + _vel.current.z * e[10]); // along camera forward
+                const speed = Math.hypot(vr, vf);
                 if (scrubbing) {
-                    brushRef.current.position.z = Math.sin(t * 12) * 0.06;
-                    brushRef.current.position.y = -Math.abs(Math.sin(t * 12)) * 0.02;
-                    brushRef.current.rotation.x = Math.sin(t * 12) * 0.12;      // wrist supinates with the stroke
+                    const heading = speed > 0.0006 ? Math.atan2(vr, -vf) : 0;
+                    brushRef.current.rotation.y += (heading - brushRef.current.rotation.y) * 0.2;
+                    const amp = Math.min(0.12, 0.03 + speed * 7.0);           // bigger sweep when moving faster
+                    const s = Math.sin(t * 12);
+                    brushRef.current.position.x = Math.sin(heading) * s * amp;
+                    brushRef.current.position.z = -Math.cos(heading) * s * amp;
+                    brushRef.current.position.y = -Math.abs(s) * 0.02;
+                    brushRef.current.rotation.x = s * 0.12;
                 } else {
                     const sway = Math.sin(t * 1.6) * 0.012;
-                    brushRef.current.position.z = sway; brushRef.current.position.y = sway * 0.5;
-                    brushRef.current.rotation.x = sway;
+                    brushRef.current.position.set(0, sway * 0.5, sway);
+                    brushRef.current.rotation.x = sway; brushRef.current.rotation.y *= 0.85;
                 }
             }
         }
