@@ -101,7 +101,7 @@ const M = {
     // first-person cuff: even calmer, since it fills the frame next to the camera.
     goldFp: new THREE.MeshStandardMaterial({ color: '#e3bb55', roughness: 0.45, metalness: 0.5, envMapIntensity: 0.3, emissive: '#3a2b08', emissiveIntensity: 0.16 }),
     boot: new THREE.MeshStandardMaterial({ color: '#2a1d12', roughness: 0.55 }),
-    beard: new THREE.MeshStandardMaterial({ color: '#7d6552', roughness: 0.95 }),
+    beard: new THREE.MeshStandardMaterial({ color: '#7d6552', roughness: 0.98, bumpMap: _sailCloth.rough, bumpScale: 0.02 }),
     hair: new THREE.MeshStandardMaterial({ color: '#26201a', roughness: 0.9 }),
     eyewhite: new THREE.MeshStandardMaterial({ color: '#f2efe6', roughness: 0.35 }),
     // recessed eye socket (dark, sits behind the white so the eye reads sunken)
@@ -857,9 +857,15 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
         </group>
         {/* breeches behind the open vent + a polished boot-top showing through */}
         <mesh position={[0, 0.66, 0.04]} material={M.bootTop}><boxGeometry args={[0.34, 0.34, 0.26]} /></mesh>
-        {/* torso — broad chest tapering to a nipped waist (a V, not a tube) */}
-        <mesh position={[0, 1.16, 0]} material={M.coat}><cylinderGeometry args={[0.285, 0.25, 0.44, 16]} /></mesh>
-        <mesh position={[0, 0.95, 0.235]} rotation={[0.05, 0, 0]} material={M.coatDk}><boxGeometry args={[0.30, 0.95, 0.04]} /></mesh>
+        {/* torso — a real broad CHEST over a NIPPED WAIST (geometry, not a paint
+            stripe), with pec mass breaking the flat front plane */}
+        <mesh position={[0, 1.27, 0]} material={M.coat}><cylinderGeometry args={[0.3, 0.27, 0.24, 16]} /></mesh>
+        <mesh position={[0, 1.04, 0]} material={M.coat}><cylinderGeometry args={[0.225, 0.255, 0.22, 16]} /></mesh>
+        {[-1, 1].map((s) => (
+            <mesh key={'pec' + s} position={[s * 0.1, 1.22, 0.2]} scale={[1, 0.85, 0.55]} material={M.coat}><sphereGeometry args={[0.11, 12, 10]} /></mesh>
+        ))}
+        {/* recessed centre-front closure seam + a thin red placket */}
+        <mesh position={[0, 1.05, 0.265]} material={M.coatDk}><boxGeometry args={[0.045, 0.52, 0.03]} /></mesh>
         {[1.30, 1.16, 1.02, 0.88].map((y, i) => (
             <React.Fragment key={i}>
                 <mesh position={[-0.085, y, 0.245]} material={M.gold}><sphereGeometry args={[0.024, 8, 6]} /></mesh>
@@ -888,7 +894,7 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
         ))}
         {/* gilt lapel edging down the front placket (FIX: break the flat coat) */}
         {[-1, 1].map((s) => (
-            <mesh key={'lp' + s} position={[s * 0.14, 0.98, 0.247]} rotation={[0.05, 0, s * 0.06]} material={M.giltTrim}><boxGeometry args={[0.022, 0.92, 0.02]} /></mesh>
+            <mesh key={'lp' + s} position={[s * 0.09, 1.0, 0.262]} rotation={[0.05, 0, s * 0.06]} material={M.giltTrim}><boxGeometry args={[0.04, 0.62, 0.022]} /></mesh>
         ))}
 
         {/* ARMS — shoulder pivots at y=1.18 */}
@@ -966,10 +972,10 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             <mesh ref={rig.eye} position={[-0.072, 0.184, 0.162]} scale={[1, 0.92, 0.7]} material={M.eyewhite}><sphereGeometry args={[0.03, 14, 12]} /></mesh>
             <mesh position={[-0.072, 0.184, 0.184]} material={M.iris}><sphereGeometry args={[0.022, 12, 10]} /></mesh>
             <mesh position={[-0.072, 0.184, 0.2]} material={M.hat}><sphereGeometry args={[0.01, 8, 8]} /></mesh>
-            {/* RIGHT eye — a FLAT leather eyepatch disc flush to the socket (matched
-                to the left eye's y/size, not a googly dome) + a strap up under the hat */}
-            <mesh position={[0.072, 0.184, 0.176]} rotation={[Math.PI / 2, 0, 0.1]} material={M.boot}><cylinderGeometry args={[0.05, 0.05, 0.014, 16]} /></mesh>
-            <mesh position={[0.072, 0.184, 0.185]} material={M.hat}><sphereGeometry args={[0.012, 8, 8]} /></mesh>
+            {/* RIGHT eye — a recessed socket with a slightly CONVEX leather patch
+                seated in it (covering a real hole), strap denting up under the hat */}
+            <mesh position={[0.072, 0.184, 0.15]} scale={[1.1, 0.95, 0.5]} material={M.socket}><sphereGeometry args={[0.05, 12, 10]} /></mesh>
+            <mesh position={[0.072, 0.184, 0.168]} rotation={[Math.PI / 2, 0, 0.1]} material={M.boot}><sphereGeometry args={[0.05, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.55]} /></mesh>
             <mesh position={[0.082, 0.30, 0.05]} rotation={[0.55, 0, 0.14]} material={M.boot}><boxGeometry args={[0.022, 0.3, 0.016]} /></mesh>
             {/* NOSE — bridge cone + bulbous ruddy tip + nostril wings */}
             <mesh position={[0, 0.178, 0.175]} rotation={[Math.PI / 2.3, 0, 0]} material={M.skin}><coneGeometry args={[0.046, 0.14, 8]} /></mesh>
@@ -990,6 +996,11 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
                 into a forked, characterful beard */}
             {[-0.5, -0.22, 0, 0.22, 0.5].map((a, i) => (
                 <mesh key={'bl' + i} position={[Math.sin(a) * 0.13, -0.06 - (i === 2 ? 0.05 : 0), 0.085 + Math.cos(a) * 0.04]} rotation={[0.5, 0, a * 0.8]} material={M.beard}><coneGeometry args={[0.034, 0.13, 7]} /></mesh>
+            ))}
+            {/* FRONT clumps hang down the face of the beard with a centre fork gap,
+                so it stops reading as a smooth molded dome (apex points down) */}
+            {[-0.085, -0.04, 0.04, 0.085].map((x, i) => (
+                <mesh key={'bf' + i} position={[x, -0.02 - (Math.abs(x) < 0.05 ? 0.035 : 0), 0.15]} rotation={[Math.PI - 0.5, 0, x * 2.0]} material={M.beard}><coneGeometry args={[0.028, 0.12, 6]} /></mesh>
             ))}
             {/* a few thick hair locks at the temple/brow edge under the hat brim */}
             {[-1, 1].map((s) => (
