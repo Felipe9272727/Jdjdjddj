@@ -19,7 +19,7 @@ import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth } from './floor7Textures';
-import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry } from './floor7Geo';
+import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams } from './floor7Geo';
 import { FLOOR7_SCALE, F7_DECK_PROPS } from './constants';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
@@ -101,9 +101,11 @@ const M = {
     foam: new THREE.MeshStandardMaterial({ color: '#eef6f7', roughness: 1, transparent: true, opacity: 0.7, depthWrite: false }),
     bootTop: new THREE.MeshStandardMaterial({ color: '#14322a', roughness: 0.55, envMapIntensity: 0.5 }),
     grate: new THREE.MeshStandardMaterial({ color: '#3a2817', roughness: 0.85 }),
+    caulk: new THREE.MeshStandardMaterial({ color: '#140f08', roughness: 1 }),
+    giltTrim: new THREE.MeshStandardMaterial({ color: '#c69a3c', roughness: 0.5, metalness: 0.75, envMapIntensity: 0.9 }),
     bird: new THREE.MeshStandardMaterial({ color: '#3a3a40', roughness: 0.9 }),
     puddle: new THREE.MeshPhysicalMaterial({ color: '#244e5e', roughness: 0.12, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.04, transparent: true, opacity: 0.82, envMapIntensity: 1.3 }),
-    glass: new THREE.MeshPhysicalMaterial({ color: '#11242e', roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#5a3a12', emissiveIntensity: 0.45, envMapIntensity: 1.5 }),
+    glass: new THREE.MeshPhysicalMaterial({ color: '#11242e', roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#4a3010', emissiveIntensity: 0.28, envMapIntensity: 1.5 }),
     elev: new THREE.MeshStandardMaterial({ color: '#b0bec5', roughness: 0.4, metalness: 0.5, transparent: true }),
     elevTrim: new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.4, metalness: 0.6, transparent: true }),
 };
@@ -337,17 +339,24 @@ const SternCabin: React.FC = () => (
     <group position={[0, 0, -5.9]}>
         <mesh position={[0, 0.62, 0]} material={M.plankDk}><boxGeometry args={[2.1, 1.24, 1.3]} /></mesh>
         <mesh position={[0, 1.28, 0]} material={M.rail}><boxGeometry args={[2.34, 0.12, 1.54]} /></mesh>
-        <mesh position={[0, 1.15, 0]} material={M.gold}><boxGeometry args={[2.12, 0.05, 1.32]} /></mesh>
-        {/* door (faces forward, toward the deck) */}
+        {/* cornice drip-edge under the roof (casts a shadow line) */}
+        <mesh position={[0, 1.2, 0]} rotation={[0.18, 0, 0]} material={M.rail}><boxGeometry args={[2.18, 0.06, 1.42]} /></mesh>
+        {/* gilt belt molding + corner-post battens to break the flat wall */}
+        <mesh position={[0, 0.95, 0]} material={M.giltTrim}><boxGeometry args={[2.12, 0.05, 1.32]} /></mesh>
+        {[-1.02, 1.02].map((x) => (
+            <mesh key={'cp' + x} position={[x, 0.62, 0.66]} material={M.rail}><boxGeometry args={[0.07, 1.24, 0.07]} /></mesh>
+        ))}
+        {/* door (faces forward, toward the deck), recessed in a frame */}
+        <mesh position={[0, 0.5, 0.64]} material={M.giltTrim}><boxGeometry args={[0.5, 0.92, 0.04]} /></mesh>
         <mesh position={[0, 0.5, 0.66]} material={M.hat}><boxGeometry args={[0.42, 0.84, 0.05]} /></mesh>
         <mesh position={[0.15, 0.5, 0.7]} material={M.gold}><sphereGeometry args={[0.035, 8, 6]} /></mesh>
-        {/* windows flanking the door */}
+        {/* windows flanking the door — glass recessed behind the frame */}
         {[-0.68, 0.68].map((x) => (
-            <group key={x} position={[x, 0.72, 0.66]}>
-                <mesh material={M.gold}><boxGeometry args={[0.46, 0.46, 0.04]} /></mesh>
-                <mesh position={[0, 0, 0.02]} material={M.glass}><boxGeometry args={[0.38, 0.38, 0.04]} /></mesh>
-                <mesh position={[0, 0, 0.05]} material={M.rail}><boxGeometry args={[0.04, 0.38, 0.03]} /></mesh>
-                <mesh position={[0, 0, 0.05]} material={M.rail}><boxGeometry args={[0.38, 0.04, 0.03]} /></mesh>
+            <group key={x} position={[x, 0.74, 0.66]}>
+                <mesh material={M.giltTrim}><boxGeometry args={[0.46, 0.46, 0.04]} /></mesh>
+                <mesh position={[0, 0, -0.04]} material={M.glass}><boxGeometry args={[0.38, 0.38, 0.04]} /></mesh>
+                <mesh position={[0, 0, 0.02]} material={M.rail}><boxGeometry args={[0.04, 0.4, 0.04]} /></mesh>
+                <mesh position={[0, 0, 0.02]} material={M.rail}><boxGeometry args={[0.4, 0.04, 0.04]} /></mesh>
             </group>
         ))}
     </group>
@@ -438,8 +447,10 @@ const ShipBody: React.FC = () => {
             {/* hull — generated in C++ (sheer + tumblehome + raked stem + bulwarks),
                 double-sided so the inner planking shows */}
             <mesh geometry={hullGeo} position={[0, 0, 0]} material={M.hull} />
-            {/* deck surface (C++ sheer curve) */}
+            {/* deck surface (C++ sheer curve) + fore-aft caulk seams + king plank */}
             <mesh geometry={deckGeo} material={M.plankDk} />
+            <mesh geometry={buildDeckSeams()} material={M.caulk} renderOrder={1} />
+            <mesh geometry={deckGeo} scale={[0.06, 1, 1]} position={[0, 0.004, 0]} material={M.plank} />
             {/* inboard bulwark face — gives the bulwark real timber thickness */}
             <mesh geometry={innerGeo} material={M.plank} />
             {/* rail caps swept along the sheer (C++ curve) */}

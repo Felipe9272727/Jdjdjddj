@@ -11,7 +11,7 @@ const S = 1.45;
   await pg.waitForTimeout(2500);
   // [worldX, worldZ(local*scale), yaw, pitch, tag]
   const views = [
-    [0, 4.2 * S, Math.PI, -0.15, 'fp-spawn-aft'],   // stand at spawn, look aft over the deck
+    [0, 4.2 * S, 0, -0.12, 'fp-spawn'],             // spawn faces the bow (the real in-game view)
     [0, 1.0 * S, Math.PI, -0.1, 'fp-mid-aft'],       // amidships -> stern/deckhouse
     [0, 1.0 * S, 0, -0.1, 'fp-mid-bow'],             // amidships -> bow
     [0, 1.0 * S, 0.3, 0.55, 'fp-mid-rig'],           // look up at the rig/sails

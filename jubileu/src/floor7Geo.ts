@@ -194,7 +194,40 @@ export function buildInnerWallGeometry(inset = 0.72): THREE.BufferGeometry {
     return g;
 }
 
-// sheer-curve samplers (for placing props/masts along the deck line in JS)
+// Caulk seams: thin dark fore-and-aft lines laid on the deck at regular beam
+// fractions (they fan with the hull taper, converging toward the bow) so the
+// deck reads as laid planking with black caulk, not laminate.
+let _seams: THREE.BufferGeometry | null = null;
+export function buildDeckSeams(): THREE.BufferGeometry {
+    if (_seams) return _seams;
+    const e = exports(); e.f7_hull_build();
+    const N = 56, K = 16, hw = 0.013;
+    const pos: number[] = [], idx: number[] = [];
+    let base = 0;
+    for (let k = 0; k <= K; k++) {
+        const f = k / K;                       // 0..1 across the beam
+        const start = base;
+        for (let i = 0; i <= N; i++) {
+            const t = i / N;
+            const z = STERNZ + (BOWZ - STERNZ) * t;
+            const cx = (f * 2 - 1) * e.f7_hull_beam(t) * 0.80;
+            const dy = e.f7_hull_deckY(t) + 0.006;
+            pos.push(cx - hw, dy, z); pos.push(cx + hw, dy, z);
+        }
+        for (let i = 0; i < N; i++) { const a = start + i * 2, b = a + 1, c = a + 2, d = a + 3; idx.push(a, c, b, b, c, d); }
+        base += (N + 1) * 2;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    _seams = g;
+    return g;
+}
+
+// sheer-curve samplers (for placing props/masts/ribs along the deck line in JS)
 export function deckYAt(t: number): number { return exports().f7_hull_deckY(t); }
 export function railYAt(t: number): number { return exports().f7_hull_railY(t); }
 export function beamAt(t: number): number { return exports().f7_hull_beam(t); }
+export function sxAt(t: number, h: number): number { return exports().f7_hull_sx(t, h); }
+export function syAt(t: number, h: number): number { return exports().f7_hull_sy(t, h); }
