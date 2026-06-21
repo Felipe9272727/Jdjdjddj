@@ -66,9 +66,10 @@ export interface Floor7Handle {
     cleanPct: number;
     state: number;
     tideWarn: number;           // 0..1 incoming-swell telegraph
+    bucWater: number;           // 0..1 bucket freshness (second-verb meter)
 }
 export function useFloor7Handle(): React.MutableRefObject<Floor7Handle> {
-    return useRef<Floor7Handle>({ brain: null, interact: false, dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0, tideWarn: 0 });
+    return useRef<Floor7Handle>({ brain: null, interact: false, dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0, tideWarn: 0, bucWater: 1 });
 }
 
 // ── materials (module-scope, shared) ──
@@ -957,6 +958,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         }
     };
     const bucketRef = useRef<THREE.Group>(null);
+    const sudsSurfRef = useRef<THREE.Mesh>(null);
     const handsRef = useRef<THREE.Group>(null);
     const brushRef = useRef<THREE.Group>(null);
     const leftHandRef = useRef<THREE.Group>(null);
@@ -1145,6 +1147,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             br.rotation.x = bu.held ? b.pitch() * 1.0 : 0;
             const glow = (b.state() === F7_STATE.FETCH) ? 0.5 + 0.5 * Math.sin(performance.now() / 200) : 0;
             (M.cloth as THREE.MeshStandardMaterial).emissive.setRGB(glow * 0.4, glow * 0.4, glow * 0.2);
+            // the soapy surface sinks as the water goes stale, and tints muddier
+            if (sudsSurfRef.current) {
+                sudsSurfRef.current.position.y = 0.04 + bu.water * 0.06;
+                (M.sudsy as THREE.MeshPhysicalMaterial).color.setRGB(0.55 + bu.water * 0.26, 0.62 + bu.water * 0.27, 0.55 + bu.water * 0.35);
+            }
         }
         // elevator dematerialises
         if (elevatorRef.current) {
@@ -1289,6 +1296,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         if (dlg !== sf.dialogue) {
             if (dlg === 1 || dlg === 4 || dlg === 5) f7CaptainGrunt();
             if (dlg === 6) { f7Wave(); f7CaptainGrunt(); }   // a swell broke over the rail
+            if (dlg === 8) { f7BucketClunk(); f7Scrub(); }   // dunked the bucket at the rail
             sf.dialogue = dlg;
         }
         // tide telegraph: fire the rising warning pre-roll once as warn ramps up
@@ -1298,7 +1306,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         // publish a snapshot for the DOM overlay
         const h = handleRef.current;
         h.dialogue = b.dialogue(); h.cleaned = b.cleaned(); h.cleanPct = b.cleanPct(); h.state = b.state();
-        h.tideWarn = warn;
+        h.tideWarn = warn; h.bucWater = b.bucket().water;
     });
 
     return (
@@ -1337,8 +1345,8 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     {[0.12, -0.1].map((y) => (
                         <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><torusGeometry args={[y > 0 ? 0.162 : 0.142, 0.012, 6, 18]} /></mesh>
                     ))}
-                    {/* soapy water surface just below the rim */}
-                    <mesh position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M.sudsy}><circleGeometry args={[0.15, 18]} /></mesh>
+                    {/* soapy water surface — drops as the bucket goes stale, refills on a dunk */}
+                    <mesh ref={sudsSurfRef} position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M.sudsy}><circleGeometry args={[0.15, 18]} /></mesh>
                     {/* swing handle (iron arc) */}
                     <mesh position={[0, 0.18, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><torusGeometry args={[0.155, 0.01, 6, 18, Math.PI]} /></mesh>
                     {/* draped wet rag over the rim */}
@@ -1411,16 +1419,18 @@ const DIALOGUE: Record<number, string> = {
     4: 'Capitão: Bom trabalho, grumete! Olha lá na proa… TERRA À VISTA! Vou assumir o leme — segura firme, que a gente chega já.',
     5: 'Capitão: Isso, marujo! Já tá ficando decente — não para agora!',
     6: 'Capitão: Segura! Uma onda lavou o convés — voltou a molhar uma poça. Não deixa nenhuma pela metade!',
+    7: 'Objetivo: a água tá suja — molhe o pano na amurada (chegue na borda e aperte) pra esfregar mais rápido.',
+    8: 'Pano encharcado de água do mar — esfrega que rende mais!',
 };
 
 export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7Handle> }> = ({ handleRef }) => {
-    const [snap, setSnap] = useState({ dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0, tideWarn: 0 });
+    const [snap, setSnap] = useState({ dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0, tideWarn: 0, bucWater: 1 });
     useEffect(() => {
         let raf = 0;
         const loop = () => {
             const h = handleRef.current;
-            setSnap((s) => (s.dialogue !== h.dialogue || s.cleaned !== h.cleaned || Math.abs(s.cleanPct - h.cleanPct) > 0.01 || s.state !== h.state || Math.abs(s.tideWarn - h.tideWarn) > 0.04)
-                ? { dialogue: h.dialogue, cleaned: h.cleaned, npud: h.npud, cleanPct: h.cleanPct, state: h.state, tideWarn: h.tideWarn } : s);
+            setSnap((s) => (s.dialogue !== h.dialogue || s.cleaned !== h.cleaned || Math.abs(s.cleanPct - h.cleanPct) > 0.01 || s.state !== h.state || Math.abs(s.tideWarn - h.tideWarn) > 0.04 || Math.abs(s.bucWater - h.bucWater) > 0.03)
+                ? { dialogue: h.dialogue, cleaned: h.cleaned, npud: h.npud, cleanPct: h.cleanPct, state: h.state, tideWarn: h.tideWarn, bucWater: h.bucWater } : s);
             raf = requestAnimationFrame(loop);
         };
         raf = requestAnimationFrame(loop);
@@ -1461,6 +1471,13 @@ export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7H
                     </div>
                     <div style={{ width: 200, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.18)', overflow: 'hidden' }}>
                         <div style={{ width: `${Math.round(snap.cleanPct * 100)}%`, height: '100%', background: 'linear-gradient(90deg,#5fa8c4,#bfe3ef)', transition: 'width 0.15s linear' }} />
+                    </div>
+                    {/* bucket-freshness meter (the second-verb resource) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        <span style={{ color: snap.bucWater < 0.3 ? '#ffd27a' : '#cfe3ee', fontSize: 10, letterSpacing: '0.12em', textShadow: '0 1px 3px #000' }}>PANO</span>
+                        <div style={{ width: 150, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.18)', overflow: 'hidden', outline: snap.bucWater < 0.3 ? '1px solid rgba(255,180,90,0.7)' : 'none' }}>
+                            <div style={{ width: `${Math.round(snap.bucWater * 100)}%`, height: '100%', background: snap.bucWater < 0.3 ? 'linear-gradient(90deg,#b9863a,#e7c074)' : 'linear-gradient(90deg,#3f93b4,#a9dcea)', transition: 'width 0.2s linear' }} />
+                        </div>
                     </div>
                 </div>
             )}

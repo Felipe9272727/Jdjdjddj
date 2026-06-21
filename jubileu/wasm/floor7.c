@@ -76,6 +76,7 @@ static struct {
     /* bucket */
     float bucX, bucZ;
     int   bucHeld;
+    float bucWater;     /* 0..1 freshness — fresh water scrubs faster; dunk to refill */
     /* puddles */
     Puddle pud[NPUD];
     int   cleaned;
@@ -98,7 +99,7 @@ void f7_init(unsigned int seed) {
     S.t = 0.0f; S.state = ST_INTRO; S.stTimer = 0.0f;
     S.heave = S.pitch = S.roll = 0.0f;
     S.capX = CAP_X; S.capZ = CAP_BOW_Z; S.capFace = 0.0f; S.capBob = 0.0f;
-    S.bucX = 1.35f; S.bucZ = -1.8f; S.bucHeld = 0;
+    S.bucX = 1.35f; S.bucZ = -1.8f; S.bucHeld = 0; S.bucWater = 1.0f;
     S.cleaned = 0; S.elevFade = 1.0f; S.dialogue = 0; S.prevInteract = 0;
     S.capWalk = 0; S.barkTimer = 0.0f; S.barked3 = 0;
     S.tideTimer = 12.0f; S.tideWarn = 0.0f; S.tideBark = 0.0f;
@@ -180,6 +181,14 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
         if (S.bucHeld) {
             /* the bucket trails the player */
             S.bucX = px + 0.35f; S.bucZ = pz + 0.15f;
+            /* SECOND VERB — refill the bucket at the rail. Fresh water scrubs
+               faster; it goes stale as you work, so you dunk it over the side.
+               Purely a SPEED bonus: empty water still cleans at the base rate, so
+               it never blocks you — it just rewards managing trips vs the tide. */
+            int nearRail = (f7_absf(px) > 1.7f) || (pz > 4.3f) || (pz < -4.3f);
+            if (rising && nearRail) { S.bucWater = 1.0f; S.dialogue = 8; }   /* dunk! */
+            float wmul = 1.0f + S.bucWater * 0.55f;     /* fresh = up to ~1.55x */
+            int scrubbed = 0;
             /* mop the puddle UNDER THE BRUSH: drain the 4x4 cell the player is
                over (plus a little bleed to neighbours), so the wet patch eats
                inward from where you're scrubbing rather than shrinking whole */
@@ -188,6 +197,7 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
                 float dx = px - S.pud[i].x, dz = pz - S.pud[i].z;
                 float rr = S.pud[i].r + 0.45f;
                 if (dx * dx + dz * dz < rr * rr && interact) {
+                    scrubbed = 1;
                     /* local position in the puddle (normalised to radius r, the
                        visual extent), mapped to the 4x4 grid */
                     float u = (dx / S.pud[i].r) * 0.5f + 0.5f, v = (dz / S.pud[i].r) * 0.5f + 0.5f;
@@ -198,7 +208,7 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
                             if (ci < 0 || ci > 3 || cj < 0 || cj > 3) continue;
                             float rate = (ci == gi && cj == gj) ? 3.2f : 1.1f;   /* centre drains fastest */
                             float *c = &S.pud[i].cell[cj * 4 + ci];
-                            *c -= dt * rate; if (*c < 0.0f) *c = 0.0f;
+                            *c -= dt * rate * wmul; if (*c < 0.0f) *c = 0.0f;
                         }
                     }
                     /* prog = how much is cleaned (1 - mean wetness) */
@@ -207,6 +217,12 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
                     if (S.pud[i].prog >= 0.985f) { S.pud[i].prog = 1.0f; S.cleaned++; }
                 }
             }
+            /* the water goes stale as you scrub (refill at the rail to keep it
+               fast) — ~9s of scrubbing to drain a full bucket */
+            if (scrubbed) { S.bucWater -= dt * 0.11f; if (S.bucWater < 0.0f) S.bucWater = 0.0f; }
+            /* nudge the player to refill once the water is tired (only if not
+               already showing a more urgent line) */
+            if (S.bucWater < 0.3f && S.dialogue == 3) S.dialogue = 7;
         }
         /* halfway bark — the captain reacts to your progress */
         if (S.cleaned >= 3 && !S.barked3) { S.barked3 = 1; S.barkTimer = 3.5f; }
@@ -294,6 +310,7 @@ __attribute__((export_name("f7_capWalk"))) int f7_capWalk(void){ return S.capWal
 __attribute__((export_name("f7_bucX")))  float f7_bucX(void) { return S.bucX; }
 __attribute__((export_name("f7_bucZ")))  float f7_bucZ(void) { return S.bucZ; }
 __attribute__((export_name("f7_bucHeld")))int  f7_bucHeld(void){ return S.bucHeld; }
+__attribute__((export_name("f7_buc_water")))float f7_buc_water(void){ return S.bucWater; }
 __attribute__((export_name("f7_elevFade")))float f7_elevFade(void){ return S.elevFade; }
 __attribute__((export_name("f7_tide_warn")))float f7_tide_warn(void){ return S.tideWarn; }
 __attribute__((export_name("f7_npud")))    int  f7_npud(void) { return NPUD; }

@@ -20,7 +20,7 @@ interface F7Exports {
     f7_heave(): number; f7_pitch(): number; f7_roll(): number;
     f7_state(): number; f7_dialogue(): number;
     f7_capX(): number; f7_capZ(): number; f7_capFace(): number; f7_capBob(): number; f7_capWalk(): number;
-    f7_bucX(): number; f7_bucZ(): number; f7_bucHeld(): number;
+    f7_bucX(): number; f7_bucZ(): number; f7_bucHeld(): number; f7_buc_water(): number;
     f7_elevFade(): number; f7_tide_warn(): number;
     f7_npud(): number; f7_cleaned(): number; f7_can_leave(): number; f7_clean_pct(): number;
     f7_puddles(): number;
@@ -65,8 +65,8 @@ export class Floor7Brain {
         return { x: this.e.f7_capX(), z: this.e.f7_capZ(), face: this.e.f7_capFace(), bob: this.e.f7_capBob() };
     }
     capWalking(): boolean { return this.e.f7_capWalk() !== 0; }
-    bucket(): { x: number; z: number; held: boolean } {
-        return { x: this.e.f7_bucX(), z: this.e.f7_bucZ(), held: this.e.f7_bucHeld() === 1 };
+    bucket(): { x: number; z: number; held: boolean; water: number } {
+        return { x: this.e.f7_bucX(), z: this.e.f7_bucZ(), held: this.e.f7_bucHeld() === 1, water: this.e.f7_buc_water() };
     }
     elevFade(): number { return this.e.f7_elevFade(); }
     /** 0..1 swell-incoming warning (ramps in the ~2s before a tide re-wets a puddle). */
