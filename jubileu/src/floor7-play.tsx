@@ -179,6 +179,10 @@ const Play: React.FC = () => {
             const b = handle.current.brain; if (!b) return;
             for (let i = 0; i < n; i++) b.tick(0.05, lx, 0, lz, it);
         };
+        // reset the brain back to the INTRO so the captain re-plays his entry
+        // STRIDE (capWalk=1) — lets us screenshot the walk cycle, which the
+        // 400-tick fast-forward otherwise skips past.
+        (window as unknown as { __resetBrain?: () => void }).__resetBrain = () => { handle.current.brain?.reset(); };
         window.__state = () => ({ state: handle.current.state, cleaned: handle.current.cleaned, npud: handle.current.npud, tideWarn: handle.current.tideWarn });
         window.__puddles = () => {
             const b = handle.current.brain; if (!b) return [];
