@@ -1129,7 +1129,7 @@ const PirateCaptain: React.FC<{
         const lurch = walking ? Math.max(0, Math.sin(ph)) * 0.04 : 0;
         // breathing: a squared sine = quick inhale, held exhale (a piston sine reads
         // mechanical). Drives the TORSO only — never the planted feet.
-        const breath = Math.sin(t * 0.9) ** 2 * 0.02;
+        const breath = Math.sin(t * 1.15) ** 2 * 0.02;
         // frame-rate-independent one-pole smoothing factor for the tracked terms
         const sdt = Math.min(dt, 0.05);
         const damp = (k: number) => 1 - Math.pow(1 - k, sdt * 60);
@@ -1152,11 +1152,16 @@ const PirateCaptain: React.FC<{
         // the head-track yaw bleeds in here so turning to the player runs through the
         // whole spine instead of shearing the neck/collar at the head bone alone.
         const bodyRise = c.bob + breath;
-        const chestTip = Math.sin(t * 0.9 + 0.5) ** 2 * 0.006;   // trails the rise
+        const chestTip = Math.sin(t * 1.15 + 0.5) ** 2 * 0.006;   // trails the rise
         _rollLag.current += (roll - _rollLag.current) * damp(0.08);
-        const bodyLean = -roll * 0.9 + (roll - _rollLag.current) * 0.5 + wsh * 0.6 + (walking ? 0 : 0.04);
+        // clamp the combined lean so a roll peak coinciding with the weight-shift can't
+        // over-tilt the whole figure (body is the parent of the legs).
+        const bodyLean = Math.max(-0.14, Math.min(0.14,
+            -roll * 0.9 + (roll - _rollLag.current) * 0.5 + wsh * 0.6 + (walking ? 0 : 0.025)));
         bn[PB.body].position.y = r.restPos[PB.body].y + bodyRise;
-        bn[PB.body].rotation.x = pitch * 0.8 + chestTip + (walking ? Math.sin(ph * 0.5) * 0.04 : 0);
+        // pitch coupling kept GENTLE + a small forward bias so he braces INTO the swell
+        // (pitch*0.8 rocked him backward as if losing his balance).
+        bn[PB.body].rotation.x = pitch * 0.35 + 0.05 + chestTip + (walking ? Math.sin(ph * 0.5) * 0.04 : 0);
         bn[PB.body].rotation.z = bodyLean;
         // HEAD — ease onto the player (frame-rate-independent, gentle gain). Only 65%
         // of the look-at lives on the head (the other 35% is the body, above) to kill
@@ -1172,7 +1177,7 @@ const PirateCaptain: React.FC<{
         const talk = talking ? (Math.sin(t * 4.5) + 0.5 * Math.sin(t * 9.1 + 0.7)) * 0.08 : 0;
         if (talking) bn[PB.body].rotation.x += Math.max(0, Math.sin(t * 4.5)) * 0.015;  // speech body emphasis
         bn[PB.head].rotation.y = _hd.current * 0.65 + (talking ? Math.sin(t * 3.3) * 0.02 : 0);
-        bn[PB.head].rotation.x = 0.16 + Math.sin(t * 0.5) * 0.02 + talk;   // look down at the player
+        bn[PB.head].rotation.x = 0.16 - pitch * 0.3 + Math.sin(t * 0.5) * 0.02 + talk;   // hold the down-look as the deck pitches
         bn[PB.head].rotation.z = -bodyLean * 0.4 + Math.sin(t * 0.45) * 0.02; // keep head level as torso sways
         // LEGS — counter-translate the bob/breath so the soles stay nailed to the deck.
         // Idle stance: hip cocked above + weight off the relaxed leg (NO leg yaw — that
@@ -1183,18 +1188,22 @@ const PirateCaptain: React.FC<{
             bn[PB.l_leg].rotation.set(Math.max(0, Math.sin(ph)) * 0.55, 0, 0);
             bn[PB.r_leg].rotation.set(Math.max(0, Math.sin(ph + Math.PI)) * 0.55, 0, 0);
         } else {
-            bn[PB.l_leg].rotation.set(0.0, 0, 0.03);     // stance leg
-            bn[PB.r_leg].rotation.set(-0.06, 0, -0.02);  // relaxed leg, weight off it
+            bn[PB.l_leg].rotation.set(0.0, 0, 0.05);     // stance leg
+            bn[PB.r_leg].rotation.set(-0.10, 0, -0.04);  // relaxed leg, knee softened, weight off it
         }
         // ARMS — bigger desynced idle drift (the small swing read static at distance) +
         // shoulders that rise/settle with the breath; splayed clear of the coat.
+        // arm roll-coupling uses the LAGGED roll (secondary motion — the arms trail the
+        // deck instead of snapping with it) and is halved so it can't splay past the coat.
         if (walking) {
             const armSwing = Math.sin(ph + Math.PI) * 0.5;
-            bn[PB.l_arm].rotation.set(armSwing, 0, 0.14 + roll * 0.35);
-            bn[PB.r_arm].rotation.set(-armSwing, 0, -0.14 + roll * 0.35);
+            bn[PB.l_arm].rotation.set(armSwing, 0, 0.14 + _rollLag.current * 0.18);
+            bn[PB.r_arm].rotation.set(-armSwing, 0, -0.14 + _rollLag.current * 0.18);
         } else {
-            bn[PB.l_arm].rotation.set(0.10 + Math.sin(t * 1.5) * 0.16, 0, 0.14 + roll * 0.35 + breath * 0.4);
-            bn[PB.r_arm].rotation.set(0.10 + Math.sin(t * 1.27 + 1.1) * 0.14, 0, -0.14 + roll * 0.35 - breath * 0.4);
+            // asymmetric rest: the right arm hangs looser (lower base, more splay, hand
+            // drifting toward the sash) so the silhouette isn't a clean mirror.
+            bn[PB.l_arm].rotation.set(0.10 + Math.sin(t * 1.5) * 0.16, 0, 0.14 + _rollLag.current * 0.18 + breath * 0.4);
+            bn[PB.r_arm].rotation.set(0.06 + Math.sin(t * 1.27 + 1.1) * 0.14, 0.05, -0.18 + _rollLag.current * 0.18 - breath * 0.4);
         }
     });
 
