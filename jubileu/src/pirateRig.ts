@@ -129,13 +129,11 @@ export function buildPirateRig(gltf: THREE.Object3D): PirateRig | null {
     const { joints, weights } = paintWeights(geo.attributes.position.array as Float32Array);
     geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(joints, 4));
     geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
-    // Bake foot-lift (feet -0.5 -> 0) AND the full target size into the geometry,
-    // so the mesh is already PIRATE_SCALE tall at object-scale 1. The caller then
-    // mounts it so its NET world scale is exactly 1 (it cancels the ship's scale),
-    // meaning the detached bind (captured at scale 1) matches the render scale (1)
-    // — no scale-about-bone displacement, so the captain neither shrinks nor sinks.
-    geo.translate(0, PIRATE_FOOT_LIFT, 0);
-    geo.scale(PIRATE_SCALE, PIRATE_SCALE, PIRATE_SCALE);
+    geo.computeVertexNormals();
+    // No geometry bake: keep the GLB's native coords (feet at y=-0.5). Size + foot
+    // lift are applied by the caller's group (a SINGLE effective parent scale, the
+    // same setup the Diabrete rig binds correctly). Baking + binding detached and
+    // then mounting under the ship's scale sank the mesh.
 
     // Keep the GLB's own baked PBR material (clone so animating mat props on the
     // captain can't leak into other users of the cached gltf). MeshStandardMaterial
@@ -143,27 +141,19 @@ export function buildPirateRig(gltf: THREE.Object3D): PirateRig | null {
     const srcMat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
     const mat = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial({ color: 0xb08050 });
 
-    // Bones — rest positions lifted + scaled the SAME as the geometry so the bind
-    // reproduces the rest mesh at the baked size, feet at the origin.
-    const S = PIRATE_SCALE, LZ = PIRATE_FOOT_LIFT;
-    const BPB = BP.map((p): [number, number, number] => [p[0] * S, (p[1] + LZ) * S, p[2] * S]);
+    // Bones — rest positions in the GLB's native coords (feet at y=-0.5), exactly
+    // mirroring the Diabrete rig's construction (no flush, no bake).
     const bones: THREE.Bone[] = BNAME.map((name) => { const b = new THREE.Bone(); b.name = name; return b; });
     bones.forEach((bone, i) => {
         const pi = BPARENT[i];
         if (pi >= 0) {
             bones[pi].add(bone);
-            bone.position.set(BPB[i][0] - BPB[pi][0], BPB[i][1] - BPB[pi][1], BPB[i][2] - BPB[pi][2]);
+            bone.position.set(BP[i][0] - BP[pi][0], BP[i][1] - BP[pi][1], BP[i][2] - BP[pi][2]);
         } else {
-            bone.position.set(...BPB[i]);
+            bone.position.set(...BP[i]);
         }
     });
 
-    // CRITICAL: update the bones' world matrices from their rest positions BEFORE
-    // building the Skeleton — its constructor computes the bind inverses from
-    // bone.matrixWorld, which is otherwise still identity (positions set but never
-    // flushed), giving identity inverses that shift every vertex by its bone's
-    // rest offset (the captain sank into the deck). One flush fixes the bind.
-    bones[0].updateMatrixWorld(true);
     const skeleton = new THREE.Skeleton(bones);
 
     const skinned = new THREE.SkinnedMesh(geo, mat);

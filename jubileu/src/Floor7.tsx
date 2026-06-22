@@ -17,7 +17,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Sky, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
-import { buildPirateRig, PB, type PirateRig } from './pirateRig';
+import { buildPirateRig, PB, PIRATE_SCALE, type PirateRig } from './pirateRig';
 
 const PIRATE_GLB_URL = '/pirate-captain.glb';
 useGLTF.preload(PIRATE_GLB_URL);
@@ -1168,14 +1168,15 @@ const PirateCaptain: React.FC<{
     });
 
     if (!rig) return null;
-    // Size is BAKED into the geometry, so cancel the ship's scale entirely: the
-    // inner group scales by 1/FLOOR7_SCALE → the SkinnedMesh's net WORLD scale is
-    // exactly 1, matching the detached bind (no scale-about-bone displacement, so
-    // the captain stands at the baked size with feet on the deck). The outer group
-    // is positioned in ship-local coords (the ship scale still places him right).
+    // SINGLE effective parent scale (the setup the Diabrete binds correctly): the
+    // inner group's scale cancels the ship's FLOOR7_SCALE and applies PIRATE_SCALE,
+    // so the SkinnedMesh's NET world scale is exactly PIRATE_SCALE. Foot-lift: the
+    // GLB's feet are at local y=-0.5; lift the inner group by +0.5*scale (in
+    // outer-local units) so the feet sit at the outer-group origin (the deck).
+    const s = PIRATE_SCALE / FLOOR7_SCALE;
     return (
         <group ref={outer}>
-            <group scale={1 / FLOOR7_SCALE}>
+            <group scale={s} position={[0, 0.5 * s, 0]}>
                 <primitive object={rig.group} />
             </group>
         </group>
