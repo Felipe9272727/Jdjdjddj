@@ -1103,11 +1103,12 @@ Captain.displayName = 'Captain';
 // animates the bones every frame off the WASM brain (idle sway/breathing, peg-leg
 // walk on INTRO/DONE, head-track to the player, deck-roll lean, talk nod).
 // FACE_OFFSET corrects the GLB's authored facing so capFace points him right.
-// The GLB's native forward is +Z: with capFace=0 (the brain's "face the bow/+z
-// travel direction" and "face the player who stands toward +z") he must point at
-// +Z, so NO offset. The old Math.PI flipped him to face the bow — which made him
-// moonwalk on the entry stride AND turn his back to the player during the quest.
-const PIRATE_FACE_OFFSET = 0;
+// The GLB's body is authored facing +X (verified by a 360° orbit: his front — face,
+// baldric, both arms — reads from the +X side). The brain's capFace uses a +Z "face
+// the bow / the player" convention, so rotate -90° to map the model's +X forward onto
+// +Z. With this, capFace=0 (the entry stride) faces +Z travel (no more crab-walk) and
+// the GREET facing turns his body to the player (no more profile in the dialogue).
+const PIRATE_FACE_OFFSET = -Math.PI / 2;
 const PirateCaptain: React.FC<{
     brainRef: React.MutableRefObject<Floor7Brain | null>;
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;

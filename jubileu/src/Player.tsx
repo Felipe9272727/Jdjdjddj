@@ -311,10 +311,9 @@ interface PlayerProps {
   zoomLevel: number;
   npcPositionRef: React.MutableRefObject<Vector3>;
   dialogueTargetRef?: React.MutableRefObject<Vector3>;
-  /** Frame the dialogue from the FAR side of the NPC (opposite the player) — the
-   *  Floor-7 captain's model reads front-toward-bow, so the player-side cam caught
-   *  his back; flipping the side puts the camera on his face. */
-  dialogueOppositeSide?: boolean;
+  /** Tall-NPC dialogue framing (the ~2.4m Floor-7 captain): pulls the camera back
+   *  and aims higher so his face + full torso sit in frame. */
+  dialogueTallNpc?: boolean;
   dialogueOpen: boolean;
   sharedPositionRef: React.MutableRefObject<Vector3>;
   sharedRotationYRef: React.MutableRefObject<number>;
@@ -336,7 +335,7 @@ interface PlayerProps {
   jumpRef?: React.MutableRefObject<boolean>;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOppositeSide = false, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueTallNpc = false, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -444,7 +443,6 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
         const nP = dialogueFocusRef.current; const pP = pos.current;
         const d2p = _v.current[0].subVectors(pP, nP).normalize(); if (d2p.lengthSq() < 1e-3) d2p.set(0,0,1);
-        if (dialogueOppositeSide) d2p.negate();   // camera on the NPC's FAR side (his face), not the player's side
         // Floor 2 diver cutscene needs a pulled-back, wider frame so the
         // letterbox bars never crop the 2.3m model. lookAt is biased low so
         // he sits inside the (asymmetric) window between the bars rather
@@ -454,9 +452,9 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         // handheld drift so the shot is never dead-still (AA feel). The
         // look target stays fixed, so the diver holds frame while the
         // camera breathes around him for subtle parallax.
-        // the captain (dialogueOppositeSide) is a ~2.4m model — pull back + aim higher
+        // the captain (dialogueTallNpc) is a ~2.4m model — pull back + aim higher
         // than the lobby-NPC framing so his face and full torso sit in frame.
-        let camDist = isDiverScene ? 5.8 : (dialogueOppositeSide ? 3.4 : 2.2);
+        let camDist = isDiverScene ? 5.8 : (dialogueTallNpc ? 3.4 : 2.2);
         let driftX = 0, driftY = 0;
         let beatFov = 0;
         if (isDiverScene) {
@@ -490,9 +488,9 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
           camDist += diverFrameRef.current.dist;
           beatFov = diverFrameRef.current.fov;
         }
-        const camHeight  = isDiverScene ? 1.55 : (dialogueOppositeSide ? 1.95 : 1.75);
-        const lookHeight = isDiverScene ? 1.3  : (dialogueOppositeSide ? 1.75 : 1.35);
-        const targetFov  = (isDiverScene ? 46 : (dialogueOppositeSide ? 44 : 40)) + beatFov;
+        const camHeight  = isDiverScene ? 1.55 : (dialogueTallNpc ? 1.95 : 1.75);
+        const lookHeight = isDiverScene ? 1.3  : (dialogueTallNpc ? 1.75 : 1.35);
+        const targetFov  = (isDiverScene ? 46 : (dialogueTallNpc ? 44 : 40)) + beatFov;
         const tCam = _v.current[1].copy(nP).addScaledVector(d2p, camDist);
         tCam.y += camHeight + driftY; tCam.x += driftX;
         const tLook = _v.current[2].copy(nP); tLook.y += lookHeight;
