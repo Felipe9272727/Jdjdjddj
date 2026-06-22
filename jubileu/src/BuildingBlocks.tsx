@@ -2,12 +2,14 @@ import React, { useRef, useEffect } from 'react';
 import { Text, useGLTF, useAnimations } from '@react-three/drei';
 import { TextureMaterial } from './Materials';
 import { ASSETS, COLORS } from './constants';
+import { cashierModel } from './assets/textureImports';
 import * as THREE from 'three';
 
 // Cashier — Mixamo-rigged GLB (converted from Button Pushing.fbx).
 // The model is roughly humanoid scale (~1.7 units tall) so it sits naturally
-// behind the reception desk without rescaling.
-const CASHIER_GLB_URL = "https://raw.githubusercontent.com/Felipe9272727/Jdjdjddj/main/button_pushing.glb";
+// behind the reception desk without rescaling. Bundled (inlined) so the
+// single-file build needs no network fetch.
+const CASHIER_GLB_URL = cashierModel;
 useGLTF.preload(CASHIER_GLB_URL);
 
 export const Door = React.memo(({ x, z, rot }: any) => (

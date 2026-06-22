@@ -5,11 +5,17 @@ import { F6_STATIC_WALLS, F6_FURNITURE } from './f6Escape';
 // Keep in sync with `data.level <= MAX_LEVEL` in firestore.rules.
 export const MAX_LEVEL = 100;
 
-export const WALKING_URL = "https://raw.githubusercontent.com/Felipe9272727/Bancon...../main/Walking(1).glb";
-export const IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/BACON-PROJETO-FUNCIONALLLLL/main/Idle.glb";
-export const NPC_WALK_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20walking.glb";
-export const NPC_IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20idle.glb";
-export const DUSSEKAR_URL = "https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb";
+// Character/NPC GLBs are now imported as bundled assets (Vite inlines them as
+// base64 data-URIs) so the single-file index.html works with no network — the
+// previous raw.githubusercontent runtime fetches failed when installed as one
+// standalone HTML. useGLTF() takes a data-URI just as happily as an https URL.
+import { walkingModel, idleModel, npcWalkModel, npcIdleModel, blockyCharModel } from './assets/textureImports';
+
+export const WALKING_URL = walkingModel;
+export const IDLE_URL = idleModel;
+export const NPC_WALK_URL = npcWalkModel;
+export const NPC_IDLE_URL = npcIdleModel;
+export const DUSSEKAR_URL = blockyCharModel;
 export const BARNEY_URL = "https://raw.githubusercontent.com/Felipe9272727/For-my-game/main/1776639536329.png";
 
 export const COLORS = { wall: "#D7CCC8", wood: "#6D4C41", ceiling: "#BCAAA4", metal: "#B0BEC5", elevTrim: "#3E2723", elevFloor: "#F5F0EB", elevDiamond: "#FFD54F", elevDoor: "#9E9E9E", elevPanel: "#78909C", grass: "#66BB6A", sky: "#81D4FA", houseWall: "#EFEBE9", houseRoof: "#6D4C41", bed: "#1565C0", sofa: "#4E342E", light: "#FFE0B2" };

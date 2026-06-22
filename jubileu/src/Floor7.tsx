@@ -18,8 +18,10 @@ import { Sky, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
 import { buildPirateRig, PB, PIRATE_SCALE, type PirateRig } from './pirateRig';
+import { pirateCaptainModel } from './assets/textureImports';
 
-const PIRATE_GLB_URL = '/pirate-captain.glb';
+// bundled (inlined) GLB — works with no network in the single-file build
+const PIRATE_GLB_URL = pirateCaptainModel;
 useGLTF.preload(PIRATE_GLB_URL);
 import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow, makePuddleRipple } from './floor7Textures';

@@ -18,6 +18,7 @@ import {
     UW_ROCK_COLLIDERS, UW_PILLAR_COLLIDERS, SWIM_THRESHOLD_Y,
 } from './constants';
 import { resolveUWWalls, uwFloorHeight, resolveUWObstacles } from './geometry';
+import { sharkModel } from '../assets/textureImports';
 import { sharkDirector } from '../ai/AIDirector';
 import { sharkSteer, interceptTime } from '../ai/contextSteering';
 import { findPath } from '../ai/navGrid';
@@ -138,7 +139,7 @@ function _segmentBlocked(
 // ms before the DOM overlay fires so the player sees the shark up-close first
 const JUMPSCARE_DELAY = 0.28;
 
-const SHARK_URL = '/models/monster/shark.glb';
+const SHARK_URL = sharkModel; // bundled (inlined) — no runtime fetch
 useGLTF.preload(SHARK_URL);
 
 type FishState      = 'dormant' | 'awakening' | 'patrol' | 'hunting' | 'lunge' | 'regroup' | 'investigating';

@@ -26,8 +26,9 @@ import { f3PlayerZ, nearestPlatform } from './f3Parkour';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
 import { f3Progress, isDizzy, f3DevilPos, f3DevilPosValid } from './f3Hazards';
 import { playFloor3Draw, playFloor3Dizzy } from './floor3Sfx';
+import { diabreteModel } from './assets/textureImports';
 
-const RIVAL_URL = '/diabrete.glb';
+const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
 const LEAD_Z    = 14;
 const MOVE_SPD  = 6.2;
 const GRAVITY   = 22.0;

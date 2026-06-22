@@ -21,7 +21,10 @@ export default defineConfig(({mode: _mode}) => {
       minify: false,
       // Inline ALL assets as base64 data-URIs so the single index.html
       // is fully self-contained (no external texture/model files needed).
-      assetsInlineLimit: 20_000_000, // 20 MB — covers all PBR textures + GLB models
+      // 25 MB so the largest character GLB (blocky-character ~21.8 MB) inlines
+      // too — any asset left over the limit emits as a separate file and 404s
+      // in the standalone single-file build.
+      assetsInlineLimit: 25_000_000, // 25 MB — covers all PBR textures + GLB models
       rollupOptions: {
         output: {
           // Preserve readable variable names in the bundle

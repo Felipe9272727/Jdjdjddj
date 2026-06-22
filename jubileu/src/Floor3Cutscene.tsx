@@ -22,8 +22,9 @@ import * as THREE from 'three';
 import { buildDiabreteRig, B, DIABRETE_SCALE, type DiabreteRig } from './diabreteRig';
 import { DIABRETE_SCRIPT, SCRIPT_TOTAL, lineAt, timeInLine, type Gesture } from './diabreteScript';
 import { f3PlayerZ } from './f3Parkour';
+import { diabreteModel } from './assets/textureImports';
 
-const RIVAL_URL = '/diabrete.glb';
+const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
 const STAND     = new THREE.Vector3(0.9, 0, -9.2);   // on the landing, ahead of the player
 const ARM_REST  = 0.95;                               // lower the T-pose arms to rest
 
