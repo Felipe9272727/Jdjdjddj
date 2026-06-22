@@ -29,7 +29,7 @@ import * as THREE from 'three';
 // desired WORLD height of the captain (the GLB is ~1m tall; the player eye is
 // ~1.55, so this stands him a clear head taller). Applied as a SINGLE effective
 // parent scale by the caller (which cancels the ship's own scale first).
-export const PIRATE_SCALE = 3.0;
+export const PIRATE_SCALE = 2.4;
 // feet sit at GLB-local y=-0.5; lift the rig so the group origin is at the feet.
 export const PIRATE_FOOT_LIFT = 0.5;
 
@@ -72,24 +72,29 @@ function paintWeights(pos: Float32Array): { joints: Uint16Array; weights: Float3
         const y = pos[i * 3 + 1];
         const s = new Float32Array(7);
 
-        // HEAD — everything above the collar (head + tricorne).
-        s[PB.head] = ss(y, 0.2, 0.3);
+        // HEAD — head + tricorne; ramp starts lower for a smoother neck/collar.
+        s[PB.head] = ss(y, 0.18, 0.30);
 
-        // ARMS — the OUTER-X edges of the torso band. Arms hang at the sides, so
-        // they live in Y 0.0–0.22 and ramp in from |x|≈0.06 outward.
-        const armY = ss(y, -0.02, 0.06) * (1 - ss(y, 0.2, 0.3));
-        s[PB.l_arm] = armY * ss(-x, 0.06, 0.11);   // left  (x < 0)
-        s[PB.r_arm] = armY * ss( x, 0.06, 0.11);   // right (x > 0)
+        // ARMS — the OUTER-X edges of the torso. The arm BONE sits at Y≈0.12, so
+        // the weight must span the whole arm COLUMN (waist up to shoulder), not a
+        // thin sliver — otherwise the bone pivots above dead, unweighted verts and
+        // the swing animates nothing. Cover Y -0.10 -> shoulder, outer-x only.
+        const armY = ss(y, -0.10, 0.06) * (1 - ss(y, 0.18, 0.28));
+        s[PB.l_arm] = armY * ss(-x, 0.05, 0.11);   // left  (x < 0)
+        s[PB.r_arm] = armY * ss( x, 0.05, 0.11);   // right (x > 0)
 
-        // LEGS — lower half, split by X sign (+0.02 bias avoids a seam at x=0).
-        const legBand = 1 - ss(y, -0.14, 0.02);
-        s[PB.l_leg] = legBand * ss(0.02 - x, 0.0, 0.07);
-        s[PB.r_leg] = legBand * ss(0.02 + x, 0.0, 0.07);
+        // LEGS — lower half, split by X sign with a STEEP ramp + small dead-zone so
+        // the fused boot block doesn't share weight across the centreline (which
+        // made the L/R walk rotations shear the crotch seam).
+        const legBand = 1 - ss(y, -0.16, 0.0);
+        s[PB.l_leg] = legBand * ss(0.015 - x, 0.0, 0.05);
+        s[PB.r_leg] = legBand * ss(0.015 + x, 0.0, 0.05);
 
-        // BODY — central torso column, whatever the limbs/head didn't claim.
+        // BODY — central torso column, whatever the limbs/head didn't claim (small
+        // floor so the column is always anchored, but not a heavy everywhere-bias).
         const claimed = s[PB.l_arm] + s[PB.r_arm] + s[PB.l_leg] + s[PB.r_leg] + s[PB.head];
-        s[PB.body] = Math.max(0.05,
-            ss(y, -0.12, 0.04) * (1 - ss(y, 0.18, 0.30)) * (1 - claimed));
+        s[PB.body] = Math.max(0.02,
+            ss(y, -0.12, 0.06) * (1 - ss(y, 0.16, 0.30)) * (1 - claimed));
 
         // ROOT — tiny constant so no vertex is ever fully unweighted.
         s[PB.root] = 0.01;

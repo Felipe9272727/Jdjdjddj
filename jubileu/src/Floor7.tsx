@@ -1138,30 +1138,33 @@ const PirateCaptain: React.FC<{
         bn[PB.body].position.y = -0.05 + breath;
         bn[PB.body].rotation.x = pitch * 0.8 + (walking ? Math.sin(ph * 0.5) * 0.04 : 0);
         bn[PB.body].rotation.z = -roll * 0.9 + wsh;
-        // HEAD — track the player (yaw) + a slow always-alive nod, and a talk bob
+        // HEAD — yaw-track the player, pitch DOWN at the shorter player, calm idle
+        // drift, and a REAL talk nod (up-and-down, not a one-way pigeon peck)
         g.updateMatrixWorld();
         _w.current.copy(playerPositionRef.current); g.worldToLocal(_w.current);
         const yawTo = Math.max(-0.7, Math.min(0.7, Math.atan2(_w.current.x, _w.current.z) - PIRATE_FACE_OFFSET));
         _hd.current += (yawTo - _hd.current) * 0.1;
         const dlg = b.dialogue();
-        const talk = (dlg === 1 || dlg === 4 || dlg === 5 || dlg === 6) ? Math.abs(Math.sin(t * 8)) * 0.08 : 0;
+        const talk = (dlg === 1 || dlg === 4 || dlg === 5 || dlg === 6) ? Math.sin(t * 4.5) * 0.06 : 0;
         bn[PB.head].rotation.y = _hd.current;
-        bn[PB.head].rotation.x = Math.sin(t * 0.9) * 0.04 + talk;
-        bn[PB.head].rotation.z = Math.sin(t * 0.7) * 0.025;
-        // LEGS — peg-leg walk cycle when striding, else a tiny idle shift
+        bn[PB.head].rotation.x = 0.16 + Math.sin(t * 0.5) * 0.02 + talk;   // look down at the player
+        bn[PB.head].rotation.z = Math.sin(t * 0.45) * 0.02;
+        // LEGS — peg-leg gait that PLANTS: each leg only lifts forward (never swings
+        // back through the deck), out of phase, so a foot is always grounded (no skate)
         if (walking) {
-            bn[PB.l_leg].rotation.x = Math.sin(ph) * 0.55;
-            bn[PB.r_leg].rotation.x = Math.sin(ph + Math.PI) * 0.48;
+            bn[PB.l_leg].rotation.x = Math.max(0, Math.sin(ph)) * 0.55;
+            bn[PB.r_leg].rotation.x = Math.max(0, Math.sin(ph + Math.PI)) * 0.55;
         } else {
-            bn[PB.l_leg].rotation.x = Math.sin(t * 1.6) * 0.04;
-            bn[PB.r_leg].rotation.x = -Math.sin(t * 1.6) * 0.04;
+            bn[PB.l_leg].rotation.x = Math.sin(t * 1.6) * 0.03;
+            bn[PB.r_leg].rotation.x = -Math.sin(t * 1.6) * 0.03;
         }
-        // ARMS — counter-swing on the walk, gentle idle sway otherwise
-        const armSwing = walking ? Math.sin(ph + Math.PI) * 0.45 : Math.sin(t * 1.6) * 0.06;
+        // ARMS — counter-swing the legs on the walk (now the band is weighted so it
+        // actually shows), gentle idle sway otherwise; react to the deck roll
+        const armSwing = walking ? Math.sin(ph + Math.PI) * 0.5 : Math.sin(t * 1.5) * 0.07;
         bn[PB.l_arm].rotation.x = armSwing;
         bn[PB.r_arm].rotation.x = -armSwing;
-        bn[PB.l_arm].rotation.z = 0.04 + roll * 0.3;   // arms react to the deck roll
-        bn[PB.r_arm].rotation.z = -0.04 + roll * 0.3;
+        bn[PB.l_arm].rotation.z = 0.05 + roll * 0.35;   // arms swing out with the deck roll
+        bn[PB.r_arm].rotation.z = -0.05 + roll * 0.35;
     });
 
     if (!rig) return null;
