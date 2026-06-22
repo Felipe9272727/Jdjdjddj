@@ -1118,7 +1118,7 @@ const PirateCaptain: React.FC<{
     const rig = useMemo(() => buildPirateRig(scene), [scene]);
     useEffect(() => { rigRef.current = rig; return () => rig?.dispose(); }, [rig]);
 
-    useFrame((state) => {
+    useFrame((state, dt) => {
         const b = brainRef.current, g = outer.current, r = rigRef.current;
         if (!b || !g || !r) return;
         const t = state.clock.elapsedTime;
@@ -1130,6 +1130,9 @@ const PirateCaptain: React.FC<{
         // breathing: a squared sine = quick inhale, held exhale (a piston sine reads
         // mechanical). Drives the TORSO only — never the planted feet.
         const breath = Math.sin(t * 0.9) ** 2 * 0.02;
+        // frame-rate-independent one-pole smoothing factor for the tracked terms
+        const sdt = Math.min(dt, 0.05);
+        const damp = (k: number) => 1 - Math.pow(1 - k, sdt * 60);
 
         g.visible = b.elevFade() < 0.85;
         if (!g.visible) return;
@@ -1143,47 +1146,55 @@ const PirateCaptain: React.FC<{
 
         const bn = r.bones;
         const wsh = walking ? 0 : Math.sin(t * 0.8) * 0.05;   // idle weight-shift
-        // BODY — bob + breath rise on the torso; chest tips forward a touch on the
-        // inhale; the deck-roll lean LAGS the ship (follow-through) so the coat/torso
-        // mass reads heavy instead of welded to the planks.
+        // BODY — bob+breath rise (torso only); the chest tip TRAILS the inhale (phase
+        // offset, so it's a rise-then-lean, not one lumpy hitch); deck-roll lean lags
+        // the ship (follow-through); a static hip-cock to the stance side; and 35% of
+        // the head-track yaw bleeds in here so turning to the player runs through the
+        // whole spine instead of shearing the neck/collar at the head bone alone.
         const bodyRise = c.bob + breath;
-        _rollLag.current += (roll - _rollLag.current) * 0.08;
+        const chestTip = Math.sin(t * 0.9 + 0.5) ** 2 * 0.006;   // trails the rise
+        _rollLag.current += (roll - _rollLag.current) * damp(0.08);
+        const bodyLean = -roll * 0.9 + (roll - _rollLag.current) * 0.5 + wsh * 0.6 + (walking ? 0 : 0.04);
         bn[PB.body].position.y = r.restPos[PB.body].y + bodyRise;
-        bn[PB.body].rotation.x = pitch * 0.8 + breath * 0.3 + (walking ? Math.sin(ph * 0.5) * 0.04 : 0);
-        bn[PB.body].rotation.z = -roll * 0.9 + (roll - _rollLag.current) * 0.5 + wsh * 0.6;
-        // HEAD — ease onto the player (gentler gain = no robotic snap), plus a layered
-        // talk cadence (two desynced freqs + a touch of yaw) so it reads as speech.
+        bn[PB.body].rotation.x = pitch * 0.8 + chestTip + (walking ? Math.sin(ph * 0.5) * 0.04 : 0);
+        bn[PB.body].rotation.z = bodyLean;
+        // HEAD — ease onto the player (frame-rate-independent, gentle gain). Only 65%
+        // of the look-at lives on the head (the other 35% is the body, above) to kill
+        // the collar shear; the head also counter-rolls the torso lean (a fake spine
+        // S-curve — stays level as he sways); layered talk cadence + a touch of body.
         g.updateMatrixWorld();
         _w.current.copy(playerPositionRef.current); g.worldToLocal(_w.current);
         const yawTo = Math.max(-0.7, Math.min(0.7, Math.atan2(_w.current.x, _w.current.z) - PIRATE_FACE_OFFSET));
-        _hd.current += (yawTo - _hd.current) * 0.06;
+        _hd.current += (yawTo - _hd.current) * damp(0.06);
+        bn[PB.body].rotation.y = _hd.current * 0.35;
         const dlg = b.dialogue();
         const talking = (dlg === 1 || dlg === 4 || dlg === 5 || dlg === 6);
-        const talk = talking ? (Math.sin(t * 4.5) + 0.5 * Math.sin(t * 9.1 + 0.7)) * 0.045 : 0;
-        bn[PB.head].rotation.y = _hd.current + (talking ? Math.sin(t * 3.3) * 0.02 : 0);
+        const talk = talking ? (Math.sin(t * 4.5) + 0.5 * Math.sin(t * 9.1 + 0.7)) * 0.08 : 0;
+        if (talking) bn[PB.body].rotation.x += Math.max(0, Math.sin(t * 4.5)) * 0.015;  // speech body emphasis
+        bn[PB.head].rotation.y = _hd.current * 0.65 + (talking ? Math.sin(t * 3.3) * 0.02 : 0);
         bn[PB.head].rotation.x = 0.16 + Math.sin(t * 0.5) * 0.02 + talk;   // look down at the player
-        bn[PB.head].rotation.z = Math.sin(t * 0.45) * 0.02;
+        bn[PB.head].rotation.z = -bodyLean * 0.4 + Math.sin(t * 0.45) * 0.02; // keep head level as torso sways
         // LEGS — counter-translate the bob/breath so the soles stay nailed to the deck.
-        // Idle takes a static contrapposto (stance leg turned out, off leg relaxed) to
-        // break the feet-together mannequin; the walk is the out-of-phase plant gait.
+        // Idle stance: hip cocked above + weight off the relaxed leg (NO leg yaw — that
+        // twisted the fused coat skirt). Walk is the out-of-phase plant gait.
         bn[PB.l_leg].position.y = r.restPos[PB.l_leg].y - bodyRise;
         bn[PB.r_leg].position.y = r.restPos[PB.r_leg].y - bodyRise;
         if (walking) {
             bn[PB.l_leg].rotation.set(Math.max(0, Math.sin(ph)) * 0.55, 0, 0);
             bn[PB.r_leg].rotation.set(Math.max(0, Math.sin(ph + Math.PI)) * 0.55, 0, 0);
         } else {
-            bn[PB.l_leg].rotation.set(0.02, 0.12, 0.05);    // stance leg, turned out
-            bn[PB.r_leg].rotation.set(-0.01, -0.05, -0.02); // relaxed leg
+            bn[PB.l_leg].rotation.set(0.0, 0, 0.03);     // stance leg
+            bn[PB.r_leg].rotation.set(-0.06, 0, -0.02);  // relaxed leg, weight off it
         }
-        // ARMS — splayed clear of the coat with a relaxed forward cant, and two desynced
-        // idle drifts (NOT a negated lockstep mirror) so they read alive and weighted.
+        // ARMS — bigger desynced idle drift (the small swing read static at distance) +
+        // shoulders that rise/settle with the breath; splayed clear of the coat.
         if (walking) {
             const armSwing = Math.sin(ph + Math.PI) * 0.5;
             bn[PB.l_arm].rotation.set(armSwing, 0, 0.14 + roll * 0.35);
             bn[PB.r_arm].rotation.set(-armSwing, 0, -0.14 + roll * 0.35);
         } else {
-            bn[PB.l_arm].rotation.set(0.10 + Math.sin(t * 1.5) * 0.06, 0, 0.14 + roll * 0.35);
-            bn[PB.r_arm].rotation.set(0.10 + Math.sin(t * 1.27 + 1.1) * 0.05, 0, -0.14 + roll * 0.35);
+            bn[PB.l_arm].rotation.set(0.10 + Math.sin(t * 1.5) * 0.16, 0, 0.14 + roll * 0.35 + breath * 0.4);
+            bn[PB.r_arm].rotation.set(0.10 + Math.sin(t * 1.27 + 1.1) * 0.14, 0, -0.14 + roll * 0.35 - breath * 0.4);
         }
     });
 
