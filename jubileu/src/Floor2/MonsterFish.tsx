@@ -310,9 +310,6 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
         const t = clock.elapsedTime;
         const safeDt = Math.min(dt, 0.05);
 
-        // Tick the animation mixer (GPU skinning)
-        mixerRef.current?.update(safeDt);
-
         // Activate once first shard is collected
         if (!active.current && collectedShards.size >= 1) {
             active.current = true;
@@ -322,11 +319,18 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
 
         const playerY = playerPositionRef.current?.y ?? 0;
         if (state.current === 'dormant' || !active.current || playerY >= SWIM_THRESHOLD_Y) {
+            // Skip the AnimationMixer update entirely while hidden — the skinned
+            // shark isn't on screen (dormant / player above water), so sampling
+            // its clips and updating bone matrices is pure wasted CPU. Resumed
+            // below as soon as it becomes visible (awakening onward).
             if (monsterProximityRef) monsterProximityRef.current = 0;
             g.visible = false;
             return;
         }
         g.visible = true;
+
+        // Tick the animation mixer (GPU skinning) — only while visible.
+        mixerRef.current?.update(safeDt);
 
         // Awakening — stirs gently in the dark
         if (state.current === 'awakening') {

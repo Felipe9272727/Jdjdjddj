@@ -1326,6 +1326,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         ship.rotation.x = b.pitch();
         ship.rotation.z = b.roll();
 
+        // read the bucket snapshot ONCE per frame (b.bucket() allocates a fresh
+        // object on every call; it was being called 3x — bucket rig, left hand,
+        // audio clunk — for the same live WASM state). One read, reuse below.
+        const bucketState = b.bucket();
+
         // captain — rigged: peg-leg walk cycle, jaw flap, blink, head-track
         if (captainRef.current) {
             const c = b.captain();
@@ -1410,7 +1415,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         }
         // bucket
         if (bucketRef.current) {
-            const bu = b.bucket();
+            const bu = bucketState;
             // when carried, the bucket follows the player with spring lag + sways
             // on the rolling deck (slosh) instead of snapping to a fixed offset
             const br = bucketRef.current, k = bu.held ? Math.min(1, dt * 9) : Math.min(1, dt * 16);
@@ -1464,9 +1469,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 const mm = puddleMats[i] as unknown as { _cellData: Uint8Array; _cellTex: THREE.DataTexture };
                 if (!_prevCells.current) { _prevCells.current = new Float32Array(b.npud * 16); _prevCells.current.set(p.cell, i * 16); }
                 const prev = _prevCells.current;
+                let cellChanged = false;
                 for (let c = 0; c < 16; c++) {
                     const v = p.cell[c];
-                    mm._cellData[c * 4] = Math.max(0, Math.min(255, v * 255));
+                    const enc = Math.max(0, Math.min(255, v * 255)) | 0;
+                    if (mm._cellData[c * 4] !== enc) { mm._cellData[c * 4] = enc; cellChanged = true; }
                     // wet -> (mostly) dry crossing under the brush: pop a fleck at
                     // that cell's world spot and arm a scrub accent, so erosion is
                     // legible exactly where it happens (not on a blind metronome).
@@ -1479,7 +1486,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     }
                     prev[i * 16 + c] = v;
                 }
-                mm._cellTex.needsUpdate = true;
+                // only re-upload the 4x4 wetness texture to the GPU when an encoded
+                // cell byte ACTUALLY changed — most frames the mask is static (the
+                // player isn't scrubbing that puddle), so this skips the per-frame
+                // DataTexture upload for all idle puddles. Pixels are identical.
+                if (cellChanged) mm._cellTex.needsUpdate = true;
             }
         }
 
@@ -1529,7 +1540,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             leftHandRef.current.position.copy(cam.position);
             leftHandRef.current.quaternion.copy(cam.quaternion);
             leftHandRef.current.translateX(-0.26); leftHandRef.current.translateY(-0.34 + Math.sin(t * 1.5) * 0.01); leftHandRef.current.translateZ(-0.4);
-            leftHandRef.current.visible = b.bucket().held && b.elevFade() < 0.85;
+            leftHandRef.current.visible = bucketState.held && b.elevFade() < 0.85;
         }
 
         // payoff: land rises on the horizon once the deck is clean (state DONE)
@@ -1569,7 +1580,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             }
             if (any) sudsGeo.attributes.position.needsUpdate = true;
         }
-        const held = b.bucket().held ? 1 : 0;
+        const held = bucketState.held ? 1 : 0;
         if (held && !sf.held) f7BucketClunk();
         sf.held = held;
         const cl = b.cleaned();
