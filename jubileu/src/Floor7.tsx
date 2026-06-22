@@ -1136,8 +1136,10 @@ const PirateCaptain: React.FC<{
         g.rotation.z = wsh * 0.4;
 
         const bn = r.bones;
-        // BODY — breathing rise + deck-roll lean + idle sway
-        bn[PB.body].position.y = -0.05 + breath;
+        // BODY — breathing rise + deck-roll lean + idle sway. Offset from the REST
+        // local position (body's rest local-y is +0.45, the parent-relative offset)
+        // — assigning the absolute BP value (-0.05) sank him to the chest in the deck.
+        bn[PB.body].position.y = r.restPos[PB.body].y + breath;
         bn[PB.body].rotation.x = pitch * 0.8 + (walking ? Math.sin(ph * 0.5) * 0.04 : 0);
         bn[PB.body].rotation.z = -roll * 0.9 + wsh;
         // HEAD — yaw-track the player, pitch DOWN at the shorter player, calm idle
@@ -1634,9 +1636,8 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     <mesh position={[1.1, 1.2, 0.6]} material={M.elev}><boxGeometry args={[0.2, 2.4, 1.2]} /></mesh>
                     <mesh position={[0, 2.45, 0.6]} material={M.elevTrim}><boxGeometry args={[2.4, 0.16, 1.4]} /></mesh>
                 </group>
-                {/* captain — the user's GLB, procedurally rigged (replaces the
-                    old primitive-built Captain; that block now no-ops since
-                    captainRef is no longer attached) */}
+                {/* captain — the user's GLB, procedurally rigged. Animated by
+                    the PirateCaptain component (skeleton bind in pirateRig.ts). */}
                 <PirateCaptain brainRef={brainRef} playerPositionRef={playerPositionRef} />
                 {/* bucket + cloth — wooden staved pail with iron bands, soapy
                     water surface and a draped wet rag (a hero prop up close) */}

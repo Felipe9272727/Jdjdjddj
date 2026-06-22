@@ -39,6 +39,11 @@ export const enum PB { root, body, head, l_arm, r_arm, l_leg, r_leg }
 export interface PirateRig {
     group: THREE.Group;          // add to your scene; holds the bound SkinnedMesh
     bones: THREE.Bone[];         // index with PB.*
+    // Each bone's REST local position (relative to its parent). Animation MUST
+    // offset from these, never assign absolute BP values — the bone hierarchy
+    // stores parent-relative offsets (e.g. body's rest local-y is +0.45, NOT the
+    // absolute -0.05), so assigning the absolute value sinks/teleports the limb.
+    restPos: THREE.Vector3[];
     dispose: () => void;
 }
 
@@ -153,6 +158,8 @@ export function buildPirateRig(gltf: THREE.Object3D): PirateRig | null {
             bone.position.set(...BP[i]);
         }
     });
+    // snapshot the rest local positions so the animation can offset from them
+    const restPos = bones.map((b) => b.position.clone());
 
     const skeleton = new THREE.Skeleton(bones);
 
@@ -168,6 +175,7 @@ export function buildPirateRig(gltf: THREE.Object3D): PirateRig | null {
     return {
         group,
         bones,
+        restPos,
         dispose: () => {
             skeleton.dispose();
             geo.dispose();

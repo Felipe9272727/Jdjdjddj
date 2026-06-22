@@ -51,7 +51,45 @@ const Controller: React.FC<{ posRef: React.MutableRefObject<THREE.Vector3> }> = 
                     const wbb = new THREE.Box3().setFromObject(m);
                     const top = new THREE.Vector3((wbb.min.x + wbb.max.x) / 2, wbb.max.y, (wbb.min.z + wbb.max.z) / 2).project(camera);
                     const bot = new THREE.Vector3((wbb.min.x + wbb.max.x) / 2, wbb.min.y, (wbb.min.z + wbb.max.z) / 2).project(camera);
-                    r = { worldPos: wp.toArray().map(n => +n.toFixed(2)), worldScale: ws.toArray().map(n => +n.toFixed(2)), visible: m.visible,
+                    // bone world positions — reliable (getWorldPosition), unlike
+                    // setFromObject which lies for SkinnedMeshes. Tells us where the
+                    // skeleton actually IS vs where the geometry bbox claims.
+                    const bones = (m.skeleton?.bones ?? []).map((bn) => {
+                        const p = new THREE.Vector3(); bn.getWorldPosition(p);
+                        return { name: bn.name, w: p.toArray().map(n => +n.toFixed(2)) };
+                    });
+                    // ACTUAL skinned silhouette: run the real bone transform on a
+                    // sample of vertices (setFromObject ignores skinning and lies).
+                    // This tells us if the skinned mesh is upright, collapsed, or
+                    // exploded — the real "is the animation bugged" signal.
+                    const posAttr = m.geometry.attributes.position;
+                    const tmp = new THREE.Vector3();
+                    const skMin = new THREE.Vector3(Infinity, Infinity, Infinity);
+                    const skMax = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+                    const applyBone = (m as unknown as { applyBoneTransform?: (i:number,t:THREE.Vector3)=>THREE.Vector3; boneTransform?: (i:number,t:THREE.Vector3)=>THREE.Vector3 });
+                    const fn = applyBone.applyBoneTransform ? applyBone.applyBoneTransform.bind(m) : (applyBone.boneTransform ? applyBone.boneTransform.bind(m) : null);
+                    let nan = 0;
+                    if (fn) {
+                        const N = posAttr.count, step = Math.max(1, Math.floor(N / 400));
+                        for (let i = 0; i < N; i += step) {
+                            tmp.fromBufferAttribute(posAttr, i);
+                            fn(i, tmp);          // local -> skinned (still mesh-local)
+                            m.localToWorld(tmp); // -> world
+                            if (Number.isNaN(tmp.x)) { nan++; continue; }
+                            skMin.min(tmp); skMax.max(tmp);
+                        }
+                    }
+                    const skinnedBox = fn ? {
+                        min: skMin.toArray().map(n => +n.toFixed(2)), max: skMax.toArray().map(n => +n.toFixed(2)),
+                        size: [skMax.x - skMin.x, skMax.y - skMin.y, skMax.z - skMin.z].map(n => +n.toFixed(2)), nan,
+                    } : 'no boneTransform fn';
+                    // walk ancestors and report each .visible — a hidden parent
+                    // group (e.g. the elevFade gate) would draw nothing while the
+                    // mesh + bones still have valid world transforms.
+                    const ancestorVis = (() => { const v:string[]=[]; let o2:THREE.Object3D|null=m; let d=0; while(o2&&d<7){v.push(`${o2.type}:${o2.visible}`);o2=o2.parent;d++;} return v; })();
+                    r = { worldPos: wp.toArray().map(n => +n.toFixed(2)), worldScale: ws.toArray().map(n => +n.toFixed(2)), visible: m.visible, ancestorVis, skinnedBox,
+                        parentChain: (() => { const names:string[]=[]; let o2:THREE.Object3D|null=m; let d=0; while(o2&&d<8){names.push(`${o2.type}@(${o2.position.x.toFixed(1)},${o2.position.y.toFixed(1)},${o2.position.z.toFixed(1)})s${o2.scale.x.toFixed(2)}`);o2=o2.parent;d++;} return names; })(),
+                        bones,
                         worldBox: { minY: +wbb.min.y.toFixed(2), maxY: +wbb.max.y.toFixed(2), height: +(wbb.max.y - wbb.min.y).toFixed(2) },
                         screenHpx: Math.round(Math.abs(top.y - bot.y) / 2 * 900) };
                 }
