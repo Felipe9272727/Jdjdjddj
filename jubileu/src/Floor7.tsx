@@ -14,9 +14,13 @@
  */
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Sky } from '@react-three/drei';
+import { Sky, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
+import { buildPirateRig, PB, type PirateRig } from './pirateRig';
+
+const PIRATE_GLB_URL = '/pirate-captain.glb';
+useGLTF.preload(PIRATE_GLB_URL);
 import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow, makePuddleRipple } from './floor7Textures';
 
@@ -1091,6 +1095,90 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
 ));
 Captain.displayName = 'Captain';
 
+// ── PirateCaptain — the user's GLB captain, procedurally RIGGED ───────────────
+// The GLB is a rig-less Tripo static mesh; pirateRig.ts synthesises a skeleton +
+// skin weights from its vertex cloud. This component loads it, binds the rig, and
+// animates the bones every frame off the WASM brain (idle sway/breathing, peg-leg
+// walk on INTRO/DONE, head-track to the player, deck-roll lean, talk nod).
+// FACE_OFFSET corrects the GLB's authored facing so capFace points him right.
+const PIRATE_FACE_OFFSET = Math.PI; // tuned after first render (Tripo faces -Z)
+const PirateCaptain: React.FC<{
+    brainRef: React.MutableRefObject<Floor7Brain | null>;
+    playerPositionRef: React.MutableRefObject<THREE.Vector3>;
+}> = ({ brainRef, playerPositionRef }) => {
+    const { scene } = useGLTF(PIRATE_GLB_URL);
+    const outer = useRef<THREE.Group>(null);
+    const rigRef = useRef<PirateRig | null>(null);
+    const _w = useRef(new THREE.Vector3());
+    const _hd = useRef(0); // smoothed head yaw
+
+    const rig = useMemo(() => buildPirateRig(scene), [scene]);
+    useEffect(() => { rigRef.current = rig; return () => rig?.dispose(); }, [rig]);
+
+    useFrame((state) => {
+        const b = brainRef.current, g = outer.current, r = rigRef.current;
+        if (!b || !g || !r) return;
+        const t = state.clock.elapsedTime;
+        const c = b.captain();
+        const walking = b.capWalking();
+        const roll = b.roll(), pitch = b.pitch();
+        const ph = t * 7.0;
+        const lurch = walking ? Math.max(0, Math.sin(ph)) * 0.04 : 0;
+        const breath = Math.sin(t * 1.1) * 0.01;
+
+        g.visible = b.elevFade() < 0.85;
+        if (!g.visible) return;
+        g.position.set(c.x, c.bob - lurch, c.z);
+        const wsh = walking ? 0 : Math.sin(t * 0.8) * 0.02;        // idle weight-shift
+        g.rotation.y = c.face + PIRATE_FACE_OFFSET;
+        g.rotation.z = wsh * 0.4;
+
+        const bn = r.bones;
+        // BODY — breathing rise + deck-roll lean + idle sway
+        bn[PB.body].position.y = -0.05 + breath;
+        bn[PB.body].rotation.x = pitch * 0.8 + (walking ? Math.sin(ph * 0.5) * 0.04 : 0);
+        bn[PB.body].rotation.z = -roll * 0.9 + wsh;
+        // HEAD — track the player (yaw) + a slow always-alive nod, and a talk bob
+        g.updateMatrixWorld();
+        _w.current.copy(playerPositionRef.current); g.worldToLocal(_w.current);
+        const yawTo = Math.max(-0.7, Math.min(0.7, Math.atan2(_w.current.x, _w.current.z) - PIRATE_FACE_OFFSET));
+        _hd.current += (yawTo - _hd.current) * 0.1;
+        const dlg = b.dialogue();
+        const talk = (dlg === 1 || dlg === 4 || dlg === 5 || dlg === 6) ? Math.abs(Math.sin(t * 8)) * 0.08 : 0;
+        bn[PB.head].rotation.y = _hd.current;
+        bn[PB.head].rotation.x = Math.sin(t * 0.9) * 0.04 + talk;
+        bn[PB.head].rotation.z = Math.sin(t * 0.7) * 0.025;
+        // LEGS — peg-leg walk cycle when striding, else a tiny idle shift
+        if (walking) {
+            bn[PB.l_leg].rotation.x = Math.sin(ph) * 0.55;
+            bn[PB.r_leg].rotation.x = Math.sin(ph + Math.PI) * 0.48;
+        } else {
+            bn[PB.l_leg].rotation.x = Math.sin(t * 1.6) * 0.04;
+            bn[PB.r_leg].rotation.x = -Math.sin(t * 1.6) * 0.04;
+        }
+        // ARMS — counter-swing on the walk, gentle idle sway otherwise
+        const armSwing = walking ? Math.sin(ph + Math.PI) * 0.45 : Math.sin(t * 1.6) * 0.06;
+        bn[PB.l_arm].rotation.x = armSwing;
+        bn[PB.r_arm].rotation.x = -armSwing;
+        bn[PB.l_arm].rotation.z = 0.04 + roll * 0.3;   // arms react to the deck roll
+        bn[PB.r_arm].rotation.z = -0.04 + roll * 0.3;
+    });
+
+    if (!rig) return null;
+    // Size is BAKED into the geometry, so cancel the ship's scale entirely: the
+    // inner group scales by 1/FLOOR7_SCALE → the SkinnedMesh's net WORLD scale is
+    // exactly 1, matching the detached bind (no scale-about-bone displacement, so
+    // the captain stands at the baked size with feet on the deck). The outer group
+    // is positioned in ship-local coords (the ship scale still places him right).
+    return (
+        <group ref={outer}>
+            <group scale={1 / FLOOR7_SCALE}>
+                <primitive object={rig.group} />
+            </group>
+        </group>
+    );
+};
+
 interface Floor7Props {
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     handleRef: React.MutableRefObject<Floor7Handle>;
@@ -1529,8 +1617,10 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     <mesh position={[1.1, 1.2, 0.6]} material={M.elev}><boxGeometry args={[0.2, 2.4, 1.2]} /></mesh>
                     <mesh position={[0, 2.45, 0.6]} material={M.elevTrim}><boxGeometry args={[2.4, 0.16, 1.4]} /></mesh>
                 </group>
-                {/* captain */}
-                <Captain ref={captainRef} rig={capRig} />
+                {/* captain — the user's GLB, procedurally rigged (replaces the
+                    old primitive-built Captain; that block now no-ops since
+                    captainRef is no longer attached) */}
+                <PirateCaptain brainRef={brainRef} playerPositionRef={playerPositionRef} />
                 {/* bucket + cloth — wooden staved pail with iron bands, soapy
                     water surface and a draped wet rag (a hero prop up close) */}
                 <group ref={bucketRef} position={[1.35, 0.18, -1.8]}>

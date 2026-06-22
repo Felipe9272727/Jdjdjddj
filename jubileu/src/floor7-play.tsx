@@ -36,6 +36,28 @@ const Controller: React.FC<{ posRef: React.MutableRefObject<THREE.Vector3> }> = 
     const move = useRef({ f: 0, s: 0 });
     const camO = useRef<{ p: THREE.Vector3; t: THREE.Vector3 } | null>(null);
     useEffect(() => {
+        // dev probe: locate the rigged GLB captain (SkinnedMesh) — world pos, scale, bbox.
+        (window as unknown as { __captain?: () => unknown }).__captain = () => {
+            let r: unknown = 'no SkinnedMesh';
+            scene.traverse((o: THREE.Object3D) => {
+                if ((o as THREE.SkinnedMesh).isSkinnedMesh) {
+                    const m = o as THREE.SkinnedMesh;
+                    const wp = new THREE.Vector3(); m.getWorldPosition(wp);
+                    const ws = new THREE.Vector3(); m.getWorldScale(ws);
+                    m.geometry.computeBoundingBox();
+                    const bb = m.geometry.boundingBox!;
+                    // world bbox (rest pose) projected to screen to measure the
+                    // ACTUAL rendered height in pixels (removes scale guesswork)
+                    const wbb = new THREE.Box3().setFromObject(m);
+                    const top = new THREE.Vector3((wbb.min.x + wbb.max.x) / 2, wbb.max.y, (wbb.min.z + wbb.max.z) / 2).project(camera);
+                    const bot = new THREE.Vector3((wbb.min.x + wbb.max.x) / 2, wbb.min.y, (wbb.min.z + wbb.max.z) / 2).project(camera);
+                    r = { worldPos: wp.toArray().map(n => +n.toFixed(2)), worldScale: ws.toArray().map(n => +n.toFixed(2)), visible: m.visible,
+                        worldBox: { minY: +wbb.min.y.toFixed(2), maxY: +wbb.max.y.toFixed(2), height: +(wbb.max.y - wbb.min.y).toFixed(2) },
+                        screenHpx: Math.round(Math.abs(top.y - bot.y) / 2 * 900) };
+                }
+            });
+            return r;
+        };
         // dev probe: dump meshes near the camera with their material colors,
         // to hunt down a stray-colored prop the critic flagged in FP frames.
         (window as unknown as { __dumpNear?: () => unknown }).__dumpNear = () => {
