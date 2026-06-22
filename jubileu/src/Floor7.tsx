@@ -1103,11 +1103,16 @@ Captain.displayName = 'Captain';
 // animates the bones every frame off the WASM brain (idle sway/breathing, peg-leg
 // walk on INTRO/DONE, head-track to the player, deck-roll lean, talk nod).
 // FACE_OFFSET corrects the GLB's authored facing so capFace points him right.
-const PIRATE_FACE_OFFSET = Math.PI; // tuned after first render (Tripo faces -Z)
+// The GLB's native forward is +Z: with capFace=0 (the brain's "face the bow/+z
+// travel direction" and "face the player who stands toward +z") he must point at
+// +Z, so NO offset. The old Math.PI flipped him to face the bow — which made him
+// moonwalk on the entry stride AND turn his back to the player during the quest.
+const PIRATE_FACE_OFFSET = 0;
 const PirateCaptain: React.FC<{
     brainRef: React.MutableRefObject<Floor7Brain | null>;
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
-}> = ({ brainRef, playerPositionRef }) => {
+    anchorRef?: React.MutableRefObject<THREE.Vector3>;   // captain FEET in world space (dialogue-camera look-at)
+}> = ({ brainRef, playerPositionRef, anchorRef }) => {
     const { scene } = useGLTF(PIRATE_GLB_URL);
     const outer = useRef<THREE.Group>(null);
     const rigRef = useRef<PirateRig | null>(null);
@@ -1141,7 +1146,11 @@ const PirateCaptain: React.FC<{
         // below) so they bob the chest without ever lifting the boots off the deck; the
         // weight-shift is a hip lean, not a whole-body tilt (which used to rock the feet).
         g.position.set(c.x, -lurch, c.z);
-        g.rotation.y = c.face + PIRATE_FACE_OFFSET;
+        // NEGATE capFace: the brain's f7_atan2 yields a facing mirrored in X, so the
+        // captain turned to the player's reflection (~33° off) instead of AT the player
+        // — which read as a back-left view in the dialogue cam. Negating aims him dead
+        // at the player; capFace is 0 during the walk so the entry stride is unaffected.
+        g.rotation.y = -c.face + PIRATE_FACE_OFFSET;
         g.rotation.z = 0;
 
         const bn = r.bones;
@@ -1168,6 +1177,10 @@ const PirateCaptain: React.FC<{
         // the collar shear; the head also counter-rolls the torso lean (a fake spine
         // S-curve — stays level as he sways); layered talk cadence + a touch of body.
         g.updateMatrixWorld();
+        // publish the captain's FEET world pos for the dialogue camera (the outer
+        // group origin sits at the feet thanks to the foot-lift). The Player dialogue
+        // rig adds its own look/cam height, same as the Diabrete cutscene.
+        if (anchorRef) g.getWorldPosition(anchorRef.current);
         _w.current.copy(playerPositionRef.current); g.worldToLocal(_w.current);
         const yawTo = Math.max(-0.7, Math.min(0.7, Math.atan2(_w.current.x, _w.current.z) - PIRATE_FACE_OFFSET));
         _hd.current += (yawTo - _hd.current) * damp(0.06);
@@ -1226,9 +1239,10 @@ const PirateCaptain: React.FC<{
 interface Floor7Props {
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     handleRef: React.MutableRefObject<Floor7Handle>;
+    captainAnchorRef?: React.MutableRefObject<THREE.Vector3>;   // captain feet world pos (dialogue cam)
 }
 
-export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, handleRef }) => {
+export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, handleRef, captainAnchorRef }) => {
     const shipRef = useRef<THREE.Group>(null);
     const captainRef = useRef<THREE.Group>(null);
     const capRig: CaptainRig = {
@@ -1674,7 +1688,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 </group>
                 {/* captain — the user's GLB, procedurally rigged. Animated by
                     the PirateCaptain component (skeleton bind in pirateRig.ts). */}
-                <PirateCaptain brainRef={brainRef} playerPositionRef={playerPositionRef} />
+                <PirateCaptain brainRef={brainRef} playerPositionRef={playerPositionRef} anchorRef={captainAnchorRef} />
                 {/* bucket + cloth — wooden staved pail with iron bands, soapy
                     water surface and a draped wet rag (a hero prop up close) */}
                 <group ref={bucketRef} position={[1.35, 0.18, -1.8]}>
@@ -1762,8 +1776,11 @@ const DIALOGUE: Record<number, string> = {
     8: 'Pano encharcado de água do mar — esfrega que rende mais!',
 };
 
-export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7Handle> }> = ({ handleRef }) => {
+export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7Handle>; onGreeting?: (g: boolean) => void }> = ({ handleRef, onGreeting }) => {
     const [snap, setSnap] = useState({ dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0, tideWarn: 0, bucWater: 1 });
+    // tell App when the captain is in his quest-pitch (GREET) so the dialogue camera
+    // can lock onto him (cutscene framing, the same rig the Diabrete meet uses).
+    useEffect(() => { onGreeting?.(snap.state === F7_STATE.GREET); }, [snap.state, onGreeting]);
     useEffect(() => {
         let raf = 0;
         const loop = () => {

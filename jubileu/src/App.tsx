@@ -461,6 +461,8 @@ export default function App() {
   const [cartoonCutscene, setCartoonCutscene] = useState(false);   // meet-the-Diabrete dialogue (after the intro)
   const [cutsceneLine, setCutsceneLine] = useState(0);             // active Diabrete script line
   const cutsceneTargetRef = useRef(new Vector3(0.9, 0, -9.2));     // camera look-at (devil's feet) during the cutscene
+  const captainAnchorRef = useRef(new Vector3(0, 0, 0));           // Floor7 captain feet (dialogue-camera look-at)
+  const [captainGreeting, setCaptainGreeting] = useState(false);   // captain is delivering the quest → lock the camera on him
   const [brushCount, setBrushCount] = useState(0);                 // paintbrushes stolen (HUD, win at 3)
   const [cartoonFall, setCartoonFall] = useState(false);           // cinematic camera-lock on the devil's defeat fall
   const [fallBegging, setFallBegging] = useState(false);           // devil is pleading — show the save/stomp choice
@@ -1599,7 +1601,7 @@ export default function App() {
               }} />
             {/* Andar 7 — the pirate ship, 100% driven by the WASM (C + assembly)
                 brain. Mounted here (not in World) so it gets the Floor7 handle. */}
-            {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} />}
+            {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} captainAnchorRef={captainAnchorRef} />}
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -1607,7 +1609,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)))} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
+            <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueOppositeSide={currentLevel === 7 && captainGreeting} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || (currentLevel === 7 && captainGreeting)} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -1779,7 +1781,7 @@ export default function App() {
       )}
       <PhotoModeOverlay progress={photo.progress} onClose={photo.close} />
       {/* Andar 7 (pirate ship) — captain dialogue + cleaning HUD + interact button */}
-      {hasStarted && currentLevel === 7 && <Floor7Overlay handleRef={floor7Handle} />}
+      {hasStarted && currentLevel === 7 && <Floor7Overlay handleRef={floor7Handle} onGreeting={setCaptainGreeting} />}
       {/* Empty lobby atmospheric touches — thuds, flickers, wall text */}
       {hasStarted && currentLevel === 0 && gameState === 'lobby' && (
           <EmptyLobbyAmbience playerCount={otherPlayerIds.length} />
