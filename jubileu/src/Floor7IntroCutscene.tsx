@@ -98,9 +98,11 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // he clomps across the deck (tight lerp = no lag, no central-mast occlusion).
             // Exaggerated low lens on the stride — you read the gait before you see him.
             if (beat.current !== F7_INTRO_BEATS.LEGS) { beat.current = F7_INTRO_BEATS.LEGS; onBeat(beat.current); snap = true; }
-            P.copy(feet); P.x += 1.9; P.y = feet.y + 0.42; P.z += 0.15;
-            T.copy(feet); T.x -= 0.1; T.y = feet.y + 0.62;
-            fov = 40; lerp = 0.5; elev = 1;
+            // low and wide on the BOOTS striding (boots anchored low in frame, up to mid-coat)
+            // — read the clumsy gait before the face.
+            P.copy(feet); P.x += 2.4; P.y = feet.y + 0.26; P.z += 0.2;
+            T.copy(feet); T.x -= 0.1; T.y = feet.y + 0.48;
+            fov = 46; lerp = 0.5; elev = 1;
         } else if (t < T_REVEAL) {
             // B — REVEAL: continue from the LEGS shot into a LOW-HERO crane that pulls back
             // and arcs to a 3/4, ending on the full captain looming against the sky/mast —
@@ -128,9 +130,12 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // doorway sitting in the bow, backed by the ship's hull/sail (no sky washout,
             // no mast occlusion). The lone hotel elevator reads instantly; it holds, then
             // dematerialises, leaving empty bow deck — the "no way back" beat.
-            P.set(smooth(4.7, 4.1, k), smooth(4.3, 3.9, k), ELEV_W.z + smooth(3.2, 2.6, k));  // slow push-in
-            T.set(0, smooth(1.45, 2.0, k), ELEV_W.z - 0.1);     // hold on the cab; drift up as it lifts & dissolves
-            fov = 46; lerp = 0.12; pose = 1;                    // captain holds his stance (off-camera) into the laugh
+            // high enough to clear the bulwark rail, tight enough that the lit doorway fills
+            // frame; the cab is yawed ~45° so we look INTO its warm interior. Push in as it
+            // holds, then dissolves.
+            P.set(smooth(3.9, 3.4, k), smooth(4.0, 3.7, k), ELEV_W.z + smooth(2.7, 2.3, k));
+            T.set(0.15, smooth(1.85, 2.15, k), ELEV_W.z + 0.15);   // aim high (rail drops out); drift up as it dissolves
+            fov = 44; lerp = 0.12; pose = 1;                    // captain holds his stance (off-camera) into the laugh
             elev = 1 - smooth(0, 1, Math.max(0, k - 0.34) / 0.52);   // hold solid, then dematerialise
         } else if (t < T_END) {
             // D — LAUGH: low hero angle on his face; fire the laugh once
