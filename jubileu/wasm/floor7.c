@@ -91,7 +91,7 @@ static struct {
 /* CAP_BOW_Z kept in the OPEN mid-deck (not jammed against the stern cabin at
    z<-5) so the intro cutscene's low boot-tracking shot frames clean deck, not
    a wall of planks, as he strides in. */
-#define CAP_BOW_Z   (-3.2f)
+#define CAP_BOW_Z   (-2.0f)
 #define CAP_TALK_Z  ( 2.2f)
 #define CAP_X       ( 0.6f)
 #define HELM_X      (-0.45f)

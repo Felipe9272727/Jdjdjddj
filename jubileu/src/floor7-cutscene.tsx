@@ -56,6 +56,7 @@ const App: React.FC = () => {
     const elevFadeRef = useRef<number | null>(null);
     const laughRef = useRef(0);
     const poseRef = useRef(0);
+    const tRef = useRef(0);
     const [active, setActive] = useState(true);
     const [beat, setBeat] = useState(0);
     const beatRef = useRef(0);
@@ -66,6 +67,7 @@ const App: React.FC = () => {
         window.__done = () => doneRef.current;
         window.__restart = () => { doneRef.current = false; beatRef.current = 0; setBeat(0); handle.current.brain?.reset(); setActive(false); setTimeout(() => setActive(true), 40); };
         (window as unknown as { __holdElev?: (f: number) => void }).__holdElev = (f) => { elevFadeRef.current = f; };
+        (window as unknown as { __t?: () => number }).__t = () => tRef.current;
         window.__ready = true;
     }, []);
 
@@ -81,6 +83,7 @@ const App: React.FC = () => {
                         elevFadeRef={elevFadeRef}
                         laughRef={laughRef}
                         poseRef={poseRef}
+                        tRef={tRef}
                         onBeat={(b) => { beatRef.current = b; setBeat(b); }}
                         onLaugh={() => { /* headless: no audio ctx */ }}
                         onDone={() => { doneRef.current = true; setActive(false); }}

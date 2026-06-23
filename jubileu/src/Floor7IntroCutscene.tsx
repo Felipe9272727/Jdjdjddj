@@ -43,12 +43,13 @@ interface Props {
     elevFadeRef?: React.MutableRefObject<number | null>;         // we drive the cab fade during the intro
     laughRef?: React.MutableRefObject<number>;                   // we drive the captain's laugh pose (0..1)
     poseRef?: React.MutableRefObject<number>;                    // we drive the captain's REVEAL power stance (0..1)
+    tRef?: React.MutableRefObject<number>;                       // (dev) publishes the cutscene elapsed time
     onBeat: (beat: number) => void;
     onLaugh: () => void;                                         // fire the laugh SFX once
     onDone: () => void;
 }
 
-const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, playerPositionRef, elevFadeRef, laughRef, poseRef, onBeat, onLaugh, onDone }) => {
+const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, playerPositionRef, elevFadeRef, laughRef, poseRef, tRef, onBeat, onLaugh, onDone }) => {
     const { camera } = useThree();
     const elapsed = useRef(0);          // accumulated from CLAMPED delta — immune to the big frame-delta spike when the captain GLB resolves from Suspense
     const primed = useRef(false);
@@ -89,6 +90,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
         // clamp so a stall (GLB decode, tab refocus) can't fast-forward the whole sequence in one frame
         elapsed.current += Math.min(delta, 0.05);
         const t = elapsed.current;
+        if (tRef) tRef.current = t;
         const feet = captainAnchorRef.current, player = playerPositionRef.current;
         const P = _p.current, T = _t.current;
         let fov = 50, lerp = 0.12, snap = false, elev = 0, laugh = 0, pose = 0;

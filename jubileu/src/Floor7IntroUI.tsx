@@ -17,7 +17,11 @@ const Floor7IntroUI: React.FC<Props> = ({ beat, onSkip }) => {
                 @keyframes f7c-bars { from { transform: scaleY(0); } to { transform: scaleY(1); } }
                 @keyframes f7c-laugh { 0%{transform:translate(-50%,6px) scale(0.96);opacity:0;}
                     100%{transform:translate(-50%,0) scale(1);opacity:1;} }
+                @keyframes f7c-fadein { 0%{opacity:1;} 70%{opacity:1;} 100%{opacity:0;} }
             `}</style>
+            {/* open from black — hides the first ~0.8s while the camera settles onto the boots */}
+            <div style={{ position: 'absolute', inset: 0, background: '#000',
+                animation: 'f7c-fadein 1.1s ease-out both' }} />
             {/* cinematic letterbox */}
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '12%', background: '#080604',
                 transformOrigin: 'top', animation: 'f7c-bars .5s ease-out both' }} />
