@@ -55,6 +55,7 @@ const App: React.FC = () => {
     const capRef = useRef(new THREE.Vector3(0, 0, 0));
     const elevFadeRef = useRef<number | null>(null);
     const laughRef = useRef(0);
+    const poseRef = useRef(0);
     const [active, setActive] = useState(true);
     const [beat, setBeat] = useState(0);
     const beatRef = useRef(0);
@@ -71,7 +72,7 @@ const App: React.FC = () => {
     return (
         <>
             <Canvas camera={{ fov: 58, position: [0, EYE, 4.2 * FLOOR7_SCALE], near: 0.05, far: 400 }} gl={{ antialias: true }}>
-                <Floor7Environment playerPositionRef={posRef} handleRef={handle} captainAnchorRef={capRef} introElevFadeRef={elevFadeRef} introLaughRef={laughRef} />
+                <Floor7Environment playerPositionRef={posRef} handleRef={handle} captainAnchorRef={capRef} introElevFadeRef={elevFadeRef} introLaughRef={laughRef} introPoseRef={poseRef} />
                 {active && (
                     <Floor7IntroCutscene
                         active={active}
@@ -79,6 +80,7 @@ const App: React.FC = () => {
                         playerPositionRef={posRef}
                         elevFadeRef={elevFadeRef}
                         laughRef={laughRef}
+                        poseRef={poseRef}
                         onBeat={(b) => { beatRef.current = b; setBeat(b); }}
                         onLaugh={() => { /* headless: no audio ctx */ }}
                         onDone={() => { doneRef.current = true; setActive(false); }}

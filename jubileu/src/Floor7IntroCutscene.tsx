@@ -42,12 +42,13 @@ interface Props {
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;    // player (world)
     elevFadeRef?: React.MutableRefObject<number | null>;         // we drive the cab fade during the intro
     laughRef?: React.MutableRefObject<number>;                   // we drive the captain's laugh pose (0..1)
+    poseRef?: React.MutableRefObject<number>;                    // we drive the captain's REVEAL power stance (0..1)
     onBeat: (beat: number) => void;
     onLaugh: () => void;                                         // fire the laugh SFX once
     onDone: () => void;
 }
 
-const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, playerPositionRef, elevFadeRef, laughRef, onBeat, onLaugh, onDone }) => {
+const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, playerPositionRef, elevFadeRef, laughRef, poseRef, onBeat, onLaugh, onDone }) => {
     const { camera } = useThree();
     const elapsed = useRef(0);          // accumulated from CLAMPED delta — immune to the big frame-delta spike when the captain GLB resolves from Suspense
     const primed = useRef(false);
@@ -65,8 +66,9 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             elapsed.current = 0; primed.current = false; beat.current = -1; laughed.current = false;
             if (elevFadeRef) elevFadeRef.current = null;     // hand the cab fade back to the brain
             if (laughRef) laughRef.current = 0;
+            if (poseRef) poseRef.current = 0;
         }
-    }, [active, elevFadeRef, laughRef]);
+    }, [active, elevFadeRef, laughRef, poseRef]);
 
     // unit vector (XZ) from the captain toward the player — the "front" side to film
     const frontDir = (feet: THREE.Vector3, player: THREE.Vector3) => {
@@ -89,7 +91,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
         const t = elapsed.current;
         const feet = captainAnchorRef.current, player = playerPositionRef.current;
         const P = _p.current, T = _t.current;
-        let fov = 50, lerp = 0.12, snap = false, elev = 0, laugh = 0;
+        let fov = 50, lerp = 0.12, snap = false, elev = 0, laugh = 0, pose = 0;
 
         if (t < T_LEGS) {
             // A — LEGS: a low SIDE-TRACKING dolly that stays locked beside the boots as
@@ -107,11 +109,15 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             const k = (t - T_LEGS) / (T_REVEAL - T_LEGS);
             const kk = Math.min(1, k / 0.7);                     // reach the hero framing by 70%, then hold
             const d = frontDir(feet, player);
-            P.copy(feet).addScaledVector(d, smooth(1.3, 5.0, kk));
-            P.x += smooth(0, 0.9, kk);                           // arc to starboard 3/4
+            // keep the dolly SHORT (stay in front of the foremast at z~7.5 so it can't cut
+            // across him) and arc wide to starboard so the centre capstan/mast clear his
+            // silhouette — ending on a clean low-hero 3/4.
+            P.copy(feet).addScaledVector(d, smooth(1.3, 3.2, kk));
+            P.x += smooth(0, 1.7, kk);                           // wide starboard arc → clears the deck clutter
             P.y = feet.y + smooth(0.42, 1.0, kk);               // stay LOW → he looms (low-hero)
-            T.copy(feet); T.y = feet.y + smooth(0.6, 1.55, kk);  // tilt UP to his chest/head
-            fov = smooth(40, 43, kk); lerp = 0.1; elev = 1;
+            T.copy(feet); T.y = feet.y + smooth(0.6, 1.5, kk);   // tilt UP to his chest/head
+            fov = smooth(40, 44, kk); lerp = 0.1; elev = 1;
+            pose = smooth(0, 1, (k - 0.5) / 0.35);               // hands hit the hips as he plants & is revealed
         } else if (t < T_LOOKBACK) {
             // C — LOOK BACK: a 3/4 over-the-shoulder as the player turns to the cab they
             // rode in on. Framed to tilt DOWN the cab so the deck (not the blown-out sky
@@ -122,9 +128,9 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // doorway sitting in the bow, backed by the ship's hull/sail (no sky washout,
             // no mast occlusion). The lone hotel elevator reads instantly; it holds, then
             // dematerialises, leaving empty bow deck — the "no way back" beat.
-            P.set(4.4, 3.9, ELEV_W.z + 3.1);
-            T.set(0, smooth(1.45, 2.2, k), ELEV_W.z - 0.1);     // into the cab; drift up as it lifts & dissolves
-            fov = 46; lerp = 0.12;
+            P.set(smooth(4.7, 4.1, k), smooth(4.3, 3.9, k), ELEV_W.z + smooth(3.2, 2.6, k));  // slow push-in
+            T.set(0, smooth(1.45, 2.0, k), ELEV_W.z - 0.1);     // hold on the cab; drift up as it lifts & dissolves
+            fov = 46; lerp = 0.12; pose = 1;                    // captain holds his stance (off-camera) into the laugh
             elev = 1 - smooth(0, 1, Math.max(0, k - 0.34) / 0.52);   // hold solid, then dematerialise
         } else if (t < T_END) {
             // D — LAUGH: low hero angle on his face; fire the laugh once
@@ -142,6 +148,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
 
         if (elevFadeRef) elevFadeRef.current = elev;
         if (laughRef) laughRef.current = laugh;
+        if (poseRef) poseRef.current = pose;
         // FRAME-RATE-INDEPENDENT smoothing: convert the per-frame lerp into a
         // dt-aware factor so the camera converges in the same WALL time at 5fps
         // (headless) or 144fps (real device) — fixed lerp would lag at low fps.

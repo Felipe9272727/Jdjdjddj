@@ -1118,7 +1118,8 @@ const PirateCaptain: React.FC<{
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     anchorRef?: React.MutableRefObject<THREE.Vector3>;   // captain FEET in world space (dialogue-camera look-at)
     laughRef?: React.MutableRefObject<number>;           // 0..1 from the intro cutscene's LAUGH beat
-}> = ({ brainRef, playerPositionRef, anchorRef, laughRef }) => {
+    poseRef?: React.MutableRefObject<number>;            // 0..1 power-stance blend (intro REVEAL)
+}> = ({ brainRef, playerPositionRef, anchorRef, laughRef, poseRef }) => {
     const { scene } = useGLTF(PIRATE_GLB_URL);
     const outer = useRef<THREE.Group>(null);
     const rigRef = useRef<PirateRig | null>(null);
@@ -1224,6 +1225,15 @@ const PirateCaptain: React.FC<{
             bn[PB.l_arm].rotation.set(0.10 + Math.sin(t * 1.5) * 0.16, 0, 0.14 + _rollLag.current * 0.18 + breath * 0.4);
             bn[PB.r_arm].rotation.set(0.06 + Math.sin(t * 1.27 + 1.1) * 0.14, 0.05, -0.18 + _rollLag.current * 0.18 - breath * 0.4);
         }
+        // POWER STANCE (intro REVEAL): hands drop to the hips (akimbo), chest out, chin up —
+        // a confident "behold the captain" posture blended over the idle as he's revealed.
+        const PO = poseRef?.current ?? 0;
+        if (PO > 0.001) {
+            bn[PB.l_arm].rotation.x += 0.7 * PO; bn[PB.l_arm].rotation.z += 0.55 * PO;   // elbow out, hand to hip
+            bn[PB.r_arm].rotation.x += 0.7 * PO; bn[PB.r_arm].rotation.z += -0.55 * PO;
+            bn[PB.body].rotation.x += -0.06 * PO;                                         // chest out
+            bn[PB.head].rotation.x += -0.10 * PO;                                         // chin up
+        }
         // LAUGH (intro cutscene): head tips back, chest heaves, shoulders bounce in
         // a quick "arr-arr-arr" cadence, both hands rock up toward the belly. Blended
         // by L over whatever idle/talk pose is underneath so it reads as a real beat.
@@ -1267,9 +1277,11 @@ interface Floor7Props {
     introElevFadeRef?: React.MutableRefObject<number | null>;
     // intro cutscene LAUGH-beat strength (0..1) — drives the captain's laugh pose.
     introLaughRef?: React.MutableRefObject<number>;
+    // intro cutscene power-stance strength (0..1) — drives the captain's akimbo reveal pose.
+    introPoseRef?: React.MutableRefObject<number>;
 }
 
-export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, handleRef, captainAnchorRef, introElevFadeRef, introLaughRef }) => {
+export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, handleRef, captainAnchorRef, introElevFadeRef, introLaughRef, introPoseRef }) => {
     const shipRef = useRef<THREE.Group>(null);
     const captainRef = useRef<THREE.Group>(null);
     const capRig: CaptainRig = {
@@ -1730,7 +1742,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 </group>
                 {/* captain — the user's GLB, procedurally rigged. Animated by
                     the PirateCaptain component (skeleton bind in pirateRig.ts). */}
-                <PirateCaptain brainRef={brainRef} playerPositionRef={playerPositionRef} anchorRef={captainAnchorRef} laughRef={introLaughRef} />
+                <PirateCaptain brainRef={brainRef} playerPositionRef={playerPositionRef} anchorRef={captainAnchorRef} laughRef={introLaughRef} poseRef={introPoseRef} />
                 {/* bucket + cloth — wooden staved pail with iron bands, soapy
                     water surface and a draped wet rag (a hero prop up close) */}
                 <group ref={bucketRef} position={[1.35, 0.18, -1.8]}>
