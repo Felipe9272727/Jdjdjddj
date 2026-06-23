@@ -27,7 +27,7 @@ export const F7_INTRO_BEATS = { LEGS: 0, REVEAL: 1, LOOK_BACK: 2, LAUGH: 3 } as 
 
 // beat boundaries (seconds). Synced to the brain: captain strides 0.6–3.6s, so
 // LEGS catches him mid-stride and REVEAL lands as he plants at the talk spot.
-const T_LEGS = 2.4, T_REVEAL = 4.6, T_LOOKBACK = 7.0, T_END = 10.2;
+const T_LEGS = 2.4, T_REVEAL = 4.6, T_LOOKBACK = 7.0, T_END = 9.5;
 
 // elevator sits at ship-local (0,0,5.2); world ≈ local * FLOOR7_SCALE (ship ~origin).
 const ELEV_W = new THREE.Vector3(0, 1.15 * FLOOR7_SCALE, 5.2 * FLOOR7_SCALE);
@@ -103,9 +103,9 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // low side-track on the BOOTS striding (boots anchored low, up to mid-coat) — read
             // the clumsy waddle before the face. Level horizon (look-at level with the camera,
             // same x) so the silhouette stays clean — no Dutch tilt scrambling the legs.
-            P.copy(feet); P.x += 2.5; P.y = feet.y + 0.34; P.z += 0.25;
-            T.copy(feet); T.x = P.x - 2.5; T.y = feet.y + 0.40; T.z = feet.z;
-            fov = 47; lerp = 0.5; elev = 1;
+            P.copy(feet); P.x += 2.05; P.y = feet.y + 0.30; P.z += 0.15;
+            T.copy(feet); T.x = feet.x; T.y = feet.y + 0.36; T.z = feet.z;   // level, tight on the boots/lower coat — keeps the high sail out of frame
+            fov = 49; lerp = 0.5; elev = 1;
         } else if (t < T_REVEAL) {
             // B — REVEAL: continue from the LEGS shot into a LOW-HERO crane that pulls back
             // and arcs to a 3/4, ending on the full captain looming against the sky/mast —
@@ -142,10 +142,11 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // the bow bulwark wraps the cab, so a flat side angle clips it — this slightly-high
             // 3/4 clears the rail while the recessed-seam doors + gold frame + lit "7" still
             // read as an elevator. Gentle push-in, then the box dissolves.
-            P.set(smooth(2.7, 2.4, k), smooth(5.3, 5.0, k), ELEV_W.z + smooth(3.5, 3.1, k));
-            T.set(0, smooth(1.6, 1.95, k), ELEV_W.z + 0.3);     // doors + seam + lit "7" in frame; drift up as it dissolves
-            fov = 46; lerp = 0.12; pose = 1;                    // captain holds his stance (off-camera) into the laugh
-            elev = 1 - smooth(0, 1, Math.max(0, k - 0.34) / 0.52);   // hold solid, then dematerialise
+            P.set(smooth(2.7, 2.4, k), 5.0, ELEV_W.z + smooth(3.4, 3.0, k));   // gentle push-in
+            T.set(0, 1.5, ELEV_W.z + 0.3);                      // hold on the doors; the cab ASCENDS up out of frame as it fades, leaving bare deck
+            fov = 46; lerp = 0.1; pose = 1;                     // captain holds his stance (off-camera) into the laugh
+            // hold the lit cab ~0.7s, dissolve over ~1s, then a clear ~0.5s beat on the EMPTY deck
+            elev = 1 - smooth(0, 1, Math.max(0, k - 0.28) / 0.42);
         } else if (t < T_END) {
             // D — LAUGH: low hero angle on his face; fire the laugh once
             if (beat.current !== F7_INTRO_BEATS.LAUGH) { beat.current = F7_INTRO_BEATS.LAUGH; onBeat(beat.current); snap = true; }

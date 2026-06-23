@@ -1260,15 +1260,16 @@ const PirateCaptain: React.FC<{
         // by L over whatever idle/talk pose is underneath so it reads as a real beat.
         const L = laughRef?.current ?? 0;
         if (L > 0.001) {
-            const bounce = Math.max(0, Math.sin(t * 17)) * L;          // ~3/sec belly heave
-            bn[PB.head].rotation.x += (-0.42 * L) + bounce * 0.10;     // chin up, nodding with each "arr"
-            bn[PB.head].rotation.y += Math.sin(t * 8.5) * 0.04 * L;
-            bn[PB.body].rotation.x += (-0.10 * L) + bounce * 0.07;     // lean back + heave
-            bn[PB.body].rotation.y *= (1 - 0.5 * L);                   // square up to the player
-            bn[PB.l_arm].rotation.x += (-0.5 * L) - bounce * 0.18;     // hands rock up toward the gut
-            bn[PB.r_arm].rotation.x += (-0.5 * L) - bounce * 0.18;
-            bn[PB.l_arm].rotation.z += 0.25 * L;
-            bn[PB.r_arm].rotation.z += -0.25 * L;
+            const bounce = Math.max(0, Math.sin(t * 14)) * L;          // belly-laugh heave, one bob per "arr"
+            bn[PB.head].rotation.x += (-0.7 * L) + bounce * 0.28;      // big chin-up throw-back, snapping down on each "arr"
+            bn[PB.head].rotation.y += Math.sin(t * 9) * 0.05 * L;
+            bn[PB.body].rotation.x += (-0.2 * L) + bounce * 0.16;      // lean back + heave the chest
+            bn[PB.body].rotation.z += Math.sin(t * 14) * 0.05 * L;     // shoulders rock
+            bn[PB.body].rotation.y *= (1 - 0.6 * L);                   // square up to the player
+            bn[PB.l_arm].rotation.x += (-0.7 * L) - bounce * 0.3;      // hands clap up toward the gut with each heave
+            bn[PB.r_arm].rotation.x += (-0.7 * L) - bounce * 0.3;
+            bn[PB.l_arm].rotation.z += 0.35 * L;
+            bn[PB.r_arm].rotation.z += -0.35 * L;
         }
     });
 
@@ -1555,8 +1556,10 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             const ov = introElevFadeRef?.current;
             const f = (ov != null) ? ov : b.elevFade();
             elevatorRef.current.visible = f > 0.01;
-            elevatorRef.current.position.y = (1 - f) * 0.6;       // lifts as it fades
-            elevatorRef.current.scale.setScalar(0.6 + f * 0.4);
+            // ASCEND + dissolve (no shrink — shrinking read as a glitch): the cab rises a
+            // little and fades, like it's beaming back up to the hotel.
+            elevatorRef.current.position.y = (1 - f) * 1.1;
+            elevatorRef.current.scale.setScalar(1.0);
             M.elev.opacity = f; M.elevTrim.opacity = f;
             M.elevGlow.opacity = f; M.elevFloor.opacity = f; M.elevDoor.opacity = f; M_elevNum.opacity = f;
             M.elevSeam.opacity = f; M.elevEdge.opacity = f;
