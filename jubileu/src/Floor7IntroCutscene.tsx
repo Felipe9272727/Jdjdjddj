@@ -137,8 +137,8 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // closed-door box then dematerialises.
             // looks down past the bulwark at the cab so the steel sliding doors + centre seam
             // + gold frame + lit "7" all read (the bow bulwark otherwise clips a side angle).
-            P.set(smooth(3.3, 3.0, k), smooth(5.1, 4.8, k), ELEV_W.z + smooth(2.4, 1.9, k));
-            T.set(0, smooth(1.65, 2.2, k), ELEV_W.z);           // centre the doors; drift up as the box dissolves
+            P.set(smooth(2.6, 2.3, k), smooth(5.6, 5.3, k), ELEV_W.z + smooth(3.7, 3.3, k));
+            T.set(0, smooth(1.7, 2.0, k), ELEV_W.z + 0.3);      // doors + seam + the big lit "7" all in frame; drift as it dissolves
             fov = 46; lerp = 0.12; pose = 1;                    // captain holds his stance (off-camera) into the laugh
             elev = 1 - smooth(0, 1, Math.max(0, k - 0.34) / 0.52);   // hold solid, then dematerialise
         } else if (t < T_END) {

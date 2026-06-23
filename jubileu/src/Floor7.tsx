@@ -1766,8 +1766,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     <mesh position={[-0.98, 1.2, 0.52]} material={M.elevTrim}><boxGeometry args={[0.14, 2.5, 0.14]} /></mesh>
                     <mesh position={[0.98, 1.2, 0.52]} material={M.elevTrim}><boxGeometry args={[0.14, 2.5, 0.14]} /></mesh>
                     <mesh position={[0, 2.46, 0.52]} material={M.elevTrim}><boxGeometry args={[2.1, 0.14, 0.14]} /></mesh>
-                    {/* lit floor-indicator "7" above the doors */}
-                    <mesh position={[0, 2.18, 0.56]} material={M_elevNum}><planeGeometry args={[0.34, 0.34]} /></mesh>
+                    {/* lit floor-indicator "7" on the upper doors (kept low enough to stay in
+                        the look-back frame, which clips the very top of the tall cab) */}
+                    <mesh position={[0, 1.75, 0.56]} material={M_elevNum}><planeGeometry args={[0.42, 0.42]} /></mesh>
                 </group>
                 {/* captain — the user's GLB, procedurally rigged. Animated by
                     the PirateCaptain component (skeleton bind in pirateRig.ts). */}
