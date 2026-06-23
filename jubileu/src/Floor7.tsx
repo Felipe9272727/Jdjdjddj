@@ -150,7 +150,22 @@ const M = {
     // the player rode in on), and a darker floor/ceiling to box it in.
     elevGlow: new THREE.MeshStandardMaterial({ color: '#3a2a18', emissive: '#ffdca8', emissiveIntensity: 1.4, roughness: 0.7, metalness: 0, transparent: true }),
     elevFloor: new THREE.MeshStandardMaterial({ color: '#6b5535', roughness: 0.8, metalness: 0.1, transparent: true }),
+    // brushed-steel sliding doors — the single most "this is an elevator" feature.
+    elevDoor: new THREE.MeshStandardMaterial({ color: '#c2c9cf', roughness: 0.28, metalness: 0.85, transparent: true }),
 };
+
+// glowing floor-indicator "7" — sells the "The Normal Elevator, floor 7" gag on the cab.
+function makeFloorNumTex(n: string): THREE.CanvasTexture | null {
+    if (typeof document === 'undefined') return null;
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const x = c.getContext('2d'); if (!x) return null;
+    x.fillStyle = '#140d04'; x.fillRect(0, 0, 128, 128);
+    x.fillStyle = '#ffd27a'; x.font = 'bold 96px Georgia'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(n, 64, 70);
+    const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
+}
+const _floor7NumTex = makeFloorNumTex('7');
+const M_elevNum = new THREE.MeshBasicMaterial({ map: _floor7NumTex ?? undefined, color: _floor7NumTex ? '#ffffff' : '#ffd27a', toneMapped: false, fog: false, transparent: true });
 
 // Weather the hull by WORLD height: below the (world-fixed) waterline it goes
 // dark, wet and green; up toward the cap rail it sun-bleaches. Driven by world
@@ -1138,7 +1153,11 @@ const PirateCaptain: React.FC<{
         const walking = b.capWalking();
         const roll = b.roll(), pitch = b.pitch();
         const ph = t * 7.0;
-        const lurch = walking ? Math.max(0, Math.sin(ph)) * 0.04 : 0;
+        // CLUMSY entry stride: a heavier vertical lurch + a peg-leg hitch (every other
+        // step dips deeper) so the gait reads awkward/comedic — he's "desajeitado".
+        const hitch = walking ? (Math.sin(ph * 0.5) > 0 ? 1.0 : 0.45) : 0;   // alternate step weight
+        const lurch = walking ? Math.max(0, Math.sin(ph)) * 0.075 * (0.6 + 0.4 * hitch) : 0;
+        const waddle = walking ? Math.sin(ph) * 0.06 : 0;                    // side-to-side body roll
         // breathing: a squared sine = quick inhale, held exhale (a piston sine reads
         // mechanical). Drives the TORSO only — never the planted feet.
         const breath = Math.sin(t * 1.15) ** 2 * 0.02;
@@ -1158,7 +1177,7 @@ const PirateCaptain: React.FC<{
         // — which read as a back-left view in the dialogue cam. Negating aims him dead
         // at the player; capFace is 0 during the walk so the entry stride is unaffected.
         g.rotation.y = -c.face + PIRATE_FACE_OFFSET;
-        g.rotation.z = 0;
+        g.rotation.z = waddle;   // clumsy waddle while striding in
 
         const bn = r.bones;
         const wsh = walking ? 0 : Math.sin(t * 0.8) * 0.05;   // idle weight-shift
@@ -1537,9 +1556,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             elevatorRef.current.position.y = (1 - f) * 0.6;       // lifts as it fades
             elevatorRef.current.scale.setScalar(0.6 + f * 0.4);
             M.elev.opacity = f; M.elevTrim.opacity = f;
-            M.elevGlow.opacity = f; M.elevFloor.opacity = f;
+            M.elevGlow.opacity = f; M.elevFloor.opacity = f; M.elevDoor.opacity = f; M_elevNum.opacity = f;
             M.elevGlow.emissiveIntensity = 1.4 * f;
-            if (elevLightRef.current) elevLightRef.current.intensity = 7 * f;
+            if (elevLightRef.current) elevLightRef.current.intensity = 6 * f;
         }
         // puddles erode directionally: the disc stays full-size; the per-cell
         // wetness mask (driven from the brain) discards the scrubbed cells, and
@@ -1726,24 +1745,29 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             <group ref={shipRef} scale={FLOOR7_SCALE}>
                 <ShipBody />
                 {/* the elevator the player rode in on — dematerialises */}
-                {/* the hotel elevator the player rode in on. Yawed ~45° so its open, warm-lit
-                    doorway faces the off-the-bow look-back camera (the deck is too cluttered
-                    for a clean straight-on POV) — it reads as an elevator, then dematerialises. */}
-                <group ref={elevatorRef} name="elevCab" position={[0, 0, 5.2]} rotation={[0, 0.8, 0]}>
-                    <mesh position={[0, 1.2, 0]} material={M.elev}><boxGeometry args={[2.2, 2.4, 0.2]} /></mesh>
-                    <mesh position={[-1.1, 1.2, 0.6]} material={M.elev}><boxGeometry args={[0.2, 2.4, 1.2]} /></mesh>
-                    <mesh position={[1.1, 1.2, 0.6]} material={M.elev}><boxGeometry args={[0.2, 2.4, 1.2]} /></mesh>
-                    <mesh position={[0, 2.45, 0.6]} material={M.elevTrim}><boxGeometry args={[2.4, 0.16, 1.4]} /></mesh>
-                    {/* floor + ceiling box it in; a warm glow back wall + interior light sell
-                        the lit hotel cab, and a gold doorway frame reads as "elevator". */}
-                    <mesh position={[0, 0.06, 0.6]} material={M.elevFloor}><boxGeometry args={[2.0, 0.12, 1.2]} /></mesh>
-                    <mesh position={[0, 2.34, 0.6]} material={M.elevFloor}><boxGeometry args={[2.0, 0.12, 1.2]} /></mesh>
-                    <mesh position={[0, 1.2, 0.1]} material={M.elevGlow}><boxGeometry args={[1.9, 2.2, 0.06]} /></mesh>
-                    {/* gold doorway frame at the open (+z) face */}
-                    <mesh position={[-1.0, 1.2, 1.18]} material={M.elevTrim}><boxGeometry args={[0.16, 2.4, 0.16]} /></mesh>
-                    <mesh position={[1.0, 1.2, 1.18]} material={M.elevTrim}><boxGeometry args={[0.16, 2.4, 0.16]} /></mesh>
-                    <mesh position={[0, 2.32, 1.18]} material={M.elevTrim}><boxGeometry args={[2.16, 0.16, 0.16]} /></mesh>
-                    <pointLight ref={elevLightRef} position={[0, 1.7, 0.7]} color="#ffd9a0" intensity={7} distance={5} decay={2} />
+                {/* the hotel elevator the player rode in on — a discrete box with CLOSED
+                    brushed-steel sliding doors (centre seam), a gold frame and a lit "7"
+                    floor indicator, yawed so the doors face the off-bow look-back camera. It
+                    reads as an elevator, then the whole closed-door box dematerialises. */}
+                <group ref={elevatorRef} name="elevCab" position={[0, 0, 5.2]} rotation={[0, 0.7, 0]}>
+                    {/* shell: back + side + roof + floor */}
+                    <mesh position={[0, 1.2, -0.5]} material={M.elev}><boxGeometry args={[2.0, 2.4, 0.16]} /></mesh>
+                    <mesh position={[-0.98, 1.2, 0]} material={M.elev}><boxGeometry args={[0.16, 2.4, 1.0]} /></mesh>
+                    <mesh position={[0.98, 1.2, 0]} material={M.elev}><boxGeometry args={[0.16, 2.4, 1.0]} /></mesh>
+                    <mesh position={[0, 2.42, 0]} material={M.elev}><boxGeometry args={[2.1, 0.18, 1.2]} /></mesh>
+                    <mesh position={[0, 0.05, 0]} material={M.elevFloor}><boxGeometry args={[2.0, 0.1, 1.0]} /></mesh>
+                    {/* warm interior glow (seen as a sliver through the door seam) + light */}
+                    <mesh position={[0, 1.2, -0.42]} material={M.elevGlow}><boxGeometry args={[1.7, 2.1, 0.05]} /></mesh>
+                    <pointLight ref={elevLightRef} position={[0, 1.7, -0.1]} color="#ffd9a0" intensity={6} distance={4} decay={2} />
+                    {/* CLOSED sliding doors facing +z (toward the camera), centre seam gap */}
+                    <mesh position={[-0.47, 1.2, 0.5]} material={M.elevDoor}><boxGeometry args={[0.9, 2.3, 0.08]} /></mesh>
+                    <mesh position={[0.47, 1.2, 0.5]} material={M.elevDoor}><boxGeometry args={[0.9, 2.3, 0.08]} /></mesh>
+                    {/* gold door frame */}
+                    <mesh position={[-0.98, 1.2, 0.52]} material={M.elevTrim}><boxGeometry args={[0.14, 2.5, 0.14]} /></mesh>
+                    <mesh position={[0.98, 1.2, 0.52]} material={M.elevTrim}><boxGeometry args={[0.14, 2.5, 0.14]} /></mesh>
+                    <mesh position={[0, 2.46, 0.52]} material={M.elevTrim}><boxGeometry args={[2.1, 0.14, 0.14]} /></mesh>
+                    {/* lit floor-indicator "7" above the doors */}
+                    <mesh position={[0, 2.18, 0.56]} material={M_elevNum}><planeGeometry args={[0.34, 0.34]} /></mesh>
                 </group>
                 {/* captain — the user's GLB, procedurally rigged. Animated by
                     the PirateCaptain component (skeleton bind in pirateRig.ts). */}

@@ -12,14 +12,14 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await pg.evaluate(() => window.__restart && window.__restart());
   await sleep(500);
   // cab at world (0,*,9.61), ~4 tall. Try angles that put the SHIP (not sky) behind the cab.
-  const cabT = [0, 1.6, 9.61];
+  const cabT = [0, 1.7, 9.9];
   const cands = {
-    hi34_star: [4.5, 4.2, 12.6],   // high starboard-forward, looking down-back
-    hi34_port: [-4.5, 4.2, 12.6],
-    side_star: [7.0, 2.2, 9.61],   // straight starboard
-    fwd_low:   [0, 2.0, 12.2],     // dead ahead off the bow, lower
-    fwd_hi:    [0, 5.0, 12.8],     // dead ahead, high looking down
-    aft34:     [4.0, 2.4, 11.4],   // just forward-starboard of cab
+    ahead_hi:  [0.6, 4.0, 13.6],   // dead ahead off the bow, high enough to clear bowsprit
+    ahead_far: [0.6, 3.3, 15.2],   // farther + lower, flatter perspective
+    star_hi:   [3.2, 4.4, 12.6],   // starboard-forward high
+    star_clear:[3.0, 5.0, 11.6],   // closer + higher, look down past the bulwark
+    high45:    [2.2, 5.6, 13.2],   // 45 down
+    p_ahead:   [-0.6, 4.0, 13.6],  // port mirror of ahead_hi
   };
   for (const [tag, p] of Object.entries(cands)) {
     await pg.evaluate(({ p, t }) => { window.__cam(p[0], p[1], p[2], t[0], t[1], t[2]); window.__holdElev(1); }, { p, t: cabT });
