@@ -152,6 +152,8 @@ const M = {
     elevFloor: new THREE.MeshStandardMaterial({ color: '#6b5535', roughness: 0.8, metalness: 0.1, transparent: true }),
     // brushed-steel sliding doors — the single most "this is an elevator" feature.
     elevDoor: new THREE.MeshStandardMaterial({ color: '#c2c9cf', roughness: 0.28, metalness: 0.85, transparent: true }),
+    elevSeam: new THREE.MeshStandardMaterial({ color: '#10141a', roughness: 0.6, metalness: 0.3, transparent: true }),       // recessed dark gap between the two leaves
+    elevEdge: new THREE.MeshStandardMaterial({ color: '#eef3f7', roughness: 0.15, metalness: 0.9, transparent: true }),       // bright bevel down each inner door edge
 };
 
 // glowing floor-indicator "7" — sells the "The Normal Elevator, floor 7" gag on the cab.
@@ -1557,6 +1559,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             elevatorRef.current.scale.setScalar(0.6 + f * 0.4);
             M.elev.opacity = f; M.elevTrim.opacity = f;
             M.elevGlow.opacity = f; M.elevFloor.opacity = f; M.elevDoor.opacity = f; M_elevNum.opacity = f;
+            M.elevSeam.opacity = f; M.elevEdge.opacity = f;
             M.elevGlow.emissiveIntensity = 1.4 * f;
             if (elevLightRef.current) elevLightRef.current.intensity = 6 * f;
         }
@@ -1759,9 +1762,17 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     {/* warm interior glow (seen as a sliver through the door seam) + light */}
                     <mesh position={[0, 1.2, -0.42]} material={M.elevGlow}><boxGeometry args={[1.7, 2.1, 0.05]} /></mesh>
                     <pointLight ref={elevLightRef} position={[0, 1.7, -0.1]} color="#ffd9a0" intensity={6} distance={4} decay={2} />
-                    {/* CLOSED sliding doors facing +z (toward the camera), centre seam gap */}
-                    <mesh position={[-0.47, 1.2, 0.5]} material={M.elevDoor}><boxGeometry args={[0.9, 2.3, 0.08]} /></mesh>
-                    <mesh position={[0.47, 1.2, 0.5]} material={M.elevDoor}><boxGeometry args={[0.9, 2.3, 0.08]} /></mesh>
+                    {/* CLOSED sliding doors facing +z (toward the camera): two leaves, a
+                        recessed dark centre gap, and a bright bevel down each inner edge so
+                        they read unmistakably as elevator doors (not a painted panel). */}
+                    <mesh position={[-0.46, 1.2, 0.5]} material={M.elevDoor}><boxGeometry args={[0.88, 2.3, 0.09]} /></mesh>
+                    <mesh position={[0.46, 1.2, 0.5]} material={M.elevDoor}><boxGeometry args={[0.88, 2.3, 0.09]} /></mesh>
+                    <mesh position={[0, 1.2, 0.46]} material={M.elevSeam}><boxGeometry args={[0.07, 2.26, 0.06]} /></mesh>
+                    <mesh position={[-0.055, 1.2, 0.55]} material={M.elevEdge}><boxGeometry args={[0.035, 2.28, 0.02]} /></mesh>
+                    <mesh position={[0.055, 1.2, 0.55]} material={M.elevEdge}><boxGeometry args={[0.035, 2.28, 0.02]} /></mesh>
+                    {/* a slim brushed-steel kick/header band per leaf to catch light as "metal" */}
+                    <mesh position={[-0.46, 0.35, 0.555]} material={M.elevEdge}><boxGeometry args={[0.84, 0.08, 0.02]} /></mesh>
+                    <mesh position={[0.46, 0.35, 0.555]} material={M.elevEdge}><boxGeometry args={[0.84, 0.08, 0.02]} /></mesh>
                     {/* gold door frame */}
                     <mesh position={[-0.98, 1.2, 0.52]} material={M.elevTrim}><boxGeometry args={[0.14, 2.5, 0.14]} /></mesh>
                     <mesh position={[0.98, 1.2, 0.52]} material={M.elevTrim}><boxGeometry args={[0.14, 2.5, 0.14]} /></mesh>
