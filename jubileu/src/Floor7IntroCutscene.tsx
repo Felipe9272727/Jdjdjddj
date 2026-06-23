@@ -1,0 +1,160 @@
+/**
+ * Floor7IntroCutscene.tsx — the cinematic "meet the captain" intro for Andar 7.
+ *
+ * When the player steps onto the deck this takes over the camera (mounted AFTER
+ * <Player> so its priority-0 useFrame overwrites the player's camera each frame)
+ * and plays a scripted sequence, in the order the design calls for:
+ *
+ *   A  LEGS       — an exaggerated low close-up on the captain's boots striding in
+ *   B  REVEAL     — dolly out + tilt up to reveal the whole (clumsy) captain
+ *   C  LOOK BACK  — cut to the player's POV turning to watch the elevator they rode
+ *                   in on dematerialise behind them ("…no way back")
+ *   D  LAUGH      — frame his face; an ironic laugh, "Primeira vez?"
+ *
+ * It drives the CAMERA, the beat index (DOM bubble + SFX) and — during the intro —
+ * the ELEVATOR fade (via introElevFadeRef) so the cab vanishes exactly on LOOK
+ * BACK rather than in the brain's first 2.6s. The captain himself is still walked
+ * by the WASM brain; we just frame him. When the sequence ends (or is skipped) it
+ * hands back to the normal GREET quest dialogue.
+ */
+import { useRef, useEffect } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
+import { FLOOR7_SCALE } from './constants';
+
+// play order — the index reported to the UI (only LAUGH shows the bubble)
+export const F7_INTRO_BEATS = { LEGS: 0, REVEAL: 1, LOOK_BACK: 2, LAUGH: 3 } as const;
+
+// beat boundaries (seconds). Synced to the brain: captain strides 0.6–3.6s, so
+// LEGS catches him mid-stride and REVEAL lands as he plants at the talk spot.
+const T_LEGS = 2.4, T_REVEAL = 4.6, T_LOOKBACK = 7.0, T_END = 10.2;
+
+// elevator sits at ship-local (0,0,5.2); world ≈ local * FLOOR7_SCALE (ship ~origin).
+const ELEV_W = new THREE.Vector3(0, 1.15 * FLOOR7_SCALE, 5.2 * FLOOR7_SCALE);
+
+const smooth = (a: number, b: number, t: number) => {
+    const k = Math.max(0, Math.min(1, t)); const e = k * k * (3 - 2 * k); return a + (b - a) * e;
+};
+
+interface Props {
+    active: boolean;
+    captainAnchorRef: React.MutableRefObject<THREE.Vector3>;     // captain feet (world)
+    playerPositionRef: React.MutableRefObject<THREE.Vector3>;    // player (world)
+    elevFadeRef?: React.MutableRefObject<number | null>;         // we drive the cab fade during the intro
+    laughRef?: React.MutableRefObject<number>;                   // we drive the captain's laugh pose (0..1)
+    onBeat: (beat: number) => void;
+    onLaugh: () => void;                                         // fire the laugh SFX once
+    onDone: () => void;
+}
+
+const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, playerPositionRef, elevFadeRef, laughRef, onBeat, onLaugh, onDone }) => {
+    const { camera } = useThree();
+    const elapsed = useRef(0);          // accumulated from CLAMPED delta — immune to the big frame-delta spike when the captain GLB resolves from Suspense
+    const primed = useRef(false);
+    const beat = useRef(-1);
+    const laughed = useRef(false);
+    // smoothed camera state + scratch vectors (no per-frame allocation)
+    const camPos = useRef(new THREE.Vector3());
+    const camLook = useRef(new THREE.Vector3());
+    const _p = useRef(new THREE.Vector3());
+    const _t = useRef(new THREE.Vector3());
+    const _dir = useRef(new THREE.Vector3());
+
+    useEffect(() => {
+        if (!active) {
+            elapsed.current = 0; primed.current = false; beat.current = -1; laughed.current = false;
+            if (elevFadeRef) elevFadeRef.current = null;     // hand the cab fade back to the brain
+            if (laughRef) laughRef.current = 0;
+        }
+    }, [active, elevFadeRef, laughRef]);
+
+    // unit vector (XZ) from the captain toward the player — the "front" side to film
+    const frontDir = (feet: THREE.Vector3, player: THREE.Vector3) => {
+        const d = _dir.current.copy(player).sub(feet); d.y = 0;
+        if (d.lengthSq() < 1e-4) d.set(0, 0, 1);
+        return d.normalize();
+    };
+
+    useFrame((_state, delta) => {
+        if (!active) return;
+        if (!primed.current) {
+            primed.current = true;
+            camPos.current.copy(camera.position);
+            camera.getWorldDirection(_dir.current);
+            camLook.current.copy(camera.position).addScaledVector(_dir.current, 3);
+            return;   // skip this frame's (possibly huge) delta — start the clock clean next frame
+        }
+        // clamp so a stall (GLB decode, tab refocus) can't fast-forward the whole sequence in one frame
+        elapsed.current += Math.min(delta, 0.05);
+        const t = elapsed.current;
+        const feet = captainAnchorRef.current, player = playerPositionRef.current;
+        const P = _p.current, T = _t.current;
+        let fov = 50, lerp = 0.12, snap = false, elev = 0, laugh = 0;
+
+        if (t < T_LEGS) {
+            // A — LEGS: a low SIDE-TRACKING dolly that stays locked beside the boots as
+            // he clomps across the deck (tight lerp = no lag, no central-mast occlusion).
+            // Exaggerated low lens on the stride — you read the gait before you see him.
+            if (beat.current !== F7_INTRO_BEATS.LEGS) { beat.current = F7_INTRO_BEATS.LEGS; onBeat(beat.current); snap = true; }
+            P.copy(feet); P.x += 1.9; P.y = feet.y + 0.42; P.z += 0.15;
+            T.copy(feet); T.x -= 0.1; T.y = feet.y + 0.62;
+            fov = 40; lerp = 0.5; elev = 1;
+        } else if (t < T_REVEAL) {
+            // B — REVEAL: continue from the LEGS shot into a LOW-HERO crane that pulls back
+            // and arcs to a 3/4, ending on the full captain looming against the sky/mast —
+            // then HOLDS (motion settles by ~70%) so the reveal lands instead of drifting.
+            if (beat.current !== F7_INTRO_BEATS.REVEAL) { beat.current = F7_INTRO_BEATS.REVEAL; onBeat(beat.current); }
+            const k = (t - T_LEGS) / (T_REVEAL - T_LEGS);
+            const kk = Math.min(1, k / 0.7);                     // reach the hero framing by 70%, then hold
+            const d = frontDir(feet, player);
+            P.copy(feet).addScaledVector(d, smooth(1.3, 5.0, kk));
+            P.x += smooth(0, 0.9, kk);                           // arc to starboard 3/4
+            P.y = feet.y + smooth(0.42, 1.0, kk);               // stay LOW → he looms (low-hero)
+            T.copy(feet); T.y = feet.y + smooth(0.6, 1.55, kk);  // tilt UP to his chest/head
+            fov = smooth(40, 43, kk); lerp = 0.1; elev = 1;
+        } else if (t < T_LOOKBACK) {
+            // C — LOOK BACK: a 3/4 over-the-shoulder as the player turns to the cab they
+            // rode in on. Framed to tilt DOWN the cab so the deck (not the blown-out sky
+            // over the bow) backs it — then it holds solid a beat and dematerialises.
+            if (beat.current !== F7_INTRO_BEATS.LOOK_BACK) { beat.current = F7_INTRO_BEATS.LOOK_BACK; onBeat(beat.current); snap = true; }
+            const k = (t - T_REVEAL) / (T_LOOKBACK - T_REVEAL);
+            // shot from off the starboard bow, looking back-down INTO the warm-lit cab
+            // doorway sitting in the bow, backed by the ship's hull/sail (no sky washout,
+            // no mast occlusion). The lone hotel elevator reads instantly; it holds, then
+            // dematerialises, leaving empty bow deck — the "no way back" beat.
+            P.set(4.4, 3.9, ELEV_W.z + 3.1);
+            T.set(0, smooth(1.45, 2.2, k), ELEV_W.z - 0.1);     // into the cab; drift up as it lifts & dissolves
+            fov = 46; lerp = 0.12;
+            elev = 1 - smooth(0, 1, Math.max(0, k - 0.34) / 0.52);   // hold solid, then dematerialise
+        } else if (t < T_END) {
+            // D — LAUGH: low hero angle on his face; fire the laugh once
+            if (beat.current !== F7_INTRO_BEATS.LAUGH) { beat.current = F7_INTRO_BEATS.LAUGH; onBeat(beat.current); snap = true; }
+            if (!laughed.current) { laughed.current = true; onLaugh(); }
+            const lk = (t - T_LOOKBACK) / (T_END - T_LOOKBACK);
+            const d = frontDir(feet, player);
+            P.copy(feet).addScaledVector(d, smooth(2.5, 2.0, lk));             // slow push-in through the laugh
+            P.y = feet.y + 1.12;                                               // LOW → look up under the hat brim (hero)
+            P.x += 0.55 + Math.sin(t * 0.9) * 0.05; P.y += Math.cos(t * 1.1) * 0.03;   // 3/4 + handheld drift
+            T.copy(feet); T.y = feet.y + 1.92;                                 // his face, framed looking up
+            fov = 40; lerp = 0.12; elev = 0;
+            laugh = smooth(0, 1, (t - T_LOOKBACK - 0.25) / 0.45);              // ramp the laugh pose in just after the cut
+        } else { if (elevFadeRef) elevFadeRef.current = null; if (laughRef) laughRef.current = 0; onDone(); return; }
+
+        if (elevFadeRef) elevFadeRef.current = elev;
+        if (laughRef) laughRef.current = laugh;
+        // FRAME-RATE-INDEPENDENT smoothing: convert the per-frame lerp into a
+        // dt-aware factor so the camera converges in the same WALL time at 5fps
+        // (headless) or 144fps (real device) — fixed lerp would lag at low fps.
+        const a = snap ? 1 : 1 - Math.pow(1 - lerp, Math.min(delta, 0.05) * 60);
+        camPos.current.lerp(P, a);
+        camLook.current.lerp(T, a);
+        camera.position.copy(camPos.current);
+        camera.lookAt(camLook.current);
+        const cam = camera as THREE.PerspectiveCamera;
+        cam.fov += (fov - cam.fov) * a; cam.updateProjectionMatrix();
+    });
+
+    return null;
+};
+
+export default Floor7IntroCutscene;

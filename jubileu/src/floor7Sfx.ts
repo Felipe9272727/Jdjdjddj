@@ -102,6 +102,22 @@ export function f7CaptainGrunt(): void {
     osc.start(t); osc.stop(t + 0.24);
 }
 
+// ironic "arr arr arr" laugh — a short descending burst of gruff vowels
+export function f7CaptainLaugh(): void {
+    const c = ctx, o = out(); if (!c || !o) return; const t0 = c.currentTime;
+    const beats = [0, 0.17, 0.34, 0.52];
+    const base = [165, 150, 138, 120];
+    beats.forEach((dt, i) => {
+        const t = t0 + dt;
+        const osc = c.createOscillator(); osc.type = 'sawtooth';
+        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 820;
+        const g = c.createGain(); g.gain.value = 0; osc.connect(lp).connect(g).connect(o);
+        osc.frequency.setValueAtTime(base[i] * 1.25, t); osc.frequency.linearRampToValueAtTime(base[i], t + 0.12);
+        g.gain.linearRampToValueAtTime(0.07, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        osc.start(t); osc.stop(t + 0.17);
+    });
+}
+
 export function f7PuddleDone(): void {
     const c = ctx, o = out(); if (!c || !o) return; const t = c.currentTime;
     const osc = c.createOscillator(); osc.type = 'sine';

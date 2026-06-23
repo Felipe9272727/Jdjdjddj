@@ -146,6 +146,10 @@ const M = {
     glass: new THREE.MeshPhysicalMaterial({ color: '#11242e', roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#4a3010', emissiveIntensity: 0.28, envMapIntensity: 1.5 }),
     elev: new THREE.MeshStandardMaterial({ color: '#b0bec5', roughness: 0.4, metalness: 0.5, transparent: true }),
     elevTrim: new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.4, metalness: 0.6, transparent: true }),
+    // warm interior glow so the open cab reads as a lit hotel elevator (the "doorway"
+    // the player rode in on), and a darker floor/ceiling to box it in.
+    elevGlow: new THREE.MeshStandardMaterial({ color: '#3a2a18', emissive: '#ffd9a0', emissiveIntensity: 0.9, roughness: 0.7, metalness: 0, transparent: true }),
+    elevFloor: new THREE.MeshStandardMaterial({ color: '#6b5535', roughness: 0.8, metalness: 0.1, transparent: true }),
 };
 
 // Weather the hull by WORLD height: below the (world-fixed) waterline it goes
@@ -1113,7 +1117,8 @@ const PirateCaptain: React.FC<{
     brainRef: React.MutableRefObject<Floor7Brain | null>;
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     anchorRef?: React.MutableRefObject<THREE.Vector3>;   // captain FEET in world space (dialogue-camera look-at)
-}> = ({ brainRef, playerPositionRef, anchorRef }) => {
+    laughRef?: React.MutableRefObject<number>;           // 0..1 from the intro cutscene's LAUGH beat
+}> = ({ brainRef, playerPositionRef, anchorRef, laughRef }) => {
     const { scene } = useGLTF(PIRATE_GLB_URL);
     const outer = useRef<THREE.Group>(null);
     const rigRef = useRef<PirateRig | null>(null);
@@ -1219,6 +1224,21 @@ const PirateCaptain: React.FC<{
             bn[PB.l_arm].rotation.set(0.10 + Math.sin(t * 1.5) * 0.16, 0, 0.14 + _rollLag.current * 0.18 + breath * 0.4);
             bn[PB.r_arm].rotation.set(0.06 + Math.sin(t * 1.27 + 1.1) * 0.14, 0.05, -0.18 + _rollLag.current * 0.18 - breath * 0.4);
         }
+        // LAUGH (intro cutscene): head tips back, chest heaves, shoulders bounce in
+        // a quick "arr-arr-arr" cadence, both hands rock up toward the belly. Blended
+        // by L over whatever idle/talk pose is underneath so it reads as a real beat.
+        const L = laughRef?.current ?? 0;
+        if (L > 0.001) {
+            const bounce = Math.max(0, Math.sin(t * 17)) * L;          // ~3/sec belly heave
+            bn[PB.head].rotation.x += (-0.42 * L) + bounce * 0.10;     // chin up, nodding with each "arr"
+            bn[PB.head].rotation.y += Math.sin(t * 8.5) * 0.04 * L;
+            bn[PB.body].rotation.x += (-0.10 * L) + bounce * 0.07;     // lean back + heave
+            bn[PB.body].rotation.y *= (1 - 0.5 * L);                   // square up to the player
+            bn[PB.l_arm].rotation.x += (-0.5 * L) - bounce * 0.18;     // hands rock up toward the gut
+            bn[PB.r_arm].rotation.x += (-0.5 * L) - bounce * 0.18;
+            bn[PB.l_arm].rotation.z += 0.25 * L;
+            bn[PB.r_arm].rotation.z += -0.25 * L;
+        }
     });
 
     if (!rig) return null;
@@ -1241,9 +1261,15 @@ interface Floor7Props {
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     handleRef: React.MutableRefObject<Floor7Handle>;
     captainAnchorRef?: React.MutableRefObject<THREE.Vector3>;   // captain feet world pos (dialogue cam)
+    // intro cutscene override for the elevator dematerialisation: when non-null the
+    // cab fade is driven by the cutscene (so it vanishes on the LOOK_BACK beat)
+    // instead of the brain's first-2.6s auto-fade.
+    introElevFadeRef?: React.MutableRefObject<number | null>;
+    // intro cutscene LAUGH-beat strength (0..1) — drives the captain's laugh pose.
+    introLaughRef?: React.MutableRefObject<number>;
 }
 
-export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, handleRef, captainAnchorRef }) => {
+export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, handleRef, captainAnchorRef, introElevFadeRef, introLaughRef }) => {
     const shipRef = useRef<THREE.Group>(null);
     const captainRef = useRef<THREE.Group>(null);
     const capRig: CaptainRig = {
@@ -1292,6 +1318,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const leftHandRef = useRef<THREE.Group>(null);
     const islandRef = useRef<THREE.Group>(null);
     const elevatorRef = useRef<THREE.Group>(null);
+    const elevLightRef = useRef<THREE.PointLight>(null);
     const puddleRefs = useRef<(THREE.Group | null)[]>([]);
     const brainRef = useRef<Floor7Brain | null>(null);
     const _local = useRef(new THREE.Vector3());
@@ -1488,13 +1515,19 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 (M.sudsy as THREE.MeshPhysicalMaterial).color.setRGB(0.55 + bu.water * 0.26, 0.62 + bu.water * 0.27, 0.55 + bu.water * 0.35);
             }
         }
-        // elevator dematerialises
+        // elevator dematerialises — during the intro cutscene the fade is driven
+        // by the cutscene (override ref) so the cab vanishes on the LOOK_BACK beat;
+        // otherwise it follows the brain's auto-fade.
         if (elevatorRef.current) {
-            const f = b.elevFade();
+            const ov = introElevFadeRef?.current;
+            const f = (ov != null) ? ov : b.elevFade();
             elevatorRef.current.visible = f > 0.01;
             elevatorRef.current.position.y = (1 - f) * 0.6;       // lifts as it fades
             elevatorRef.current.scale.setScalar(0.6 + f * 0.4);
             M.elev.opacity = f; M.elevTrim.opacity = f;
+            M.elevGlow.opacity = f; M.elevFloor.opacity = f;
+            M.elevGlow.emissiveIntensity = 0.9 * f;
+            if (elevLightRef.current) elevLightRef.current.intensity = 6 * f;
         }
         // puddles erode directionally: the disc stays full-size; the per-cell
         // wetness mask (driven from the brain) discards the scrubbed cells, and
@@ -1681,15 +1714,23 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             <group ref={shipRef} scale={FLOOR7_SCALE}>
                 <ShipBody />
                 {/* the elevator the player rode in on — dematerialises */}
-                <group ref={elevatorRef} position={[0, 0, 5.2]}>
+                {/* opening faces +z (the bow) — the look-back is shot from off the bow, so
+                    we see INTO the warm-lit hotel interior as it dematerialises. */}
+                <group ref={elevatorRef} name="elevCab" position={[0, 0, 5.2]}>
                     <mesh position={[0, 1.2, 0]} material={M.elev}><boxGeometry args={[2.2, 2.4, 0.2]} /></mesh>
                     <mesh position={[-1.1, 1.2, 0.6]} material={M.elev}><boxGeometry args={[0.2, 2.4, 1.2]} /></mesh>
                     <mesh position={[1.1, 1.2, 0.6]} material={M.elev}><boxGeometry args={[0.2, 2.4, 1.2]} /></mesh>
                     <mesh position={[0, 2.45, 0.6]} material={M.elevTrim}><boxGeometry args={[2.4, 0.16, 1.4]} /></mesh>
+                    {/* floor + ceiling box it in; a warm glow panel on the back wall + an
+                        interior point light sell it as the lit hotel cab the player rode in. */}
+                    <mesh position={[0, 0.06, 0.6]} material={M.elevFloor}><boxGeometry args={[2.0, 0.12, 1.2]} /></mesh>
+                    <mesh position={[0, 2.34, 0.6]} material={M.elevFloor}><boxGeometry args={[2.0, 0.12, 1.2]} /></mesh>
+                    <mesh position={[0, 1.25, 0.12]} material={M.elevGlow}><planeGeometry args={[1.9, 2.1]} /></mesh>
+                    <pointLight ref={elevLightRef} position={[0, 1.7, 0.7]} color="#ffd9a0" intensity={6} distance={4.5} decay={2} />
                 </group>
                 {/* captain — the user's GLB, procedurally rigged. Animated by
                     the PirateCaptain component (skeleton bind in pirateRig.ts). */}
-                <PirateCaptain brainRef={brainRef} playerPositionRef={playerPositionRef} anchorRef={captainAnchorRef} />
+                <PirateCaptain brainRef={brainRef} playerPositionRef={playerPositionRef} anchorRef={captainAnchorRef} laughRef={introLaughRef} />
                 {/* bucket + cloth — wooden staved pail with iron bands, soapy
                     water surface and a draped wet rag (a hero prop up close) */}
                 <group ref={bucketRef} position={[1.35, 0.18, -1.8]}>
