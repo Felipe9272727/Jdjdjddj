@@ -129,24 +129,24 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // over the bow) backs it — then it holds solid a beat and dematerialises.
             if (beat.current !== F7_INTRO_BEATS.LOOK_BACK) { beat.current = F7_INTRO_BEATS.LOOK_BACK; onBeat(beat.current); snap = true; }
             const k = (t - T_REVEAL) / (T_LOOKBACK - T_REVEAL);
-            // shot from off the starboard bow, looking back-down INTO the warm-lit cab
-            // doorway sitting in the bow, backed by the ship's hull/sail (no sky washout,
-            // no mast occlusion). The lone hotel elevator reads instantly; it holds, then
-            // dematerialises, leaving empty bow deck — the "no way back" beat.
-            // pulled back so the WHOLE elevator box reads — closed steel doors + gold frame
-            // + lit "7" facing us, with deck around it (the incongruity gag). High enough to
-            // clear the bulwark, low enough that the doors read front-on. Gentle push-in; the
-            // closed-door box then dematerialises.
-            // looks down past the bulwark at the cab so the steel sliding doors + centre seam
-            // + gold frame + lit "7" all read (the bow bulwark otherwise clips a side angle).
-            // the bow bulwark wraps the cab, so a flat side angle clips it — this slightly-high
-            // 3/4 clears the rail while the recessed-seam doors + gold frame + lit "7" still
-            // read as an elevator. Gentle push-in, then the box dissolves.
-            P.set(smooth(2.7, 2.4, k), 5.0, ELEV_W.z + smooth(3.4, 3.0, k));   // gentle push-in
-            T.set(0, 1.5, ELEV_W.z + 0.3);                      // hold on the doors; the cab ASCENDS up out of frame as it fades, leaving bare deck
-            fov = 46; lerp = 0.1; pose = 1;                     // captain holds his stance (off-camera) into the laugh
-            // hold the lit cab ~0.7s, dissolve over ~1s, then a clear ~0.5s beat on the EMPTY deck
-            elev = 1 - smooth(0, 1, Math.max(0, k - 0.28) / 0.42);
+            // FRONT-ON at door height so the closed steel sliding doors + centre seam + gold
+            // frame + lit "7" FILL the frame — an unmistakable elevator (a steep/high angle
+            // foreshortened the doors into an ambiguous blue box, and the bulwark blocks a low
+            // SIDE angle, so we shoot straight down the door normal where the doors fill frame
+            // and the bulwark/sail fall outside it). The cab is yawed 0.7rad → its door normal
+            // is (sin0.7, cos0.7); sit on that axis. Hold solid, then it ascends + dissolves.
+            // the cab is staged on the open port mid-deck at world ~(-1.8, *, 3.8), doors
+            // (yaw 0.32) facing ~+z toward this camera; we shoot low and front-on so the
+            // doors + seam + gold frame + lit "7" fill the frame against clean deck.
+            // slightly-high bow 3/4 (the framing the critic confirmed reads: steel doors +
+            // centre seam + gold frame + lit "7" all legible). The bow is boxed in by
+            // bulwark/bowsprit/masts/sails, so this is the one readable angle — the earlier
+            // failure was it dissolved before it registered, so we now HOLD it solid ~1.1s.
+            P.set(smooth(2.7, 2.4, k), 5.0, ELEV_W.z + smooth(3.3, 2.9, k));   // gentle push-in
+            T.set(0, 1.55, ELEV_W.z + 0.3);                     // doors + "7"; cab ASCENDS out of frame as it fades, leaving bare deck
+            fov = 45; lerp = 0.1; pose = 1;                     // captain holds his stance (off-camera) into the laugh
+            // hold the lit doors solid ~1.1s so "an elevator?! out here?!" lands, then dissolve
+            elev = 1 - smooth(0, 1, Math.max(0, k - 0.46) / 0.32);
         } else if (t < T_END) {
             // D — LAUGH: low hero angle on his face; fire the laugh once
             if (beat.current !== F7_INTRO_BEATS.LAUGH) { beat.current = F7_INTRO_BEATS.LAUGH; onBeat(beat.current); snap = true; }
