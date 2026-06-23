@@ -113,15 +113,15 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             if (beat.current !== F7_INTRO_BEATS.REVEAL) { beat.current = F7_INTRO_BEATS.REVEAL; onBeat(beat.current); }
             const k = (t - T_LEGS) / (T_REVEAL - T_LEGS);
             const kk = Math.min(1, k / 0.7);                     // reach the hero framing by 70%, then hold
-            const d = frontDir(feet, player);
-            // keep the dolly SHORT (stay in front of the foremast at z~7.5 so it can't cut
-            // across him) and arc wide to starboard so the centre capstan/mast clear his
-            // silhouette — ending on a clean low-hero 3/4.
-            P.copy(feet).addScaledVector(d, smooth(1.3, 3.2, kk));
-            P.x += smooth(0, 1.7, kk);                           // wide starboard arc → clears the deck clutter
-            P.y = feet.y + smooth(0.42, 1.0, kk);               // stay LOW → he looms (low-hero)
-            T.copy(feet); T.y = feet.y + smooth(0.6, 1.5, kk);   // tilt UP to his chest/head
-            fov = smooth(40, 44, kk); lerp = 0.1; elev = 1;
+            // continuous crane that STARTS at the LEGS low-side position and arcs up+around to
+            // a low-hero 3/4 — no whip (the offsets blend from the boot shot, not a fresh cut).
+            // stays in front of the foremast (z≈+3.2) so it can't cut across him.
+            P.copy(feet);
+            P.x += smooth(2.05, 1.7, kk);
+            P.y = feet.y + smooth(0.30, 1.0, kk);               // rise from boot-height to low-hero
+            P.z += smooth(0.15, 3.2, kk);                       // dolly out toward the player side
+            T.copy(feet); T.x = smooth(feet.x, 0, kk); T.y = feet.y + smooth(0.36, 1.5, kk);   // tilt up boots → chest/head
+            fov = smooth(46, 44, kk); lerp = 0.12; elev = 1;
             pose = smooth(0, 1, (k - 0.5) / 0.35);               // hands hit the hips as he plants & is revealed
         } else if (t < T_LOOKBACK) {
             // C — LOOK BACK: a 3/4 over-the-shoulder as the player turns to the cab they

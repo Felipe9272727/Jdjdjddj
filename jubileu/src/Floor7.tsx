@@ -1260,16 +1260,19 @@ const PirateCaptain: React.FC<{
         // by L over whatever idle/talk pose is underneath so it reads as a real beat.
         const L = laughRef?.current ?? 0;
         if (L > 0.001) {
-            const bounce = Math.max(0, Math.sin(t * 14)) * L;          // belly-laugh heave, one bob per "arr"
-            bn[PB.head].rotation.x += (-0.7 * L) + bounce * 0.28;      // big chin-up throw-back, snapping down on each "arr"
-            bn[PB.head].rotation.y += Math.sin(t * 9) * 0.05 * L;
-            bn[PB.body].rotation.x += (-0.2 * L) + bounce * 0.16;      // lean back + heave the chest
-            bn[PB.body].rotation.z += Math.sin(t * 14) * 0.05 * L;     // shoulders rock
+            // discrete "ARR — arr — arr" pulses: the head/chest throw BACK hard on each
+            // pulse and the apex holds ~0.3s so it lands on camera (not a flickery bounce).
+            const pulse = Math.max(0, Math.sin(t * 6.5)) ** 0.5;       // sharp rise, held crest, one per "arr"
+            const a = pulse * L;
+            bn[PB.head].rotation.x += L * -0.32 + a * -0.6;            // chin snaps UP to ~50° on each "arr"
+            bn[PB.head].rotation.y += Math.sin(t * 5) * 0.05 * L;
+            bn[PB.body].rotation.x += L * -0.12 + a * -0.26;           // whole chest heaves back
+            bn[PB.body].rotation.z += Math.sin(t * 6.5) * 0.06 * L;    // shoulders rock side to side
             bn[PB.body].rotation.y *= (1 - 0.6 * L);                   // square up to the player
-            bn[PB.l_arm].rotation.x += (-0.7 * L) - bounce * 0.3;      // hands clap up toward the gut with each heave
-            bn[PB.r_arm].rotation.x += (-0.7 * L) - bounce * 0.3;
-            bn[PB.l_arm].rotation.z += 0.35 * L;
-            bn[PB.r_arm].rotation.z += -0.35 * L;
+            bn[PB.l_arm].rotation.x += L * -0.5 + a * -0.5;            // both hands clap up toward the belly per heave
+            bn[PB.r_arm].rotation.x += L * -0.5 + a * -0.5;
+            bn[PB.l_arm].rotation.z += 0.4 * L;
+            bn[PB.r_arm].rotation.z += -0.4 * L;
         }
     });
 
