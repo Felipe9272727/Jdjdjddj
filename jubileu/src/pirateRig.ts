@@ -81,32 +81,35 @@ function paintWeights(pos: Float32Array): { joints: Uint16Array; weights: Float3
         const y = pos[i * 3 + 1];
         const s = new Float32Array(7);
 
-        // HEAD — head + tricorne; ramp starts lower for a smoother neck/collar.
-        s[PB.head] = ss(y, 0.18, 0.30);
+        // The GLB is ONE fused mesh, so the trick is to weight it as if it were SEPARATE
+        // parts — each region rides one bone rigidly — otherwise the cloth smears/shears and
+        // the captain looks "contorted". The key: the long COAT/CAPE skirt belongs to the
+        // TORSO, not the legs, so it sways as one piece while the boots step underneath.
 
-        // ARMS — the OUTER-X edges of the torso. The arm BONE sits at Y≈0.12, so
-        // the weight must span the whole arm COLUMN (waist up to shoulder), not a
-        // thin sliver — otherwise the bone pivots above dead, unweighted verts and
-        // the swing animates nothing. Cover Y -0.10 -> shoulder, outer-x only.
-        const armY = ss(y, -0.10, 0.06) * (1 - ss(y, 0.18, 0.28));
-        s[PB.l_arm] = armY * ss(-x, 0.05, 0.11);   // left  (x < 0)
-        s[PB.r_arm] = armY * ss( x, 0.05, 0.11);   // right (x > 0)
+        // HEAD — head + tricorne; sharp so the hat is a rigid block (no neck shear on the laugh).
+        s[PB.head] = ss(y, 0.20, 0.30);
 
-        // LEGS — lower half, split by X sign with a STEEP ramp + small dead-zone so
-        // the fused boot block doesn't share weight across the centreline (which
-        // made the L/R walk rotations shear the crotch seam).
-        const legBand = 1 - ss(y, -0.16, 0.0);
-        s[PB.l_leg] = legBand * ss(0.015 - x, 0.0, 0.05);
-        s[PB.r_leg] = legBand * ss(0.015 + x, 0.0, 0.05);
+        // ARMS — the coat SLEEVES: outer-x columns from mid-torso to shoulder, so an arm move
+        // carries its sleeve (but stays off the chest/back so the coat body doesn't follow).
+        const armY = ss(y, -0.04, 0.07) * (1 - ss(y, 0.18, 0.28));
+        s[PB.l_arm] = armY * ss(-x, 0.06, 0.12);   // left  (x < 0)
+        s[PB.r_arm] = armY * ss( x, 0.06, 0.12);   // right (x > 0)
 
-        // BODY — central torso column, whatever the limbs/head didn't claim (small
-        // floor so the column is always anchored, but not a heavy everywhere-bias).
+        // LEGS — ONLY the boots / lower shins (low Y), split L/R with a dead-zone at the
+        // centreline. The draping coat skirt ABOVE the boots is intentionally NOT claimed here
+        // (it goes to the body), so a leg swing moves the boot, not the whole skirt.
+        const bootBand = 1 - ss(y, -0.30, -0.18);
+        s[PB.l_leg] = bootBand * ss(0.02 - x, 0.0, 0.05);
+        s[PB.r_leg] = bootBand * ss(0.02 + x, 0.0, 0.05);
+
+        // BODY — the WHOLE torso + the hanging coat/cape skirt: everything below the head that
+        // the sleeves and boots didn't strongly claim. So the coat is one rigid piece on the
+        // torso bone and never tears between the legs or shears on a lean.
         const claimed = s[PB.l_arm] + s[PB.r_arm] + s[PB.l_leg] + s[PB.r_leg] + s[PB.head];
-        s[PB.body] = Math.max(0.02,
-            ss(y, -0.12, 0.06) * (1 - ss(y, 0.16, 0.30)) * (1 - claimed));
+        s[PB.body] = Math.max(0.03, (1 - ss(y, 0.18, 0.30)) * (1 - claimed));
 
         // ROOT — tiny constant so no vertex is ever fully unweighted.
-        s[PB.root] = 0.01;
+        s[PB.root] = 0.005;
 
         const rank = [0, 1, 2, 3, 4, 5, 6].sort((a, b) => s[b] - s[a]);
         let total = 0;
