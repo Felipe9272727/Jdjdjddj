@@ -1668,6 +1668,7 @@ export default function App() {
                   active={hasStarted}
                   flashlightActive={inventory.flashlight.active}
                   flashlightOwned={inventory.flashlight.owned}
+                  cutsceneActive={(currentLevel === 7 && (f7Intro || captainGreeting)) || cartoonCutscene || cartoonFall || rebreather3DActive || diverPhase === 'fading'}
                 />
             )}
             {/* Rebreather 3D put-on cinematic — viewmodel-style, attaches

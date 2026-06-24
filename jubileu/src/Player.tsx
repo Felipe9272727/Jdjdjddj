@@ -903,9 +903,10 @@ interface FPArmModelProps {
   flashlightActive: boolean;
   flashlightOwned: boolean;
   pickupItem: PickupItem;
+  cutsceneActive?: boolean;   // hide the FP arm while a cutscene/dialogue owns the camera
 }
 
-export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightActive, flashlightOwned, pickupItem }) => {
+export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightActive, flashlightOwned, pickupItem, cutsceneActive }) => {
   const { camera } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   const armPivotRef = useRef<THREE.Group>(null);
@@ -960,7 +961,7 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
     //   - s.timed.active → mid pickup-or-use animation (buy, cookie)
     const holdingSomething = armExtended || s.timed.active;
     const fpView = zoomLevel < 0.5;
-    g.visible = active && fpView && holdingSomething;
+    g.visible = active && fpView && holdingSomething && !cutsceneActive;   // never let the FP hand block a cutscene
     if (!g.visible) return;
 
     g.position.copy(camera.position);

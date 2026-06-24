@@ -57,7 +57,11 @@ const BP: ReadonlyArray<readonly [number, number, number]> = [
     [-0.05, -0.18, 0],   // l_leg — left hip
     [ 0.05, -0.18, 0],   // r_leg — right hip
 ];
-const BPARENT = [-1, 0, 1, 1, 1, 1, 1] as const;
+// legs hang off the ROOT, NOT the body: if the legs are children of the torso bone
+// they inherit every breath/lean/laugh the torso does, which shears the thigh skin
+// (hip rises with the torso while the boot stays planted = a stretched leg). Parenting
+// them to the root keeps the boots independent of the upper-body performance.
+const BPARENT = [-1, 0, 1, 1, 1, 0, 0] as const;
 const BNAME   = ['p_root', 'p_body', 'p_head', 'p_l_arm', 'p_r_arm', 'p_l_leg', 'p_r_leg'] as const;
 
 // smoothstep
@@ -168,6 +172,9 @@ export function buildPirateRig(gltf: THREE.Object3D): PirateRig | null {
     skinned.frustumCulled = false;
     skinned.add(bones[0]);
     skinned.bind(skeleton);
+    // ensure each vertex's 4 weights sum to exactly 1.0 — unnormalised weights are a
+    // classic source of skin distortion/stretch when a bone rotates (three.js docs).
+    skinned.normalizeSkinWeights();
 
     const group = new THREE.Group();
     group.add(skinned);
