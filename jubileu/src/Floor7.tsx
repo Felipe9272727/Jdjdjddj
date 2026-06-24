@@ -86,7 +86,7 @@ const M = {
     plankDk: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.03, color: '#ac8049', roughness: 0.82, envMapIntensity: 0.6 }),
     rail: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, bumpMap: _trimWood.rough, bumpScale: 0.025, color: '#b07f48', roughness: 0.55, envMapIntensity: 0.8 }),
     mast: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#b58a52', roughness: 0.6 }),
-    sail: new THREE.MeshStandardMaterial({ map: _sailCloth.map, roughnessMap: _sailCloth.rough, color: '#f2ead6', roughness: 0.92, side: THREE.DoubleSide, envMapIntensity: 0.4 }),
+    sail: new THREE.MeshStandardMaterial({ map: _sailCloth.map, roughnessMap: _sailCloth.rough, color: '#f2ead6', roughness: 0.92, side: THREE.DoubleSide, envMapIntensity: 0.4, transparent: true }),
     rope: new THREE.MeshStandardMaterial({ color: '#caa56a', roughness: 1 }),
     flag: new THREE.MeshStandardMaterial({ map: makeJollyRoger(), roughness: 0.95, side: THREE.DoubleSide }),
     barrel: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#9c7038', roughness: 0.7 }),
@@ -1314,9 +1314,12 @@ interface Floor7Props {
     introLaughRef?: React.MutableRefObject<number>;
     // intro cutscene power-stance strength (0..1) — drives the captain's akimbo reveal pose.
     introPoseRef?: React.MutableRefObject<number>;
+    // intro cutscene: hide the (bow) sails during the LOOK BACK beat so the dead foresail
+    // plane doesn't crowd the hero "floor 7" elevator frame.
+    introHideSailsRef?: React.MutableRefObject<number>;
 }
 
-export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, handleRef, captainAnchorRef, introElevFadeRef, introLaughRef, introPoseRef }) => {
+export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, handleRef, captainAnchorRef, introElevFadeRef, introLaughRef, introPoseRef, introHideSailsRef }) => {
     const shipRef = useRef<THREE.Group>(null);
     const captainRef = useRef<THREE.Group>(null);
     const capRig: CaptainRig = {
@@ -1578,6 +1581,12 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             M.elevSeam.opacity = f; M.elevEdge.opacity = f;
             M.elevGlow.emissiveIntensity = 1.4 * f;
             if (elevLightRef.current) elevLightRef.current.intensity = 6 * f;
+        }
+        // hide the sails during the LOOK BACK beat (camera is on the cab; the bow foresail
+        // was a dead beige plane crowding the hero "7"). Smoothly fade so there's no pop.
+        {
+            const want = 1 - (introHideSailsRef?.current ?? 0);
+            M.sail.opacity += (want - M.sail.opacity) * Math.min(1, dt * 12);
         }
         // puddles erode directionally: the disc stays full-size; the per-cell
         // wetness mask (driven from the brain) discards the scrubbed cells, and

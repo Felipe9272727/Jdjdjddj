@@ -43,13 +43,14 @@ interface Props {
     elevFadeRef?: React.MutableRefObject<number | null>;         // we drive the cab fade during the intro
     laughRef?: React.MutableRefObject<number>;                   // we drive the captain's laugh pose (0..1)
     poseRef?: React.MutableRefObject<number>;                    // we drive the captain's REVEAL power stance (0..1)
+    hideSailsRef?: React.MutableRefObject<number>;               // 1 during LOOK BACK → hide the bow sails behind the cab
     tRef?: React.MutableRefObject<number>;                       // (dev) publishes the cutscene elapsed time
     onBeat: (beat: number) => void;
     onLaugh: () => void;                                         // fire the laugh SFX once
     onDone: () => void;
 }
 
-const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, playerPositionRef, elevFadeRef, laughRef, poseRef, tRef, onBeat, onLaugh, onDone }) => {
+const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, playerPositionRef, elevFadeRef, laughRef, poseRef, hideSailsRef, tRef, onBeat, onLaugh, onDone }) => {
     const { camera } = useThree();
     const elapsed = useRef(0);          // accumulated from CLAMPED delta — immune to the big frame-delta spike when the captain GLB resolves from Suspense
     const primed = useRef(false);
@@ -68,8 +69,9 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             if (elevFadeRef) elevFadeRef.current = null;     // hand the cab fade back to the brain
             if (laughRef) laughRef.current = 0;
             if (poseRef) poseRef.current = 0;
+            if (hideSailsRef) hideSailsRef.current = 0;
         }
-    }, [active, elevFadeRef, laughRef, poseRef]);
+    }, [active, elevFadeRef, laughRef, poseRef, hideSailsRef]);
 
     // unit vector (XZ) from the captain toward the player — the "front" side to film
     const frontDir = (feet: THREE.Vector3, player: THREE.Vector3) => {
@@ -93,7 +95,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
         if (tRef) tRef.current = t;
         const feet = captainAnchorRef.current, player = playerPositionRef.current;
         const P = _p.current, T = _t.current;
-        let fov = 50, lerp = 0.12, snap = false, elev = 0, laugh = 0, pose = 0;
+        let fov = 50, lerp = 0.12, snap = false, elev = 0, laugh = 0, pose = 0, hideSails = 0;
 
         if (t < T_LEGS) {
             // A — LEGS: a low SIDE-TRACKING dolly that stays locked beside the boots as
@@ -147,7 +149,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // but the lens is tight enough that the "7"/doors dominate and the gag reads clean.
             P.set(smooth(3.0, 2.7, k), 4.7, ELEV_W.z + smooth(3.4, 3.0, k));
             T.set(0.25, smooth(2.7, 2.2, k), ELEV_W.z + 0.3);
-            fov = 39; lerp = 0.1; pose = 1;                     // captain holds his stance (off-camera) into the laugh
+            fov = 39; lerp = 0.1; pose = 1; hideSails = 1;      // hide the bow sails so they don't crowd the hero "7"
             // hold the lit doors solid ~1.1s so "an elevator?! out here?!" lands, then dissolve
             elev = 1 - smooth(0, 1, Math.max(0, k - 0.46) / 0.32);
         } else if (t < T_END) {
@@ -161,12 +163,13 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             P.x += 0.55 + Math.sin(t * 0.9) * 0.05; P.y += Math.cos(t * 1.1) * 0.03;   // 3/4 + handheld drift
             T.copy(feet); T.y = feet.y + 1.92;                                 // his face, framed looking up
             fov = 40; lerp = 0.12; elev = 0;
-            laugh = smooth(0, 1, (t - T_LOOKBACK - 0.25) / 0.45);              // ramp the laugh pose in just after the cut
+            laugh = smooth(0, 1, (t - T_LOOKBACK) / 0.3);                     // throw the head back ON the first "Arr" (synced to the line/bubble), not after
         } else { if (elevFadeRef) elevFadeRef.current = null; if (laughRef) laughRef.current = 0; onDone(); return; }
 
         if (elevFadeRef) elevFadeRef.current = elev;
         if (laughRef) laughRef.current = laugh;
         if (poseRef) poseRef.current = pose;
+        if (hideSailsRef) hideSailsRef.current = hideSails;
         // FRAME-RATE-INDEPENDENT smoothing: convert the per-frame lerp into a
         // dt-aware factor so the camera converges in the same WALL time at 5fps
         // (headless) or 144fps (real device) — fixed lerp would lag at low fps.

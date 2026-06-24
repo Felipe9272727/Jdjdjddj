@@ -466,7 +466,8 @@ export default function App() {
   const captainAnchorRef = useRef(new Vector3(0, 0, 0));           // Floor7 captain feet (dialogue-camera look-at)
   const f7ElevFadeRef = useRef<number | null>(null);              // intro cutscene drives the elevator dematerialisation (null = brain)
   const f7LaughRef = useRef(0);
-  const f7PoseRef = useRef(0);                                   // intro cutscene LAUGH-beat strength → captain laugh pose
+  const f7PoseRef = useRef(0);
+  const f7HideSailsRef = useRef(0);                                   // intro cutscene LAUGH-beat strength → captain laugh pose
   const [captainGreeting, setCaptainGreeting] = useState(false);   // captain is delivering the quest → lock the camera on him
   const [f7Intro, setF7Intro] = useState(false);                   // captain arrival cutscene running
   const [f7IntroBeat, setF7IntroBeat] = useState(0);               // active cutscene beat (UI/SFX)
@@ -1613,7 +1614,7 @@ export default function App() {
               }} />
             {/* Andar 7 — the pirate ship, 100% driven by the WASM (C + assembly)
                 brain. Mounted here (not in World) so it gets the Floor7 handle. */}
-            {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} captainAnchorRef={captainAnchorRef} introElevFadeRef={f7ElevFadeRef} introLaughRef={f7LaughRef} introPoseRef={f7PoseRef} />}
+            {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} captainAnchorRef={captainAnchorRef} introElevFadeRef={f7ElevFadeRef} introLaughRef={f7LaughRef} introPoseRef={f7PoseRef} introHideSailsRef={f7HideSailsRef} />}
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -1632,6 +1633,7 @@ export default function App() {
                     elevFadeRef={f7ElevFadeRef}
                     laughRef={f7LaughRef}
                     poseRef={f7PoseRef}
+                    hideSailsRef={f7HideSailsRef}
                     onBeat={setF7IntroBeat}
                     onLaugh={f7CaptainLaugh}
                     onDone={() => setF7Intro(false)}
