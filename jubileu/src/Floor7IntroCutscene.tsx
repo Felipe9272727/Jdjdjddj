@@ -142,9 +142,9 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // centre seam + gold frame + lit "7" all legible). The bow is boxed in by
             // bulwark/bowsprit/masts/sails, so this is the one readable angle — the earlier
             // failure was it dissolved before it registered, so we now HOLD it solid ~1.1s.
-            P.set(smooth(2.7, 2.4, k), 5.0, ELEV_W.z + smooth(3.3, 2.9, k));   // gentle push-in
-            T.set(0, 1.55, ELEV_W.z + 0.3);                     // doors + "7"; cab ASCENDS out of frame as it fades, leaving bare deck
-            fov = 45; lerp = 0.1; pose = 1;                     // captain holds his stance (off-camera) into the laugh
+            P.set(smooth(2.5, 2.2, k), 4.8, ELEV_W.z + smooth(3.7, 3.3, k));   // a touch lower + further back = less steep down-tilt
+            T.set(0, smooth(2.75, 2.2, k), ELEV_W.z + 0.3);     // aim at the "7"/upper doors (squarer, less Dutch); drift down as the cab ascends away
+            fov = 44; lerp = 0.1; pose = 1;                     // captain holds his stance (off-camera) into the laugh
             // hold the lit doors solid ~1.1s so "an elevator?! out here?!" lands, then dissolve
             elev = 1 - smooth(0, 1, Math.max(0, k - 0.46) / 0.32);
         } else if (t < T_END) {

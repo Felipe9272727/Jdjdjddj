@@ -1223,7 +1223,8 @@ const PirateCaptain: React.FC<{
         const talk = talking ? (Math.sin(t * 4.5) + 0.5 * Math.sin(t * 9.1 + 0.7)) * 0.08 : 0;
         if (talking) bn[PB.body].rotation.x += Math.max(0, Math.sin(t * 4.5)) * 0.015;  // speech body emphasis
         bn[PB.head].rotation.y = _hd.current * 0.65 + (talking ? Math.sin(t * 3.3) * 0.02 : 0);
-        bn[PB.head].rotation.x = 0.16 - pitch * 0.3 + Math.sin(t * 0.5) * 0.02 + talk;   // hold the down-look as the deck pitches
+        const _lf = laughRef?.current ?? 0;   // fade the down-look + talk nod out as the laugh takes over
+        bn[PB.head].rotation.x = (0.16 - pitch * 0.3 + Math.sin(t * 0.5) * 0.02 + talk) * (1 - _lf);   // hold the down-look as the deck pitches
         bn[PB.head].rotation.z = -bodyLean * 0.4 + Math.sin(t * 0.45) * 0.02; // keep head level as torso sways
         // LEGS — counter-translate the bob/breath so the soles stay nailed to the deck.
         // During the WALK only a fraction is applied: a full counter-translate fights the
@@ -1273,13 +1274,13 @@ const PirateCaptain: React.FC<{
             // pulse and the apex holds ~0.3s so it lands on camera (not a flickery bounce).
             const pulse = Math.max(0, Math.sin(t * 6.5)) ** 0.5;       // sharp rise, held crest, one per "arr"
             const a = pulse * L;
-            bn[PB.head].rotation.x += L * -0.32 + a * -0.6;            // chin snaps UP to ~50° on each "arr"
+            bn[PB.head].rotation.x += L * -0.78 + a * -0.4;            // chin held UP (overrides the talk nod), snapping further on each "arr"
             bn[PB.head].rotation.y += Math.sin(t * 5) * 0.05 * L;
-            bn[PB.body].rotation.x += L * -0.12 + a * -0.26;           // whole chest heaves back
+            bn[PB.body].rotation.x += L * -0.2 + a * -0.18;            // chest leaned back + heaves
             bn[PB.body].rotation.z += Math.sin(t * 6.5) * 0.06 * L;    // shoulders rock side to side
             bn[PB.body].rotation.y *= (1 - 0.6 * L);                   // square up to the player
-            bn[PB.l_arm].rotation.x += L * -0.5 + a * -0.5;            // both hands clap up toward the belly per heave
-            bn[PB.r_arm].rotation.x += L * -0.5 + a * -0.5;
+            bn[PB.l_arm].rotation.x += L * -0.55 + a * -0.45;          // both hands clap up toward the belly per heave
+            bn[PB.r_arm].rotation.x += L * -0.55 + a * -0.45;
             bn[PB.l_arm].rotation.z += 0.4 * L;
             bn[PB.r_arm].rotation.z += -0.4 * L;
         }
