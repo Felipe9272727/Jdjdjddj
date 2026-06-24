@@ -469,13 +469,16 @@ export default function App() {
   const f7PoseRef = useRef(0);
   const f7HideSailsRef = useRef(0);                                   // intro cutscene LAUGH-beat strength → captain laugh pose
   const f7LegsRef = useRef(0);                                        // intro LEGS close-up → swap the GLB for the rigid primitive legs
+  const f7TalkRef = useRef(0);                                        // intro TALK beat → captain speaking gesture
+  const f7DimRef = useRef(0);                                         // intro transition dip (UI darkens to mask hard cuts)
   const [captainGreeting, setCaptainGreeting] = useState(false);   // captain is delivering the quest → lock the camera on him
   const [f7Intro, setF7Intro] = useState(false);                   // captain arrival cutscene running
   const [f7IntroBeat, setF7IntroBeat] = useState(0);               // active cutscene beat (UI/SFX)
+  const [f7IntroLine, setF7IntroLine] = useState(-1);              // active cutscene dialogue line
   // play the captain-arrival cutscene the first time the player lands on Andar 7
   useEffect(() => {
     if (hasStarted && currentLevel === 7) {
-      setF7Intro(true); setF7IntroBeat(0);
+      setF7Intro(true); setF7IntroBeat(0); setF7IntroLine(-1);
       // SAFETY backstop only: the cutscene ends itself at T_END (~9.5s) via onDone.
       // This timer just guarantees control returns if a hard stall ever swallowed
       // that. It is WALL-clock while the cutscene's own clock is FRAME-based (it
@@ -1625,7 +1628,7 @@ export default function App() {
               }} />
             {/* Andar 7 — the pirate ship, 100% driven by the WASM (C + assembly)
                 brain. Mounted here (not in World) so it gets the Floor7 handle. */}
-            {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} captainAnchorRef={captainAnchorRef} introElevFadeRef={f7ElevFadeRef} introLaughRef={f7LaughRef} introPoseRef={f7PoseRef} introHideSailsRef={f7HideSailsRef} introLegsRef={f7LegsRef} />}
+            {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} captainAnchorRef={captainAnchorRef} introElevFadeRef={f7ElevFadeRef} introLaughRef={f7LaughRef} introPoseRef={f7PoseRef} introTalkRef={f7TalkRef} introHideSailsRef={f7HideSailsRef} introLegsRef={f7LegsRef} />}
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -1644,9 +1647,12 @@ export default function App() {
                     elevFadeRef={f7ElevFadeRef}
                     laughRef={f7LaughRef}
                     poseRef={f7PoseRef}
+                    talkRef={f7TalkRef}
                     hideSailsRef={f7HideSailsRef}
                     legsRef={f7LegsRef}
+                    dimRef={f7DimRef}
                     onBeat={setF7IntroBeat}
+                    onLine={setF7IntroLine}
                     onLaugh={f7CaptainLaugh}
                     onDone={() => setF7Intro(false)}
                 />
@@ -1824,7 +1830,7 @@ export default function App() {
       <PhotoModeOverlay progress={photo.progress} onClose={photo.close} />
       {/* Andar 7 (pirate ship) — captain dialogue + cleaning HUD + interact button */}
       {hasStarted && currentLevel === 7 && !f7Intro && <Floor7Overlay handleRef={floor7Handle} onGreeting={setCaptainGreeting} />}
-      {hasStarted && currentLevel === 7 && f7Intro && <Floor7IntroUI beat={f7IntroBeat} onSkip={() => setF7Intro(false)} />}
+      {hasStarted && currentLevel === 7 && f7Intro && <Floor7IntroUI beat={f7IntroBeat} line={f7IntroLine} dimRef={f7DimRef} onSkip={() => setF7Intro(false)} />}
       {/* Empty lobby atmospheric touches — thuds, flickers, wall text */}
       {hasStarted && currentLevel === 0 && gameState === 'lobby' && (
           <EmptyLobbyAmbience playerCount={otherPlayerIds.length} />

@@ -58,16 +58,21 @@ const App: React.FC = () => {
     const poseRef = useRef(0);
     const hideSailsRef = useRef(0);
     const legsRef = useRef(0);
+    const talkRef = useRef(0);
+    const dimRef = useRef(0);
     const tRef = useRef(0);
     const [active, setActive] = useState(true);
     const [beat, setBeat] = useState(0);
+    const [lineIdx, setLineIdx] = useState(-1);
     const beatRef = useRef(0);
+    const lineRef = useRef(-1);
     const doneRef = useRef(false);
 
     useEffect(() => {
         window.__beat = () => beatRef.current;
         window.__done = () => doneRef.current;
-        window.__restart = () => { doneRef.current = false; beatRef.current = 0; setBeat(0); handle.current.brain?.reset(); setActive(false); setTimeout(() => setActive(true), 40); };
+        (window as unknown as { __line?: () => number }).__line = () => lineRef.current;
+        window.__restart = () => { doneRef.current = false; beatRef.current = 0; setBeat(0); setLineIdx(-1); handle.current.brain?.reset(); setActive(false); setTimeout(() => setActive(true), 40); };
         (window as unknown as { __holdElev?: (f: number) => void }).__holdElev = (f) => { elevFadeRef.current = f; };
         (window as unknown as { __t?: () => number }).__t = () => tRef.current;
         window.__ready = true;
@@ -76,7 +81,7 @@ const App: React.FC = () => {
     return (
         <>
             <Canvas camera={{ fov: 58, position: [0, EYE, 4.2 * FLOOR7_SCALE], near: 0.05, far: 400 }} gl={{ antialias: true }}>
-                <Floor7Environment playerPositionRef={posRef} handleRef={handle} captainAnchorRef={capRef} introElevFadeRef={elevFadeRef} introLaughRef={laughRef} introPoseRef={poseRef} introHideSailsRef={hideSailsRef} introLegsRef={legsRef} />
+                <Floor7Environment playerPositionRef={posRef} handleRef={handle} captainAnchorRef={capRef} introElevFadeRef={elevFadeRef} introLaughRef={laughRef} introPoseRef={poseRef} introTalkRef={talkRef} introHideSailsRef={hideSailsRef} introLegsRef={legsRef} />
                 {active && (
                     <Floor7IntroCutscene
                         active={active}
@@ -85,10 +90,13 @@ const App: React.FC = () => {
                         elevFadeRef={elevFadeRef}
                         laughRef={laughRef}
                         poseRef={poseRef}
+                        talkRef={talkRef}
                         hideSailsRef={hideSailsRef}
                         legsRef={legsRef}
+                        dimRef={dimRef}
                         tRef={tRef}
                         onBeat={(b) => { beatRef.current = b; setBeat(b); }}
+                        onLine={(l) => { lineRef.current = l; setLineIdx(l); }}
                         onLaugh={() => { /* headless: no audio ctx */ }}
                         onDone={() => { doneRef.current = true; setActive(false); }}
                     />
@@ -96,7 +104,7 @@ const App: React.FC = () => {
                 {/* Probe mounted LAST so its free-cam useFrame overrides the cutscene when __cam is set */}
                 <Probe posRef={posRef} capRef={capRef} onPause={(p) => setActive(!p)} />
             </Canvas>
-            {active && <Floor7IntroUI beat={beat} onSkip={() => setActive(false)} />}
+            {active && <Floor7IntroUI beat={beat} line={lineIdx} dimRef={dimRef} onSkip={() => setActive(false)} />}
         </>
     );
 };
