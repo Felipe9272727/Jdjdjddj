@@ -112,7 +112,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // then HOLDS (motion settles by ~70%) so the reveal lands instead of drifting.
             if (beat.current !== F7_INTRO_BEATS.REVEAL) { beat.current = F7_INTRO_BEATS.REVEAL; onBeat(beat.current); }
             const k = (t - T_LEGS) / (T_REVEAL - T_LEGS);
-            const kk = Math.min(1, k / 0.7);                     // reach the hero framing by 70%, then hold
+            const kk = Math.min(1, k / 0.9);                     // keep the crane easing almost the whole beat so the reveal breathes into the pose (not parked early)
             // continuous crane that STARTS at the LEGS low-side position and arcs up+around to
             // a low-hero 3/4 — no whip (the offsets blend from the boot shot, not a fresh cut).
             // stays in front of the foremast (z≈+3.2) so it can't cut across him.
@@ -142,9 +142,12 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // centre seam + gold frame + lit "7" all legible). The bow is boxed in by
             // bulwark/bowsprit/masts/sails, so this is the one readable angle — the earlier
             // failure was it dissolved before it registered, so we now HOLD it solid ~1.1s.
-            P.set(smooth(2.5, 2.2, k), 4.8, ELEV_W.z + smooth(3.7, 3.3, k));   // a touch lower + further back = less steep down-tilt
-            T.set(0, smooth(2.75, 2.2, k), ELEV_W.z + 0.3);     // aim at the "7"/upper doors (squarer, less Dutch); drift down as the cab ascends away
-            fov = 44; lerp = 0.1; pose = 1;                     // captain holds his stance (off-camera) into the laugh
+            // tight + high (clears the bulwark) on the doors with the glowing "7" centred; the
+            // bow foresail is intrinsic to this corner of the ship so a sliver stays upper-left,
+            // but the lens is tight enough that the "7"/doors dominate and the gag reads clean.
+            P.set(smooth(3.0, 2.7, k), 4.7, ELEV_W.z + smooth(3.4, 3.0, k));
+            T.set(0.25, smooth(2.7, 2.2, k), ELEV_W.z + 0.3);
+            fov = 39; lerp = 0.1; pose = 1;                     // captain holds his stance (off-camera) into the laugh
             // hold the lit doors solid ~1.1s so "an elevator?! out here?!" lands, then dissolve
             elev = 1 - smooth(0, 1, Math.max(0, k - 0.46) / 0.32);
         } else if (t < T_END) {

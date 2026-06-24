@@ -1257,10 +1257,10 @@ const PirateCaptain: React.FC<{
         // a confident "behold the captain" posture blended over the idle as he's revealed.
         const PO = poseRef?.current ?? 0;
         if (PO > 0.001) {
-            bn[PB.l_arm].rotation.x += 0.7 * PO; bn[PB.l_arm].rotation.z += 0.55 * PO;   // elbow out, hand to hip
-            bn[PB.r_arm].rotation.x += 0.7 * PO; bn[PB.r_arm].rotation.z += -0.55 * PO;
-            bn[PB.body].rotation.x += -0.06 * PO;                                         // chest out
-            bn[PB.head].rotation.x += -0.10 * PO;                                         // chin up
+            bn[PB.l_arm].rotation.x += 0.92 * PO; bn[PB.l_arm].rotation.z += 0.78 * PO;   // elbows WIDE, hands to the hips (akimbo)
+            bn[PB.r_arm].rotation.x += 0.92 * PO; bn[PB.r_arm].rotation.z += -0.78 * PO;
+            bn[PB.body].rotation.x += -0.08 * PO;                                         // chest out
+            bn[PB.head].rotation.x += -0.12 * PO;                                         // chin up
         }
         // LAUGH (intro cutscene): head tips back, chest heaves, shoulders bounce in
         // a quick "arr-arr-arr" cadence, both hands rock up toward the belly. Blended
@@ -1273,7 +1273,9 @@ const PirateCaptain: React.FC<{
             const a = pulse * L;
             // a CLEAR but controlled belly-laugh — a held chin-up with gentle "arr" bobs, not
             // a writhing flail (the bigger amplitudes read as the captain convulsing).
-            bn[PB.head].rotation.x += L * -0.5 + a * -0.18;            // chin held up (overrides the talk nod), small nod per "arr"
+            // a clear head-thrown-back laugh (the HEAD travels — that's not the "contortion";
+            // the body/arms stay controlled so he doesn't convulse).
+            bn[PB.head].rotation.x += L * -0.62 + a * -0.28;           // chin tips back, snapping further on each "arr"
             bn[PB.body].rotation.x += L * -0.1 + a * -0.08;            // slight chest lean-back + heave
             bn[PB.body].rotation.z += Math.sin(t * 6.2) * 0.025 * L;   // subtle shoulder rock
             bn[PB.body].rotation.y *= (1 - 0.6 * L);                   // square up to the player
