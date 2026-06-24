@@ -468,6 +468,7 @@ export default function App() {
   const f7LaughRef = useRef(0);
   const f7PoseRef = useRef(0);
   const f7HideSailsRef = useRef(0);                                   // intro cutscene LAUGH-beat strength → captain laugh pose
+  const f7LegsRef = useRef(0);                                        // intro LEGS close-up → swap the GLB for the rigid primitive legs
   const [captainGreeting, setCaptainGreeting] = useState(false);   // captain is delivering the quest → lock the camera on him
   const [f7Intro, setF7Intro] = useState(false);                   // captain arrival cutscene running
   const [f7IntroBeat, setF7IntroBeat] = useState(0);               // active cutscene beat (UI/SFX)
@@ -475,10 +476,13 @@ export default function App() {
   useEffect(() => {
     if (hasStarted && currentLevel === 7) {
       setF7Intro(true); setF7IntroBeat(0);
-      // SAFETY: the cutscene ends itself at T_END (~9.5s) via onDone, but if a
-      // stall ever swallowed that, force control back so the player can never be
-      // stranded with the camera locked. Generous buffer over the 9.5s runtime.
-      const safety = setTimeout(() => setF7Intro(false), 13000);
+      // SAFETY backstop only: the cutscene ends itself at T_END (~9.5s) via onDone.
+      // This timer just guarantees control returns if a hard stall ever swallowed
+      // that. It is WALL-clock while the cutscene's own clock is FRAME-based (it
+      // stretches at low fps), so the budget must clear the worst realistic playback
+      // time — 60s covers everything down to ~3fps, so it never clips a normal run
+      // and only fires on a genuine freeze. (The player can also skip at any time.)
+      const safety = setTimeout(() => setF7Intro(false), 60000);
       return () => clearTimeout(safety);
     }
     setF7Intro(false);
@@ -1621,7 +1625,7 @@ export default function App() {
               }} />
             {/* Andar 7 — the pirate ship, 100% driven by the WASM (C + assembly)
                 brain. Mounted here (not in World) so it gets the Floor7 handle. */}
-            {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} captainAnchorRef={captainAnchorRef} introElevFadeRef={f7ElevFadeRef} introLaughRef={f7LaughRef} introPoseRef={f7PoseRef} introHideSailsRef={f7HideSailsRef} />}
+            {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} captainAnchorRef={captainAnchorRef} introElevFadeRef={f7ElevFadeRef} introLaughRef={f7LaughRef} introPoseRef={f7PoseRef} introHideSailsRef={f7HideSailsRef} introLegsRef={f7LegsRef} />}
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -1641,6 +1645,7 @@ export default function App() {
                     laughRef={f7LaughRef}
                     poseRef={f7PoseRef}
                     hideSailsRef={f7HideSailsRef}
+                    legsRef={f7LegsRef}
                     onBeat={setF7IntroBeat}
                     onLaugh={f7CaptainLaugh}
                     onDone={() => setF7Intro(false)}

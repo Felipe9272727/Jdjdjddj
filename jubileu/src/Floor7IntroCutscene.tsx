@@ -44,13 +44,14 @@ interface Props {
     laughRef?: React.MutableRefObject<number>;                   // we drive the captain's laugh pose (0..1)
     poseRef?: React.MutableRefObject<number>;                    // we drive the captain's REVEAL power stance (0..1)
     hideSailsRef?: React.MutableRefObject<number>;               // 1 during LOOK BACK → hide the bow sails behind the cab
+    legsRef?: React.MutableRefObject<number>;                    // 1 during the LEGS close-up → swap GLB for the rigid primitive legs
     tRef?: React.MutableRefObject<number>;                       // (dev) publishes the cutscene elapsed time
     onBeat: (beat: number) => void;
     onLaugh: () => void;                                         // fire the laugh SFX once
     onDone: () => void;
 }
 
-const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, playerPositionRef, elevFadeRef, laughRef, poseRef, hideSailsRef, tRef, onBeat, onLaugh, onDone }) => {
+const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, playerPositionRef, elevFadeRef, laughRef, poseRef, hideSailsRef, legsRef, tRef, onBeat, onLaugh, onDone }) => {
     const { camera } = useThree();
     const elapsed = useRef(0);          // accumulated from CLAMPED delta — immune to the big frame-delta spike when the captain GLB resolves from Suspense
     const primed = useRef(false);
@@ -70,6 +71,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             if (laughRef) laughRef.current = 0;
             if (poseRef) poseRef.current = 0;
             if (hideSailsRef) hideSailsRef.current = 0;
+            if (legsRef) legsRef.current = 0;
         }
     }, [active, elevFadeRef, laughRef, poseRef, hideSailsRef]);
 
@@ -95,7 +97,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
         if (tRef) tRef.current = t;
         const feet = captainAnchorRef.current, player = playerPositionRef.current;
         const P = _p.current, T = _t.current;
-        let fov = 50, lerp = 0.12, snap = false, elev = 0, laugh = 0, pose = 0, hideSails = 0;
+        let fov = 50, lerp = 0.12, snap = false, elev = 0, laugh = 0, pose = 0, hideSails = 0, legs = 0;
 
         if (t < T_LEGS) {
             // A — LEGS: a low SIDE-TRACKING dolly that stays locked beside the boots as
@@ -107,7 +109,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // same x) so the silhouette stays clean — no Dutch tilt scrambling the legs.
             P.copy(feet); P.x += 2.05; P.y = feet.y + 0.30; P.z += 0.15;
             T.copy(feet); T.x = feet.x; T.y = feet.y + 0.36; T.z = feet.z;   // level, tight on the boots/lower coat — keeps the high sail out of frame
-            fov = 49; lerp = 0.5; elev = 1;
+            fov = 49; lerp = 0.5; elev = 1; legs = 1;   // rigid primitive legs stand in for the GLB during this tight close-up
         } else if (t < T_REVEAL) {
             // B — REVEAL: continue from the LEGS shot into a LOW-HERO crane that pulls back
             // and arcs to a 3/4, ending on the full captain looming against the sky/mast —
@@ -170,6 +172,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
         if (laughRef) laughRef.current = laugh;
         if (poseRef) poseRef.current = pose;
         if (hideSailsRef) hideSailsRef.current = hideSails;
+        if (legsRef) legsRef.current = legs;
         // FRAME-RATE-INDEPENDENT smoothing: convert the per-frame lerp into a
         // dt-aware factor so the camera converges in the same WALL time at 5fps
         // (headless) or 144fps (real device) — fixed lerp would lag at low fps.

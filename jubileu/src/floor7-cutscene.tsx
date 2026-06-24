@@ -57,6 +57,7 @@ const App: React.FC = () => {
     const laughRef = useRef(0);
     const poseRef = useRef(0);
     const hideSailsRef = useRef(0);
+    const legsRef = useRef(0);
     const tRef = useRef(0);
     const [active, setActive] = useState(true);
     const [beat, setBeat] = useState(0);
@@ -75,7 +76,7 @@ const App: React.FC = () => {
     return (
         <>
             <Canvas camera={{ fov: 58, position: [0, EYE, 4.2 * FLOOR7_SCALE], near: 0.05, far: 400 }} gl={{ antialias: true }}>
-                <Floor7Environment playerPositionRef={posRef} handleRef={handle} captainAnchorRef={capRef} introElevFadeRef={elevFadeRef} introLaughRef={laughRef} introPoseRef={poseRef} introHideSailsRef={hideSailsRef} />
+                <Floor7Environment playerPositionRef={posRef} handleRef={handle} captainAnchorRef={capRef} introElevFadeRef={elevFadeRef} introLaughRef={laughRef} introPoseRef={poseRef} introHideSailsRef={hideSailsRef} introLegsRef={legsRef} />
                 {active && (
                     <Floor7IntroCutscene
                         active={active}
@@ -85,6 +86,7 @@ const App: React.FC = () => {
                         laughRef={laughRef}
                         poseRef={poseRef}
                         hideSailsRef={hideSailsRef}
+                        legsRef={legsRef}
                         tRef={tRef}
                         onBeat={(b) => { beatRef.current = b; setBeat(b); }}
                         onLaugh={() => { /* headless: no audio ctx */ }}

@@ -72,6 +72,7 @@ export { default as npcWalkModel }       from './models/npc-walking.glb';    // 
 export { default as npcIdleModel }       from './models/npc-idle.glb';       // lobby NPC idle
 export { default as blockyCharModel }    from './models/blocky-character.glb'; // Dussekar (house)
 export { default as cashierModel }       from './models/button_pushing.glb'; // lobby cashier
+export { default as pirateCaptainModel } from './models/pirate-captain.glb'; // Floor 7 captain
 export { default as diabreteModel }      from './models/diabrete.glb';       // Floor 3 rival
 export { default as glovesModel }        from './models/cartoon_gloves.glb'; // Floor 3 hands
 export { default as sharkModel }         from './models/monster/shark.glb';  // Floor 2 monster fish
