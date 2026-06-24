@@ -1,7 +1,7 @@
 // Capture the cutscene at EVEN cutscene-time intervals across the whole timeline
 // (transitions, cuts, dissolve included) — the honest playback, not cherry-picked apexes.
 const { chromium } = require('playwright');
-const OUT = '/tmp/claude-0/-home-user-Jdjdjddj/78f2d8bc-a0f7-5989-a75f-906fec3961cd/scratchpad/seq';
+const OUT = process.env.SEQDIR || '/tmp/claude-0/-home-user-Jdjdjddj/78f2d8bc-a0f7-5989-a75f-906fec3961cd/scratchpad/seq';
 const fs = require('fs');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 (async () => {
