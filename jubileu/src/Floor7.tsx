@@ -159,12 +159,16 @@ const M = {
 // glowing floor-indicator "7" — sells the "The Normal Elevator, floor 7" gag on the cab.
 function makeFloorNumTex(n: string): THREE.CanvasTexture | null {
     if (typeof document === 'undefined') return null;
-    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const c = document.createElement('canvas'); c.width = c.height = 256;
     const x = c.getContext('2d'); if (!x) return null;
-    x.fillStyle = '#140d04'; x.fillRect(0, 0, 128, 128);
-    x.fillStyle = '#ffd27a'; x.font = 'bold 96px Georgia'; x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.fillText(n, 64, 70);
-    const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
+    // near-black plate with a bright gold bezel + a big bright glyph so it survives the
+    // washed software-GL exposure and reads as a lit floor indicator.
+    x.fillStyle = '#0a0703'; x.fillRect(0, 0, 256, 256);
+    x.strokeStyle = '#ffcf6e'; x.lineWidth = 12; x.strokeRect(14, 14, 228, 228);
+    x.fillStyle = '#fff3cf'; x.font = 'bold 190px Georgia'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.shadowColor = '#ffd27a'; x.shadowBlur = 22;
+    x.fillText(n, 128, 142);
+    const t = new THREE.CanvasTexture(c); t.anisotropy = 8; return t;
 }
 const _floor7NumTex = makeFloorNumTex('7');
 const M_elevNum = new THREE.MeshBasicMaterial({ map: _floor7NumTex ?? undefined, color: _floor7NumTex ? '#ffffff' : '#ffd27a', toneMapped: false, fog: false, transparent: true });
@@ -1155,11 +1159,12 @@ const PirateCaptain: React.FC<{
         const walking = b.capWalking();
         const roll = b.roll(), pitch = b.pitch();
         const ph = t * 7.0;
-        // CLUMSY entry stride: a heavier vertical lurch + a peg-leg hitch (every other
-        // step dips deeper) so the gait reads awkward/comedic — he's "desajeitado".
-        const hitch = walking ? (Math.sin(ph * 0.5) > 0 ? 1.0 : 0.45) : 0;   // alternate step weight
-        const lurch = walking ? Math.max(0, Math.sin(ph)) * 0.075 * (0.6 + 0.4 * hitch) : 0;
-        const waddle = walking ? Math.sin(ph) * 0.06 : 0;                    // side-to-side body roll
+        // CLUMSY entry stride: a gentle vertical lurch + a peg-leg hitch (every other step
+        // dips a touch deeper) so the gait reads awkward/comedic — he's "desajeitado".
+        // (kept small so the whole figure doesn't sink the boots through the deck.)
+        const hitch = walking ? (Math.sin(ph * 0.5) > 0 ? 1.0 : 0.5) : 0;    // alternate step weight
+        const lurch = walking ? Math.max(0, Math.sin(ph)) * 0.04 * (0.7 + 0.3 * hitch) : 0;
+        const waddle = walking ? Math.sin(ph) * 0.055 : 0;                   // side-to-side body roll
         // breathing: a squared sine = quick inhale, held exhale (a piston sine reads
         // mechanical). Drives the TORSO only — never the planted feet.
         const breath = Math.sin(t * 1.15) ** 2 * 0.02;
@@ -1221,13 +1226,17 @@ const PirateCaptain: React.FC<{
         bn[PB.head].rotation.x = 0.16 - pitch * 0.3 + Math.sin(t * 0.5) * 0.02 + talk;   // hold the down-look as the deck pitches
         bn[PB.head].rotation.z = -bodyLean * 0.4 + Math.sin(t * 0.45) * 0.02; // keep head level as torso sways
         // LEGS — counter-translate the bob/breath so the soles stay nailed to the deck.
-        // Idle stance: hip cocked above + weight off the relaxed leg (NO leg yaw — that
-        // twisted the fused coat skirt). Walk is the out-of-phase plant gait.
-        bn[PB.l_leg].position.y = r.restPos[PB.l_leg].y - bodyRise;
-        bn[PB.r_leg].position.y = r.restPos[PB.r_leg].y - bodyRise;
+        // During the WALK only a fraction is applied: a full counter-translate fights the
+        // body's bob and visibly STRETCHES the thigh (hip rises, foot pinned) — while
+        // striding a small foot-lift reads fine, so keep the legs mostly with the body.
+        const legCounter = walking ? bodyRise * 0.2 : bodyRise;
+        bn[PB.l_leg].position.y = r.restPos[PB.l_leg].y - legCounter;
+        bn[PB.r_leg].position.y = r.restPos[PB.r_leg].y - legCounter;
         if (walking) {
-            bn[PB.l_leg].rotation.set(Math.max(0, Math.sin(ph)) * 0.55, 0, 0);
-            bn[PB.r_leg].rotation.set(Math.max(0, Math.sin(ph + Math.PI)) * 0.55, 0, 0);
+            // swing forward AND back (not max(0,…)) for a natural alternating stride, and
+            // gentler amplitude so the single-bone leg doesn't kick into a stretched pose.
+            bn[PB.l_leg].rotation.set(Math.sin(ph) * 0.32, 0, 0);
+            bn[PB.r_leg].rotation.set(Math.sin(ph + Math.PI) * 0.32, 0, 0);
         } else {
             bn[PB.l_leg].rotation.set(0.0, 0, 0.05);     // stance leg
             bn[PB.r_leg].rotation.set(-0.10, 0, -0.04);  // relaxed leg, knee softened, weight off it
@@ -1783,9 +1792,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     <mesh position={[-0.98, 1.2, 0.52]} material={M.elevTrim}><boxGeometry args={[0.14, 2.5, 0.14]} /></mesh>
                     <mesh position={[0.98, 1.2, 0.52]} material={M.elevTrim}><boxGeometry args={[0.14, 2.5, 0.14]} /></mesh>
                     <mesh position={[0, 2.46, 0.52]} material={M.elevTrim}><boxGeometry args={[2.1, 0.14, 0.14]} /></mesh>
-                    {/* lit floor-indicator "7" on the upper doors (kept low enough to stay in
-                        the look-back frame, which clips the very top of the tall cab) */}
-                    <mesh position={[0, 1.75, 0.56]} material={M_elevNum}><planeGeometry args={[0.42, 0.42]} /></mesh>
+                    {/* lit floor-indicator "7" on the upper doors — big & bright so it reads
+                        as the "floor 7" gag (kept low enough to stay in the look-back frame). */}
+                    <mesh position={[0, 1.7, 0.57]} material={M_elevNum}><planeGeometry args={[0.66, 0.66]} /></mesh>
                 </group>
                 {/* captain — the user's GLB, procedurally rigged. Animated by
                     the PirateCaptain component (skeleton bind in pirateRig.ts). */}
