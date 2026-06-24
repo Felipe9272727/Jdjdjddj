@@ -10,6 +10,14 @@ interface Props { beat: number; onSkip: () => void; }
 
 const Floor7IntroUI: React.FC<Props> = ({ beat, onSkip }) => {
     const laughing = beat === F7_INTRO_BEATS.LAUGH;
+    // never let a player get stuck on the cutscene: Esc / Enter / Space also skip
+    React.useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSkip(); }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [onSkip]);
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 80, pointerEvents: 'none',
             fontFamily: '"Source Sans 3","Segoe UI",sans-serif' }}>
@@ -43,11 +51,11 @@ const Floor7IntroUI: React.FC<Props> = ({ beat, onSkip }) => {
                 </div>
             )}
 
-            {/* skip */}
+            {/* skip — generous hit area, clearly above the canvas (Esc/Enter/Space also skip) */}
             <button onClick={onSkip} style={{ position: 'absolute', right: 'calc(env(safe-area-inset-right,0px) + 18px)',
-                bottom: 'calc(12% + 14px)', pointerEvents: 'auto', background: 'rgba(0,0,0,0.45)',
-                border: '1px solid rgba(255,255,255,0.25)', color: '#e8dcc4', fontSize: 12, letterSpacing: '0.12em',
-                borderRadius: 8, padding: '6px 12px', backdropFilter: 'blur(3px)' }}>PULAR ▸</button>
+                bottom: 'calc(12% + 14px)', pointerEvents: 'auto', background: 'rgba(0,0,0,0.55)',
+                border: '1px solid rgba(255,255,255,0.3)', color: '#f0e6d0', fontSize: 14, letterSpacing: '0.12em',
+                borderRadius: 8, padding: '10px 18px', cursor: 'pointer', backdropFilter: 'blur(3px)' }}>PULAR ▸</button>
         </div>
     );
 };

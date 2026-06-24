@@ -133,6 +133,47 @@ const Controller: React.FC<{ posRef: React.MutableRefObject<THREE.Vector3> }> = 
         (window as unknown as { __cam?: (px: number, py: number, pz: number, tx: number, ty: number, tz: number) => void }).__cam =
             (px, py, pz, tx, ty, tz) => { camO.current = { p: new THREE.Vector3(px, py, pz), t: new THREE.Vector3(tx, ty, tz) }; };
         (window as unknown as { __camOff?: () => void }).__camOff = () => { camO.current = null; };
+        // dev probe: world bbox of the captain (primitive parts) — frames the portrait cam.
+        (window as unknown as { __capBox?: () => unknown }).__capBox = () => {
+            let r: unknown = 'none';
+            scene.traverse((o: THREE.Object3D) => {
+                if (o.name === 'captainRoot') {
+                    const bb = new THREE.Box3().setFromObject(o);
+                    const c = new THREE.Vector3(); bb.getCenter(c);
+                    r = { min: bb.min.toArray().map(n => +n.toFixed(2)), max: bb.max.toArray().map(n => +n.toFixed(2)), center: c.toArray().map(n => +n.toFixed(2)) };
+                }
+            });
+            return r;
+        };
+        // dev: isolate the captain — hide every mesh that isn't under captainRoot,
+        // and drop in a plain bg, so the portrait cam sees ONLY the captain.
+        (window as unknown as { __soloCaptain?: () => unknown }).__soloCaptain = () => {
+            let capRoot: THREE.Object3D | null = null;
+            scene.traverse(o => { if (o.name === 'captainRoot') capRoot = o; });
+            if (!capRoot) return 'no captain';
+            const under = new Set<THREE.Object3D>();
+            (capRoot as THREE.Object3D).traverse(o => under.add(o));
+            let o2: THREE.Object3D | null = capRoot; while (o2) { under.add(o2); o2 = o2.parent; }
+            scene.traverse(o => { if ((o as THREE.Mesh).isMesh || o.type === 'Points') o.visible = under.has(o); });
+            scene.background = new THREE.Color(0x6a7886);
+            const wp = new THREE.Vector3(); (capRoot as THREE.Object3D).getWorldPosition(wp);
+            return wp.toArray().map(n => +n.toFixed(2));
+        };
+        (window as unknown as { __capInspect?: () => unknown }).__capInspect = () => {
+            let root: THREE.Object3D | null = null;
+            scene.traverse(o => { if (o.name === 'captainRoot') root = o; });
+            if (!root) return 'no captainRoot';
+            let mesh = 0, vis = 0; const colors: Record<string, number> = {};
+            (root as THREE.Object3D).traverse(o => {
+                if ((o as THREE.Mesh).isMesh) { mesh++; if (o.visible && (o.parent?.visible ?? true)) vis++;
+                    const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial; const h = m?.color ? m.color.getHexString() : '?'; colors[h] = (colors[h] || 0) + 1; }
+            });
+            const wp = new THREE.Vector3(); (root as THREE.Object3D).getWorldPosition(wp);
+            const sp = wp.clone(); sp.y += 2; sp.project(camera);
+            return { rootVisible: (root as THREE.Object3D).visible, meshCount: mesh, visMeshes: vis,
+                worldPos: wp.toArray().map(n => +n.toFixed(2)), screenXY: [+sp.x.toFixed(2), +sp.y.toFixed(2), +sp.z.toFixed(2)],
+                topColors: Object.entries(colors).sort((a, b) => b[1] - a[1]).slice(0, 6) };
+        };
         window.__ready = true;
         return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
     }, [posRef]);

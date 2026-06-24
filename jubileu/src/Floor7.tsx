@@ -14,15 +14,9 @@
  */
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Sky, useGLTF } from '@react-three/drei';
+import { Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import { Floor7Brain, F7_STATE, type F7Puddle } from './Floor7Brain';
-import { buildPirateRig, PB, PIRATE_SCALE, type PirateRig } from './pirateRig';
-import { pirateCaptainModel } from './assets/textureImports';
-
-// bundled (inlined) GLB — works with no network in the single-file build
-const PIRATE_GLB_URL = pirateCaptainModel;
-useGLTF.preload(PIRATE_GLB_URL);
 import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow, makePuddleRipple } from './floor7Textures';
 
@@ -118,6 +112,11 @@ const M = {
     // waistcoat (was the same gold, an unreadable yellow mush on the chest)
     baldric: new THREE.MeshStandardMaterial({ color: '#1f2b44', roughness: 0.6, bumpMap: _sailCloth.rough, bumpScale: 0.015 }),
     hair: new THREE.MeshStandardMaterial({ color: '#26201a', roughness: 0.9 }),
+    // female captain: long warm chestnut hair, berry lips, soft rosy blush
+    hairF: new THREE.MeshStandardMaterial({ color: '#43291a', roughness: 0.82, bumpMap: _sailCloth.rough, bumpScale: 0.012 }),
+    lip: new THREE.MeshStandardMaterial({ color: '#a8454e', roughness: 0.5 }),
+    blush: new THREE.MeshStandardMaterial({ color: '#cf8268', roughness: 0.62 }),
+    lash: new THREE.MeshStandardMaterial({ color: '#1a140f', roughness: 0.5 }),
     eyewhite: new THREE.MeshStandardMaterial({ color: '#f2efe6', roughness: 0.35 }),
     // recessed eye socket (dark, sits behind the white so the eye reads sunken)
     socket: new THREE.MeshStandardMaterial({ color: '#3a2a20', roughness: 0.8 }),
@@ -851,264 +850,254 @@ interface CaptainRig {
     gripR: React.RefObject<THREE.Group>; gripR2: React.RefObject<THREE.Group>;
 }
 const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref) => (
-    <group ref={ref}>
-        {/* LEFT booted leg — breeches THIGH (mass) over a boot, hip pivot at y=0.62 */}
-        <group ref={rig.legL} position={[-0.13, 0.62, 0]}>
-            <mesh position={[0, -0.1, 0]} material={M.bootTop}><cylinderGeometry args={[0.135, 0.105, 0.34, 12]} /></mesh>
-            <mesh position={[0, -0.36, 0]} material={M.boot}><cylinderGeometry args={[0.105, 0.12, 0.5, 12]} /></mesh>
-            <mesh position={[0, -0.58, 0.05]} material={M.boot}><boxGeometry args={[0.18, 0.12, 0.34]} /></mesh>
-            {/* polished fold-over boot cuff */}
-            <mesh position={[0, -0.2, 0]} material={M.boot}><cylinderGeometry args={[0.155, 0.12, 0.13, 12]} /></mesh>
-        </group>
-        {/* RIGHT peg leg — a real thigh above, the peg below the knee (the gag) */}
-        <group ref={rig.legR} position={[0.13, 0.62, 0]}>
-            <mesh position={[0, -0.12, 0]} material={M.bootTop}><cylinderGeometry args={[0.125, 0.09, 0.34, 12]} /></mesh>
-            <mesh position={[0, -0.36, 0]} material={M.wheel}><cylinderGeometry args={[0.05, 0.08, 0.42, 10]} /></mesh>
-            <mesh position={[0, -0.58, 0]} material={M.wheel}><cylinderGeometry args={[0.085, 0.065, 0.1, 10]} /></mesh>
-        </group>
+    <group ref={ref} name="captainRoot">
+        {/* LEGS — slim thigh-high heeled boots (BOTH real; the peg leg is gone).
+            Hip pivots kept at y=0.62 ±0.105 so the existing walk cycle still
+            drives them. Slender shafts + a raised heel read as a woman's boots. */}
+        {([['legL', -0.105] as const, ['legR', 0.105] as const]).map(([key, hx]) => (
+            <group key={key} ref={rig[key]} position={[hx, 0.62, 0]}>
+                {/* turn-over boot cuff just under the coat hem */}
+                <mesh position={[0, -0.04, 0]} material={M.coatDk}><cylinderGeometry args={[0.112, 0.088, 0.12, 14]} /></mesh>
+                {/* slim thigh-high boot shaft (tapers to a slender calf) */}
+                <mesh position={[0, -0.26, 0]} material={M.boot}><cylinderGeometry args={[0.086, 0.066, 0.44, 14]} /></mesh>
+                {/* gold band at the upper calf */}
+                <mesh position={[0, -0.13, 0]} material={M.gold}><cylinderGeometry args={[0.092, 0.09, 0.022, 14]} /></mesh>
+                {/* ankle */}
+                <mesh position={[0, -0.49, 0]} material={M.boot}><cylinderGeometry args={[0.066, 0.06, 0.1, 12]} /></mesh>
+                {/* foot + pointed toe + raised heel */}
+                <mesh position={[0, -0.55, 0.04]} material={M.boot}><boxGeometry args={[0.11, 0.085, 0.26]} /></mesh>
+                <mesh position={[0, -0.55, 0.19]} rotation={[Math.PI / 2, 0, 0]} material={M.boot}><coneGeometry args={[0.052, 0.12, 10]} /></mesh>
+                <mesh position={[0, -0.60, -0.075]} material={M.boot}><boxGeometry args={[0.07, 0.1, 0.06]} /></mesh>
+            </group>
+        ))}
 
-        {/* long coat — flared skirt as a 2-BONE cloth chain: an upper panel that
-            swings from the waist, and a lower hem nested at its base that lags
-            further, so the skirt bends along its length instead of as a rigid bell */}
-        <group ref={rig.coatHem} position={[0, 1.05, 0]}>
-            {/* waistband ring */}
-            <mesh position={[0, -0.04, 0]} material={M.coat}><cylinderGeometry args={[0.255, 0.275, 0.13, 16]} /></mesh>
-            {/* OPEN frock-coat skirt: separate hanging panels with a front-centre
-                VENT, so the breeches + boots show through instead of a closed cone */}
-            <group ref={rig.coatHem2} position={[0, -0.1, 0]}>
-                {/* a hem cross-piece behind the vent so no black void shows through */}
-                <mesh position={[0, -0.42, 0.12]} material={M.coatDk}><boxGeometry args={[0.32, 0.2, 0.05]} /></mesh>
-                {/* side + back panels — WORN (darker/dirtier) tonal zone, and FLARED
-                    out at the hem with a staggered edge so the skirt breaks like
-                    cloth instead of reading as a stiff cylinder billboard */}
-                {[-0.62, 0.62, -1.45, 1.45, Math.PI - 0.6, Math.PI + 0.6].map((ang, i) => (
-                    <mesh key={i} position={[Math.sin(ang) * 0.31, -0.27 + (i % 2 ? 0.04 : -0.04), Math.cos(ang) * 0.31]} rotation={[0.2, ang, 0]} material={M.coatWorn}>
-                        <boxGeometry args={[0.4, 0.62, 0.09]} />
-                    </mesh>
+        {/* COAT-SKIRT — a smooth A-LINE flare from the cinched waist out over the
+            hips and down to the knee (the hourglass bottom). A clean cone, not flat
+            box panels, so the silhouette curves instead of reading as a crate. The
+            ref chain (coatHem / coatHem2) still drives the swing follow-through. */}
+        <group ref={rig.coatHem} position={[0, 1.02, 0]}>
+            {/* cinched waistband matching the corset */}
+            <mesh position={[0, -0.02, 0]} material={M.coat}><cylinderGeometry args={[0.19, 0.21, 0.1, 18]} /></mesh>
+            <group ref={rig.coatHem2} position={[0, -0.08, 0]}>
+                {/* the skirt body — a LONG, gently flared drape (waist 0.205 → knee
+                    hem 0.285), so it falls instead of sticking out like a bell */}
+                <mesh position={[0, -0.38, 0]} material={M.coat}><cylinderGeometry args={[0.285, 0.205, 0.72, 24]} /></mesh>
+                {/* a thin gilt hem line */}
+                <mesh position={[0, -0.735, 0]} material={M.giltTrim}><cylinderGeometry args={[0.288, 0.282, 0.025, 24]} /></mesh>
+                {/* soft vertical pleat folds to break the cone surface (cloth, not a bell) */}
+                {[-0.95, 0.95, Math.PI - 0.5, Math.PI + 0.5].map((ang, i) => (
+                    <mesh key={'pl' + i} position={[Math.sin(ang) * 0.26, -0.4, Math.cos(ang) * 0.26]} rotation={[0, ang, 0]} material={M.coatDk}><boxGeometry args={[0.045, 0.68, 0.022]} /></mesh>
                 ))}
-                {/* two front flaps — wider + swung toward centre so they nearly
-                    meet (overlapping the waistcoat), not a canyon (gilt-edged) */}
+                {/* open front coat-tails, gilt-edged, parted to reveal the breeches/boots */}
                 {[-1, 1].map((s) => (
                     <React.Fragment key={'ff' + s}>
-                        <mesh position={[s * 0.15, -0.27, 0.29]} rotation={[0.05, s * 0.32, 0]} material={M.coat}><boxGeometry args={[0.26, 0.6, 0.09]} /></mesh>
-                        <mesh position={[s * 0.045, -0.27, 0.345]} rotation={[0.05, s * 0.32, 0]} material={M.giltTrim}><boxGeometry args={[0.022, 0.6, 0.022]} /></mesh>
+                        <mesh position={[s * 0.11, -0.4, 0.24]} rotation={[0.04, s * 0.18, s * 0.03]} material={M.coatDk}><boxGeometry args={[0.18, 0.7, 0.04]} /></mesh>
+                        <mesh position={[s * 0.03, -0.4, 0.26]} rotation={[0.04, s * 0.18, s * 0.03]} material={M.giltTrim}><boxGeometry args={[0.016, 0.7, 0.016]} /></mesh>
                     </React.Fragment>
-                ))}
-                {/* longer back tails */}
-                {[-1, 1].map((s) => (
-                    <mesh key={'t' + s} position={[s * 0.16, -0.34, -0.31]} rotation={[0.3, s * 0.1, 0]} material={M.coatDk}><boxGeometry args={[0.2, 0.64, 0.07]} /></mesh>
                 ))}
             </group>
         </group>
-        {/* breeches behind the open vent + a polished boot-top showing through */}
-        <mesh position={[0, 0.66, 0.04]} material={M.bootTop}><boxGeometry args={[0.34, 0.34, 0.26]} /></mesh>
-        {/* torso — a real broad CHEST over a NIPPED WAIST (geometry, not a paint
-            stripe), with pec mass breaking the flat front plane */}
-        <mesh position={[0, 1.27, 0]} material={M.coat}><cylinderGeometry args={[0.3, 0.27, 0.24, 16]} /></mesh>
-        <mesh position={[0, 1.04, 0]} material={M.coat}><cylinderGeometry args={[0.225, 0.255, 0.22, 16]} /></mesh>
+        {/* HIPS — a pelvis WIDER than the waist (the base of the hourglass). Mostly
+            veiled by the coat skirt, but it widens the silhouette + fills the vent. */}
+        <mesh position={[0, 0.86, 0]} scale={[1.3, 0.7, 1.05]} material={M.coatDk}><sphereGeometry args={[0.2, 16, 12]} /></mesh>
+        {/* breeches/boot-top showing through the open coat vent */}
+        <mesh position={[0, 0.72, 0.04]} material={M.bootTop}><boxGeometry args={[0.28, 0.28, 0.22]} /></mesh>
+
+        {/* TORSO — a NIPPED WAIST swelling to the bust above and the hips below: a
+            real hourglass built from geometry. cinched waist → ribcage → décolleté. */}
+        <mesh position={[0, 1.0, 0]} material={M.coat}><cylinderGeometry args={[0.175, 0.2, 0.18, 16]} /></mesh>
+        <mesh position={[0, 1.19, 0]} material={M.coat}><cylinderGeometry args={[0.215, 0.175, 0.22, 16]} /></mesh>
+        <mesh position={[0, 1.34, 0]} material={M.coat}><cylinderGeometry args={[0.2, 0.215, 0.12, 16]} /></mesh>
+        {/* BUST — two rounded forms with a centre cleavage gap, forward + up under
+            the bodice, so the figure reads unmistakably female */}
         {[-1, 1].map((s) => (
-            <mesh key={'pec' + s} position={[s * 0.1, 1.22, 0.2]} scale={[1, 0.85, 0.55]} material={M.coat}><sphereGeometry args={[0.11, 12, 10]} /></mesh>
+            <mesh key={'bust' + s} position={[s * 0.093, 1.26, 0.115]} scale={[1, 0.94, 0.92]} material={M.coat}><sphereGeometry args={[0.117, 16, 14]} /></mesh>
         ))}
-        {/* recessed centre-front closure seam + a thin red placket */}
-        <mesh position={[0, 1.05, 0.265]} material={M.coatDk}><boxGeometry args={[0.045, 0.52, 0.03]} /></mesh>
-        {[1.30, 1.16, 1.02, 0.88].map((y, i) => (
-            <React.Fragment key={i}>
-                <mesh position={[-0.085, y, 0.245]} material={M.gold}><sphereGeometry args={[0.024, 8, 6]} /></mesh>
-                <mesh position={[0.085, y, 0.245]} material={M.gold}><sphereGeometry args={[0.024, 8, 6]} /></mesh>
+        {/* cream chemise at the neckline — a soft V of décolletage between the lapels */}
+        <mesh position={[0, 1.33, 0.155]} rotation={[0.16, 0, 0]} material={M.cloth}><boxGeometry args={[0.19, 0.12, 0.03]} /></mesh>
+        {[-1, 1].map((s) => (
+            <mesh key={'vee' + s} position={[s * 0.05, 1.27, 0.185]} rotation={[0.2, 0, s * 0.7]} material={M.cloth}><boxGeometry args={[0.045, 0.14, 0.025]} /></mesh>
+        ))}
+
+        {/* fitted BODICE front + corset cross-lacing from the bust to the waist */}
+        <mesh position={[0, 1.1, 0.185]} rotation={[0.05, 0, 0]} material={M.coatDk}><boxGeometry args={[0.16, 0.42, 0.05]} /></mesh>
+        {[0, 1, 2, 3].map((i) => (
+            <React.Fragment key={'lace' + i}>
+                <mesh position={[0, 1.25 - i * 0.1, 0.218]} rotation={[0, 0, 0.7]} material={M.gold}><boxGeometry args={[0.011, 0.15, 0.011]} /></mesh>
+                <mesh position={[0, 1.25 - i * 0.1, 0.218]} rotation={[0, 0, -0.7]} material={M.gold}><boxGeometry args={[0.011, 0.15, 0.011]} /></mesh>
             </React.Fragment>
         ))}
-        <mesh position={[0, 1.33, 0]} material={M.coatDk}><cylinderGeometry args={[0.21, 0.16, 0.12, 14]} /></mesh>
-        {/* baldric — a single clean navy-leather diagonal with a gold edge, so it
-            reads as its own strap (not merged into the gold waistcoat) */}
+
+        {/* baldric — a slim navy-leather diagonal with a gold edge (kept; it swings) */}
         <group ref={rig.sash} position={[0, 1.30, 0]}>
-            <mesh position={[0, -0.32, 0.04]} rotation={[0, 0, 0.55]} material={M.baldric}><boxGeometry args={[0.1, 0.78, 0.46]} /></mesh>
-            <mesh position={[0.022, -0.32, 0.27]} rotation={[0, 0, 0.55]} material={M.gold}><boxGeometry args={[0.016, 0.78, 0.018]} /></mesh>
+            <mesh position={[0, -0.3, 0.04]} rotation={[0, 0, 0.6]} material={M.baldric}><boxGeometry args={[0.072, 0.72, 0.42]} /></mesh>
+            <mesh position={[0.018, -0.3, 0.24]} rotation={[0, 0, 0.6]} material={M.gold}><boxGeometry args={[0.014, 0.72, 0.016]} /></mesh>
         </group>
-        <mesh position={[0, 0.74, 0]} material={M.boot}><cylinderGeometry args={[0.30, 0.32, 0.1, 16]} /></mesh>
-        {/* big brass belt buckle */}
-        <mesh position={[0, 0.74, 0.32]} rotation={[Math.PI / 2, 0, 0]} material={M.gold}><torusGeometry args={[0.058, 0.02, 8, 18]} /></mesh>
-        <mesh position={[0, 0.74, 0.325]} material={M.gold}><boxGeometry args={[0.05, 0.05, 0.012]} /></mesh>
-        {/* gold waistcoat showing in the open coat vent, with a button row */}
-        <mesh position={[0, 0.92, 0.2]} rotation={[0.05, 0, 0]} material={M.sash}><boxGeometry args={[0.24, 0.4, 0.04]} /></mesh>
-        {[1.0, 0.9, 0.8].map((y, i) => (
-            <mesh key={'wb' + i} position={[0, y, 0.225]} material={M.gold}><sphereGeometry args={[0.016, 8, 6]} /></mesh>
+
+        {/* cinch belt at the waist + a brass buckle */}
+        <mesh position={[0, 0.99, 0]} material={M.boot}><cylinderGeometry args={[0.183, 0.2, 0.07, 16]} /></mesh>
+        <mesh position={[0, 0.99, 0.19]} rotation={[Math.PI / 2, 0, 0]} material={M.gold}><torusGeometry args={[0.05, 0.018, 8, 18]} /></mesh>
+
+        {/* narrow SHOULDERS + small deltoid caps in the coat fabric (not flesh) */}
+        <mesh position={[0, 1.37, 0.01]} rotation={[0, 0, Math.PI / 2]} material={M.coat}><cylinderGeometry args={[0.1, 0.1, 0.4, 16]} /></mesh>
+        {[-1, 1].map((s) => (
+            <mesh key={'dl' + s} position={[s * 0.235, 1.35, 0.02]} material={M.coat}><sphereGeometry args={[0.082, 12, 10]} /></mesh>
+        ))}
+        {/* gilt coat lapels framing the open front */}
+        {[-1, 1].map((s) => (
+            <mesh key={'lp' + s} position={[s * 0.125, 1.21, 0.145]} rotation={[0.1, s * 0.32, s * 0.14]} material={M.giltTrim}><boxGeometry args={[0.05, 0.4, 0.03]} /></mesh>
         ))}
 
-        {/* SHOULDER YOKE + deltoid caps — broaden the bottle-shoulder silhouette
-            into a barrel chest, with the coat draping over real shoulder mass */}
-        <mesh position={[0, 1.28, 0.02]} rotation={[0, 0, Math.PI / 2]} material={M.coat}><cylinderGeometry args={[0.155, 0.155, 0.62, 16]} /></mesh>
-        {[-1, 1].map((s) => (
-            <mesh key={'dl' + s} position={[s * 0.31, 1.2, 0.04]} material={M.coatSalt}><sphereGeometry args={[0.135, 12, 10]} /></mesh>
-        ))}
-        {/* gilt lapel edging down the front placket (FIX: break the flat coat) */}
-        {[-1, 1].map((s) => (
-            <mesh key={'lp' + s} position={[s * 0.09, 1.0, 0.262]} rotation={[0.05, 0, s * 0.06]} material={M.giltTrim}><boxGeometry args={[0.04, 0.62, 0.022]} /></mesh>
-        ))}
-
-        {/* ARMS — shoulder pivots at y=1.18 */}
-        <group ref={rig.armL} position={[-0.30, 1.18, 0.04]}>
-            {/* upper arm -> elbow -> tapered forearm */}
-            <mesh position={[0, -0.125, 0]} material={M.coat}><cylinderGeometry args={[0.09, 0.082, 0.25, 12]} /></mesh>
-            <mesh position={[0, -0.26, 0.01]} material={M.coat}><sphereGeometry args={[0.083, 10, 8]} /></mesh>
-            <mesh position={[0, -0.37, 0.025]} material={M.coatSalt}><cylinderGeometry args={[0.078, 0.068, 0.22, 12]} /></mesh>
-            {/* big turn-back cuff, flared wider than the sleeve + gold band */}
-            <mesh position={[0, -0.46, 0.04]} material={M.coatDk}><cylinderGeometry args={[0.115, 0.082, 0.14, 12]} /></mesh>
-            <mesh position={[0, -0.525, 0.04]} material={M.gold}><cylinderGeometry args={[0.118, 0.112, 0.03, 12]} /></mesh>
-            {/* white lace cuff ruffle + a blocky mitt with a thumb (not a nub) */}
-            <mesh position={[0, -0.5, 0.04]} rotation={[Math.PI / 2, 0, 0]} material={M.cloth}><torusGeometry args={[0.1, 0.026, 6, 16]} /></mesh>
-            <mesh position={[0, -0.585, 0.06]} material={M.skin}><boxGeometry args={[0.09, 0.052, 0.115]} /></mesh>
-            <mesh position={[-0.054, -0.56, 0.07]} rotation={[0, 0, 0.55]} material={M.skin}><capsuleGeometry args={[0.018, 0.042, 3, 6]} /></mesh>
-            {/* fingers as a 2-KNUCKLE chain in a soft static curl — same fidelity
-                as the right hand (the dossier demands both equally articulated) */}
-            <group position={[0, -0.625, 0.1]} rotation={[0.4, 0, 0]}>
-                {[-0.036, -0.012, 0.012, 0.036].map((fx, i) => (
-                    <mesh key={'lf' + i} position={[fx, 0, 0.012]} material={M.skin}><capsuleGeometry args={[0.013, [0.04, 0.052, 0.052, 0.044][i], 3, 6]} /></mesh>
+        {/* ARMS — slim sleeves on narrow shoulder pivots (female frame). Lace cuffs,
+            small gloved hands; both fully articulated (the right hand grips the helm). */}
+        <group ref={rig.armL} position={[-0.235, 1.26, 0.02]}>
+            {/* upper arm -> elbow -> tapered forearm (slimmed) */}
+            <mesh position={[0, -0.125, 0]} material={M.coat}><cylinderGeometry args={[0.062, 0.056, 0.25, 12]} /></mesh>
+            <mesh position={[0, -0.26, 0.01]} material={M.coat}><sphereGeometry args={[0.057, 10, 8]} /></mesh>
+            <mesh position={[0, -0.37, 0.025]} material={M.coatSalt}><cylinderGeometry args={[0.054, 0.046, 0.22, 12]} /></mesh>
+            {/* turn-back cuff + gold band */}
+            <mesh position={[0, -0.46, 0.04]} material={M.coatDk}><cylinderGeometry args={[0.082, 0.056, 0.13, 12]} /></mesh>
+            <mesh position={[0, -0.52, 0.04]} material={M.gold}><cylinderGeometry args={[0.085, 0.08, 0.028, 12]} /></mesh>
+            {/* white lace cuff ruffle + a small gloved hand with a thumb */}
+            <mesh position={[0, -0.5, 0.04]} rotation={[Math.PI / 2, 0, 0]} material={M.cloth}><torusGeometry args={[0.072, 0.022, 6, 16]} /></mesh>
+            <mesh position={[0, -0.575, 0.055]} material={M.skin}><boxGeometry args={[0.062, 0.044, 0.092]} /></mesh>
+            <mesh position={[-0.04, -0.55, 0.065]} rotation={[0, 0, 0.55]} material={M.skin}><capsuleGeometry args={[0.013, 0.036, 3, 6]} /></mesh>
+            {/* fingers as a 2-KNUCKLE chain in a soft curl */}
+            <group position={[0, -0.61, 0.09]} rotation={[0.4, 0, 0]}>
+                {[-0.026, -0.009, 0.009, 0.026].map((fx, i) => (
+                    <mesh key={'lf' + i} position={[fx, 0, 0.012]} material={M.skin}><capsuleGeometry args={[0.0098, [0.034, 0.044, 0.044, 0.038][i], 3, 6]} /></mesh>
                 ))}
-                <group position={[0, -0.025, 0.04]} rotation={[0.5, 0, 0]}>
-                    {[-0.036, -0.012, 0.012, 0.036].map((fx, i) => (
-                        <mesh key={'ld' + i} position={[fx, 0, 0]} material={M.skin}><capsuleGeometry args={[0.012, 0.04, 3, 6]} /></mesh>
+                <group position={[0, -0.022, 0.035]} rotation={[0.5, 0, 0]}>
+                    {[-0.026, -0.009, 0.009, 0.026].map((fx, i) => (
+                        <mesh key={'ld' + i} position={[fx, 0, 0]} material={M.skin}><capsuleGeometry args={[0.0092, 0.034, 3, 6]} /></mesh>
                     ))}
                 </group>
             </group>
         </group>
-        <group ref={rig.armR} position={[0.30, 1.18, 0.04]}>
-            <mesh position={[0, -0.125, 0]} material={M.coat}><cylinderGeometry args={[0.09, 0.082, 0.25, 12]} /></mesh>
-            <mesh position={[0, -0.26, 0.01]} material={M.coat}><sphereGeometry args={[0.083, 10, 8]} /></mesh>
-            <mesh position={[0, -0.37, 0.025]} material={M.coatSalt}><cylinderGeometry args={[0.078, 0.068, 0.22, 12]} /></mesh>
-            <mesh position={[0, -0.46, 0.04]} material={M.coatDk}><cylinderGeometry args={[0.115, 0.082, 0.14, 12]} /></mesh>
-            <mesh position={[0, -0.525, 0.04]} material={M.gold}><cylinderGeometry args={[0.118, 0.112, 0.03, 12]} /></mesh>
-            <mesh position={[0, -0.5, 0.04]} rotation={[Math.PI / 2, 0, 0]} material={M.cloth}><torusGeometry args={[0.1, 0.026, 6, 16]} /></mesh>
-            {/* a fuller palm so the hand isn't a nub */}
-            <mesh position={[0, -0.565, 0.06]} material={M.skin}><boxGeometry args={[0.092, 0.05, 0.1]} /></mesh>
+        <group ref={rig.armR} position={[0.235, 1.26, 0.02]}>
+            <mesh position={[0, -0.125, 0]} material={M.coat}><cylinderGeometry args={[0.062, 0.056, 0.25, 12]} /></mesh>
+            <mesh position={[0, -0.26, 0.01]} material={M.coat}><sphereGeometry args={[0.057, 10, 8]} /></mesh>
+            <mesh position={[0, -0.37, 0.025]} material={M.coatSalt}><cylinderGeometry args={[0.054, 0.046, 0.22, 12]} /></mesh>
+            <mesh position={[0, -0.46, 0.04]} material={M.coatDk}><cylinderGeometry args={[0.082, 0.056, 0.13, 12]} /></mesh>
+            <mesh position={[0, -0.52, 0.04]} material={M.gold}><cylinderGeometry args={[0.085, 0.08, 0.028, 12]} /></mesh>
+            <mesh position={[0, -0.5, 0.04]} rotation={[Math.PI / 2, 0, 0]} material={M.cloth}><torusGeometry args={[0.072, 0.022, 6, 16]} /></mesh>
+            {/* a small gloved palm */}
+            <mesh position={[0, -0.56, 0.055]} material={M.skin}><boxGeometry args={[0.064, 0.044, 0.08]} /></mesh>
             {/* fingers as a 2-KNUCKLE chain: proximal segments hinge at the
                 palm, the nested distal segments curl further — so the grip
                 closes around the wheel mid-finger when he takes the helm (ST_DONE) */}
-            <group ref={rig.gripR} position={[0, -0.585, 0.10]}>
-                {[-0.036, -0.012, 0.012, 0.036].map((fx, i) => (
-                    <mesh key={i} position={[fx, 0, 0.018]} material={M.skin}><capsuleGeometry args={[0.013, [0.04, 0.052, 0.052, 0.044][i], 3, 6]} /></mesh>
+            <group ref={rig.gripR} position={[0, -0.6, 0.085]}>
+                {[-0.026, -0.009, 0.009, 0.026].map((fx, i) => (
+                    <mesh key={i} position={[fx, 0, 0.014]} material={M.skin}><capsuleGeometry args={[0.0098, [0.034, 0.044, 0.044, 0.038][i], 3, 6]} /></mesh>
                 ))}
-                <group ref={rig.gripR2} position={[0, -0.025, 0.05]}>
-                    {[-0.036, -0.012, 0.012, 0.036].map((fx, i) => (
-                        <mesh key={i} position={[fx, 0, 0]} material={M.skin}><capsuleGeometry args={[0.015, 0.044, 3, 6]} /></mesh>
+                <group ref={rig.gripR2} position={[0, -0.02, 0.04]}>
+                    {[-0.026, -0.009, 0.009, 0.026].map((fx, i) => (
+                        <mesh key={i} position={[fx, 0, 0]} material={M.skin}><capsuleGeometry args={[0.011, 0.034, 3, 6]} /></mesh>
                     ))}
                 </group>
-                <mesh position={[-0.058, 0.012, -0.02]} rotation={[0, 0, 0.6]} material={M.skin}><capsuleGeometry args={[0.018, 0.055, 3, 6]} /></mesh>
+                <mesh position={[-0.042, 0.012, -0.015]} rotation={[0, 0, 0.6]} material={M.skin}><capsuleGeometry args={[0.013, 0.044, 3, 6]} /></mesh>
             </group>
         </group>
 
-        {/* neck (static) — a touch longer so the head isn't bolted to the chest */}
-        <mesh position={[0, 1.42, 0]} material={M.skin}><cylinderGeometry args={[0.083, 0.1, 0.15, 12]} /></mesh>
-        {/* standing coat collar — a high wrap open at the front, frames the beard */}
-        <mesh position={[0, 1.5, -0.025]} rotation={[-0.22, 0, 0]} material={M.giltTrim}><cylinderGeometry args={[0.185, 0.14, 0.19, 16, 1, true, Math.PI * 0.34, Math.PI * 1.32]} /></mesh>
-        <mesh position={[0, 1.49, -0.03]} rotation={[-0.22, 0, 0]} material={M.coatDk}><cylinderGeometry args={[0.165, 0.13, 0.17, 16, 1, true, Math.PI * 0.36, Math.PI * 1.28]} /></mesh>
+        {/* neck — slender */}
+        <mesh position={[0, 1.42, 0]} material={M.skin}><cylinderGeometry args={[0.062, 0.08, 0.15, 12]} /></mesh>
+        {/* a soft standing coat collar at the nape (open at the front) */}
+        <mesh position={[0, 1.5, -0.04]} rotation={[-0.25, 0, 0]} material={M.coatDk}><cylinderGeometry args={[0.15, 0.12, 0.15, 16, 1, true, Math.PI * 0.4, Math.PI * 1.2]} /></mesh>
 
-        {/* HEAD group — neck pivot at y=1.42 (rotates to track the player).
-            Scaled down to ~7-head proportion (was a bobblehead vs the AAA bar). */}
-        <group ref={rig.head} position={[0, 1.44, 0]} scale={0.86}>
-            {/* SKULL */}
-            <mesh position={[0, 0.16, 0]} scale={[1, 1.06, 0.97]} material={M.skin}><sphereGeometry args={[0.185, 22, 20]} /></mesh>
-            {/* hair skull-cap under the hat — no more bald temples/nape */}
-            <mesh position={[0, 0.175, -0.012]} scale={[1.02, 1, 1.03]} material={M.hair}><sphereGeometry args={[0.182, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.6]} /></mesh>
-            {/* brow ridge — pushed FORWARD + DOWN so it physically overhangs the
-                eyeballs and throws a real sunken shadow (not a high shelf) */}
+        {/* HEAD group — neck pivot at y=1.44 (rotates to track the player).
+            FEMALE: softer/narrower skull, no brow ridge, two large lined eyes with
+            winged lashes, a small nose, a berry mouth, blush, earrings — and long
+            flowing hair. This is a real silhouette/feature change, not a recolour. */}
+        <group ref={rig.head} position={[0, 1.46, 0]} scale={0.84}>
+            {/* SKULL — narrower + a softer, smaller jaw than the male base */}
+            <mesh position={[0, 0.16, 0]} scale={[0.95, 1.04, 0.98]} material={M.skin}><sphereGeometry args={[0.175, 22, 20]} /></mesh>
+            {/* soft tapered jaw + small chin (no beard) */}
+            <mesh position={[0, 0.05, 0.05]} scale={[0.8, 0.92, 0.86]} material={M.skin}><sphereGeometry args={[0.128, 18, 16]} /></mesh>
+
+            {/* thin, high, ARCHED eyebrows */}
             {[-1, 1].map((s) => (
-                <mesh key={'br' + s} position={[s * 0.075, 0.205, 0.175]} rotation={[0.34, 0, s * 0.16]} material={M.skin}><boxGeometry args={[0.092, 0.036, 0.09]} /></mesh>
+                <mesh key={'eb' + s} position={[s * 0.072, 0.224, 0.158]} rotation={[0.12, 0, s * -0.24]} material={M.hairF}><boxGeometry args={[0.07, 0.011, 0.018]} /></mesh>
             ))}
-            {/* bushy eyebrows riding the ridge — the patch-side brow cocked higher
-                (gammy asymmetry the AAA bar demands) */}
+            {/* soft rosy BLUSH on the cheeks */}
             {[-1, 1].map((s) => (
-                <mesh key={'eb' + s} position={[s * 0.075, 0.216 + (s > 0 ? 0.014 : 0), 0.2]} rotation={[0.2, 0, s * -0.16 + (s > 0 ? 0.12 : 0)]} material={M.hair}><boxGeometry args={[0.08, 0.022, 0.026]} /></mesh>
+                <mesh key={'bl' + s} position={[s * 0.108, 0.14, 0.128]} rotation={[0, s * -0.2, 0]} scale={[1.1, 0.7, 0.45]} material={M.blush}><sphereGeometry args={[0.05, 10, 8]} /></mesh>
             ))}
-            {/* cheekbones — a flat MALAR PLANE that flows toward the jaw (not two
-                clown-balls): wide + flat + angled, catching the key light */}
+
+            {/* EYES — two large, bright, feminine eyes with eyeliner + winged lashes */}
             {[-1, 1].map((s) => (
-                <mesh key={'ck' + s} position={[s * 0.14, 0.1, 0.115]} rotation={[0, s * -0.22, 0.08 * s]} scale={[1.35, 0.5, 0.6]} material={M.skinR}><sphereGeometry args={[0.05, 10, 8]} /></mesh>
+                <React.Fragment key={'eye' + s}>
+                    <mesh position={[s * 0.073, 0.186, 0.146]} scale={[1.05, 0.92, 0.7]} material={M.eyewhite}><sphereGeometry args={[0.031, 14, 12]} /></mesh>
+                    <mesh position={[s * 0.073, 0.184, 0.164]} material={M.iris}><sphereGeometry args={[0.0235, 12, 10]} /></mesh>
+                    <mesh position={[s * 0.073, 0.184, 0.18]} material={M.hat}><sphereGeometry args={[0.012, 8, 8]} /></mesh>
+                    {/* upper eyeliner + winged outer lash */}
+                    <mesh position={[s * 0.073, 0.21, 0.156]} rotation={[0.5, 0, s * 0.12]} material={M.lash}><boxGeometry args={[0.07, 0.013, 0.02]} /></mesh>
+                    <mesh position={[s * 0.108, 0.214, 0.148]} rotation={[0.5, 0, s * 0.55]} material={M.lash}><boxGeometry args={[0.032, 0.009, 0.016]} /></mesh>
+                    {/* thin lower lash line */}
+                    <mesh position={[s * 0.073, 0.17, 0.158]} rotation={[-0.3, 0, 0]} material={M.lash}><boxGeometry args={[0.05, 0.006, 0.014]} /></mesh>
+                </React.Fragment>
             ))}
-            {/* darker shadow-skin pooled in the eye/nose creases — fake AO so the
-                brow, nose and sockets read as ONE fused surface, not floating blocks */}
-            {[-1, 1].map((s) => (
-                <mesh key={'sh' + s} position={[s * 0.072, 0.162, 0.16]} scale={[1.1, 0.72, 0.45]} material={M.skinD}><sphereGeometry args={[0.046, 10, 8]} /></mesh>
-            ))}
-            {/* an OLD SCAR slashing down across the patched eye (weathering) */}
-            <mesh position={[0.086, 0.215, 0.182]} rotation={[0, 0, -0.62]} material={M.scar}><capsuleGeometry args={[0.0072, 0.14, 3, 6]} /></mesh>
-            {/* LEFT working eye — recessed socket + a SMALLER white with a BIGGER
-                iris (no more wall-eye), dropped under the brow so it reads sunken */}
-            <mesh position={[-0.072, 0.184, 0.152]} scale={[1.15, 0.92, 0.55]} material={M.socket}><sphereGeometry args={[0.05, 12, 10]} /></mesh>
-            <mesh ref={rig.eye} position={[-0.072, 0.184, 0.162]} scale={[1, 0.92, 0.7]} material={M.eyewhite}><sphereGeometry args={[0.03, 14, 12]} /></mesh>
-            <mesh position={[-0.072, 0.184, 0.184]} material={M.iris}><sphereGeometry args={[0.018, 12, 10]} /></mesh>
-            <mesh position={[-0.072, 0.184, 0.198]} material={M.hat}><sphereGeometry args={[0.009, 8, 8]} /></mesh>
-            {/* EYELIDS — an upper lid drooping over the top third of the iris + a
-                thin lower lid, so the eye is SEATED, not a floating sphere-in-a-bowl */}
-            <mesh position={[-0.072, 0.2, 0.176]} rotation={[0.55, 0, 0.06]} material={M.skin}><boxGeometry args={[0.054, 0.014, 0.022]} /></mesh>
-            <mesh position={[-0.072, 0.168, 0.18]} rotation={[-0.35, 0, 0]} material={M.skinD}><boxGeometry args={[0.05, 0.01, 0.018]} /></mesh>
-            {/* RIGHT eye — a recessed socket with a slightly CONVEX leather patch
-                seated in it (covering a real hole), strap denting up under the hat */}
-            <mesh position={[0.072, 0.184, 0.15]} scale={[1.1, 0.95, 0.5]} material={M.socket}><sphereGeometry args={[0.05, 12, 10]} /></mesh>
-            <mesh position={[0.072, 0.184, 0.168]} rotation={[Math.PI / 2, 0, 0.1]} material={M.boot}><sphereGeometry args={[0.05, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.55]} /></mesh>
-            <mesh position={[0.082, 0.30, 0.05]} rotation={[0.55, 0, 0.14]} material={M.boot}><boxGeometry args={[0.022, 0.3, 0.016]} /></mesh>
-            {/* NOSE — a bridge FILL fuses it into the brow (no air-gap seam),
-                then the bridge cone + bulbous ruddy tip + nostril wings */}
-            <mesh position={[0, 0.2, 0.172]} material={M.skin}><boxGeometry args={[0.032, 0.07, 0.05]} /></mesh>
-            <mesh position={[0, 0.172, 0.175]} rotation={[Math.PI / 2.3, 0, 0]} material={M.skin}><coneGeometry args={[0.046, 0.14, 8]} /></mesh>
-            <mesh position={[0, 0.142, 0.2]} material={M.skinR}><sphereGeometry args={[0.03, 10, 8]} /></mesh>
-            {[-1, 1].map((s) => (
-                <mesh key={'no' + s} position={[s * 0.032, 0.135, 0.185]} material={M.skin}><sphereGeometry args={[0.02, 8, 8]} /></mesh>
-            ))}
-            {/* mustache */}
-            {[-1, 1].map((s) => (
-                <mesh key={'ms' + s} position={[s * 0.055, 0.103, 0.168]} rotation={[0, 0, s * 0.6]} material={M.hair}><capsuleGeometry args={[0.022, 0.08, 3, 8]} /></mesh>
-            ))}
-            {/* full beard */}
-            <mesh position={[0, 0.05, 0.075]} scale={[1.04, 1.05, 0.95]} material={M.beard}><sphereGeometry args={[0.168, 18, 16, 0, Math.PI * 2, Math.PI * 0.38, Math.PI * 0.62]} /></mesh>
-            {[-1, 1].map((s) => (
-                <mesh key={'bd' + s} position={[s * 0.155, 0.13, 0.04]} material={M.beard}><sphereGeometry args={[0.06, 10, 10]} /></mesh>
-            ))}
-            {/* beard LOCKS — cones around the lower rim break the smooth bib edge
-                into a forked, characterful beard */}
-            {[-0.5, -0.22, 0, 0.22, 0.5].map((a, i) => (
-                <mesh key={'bl' + i} position={[Math.sin(a) * 0.13, -0.06 - (i === 2 ? 0.05 : 0), 0.085 + Math.cos(a) * 0.04]} rotation={[0.5, 0, a * 0.8]} material={M.beard}><coneGeometry args={[0.034, 0.13, 7]} /></mesh>
-            ))}
-            {/* FRONT clumps hang down the face of the beard with a centre fork gap,
-                so it stops reading as a smooth molded dome (apex points down) */}
-            {[-0.085, -0.04, 0.04, 0.085].map((x, i) => (
-                <mesh key={'bf' + i} position={[x, -0.02 - (Math.abs(x) < 0.05 ? 0.035 : 0), 0.15]} rotation={[Math.PI - 0.5, 0, x * 2.0]} material={M.beard}><coneGeometry args={[0.028, 0.12, 6]} /></mesh>
-            ))}
-            {/* a few thick hair locks at the temple/brow edge under the hat brim */}
-            {[-1, 1].map((s) => (
-                <mesh key={'hl' + s} position={[s * 0.165, 0.16, 0.06]} rotation={[0, 0, s * 0.4]} material={M.hair}><capsuleGeometry args={[0.026, 0.08, 3, 7]} /></mesh>
-            ))}
-            {/* QUEUE — a TAPERED tied ponytail down the nape (apex points down) */}
-            <mesh position={[0, 0.0, -0.18]} rotation={[Math.PI - 0.28, 0, 0]} material={M.hair}><coneGeometry args={[0.052, 0.26, 9]} /></mesh>
-            <mesh position={[0, 0.135, -0.16]} material={M.coatDk}><torusGeometry args={[0.034, 0.011, 6, 12]} /></mesh>
-            {/* hairline locks — flattened clumps lying tangent to the skull (not a
-                row of golf balls), irregular in height + size */}
-            {[-0.13, -0.05, 0.05, 0.13].map((x, i) => (
-                <mesh key={'hf' + i} position={[x, 0.3 + (i % 2 === 0 ? 0.014 : -0.012), 0.1]} rotation={[1.3, 0, x * 1.6]} scale={[1, 1, 0.55]} material={M.hair}><capsuleGeometry args={[0.028 + (i % 2) * 0.009, 0.05, 3, 7]} /></mesh>
-            ))}
-            {/* JAW group — chin hinge (flaps while talking) */}
-            <group ref={rig.jaw} position={[0, 0.06, 0.04]}>
-                <mesh position={[0, -0.08, 0.03]} material={M.beard}><coneGeometry args={[0.125, 0.26, 14]} /></mesh>
+            {/* blink — a pair of skin lids that drop over the eyes (driven via rig.eye
+                scale.y in the frame loop: ~0.05 open → 1 closed) */}
+            <group ref={rig.eye} position={[0, 0.196, 0.15]} scale={[1, 0.05, 1]}>
+                {[-1, 1].map((s) => (
+                    <mesh key={'lid' + s} position={[s * 0.073, 0, 0.0]} material={M.skin}><boxGeometry args={[0.072, 0.05, 0.05]} /></mesh>
+                ))}
             </group>
-            {/* TRICORNE */}
-            <mesh position={[0, 0.37, 0]} material={M.hat}><cylinderGeometry args={[0.155, 0.175, 0.17, 18]} /></mesh>
-            <mesh position={[0, 0.45, 0]} material={M.hat}><sphereGeometry args={[0.155, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.5]} /></mesh>
-            {[0, 2.0944, 4.1888].map((ang, i) => (
-                <group key={i} rotation={[0, ang, 0]}>
-                    <mesh position={[0, 0.325, 0.20]} rotation={[-0.5, 0, 0]} material={M.hat}><boxGeometry args={[0.46, 0.035, 0.28]} /></mesh>
-                    <mesh position={[0, 0.395, 0.335]} rotation={[-0.5, 0, 0]} material={M.gold}><boxGeometry args={[0.45, 0.02, 0.03]} /></mesh>
-                </group>
-            ))}
-            {/* hat BADGE — a gold cockade + skull on the front crown (the AAA bar
-                requires the tricorne to carry a symbol) */}
-            <mesh position={[0, 0.4, 0.155]} rotation={[0.2, 0, 0]} material={M.gold}><cylinderGeometry args={[0.05, 0.05, 0.016, 16]} /></mesh>
-            <mesh position={[0, 0.402, 0.166]} rotation={[0.2, 0, 0]} material={M.eyewhite}><sphereGeometry args={[0.028, 12, 10]} /></mesh>
-            <mesh position={[0, 0.384, 0.166]} material={M.eyewhite}><boxGeometry args={[0.026, 0.016, 0.012]} /></mesh>
+
+            {/* NOSE — small + slim */}
+            <mesh position={[0, 0.172, 0.168]} rotation={[Math.PI / 2.2, 0, 0]} material={M.skin}><coneGeometry args={[0.027, 0.1, 8]} /></mesh>
+            <mesh position={[0, 0.143, 0.186]} material={M.skinR}><sphereGeometry args={[0.019, 10, 8]} /></mesh>
+
+            {/* LIPS — a defined berry mouth: a cupid's-bow upper lip (lower lip is in
+                the jaw group so it parts while talking) + a beauty mark */}
             {[-1, 1].map((s) => (
-                <mesh key={'es' + s} position={[s * 0.011, 0.404, 0.18]} material={M.hat}><sphereGeometry args={[0.006, 6, 6]} /></mesh>
+                <mesh key={'ul' + s} position={[s * 0.021, 0.108, 0.166]} rotation={[0, 0, s * -0.4]} material={M.lip}><capsuleGeometry args={[0.0115, 0.026, 3, 7]} /></mesh>
             ))}
-            {/* plume — whips with a lag off head/body motion */}
-            <group ref={rig.feather} position={[-0.18, 0.39, 0.18]}>
-                <mesh position={[0, 0.14, 0]} rotation={[0.2, 0, 0.5]} material={M.coat}><coneGeometry args={[0.04, 0.32, 8]} /></mesh>
+            <mesh position={[-0.052, 0.12, 0.162]} material={M.lash}><sphereGeometry args={[0.0055, 6, 6]} /></mesh>
+
+            {/* gold hoop EARRINGS */}
+            {[-1, 1].map((s) => (
+                <mesh key={'er' + s} position={[s * 0.176, 0.1, -0.005]} rotation={[0, Math.PI / 2, 0]} material={M.gold}><torusGeometry args={[0.028, 0.0075, 8, 16]} /></mesh>
+            ))}
+
+            {/* HAIR — long flowing chestnut. Crown cap + side-swept fringe + locks
+                framing the face + long waves down the back & over one shoulder. THIS
+                is the silhouette cue (with the body), not just a recolour. */}
+            <mesh position={[0, 0.2, -0.012]} scale={[1.08, 1.02, 1.1]} material={M.hairF}><sphereGeometry args={[0.18, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.64]} /></mesh>
+            {/* side-swept fringe across the brow */}
+            <mesh position={[0.015, 0.265, 0.115]} rotation={[0.55, 0, -0.35]} scale={[1.5, 1, 0.5]} material={M.hairF}><sphereGeometry args={[0.1, 14, 10, 0, Math.PI, 0, Math.PI]} /></mesh>
+            {/* face-framing locks down both sides, past the jaw */}
+            {[-1, 1].map((s) => (
+                <mesh key={'fl' + s} position={[s * 0.178, -0.02, 0.03]} rotation={[0, 0, s * 0.14]} scale={[0.62, 1, 0.78]} material={M.hairF}><capsuleGeometry args={[0.052, 0.36, 4, 8]} /></mesh>
+            ))}
+            {/* long waves down the back to mid-back (replaces the male queue) */}
+            {[-0.13, -0.045, 0.045, 0.13].map((x, i) => (
+                <mesh key={'bk' + i} position={[x, -0.16, -0.12]} rotation={[Math.PI - 0.13, 0, x * 0.7]} material={M.hairF}><capsuleGeometry args={[0.058 - Math.abs(x) * 0.12, 0.56, 4, 8]} /></mesh>
+            ))}
+            {/* a thick lock spilling over the right shoulder, in front */}
+            <mesh position={[0.155, -0.14, 0.1]} rotation={[0.18, 0, 0.22]} material={M.hairF}><capsuleGeometry args={[0.046, 0.44, 4, 8]} /></mesh>
+
+            {/* JAW group — soft chin + fuller LOWER LIP (parts while talking) */}
+            <group ref={rig.jaw} position={[0, 0.06, 0.04]}>
+                <mesh position={[0, 0.026, 0.13]} rotation={[0, 0, Math.PI / 2]} material={M.lip}><capsuleGeometry args={[0.015, 0.046, 3, 8]} /></mesh>
+            </group>
+
+            {/* TRICORNE — tilted jaunty over the hair; gold trim + skull cockade + plume */}
+            <group rotation={[0.04, 0, 0.13]}>
+                <mesh position={[0, 0.37, 0]} material={M.hat}><cylinderGeometry args={[0.15, 0.168, 0.15, 18]} /></mesh>
+                <mesh position={[0, 0.44, 0]} material={M.hat}><sphereGeometry args={[0.15, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.5]} /></mesh>
+                {[0, 2.0944, 4.1888].map((ang, i) => (
+                    <group key={i} rotation={[0, ang, 0]}>
+                        <mesh position={[0, 0.31, 0.18]} rotation={[-0.5, 0, 0]} material={M.hat}><boxGeometry args={[0.39, 0.032, 0.24]} /></mesh>
+                        <mesh position={[0, 0.372, 0.3]} rotation={[-0.5, 0, 0]} material={M.gold}><boxGeometry args={[0.38, 0.018, 0.025]} /></mesh>
+                    </group>
+                ))}
+                <mesh position={[0, 0.39, 0.15]} rotation={[0.2, 0, 0]} material={M.gold}><cylinderGeometry args={[0.046, 0.046, 0.016, 16]} /></mesh>
+                <mesh position={[0, 0.392, 0.161]} rotation={[0.2, 0, 0]} material={M.eyewhite}><sphereGeometry args={[0.025, 12, 10]} /></mesh>
+                {/* plume — whips with a lag off head/body motion (ref) */}
+                <group ref={rig.feather} position={[-0.17, 0.4, 0.06]}>
+                    <mesh position={[0, 0.18, 0]} rotation={[0.2, 0, 0.5]} material={M.coat}><coneGeometry args={[0.034, 0.42, 8]} /></mesh>
+                </group>
             </group>
         </group>
 
@@ -1121,186 +1110,6 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
     </group>
 ));
 Captain.displayName = 'Captain';
-
-// ── PirateCaptain — the user's GLB captain, procedurally RIGGED ───────────────
-// The GLB is a rig-less Tripo static mesh; pirateRig.ts synthesises a skeleton +
-// skin weights from its vertex cloud. This component loads it, binds the rig, and
-// animates the bones every frame off the WASM brain (idle sway/breathing, peg-leg
-// walk on INTRO/DONE, head-track to the player, deck-roll lean, talk nod).
-// FACE_OFFSET corrects the GLB's authored facing so capFace points him right.
-// The GLB's body is authored facing +X (verified by a 360° orbit: his front — face,
-// baldric, both arms — reads from the +X side). The brain's capFace uses a +Z "face
-// the bow / the player" convention, so rotate -90° to map the model's +X forward onto
-// +Z. With this, capFace=0 (the entry stride) faces +Z travel (no more crab-walk) and
-// the GREET facing turns his body to the player (no more profile in the dialogue).
-const PIRATE_FACE_OFFSET = -Math.PI / 2;
-const PirateCaptain: React.FC<{
-    brainRef: React.MutableRefObject<Floor7Brain | null>;
-    playerPositionRef: React.MutableRefObject<THREE.Vector3>;
-    anchorRef?: React.MutableRefObject<THREE.Vector3>;   // captain FEET in world space (dialogue-camera look-at)
-    laughRef?: React.MutableRefObject<number>;           // 0..1 from the intro cutscene's LAUGH beat
-    poseRef?: React.MutableRefObject<number>;            // 0..1 power-stance blend (intro REVEAL)
-}> = ({ brainRef, playerPositionRef, anchorRef, laughRef, poseRef }) => {
-    const { scene } = useGLTF(PIRATE_GLB_URL);
-    const outer = useRef<THREE.Group>(null);
-    const rigRef = useRef<PirateRig | null>(null);
-    const _w = useRef(new THREE.Vector3());
-    const _hd = useRef(0); // smoothed head yaw
-    const _rollLag = useRef(0); // lagged deck-roll for torso follow-through
-
-    const rig = useMemo(() => buildPirateRig(scene), [scene]);
-    useEffect(() => { rigRef.current = rig; return () => rig?.dispose(); }, [rig]);
-
-    useFrame((state, dt) => {
-        const b = brainRef.current, g = outer.current, r = rigRef.current;
-        if (!b || !g || !r) return;
-        const t = state.clock.elapsedTime;
-        const c = b.captain();
-        const walking = b.capWalking();
-        const roll = b.roll(), pitch = b.pitch();
-        const ph = t * 7.0;
-        // CLUMSY entry stride: a gentle vertical lurch + a peg-leg hitch (every other step
-        // dips a touch deeper) so the gait reads awkward/comedic — he's "desajeitado".
-        // (kept small so the whole figure doesn't sink the boots through the deck.)
-        const hitch = walking ? (Math.sin(ph * 0.5) > 0 ? 1.0 : 0.5) : 0;    // alternate step weight
-        const lurch = walking ? Math.max(0, Math.sin(ph)) * 0.04 * (0.7 + 0.3 * hitch) : 0;
-        const waddle = walking ? Math.sin(ph) * 0.055 : 0;                   // side-to-side body roll
-        // breathing: a squared sine = quick inhale, held exhale (a piston sine reads
-        // mechanical). Drives the TORSO only — never the planted feet.
-        const breath = Math.sin(t * 1.15) ** 2 * 0.02;
-        // frame-rate-independent one-pole smoothing factor for the tracked terms
-        const sdt = Math.min(dt, 0.05);
-        const damp = (k: number) => 1 - Math.pow(1 - k, sdt * 60);
-
-        g.visible = b.elevFade() < 0.85;
-        if (!g.visible) return;
-        // The group carries ONLY horizontal position + facing (+ a brief walk lurch).
-        // The idle bob + breath live on the BODY bone (with the legs counter-translated
-        // below) so they bob the chest without ever lifting the boots off the deck; the
-        // weight-shift is a hip lean, not a whole-body tilt (which used to rock the feet).
-        g.position.set(c.x, -lurch, c.z);
-        // NEGATE capFace: the brain's f7_atan2 yields a facing mirrored in X, so the
-        // captain turned to the player's reflection (~33° off) instead of AT the player
-        // — which read as a back-left view in the dialogue cam. Negating aims him dead
-        // at the player; capFace is 0 during the walk so the entry stride is unaffected.
-        g.rotation.y = -c.face + PIRATE_FACE_OFFSET;
-        g.rotation.z = waddle;   // clumsy waddle while striding in
-
-        const bn = r.bones;
-        const wsh = walking ? 0 : Math.sin(t * 0.8) * 0.05;   // idle weight-shift
-        // BODY — bob+breath rise (torso only); the chest tip TRAILS the inhale (phase
-        // offset, so it's a rise-then-lean, not one lumpy hitch); deck-roll lean lags
-        // the ship (follow-through); a static hip-cock to the stance side; and 35% of
-        // the head-track yaw bleeds in here so turning to the player runs through the
-        // whole spine instead of shearing the neck/collar at the head bone alone.
-        const bodyRise = c.bob + breath;
-        const chestTip = Math.sin(t * 1.15 + 0.5) ** 2 * 0.006;   // trails the rise
-        _rollLag.current += (roll - _rollLag.current) * damp(0.08);
-        // clamp the combined lean so a roll peak coinciding with the weight-shift can't
-        // over-tilt the whole figure (body is the parent of the legs).
-        const bodyLean = Math.max(-0.14, Math.min(0.14,
-            -roll * 0.9 + (roll - _rollLag.current) * 0.5 + wsh * 0.6 + (walking ? 0 : 0.025)));
-        bn[PB.body].position.y = r.restPos[PB.body].y + bodyRise;
-        // pitch coupling kept GENTLE + a small forward bias so he braces INTO the swell
-        // (pitch*0.8 rocked him backward as if losing his balance).
-        bn[PB.body].rotation.x = pitch * 0.35 + 0.05 + chestTip + (walking ? Math.sin(ph * 0.5) * 0.04 : 0);
-        bn[PB.body].rotation.z = bodyLean;
-        // HEAD — ease onto the player (frame-rate-independent, gentle gain). Only 65%
-        // of the look-at lives on the head (the other 35% is the body, above) to kill
-        // the collar shear; the head also counter-rolls the torso lean (a fake spine
-        // S-curve — stays level as he sways); layered talk cadence + a touch of body.
-        g.updateMatrixWorld();
-        // publish the captain's FEET world pos for the dialogue camera (the outer
-        // group origin sits at the feet thanks to the foot-lift). The Player dialogue
-        // rig adds its own look/cam height, same as the Diabrete cutscene.
-        if (anchorRef) g.getWorldPosition(anchorRef.current);
-        _w.current.copy(playerPositionRef.current); g.worldToLocal(_w.current);
-        const yawTo = Math.max(-0.7, Math.min(0.7, Math.atan2(_w.current.x, _w.current.z) - PIRATE_FACE_OFFSET));
-        _hd.current += (yawTo - _hd.current) * damp(0.06);
-        bn[PB.body].rotation.y = _hd.current * 0.35;
-        const dlg = b.dialogue();
-        const talking = (dlg === 1 || dlg === 4 || dlg === 5 || dlg === 6);
-        const talk = talking ? (Math.sin(t * 4.5) + 0.5 * Math.sin(t * 9.1 + 0.7)) * 0.08 : 0;
-        if (talking) bn[PB.body].rotation.x += Math.max(0, Math.sin(t * 4.5)) * 0.015;  // speech body emphasis
-        bn[PB.head].rotation.y = _hd.current * 0.65 + (talking ? Math.sin(t * 3.3) * 0.02 : 0);
-        const _lf = laughRef?.current ?? 0;   // fade the down-look + talk nod out as the laugh takes over
-        bn[PB.head].rotation.x = (0.16 - pitch * 0.3 + Math.sin(t * 0.5) * 0.02 + talk) * (1 - _lf);   // hold the down-look as the deck pitches
-        bn[PB.head].rotation.z = -bodyLean * 0.4 + Math.sin(t * 0.45) * 0.02; // keep head level as torso sways
-        // LEGS — now parented to the ROOT (not the body), so the torso's bob/lean/laugh
-        // no longer drags or stretches them; the soles stay planted with NO counter-translate.
-        bn[PB.l_leg].position.y = r.restPos[PB.l_leg].y;
-        bn[PB.r_leg].position.y = r.restPos[PB.r_leg].y;
-        if (walking) {
-            // swing forward AND back (not max(0,…)) for a natural alternating stride, and
-            // gentler amplitude so the single-bone leg doesn't kick into a stretched pose.
-            bn[PB.l_leg].rotation.set(Math.sin(ph) * 0.32, 0, 0);
-            bn[PB.r_leg].rotation.set(Math.sin(ph + Math.PI) * 0.32, 0, 0);
-        } else {
-            bn[PB.l_leg].rotation.set(0.0, 0, 0.05);     // stance leg
-            bn[PB.r_leg].rotation.set(-0.10, 0, -0.04);  // relaxed leg, knee softened, weight off it
-        }
-        // ARMS — bigger desynced idle drift (the small swing read static at distance) +
-        // shoulders that rise/settle with the breath; splayed clear of the coat.
-        // arm roll-coupling uses the LAGGED roll (secondary motion — the arms trail the
-        // deck instead of snapping with it) and is halved so it can't splay past the coat.
-        if (walking) {
-            const armSwing = Math.sin(ph + Math.PI) * 0.5;
-            bn[PB.l_arm].rotation.set(armSwing, 0, 0.14 + _rollLag.current * 0.18);
-            bn[PB.r_arm].rotation.set(-armSwing, 0, -0.14 + _rollLag.current * 0.18);
-        } else {
-            // asymmetric rest: the right arm hangs looser (lower base, more splay, hand
-            // drifting toward the sash) so the silhouette isn't a clean mirror.
-            bn[PB.l_arm].rotation.set(0.10 + Math.sin(t * 1.5) * 0.16, 0, 0.14 + _rollLag.current * 0.18 + breath * 0.4);
-            bn[PB.r_arm].rotation.set(0.06 + Math.sin(t * 1.27 + 1.1) * 0.14, 0.05, -0.18 + _rollLag.current * 0.18 - breath * 0.4);
-        }
-        // POWER STANCE (intro REVEAL): hands drop to the hips (akimbo), chest out, chin up —
-        // a confident "behold the captain" posture blended over the idle as he's revealed.
-        const PO = poseRef?.current ?? 0;
-        if (PO > 0.001) {
-            bn[PB.l_arm].rotation.x += 0.92 * PO; bn[PB.l_arm].rotation.z += 0.78 * PO;   // elbows WIDE, hands to the hips (akimbo)
-            bn[PB.r_arm].rotation.x += 0.92 * PO; bn[PB.r_arm].rotation.z += -0.78 * PO;
-            bn[PB.body].rotation.x += -0.08 * PO;                                         // chest out
-            bn[PB.head].rotation.x += -0.12 * PO;                                         // chin up
-        }
-        // LAUGH (intro cutscene): head tips back, chest heaves, shoulders bounce in
-        // a quick "arr-arr-arr" cadence, both hands rock up toward the belly. Blended
-        // by L over whatever idle/talk pose is underneath so it reads as a real beat.
-        const L = laughRef?.current ?? 0;
-        if (L > 0.001) {
-            // discrete "ARR — arr — arr" pulses: the head/chest throw BACK hard on each
-            // pulse and the apex holds ~0.3s so it lands on camera (not a flickery bounce).
-            const pulse = Math.max(0, Math.sin(t * 6.2)) ** 0.6;       // sharp rise, held crest, one per "arr"
-            const a = pulse * L;
-            // a CLEAR but controlled belly-laugh — a held chin-up with gentle "arr" bobs, not
-            // a writhing flail (the bigger amplitudes read as the captain convulsing).
-            // a clear head-thrown-back laugh (the HEAD travels — that's not the "contortion";
-            // the body/arms stay controlled so he doesn't convulse).
-            bn[PB.head].rotation.x += L * -0.62 + a * -0.28;           // chin tips back, snapping further on each "arr"
-            bn[PB.body].rotation.x += L * -0.1 + a * -0.08;            // slight chest lean-back + heave
-            bn[PB.body].rotation.z += Math.sin(t * 6.2) * 0.025 * L;   // subtle shoulder rock
-            bn[PB.body].rotation.y *= (1 - 0.6 * L);                   // square up to the player
-            bn[PB.l_arm].rotation.x += L * -0.34 + a * -0.16;          // hands rise toward the belly with the heave
-            bn[PB.r_arm].rotation.x += L * -0.34 + a * -0.16;
-            bn[PB.l_arm].rotation.z += 0.26 * L;
-            bn[PB.r_arm].rotation.z += -0.26 * L;
-        }
-    });
-
-    if (!rig) return null;
-    // SINGLE effective parent scale (the setup the Diabrete binds correctly): the
-    // inner group's scale cancels the ship's FLOOR7_SCALE and applies PIRATE_SCALE,
-    // so the SkinnedMesh's NET world scale is exactly PIRATE_SCALE. Foot-lift: the
-    // GLB's feet are at local y=-0.5; lift the inner group by +0.5*scale (in
-    // outer-local units) so the feet sit at the outer-group origin (the deck).
-    const s = PIRATE_SCALE / FLOOR7_SCALE;
-    return (
-        <group ref={outer}>
-            <group scale={s} position={[0, 0.5 * s, 0]}>
-                <primitive object={rig.group} />
-            </group>
-        </group>
-    );
-};
 
 interface Floor7Props {
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
@@ -1498,7 +1307,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 const dlg = b.dialogue();
                 jaw.current.rotation.x = (dlg === 1 || dlg === 4 || dlg === 5) ? Math.abs(Math.sin(t * 9)) * 0.4 : 0;
             }
-            if (eye.current) eye.current.scale.y = (t % 4.0 > 3.89) ? 0.06 : 0.85;
+            if (eye.current) eye.current.scale.y = (t % 4.0 > 3.89) ? 1.0 : 0.05;   // lids drop closed on the blink, near-zero (open) otherwise
             if (head.current && captainRef.current.visible) {
                 captainRef.current.updateMatrixWorld();
                 _capWorld.current.copy(playerPositionRef.current);
@@ -1508,6 +1317,30 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 head.current.rotation.x = Math.sin(t * 0.9) * 0.04;  // slow idle nod, always alive
                 head.current.rotation.z = Math.sin(t * 0.7) * 0.025;
             }
+            // ── intro cutscene poses — REVEAL power-stance + ironic LAUGH, driven by
+            //    the shared refs the cutscene writes; blended OVER the idle pose ──
+            const PO = introPoseRef?.current ?? 0;    // 0..1 akimbo reveal
+            const LF = introLaughRef?.current ?? 0;   // 0..1 laugh
+            if (PO > 0.001 && armL.current && armR.current && head.current) {
+                // hands drop to the hips (akimbo), chest out, chin up — "behold the captain"
+                armL.current.rotation.x = 0.16 - 0.06 * PO; armL.current.rotation.z = 0.92 * PO;
+                armR.current.rotation.x = 0.16 - 0.06 * PO; armR.current.rotation.z = -0.92 * PO;
+                head.current.rotation.x += -0.12 * PO;
+            }
+            if (LF > 0.001 && armL.current && armR.current && head.current) {
+                // throw the head back, snapping further on each "arr"; mouth open; hands
+                // rock up with the heave; square up to the player (a clear belly-laugh)
+                const pulse = Math.max(0, Math.sin(t * 6.2)) ** 0.6;
+                const a = pulse * LF;
+                head.current.rotation.x += LF * -0.5 + a * -0.22;
+                head.current.rotation.y *= (1 - 0.6 * LF);
+                armL.current.rotation.x = -0.32 * LF - a * 0.16; armL.current.rotation.z = 0.34 * LF;
+                armR.current.rotation.x = -0.32 * LF - a * 0.16; armR.current.rotation.z = -0.34 * LF;
+                if (jaw.current) jaw.current.rotation.x = 0.22 + a * 0.22;
+                captainRef.current.rotation.z += Math.sin(t * 6.2) * 0.022 * LF;
+            }
+            // publish the captain's world position for the dialogue camera (feet origin)
+            if (captainAnchorRef) captainRef.current.getWorldPosition(captainAnchorRef.current);
             // ── secondary motion: cloth + grip trail the body (follow-through) ──
             {
                 const cl = _cloth.current;
@@ -1806,9 +1639,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                         as the "floor 7" gag (kept low enough to stay in the look-back frame). */}
                     <mesh position={[0, 1.7, 0.57]} material={M_elevNum}><planeGeometry args={[0.66, 0.66]} /></mesh>
                 </group>
-                {/* captain — the user's GLB, procedurally rigged. Animated by
-                    the PirateCaptain component (skeleton bind in pirateRig.ts). */}
-                <PirateCaptain brainRef={brainRef} playerPositionRef={playerPositionRef} anchorRef={captainAnchorRef} laughRef={introLaughRef} poseRef={introPoseRef} />
+                {/* captain — articulated from rigid primitive PARTS (every joint a
+                    Group, zero skin weights → cannot smear/distort in motion). The
+                    fused-GLB rig was retired because a single mesh skinned by painted
+                    weights contorts when limbs rotate. Animated in the useFrame below. */}
+                <Captain ref={captainRef} rig={capRig} />
                 {/* bucket + cloth — wooden staved pail with iron bands, soapy
                     water surface and a draped wet rag (a hero prop up close) */}
                 <group ref={bucketRef} position={[1.35, 0.18, -1.8]}>

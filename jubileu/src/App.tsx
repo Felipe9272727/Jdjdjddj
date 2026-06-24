@@ -473,8 +473,15 @@ export default function App() {
   const [f7IntroBeat, setF7IntroBeat] = useState(0);               // active cutscene beat (UI/SFX)
   // play the captain-arrival cutscene the first time the player lands on Andar 7
   useEffect(() => {
-    if (hasStarted && currentLevel === 7) { setF7Intro(true); setF7IntroBeat(0); }
-    else setF7Intro(false);
+    if (hasStarted && currentLevel === 7) {
+      setF7Intro(true); setF7IntroBeat(0);
+      // SAFETY: the cutscene ends itself at T_END (~9.5s) via onDone, but if a
+      // stall ever swallowed that, force control back so the player can never be
+      // stranded with the camera locked. Generous buffer over the 9.5s runtime.
+      const safety = setTimeout(() => setF7Intro(false), 13000);
+      return () => clearTimeout(safety);
+    }
+    setF7Intro(false);
   }, [hasStarted, currentLevel]);
   const [brushCount, setBrushCount] = useState(0);                 // paintbrushes stolen (HUD, win at 3)
   const [cartoonFall, setCartoonFall] = useState(false);           // cinematic camera-lock on the devil's defeat fall
