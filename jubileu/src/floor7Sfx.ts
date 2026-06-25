@@ -162,7 +162,9 @@ export function f7CaptainLaugh(short = false): void {
         // much louder than the synth drone, so don't undershoot it to the synth value).
         const rel = m.hasTheme ? 0.34 : 0.11;
         m.master.gain.cancelScheduledValues(t0);
-        m.master.gain.setTargetAtTime(short ? 0.05 : 0.075, t0, 0.06);
+        // belly-laugh keeps MORE bed (0.10) so laugh+bed together out-peak the REVEAL stab and
+        // read as the true climax; the closing smirk still ducks hard (0.05) to pierce the tail.
+        m.master.gain.setTargetAtTime(short ? 0.05 : 0.10, t0, 0.06);
         m.master.gain.setTargetAtTime(rel, t0 + (short ? 0.85 : 1.7), 0.5);
     }
 
@@ -171,7 +173,7 @@ export function f7CaptainLaugh(short = false): void {
     if (laughBuf) {
         const src = c.createBufferSource(); src.buffer = laughBuf;
         src.playbackRate.value = short ? 1.05 : 0.84;
-        const g = c.createGain(); g.gain.value = short ? 0.62 : 0.72; src.connect(g).connect(o);
+        const g = c.createGain(); g.gain.value = short ? 0.78 : 0.95; src.connect(g).connect(o);   // louder so the laugh is the true climax (above the REVEAL stab)
         if (short) src.start(t0, 0, 1.3); else src.start(t0);   // smirk = clip to the first ~1.3s
         return;
     }
@@ -391,8 +393,8 @@ export function f7CutBeat(beat: number): void {
         else { if (m.lp) m.lp.frequency.setTargetAtTime(lpHz, t, tc); m.master.gain.setTargetAtTime(procGain, t, tc); }
     };
     if (beat === 1) {            // REVEAL — open up, hero stab + jaunty horn motif + crane whoosh + shimmer
-        bed(1200, 0.5, 0.16, 0.3);
-        chordStab(c, w, [146.83, 220.0], t, 0.9, 0.085);                                   // D–A hero (thinner)
+        bed(1200, 0.46, 0.16, 0.3);
+        chordStab(c, w, [146.83, 220.0], t, 0.9, 0.06);                                    // D–A hero — softened so REVEAL doesn't out-peak the LAUGH climax
         ([[293.66, 0], [349.23, 0.16], [440.0, 0.32], [587.33, 0.5]] as const).forEach(([f, dt]) => tone(c, w, f, t + dt, 0.36, 'sawtooth', 0.06, f * 3, 4));   // brass-ier (softer lp)
         whoosh(c, w, t, 0.07); shimmer(c, w, t, 0.06, true);
     } else if (beat === 2) {     // LOOK_BACK — hard cut: whoosh + low impact, pull the bed down eerie
@@ -491,9 +493,14 @@ export function f7CaptainVoice(text: string): void {
     const m = cutMusic; const line = m ? m.talkLine++ : 0;
     if (m) {   // sidechain duck: dip the bed under the line, release HIGHER each line so the
         // TALK section ESCALATES toward the closing smirk instead of plateauing.
+        // the REAL theme is loud-mastered: dip it for the line but RELEASE BACK UP to a real
+        // bed (was releasing to the synth-era ~0.1, which buried the recorded score under the
+        // whole monologue — the longest beat of the cutscene). Synth path keeps its old values.
+        const dip = m.hasTheme ? 0.16 : 0.055;
+        const bed = m.hasTheme ? 0.30 : 0.10;
         m.master.gain.cancelScheduledValues(t0);
-        m.master.gain.setTargetAtTime(0.055, t0, 0.08);
-        m.master.gain.setTargetAtTime(0.1 + line * 0.014, t0 + 0.12, 0.9);
+        m.master.gain.setTargetAtTime(dip, t0, 0.08);
+        m.master.gain.setTargetAtTime(bed + line * 0.02, t0 + 0.12, 0.9);   // release UP, escalating per line
         tone(c, o, [73.42, 82.41, 87.31, 98.0, 110.0][line % 5], t0, 0.55, 'triangle', 0.085 + line * 0.016, 240);   // building menace accent
     }
     const letters = (text.match(/[a-zà-ú]/gi) || []).length;
