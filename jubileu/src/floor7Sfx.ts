@@ -142,7 +142,7 @@ export function f7CaptainLaugh(short = false): void {
         g.gain.linearRampToValueAtTime(peak, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
         const sub = c.createOscillator(); sub.type = 'sine'; const sg = c.createGain(); sg.gain.value = 0;
         sub.frequency.setValueAtTime(f0 * 0.5, t); sub.connect(sg).connect(o);
-        sg.gain.linearRampToValueAtTime(peak * 0.5, t + 0.03); sg.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        sg.gain.linearRampToValueAtTime(peak * 0.72, t + 0.03); sg.gain.exponentialRampToValueAtTime(0.001, t + dur);   // strong chest resonance = belly-laugh weight (sine, no buzz)
         sub.start(t); sub.stop(t + dur + 0.03);
     };
 
@@ -178,7 +178,7 @@ export function f7CaptainLaugh(short = false): void {
         // chest sub — fuller on the reveal for low-end weight so the beat lands as a peak,
         // not just a clean-but-quiet vowel
         const sub = c.createOscillator(); sub.type = 'sine'; const sg = c.createGain(); sg.gain.value = 0; sub.frequency.value = f0 * 0.5; sub.connect(sg).connect(o);
-        sg.gain.linearRampToValueAtTime(short ? 0.055 : 0.095, t + 0.06); sg.gain.exponentialRampToValueAtTime(0.001, t + gdur); sub.start(t); sub.stop(t + gdur + 0.04);
+        sg.gain.linearRampToValueAtTime(short ? 0.08 : 0.15, t + 0.06); sg.gain.exponentialRampToValueAtTime(0.001, t + gdur); sub.start(t); sub.stop(t + gdur + 0.04);
     }
 
     // Phase 2 — "HAR-HAR-HAR…" pulses. Full: 5–6 descending belly-laugh pulses. Smirk: 3
