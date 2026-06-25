@@ -34,17 +34,19 @@ export const F7_DIALOGUE = [
     'Aquele teu elevadorzinho já era. O mar não devolve ninguém.',
     'Aqui quem manda sou eu — eu e o oceano.',
     'Ou tu esfrega esse convés até ele brilhar…',
-    '…ou vira jantar dos tubarões! Arr arr arr!',
+    '…ou vira jantar dos tubarões!',
 ] as const;
 
 // beat boundaries (seconds). Synced to the brain: captain strides 0.6–3.6s, so
 // LEGS catches him mid-stride and REVEAL lands as he plants at the talk spot.
 // LOOK_BACK trimmed ~0.3s (the sign reads instantly); the punchline now gets a
 // long, unhurried hold so the comedic button lands before the fade-out.
-const T_LEGS = 2.4, T_REVEAL = 4.6, T_LOOKBACK = 6.7, T_LAUGH = 8.9, T_END = 18.7;
+const T_LEGS = 2.4, T_REVEAL = 4.6, T_LOOKBACK = 6.7, T_LAUGH = 8.9, T_END = 19.9;
 // when each dialogue line appears (s). First lands on the laugh; the rest pace out
-// across TALK ~2.2s apart, and the final punchline holds ~2.3s before the fade.
+// across TALK ~2.2s apart; after the last threat lands the captain LAUGHS again as the
+// button (T_LAUGH2) before the fade.
 const LINE_AT = [6.95, 9.3, 11.5, 13.7, 15.9];
+const T_LAUGH2 = 17.4;
 
 // elevator sits at ship-local (0,0,5.2); world ≈ local * FLOOR7_SCALE (ship ~origin).
 const ELEV_W = new THREE.Vector3(0, 1.15 * FLOOR7_SCALE, 5.2 * FLOOR7_SCALE);
@@ -82,6 +84,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
     const stepIdx = useRef(-1);
     const vanished = useRef(false);
     const laughed = useRef(false);
+    const laughed2 = useRef(false);
     // smoothed camera state + scratch vectors (no per-frame allocation)
     const camPos = useRef(new THREE.Vector3());
     const camLook = useRef(new THREE.Vector3());
@@ -91,7 +94,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
 
     useEffect(() => {
         if (!active) {
-            elapsed.current = 0; primed.current = false; beat.current = -1; line.current = -2; stepIdx.current = -1; vanished.current = false; laughed.current = false;
+            elapsed.current = 0; primed.current = false; beat.current = -1; line.current = -2; stepIdx.current = -1; vanished.current = false; laughed.current = false; laughed2.current = false;
             if (elevFadeRef) elevFadeRef.current = null;     // hand the cab fade back to the brain
             if (laughRef) laughRef.current = 0;
             if (poseRef) poseRef.current = 0;
@@ -199,6 +202,10 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             laugh = smooth(1, 0, tk);         // laugh fades out smoothly as he settles into talking
             pose = smooth(0, 1, tk);          // confident akimbo eases in (no arm snap)
             talk = smooth(0, 1, tk);
+            if (t > T_LAUGH2) {               // the closing laugh — throw the head back again, stop talking
+                const bk = smooth(0, 1, (t - T_LAUGH2) / 0.3);
+                laugh = bk; talk = (1 - bk) * smooth(0, 1, tk);
+            }
         } else { if (elevFadeRef) elevFadeRef.current = null; if (laughRef) laughRef.current = 0; if (talkRef) talkRef.current = 0; if (dimRef) dimRef.current = 1; onDone(); return; }
 
         // active dialogue line (during LAUGH + TALK) — report only on change
@@ -215,6 +222,9 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
         // ELEVATOR VANISH — fire once when the cab actually starts dissolving (not at the
         // LOOK_BACK cut), so the dematerialise SFX lands on the visual.
         if (!vanished.current && beat.current === F7_INTRO_BEATS.LOOK_BACK && elev < 0.9) { vanished.current = true; onElevatorVanish?.(); }
+        // BOOKEND LAUGH — once the last threat has landed he laughs again ("arr har har")
+        // as the button on the scene, just before the fade-out.
+        if (!laughed2.current && t > T_LAUGH2) { laughed2.current = true; onLaugh(); }
 
         // TRANSITION DIP — a dip-to-dark centred on each hard cut + the LEGS→GLB model
         // swap, so the discontinuity happens behind (near-)black and reads as a clean film
