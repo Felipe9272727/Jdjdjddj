@@ -9,3 +9,8 @@
   Source: Wikimedia Commons, "Small sea waves at rocky beach.opus" by *Mnalis*.
   License: **CC BY 3.0** — https://creativecommons.org/licenses/by/3.0/
   Attribution: sea waves by *Mnalis* (Wikimedia Commons) — used under CC BY 3.0, looped/low-passed as the Floor 7 sea bed.
+
+- `cutscene-theme.mp3` — the captain-arrival cutscene score.
+  Source: "Master of the Feast" by *Kevin MacLeod* (incompetech.com).
+  License: **CC BY 3.0** — https://creativecommons.org/licenses/by/3.0/
+  Attribution: "Master of the Feast" Kevin MacLeod (incompetech.com), licensed under CC BY 3.0 — http://creativecommons.org/licenses/by/3.0/. Trimmed to ~28s for the cutscene.

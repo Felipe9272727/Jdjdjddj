@@ -6,6 +6,7 @@
  */
 import captainLaughUrl from './assets/audio/captain-laugh.wav';
 import seaWavesUrl from './assets/audio/sea-waves.opus';
+import cutsceneThemeUrl from './assets/audio/cutscene-theme.mp3';
 
 let ctx: AudioContext | null = null;
 let dest: AudioNode | null = null;
@@ -15,6 +16,7 @@ let creakGain: GainNode | null = null;
 // real-sample buffers, decoded once per ctx (fall back to synthesis until ready)
 let laughBuf: AudioBuffer | null = null;
 let seaBuf: AudioBuffer | null = null;       // real ocean ambience (CC BY 3.0) — replaces the noise wash
+let themeBuf: AudioBuffer | null = null;     // real cutscene score (CC BY 3.0, K. MacLeod) — replaces the synth bed
 let laughLoading = false;
 function loadFloor7Samples(c: AudioContext): void {
     if (laughLoading) return; laughLoading = true;
@@ -24,6 +26,10 @@ function loadFloor7Samples(c: AudioContext): void {
     // this resolves, crossfade the recording in (handles the decode-vs-start race).
     fetch(seaWavesUrl).then(r => r.arrayBuffer()).then(a => c.decodeAudioData(a))
         .then(b => { seaBuf = b; ambient?.upgradeSea?.(); }).catch(() => { /* keep noise wash */ });
+    // real cutscene theme: if the cutscene is already running on the synth bed when this
+    // resolves, swap the recording in for the bed (keeps the procedural stingers on top).
+    fetch(cutsceneThemeUrl).then(r => r.arrayBuffer()).then(a => c.decodeAudioData(a))
+        .then(b => { themeBuf = b; cutMusic?.upgradeTheme?.(); }).catch(() => { /* keep synth bed */ });
 }
 
 export function configureFloor7Sfx(context: AudioContext | null, destination?: AudioNode | null): void {
@@ -152,9 +158,12 @@ export function f7CaptainLaugh(short = false): void {
     if (m) {   // sidechain-duck the bed under the laugh, release after. The reveal belly-laugh
         // ducks LESS (0.075) so the beat keeps weight + reads as the loud emotional peak; the
         // closing smirk ducks HARDER (0.05) so it pierces the quiet tail as the button.
+        // release back to the bed's resting level for the current path (the real theme sits
+        // much louder than the synth drone, so don't undershoot it to the synth value).
+        const rel = m.hasTheme ? 0.34 : 0.11;
         m.master.gain.cancelScheduledValues(t0);
         m.master.gain.setTargetAtTime(short ? 0.05 : 0.075, t0, 0.06);
-        m.master.gain.setTargetAtTime(0.11, t0 + (short ? 0.85 : 1.7), 0.5);
+        m.master.gain.setTargetAtTime(rel, t0 + (short ? 0.85 : 1.7), 0.5);
     }
 
     // REAL recorded laugh (preferred) — pitch it DOWN for a hearty, gruff pirate and run it
@@ -332,11 +341,29 @@ function thump(c: AudioContext, o: AudioNode, t: number, peak: number): void {
 // fifth) with an octave-up "air" voice for mid presence (kills the hollow low-only bed)
 // and a tight modest sub for weight (no 36Hz mud). A lowpass we open/close per beat, a
 // master we swell, a slow filter LFO under TALK, and a per-line tension counter.
-let cutMusic: { master: GainNode; lp: BiquadFilterNode; voices: OscillatorNode[]; talkLfo: OscillatorNode | null; talkLine: number } | null = null;
+let cutMusic: { master: GainNode; lp: BiquadFilterNode | null; voices: OscillatorNode[]; themeSrc: AudioBufferSourceNode | null; talkLfo: OscillatorNode | null; talkLine: number; hasTheme: boolean; upgradeTheme?: () => void } | null = null;
 
 export function f7CutMusicStart(): void {
     const c = ctx, o = out(); if (!c || !o || cutMusic) return; const t = c.currentTime;
-    const master = c.createGain(); master.gain.value = 0; master.connect(o);   // bed stays DRY (tight low end)
+    const master = c.createGain(); master.gain.value = 0; master.connect(o);
+    cutMusic = { master, lp: null, voices: [], themeSrc: null, talkLfo: null, talkLine: 0, hasTheme: false };
+    const m = cutMusic;
+    // swap in the REAL recorded score as the bed (procedural stingers stay on top). Called
+    // now if decoded, or from the load callback if the cutscene started first.
+    const startTheme = (): void => {
+        if (!c || !m || m.hasTheme || !themeBuf || cutMusic !== m) return;
+        m.hasTheme = true;
+        if (m.lp) { m.voices.forEach(v => { try { v.stop(); } catch { /* ok */ } }); m.voices = []; try { m.lp.disconnect(); } catch { /* ok */ } m.lp = null; }
+        const src = c.createBufferSource(); src.buffer = themeBuf; src.loop = true;
+        src.connect(m.master); src.start(c.currentTime); m.themeSrc = src;
+        const now = c.currentTime;
+        m.master.gain.cancelScheduledValues(now);
+        m.master.gain.setValueAtTime(Math.max(0.0001, m.master.gain.value), now);
+        m.master.gain.linearRampToValueAtTime(0.42, now + 1.6);   // mastered track — ride master for level + beat dynamics
+    };
+    m.upgradeTheme = startTheme;
+    if (themeBuf) { startTheme(); return; }
+    // ── procedural fallback bed (D-minor drone) until/if the real theme decodes ──
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 240; lp.Q.value = 2.5; lp.connect(master);
     const voices: OscillatorNode[] = [];
     ([[73.42, 0.6], [74.12, 0.6], [110.0, 0.4]] as const).forEach(([f, gn]) => {
@@ -348,29 +375,38 @@ export function f7CutMusicStart(): void {
     const sub = c.createOscillator(); sub.type = 'sine'; sub.frequency.value = 55.0;           // modest, tight sub
     const sg = c.createGain(); sg.gain.value = 0.3; sub.connect(sg).connect(master); sub.start(t); voices.push(sub);
     master.gain.linearRampToValueAtTime(0.13, t + 1.6);
-    cutMusic = { master, lp, voices, talkLfo: null, talkLine: 0 };
+    m.lp = lp; m.voices = voices;
 }
 
 // per-beat: modulate the bed + fire that beat's stinger (now with whoosh/impact on the
 // hard cuts). beat 1=REVEAL, 2=LOOK_BACK, 3=LAUGH, 4=TALK (0=LEGS is the swell-in).
 export function f7CutBeat(beat: number): void {
     const c = ctx; const w = cutOut(); if (!c || !w) return; const t = c.currentTime; const m = cutMusic;
+    // ride the BED: when the real theme is in, modulate its master level (no synth filter to
+    // sweep); otherwise sweep the procedural drone's lowpass + level as before. Stingers fire
+    // on top either way to punctuate the cut.
+    const bed = (lpHz: number, themeGain: number, procGain: number, tc: number): void => {
+        if (!m) return;
+        if (m.hasTheme) { m.master.gain.setTargetAtTime(themeGain, t, tc); }
+        else { if (m.lp) m.lp.frequency.setTargetAtTime(lpHz, t, tc); m.master.gain.setTargetAtTime(procGain, t, tc); }
+    };
     if (beat === 1) {            // REVEAL — open up, hero stab + jaunty horn motif + crane whoosh + shimmer
-        if (m) { m.lp.frequency.setTargetAtTime(1200, t, 0.35); m.master.gain.setTargetAtTime(0.16, t, 0.3); }
+        bed(1200, 0.5, 0.16, 0.3);
         chordStab(c, w, [146.83, 220.0], t, 0.9, 0.085);                                   // D–A hero (thinner)
         ([[293.66, 0], [349.23, 0.16], [440.0, 0.32], [587.33, 0.5]] as const).forEach(([f, dt]) => tone(c, w, f, t + dt, 0.36, 'sawtooth', 0.06, f * 3, 4));   // brass-ier (softer lp)
         whoosh(c, w, t, 0.07); shimmer(c, w, t, 0.06, true);
     } else if (beat === 2) {     // LOOK_BACK — hard cut: whoosh + low impact, pull the bed down eerie
-        if (m) { m.lp.frequency.setTargetAtTime(360, t, 0.5); m.master.gain.setTargetAtTime(0.09, t, 0.5); }
+        bed(360, 0.34, 0.09, 0.5);
         whoosh(c, w, t, 0.08); thump(c, w, t, 0.07);
     } else if (beat === 3) {     // LAUGH — hard cut: whoosh + impact + a low minor MENACE stab.
-        // keep the bed LOW so the captain's laugh (which ducks to 0.05) owns the beat as the
-        // scene's loudest emotional peak, instead of the bed pushing up and flattening it.
-        if (m) { m.lp.frequency.setTargetAtTime(640, t, 0.25); m.master.gain.setTargetAtTime(0.085, t, 0.2); }
+        // DUCK the bed hard so the captain's (real) laugh owns the beat as the scene's loudest
+        // emotional peak, instead of the music pushing up and flattening it.
+        bed(640, 0.18, 0.085, 0.22);
         whoosh(c, w, t, 0.06); thump(c, w, t, 0.08); chordStab(c, w, [73.42, 87.31, 110.0], t, 1.0, 0.08);
-    } else if (beat === 4) {     // TALK — set the bed + a SLOW breathing filter LFO so it isn't a flatline
-        if (m) {
-            m.lp.frequency.setTargetAtTime(560, t, 0.3); m.master.gain.setTargetAtTime(0.11, t, 0.3); m.talkLine = 0;
+    } else if (beat === 4) {     // TALK — lift the bed back for the monologue; breathing filter LFO on the synth path
+        bed(560, 0.4, 0.11, 0.3);
+        if (m && !m.hasTheme && m.lp) {
+            m.talkLine = 0;
             if (!m.talkLfo) {
                 const lfo = c.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.16;
                 const lg = c.createGain(); lg.gain.value = 190; lfo.connect(lg).connect(m.lp.frequency); lfo.start(t); m.talkLfo = lfo;
@@ -387,6 +423,7 @@ export function f7CutMusicStop(): void {
     if (c) { const w = cutOut(); if (w) tone(c, w, 73.42, t, 1.3, 'triangle', 0.06, 240); }
     if (c) { m.master.gain.cancelScheduledValues(t); m.master.gain.setValueAtTime(m.master.gain.value, t); m.master.gain.linearRampToValueAtTime(0.0001, t + 0.7); }
     m.voices.forEach((v) => { try { v.stop((c ? c.currentTime : 0) + 0.8); } catch { /* already */ } });
+    if (m.themeSrc) { try { m.themeSrc.stop((c ? c.currentTime : 0) + 0.8); } catch { /* already */ } }
 }
 
 // a bright noise/cymbal shimmer (reveal sparkle / elevator dust)
