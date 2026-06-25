@@ -175,6 +175,31 @@ export function buildPirateRig(gltf: THREE.Object3D): PirateRig | null {
     // calm the env reflection so broad sky-sheen doesn't flatten the surface.
     mat.metalness = 0.0;
     mat.envMapIntensity = 0.55;
+
+    // ── albedo grime/tonal break-up (onBeforeCompile) ────────────────────────
+    // The Tripo bake's albedo is a near-uniform flat field per region (a "toy" look
+    // the dialogue camera lingers on). Inject value variation in-shader (no asset,
+    // GPU-cheap, and — unlike the bump — it renders everywhere): darken the lower
+    // coat/boots as hem grime, add low-frequency board-to-board tonal noise, and a
+    // faint desaturated salt lift on the upper body. Driven by the REST-pose local
+    // position (feet y≈-0.5 → head ≈+0.5) so the wear stays put as he animates.
+    mat.onBeforeCompile = (shader) => {
+        shader.vertexShader = shader.vertexShader
+            .replace('#include <common>', '#include <common>\nvarying vec3 vGrimePos;')
+            .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvGrimePos = position;');
+        shader.fragmentShader = shader.fragmentShader
+            .replace('#include <common>', '#include <common>\nvarying vec3 vGrimePos;')
+            .replace('#include <map_fragment>', `#include <map_fragment>
+            {
+                float gy = vGrimePos.y;
+                float hem = mix(0.58, 1.0, smoothstep(-0.5, 0.0, gy));          // soil the lower coat/boots
+                float tone = 1.0 + 0.10 * sin(vGrimePos.x*27.0) * cos(vGrimePos.y*19.0 + vGrimePos.z*23.0); // board-to-board variance
+                diffuseColor.rgb *= hem * tone;
+                float salt = smoothstep(0.12, 0.42, gy) * 0.07;                 // desaturated salt bloom up top
+                float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+                diffuseColor.rgb = mix(diffuseColor.rgb, vec3(lum), salt);
+            }`);
+    };
     mat.needsUpdate = true;
 
     // Bones — rest positions in the GLB's native coords (feet at y=-0.5), exactly

@@ -151,7 +151,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // CENTRE the look on the captain (was drifting to world x=0, which shoved him
             // hard frame-right beside the foreground barrel and cropped his far arm). Aim
             // mid-chest so the full hat→coat silhouette reads on the hero reveal.
-            T.copy(feet); T.x = feet.x; T.y = feet.y + smooth(0.36, 1.35, kk);
+            T.copy(feet); T.x = feet.x; T.y = feet.y + smooth(0.36, 1.6, kk);   // aim higher → drop the tricorne off the top edge (headroom)
             fov = smooth(46, 45, kk); lerp = 0.12; elev = 1;
             // the legs→GLB swap happens exactly on the LEGS boundary, which is also where
             // the model-swap dip peaks (below) — so the model pop is hidden behind darkness.
@@ -186,7 +186,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // readable while still reading as a low-ish hero beat.
             P.y = feet.y + 1.82;
             P.x += 1.0 + Math.sin(t * 0.9) * 0.05; P.y += Math.cos(t * 1.1) * 0.03;   // a touch more height + lateral clears the spar behind his hat
-            T.copy(feet); T.y = feet.y + 1.92;                                // at the thrown-back head/open mouth
+            T.copy(feet); T.x = feet.x + 0.18; T.y = feet.y + 1.92;           // recentre the face (kills the empty left-of-frame sky)
             fov = 38; lerp = 0.12; elev = 0;
             laugh = smooth(0, 1, (t - T_LOOKBACK) / 0.3);                     // throw the head back ON the first "Arr"
         } else if (t < T_END) {
@@ -207,7 +207,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // Sit the lens at the captain's face height for a clean eye-level 3/4 medium.
             P.y = feet.y + 1.98;
             P.x += Math.sin(t * 0.55) * 0.04; P.y += Math.sin(t * 0.72 + 1.0) * 0.03;    // gentle handheld drift
-            T.copy(feet); T.x += 0.12; T.y = feet.y + 1.92;        // level on his face, framed centre
+            T.copy(feet); T.x += 0.18; T.y = feet.y + 1.92;        // level on his face, recentred off the right edge
             fov = 37; lerp = 0.07; elev = 0;
             laugh = smooth(1, 0, tk);         // laugh fades out smoothly as he settles into talking
             pose = smooth(0, 1, tk);          // confident akimbo eases in (no arm snap)
