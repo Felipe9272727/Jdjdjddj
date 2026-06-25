@@ -165,13 +165,15 @@ function makeFloorNumTex(n: string): THREE.CanvasTexture | null {
     // washed software-GL exposure and reads as a lit floor indicator.
     x.fillStyle = '#0a0703'; x.fillRect(0, 0, 256, 256);
     x.strokeStyle = '#ffcf6e'; x.lineWidth = 12; x.strokeRect(14, 14, 228, 228);
-    x.fillStyle = '#fff3cf'; x.font = 'bold 190px Georgia'; x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.shadowColor = '#ffd27a'; x.shadowBlur = 22;
+    x.fillStyle = '#f0dcab'; x.font = 'bold 190px Georgia'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.shadowColor = '#ffd27a'; x.shadowBlur = 16;
     x.fillText(n, 128, 142);
     const t = new THREE.CanvasTexture(c); t.anisotropy = 8; return t;
 }
 const _floor7NumTex = makeFloorNumTex('7');
-const M_elevNum = new THREE.MeshBasicMaterial({ map: _floor7NumTex ?? undefined, color: _floor7NumTex ? '#ffffff' : '#ffd27a', toneMapped: false, fog: false, transparent: true });
+// warm gold tint (not pure white) so the lit "7" reads as a floor indicator without
+// blowing out brighter than the cab itself and stealing the LOOK_BACK frame.
+const M_elevNum = new THREE.MeshBasicMaterial({ map: _floor7NumTex ?? undefined, color: _floor7NumTex ? '#c9ad72' : '#ffd27a', toneMapped: false, fog: false, transparent: true });
 
 // Weather the hull by WORLD height: below the (world-fixed) waterline it goes
 // dark, wet and green; up toward the cap rail it sun-bleaches. Driven by world

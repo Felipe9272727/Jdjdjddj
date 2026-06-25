@@ -154,8 +154,10 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // PULLED BACK + WIDER than before so the whole CAB reads as the elevator the
             // player rode in on (doors + seam + gold frame + lit "7"), not an extreme
             // close-up of a giant floor-number plate. Centre on the doors, not the "7".
-            P.set(smooth(3.4, 3.05, k), 4.35, ELEV_W.z + smooth(4.4, 3.9, k));
-            T.set(0.2, smooth(2.1, 1.65, k), ELEV_W.z + 0.3);
+            P.set(smooth(3.4, 3.05, k), 4.2, ELEV_W.z + smooth(4.4, 3.9, k));
+            // aim LOWER — centre on the door seam/handles so the cab is the subject and the
+            // lit "7" rides the upper third (it was dead-centre and led the eye as signage).
+            T.set(0.2, smooth(1.85, 1.32, k), ELEV_W.z + 0.3);
             fov = 45; lerp = 0.1; pose = 1; hideSails = 1;
             elev = 1 - smooth(0, 1, Math.max(0, k - 0.42) / 0.32);
         } else if (t < T_LAUGH) {
