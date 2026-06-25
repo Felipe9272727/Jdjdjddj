@@ -931,7 +931,10 @@ const Captain = React.forwardRef<THREE.Group, { rig: CaptainRig }>(({ rig }, ref
             reads as its own strap (not merged into the gold waistcoat) */}
         <group ref={rig.sash} position={[0, 1.30, 0]}>
             <mesh position={[0, -0.32, 0.04]} rotation={[0, 0, 0.55]} material={M.baldric}><boxGeometry args={[0.1, 0.78, 0.46]} /></mesh>
-            <mesh position={[0.022, -0.32, 0.27]} rotation={[0, 0, 0.55]} material={M.gold}><boxGeometry args={[0.016, 0.78, 0.018]} /></mesh>
+            {/* edge in the DARKER gilt (was bright M.gold) — the critic flagged the baldric
+                reading as a bright horizontal bar bisecting the chest; a lower-luminance
+                gold lets it sit as a strap accent instead of competing with the coat trim */}
+            <mesh position={[0.022, -0.32, 0.27]} rotation={[0, 0, 0.55]} material={M.giltTrim}><boxGeometry args={[0.016, 0.78, 0.018]} /></mesh>
         </group>
         <mesh position={[0, 0.74, 0]} material={M.boot}><cylinderGeometry args={[0.30, 0.32, 0.1, 16]} /></mesh>
         {/* big brass belt buckle */}

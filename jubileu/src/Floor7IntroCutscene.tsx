@@ -145,11 +145,14 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             const k = (t - T_LEGS) / (T_REVEAL - T_LEGS);
             const kk = Math.min(1, k / 0.9);
             P.copy(feet);
-            P.x += smooth(2.05, 1.7, kk);
-            P.y = feet.y + smooth(0.30, 1.0, kk);
-            P.z += smooth(0.15, 3.2, kk);
-            T.copy(feet); T.x = smooth(feet.x, 0, kk); T.y = feet.y + smooth(0.36, 1.5, kk);
-            fov = smooth(46, 44, kk); lerp = 0.12; elev = 1;
+            P.x += smooth(2.05, 1.95, kk);
+            P.y = feet.y + smooth(0.30, 1.15, kk);
+            P.z += smooth(0.15, 3.35, kk);
+            // CENTRE the look on the captain (was drifting to world x=0, which shoved him
+            // hard frame-right beside the foreground barrel and cropped his far arm). Aim
+            // mid-chest so the full hat→coat silhouette reads on the hero reveal.
+            T.copy(feet); T.x = feet.x; T.y = feet.y + smooth(0.36, 1.35, kk);
+            fov = smooth(46, 45, kk); lerp = 0.12; elev = 1;
             // the legs→GLB swap happens exactly on the LEGS boundary, which is also where
             // the model-swap dip peaks (below) — so the model pop is hidden behind darkness.
             pose = smooth(0, 1, (k - 0.5) / 0.35);
@@ -177,9 +180,13 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // RAISED from the old extreme-low hero (y+1.12) — that angle threw the boom/
             // furled sail behind him straight across his chest. ~eye-level-ish on a 3/4
             // (like the clean TALK shot) clears the rigging while still reading as a beat.
-            P.y = feet.y + 1.56;
+            // RAISED to ~face height (was y+1.56, an up-the-nose hero that put the thrown-
+            // back head behind the tricorne brim — the critic flagged the laughing face as
+            // occluded). Near eye-level/slightly-below on a 3/4 keeps the open-mouth laugh
+            // readable while still reading as a low-ish hero beat.
+            P.y = feet.y + 1.82;
             P.x += 1.0 + Math.sin(t * 0.9) * 0.05; P.y += Math.cos(t * 1.1) * 0.03;   // a touch more height + lateral clears the spar behind his hat
-            T.copy(feet); T.y = feet.y + 1.95;                                // up at the thrown-back head
+            T.copy(feet); T.y = feet.y + 1.92;                                // at the thrown-back head/open mouth
             fov = 38; lerp = 0.12; elev = 0;
             laugh = smooth(0, 1, (t - T_LOOKBACK) / 0.3);                     // throw the head back ON the first "Arr"
         } else if (t < T_END) {
@@ -195,9 +202,12 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // beat isn't a static hold for ~10s — it tightens on him as the threat builds.
             P.copy(feet).addScaledVector(d, smooth(2.95, 2.4, tkFull));
             P.x += 0.78;                                           // a touch less lateral so he sits closer to centre (was right-of-frame)
-            P.y = feet.y + 1.6;
+            // EYE-LEVEL (was y+1.6, looking up his nose during the whole monologue — the
+            // critic's #1 fix: dialogue is where the player stares at the face longest).
+            // Sit the lens at the captain's face height for a clean eye-level 3/4 medium.
+            P.y = feet.y + 1.98;
             P.x += Math.sin(t * 0.55) * 0.04; P.y += Math.sin(t * 0.72 + 1.0) * 0.03;    // gentle handheld drift
-            T.copy(feet); T.x += 0.12; T.y = feet.y + 1.78;        // nudge the look toward him so he frames centre
+            T.copy(feet); T.x += 0.12; T.y = feet.y + 1.92;        // level on his face, framed centre
             fov = 37; lerp = 0.07; elev = 0;
             laugh = smooth(1, 0, tk);         // laugh fades out smoothly as he settles into talking
             pose = smooth(0, 1, tk);          // confident akimbo eases in (no arm snap)
