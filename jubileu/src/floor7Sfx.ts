@@ -14,7 +14,7 @@ let creakGain: GainNode | null = null;
 export function configureFloor7Sfx(context: AudioContext | null, destination?: AudioNode | null): void {
     ctx = context; dest = destination ?? null;
 }
-export function clearFloor7Sfx(): void { stopFloor7Ambient(); ctx = null; dest = null; }
+export function clearFloor7Sfx(): void { stopFloor7Ambient(); f7CutMusicStop(); clearFloor7CutReverb(); ctx = null; dest = null; }
 function out(): AudioNode | null { return dest ?? ctx?.destination ?? null; }
 
 let _noise: AudioBuffer | null = null;
@@ -102,9 +102,10 @@ export function f7CaptainGrunt(): void {
     osc.start(t); osc.stop(t + 0.24);
 }
 
-// ironic "arr arr arr" laugh — a short descending burst of gruff vowels
+// ironic "arr arr arr" laugh — a short descending burst of gruff vowels (through the
+// cutscene reverb space when one is up, so it sits in the scene like the rest of the cues)
 export function f7CaptainLaugh(): void {
-    const c = ctx, o = out(); if (!c || !o) return; const t0 = c.currentTime;
+    const c = ctx, o = cutOut(); if (!c || !o) return; const t0 = c.currentTime;
     const beats = [0, 0.17, 0.34, 0.52];
     const base = [165, 150, 138, 120];
     beats.forEach((dt, i) => {
@@ -160,59 +161,103 @@ function tone(c: AudioContext, o: AudioNode, freq: number, t: number, dur: numbe
     osc.start(t); osc.stop(t + dur + 0.05);
 }
 function chordStab(c: AudioContext, o: AudioNode, freqs: number[], t: number, dur: number, peak: number): void {
-    freqs.forEach((f) => tone(c, o, f, t, dur, 'sawtooth', peak, f * 6));
+    freqs.forEach((f) => tone(c, o, f, t, dur, 'sawtooth', peak, f * 3.5));   // softer lowpass → less raw-saw buzz
 }
 
-// the building score bed. Held drone + sub, a lowpass we open/close per beat, and
-// a master gain we swell. cutMusic holds the live nodes + the talk-pulse timer.
-let cutMusic: { master: GainNode; lp: BiquadFilterNode; voices: OscillatorNode[]; pulse: ReturnType<typeof setInterval> | null } | null = null;
+// SPACE — a shared wet/dry reverb send for the cutscene cues. A ship deck is a big,
+// open, woody space; dry-to-output cues sound like a synth patch. A stereo synthesised
+// impulse gives them air + width. Lazily built per ctx, torn down with clearFloor7Sfx.
+let revInput: GainNode | null = null;
+function makeImpulse(c: AudioContext, dur: number, decay: number): AudioBuffer {
+    const n = Math.max(1, Math.floor(c.sampleRate * dur));
+    const buf = c.createBuffer(2, n, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, decay); }
+    return buf;
+}
+function cutOut(): AudioNode | null {
+    const c = ctx, o = out(); if (!c || !o) return o;
+    if (revInput && revInput.context === c) return revInput;
+    const input = c.createGain();
+    const dry = c.createGain(); dry.gain.value = 0.85; input.connect(dry).connect(o);
+    const conv = c.createConvolver(); conv.buffer = makeImpulse(c, 1.5, 2.6);
+    const wet = c.createGain(); wet.gain.value = 0.3; input.connect(conv).connect(wet).connect(o);
+    revInput = input; return input;
+}
+export function clearFloor7CutReverb(): void { revInput = null; }
+
+// a filtered-noise WHOOSH for camera moves, and a low THUMP impact for the hard cuts.
+function whoosh(c: AudioContext, o: AudioNode, t: number, peak: number): void {
+    const src = c.createBufferSource(); src.buffer = noiseBuf(c); src.playbackRate.value = 0.9;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.9;
+    bp.frequency.setValueAtTime(300, t); bp.frequency.exponentialRampToValueAtTime(2200, t + 0.18); bp.frequency.exponentialRampToValueAtTime(400, t + 0.5);
+    const g = c.createGain(); g.gain.value = 0; src.connect(bp).connect(g).connect(o);
+    g.gain.linearRampToValueAtTime(peak, t + 0.13); g.gain.exponentialRampToValueAtTime(0.0008, t + 0.5);
+    src.start(t); src.stop(t + 0.55);
+}
+function thump(c: AudioContext, o: AudioNode, t: number, peak: number): void {
+    const osc = c.createOscillator(); osc.type = 'sine'; const g = c.createGain(); g.gain.value = 0; osc.connect(g).connect(o);
+    osc.frequency.setValueAtTime(120, t); osc.frequency.exponentialRampToValueAtTime(44, t + 0.25);
+    g.gain.linearRampToValueAtTime(peak, t + 0.01); g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    osc.start(t); osc.stop(t + 0.4);
+}
+
+// the building score bed: a D-minor drone (root + a wide-detuned chorus twin + the
+// fifth) with an octave-up "air" voice for mid presence (kills the hollow low-only bed)
+// and a tight modest sub for weight (no 36Hz mud). A lowpass we open/close per beat, a
+// master we swell, a slow filter LFO under TALK, and a per-line tension counter.
+let cutMusic: { master: GainNode; lp: BiquadFilterNode; voices: OscillatorNode[]; talkLfo: OscillatorNode | null; talkLine: number } | null = null;
 
 export function f7CutMusicStart(): void {
     const c = ctx, o = out(); if (!c || !o || cutMusic) return; const t = c.currentTime;
-    const master = c.createGain(); master.gain.value = 0; master.connect(o);
-    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 200; lp.Q.value = 3; lp.connect(master);
+    const master = c.createGain(); master.gain.value = 0; master.connect(o);   // bed stays DRY (tight low end)
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 240; lp.Q.value = 2.5; lp.connect(master);
     const voices: OscillatorNode[] = [];
-    // D-minor bed: root D2, a hair-detuned twin, the fifth A2, all sawtooth through lp
-    [73.42, 73.66, 110.0].forEach((f, i) => {
+    ([[73.42, 0.6], [74.12, 0.6], [110.0, 0.4]] as const).forEach(([f, gn]) => {
         const osc = c.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = f;
-        const g = c.createGain(); g.gain.value = i === 2 ? 0.45 : 0.7; osc.connect(g).connect(lp); osc.start(t); voices.push(osc);
+        const g = c.createGain(); g.gain.value = gn; osc.connect(g).connect(lp); osc.start(t); voices.push(osc);
     });
-    const sub = c.createOscillator(); sub.type = 'sine'; sub.frequency.value = 36.71;
-    const sg = c.createGain(); sg.gain.value = 0.6; sub.connect(sg).connect(master); sub.start(t); voices.push(sub);
-    master.gain.linearRampToValueAtTime(0.14, t + 1.6);   // swell in under the LEGS beat
-    cutMusic = { master, lp, voices, pulse: null };
+    const air = c.createOscillator(); air.type = 'triangle'; air.frequency.value = 220.0;     // octave-up presence
+    const ag = c.createGain(); ag.gain.value = 0.05; air.connect(ag).connect(master); air.start(t); voices.push(air);
+    const sub = c.createOscillator(); sub.type = 'sine'; sub.frequency.value = 55.0;           // modest, tight sub
+    const sg = c.createGain(); sg.gain.value = 0.3; sub.connect(sg).connect(master); sub.start(t); voices.push(sub);
+    master.gain.linearRampToValueAtTime(0.13, t + 1.6);
+    cutMusic = { master, lp, voices, talkLfo: null, talkLine: 0 };
 }
 
-// per-beat: modulate the bed + fire that beat's stinger. beat 1=REVEAL, 2=LOOK_BACK,
-// 3=LAUGH, 4=TALK (0=LEGS is just the swell-in from start).
+// per-beat: modulate the bed + fire that beat's stinger (now with whoosh/impact on the
+// hard cuts). beat 1=REVEAL, 2=LOOK_BACK, 3=LAUGH, 4=TALK (0=LEGS is the swell-in).
 export function f7CutBeat(beat: number): void {
-    const c = ctx, o = out(); if (!c || !o) return; const t = c.currentTime; const m = cutMusic;
-    if (beat === 1) {            // REVEAL — open the filter, hero brass stab + a jaunty motif lick + shimmer
-        if (m) { m.lp.frequency.setTargetAtTime(1100, t, 0.35); m.master.gain.setTargetAtTime(0.2, t, 0.3); }
-        chordStab(c, o, [146.83, 220.0, 293.66], t, 0.9, 0.1);                 // D-A-D hero stab
-        // a short pirate-horn motif (D–F–A–D) with vibrato, a touch later
-        [[293.66, 0.0], [349.23, 0.16], [440.0, 0.32], [587.33, 0.5]].forEach(([f, dt]) => tone(c, o, f, t + dt, 0.34, 'sawtooth', 0.07, f * 5, 4));
-        shimmer(c, o, t, 0.09, true);
-    } else if (beat === 2) {     // LOOK_BACK — pull the bed down to eerie/mysterious
-        if (m) { m.lp.frequency.setTargetAtTime(360, t, 0.5); m.master.gain.setTargetAtTime(0.1, t, 0.5); }
-    } else if (beat === 3) {     // LAUGH — a low minor MENACE hit
-        if (m) { m.lp.frequency.setTargetAtTime(620, t, 0.25); m.master.gain.setTargetAtTime(0.17, t, 0.2); }
-        chordStab(c, o, [73.42, 87.31, 110.0], t, 1.1, 0.12);                  // Dm low menace
-    } else if (beat === 4) {     // TALK — a low jaunty HEARTBEAT pulse under the dialogue
-        if (m) { m.lp.frequency.setTargetAtTime(520, t, 0.3); m.master.gain.setTargetAtTime(0.12, t, 0.3); }
-        if (m && !m.pulse) {
-            const step = () => { const cc = ctx, oo = out(); if (cc && oo) tone(cc, oo, 73.42, cc.currentTime, 0.22, 'triangle', 0.1, 300); };
-            step(); m.pulse = setInterval(step, 1150);
+    const c = ctx; const w = cutOut(); if (!c || !w) return; const t = c.currentTime; const m = cutMusic;
+    if (beat === 1) {            // REVEAL — open up, hero stab + jaunty horn motif + crane whoosh + shimmer
+        if (m) { m.lp.frequency.setTargetAtTime(1200, t, 0.35); m.master.gain.setTargetAtTime(0.16, t, 0.3); }
+        chordStab(c, w, [146.83, 220.0], t, 0.9, 0.085);                                   // D–A hero (thinner)
+        ([[293.66, 0], [349.23, 0.16], [440.0, 0.32], [587.33, 0.5]] as const).forEach(([f, dt]) => tone(c, w, f, t + dt, 0.36, 'sawtooth', 0.06, f * 3, 4));   // brass-ier (softer lp)
+        whoosh(c, w, t, 0.07); shimmer(c, w, t, 0.06, true);
+    } else if (beat === 2) {     // LOOK_BACK — hard cut: whoosh + low impact, pull the bed down eerie
+        if (m) { m.lp.frequency.setTargetAtTime(360, t, 0.5); m.master.gain.setTargetAtTime(0.09, t, 0.5); }
+        whoosh(c, w, t, 0.08); thump(c, w, t, 0.07);
+    } else if (beat === 3) {     // LAUGH — hard cut: whoosh + impact + a low minor MENACE stab
+        if (m) { m.lp.frequency.setTargetAtTime(640, t, 0.25); m.master.gain.setTargetAtTime(0.15, t, 0.2); }
+        whoosh(c, w, t, 0.06); thump(c, w, t, 0.09); chordStab(c, w, [73.42, 87.31, 110.0], t, 1.1, 0.095);
+    } else if (beat === 4) {     // TALK — set the bed + a SLOW breathing filter LFO so it isn't a flatline
+        if (m) {
+            m.lp.frequency.setTargetAtTime(560, t, 0.3); m.master.gain.setTargetAtTime(0.11, t, 0.3); m.talkLine = 0;
+            if (!m.talkLfo) {
+                const lfo = c.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.16;
+                const lg = c.createGain(); lg.gain.value = 190; lfo.connect(lg).connect(m.lp.frequency); lfo.start(t); m.talkLfo = lfo;
+            }
         }
     }
 }
 
 export function f7CutMusicStop(): void {
     const c = ctx; const m = cutMusic; if (!m) return; cutMusic = null;
-    if (m.pulse) clearInterval(m.pulse);
+    if (m.talkLfo) { try { m.talkLfo.stop(); } catch { /* already */ } }
     const t = c ? c.currentTime : 0;
-    if (c) m.master.gain.cancelScheduledValues(t), m.master.gain.setValueAtTime(m.master.gain.value, t), m.master.gain.linearRampToValueAtTime(0.0001, t + 0.6);
-    m.voices.forEach((v) => { try { v.stop((c ? c.currentTime : 0) + 0.7); } catch { /* already */ } });
+    // a soft low resolve note — an audio "button" under the END fade-to-black
+    if (c) { const w = cutOut(); if (w) tone(c, w, 73.42, t, 1.3, 'triangle', 0.06, 240); }
+    if (c) { m.master.gain.cancelScheduledValues(t); m.master.gain.setValueAtTime(m.master.gain.value, t); m.master.gain.linearRampToValueAtTime(0.0001, t + 0.7); }
+    m.voices.forEach((v) => { try { v.stop((c ? c.currentTime : 0) + 0.8); } catch { /* already */ } });
 }
 
 // a bright noise/cymbal shimmer (reveal sparkle / elevator dust)
@@ -225,61 +270,91 @@ function shimmer(c: AudioContext, o: AudioNode, t: number, peak: number, up: boo
     src.start(t); src.stop(t + 0.85);
 }
 
-// the HOTEL elevator dematerialising "out here" — a shimmering descend (bell partials
-// falling) + a downward power-down filter sweep + a sparkle tail. Fire it synced to the
-// visual dissolve, not the beat start.
+// the HOTEL elevator dematerialising "out here" — a descending bell cascade + a LOUDER
+// power-down sweep + a sub-drop thump for body + a sparkle tail, through the reverb so it
+// "dematerialises" into the space rather than blipping out. Synced to the visual dissolve.
 export function f7ElevatorVanish(): void {
-    const c = ctx, o = out(); if (!c || !o) return; const t = c.currentTime;
-    // descending bell partials (the "teleport away")
+    const c = ctx, o = cutOut(); if (!c || !o) return; const t = c.currentTime;
     [1568, 1175, 880, 659, 494].forEach((f, i) => {
         const dt = i * 0.08;
         const osc = c.createOscillator(); osc.type = 'sine'; const g = c.createGain(); g.gain.value = 0; osc.connect(g).connect(o);
         osc.frequency.setValueAtTime(f, t + dt); osc.frequency.exponentialRampToValueAtTime(f * 0.5, t + dt + 0.5);
-        g.gain.linearRampToValueAtTime(0.05, t + dt + 0.02); g.gain.exponentialRampToValueAtTime(0.0008, t + dt + 0.6);
+        g.gain.linearRampToValueAtTime(0.06, t + dt + 0.02); g.gain.exponentialRampToValueAtTime(0.0008, t + dt + 0.6);
         osc.start(t + dt); osc.stop(t + dt + 0.65);
     });
-    // power-down sweep — a filtered tone collapsing
     const osc = c.createOscillator(); osc.type = 'sawtooth';
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(2000, t); lp.frequency.exponentialRampToValueAtTime(90, t + 0.9);
     const g = c.createGain(); g.gain.value = 0; osc.frequency.setValueAtTime(330, t); osc.frequency.exponentialRampToValueAtTime(70, t + 0.9);
     osc.connect(lp).connect(g).connect(o);
-    g.gain.linearRampToValueAtTime(0.09, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0008, t + 0.95);
+    g.gain.linearRampToValueAtTime(0.14, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0008, t + 0.95);
     osc.start(t); osc.stop(t + 1.0);
-    shimmer(c, o, t + 0.1, 0.05, false);
+    // sub-drop for weight (the "no way back" gut-punch)
+    const sub = c.createOscillator(); sub.type = 'sine'; const sg = c.createGain(); sg.gain.value = 0;
+    sub.frequency.setValueAtTime(64, t); sub.frequency.exponentialRampToValueAtTime(28, t + 0.7); sub.connect(sg).connect(o);
+    sg.gain.linearRampToValueAtTime(0.13, t + 0.04); sg.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+    sub.start(t); sub.stop(t + 0.85);
+    shimmer(c, o, t + 0.1, 0.06, false);
 }
 
-// a HEAVY boot clomp for the LEGS close-up — a low body thud + a leathery noise scuff
+// a HEAVY boot clomp for the LEGS close-up — a low body thud + a leathery noise scuff,
+// HUMANISED per step (±pitch, ±gain, slight timing wobble) so the stride isn't robotic.
 export function f7BootClomp(): void {
-    const c = ctx, o = out(); if (!c || !o) return; const t = c.currentTime;
+    const c = ctx, o = cutOut(); if (!c || !o) return;
+    const t = c.currentTime + Math.random() * 0.02;
+    const pitch = 0.85 + Math.random() * 0.32; const lvl = 0.1 + Math.random() * 0.05;
     const osc = c.createOscillator(); osc.type = 'sine'; const g = c.createGain(); g.gain.value = 0; osc.connect(g).connect(o);
-    osc.frequency.setValueAtTime(110, t); osc.frequency.exponentialRampToValueAtTime(55, t + 0.12);
-    g.gain.linearRampToValueAtTime(0.12, t + 0.008); g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    osc.frequency.setValueAtTime(110 * pitch, t); osc.frequency.exponentialRampToValueAtTime(55 * pitch, t + 0.12);
+    g.gain.linearRampToValueAtTime(lvl, t + 0.008); g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
     osc.start(t); osc.stop(t + 0.18);
-    const src = c.createBufferSource(); src.buffer = noiseBuf(c);
-    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+    const src = c.createBufferSource(); src.buffer = noiseBuf(c); src.playbackRate.value = pitch;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 800 + Math.random() * 320;
     const ng = c.createGain(); ng.gain.value = 0; src.connect(lp).connect(ng).connect(o);
-    ng.gain.linearRampToValueAtTime(0.06, t + 0.006); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    ng.gain.linearRampToValueAtTime(lvl * 0.5, t + 0.006); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
     src.start(t); src.stop(t + 0.12);
 }
 
-// the captain's VOICE — gruff gibberish "speech" for a dialogue line (one vowel-ish
-// formant blip per syllable, falling pitch contour = a statement). Gives him life.
+// the captain's VOICE — gruff "speech" for a dialogue line. Two detuned saws per syllable
+// (thicker than a lone buzz), randomized syllable timing + formant + a per-LINE rising
+// contour, a consonant noise burst between syllables (kills the kazoo), louder and routed
+// through the reverb — and it DUCKS the score bed so the captain commands the mix.
 export function f7CaptainVoice(text: string): void {
-    const c = ctx, o = out(); if (!c || !o) return; const t0 = c.currentTime;
+    const c = ctx, o = cutOut(); if (!c || !o) return; const t0 = c.currentTime;
+    const m = cutMusic; const line = m ? m.talkLine++ : 0;
+    if (m) {   // sidechain duck: dip the bed under the line, release after
+        m.master.gain.cancelScheduledValues(t0);
+        m.master.gain.setTargetAtTime(0.06, t0, 0.08);
+        m.master.gain.setTargetAtTime(0.11, t0 + 0.12, 0.9);
+        // a low menace accent per line (replaces the metronome; builds with the line index)
+        tone(c, o, [73.42, 82.41, 87.31, 98.0, 110.0][line % 5], t0, 0.5, 'triangle', 0.09 + line * 0.01, 240);
+    }
     const letters = (text.match(/[a-zà-ú]/gi) || []).length;
-    const syl = Math.max(3, Math.min(12, Math.round(letters / 2.6)));
-    const formants = [620, 480, 820, 560, 700];
+    const syl = Math.max(3, Math.min(13, Math.round(letters / 2.5)));
+    const formants = [620, 480, 820, 560, 700, 760, 520];
+    let t = t0 + 0.05;
     for (let i = 0; i < syl; i++) {
-        const t = t0 + i * 0.135;
         const prog = syl > 1 ? i / (syl - 1) : 0;
-        const base = 132 - prog * 26 + (Math.random() - 0.5) * 14;   // gruff ~105-145Hz, falling
-        const osc = c.createOscillator(); osc.type = 'sawtooth';
-        const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 4.5; bp.frequency.value = formants[i % formants.length];
-        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1500;
-        const g = c.createGain(); g.gain.value = 0; osc.connect(bp).connect(lp).connect(g).connect(o);
-        osc.frequency.setValueAtTime(base * 1.06, t); osc.frequency.linearRampToValueAtTime(base, t + 0.06);
-        g.gain.linearRampToValueAtTime(0.05, t + 0.014); g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-        osc.start(t); osc.stop(t + 0.12);
+        const top = 126 + line * 6, fall = 22 + line * 4;                     // later lines start higher/harder
+        const base = top - prog * fall + (Math.random() - 0.5) * 16;
+        const fm = formants[(i * 3 + line) % formants.length] + (Math.random() - 0.5) * 90;
+        const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 5; bp.frequency.value = Math.max(220, fm);
+        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1700;
+        const g = c.createGain(); g.gain.value = 0; bp.connect(lp).connect(g).connect(o);
+        [base, base * 1.012].forEach((f, k) => {
+            const osc = c.createOscillator(); osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(f * 1.05, t); osc.frequency.linearRampToValueAtTime(f, t + 0.06);
+            const og = c.createGain(); og.gain.value = k === 0 ? 1 : 0.6; osc.connect(og).connect(bp);
+            osc.start(t); osc.stop(t + 0.14);
+        });
+        g.gain.linearRampToValueAtTime(0.1, t + 0.014); g.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+        if (i < syl - 1 && Math.random() < 0.6) {   // consonant/breath burst between syllables
+            const ct = t + 0.1;
+            const src = c.createBufferSource(); src.buffer = noiseBuf(c);
+            const cf = c.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 1800 + Math.random() * 1400; cf.Q.value = 1.2;
+            const cg = c.createGain(); cg.gain.value = 0; src.connect(cf).connect(cg).connect(o);
+            cg.gain.linearRampToValueAtTime(0.028, ct + 0.006); cg.gain.exponentialRampToValueAtTime(0.001, ct + 0.05);
+            src.start(ct); src.stop(ct + 0.07);
+        }
+        t += 0.12 + Math.random() * 0.06;            // randomized syllable spacing
     }
 }
 
