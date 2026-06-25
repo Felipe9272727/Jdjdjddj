@@ -22,6 +22,14 @@
  */
 
 import * as THREE from 'three';
+import { makeFabricDetail } from './floor7Textures';
+
+// one shared detail-bump for every captain instance (cheap, tileable).
+let _fabricDetail: THREE.CanvasTexture | null = null;
+function fabricDetail(): THREE.CanvasTexture {
+    if (!_fabricDetail) { _fabricDetail = makeFabricDetail(); _fabricDetail.repeat.set(4, 4); }
+    return _fabricDetail;
+}
 
 // The raw model is ~1m tall (feet at y=-0.5). The procedural captain it
 // replaces stood ~1.55m with FLOOR7_SCALE applied on top; this lifts the GLB to
@@ -152,6 +160,22 @@ export function buildPirateRig(gltf: THREE.Object3D): PirateRig | null {
     // already supports skinning — no shader surgery needed.
     const srcMat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
     const mat = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial({ color: 0xb08050 });
+
+    // ── surface-detail pass ──────────────────────────────────────────────────
+    // The Tripo bake ships a near-FLAT normal map (#8080ff almost everywhere), so
+    // the coat/skin/leather render as a plastic sheet under PBR light despite the
+    // detailed albedo. Layer a tiled fabric/grain BUMP on top (three.js applies
+    // bumpMap AND the baked normalMap together) to restore micro-relief, and tune
+    // the PBR so cloth reads matte instead of wet-glossy.
+    mat.bumpMap = fabricDetail();
+    mat.bumpScale = 0.16;
+    if (mat.map) { mat.map.anisotropy = 8; (mat.map as THREE.Texture).needsUpdate = true; }
+    // the baked metalness lives in the ORM blue channel (~0 across the figure), but
+    // clamp the multiplier so no residual specular metalness plasticises the cloth;
+    // calm the env reflection so broad sky-sheen doesn't flatten the surface.
+    mat.metalness = 0.0;
+    mat.envMapIntensity = 0.55;
+    mat.needsUpdate = true;
 
     // Bones — rest positions in the GLB's native coords (feet at y=-0.5), exactly
     // mirroring the Diabrete rig's construction (no flush, no bake).

@@ -240,6 +240,54 @@ export function makeSailcloth(w = 512, h = 384): { map: THREE.CanvasTexture; rou
     return { map, rough };
 }
 
+// a tileable grayscale DETAIL bump for the captain's GLB — the model ships a
+// nearly-flat normal map (no weave/grain/wrinkles), so the coat reads as plastic.
+// This adds high-frequency micro-relief (woven over/under cloth + slubs + faint
+// wrinkle creases + fine tooth) that we tile across the figure at a small bumpScale
+// to break the flat sheen into real fabric/leather surface. 128² tiles fine.
+export function makeFabricDetail(size = 128): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d')!;
+    const r = rnd(0x3C1B);
+    x.fillStyle = '#808080'; x.fillRect(0, 0, size, size);   // neutral = flat
+    // plain weave: alternating warp/weft cells, each a soft proud/recessed bump so
+    // grazing light catches a thread grid (the single biggest "this is cloth" cue).
+    const cell = 4;
+    for (let gy = 0; gy < size; gy += cell) {
+        for (let gx = 0; gx < size; gx += cell) {
+            const over = ((gx / cell) + (gy / cell)) % 2 < 1;   // checker = over/under
+            const v = over ? 150 + r() * 22 : 96 + r() * 18;
+            x.fillStyle = `rgb(${v},${v},${v})`;
+            x.fillRect(gx, gy, cell, cell);
+            // thread highlight ridge on the proud cells
+            if (over) { x.fillStyle = 'rgba(225,225,225,0.35)'; x.fillRect(gx, gy, cell, 1.2); }
+        }
+    }
+    // slubs: occasional thicker fibres / nubs scattered over the weave
+    for (let i = 0; i < 140; i++) {
+        const sx = r() * size, sy = r() * size, sr = 0.8 + r() * 2.2;
+        x.fillStyle = r() > 0.5 ? 'rgba(210,210,210,0.5)' : 'rgba(70,70,70,0.5)';
+        x.beginPath(); x.arc(sx, sy, sr, 0, 7); x.fill();
+    }
+    // faint wrinkle creases — short soft strokes (kept low-contrast so seams at the
+    // tile edge stay invisible at the small bumpScale we apply).
+    for (let i = 0; i < 7; i++) {
+        const ax = r() * size, ay = r() * size, len = 14 + r() * 26, ang = r() * 7;
+        x.strokeStyle = 'rgba(60,60,60,0.4)'; x.lineWidth = 1.4;
+        x.beginPath(); x.moveTo(ax, ay); x.lineTo(ax + Math.cos(ang) * len, ay + Math.sin(ang) * len); x.stroke();
+        x.strokeStyle = 'rgba(220,220,220,0.3)'; x.lineWidth = 1;
+        x.beginPath(); x.moveTo(ax, ay + 1.4); x.lineTo(ax + Math.cos(ang) * len, ay + Math.sin(ang) * len + 1.4); x.stroke();
+    }
+    // fine tooth speckle so smooth-shaded low-poly faces aren't perfectly uniform
+    for (let i = 0; i < 1600; i++) {
+        const v = r() > 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+        x.fillStyle = v; x.fillRect(r() * size, r() * size, 1, 1);
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+    return t;
+}
+
 // black Jolly Roger: white skull + crossed bones on black, drawn procedurally.
 export function makeJollyRoger(size = 256): THREE.CanvasTexture {
     const c = document.createElement('canvas'); c.width = c.height = size;
