@@ -12,7 +12,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await pg.goto('http://127.0.0.1:3000/floor7cutscene.html',{waitUntil:'load',timeout:30000});
   await pg.waitForFunction(()=>window.__ready===true,{timeout:20000}).catch(()=>console.log('no ready'));
   const t0=Date.now();
-  while(Date.now()-t0<175000){ const d=await pg.evaluate(()=>window.__done?window.__done():false); if(d){console.log('cutscene reached onDone');break;} await sleep(1000); }
+  while(Date.now()-t0<225000){ const d=await pg.evaluate(()=>window.__done?window.__done():false); if(d){console.log('cutscene reached onDone');break;} await sleep(1000); }
   const log = await pg.evaluate(()=>window.__audioLog?window.__audioLog():[]);
   const band={}; let peak=0,sum=0,n=0;
   for(const [t,r] of log){ const k=(Math.floor(t*2)/2).toFixed(1); band[k]=Math.max(band[k]||0,r); peak=Math.max(peak,r); sum+=r; n++; }

@@ -102,14 +102,22 @@ export function f7CaptainGrunt(): void {
     osc.start(t); osc.stop(t + 0.24);
 }
 
-// the captain's LAUGH — a hearty pirate belly laugh: a held, rolled-R "Arrr" growl
+// the captain's LAUGH — a hearty pirate belly laugh: a held, fluttering "Arrr" growl
 // followed by descending, decaying "har-har-har" pulses (each a breath-onset + a
 // formant-shaped voiced burst with a chest sub), then a trailing exhale. Two detuned
 // saws + vowel formants make it read as a VOICE, not a synth blip; routed through the
-// reverb space. Randomised per call so repeated laughs don't sound cloned.
-export function f7CaptainLaugh(): void {
+// reverb space, and it DUCKS the score bed so the laugh commands the mix. Randomised per
+// call. `short` = a lower, harder, shorter "got-the-last-word" smirk (the scene's button),
+// so the two laughs read as different gestures, not a clone.
+export function f7CaptainLaugh(short = false): void {
     const c = ctx, o = cutOut(); if (!c || !o) return; const t0 = c.currentTime;
     const R = (a: number, b: number) => a + Math.random() * (b - a);
+    const m = cutMusic;
+    if (m) {   // sidechain-duck the bed under the laugh, release after (so the bookend lands)
+        m.master.gain.cancelScheduledValues(t0);
+        m.master.gain.setTargetAtTime(0.05, t0, 0.06);
+        m.master.gain.setTargetAtTime(0.11, t0 + (short ? 0.85 : 1.7), 0.5);
+    }
 
     // one voiced "har/ho" pulse — aspirated "h" onset + two detuned saws through an "ah"
     // formant pair + a chest sub, shaped by a glottal (sharp attack, quick decay) envelope
@@ -136,41 +144,51 @@ export function f7CaptainLaugh(): void {
         sub.start(t); sub.stop(t + dur + 0.03);
     };
 
-    // Phase 1 — the held, rolled-R "ARRR" growl (a ~26Hz amplitude trill = the rolled R,
-    // over a slower 7Hz belly vibrato), bending down into the laugh.
+    // Phase 1 — the held, fluttering "ARRR" growl. The flutter is a MULTIPLICATIVE tremolo
+    // (a square LFO on a dedicated trem stage that stays 0.46–0.98, NEVER negative — so no
+    // polarity flip as the envelope decays) + a slower 7Hz belly vibrato. Shorter/lower for
+    // the smirk variant.
     {
-        const t = t0, f0 = R(130, 142);
+        const t = t0, gdur = short ? 0.26 : 0.5, f0 = short ? R(106, 116) : R(130, 142);
         const bp1 = c.createBiquadFilter(); bp1.type = 'bandpass'; bp1.frequency.value = 560; bp1.Q.value = 5;
         const bp2 = c.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 980; bp2.Q.value = 6;
         const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2100;
-        const g = c.createGain(); g.gain.value = 0; bp1.connect(lp); bp2.connect(lp); lp.connect(g).connect(o);
+        const trem = c.createGain(); trem.gain.value = 0.72;     // tremolo carrier (square LFO swings it 0.46–0.98)
+        const env = c.createGain(); env.gain.value = 0;          // the amplitude envelope (independent — no polarity flip)
+        bp1.connect(lp); bp2.connect(lp); lp.connect(trem).connect(env).connect(o);
         [f0, f0 * 1.01].forEach((f, k) => {
             const osc = c.createOscillator(); osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(f * 1.04, t); osc.frequency.linearRampToValueAtTime(f, t + 0.1); osc.frequency.linearRampToValueAtTime(f * 0.9, t + 0.5);
+            osc.frequency.setValueAtTime(f * 1.04, t); osc.frequency.linearRampToValueAtTime(f, t + 0.1); osc.frequency.linearRampToValueAtTime(f * 0.9, t + gdur);
             const og = c.createGain(); og.gain.value = k === 0 ? 1 : 0.6; osc.connect(og); og.connect(bp1); og.connect(bp2);
-            const vib = c.createOscillator(); vib.frequency.value = 7; const vg = c.createGain(); vg.gain.value = 4.5; vib.connect(vg).connect(osc.frequency); vib.start(t); vib.stop(t + 0.55);
-            osc.start(t); osc.stop(t + 0.55);
+            const vib = c.createOscillator(); vib.frequency.value = 7; const vg = c.createGain(); vg.gain.value = 4.5; vib.connect(vg).connect(osc.frequency); vib.start(t); vib.stop(t + gdur + 0.05);
+            osc.start(t); osc.stop(t + gdur + 0.05);
         });
-        g.gain.linearRampToValueAtTime(0.085, t + 0.06); g.gain.setValueAtTime(0.085, t + 0.34); g.gain.exponentialRampToValueAtTime(0.0008, t + 0.5);
-        const roll = c.createOscillator(); roll.type = 'sine'; roll.frequency.value = 26; const rg = c.createGain(); rg.gain.value = 0.05; roll.connect(rg).connect(g.gain); roll.start(t); roll.stop(t + 0.5);   // rolled-R trill
+        const roll = c.createOscillator(); roll.type = 'square'; roll.frequency.value = R(26, 30);
+        const rg = c.createGain(); rg.gain.value = 0.26; roll.connect(rg).connect(trem.gain); roll.start(t); roll.stop(t + gdur);
+        env.gain.linearRampToValueAtTime(0.085, t + 0.06);
+        if (!short) env.gain.setValueAtTime(0.085, t + gdur - 0.16);
+        env.gain.exponentialRampToValueAtTime(0.0008, t + gdur);
         const sub = c.createOscillator(); sub.type = 'sine'; const sg = c.createGain(); sg.gain.value = 0; sub.frequency.value = f0 * 0.5; sub.connect(sg).connect(o);
-        sg.gain.linearRampToValueAtTime(0.05, t + 0.06); sg.gain.exponentialRampToValueAtTime(0.001, t + 0.5); sub.start(t); sub.stop(t + 0.53);
+        sg.gain.linearRampToValueAtTime(0.05, t + 0.06); sg.gain.exponentialRampToValueAtTime(0.001, t + gdur); sub.start(t); sub.stop(t + gdur + 0.04);
     }
 
-    // Phase 2 — "HAR-HAR-HAR-har-har" — descending, decaying pulses (the belly laugh)
-    let t = t0 + R(0.44, 0.5);
-    const pitches = [152, 142, 132, 121, 110, 101];
-    const n = 5 + (Math.random() < 0.5 ? 0 : 1);
+    // Phase 2 — "HAR-HAR-HAR…" pulses. Full: 5–6 descending belly-laugh pulses. Smirk: 3
+    // lower, harder, snappier pulses.
+    let t = t0 + (short ? R(0.24, 0.28) : R(0.44, 0.5));
+    const pitches = short ? [118, 108, 99, 92] : [152, 142, 132, 121, 110, 101];
+    const n = short ? 3 : (5 + (Math.random() < 0.5 ? 0 : 1));
     for (let i = 0; i < n; i++) {
-        pulse(t, pitches[Math.min(i, pitches.length - 1)] * R(0.97, 1.03), 0.09 * (1 - i * 0.1), R(0.16, 0.2), 1 - i * 0.03);
-        t += R(0.16, 0.22);
+        pulse(t, pitches[Math.min(i, pitches.length - 1)] * R(0.97, 1.03), (short ? 0.105 : 0.09) * (1 - i * 0.1), R(short ? 0.14 : 0.16, short ? 0.18 : 0.2), 1 - i * 0.03);
+        t += R(short ? 0.14 : 0.16, short ? 0.19 : 0.22);
     }
-    // Phase 3 — a trailing breath exhale
-    const bt = t + 0.02; const br = c.createBufferSource(); br.buffer = noiseBuf(c); br.playbackRate.value = 0.7;
-    const bf = c.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = 700; bf.Q.value = 0.6;
-    const bg = c.createGain(); bg.gain.value = 0; br.connect(bf).connect(bg).connect(o);
-    bg.gain.linearRampToValueAtTime(0.03, bt + 0.08); bg.gain.exponentialRampToValueAtTime(0.001, bt + 0.4);
-    br.start(bt); br.stop(bt + 0.45);
+    // Phase 3 — a trailing breath exhale (full laugh only)
+    if (!short) {
+        const bt = t + 0.02; const br = c.createBufferSource(); br.buffer = noiseBuf(c); br.playbackRate.value = 0.7;
+        const bf = c.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = 700; bf.Q.value = 0.6;
+        const bg = c.createGain(); bg.gain.value = 0; br.connect(bf).connect(bg).connect(o);
+        bg.gain.linearRampToValueAtTime(0.03, bt + 0.08); bg.gain.exponentialRampToValueAtTime(0.001, bt + 0.4);
+        br.start(bt); br.stop(bt + 0.45);
+    }
 }
 
 export function f7PuddleDone(): void {

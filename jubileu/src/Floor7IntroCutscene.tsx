@@ -71,7 +71,7 @@ interface Props {
     onLine?: (line: number) => void;                             // active dialogue line index (-1 = none)
     onStep?: () => void;                                         // a footfall during the entry stride (boot clomp SFX)
     onElevatorVanish?: () => void;                               // fire once, synced to the cab starting to dissolve
-    onLaugh: () => void;                                         // fire the laugh SFX once
+    onLaugh: (short?: boolean) => void;                          // fire the laugh SFX (short = the closing smirk-laugh)
     onDone: () => void;
 }
 
@@ -224,7 +224,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
         if (!vanished.current && beat.current === F7_INTRO_BEATS.LOOK_BACK && elev < 0.9) { vanished.current = true; onElevatorVanish?.(); }
         // BOOKEND LAUGH — once the last threat has landed he laughs again ("arr har har")
         // as the button on the scene, just before the fade-out.
-        if (!laughed2.current && t > T_LAUGH2) { laughed2.current = true; onLaugh(); }
+        if (!laughed2.current && t > T_LAUGH2) { laughed2.current = true; onLaugh(true); }
 
         // TRANSITION DIP — a dip-to-dark centred on each hard cut + the LEGS→GLB model
         // swap, so the discontinuity happens behind (near-)black and reads as a clean film
