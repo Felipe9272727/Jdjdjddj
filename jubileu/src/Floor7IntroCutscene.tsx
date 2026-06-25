@@ -34,7 +34,7 @@ export const F7_DIALOGUE = [
     'Aquele teu elevadorzinho já era. O mar não devolve ninguém.',
     'Aqui quem manda sou eu — eu e o oceano.',
     'Ou tu esfrega esse convés até ele brilhar…',
-    '…ou vira jantar dos tubarão! Arr arr arr!',
+    '…ou vira jantar dos tubarões! Arr arr arr!',
 ] as const;
 
 // beat boundaries (seconds). Synced to the brain: captain strides 0.6–3.6s, so
@@ -151,10 +151,13 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // rode in on. Hold the lit doors solid a beat, then they ascend + dissolve.
             if (beat.current !== F7_INTRO_BEATS.LOOK_BACK) { beat.current = F7_INTRO_BEATS.LOOK_BACK; onBeat(beat.current); snap = true; }
             const k = (t - T_REVEAL) / (T_LOOKBACK - T_REVEAL);
-            P.set(smooth(3.0, 2.7, k), 4.7, ELEV_W.z + smooth(3.4, 3.0, k));
-            T.set(0.25, smooth(2.7, 2.2, k), ELEV_W.z + 0.3);
-            fov = 39; lerp = 0.1; pose = 1; hideSails = 1;
-            elev = 1 - smooth(0, 1, Math.max(0, k - 0.46) / 0.32);
+            // PULLED BACK + WIDER than before so the whole CAB reads as the elevator the
+            // player rode in on (doors + seam + gold frame + lit "7"), not an extreme
+            // close-up of a giant floor-number plate. Centre on the doors, not the "7".
+            P.set(smooth(3.4, 3.05, k), 4.35, ELEV_W.z + smooth(4.4, 3.9, k));
+            T.set(0.2, smooth(2.1, 1.65, k), ELEV_W.z + 0.3);
+            fov = 45; lerp = 0.1; pose = 1; hideSails = 1;
+            elev = 1 - smooth(0, 1, Math.max(0, k - 0.42) / 0.32);
         } else if (t < T_LAUGH) {
             // D — LAUGH: low hero angle on his face; fire the laugh once
             if (beat.current !== F7_INTRO_BEATS.LAUGH) { beat.current = F7_INTRO_BEATS.LAUGH; onBeat(beat.current); snap = true; }
@@ -165,8 +168,8 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // RAISED from the old extreme-low hero (y+1.12) — that angle threw the boom/
             // furled sail behind him straight across his chest. ~eye-level-ish on a 3/4
             // (like the clean TALK shot) clears the rigging while still reading as a beat.
-            P.y = feet.y + 1.5;
-            P.x += 0.85 + Math.sin(t * 0.9) * 0.05; P.y += Math.cos(t * 1.1) * 0.03;
+            P.y = feet.y + 1.56;
+            P.x += 1.0 + Math.sin(t * 0.9) * 0.05; P.y += Math.cos(t * 1.1) * 0.03;   // a touch more height + lateral clears the spar behind his hat
             T.copy(feet); T.y = feet.y + 1.95;                                // up at the thrown-back head
             fov = 38; lerp = 0.12; elev = 0;
             laugh = smooth(0, 1, (t - T_LOOKBACK) / 0.3);                     // throw the head back ON the first "Arr"
@@ -177,17 +180,20 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             // breathes while he talks. The laugh bleeds out as the talk gesture takes over.
             if (beat.current !== F7_INTRO_BEATS.TALK) { beat.current = F7_INTRO_BEATS.TALK; onBeat(beat.current); }
             const tk = Math.min(1, (t - T_LAUGH) / 1.0);
+            const tkFull = (t - T_LAUGH) / (T_END - T_LAUGH);      // 0..1 across the whole TALK beat
             const d = frontDir(feet, player);
-            P.copy(feet).addScaledVector(d, 2.75);
-            P.x += 0.95;
+            // a slow, almost-imperceptible DOLLY-IN across the monologue so the 4-line
+            // beat isn't a static hold for ~10s — it tightens on him as the threat builds.
+            P.copy(feet).addScaledVector(d, smooth(2.95, 2.4, tkFull));
+            P.x += 0.78;                                           // a touch less lateral so he sits closer to centre (was right-of-frame)
             P.y = feet.y + 1.6;
-            P.x += Math.sin(t * 0.55) * 0.045; P.y += Math.sin(t * 0.72 + 1.0) * 0.03;   // gentle handheld drift
-            T.copy(feet); T.y = feet.y + 1.78;
+            P.x += Math.sin(t * 0.55) * 0.04; P.y += Math.sin(t * 0.72 + 1.0) * 0.03;    // gentle handheld drift
+            T.copy(feet); T.x += 0.12; T.y = feet.y + 1.78;        // nudge the look toward him so he frames centre
             fov = 37; lerp = 0.07; elev = 0;
             laugh = smooth(1, 0, tk);         // laugh fades out smoothly as he settles into talking
             pose = smooth(0, 1, tk);          // confident akimbo eases in (no arm snap)
             talk = smooth(0, 1, tk);
-        } else { if (elevFadeRef) elevFadeRef.current = null; if (laughRef) laughRef.current = 0; if (talkRef) talkRef.current = 0; onDone(); return; }
+        } else { if (elevFadeRef) elevFadeRef.current = null; if (laughRef) laughRef.current = 0; if (talkRef) talkRef.current = 0; if (dimRef) dimRef.current = 1; onDone(); return; }
 
         // active dialogue line (during LAUGH + TALK) — report only on change
         let li = -1;
@@ -201,7 +207,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
         // punchline doesn't get yanked straight to gameplay on a hard cut.
         const dip = (b: number, w: number, peak: number) => { const dd = Math.abs(t - b); return dd < w ? (1 - dd / w) * peak : 0; };
         let dim = Math.max(
-            dip(T_LEGS, 0.26, 0.85),       // legs→GLB model swap (lands at this peak)
+            dip(T_LEGS, 0.28, 0.92),       // legs→GLB model swap (lands at this peak; deep enough to bury the pop at variable fps)
             dip(T_REVEAL, 0.30, 1.0),      // hard cut into LOOK_BACK
             dip(T_LOOKBACK, 0.30, 1.0),    // hard cut into LAUGH
         );

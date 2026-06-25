@@ -60,7 +60,7 @@ const Floor7IntroUI: React.FC<Props> = ({ line, dimRef, onSkip }) => {
                     transform: 'translateX(-50%)', maxWidth: 'min(92vw, 640px)', textAlign: 'center',
                     animation: 'f7c-line .4s ease-out both' }}>
                     <div style={{ color: '#caa56a', fontSize: 13, fontWeight: 700, letterSpacing: '0.22em',
-                        textShadow: '0 2px 6px #000', marginBottom: 8 }}>CAPITÃO</div>
+                        textShadow: '0 2px 6px #000', marginBottom: 12 }}>CAPITÃO</div>
                     <div style={{ background: 'rgba(20,14,8,0.88)', border: '1px solid rgba(202,165,106,0.5)',
                         borderRadius: 12, padding: '12px 18px', color: '#f3e7cf', fontSize: 17, lineHeight: 1.4,
                         boxShadow: '0 6px 24px rgba(0,0,0,0.6)' }}>
