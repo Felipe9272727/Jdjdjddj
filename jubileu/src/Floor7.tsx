@@ -62,6 +62,13 @@ const _foreSailGeo = billowSail(3.3, 2.9, 0.74);
 const SUN_POS: [number, number, number] = [26, 4.5, -30];
 const SUN_DIR = new THREE.Vector3(...SUN_POS).normalize();
 
+// HYBRID captain sizing: the primitive Captain is authored ~3.75 world-units tall
+// (measured), vs the GLB's ~2.45 — scale it to the GLB's height so the cutscene
+// camera (tuned for the GLB) frames him correctly and the close-up→gameplay swap is
+// height-continuous. DROP seats the soles on the deck after the scale.
+const CAP_HERO_SCALE = 0.653;
+const CAP_HERO_DROP = 0.1;
+
 // ── shared per-mount handle so the DOM overlay can read the brain ──
 export interface Floor7Handle {
     brain: Floor7Brain | null;
@@ -1176,9 +1183,12 @@ const PirateCaptain: React.FC<{
         const sdt = Math.min(dt, 0.05);
         const damp = (k: number) => 1 - Math.pow(1 - k, sdt * 60);
 
-        // hidden during the LEGS close-up — the rigid primitive legs cover that
-        // beat (no skin-weight smear up close); the GLB takes over on the zoom-out.
-        g.visible = b.elevFade() < 0.85 && (legsRef?.current ?? 0) < 0.5;
+        // HYBRID (primitivo perto, GLB longe): the GLB is the captain only once
+        // gameplay starts (FETCH/CLEAN/DONE), where the player roams at a distance and
+        // the muddy bake reads fine. The high-detail primitive captain owns the entire
+        // close-up arrival cutscene + greeting (INTRO/GREET), so the GLB stays hidden
+        // there — no more skin-weight smear or plastic coat up close.
+        g.visible = b.state() >= F7_STATE.FETCH && b.elevFade() < 0.85;
         if (!g.visible) return;
         // The group carries ONLY horizontal position + facing (+ a brief walk lurch).
         // The idle bob + breath live on the BODY bone (with the legs counter-translated
@@ -1497,11 +1507,20 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             const ph = t * 7.0;
             const lurch = walking ? Math.max(0, Math.sin(ph)) * 0.05 : 0;  // peg down-beat
             const breath = Math.sin(t * 1.1) * 0.011;                      // always-on chest rise
-            captainRef.current.position.set(c.x, c.bob - lurch + breath, c.z);
+            // HYBRID height-match: the primitive is authored ~1.5x taller than the GLB
+            // (a giant next to the GLB-tuned cutscene camera). Scale it down to the GLB's
+            // world height so the existing camera framing reads on him AND the INTRO->
+            // gameplay swap is height-continuous. Origin sits at the feet, so the scale
+            // pivots there; a small drop seats the soles on the deck.
+            captainRef.current.scale.setScalar(CAP_HERO_SCALE);
+            captainRef.current.position.set(c.x, c.bob - lurch + breath - CAP_HERO_DROP, c.z);
             captainRef.current.rotation.y = c.face;
-            // the rigid primitive captain ONLY stands in for the LEGS close-up (where
-            // the GLB's skin-weight smear was ugliest); the GLB owns every other frame.
-            captainRef.current.visible = (introLegsRef?.current ?? 0) >= 0.5;
+            // HYBRID (primitivo perto, GLB longe): the high-detail primitive captain
+            // is the HERO for the whole close-up arrival cutscene + greeting dialogue
+            // (INTRO/GREET — the camera is right on him); the muddy low-poly GLB only
+            // takes over once gameplay starts and the player roams at a distance.
+            const closeUp = b.state() <= F7_STATE.GREET;
+            captainRef.current.visible = closeUp;
             const { legL, legR, armL, armR, head, jaw, eye } = capRig;
             if (legL.current && legR.current && armL.current && armR.current) {
                 if (walking) {
@@ -1562,7 +1581,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 captainRef.current.rotation.z += Math.sin(t * 6.2) * 0.022 * LF;
             }
             // publish the captain's world position for the dialogue camera (feet origin)
-            if (captainAnchorRef) captainRef.current.getWorldPosition(captainAnchorRef.current);
+            // — only while the primitive is the visible hero (close-up); in gameplay the
+            // GLB owns the anchor so the two don't fight over it.
+            if (captainAnchorRef && closeUp) captainRef.current.getWorldPosition(captainAnchorRef.current);
             // ── secondary motion: cloth + grip trail the body (follow-through) ──
             {
                 const cl = _cloth.current;
