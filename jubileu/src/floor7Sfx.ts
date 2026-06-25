@@ -127,8 +127,8 @@ export function f7CaptainLaugh(short = false): void {
         const bg = c.createGain(); bg.gain.value = 0; br.connect(bf).connect(bg).connect(o);
         bg.gain.linearRampToValueAtTime(peak * 0.4, t + 0.012); bg.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
         br.start(t); br.stop(t + 0.09);
-        const bp1 = c.createBiquadFilter(); bp1.type = 'bandpass'; bp1.frequency.value = 700 * open; bp1.Q.value = 6;
-        const bp2 = c.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 1180 * open; bp2.Q.value = 8;
+        const bp1 = c.createBiquadFilter(); bp1.type = 'bandpass'; bp1.frequency.value = 700 * open; bp1.Q.value = 4;
+        const bp2 = c.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 1180 * open; bp2.Q.value = 5;
         const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2500;
         const g = c.createGain(); g.gain.value = 0; bp1.connect(lp); bp2.connect(lp); lp.connect(g).connect(o);
         [f0, f0 * 1.013].forEach((f, k) => {
@@ -150,8 +150,8 @@ export function f7CaptainLaugh(short = false): void {
     // the smirk variant.
     {
         const t = t0, gdur = short ? 0.26 : 0.5, f0 = short ? R(106, 116) : R(130, 142);
-        const bp1 = c.createBiquadFilter(); bp1.type = 'bandpass'; bp1.frequency.value = 560; bp1.Q.value = 5;
-        const bp2 = c.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 980; bp2.Q.value = 6;
+        const bp1 = c.createBiquadFilter(); bp1.type = 'bandpass'; bp1.frequency.value = 560; bp1.Q.value = 3.5;
+        const bp2 = c.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 980; bp2.Q.value = 4;
         const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2100;
         const trem = c.createGain(); trem.gain.value = 0.72;     // tremolo carrier (square LFO swings it 0.46–0.98)
         const env = c.createGain(); env.gain.value = 0;          // the amplitude envelope (independent — no polarity flip)
@@ -165,11 +165,12 @@ export function f7CaptainLaugh(short = false): void {
         });
         const roll = c.createOscillator(); roll.type = 'square'; roll.frequency.value = R(26, 30);
         const rg = c.createGain(); rg.gain.value = 0.26; roll.connect(rg).connect(trem.gain); roll.start(t); roll.stop(t + gdur);
-        env.gain.linearRampToValueAtTime(0.085, t + 0.06);
-        if (!short) env.gain.setValueAtTime(0.085, t + gdur - 0.16);
+        const hp = short ? 0.095 : 0.11;   // the reveal belly-laugh projects louder — it's the scene's emotional peak
+        env.gain.linearRampToValueAtTime(hp, t + 0.06);
+        if (!short) env.gain.setValueAtTime(hp, t + gdur - 0.16);
         env.gain.exponentialRampToValueAtTime(0.0008, t + gdur);
         const sub = c.createOscillator(); sub.type = 'sine'; const sg = c.createGain(); sg.gain.value = 0; sub.frequency.value = f0 * 0.5; sub.connect(sg).connect(o);
-        sg.gain.linearRampToValueAtTime(0.05, t + 0.06); sg.gain.exponentialRampToValueAtTime(0.001, t + gdur); sub.start(t); sub.stop(t + gdur + 0.04);
+        sg.gain.linearRampToValueAtTime(short ? 0.05 : 0.065, t + 0.06); sg.gain.exponentialRampToValueAtTime(0.001, t + gdur); sub.start(t); sub.stop(t + gdur + 0.04);
     }
 
     // Phase 2 — "HAR-HAR-HAR…" pulses. Full: 5–6 descending belly-laugh pulses. Smirk: 3
@@ -178,17 +179,16 @@ export function f7CaptainLaugh(short = false): void {
     const pitches = short ? [118, 108, 99, 92] : [152, 142, 132, 121, 110, 101];
     const n = short ? 3 : (5 + (Math.random() < 0.5 ? 0 : 1));
     for (let i = 0; i < n; i++) {
-        pulse(t, pitches[Math.min(i, pitches.length - 1)] * R(0.97, 1.03), (short ? 0.105 : 0.09) * (1 - i * 0.1), R(short ? 0.14 : 0.16, short ? 0.18 : 0.2), 1 - i * 0.03);
+        pulse(t, pitches[Math.min(i, pitches.length - 1)] * R(0.97, 1.03), (short ? 0.105 : 0.115) * (1 - i * 0.1), R(short ? 0.14 : 0.16, short ? 0.18 : 0.2), 1 - i * 0.03);
         t += R(short ? 0.14 : 0.16, short ? 0.19 : 0.22);
     }
-    // Phase 3 — a trailing breath exhale (full laugh only)
-    if (!short) {
-        const bt = t + 0.02; const br = c.createBufferSource(); br.buffer = noiseBuf(c); br.playbackRate.value = 0.7;
-        const bf = c.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = 700; bf.Q.value = 0.6;
-        const bg = c.createGain(); bg.gain.value = 0; br.connect(bf).connect(bg).connect(o);
-        bg.gain.linearRampToValueAtTime(0.03, bt + 0.08); bg.gain.exponentialRampToValueAtTime(0.001, bt + 0.4);
-        br.start(bt); br.stop(bt + 0.45);
-    }
+    // Phase 3 — a trailing breath exhale (a shorter one on the smirk, bridging it into the
+    // END resolve note so the closing laugh doesn't cut off abruptly before the fade)
+    const bt = t + 0.02; const edur = short ? 0.3 : 0.4; const br = c.createBufferSource(); br.buffer = noiseBuf(c); br.playbackRate.value = 0.7;
+    const bf = c.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = 700; bf.Q.value = 0.6;
+    const bg = c.createGain(); bg.gain.value = 0; br.connect(bf).connect(bg).connect(o);
+    bg.gain.linearRampToValueAtTime(0.03, bt + 0.08); bg.gain.exponentialRampToValueAtTime(0.001, bt + edur);
+    br.start(bt); br.stop(bt + edur + 0.05);
 }
 
 export function f7PuddleDone(): void {
@@ -308,9 +308,11 @@ export function f7CutBeat(beat: number): void {
     } else if (beat === 2) {     // LOOK_BACK — hard cut: whoosh + low impact, pull the bed down eerie
         if (m) { m.lp.frequency.setTargetAtTime(360, t, 0.5); m.master.gain.setTargetAtTime(0.09, t, 0.5); }
         whoosh(c, w, t, 0.08); thump(c, w, t, 0.07);
-    } else if (beat === 3) {     // LAUGH — hard cut: whoosh + impact + a low minor MENACE stab
-        if (m) { m.lp.frequency.setTargetAtTime(640, t, 0.25); m.master.gain.setTargetAtTime(0.15, t, 0.2); }
-        whoosh(c, w, t, 0.06); thump(c, w, t, 0.09); chordStab(c, w, [73.42, 87.31, 110.0], t, 1.1, 0.095);
+    } else if (beat === 3) {     // LAUGH — hard cut: whoosh + impact + a low minor MENACE stab.
+        // keep the bed LOW so the captain's laugh (which ducks to 0.05) owns the beat as the
+        // scene's loudest emotional peak, instead of the bed pushing up and flattening it.
+        if (m) { m.lp.frequency.setTargetAtTime(640, t, 0.25); m.master.gain.setTargetAtTime(0.085, t, 0.2); }
+        whoosh(c, w, t, 0.06); thump(c, w, t, 0.08); chordStab(c, w, [73.42, 87.31, 110.0], t, 1.0, 0.08);
     } else if (beat === 4) {     // TALK — set the bed + a SLOW breathing filter LFO so it isn't a flatline
         if (m) {
             m.lp.frequency.setTargetAtTime(560, t, 0.3); m.master.gain.setTargetAtTime(0.11, t, 0.3); m.talkLine = 0;
@@ -385,45 +387,52 @@ export function f7BootClomp(): void {
     src.start(t); src.stop(t + 0.12);
 }
 
-// the captain's VOICE — gruff "speech" for a dialogue line. Two detuned saws per syllable
-// (thicker than a lone buzz), randomized syllable timing + formant + a per-LINE rising
-// contour, a consonant noise burst between syllables (kills the kazoo), louder and routed
-// through the reverb — and it DUCKS the score bed so the captain commands the mix.
+// the captain's VOICE — gruff "speech" for a dialogue line. Each syllable is now a proper
+// VOWEL: two detuned saws through a TWO-formant bank (F1+F2 from a real vowel table → you
+// read "ah/eh/oh/oo/ee", not a single buzz) over a chest sub, with a consonant noise onset,
+// a per-syllable glottal envelope, a per-LINE rising pitch contour, and randomized vowel +
+// timing. Routed through the reverb and it DUCKS the bed so the captain commands the mix.
+// (Same formant/glottal treatment the laugh got — so he speaks with the laugh's character.)
+const F7_VOWELS: readonly (readonly [number, number])[] = [[720, 1180], [560, 1680], [470, 820], [610, 1010], [400, 2150], [520, 900]];  // ah eh oh uh ee aw
 export function f7CaptainVoice(text: string): void {
     const c = ctx, o = cutOut(); if (!c || !o) return; const t0 = c.currentTime;
     const m = cutMusic; const line = m ? m.talkLine++ : 0;
     if (m) {   // sidechain duck: dip the bed under the line, release after
         m.master.gain.cancelScheduledValues(t0);
-        m.master.gain.setTargetAtTime(0.06, t0, 0.08);
+        m.master.gain.setTargetAtTime(0.055, t0, 0.08);
         m.master.gain.setTargetAtTime(0.11, t0 + 0.12, 0.9);
-        // a low menace accent per line (replaces the metronome; builds with the line index)
-        tone(c, o, [73.42, 82.41, 87.31, 98.0, 110.0][line % 5], t0, 0.5, 'triangle', 0.09 + line * 0.01, 240);
+        tone(c, o, [73.42, 82.41, 87.31, 98.0, 110.0][line % 5], t0, 0.5, 'triangle', 0.09 + line * 0.01, 240);   // building menace accent
     }
     const letters = (text.match(/[a-zà-ú]/gi) || []).length;
     const syl = Math.max(3, Math.min(13, Math.round(letters / 2.5)));
-    const formants = [620, 480, 820, 560, 700, 760, 520];
     let t = t0 + 0.05;
     for (let i = 0; i < syl; i++) {
         const prog = syl > 1 ? i / (syl - 1) : 0;
-        const top = 126 + line * 6, fall = 22 + line * 4;                     // later lines start higher/harder
-        const base = top - prog * fall + (Math.random() - 0.5) * 16;
-        const fm = formants[(i * 3 + line) % formants.length] + (Math.random() - 0.5) * 90;
-        const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 5; bp.frequency.value = Math.max(220, fm);
-        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1700;
-        const g = c.createGain(); g.gain.value = 0; bp.connect(lp).connect(g).connect(o);
-        [base, base * 1.012].forEach((f, k) => {
+        const top = 124 + line * 6, fall = 20 + line * 4;                     // later lines start higher/harder
+        const base = top - prog * fall + (Math.random() - 0.5) * 14;
+        const [F1, F2] = F7_VOWELS[(i * 2 + line * 3 + (Math.random() < 0.3 ? 1 : 0)) % F7_VOWELS.length];   // a real vowel, varied
+        const j = 1 + (Math.random() - 0.5) * 0.12;                           // per-syllable formant jitter
+        const bp1 = c.createBiquadFilter(); bp1.type = 'bandpass'; bp1.Q.value = 5; bp1.frequency.value = F1 * j;
+        const bp2 = c.createBiquadFilter(); bp2.type = 'bandpass'; bp2.Q.value = 6; bp2.frequency.value = F2 * j;
+        const bp2g = c.createGain(); bp2g.gain.value = 0.7; bp2.connect(bp2g);                                // F2 a touch quieter
+        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
+        const g = c.createGain(); g.gain.value = 0; bp1.connect(lp); bp2g.connect(lp); lp.connect(g).connect(o);
+        [base, base * 1.013].forEach((f, k) => {
             const osc = c.createOscillator(); osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(f * 1.05, t); osc.frequency.linearRampToValueAtTime(f, t + 0.06);
-            const og = c.createGain(); og.gain.value = k === 0 ? 1 : 0.6; osc.connect(og).connect(bp);
-            osc.start(t); osc.stop(t + 0.14);
+            osc.frequency.setValueAtTime(f * 1.05, t); osc.frequency.linearRampToValueAtTime(f, t + 0.06); osc.frequency.linearRampToValueAtTime(f * 0.97, t + 0.13);
+            const og = c.createGain(); og.gain.value = k === 0 ? 1 : 0.55; osc.connect(og); og.connect(bp1); og.connect(bp2);
+            osc.start(t); osc.stop(t + 0.15);
         });
-        g.gain.linearRampToValueAtTime(0.1, t + 0.014); g.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
-        if (i < syl - 1 && Math.random() < 0.6) {   // consonant/breath burst between syllables
+        const sub = c.createOscillator(); sub.type = 'sine'; const sg = c.createGain(); sg.gain.value = 0;   // chest body
+        sub.frequency.value = base * 0.5; sub.connect(sg).connect(o);
+        sg.gain.linearRampToValueAtTime(0.05, t + 0.02); sg.gain.exponentialRampToValueAtTime(0.001, t + 0.12); sub.start(t); sub.stop(t + 0.15);
+        g.gain.linearRampToValueAtTime(0.1, t + 0.016); g.gain.exponentialRampToValueAtTime(0.001, t + 0.115);
+        if (i < syl - 1 && Math.random() < 0.65) {   // consonant/breath onset before the next vowel
             const ct = t + 0.1;
             const src = c.createBufferSource(); src.buffer = noiseBuf(c);
-            const cf = c.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 1800 + Math.random() * 1400; cf.Q.value = 1.2;
+            const cf = c.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 1600 + Math.random() * 1600; cf.Q.value = 1.1;
             const cg = c.createGain(); cg.gain.value = 0; src.connect(cf).connect(cg).connect(o);
-            cg.gain.linearRampToValueAtTime(0.028, ct + 0.006); cg.gain.exponentialRampToValueAtTime(0.001, ct + 0.05);
+            cg.gain.linearRampToValueAtTime(0.026, ct + 0.006); cg.gain.exponentialRampToValueAtTime(0.001, ct + 0.05);
             src.start(ct); src.stop(ct + 0.07);
         }
         t += 0.12 + Math.random() * 0.06;            // randomized syllable spacing
