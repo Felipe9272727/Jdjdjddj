@@ -11,7 +11,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await pg.goto('http://127.0.0.1:3000/floor7cutscene.html',{waitUntil:'load',timeout:30000});
   await pg.waitForFunction(()=>window.__ready===true,{timeout:20000}).catch(()=>console.log('no ready'));
   // sample across the whole 16.8s timeline: legs, swap, reveal, cut, lookback, laugh, talk x3
-  const targets = [1.2, 2.5, 3.6, 4.7, 5.8, 7.4, 8.6, 10.2, 12.2, 14.2, 15.6];
+  const targets = [1.2, 2.5, 3.7, 5.0, 6.1, 7.2, 8.4, 9.9, 12.0, 14.0, 16.3, 18.35];
   let i = 0; const t0 = Date.now();
   while (i < targets.length && Date.now()-t0 < 280000){
     const st = await pg.evaluate(()=>({t:window.__t?window.__t():0, beat:window.__beat?window.__beat():-1, line:window.__line?window.__line():-9, done:window.__done?window.__done():false}));

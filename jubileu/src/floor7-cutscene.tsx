@@ -75,6 +75,7 @@ const App: React.FC = () => {
         window.__restart = () => { doneRef.current = false; beatRef.current = 0; setBeat(0); setLineIdx(-1); handle.current.brain?.reset(); setActive(false); setTimeout(() => setActive(true), 40); };
         (window as unknown as { __holdElev?: (f: number) => void }).__holdElev = (f) => { elevFadeRef.current = f; };
         (window as unknown as { __t?: () => number }).__t = () => tRef.current;
+        (window as unknown as { __dim?: () => number }).__dim = () => dimRef.current;
         window.__ready = true;
     }, []);
 

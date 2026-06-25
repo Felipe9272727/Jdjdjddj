@@ -39,10 +39,12 @@ export const F7_DIALOGUE = [
 
 // beat boundaries (seconds). Synced to the brain: captain strides 0.6–3.6s, so
 // LEGS catches him mid-stride and REVEAL lands as he plants at the talk spot.
-const T_LEGS = 2.4, T_REVEAL = 4.6, T_LOOKBACK = 7.0, T_LAUGH = 9.3, T_END = 16.8;
-// when each dialogue line appears (s). First line lands on the laugh; the rest
-// pace out across the TALK beat with a beat of breathing room between them.
-const LINE_AT = [7.15, 9.7, 11.8, 13.6, 15.3];
+// LOOK_BACK trimmed ~0.3s (the sign reads instantly); the punchline now gets a
+// long, unhurried hold so the comedic button lands before the fade-out.
+const T_LEGS = 2.4, T_REVEAL = 4.6, T_LOOKBACK = 6.7, T_LAUGH = 8.9, T_END = 18.7;
+// when each dialogue line appears (s). First lands on the laugh; the rest pace out
+// across TALK ~2.2s apart, and the final punchline holds ~2.3s before the fade.
+const LINE_AT = [6.95, 9.3, 11.5, 13.7, 15.9];
 
 // elevator sits at ship-local (0,0,5.2); world ≈ local * FLOOR7_SCALE (ship ~origin).
 const ELEV_W = new THREE.Vector3(0, 1.15 * FLOOR7_SCALE, 5.2 * FLOOR7_SCALE);
@@ -141,9 +143,8 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             P.z += smooth(0.15, 3.2, kk);
             T.copy(feet); T.x = smooth(feet.x, 0, kk); T.y = feet.y + smooth(0.36, 1.5, kk);
             fov = smooth(46, 44, kk); lerp = 0.12; elev = 1;
-            // keep the rigid legs a beat into the crane so the GLB swap happens once the
-            // boots are smaller in frame (masked further by the dip at T_LEGS)
-            legs = t < T_LEGS + 0.28 ? 1 : 0;
+            // the legs→GLB swap happens exactly on the LEGS boundary, which is also where
+            // the model-swap dip peaks (below) — so the model pop is hidden behind darkness.
             pose = smooth(0, 1, (k - 0.5) / 0.35);
         } else if (t < T_LOOKBACK) {
             // C — LOOK BACK: a 3/4 over-the-shoulder as the player turns to the cab they
@@ -160,11 +161,14 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
             if (!laughed.current) { laughed.current = true; onLaugh(); }
             const lk = (t - T_LOOKBACK) / (T_LAUGH - T_LOOKBACK);
             const d = frontDir(feet, player);
-            P.copy(feet).addScaledVector(d, smooth(2.5, 2.1, lk));
-            P.y = feet.y + 1.12;                                               // LOW → look up under the hat brim (hero)
-            P.x += 0.55 + Math.sin(t * 0.9) * 0.05; P.y += Math.cos(t * 1.1) * 0.03;
-            T.copy(feet); T.y = feet.y + 1.92;
-            fov = 40; lerp = 0.12; elev = 0;
+            P.copy(feet).addScaledVector(d, smooth(2.55, 2.25, lk));
+            // RAISED from the old extreme-low hero (y+1.12) — that angle threw the boom/
+            // furled sail behind him straight across his chest. ~eye-level-ish on a 3/4
+            // (like the clean TALK shot) clears the rigging while still reading as a beat.
+            P.y = feet.y + 1.5;
+            P.x += 0.85 + Math.sin(t * 0.9) * 0.05; P.y += Math.cos(t * 1.1) * 0.03;
+            T.copy(feet); T.y = feet.y + 1.95;                                // up at the thrown-back head
+            fov = 38; lerp = 0.12; elev = 0;
             laugh = smooth(0, 1, (t - T_LOOKBACK) / 0.3);                     // throw the head back ON the first "Arr"
         } else if (t < T_END) {
             // E — TALK: he settles out of the laugh into a confident captain's stance and
@@ -190,11 +194,18 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
         for (let i = 0; i < LINE_AT.length; i++) if (t >= LINE_AT[i]) li = i;
         if (li !== line.current) { line.current = li; onLine?.(li); }
 
-        // TRANSITION DIP — a quick dip-to-dark centred on the hard cuts (and a softer one
-        // on the LEGS→GLB model swap) so the discontinuity happens behind darkness and
-        // reads as a clean film cut instead of a jump.
-        const dip = (b: number) => { const w = 0.19; const dd = Math.abs(t - b); return dd < w ? (1 - dd / w) : 0; };
-        const dim = Math.max(dip(T_LEGS) * 0.5, dip(T_REVEAL) * 0.92, dip(T_LOOKBACK) * 0.92);
+        // TRANSITION DIP — a dip-to-dark centred on each hard cut + the LEGS→GLB model
+        // swap, so the discontinuity happens behind (near-)black and reads as a clean film
+        // cut, not a blink. Wider + to FULL black on the two hard cuts; strong on the swap
+        // (which lands at the T_LEGS peak); and a fade-to-black on the END hand-off so the
+        // punchline doesn't get yanked straight to gameplay on a hard cut.
+        const dip = (b: number, w: number, peak: number) => { const dd = Math.abs(t - b); return dd < w ? (1 - dd / w) * peak : 0; };
+        let dim = Math.max(
+            dip(T_LEGS, 0.26, 0.85),       // legs→GLB model swap (lands at this peak)
+            dip(T_REVEAL, 0.30, 1.0),      // hard cut into LOOK_BACK
+            dip(T_LOOKBACK, 0.30, 1.0),    // hard cut into LAUGH
+        );
+        if (t > T_END - 0.55) dim = Math.max(dim, smooth(0, 1, (t - (T_END - 0.55)) / 0.55));   // fade out on the hand-off to gameplay
 
         if (elevFadeRef) elevFadeRef.current = elev;
         if (laughRef) laughRef.current = laugh;

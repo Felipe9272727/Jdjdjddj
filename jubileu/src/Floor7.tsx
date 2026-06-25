@@ -1261,8 +1261,10 @@ const PirateCaptain: React.FC<{
         // a confident "behold the captain" posture blended over the idle as he's revealed.
         const PO = poseRef?.current ?? 0;
         if (PO > 0.001) {
-            bn[PB.l_arm].rotation.x += 0.92 * PO; bn[PB.l_arm].rotation.z += 0.78 * PO;   // elbows WIDE, hands to the hips (akimbo)
-            bn[PB.r_arm].rotation.x += 0.92 * PO; bn[PB.r_arm].rotation.z += -0.78 * PO;
+            // elbows WIDER + hands a touch higher (onto the belt, not the skirt) so the
+            // hand stops clipping into the coat hem on the wide reveal.
+            bn[PB.l_arm].rotation.x += 0.84 * PO; bn[PB.l_arm].rotation.z += 0.92 * PO;   // hands to the hips (akimbo), elbows splayed clear of the coat
+            bn[PB.r_arm].rotation.x += 0.84 * PO; bn[PB.r_arm].rotation.z += -0.92 * PO;
             bn[PB.body].rotation.x += -0.08 * PO;                                         // chest out
             bn[PB.head].rotation.x += -0.12 * PO;                                         // chin up
         }
@@ -1501,11 +1503,13 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             const { legL, legR, armL, armR, head, jaw, eye } = capRig;
             if (legL.current && legR.current && armL.current && armR.current) {
                 if (walking) {
-                    legL.current.rotation.x = Math.sin(ph) * 0.5;
-                    legR.current.rotation.x = Math.sin(ph + Math.PI) * 0.42;
+                    // a BIGGER, clearer stride for the dedicated boot close-up — the
+                    // legs read as a deliberate clumsy clomp, never a parallel idle.
+                    legL.current.rotation.x = Math.sin(ph) * 0.66;
+                    legR.current.rotation.x = Math.sin(ph + Math.PI) * 0.58;
                     // lift the swinging foot off the deck (kills the skate)
-                    legL.current.position.y = 0.62 + Math.max(0, Math.sin(ph)) * 0.07;
-                    legR.current.position.y = 0.62 + Math.max(0, Math.sin(ph + Math.PI)) * 0.05;
+                    legL.current.position.y = 0.62 + Math.max(0, Math.sin(ph)) * 0.09;
+                    legR.current.position.y = 0.62 + Math.max(0, Math.sin(ph + Math.PI)) * 0.07;
                     armL.current.rotation.x = Math.sin(ph + Math.PI) * 0.4;
                     armR.current.rotation.x = Math.sin(ph) * 0.4;
                 } else {
