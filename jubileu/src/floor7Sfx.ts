@@ -113,9 +113,11 @@ export function f7CaptainLaugh(short = false): void {
     const c = ctx, o = cutOut(); if (!c || !o) return; const t0 = c.currentTime;
     const R = (a: number, b: number) => a + Math.random() * (b - a);
     const m = cutMusic;
-    if (m) {   // sidechain-duck the bed under the laugh, release after (so the bookend lands)
+    if (m) {   // sidechain-duck the bed under the laugh, release after. The reveal belly-laugh
+        // ducks LESS (0.075) so the beat keeps weight + reads as the loud emotional peak; the
+        // closing smirk ducks HARDER (0.05) so it pierces the quiet tail as the button.
         m.master.gain.cancelScheduledValues(t0);
-        m.master.gain.setTargetAtTime(0.05, t0, 0.06);
+        m.master.gain.setTargetAtTime(short ? 0.05 : 0.075, t0, 0.06);
         m.master.gain.setTargetAtTime(0.11, t0 + (short ? 0.85 : 1.7), 0.5);
     }
 
@@ -155,22 +157,28 @@ export function f7CaptainLaugh(short = false): void {
         const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2100;
         const trem = c.createGain(); trem.gain.value = 0.72;     // tremolo carrier (square LFO swings it 0.46–0.98)
         const env = c.createGain(); env.gain.value = 0;          // the amplitude envelope (independent — no polarity flip)
+        // a parallel BODY path: the saws through a wide lowpass (not the narrow formants) at
+        // a moderate level, so the growl carries broadband low-mid WEIGHT — it's the loud
+        // emotional peak it should be — while the formants still own the vowel colour.
+        const body = c.createBiquadFilter(); body.type = 'lowpass'; body.frequency.value = 1150; const bodyG = c.createGain(); bodyG.gain.value = short ? 0.32 : 0.42; body.connect(bodyG).connect(lp);
         bp1.connect(lp); bp2.connect(lp); lp.connect(trem).connect(env).connect(o);
         [f0, f0 * 1.01].forEach((f, k) => {
             const osc = c.createOscillator(); osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(f * 1.04, t); osc.frequency.linearRampToValueAtTime(f, t + 0.1); osc.frequency.linearRampToValueAtTime(f * 0.9, t + gdur);
-            const og = c.createGain(); og.gain.value = k === 0 ? 1 : 0.6; osc.connect(og); og.connect(bp1); og.connect(bp2);
+            const og = c.createGain(); og.gain.value = k === 0 ? 1 : 0.6; osc.connect(og); og.connect(bp1); og.connect(bp2); og.connect(body);
             const vib = c.createOscillator(); vib.frequency.value = 7; const vg = c.createGain(); vg.gain.value = 4.5; vib.connect(vg).connect(osc.frequency); vib.start(t); vib.stop(t + gdur + 0.05);
             osc.start(t); osc.stop(t + gdur + 0.05);
         });
         const roll = c.createOscillator(); roll.type = 'square'; roll.frequency.value = R(26, 30);
         const rg = c.createGain(); rg.gain.value = 0.26; roll.connect(rg).connect(trem.gain); roll.start(t); roll.stop(t + gdur);
-        const hp = short ? 0.095 : 0.11;   // the reveal belly-laugh projects louder — it's the scene's emotional peak
+        const hp = short ? 0.1 : 0.13;   // the reveal belly-laugh projects louder — it's the scene's emotional peak
         env.gain.linearRampToValueAtTime(hp, t + 0.06);
         if (!short) env.gain.setValueAtTime(hp, t + gdur - 0.16);
         env.gain.exponentialRampToValueAtTime(0.0008, t + gdur);
+        // chest sub — fuller on the reveal for low-end weight so the beat lands as a peak,
+        // not just a clean-but-quiet vowel
         const sub = c.createOscillator(); sub.type = 'sine'; const sg = c.createGain(); sg.gain.value = 0; sub.frequency.value = f0 * 0.5; sub.connect(sg).connect(o);
-        sg.gain.linearRampToValueAtTime(short ? 0.05 : 0.065, t + 0.06); sg.gain.exponentialRampToValueAtTime(0.001, t + gdur); sub.start(t); sub.stop(t + gdur + 0.04);
+        sg.gain.linearRampToValueAtTime(short ? 0.055 : 0.095, t + 0.06); sg.gain.exponentialRampToValueAtTime(0.001, t + gdur); sub.start(t); sub.stop(t + gdur + 0.04);
     }
 
     // Phase 2 — "HAR-HAR-HAR…" pulses. Full: 5–6 descending belly-laugh pulses. Smirk: 3
@@ -179,7 +187,7 @@ export function f7CaptainLaugh(short = false): void {
     const pitches = short ? [118, 108, 99, 92] : [152, 142, 132, 121, 110, 101];
     const n = short ? 3 : (5 + (Math.random() < 0.5 ? 0 : 1));
     for (let i = 0; i < n; i++) {
-        pulse(t, pitches[Math.min(i, pitches.length - 1)] * R(0.97, 1.03), (short ? 0.105 : 0.115) * (1 - i * 0.1), R(short ? 0.14 : 0.16, short ? 0.18 : 0.2), 1 - i * 0.03);
+        pulse(t, pitches[Math.min(i, pitches.length - 1)] * R(0.97, 1.03), (short ? 0.11 : 0.13) * (1 - i * 0.1), R(short ? 0.14 : 0.16, short ? 0.18 : 0.2), 1 - i * 0.03);
         t += R(short ? 0.14 : 0.16, short ? 0.19 : 0.22);
     }
     // Phase 3 — a trailing breath exhale (a shorter one on the smirk, bridging it into the
@@ -397,11 +405,12 @@ const F7_VOWELS: readonly (readonly [number, number])[] = [[720, 1180], [560, 16
 export function f7CaptainVoice(text: string): void {
     const c = ctx, o = cutOut(); if (!c || !o) return; const t0 = c.currentTime;
     const m = cutMusic; const line = m ? m.talkLine++ : 0;
-    if (m) {   // sidechain duck: dip the bed under the line, release after
+    if (m) {   // sidechain duck: dip the bed under the line, release HIGHER each line so the
+        // TALK section ESCALATES toward the closing smirk instead of plateauing.
         m.master.gain.cancelScheduledValues(t0);
         m.master.gain.setTargetAtTime(0.055, t0, 0.08);
-        m.master.gain.setTargetAtTime(0.11, t0 + 0.12, 0.9);
-        tone(c, o, [73.42, 82.41, 87.31, 98.0, 110.0][line % 5], t0, 0.5, 'triangle', 0.09 + line * 0.01, 240);   // building menace accent
+        m.master.gain.setTargetAtTime(0.1 + line * 0.014, t0 + 0.12, 0.9);
+        tone(c, o, [73.42, 82.41, 87.31, 98.0, 110.0][line % 5], t0, 0.55, 'triangle', 0.085 + line * 0.016, 240);   // building menace accent
     }
     const letters = (text.match(/[a-zà-ú]/gi) || []).length;
     const syl = Math.max(3, Math.min(13, Math.round(letters / 2.5)));
