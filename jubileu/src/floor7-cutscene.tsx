@@ -9,8 +9,9 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Floor7Environment, useFloor7Handle } from './Floor7';
 import { FLOOR7_SCALE } from './constants';
-import Floor7IntroCutscene from './Floor7IntroCutscene';
+import Floor7IntroCutscene, { F7_DIALOGUE } from './Floor7IntroCutscene';
 import Floor7IntroUI from './Floor7IntroUI';
+import { configureFloor7Sfx, startFloor7Ambient, f7CutMusicStart, f7CutBeat, f7CutMusicStop, f7BootClomp, f7ElevatorVanish, f7CaptainLaugh, f7CaptainVoice } from './floor7Sfx';
 
 const EYE = 1.55;
 
@@ -67,12 +68,42 @@ const App: React.FC = () => {
     const beatRef = useRef(0);
     const lineRef = useRef(-1);
     const doneRef = useRef(false);
+    const analyserRef = useRef<AnalyserNode | null>(null);
+    const audioLog = useRef<Array<[number, number]>>([]);
+
+    // AUDIO RIG (harness-only) — a live AudioContext routed through an AnalyserNode so we
+    // can measure RMS energy over cutscene-time and confirm every cue fires + roughly when.
+    useEffect(() => {
+        const AC = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
+        const ctx = new AC();
+        const an = ctx.createAnalyser(); an.fftSize = 1024; an.connect(ctx.destination);
+        analyserRef.current = an;
+        configureFloor7Sfx(ctx, an);
+        ctx.resume().catch(() => {});
+        try { startFloor7Ambient(); } catch { /* ok */ }
+        const buf = new Float32Array(an.fftSize);
+        const poll = setInterval(() => {
+            an.getFloatTimeDomainData(buf);
+            let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
+            const rms = Math.sqrt(s / buf.length);
+            audioLog.current.push([+tRef.current.toFixed(2), +rms.toFixed(4)]);
+            if (audioLog.current.length > 4000) audioLog.current.shift();
+        }, 40);
+        (window as unknown as { __audioLog?: () => Array<[number, number]> }).__audioLog = () => audioLog.current;
+        (window as unknown as { __rms?: () => number }).__rms = () => { an.getFloatTimeDomainData(buf); let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i]; return Math.sqrt(s / buf.length); };
+        return () => { clearInterval(poll); f7CutMusicStop(); try { ctx.close(); } catch { /* ok */ } };
+    }, []);
+
+    // drive the score: start/stop with the cutscene, beat stinger on beat change, voice on line change
+    useEffect(() => { if (active) { f7CutMusicStart(); return () => f7CutMusicStop(); } }, [active]);
+    useEffect(() => { if (active) f7CutBeat(beat); }, [beat, active]);
+    useEffect(() => { if (active && lineIdx >= 1 && lineIdx < F7_DIALOGUE.length) f7CaptainVoice(F7_DIALOGUE[lineIdx]); }, [lineIdx, active]);
 
     useEffect(() => {
         window.__beat = () => beatRef.current;
         window.__done = () => doneRef.current;
         (window as unknown as { __line?: () => number }).__line = () => lineRef.current;
-        window.__restart = () => { doneRef.current = false; beatRef.current = 0; setBeat(0); setLineIdx(-1); handle.current.brain?.reset(); setActive(false); setTimeout(() => setActive(true), 40); };
+        window.__restart = () => { doneRef.current = false; beatRef.current = 0; setBeat(0); setLineIdx(-1); audioLog.current = []; handle.current.brain?.reset(); setActive(false); setTimeout(() => setActive(true), 40); };
         (window as unknown as { __holdElev?: (f: number) => void }).__holdElev = (f) => { elevFadeRef.current = f; };
         (window as unknown as { __t?: () => number }).__t = () => tRef.current;
         (window as unknown as { __dim?: () => number }).__dim = () => dimRef.current;
@@ -98,7 +129,9 @@ const App: React.FC = () => {
                         tRef={tRef}
                         onBeat={(b) => { beatRef.current = b; setBeat(b); }}
                         onLine={(l) => { lineRef.current = l; setLineIdx(l); }}
-                        onLaugh={() => { /* headless: no audio ctx */ }}
+                        onStep={f7BootClomp}
+                        onElevatorVanish={f7ElevatorVanish}
+                        onLaugh={f7CaptainLaugh}
                         onDone={() => { doneRef.current = true; setActive(false); }}
                     />
                 )}

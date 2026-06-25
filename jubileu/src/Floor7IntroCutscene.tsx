@@ -67,16 +67,20 @@ interface Props {
     tRef?: React.MutableRefObject<number>;                       // (dev) publishes the cutscene elapsed time
     onBeat: (beat: number) => void;
     onLine?: (line: number) => void;                             // active dialogue line index (-1 = none)
+    onStep?: () => void;                                         // a footfall during the entry stride (boot clomp SFX)
+    onElevatorVanish?: () => void;                               // fire once, synced to the cab starting to dissolve
     onLaugh: () => void;                                         // fire the laugh SFX once
     onDone: () => void;
 }
 
-const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, playerPositionRef, elevFadeRef, laughRef, poseRef, talkRef, hideSailsRef, legsRef, dimRef, tRef, onBeat, onLine, onLaugh, onDone }) => {
+const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, playerPositionRef, elevFadeRef, laughRef, poseRef, talkRef, hideSailsRef, legsRef, dimRef, tRef, onBeat, onLine, onStep, onElevatorVanish, onLaugh, onDone }) => {
     const { camera } = useThree();
     const elapsed = useRef(0);          // accumulated from CLAMPED delta — immune to the big frame-delta spike when the captain GLB resolves from Suspense
     const primed = useRef(false);
     const beat = useRef(-1);
     const line = useRef(-2);
+    const stepIdx = useRef(-1);
+    const vanished = useRef(false);
     const laughed = useRef(false);
     // smoothed camera state + scratch vectors (no per-frame allocation)
     const camPos = useRef(new THREE.Vector3());
@@ -87,7 +91,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
 
     useEffect(() => {
         if (!active) {
-            elapsed.current = 0; primed.current = false; beat.current = -1; line.current = -2; laughed.current = false;
+            elapsed.current = 0; primed.current = false; beat.current = -1; line.current = -2; stepIdx.current = -1; vanished.current = false; laughed.current = false;
             if (elevFadeRef) elevFadeRef.current = null;     // hand the cab fade back to the brain
             if (laughRef) laughRef.current = 0;
             if (poseRef) poseRef.current = 0;
@@ -201,6 +205,16 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
         let li = -1;
         for (let i = 0; i < LINE_AT.length; i++) if (t >= LINE_AT[i]) li = i;
         if (li !== line.current) { line.current = li; onLine?.(li); }
+
+        // FOOTFALLS — fire a boot clomp on each step of the entry stride (the brain walks
+        // the captain ~0.6–3.6s; stride phase = t*7). Keeps the close-up boots audible.
+        if (t > 0.55 && t < 3.5) {
+            const si = Math.floor((t * 7.0) / Math.PI);
+            if (si !== stepIdx.current) { stepIdx.current = si; onStep?.(); }
+        }
+        // ELEVATOR VANISH — fire once when the cab actually starts dissolving (not at the
+        // LOOK_BACK cut), so the dematerialise SFX lands on the visual.
+        if (!vanished.current && beat.current === F7_INTRO_BEATS.LOOK_BACK && elev < 0.9) { vanished.current = true; onElevatorVanish?.(); }
 
         // TRANSITION DIP — a dip-to-dark centred on each hard cut + the LEGS→GLB model
         // swap, so the discontinuity happens behind (near-)black and reads as a clean film

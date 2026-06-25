@@ -50,14 +50,14 @@ import Floor4Canvas2D from './Floor4Canvas2D';
 import { f4Demo } from './floor4Sfx';
 import { f4 } from './f4Lore';
 import { Floor7Environment, Floor7Overlay, useFloor7Handle } from './Floor7';
-import Floor7IntroCutscene from './Floor7IntroCutscene';
+import Floor7IntroCutscene, { F7_DIALOGUE } from './Floor7IntroCutscene';
 import Floor7IntroUI from './Floor7IntroUI';
 import Floor5Race3D from './Floor5Race3D';
 import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
 import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
-import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient, f7CaptainLaugh } from './floor7Sfx';
+import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient, f7CaptainLaugh, f7CutMusicStart, f7CutBeat, f7CutMusicStop, f7BootClomp, f7ElevatorVanish, f7CaptainVoice } from './floor7Sfx';
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE } from './constants';
 import PhysicsProps, { type CrateSpec } from './PhysicsProps';
@@ -490,6 +490,19 @@ export default function App() {
     }
     setF7Intro(false);
   }, [hasStarted, currentLevel]);
+  // CUTSCENE SCORE: start the building music bed while the intro runs, fade it on end.
+  useEffect(() => {
+    if (!f7Intro || !audioCtx) return;
+    f7CutMusicStart();
+    return () => f7CutMusicStop();
+  }, [f7Intro, audioCtx]);
+  // per-beat stinger + bed modulation (REVEAL hero stab, LOOK_BACK eerie, LAUGH menace,
+  // TALK heartbeat pulse). Driven off the beat state the cutscene reports.
+  useEffect(() => { if (f7Intro && audioCtx) f7CutBeat(f7IntroBeat); }, [f7IntroBeat, f7Intro, audioCtx]);
+  // the captain's VOICE — gruff gibberish per spoken line (line 0 is covered by the laugh).
+  useEffect(() => {
+    if (f7Intro && audioCtx && f7IntroLine >= 1 && f7IntroLine < F7_DIALOGUE.length) f7CaptainVoice(F7_DIALOGUE[f7IntroLine]);
+  }, [f7IntroLine, f7Intro, audioCtx]);
   const [brushCount, setBrushCount] = useState(0);                 // paintbrushes stolen (HUD, win at 3)
   const [cartoonFall, setCartoonFall] = useState(false);           // cinematic camera-lock on the devil's defeat fall
   const [fallBegging, setFallBegging] = useState(false);           // devil is pleading — show the save/stomp choice
@@ -1653,6 +1666,8 @@ export default function App() {
                     dimRef={f7DimRef}
                     onBeat={setF7IntroBeat}
                     onLine={setF7IntroLine}
+                    onStep={f7BootClomp}
+                    onElevatorVanish={f7ElevatorVanish}
                     onLaugh={f7CaptainLaugh}
                     onDone={() => setF7Intro(false)}
                 />
