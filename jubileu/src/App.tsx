@@ -490,6 +490,21 @@ export default function App() {
     }
     setF7Intro(false);
   }, [hasStarted, currentLevel]);
+  // BRIDGE the intro→greet hand-off: captainGreeting is set in a deferred effect off the
+  // WASM GREET state, so for ~1 render after f7Intro ends neither flag is set and the FP
+  // hand/brush flashes into frame before the greet camera locks on. Keep "settling" true
+  // for a beat after the intro so the hand stays hidden across that gap.
+  const [f7Settling, setF7Settling] = useState(false);
+  const f7IntroPrev = useRef(false);
+  useEffect(() => {
+    let id: ReturnType<typeof setTimeout> | undefined;
+    if (f7IntroPrev.current && !f7Intro && currentLevel === 7) {
+      setF7Settling(true);
+      id = setTimeout(() => setF7Settling(false), 1800);
+    }
+    f7IntroPrev.current = f7Intro;
+    return () => { if (id) clearTimeout(id); };
+  }, [f7Intro, currentLevel]);
   // CUTSCENE SCORE: start the building music bed while the intro runs, fade it on end.
   useEffect(() => {
     if (!f7Intro || !audioCtx) return;
@@ -1703,7 +1718,7 @@ export default function App() {
                   active={hasStarted}
                   flashlightActive={inventory.flashlight.active}
                   flashlightOwned={inventory.flashlight.owned}
-                  cutsceneActive={(currentLevel === 7 && (f7Intro || captainGreeting)) || cartoonCutscene || cartoonFall || rebreather3DActive || diverPhase === 'fading'}
+                  cutsceneActive={(currentLevel === 7 && (f7Intro || captainGreeting || f7Settling)) || cartoonCutscene || cartoonFall || rebreather3DActive || diverPhase === 'fading'}
                 />
             )}
             {/* Rebreather 3D put-on cinematic — viewmodel-style, attaches

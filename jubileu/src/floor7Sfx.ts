@@ -1,18 +1,28 @@
 /**
- * floor7Sfx.ts — procedural WebAudio sound for FLOOR 7 (the pirate ship).
- * No samples (keeps the floor self-contained / offline-safe): everything is
- * synthesised. Same configure/clear lifecycle as floor4/5/6 Sfx; every cue
- * routes through out(). Cues: looping sea wash + hull creak (modulated by the
- * ship's roll) + occasional gulls, footsteps, scrub squelch, bucket clunk,
- * captain grunt, and a puddle-cleaned chime.
+ * floor7Sfx.ts — WebAudio sound for FLOOR 7 (the pirate ship). Mostly procedural
+ * (self-contained / offline-safe); the captain's LAUGH uses a real recorded sample
+ * (CC BY 3.0 — see assets/audio/CREDITS.md) decoded at configure time, with the
+ * synthesised laugh as an automatic fallback if the sample isn't loaded yet.
  */
+import captainLaughUrl from './assets/audio/captain-laugh.wav';
+
 let ctx: AudioContext | null = null;
 let dest: AudioNode | null = null;
 let ambient: { stop: () => void } | null = null;
 let creakGain: GainNode | null = null;
 
+// real-sample buffers, decoded once per ctx (fall back to synthesis until ready)
+let laughBuf: AudioBuffer | null = null;
+let laughLoading = false;
+function loadFloor7Samples(c: AudioContext): void {
+    if (laughBuf || laughLoading) return; laughLoading = true;
+    fetch(captainLaughUrl).then(r => r.arrayBuffer()).then(a => c.decodeAudioData(a))
+        .then(b => { laughBuf = b; }).catch(() => { laughLoading = false; });
+}
+
 export function configureFloor7Sfx(context: AudioContext | null, destination?: AudioNode | null): void {
     ctx = context; dest = destination ?? null;
+    if (context) loadFloor7Samples(context);
 }
 export function clearFloor7Sfx(): void { stopFloor7Ambient(); f7CutMusicStop(); clearFloor7CutReverb(); ctx = null; dest = null; }
 function out(): AudioNode | null { return dest ?? ctx?.destination ?? null; }
@@ -121,6 +131,17 @@ export function f7CaptainLaugh(short = false): void {
         m.master.gain.setTargetAtTime(0.11, t0 + (short ? 0.85 : 1.7), 0.5);
     }
 
+    // REAL recorded laugh (preferred) — pitch it DOWN for a hearty, gruff pirate and run it
+    // through the reverb space; the closing smirk plays just the first burst, quicker/higher.
+    if (laughBuf) {
+        const src = c.createBufferSource(); src.buffer = laughBuf;
+        src.playbackRate.value = short ? 1.05 : 0.84;
+        const g = c.createGain(); g.gain.value = short ? 0.62 : 0.72; src.connect(g).connect(o);
+        if (short) src.start(t0, 0, 1.3); else src.start(t0);   // smirk = clip to the first ~1.3s
+        return;
+    }
+
+    // ── synthesised fallback (until the sample decodes) ──
     // one voiced "har/ho" pulse — aspirated "h" onset + two detuned saws through an "ah"
     // formant pair + a chest sub, shaped by a glottal (sharp attack, quick decay) envelope
     const pulse = (t: number, f0: number, peak: number, dur: number, open: number) => {
