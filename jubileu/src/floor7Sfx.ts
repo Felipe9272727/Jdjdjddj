@@ -5,19 +5,25 @@
  * synthesised laugh as an automatic fallback if the sample isn't loaded yet.
  */
 import captainLaughUrl from './assets/audio/captain-laugh.wav';
+import seaWavesUrl from './assets/audio/sea-waves.opus';
 
 let ctx: AudioContext | null = null;
 let dest: AudioNode | null = null;
-let ambient: { stop: () => void } | null = null;
+let ambient: { stop: () => void; upgradeSea?: () => void } | null = null;
 let creakGain: GainNode | null = null;
 
 // real-sample buffers, decoded once per ctx (fall back to synthesis until ready)
 let laughBuf: AudioBuffer | null = null;
+let seaBuf: AudioBuffer | null = null;       // real ocean ambience (CC BY 3.0) — replaces the noise wash
 let laughLoading = false;
 function loadFloor7Samples(c: AudioContext): void {
-    if (laughBuf || laughLoading) return; laughLoading = true;
+    if (laughLoading) return; laughLoading = true;
     fetch(captainLaughUrl).then(r => r.arrayBuffer()).then(a => c.decodeAudioData(a))
-        .then(b => { laughBuf = b; }).catch(() => { laughLoading = false; });
+        .then(b => { laughBuf = b; }).catch(() => { /* keep synth laugh */ });
+    // real sea-wash: if the ambient is already running on the procedural fallback when
+    // this resolves, crossfade the recording in (handles the decode-vs-start race).
+    fetch(seaWavesUrl).then(r => r.arrayBuffer()).then(a => c.decodeAudioData(a))
+        .then(b => { seaBuf = b; ambient?.upgradeSea?.(); }).catch(() => { /* keep noise wash */ });
 }
 
 export function configureFloor7Sfx(context: AudioContext | null, destination?: AudioNode | null): void {
@@ -39,14 +45,31 @@ function noiseBuf(c: AudioContext): AudioBuffer {
 
 export function startFloor7Ambient(): void {
     const c = ctx, o = out(); if (!c || !o || ambient) return;
-    // sea wash — looping filtered noise with a slow swell LFO on the cutoff
+    // sea wash — looping filtered noise with a slow swell LFO on the cutoff. This is the
+    // FALLBACK bed: when the real ocean recording (seaBuf) is available it crossfades in
+    // and this drops to a faint texture floor under it.
     const wash = c.createBufferSource(); wash.buffer = noiseBuf(c); wash.loop = true;
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 480;
     const wg = c.createGain(); wg.gain.value = 0;
     wash.connect(lp).connect(wg).connect(o);
     const lfo = c.createOscillator(); lfo.frequency.value = 0.13;
     const lfoG = c.createGain(); lfoG.gain.value = 180; lfo.connect(lfoG).connect(lp.frequency); lfo.start();
-    wash.start(); wg.gain.linearRampToValueAtTime(0.11, c.currentTime + 2);
+    wash.start();
+    // real recorded sea (CC BY 3.0) — looped, gently low-passed to tame the 16 kHz hiss
+    // and given the same slow swell so it breathes. Started now if decoded, else upgraded
+    // from the decode callback. Procedural wash sits loud only until the real bed arrives.
+    const seaG = c.createGain(); seaG.gain.value = 0;
+    const seaLp = c.createBiquadFilter(); seaLp.type = 'lowpass'; seaLp.frequency.value = 3200;
+    seaG.connect(o);
+    let seaSrc: AudioBufferSourceNode | null = null;
+    const startSea = (): void => {
+        if (seaSrc || !seaBuf) return;
+        seaSrc = c.createBufferSource(); seaSrc.buffer = seaBuf; seaSrc.loop = true;
+        seaSrc.connect(seaLp).connect(seaG); seaSrc.start();
+        seaG.gain.linearRampToValueAtTime(0.20, c.currentTime + 2);     // real ocean to the fore
+        wg.gain.linearRampToValueAtTime(0.03, c.currentTime + 2);       // procedural wash to a floor
+    };
+    if (seaBuf) startSea(); else wg.gain.linearRampToValueAtTime(0.11, c.currentTime + 2);
     // hull creak — bandpassed noise we ride with the ship roll (updateF7Roll)
     const creak = c.createBufferSource(); creak.buffer = noiseBuf(c); creak.loop = true;
     const cf = c.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 150; cf.Q.value = 7;
@@ -56,7 +79,10 @@ export function startFloor7Ambient(): void {
     let gullTimer: ReturnType<typeof setTimeout>;
     const sched = () => { gullTimer = setTimeout(() => { gull(); sched(); }, 5000 + Math.random() * 9000); };
     sched();
-    ambient = { stop: () => { try { wash.stop(); creak.stop(); lfo.stop(); } catch { /* already */ } clearTimeout(gullTimer); creakGain = null; } };
+    ambient = {
+        stop: () => { try { wash.stop(); creak.stop(); lfo.stop(); seaSrc?.stop(); } catch { /* already */ } clearTimeout(gullTimer); creakGain = null; },
+        upgradeSea: startSea,
+    };
 }
 export function stopFloor7Ambient(): void { if (ambient) { ambient.stop(); ambient = null; } }
 

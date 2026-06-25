@@ -1186,12 +1186,11 @@ const PirateCaptain: React.FC<{
         const sdt = Math.min(dt, 0.05);
         const damp = (k: number) => 1 - Math.pow(1 - k, sdt * 60);
 
-        // HYBRID (primitivo perto, GLB longe): the GLB is the captain only once
-        // gameplay starts (FETCH/CLEAN/DONE), where the player roams at a distance and
-        // the muddy bake reads fine. The high-detail primitive captain owns the entire
-        // close-up arrival cutscene + greeting (INTRO/GREET), so the GLB stays hidden
-        // there — no more skin-weight smear or plastic coat up close.
-        g.visible = b.state() >= F7_STATE.FETCH && b.elevFade() < 0.85;
+        // The GLB is the captain for the WHOLE cutscene + gameplay — hidden only for the
+        // one EXTREME LEGS close-up, where a single fused skinned mesh smears as the legs
+        // swing right under the lens. There the rigid primitive boots stand in (legsRef);
+        // the GLB takes back over the instant the camera pulls off the boots.
+        g.visible = b.elevFade() < 0.85 && (legsRef?.current ?? 0) < 0.5;
         if (!g.visible) return;
         // The group carries ONLY horizontal position + facing (+ a brief walk lurch).
         // The idle bob + breath live on the BODY bone (with the legs counter-translated
@@ -1518,12 +1517,12 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             captainRef.current.scale.setScalar(CAP_HERO_SCALE);
             captainRef.current.position.set(c.x, c.bob - lurch + breath - CAP_HERO_DROP, c.z);
             captainRef.current.rotation.y = c.face;
-            // HYBRID (primitivo perto, GLB longe): the high-detail primitive captain
-            // is the HERO for the whole close-up arrival cutscene + greeting dialogue
-            // (INTRO/GREET — the camera is right on him); the muddy low-poly GLB only
-            // takes over once gameplay starts and the player roams at a distance.
-            const closeUp = b.state() <= F7_STATE.GREET;
-            captainRef.current.visible = closeUp;
+            // The rigid primitive stands in ONLY for the one EXTREME LEGS close-up, where
+            // the GLB's single fused skinned mesh smears as the legs swing under the lens.
+            // The GLB owns every other frame. Height-matched to the GLB (CAP_HERO_SCALE)
+            // so the boots line up exactly across the swap.
+            const legsCloseUp = (introLegsRef?.current ?? 0) >= 0.5;
+            captainRef.current.visible = legsCloseUp;
             const { legL, legR, armL, armR, head, jaw, eye } = capRig;
             if (legL.current && legR.current && armL.current && armR.current) {
                 if (walking) {
@@ -1584,9 +1583,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 captainRef.current.rotation.z += Math.sin(t * 6.2) * 0.022 * LF;
             }
             // publish the captain's world position for the dialogue camera (feet origin)
-            // — only while the primitive is the visible hero (close-up); in gameplay the
-            // GLB owns the anchor so the two don't fight over it.
-            if (captainAnchorRef && closeUp) captainRef.current.getWorldPosition(captainAnchorRef.current);
+            // — only during the LEGS close-up where the primitive is the visible stand-in;
+            // every other frame the GLB owns the anchor so the two don't fight over it.
+            if (captainAnchorRef && legsCloseUp) captainRef.current.getWorldPosition(captainAnchorRef.current);
             // ── secondary motion: cloth + grip trail the body (follow-through) ──
             {
                 const cl = _cloth.current;

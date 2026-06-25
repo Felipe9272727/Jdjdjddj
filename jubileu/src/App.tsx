@@ -505,6 +505,11 @@ export default function App() {
     f7IntroPrev.current = f7Intro;
     return () => { if (id) clearTimeout(id); };
   }, [f7Intro, currentLevel]);
+  // End the intro SYNCHRONOUSLY raising the settling bridge in the SAME React batch, so
+  // there's never a render where both f7Intro and f7Settling are false (the effect above
+  // reacts one render late — that single frame was the FP hand still flashing in). Use
+  // this at every place the cutscene ends (natural onDone + manual skip).
+  const endF7Intro = useCallback(() => { setF7Settling(true); setF7Intro(false); }, []);
   // CUTSCENE SCORE: start the building music bed while the intro runs, fade it on end.
   useEffect(() => {
     if (!f7Intro || !audioCtx) return;
@@ -1684,7 +1689,7 @@ export default function App() {
                     onStep={f7BootClomp}
                     onElevatorVanish={f7ElevatorVanish}
                     onLaugh={f7CaptainLaugh}
-                    onDone={() => setF7Intro(false)}
+                    onDone={endF7Intro}
                 />
             )}
             {hasStarted && inventory.flashlight.owned && (
@@ -1860,7 +1865,7 @@ export default function App() {
       <PhotoModeOverlay progress={photo.progress} onClose={photo.close} />
       {/* Andar 7 (pirate ship) — captain dialogue + cleaning HUD + interact button */}
       {hasStarted && currentLevel === 7 && !f7Intro && <Floor7Overlay handleRef={floor7Handle} onGreeting={setCaptainGreeting} />}
-      {hasStarted && currentLevel === 7 && f7Intro && <Floor7IntroUI beat={f7IntroBeat} line={f7IntroLine} dimRef={f7DimRef} onSkip={() => setF7Intro(false)} />}
+      {hasStarted && currentLevel === 7 && f7Intro && <Floor7IntroUI beat={f7IntroBeat} line={f7IntroLine} dimRef={f7DimRef} onSkip={endF7Intro} />}
       {/* Empty lobby atmospheric touches — thuds, flickers, wall text */}
       {hasStarted && currentLevel === 0 && gameState === 'lobby' && (
           <EmptyLobbyAmbience playerCount={otherPlayerIds.length} />
