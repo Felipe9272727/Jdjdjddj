@@ -1,8 +1,8 @@
 /**
  * floor7Sfx.ts — WebAudio sound for FLOOR 7 (the pirate ship). Mostly procedural
- * (self-contained / offline-safe); the captain's LAUGH uses a real recorded sample
- * (CC BY 3.0 — see assets/audio/CREDITS.md) decoded at configure time, with the
- * synthesised laugh as an automatic fallback if the sample isn't loaded yet.
+ * (self-contained / offline-safe); the captain's LAUGH uses a real recorded pirate
+ * "evil laugh" sample (CC0 — see assets/audio/CREDITS.md) decoded at configure time,
+ * with the synthesised laugh as an automatic fallback if the sample isn't loaded yet.
  */
 import captainLaughUrl from './assets/audio/captain-laugh.wav';
 import seaWavesUrl from './assets/audio/sea-waves.opus';
@@ -173,7 +173,7 @@ export function f7CaptainLaugh(short = false): void {
     if (laughBuf) {
         const src = c.createBufferSource(); src.buffer = laughBuf;
         src.playbackRate.value = short ? 1.05 : 0.84;
-        const g = c.createGain(); g.gain.value = short ? 0.82 : 1.05; src.connect(g).connect(o);   // louder so the laugh is the true climax (above the REVEAL stab)
+        const g = c.createGain(); g.gain.value = short ? 0.62 : 0.82; src.connect(g).connect(o);   // pirate "evil laugh" sample is hotter (peak ~0.89) — keep gain lower so the climax stays loud without clipping through the reverb
         if (short) src.start(t0, 0, 1.3); else src.start(t0);   // smirk = clip to the first ~1.3s
         return;
     }
