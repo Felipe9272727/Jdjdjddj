@@ -172,9 +172,19 @@ export function f7CaptainLaugh(short = false): void {
     // through the reverb space; the closing smirk plays just the first burst, quicker/higher.
     if (laughBuf) {
         const src = c.createBufferSource(); src.buffer = laughBuf;
-        src.playbackRate.value = short ? 1.05 : 0.84;
-        const g = c.createGain(); g.gain.value = short ? 0.62 : 0.82; src.connect(g).connect(o);   // pirate "evil laugh" sample is hotter (peak ~0.89) — keep gain lower so the climax stays loud without clipping through the reverb
-        if (short) src.start(t0, 0, 1.3); else src.start(t0);   // smirk = clip to the first ~1.3s
+        src.playbackRate.value = short ? 1.12 : 0.84;          // smirk quicker/higher
+        const g = c.createGain(); g.gain.value = short ? 0.70 : 0.90; src.connect(g).connect(o);
+        if (short) {
+            // closing "got-the-last-word" smirk: a LATER slice of the cackle (offset 0.45s),
+            // not the same front opening the belly-laugh used — so the two laughs read as
+            // distinct gestures instead of one cackle replayed twice.
+            src.start(t0, 0.45, 0.85);
+        } else {
+            src.start(t0);
+            // the sample is one front-loaded cackle (silent after ~1.8s); ring its own gain
+            // down after the punch so the long reverb tail doesn't smear into the dialogue.
+            g.gain.setTargetAtTime(0.0001, t0 + 1.4, 0.3);
+        }
         return;
     }
 
