@@ -1317,6 +1317,17 @@ const PirateCaptain: React.FC<{
             bn[PB.r_arm].rotation.x += -0.55 * gest;              // raise the right hand to gesture
             bn[PB.r_arm].rotation.z += 0.34 * gest;
         }
+        // NECK distribution: split the head's accumulated rotation across the neck +
+        // head joints so the bend flows through the collar instead of shearing the seam
+        // in one step (the laugh's hard throw-back was the worst offender). The neck is
+        // the head's PARENT, so neck.x*f + head.x*(1-f) keeps the final head orientation
+        // while spreading the deformation over two joints.
+        const nkB = bn[PB.neck], hdB = bn[PB.head];
+        if (nkB && hdB) {
+            nkB.rotation.x = hdB.rotation.x * 0.45; hdB.rotation.x *= 0.55;
+            nkB.rotation.y = hdB.rotation.y * 0.40; hdB.rotation.y *= 0.60;
+            nkB.rotation.z = hdB.rotation.z * 0.40; hdB.rotation.z *= 0.60;
+        }
     });
 
     if (!rig) return null;

@@ -42,7 +42,10 @@ export const PIRATE_SCALE = 2.4;
 export const PIRATE_FOOT_LIFT = 0.5;
 
 // ── Bone indices (same shape as the Diabrete so the anim code reads the same) ──
-export const enum PB { root, body, head, l_arm, r_arm, l_leg, r_leg }
+// neck is appended (index 7) so the existing indices are untouched; it sits between
+// body and head so a head turn/throw-back distributes across TWO joints instead of
+// shearing the collar seam at the single head bone.
+export const enum PB { root, body, head, l_arm, r_arm, l_leg, r_leg, neck }
 
 export interface PirateRig {
     group: THREE.Group;          // add to your scene; holds the bound SkinnedMesh
@@ -64,13 +67,15 @@ const BP: ReadonlyArray<readonly [number, number, number]> = [
     [ 0.10,  0.12, 0],   // r_arm — right shoulder
     [-0.05, -0.18, 0],   // l_leg — left hip
     [ 0.05, -0.18, 0],   // r_leg — right hip
+    [ 0,     0.17, 0],   // neck  — base of the neck (between body and head)
 ];
 // legs hang off the ROOT, NOT the body: if the legs are children of the torso bone
 // they inherit every breath/lean/laugh the torso does, which shears the thigh skin
 // (hip rises with the torso while the boot stays planted = a stretched leg). Parenting
 // them to the root keeps the boots independent of the upper-body performance.
-const BPARENT = [-1, 0, 1, 1, 1, 0, 0] as const;
-const BNAME   = ['p_root', 'p_body', 'p_head', 'p_l_arm', 'p_r_arm', 'p_l_leg', 'p_r_leg'] as const;
+// head now hangs off the NECK (index 7), and the neck off the body.
+const BPARENT = [-1, 0, 7, 1, 1, 0, 0, 1] as const;
+const BNAME   = ['p_root', 'p_body', 'p_head', 'p_l_arm', 'p_r_arm', 'p_l_leg', 'p_r_leg', 'p_neck'] as const;
 
 // smoothstep
 function ss(v: number, lo: number, hi: number): number {
@@ -87,15 +92,18 @@ function paintWeights(pos: Float32Array): { joints: Uint16Array; weights: Float3
     for (let i = 0; i < N; i++) {
         const x = pos[i * 3];
         const y = pos[i * 3 + 1];
-        const s = new Float32Array(7);
+        const s = new Float32Array(8);
 
         // The GLB is ONE fused mesh, so the trick is to weight it as if it were SEPARATE
         // parts — each region rides one bone rigidly — otherwise the cloth smears/shears and
         // the captain looks "contorted". The key: the long COAT/CAPE skirt belongs to the
         // TORSO, not the legs, so it sways as one piece while the boots step underneath.
 
-        // HEAD — head + tricorne; sharp so the hat is a rigid block (no neck shear on the laugh).
-        s[PB.head] = ss(y, 0.20, 0.30);
+        // HEAD — head + tricorne (y above the neck); a rigid block so the hat stays solid.
+        s[PB.head] = ss(y, 0.24, 0.32);
+        // NECK — a band just below the head that takes PART of the head's bend, so the
+        // collar/jaw seam flexes gradually instead of shearing in one step on the laugh.
+        s[PB.neck] = ss(y, 0.12, 0.24) * (1 - ss(y, 0.24, 0.32));
 
         // ARMS — the coat SLEEVES: outer-x columns from mid-torso to shoulder, so an arm move
         // carries its sleeve (but stays off the chest/back so the coat body doesn't follow).
@@ -113,13 +121,13 @@ function paintWeights(pos: Float32Array): { joints: Uint16Array; weights: Float3
         // BODY — the WHOLE torso + the hanging coat/cape skirt: everything below the head that
         // the sleeves and boots didn't strongly claim. So the coat is one rigid piece on the
         // torso bone and never tears between the legs or shears on a lean.
-        const claimed = s[PB.l_arm] + s[PB.r_arm] + s[PB.l_leg] + s[PB.r_leg] + s[PB.head];
+        const claimed = s[PB.l_arm] + s[PB.r_arm] + s[PB.l_leg] + s[PB.r_leg] + s[PB.head] + s[PB.neck];
         s[PB.body] = Math.max(0.03, (1 - ss(y, 0.18, 0.30)) * (1 - claimed));
 
         // ROOT — tiny constant so no vertex is ever fully unweighted.
         s[PB.root] = 0.005;
 
-        const rank = [0, 1, 2, 3, 4, 5, 6].sort((a, b) => s[b] - s[a]);
+        const rank = [0, 1, 2, 3, 4, 5, 6, 7].sort((a, b) => s[b] - s[a]);
         let total = 0;
         for (let k = 0; k < 4; k++) total += s[rank[k]];
         if (total < 1e-8) total = 1;
