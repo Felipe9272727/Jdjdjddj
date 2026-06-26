@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useGLTF, useAnimations, Html } from '@react-three/drei';
+import { useGLTF, Html } from '@react-three/drei';
 import { Vector3 } from 'three';
 import * as THREE from 'three';
 import { WALKING_URL, IDLE_URL } from './constants';
@@ -34,14 +34,25 @@ export const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }: R
     const { animations: idleAnims } = useGLTF(IDLE_URL) as any;
 
     const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
-    const anims = useMemo(() => {
+    // Self-managed AnimationMixer instead of drei's useAnimations.
+    // drei's useAnimations registers an internal useFrame that calls
+    // mixer.update(delta) UNCONDITIONALLY every frame — so the distance-band
+    // throttle below only skipped the cheap lerp, never the actual skinning
+    // interpolation. Owning the mixer lets us drive mixer.update() from the
+    // SAME throttled useFrame, so distant/half-rate remote players also pay
+    // less per-frame skinning cost. Visuals are identical when near.
+    const mixer = useMemo(() => new THREE.AnimationMixer(clonedScene), [clonedScene]);
+    const actions = useMemo(() => {
         const w = walkAnims.map((a: any) => a.clone(true));
         const i = idleAnims.map((a: any) => a.clone(true));
         if (w[0]) w[0].name = 'Walking';
         if (i[0]) i[0].name = 'Idle';
-        return [...i, ...w];
-    }, [walkAnims, idleAnims]);
-    const { actions } = useAnimations(anims, clonedScene);
+        const map: Record<string, THREE.AnimationAction> = {};
+        if (i[0]) map['Idle'] = mixer.clipAction(i[0]);
+        if (w[0]) map['Walking'] = mixer.clipAction(w[0]);
+        return map;
+    }, [walkAnims, idleAnims, mixer]);
+    useEffect(() => () => { mixer.stopAllAction(); }, [mixer]);
 
     const [groundY, setGroundY] = useState(0);
     useEffect(() => {
@@ -89,12 +100,17 @@ export const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }: R
     const [chatBubble, setChatBubble] = useState<{ msg: string; key: number } | null>(null);
     const frameCounter = useRef(0);
     const lastFarUpdateRef = useRef(0);
+    // Accumulates wall-clock dt across throttled (skipped) frames so the mixer
+    // advances by the true elapsed time when we DO update it — keeps the
+    // walk/idle cadence correct at any update rate.
+    const mixerAccumRef = useRef(0);
     const { camera } = useThree();
 
     useFrame((state, dt) => {
         if (!groupRef.current) return;
         const data = dataRef.current.get(id);
         if (!data) return;
+        mixerAccumRef.current += dt;
 
         // Distance-band throttling. Reading squared distance avoids a sqrt.
         const dxCam = data.x - camera.position.x;
@@ -113,6 +129,13 @@ export const RemotePlayer = React.memo(({ id, dataRef, chatBubbles3D = true }: R
             frameCounter.current = (frameCounter.current + 1) & 1;
             if (frameCounter.current === 0) return;
         }
+
+        // Drive the mixer with accumulated time on processed frames only.
+        // Near (<10m) this is every frame → identical to before. Farther out
+        // it runs at half/1Hz, advancing by the real elapsed time so the pose
+        // is correct, just refreshed less often (imperceptible at distance).
+        mixer.update(mixerAccumRef.current);
+        mixerAccumRef.current = 0;
 
         if (hipsRef.current && hipsBindRef.current) {
             hipsRef.current.position.x = hipsBindRef.current.x;

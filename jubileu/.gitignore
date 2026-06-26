@@ -3,3 +3,11 @@ dist/
 .env
 .env.local
 *.log
+wasm/*.wasm
+
+# transient headless-capture/critic scripts (throwaway)
+_*.cjs
+*_tmp.cjs
+__*.mjs
+__*.cjs
+scripts/

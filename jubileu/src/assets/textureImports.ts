@@ -58,3 +58,21 @@ export { default as pebbleModel }  from './models/rocks/pebble.glb';
 // ─── NPC models ────────────────────────────────────────────────────
 // Hotel concierge — Floor 2 bearded diver NPC. GLB delivered by Felipe.
 export { default as hotelConciergeModel } from './models/hotel-concierge.glb';
+
+// ─── Character / floor GLB models (inlined for the single-file build) ─
+// These used to be fetched at runtime — local ones from public/ ("/x.glb")
+// and several from raw.githubusercontent. A runtime fetch 404s / is blocked
+// when the game ships as one self-contained index.html (file:// or a host
+// that only serves the HTML), which is why "andares com GLBs externos" broke.
+// Imported here so Vite folds each GLB into the bundle as a base64 data-URI
+// (same mechanism as the rocks/concierge above) — no network, works offline.
+export { default as walkingModel }       from './models/char-walking.glb';   // player walk cycle
+export { default as idleModel }          from './models/char-idle.glb';      // player idle
+export { default as npcWalkModel }       from './models/npc-walking.glb';    // lobby NPC walk
+export { default as npcIdleModel }       from './models/npc-idle.glb';       // lobby NPC idle
+export { default as blockyCharModel }    from './models/blocky-character.glb'; // Dussekar (house)
+export { default as cashierModel }       from './models/button_pushing.glb'; // lobby cashier
+export { default as pirateCaptainModel } from './models/pirate-captain.glb'; // Floor 7 captain
+export { default as diabreteModel }      from './models/diabrete.glb';       // Floor 3 rival
+export { default as glovesModel }        from './models/cartoon_gloves.glb'; // Floor 3 hands
+export { default as sharkModel }         from './models/monster/shark.glb';  // Floor 2 monster fish

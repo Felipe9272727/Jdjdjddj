@@ -98,6 +98,7 @@ export interface QualityProfile {
     nightLights: boolean;    // NightAmbient + the extra moon pointLight in night mode
     chatBubbles3D: boolean;  // <Html> 3D speech bubbles on remote players + Dussekar
     remoteLimit: number;     // hard cap on rendered remote players (others are dropped)
+    physicsProps: boolean;   // Rapier (WASM) dynamic rigid-body debris the player can nudge
 }
 
 export const QUALITY_PROFILES: Record<Quality, QualityProfile> = {
@@ -110,9 +111,14 @@ export const QUALITY_PROFILES: Record<Quality, QualityProfile> = {
         nightLights: false,
         chatBubbles3D: false,
         remoteLimit: 3,
+        physicsProps: false,
     },
     medium: {
-        dpr: [0.75, 1.0],
+        // Wider dpr range than before (floor 0.75 → 0.6): gives AdaptiveDpr more
+        // headroom to recover FPS on heavy floors (the env-heavy Floor 6) on
+        // weak phones. Stays crisp at 1.0 when the device can afford it; only
+        // softens under sustained load, which beats lag. Default tier.
+        dpr: [0.6, 1.0],
         far: 80,
         antialias: false,
         atmosphere: false,
@@ -120,6 +126,7 @@ export const QUALITY_PROFILES: Record<Quality, QualityProfile> = {
         nightLights: true,
         chatBubbles3D: true,
         remoteLimit: 8,
+        physicsProps: false,
     },
     high: {
         dpr: [1, 2],
@@ -130,6 +137,7 @@ export const QUALITY_PROFILES: Record<Quality, QualityProfile> = {
         nightLights: true,
         chatBubbles3D: true,
         remoteLimit: 30,
+        physicsProps: true,
     },
 };
 

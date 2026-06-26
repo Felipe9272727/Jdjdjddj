@@ -6,6 +6,7 @@
 
 import React, { useState } from 'react';
 import { f3Demo } from './f3Hazards';
+import { f4Demo } from './floor4Sfx';
 
 export interface FloorOption {
   id: string;           // unique (cards can share a level, e.g. the cutscene)
@@ -72,7 +73,7 @@ export const FLOORS: FloorOption[] = [
     level: 4,
     name: 'Andar 4 (2D)',
     label: 'Andar 4',
-    description: 'Side-scroller 2D pixel — a transição 3D→2D toca na entrada',
+    description: 'O saguão destruído em 2D pixel (spawn direto, sem a viagem)',
     color: 'from-slate-400 via-zinc-300 to-slate-400',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -86,12 +87,65 @@ export const FLOORS: FloorOption[] = [
     level: 4,
     name: 'Transição → 2D',
     label: 'Transição',
-    description: 'Entra no Andar 4 vendo o mundo virar pixel 2D (1ª pessoa travada)',
+    description: 'A viagem completa de 20s: elevador 3D → pixelação aos 10s → 2D',
     color: 'from-fuchsia-500 via-purple-500 to-indigo-500',
     variant: 'floor4Transition',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h4v4H4zM10 6h4v4h-4zM16 6h4v4h-4zM4 14h6v6H4zM14 14h6v6h-6z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'floor-4-keeper',
+    level: 4,
+    name: 'Diálogo do Recepcionista',
+    label: 'Diálogo',
+    description: 'Pula direto pra fogueira com o Primeiro Recepcionista (arco completo)',
+    color: 'from-amber-600 via-orange-500 to-red-500',
+    variant: 'floor4Keeper',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+      </svg>
+    ),
+  },
+  {
+    id: 'floor-5',
+    level: 5,
+    name: 'A Corrida (N64)',
+    description: 'Corrida estilo Mario 64 contra o robô TROCO-64 — duas pistas',
+    color: 'from-lime-400 via-emerald-400 to-teal-400',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h2.25L7.5 19.5h9l2.25-15H21M7.5 8.25h13.1M6.75 12.75h13.1" />
+        <circle cx="9" cy="21" r="1" /><circle cx="16.5" cy="21" r="1" />
+      </svg>
+    ),
+  },
+  {
+    id: 'floor-6-suite',
+    level: 6,
+    name: 'O Hóspede que Sabia Demais',
+    label: 'Andar 6',
+    description: 'Escape room na Suíte 612 — o elevador quebra, ache as 3 peças',
+    color: 'from-amber-500 via-orange-400 to-red-400',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'floor-7-template',
+    level: 7,
+    name: 'O Navio Pirata',
+    label: 'Andar 7',
+    description: 'Convés de um navio em alto-mar — o capitão te põe pra esfregar as poças (100% WebAssembly/C)',
+    color: 'from-sky-400 via-cyan-300 to-sky-400',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5h18M3 16.5l3-9h12l3 9M7.5 16.5V21m9-4.5V21M9 10.5h.01M12 10.5h.01M15 10.5h.01" />
       </svg>
     ),
   },
@@ -211,6 +265,8 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
         onClick={() => {
           if (selectedFloor) {
             f3Demo.fall = selectedFloor.variant === 'fallDemo';   // arm the Floor-3 fall preview
+            f4Demo.ride = selectedFloor.variant === 'floor4Transition';   // arm the full 20s ride to Floor 4
+            f4Demo.keeper = selectedFloor.variant === 'floor4Keeper';     // arm the fireside-dialogue jump
             onSelect(selectedFloor.level, multiplayerEnabled);
           }
         }}

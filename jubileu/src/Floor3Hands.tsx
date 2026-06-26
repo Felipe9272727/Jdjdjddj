@@ -29,8 +29,9 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { f3HandState } from './f3Parkour';
+import { glovesModel } from './assets/textureImports';
 
-const GLOVES_URL = '/cartoon_gloves.glb';
+const GLOVES_URL = glovesModel; // bundled (inlined) — no runtime fetch
 
 // Rx(π/2) stands the flat GLB upright so the white gloves point up with
 // fingers curling toward the player (backs of hands to camera) while the black

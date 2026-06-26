@@ -9,6 +9,7 @@ import { playFloor3Step, playFloor3Jump, playFloor3Land, playFloor3Brush, playFl
 import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, tryCollectBrush as f3TryCollectBrush } from './f3Hazards';
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
+import { f6DoorWalls } from './f6Escape';
 
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
@@ -310,6 +311,9 @@ interface PlayerProps {
   zoomLevel: number;
   npcPositionRef: React.MutableRefObject<Vector3>;
   dialogueTargetRef?: React.MutableRefObject<Vector3>;
+  /** Tall-NPC dialogue framing (the ~2.4m Floor-7 captain): pulls the camera back
+   *  and aims higher so his face + full torso sit in frame. */
+  dialogueTallNpc?: boolean;
   dialogueOpen: boolean;
   sharedPositionRef: React.MutableRefObject<Vector3>;
   sharedRotationYRef: React.MutableRefObject<number>;
@@ -331,7 +335,7 @@ interface PlayerProps {
   jumpRef?: React.MutableRefObject<boolean>;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueTallNpc = false, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -388,7 +392,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         if (pos.current.z < EZ_START - 1) elevTriggered.current = true;
     }
     
-    const fp = zoomLevel < 0.5;
+    const fp = true; // third-person removed permanently — the game is first-person only
     if (sharedPositionRef) sharedPositionRef.current.copy(pos.current);
     if (sharedRotationYRef) sharedRotationYRef.current = charRot.current.y;
     // Bot reads this to map world deltas into camera-frame moveInput.
@@ -430,7 +434,11 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
       diverFrameRef.current.dist = 0;
       diverFrameRef.current.fov = 0;
     }
-    if (dialogueOpen && dialogueFocusRef?.current) {
+    // Floor 6 (Suíte 612): the escape-room cards/keypad/crank freeze input
+    // (App gates WASD/joystick/look while f6UiOpen), but the camera must STAY
+    // first-person exactly where it was — the dialogue rig would yank it out
+    // to a third-person shot of an NPC ref that doesn't even live on this floor.
+    if (dialogueOpen && dialogueFocusRef?.current && currentLevel !== 6) {
         if (animRef.current !== 'Idle') { animRef.current = 'Idle'; setAnim('Idle'); }
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
         const nP = dialogueFocusRef.current; const pP = pos.current;
@@ -444,7 +452,9 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         // handheld drift so the shot is never dead-still (AA feel). The
         // look target stays fixed, so the diver holds frame while the
         // camera breathes around him for subtle parallax.
-        let camDist = isDiverScene ? 5.8 : 2.2;
+        // the captain (dialogueTallNpc) is a ~2.4m model — pull back + aim higher
+        // than the lobby-NPC framing so his face and full torso sit in frame.
+        let camDist = isDiverScene ? 5.8 : (dialogueTallNpc ? 3.4 : 2.2);
         let driftX = 0, driftY = 0;
         let beatFov = 0;
         if (isDiverScene) {
@@ -478,9 +488,9 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
           camDist += diverFrameRef.current.dist;
           beatFov = diverFrameRef.current.fov;
         }
-        const camHeight  = isDiverScene ? 1.55 : 1.75;
-        const lookHeight = isDiverScene ? 1.3  : 1.35;
-        const targetFov  = (isDiverScene ? 46 : 40) + beatFov;
+        const camHeight  = isDiverScene ? 1.55 : (dialogueTallNpc ? 1.95 : 1.75);
+        const lookHeight = isDiverScene ? 1.3  : (dialogueTallNpc ? 1.75 : 1.35);
+        const targetFov  = (isDiverScene ? 46 : (dialogueTallNpc ? 44 : 40)) + beatFov;
         const tCam = _v.current[1].copy(nP).addScaledVector(d2p, camDist);
         tCam.y += camHeight + driftY; tCam.x += driftX;
         const tLook = _v.current[2].copy(nP); tLook.y += lookHeight;
@@ -658,6 +668,17 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
             const [rx, rz] = _resolve(nx, nz, PR, walls);
             pos.current.x = rx; pos.current.z = rz;
+
+            // Floor 6 (Suíte 612): the LOCKED doors are live state, not part of
+            // the memoized wall list — resolve against them separately so
+            // opening a door takes effect the same frame.
+            if (currentLevel === 6) {
+                const dw = f6DoorWalls();
+                if (dw.length) {
+                    const [rx6, rz6] = _resolve(pos.current.x, pos.current.z, PR, dw);
+                    pos.current.x = rx6; pos.current.z = rz6;
+                }
+            }
 
             if (fp) { charRot.current.y = camAng.current.theta + Math.PI; } else { const a = Math.atan2(mv.x, mv.z); let d = a - charRot.current.y; while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; charRot.current.y += d*10*safeDt; }
             // Re-arm when player walks back out of the elevator zone, so a
@@ -855,7 +876,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
     }
   });
-  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} pickupItem={pickupItem} onHandAnchor={onRightHandAnchor} /></group>);
+  return (<group ref={avRef} visible={false}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} pickupItem={pickupItem} onHandAnchor={onRightHandAnchor} /></group>);
 };
 
 // ─── FPArmModel: first-person viewmodel — simple 3D arm in camera space ──
@@ -882,9 +903,10 @@ interface FPArmModelProps {
   flashlightActive: boolean;
   flashlightOwned: boolean;
   pickupItem: PickupItem;
+  cutsceneActive?: boolean;   // hide the FP arm while a cutscene/dialogue owns the camera
 }
 
-export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightActive, flashlightOwned, pickupItem }) => {
+export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightActive, flashlightOwned, pickupItem, cutsceneActive }) => {
   const { camera } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   const armPivotRef = useRef<THREE.Group>(null);
@@ -939,7 +961,7 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
     //   - s.timed.active → mid pickup-or-use animation (buy, cookie)
     const holdingSomething = armExtended || s.timed.active;
     const fpView = zoomLevel < 0.5;
-    g.visible = active && fpView && holdingSomething;
+    g.visible = active && fpView && holdingSomething && !cutsceneActive;   // never let the FP hand block a cutscene
     if (!g.visible) return;
 
     g.position.copy(camera.position);
