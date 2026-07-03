@@ -96,6 +96,32 @@ export const FLOORS: FloorOption[] = [
     ),
   },
   {
+    id: 'floor-6',
+    level: 6,
+    name: 'Labirinto Amarelo',
+    label: 'Andar 6',
+    description: 'Backrooms — ache os 3 fusíveis e fuja da Entidade (o 5º andar não existe)',
+    color: 'from-yellow-500 via-amber-300 to-yellow-600',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 3.5h17v17h-17zM9 3.5V13M14.5 8.5v12M3.5 8.5H9M14.5 14.5h6M9 17.5h3" />
+      </svg>
+    ),
+  },
+  {
+    id: 'floor-7',
+    level: 7,
+    name: 'Constelação',
+    label: 'Andar 7',
+    description: 'Espaço — gravidade lunar, ilhas neon e 7 estrelas pra coletar',
+    color: 'from-indigo-500 via-cyan-400 to-violet-500',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.5c.16-.5.88-.5 1.04 0l1.9 5.85h6.15c.53 0 .75.67.32.98l-4.97 3.61 1.9 5.85c.16.5-.41.92-.84.61L12 16.79 7.02 20.4c-.43.31-1-.11-.84-.61l1.9-5.85-4.97-3.61c-.43-.31-.21-.98.32-.98h6.15l1.9-5.85z" />
+      </svg>
+    ),
+  },
+  {
     id: 'transition-2-3',
     level: 3,
     name: 'Transição 2 → 3',

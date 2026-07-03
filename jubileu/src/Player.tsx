@@ -7,6 +7,8 @@ import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z,
 import { platforms as f3Platforms, f3PlayerZ, f3PlayerY, f3HandState, respawnPoint as f3RespawnPoint } from './f3Parkour';
 import { playFloor3Step, playFloor3Jump, playFloor3Land, playFloor3Brush, playFloor3Hit } from './floor3Sfx';
 import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, tryCollectBrush as f3TryCollectBrush } from './f3Hazards';
+import { F7_PLATFORMS, F7_GRAVITY, F7_JUMP, F7_VOID_Y, f7Checkpoint, f7RespawnPoint } from './f7Space';
+import { playF7Jump, playF7Land, playF7Respawn } from './floor7Sfx';
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 
@@ -814,6 +816,52 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
                 const rp = f3RespawnPoint(pos.current.z);
                 pos.current.set(rp.x, rp.y, rp.z);
                 jumpVelYRef.current = 0;
+            }
+        } else if (currentLevel === 7) {
+            // ── Floor 7: física de plataforma LUNAR (espaço) ──────────────
+            // Espelho do branch do Floor 3, mas com gravidade/pulo baixos
+            // (f7Space.ts) e plataformas ESTÁTICAS — pulo alto e flutuante.
+            jumpVelYRef.current -= F7_GRAVITY * safeDt;
+            pos.current.y += jumpVelYRef.current * safeDt;
+
+            // Plataforma mais alta sob os pés (bounds XZ) + índice pro checkpoint.
+            let groundY = -Infinity;
+            let onIdx = -1;
+            for (let i = 0; i < F7_PLATFORMS.length; i++) {
+                const p = F7_PLATFORMS[i];
+                if (pos.current.x >= p.cx - p.hw && pos.current.x <= p.cx + p.hw &&
+                    pos.current.z >= p.cz - p.hd && pos.current.z <= p.cz + p.hd) {
+                    if (p.topY > groundY) { groundY = p.topY; onIdx = i; }
+                }
+            }
+            // Piso da cabine do elevador (mesmo retângulo explícito do Floor 3).
+            if (pos.current.x >= -3.25 && pos.current.x <= 3.25 &&
+                pos.current.z >= -16.5 && pos.current.z <= -9.0) {
+                if (0 > groundY) { groundY = 0; onIdx = 0; }
+            }
+
+            // Aterrissa: encosta no chão vindo de cima → marca o checkpoint.
+            const wasFalling = jumpVelYRef.current < -1.5;
+            if (groundY > -Infinity && pos.current.y <= groundY && jumpVelYRef.current <= 0) {
+                pos.current.y = groundY;
+                jumpVelYRef.current = 0;
+                if (onIdx >= 0) f7Checkpoint.current = onIdx;
+                if (wasFalling) playF7Land();
+            }
+
+            // Pulo lunar — só no chão.
+            if (jumpRef?.current) {
+                const grounded = groundY > -Infinity && Math.abs(pos.current.y - groundY) < 0.12;
+                if (grounded) { jumpVelYRef.current = F7_JUMP; playF7Jump(); }
+                jumpRef.current = false;
+            }
+
+            // Caiu no vazio → volta pro último checkpoint pisado (sem punição dura).
+            if (pos.current.y < F7_VOID_Y) {
+                const rp = f7RespawnPoint();
+                pos.current.set(rp.x, rp.y, rp.z);
+                jumpVelYRef.current = 0;
+                playF7Respawn();
             }
         } else {
             pos.current.y = 0;

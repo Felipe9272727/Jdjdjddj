@@ -3053,3 +3053,53 @@ Sem wiring extra (level 4 já dispara o overlay+ResolveFX; o variant não-fallDe
 tsc 0 · 58/58 · audit 0 · index.html rebuildado (card no build = 2).
 Obs: a transição atual é o pixel-resolve 2D na entrada (o literal "3D pixelando na viagem"
 segue deferido pelo conflito com AdaptiveDpr).
+
+### Continuação 2026-07-03 — Andares 6 e 7 (DeepSpec / speculative decoding aplicado)
+
+Felipe pediu pra "melhorar muito o level 6 e 7" depois de pesquisar o **DeepSpec** do
+DeepSeek. Pesquisei: DeepSpec/DSpark (jun/2026) é a plataforma open-source de **speculative
+decoding** do DeepSeek — *draft* semi-autoregressivo → *verify* → aceita/rejeita, +
+verificação load-aware, 60–85% mais rápido no V4 sem mexer nos pesos. Traduzi o PADRÃO
+draft→verify→accept/reject pra dois lugares do jogo (não existia level 6/7 antes — foram
+CRIADOS do zero seguindo o FLOOR4.md).
+
+**Andar 6 — "Labirinto Amarelo" (backrooms liminal, 3D 1ª pessoa):**
+- `f6Maze.ts` — labirinto procedural determinístico (mulberry32 + DFS backtracker + 12 loops
+  extras), exportado como segmentos de parede no formato do physics.ts → `wallsForState(6)`.
+  BFS pra distância/caminho, linha-de-visão real (segmento×paredes), 3 fusíveis nos becos mais
+  fundos, spawn da Entidade calculado.
+- **`f6Intercept` = o DeepSpec de verdade:** rascunha (draft) a posição FUTURA do player a
+  partir da velocidade (τ=dist/speed), VERIFICA (dentro do labirinto + visível da posição real)
+  e, se rejeitado, cai de volta pra verdade observada (posição real). Mesmo loop do speculative
+  decoding virando uma caçadora que corta caminho. A Entidade replaneja a 350ms com esse draft.
+- `Floor6.tsx` — ambiente (paredes instanced, painéis fluor emissivos, carpete/forro
+  procedurais, névoa), a Entidade (patrulha BFS → caça com mira especulativa, olhos
+  branco→vermelho), fusíveis + quadro de fusíveis. `useFloor6Audio` + `floor6Sfx.ts` (drone
+  ambiente no bus 'floor6', passos com eco, sting de detecção). Objetivo: 3 fusíveis → elevador
+  religa (destino 7). Pego pela Entidade = stab + volta pra antecâmara (fusíveis ficam).
+
+**Andar 7 — "Constelação" (espaço, gravidade lunar, plataforma 3D):**
+- `f7Space.ts` — 16 ilhas neon subindo em zigue-zague + 7 estrelas. Gravidade/pulo LUNARES
+  (g=8.5, J=6.4) → branch novo em `Player.tsx` (`currentLevel === 7`, espelho do Floor 3).
+  Respawn por CHECKPOINT (última plataforma pisada), não zera a subida. Teste trava que todo
+  salto é pulável (altura/alcance vs física).
+- `Floor7.tsx` — starfield (Points, escala com perfil), planeta+sol, ilhas instanced,
+  estrelas girando, farol do mirante. `useFloor7Audio` + `floor7Sfx.ts` (pad espacial no bus
+  'floor7', pulo/land/estrela/respawn/vitória). 7 estrelas → "CONSTELAÇÃO COMPLETA" → elevador
+  volta pro saguão.
+
+**DeepSpec também na performance (prefetch especulativo):** `Floor6Prefetch`/`Floor7Prefetch`
+montam os materiais do PRÓXIMO andar fora da tela ANTES da confirmação — enquanto o Floor 4
+roda (destino provável = 6) e assim que o 3º fusível arma o destino 7. Shaders compilam antes;
+palpite errado é descartado de graça. É o "trabalhe antes de confirmar" do speculative decoding
+aplicado ao carregamento.
+
+**Wiring:** imports + render level===6/7 no World, `wallsForState` (6=labirinto, 7=só cabine),
+2 hooks de áudio, progressão Floor4→6→7→saguão (o 5º andar não existe, gag proposital),
+`handleFloor4Exit` agora sobe pro 6, cards no Creator Mode (Andar 6/7), pulo liberado no 7
+(espaço + botão neon mobile), teleporte de chegada, HUD de fusíveis (⚡) e estrelas (⭐).
+
+**Estado:** tsc 0 · vitest 80→**verde (2 suites novas: f6Maze 14 casos, f7Space 9 casos)** ·
+audit 0 erros · index.html rebuildado (ship=8 refs, runner leak=0). Bancadas: `floor6.html`/
+`floor7.html` (+ `-dev.tsx`) — dev-only, validadas por screenshot (labirinto amarelo em 1ª
+pessoa ✅, caminho de ilhas neon no espaço com planeta ✅).

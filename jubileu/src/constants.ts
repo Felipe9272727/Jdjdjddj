@@ -1,5 +1,6 @@
 import { Vector3, Euler } from 'three';
 import { boxCollider } from './physics';
+import { F6_MAZE_WALLS } from './f6Maze';
 
 // Keep in sync with `data.level <= MAX_LEVEL` in firestore.rules.
 export const MAX_LEVEL = 100;
@@ -258,11 +259,23 @@ const _LEVEL2_BASE = [...ELEV_W, ...ELEV_BLD, ...CAVE_WALLS_L2];
 const _WALLS_LEVEL2_OPEN          = _LEVEL2_BASE;
 const _WALLS_LEVEL2_SEALED        = [..._LEVEL2_BASE, DOOR_SEAL];
 
+// Floor 6 — Labirinto Amarelo (backrooms). O labirinto inteiro (bordas,
+// fachada e corredores) vem pronto do f6Maze.ts no formato do physics.ts.
+const _WALLS_FLOOR6               = [...ELEV_W, ...F6_MAZE_WALLS];
+const _WALLS_FLOOR6_SEALED        = [..._WALLS_FLOOR6, DOOR_SEAL];
+
+// Floor 7 — Constelação (espaço aberto). Sem paredes além da cabine: cair da
+// ilha é permitido — o respawn por checkpoint (f7Space.ts) cuida do resto.
+const _WALLS_FLOOR7               = [...ELEV_W];
+const _WALLS_FLOOR7_SEALED        = [..._WALLS_FLOOR7, DOOR_SEAL];
+
 /** Pick the right pre-built wall list. No allocation per frame. */
 export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
     if (level === 0) return doorsClosed ? _WALLS_LOBBY_SEALED : _WALLS_LOBBY_OPEN;
     if (level === 2) return doorsClosed ? _WALLS_LEVEL2_SEALED : _WALLS_LEVEL2_OPEN;
     if (level === 3) return doorsClosed ? _WALLS_FLOOR3_SEALED : _WALLS_FLOOR3;
+    if (level === 6) return doorsClosed ? _WALLS_FLOOR6_SEALED : _WALLS_FLOOR6;
+    if (level === 7) return doorsClosed ? _WALLS_FLOOR7_SEALED : _WALLS_FLOOR7;
     if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
     return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;
 };

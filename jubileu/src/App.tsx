@@ -46,6 +46,11 @@ import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { Floor2Environment, SHARD_POSITIONS } from './Floor2Underwater';
 import { Floor3Environment } from './Floor3';
 import { Floor4Environment, useFloor4Audio } from './Floor4';
+import { Floor6Environment, useFloor6Audio, Floor6Prefetch } from './Floor6';
+import { Floor7Environment, useFloor7Audio, Floor7Prefetch } from './Floor7';
+import { f6State, f6Reset, setOnF6Progress } from './f6Maze';
+import { f7State, f7Reset, setOnF7Progress } from './f7Space';
+import { playF7Win } from './floor7Sfx';
 import Floor4Canvas2D from './Floor4Canvas2D';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
@@ -131,6 +136,12 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
       {level === 3 && <Floor3Environment hands={floor3Hands} gloves={floor3Gloves} fallActive={floor3FallActive} />}
       {level === 4 && <Floor4Environment />}
+      {/* Andar 6 — Labirinto Amarelo (backrooms + Entidade com mira especulativa).
+          Reusa as props que o World já recebe: posição do player, onPlayerCaught
+          (o handler do App faz branch por level) e o perfil de qualidade. */}
+      {level === 6 && <Floor6Environment playerPositionRef={playerPositionRef} onPlayerCaught={onPlayerCaught} profile={profile} paused={isPaused} />}
+      {/* Andar 7 — Constelação (gravidade lunar + 7 estrelas). */}
+      {level === 7 && <Floor7Environment playerPositionRef={playerPositionRef} profile={profile} />}
       {level === 2 && (
         <Suspense fallback={null}>
           <Floor2Environment
@@ -419,6 +430,9 @@ export default function App() {
   const [cutsceneLine, setCutsceneLine] = useState(0);             // active Diabrete script line
   const cutsceneTargetRef = useRef(new Vector3(0.9, 0, -9.2));     // camera look-at (devil's feet) during the cutscene
   const [brushCount, setBrushCount] = useState(0);                 // paintbrushes stolen (HUD, win at 3)
+  const [fuseCount, setFuseCount] = useState(0);                   // Floor 6: fusíveis coletados (HUD, 3 = elevador armado)
+  const [starCount, setStarCount] = useState(0);                   // Floor 7: estrelas coletadas (HUD, 7 = vitória)
+  const [f7WinBanner, setF7WinBanner] = useState(false);           // "CONSTELAÇÃO COMPLETA" overlay
   const [cartoonFall, setCartoonFall] = useState(false);           // cinematic camera-lock on the devil's defeat fall
   const [fallBegging, setFallBegging] = useState(false);           // devil is pleading — show the save/stomp choice
   const [fallChoice, setFallChoice] = useState<'none' | 'save' | 'stomp'>('none');
@@ -735,6 +749,10 @@ export default function App() {
   useEffect(() => {
       if (currentLevel === 3) {
           playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+      } else if (currentLevel === 6 || currentLevel === 7) {
+          // Andares 6/7 chegam pelo elevador (mid-travel, portas fechadas) igual
+          // ao Floor 3: solta o player na cabine, virado pro andar.
+          playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
       }
   }, [currentLevel]);
 
@@ -799,6 +817,8 @@ export default function App() {
 
   // ── Floor 4 audio lifecycle lives in the Floor4 module (self-contained app).
   useFloor4Audio(currentLevel === 4, audioCtx, cartoonBusRef);
+  useFloor6Audio(currentLevel === 6, audioCtx, cartoonBusRef);
+  useFloor7Audio(currentLevel === 7, audioCtx, cartoonBusRef);
   // Floor 4 is the 2D side-scroller: lock the 3D camera to first person under the
   // overlay (no third-person) — the transition begins in FP and stays there.
   useEffect(() => { if (currentLevel === 4) setZoomLevel(0); }, [currentLevel]);
@@ -1056,6 +1076,22 @@ export default function App() {
         setDoorOpenAmount(0);
         setDoorsClosed(false);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
+      } else if (startLevel === 6) {
+        // Andar 6 (Labirinto Amarelo). Spawn na antecâmara, de frente pro labirinto.
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -8, theta: 0 };
+      } else if (startLevel === 7) {
+        // Andar 7 (Constelação). Spawn no pad inicial, olhando pro percurso.
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -5, theta: 0 };
       }
     }
     // ─── CREATOR MODE: end jump ───
@@ -1155,14 +1191,36 @@ export default function App() {
     }, 1400);
   }, [audioCtx, muted, scheduleTimeout]);
 
-  // ── Leave the 2D Floor 4 (walked into its elevator) → ride back to the lobby.
+  // ── Leave the 2D Floor 4 (walked into its elevator) → sobe pro Andar 6.
+  // O elevador PULA o 5º andar (ele não existe… por enquanto) — de propósito:
+  // é a gag liminal da casa. Enquanto o player está no Floor 4, o App já
+  // pré-aquece o Andar 6 (Floor6Prefetch — prefetch especulativo DeepSpec).
   const handleFloor4Exit = useCallback(() => {
-    setCurrentLevel(0);
+    setCurrentLevel(6);
     setGameState('lobby');
     setNightMode(false);
-    playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -8, theta: 0 };
     setFloorReveal(true);
   }, []);
+
+  // ── Floor 7 zerado (7 estrelas) — a constelação fecha e o elevador volta.
+  const advanceAfterFloor7Win = useCallback(() => {
+    setF7WinBanner(true);
+    if (audioCtx && !muted) { playF7Win(); playArrivalDing(audioCtx); }
+    scheduleTimeout(() => {
+      playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+      setF7WinBanner(false);
+      setGameState('lobby');
+      setNightMode(false);
+      setDoorsClosed(true);
+      setDoorSoundTrigger((prev) => prev + 1);
+      setNextElevatorDestination(0);            // fim da linha → de volta ao saguão
+      setElevatorTimer(20);
+      setTravelPhase('closing');
+      if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+      elevatorHumStopRef.current = createElevatorHum(audioCtx);
+    }, 2600);
+  }, [audioCtx, muted, scheduleTimeout]);
 
   // ── Player SAVED the devil → BETRAYAL: he shoves the player off the ledge.
   // Instead of a full Game Over to the lobby (too punishing for the "nice"
@@ -1207,6 +1265,33 @@ export default function App() {
     setOnProgress(() => { setBrushCount(f3Progress.brushes); if (f3Progress.fell) setCartoonFall(true); });
     return () => { setOnProgress(null); };
   }, [currentLevel]);
+
+  // ── Andar 6: run fresh a cada entrada. O 3º fusível ARMA o elevador pro 7 —
+  // a partir daí, embarcar consome o destino (setNextElevatorDestination).
+  // Armar cedo também liga o Floor7Prefetch (prefetch especulativo DeepSpec:
+  // shaders do próximo andar compilam ANTES de o player decidir embarcar).
+  useEffect(() => {
+    if (currentLevel !== 6) return;
+    f6Reset();
+    setFuseCount(0);
+    setOnF6Progress(() => {
+      setFuseCount(f6State.fuses);
+      if (f6State.fuses >= f6State.needed) setNextElevatorDestination(7);
+    });
+    return () => { setOnF6Progress(null); };
+  }, [currentLevel]);
+
+  // ── Andar 7: run fresh a cada entrada; 7 estrelas → constelação completa.
+  useEffect(() => {
+    if (currentLevel !== 7) return;
+    f7Reset();
+    setStarCount(0);
+    setOnF7Progress(() => {
+      setStarCount(f7State.stars);
+      if (f7State.won) advanceAfterFloor7Win();
+    });
+    return () => { setOnF7Progress(null); };
+  }, [currentLevel, advanceAfterFloor7Win]);
 
   const [joystickVisual, setJoystickVisual] = useState({ active: false, originX: 0, originY: 0, currentX: 0, currentY: 0 });
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches);
@@ -1331,7 +1416,7 @@ export default function App() {
         case 'd': k.d=true; break;
         case 'f': if (inventoryRef.current.flashlight.owned) handleToggleFlashlight(); break;
         case 'n': if (inventoryRef.current.nightVision.owned) toggleNightVision(); break;
-        case ' ': if (currentLevel === 3) { jumpRef.current = true; e.preventDefault(); } break;
+        case ' ': if (currentLevel === 3 || currentLevel === 7) { jumpRef.current = true; e.preventDefault(); } break;
         case 'e':
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
@@ -1398,6 +1483,18 @@ export default function App() {
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
             <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} onPlayerCaught={() => {
+                if (currentLevel === 6) {
+                  // A Entidade te pegou: stab + black flash + volta pra
+                  // antecâmara do elevador. Os fusíveis coletados FICAM —
+                  // a punição é refazer o caminho com a caçada mais rápida.
+                  playJumpscareStab(audioCtx);
+                  setOverlayOpacity(1);
+                  scheduleTimeout(() => {
+                    playerPositionCmdRef.current = { x: 0, y: 0, z: -8, theta: 0 };
+                    setOverlayOpacity(0);
+                  }, 450);
+                  return;
+                }
                 setFishJumpscareKey(k => k + 1);
                 setDevoured(true);
                 playJumpscareStab(audioCtx);
@@ -1419,6 +1516,11 @@ export default function App() {
                   setPendingPostDeathDialogue(true);
                 }, 2800);
               }} />
+            {/* ── Prefetch ESPECULATIVO (padrão DeepSpec: draft antes da
+                confirmação). Enquanto o destino é só PROVÁVEL, os materiais do
+                andar já compilam fora da tela; palpite errado = descartado. */}
+            {currentLevel === 4 && <Floor6Prefetch />}
+            {nextElevatorDestination === 7 && currentLevel !== 7 && <Floor7Prefetch />}
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -2053,6 +2155,54 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* Andar 6 — contador de fusíveis (3 religam o elevador) */}
+      {currentLevel === 6 && hasStarted && (
+        <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 70,
+          pointerEvents: 'none', fontFamily: 'monospace' }}>
+          <div style={{ background: 'rgba(23,18,4,0.92)', border: '3px solid #c9b458', borderRadius: 12,
+            padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 10,
+            boxShadow: '0 0 18px rgba(201,180,88,0.35)' }}>
+            <span style={{ fontSize: 15, color: '#c9b458', letterSpacing: '.18em', fontWeight: 700 }}>FUSÍVEIS</span>
+            {[0, 1, 2].map((i) => (
+              <span key={i} style={{ fontSize: 22, filter: i < fuseCount ? 'none' : 'grayscale(1) opacity(0.25)',
+                transition: 'all .2s' }}>⚡</span>
+            ))}
+            {fuseCount >= 3 && (
+              <span style={{ fontSize: 13, color: '#41ff7a', letterSpacing: '.12em', fontWeight: 700 }}>→ VOLTE AO ELEVADOR</span>
+            )}
+          </div>
+        </div>
+      )}
+      {/* Andar 7 — contador de estrelas da constelação */}
+      {currentLevel === 7 && hasStarted && (
+        <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 70,
+          pointerEvents: 'none', fontFamily: 'monospace' }}>
+          <div style={{ background: 'rgba(5,6,15,0.92)', border: '3px solid #36e0ff', borderRadius: 12,
+            padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 8,
+            boxShadow: '0 0 18px rgba(54,224,255,0.35)' }}>
+            <span style={{ fontSize: 15, color: '#36e0ff', letterSpacing: '.18em', fontWeight: 700 }}>ESTRELAS</span>
+            {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+              <span key={i} style={{ fontSize: 18, filter: i < starCount ? 'none' : 'grayscale(1) opacity(0.25)',
+                transform: i < starCount ? 'scale(1.12)' : 'none', transition: 'all .2s' }}>⭐</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* Andar 7 — vitória: a constelação fecha e o elevador é chamado de volta */}
+      {f7WinBanner && (
+        <div className="absolute inset-0 z-[90] pointer-events-none overflow-hidden">
+          <style>{`
+            @keyframes f7Flash { 0%{opacity:0} 14%{opacity:.85} 100%{opacity:0} }
+            @keyframes f7Text  { 0%{opacity:0;transform:translateY(14px) scale(.96)} 18%{opacity:1;transform:translateY(0) scale(1)} 80%{opacity:1} 100%{opacity:0} }
+          `}</style>
+          <div className="absolute inset-0" style={{ animation: 'f7Flash 2600ms ease-out forwards',
+            background: 'radial-gradient(ellipse at center, rgba(255,213,79,0.55) 0%, rgba(20,26,46,0.4) 45%, rgba(2,3,8,0.85) 100%)' }} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center" style={{ animation: 'f7Text 2600ms ease-out forwards' }}>
+            <div className="text-amber-100 font-extrabold tracking-[0.35em] text-3xl md:text-5xl" style={{ textShadow: '0 0 22px #ffd54f, 0 0 48px #ffd54f' }}>CONSTELAÇÃO COMPLETA</div>
+            <div className="mt-3 text-cyan-300 font-semibold tracking-[0.5em] text-lg md:text-2xl" style={{ textShadow: '0 0 16px #36e0ff' }}>O ELEVADOR ESTÁ VOLTANDO…</div>
+          </div>
+        </div>
+      )}
       {teleportCutscene && (
         <div className="absolute inset-0 z-[90] pointer-events-none overflow-hidden">
           <style>{`
@@ -2118,12 +2268,17 @@ export default function App() {
         </div>
       )}
 
-      {/* Jump button — Floor 3 only, mobile only. Desktop uses Space. */}
-      {hasStarted && currentLevel === 3 && !isDesktop && (
+      {/* Jump button — floors com pulo (3 = parkour, 7 = lunar), mobile only.
+          Desktop uses Space. No 7 o disco fica neon pra casar com o espaço. */}
+      {hasStarted && (currentLevel === 3 || currentLevel === 7) && !isDesktop && (
         <button
           aria-label="Pular"
           className="font-toon fixed z-[45] right-[calc(env(safe-area-inset-right,0px)+16px)] bottom-[calc(env(safe-area-inset-bottom,0px)+20px)] w-24 h-24 rounded-full flex flex-col items-center justify-center select-none touch-none active:scale-90 active:translate-y-1 transition-transform"
-          style={{
+          style={currentLevel === 7 ? {
+            background: 'radial-gradient(circle at 50% 30%, #59e8ff, #0f6f96)',
+            boxShadow: '0 7px 0 #093c52, 0 0 0 4px #0a1020, 0 10px 18px rgba(0,0,0,0.45)',
+            border: '3px solid #0a1020',
+          } : {
             // Retro rubber-hose call-to-action — bold red disc with a thick ink
             // ring and a 3D base shadow, matching the Floor-3 cartoon theme.
             background: 'radial-gradient(circle at 50% 30%, #ff6a4d, #c0271a)',
