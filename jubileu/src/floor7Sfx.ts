@@ -560,3 +560,81 @@ export function f7Wave(): void {
     g.gain.linearRampToValueAtTime(0.16, t + 0.35); g.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
     src.start(t); src.stop(t + 1.25);
 }
+
+// the hotel elevator rematerialising on deck: a bell-like dual-tone ding with
+// shimmer + a soft materialization whoosh underneath. Two detuned sine carriers
+// (830 Hz → 660 Hz, staggered) + a faint high-pass noise envelope (the "arriving" breath).
+export function f7ElevatorReturn(): void {
+    const c = ctx, o = out(); if (!c || !o) return; const t = c.currentTime;
+    // primary tone 1: 830 Hz, pure & warm
+    {
+        const osc = c.createOscillator(); osc.type = 'sine';
+        const g = c.createGain(); g.gain.value = 0; osc.connect(g).connect(o);
+        // a BELL holds its pitch and decays in amplitude — no downward glide
+        // (the drafted ramp to 120 Hz read as a falling laser, not a hotel ding)
+        osc.frequency.setValueAtTime(830, t);
+        g.gain.linearRampToValueAtTime(0.085, t + 0.04); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+        osc.start(t); osc.stop(t + 0.95);
+        // shimmer: second detuned voice, +5 Hz (slow beat against the carrier)
+        const osc2 = c.createOscillator(); osc2.type = 'sine';
+        const g2 = c.createGain(); g2.gain.value = 0; osc2.connect(g2).connect(o);
+        osc2.frequency.setValueAtTime(835, t);
+        g2.gain.linearRampToValueAtTime(0.04, t + 0.04); g2.gain.exponentialRampToValueAtTime(0.0005, t + 0.9);
+        osc2.start(t); osc2.stop(t + 0.95);
+    }
+    // secondary tone 2: 660 Hz, starts 0.28s later
+    {
+        const dt = 0.28;
+        const osc = c.createOscillator(); osc.type = 'sine';
+        const g = c.createGain(); g.gain.value = 0; osc.connect(g).connect(o);
+        osc.frequency.setValueAtTime(660, t + dt);
+        g.gain.linearRampToValueAtTime(0.08, t + dt + 0.04); g.gain.exponentialRampToValueAtTime(0.001, t + dt + 0.9);
+        osc.start(t + dt); osc.stop(t + dt + 0.95);
+        // shimmer: second detuned voice, +5 Hz
+        const osc2 = c.createOscillator(); osc2.type = 'sine';
+        const g2 = c.createGain(); g2.gain.value = 0; osc2.connect(g2).connect(o);
+        osc2.frequency.setValueAtTime(665, t + dt);
+        g2.gain.linearRampToValueAtTime(0.035, t + dt + 0.04); g2.gain.exponentialRampToValueAtTime(0.0005, t + dt + 0.9);
+        osc2.start(t + dt); osc2.stop(t + dt + 0.95);
+    }
+    // materialization whoosh: filtered high-pass noise, slow fade-in/out
+    {
+        const src = c.createBufferSource(); src.buffer = noiseBuf(c); src.playbackRate.value = 0.7;
+        const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2400;
+        const g = c.createGain(); g.gain.value = 0; src.connect(hp).connect(g).connect(o);
+        g.gain.linearRampToValueAtTime(0.032, t + 0.15); g.gain.setValueAtTime(0.032, t + 1.0); g.gain.exponentialRampToValueAtTime(0.0008, t + 1.25);
+        src.start(t); src.stop(t + 1.3);
+    }
+}
+
+// anchor splash: a heavy dive with a submerged chunk + water spray. Falling pit
+// (triangle wave 90 Hz → sub-bass), filtered white noise burst, then 2–3 small
+// droplet ticks (higher, briefer noise bursts).
+export function f7AnchorSplash(): void {
+    const c = ctx, o = out(); if (!c || !o) return; const t = c.currentTime;
+    // primary chunk: triangle wave, pitch drop (anchor falling into water)
+    {
+        const osc = c.createOscillator(); osc.type = 'triangle';
+        const g = c.createGain(); g.gain.value = 0; osc.connect(g).connect(o);
+        osc.frequency.setValueAtTime(90, t); osc.frequency.exponentialRampToValueAtTime(40, t + 0.22);
+        g.gain.linearRampToValueAtTime(0.11, t + 0.01); g.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+        osc.start(t); osc.stop(t + 0.26);
+    }
+    // splash: white noise through a low-pass (~1400 Hz), long decay
+    {
+        const src = c.createBufferSource(); src.buffer = noiseBuf(c); src.playbackRate.value = 1.0;
+        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400;
+        const g = c.createGain(); g.gain.value = 0; src.connect(lp).connect(g).connect(o);
+        g.gain.linearRampToValueAtTime(0.1, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 0.82);
+        src.start(t); src.stop(t + 0.85);
+    }
+    // droplets: 2–3 small noise bursts, higher-pitched, spaced 150–300 ms apart
+    for (let i = 0; i < 3; i++) {
+        const dropDelay = 0.18 + i * (0.08 + Math.random() * 0.08);
+        const src = c.createBufferSource(); src.buffer = noiseBuf(c); src.playbackRate.value = 1.3 + i * 0.2;
+        const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2200 + i * 400; bp.Q.value = 1.5;
+        const g = c.createGain(); g.gain.value = 0; src.connect(bp).connect(g).connect(o);
+        g.gain.linearRampToValueAtTime(0.028 - i * 0.008, t + dropDelay + 0.005); g.gain.exponentialRampToValueAtTime(0.0005, t + dropDelay + 0.08);
+        src.start(t + dropDelay); src.stop(t + dropDelay + 0.1);
+    }
+}
