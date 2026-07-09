@@ -3626,3 +3626,16 @@ Veleiro (floor7Textures.ts: remendos/sal/vinheta sutis no makeSailcloth), Ilhéu
   envMapIntensity 0.8→0.4, shell do elevador matte (#9fb0b9 r0.62 m0.3 — parede branca
   estourada). SFX fiados: ANCHOR = f7Wave+f7AnchorSplash; FREE = f7ElevatorReturn.
 Commits: dab0e0a (bugs+finale), a585d23 (sfx Calafate), + polish final. 108/108 · tsc 0.
+
+### Sessão 2026-07-09 (cont.) — 1ª onda visual (time de Haikus)
+
+Contramestre coordenou QA visual e integração: 5 marujos (FACHO, MARÉ, VERNIZ, LENHO,
+ILHOTA) fecharam os 5 maiores consertos do Almirante (diretor de arte) em arquivo-lanes
+isolados (zero merge conflicts). Passou tsc 0 e 108/108 vitest logo no dia. Veredito QA:
+- OCEANO: Gerstner cruzado (não telha de zinco paralela) + especular pontilhado ✓
+- POÇAS: Translúcidas com tabuado por baixo + borda escura (menisco) ✓
+- CASCO: Juntas escalonadas (running bond, não padrão brick) ✓
+- CONVÉS: Costuras retas (UVs fore-aft, não onduladas) ✓
+- BLOOM: Floor 7 threshold 0.68→0.85, intensity 0.6→0.38 (verificado em App.tsx) ✓
+- ILHA: Praia + halo turquesa + palmeiras + rochas (tropical, não brócolis) ✓
+Commit: 57ec051 — Build index.html (~65MB single-file), push OK. Comodoro só observou.
