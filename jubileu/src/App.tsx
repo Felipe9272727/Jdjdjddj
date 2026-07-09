@@ -472,6 +472,7 @@ export default function App() {
   const f7TalkRef = useRef(0);                                        // intro TALK beat → captain speaking gesture
   const f7DimRef = useRef(0);                                         // intro transition dip (UI darkens to mask hard cuts)
   const [captainGreeting, setCaptainGreeting] = useState(false);   // captain is delivering the quest → lock the camera on him
+  const [f7Boarded, setF7Boarded] = useState(false);               // player boarded the returned cab → riding home
   const [f7Intro, setF7Intro] = useState(false);                   // captain arrival cutscene running
   const [f7IntroBeat, setF7IntroBeat] = useState(0);               // active cutscene beat (UI/SFX)
   const [f7IntroLine, setF7IntroLine] = useState(-1);              // active cutscene dialogue line
@@ -510,6 +511,22 @@ export default function App() {
   // reacts one render late — that single frame was the FP hand still flashing in). Use
   // this at every place the cutscene ends (natural onDone + manual skip).
   const endF7Intro = useCallback(() => { setF7Settling(true); setF7Intro(false); }, []);
+  // Andar 7 FINALE — the WASM latched `boarded`: the player stepped into the
+  // rematerialised cab and pressed E. "Máquina não esquece": teleport into the
+  // global elevator interior and take the standard 20s ride back to the lobby
+  // (the same in-transit path the Barney SAVED ride uses).
+  const handleF7Board = useCallback(() => {
+    setF7Boarded(true);
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+    setNextElevatorDestination(0);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
+  useEffect(() => { if (currentLevel !== 7) setF7Boarded(false); }, [currentLevel]);
   // CUTSCENE SCORE: start the building music bed while the intro runs, fade it on end.
   useEffect(() => {
     if (!f7Intro || !audioCtx) return;
@@ -1249,12 +1266,16 @@ export default function App() {
       } else if (startLevel === 7) {
         // Andar 7 — o navio pirata. Player nasce no convés em frente ao elevador
         // (que então se desmaterializa); o capitão vem da proa dar a missão.
+        // Spawn deslocado pro LADO do mastro do traquete (que fica em ship-local
+        // (0, 4)): em x=0 o jogador nascia com o rosto a ~0.4m do mastro — a tela
+        // inteira virava uma "parede de tábuas". Em x=0.75 a vista desce limpa
+        // pelo convés até o capitão.
         setGameState('outdoor');
         setNightMode(false);
         setHouseDoorOpen(false);
         setDoorOpenAmount(0);
         setDoorsClosed(false);
-        playerPositionCmdRef.current = { x: 0, y: 0, z: 4.2 * FLOOR7_SCALE, theta: Math.PI };
+        playerPositionCmdRef.current = { x: 0.75 * FLOOR7_SCALE, y: 0, z: 4.3 * FLOOR7_SCALE, theta: Math.PI };
       }
     }
     // ─── CREATOR MODE: end jump ───
@@ -1662,6 +1683,10 @@ export default function App() {
             {/* Andar 7 — the pirate ship, 100% driven by the WASM (C + assembly)
                 brain. Mounted here (not in World) so it gets the Floor7 handle. */}
             {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} captainAnchorRef={captainAnchorRef} introElevFadeRef={f7ElevFadeRef} introLaughRef={f7LaughRef} introPoseRef={f7PoseRef} introTalkRef={f7TalkRef} introHideSailsRef={f7HideSailsRef} introLegsRef={f7LegsRef} />}
+            {/* Andar 7 finale: once the player boards the returned cab, mount the
+                global elevator interior around them for the ride home (the World
+                memo suppresses it on level 7 for the "elevator is gone" gag). */}
+            {currentLevel === 7 && f7Boarded && <ElevatorInterior timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} />}
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -1864,7 +1889,7 @@ export default function App() {
       )}
       <PhotoModeOverlay progress={photo.progress} onClose={photo.close} />
       {/* Andar 7 (pirate ship) — captain dialogue + cleaning HUD + interact button */}
-      {hasStarted && currentLevel === 7 && !f7Intro && <Floor7Overlay handleRef={floor7Handle} onGreeting={setCaptainGreeting} />}
+      {hasStarted && currentLevel === 7 && !f7Intro && !f7Boarded && <Floor7Overlay handleRef={floor7Handle} onGreeting={setCaptainGreeting} onBoard={handleF7Board} />}
       {hasStarted && currentLevel === 7 && f7Intro && <Floor7IntroUI beat={f7IntroBeat} line={f7IntroLine} dimRef={f7DimRef} onSkip={endF7Intro} />}
       {/* Empty lobby atmospheric touches — thuds, flickers, wall text */}
       {hasStarted && currentLevel === 0 && gameState === 'lobby' && (

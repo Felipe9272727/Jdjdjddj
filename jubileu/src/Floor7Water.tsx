@@ -14,6 +14,7 @@ import * as THREE from 'three';
 const vert = /* glsl */`
 uniform float uTime;
 uniform float uTideWarn;   // 0..1 incoming swell — surges the sea around the hull
+uniform float uCalm;       // 1 open sea → ~0.2 anchored (the landfall stills it)
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 varying float vFoam;
@@ -38,11 +39,15 @@ void main() {
     vec3 p = position;
     vec3 o = vec3(0.0);
     vec3 nrm = vec3(0.0, 1.0, 0.0);
+    // NOTE: only wavelengths the 200/180 vertex grid (~1.1m spacing) can resolve
+    // live here — the old wl 1.7/0.95 bands under-sampled into coherent STRIPES
+    // across the whole sea (the "vinyl grooves" look). Fine chop is fragment-side.
     o += gerstner(vec2( 1.0,  0.3), 0.62, 9.5, 0.50, 0.9, p, nrm);
     o += gerstner(vec2(-0.5,  1.0), 0.55, 5.6, 0.30, 1.0, p, nrm);
     o += gerstner(vec2( 0.8, -0.6), 0.48, 3.1, 0.16, 1.25, p, nrm);
-    o += gerstner(vec2(-0.3, -1.0), 0.40, 1.7, 0.085, 1.55, p, nrm);
-    o += gerstner(vec2( 0.5,  0.85), 0.35, 0.95, 0.04, 1.9, p, nrm);
+    // the landfall stills the sea (harbour water in the island's lee)
+    o *= uCalm;
+    nrm = mix(vec3(0.0, 1.0, 0.0), nrm, uCalm);
 
     // TIDE SURGE: as a swell approaches (uTideWarn), a ring of water heaps up
     // and breaks around the ship's waterline footprint — the sea you're about to
@@ -94,9 +99,10 @@ void main() {
     float detAtt = mix(0.16, 1.0, 1.0 - smoothstep(10.0, 58.0, dist));
     float fnx = (sin(q.x * 1.7 + uTime * 1.3) + 0.6 * sin(q.x * 3.3 - q.y * 1.1 + uTime * 1.9)) * 0.05 * detAtt;
     float fnz = (sin(q.y * 1.9 - uTime * 1.1) + 0.6 * sin(q.y * 3.1 + q.x * 1.3 - uTime * 1.7)) * 0.05 * detAtt;
-    // long-wavelength swell chop — survives all the way out
-    float cnx = sin(q.x * 0.32 + q.y * 0.17 + uTime * 0.6) * 0.028;
-    float cnz = sin(q.y * 0.29 - q.x * 0.21 + uTime * 0.5) * 0.028;
+    // long-wavelength swell chop — survives all the way out (slightly stronger
+    // now that the two smallest vertex waves moved down here)
+    float cnx = sin(q.x * 0.32 + q.y * 0.17 + uTime * 0.6) * 0.034;
+    float cnz = sin(q.y * 0.29 - q.x * 0.21 + uTime * 0.5) * 0.034;
     N = normalize(N + vec3(fnx + cnx, 0.0, fnz + cnz));
 
     float fres = pow(clamp(1.0 - max(dot(N, V), 0.0), 0.0, 1.0), 3.0);
@@ -112,8 +118,8 @@ void main() {
     // sun glitter (specular off the wave normals) — exponent eased so the
     // glitter spreads into a believable streak instead of a hard pinpoint
     vec3 H = normalize(V + uSunDir);
-    float spec = pow(max(dot(N, H), 0.0), 150.0);
-    col += uSunColor * spec * 1.5;
+    float spec = pow(max(dot(N, H), 0.0), 90.0);
+    col += uSunColor * spec * 1.15;
     // broad sun sheen
     col += uSunColor * pow(max(dot(N, H), 0.0), 16.0) * 0.12;
 
@@ -142,11 +148,12 @@ void main() {
 }
 `;
 
-export const Floor7Water: React.FC<{ sunDir: THREE.Vector3; warnRef?: React.MutableRefObject<number> }> = ({ sunDir, warnRef }) => {
+export const Floor7Water: React.FC<{ sunDir: THREE.Vector3; warnRef?: React.MutableRefObject<number>; calmRef?: React.MutableRefObject<number> }> = ({ sunDir, warnRef, calmRef }) => {
     const matRef = useRef<THREE.ShaderMaterial>(null);
     const uniforms = useMemo(() => ({
         uTime: { value: 0 },
         uTideWarn: { value: 0 },
+        uCalm: { value: 1 },
         uSunDir: { value: sunDir.clone().normalize() },
         uSunColor: { value: new THREE.Color('#ffe9c0') },
         uDeep: { value: new THREE.Color('#08303f') },
@@ -161,6 +168,8 @@ export const Floor7Water: React.FC<{ sunDir: THREE.Vector3; warnRef?: React.Muta
         const target = warnRef?.current ?? 0;
         const u = matRef.current.uniforms.uTideWarn;
         (u.value as number) += (target - (u.value as number)) * Math.min(1, dt * 6);
+        // the brain's calm factor stills the sea across the landfall run
+        (matRef.current.uniforms.uCalm.value as number) = calmRef?.current ?? 1;
     });
 
     return (

@@ -243,7 +243,7 @@ const Floor7IntroCutscene: React.FC<Props> = ({ active, captainAnchorRef, player
         // punchline doesn't get yanked straight to gameplay on a hard cut.
         const dip = (b: number, w: number, peak: number) => { const dd = Math.abs(t - b); return dd < w ? (1 - dd / w) * peak : 0; };
         let dim = Math.max(
-            dip(T_LEGS, 0.28, 0.92),       // legs→GLB model swap (lands at this peak; deep enough to bury the pop at variable fps)
+            dip(T_LEGS, 0.28, 1.0),        // legs→GLB model swap — FULL black (0.92 left the pop faintly visible through the dip)
             dip(T_REVEAL, 0.30, 1.0),      // hard cut into LOOK_BACK
             dip(T_LOOKBACK, 0.30, 1.0),    // hard cut into LAUGH
         );

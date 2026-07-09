@@ -3553,3 +3553,58 @@ escuras de cima, brilhantes de raspao — fresnel) em vez de manchas azuis chapa
 Verificado: tsc 0 · 105/105 vitest · build single-file OK · push em claude/review-commits-memory-y6iqnf.
 Proximo (se quiser): velas menos chapadas (sombrear/curvar), streak do sol na agua, mais geometria
 de conves migrada pra C++.
+
+### Sessão 2026-07-09 — ANDAR 7: caça aos bugs com tripulação de Haikus + FINAL com lore
+
+Felipe: "melhore MUITO o andar 7, conecte com a lore, está CHEIO de bugs e problemas gráficos"
++ autorizou orquestrar 5 subagentes Haiku ("tripulação") pros trabalhos baratos.
+
+**Tripulação (Agent tool, model haiku):** Gaivota (screenshots/QA visual), Luneta (QA da
+cutscene), Carpinteiro (auditoria de código, 2 rodadas), Grumete (playtest da quest via
+probes), Papagaio (dossiê da lore — salvo no scratchpad da sessão). Eu (Fable) consolidei
+e escrevi TODOS os consertos. Fluxo barato: relatórios deles → edits meus.
+
+**Bugs achados e consertados:**
+- "Parede de tábuas" no spawn = o MASTRO DO TRAQUETE (local z=4.0) na cara do player
+  (spawn z=4.2, x=0). Spawn movido pra (0.75, 4.3) local — App.tsx + floor7-play.tsx.
+- Mão FP com escova: aparecia desde a intro (gate era só elevFade<0.85) e era GIGANTE
+  (scale 1.4 a 0.34m da câmera). Agora: `bucketState.held && elevFade<0.85`, scale 0.85,
+  translateZ -0.42 (Floor7.tsx).
+- Poças: y fixo 0.02 ignorava o tosamento do convés (z-fight nas pontas, disco flutuando
+  na amurada). Agora y = deckYAt((z+7)/15.2)+0.022; spawns no WASM apertados
+  (|x|∈[0.55,1.30], z∈[-3.5,3.5], r∈[0.40,0.65]).
+- Água listrada: as 2 ondas Gerstner menores (wl 1.7/0.95) sub-amostradas pela grade
+  180x180 viravam listras coerentes → removidas (detalhe fino já era fragment-side);
+  spec 150→90; chop grosso 0.028→0.034. + uniform uCalm (mar acalma na chegada).
+- tideWarn congelava no último valor ao sair de CLEAN → anel de ressaca eterno na água.
+  Zerado na transição pra DONE (floor7.c).
+- Capitão GLB sumiria quando o elevador voltasse (gate elevFade<0.85) → gate agora só
+  vale em ST_INTRO.
+- Cordas #caa56a viravam "macarrão" claro → #8a6a42 + bump; gaivotas eram 2 caixas
+  pretas → corpo branco + asas cinza + cabeça/cauda; grade do porão flutuava (barras
+  y0.1→0.07); deck envMapIntensity 0.6→0.22 (listras azuis de reflexo no convés seco);
+  vela do traquete encurtada/erguida (billowSail 3.3x2.2x0.6 @ y2.6); dip do model-swap
+  da cutscene 0.92→1.0 (nota da Luneta).
+
+**FINAL NOVO (lore, 100% no WASM — floor7.c):** estados ST_SAIL(5)→ST_ANCHOR(6)→ST_FREE(7).
+DONE→(4.6s)→SAIL: landfall 0→1 em 26s, ilha SE APROXIMA de verdade (z 90→28), mar acalma
+(S.calm escala heave/pitch/roll + uCalm na água), capitão no leme solta 3 barks de lore
+(diálogos 9-11: 40 anos no mar, "o oceano é tudo que o hotel esquece", visita do Zelador).
+ANCHOR: capitão manda ler o DIÁRIO DE BORDO (diálogo 12) — livro 3D na escotilha
+(LOG local (0,-3.1), glow pulsante). 3 páginas no overlay (pergaminho DOM) amarrando:
+administração do hotel, Zelador pregando tábua, "a maré é o hotel respirando", regra do
+Andar 4 ("ser lembrado é ser cuidado"). Ler tudo → logRead → "VOCÊ LEMBROU DO ANDAR 7"
+(card igual ao do Andar 4) → ST_FREE: elevFade VOLTA (cab rematerializa com ding
+f7PuddleDone+clunk), portas deslizam abertas (seam some — refs elevDoorL/R/Seam/Edge),
+f7_can_leave()=1. Player entra no vão + E → f7_boarded latch → App.handleF7Board:
+teleporta pro cab global (0,0,-13), monta ElevatorInterior (era suprimido no lvl 7),
+nextElevatorDestination=0, elevatorTimer=20 (mesmo caminho do SAVED do Barney) → lobby.
+Exports novos: f7_landfall/calm/log_page/log_read/log_x/log_z/near_exit/boarded.
+Overlay: HUD "RUMO À ILHA", botão vira VIRAR/EMBARCAR, beacon "APERTE E PARA EMBARCAR".
+
+**Testes:** floor7Brain.test.ts reescrito — 10 testes (arco completo até boarded; poças
+dentro da amurada; log fechado até abrir; "não sai antes do final"). Asserts de DONE viram
+>= DONE (o DONE avança sozinho pro SAIL em 4.6s — o sweep do mop pode vazar). 108/108.
+
+**Higgsfield:** Felipe liberou (5 créditos) — NÃO usado ainda; candidato: textura de
+pergaminho pro diário (o overlay atual é CSS e ficou bom; só usar se Felipe pedir upgrade).

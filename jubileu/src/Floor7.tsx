@@ -56,7 +56,11 @@ function billowSail(w: number, h: number, bulge: number): THREE.PlaneGeometry {
     return g;
 }
 const _mainSailGeo = billowSail(4.5, 3.4, 0.92);
-const _foreSailGeo = billowSail(3.3, 2.9, 0.74);
+// foresail kept SHORT and HIGH: the player spawns at ship-local (0, 0, 4.2),
+// right at the foremast — the old 2.9-tall sail bellied through the spawn point
+// and filled the whole first-person frame with shadowed canvas ("a wall of dark
+// planks"). Hung from the yard with its foot well above head height instead.
+const _foreSailGeo = billowSail(3.3, 2.2, 0.6);
 
 // warm low sun (golden hour) shared by the Sky, the key light and water glitter
 const SUN_POS: [number, number, number] = [26, 4.5, -30];
@@ -80,21 +84,29 @@ export interface Floor7Handle {
     state: number;
     tideWarn: number;           // 0..1 incoming-swell telegraph
     bucWater: number;           // 0..1 bucket freshness (second-verb meter)
+    landfall: number;           // 0..1 island approach (ST_SAIL payoff)
+    logPage: number;            // captain's log: 0 closed · 1..3 page N · 4 done
+    logRead: boolean;           // the player "remembered" the floor
+    nearExit: boolean;          // standing in the rematerialised cab's doorway
+    boarded: boolean;           // latched — App rides the elevator home
 }
 export function useFloor7Handle(): React.MutableRefObject<Floor7Handle> {
-    return useRef<Floor7Handle>({ brain: null, interact: false, dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0, tideWarn: 0, bucWater: 1 });
+    return useRef<Floor7Handle>({ brain: null, interact: false, dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0, tideWarn: 0, bucWater: 1, landfall: 0, logPage: 0, logRead: false, nearExit: false, boarded: false });
 }
 
 // ── materials (module-scope, shared) ──
 const M = {
     hull: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, bumpMap: _hullWood.rough, bumpScale: 0.09, color: '#caa066', roughness: 0.85, envMapIntensity: 0.7, side: THREE.DoubleSide }),
     hullDk: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, bumpMap: _hullWood.rough, bumpScale: 0.08, color: '#8c6e44', roughness: 0.92 }),
-    plank: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.03, color: '#c79a5e', roughness: 0.78, envMapIntensity: 0.6 }),
-    plankDk: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.03, color: '#ac8049', roughness: 0.82, envMapIntensity: 0.6 }),
+    // deck envMapIntensity kept LOW — at 0.6 the sky/sea env-map smeared cold
+    // blue reflection streaks across the dry planks (the deck read as wet)
+    plank: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.03, color: '#c79a5e', roughness: 0.85, envMapIntensity: 0.22 }),
+    plankDk: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.03, color: '#ac8049', roughness: 0.88, envMapIntensity: 0.22 }),
     rail: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, bumpMap: _trimWood.rough, bumpScale: 0.025, color: '#b07f48', roughness: 0.55, envMapIntensity: 0.8 }),
     mast: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#b58a52', roughness: 0.6 }),
     sail: new THREE.MeshStandardMaterial({ map: _sailCloth.map, roughnessMap: _sailCloth.rough, color: '#f2ead6', roughness: 0.92, side: THREE.DoubleSide, envMapIntensity: 0.4, transparent: true }),
-    rope: new THREE.MeshStandardMaterial({ color: '#caa56a', roughness: 1 }),
+    // tarred hemp — darker + rougher so rigging reads as ROPE, not pale macaroni
+    rope: new THREE.MeshStandardMaterial({ color: '#8a6a42', roughness: 1, bumpMap: _sailCloth.rough, bumpScale: 0.01 }),
     flag: new THREE.MeshStandardMaterial({ map: makeJollyRoger(), roughness: 0.95, side: THREE.DoubleSide }),
     barrel: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#9c7038', roughness: 0.7 }),
     iron: new THREE.MeshStandardMaterial({ color: '#3a3a3e', roughness: 0.5, metalness: 0.8 }),
@@ -146,9 +158,13 @@ const M = {
     grate: new THREE.MeshStandardMaterial({ color: '#3a2817', roughness: 0.85 }),
     caulk: new THREE.MeshStandardMaterial({ color: '#140f08', roughness: 1 }),
     giltTrim: new THREE.MeshStandardMaterial({ color: '#a8822f', roughness: 0.55, metalness: 0.6, envMapIntensity: 0.45, emissive: '#2e2207', emissiveIntensity: 0.16 }),
+    // the captain's log (diário de bordo) — worn leather + salt-stained pages
+    logCover: new THREE.MeshStandardMaterial({ color: '#3a2417', roughness: 0.85, bumpMap: _sailCloth.rough, bumpScale: 0.012, emissive: '#000000' }),
+    logPages: new THREE.MeshStandardMaterial({ color: '#e4d7b4', roughness: 0.95 }),
     island: new THREE.MeshStandardMaterial({ color: '#3f5346', roughness: 1, transparent: true, opacity: 0, fog: false }),
     islandBeach: new THREE.MeshStandardMaterial({ color: '#9c8a63', roughness: 1, transparent: true, opacity: 0, fog: false }),
-    bird: new THREE.MeshStandardMaterial({ color: '#3a3a40', roughness: 0.9 }),
+    bird: new THREE.MeshStandardMaterial({ color: '#eef1f2', roughness: 0.9 }),
+    birdWing: new THREE.MeshStandardMaterial({ color: '#b9c2c6', roughness: 0.9 }),
     puddle: new THREE.MeshPhysicalMaterial({ color: '#0a1316', roughness: 0.05, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.04, bumpMap: _puddleRipple, bumpScale: 0.05, transparent: true, opacity: 0.92, envMapIntensity: 1.1 }),
     glass: new THREE.MeshPhysicalMaterial({ color: '#11242e', roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#4a3010', emissiveIntensity: 0.28, envMapIntensity: 1.5 }),
     elev: new THREE.MeshStandardMaterial({ color: '#b0bec5', roughness: 0.4, metalness: 0.5, transparent: true }),
@@ -348,11 +364,13 @@ const DeckFurniture: React.FC = () => {
         <group position={[0, 0.06, 1.2]}>
             <mesh position={[0, 0.04, 0]} material={M.rail}><boxGeometry args={[1.04, 0.16, 1.24]} /></mesh>
             <mesh position={[0, 0.02, 0]} material={M.hat}><boxGeometry args={[0.86, 0.06, 1.06]} /></mesh>
+            {/* battens sit ON the recessed dark plate (no air gap — the old y=0.1
+                left the lattice hovering like a floating table-top) */}
             {[-0.36, -0.18, 0, 0.18, 0.36].map((x) => (
-                <mesh key={'gx' + x} position={[x, 0.1, 0]} material={M.grate}><boxGeometry args={[0.05, 0.05, 1.06]} /></mesh>
+                <mesh key={'gx' + x} position={[x, 0.07, 0]} material={M.grate}><boxGeometry args={[0.05, 0.05, 1.06]} /></mesh>
             ))}
             {[-0.45, -0.225, 0, 0.225, 0.45].map((z) => (
-                <mesh key={'gz' + z} position={[0, 0.1, z]} material={M.grate}><boxGeometry args={[0.86, 0.05, 0.05]} /></mesh>
+                <mesh key={'gz' + z} position={[0, 0.07, z]} material={M.grate}><boxGeometry args={[0.86, 0.05, 0.05]} /></mesh>
             ))}
         </group>
         {/* capstan amidships — ribbed drum with staves, drumhead, pawl rim,
@@ -685,7 +703,7 @@ const ShipBody: React.FC = () => {
                 <mesh position={[0, 3.7, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
                     <cylinderGeometry args={[0.07, 0.07, 3.4, 8]} />
                 </mesh>
-                <mesh position={[0, 2.25, 0.05]} geometry={_foreSailGeo} material={M.sail} />
+                <mesh position={[0, 2.6, 0.05]} geometry={_foreSailGeo} material={M.sail} />
             </group>
             {/* helm (ship's wheel) at the stern */}
             <group position={[0, 0.7, -6.2]}>
@@ -809,8 +827,14 @@ const Birds: React.FC = () => {
         <group ref={ref}>
             {birds.map((_, i) => (
                 <group key={i}>
-                    <mesh position={[0.22, 0, 0]} material={M.bird}><boxGeometry args={[0.5, 0.04, 0.16]} /></mesh>
-                    <mesh position={[-0.22, 0, 0]} material={M.bird}><boxGeometry args={[0.5, 0.04, 0.16]} /></mesh>
+                    {/* wings first (the flap code drives children[0]/[1]) — grey on top
+                        so they read as gull wings, not black boomerang blades */}
+                    <mesh position={[0.22, 0, 0]} material={M.birdWing}><boxGeometry args={[0.44, 0.03, 0.14]} /></mesh>
+                    <mesh position={[-0.22, 0, 0]} material={M.birdWing}><boxGeometry args={[0.44, 0.03, 0.14]} /></mesh>
+                    {/* white body + head + dark tail tip = an actual bird silhouette */}
+                    <mesh rotation={[Math.PI / 2, 0, 0]} material={M.bird}><capsuleGeometry args={[0.055, 0.2, 3, 6]} /></mesh>
+                    <mesh position={[0, 0.03, 0.16]} material={M.bird}><sphereGeometry args={[0.05, 6, 5]} /></mesh>
+                    <mesh position={[0, 0.01, -0.17]} material={M.birdWing}><boxGeometry args={[0.09, 0.02, 0.1]} /></mesh>
                 </group>
             ))}
         </group>
@@ -1190,7 +1214,10 @@ const PirateCaptain: React.FC<{
         // one EXTREME LEGS close-up, where a single fused skinned mesh smears as the legs
         // swing right under the lens. There the rigid primitive boots stand in (legsRef);
         // the GLB takes back over the instant the camera pulls off the boots.
-        g.visible = b.elevFade() < 0.85 && (legsRef?.current ?? 0) < 0.5;
+        // The elevFade gate only applies while the cab is still DEmaterialising in the
+        // intro (ST_INTRO) — on ST_FREE the fade rises AGAIN as the cab returns, and the
+        // captain must stay on deck to wave you off.
+        g.visible = (b.state() !== F7_STATE.INTRO || b.elevFade() < 0.85) && (legsRef?.current ?? 0) < 0.5;
         if (!g.visible) return;
         // The group carries ONLY horizontal position + facing (+ a brief walk lurch).
         // The idle bob + breath live on the BODY bone (with the legs counter-translated
@@ -1412,6 +1439,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const bucketRef = useRef<THREE.Group>(null);
     const sudsSurfRef = useRef<THREE.Mesh>(null);
     const _tideWarnRef = useRef(0);   // shared with the water shader for the surge
+    const _calmRef = useRef(1);       // shared with the water shader — landfall calm
     const _tideDirRef = useRef(new THREE.Vector2(0, 0)); // dir to the at-risk puddle
     const handsRef = useRef<THREE.Group>(null);
     const brushRef = useRef<THREE.Group>(null);
@@ -1419,6 +1447,14 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const islandRef = useRef<THREE.Group>(null);
     const elevatorRef = useRef<THREE.Group>(null);
     const elevLightRef = useRef<THREE.PointLight>(null);
+    const elevDoorLRef = useRef<THREE.Mesh>(null);
+    const elevDoorRRef = useRef<THREE.Mesh>(null);
+    const elevSeamRef = useRef<THREE.Mesh>(null);
+    const elevEdgeLRef = useRef<THREE.Mesh>(null);
+    const elevEdgeRRef = useRef<THREE.Mesh>(null);
+    const _doorSlide = useRef(0);
+    const sfxPrevState = useRef(0);
+    const logGlowRef = useRef<THREE.Mesh>(null);
     const puddleRefs = useRef<(THREE.Group | null)[]>([]);
     const brainRef = useRef<Floor7Brain | null>(null);
     const _local = useRef(new THREE.Vector3());
@@ -1692,7 +1728,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             if (!g) continue;
             const p = b.puddle(i, _pud.current);
             g.scale.setScalar(Math.max(0.0001, p.r));
-            g.position.set(p.x, 0.02, p.z);
+            // sit each puddle ON the cambered deck (deckYAt needs t = 0 stern → 1 bow;
+            // deck spans z −7..8.2). The old fixed y=0.02 buried discs at the deck's
+            // high ends and floated them amidships.
+            const dY = deckYAt(Math.max(0, Math.min(1, (p.z + 7) / 15.2)));
+            g.position.set(p.x, dY + 0.022, p.z);
             g.visible = p.prog < 0.995;
             const halo = g.children[0] as THREE.Mesh;
             const hm = halo.material as THREE.MeshBasicMaterial;
@@ -1736,8 +1776,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             const cam = state.camera;
             handsRef.current.position.copy(cam.position);
             handsRef.current.quaternion.copy(cam.quaternion);
-            handsRef.current.translateX(0.18); handsRef.current.translateY(-0.2); handsRef.current.translateZ(-0.34);
-            handsRef.current.visible = b.elevFade() < 0.85;
+            handsRef.current.translateX(0.17); handsRef.current.translateY(-0.21); handsRef.current.translateZ(-0.42);
+            // the scrub-brush hand only exists once you actually HOLD the bucket
+            // (it was on-screen from the intro on — a giant unexplained prop) and
+            // goes away for the boarding beat (elevFade rises again on ST_FREE).
+            handsRef.current.visible = bucketState.held && b.elevFade() < 0.85;
             if (brushRef.current) {
                 const scrubbing = b.state() === F7_STATE.CLEAN && handleRef.current.interact;
                 // player velocity in CAMERA-local XZ (so the stroke sweeps where
@@ -1779,13 +1822,52 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             leftHandRef.current.visible = bucketState.held && b.elevFade() < 0.85;
         }
 
-        // payoff: land rises on the horizon once the deck is clean (state DONE)
+        // payoff: land rises on the horizon once the deck is clean — and then
+        // ACTUALLY APPROACHES across ST_SAIL (landfall 0→1) until the ship rides
+        // at anchor in its lee. The old build faded it in and never arrived.
         if (islandRef.current) {
-            const target = b.state() === F7_STATE.DONE ? 0.92 : 0;
+            const st = b.state();
+            const target = st >= F7_STATE.DONE ? 0.92 : 0;
             const op = (M.island as THREE.MeshStandardMaterial).opacity + (target - (M.island as THREE.MeshStandardMaterial).opacity) * Math.min(1, dt * 0.6);
             (M.island as THREE.MeshStandardMaterial).opacity = op;
             (M.islandBeach as THREE.MeshStandardMaterial).opacity = op;
             islandRef.current.visible = op > 0.01;
+            const lf = b.landfall();
+            const ease = lf * lf * (3 - 2 * lf);              // smoothstep the approach
+            islandRef.current.position.z = 90 - ease * 62;    // 90 → 28 (anchorage)
+            islandRef.current.position.x = 14 - ease * 6;     // drifts toward the bow line
+        }
+        // the elevator's sliding doors PART once it has fully rematerialised —
+        // the lit doorway is the "you can leave now" beacon (ST_FREE only).
+        if (elevDoorLRef.current && elevDoorRRef.current) {
+            const open = (b.state() === F7_STATE.FREE && b.elevFade() > 0.95) ? 1 : 0;
+            const k = Math.min(1, dt * 2.2);
+            _doorSlide.current += (open - _doorSlide.current) * k;
+            elevDoorLRef.current.position.x = -0.46 - _doorSlide.current * 0.5;
+            elevDoorRRef.current.position.x = 0.46 + _doorSlide.current * 0.5;
+            // the centre seam + inner-edge bevels only exist while the leaves MEET —
+            // once they part, the seam would hang mid-doorway as a floating post.
+            if (elevSeamRef.current) elevSeamRef.current.visible = _doorSlide.current < 0.15;
+            if (elevEdgeLRef.current) elevEdgeLRef.current.position.x = -0.055 - _doorSlide.current * 0.5;
+            if (elevEdgeRRef.current) elevEdgeRRef.current.position.x = 0.055 + _doorSlide.current * 0.5;
+        }
+        // one-shot audio beats on the finale state changes
+        {
+            const st = b.state();
+            if (st !== sfxPrevState.current) {
+                if (st === F7_STATE.ANCHOR) f7Wave();                 // the sea settles
+                if (st === F7_STATE.FREE) { f7PuddleDone(); f7BucketClunk(); }  // the cab dings back in
+                sfxPrevState.current = st;
+            }
+            // the log glows when the story points at it (ANCHOR, unread) and
+            // whispers a faint pulse during CLEAN/SAIL so explorers spot it early
+            if (logGlowRef.current) {
+                const em = (M.logCover as THREE.MeshStandardMaterial).emissive;
+                const urgent = st === F7_STATE.ANCHOR && !b.logRead();
+                const soft = (st >= F7_STATE.CLEAN && st <= F7_STATE.SAIL) && !b.logRead();
+                const pulse = urgent ? 0.45 + 0.35 * Math.sin(t * 4) : (soft ? 0.1 + 0.08 * Math.sin(t * 2.2) : 0);
+                em.setRGB(pulse, pulse * 0.72, pulse * 0.3);
+            }
         }
 
         // ── audio cues ──
@@ -1836,8 +1918,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         // publish a snapshot for the DOM overlay
         const h = handleRef.current;
         h.dialogue = b.dialogue(); h.cleaned = b.cleaned(); h.cleanPct = b.cleanPct(); h.state = b.state();
-        h.tideWarn = warn; h.bucWater = b.bucket().water;
+        h.tideWarn = warn; h.bucWater = bucketState.water;
+        h.landfall = b.landfall(); h.logPage = b.logPage(); h.logRead = b.logRead();
+        h.nearExit = b.nearExit(); h.boarded = b.boarded();
         _tideWarnRef.current = warn;
+        _calmRef.current = b.calm();
         // direction (ship-local xz) toward the at-risk puddle, for the directional surge
         if (tideT.idx >= 0) { _tideDirRef.current.set(tideT.x, tideT.z); if (_tideDirRef.current.lengthSq() > 1e-4) _tideDirRef.current.normalize(); }
         else _tideDirRef.current.set(0, 0);
@@ -1856,7 +1941,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             <ambientLight intensity={0.2} color="#9fc0d8" />
 
             {/* the Gerstner-wave ocean */}
-            <Floor7Water sunDir={SUN_DIR} warnRef={_tideWarnRef} />
+            <Floor7Water sunDir={SUN_DIR} warnRef={_tideWarnRef} calmRef={_calmRef} />
 
             {/* the ship (sways) */}
             <group ref={shipRef} scale={FLOOR7_SCALE}>
@@ -1879,11 +1964,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     {/* CLOSED sliding doors facing +z (toward the camera): two leaves, a
                         recessed dark centre gap, and a bright bevel down each inner edge so
                         they read unmistakably as elevator doors (not a painted panel). */}
-                    <mesh position={[-0.46, 1.2, 0.5]} material={M.elevDoor}><boxGeometry args={[0.88, 2.3, 0.09]} /></mesh>
-                    <mesh position={[0.46, 1.2, 0.5]} material={M.elevDoor}><boxGeometry args={[0.88, 2.3, 0.09]} /></mesh>
-                    <mesh position={[0, 1.2, 0.46]} material={M.elevSeam}><boxGeometry args={[0.07, 2.26, 0.06]} /></mesh>
-                    <mesh position={[-0.055, 1.2, 0.55]} material={M.elevEdge}><boxGeometry args={[0.035, 2.28, 0.02]} /></mesh>
-                    <mesh position={[0.055, 1.2, 0.55]} material={M.elevEdge}><boxGeometry args={[0.035, 2.28, 0.02]} /></mesh>
+                    <mesh ref={elevDoorLRef} position={[-0.46, 1.2, 0.5]} material={M.elevDoor}><boxGeometry args={[0.88, 2.3, 0.09]} /></mesh>
+                    <mesh ref={elevDoorRRef} position={[0.46, 1.2, 0.5]} material={M.elevDoor}><boxGeometry args={[0.88, 2.3, 0.09]} /></mesh>
+                    <mesh ref={elevSeamRef} position={[0, 1.2, 0.46]} material={M.elevSeam}><boxGeometry args={[0.07, 2.26, 0.06]} /></mesh>
+                    <mesh ref={elevEdgeLRef} position={[-0.055, 1.2, 0.55]} material={M.elevEdge}><boxGeometry args={[0.035, 2.28, 0.02]} /></mesh>
+                    <mesh ref={elevEdgeRRef} position={[0.055, 1.2, 0.55]} material={M.elevEdge}><boxGeometry args={[0.035, 2.28, 0.02]} /></mesh>
                     {/* a slim brushed-steel kick/header band per leaf to catch light as "metal" */}
                     <mesh position={[-0.46, 0.35, 0.555]} material={M.elevEdge}><boxGeometry args={[0.84, 0.08, 0.02]} /></mesh>
                     <mesh position={[0.46, 0.35, 0.555]} material={M.elevEdge}><boxGeometry args={[0.84, 0.08, 0.02]} /></mesh>
@@ -1927,6 +2012,15 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     <mesh position={[0.1, 0.13, 0.05]} rotation={[0.5, 0.4, 0.2]} material={M.cloth}><boxGeometry args={[0.2, 0.03, 0.16]} /></mesh>
                     <mesh position={[0.16, 0.04, 0.08]} rotation={[0.1, 0.4, 0.6]} material={M.cloth}><boxGeometry args={[0.12, 0.02, 0.14]} /></mesh>
                 </group>
+                {/* the captain's LOG (diário de bordo) on the companionway lid — the
+                    floor's memory. Reading it is what brings the elevator back. */}
+                <group position={[0.14, 0.5, -2.98]} rotation={[-0.35, 0.4, 0]}>
+                    <mesh ref={logGlowRef} material={M.logCover}><boxGeometry args={[0.3, 0.05, 0.4]} /></mesh>
+                    <mesh position={[0, 0.012, 0]} material={M.logPages}><boxGeometry args={[0.27, 0.035, 0.37]} /></mesh>
+                    {/* leather strap + a brass clasp catching the sun */}
+                    <mesh position={[0, 0.005, 0.05]} material={M.baldric}><boxGeometry args={[0.32, 0.055, 0.05]} /></mesh>
+                    <mesh position={[0, 0.03, 0.05]} material={M.gold}><boxGeometry args={[0.05, 0.02, 0.06]} /></mesh>
+                </group>
                 {/* puddles: a wet halo soaking the planks + a reflective water disc */}
                 {Array.from({ length: 6 }).map((_, i) => (
                     <group key={i} ref={(g) => { puddleRefs.current[i] = g; }} position={[0, 0.02, 0]}>
@@ -1954,9 +2048,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 <mesh position={[0, -1.2, 12]} rotation={[-Math.PI / 2, 0, 0]} material={M.islandBeach}><circleGeometry args={[16, 24]} /></mesh>
             </group>
 
-            {/* first-person hands + scrub-brush (rides the camera, world-space) */}
-            <group ref={handsRef} frustumCulled={false}>
-                <group ref={brushRef} scale={1.4}>
+            {/* first-person hands + scrub-brush (rides the camera, world-space).
+                Scale kept SMALL — at 1.4 the cuff/palm filled ~40% of the frame
+                as giant untextured slabs; 0.85 reads as a hand, not a wall. */}
+            <group ref={handsRef} frustumCulled={false} visible={false}>
+                <group ref={brushRef} scale={0.85}>
                     {/* coat sleeve entering from the lower-right corner + gold cuff */}
                     <mesh position={[0.07, -0.16, 0.16]} rotation={[0.95, 0.12, 0.22]} material={M.coat}><cylinderGeometry args={[0.052, 0.075, 0.4, 10]} /></mesh>
                     <mesh position={[0.035, -0.055, 0.02]} rotation={[0.95, 0.12, 0.22]} material={M.goldFp}><cylinderGeometry args={[0.072, 0.072, 0.045, 10]} /></mesh>
@@ -1995,10 +2091,25 @@ const DIALOGUE: Record<number, string> = {
     6: 'Capitão: Segura! Uma onda lavou o convés — voltou a molhar uma poça. Não deixa nenhuma pela metade!',
     7: 'Objetivo: a água tá suja — molhe o pano na amurada (chegue na borda e aperte) pra esfregar mais rápido.',
     8: 'Pano encharcado de água do mar — esfrega que rende mais!',
+    // ── the landfall run: at the wheel, the captain finally lets the lore out ──
+    9: 'Capitão: Quarenta anos eu esperei pra ver essa ilha crescer, grumete. O convés nunca tinha ficado TODO limpo… o mar nunca tinha deixado.',
+    10: 'Capitão: Sabe o que é esse oceano? É tudo que o hotel esquece. Escorre dos andares lá de cima e vira maré. Por isso ele nunca seca.',
+    11: 'Capitão: O Zelador subiu a bordo uma vez. Não disse nada — só apontou pras poças. Enquanto houver o que limpar… alguém ainda lembra deste andar.',
+    12: 'Capitão: Chegamos. Mas antes de desembarcar — meu DIÁRIO DE BORDO, na escotilha. Lê. Alguém tem que lembrar por mim.',
+    13: 'Capitão: Ouviu esse DING? Máquina não esquece — ele lembra de quem lembra. Vai, grumete. E não esquece da gente.',
 };
 
-export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7Handle>; onGreeting?: (g: boolean) => void }> = ({ handleRef, onGreeting }) => {
-    const [snap, setSnap] = useState({ dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0, tideWarn: 0, bucWater: 1 });
+// the captain's log — the floor's memory, one page per press. Ties the ship to
+// the hotel arc: the Zelador's silent visit, the tide as the hotel breathing,
+// and the Andar 4 rule ("ser lembrado é ser cuidado") that frees the player.
+const LOG_PAGES: ReadonlyArray<string> = [
+    'Dia 1 no comando. O hotel me deu este navio e um mar do tamanho da minha dívida. As ordens, assinadas pela administração: "navegue até a terra aparecer". Tem quarenta anos que a terra não aparece. O convés nunca fica limpo. A maré cuida disso.',
+    'Dia ????. O Zelador subiu a bordo hoje. Não falou — ele não fala. Pregou uma tábua nova no convés e apontou pras poças. Entendi assim: enquanto houver o que limpar, alguém LEMBRA deste andar. A maré não é castigo. A maré é o hotel respirando.',
+    'Última página. Se um grumete estiver lendo isto: foi você que limpou TODAS as poças — por isso o mar te deixou chegar. O do quarto andar me ensinou pelas paredes: ser lembrado é ser cuidado. Lembra de mim. Lembra deste navio. E chama o elevador — máquina não esquece. Ele volta pra quem lembra.',
+];
+
+export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7Handle>; onGreeting?: (g: boolean) => void; onBoard?: () => void }> = ({ handleRef, onGreeting, onBoard }) => {
+    const [snap, setSnap] = useState({ dialogue: 0, cleaned: 0, npud: 6, cleanPct: 0, state: 0, tideWarn: 0, bucWater: 1, landfall: 0, logPage: 0, logRead: false, nearExit: false, boarded: false });
     // tell App when the captain is in his quest-pitch (GREET) so the dialogue camera
     // can lock onto him (cutscene framing, the same rig the Diabrete meet uses).
     useEffect(() => { onGreeting?.(snap.state === F7_STATE.GREET); }, [snap.state, onGreeting]);
@@ -2006,13 +2117,32 @@ export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7H
         let raf = 0;
         const loop = () => {
             const h = handleRef.current;
-            setSnap((s) => (s.dialogue !== h.dialogue || s.cleaned !== h.cleaned || Math.abs(s.cleanPct - h.cleanPct) > 0.01 || s.state !== h.state || Math.abs(s.tideWarn - h.tideWarn) > 0.04 || Math.abs(s.bucWater - h.bucWater) > 0.03)
-                ? { dialogue: h.dialogue, cleaned: h.cleaned, npud: h.npud, cleanPct: h.cleanPct, state: h.state, tideWarn: h.tideWarn, bucWater: h.bucWater } : s);
+            setSnap((s) => (s.dialogue !== h.dialogue || s.cleaned !== h.cleaned || Math.abs(s.cleanPct - h.cleanPct) > 0.01 || s.state !== h.state || Math.abs(s.tideWarn - h.tideWarn) > 0.04 || Math.abs(s.bucWater - h.bucWater) > 0.03 || Math.abs(s.landfall - h.landfall) > 0.005 || s.logPage !== h.logPage || s.logRead !== h.logRead || s.nearExit !== h.nearExit || s.boarded !== h.boarded)
+                ? { dialogue: h.dialogue, cleaned: h.cleaned, npud: h.npud, cleanPct: h.cleanPct, state: h.state, tideWarn: h.tideWarn, bucWater: h.bucWater, landfall: h.landfall, logPage: h.logPage, logRead: h.logRead, nearExit: h.nearExit, boarded: h.boarded } : s);
             raf = requestAnimationFrame(loop);
         };
         raf = requestAnimationFrame(loop);
         return () => cancelAnimationFrame(raf);
     }, [handleRef]);
+    // the WASM latches `boarded` on a rising interact in the cab doorway — hand
+    // the ride home to the App exactly once.
+    const boardedFired = useRef(false);
+    useEffect(() => {
+        if (snap.boarded && !boardedFired.current) { boardedFired.current = true; onBoard?.(); }
+    }, [snap.boarded, onBoard]);
+    // "VOCÊ LEMBROU DO ANDAR 7" — the memory chime moment when the log's last
+    // page turns (mirrors the Andar 4 finale card, quoting its exact format).
+    const [memoryCard, setMemoryCard] = useState(false);
+    const logReadPrev = useRef(false);
+    useEffect(() => {
+        if (snap.logRead && !logReadPrev.current) {
+            setMemoryCard(true);
+            const tm = setTimeout(() => setMemoryCard(false), 4200);
+            logReadPrev.current = true;
+            return () => clearTimeout(tm);
+        }
+        logReadPrev.current = snap.logRead;
+    }, [snap.logRead]);
 
     // keyboard interact (E / Space) → handle.interact while held
     useEffect(() => {
@@ -2024,6 +2154,9 @@ export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7H
 
     const txt = DIALOGUE[snap.dialogue];
     const cleaning = snap.state === F7_STATE.CLEAN;
+    const sailing = snap.state === F7_STATE.SAIL;
+    const reading = snap.logPage >= 1 && snap.logPage <= 3;
+    const canBoard = snap.state === F7_STATE.FREE && snap.nearExit;
     return (
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 45, fontFamily: '"Source Sans 3","Segoe UI",sans-serif' }}>
             {/* rising-tide telegraph: a cold spray vignette creeps in from the
@@ -2036,9 +2169,40 @@ export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7H
                     ◣ VAGALHÃO CHEGANDO ◢
                 </div>
             )}
-            {txt && (
+            {txt && !reading && (
                 <div style={{ position: 'absolute', left: '50%', bottom: 'calc(env(safe-area-inset-bottom,0px) + 92px)', transform: 'translateX(-50%)', maxWidth: 'min(92vw, 640px)', background: 'rgba(20,14,8,0.86)', border: '1px solid rgba(202,165,106,0.5)', borderRadius: 12, padding: '12px 16px', color: '#f3e7cf', fontSize: 15, lineHeight: 1.35, textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.6)' }}>
                     {txt}
+                </div>
+            )}
+            {/* the captain's LOG — a salt-stained page at a time (E turns it) */}
+            {reading && (
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(6,10,14,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ maxWidth: 'min(90vw, 560px)', background: 'linear-gradient(165deg,#efe3c2,#e2d0a4 60%,#d8c294)', border: '1px solid #8a6a42', borderRadius: 6, padding: '22px 26px 18px', color: '#3a2a17', boxShadow: '0 12px 44px rgba(0,0,0,0.75), inset 0 0 46px rgba(122,86,52,0.28)', transform: 'rotate(-0.6deg)' }}>
+                        <div style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: '0.22em', color: '#7a5634', marginBottom: 10 }}>
+                            ⚓ DIÁRIO DE BORDO — PÁGINA {snap.logPage}/3
+                        </div>
+                        <div style={{ fontSize: 15.5, lineHeight: 1.55, fontStyle: 'italic' }}>
+                            {LOG_PAGES[snap.logPage - 1]}
+                        </div>
+                        <div style={{ marginTop: 14, textAlign: 'right', fontFamily: 'monospace', fontSize: 11, letterSpacing: '0.14em', color: '#7a5634' }}>
+                            {snap.logPage < 3 ? 'E — VIRAR A PÁGINA' : 'E — FECHAR O DIÁRIO'}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* "VOCÊ LEMBROU DO ANDAR 7" — same card language as the Andar 4 finale */}
+            {memoryCard && (
+                <div style={{ position: 'absolute', left: '50%', top: '38%', transform: 'translateX(-50%)', fontFamily: 'monospace', color: '#FFD54F', fontSize: 'min(5.4vw, 34px)', fontWeight: 700, letterSpacing: 4, textAlign: 'center', textShadow: '0 2px 18px rgba(0,0,0,0.9)' }}>
+                    VOCÊ LEMBROU DO ANDAR 7
+                </div>
+            )}
+            {/* landfall run HUD — the island closing in */}
+            {sailing && (
+                <div style={{ position: 'absolute', left: '50%', top: 'calc(env(safe-area-inset-top,0px) + 56px)', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <div style={{ color: '#f3e7cf', fontSize: 12, letterSpacing: '0.15em', textShadow: '0 1px 3px #000' }}>⛵ RUMO À ILHA</div>
+                    <div style={{ width: 200, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.18)', overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.round(snap.landfall * 100)}%`, height: '100%', background: 'linear-gradient(90deg,#7fae6a,#cde8b0)', transition: 'width 0.3s linear' }} />
+                    </div>
                 </div>
             )}
             {cleaning && (
@@ -2064,8 +2228,14 @@ export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7H
                 onPointerDown={(e) => { e.preventDefault(); handleRef.current.interact = true; }}
                 onPointerUp={() => { handleRef.current.interact = false; }}
                 onPointerLeave={() => { handleRef.current.interact = false; }}
-                style={{ position: 'absolute', right: 'calc(env(safe-area-inset-right,0px) + 20px)', bottom: 'calc(env(safe-area-inset-bottom,0px) + 110px)', width: 78, height: 78, borderRadius: '50%', background: 'rgba(202,165,106,0.22)', border: '2px solid rgba(202,165,106,0.6)', color: '#f3e7cf', fontSize: 13, fontWeight: 700, letterSpacing: '0.05em', pointerEvents: 'auto', backdropFilter: 'blur(3px)' }}
-            >{cleaning ? 'ESFREGAR' : 'E'}</button>
+                style={{ position: 'absolute', right: 'calc(env(safe-area-inset-right,0px) + 20px)', bottom: 'calc(env(safe-area-inset-bottom,0px) + 110px)', width: 78, height: 78, borderRadius: '50%', background: canBoard ? 'rgba(120,190,140,0.3)' : 'rgba(202,165,106,0.22)', border: canBoard ? '2px solid rgba(150,230,170,0.8)' : '2px solid rgba(202,165,106,0.6)', color: '#f3e7cf', fontSize: 13, fontWeight: 700, letterSpacing: '0.05em', pointerEvents: 'auto', backdropFilter: 'blur(3px)' }}
+            >{reading ? 'VIRAR' : canBoard ? 'EMBARCAR' : cleaning ? 'ESFREGAR' : 'E'}</button>
+            {/* boarding beacon — the returned cab is the way home */}
+            {canBoard && !reading && (
+                <div style={{ position: 'absolute', left: '50%', bottom: 'calc(env(safe-area-inset-bottom,0px) + 52px)', transform: 'translateX(-50%)', color: '#d8f2df', fontSize: 12, letterSpacing: '0.18em', textShadow: '0 1px 4px #04160a' }}>
+                    ▲ APERTE E PARA EMBARCAR ▲
+                </div>
+            )}
         </div>
     );
 };

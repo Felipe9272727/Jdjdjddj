@@ -9,6 +9,7 @@ import { decodeFloor7Wasm } from './floor7-wasm';
 
 export const F7_STATE = {
     INTRO: 0, GREET: 1, FETCH: 2, CLEAN: 3, DONE: 4,
+    SAIL: 5, ANCHOR: 6, FREE: 7,
 } as const;
 
 export interface F7Puddle { x: number; z: number; r: number; prog: number; cell?: Float32Array; }
@@ -24,6 +25,9 @@ interface F7Exports {
     f7_elevFade(): number; f7_tide_warn(): number;
     f7_tide_target(): number; f7_tide_tx(): number; f7_tide_tz(): number;
     f7_npud(): number; f7_cleaned(): number; f7_can_leave(): number; f7_clean_pct(): number;
+    f7_landfall(): number; f7_calm(): number;
+    f7_log_page(): number; f7_log_read(): number; f7_log_x(): number; f7_log_z(): number;
+    f7_near_exit(): number; f7_boarded(): number;
     f7_puddles(): number;
 }
 
@@ -80,6 +84,18 @@ export class Floor7Brain {
     cleaned(): number { return this.e.f7_cleaned(); }
     cleanPct(): number { return this.e.f7_clean_pct(); }
     canLeave(): boolean { return this.e.f7_can_leave() === 1; }
+    /** 0..1 — how close the island is (ST_SAIL ramps it; 1 = anchored). */
+    landfall(): number { return this.e.f7_landfall(); }
+    /** 1 open sea → ~0.2 anchored — scales the swell (visuals can match). */
+    calm(): number { return this.e.f7_calm(); }
+    /** captain's log: 0 closed · 1..3 reading page N · 4 finished. */
+    logPage(): number { return this.e.f7_log_page(); }
+    logRead(): boolean { return this.e.f7_log_read() === 1; }
+    logPos(): { x: number; z: number } { return { x: this.e.f7_log_x(), z: this.e.f7_log_z() }; }
+    /** player is inside the rematerialised cab's doorway (ST_FREE only). */
+    nearExit(): boolean { return this.e.f7_near_exit() === 1; }
+    /** latched once the player pressed interact in the doorway — ride home. */
+    boarded(): boolean { return this.e.f7_boarded() === 1; }
 
     /** Read puddle i (x,z,r,prog + 4x4 wetness cells) out of WASM memory.
      *  Struct stride is 20 floats: {x,z,r,prog, cell[16]}. */

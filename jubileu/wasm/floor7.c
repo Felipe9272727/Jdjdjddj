@@ -46,11 +46,15 @@ static float frand(void) {           /* [0,1) */
 
 /* ---- quest states ---- */
 enum {
-    ST_INTRO = 0,   /* elevator vanishing, captain striding over from the bow */
-    ST_GREET = 1,   /* captain talks, asks for the bucket+cloth              */
-    ST_FETCH = 2,   /* player must reach the bucket and grab it              */
-    ST_CLEAN = 3,   /* mop the puddles                                       */
-    ST_DONE  = 4    /* all clean — nothing left to do, and no way out (yet)  */
+    ST_INTRO  = 0,  /* elevator vanishing, captain striding over from the bow */
+    ST_GREET  = 1,  /* captain talks, asks for the bucket+cloth              */
+    ST_FETCH  = 2,  /* player must reach the bucket and grab it              */
+    ST_CLEAN  = 3,  /* mop the puddles                                       */
+    ST_DONE   = 4,  /* all clean — the captain strides aft and takes the helm */
+    ST_SAIL   = 5,  /* landfall run: the island grows on the horizon         */
+    ST_ANCHOR = 6,  /* arrived. the sea goes calm — but the floor only lets  */
+                    /* go of who REMEMBERS it: read the captain's log        */
+    ST_FREE   = 7   /* log read → the elevator rematerialises; can board     */
 };
 
 #define NPUD 6
@@ -81,6 +85,16 @@ static struct {
     /* puddles */
     Puddle pud[NPUD];
     int   cleaned;
+    /* landfall payoff */
+    float landfall;     /* 0..1 — how close the island is (ST_SAIL ramps it)   */
+    float calm;         /* 1 open sea -> ~0.2 anchored (scales heave/pitch/roll) */
+    /* the captain's log (diário de bordo) — the floor's memory. Reading it is
+       what frees the player ("o elevador lembra de quem lembra"). */
+    int   logPage;      /* 0 closed/unread · 1..3 reading page N · 4 finished  */
+    int   logRead;      /* latched once page 3 was turned                      */
+    /* boarding the returned elevator */
+    int   nearExit;     /* player is inside the rematerialised cab's doorway   */
+    int   boarded;      /* latched: rising interact in the doorway on ST_FREE  */
     /* presentation */
     float elevFade;     /* 1 -> 0 as the elevator dematerialises     */
     int   dialogue;     /* id the UI shows (0 none)                  */
@@ -96,6 +110,15 @@ static struct {
 #define CAP_X       ( 0.6f)
 #define HELM_X      (-0.45f)
 #define HELM_Z      (-5.3f)
+/* the captain's log sits on the companionway lid (centre lane, aft of the main
+   mast) — always reachable, never under a puddle (puddles keep |x|>=0.55). */
+#define LOG_X       ( 0.0f)
+#define LOG_Z       (-3.1f)
+#define LOG_R       ( 1.35f)
+/* the elevator cab's spot on deck (ship-local) — must match the renderer */
+#define ELEV_X      ( 0.0f)
+#define ELEV_Z      ( 5.2f)
+#define SAIL_TIME   (26.0f)   /* seconds from DONE-helm to the anchorage */
 
 __attribute__((export_name("f7_init")))
 void f7_init(unsigned int seed) {
@@ -107,15 +130,19 @@ void f7_init(unsigned int seed) {
     S.cleaned = 0; S.elevFade = 1.0f; S.dialogue = 0; S.prevInteract = 0;
     S.capWalk = 0; S.barkTimer = 0.0f; S.barked3 = 0;
     S.tideTimer = 12.0f; S.tideWarn = 0.0f; S.tideBark = 0.0f; S.tideTarget = -1;
+    S.landfall = 0.0f; S.calm = 1.0f;
+    S.logPage = 0; S.logRead = 0; S.nearExit = 0; S.boarded = 0;
     /* scatter puddles across the WALKABLE deck — inside the bulwark with room
        for the player to stand on them, clear of the centre-lane structures and
-       the bow/stern. Radii kept small so they never poke past the rail. */
+       the bow/stern. The deck narrows toward the ends, so both |x| and r are
+       kept tight enough that disc edge (|x|+r <= ~1.95) never pokes past the
+       bulwark at |z| <= 3.5 — no more puddles hovering over open sea. */
     for (int i = 0; i < NPUD; i++) {
-        float x = (frand() * 2.6f) - 1.3f;
-        float z = (frand() * 8.0f) - 3.9f;
-        if (f7_absf(x) < 0.55f) x += (x < 0 ? -0.6f : 0.6f);
+        float side = (frand() < 0.5f) ? -1.0f : 1.0f;
+        float x = side * (0.55f + frand() * 0.75f);      /* |x| in [0.55, 1.30] */
+        float z = (frand() * 7.0f) - 3.5f;               /*  z  in [-3.5, 3.5] */
         S.pud[i].x = x; S.pud[i].z = z;
-        S.pud[i].r = 0.45f + frand() * 0.35f;
+        S.pud[i].r = 0.40f + frand() * 0.25f;            /*  r  in [0.40, 0.65] */
         S.pud[i].prog = 0.0f;
         /* only cells whose centre falls inside the circle start wet; the 4
            corner cells are outside the disc, so they begin dry (0) and don't
@@ -136,9 +163,31 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
     S.prevInteract = interact;
 
     /* --- ship rides the swell (all from the asm sine) --- */
-    S.heave = f7_sin(S.t * 1.05f) * 0.18f + f7_sin(S.t * 0.41f + 1.7f) * 0.10f;
-    S.pitch = f7_sin(S.t * 0.85f + 0.6f) * 0.045f;
-    S.roll  = f7_sin(S.t * 0.62f) * 0.060f;
+    /* the sea CALMS as the ship makes the anchorage: full swell in open water,
+       a gentle harbour bob once anchored (scaled smoothly via S.calm) */
+    {
+        float calmT = (S.state >= ST_ANCHOR) ? 0.22f
+                    : (S.state == ST_SAIL ? 1.0f - 0.6f * S.landfall : 1.0f);
+        float k = dt * 0.6f; if (k > 1.0f) k = 1.0f;
+        S.calm += (calmT - S.calm) * k;
+    }
+    S.heave = (f7_sin(S.t * 1.05f) * 0.18f + f7_sin(S.t * 0.41f + 1.7f) * 0.10f) * S.calm;
+    S.pitch = f7_sin(S.t * 0.85f + 0.6f) * 0.045f * S.calm;
+    S.roll  = f7_sin(S.t * 0.62f) * 0.060f * S.calm;
+
+    /* --- the captain's log (diário de bordo) — the floor's own memory. A
+       rising interact on the companionway lid opens it; each further press
+       turns a page; past page 3 it latches logRead ("você lembrou"). --- */
+    if (S.state >= ST_CLEAN && rising) {
+        if (S.logPage >= 1 && S.logPage <= 3) {
+            S.logPage++;
+            if (S.logPage >= 4) S.logRead = 1;
+            rising = 0;                        /* the press was spent on the page */
+        } else {
+            float lx = px - LOG_X, lz = pz - LOG_Z;
+            if (lx * lx + lz * lz < LOG_R * LOG_R) { S.logPage = 1; rising = 0; }
+        }
+    }
 
     /* --- captain bob (idle breathing) --- */
     S.capBob = f7_sin(S.t * 2.1f) * 0.03f;
@@ -271,11 +320,14 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
         }
         if (S.tideBark > 0.0f) { S.tideBark -= dt; S.dialogue = 6; }   /* "uma onda lavou o convés!" */
 
-        if (S.cleaned >= NPUD) { S.state = ST_DONE; S.stTimer = 0.0f; S.dialogue = 4; }
+        if (S.cleaned >= NPUD) {
+            S.state = ST_DONE; S.stTimer = 0.0f; S.dialogue = 4;
+            S.tideWarn = 0.0f;   /* else the last warn value freezes and the water
+                                    shader heaves a phantom surge ring forever */
+        }
         break;
     }
-    case ST_DONE:
-    default: {
+    case ST_DONE: {
         S.dialogue = 4;                            /* "bom trabalho — terra à vista!" */
         if (S.bucHeld) { S.bucX = px + 0.35f; S.bucZ = pz + 0.15f; }
         /* PAYOFF: the captain strides aft to the helm and takes the wheel */
@@ -285,6 +337,46 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
         S.capZ = CAP_TALK_Z + (HELM_Z - CAP_TALK_Z) * e;
         S.capWalk = (k > 0.02f && k < 0.99f) ? 1 : 0;
         S.capFace = 3.14159f;                      /* face the wheel (toward the stern, -z) */
+        if (S.stTimer > 4.6f) { S.state = ST_SAIL; S.stTimer = 0.0f; }
+        break;
+    }
+    case ST_SAIL: {
+        /* the landfall run — the island grows on the horizon while the captain,
+           finally at his wheel, lets the floor's lore out one bark at a time */
+        S.landfall = f7_clamp01(S.stTimer / SAIL_TIME);
+        if (S.bucHeld) { S.bucX = px + 0.35f; S.bucZ = pz + 0.15f; }
+        S.capX = HELM_X; S.capZ = HELM_Z;
+        S.capFace = 3.14159f;                      /* eyes on the wheel/horizon */
+        {
+            int bark = (int)(S.stTimer / 8.0f); if (bark > 2) bark = 2;
+            S.dialogue = 9 + bark;                 /* 9, 10, 11 — the lore barks */
+        }
+        if (S.landfall >= 1.0f) { S.state = ST_ANCHOR; S.stTimer = 0.0f; }
+        break;
+    }
+    case ST_ANCHOR: {
+        /* anchored in the island's lee. The floor only lets go of who REMEMBERS
+           it (the Andar 4 rule) — the captain points you at his log. */
+        S.landfall = 1.0f;
+        if (S.bucHeld) { S.bucX = px + 0.35f; S.bucZ = pz + 0.15f; }
+        S.capFace = -f7_atan2_like(px - S.capX, pz - S.capZ);   /* turns to you */
+        S.dialogue = 12;                           /* "lê meu diário de bordo…" */
+        if (S.logRead) { S.state = ST_FREE; S.stTimer = 0.0f; }
+        break;
+    }
+    case ST_FREE:
+    default: {
+        /* someone remembered the floor — the elevator REMATERIALISES. */
+        S.landfall = 1.0f;
+        if (S.bucHeld) { S.bucX = px + 0.35f; S.bucZ = pz + 0.15f; }
+        S.capFace = -f7_atan2_like(px - S.capX, pz - S.capZ);
+        S.elevFade = f7_clamp01(S.stTimer / 2.8f); /* fade back IN (1 = solid)  */
+        S.dialogue = 13;                           /* "ele lembrou de ti — vai." */
+        {
+            float ex = px - ELEV_X, ez = pz - ELEV_Z;
+            S.nearExit = (S.elevFade > 0.9f && ex * ex + ez * ez < 1.35f * 1.35f) ? 1 : 0;
+            if (S.nearExit && rising) S.boarded = 1;   /* latched — the app rides home */
+        }
         break;
     }
     }
@@ -327,7 +419,18 @@ __attribute__((export_name("f7_tide_tx")))float f7_tide_tx(void){ return S.tideT
 __attribute__((export_name("f7_tide_tz")))float f7_tide_tz(void){ return S.tideTarget >= 0 ? S.pud[S.tideTarget].z : 0.0f; }
 __attribute__((export_name("f7_npud")))    int  f7_npud(void) { return NPUD; }
 __attribute__((export_name("f7_cleaned")))  int  f7_cleaned(void){ return S.cleaned; }
-__attribute__((export_name("f7_can_leave")))int  f7_can_leave(void){ return 0; } /* partial level: never */
+/* the floor lets go ONLY of who finished the work, made landfall and REMEMBERED
+   it (read the log) — then the elevator comes back for them. */
+__attribute__((export_name("f7_can_leave")))int  f7_can_leave(void){ return S.state == ST_FREE ? 1 : 0; }
+/* landfall payoff + log + boarding getters */
+__attribute__((export_name("f7_landfall"))) float f7_landfall(void){ return S.landfall; }
+__attribute__((export_name("f7_calm")))     float f7_calm(void)    { return S.calm; }
+__attribute__((export_name("f7_log_page"))) int   f7_log_page(void){ return S.logPage; }
+__attribute__((export_name("f7_log_read"))) int   f7_log_read(void){ return S.logRead; }
+__attribute__((export_name("f7_log_x")))    float f7_log_x(void)   { return LOG_X; }
+__attribute__((export_name("f7_log_z")))    float f7_log_z(void)   { return LOG_Z; }
+__attribute__((export_name("f7_near_exit")))int   f7_near_exit(void){ return S.nearExit; }
+__attribute__((export_name("f7_boarded"))) int    f7_boarded(void) { return S.boarded; }
 /* clean fraction 0..1 across all puddles (for the HUD bar) */
 __attribute__((export_name("f7_clean_pct"))) float f7_clean_pct(void) {
     float s = 0.0f; for (int i = 0; i < NPUD; i++) s += S.pud[i].prog;

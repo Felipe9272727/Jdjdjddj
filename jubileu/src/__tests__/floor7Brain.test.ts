@@ -60,7 +60,9 @@ describe('Floor7Brain — the WASM (C + assembly) pirate-ship brain', () => {
         }
         expect(b.cleaned()).toBe(b.npud);
         expect(b.cleanPct()).toBeCloseTo(1, 2);
-        expect(b.state()).toBe(F7_STATE.DONE);
+        // DONE advances by itself into the landfall run after ~4.6s, and the
+        // final sweep can spill past that — either state proves the quest done.
+        expect(b.state()).toBeGreaterThanOrEqual(F7_STATE.DONE);
     });
 
     it('the rising tide washes back a puddle you leave half-mopped', () => {
@@ -83,12 +85,9 @@ describe('Floor7Brain — the WASM (C + assembly) pirate-ship brain', () => {
         expect(p0.prog).toBeLessThan(partial);                  // the sea washed it back
     });
 
-    it('you can NEVER leave (partial level)', () => {
-        const b = new Floor7Brain();
-        expect(b.canLeave()).toBe(false);
+    // drive a fresh brain through the whole quest to the DONE payoff
+    const playToDone = (b: Floor7Brain) => {
         step(b, 4.2, 0, 5, false);
-        expect(b.canLeave()).toBe(false);
-        // even after finishing everything (each action needs a false->true edge)
         b.tick(1 / 60, 0, 0, 5, false);
         b.tick(1 / 60, 0, 0, 5, true);
         const buc = b.bucket();
@@ -96,18 +95,82 @@ describe('Floor7Brain — the WASM (C + assembly) pirate-ship brain', () => {
         b.tick(1 / 60, buc.x, 0, buc.z, true);
         const p: F7Puddle = { x: 0, z: 0, r: 0, prog: 0, cell: new Float32Array(16) };
         for (let i = 0; i < b.npud; i++) { b.puddle(i, p); mopPuddle(b, p); }
-        expect(b.state()).toBe(F7_STATE.DONE);
+        expect(b.state()).toBeGreaterThanOrEqual(F7_STATE.DONE);
+    };
+
+    it('you cannot leave before the finale (mid-quest the floor holds you)', () => {
+        const b = new Floor7Brain();
         expect(b.canLeave()).toBe(false);
+        step(b, 4.2, 0, 5, false);
+        expect(b.canLeave()).toBe(false);           // GREET
+        playToDone(b);
+        expect(b.canLeave()).toBe(false);           // DONE still holds you
     });
 
-    it('puddles sit on the deck within sane bounds', () => {
+    it('DONE sails to landfall: the island approaches and the sea calms', () => {
+        const b = new Floor7Brain();
+        playToDone(b);
+        // the captain takes the helm, then the landfall run starts
+        step(b, 6.0, 0, 5, false);
+        expect(b.state()).toBe(F7_STATE.SAIL);
+        const lf0 = b.landfall();
+        step(b, 8.0, 0, 5, false);
+        expect(b.landfall()).toBeGreaterThan(lf0);  // the island is closing in
+        step(b, 22.0, 0, 5, false);                 // finish the run
+        expect(b.state()).toBe(F7_STATE.ANCHOR);
+        expect(b.landfall()).toBe(1);
+        step(b, 6.0, 0, 5, false);
+        expect(b.calm()).toBeLessThan(0.5);         // harbour water, not open sea
+        expect(b.canLeave()).toBe(false);           // still anchored: nobody remembered yet
+    });
+
+    it('reading the captain\'s log frees you: the elevator returns and you board', () => {
+        const b = new Floor7Brain();
+        playToDone(b);
+        step(b, 34.0, 0, 5, false);                 // helm walk + full landfall run
+        expect(b.state()).toBe(F7_STATE.ANCHOR);
+        // read the log at the companionway: 4 rising edges = open, p2, p3, close
+        const log = b.logPos();
+        for (let i = 0; i < 4; i++) {
+            b.tick(1 / 60, log.x, 0, log.z, false);
+            b.tick(1 / 60, log.x, 0, log.z, true);
+        }
+        expect(b.logRead()).toBe(true);
+        step(b, 0.2, 0, 5, false);
+        expect(b.state()).toBe(F7_STATE.FREE);
+        // the elevator REmaterialises
+        step(b, 3.5, 0, 5, false);
+        expect(b.elevFade()).toBeGreaterThan(0.95);
+        expect(b.canLeave()).toBe(true);
+        // walk into the cab doorway (ship-local 0,5.2) and press E — boarded
+        b.tick(1 / 60, 0, 0, 5.2, false);
+        expect(b.nearExit()).toBe(true);
+        b.tick(1 / 60, 0, 0, 5.2, true);
+        expect(b.boarded()).toBe(true);
+    });
+
+    it('the log stays shut until the player actually opens it', () => {
+        const b = new Floor7Brain();
+        playToDone(b);
+        expect(b.logPage()).toBe(0);
+        expect(b.logRead()).toBe(false);
+        // a press far from the companionway does nothing
+        b.tick(1 / 60, 0, 0, 5, false);
+        b.tick(1 / 60, 0, 0, 5, true);
+        expect(b.logPage()).toBe(0);
+    });
+
+    it('puddles sit on the WALKABLE deck (never overhanging the bulwark)', () => {
         const b = new Floor7Brain();
         const p: F7Puddle = { x: 0, z: 0, r: 0, prog: 0 };
         for (let i = 0; i < b.npud; i++) {
             b.puddle(i, p);
-            expect(Math.abs(p.x)).toBeLessThan(3.2);
-            expect(Math.abs(p.z)).toBeLessThan(6.5);
-            expect(p.r).toBeGreaterThan(0.4);
+            expect(Math.abs(p.x)).toBeGreaterThan(0.5);   // clear of the centre lane
+            expect(Math.abs(p.x)).toBeLessThan(1.35);
+            expect(Math.abs(p.z)).toBeLessThan(3.6);
+            expect(Math.abs(p.x) + p.r).toBeLessThan(2.0); // disc edge stays on deck
+            expect(p.r).toBeGreaterThanOrEqual(0.4);
+            expect(p.r).toBeLessThanOrEqual(0.65);
             expect(p.prog).toBe(0);
         }
     });

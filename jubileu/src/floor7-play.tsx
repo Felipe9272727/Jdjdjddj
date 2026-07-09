@@ -199,7 +199,7 @@ const Controller: React.FC<{ posRef: React.MutableRefObject<THREE.Vector3> }> = 
 
 const Play: React.FC = () => {
     const handle = useFloor7Handle();
-    const posRef = useRef(new THREE.Vector3(0, 0, 4.2 * FLOOR7_SCALE));
+    const posRef = useRef(new THREE.Vector3(0.75 * FLOOR7_SCALE, 0, 4.3 * FLOOR7_SCALE));  // beside the foremast, like the real spawn
     // fast-forward the WASM brain past the intro so the elevator is gone and the
     // captain is in place (regardless of render fps), like the dev workbench.
     useEffect(() => {
@@ -242,7 +242,7 @@ const Play: React.FC = () => {
 };
 
 createRoot(document.getElementById('root')!).render(
-    <Canvas camera={{ fov: 72, position: [0, EYE, 4.2 * FLOOR7_SCALE], near: 0.05, far: 400 }} gl={{ antialias: true }}>
+    <Canvas camera={{ fov: 72, position: [0.75 * FLOOR7_SCALE, EYE, 4.3 * FLOOR7_SCALE], near: 0.05, far: 400 }} gl={{ antialias: true }}>
         <Play />
     </Canvas>,
 );
