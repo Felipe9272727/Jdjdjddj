@@ -197,7 +197,10 @@ export function makeCloud(seed = 1, size = 256): THREE.CanvasTexture {
 }
 
 // weathered sailcloth: warm canvas with vertical panel seams, horizontal
-// reef-band stitching and faint stains — so the sails read as cloth, not card.
+// reef-band stitching, faint stains, and subtle sail wear (patches, salt stains,
+// corner vignette) — so the sails read as cloth, not card. Wear is carefully
+// controlled for subtlety: patches 4-6% darker/yellower, salt stains alpha <0.06,
+// vignette alpha ~0.05, all staying 8% margin from edges for wrapping.
 export function makeSailcloth(w = 512, h = 384): { map: THREE.CanvasTexture; rough: THREE.CanvasTexture } {
     const c = document.createElement('canvas'); c.width = w; c.height = h;
     const x = c.getContext('2d')!;
@@ -235,6 +238,95 @@ export function makeSailcloth(w = 512, h = 384): { map: THREE.CanvasTexture; rou
         sg.addColorStop(0, 'rgba(150,130,95,0.10)'); sg.addColorStop(1, 'rgba(150,130,95,0)');
         x.fillStyle = sg; x.fillRect(sx - sr, sy - sr, sr * 2, sr * 2);
     }
+    // ===== subtle sail wear: patches, salt stains, corner vignette =====
+    // 2-3 rectangular patches (repairs) with stitched perimeter
+    const patchCount = 2 + Math.floor(r() * 2);
+    const patchMargin = w * 0.08;
+    for (let p = 0; p < patchCount; p++) {
+        const pw = w * (0.12 + r() * 0.08);  // 12-20% of canvas width
+        const ph = h * (0.12 + r() * 0.08);  // proportional height
+        const patchX = patchMargin + r() * (w - pw - 2 * patchMargin);
+        const patchY = patchMargin + r() * (h - ph - 2 * patchMargin);
+        const patchRot = (r() - 0.5) * 0.1;  // rotation ±0.05 rad
+
+        // draw patch with rotation (color: slightly darker/yellower, semi-transparent)
+        x.save();
+        x.translate(patchX + pw / 2, patchY + ph / 2);
+        x.rotate(patchRot);
+        x.fillStyle = 'rgba(220,210,185,0.35)';  // ~4-6% darker/yellower tone
+        x.fillRect(-pw / 2, -ph / 2, pw, ph);
+        // stitched perimeter: dotted line around patch
+        x.strokeStyle = 'rgba(100,85,60,0.25)';  // dark stitch, low alpha
+        x.lineWidth = 0.8;
+        x.setLineDash([3, 3]);
+        x.strokeRect(-pw / 2, -ph / 2, pw, ph);
+        x.setLineDash([]);
+        x.restore();
+
+        // in rough map: patch slightly lighter (more rough/textured)
+        rx.save();
+        rx.translate(patchX + pw / 2, patchY + ph / 2);
+        rx.rotate(patchRot);
+        rx.fillStyle = 'rgba(220,220,220,0.4)';
+        rx.fillRect(-pw / 2, -ph / 2, pw, ph);
+        rx.restore();
+    }
+    // 3-4 salt/moisture stains: large subtle ellipses near edges
+    const stainCount = 3 + Math.floor(r() * 2);
+    for (let s = 0; s < stainCount; s++) {
+        // place stains biased toward edges (left/right/top/bottom)
+        let stainX, stainY;
+        const edgeSide = Math.floor(r() * 4);
+        if (edgeSide === 0) {
+            stainX = r() * w * 0.2; stainY = r() * h;  // left
+        } else if (edgeSide === 1) {
+            stainX = w - r() * w * 0.2; stainY = r() * h;  // right
+        } else if (edgeSide === 2) {
+            stainX = r() * w; stainY = r() * h * 0.2;  // top
+        } else {
+            stainX = r() * w; stainY = h - r() * h * 0.2;  // bottom
+        }
+
+        const stainRadX = 60 + r() * 80;
+        const stainRadY = 40 + r() * 60;
+        const maxRad = Math.max(stainRadX, stainRadY);
+        const stainGrad = x.createRadialGradient(stainX, stainY, 0, stainX, stainY, maxRad);
+        stainGrad.addColorStop(0, 'rgba(180,160,120,0.06)');  // max alpha 0.06
+        stainGrad.addColorStop(1, 'rgba(180,160,120,0)');
+
+        x.fillStyle = stainGrad;
+        x.beginPath();
+        x.ellipse(stainX, stainY, stainRadX, stainRadY, r() * 0.3, 0, Math.PI * 2);
+        x.fill();
+    }
+    // corner vignette: subtle darkening in 4 corners (alpha ~0.05)
+    const vignetteStrength = 0.05;
+    const vigSize = Math.min(w, h) * 0.25;
+
+    // top-left corner
+    const gv_tl = x.createRadialGradient(0, 0, 0, 0, 0, vigSize);
+    gv_tl.addColorStop(0, 'rgba(0,0,0,0)');
+    gv_tl.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
+    x.fillStyle = gv_tl; x.fillRect(0, 0, vigSize, vigSize);
+
+    // top-right corner
+    const gv_tr = x.createRadialGradient(w, 0, 0, w, 0, vigSize);
+    gv_tr.addColorStop(0, 'rgba(0,0,0,0)');
+    gv_tr.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
+    x.fillStyle = gv_tr; x.fillRect(w - vigSize, 0, vigSize, vigSize);
+
+    // bottom-left corner
+    const gv_bl = x.createRadialGradient(0, h, 0, 0, h, vigSize);
+    gv_bl.addColorStop(0, 'rgba(0,0,0,0)');
+    gv_bl.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
+    x.fillStyle = gv_bl; x.fillRect(0, h - vigSize, vigSize, vigSize);
+
+    // bottom-right corner
+    const gv_br = x.createRadialGradient(w, h, 0, w, h, vigSize);
+    gv_br.addColorStop(0, 'rgba(0,0,0,0)');
+    gv_br.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
+    x.fillStyle = gv_br; x.fillRect(w - vigSize, h - vigSize, vigSize, vigSize);
+    // ===== end sail wear =====
     const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 4;
     const rough = new THREE.CanvasTexture(rc);
     return { map, rough };

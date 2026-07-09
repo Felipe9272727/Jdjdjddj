@@ -29,7 +29,7 @@ import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSai
 const _puddleRipple = makePuddleRipple();
 import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams, buildWaterwayGeometry, deckYAt, railYAt, beamAt } from './floor7Geo';
 import { FLOOR7_SCALE, F7_DECK_PROPS } from './constants';
-import { f7Footstep, f7Scrub, f7BucketClunk, f7CaptainGrunt, f7PuddleDone, f7Wave, f7TideWarn, updateF7Roll } from './floor7Sfx';
+import { f7Footstep, f7Scrub, f7BucketClunk, f7CaptainGrunt, f7PuddleDone, f7Wave, f7TideWarn, updateF7Roll, f7ElevatorReturn, f7AnchorSplash } from './floor7Sfx';
 
 // procedural wood (browser-only canvas; Floor7 is never imported by tests)
 const _deckWood = makeWood({ base: '#8a6334', dark: '#5a3f22', light: '#a9824a', plankW: 64, knots: 6 });
@@ -56,11 +56,8 @@ function billowSail(w: number, h: number, bulge: number): THREE.PlaneGeometry {
     return g;
 }
 const _mainSailGeo = billowSail(4.5, 3.4, 0.92);
-// foresail kept SHORT and HIGH: the player spawns at ship-local (0, 0, 4.2),
-// right at the foremast — the old 2.9-tall sail bellied through the spawn point
-// and filled the whole first-person frame with shadowed canvas ("a wall of dark
-// planks"). Hung from the yard with its foot well above head height instead.
-const _foreSailGeo = billowSail(3.3, 2.2, 0.6);
+// (the foresail is FURLED on its yard — see the foremast JSX; a billowed plane
+// there clipped through the elevator cab and crowded the spawn point)
 
 // warm low sun (golden hour) shared by the Sky, the key light and water glitter
 const SUN_POS: [number, number, number] = [26, 4.5, -30];
@@ -102,7 +99,7 @@ const M = {
     // blue reflection streaks across the dry planks (the deck read as wet)
     plank: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.03, color: '#c79a5e', roughness: 0.85, envMapIntensity: 0.22 }),
     plankDk: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.03, color: '#ac8049', roughness: 0.88, envMapIntensity: 0.22 }),
-    rail: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, bumpMap: _trimWood.rough, bumpScale: 0.025, color: '#b07f48', roughness: 0.55, envMapIntensity: 0.8 }),
+    rail: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, bumpMap: _trimWood.rough, bumpScale: 0.025, color: '#b07f48', roughness: 0.62, envMapIntensity: 0.4 }),
     mast: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#b58a52', roughness: 0.6 }),
     sail: new THREE.MeshStandardMaterial({ map: _sailCloth.map, roughnessMap: _sailCloth.rough, color: '#f2ead6', roughness: 0.92, side: THREE.DoubleSide, envMapIntensity: 0.4, transparent: true }),
     // tarred hemp — darker + rougher so rigging reads as ROPE, not pale macaroni
@@ -163,11 +160,15 @@ const M = {
     logPages: new THREE.MeshStandardMaterial({ color: '#e4d7b4', roughness: 0.95 }),
     island: new THREE.MeshStandardMaterial({ color: '#3f5346', roughness: 1, transparent: true, opacity: 0, fog: false }),
     islandBeach: new THREE.MeshStandardMaterial({ color: '#9c8a63', roughness: 1, transparent: true, opacity: 0, fog: false }),
+    islandTrunk: new THREE.MeshStandardMaterial({ color: '#7a5a38', roughness: 1, transparent: true, opacity: 0, fog: false }),
+    islandFrond: new THREE.MeshStandardMaterial({ color: '#2f6b3a', roughness: 1, transparent: true, opacity: 0, fog: false, side: THREE.DoubleSide }),
     bird: new THREE.MeshStandardMaterial({ color: '#eef1f2', roughness: 0.9 }),
     birdWing: new THREE.MeshStandardMaterial({ color: '#b9c2c6', roughness: 0.9 }),
     puddle: new THREE.MeshPhysicalMaterial({ color: '#0a1316', roughness: 0.05, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.04, bumpMap: _puddleRipple, bumpScale: 0.05, transparent: true, opacity: 0.92, envMapIntensity: 1.1 }),
     glass: new THREE.MeshPhysicalMaterial({ color: '#11242e', roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#4a3010', emissiveIntensity: 0.28, envMapIntensity: 1.5 }),
-    elev: new THREE.MeshStandardMaterial({ color: '#b0bec5', roughness: 0.4, metalness: 0.5, transparent: true }),
+    // shell kept matte-ish: at roughness 0.4/metal 0.5 the sunlit back panel
+    // blew out into a featureless white wall next to the island
+    elev: new THREE.MeshStandardMaterial({ color: '#9fb0b9', roughness: 0.62, metalness: 0.3, transparent: true }),
     elevTrim: new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.4, metalness: 0.6, transparent: true }),
     // warm interior glow so the open cab reads as a lit hotel elevator (the "doorway"
     // the player rode in on), and a darker floor/ceiling to box it in.
@@ -703,7 +704,15 @@ const ShipBody: React.FC = () => {
                 <mesh position={[0, 3.7, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
                     <cylinderGeometry args={[0.07, 0.07, 3.4, 8]} />
                 </mesh>
-                <mesh position={[0, 2.6, 0.05]} geometry={_foreSailGeo} material={M.sail} />
+                {/* the foresail rides FURLED on its yard: a billowed sail here
+                    clipped straight through the elevator cab (whose rotated
+                    corner reaches z≈4.0) and crowded the spawn. A rolled bundle
+                    with gaskets reads as a ship easing toward harbour. */}
+                <mesh position={[0, 3.58, 0]} rotation={[0, 0, Math.PI / 2]} material={M.sail}><cylinderGeometry args={[0.13, 0.1, 3.15, 8]} /></mesh>
+                <mesh position={[0, 3.58, 0]} rotation={[0, 0, Math.PI / 2]} material={M.sail}><cylinderGeometry args={[0.1, 0.13, 3.15, 8]} /></mesh>
+                {[-1.1, -0.4, 0.4, 1.1].map((gx) => (
+                    <mesh key={'gask' + gx} position={[gx, 3.58, 0]} rotation={[0, 0, Math.PI / 2]} material={M.rope}><torusGeometry args={[0.135, 0.018, 5, 10]} /></mesh>
+                ))}
             </group>
             {/* helm (ship's wheel) at the stern */}
             <group position={[0, 0.7, -6.2]}>
@@ -1682,6 +1691,10 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             br.position.y += (ty - br.position.y) * k;
             br.rotation.z = bu.held ? -b.roll() * 1.3 + Math.sin(t * 3) * 0.04 : 0;
             br.rotation.x = bu.held ? b.pitch() * 1.0 : 0;
+            // first-person only: while HELD the left-hand viewmodel is the
+            // bucket — the world mesh trailing beside the player read as a
+            // floating crate in the corner of every frame.
+            br.visible = !bu.held;
             const glow = (b.state() === F7_STATE.FETCH) ? 0.5 + 0.5 * Math.sin(performance.now() / 200) : 0;
             (M.cloth as THREE.MeshStandardMaterial).emissive.setRGB(glow * 0.4, glow * 0.4, glow * 0.2);
             // the soapy surface sinks as the water goes stale, and tints muddier
@@ -1827,10 +1840,16 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         // at anchor in its lee. The old build faded it in and never arrived.
         if (islandRef.current) {
             const st = b.state();
-            const target = st >= F7_STATE.DONE ? 0.92 : 0;
+            const target = st >= F7_STATE.DONE ? 1 : 0;
             const op = (M.island as THREE.MeshStandardMaterial).opacity + (target - (M.island as THREE.MeshStandardMaterial).opacity) * Math.min(1, dt * 0.6);
-            (M.island as THREE.MeshStandardMaterial).opacity = op;
-            (M.islandBeach as THREE.MeshStandardMaterial).opacity = op;
+            // once fully faded in, flip the island OPAQUE: while transparent the
+            // overlapping hills/palms ghost through each other (the cone showed
+            // through the hillside) — transparency only exists for the fade.
+            const solid = op > 0.95;
+            for (const m of [M.island, M.islandBeach, M.islandTrunk, M.islandFrond] as THREE.MeshStandardMaterial[]) {
+                m.opacity = solid ? 1 : op;
+                m.transparent = !solid;
+            }
             islandRef.current.visible = op > 0.01;
             const lf = b.landfall();
             const ease = lf * lf * (3 - 2 * lf);              // smoothstep the approach
@@ -1855,8 +1874,8 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         {
             const st = b.state();
             if (st !== sfxPrevState.current) {
-                if (st === F7_STATE.ANCHOR) f7Wave();                 // the sea settles
-                if (st === F7_STATE.FREE) { f7PuddleDone(); f7BucketClunk(); }  // the cab dings back in
+                if (st === F7_STATE.ANCHOR) { f7Wave(); f7AnchorSplash(); }   // the hook bites the bay
+                if (st === F7_STATE.FREE) f7ElevatorReturn();                 // the cab dings back in
                 sfxPrevState.current = st;
             }
             // the log glows when the story points at it (ANCHOR, unread) and
@@ -2045,7 +2064,64 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 <mesh position={[-12, -0.5, 4]} scale={[1, 0.42, 1]} material={M.island}><sphereGeometry args={[8, 14, 10]} /></mesh>
                 <mesh position={[13, -0.8, -3]} scale={[1, 0.38, 1]} material={M.island}><sphereGeometry args={[7, 14, 10]} /></mesh>
                 <mesh position={[2, 5, 1]} material={M.island}><coneGeometry args={[5, 9, 12]} /></mesh>
-                <mesh position={[0, -1.2, 12]} rotation={[-Math.PI / 2, 0, 0]} material={M.islandBeach}><circleGeometry args={[16, 24]} /></mesh>
+                {/* beach ABOVE the waterline (group y −0.6 + local −0.55 = world
+                    −1.15 vs water −1.3) — at the old −1.2 the whole sand ring
+                    sat submerged and the island met the sea as bare green */}
+                <mesh position={[0, -0.55, 12]} rotation={[-Math.PI / 2, 0, 0]} material={M.islandBeach}><circleGeometry args={[16, 24]} /></mesh>
+
+                {/* tropical island palms — 4-5 along the beach edge with trunks, fronds, and coconuts */}
+                {[
+                    { x: 10, y: -0.5, z: 10, h: 3.5, rot: 0.15 },
+                    { x: 12, y: -0.4, z: 5, h: 3.8, rot: -0.12 },
+                    { x: 8, y: -0.5, z: -8, h: 4.1, rot: 0.08 },
+                    { x: 14, y: -0.3, z: 0, h: 3.2, rot: -0.18 },
+                    { x: 13, y: -0.5, z: 12, h: 3.9, rot: 0.1 },
+                ].map((palm, pi) => (
+                    <group key={'palm' + pi} position={[palm.x, palm.y, palm.z]}>
+                        {/* trunk: two stacked cylinders with slight taper */}
+                        <mesh position={[0, palm.h * 0.2, 0]} rotation={[palm.rot, 0, 0]} material={M.islandTrunk}><cylinderGeometry args={[0.15, 0.18, palm.h * 0.55, 8]} /></mesh>
+                        <mesh position={[0, palm.h * 0.65, 0]} rotation={[palm.rot * 0.8, 0, 0]} material={M.islandTrunk}><cylinderGeometry args={[0.12, 0.15, palm.h * 0.45, 8]} /></mesh>
+                        {/* fronds: 6 planes in radial fan, angled downward */}
+                        {Array.from({ length: 6 }).map((_, fi) => {
+                            const a = (fi / 6) * Math.PI * 2;
+                            return (
+                                <mesh
+                                    key={'frond' + fi}
+                                    position={[
+                                        Math.cos(a) * 0.2,
+                                        palm.h * 0.9,
+                                        Math.sin(a) * 0.2,
+                                    ]}
+                                    rotation={[
+                                        -Math.PI / 2.5 + (Math.sin(a) * Math.PI * 0.15),
+                                        a,
+                                        0,
+                                    ]}
+                                    material={M.islandFrond}
+                                >
+                                    <planeGeometry args={[2.6, 0.55]} />
+                                </mesh>
+                            );
+                        })}
+                        {/* coconut */}
+                        <mesh position={[0, palm.h + 0.1, 0]} material={M.islandTrunk}><sphereGeometry args={[0.18, 6, 6]} /></mesh>
+                    </group>
+                ))}
+
+                {/* rocks scattered on the island */}
+                {[
+                    { x: 5, y: -0.5, z: 5, r: 1.0 },
+                    { x: -8, y: -0.6, z: -2, r: 1.3 },
+                    { x: 10, y: -0.5, z: -5, r: 0.9 },
+                ].map((rock, ri) => (
+                    <mesh key={'rock' + ri} position={[rock.x, rock.y, rock.z]} material={M.island}>
+                        <dodecahedronGeometry args={[rock.r, 0]} />
+                    </mesh>
+                ))}
+
+                {/* second beach band on the opposite side (a hair lower than the
+                    main ring so the two discs never z-fight) */}
+                <mesh position={[-6, -0.57, -8]} rotation={[-Math.PI / 2, 0, 0]} material={M.islandBeach}><circleGeometry args={[7, 20]} /></mesh>
             </group>
 
             {/* first-person hands + scrub-brush (rides the camera, world-space).

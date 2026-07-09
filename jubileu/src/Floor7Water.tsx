@@ -99,10 +99,13 @@ void main() {
     float detAtt = mix(0.16, 1.0, 1.0 - smoothstep(10.0, 58.0, dist));
     float fnx = (sin(q.x * 1.7 + uTime * 1.3) + 0.6 * sin(q.x * 3.3 - q.y * 1.1 + uTime * 1.9)) * 0.05 * detAtt;
     float fnz = (sin(q.y * 1.9 - uTime * 1.1) + 0.6 * sin(q.y * 3.1 + q.x * 1.3 - uTime * 1.7)) * 0.05 * detAtt;
-    // long-wavelength swell chop — survives all the way out (slightly stronger
-    // now that the two smallest vertex waves moved down here)
-    float cnx = sin(q.x * 0.32 + q.y * 0.17 + uTime * 0.6) * 0.034;
-    float cnz = sin(q.y * 0.29 - q.x * 0.21 + uTime * 0.5) * 0.034;
+    // long-wavelength swell chop — kept alive mid-range, but FADED toward the
+    // horizon: a single sinusoid reads as parallel light/dark BANDS once the
+    // camera sees hundreds of periods edge-on (the "vinyl grooves" the critic
+    // kept flagging in the far field).
+    float coarseAtt = 1.0 - smoothstep(22.0, 80.0, dist) * 0.85;
+    float cnx = (sin(q.x * 0.32 + q.y * 0.17 + uTime * 0.6) + 0.5 * sin(q.x * 0.13 - q.y * 0.23 + uTime * 0.4)) * 0.030 * coarseAtt;
+    float cnz = (sin(q.y * 0.29 - q.x * 0.21 + uTime * 0.5) + 0.5 * sin(q.y * 0.11 + q.x * 0.19 - uTime * 0.35)) * 0.030 * coarseAtt;
     N = normalize(N + vec3(fnx + cnx, 0.0, fnz + cnz));
 
     float fres = pow(clamp(1.0 - max(dot(N, V), 0.0), 0.0, 1.0), 3.0);

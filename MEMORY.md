@@ -3608,3 +3608,21 @@ dentro da amurada; log fechado até abrir; "não sai antes do final"). Asserts d
 
 **Higgsfield:** Felipe liberou (5 créditos) — NÃO usado ainda; candidato: textura de
 pergaminho pro diário (o overlay atual é CSS e ficou bom; só usar se Felipe pedir upgrade).
+
+### Sessão 2026-07-09 (cont.) — Polish do Andar 7 com marujos-Haiku CODANDO
+
+Felipe pediu pra delegar CÓDIGO de baixo risco pros Haikus (não só teste). Divisão por
+arquivo (zero conflito): Calafate (floor7Sfx.ts: f7ElevatorReturn ding + f7AnchorSplash),
+Veleiro (floor7Textures.ts: remendos/sal/vinheta sutis no makeSailcloth), Ilhéu
+(Floor7.tsx: palmeiras/pedras/2ª praia na ilha, com fade integrado). Eu revisei cada diff:
+- Calafate: removi o pitch-glide dos tons do ding (sino segura a frequência e decai).
+- Ilhéu: praias estavam SUBMERSAS (local -1.2 → world -1.8 < água -1.3) → subidas pra
+  -0.55/-0.57; ilha ficava fantasma (transparent) → materiais viram opacos (transparent
+  =false, opacity 1) quando op>0.95 (transparência só existe pro fade).
+- Gaivota reauditou: aprovou spawn/mão FP/elevador; reprovações viraram fixes: chop
+  grosso da água atenuado com a distância (faixas paralelas no far field), vela do
+  traquete agora FERRADA na verga (clipava na cabine do elevador, cujo canto rotacionado
+  chega a z=4.0), balde 3D invisível enquanto held (viewmodel é o balde), rail
+  envMapIntensity 0.8→0.4, shell do elevador matte (#9fb0b9 r0.62 m0.3 — parede branca
+  estourada). SFX fiados: ANCHOR = f7Wave+f7AnchorSplash; FREE = f7ElevatorReturn.
+Commits: dab0e0a (bugs+finale), a585d23 (sfx Calafate), + polish final. 108/108 · tsc 0.
