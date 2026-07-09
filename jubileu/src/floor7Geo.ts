@@ -59,13 +59,26 @@ export function buildDeckGeometry(): THREE.BufferGeometry {
     const e = exports(); e.f7_hull_build();
     const N = 56;
     const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+
+    // calculate max halfX for planar UV projection (fore-aft, no distortion along seams)
+    let maxHalfX = 0;
+    for (let i = 0; i <= N; i++) {
+        const t = i / N;
+        const halfX = e.f7_hull_beam(t) * 0.80;
+        maxHalfX = Math.max(maxHalfX, halfX);
+    }
+
     for (let i = 0; i <= N; i++) {
         const t = i / N;
         const z = STERNZ + (BOWZ - STERNZ) * t;
         const dy = e.f7_hull_deckY(t) + 0.015;
         const halfX = e.f7_hull_beam(t) * 0.80;        // just inside the bulwark
-        pos.push(-halfX, dy, z); uv.push(0, t * 6);
-        pos.push(halfX, dy, z); uv.push(1, t * 6);
+        // planar UV: x→u linear world space, z→v linear along fore-aft
+        const u_left = (-maxHalfX + maxHalfX) / (2 * maxHalfX);  // left edge at normalized x
+        const u_right = (maxHalfX + maxHalfX) / (2 * maxHalfX);  // right edge at normalized x
+        const v = (t) * 6;  // repeat factor same as before
+        pos.push(-halfX, dy, z); uv.push(u_left, v);
+        pos.push(halfX, dy, z); uv.push(u_right, v);
     }
     for (let i = 0; i < N; i++) {
         const a = i * 2, b = a + 1, c = a + 2, d = a + 3;

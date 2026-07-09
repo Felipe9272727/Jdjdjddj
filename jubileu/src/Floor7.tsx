@@ -159,9 +159,12 @@ const M = {
     logCover: new THREE.MeshStandardMaterial({ color: '#3a2417', roughness: 0.85, bumpMap: _sailCloth.rough, bumpScale: 0.012, emissive: '#000000' }),
     logPages: new THREE.MeshStandardMaterial({ color: '#e4d7b4', roughness: 0.95 }),
     island: new THREE.MeshStandardMaterial({ color: '#3f5346', roughness: 1, transparent: true, opacity: 0, fog: false }),
-    islandBeach: new THREE.MeshStandardMaterial({ color: '#9c8a63', roughness: 1, transparent: true, opacity: 0, fog: false }),
-    islandTrunk: new THREE.MeshStandardMaterial({ color: '#7a5a38', roughness: 1, transparent: true, opacity: 0, fog: false }),
-    islandFrond: new THREE.MeshStandardMaterial({ color: '#2f6b3a', roughness: 1, transparent: true, opacity: 0, fog: false, side: THREE.DoubleSide }),
+    islandBeach: new THREE.MeshStandardMaterial({ color: '#d8c48f', roughness: 1, transparent: true, opacity: 0, fog: false }),
+    islandTrunk: new THREE.MeshStandardMaterial({ color: '#7a5a34', roughness: 1, transparent: true, opacity: 0, fog: false }),
+    islandFrond: new THREE.MeshStandardMaterial({ color: '#3e7d3a', roughness: 1, transparent: true, opacity: 0, fog: false, side: THREE.DoubleSide }),
+    islandHalo: new THREE.MeshStandardMaterial({ color: '#3fb0a8', roughness: 0.8, transparent: true, opacity: 0, fog: false }),
+    islandRock: new THREE.MeshStandardMaterial({ color: '#8a8577', roughness: 0.95, transparent: true, opacity: 0, fog: false }),
+    islandFrondDark: new THREE.MeshStandardMaterial({ color: '#2f6e2f', roughness: 1, transparent: true, opacity: 0, fog: false, side: THREE.DoubleSide }),
     bird: new THREE.MeshStandardMaterial({ color: '#eef1f2', roughness: 0.9 }),
     birdWing: new THREE.MeshStandardMaterial({ color: '#b9c2c6', roughness: 0.9 }),
     puddle: new THREE.MeshPhysicalMaterial({ color: '#0a1316', roughness: 0.05, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.04, bumpMap: _puddleRipple, bumpScale: 0.05, transparent: true, opacity: 0.92, envMapIntensity: 1.1 }),
@@ -1481,7 +1484,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         // and the scrubbed boundary read as a smooth organic shoreline, which we
         // then trim with a bright foam meniscus instead of a chunky pixel step.
         tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.needsUpdate = true;
-        const m = new THREE.MeshPhysicalMaterial({ color: '#0d1a20', roughness: 0.05, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, bumpMap: _puddleRipple, bumpScale: 0.06, transparent: true, opacity: 0.94, envMapIntensity: 1.2 });
+        const m = new THREE.MeshPhysicalMaterial({ color: '#12211d', roughness: 0.05, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, bumpMap: _puddleRipple, bumpScale: 0.06, transparent: true, opacity: 0.68, envMapIntensity: 0.4 });
         m.onBeforeCompile = (shader) => {
             shader.uniforms.uCellTex = { value: tex };
             shader.vertexShader = 'varying vec2 vF7Uv;\n' + shader.vertexShader.replace(
@@ -1499,7 +1502,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                    float rad = length(vF7Uv - 0.5) * 2.0;
                    float outerRim = smoothstep(0.80, 1.0, rad);
                    float foam = clamp(max(erodeRim, outerRim * 0.65), 0.0, 1.0);
-                   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.50, 0.62, 0.68), foam * 0.85);
+                   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.078, 0.110, 0.102), foam * 0.85);
                    diffuseColor.a *= clamp(wet * 1.35, 0.0, 1.0);
                  }`);
         };
@@ -2064,10 +2067,19 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 <mesh position={[-12, -0.5, 4]} scale={[1, 0.42, 1]} material={M.island}><sphereGeometry args={[8, 14, 10]} /></mesh>
                 <mesh position={[13, -0.8, -3]} scale={[1, 0.38, 1]} material={M.island}><sphereGeometry args={[7, 14, 10]} /></mesh>
                 <mesh position={[2, 5, 1]} material={M.island}><coneGeometry args={[5, 9, 12]} /></mesh>
+
+                {/* rocky outcrops to break up smooth dome silhouette */}
+                <mesh position={[6, 0.8, 8]} scale={[1.1, 1.3, 0.9]} material={M.islandRock}><dodecahedronGeometry args={[1.2, 0]} /></mesh>
+                <mesh position={[-8, 1.2, 6]} scale={[0.95, 1.5, 1.1]} material={M.islandRock}><dodecahedronGeometry args={[1.0, 0]} /></mesh>
+                <mesh position={[10, 0.6, -6]} scale={[1.05, 1.25, 0.85]} material={M.islandRock}><dodecahedronGeometry args={[1.15, 0]} /></mesh>
+
                 {/* beach ABOVE the waterline (group y −0.6 + local −0.55 = world
                     −1.15 vs water −1.3) — at the old −1.2 the whole sand ring
                     sat submerged and the island met the sea as bare green */}
                 <mesh position={[0, -0.55, 12]} rotation={[-Math.PI / 2, 0, 0]} material={M.islandBeach}><circleGeometry args={[16, 24]} /></mesh>
+
+                {/* turquoise shallow water halo around the beach */}
+                <mesh position={[0, -0.56, 12]} rotation={[-Math.PI / 2, 0, 0]} material={M.islandHalo}><circleGeometry args={[18.5, 28]} /></mesh>
 
                 {/* tropical island palms — 4-5 along the beach edge with trunks, fronds, and coconuts */}
                 {[
@@ -2081,9 +2093,10 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                         {/* trunk: two stacked cylinders with slight taper */}
                         <mesh position={[0, palm.h * 0.2, 0]} rotation={[palm.rot, 0, 0]} material={M.islandTrunk}><cylinderGeometry args={[0.15, 0.18, palm.h * 0.55, 8]} /></mesh>
                         <mesh position={[0, palm.h * 0.65, 0]} rotation={[palm.rot * 0.8, 0, 0]} material={M.islandTrunk}><cylinderGeometry args={[0.12, 0.15, palm.h * 0.45, 8]} /></mesh>
-                        {/* fronds: 6 planes in radial fan, angled downward */}
+                        {/* fronds: 6 planes in radial fan, angled downward — alternating greens for organic look */}
                         {Array.from({ length: 6 }).map((_, fi) => {
                             const a = (fi / 6) * Math.PI * 2;
+                            const useDark = fi % 2 === 1;
                             return (
                                 <mesh
                                     key={'frond' + fi}
@@ -2097,7 +2110,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                                         a,
                                         0,
                                     ]}
-                                    material={M.islandFrond}
+                                    material={useDark ? M.islandFrondDark : M.islandFrond}
                                 >
                                     <planeGeometry args={[2.6, 0.55]} />
                                 </mesh>
@@ -2114,7 +2127,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     { x: -8, y: -0.6, z: -2, r: 1.3 },
                     { x: 10, y: -0.5, z: -5, r: 0.9 },
                 ].map((rock, ri) => (
-                    <mesh key={'rock' + ri} position={[rock.x, rock.y, rock.z]} material={M.island}>
+                    <mesh key={'rock' + ri} position={[rock.x, rock.y, rock.z]} material={M.islandRock}>
                         <dodecahedronGeometry args={[rock.r, 0]} />
                     </mesh>
                 ))}

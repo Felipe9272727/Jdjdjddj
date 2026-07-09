@@ -42,9 +42,9 @@ void main() {
     // NOTE: only wavelengths the 200/180 vertex grid (~1.1m spacing) can resolve
     // live here — the old wl 1.7/0.95 bands under-sampled into coherent STRIPES
     // across the whole sea (the "vinyl grooves" look). Fine chop is fragment-side.
-    o += gerstner(vec2( 1.0,  0.3), 0.62, 9.5, 0.50, 0.9, p, nrm);
-    o += gerstner(vec2(-0.5,  1.0), 0.55, 5.6, 0.30, 1.0, p, nrm);
-    o += gerstner(vec2( 0.8, -0.6), 0.48, 3.1, 0.16, 1.25, p, nrm);
+    o += gerstner(vec2( 0.15,  1.0), 0.70, 9.5, 0.50, 1.4, p, nrm);
+    o += gerstner(vec2( 1.0,  0.85), 0.60, 5.6, 0.30, 1.6, p, nrm);
+    o += gerstner(vec2(-0.8, -0.4), 0.52, 3.1, 0.16, 1.25, p, nrm);
     // the landfall stills the sea (harbour water in the island's lee)
     o *= uCalm;
     nrm = mix(vec3(0.0, 1.0, 0.0), nrm, uCalm);
@@ -116,15 +116,17 @@ void main() {
     vec3 base = mix(uDeep, uShallow, up * 0.7 + 0.15);
 
     // sky reflection via fresnel
-    vec3 col = mix(base, uSky, fres * 0.7);
+    vec3 col = mix(base, uSky, fres * 0.45);
 
     // sun glitter (specular off the wave normals) — exponent eased so the
     // glitter spreads into a believable streak instead of a hard pinpoint
     vec3 H = normalize(V + uSunDir);
     float spec = pow(max(dot(N, H), 0.0), 90.0);
-    col += uSunColor * spec * 1.15;
+    // rolling 2-octave value-noise for dotted sparkle, not continuous stripe
+    float glitterNoise = (sin(q.x * 2.1 + uTime * 2.2) + 0.5 * sin(q.x * 4.3 - q.y * 1.7 + uTime * 3.5)) * 0.5 + 0.5;
+    col += uSunColor * spec * 1.15 * glitterNoise;
     // broad sun sheen
-    col += uSunColor * pow(max(dot(N, H), 0.0), 16.0) * 0.12;
+    col += uSunColor * pow(max(dot(N, H), 0.0), 8.0) * 0.12;
 
     // foam (crests + the breaking tide-surge ring)
     float foam = clamp(vFoam, 0.0, 1.0);
@@ -161,7 +163,7 @@ export const Floor7Water: React.FC<{ sunDir: THREE.Vector3; warnRef?: React.Muta
         uSunColor: { value: new THREE.Color('#ffe9c0') },
         uDeep: { value: new THREE.Color('#08303f') },
         uShallow: { value: new THREE.Color('#1f7e9c') },
-        uSky: { value: new THREE.Color('#cfe4f2') },
+        uSky: { value: new THREE.Color('#a9c4d6') },
     }), [sunDir]);
 
     useFrame((_, dt) => {

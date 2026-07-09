@@ -1833,8 +1833,8 @@ export default function App() {
                     just the cheap grayscale pass below. */}
                 {(settings.quality === 'high' || currentLevel === 7) && (
                 <Bloom
-                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 0.22 : currentLevel === 7 ? 0.6 : 0.35}
-                    luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 7 ? 0.68 : 0.95}
+                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 0.22 : currentLevel === 7 ? 0.38 : 0.35}
+                    luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 7 ? 0.85 : 0.95}
                     luminanceSmoothing={currentLevel === 2 ? 0.25 : currentLevel === 3 ? 0.20 : 0.2}
                     mipmapBlur
                     kernelSize={currentLevel === 2 ? KernelSize.SMALL : KernelSize.MEDIUM}

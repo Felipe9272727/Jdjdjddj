@@ -55,9 +55,13 @@ export function makeWood(opts: WoodOpts = {}): { map: THREE.CanvasTexture; rough
         }
         ctx.globalAlpha = 1; rx.globalAlpha = 1;
         // butt joints: staggered cross-seams where plank lengths meet (deep groove)
-        const buttN = 2 + Math.floor(r() * 2);
+        // long planks (6-10m equiv) with staggered joints at ~1/4 intervals to avoid running-bond brickwall
+        const plankIndex = Math.floor(x / plankW);
+        const staggerPhase = (plankIndex % 4) * 0.25;  // 0.0, 0.25, 0.5, 0.75
+        const buttN = 1 + Math.floor(r() * 1.5);      // fewer joints per plank
         for (let bj = 0; bj < buttN; bj++) {
-            const by = (r() * 0.9 + 0.05) * size;
+            const by = (staggerPhase + r() * 0.15 + bj * 0.8) * size;
+            if (by >= size) break;  // no seam past the edge
             ctx.fillStyle = '#1c1206'; ctx.fillRect(x + 1, by, plankW - 2, 2.6);
             ctx.fillStyle = light; ctx.globalAlpha = 0.12; ctx.fillRect(x + 1, by + 2.6, plankW - 2, 1.4); ctx.globalAlpha = 1;
             rx.fillStyle = '#e0e0e0'; rx.fillRect(x + 1, by - 1.4, plankW - 2, 1.4);  // raised edge
@@ -106,18 +110,46 @@ export function makeSkyEquirect(w = 1024): THREE.CanvasTexture {
     const g = x.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0.0, '#3b78c4');
     g.addColorStop(0.42, '#a9cde8');
-    g.addColorStop(0.5, '#ffe6c0');   // horizon haze
-    g.addColorStop(0.52, '#5f7990');  // sea — blue-grey, not teal
-    g.addColorStop(1.0, '#27323d');   // deep sea — desaturated, blue-dominant
+    g.addColorStop(0.48, '#c4d5e5');   // narrow horizon band, aligned with water uSky (#a9c4d6)
+    g.addColorStop(0.5, '#c4d5e5');    // horizon — desaturated blue-grey to match water reflection
+    g.addColorStop(0.52, '#5f7990');   // sea — blue-grey, not teal
+    g.addColorStop(1.0, '#27323d');    // deep sea — desaturated, blue-dominant
     x.fillStyle = g; x.fillRect(0, 0, w, h);
-    // warm sun disk near the horizon
+    // warm sun disk near the horizon (reduced ~40% from w*0.13)
     const sx = w * 0.7, sy = h * 0.44;
-    const sg = x.createRadialGradient(sx, sy, 0, sx, sy, w * 0.13);
+    const sunRadius = w * 0.078;  // ~60% of original w*0.13
+    const sg = x.createRadialGradient(sx, sy, 0, sx, sy, sunRadius);
     sg.addColorStop(0, 'rgba(255,250,235,1)');
     sg.addColorStop(0.18, 'rgba(255,238,200,0.95)');
     sg.addColorStop(0.5, 'rgba(255,210,150,0.3)');
     sg.addColorStop(1, 'rgba(255,200,150,0)');
     x.fillStyle = sg; x.fillRect(0, 0, w, h);
+
+    // 3-4 cumulus clouds with defined edges (low-poly cumulus shapes)
+    const r = rnd(0x7C2);
+    const cloudCount = 3 + Math.floor(r() * 2);
+    for (let c_idx = 0; c_idx < cloudCount; c_idx++) {
+        const cx = 0.15 + r() * 0.7;  // 15%-85% across
+        const cy = 0.35 + r() * 0.12; // near horizon band (0.35-0.47)
+        const cloudW = (0.08 + r() * 0.06) * w;
+        const cloudH = (0.05 + r() * 0.04) * h;
+        const cumulusOpacity = 0.6 + r() * 0.3;
+
+        // 4-5 overlapping bumps (boils) per cloud
+        const bumps = 4 + Math.floor(r() * 2);
+        for (let b = 0; b < bumps; b++) {
+            const bx = cx * w + (r() - 0.5) * cloudW * 0.8;
+            const by = cy * h + (r() - 0.5) * cloudH * 0.6;
+            const br = (0.5 + r() * 0.3) * Math.min(cloudW, cloudH) * 0.4;
+            const bg = x.createRadialGradient(bx, by, 0, bx, by, br);
+            bg.addColorStop(0, `rgba(255,255,255,${cumulusOpacity * 0.8})`);
+            bg.addColorStop(0.7, `rgba(255,255,255,${cumulusOpacity * 0.3})`);
+            bg.addColorStop(1, 'rgba(255,255,255,0)');
+            x.fillStyle = bg;
+            x.beginPath(); x.arc(bx, by, br, 0, 7); x.fill();
+        }
+    }
+
     const t = new THREE.CanvasTexture(c);
     t.mapping = THREE.EquirectangularReflectionMapping;
     t.colorSpace = THREE.SRGBColorSpace;
