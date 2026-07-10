@@ -178,7 +178,10 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
     /* --- the captain's log (diário de bordo) — the floor's own memory. A
        rising interact on the companionway lid opens it; each further press
        turns a page; past page 3 it latches logRead ("você lembrou"). --- */
-    if (S.state >= ST_CLEAN && rising) {
+    /* The log is the ANCHOR payoff, not a collectible that can be sequence-
+       broken during cleaning.  Keeping this gate in the brain also prevents
+       page-turn presses elsewhere on deck from completing the finale early. */
+    if (S.state >= ST_ANCHOR && rising) {
         if (S.logPage >= 1 && S.logPage <= 3) {
             S.logPage++;
             if (S.logPage >= 4) S.logRead = 1;

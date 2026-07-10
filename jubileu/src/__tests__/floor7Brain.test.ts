@@ -160,6 +160,26 @@ describe('Floor7Brain — the WASM (C + assembly) pirate-ship brain', () => {
         expect(b.logPage()).toBe(0);
     });
 
+    it('the log cannot be sequence-broken before the ship anchors', () => {
+        const b = new Floor7Brain();
+        step(b, 4.2, 0, 5, false); // GREET
+        b.tick(1 / 60, 0, 0, 5, false);
+        b.tick(1 / 60, 0, 0, 5, true); // FETCH
+        const buc = b.bucket();
+        b.tick(1 / 60, buc.x, 0, buc.z, false);
+        b.tick(1 / 60, buc.x, 0, buc.z, true); // CLEAN
+
+        const log = b.logPos();
+        for (let i = 0; i < 5; i++) {
+            b.tick(1 / 60, log.x, 0, log.z, false);
+            b.tick(1 / 60, log.x, 0, log.z, true);
+        }
+        expect(b.state()).toBe(F7_STATE.CLEAN);
+        expect(b.logPage()).toBe(0);
+        expect(b.logRead()).toBe(false);
+        expect(b.canLeave()).toBe(false);
+    });
+
     it('puddles sit on the WALKABLE deck (never overhanging the bulwark)', () => {
         const b = new Floor7Brain();
         const p: F7Puddle = { x: 0, z: 0, r: 0, prog: 0 };

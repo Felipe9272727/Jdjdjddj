@@ -59,7 +59,7 @@ import Floor6Overlay from './Floor6Overlay';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
 import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient, f7CaptainLaugh, f7CutMusicStart, f7CutBeat, f7CutMusicStop, f7BootClomp, f7ElevatorVanish, f7CaptainVoice } from './floor7Sfx';
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
-import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE } from './constants';
+import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SPAWN } from './constants';
 import PhysicsProps, { type CrateSpec } from './PhysicsProps';
 import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from './PhotoMode';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
@@ -1275,7 +1275,7 @@ export default function App() {
         setHouseDoorOpen(false);
         setDoorOpenAmount(0);
         setDoorsClosed(false);
-        playerPositionCmdRef.current = { x: 0.75 * FLOOR7_SCALE, y: 0, z: 4.3 * FLOOR7_SCALE, theta: Math.PI };
+        playerPositionCmdRef.current = { x: FLOOR7_SPAWN[0], y: FLOOR7_SPAWN[1], z: FLOOR7_SPAWN[2], theta: Math.PI };
       }
     }
     // ─── CREATOR MODE: end jump ───

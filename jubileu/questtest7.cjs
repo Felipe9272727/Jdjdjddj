@@ -5,7 +5,7 @@
 const { chromium } = require('playwright');
 const S = 1.85;
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox', '--use-gl=swiftshader'] });
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || chromium.executablePath(), args: ['--no-sandbox', '--use-gl=swiftshader'] });
   const pg = await (await b.newContext({ viewport: { width: 900, height: 600 } })).newPage();
   pg.on('pageerror', e => console.log('PAGEERROR', e.message));
   await pg.goto('http://127.0.0.1:3001/floor7play.html', { waitUntil: 'domcontentloaded' });

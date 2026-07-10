@@ -285,6 +285,15 @@ const _WALLS_FLOOR6_SEALED = [..._WALLS_FLOOR6, DOOR_SEAL];
 // a dinghy; the deck/spawn/water all use this one factor.
 export const FLOOR7_SCALE = 1.85;
 
+// Safe arrival point on the starboard side of the foremast. Keeping this in
+// the same module as the Floor-7 collision geometry lets the runtime and the
+// navigation tests share one canonical spawn instead of drifting apart.
+export const FLOOR7_SPAWN = [
+    0.75 * FLOOR7_SCALE,
+    0,
+    4.3 * FLOOR7_SCALE,
+] as const;
+
 // The bulwark boundary follows the actual DECK OUTLINE (narrow at the pointed
 // bow + bluff stern), not a rectangle, so the player can't walk through the
 // hull where it tapers. Plus box colliders for the masts, capstan, ship's boat,

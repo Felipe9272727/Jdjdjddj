@@ -9,8 +9,9 @@
  * the ship's local frame and fed to the brain, so cleaning stays aligned even
  * as the hull rolls on the swell.
  *
- * NOTE: partial level (by design) — once the deck is clean there's nothing left
- * to do and the elevator is gone, so there's no way out. f7_can_leave() === 0.
+ * The complete arc runs INTRO -> GREET -> FETCH -> CLEAN -> DONE -> SAIL ->
+ * ANCHOR -> FREE. Reading the captain's log at anchor rematerialises the hotel
+ * elevator and lets the player ride home.
  */
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -180,6 +181,9 @@ const M = {
     elevDoor: new THREE.MeshStandardMaterial({ color: '#b8c0c6', roughness: 0.35, metalness: 0.9, transparent: true, envMapIntensity: 0.9 }),
     elevSeam: new THREE.MeshStandardMaterial({ color: '#10141a', roughness: 0.6, metalness: 0.3, transparent: true }),       // recessed dark gap between the two leaves
     elevEdge: new THREE.MeshStandardMaterial({ color: '#eef3f7', roughness: 0.15, metalness: 0.9, transparent: true }),       // bright bevel down each inner door edge
+    beaconBucket: new THREE.MeshBasicMaterial({ color: '#ffd36a', transparent: true, opacity: 0.92, depthWrite: false, depthTest: false, toneMapped: false }),
+    beaconLog: new THREE.MeshBasicMaterial({ color: '#80d8ff', transparent: true, opacity: 0.92, depthWrite: false, depthTest: false, toneMapped: false }),
+    beaconExit: new THREE.MeshBasicMaterial({ color: '#8ff0ad', transparent: true, opacity: 0.95, depthWrite: false, depthTest: false, toneMapped: false }),
     // dark translucent glass for gallery windows (Carpenter's material for vidraças)
     glassPort: new THREE.MeshPhysicalMaterial({ color: '#1a2630', roughness: 0.12, metalness: 0, clearcoat: 0.9, clearcoatRoughness: 0.08, transparent: true, opacity: 0.85, envMapIntensity: 1.2 }),
     // bronze for ship's bell — warm reddish metal reads as BELL, not chandelier hardware
@@ -204,6 +208,17 @@ const _floor7NumTex = makeFloorNumTex('7');
 // warm gold tint (not pure white) so the lit "7" reads as a floor indicator without
 // blowing out brighter than the cab itself and stealing the LOOK_BACK frame.
 const M_elevNum = new THREE.MeshBasicMaterial({ map: _floor7NumTex ?? undefined, color: _floor7NumTex ? '#c9ad72' : '#ffd27a', toneMapped: false, fog: false, transparent: true });
+
+function animateObjectiveBeacon(ref: React.RefObject<THREE.Group | null>, visible: boolean, time: number, baseY: number): void {
+    const g = ref.current;
+    if (!g) return;
+    g.visible = visible;
+    if (!visible) return;
+    const pulse = 1 + Math.sin(time * 4.2) * 0.09;
+    g.position.y = baseY + Math.sin(time * 2.8) * 0.09;
+    g.rotation.y = time * 0.8;
+    g.scale.setScalar(pulse);
+}
 
 // Weather the hull by WORLD height: below the (world-fixed) waterline it goes
 // dark, wet and green; up toward the cap rail it sun-bleaches. Driven by world
@@ -1472,6 +1487,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const _doorSlide = useRef(0);
     const sfxPrevState = useRef(0);
     const logGlowRef = useRef<THREE.Mesh>(null);
+    const bucketBeaconRef = useRef<THREE.Group>(null);
+    const logBeaconRef = useRef<THREE.Group>(null);
+    const elevatorBeaconRef = useRef<THREE.Group>(null);
     const puddleRefs = useRef<(THREE.Group | null)[]>([]);
     const brainRef = useRef<Floor7Brain | null>(null);
     const _local = useRef(new THREE.Vector3());
@@ -1728,6 +1746,13 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             M.elevGlow.emissiveIntensity = 1.4 * f;
             if (elevLightRef.current) elevLightRef.current.intensity = 6 * f;
         }
+        // Objective beacons are intentionally world-space and sparse: exactly
+        // one is visible for the current actionable step. They make the long,
+        // moving deck readable on a phone without turning the floor into UI soup.
+        const stNow = b.state();
+        animateObjectiveBeacon(bucketBeaconRef, stNow === F7_STATE.FETCH, t, 1.05);
+        animateObjectiveBeacon(logBeaconRef, stNow === F7_STATE.ANCHOR && !b.logRead(), t, 1.15);
+        animateObjectiveBeacon(elevatorBeaconRef, stNow === F7_STATE.FREE && !b.boarded(), t, 3.25);
         // hide the sails during the LOOK BACK beat (camera is on the cab; the bow foresail
         // was a dead beige plane crowding the hero "7"). Smoothly fade so there's no pop.
         {
@@ -2007,6 +2032,19 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                         as the "floor 7" gag (kept low enough to stay in the look-back frame). */}
                     <mesh position={[0, 1.7, 0.57]} material={M_elevNum}><planeGeometry args={[0.66, 0.66]} /></mesh>
                 </group>
+                {/* One objective beacon at a time: ring + downward chevron. */}
+                <group ref={bucketBeaconRef} position={[1.35, 1.05, -1.8]} visible={false}>
+                    <mesh rotation={[Math.PI / 2, 0, 0]} material={M.beaconBucket}><torusGeometry args={[0.34, 0.035, 8, 28]} /></mesh>
+                    <mesh position={[0, -0.34, 0]} rotation={[0, 0, Math.PI]} material={M.beaconBucket}><coneGeometry args={[0.13, 0.28, 8]} /></mesh>
+                </group>
+                <group ref={logBeaconRef} position={[0.14, 1.15, -2.98]} visible={false}>
+                    <mesh rotation={[Math.PI / 2, 0, 0]} material={M.beaconLog}><torusGeometry args={[0.34, 0.035, 8, 28]} /></mesh>
+                    <mesh position={[0, -0.34, 0]} rotation={[0, 0, Math.PI]} material={M.beaconLog}><coneGeometry args={[0.13, 0.28, 8]} /></mesh>
+                </group>
+                <group ref={elevatorBeaconRef} position={[0, 3.25, 5.2]} visible={false}>
+                    <mesh rotation={[Math.PI / 2, 0, 0]} material={M.beaconExit}><torusGeometry args={[0.48, 0.045, 8, 32]} /></mesh>
+                    <mesh position={[0, -0.45, 0]} rotation={[0, 0, Math.PI]} material={M.beaconExit}><coneGeometry args={[0.17, 0.36, 8]} /></mesh>
+                </group>
                 {/* CAPTAIN — hybrid. The GLB is the real captain for every frame EXCEPT
                     the intro's tight LEGS close-up: a single fused mesh skinned by painted
                     weights smears badly when the legs swing right under the lens. So during
@@ -2246,13 +2284,51 @@ export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7H
         return () => { window.removeEventListener('keydown', dn); window.removeEventListener('keyup', up); };
     }, [handleRef]);
 
+    // A pointer can be cancelled by an Android gesture, app switch or browser
+    // chrome transition without delivering pointerup. Always release the held
+    // action so the player never gets stuck auto-scrubbing/auto-interacting.
+    useEffect(() => {
+        const release = () => { handleRef.current.interact = false; };
+        const releaseWhenHidden = () => { if (document.hidden) release(); };
+        window.addEventListener('blur', release);
+        document.addEventListener('visibilitychange', releaseWhenHidden);
+        return () => {
+            release();
+            window.removeEventListener('blur', release);
+            document.removeEventListener('visibilitychange', releaseWhenHidden);
+        };
+    }, [handleRef]);
+
     const txt = DIALOGUE[snap.dialogue];
     const cleaning = snap.state === F7_STATE.CLEAN;
     const sailing = snap.state === F7_STATE.SAIL;
     const reading = snap.logPage >= 1 && snap.logPage <= 3;
     const canBoard = snap.state === F7_STATE.FREE && snap.nearExit;
+    const objective = snap.state === F7_STATE.GREET
+        ? ['01', 'FALE COM O CAPITÃO', 'Aperte E para aceitar o serviço.']
+        : snap.state === F7_STATE.FETCH
+            ? ['02', 'PEGUE O BALDE', 'Siga o marcador dourado perto do mastro.']
+            : snap.state === F7_STATE.CLEAN
+                ? ['03', `LIMPE O CONVÉS · ${snap.cleaned}/${snap.npud}`, 'Segure E sobre as poças. Remolhe o pano na amurada.']
+                : snap.state === F7_STATE.DONE
+                    ? ['04', 'SEGURE FIRME', 'O capitão vai assumir o leme.']
+                    : snap.state === F7_STATE.SAIL
+                        ? ['05', 'RUMO À ILHA', 'Aguarde a aproximação e ouça o capitão.']
+                        : snap.state === F7_STATE.ANCHOR
+                            ? ['06', 'LEIA O DIÁRIO', 'Siga o marcador azul na escotilha.']
+                            : snap.state === F7_STATE.FREE
+                                ? ['07', 'VOLTE AO ELEVADOR', 'Siga o marcador verde e embarque.']
+                                : ['00', 'CHEGANDO AO ANDAR 7', 'O navio está se materializando.'];
+    const actionLabel = reading ? 'VIRAR' : canBoard ? 'EMBARCAR' : snap.state === F7_STATE.FETCH ? 'PEGAR' : snap.state === F7_STATE.ANCHOR ? 'LER' : cleaning ? 'ESFREGAR' : 'E';
     return (
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 45, fontFamily: '"Source Sans 3","Segoe UI",sans-serif' }}>
+            {!reading && (
+                <div style={{ position: 'absolute', left: 'calc(env(safe-area-inset-left,0px) + 16px)', top: 'calc(env(safe-area-inset-top,0px) + 16px)', width: 'min(72vw, 292px)', padding: '10px 13px 11px', borderRadius: 10, background: 'linear-gradient(135deg,rgba(10,18,24,0.9),rgba(30,22,12,0.82))', border: '1px solid rgba(202,165,106,0.42)', boxShadow: '0 8px 28px rgba(0,0,0,0.42)', backdropFilter: 'blur(6px)' }}>
+                    <div style={{ color: '#caa56a', fontFamily: 'monospace', fontSize: 9, letterSpacing: '0.2em', marginBottom: 4 }}>ANDAR 7 · ETAPA {objective[0]}</div>
+                    <div style={{ color: '#fff3d9', fontWeight: 800, fontSize: 13, letterSpacing: '0.08em' }}>{objective[1]}</div>
+                    <div style={{ color: '#c7d4d9', fontSize: 11, lineHeight: 1.25, marginTop: 3 }}>{objective[2]}</div>
+                </div>
+            )}
             {/* rising-tide telegraph: a cold spray vignette creeps in from the
                 screen edges as a swell approaches (tideWarn 0..1) */}
             {cleaning && snap.tideWarn > 0.02 && (
@@ -2319,11 +2395,14 @@ export const Floor7Overlay: React.FC<{ handleRef: React.MutableRefObject<Floor7H
             {/* interact button (mobile) */}
             <button
                 aria-label="Interagir / Esfregar"
-                onPointerDown={(e) => { e.preventDefault(); handleRef.current.interact = true; }}
+                onPointerDown={(e) => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); handleRef.current.interact = true; }}
                 onPointerUp={() => { handleRef.current.interact = false; }}
+                onPointerCancel={() => { handleRef.current.interact = false; }}
                 onPointerLeave={() => { handleRef.current.interact = false; }}
+                onLostPointerCapture={() => { handleRef.current.interact = false; }}
+                onContextMenu={(e) => e.preventDefault()}
                 style={{ position: 'absolute', right: 'calc(env(safe-area-inset-right,0px) + 20px)', bottom: 'calc(env(safe-area-inset-bottom,0px) + 110px)', width: 78, height: 78, borderRadius: '50%', background: canBoard ? 'rgba(120,190,140,0.3)' : 'rgba(202,165,106,0.22)', border: canBoard ? '2px solid rgba(150,230,170,0.8)' : '2px solid rgba(202,165,106,0.6)', color: '#f3e7cf', fontSize: 13, fontWeight: 700, letterSpacing: '0.05em', pointerEvents: 'auto', backdropFilter: 'blur(3px)' }}
-            >{reading ? 'VIRAR' : canBoard ? 'EMBARCAR' : cleaning ? 'ESFREGAR' : 'E'}</button>
+            >{actionLabel}</button>
             {/* boarding beacon — the returned cab is the way home */}
             {canBoard && !reading && (
                 <div style={{ position: 'absolute', left: '50%', bottom: 'calc(env(safe-area-inset-bottom,0px) + 52px)', transform: 'translateX(-50%)', color: '#d8f2df', fontSize: 12, letterSpacing: '0.18em', textShadow: '0 1px 4px #04160a' }}>

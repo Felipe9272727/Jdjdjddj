@@ -3,7 +3,7 @@
 const { chromium } = require('playwright');
 const S = 1.85;
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox', '--use-gl=swiftshader'] });
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || chromium.executablePath(), args: ['--no-sandbox', '--use-gl=swiftshader'] });
   const pg = await (await b.newContext({ viewport: { width: 1100, height: 720 } })).newPage();
   pg.on('pageerror', e => console.log('PAGEERROR', e.message));
   await pg.goto(`http://127.0.0.1:${process.env.PORT || 3001}/floor7play.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });

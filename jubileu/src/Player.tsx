@@ -401,7 +401,11 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     // Sync camera to player on first frame (prevents lerp from default pos)
     if (!camInitRef.current) {
         camInitRef.current = true;
-        const ly = pos.current.y + HH;
+        // The Floor-7 hull is intentionally enlarged 1.85x. At the generic
+        // 1.6m eye height its scaled bulwarks covered the sea and made the deck
+        // read like a wooden corridor. Lift only this floor's viewpoint high
+        // enough to restore the horizon without changing collision/player size.
+        const ly = pos.current.y + (currentLevel === 7 ? 2.05 : HH);
         if (fp) {
             camera.position.set(pos.current.x, ly, pos.current.z);
         } else {
@@ -846,7 +850,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         const nextAnim = moving ? 'Walking' : 'Idle';
         if (nextAnim !== animRef.current) { animRef.current = nextAnim; setAnim(nextAnim); }
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
-        const ly = pos.current.y + HH;
+        const ly = pos.current.y + (currentLevel === 7 ? 2.05 : HH);
         const nla = _v.current[6].set(pos.current.x, ly, pos.current.z);
         // Clamp lerp alpha to prevent overshoot on frame spikes (max 0.5 per frame)
         const lookAlpha = Math.min(10 * safeDt, 0.5);

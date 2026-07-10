@@ -4,7 +4,7 @@
 // positions, and flags collision escapes (player off the deck).
 const { chromium } = require('playwright');
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox', '--use-gl=swiftshader'] });
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || chromium.executablePath(), args: ['--no-sandbox', '--use-gl=swiftshader'] });
   const pg = await (await b.newContext({ viewport: { width: 1100, height: 720 } })).newPage();
   pg.on('pageerror', e => console.log('PAGEERROR', e.message));
   const PORT = process.env.PORT || 3001;
