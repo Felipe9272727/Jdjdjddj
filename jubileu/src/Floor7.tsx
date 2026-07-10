@@ -103,7 +103,7 @@ const M = {
     mast: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#b58a52', roughness: 0.6 }),
     sail: new THREE.MeshStandardMaterial({ map: _sailCloth.map, roughnessMap: _sailCloth.rough, color: '#f2ead6', roughness: 0.92, side: THREE.DoubleSide, envMapIntensity: 0.4, transparent: true }),
     // tarred hemp — darker + rougher so rigging reads as ROPE, not pale macaroni
-    rope: new THREE.MeshStandardMaterial({ color: '#8a6a42', roughness: 1, bumpMap: _sailCloth.rough, bumpScale: 0.01 }),
+    rope: new THREE.MeshStandardMaterial({ color: '#5b4b32', roughness: 0.95, bumpMap: _sailCloth.rough, bumpScale: 0.01, envMapIntensity: 0.15 }),
     flag: new THREE.MeshStandardMaterial({ map: makeJollyRoger(), roughness: 0.95, side: THREE.DoubleSide }),
     barrel: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#9c7038', roughness: 0.7 }),
     iron: new THREE.MeshStandardMaterial({ color: '#3a3a3e', roughness: 0.5, metalness: 0.8 }),
@@ -121,10 +121,9 @@ const M = {
     coatSalt: new THREE.MeshStandardMaterial({ color: '#a8675f', roughness: 0.96, bumpMap: _sailCloth.rough, bumpScale: 0.02, envMapIntensity: 0.2 }),
     skin: new THREE.MeshStandardMaterial({ color: '#cd9a6e', roughness: 0.62 }),
     hat: new THREE.MeshStandardMaterial({ color: '#17161b', roughness: 0.62, envMapIntensity: 0.6 }),
-    // warm gold for ALL exterior trim: a faint emissive + a calmer reflection so
-    // the gold albedo carries it and the sea reflection can't tint it olive
-    // (the env-map sea band is also desaturated to blue-grey for the same reason).
-    gold: new THREE.MeshStandardMaterial({ color: '#e8c45a', roughness: 0.34, metalness: 0.7, envMapIntensity: 0.6, emissive: '#3a2b08', emissiveIntensity: 0.18 }),
+    // warm brass for ALL exterior trim (formerly gold): darker + more metallic + reduced emissive
+    // so it reads as true metallic brass under the warm sunlight, not painted plastic.
+    gold: new THREE.MeshStandardMaterial({ color: '#c9a24e', roughness: 0.4, metalness: 0.7, envMapIntensity: 0.6, emissive: '#2a1f08', emissiveIntensity: 0.12 }),
     // first-person cuff: even calmer, since it fills the frame next to the camera.
     goldFp: new THREE.MeshStandardMaterial({ color: '#e3bb55', roughness: 0.45, metalness: 0.5, envMapIntensity: 0.3, emissive: '#3a2b08', emissiveIntensity: 0.16 }),
     boot: new THREE.MeshStandardMaterial({ color: '#2a1d12', roughness: 0.55 }),
@@ -154,7 +153,7 @@ const M = {
     bootTop: new THREE.MeshStandardMaterial({ color: '#14322a', roughness: 0.55, envMapIntensity: 0.5 }),
     grate: new THREE.MeshStandardMaterial({ color: '#3a2817', roughness: 0.85 }),
     caulk: new THREE.MeshStandardMaterial({ color: '#140f08', roughness: 1 }),
-    giltTrim: new THREE.MeshStandardMaterial({ color: '#a8822f', roughness: 0.55, metalness: 0.6, envMapIntensity: 0.45, emissive: '#2e2207', emissiveIntensity: 0.16 }),
+    giltTrim: new THREE.MeshStandardMaterial({ color: '#9d7a3a', roughness: 0.5, metalness: 0.65, envMapIntensity: 0.45, emissive: '#1f1605', emissiveIntensity: 0.11 }),
     // the captain's log (diário de bordo) — worn leather + salt-stained pages
     logCover: new THREE.MeshStandardMaterial({ color: '#3a2417', roughness: 0.85, bumpMap: _sailCloth.rough, bumpScale: 0.012, emissive: '#000000' }),
     logPages: new THREE.MeshStandardMaterial({ color: '#e4d7b4', roughness: 0.95 }),
@@ -177,10 +176,14 @@ const M = {
     // the player rode in on), and a darker floor/ceiling to box it in.
     elevGlow: new THREE.MeshStandardMaterial({ color: '#3a2a18', emissive: '#ffdca8', emissiveIntensity: 1.4, roughness: 0.7, metalness: 0, transparent: true }),
     elevFloor: new THREE.MeshStandardMaterial({ color: '#6b5535', roughness: 0.8, metalness: 0.1, transparent: true }),
-    // brushed-steel sliding doors — the single most "this is an elevator" feature.
-    elevDoor: new THREE.MeshStandardMaterial({ color: '#c2c9cf', roughness: 0.28, metalness: 0.85, transparent: true }),
+    // brushed-steel sliding doors — the single most "this is an elevator" feature. Now true steel.
+    elevDoor: new THREE.MeshStandardMaterial({ color: '#b8c0c6', roughness: 0.35, metalness: 0.9, transparent: true, envMapIntensity: 0.9 }),
     elevSeam: new THREE.MeshStandardMaterial({ color: '#10141a', roughness: 0.6, metalness: 0.3, transparent: true }),       // recessed dark gap between the two leaves
     elevEdge: new THREE.MeshStandardMaterial({ color: '#eef3f7', roughness: 0.15, metalness: 0.9, transparent: true }),       // bright bevel down each inner door edge
+    // dark translucent glass for gallery windows (Carpenter's material for vidraças)
+    glassPort: new THREE.MeshPhysicalMaterial({ color: '#1a2630', roughness: 0.12, metalness: 0, clearcoat: 0.9, clearcoatRoughness: 0.08, transparent: true, opacity: 0.85, envMapIntensity: 1.2 }),
+    // bronze for ship's bell — warm reddish metal reads as BELL, not chandelier hardware
+    bell: new THREE.MeshStandardMaterial({ color: '#b8860b', roughness: 0.35, metalness: 0.8, envMapIntensity: 0.7 }),
 };
 
 // glowing floor-indicator "7" — sells the "The Normal Elevator, floor 7" gag on the cab.
@@ -717,8 +720,10 @@ const ShipBody: React.FC = () => {
                     <mesh key={'gask' + gx} position={[gx, 3.58, 0]} rotation={[0, 0, Math.PI / 2]} material={M.rope}><torusGeometry args={[0.135, 0.018, 5, 10]} /></mesh>
                 ))}
             </group>
-            {/* helm (ship's wheel) at the stern */}
-            <group position={[0, 0.7, -6.2]}>
+            {/* binnacle: pedestal base for the helm (ship's wheel) */}
+            <mesh position={[0, 0.35, -6.8]} material={M.rail}><boxGeometry args={[0.5, 0.7, 0.4]} /></mesh>
+            {/* helm (ship's wheel) at the stern — repositioned atop the binnacle */}
+            <group position={[0, 0.95, -6.8]}>
                 <mesh material={M.wheel}><torusGeometry args={[0.42, 0.06, 8, 18]} /></mesh>
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                     <mesh key={i} rotation={[0, 0, (i * Math.PI) / 3]} material={M.wheel}>
@@ -1958,7 +1963,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             <CloudField />
             <Birds />
             {/* light rig — warm key sun + cool sky fill */}
-            <hemisphereLight args={['#e6ddc4', '#3e4a52', 0.85]} />
+            <hemisphereLight args={['#e6ddc4', '#4c4436', 0.85]} />
             <directionalLight position={SUN_POS} intensity={2.6} color="#ffdca0" />
             <ambientLight intensity={0.2} color="#9fc0d8" />
 
