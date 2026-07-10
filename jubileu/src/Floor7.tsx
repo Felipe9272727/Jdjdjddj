@@ -28,7 +28,7 @@ import { Floor7Water } from './Floor7Water';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow, makePuddleRipple } from './floor7Textures';
 
 const _puddleRipple = makePuddleRipple();
-import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams, buildWaterwayGeometry, deckYAt, railYAt, beamAt } from './floor7Geo';
+import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams, buildWaterwayGeometry, deckYAt, railYAt, beamAt, sxAt, syAt } from './floor7Geo';
 import { FLOOR7_SCALE, F7_DECK_PROPS } from './constants';
 import { f7Footstep, f7Scrub, f7BucketClunk, f7CaptainGrunt, f7PuddleDone, f7Wave, f7TideWarn, updateF7Roll, f7ElevatorReturn, f7AnchorSplash } from './floor7Sfx';
 
@@ -60,8 +60,20 @@ function billowSail(w: number, h: number, bulge: number): THREE.PlaneGeometry {
 // into a low cloth ceiling.  The gap between them also exposes mast/yard logic.
 const _mainCourseGeo = billowSail(3.9, 1.48, 0.42);
 const _mainTopSailGeo = billowSail(2.65, 1.05, 0.3);
-// (the foresail is FURLED on its yard — see the foremast JSX; a billowed plane
-// there clipped through the elevator cab and crowded the spawn point)
+const _foreCourseGeo = billowSail(2.75, 1.2, 0.32);
+
+function drapedRagGeometry(): THREE.PlaneGeometry {
+    const g = new THREE.PlaneGeometry(0.26, 0.36, 5, 7);
+    const p = g.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), y = p.getY(i);
+        p.setZ(i, Math.sin(y * 24 + x * 11) * 0.012 + Math.abs(x) * 0.08);
+        p.setX(i, x + Math.sin((y + 0.18) * 12) * 0.012);
+    }
+    g.computeVertexNormals();
+    return g;
+}
+const _ragGeo = drapedRagGeometry();
 
 function organicPuddleGeometry(seed: number): THREE.BufferGeometry {
     const segments = 48;
@@ -249,6 +261,31 @@ function animateObjectiveBeacon(ref: React.RefObject<THREE.Group | null>, visibl
     g.scale.setScalar(pulse);
 }
 
+const BucketPail: React.FC<{ waterRef?: React.RefObject<THREE.Mesh | null>; showWater?: boolean }> = ({ waterRef, showWater = true }) => (
+    <group>
+        {/* tapered staved body, open at the top */}
+        <mesh material={M.bucket}><cylinderGeometry args={[0.24, 0.195, 0.38, 18, 1, true]} /></mesh>
+        <mesh position={[0, -0.195, 0]} material={M.bucket}><cylinderGeometry args={[0.195, 0.195, 0.025, 18]} /></mesh>
+        {/* subtle proud staves break the silhouette and catch the key light */}
+        {Array.from({ length: 12 }).map((_, i) => {
+            const a = (i / 12) * Math.PI * 2;
+            const r = 0.218;
+            return <mesh key={'stave' + i} position={[Math.sin(a) * r, 0, Math.cos(a) * r]} rotation={[0, a, 0]} material={M.rail}><boxGeometry args={[0.018, 0.35, 0.035]} /></mesh>;
+        })}
+        {/* forged hoops + thick rolled rim */}
+        {[0.14, -0.12].map((y) => (
+            <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><torusGeometry args={[y > 0 ? 0.238 : 0.207, 0.014, 7, 24]} /></mesh>
+        ))}
+        <mesh position={[0, 0.19, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><torusGeometry args={[0.242, 0.012, 7, 24]} /></mesh>
+        {showWater && <mesh ref={waterRef} position={[0, 0.145, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M.sudsy}><circleGeometry args={[0.215, 24]} /></mesh>}
+        {/* the bail stands in the vertical XY plane; the old horizontal torus
+            was the main reason the carried bucket looked mechanically wrong */}
+        <mesh position={[0, 0.19, 0]} material={M.iron}><torusGeometry args={[0.255, 0.012, 7, 28, Math.PI]} /></mesh>
+        {/* a genuinely draped cloth rather than two intersecting boxes */}
+        <mesh geometry={_ragGeo} position={[0.21, 0.03, 0.02]} rotation={[0.05, 0.35, -0.08]} material={M.cloth} />
+    </group>
+);
+
 // Weather the hull by WORLD height: below the (world-fixed) waterline it goes
 // dark, wet and green; up toward the cap rail it sun-bleaches. Driven by world
 // Y so the wet band tracks the real sea line even as the ship heaves/rolls.
@@ -310,6 +347,49 @@ const Transom: React.FC = () => {
         </group>
     );
 };
+
+// A readable gun deck gives the hull a second architectural layer.  Ports hug
+// the sampled C++ hull instead of floating on a rectangular approximation.
+const GunDeckPorts: React.FC = () => {
+    const stations = [-4.2, -2.0, 0.25, 2.55, 4.65];
+    return <group>{[-1, 1].flatMap((side) => stations.map((z, i) => {
+        const t = THREE.MathUtils.clamp((z + 7) / 15.2, 0, 1);
+        const x = side * (sxAt(t, 0.73) + 0.035);
+        const y = syAt(t, 0.73);
+        return (
+            <group key={side + ':' + i} position={[x, y, z]} rotation={[0, side > 0 ? -Math.PI / 2 : Math.PI / 2, 0]}>
+                <mesh material={M.hat}><boxGeometry args={[0.055, 0.36, 0.42]} /></mesh>
+                <mesh position={[0.034, 0, 0]} material={M.giltTrim}><boxGeometry args={[0.025, 0.44, 0.49]} /></mesh>
+                <mesh position={[0.052, 0, 0]} material={M.hat}><boxGeometry args={[0.018, 0.28, 0.34]} /></mesh>
+            </group>
+        );
+    }))}</group>;
+};
+
+// Layered stern architecture inspired by the concept sheet: two stair flights
+// frame a clear central route, then resolve into quarterdeck wings and rails.
+// It adds scale without changing the gameplay floor or blocking the quest path.
+const QuarterdeckArchitecture: React.FC = () => (
+    <group>
+        {[-1, 1].map((side) => (
+            <group key={'quarter' + side}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                    <mesh key={'step' + i} position={[side * 1.35, 0.08 + i * 0.115, -4.25 - i * 0.24]} material={M.plankDk}>
+                        <boxGeometry args={[0.72, 0.16 + i * 0.02, 0.32]} />
+                    </mesh>
+                ))}
+                <mesh position={[side * 1.35, 0.78, -5.9]} material={M.plankDk}><boxGeometry args={[0.82, 0.16, 2.25]} /></mesh>
+                <mesh position={[side * 1.82, 1.08, -5.75]} material={M.rail}><boxGeometry args={[0.11, 0.12, 2.5]} /></mesh>
+                {[-4.72, -5.35, -5.98, -6.61].map((z) => (
+                    <mesh key={z} position={[side * 1.82, 0.82, z]} material={M.rail}><cylinderGeometry args={[0.045, 0.055, 0.55, 7]} /></mesh>
+                ))}
+                <mesh position={[side * 0.92, 1.02, -6.55]} material={M.giltTrim}><boxGeometry args={[0.8, 0.07, 0.1]} /></mesh>
+            </group>
+        ))}
+        {/* heavy deck beam tying the two wings together over the cabin face */}
+        <mesh position={[0, 1.28, -6.5]} material={M.rail}><boxGeometry args={[3.75, 0.16, 0.18]} /></mesh>
+    </group>
+);
 
 // a gently sagging rope (catenary) between two points, as tube geometry
 function sagTube(a: THREE.Vector3, b: THREE.Vector3, sag: number, r = 0.02): THREE.TubeGeometry {
@@ -381,7 +461,6 @@ const RatlineShrouds: React.FC<{ side: number; railX: number; railY: number; bas
 // lane (x≈0), which the brain keeps clear of puddles, so it never blocks the
 // mopping gameplay. ──
 const DeckFurniture: React.FC = () => {
-    const boatGeo = useMemo(() => buildHullGeometry(), []);
     return (
     <group>
         {/* mast partner collars + a ring of belaying pins (pin rail) */}
@@ -394,18 +473,6 @@ const DeckFurniture: React.FC = () => {
                 })}
             </group>
         ))}
-        {/* ship's boat stowed keel-up on skid BOOMS above head height (amidships),
-            so the player walks underneath it — no deck obstruction */}
-        <group position={[0, 1.78, 2.2]}>
-            <mesh geometry={boatGeo} scale={[0.17, 0.16, 0.17]} rotation={[Math.PI, 0, 0]} material={M.plank} />
-            {[-1.4, 1.4].map((z) => (
-                <mesh key={'skid' + z} position={[0, -0.05, z]} material={M.rail}><boxGeometry args={[1.1, 0.12, 0.14]} /></mesh>
-            ))}
-            {/* the stanchions holding the booms up off the deck */}
-            {[[-0.5, -1.4], [0.5, -1.4], [-0.5, 1.4], [0.5, 1.4]].map(([px, pz], i) => (
-                <mesh key={'st' + i} position={[px, -0.95, pz]} material={M.mast}><cylinderGeometry args={[0.05, 0.05, 1.8, 6]} /></mesh>
-            ))}
-        </group>
         {/* companionway (deck hatch house with a slanted lid) aft of the main mast */}
         <group position={[0, 0.0, -3.1]}>
             <mesh position={[0, 0.22, 0]} material={M.plankDk}><boxGeometry args={[0.74, 0.44, 0.66]} /></mesh>
@@ -702,10 +769,12 @@ const ShipBody: React.FC = () => {
             <mesh geometry={bootGeo} material={M.bootTop} />
             {/* ornamented stern (windows, galleries, gilt) */}
             <Transom />
+            <GunDeckPorts />
             {/* deck furniture on the puddle-free centre lane */}
             <DeckFurniture />
             {/* the stern deckhouse / quarterdeck cabin */}
             <SternCabin />
+            <QuarterdeckArchitecture />
             {/* reachable deck props (barrels/crates/ropes/bell) — match colliders */}
             <DeckProps />
             {/* fake AO contact shadows grounding the props */}
@@ -758,14 +827,11 @@ const ShipBody: React.FC = () => {
                 <mesh position={[0, 3.7, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
                     <cylinderGeometry args={[0.05, 0.05, 3.2, 8]} />
                 </mesh>
-                {/* the foresail rides FURLED on its yard: a billowed sail here
-                    clipped straight through the elevator cab (whose rotated
-                    corner reaches z≈4.0) and crowded the spawn. A rolled bundle
-                    with gaskets reads as a ship easing toward harbour. */}
-                <mesh position={[0, 3.58, 0]} rotation={[0, 0, Math.PI / 2]} material={M.sail}><cylinderGeometry args={[0.13, 0.1, 3.15, 8]} /></mesh>
-                <mesh position={[0, 3.58, 0]} rotation={[0, 0, Math.PI / 2]} material={M.sail}><cylinderGeometry args={[0.1, 0.13, 3.15, 8]} /></mesh>
+                {/* compact wind-filled fore course: high enough to keep the spawn
+                    and elevator readable, large enough to restore a galleon silhouette */}
+                <mesh position={[0, 3.03, 0.055]} geometry={_foreCourseGeo} material={M.sail} />
                 {[-1.1, -0.4, 0.4, 1.1].map((gx) => (
-                    <mesh key={'gask' + gx} position={[gx, 3.58, 0]} rotation={[0, 0, Math.PI / 2]} material={M.rope}><torusGeometry args={[0.135, 0.018, 5, 10]} /></mesh>
+                    <mesh key={'gask' + gx} position={[gx, 3.55, 0.04]} material={M.rope}><cylinderGeometry args={[0.005, 0.005, 0.12, 4]} /></mesh>
                 ))}
             </group>
             {/* binnacle: pedestal base for the helm (ship's wheel) */}
@@ -1758,7 +1824,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             (M.cloth as THREE.MeshStandardMaterial).emissive.setRGB(glow * 0.4, glow * 0.4, glow * 0.2);
             // the soapy surface sinks as the water goes stale, and tints muddier
             if (sudsSurfRef.current) {
-                sudsSurfRef.current.position.y = 0.04 + bu.water * 0.06;
+                sudsSurfRef.current.position.y = 0.08 + bu.water * 0.065;
                 (M.sudsy as THREE.MeshPhysicalMaterial).color.setRGB(0.55 + bu.water * 0.26, 0.62 + bu.water * 0.27, 0.55 + bu.water * 0.35);
             }
         }
@@ -1897,7 +1963,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             const cam = state.camera;
             leftHandRef.current.position.copy(cam.position);
             leftHandRef.current.quaternion.copy(cam.quaternion);
-            leftHandRef.current.translateX(-0.26); leftHandRef.current.translateY(-0.34 + Math.sin(t * 1.5) * 0.01); leftHandRef.current.translateZ(-0.4);
+            leftHandRef.current.translateX(-0.31); leftHandRef.current.translateY(-0.27 + Math.sin(t * 1.5) * 0.012); leftHandRef.current.translateZ(-0.48);
             leftHandRef.current.visible = bucketState.held && b.elevFade() < 0.85;
         }
 
@@ -2096,19 +2162,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 {/* bucket + cloth — wooden staved pail with iron bands, soapy
                     water surface and a draped wet rag (a hero prop up close) */}
                 <group ref={bucketRef} position={[1.35, 0.18, -1.8]}>
-                    <mesh material={M.bucket}><cylinderGeometry args={[0.16, 0.13, 0.3, 16, 1, true]} /></mesh>
-                    <mesh position={[0, -0.15, 0]} material={M.bucket}><cylinderGeometry args={[0.13, 0.13, 0.02, 16]} /></mesh>
-                    {/* iron hoops */}
-                    {[0.12, -0.1].map((y) => (
-                        <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><torusGeometry args={[y > 0 ? 0.162 : 0.142, 0.012, 6, 18]} /></mesh>
-                    ))}
-                    {/* soapy water surface — drops as the bucket goes stale, refills on a dunk */}
-                    <mesh ref={sudsSurfRef} position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M.sudsy}><circleGeometry args={[0.15, 18]} /></mesh>
-                    {/* swing handle (iron arc) */}
-                    <mesh position={[0, 0.18, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><torusGeometry args={[0.155, 0.01, 6, 18, Math.PI]} /></mesh>
-                    {/* draped wet rag over the rim */}
-                    <mesh position={[0.1, 0.13, 0.05]} rotation={[0.5, 0.4, 0.2]} material={M.cloth}><boxGeometry args={[0.2, 0.03, 0.16]} /></mesh>
-                    <mesh position={[0.16, 0.04, 0.08]} rotation={[0.1, 0.4, 0.6]} material={M.cloth}><boxGeometry args={[0.12, 0.02, 0.14]} /></mesh>
+                    <BucketPail waterRef={sudsSurfRef} />
                 </group>
                 {/* the captain's LOG (diário de bordo) on the companionway lid — the
                     floor's memory. Reading it is what brings the elevator back. */}
@@ -2214,30 +2268,36 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 Scale kept SMALL — at 1.4 the cuff/palm filled ~40% of the frame
                 as giant untextured slabs; 0.85 reads as a hand, not a wall. */}
             <group ref={handsRef} frustumCulled={false} visible={false}>
-                <group ref={brushRef} scale={0.85}>
-                    {/* coat sleeve entering from the lower-right corner + gold cuff */}
-                    <mesh position={[0.07, -0.16, 0.16]} rotation={[0.95, 0.12, 0.22]} material={M.coat}><cylinderGeometry args={[0.052, 0.075, 0.4, 10]} /></mesh>
-                    <mesh position={[0.035, -0.055, 0.02]} rotation={[0.95, 0.12, 0.22]} material={M.goldFp}><cylinderGeometry args={[0.072, 0.072, 0.045, 10]} /></mesh>
-                    {/* flattened palm gripping the brush */}
-                    <mesh position={[0, -0.035, -0.085]} rotation={[0.42, 0, 0]} material={M.skin}><boxGeometry args={[0.088, 0.03, 0.1]} /></mesh>
-                    {/* thumb + four fingers curling over the brush block */}
-                    <mesh position={[-0.052, -0.05, -0.08]} rotation={[0.42, 0, 0.35]} material={M.skin}><capsuleGeometry args={[0.014, 0.05, 3, 6]} /></mesh>
+                <group ref={brushRef} scale={0.9}>
+                    {/* tapered sleeve -> cuff -> rounded wrist: one continuous arm silhouette */}
+                    <mesh position={[0.08, -0.17, 0.16]} rotation={[1.02, 0.12, 0.24]} material={M.coat}><cylinderGeometry args={[0.055, 0.085, 0.42, 12]} /></mesh>
+                    <mesh position={[0.032, -0.065, 0.012]} rotation={[1.02, 0.12, 0.24]} material={M.goldFp}><cylinderGeometry args={[0.074, 0.074, 0.05, 12]} /></mesh>
+                    <mesh position={[0, -0.045, -0.055]} scale={[1.15, 0.72, 1.35]} material={M.skin}><sphereGeometry args={[0.052, 12, 9]} /></mesh>
+                    {/* thumb + articulated fingers curl over the brush block */}
+                    <mesh position={[-0.054, -0.052, -0.085]} rotation={[0.75, 0.15, 0.62]} material={M.skin}><capsuleGeometry args={[0.014, 0.055, 4, 8]} /></mesh>
                     {[-0.03, -0.01, 0.01, 0.03].map((fx, i) => (
-                        <mesh key={i} position={[fx, -0.062, -0.125]} rotation={[1.15, 0, 0]} material={M.skin}><capsuleGeometry args={[0.011, 0.045, 3, 6]} /></mesh>
+                        <mesh key={i} position={[fx, -0.066, -0.124]} rotation={[1.18 + i * 0.03, 0, 0]} material={M.skin}><capsuleGeometry args={[0.0115, 0.046, 4, 7]} /></mesh>
                     ))}
-                    {/* scrub brush: wooden block + pale bristles, forward under the palm */}
-                    <mesh position={[0, -0.078, -0.12]} rotation={[0.35, 0, 0]} material={M.barrel}><boxGeometry args={[0.16, 0.045, 0.1]} /></mesh>
-                    <mesh position={[0, -0.112, -0.13]} rotation={[0.35, 0, 0]} material={M.cloth}><boxGeometry args={[0.15, 0.04, 0.09]} /></mesh>
+                    {/* bevel-like layered brush block and dense bristle pad */}
+                    <mesh position={[0, -0.081, -0.128]} rotation={[0.35, 0, 0]} material={M.barrel}><boxGeometry args={[0.17, 0.048, 0.11]} /></mesh>
+                    <mesh position={[0, -0.116, -0.138]} rotation={[0.35, 0, 0]} material={M.cloth}><boxGeometry args={[0.158, 0.035, 0.096]} /></mesh>
                 </group>
             </group>
 
             {/* left hand carrying the bucket by its handle (camera-attached) */}
             <group ref={leftHandRef} frustumCulled={false} visible={false}>
-                <mesh position={[-0.04, 0.0, 0.1]} rotation={[1.0, 0, -0.2]} material={M.coat}><cylinderGeometry args={[0.05, 0.07, 0.34, 10]} /></mesh>
-                <mesh position={[0, 0.02, 0.0]} material={M.skin}><boxGeometry args={[0.08, 0.05, 0.09]} /></mesh>
-                {/* the iron bail (handle) the fist grips, dropping to the bucket below */}
-                <mesh position={[0, -0.04, 0.0]} rotation={[0, 0, 0]} material={M.iron}><torusGeometry args={[0.09, 0.012, 6, 14, Math.PI]} /></mesh>
-                <mesh position={[0.02, -0.22, 0.02]} material={M.bucket}><cylinderGeometry args={[0.1, 0.085, 0.16, 12, 1, true]} /></mesh>
+                {/* forearm enters naturally from the lower-left instead of ending in a box */}
+                <mesh position={[-0.1, 0.08, 0.13]} rotation={[1.08, 0.1, -0.34]} material={M.coat}><cylinderGeometry args={[0.065, 0.095, 0.42, 12]} /></mesh>
+                <mesh position={[-0.028, 0.0, 0.015]} rotation={[1.08, 0.1, -0.34]} material={M.goldFp}><cylinderGeometry args={[0.08, 0.08, 0.052, 12]} /></mesh>
+                <mesh position={[0, -0.035, -0.015]} scale={[1.25, 0.72, 1.0]} material={M.skin}><sphereGeometry args={[0.058, 12, 9]} /></mesh>
+                {/* four knuckles wrapped around the top of the bail */}
+                {[-0.042, -0.014, 0.014, 0.042].map((x, i) => (
+                    <mesh key={'grip' + i} position={[x, -0.058, -0.035]} rotation={[1.35, 0, 0.05 * (i - 1.5)]} material={M.skin}><capsuleGeometry args={[0.0125, 0.052, 4, 7]} /></mesh>
+                ))}
+                <mesh position={[0.065, -0.055, -0.01]} rotation={[0.55, 0.25, -0.75]} material={M.skin}><capsuleGeometry args={[0.014, 0.06, 4, 8]} /></mesh>
+                <group position={[0, -0.42, 0]} scale={0.82}>
+                    <BucketPail />
+                </group>
             </group>
         </group>
     );
