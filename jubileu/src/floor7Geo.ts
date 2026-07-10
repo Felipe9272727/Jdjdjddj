@@ -35,7 +35,9 @@ function exports(): GeoExports {
 // that rail rose into a continuous wall and hid the sea.  Compress only the
 // above-deck part of the rendered hull: the waterline, collision outline and
 // quest coordinates stay untouched while the deck reads as an open ship.
-const VISUAL_BULWARK_SCALE = 0.56;
+// Waist-high amidships, rising toward the bow and stern.  The previous 0.56
+// pass exposed the horizon but erased too much of the galleon's silhouette.
+const VISUAL_BULWARK_SCALE = 0.70;
 function visualRailY(e: GeoExports, t: number): number {
     const deck = e.f7_hull_deckY(t);
     return deck + (e.f7_hull_railY(t) - deck) * VISUAL_BULWARK_SCALE;
