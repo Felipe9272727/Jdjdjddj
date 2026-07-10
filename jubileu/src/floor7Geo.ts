@@ -31,6 +31,16 @@ function exports(): GeoExports {
     return _exports;
 }
 
+// The simulation keeps the original heroic sheer, but at first-person height
+// that rail rose into a continuous wall and hid the sea.  Compress only the
+// above-deck part of the rendered hull: the waterline, collision outline and
+// quest coordinates stay untouched while the deck reads as an open ship.
+const VISUAL_BULWARK_SCALE = 0.56;
+function visualRailY(e: GeoExports, t: number): number {
+    const deck = e.f7_hull_deckY(t);
+    return deck + (e.f7_hull_railY(t) - deck) * VISUAL_BULWARK_SCALE;
+}
+
 let _hull: THREE.BufferGeometry | null = null;
 export function buildHullGeometry(): THREE.BufferGeometry {
     if (_hull) return _hull;
@@ -41,6 +51,17 @@ export function buildHullGeometry(): THREE.BufferGeometry {
     const verts = new Float32Array(buf, e.f7_hull_verts(), vc * 3).slice();
     const uvs = new Float32Array(buf, e.f7_hull_uvs(), vc * 2).slice();
     const idx = new Uint32Array(buf, e.f7_hull_idx(), ic).slice();
+
+    // Lower the integrated bulwark vertices in the uploaded copy.  C++ still
+    // owns the canonical hull and all below-deck curves; this is deliberately
+    // a presentation transform so no WASM rebuild or gameplay state changes.
+    for (let i = 0; i < vc; i++) {
+        const z = verts[i * 3 + 2];
+        const t = THREE.MathUtils.clamp((z - STERNZ) / (BOWZ - STERNZ), 0, 1);
+        const deck = e.f7_hull_deckY(t);
+        const y = verts[i * 3 + 1];
+        if (y > deck) verts[i * 3 + 1] = deck + (y - deck) * VISUAL_BULWARK_SCALE;
+    }
 
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(verts, 3));
@@ -107,7 +128,7 @@ export function buildRailGeometry(): THREE.BufferGeometry {
         for (let i = 0; i <= N; i++) {
             const t = i / N;
             const z = STERNZ + (BOWZ - STERNZ) * t;
-            const ry = e.f7_hull_railY(t);
+            const ry = visualRailY(e, t);
             const hx = e.f7_hull_beam(t) * 0.79;       // matches hull rail x (tumblehome)
             const xo = side * (hx + capW * 0.5);
             const xi = side * (hx - capW * 0.5);
@@ -188,7 +209,7 @@ export function buildInnerWallGeometry(inset = 0.72): THREE.BufferGeometry {
             const t = i / N;
             const z = STERNZ + (BOWZ - STERNZ) * t;
             const x = side * e.f7_hull_beam(t) * inset;
-            pos.push(x, e.f7_hull_railY(t) + 0.07, z); uv.push(0, t * 6);
+            pos.push(x, visualRailY(e, t) + 0.07, z); uv.push(0, t * 6);
             pos.push(x, e.f7_hull_deckY(t), z); uv.push(1, t * 6);
         }
         for (let i = 0; i < N; i++) {
@@ -248,7 +269,7 @@ let _seams: THREE.BufferGeometry | null = null;
 export function buildDeckSeams(): THREE.BufferGeometry {
     if (_seams) return _seams;
     const e = exports(); e.f7_hull_build();
-    const N = 56, K = 16, hw = 0.013;
+    const N = 56, K = 12, hw = 0.009;
     const pos: number[] = [], idx: number[] = [];
     let base = 0;
     for (let k = 0; k <= K; k++) {
@@ -274,7 +295,7 @@ export function buildDeckSeams(): THREE.BufferGeometry {
 
 // sheer-curve samplers (for placing props/masts/ribs along the deck line in JS)
 export function deckYAt(t: number): number { return exports().f7_hull_deckY(t); }
-export function railYAt(t: number): number { return exports().f7_hull_railY(t); }
+export function railYAt(t: number): number { const e = exports(); return visualRailY(e, t); }
 export function beamAt(t: number): number { return exports().f7_hull_beam(t); }
 export function sxAt(t: number, h: number): number { return exports().f7_hull_sx(t, h); }
 export function syAt(t: number, h: number): number { return exports().f7_hull_sy(t, h); }
