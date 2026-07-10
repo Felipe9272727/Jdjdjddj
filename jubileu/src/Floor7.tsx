@@ -56,9 +56,38 @@ function billowSail(w: number, h: number, bulge: number): THREE.PlaneGeometry {
     g.computeVertexNormals();
     return g;
 }
-const _mainSailGeo = billowSail(4.5, 3.4, 0.92);
+// Two smaller canvases keep the rig readable without turning the player's sky
+// into a low cloth ceiling.  The gap between them also exposes mast/yard logic.
+const _mainCourseGeo = billowSail(3.9, 1.48, 0.42);
+const _mainTopSailGeo = billowSail(2.65, 1.05, 0.3);
 // (the foresail is FURLED on its yard — see the foremast JSX; a billowed plane
 // there clipped through the elevator cab and crowded the spawn point)
+
+function organicPuddleGeometry(seed: number): THREE.BufferGeometry {
+    const segments = 48;
+    const positions: number[] = [0, 0, 0];
+    const uvs: number[] = [0.5, 0.5];
+    const indices: number[] = [];
+    const phase = seed * 1.731;
+    for (let i = 0; i <= segments; i++) {
+        const a = (i / segments) * Math.PI * 2;
+        const radius = 1
+            + Math.sin(a * 3 + phase) * 0.105
+            + Math.sin(a * 5 - phase * 0.7) * 0.055
+            + Math.sin(a * 7 + phase * 1.3) * 0.025;
+        positions.push(Math.cos(a) * radius, Math.sin(a) * radius, 0);
+        // Keep the wetness mask radially stable while geometry breaks the edge.
+        uvs.push(0.5 + Math.cos(a) * 0.5, 0.5 + Math.sin(a) * 0.5);
+        if (i < segments) indices.push(0, i + 1, i + 2);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    g.setIndex(indices);
+    g.computeVertexNormals();
+    return g;
+}
+const _puddleGeometries = Array.from({ length: 6 }, (_, i) => organicPuddleGeometry(i + 1));
 
 // warm low sun (golden hour) shared by the Sky, the key light and water glitter
 const SUN_POS: [number, number, number] = [26, 4.5, -30];
@@ -94,14 +123,14 @@ export function useFloor7Handle(): React.MutableRefObject<Floor7Handle> {
 
 // ── materials (module-scope, shared) ──
 const M = {
-    hull: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, bumpMap: _hullWood.rough, bumpScale: 0.09, color: '#caa066', roughness: 0.85, envMapIntensity: 0.7, side: THREE.DoubleSide }),
-    hullDk: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, bumpMap: _hullWood.rough, bumpScale: 0.08, color: '#8c6e44', roughness: 0.92 }),
+    hull: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, bumpMap: _hullWood.rough, bumpScale: 0.055, color: '#a87543', roughness: 0.88, envMapIntensity: 0.45, side: THREE.DoubleSide }),
+    hullDk: new THREE.MeshStandardMaterial({ map: _hullWood.map, roughnessMap: _hullWood.rough, bumpMap: _hullWood.rough, bumpScale: 0.045, color: '#6f4b2d', roughness: 0.94 }),
     // deck envMapIntensity kept LOW — at 0.6 the sky/sea env-map smeared cold
     // blue reflection streaks across the dry planks (the deck read as wet)
-    plank: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.03, color: '#c79a5e', roughness: 0.85, envMapIntensity: 0.22 }),
-    plankDk: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.03, color: '#ac8049', roughness: 0.88, envMapIntensity: 0.22 }),
-    rail: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, bumpMap: _trimWood.rough, bumpScale: 0.025, color: '#b07f48', roughness: 0.62, envMapIntensity: 0.4 }),
-    mast: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#b58a52', roughness: 0.6 }),
+    plank: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.018, color: '#b9824b', roughness: 0.9, envMapIntensity: 0.14 }),
+    plankDk: new THREE.MeshStandardMaterial({ map: _deckWood.map, roughnessMap: _deckWood.rough, bumpMap: _deckWood.rough, bumpScale: 0.018, color: '#936538', roughness: 0.92, envMapIntensity: 0.14 }),
+    rail: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, bumpMap: _trimWood.rough, bumpScale: 0.014, color: '#83552f', roughness: 0.72, envMapIntensity: 0.26 }),
+    mast: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#8d6035', roughness: 0.72 }),
     sail: new THREE.MeshStandardMaterial({ map: _sailCloth.map, roughnessMap: _sailCloth.rough, color: '#f2ead6', roughness: 0.92, side: THREE.DoubleSide, envMapIntensity: 0.4, transparent: true }),
     // tarred hemp — darker + rougher so rigging reads as ROPE, not pale macaroni
     rope: new THREE.MeshStandardMaterial({ color: '#5b4b32', roughness: 0.95, bumpMap: _sailCloth.rough, bumpScale: 0.01, envMapIntensity: 0.15 }),
@@ -153,7 +182,7 @@ const M = {
     foam: new THREE.MeshStandardMaterial({ color: '#eef6f7', roughness: 1, transparent: true, opacity: 0.7, depthWrite: false }),
     bootTop: new THREE.MeshStandardMaterial({ color: '#14322a', roughness: 0.55, envMapIntensity: 0.5 }),
     grate: new THREE.MeshStandardMaterial({ color: '#3a2817', roughness: 0.85 }),
-    caulk: new THREE.MeshStandardMaterial({ color: '#140f08', roughness: 1 }),
+    caulk: new THREE.MeshStandardMaterial({ color: '#342315', roughness: 1 }),
     giltTrim: new THREE.MeshStandardMaterial({ color: '#9d7a3a', roughness: 0.5, metalness: 0.65, envMapIntensity: 0.45, emissive: '#1f1605', emissiveIntensity: 0.11 }),
     // the captain's log (diário de bordo) — worn leather + salt-stained pages
     logCover: new THREE.MeshStandardMaterial({ color: '#3a2417', roughness: 0.85, bumpMap: _sailCloth.rough, bumpScale: 0.012, emissive: '#000000' }),
@@ -294,10 +323,10 @@ const Stays: React.FC = () => {
     const geos = useMemo(() => {
         const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
         return [
-            sagTube(v(0, 5.4, -1), v(0, 4.6, 4), 0.35, 0.022),      // mainstay (mast to mast)
-            sagTube(v(0, 6.2, -1), v(0, 1.4, -6.4), 0.3, 0.022),    // main backstay to the stern
-            sagTube(v(0.13, 6.0, -1), v(2.4, 1.2, -3.2), 0.25),     // running backstays
-            sagTube(v(-0.13, 6.0, -1), v(-2.4, 1.2, -3.2), 0.25),
+            sagTube(v(0, 5.4, -1), v(0, 4.6, 4), 0.35, 0.014),      // mainstay (mast to mast)
+            sagTube(v(0, 6.2, -1), v(0, 1.4, -6.4), 0.3, 0.014),    // main backstay to the stern
+            sagTube(v(0.13, 6.0, -1), v(2.4, 1.2, -3.2), 0.25, 0.012),
+            sagTube(v(-0.13, 6.0, -1), v(-2.4, 1.2, -3.2), 0.25, 0.012),
         ];
     }, []);
     return <group>{geos.map((g, i) => <mesh key={i} geometry={g} material={M.rope} />)}</group>;
@@ -336,10 +365,10 @@ const RatlineShrouds: React.FC<{ side: number; railX: number; railY: number; bas
         return (
             <group>
                 {shrouds.map((s, i) => (
-                    <mesh key={'s' + i} position={s.pos} quaternion={s.quat} material={M.rope}><cylinderGeometry args={[0.016, 0.016, s.len, 5]} /></mesh>
+                    <mesh key={'s' + i} position={s.pos} quaternion={s.quat} material={M.rope}><cylinderGeometry args={[0.011, 0.011, s.len, 5]} /></mesh>
                 ))}
                 {rungs.map((s, i) => (
-                    <mesh key={'r' + i} position={s.pos} quaternion={s.quat} material={M.rope}><cylinderGeometry args={[0.008, 0.008, s.len, 4]} /></mesh>
+                    <mesh key={'r' + i} position={s.pos} quaternion={s.quat} material={M.rope}><cylinderGeometry args={[0.005, 0.005, s.len, 4]} /></mesh>
                 ))}
                 {deadeyes.map((d, i) => (
                     <mesh key={'d' + i} position={[d.x, d.y - 0.06, d.z]} material={M.barrel}><sphereGeometry args={[0.05, 8, 6]} /></mesh>
@@ -686,25 +715,29 @@ const ShipBody: React.FC = () => {
             {/* main mast + yard + sail + flag + crow's nest */}
             <group position={[0, 0, -1]}>
                 <mesh position={[0, 3.4, 0]} material={M.mast}>
-                    <cylinderGeometry args={[0.11, 0.23, 6.8, 12]} />
+                    <cylinderGeometry args={[0.085, 0.17, 6.8, 12]} />
                 </mesh>
                 {/* woolding (rope bands) on the lower mast */}
                 {[0.55, 0.95, 1.35, 1.75].map((y, i) => (
-                    <mesh key={'wd' + i} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.rope}><torusGeometry args={[0.215 - i * 0.004, 0.024, 6, 14]} /></mesh>
+                    <mesh key={'wd' + i} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.rope}><torusGeometry args={[0.16 - i * 0.003, 0.016, 6, 14]} /></mesh>
                 ))}
                 {/* mast wedges ringing the deck partners */}
                 {Array.from({ length: 8 }).map((_, i) => { const a = (i / 8) * Math.PI * 2; return (
-                    <mesh key={'wg' + i} position={[Math.cos(a) * 0.25, 0.2, Math.sin(a) * 0.25]} rotation={[0, -a, 0.14]} material={M.wheel}><boxGeometry args={[0.09, 0.36, 0.17]} /></mesh>
+                    <mesh key={'wg' + i} position={[Math.cos(a) * 0.19, 0.2, Math.sin(a) * 0.19]} rotation={[0, -a, 0.14]} material={M.wheel}><boxGeometry args={[0.07, 0.32, 0.12]} /></mesh>
                 ); })}
-                <mesh position={[0, 5.2, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
-                    <cylinderGeometry args={[0.08, 0.08, 4.6, 8]} />
+                <mesh position={[0, 5.1, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
+                    <cylinderGeometry args={[0.055, 0.055, 4.1, 8]} />
                 </mesh>
-                <mesh position={[0, 3.45, 0.06]} geometry={_mainSailGeo} material={M.sail} />
+                <mesh position={[0, 4.25, 0.06]} geometry={_mainCourseGeo} material={M.sail} />
+                <mesh position={[0, 5.72, 0.04]} geometry={_mainTopSailGeo} material={M.sail} />
+                <mesh position={[0, 6.32, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
+                    <cylinderGeometry args={[0.045, 0.045, 2.9, 8]} />
+                </mesh>
                 {/* foot-rope slung under the main yard */}
-                <mesh position={[0, 5.05, 0.04]} rotation={[0, 0, Math.PI / 2]} material={M.rope}><cylinderGeometry args={[0.012, 0.012, 4.3, 5]} /></mesh>
+                <mesh position={[0, 4.96, 0.04]} rotation={[0, 0, Math.PI / 2]} material={M.rope}><cylinderGeometry args={[0.008, 0.008, 3.9, 5]} /></mesh>
                 {/* a row of reef-point ties across the course */}
                 {[-1.8, -1.2, -0.6, 0, 0.6, 1.2, 1.8].map((rx) => (
-                    <mesh key={'rf' + rx} position={[rx, 4.25, 0.16]} material={M.rope}><cylinderGeometry args={[0.008, 0.008, 0.16, 4]} /></mesh>
+                    <mesh key={'rf' + rx} position={[rx, 4.35, 0.16]} material={M.rope}><cylinderGeometry args={[0.005, 0.005, 0.13, 4]} /></mesh>
                 ))}
                 {/* crow's nest */}
                 <mesh position={[0, 6.0, 0]} material={M.rail}><cylinderGeometry args={[0.34, 0.28, 0.4, 10, 1, true]} /></mesh>
@@ -714,16 +747,16 @@ const ShipBody: React.FC = () => {
             {/* foremast */}
             <group position={[0, 0, 4]}>
                 <mesh position={[0, 2.6, 0]} material={M.mast}>
-                    <cylinderGeometry args={[0.09, 0.18, 5.2, 12]} />
+                    <cylinderGeometry args={[0.07, 0.135, 5.2, 12]} />
                 </mesh>
                 {[0.5, 0.85, 1.2].map((y, i) => (
-                    <mesh key={'fwd' + i} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.rope}><torusGeometry args={[0.17 - i * 0.004, 0.02, 6, 14]} /></mesh>
+                    <mesh key={'fwd' + i} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.rope}><torusGeometry args={[0.13 - i * 0.003, 0.014, 6, 14]} /></mesh>
                 ))}
                 {Array.from({ length: 8 }).map((_, i) => { const a = (i / 8) * Math.PI * 2; return (
-                    <mesh key={'fwg' + i} position={[Math.cos(a) * 0.2, 0.18, Math.sin(a) * 0.2]} rotation={[0, -a, 0.14]} material={M.wheel}><boxGeometry args={[0.07, 0.3, 0.14]} /></mesh>
+                    <mesh key={'fwg' + i} position={[Math.cos(a) * 0.15, 0.18, Math.sin(a) * 0.15]} rotation={[0, -a, 0.14]} material={M.wheel}><boxGeometry args={[0.055, 0.27, 0.1]} /></mesh>
                 ); })}
                 <mesh position={[0, 3.7, 0]} rotation={[0, 0, Math.PI / 2]} material={M.mast}>
-                    <cylinderGeometry args={[0.07, 0.07, 3.4, 8]} />
+                    <cylinderGeometry args={[0.05, 0.05, 3.2, 8]} />
                 </mesh>
                 {/* the foresail rides FURLED on its yard: a billowed sail here
                     clipped straight through the elevator cab (whose rotated
@@ -1988,9 +2021,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             <CloudField />
             <Birds />
             {/* light rig — warm key sun + cool sky fill */}
-            <hemisphereLight args={['#e6ddc4', '#4c4436', 0.85]} />
-            <directionalLight position={SUN_POS} intensity={2.6} color="#ffdca0" />
-            <ambientLight intensity={0.2} color="#9fc0d8" />
+            <hemisphereLight args={['#ddd8c9', '#3b403d', 0.72]} />
+            <directionalLight position={SUN_POS} intensity={1.9} color="#ffd39a" />
+            <ambientLight intensity={0.12} color="#91abc0" />
 
             {/* the Gerstner-wave ocean */}
             <Floor7Water sunDir={SUN_DIR} warnRef={_tideWarnRef} calmRef={_calmRef} />
@@ -2089,13 +2122,10 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 {/* puddles: a wet halo soaking the planks + a reflective water disc */}
                 {Array.from({ length: 6 }).map((_, i) => (
                     <group key={i} ref={(g) => { puddleRefs.current[i] = g; }} position={[0, 0.02, 0]}>
-                        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.012, 0]} renderOrder={1}>
-                            <circleGeometry args={[1.28, 20]} />
+                        <mesh geometry={_puddleGeometries[i]} scale={1.28} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.012, 0]} renderOrder={1}>
                             <meshBasicMaterial map={_contactTex} color="#0a181c" transparent opacity={0.6} depthWrite={false} />
                         </mesh>
-                        <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={2} material={puddleMats[i]}>
-                            <circleGeometry args={[1, 48]} />
-                        </mesh>
+                        <mesh geometry={_puddleGeometries[i]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2} material={puddleMats[i]} />
                     </group>
                 ))}
                 {/* suds particles thrown up by scrubbing */}
