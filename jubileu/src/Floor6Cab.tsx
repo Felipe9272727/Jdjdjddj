@@ -18,7 +18,7 @@ import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { f6 } from './f6Escape';
-import { F6M, puffTex, botoeiraTex } from './Floor6Textures';
+import { F6M, puffTex, botoeiraTex, winchPlaqueTex } from './Floor6Textures';
 import { B, ItemMesh, type F6Fx, since } from './Floor6Props';
 import { playF6Spark, playF6Slam, playF6Creak, playF6Groan } from './floor6Sfx';
 
@@ -256,7 +256,10 @@ const Winch: React.FC = () => {
     return (
         <group position={[0, 1.25, -2.86]}>
             {/* plaque — "SÓ PESSOAL AUTORIZADO", dulled by years */}
-            <B a={[0.74, 0.2, 0.01]} p={[0, 0.55, 0.01]} m={F6M.steelPlain} />
+            <mesh position={[0, 0.55, 0.01]}>
+                <planeGeometry args={[0.7, 0.18]} />
+                <meshStandardMaterial map={winchPlaqueTex} roughness={0.45} metalness={0.2} envMapIntensity={0.4} />
+            </mesh>
             <B a={[0.66, 0.14, 0.02]} p={[0, 0.55, 0.02]} m={F6M.applianceDk} />
             {/* gearbox housing + square shaft stub */}
             <B a={[0.36, 0.36, 0.14]} p={[0, 0, 0.02]} m={F6M.steel} />
@@ -368,7 +371,7 @@ export const DeadCab: React.FC<{ fx: F6Fx }> = ({ fx }) => {
         if (emergency.current) {
             const on = f6.phase === 'explore';
             emergency.current.intensity = on
-                ? (Math.sin(now * 7.3) > -0.92 ? 5.2 + Math.sin(now * 1.7) * 0.7 : 0.8)
+                ? (Math.sin(now * 7.3) > -0.92 ? 7.5 + Math.sin(now * 1.7) * 1.0 : 1.2)
                 : 0;
         }
     });
@@ -398,7 +401,7 @@ export const DeadCab: React.FC<{ fx: F6Fx }> = ({ fx }) => {
                         {/* dust drifts */}
                         <mesh rotation={[-Math.PI / 2, 0, 0.4]} position={[1.1, 0.02, 1.6]}>
                             <planeGeometry args={[1.4, 0.8]} />
-                            <meshStandardMaterial color="#8d8478" transparent opacity={0.18} roughness={1} />
+                            <meshStandardMaterial color="#8d8478" transparent opacity={0.07} roughness={1} depthWrite={false} />
                         </mesh>
                     </group>
                     {/* the crooked shell */}
@@ -452,6 +455,8 @@ export const DeadCab: React.FC<{ fx: F6Fx }> = ({ fx }) => {
                         </group>
                         <pointLight ref={emergency} position={[2.3, 2.1, -2.3]} color="#ff9a4a"
                             intensity={0} distance={10} decay={2} />
+                        {/* fill light: cold faint light inside dead cab */}
+                        <pointLight position={[-0.5, 1.8, -2.5]} color="#6a7585" intensity={2.5} distance={8} decay={2} />
                         {/* the part homes */}
                         <FuseBox />
                         <CommandPanel />

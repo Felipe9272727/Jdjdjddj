@@ -14,7 +14,7 @@ import { useFrame } from '@react-three/fiber';
 import { RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { f6 } from './f6Escape';
-import { F6M, blobMat, paintingTex, nineTex, tvScreen } from './Floor6Textures';
+import { F6M, blobMat, paintingTex, nineTex, tvScreen, windowFogTex } from './Floor6Textures';
 
 export interface F6Fx { t: Record<string, number> }
 
@@ -555,14 +555,15 @@ export const Window612: React.FC = () => {
             <B a={[1.7, 0.08, 0.26]} p={[0, 0.78, 0]} m={F6M.woodDk} />
             <B a={[0.08, 1.6, 0.26]} p={[-0.82, 0, 0]} m={F6M.woodDk} />
             <B a={[0.08, 1.6, 0.26]} p={[0.82, 0, 0]} m={F6M.woodDk} />
-            {/* the dead fog outside — cold, matte, never moving */}
+            {/* the dead fog outside — frozen mist photograph */}
             <mesh position={[0, 0, -0.045]}>
                 <planeGeometry args={[1.56, 1.5]} />
-                <meshStandardMaterial color="#6f7578" emissive="#454d50" emissiveIntensity={0.5} roughness={1} />
+                <meshStandardMaterial map={windowFogTex} roughness={0.95} />
             </mesh>
-            {/* glass with grime + reflections */}
-            <mesh position={[0, 0, 0.02]} material={F6M.glass}>
+            {/* glass with subtle reflections + faint vignette */}
+            <mesh position={[0, 0, 0.02]}>
                 <planeGeometry args={[1.5, 1.4]} />
+                <meshStandardMaterial color="#8db0c8" metalness={0.15} roughness={0.08} transparent opacity={0.25} envMapIntensity={0.6} />
             </mesh>
             {/* sash bars */}
             <B a={[0.05, 1.45, 0.05]} p={[0, 0, 0.04]} m={F6M.woodDk} />
@@ -702,6 +703,10 @@ export const SittingArea: React.FC = () => (
 /** Wall sconce — emissive shade only (no extra pointLight). */
 export const Sconce: React.FC<{ p: [number, number, number]; ry?: number }> = ({ p, ry = 0 }) => (
     <group position={p} rotation={[0, ry, 0]}>
+        {/* wall bracket support */}
+        <B a={[0.14, 0.08, 0.12]} p={[0, 0.02, 0]} m={F6M.brassOld} />
+        <B a={[0.08, 0.24, 0.06]} p={[0, 0.08, 0.03]} m={F6M.brassOld} />
+        {/* top rim + glow bowl */}
         <B a={[0.1, 0.22, 0.04]} p={[0, 0, 0]} m={F6M.brassOld} />
         <mesh position={[0, 0.1, 0.07]} rotation={[0.2, 0, 0]}>
             <cylinderGeometry args={[0.08, 0.05, 0.14, 10, 1, true]} />

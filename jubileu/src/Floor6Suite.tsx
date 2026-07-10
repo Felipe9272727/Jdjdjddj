@@ -42,7 +42,7 @@ import {
 // ── per-face wall finish ──────────────────────────────────────────────────────
 /** UVs scaled to REAL wall size so a stripe is a stripe and a tile is 32cm on
  *  every wall. Clones carry the matching bump (and roughness for tile). */
-type WallFinish = 'paper' | 'tile';
+type WallFinish = 'paper' | 'tile' | 'shaft';
 const finishCache = new Map<string, THREE.MeshStandardMaterial>();
 function wallFaceMat(kind: WallFinish, len: number, h: number): THREE.MeshStandardMaterial {
     const key = `${kind}:${len.toFixed(2)}:${h.toFixed(2)}`;
@@ -50,13 +50,14 @@ function wallFaceMat(kind: WallFinish, len: number, h: number): THREE.MeshStanda
     if (!m) {
         // paper: photo PBR (decrepit wallpaper), ONE wall-height per tile so
         // the peeling pattern reads at architectural scale; tile: the painted
-        // 32cm porcelain (the 1k photo tile turns to mush at this distance).
+        // 32cm porcelain (the 1k photo tile turns to mush at this distance);
+        // shaft: dark elevator shaft interior (matte, no texture).
         if (kind === 'paper') {
             m = new THREE.MeshStandardMaterial({
                 ...PBR.wallpaper(len / 2.8, 1.04), roughness: 1,
                 aoMap: wallAoTex, aoMapIntensity: 1,
             });
-        } else {
+        } else if (kind === 'tile') {
             const map = tileTex.clone(); map.needsUpdate = true;
             const bump = tileBump.clone(); bump.needsUpdate = true;
             const rough = tileRough.clone(); rough.needsUpdate = true;
@@ -66,6 +67,11 @@ function wallFaceMat(kind: WallFinish, len: number, h: number): THREE.MeshStanda
             m = new THREE.MeshStandardMaterial({
                 map, bumpMap: bump, bumpScale: 0.15, roughnessMap: rough,
                 aoMap: wallAoTex, aoMapIntensity: 0.8, envMapIntensity: 0.7,
+            });
+        } else {
+            // shaft: dark matte surface of elevator shaft
+            m = new THREE.MeshStandardMaterial({
+                color: '#1a1f24', roughness: 0.9, metalness: 0, envMapIntensity: 0.1,
             });
         }
         finishCache.set(key, m);
@@ -409,8 +415,9 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             <Wall seg={[6, -10, 6, -3]} a="paper" b="tile" />
             <Wall seg={[6, -3, 6, 7]} a="paper" b="paper" />
             <Wall seg={[-8, 7, 6, 7]} a="paper" b="paper" />
-            <Wall seg={[-8, -10, -1.3, -10]} a="paper" b="paper" />
-            <Wall seg={[1.3, -10, 6, -10]} a="paper" b="tile" />
+            {/* faces toward the dead cab (z<-10) are dark shaft, not wallpaper */}
+            <Wall seg={[-8, -10, -1.3, -10]} a="shaft" b="paper" />
+            <Wall seg={[1.3, -10, 6, -10]} a="shaft" b="tile" />
             <Wall seg={[1.5, -10, 1.5, -6.2]} a="tile" b="paper" />
             <Wall seg={[1.5, -4.8, 1.5, -3]} a="tile" b="paper" />
             <Wall seg={[1.5, -3, 1.5, 2.3]} a="paper" b="paper" />

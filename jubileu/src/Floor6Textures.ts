@@ -344,13 +344,28 @@ const drawCeil: Draw = (ctx, W, H) => {
         ctx.fillStyle = v > 0.5 ? `rgba(255,250,240,${(v - 0.5) * 0.08})` : `rgba(60,52,40,${v * 0.07})`;
         ctx.fillRect(r() * W, r() * H, 2, 2);
     }
-    // water stain rings
+    // water infiltration stains: irregular blob with concentric rings of varying opacity
     for (let i = 0; i < 3; i++) {
-        const x = W * (0.55 + r() * 0.4), y = H * (0.1 + r() * 0.5);
-        for (let k = 3; k > 0; k--) {
-            ctx.strokeStyle = `rgba(122,94,52,${0.1 + k * 0.05})`;
-            ctx.lineWidth = 2 + r() * 3;
-            ctx.beginPath(); ctx.ellipse(x, y, k * (14 + r() * 10), k * (10 + r() * 8), r(), 0, Math.PI * 2); ctx.stroke();
+        const cx = W * (0.55 + r() * 0.4), cy = H * (0.1 + r() * 0.5);
+        const mainRad = 20 + r() * 18;
+        // soft irregular blob center
+        ctx.fillStyle = `rgba(180,140,60,${0.25 + r() * 0.2})`;
+        ctx.beginPath();
+        let px = cx + Math.cos(0) * mainRad * (0.8 + r() * 0.3);
+        let py = cy + Math.sin(0) * mainRad * (0.8 + r() * 0.3);
+        ctx.moveTo(px, py);
+        for (let a = 0.1; a < Math.PI * 2; a += 0.15) {
+            px = cx + Math.cos(a) * mainRad * (0.7 + r() * 0.4);
+            py = cy + Math.sin(a) * mainRad * (0.7 + r() * 0.4);
+            ctx.lineTo(px, py);
+        }
+        ctx.fill();
+        // concentric rings of moisture: very soft, low contrast
+        for (let k = 2; k >= 0; k--) {
+            const ringRad = mainRad * (1 - k * 0.25);
+            ctx.strokeStyle = `rgba(150,110,40,${0.06 + k * 0.04})`;
+            ctx.lineWidth = 3 + r() * 2;
+            ctx.beginPath(); ctx.ellipse(cx, cy, ringRad, ringRad * 0.75, r() * 0.3, 0, Math.PI * 2); ctx.stroke();
         }
     }
 };
@@ -545,6 +560,53 @@ export const paintingTex = colorTex(256, 192, (ctx) => {
     ctx.fillStyle = v; ctx.fillRect(0, 0, 256, 192);
 });
 
+/** Window fog outside — cold, still mist with vignette. "A frozen photograph of mist." */
+export const windowFogTex = colorTex(256, 192, (ctx) => {
+    const r = rng(71);
+    // base pale blue-grey
+    const g = ctx.createLinearGradient(0, 0, 0, 192);
+    g.addColorStop(0, '#6a7880'); g.addColorStop(0.5, '#7a8a96'); g.addColorStop(1, '#6a7882');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 192);
+    // soft subtle stipple — frozen mist particles
+    for (let i = 0; i < 800; i++) {
+        ctx.fillStyle = `rgba(255,255,255,${r() * 0.05})`;
+        ctx.fillRect(r() * 256, r() * 192, 1.5, 1.5);
+    }
+    // vignette: edges darker (depth sense)
+    const vig = ctx.createRadialGradient(128, 96, 30, 128, 96, 180);
+    vig.addColorStop(0, 'rgba(0,0,0,0)'); vig.addColorStop(1, 'rgba(0,0,0,0.3)');
+    ctx.fillStyle = vig; ctx.fillRect(0, 0, 256, 192);
+});
+windowFogTex.wrapS = windowFogTex.wrapT = THREE.ClampToEdgeWrapping;
+
+/** Winch authorization plate — dulled aluminum with weathered black text. */
+export const winchPlaqueTex = colorTex(256, 96, (ctx) => {
+    // dulled aluminum background
+    const g = ctx.createLinearGradient(0, 0, 256, 96);
+    g.addColorStop(0, '#a8b0b8'); g.addColorStop(0.5, '#8a9299'); g.addColorStop(1, '#7a8290');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 96);
+    // border
+    ctx.strokeStyle = '#5a6268'; ctx.lineWidth = 4; ctx.strokeRect(6, 6, 244, 84);
+    // weathered grime spots
+    const r = rng(67);
+    for (let i = 0; i < 40; i++) {
+        ctx.fillStyle = `rgba(30,28,24,${r() * 0.15})`;
+        ctx.fillRect(r() * 256, r() * 96, 3, 3);
+    }
+    // text: "SÓ PESSOAL AUTORIZADO" in weathered black
+    ctx.font = 'bold 16px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#1a1818';
+    ctx.fillText('SÓ PESSOAL', 128, 32);
+    ctx.fillText('AUTORIZADO', 128, 64);
+    // tiny screws in corners
+    [[12, 12], [244, 12], [12, 84], [244, 84]].forEach(([x, y]) => {
+        ctx.fillStyle = '#6a7278'; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#3a3e42'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(x - 2, y); ctx.lineTo(x + 2, y); ctx.stroke();
+    });
+});
+winchPlaqueTex.wrapS = winchPlaqueTex.wrapT = THREE.ClampToEdgeWrapping;
+
 /** Brass scratch on the wall hidden behind the painting: « 9 ». */
 export const nineTex = colorTex(128, 128, (ctx) => {
     ctx.clearRect(0, 0, 128, 128);
@@ -639,11 +701,11 @@ export const F6M = {
     brass: new THREE.MeshStandardMaterial({ color: '#b08f42', metalness: 0.9, roughness: 0.3, envMapIntensity: 1.1 }),
     brassOld: new THREE.MeshStandardMaterial({ color: '#7e6730', metalness: 0.85, roughness: 0.45, envMapIntensity: 0.8 }),
     curtain: new THREE.MeshStandardMaterial({ color: '#6e5a4a', roughness: 1, side: THREE.DoubleSide }),
-    shower: new THREE.MeshStandardMaterial({ color: '#cfd6d2', transparent: true, opacity: 0.72, roughness: 0.6, side: THREE.DoubleSide, depthWrite: false }),
+    shower: new THREE.MeshStandardMaterial({ color: '#d8dfd8', transparent: true, opacity: 0.55, roughness: 0.6, side: THREE.DoubleSide, depthWrite: false }),
     glass: new THREE.MeshStandardMaterial({ color: '#aebfc4', metalness: 0.4, roughness: 0.05, transparent: true, opacity: 0.3, envMapIntensity: 1.4 }),
     paper: new THREE.MeshStandardMaterial({ color: '#ded6bd', roughness: 0.9 }),
     ice: new THREE.MeshPhysicalMaterial({ color: '#bfe2ec', transparent: true, opacity: 0.78, roughness: 0.12, transmission: 0, envMapIntensity: 1.3 }),
-    cabWall: new THREE.MeshStandardMaterial({ ...PBR.metal(), metalness: 0.7, roughness: 1, color: '#b8bcc2', envMapIntensity: 0.8 }),
+    cabWall: new THREE.MeshStandardMaterial({ ...PBR.metal(), metalness: 0.7, roughness: 1, color: '#d4dce2', envMapIntensity: 0.8 }),
     cabFloor: new THREE.MeshStandardMaterial({ map: cabFloorTex, color: '#7d776c', roughness: 0.6, envMapIntensity: 0.3 }),
     leather: new THREE.MeshStandardMaterial({ ...PBR.leather(), roughness: 1, envMapIntensity: 0.7 }),
     leatherDk: new THREE.MeshStandardMaterial({ ...PBR.leather(), color: '#8a6a60', roughness: 1, envMapIntensity: 0.5 }),
