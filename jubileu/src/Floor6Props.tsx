@@ -14,7 +14,7 @@ import { useFrame } from '@react-three/fiber';
 import { RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { f6 } from './f6Escape';
-import { F6M, blobMat, paintingTex, nineTex, tvScreen, windowFogTex } from './Floor6Textures';
+import { F6M, blobMat, paintingTex, nineTex, tvScreen, windowFogTex, suitcaseTagTex } from './Floor6Textures';
 
 export interface F6Fx { t: Record<string, number> }
 
@@ -620,6 +620,18 @@ export const Suitcase: React.FC = () => (
         <B a={[0.04, 0.17, 0.51]} p={[0.25, 0.58, 0]} m={F6M.fabricDk} />
         <B a={[0.06, 0.04, 0.03]} p={[-0.25, 0.62, 0.26]} m={F6M.brassOld} />
         <B a={[0.06, 0.04, 0.03]} p={[0.25, 0.62, 0.26]} m={F6M.brassOld} />
+        {/* leather tag with guest name — hanging from right strap */}
+        <group position={[0.25, 0.62, 0.28]}>
+            {/* small rope/cord to tag */}
+            <mesh position={[0, -0.04, 0]} rotation={[0, 0, Math.PI / 2]} material={F6M.fabricDk}>
+                <cylinderGeometry args={[0.003, 0.003, 0.06, 4]} />
+            </mesh>
+            {/* tag itself */}
+            <mesh position={[0, -0.07, 0]}>
+                <planeGeometry args={[0.08, 0.04]} />
+                <meshStandardMaterial map={suitcaseTagTex} />
+            </mesh>
+        </group>
     </group>
 );
 
@@ -708,17 +720,25 @@ export const SittingArea: React.FC = () => (
     </group>
 );
 
-/** Wall sconce — emissive shade only (no extra pointLight). */
+/** Wall sconce — metal bracket + shade with warm glow. */
 export const Sconce: React.FC<{ p: [number, number, number]; ry?: number }> = ({ p, ry = 0 }) => (
     <group position={p} rotation={[0, ry, 0]}>
-        {/* wall bracket support */}
-        <B a={[0.14, 0.08, 0.12]} p={[0, 0.02, 0]} m={F6M.brassOld} />
-        <B a={[0.08, 0.24, 0.06]} p={[0, 0.08, 0.03]} m={F6M.brassOld} />
-        {/* top rim + glow bowl */}
-        <B a={[0.1, 0.22, 0.04]} p={[0, 0, 0]} m={F6M.brassOld} />
-        <mesh position={[0, 0.1, 0.07]} rotation={[0.2, 0, 0]}>
-            <cylinderGeometry args={[0.08, 0.05, 0.14, 10, 1, true]} />
-            <meshStandardMaterial color="#e8d9b0" emissive="#ffd9a0" emissiveIntensity={1.1} side={THREE.DoubleSide} />
+        {/* wall bracket support — bent metal arm */}
+        <B a={[0.16, 0.06, 0.12]} p={[0, 0.02, 0]} m={F6M.brassOld} />
+        <B a={[0.08, 0.28, 0.05]} p={[0, 0.1, 0.04]} m={F6M.brassOld} />
+        {/* bracket corner bead */}
+        <mesh position={[0, 0.08, 0.08]} material={F6M.brassOld}>
+            <sphereGeometry args={[0.014, 6, 4]} />
+        </mesh>
+        {/* top rim + glow bowl — warmer emissive */}
+        <B a={[0.11, 0.024, 0.045]} p={[0, 0, 0]} m={F6M.brassOld} />
+        <mesh position={[0, 0.11, 0.08]} rotation={[0.25, 0, 0]}>
+            <cylinderGeometry args={[0.085, 0.055, 0.15, 10, 1, true]} />
+            <meshStandardMaterial color="#e8d9b0" emissive="#ffcf80" emissiveIntensity={1.6} side={THREE.DoubleSide} />
+        </mesh>
+        {/* subtle bulb glow inside */}
+        <mesh position={[0, 0.08, 0.09]} material={new THREE.MeshBasicMaterial({ color: '#ffdb99', transparent: true, opacity: 0.3 })}>
+            <sphereGeometry args={[0.015, 6, 4]} />
         </mesh>
     </group>
 );

@@ -322,7 +322,7 @@ export const F6_TXT: Record<string, { title: string; text: string }> = {
     aviso: { title: 'BILHETE NO BATENTE', text: F6_NOTE_PANEL },
     maquina: {
         title: 'MÁQUINA DE ESCREVER',
-        text: 'Uma página pela metade, ainda presa no rolo:\n\n"eu contei os andares. não são sete como o robô do 5 jura — coitado, ele só conhece o dele. são VINTE. eu subi de serviço, contei as portas, FOTOGRAFEI.\n\namanhã fazem o meu check-out.\n\nse você está lendo isto, escondi os números do cadeado NESTA ORDEM:\n\n1º — atrás do quadro torto\n2º — embaixo do telefone\n3º — o andar que não existe\n4º — o canal que só dá estática"',
+        text: 'Uma página pela metade, ainda presa no rolo:\n\n"eu contei os andares. não são sete como o robô do 5 jura — coitado, ele só conhece o dele. são VINTE. eu subi de serviço, contei as portas, FOTOGRAFEI.\n\namanhã fazem o meu check-out.\n\nse você está lendo isto, escondi os números do cadeado NESTA ORDEM:\n\n1º — atrás do quadro torto\n2º — embaixo do telefone\n3º — o andar que não existe\n4º — o canal que só dá estática\n\n— Aurélio Campos"',
     },
     quadro: {
         title: 'QUADRO TORTO',
@@ -343,7 +343,7 @@ export const F6_TXT: Record<string, { title: string; text: string }> = {
     },
     diario: {
         title: 'DIÁRIO',
-        text: '"dia 47. eles sorriem quando eu pergunto do último andar. sorriem igual.\n\no terceiro número é o andar que não existe. o ELEVADOR sabe qual é: olha a botoeira lá dentro e conta o buraco entre os botões."',
+        text: '"Propriedade de Aurélio Campos\n\ndia 47. eles sorriem quando eu pergunto do último andar. sorriem igual.\n\no terceiro número é o andar que não existe. o ELEVADOR sabe qual é: olha a botoeira lá dentro e conta o buraco entre os botões."',
     },
     tvon: {
         title: 'TELEVISÃO',
@@ -368,7 +368,7 @@ export const F6_TXT: Record<string, { title: string; text: string }> = {
     guardaroupa2: { title: 'GUARDA-ROUPA', text: 'As camisas continuam esperando por ele.' },
     mala: {
         title: 'A MALA',
-        text: 'Aberta no porta-malas, arrumada para um check-out que não houve: camisas dobradas, um vidro de remédio, um mapa do estado com o hotel circulado…\n\n…e o canto de uma fotografia queimada. Sobrou só a legenda, à mão: "as VINTE portas".',
+        text: 'Aberta no porta-malas, arrumada para um check-out que não houve: camisas dobradas, um vidro de remédio, um mapa do estado com o hotel circulado…\n\nUma etiqueta desgastada está colada no puxador:\n"AURÉLIO CAMPOS"\n\n…e o canto de uma fotografia queimada. Sobrou só a legenda, à mão: "as VINTE portas".',
     },
     cama_locked: {
         title: 'COLCHÃO',
@@ -429,7 +429,7 @@ export const F6_TXT: Record<string, { title: string; text: string }> = {
     },
     geladeira_open: {
         title: 'GELADEIRA',
-        text: 'A porta abre com um beijo de borracha e a luzinha pisca antes de firmar.\n\nMarmitas etiquetadas à mão: DIA 1… DIA 46… DIA 47. A última está intacta.\n\nNo congelador, um bloco de gelo com algo escuro dentro.',
+        text: 'A porta abre com um beijo de borracha e a luzinha pisca antes de firmar.\n\nMarmitas etiquetadas à mão: "Aurélio" — DIA 1… DIA 46… DIA 47. A última está intacta.\n\nNo congelador, um bloco de gelo com algo escuro dentro.',
     },
     gelo_take: {
         title: 'BLOCO DE GELO',

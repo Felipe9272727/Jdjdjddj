@@ -648,17 +648,29 @@ const Stove: React.FC = () => {
                     <cylinderGeometry args={[0.013, 0.013, 0.12, 8]} />
                 </mesh>
             </group>
-            {/* stove recess: black top, burner ring, grate */}
+            {/* stove recess: black top */}
             <B a={[0.72, 0.045, 0.92]} p={[0, 0.945, -0.6]} m={F6M.dark} />
-            <mesh position={[0, 0.97, -0.6]} material={F6M.rubber}>
-                <cylinderGeometry args={[0.16, 0.16, 0.012, 16]} />
-            </mesh>
-            {[0, 1, 2, 3].map((i) => (
-                <B key={i} a={[0.34, 0.012, 0.025]} p={[0, 0.985, -0.6]} m={F6M.dark}
-                    r={[0, (i * Math.PI) / 4, 0]} />
+            {/* 4 burners in a 2x2 grid: front-left, front-right, back-left, back-right */}
+            {[[-0.15, -0.2], [0.15, -0.2], [-0.15, 0.2], [0.15, 0.2]].map(([x, z], i) => (
+                <group key={i} position={[x, 0.97, -0.6 + z]}>
+                    {/* iron burner ring */}
+                    <mesh material={F6M.rubber}>
+                        <cylinderGeometry args={[0.12, 0.12, 0.012, 16]} />
+                    </mesh>
+                    {/* grill inside ring: 3 bars */}
+                    {[-0.04, 0, 0.04].map((oz, j) => (
+                        <B key={j} a={[0.22, 0.008, 0.014]} p={[0, 0.008, oz]} m={F6M.dark} />
+                    ))}
+                </group>
             ))}
-            {/* the flame ring */}
-            <group ref={flame} position={[0, 0.99, -0.6]} visible={false}>
+            {/* control knobs/buttons on cabinet front rebate (below stovetop) */}
+            {[[-0.2, -0.35, -0.5], [-0.05, -0.35, -0.5], [0.1, -0.35, -0.5], [0.25, -0.35, -0.5]].map(([x, y, z], i) => (
+                <mesh key={`knob-${i}`} position={[x, y, z]} material={F6M.rubber}>
+                    <cylinderGeometry args={[0.02, 0.02, 0.015, 8]} />
+                </mesh>
+            ))}
+            {/* the flame ring — on front-left burner */}
+            <group ref={flame} position={[-0.15, 0.99, -0.8]} visible={false}>
                 {Array.from({ length: 10 }).map((_, i) => {
                     const a = (i / 10) * Math.PI * 2;
                     return (
@@ -670,28 +682,28 @@ const Stove: React.FC = () => {
                     );
                 })}
             </group>
-            <pointLight ref={flameLight} position={[0, 1.15, -0.6]} color="#7aa8ff" intensity={0}
+            <pointLight ref={flameLight} position={[-0.15, 1.15, -0.8]} color="#7aa8ff" intensity={0}
                 distance={2.2} decay={2} />
-            {/* the pan */}
-            <mesh position={[0, 1.02, -0.6]} material={F6M.steel}>
+            {/* the pan — on front-left burner */}
+            <mesh position={[-0.15, 1.02, -0.8]} material={F6M.steel}>
                 <cylinderGeometry args={[0.21, 0.18, 0.09, 16, 1, true]} />
             </mesh>
-            <mesh position={[0, 0.985, -0.6]} rotation={[-Math.PI / 2, 0, 0]} material={F6M.steel}>
+            <mesh position={[-0.15, 0.985, -0.8]} rotation={[-Math.PI / 2, 0, 0]} material={F6M.steel}>
                 <circleGeometry args={[0.18, 16]} />
             </mesh>
-            <mesh position={[-0.3, 1.04, -0.6]} rotation={[0, 0, 0.1]} material={F6M.dark}>
+            <mesh position={[-0.45, 1.04, -0.8]} rotation={[0, 0, 0.1]} material={F6M.dark}>
                 <cylinderGeometry args={[0.015, 0.02, 0.22, 6]} />
             </mesh>
             {/* melt water + the ice + the relay */}
-            <mesh ref={water} position={[0, 1.0, -0.6]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+            <mesh ref={water} position={[-0.15, 1.0, -0.8]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
                 <circleGeometry args={[0.165, 16]} />
                 <meshStandardMaterial color="#9fc4cc" transparent opacity={0.7} roughness={0.05} />
             </mesh>
-            <group ref={ice} position={[0, 1.04, -0.6]} visible={false}>
+            <group ref={ice} position={[-0.15, 1.04, -0.8]} visible={false}>
                 <ItemMesh kind="gelo" />
             </group>
             {f6.panRele && (
-                <group position={[0, 1.03, -0.6]} rotation={[0, 0.6, 0]} scale={0.9}>
+                <group position={[-0.15, 1.03, -0.8]} rotation={[0, 0.6, 0]} scale={0.9}>
                     <ItemMesh kind="rele" />
                 </group>
             )}
@@ -719,8 +731,40 @@ const Stove: React.FC = () => {
             </group>
             {/* microwave */}
             <group position={[0, 1.12, 1.25]}>
-                <B a={[0.55, 0.35, 0.42]} p={[0, 0, 0]} m={F6M.dark} />
-                <B a={[0.02, 0.28, 0.26]} p={[-0.28, 0, -0.04]} m={F6M.rubber} />
+                {/* main body: black appliance finish */}
+                <B a={[0.55, 0.35, 0.42]} p={[0, 0, 0]} m={F6M.appliance} />
+                {/* left side panel: metal with 2 buttons */}
+                <B a={[0.02, 0.3, 0.38]} p={[-0.28, 0, 0]} m={F6M.steel} />
+                {/* button 1 (upper) */}
+                <mesh position={[-0.3, 0.08, 0]} material={F6M.rubber}>
+                    <cylinderGeometry args={[0.015, 0.015, 0.008, 8]} />
+                </mesh>
+                {/* button 2 (lower) */}
+                <mesh position={[-0.3, -0.08, 0]} material={F6M.rubber}>
+                    <cylinderGeometry args={[0.015, 0.015, 0.008, 8]} />
+                </mesh>
+                {/* door frame: recessed dark surround */}
+                <B a={[0.48, 0.31, 0.38]} p={[0.04, 0, 0]} m={F6M.dark} />
+                {/* door: black with frame */}
+                <RB a={[0.44, 0.285, 0.35]} p={[0.07, 0, 0]} m={F6M.appliance} rad={0.02} />
+                {/* window: dark glass with subtle reflection */}
+                <group position={[0.09, 0, 0]}>
+                    <mesh rotation={[0, 0, 0]}>
+                        <planeGeometry args={[0.32, 0.22]} />
+                        <meshStandardMaterial color="#1a1a1a" metalness={0.3} roughness={0.4} />
+                    </mesh>
+                    {/* subtle reflection highlight on glass */}
+                    <mesh position={[0.05, 0.04, 0.001]} rotation={[0, 0, 0]}>
+                        <planeGeometry args={[0.08, 0.04]} />
+                        <meshBasicMaterial color="#cccccc" transparent opacity={0.15} />
+                    </mesh>
+                </group>
+                {/* 4 feet on bottom */}
+                {[[-0.2, -0.15], [0.2, -0.15], [-0.2, 0.15], [0.2, 0.15]].map(([x, z], i) => (
+                    <mesh key={i} position={[x, -0.18, z]} material={F6M.rubber}>
+                        <cylinderGeometry args={[0.012, 0.015, 0.04, 8]} />
+                    </mesh>
+                ))}
             </group>
         </group>
     );
@@ -896,15 +940,63 @@ export const Kitchen: React.FC<{ fx: F6Fx }> = ({ fx }) => (
         <Pantry />
         {/* hanging utensils over the counter */}
         <group position={[5.88, 1.7, 0.2]}>
+            {/* chrome rail */}
             <mesh rotation={[Math.PI / 2, 0, 0]} material={F6M.steelPlain}>
                 <cylinderGeometry args={[0.012, 0.012, 1.2, 6]} />
             </mesh>
-            {[-0.4, -0.1, 0.2, 0.5].map((z, i) => (
-                <group key={z} position={[0, -0.1, z]}>
-                    <B a={[0.02, 0.16, 0.02]} p={[0, 0, 0]} m={F6M.steelPlain} />
-                    <B a={[i % 2 ? 0.07 : 0.05, 0.1, 0.02]} p={[0, -0.12, 0]} m={F6M.steelPlain} />
-                </group>
-            ))}
+
+            {/* hook 1: ladle at z=-0.4 */}
+            <group position={[0, -0.1, -0.4]}>
+                {/* hook touches rail */}
+                <B a={[0.018, 0.16, 0.018]} p={[0, 0, 0]} m={F6M.steelPlain} />
+                {/* ladle: handle (curved) + bowl (hemisphere) */}
+                <mesh position={[0, -0.15, 0]} material={F6M.steel}>
+                    <cylinderGeometry args={[0.03, 0.028, 0.15, 10]} />
+                </mesh>
+                {/* handle curve (taper) */}
+                <mesh position={[0, -0.23, 0]} rotation={[Math.PI / 2, 0, 0]} material={F6M.steel}>
+                    <coneGeometry args={[0.014, 0.08, 8]} />
+                </mesh>
+                {/* bowl: hemisphere */}
+                <mesh position={[0, -0.27, 0]} material={F6M.steel}>
+                    <sphereGeometry args={[0.045, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+                </mesh>
+            </group>
+
+            {/* hook 2: spatula at z=-0.1 */}
+            <group position={[0, -0.1, -0.1]}>
+                {/* hook touches rail */}
+                <B a={[0.018, 0.16, 0.018]} p={[0, 0, 0]} m={F6M.steelPlain} />
+                {/* spatula: wooden handle + flat blade */}
+                <mesh position={[0, -0.15, 0]} material={F6M.wood}>
+                    <cylinderGeometry args={[0.01, 0.012, 0.18, 8]} />
+                </mesh>
+                {/* handle taper end */}
+                <mesh position={[0, -0.24, 0]} material={F6M.wood}>
+                    <sphereGeometry args={[0.012, 6, 4]} />
+                </mesh>
+                {/* blade: flat rectangle */}
+                <B a={[0.055, 0.008, 0.04]} p={[0, -0.28, 0]} m={F6M.steel} />
+            </group>
+
+            {/* hook 3: frying pan at z=0.2 */}
+            <group position={[0, -0.1, 0.2]}>
+                {/* hook touches rail */}
+                <B a={[0.018, 0.16, 0.018]} p={[0, 0, 0]} m={F6M.steelPlain} />
+                {/* pan: disk + handle */}
+                {/* pan disk */}
+                <mesh position={[0, -0.22, 0]} rotation={[-Math.PI / 2, 0, 0]} material={F6M.steel}>
+                    <circleGeometry args={[0.058, 12]} />
+                </mesh>
+                {/* pan depth (side) */}
+                <mesh position={[0, -0.235, 0]} material={F6M.steel}>
+                    <cylinderGeometry args={[0.058, 0.055, 0.03, 12, 1, true]} />
+                </mesh>
+                {/* handle: wood rod */}
+                <mesh position={[0.06, -0.22, 0]} rotation={[0, 0, -0.3]} material={F6M.wood}>
+                    <cylinderGeometry args={[0.008, 0.012, 0.12, 6]} />
+                </mesh>
+            </group>
         </group>
     </group>
 );

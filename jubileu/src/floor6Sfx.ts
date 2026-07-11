@@ -285,3 +285,44 @@ export function playF6Ding(): void {
         o.connect(g).connect(d!); o.start(t); o.stop(t + 1.2);
     });
 }
+
+/** Memory pulse — climax moment "Lembra. De. Mim.": sub-drone (~48Hz)
+ *  with shimmer above + 1.2s envelope. Barely audible but felt in the room. */
+export function playF6MemoryPulse(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t0 = ctx.currentTime;
+    // Sub-drone (48Hz)
+    const oSub = ctx.createOscillator(); oSub.type = 'sine'; oSub.frequency.value = 48;
+    const gSub = ctx.createGain();
+    gSub.gain.setValueAtTime(0.0001, t0);
+    gSub.gain.exponentialRampToValueAtTime(0.04, t0 + 0.08);
+    gSub.gain.exponentialRampToValueAtTime(0.0005, t0 + 1.2);
+    oSub.connect(gSub).connect(d); oSub.start(t0); oSub.stop(t0 + 1.3);
+    // Shimmer: high-frequency white noise (8kHz cutoff)
+    const buf = getNoise(); if (buf) {
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        const flt = ctx.createBiquadFilter(); flt.type = 'highpass'; flt.frequency.value = 6000; flt.Q.value = 0.7;
+        const gShimmer = ctx.createGain();
+        gShimmer.gain.setValueAtTime(0.0001, t0);
+        gShimmer.gain.exponentialRampToValueAtTime(0.015, t0 + 0.06);
+        gShimmer.gain.exponentialRampToValueAtTime(0.0005, t0 + 1.1);
+        src.connect(flt).connect(gShimmer).connect(d); src.start(t0); src.stop(t0 + 1.2);
+    }
+}
+
+/** Memory sting — soft bell-like two-note decay (no pitch glide, amplitude fade).
+ *  Played when 'guestAside' event drains (card transition). */
+export function playF6MemorySting(): void {
+    if (!ctx) return; const d = out(); if (!d) return;
+    const t0 = ctx.currentTime;
+    // Two sine waves: 880Hz then 740Hz, both with smooth attack + long decay
+    [880, 740].forEach((f, i) => {
+        const t = t0 + i * 0.12;
+        const o = ctx!.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+        const g = ctx!.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.035, t + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.0005, t + 0.8);
+        o.connect(g).connect(d!); o.start(t); o.stop(t + 0.9);
+    });
+}

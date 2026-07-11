@@ -417,6 +417,9 @@ export const Floor6Overlay: React.FC<{
                         <div style={{ ...mono, fontSize: 12, letterSpacing: 3, color: '#d9b96a', marginBottom: 10 }}>
                             VOCÊ LEMBROU DO HÓSPEDE DO 612
                         </div>
+                        <div style={{ ...mono, fontSize: 13, letterSpacing: 1, color: '#8a7d5e', marginBottom: 8 }}>
+                            Aurélio Campos
+                        </div>
                         <div style={{ ...mono, fontSize: 15, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                             O quarto 612 agora é um tijolo seu. Eles não podem apagá-lo.
                         </div>

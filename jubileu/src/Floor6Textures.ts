@@ -543,6 +543,29 @@ export const plate612Tex = colorTex(256, 128, (ctx) => {
     });
 });
 
+/** Suitcase leather tag with guest name "Aurélio Campos" — aged leather look. */
+export const suitcaseTagTex = colorTex(128, 64, (ctx) => {
+    // aged leather gradient background
+    const g = ctx.createLinearGradient(0, 0, 0, 64);
+    g.addColorStop(0, '#8b6f47'); g.addColorStop(0.5, '#7a5c38'); g.addColorStop(1, '#6b4c28');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 64);
+    // worn leather texture overlay
+    ctx.strokeStyle = '#5a3d20'; ctx.lineWidth = 0.5;
+    for (let i = 0; i < 80; i++) {
+        const x = Math.random() * 128; const y = Math.random() * 64;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.random() * 6, y + Math.random() * 3); ctx.stroke();
+    }
+    // border stitching
+    ctx.strokeStyle = '#4a2d10'; ctx.lineWidth = 1.2;
+    ctx.strokeRect(2, 2, 124, 60);
+    // guest name
+    ctx.fillStyle = '#d4c5a9';
+    ctx.font = 'bold 16px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Aurélio', 64, 28);
+    ctx.font = 'bold 14px serif';
+    ctx.fillText('Campos', 64, 45);
+});
+
 /** Crooked painting — a moody varnished landscape with craquelure. */
 export const paintingTex = colorTex(256, 192, (ctx) => {
     const r = rng(43);

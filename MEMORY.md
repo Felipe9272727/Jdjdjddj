@@ -3656,3 +3656,49 @@ Commit: 57ec051 — Build index.html (~65MB single-file), push OK. Comodoro só 
   (~3fps + clamp de dt) animações rodam ~6x mais lentas: esperar 20s+ antes de acusar bug.
 - Cuidado no bench: perto do hóspede o hotspot 'portabanheiro' (1.75m) ganha do 'hospede'
   (1.8m) — teste a interação parado em (0,-7).
+
+### Sessão 2026-07-11 (cont.) — Acabamento: lore + atmosfera + cozinha
+
+**Tripulação (SendMessage):** Dramaturgo (`ac4a7186cff065519` — textos + ritmo), Maestro
+(`a73651a33aecd4c27` — luz + som), Vitrinista (`afc5c2145e53cc229` — props cozinha +
+arandelas). Porteiro (Claude Fable) coordenou QA E2E + integração final.
+
+**Lore (Dramaturgo):**
+- Nome do hóspede AURÉLIO CAMPOS integrado em 5 locais (máquina de escrever, diário, mala,
+  geladeira, card de memória). Etiqueta da mala: textura leather aged em Floor6Textures.ts.
+- Ato 2 (F6_GUEST_LINES2): 7 falas expandidas, cada uma revelando camadas (despensa,
+  check-out, descida, nome, memória-tijolo, "lembra de mim", despedida). Beats preservados,
+  falas enxutas.
+
+**Atmosfera (Maestro):**
+- Dimming ato 2: guest2 reduz bedLight a 55% (guest2DimTarget=0.55 em Floor6Suite.tsx),
+  suave recovery 4s ao entrar em 'free'. Visualmente impacto: cena ~45% mais escura.
+- Memory pulse (guestLine===4, "Lembra. De. Mim."): playF6MemoryPulse() = sub-drone 48Hz
+  + shimmer 6kHz, envelope 1.2s. Light pulse sincronizado: bedLight ramp-down 0.4s +
+  ramp-up 0.6s. playF6MemorySting() = 880Hz+740Hz (card sting, 0.8s decay).
+
+**Cozinha (Vitrinista):**
+- Fogão: 4 bocas em grid 2x2, cada uma com anel de ferro + 3 grades. Chama + panela na
+  boca frente-esquerda. 4 botões de controle na frente (painel tátil).
+- Microondas: painel lateral com 2 botões, janela escura com reflexo sutil, corpo em
+  appliance matte, 4 pés na base. Geometria realista: F6M.appliance (cor/material).
+- Utensílios no trilho chrome (3 unidades reconhecíveis):
+  1. Concha/ladle (z=-0.4): handle cilíndrico + bowl hemisphere
+  2. Espátula (z=-0.1): handle wood taper + blade retangular em steel
+  3. Frigideira (z=0.2): pan disk (fundo) + handle wood rod
+- Arandelas: metal bracket + shade bowl com emissive #ffcf80 (warm), intensity 1.6.
+  Subtle bulb glow interior (opacity 0.3, MeshBasicMaterial).
+
+**QA E2E:**
+- 115/115 testes vitest, tsc clean. Screenshots visuais: guestIdle (base) vs guest2 (55%
+  darker) vs free (recovered). Diálogo ato 2 = 7 linhas avançadas, card exibido (sem sting
+  capturado na screenshot, mas código verificado). Boarding: "F6 LEAVE OK" no console.
+- Critérios aceite: 1(tests), 2(nome+etiqueta), 3(ato2), 4(luz), 5(cozinha), 6(arandelas),
+  7(regressão E2E), 8(raias), 9(MEMORY.md) = ✓ ALL GREEN.
+
+**Merge:** Floor6Overlay.tsx (card nome), Floor6Props.tsx (suitcase tag, sconce glow),
+Floor6Suite.tsx (dimming + memory pulse light), Floor6Textures.ts (suitcaseTagTex),
+Floor6Wet.tsx (fogão 4-bocas, microondas detalhado, utensílios 3x), f6Escape.ts (nome em
+5 textos), floor6Sfx.ts (playF6MemoryPulse/Sting).
+
+**Commit:** branch `claude/floor-7-bugs-lore-celwdy`, build index.html (~66MB), push OK.

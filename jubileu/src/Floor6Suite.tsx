@@ -37,6 +37,7 @@ import {
     playF6Chain, playF6Ding, startF6Tap, stopF6Tap, playF6Breath, playF6Static,
     playF6Creak, playF6Drawer, playF6Paper, playF6Groan, playF6Match,
     playF6Sizzle, playF6Pickup, startF6Flame, stopF6Flame,
+    playF6MemoryPulse, playF6MemorySting,
 } from './floor6Sfx';
 
 // ── per-face wall finish ──────────────────────────────────────────────────────
@@ -269,6 +270,12 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
     const [, force] = React.useReducer((v: number) => v + 1, 0);
     const versionSeen = useRef(f6.version);
 
+    // Phase-based lighting: guest2 dimming target, memory pulse stamp, free recovery
+    const guest2DimTarget = useRef(0);      // 0..1 multiplier for bedLight during guest2
+    const memoryPulseTriggered = useRef(false);  // edge-detect for guestLine===5
+    const lightRecoveryStart = useRef(0);   // timestamp when entering 'free' phase
+    const memoryPulseStart = useRef(0);    // timestamp of memory pulse light effect
+
     const { gl, scene } = useThree();
 
     // REAL HDRI environment (PolyHaven "hotel_room", bundled) — true image-
@@ -339,6 +346,7 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             else if (ev === 'placeIce') playF6Sizzle();
             else if (ev === 'despensa') playF6Creak();
             else if (ev === 'fish') playF6Clank(0.3);
+            else if (ev === 'guestAside') { playF6MemorySting(); }
             else if (ev.startsWith('install:')) {
                 playF6Clank();
                 const kind = ev.slice(8);
@@ -362,10 +370,44 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
                 : bathFlicker.current > 0 ? (Math.random() < 0.6 ? 13 : 1)
                 : 13 + Math.sin(now * 13.7) * 0.5;
         }
-        // bedroom bulb breathes, barely — and dips when the cab sparks
+        // bedroom bulb: breathes, dips on spark, dims during guest2, recovers in free
         if (bedLight.current) {
             const sparkDip = fx.t['bang'] !== undefined && now - fx.t['bang'] < 0.5 ? 0.45 : 1;
-            bedLight.current.intensity = (21 + Math.sin(now * 0.9) * 0.8) * sparkDip;
+
+            // Phase logic: set dimming target based on phase
+            if (f6.phase === 'guest2') {
+                guest2DimTarget.current = 0.55;  // ~55% during act 2
+            } else if (f6.phase === 'free') {
+                if (lightRecoveryStart.current === 0) lightRecoveryStart.current = now;
+                // Recover over 4 seconds
+                const recoverElapsed = now - lightRecoveryStart.current;
+                guest2DimTarget.current = 0.55 + (1 - 0.55) * Math.min(1, recoverElapsed / 4);
+            } else if (f6.phase !== 'guest' && f6.phase !== 'guestIdle' && f6.phase !== 'leave') {
+                // reset recovery timer if we leave free
+                lightRecoveryStart.current = 0;
+                guest2DimTarget.current = 1;
+            }
+
+            // Edge-detect: guestLine transitioned to 4 (climax "Lembra. De. Mim.")
+            // Trigger memory pulse (light + sound) only once during guest2
+            if (f6.phase === 'guest2' && f6.guestLine === 4 && !memoryPulseTriggered.current) {
+                memoryPulseTriggered.current = true;
+                memoryPulseStart.current = now;
+                playF6MemoryPulse();
+            }
+            // Reset trigger when leaving guest2
+            if (f6.phase !== 'guest2') memoryPulseTriggered.current = false;
+
+            // Memory pulse light effect: bedLight pulses down ~0.4s then back up over 1.0s total
+            const memoryPulseElapsed = memoryPulseStart.current > 0 ? now - memoryPulseStart.current : -1;
+            const memoryPulse = memoryPulseElapsed >= 0 && memoryPulseElapsed < 0.4
+                ? 1 - (memoryPulseElapsed / 0.4)  // ramp down
+                : memoryPulseElapsed >= 0.4 && memoryPulseElapsed < 1.0
+                ? (memoryPulseElapsed - 0.4) / 0.6  // ramp back up
+                : 1;
+
+            const baseBreathe = 21 + Math.sin(now * 0.9) * 0.8;
+            bedLight.current.intensity = baseBreathe * guest2DimTarget.current * sparkDip * memoryPulse;
         }
 
         // tap loop follows the state
