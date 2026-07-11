@@ -555,10 +555,12 @@ export const Window612: React.FC = () => {
             <B a={[1.7, 0.08, 0.26]} p={[0, 0.78, 0]} m={F6M.woodDk} />
             <B a={[0.08, 1.6, 0.26]} p={[-0.82, 0, 0]} m={F6M.woodDk} />
             <B a={[0.08, 1.6, 0.26]} p={[0.82, 0, 0]} m={F6M.woodDk} />
-            {/* the dead fog outside — frozen mist photograph */}
+            {/* the dead fog outside — frozen mist photograph; faint cold
+                emissive so it reads as exterior light, not a grey board */}
             <mesh position={[0, 0, -0.045]}>
                 <planeGeometry args={[1.56, 1.5]} />
-                <meshStandardMaterial map={windowFogTex} roughness={0.95} />
+                <meshStandardMaterial map={windowFogTex} roughness={0.95}
+                    emissive="#9fb4be" emissiveMap={windowFogTex} emissiveIntensity={0.55} />
             </mesh>
             {/* glass with subtle reflections + faint vignette */}
             <mesh position={[0, 0, 0.02]}>

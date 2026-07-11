@@ -791,7 +791,7 @@ export const F6M = {
     door: new THREE.MeshStandardMaterial({ color: '#54402c', roughness: 0.58, envMapIntensity: 0.35 }),
     brass: new THREE.MeshStandardMaterial({ color: '#b08f42', metalness: 0.9, roughness: 0.3, envMapIntensity: 1.1 }),
     brassOld: new THREE.MeshStandardMaterial({ color: '#7e6730', metalness: 0.85, roughness: 0.45, envMapIntensity: 0.8 }),
-    curtain: new THREE.MeshStandardMaterial({ color: '#6e5a4a', roughness: 1, side: THREE.DoubleSide }),
+    curtain: new THREE.MeshStandardMaterial({ color: '#57493d', roughness: 1, side: THREE.DoubleSide }),
     shower: new THREE.MeshStandardMaterial({ color: '#d8dfd8', transparent: true, opacity: 0.55, roughness: 0.6, side: THREE.DoubleSide, depthWrite: false }),
     glass: new THREE.MeshStandardMaterial({ color: '#aebfc4', metalness: 0.4, roughness: 0.05, transparent: true, opacity: 0.3, envMapIntensity: 1.4 }),
     paper: new THREE.MeshStandardMaterial({ color: '#ded6bd', roughness: 0.9 }),

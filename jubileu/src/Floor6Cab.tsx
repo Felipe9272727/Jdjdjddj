@@ -77,8 +77,9 @@ const FacadeDoors: React.FC<{ fx: F6Fx }> = ({ fx }) => {
             <group ref={L} position={[-1.98, 0, 0]}>
                 <B a={[1.32, 2.46, 0.09]} p={[0, 1.23, 0]} m={F6M.steel} />
                 <B a={[0.07, 2.34, 0.1]} p={[0.62, 1.23, 0.01]} m={F6M.rubber} />
-                {/* dent kicked into the slab */}
-                <B a={[0.5, 0.4, 0.025]} p={[0.2, 0.7, 0.045]} m={F6M.steelPlain} r={[0, 0, 0.2]} />
+                {/* dent kicked into the slab — same textured steel, barely
+                    proud of the face, so it reads as damage and not a card */}
+                <B a={[0.5, 0.4, 0.02]} p={[0.2, 0.7, 0.038]} m={F6M.steel} r={[0, 0, 0.2]} />
             </group>
             <group ref={R} position={[1.98, 0, 0]}>
                 <B a={[1.32, 2.46, 0.09]} p={[0, 1.23, 0]} m={F6M.steel} />
@@ -116,7 +117,7 @@ const JunctionBox: React.FC<{ fx: F6Fx }> = ({ fx }) => {
     });
     const blown = f6.phase !== 'arrive';
     return (
-        <group position={[-1.85, 1.3, -9.83]}>
+        <group position={[-1.695, 1.3, -9.83]}>
             <mesh rotation={[0, 0, blown ? -0.3 : 0]} position={blown ? [0.04, -0.06, 0.03] : [0, 0, 0]}>
                 <boxGeometry args={[0.42, 0.6, 0.09]} />
                 <meshStandardMaterial ref={plate} color="#4e545b" metalness={0.6} roughness={0.6}
@@ -285,11 +286,11 @@ const Winch: React.FC = () => {
     return (
         <group position={[0, 1.25, -2.86]}>
             {/* plaque — "SÓ PESSOAL AUTORIZADO", dulled by years */}
-            <mesh position={[0, 0.55, 0.01]}>
+            <B a={[0.74, 0.2, 0.02]} p={[0, 0.55, 0.0]} m={F6M.steelPlain} />
+            <mesh position={[0, 0.55, 0.015]}>
                 <planeGeometry args={[0.7, 0.18]} />
-                <meshStandardMaterial map={winchPlaqueTex} roughness={0.45} metalness={0.2} envMapIntensity={0.4} />
+                <meshStandardMaterial map={winchPlaqueTex} roughness={0.55} metalness={0.15} envMapIntensity={0.3} />
             </mesh>
-            <B a={[0.66, 0.14, 0.02]} p={[0, 0.55, 0.02]} m={F6M.applianceDk} />
             {/* gearbox housing + square shaft stub */}
             <B a={[0.36, 0.36, 0.14]} p={[0, 0, 0.02]} m={F6M.steel} />
             {[-0.14, 0.14].map((x) => (

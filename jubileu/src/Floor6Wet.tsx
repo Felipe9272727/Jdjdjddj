@@ -502,9 +502,8 @@ const Tub: React.FC = () => {
                     </mesh>
                 ))}
             </group>
-            <mesh ref={curtain} position={[0, 1.55, 0.48]} material={F6M.shower}>
-                <planeGeometry args={[1.9, 1.74, 8, 1]} />
-            </mesh>
+            <mesh ref={curtain} position={[0, 1.55, 0.48]} material={showerMat}
+                geometry={curtainGeo} />
             {/* bath mat */}
             <mesh position={[0, 0.015, 0.85]} rotation={[-Math.PI / 2, 0, 0]} material={F6M.pillow}>
                 <planeGeometry args={[1.0, 0.5]} />
