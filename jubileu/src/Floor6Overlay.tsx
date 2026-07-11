@@ -14,7 +14,7 @@ import { Vector3 } from 'three';
 import {
     f6, f6SetOnChange, f6Hotspots, f6Interact, f6TryCode, f6Crank,
     f6AdvanceGuest, f6Objective, f6SetInspecting, f6BoardElevator,
-    F6_GUEST_LINES, F6_GUEST_LINES2,
+    F6_GUEST_LINES, F6_GUEST_LINES2, F6_GUEST_LINES3,
     type F6Action, type F6Sfx,
 } from './f6Escape';
 import {
@@ -36,6 +36,7 @@ const mono: React.CSSProperties = {
 const ITEM_LABEL: Record<string, string> = {
     cabide: 'CABIDE', chave: 'CHAVE', gelo: 'GELO', abridor: 'ABRIDOR',
     fosforos: 'FÓSFOROS', manivela: 'MANIVELA', fusivel: 'FUSÍVEL', rele: 'RELÉ',
+    foto: 'FOTO · 20 PORTAS',
 };
 
 /** Slow human typewriter for the guest. */
@@ -83,7 +84,7 @@ export const Floor6Overlay: React.FC<{
     // proximity prompt: nearest reachable hotspot, polled — no per-frame React
     useEffect(() => {
         const id = setInterval(() => {
-            if (f6.phase === 'arrive' || f6.phase === 'blackout' || f6.phase === 'guest' || f6.phase === 'guest2' || f6.phase === 'leave') { setPrompt(null); return; }
+            if (f6.phase === 'arrive' || f6.phase === 'blackout' || f6.phase === 'guest' || f6.phase === 'guest2' || f6.phase === 'guestGift' || f6.phase === 'leave') { promptRef.current = null; setPrompt(null); return; }
             const p = playerPositionRef.current;
             let best: { id: string; label: string } | null = null;
             let bestD = Infinity;
@@ -158,7 +159,7 @@ export const Floor6Overlay: React.FC<{
 
     // tell App when the player should be frozen (cards, keypad, crank, the guest)
     const uiOpen = card !== null || keypadOpen || crankOpen || memCard
-        || f6.phase === 'blackout' || f6.phase === 'guest' || f6.phase === 'guest2' || f6.phase === 'leave';
+        || f6.phase === 'blackout' || f6.phase === 'guest' || f6.phase === 'guest2' || f6.phase === 'guestGift' || f6.phase === 'leave';
     useEffect(() => { onUiOpenChange(uiOpen); }, [uiOpen, onUiOpenChange]);
     useEffect(() => () => onUiOpenChange(false), [onUiOpenChange]);
 
@@ -213,10 +214,10 @@ export const Floor6Overlay: React.FC<{
         guestFastRef.current = false;
         setGuestTyped(false);
         playF6Breath(0.5);
-        const wasAct2 = f6.phase === 'guest2';
+        const wasGift = f6.phase === 'guestGift';
         f6AdvanceGuest();
-        // last act-2 line just landed → he stepped aside → the memory card
-        if (wasAct2 && (f6.phase as string) === 'free') setMemCard(true);
+        // última fala do ato 3 → ele entregou a ARMA e saiu da frente → card
+        if (wasGift && (f6.phase as string) === 'free') setMemCard(true);
     };
 
     return (
@@ -373,7 +374,7 @@ export const Floor6Overlay: React.FC<{
             )}
 
             {/* the guest's dialogue (ato 1 e ato 2) */}
-            {(f6.phase === 'guest' || f6.phase === 'guest2') && (
+            {(f6.phase === 'guest' || f6.phase === 'guest2' || f6.phase === 'guestGift') && (
                 <div onPointerDown={advanceGuest} style={{
                     position: 'absolute', inset: 0, pointerEvents: 'auto', cursor: 'pointer',
                     display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
@@ -387,14 +388,14 @@ export const Floor6Overlay: React.FC<{
                         <div style={{ ...mono, fontSize: 12, letterSpacing: 3, color: '#b06a52', marginBottom: 8 }}>O HÓSPEDE</div>
                         <div style={{ ...mono, fontSize: 16, lineHeight: 1.6, minHeight: 54 }}>
                             <GuestType
-                                text={(f6.phase === 'guest' ? F6_GUEST_LINES : F6_GUEST_LINES2)[f6.guestLine]}
+                                text={(f6.phase === 'guest' ? F6_GUEST_LINES : f6.phase === 'guest2' ? F6_GUEST_LINES2 : F6_GUEST_LINES3)[f6.guestLine]}
                                 onDone={() => setGuestTyped(true)}
                                 fastRef={guestFastRef}
                             />
                         </div>
                         {guestTyped && (
                             <div style={{ ...mono, fontSize: 11, color: '#7a715c', marginTop: 8, textAlign: 'right' }}>
-                                {f6.guestLine < (f6.phase === 'guest' ? F6_GUEST_LINES : F6_GUEST_LINES2).length - 1 ? 'toque ▸' : 'toque…'}
+                                {f6.guestLine < (f6.phase === 'guest' ? F6_GUEST_LINES : f6.phase === 'guest2' ? F6_GUEST_LINES2 : F6_GUEST_LINES3).length - 1 ? 'toque ▸' : 'toque…'}
                             </div>
                         )}
                     </div>
@@ -421,7 +422,7 @@ export const Floor6Overlay: React.FC<{
                             Aurélio Campos
                         </div>
                         <div style={{ ...mono, fontSize: 15, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                            O quarto 612 agora é um tijolo seu. Eles não podem apagá-lo.
+                            {'O quarto 612 agora é um tijolo seu. Eles não podem apagá-lo.\n\nA FOTOGRAFIA DAS VINTE PORTAS está com você. Guarde-a até o último andar.'}
                         </div>
                         <div style={{ ...mono, fontSize: 11, color: '#7a715c', marginTop: 14, textAlign: 'right' }}>toque para fechar</div>
                     </div>

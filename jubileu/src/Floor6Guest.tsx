@@ -70,7 +70,7 @@ export const Floor6Guest: React.FC<{ playerPositionRef: React.MutableRefObject<T
         g.rotation.y += d * Math.min(1, dt * 1.6);
 
         // ── gesto a cada fala (atos 1 e 2): aceno + mão que sobe e cai ──
-        const talking = f6.phase === 'guest' || f6.phase === 'guest2';
+        const talking = f6.phase === 'guest' || f6.phase === 'guest2' || f6.phase === 'guestGift';
         if (talking && f6.guestLine !== lastLine.current) {
             lastLine.current = f6.guestLine;
             gesture.current = 1;

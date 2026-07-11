@@ -375,7 +375,7 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             const sparkDip = fx.t['bang'] !== undefined && now - fx.t['bang'] < 0.5 ? 0.45 : 1;
 
             // Phase logic: set dimming target based on phase
-            if (f6.phase === 'guest2') {
+            if ((f6.phase === 'guest2' || f6.phase === 'guestGift')) {
                 guest2DimTarget.current = 0.55;  // ~55% during act 2
             } else if (f6.phase === 'free') {
                 if (lightRecoveryStart.current === 0) lightRecoveryStart.current = now;
@@ -390,7 +390,7 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
 
             // Edge-detect: guestLine transitioned to 4 (climax "Lembra. De. Mim.")
             // Trigger memory pulse (light + sound) only once during guest2
-            if (f6.phase === 'guest2' && f6.guestLine === 4 && !memoryPulseTriggered.current) {
+            if ((f6.phase === 'guest2' || f6.phase === 'guestGift') && f6.guestLine === 4 && !memoryPulseTriggered.current) {
                 memoryPulseTriggered.current = true;
                 memoryPulseStart.current = now;
                 playF6MemoryPulse();
@@ -418,7 +418,7 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
         if (tvLight.current) tvLight.current.intensity = f6.tvOn ? 4 + Math.random() * 3 : 0;
 
         // the guest breathes nearby every few seconds
-        if (f6.phase === 'guest' || f6.phase === 'guestIdle') {
+        if (f6.phase === 'guest' || f6.phase === 'guestIdle' || f6.phase === 'guestDemand') {
             breathTimer.current -= dt;
             if (breathTimer.current <= 0) { breathTimer.current = 4.5 + Math.random() * 3; playF6Breath(0.5); }
         }
@@ -599,8 +599,8 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
                 'guestIdle', 'guest2'), the step-aside ('free') and boarding
                 ('leave') — his own animation reads f6.phase; unmounting here
                 would make him vanish instead of dragging aside. */}
-            {(f6.phase === 'guest' || f6.phase === 'guestIdle' || f6.phase === 'guest2'
-                || f6.phase === 'free' || f6.phase === 'leave') && (
+            {(f6.phase === 'guest' || f6.phase === 'guestIdle' || f6.phase === 'guest2' || f6.phase === 'guestDemand'
+                || f6.phase === 'guestGift' || f6.phase === 'free' || f6.phase === 'leave') && (
                 <>
                     <Floor6Guest playerPositionRef={playerPositionRef} />
                     {(f6.phase === 'free' || f6.phase === 'leave')

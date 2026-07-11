@@ -67,6 +67,7 @@ export const F6_ITEM_SOURCE: Record<string, [number, number, number]> = {
     gelo: [5.5, 1.5, -1.85],
     fosforos: [4.5, 1.08, 6.45],
     rele: [5.55, 1.1, 0.6],
+    foto: [-2.0, 0.95, 5.9],
 };
 /** …and where each install flight lands (inside the dead cab). */
 export const F6_INSTALL_TARGET: Record<string, [number, number, number]> = {
@@ -132,6 +133,14 @@ export const ItemMesh: React.FC<{ kind: string }> = ({ kind }) => {
                 <mesh material={F6M.porcelain}><cylinderGeometry args={[0.035, 0.035, 0.16, 10]} /></mesh>
                 <mesh material={F6M.brass} position={[0, 0.085, 0]}><cylinderGeometry args={[0.037, 0.037, 0.03, 10]} /></mesh>
                 <mesh material={F6M.brass} position={[0, -0.085, 0]}><cylinderGeometry args={[0.037, 0.037, 0.03, 10]} /></mesh>
+            </group>
+        );
+        case 'foto': return (
+            <group rotation={[0, 0, 0.12]}>
+                <B a={[0.16, 0.2, 0.006]} p={[0, 0, 0]} m={F6M.paper} />
+                <B a={[0.13, 0.14, 0.004]} p={[0, 0.014, 0.004]} m={F6M.dark} />
+                {/* borda queimada */}
+                <B a={[0.16, 0.02, 0.007]} p={[0, -0.1, 0.001]} m={F6M.fabricDk} r={[0, 0, 0.08]} />
             </group>
         );
         case 'rele': return (

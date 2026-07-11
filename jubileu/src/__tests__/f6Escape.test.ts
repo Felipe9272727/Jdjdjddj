@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
     f6, f6Reset, f6Interact, f6TryCode, f6Tick, f6Crank, f6DoorWalls,
     f6Hotspots, f6DrainEvents, f6AdvanceGuest, f6Objective, f6BoardElevator,
-    F6_CODE, F6_GUEST_LINES2,
+    F6_CODE, F6_GUEST_LINES2, F6_GUEST_LINES3,
 } from '../f6Escape';
 
 const tick = (s: number, z = 0) => { for (let i = 0; i < s * 10; i++) f6Tick(0.1, z); };
@@ -234,6 +234,14 @@ describe('ato 2 → free → leave (o que vem depois)', () => {
         f6DrainEvents();
         f6Interact('hospede');
         for (let i = 0; i < F6_GUEST_LINES2.length; i++) f6AdvanceGuest();
+        // exigência: a foto da mala → entrega → ato 3 completo
+        expect(f6.phase).toBe('guestDemand');
+        f6Interact('mala');
+        expect(f6.inv.foto).toBe(true);
+        f6Interact('hospede');
+        expect(f6.phase).toBe('guestGift');
+        for (let i = 0; i < F6_GUEST_LINES3.length; i++) f6AdvanceGuest();
+        expect(f6.phase).toBe('free');
     };
 
     it('interacting with the guest in guestIdle starts ato 2 (guest2)', () => {
@@ -246,20 +254,51 @@ describe('ato 2 → free → leave (o que vem depois)', () => {
         expect(f6DrainEvents()).not.toContain('guestAside');
     });
 
-    it('7 falas de ato 2, depois free + guestAside', () => {
+    it('7 falas de ato 2 terminam na EXIGÊNCIA da fotografia (guestDemand)', () => {
         solveToGuestIdle();
         f6DrainEvents();
         f6Interact('hospede');
         expect(F6_GUEST_LINES2).toHaveLength(7);
-        for (let i = 0; i < F6_GUEST_LINES2.length - 1; i++) {
-            f6AdvanceGuest();
-            if (i < F6_GUEST_LINES2.length - 2) expect(f6.phase).toBe('guest2');
-        }
-        expect(f6.guestLine).toBe(F6_GUEST_LINES2.length - 1);
-        expect(f6.phase).toBe('guest2');
-        f6AdvanceGuest();                         // last tap → he steps aside
+        for (let i = 0; i < F6_GUEST_LINES2.length; i++) f6AdvanceGuest();
+        expect(f6.phase).toBe('guestDemand');
+        expect(f6DrainEvents()).not.toContain('guestAside');
+        // a porta continua bloqueada — ele não libera de graça
+        expect(f6DoorWalls().some((w) => w[0] === -1.45 && w[2] === 1.45)).toBe(true);
+        expect(f6Objective()).toBe('A fotografia. Na mala dele.');
+    });
+
+    it('a mala entrega a FOTO na exigência; o Aurélio dá a ARMA no ato 3', () => {
+        solveToGuestIdle();
+        f6DrainEvents();
+        f6Interact('hospede');
+        for (let i = 0; i < F6_GUEST_LINES2.length; i++) f6AdvanceGuest();
+        // sem foto, o hóspede só implora
+        const beg = f6Interact('hospede');
+        expect(beg.kind).toBe('text');
+        // a mala rende a fotografia (uma vez só)
+        const take = f6Interact('mala');
+        expect(take.kind).toBe('text');
+        expect(f6.inv.foto).toBe(true);
+        expect(f6DrainEvents()).toContain('pickup:foto');
+        expect(f6Objective()).toBe('Leve a fotografia ao Aurélio.');
+        // entrega → ato 3 (4+1 falas) → free + guestAside; a foto FICA com o player
+        f6Interact('hospede');
+        expect(f6.phase).toBe('guestGift');
+        expect(F6_GUEST_LINES3).toHaveLength(5);
+        for (let i = 0; i < F6_GUEST_LINES3.length; i++) f6AdvanceGuest();
         expect(f6.phase).toBe('free');
         expect(f6DrainEvents()).toContain('guestAside');
+        expect(f6.inv.foto).toBe(true);
+    });
+
+    it('aproximar-se com a foto na mão inicia o ato 3 sozinho', () => {
+        solveToGuestIdle();
+        f6DrainEvents();
+        f6Interact('hospede');
+        for (let i = 0; i < F6_GUEST_LINES2.length; i++) f6AdvanceGuest();
+        f6Interact('mala');
+        for (let i = 0; i < 60; i++) f6Tick(0.016, -7.0, 0);
+        expect(f6.phase).toBe('guestGift');
     });
 
     it("in 'free' the doorway opens and the guest hotspot moves aside", () => {

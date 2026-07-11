@@ -22,12 +22,14 @@ export type F6Phase =
     | 'guest'       // the one-armed guest is between you and the doors
     | 'guestIdle'   // dialogue done — he won't move (ato 1, 3 falas)
     | 'guest2'      // ato 2 — 7 falas, a verdade toda sai
+    | 'guestDemand' // ele EXIGE a fotografia da mala antes de liberar a porta
+    | 'guestGift'   // ato 3 — devolve a foto como ARMA contra o Proprietário
     | 'free'        // hóspede saiu da frente da porta; o player sobe no elevador
     | 'leave';      // embarcado, portas fechando
 
 export type F6Item =
     | 'cabide' | 'chave' | 'gelo' | 'abridor' | 'fosforos'
-    | 'manivela' | 'fusivel' | 'rele';
+    | 'manivela' | 'fusivel' | 'rele' | 'foto';
 export type F6Part = 'manivela' | 'fusivel' | 'rele';
 export const F6_PARTS: readonly F6Part[] = ['fusivel', 'rele', 'manivela'];
 
@@ -75,7 +77,7 @@ const FRESH = (): F6State => ({
     phase: 'arrive', bathOpen: false, kitchenOpen: false,
     inv: {
         cabide: false, chave: false, gelo: false, abridor: false,
-        fosforos: false, manivela: false, fusivel: false, rele: false,
+        fosforos: false, manivela: false, fusivel: false, rele: false, foto: false,
     },
     installed: { manivela: false, fusivel: false, rele: false },
     quadroMoved: false, drawerOpen: false, camaCut: false, wardrobeOpen: false,
@@ -246,7 +248,7 @@ export function f6Hotspots(): F6Hotspot[] {
             !s.wardrobeOpen ? 'Guarda-roupa'
                 : !s.cabideTaken ? 'Pegar um cabide'
                 : 'Guarda-roupa'),
-        H('mala', -2.0, 5.9, 'Mala dele'),
+        H('mala', -2.0, 5.9, (s.phase === 'guestDemand' || s.phase === 'guestGift') && !s.inv.foto ? 'Pegar a fotografia' : 'Mala dele'),
         H('tv', 0.9, 1.2, !s.tvOn ? 'Ligar a televisão' : `Trocar de canal (${s.tvChannel})`),
         H('portabanheiro', 1.5, -5.5, s.bathOpen ? '' : 'Cadeado do banheiro'),
         H('portacozinha', 1.5, 3.0, s.kitchenOpen ? '' : 'Porta da cozinha'),
@@ -305,8 +307,9 @@ export function f6Hotspots(): F6Hotspot[] {
             list.push(H('fosforos', 4.5, 6.1, 'Caixa de fósforos'));
         }
     }
-    if (s.phase === 'guestIdle' || s.phase === 'guest2') {
-        list.push(H('hospede', 0, -8.2, 'O Hóspede', { reach: 2.2 }));
+    if (s.phase === 'guestIdle' || s.phase === 'guest2' || s.phase === 'guestDemand' || s.phase === 'guestGift') {
+        list.push(H('hospede', 0, -8.2,
+            s.phase === 'guestDemand' && s.inv.foto ? 'Entregar a fotografia' : 'O Hóspede', { reach: 2.2 }));
     }
     if (s.phase === 'free') {
         list.push(H('hospede', -2.35, -8.75, 'O Hóspede', { reach: 2.2 }));
@@ -370,6 +373,18 @@ export const F6_TXT: Record<string, { title: string; text: string }> = {
     mala: {
         title: 'A MALA',
         text: 'Aberta no porta-malas, arrumada para um check-out que não houve: camisas dobradas, um vidro de remédio, um mapa do estado com o hotel circulado…\n\nUma etiqueta desgastada está colada no puxador:\n"AURÉLIO CAMPOS"\n\n…e o canto de uma fotografia queimada. Sobrou só a legenda, à mão: "as VINTE portas".',
+    },
+    mala_foto: {
+        title: 'A FOTOGRAFIA',
+        text: 'Você afasta as camisas dobradas. No forro, atrás do vidro de remédio, embrulhada em papel timbrado do hotel:\n\nA FOTOGRAFIA. Queimada nas bordas — mas inteira. Um corredor comprido demais, e nele, contadas uma a uma:\n\nVINTE portas.',
+    },
+    mala_vazia: {
+        title: 'A MALA',
+        text: 'As camisas dobradas, o vidro de remédio, o mapa.\n\nA mala dele, mais leve uma verdade.',
+    },
+    hospede_demand: {
+        title: 'O HÓSPEDE',
+        text: '"A mala. Por favor. Quarenta e sete dias que eu não tenho coragem de abrir a minha própria mala.\n\nEu preciso VER."',
     },
     cama_locked: {
         title: 'COLCHÃO',
@@ -530,7 +545,16 @@ export const F6_GUEST_LINES2: ReadonlyArray<string> = [
     'Antes de ir — meu nome. Eu tinha um nome. Está na máquina de escrever, no diário, nas marmitas… quarenta e sete dias, e ninguém perguntou.',
     'Memória é tijolo. Enquanto alguém LEMBRAR do 612, eles não podem apagar o quarto. Nem eu.',
     'Então me faz um favor. Só um. Lembra. De. Mim.',
-    '…vai. O elevador é seu. Eu fico com o quarto — alguém tem que continuar contando os andares.',
+    '…mas lembrar não basta. Você quer descer? Então me traga a FOTOGRAFIA. Está na minha mala. Preciso ver as vinte portas. Uma última vez.',
+];
+
+// ── Ato 3 — a entrega da ARMA (dispara quando o player traz a foto) ──────────
+export const F6_GUEST_LINES3: ReadonlyArray<string> = [
+    'Você achou… *ele segura a fotografia com a mão que resta, tremendo* Vinte portas. Eu não estava louco. EU NÃO ESTAVA LOUCO.',
+    'Escuta bem. O PROPRIETÁRIO mora no último andar. Ele apaga o que ninguém lembra — foi assim com o Andar 4. Foi assim comigo.',
+    'Mas uma coisa apagada não suporta ser LEMBRADA. Prova dói nele. Isto aqui… isto aqui é uma ARMA.',
+    'Leva. *ele devolve a fotografia* Quando você chegar diante DELE, mostra as vinte portas. E diz que foi o Aurélio do 612 que mandou.',
+    '…agora vai. O elevador é seu. Eu fico com o quarto — alguém tem que continuar contando os andares.',
 ];
 
 // ── Interactions ──────────────────────────────────────────────────────────────
@@ -563,7 +587,13 @@ export function f6Interact(id: string): F6Action {
         case 'diario': return TXT('diario');
         case 'telefone': return TXT('telefone', 'click');
         case 'janela': return TXT('janela', 'none');
-        case 'mala': return TXT('mala', 'paper');
+        case 'mala':
+            if ((s.phase === 'guestDemand' || s.phase === 'guestGift') && !s.inv.foto) {
+                s.inv.foto = true; emit('pickup:foto'); f6Bump();
+                return TXT('mala_foto', 'paper', 900);
+            }
+            if (s.inv.foto || s.phase === 'free' || s.phase === 'leave') return TXT('mala_vazia', 'none');
+            return TXT('mala', 'paper');
         case 'quadro':
             if (!s.quadroMoved) {
                 s.quadroMoved = true; emit('quadro'); f6Bump();
@@ -722,6 +752,13 @@ export function f6Interact(id: string): F6Action {
                 s.phase = 'guest2'; s.guestLine = 0; f6Bump();
                 return { kind: 'none' };
             }
+            if (s.phase === 'guestDemand') {
+                if (s.inv.foto) {
+                    s.phase = 'guestGift'; s.guestLine = 0; f6Bump();
+                    return { kind: 'none' };
+                }
+                return TXT('hospede_demand', 'breath');
+            }
             if (s.phase === 'free') return TXT('hospede_free', 'breath');
             return TXT('hospede_idle', 'breath');
         case 'botoeira':
@@ -760,7 +797,15 @@ export function f6AdvanceGuest(): void {
         else { f6.phase = 'guestIdle'; f6Bump(); }
     } else if (f6.phase === 'guest2') {
         if (f6.guestLine < F6_GUEST_LINES2.length - 1) { f6.guestLine++; f6Bump(); }
-        else { f6.phase = 'free'; emit('guestAside'); f6Bump(); }
+        else { f6.phase = 'guestDemand'; f6.idleT = 0; f6Bump(); }
+    } else if (f6.phase === 'guestGift') {
+        if (f6.guestLine < F6_GUEST_LINES3.length - 1) { f6.guestLine++; f6Bump(); }
+        else {
+            f6.phase = 'free'; emit('guestAside'); f6Bump();
+            // a FOTOGRAFIA DAS VINTE PORTAS fica com o player — o Andar 20 lê
+            // esta chave pra saber que a arma contra o Proprietário existe.
+            try { if (typeof window !== 'undefined') window.localStorage.setItem('tne_foto_20portas', '1'); } catch { /* storage indisponível */ }
+        }
     }
 }
 
@@ -789,11 +834,14 @@ export function f6Tick(dt: number, playerZ: number, playerX = 99): void {
     // ele guarda) começa a conversa sozinho — sem isso o jogador ficava preso
     // sem saber que precisava interagir de novo (report do Felipe). O [E]
     // manual continua funcionando como atalho.
-    if (s.phase === 'guestIdle') {
+    if (s.phase === 'guestIdle' || (s.phase === 'guestDemand' && s.inv.foto)) {
         const d = Math.hypot(playerX, playerZ + 8.2);
         if (d < 2.4) {
             s.idleT += dt;
-            if (s.idleT >= 0.8) { s.phase = 'guest2'; s.guestLine = 0; f6Bump(); }
+            if (s.idleT >= 0.8) {
+                s.phase = s.phase === 'guestIdle' ? 'guest2' : 'guestGift';
+                s.guestLine = 0; s.idleT = 0; f6Bump();
+            }
         } else if (s.idleT > 0) s.idleT = 0;
     }
 }
@@ -808,8 +856,9 @@ export function f6BoardElevator(): void {
 export function f6Objective(): string | null {
     const s = f6;
     if (s.phase === 'arrive' || s.phase === 'leave') return null;
-    if (s.phase === 'blackout' || s.phase === 'guest' || s.phase === 'guest2') return null;
+    if (s.phase === 'blackout' || s.phase === 'guest' || s.phase === 'guest2' || s.phase === 'guestGift') return null;
     if (s.phase === 'guestIdle') return 'Ele não sai da frente da porta. Chegue perto. Escute.';
+    if (s.phase === 'guestDemand') return s.inv.foto ? 'Leve a fotografia ao Aurélio.' : 'A fotografia. Na mala dele.';
     if (s.phase === 'free') return 'O elevador está esperando.';
     const have = F6_PARTS.filter((p) => s.installed[p]).length;
     const carrying = F6_PARTS.filter((p) => s.inv[p]).length;
