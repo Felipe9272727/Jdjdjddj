@@ -34,7 +34,12 @@ export function configureFloor6Sfx(context: AudioContext | null, destination?: A
     ctx = context;
     dest = destination ?? null;
 }
-export function clearFloor6Sfx(): void { ctx = null; dest = null; }
+export function clearFloor6Sfx(): void {
+    // pare os loops ANTES de derrubar o ctx — senão roomTone/tap/chama seguem
+    // tocando presos ao destino antigo, inalcançáveis (achado do CodeRabbit).
+    stopF6RoomTone(); stopF6Tap(); stopF6Flame();
+    ctx = null; dest = null;
+}
 
 function out(): AudioNode | null { return dest ?? ctx?.destination ?? null; }
 

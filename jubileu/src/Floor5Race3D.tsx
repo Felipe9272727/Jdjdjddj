@@ -233,15 +233,19 @@ export const Floor5Race3D: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
     const padRef = useRef<HTMLDivElement>(null);
     const knobRef = useRef<HTMLDivElement>(null);
     const padPointer = useRef<number | null>(null);
+    const padRelease = (pointerId: number) => {
+        if (padPointer.current === pointerId) {
+            padPointer.current = null; inputRef.current = { x: 0, z: 0 };
+            if (knobRef.current) knobRef.current.style.transform = 'translate(0px,0px)';
+        }
+    };
     const padHandlers = {
         onPointerDown: (e: React.PointerEvent) => { padPointer.current = e.pointerId; (e.target as HTMLElement).setPointerCapture(e.pointerId); padMove(e); },
         onPointerMove: (e: React.PointerEvent) => { if (padPointer.current === e.pointerId) padMove(e); },
-        onPointerUp: (e: React.PointerEvent) => {
-            if (padPointer.current === e.pointerId) {
-                padPointer.current = null; inputRef.current = { x: 0, z: 0 };
-                if (knobRef.current) knobRef.current.style.transform = 'translate(0px,0px)';
-            }
-        },
+        onPointerUp: (e: React.PointerEvent) => padRelease(e.pointerId),
+        // toque cancelado pelo SO (gesto/ligação) soltava o knob deslocado e o
+        // kart seguia derivando sem dedo na tela — achado do CodeRabbit.
+        onPointerCancel: (e: React.PointerEvent) => padRelease(e.pointerId),
     };
     const padMove = (e: React.PointerEvent) => {
         const el = padRef.current; if (!el) return;

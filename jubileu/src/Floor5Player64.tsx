@@ -137,7 +137,9 @@ export function animateAvatar(refs: AvatarRefs, r: Racer, dt: number, t: number)
         v.rotation.x += dt * 13;                                   // cartoon tumble
         v.position.y = 0.25;
     } else {
-        v.rotation.x = THREE.MathUtils.lerp(v.rotation.x % (Math.PI * 2), 0, Math.min(1, dt * 10));
+        let rx = v.rotation.x % (Math.PI * 2);
+        if (rx > Math.PI) rx -= Math.PI * 2;               // caminho curto (sem "desenrolar")
+        v.rotation.x = THREE.MathUtils.lerp(rx, 0, Math.min(1, dt * 10));
         v.position.y = 0;
     }
     const run = Math.min(1, speed / 7);

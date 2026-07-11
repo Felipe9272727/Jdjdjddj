@@ -232,7 +232,7 @@ const CommandPanel: React.FC = () => {
                 : Array.from({ length: 8 }).map((_, i) => {
                     const a = (i / 8) * Math.PI * 2;
                     return (
-                        <mesh key={i} position={[Math.cos(a) * 0.04, -0.18, 0.045 + Math.sin(a) * 0]}
+                        <mesh key={i} position={[Math.cos(a) * 0.04, -0.18, 0.045 + Math.sin(a) * 0.01]}
                             material={F6M.dark}>
                             <cylinderGeometry args={[0.005, 0.005, 0.02, 4]} />
                         </mesh>

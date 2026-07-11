@@ -109,9 +109,6 @@ export const PhotoModeOverlay: React.FC<{
     progress: PhotoProgress;
     onClose: () => void;
 }> = ({ progress, onClose }) => {
-    if (!progress.active) return null;
-    const pct = Math.min(100, Math.round((progress.samples / progress.total) * 100));
-
     const save = useCallback(() => {
         try {
             const canvas = document.querySelector('canvas');
@@ -125,6 +122,9 @@ export const PhotoModeOverlay: React.FC<{
             console.warn('[PhotoMode] save failed:', e);
         }
     }, []);
+
+    if (!progress.active) return null;
+    const pct = Math.min(100, Math.round((progress.samples / progress.total) * 100));
 
     return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 70, pointerEvents: 'none', fontFamily: '"Source Sans 3","Segoe UI",sans-serif' }}>

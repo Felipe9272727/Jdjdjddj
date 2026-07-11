@@ -34,6 +34,9 @@ export async function initRapier(): Promise<Rapier> {
         _initPromise = R.init().then(() => {
             _rapier = R;
             return R;
+        }).catch((err) => {
+            _initPromise = null;      // permite tentar de novo sem recarregar a página
+            throw err;
         });
     }
     return _initPromise;

@@ -38,6 +38,7 @@ function getBuf(url: string): Promise<AudioBuffer> | null {
     if (!p) {
         const c = ctx;
         p = fetch(url).then((r) => r.arrayBuffer()).then((ab) => c.decodeAudioData(ab));
+        p.catch(() => bufCache.delete(url));   // falhou? deixa o próximo tentar
         bufCache.set(url, p);
     }
     return p;

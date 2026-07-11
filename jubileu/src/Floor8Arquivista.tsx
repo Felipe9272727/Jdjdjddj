@@ -100,7 +100,8 @@ export const Arquivista: React.FC<{
     floorY?: (x: number, z: number) => number;
     /** limites de andar [minX, maxX, minZ, maxZ] */
     bounds?: [number, number, number, number];
-}> = ({ playerPositionRef, pois = DEFAULT_POIS, obstacles = [], floorY = () => 0, bounds = [-6, 6, -6, 6] }) => {
+}> = ({ playerPositionRef, pois: poisProp = DEFAULT_POIS, obstacles = [], floorY = () => 0, bounds = [-6, 6, -6, 6] }) => {
+    const pois = poisProp.length > 0 ? poisProp : DEFAULT_POIS;
     const root = useRef<THREE.Group>(null!);
     const body = useRef<THREE.Group>(null!);
     const head = useRef<THREE.Group>(null!);
