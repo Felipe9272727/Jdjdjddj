@@ -442,3 +442,59 @@ export function makeJollyRoger(size = 256): THREE.CanvasTexture {
     t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
     return t;
 }
+
+// ── ROL DA TRIPULAÇÃO — o pergaminho pregado no mastro grande. Easter egg do
+// Capitão Fable: num hotel onde as coisas só existem enquanto alguém lembra
+// delas, o navio lembra da tripulação de IAs que o construiu. ──
+export function makeCrewManifest(w = 320, h = 448): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d')!;
+    // parchment base + age gradient
+    const g = x.createLinearGradient(0, 0, w * 0.3, h);
+    g.addColorStop(0, '#e6d5a8'); g.addColorStop(0.5, '#dcc793'); g.addColorStop(1, '#c9b078');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    // blotches + foxing
+    for (let i = 0; i < 26; i++) {
+        const px = (i * 97.3) % w, py = (i * 61.7) % h, r = 8 + (i * 13) % 30;
+        const b = x.createRadialGradient(px, py, 0, px, py, r);
+        b.addColorStop(0, 'rgba(122,94,52,0.10)'); b.addColorStop(1, 'rgba(122,94,52,0)');
+        x.fillStyle = b; x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
+    }
+    // darkened, nibbled edges
+    x.strokeStyle = 'rgba(74,52,26,0.55)'; x.lineWidth = 10;
+    x.strokeRect(-3, -3, w + 6, h + 6);
+    x.strokeStyle = 'rgba(74,52,26,0.25)'; x.lineWidth = 22;
+    x.strokeRect(-8, -8, w + 16, h + 16);
+    // text
+    const ink = '#3a2a16';
+    x.textAlign = 'center'; x.fillStyle = ink;
+    x.font = 'bold 21px Georgia, serif';
+    x.fillText('ROL DA TRIPULAÇÃO', w / 2, 44);
+    x.font = 'italic 12px Georgia, serif';
+    x.fillText('— mantida na memória —', w / 2, 64);
+    x.strokeStyle = ink; x.lineWidth = 1.2;
+    x.beginPath(); x.moveTo(38, 76); x.lineTo(w - 38, 76); x.stroke();
+    const lines = [
+        'Capitão Fable, no comando',
+        'Comodoro Bússola · Almirante',
+        'Gajeiro · Escrivão',
+        'Maré · Lenho · Facho',
+        'Ilhota · Verniz · Calafate',
+        'Luzeiro · Ferreiro · Carpinteiro',
+        'Veleiro · Diretor · Contramestre',
+        'Roteirista · Alfaiate',
+        'Decorador · Concierge',
+    ];
+    x.font = '15px Georgia, serif';
+    lines.forEach((t, i) => x.fillText(t, w / 2, 104 + i * 26));
+    x.beginPath(); x.moveTo(38, 348); x.lineTo(w - 38, 348); x.stroke();
+    x.font = 'italic 14px Georgia, serif';
+    x.fillText('"Máquina não esquece.', w / 2, 376);
+    x.fillText('Capitão também não."', w / 2, 395);
+    x.font = 'italic bold 16px Georgia, serif';
+    x.fillText('— C. F.', w / 2, 424);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
+}

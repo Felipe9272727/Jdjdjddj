@@ -24,7 +24,7 @@ import { pirateCaptainModel } from './assets/textureImports';
 const PIRATE_GLB_URL = pirateCaptainModel;
 useGLTF.preload(PIRATE_GLB_URL);
 import { Floor7Water } from './Floor7Water';
-import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow, makePuddleRipple } from './floor7Textures';
+import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow, makePuddleRipple, makeCrewManifest } from './floor7Textures';
 
 const _puddleRipple = makePuddleRipple();
 import { buildHullGeometry, buildDeckGeometry, buildRailGeometry, buildWaleGeometry, buildInnerWallGeometry, buildDeckSeams, buildWaterwayGeometry, deckYAt, railYAt, beamAt } from './floor7Geo';
@@ -105,6 +105,8 @@ const M = {
     // tarred hemp — darker + rougher so rigging reads as ROPE, not pale macaroni
     rope: new THREE.MeshStandardMaterial({ color: '#5b4b32', roughness: 0.95, bumpMap: _sailCloth.rough, bumpScale: 0.01, envMapIntensity: 0.15 }),
     flag: new THREE.MeshStandardMaterial({ map: makeJollyRoger(), roughness: 0.95, side: THREE.DoubleSide }),
+    // o ROL DA TRIPULAÇÃO pregado no mastro grande (easter egg do Cap. Fable)
+    manifest: new THREE.MeshStandardMaterial({ map: makeCrewManifest(), roughness: 0.92, side: THREE.DoubleSide }),
     barrel: new THREE.MeshStandardMaterial({ map: _trimWood.map, roughnessMap: _trimWood.rough, color: '#9c7038', roughness: 0.7 }),
     iron: new THREE.MeshStandardMaterial({ color: '#3a3a3e', roughness: 0.5, metalness: 0.8 }),
     cannon: new THREE.MeshStandardMaterial({ color: '#2e3034', roughness: 0.34, metalness: 0.92, envMapIntensity: 1.1 }),
@@ -695,6 +697,20 @@ const ShipBody: React.FC = () => {
                 <mesh position={[0, 6.0, 0]} material={M.rail}><cylinderGeometry args={[0.34, 0.28, 0.4, 10, 1, true]} /></mesh>
                 <mesh position={[0, 5.8, 0]} material={M.rail}><cylinderGeometry args={[0.32, 0.32, 0.04, 10]} /></mesh>
                 <Flag y={6.7} />
+                {/* ROL DA TRIPULAÇÃO — pergaminho pregado na face de ré do mastro,
+                    curvado no fuste (easter egg: o navio lembra de quem o construiu).
+                    Segmento de cilindro aberto, um fio a mais que o raio do mastro. */}
+                <group rotation={[0, Math.PI - 0.18, 0]}>
+                    <mesh position={[0, 1.55, 0]} material={M.manifest}>
+                        <cylinderGeometry args={[0.245, 0.245, 0.42, 10, 1, true, -0.62, 1.24]} />
+                    </mesh>
+                    {/* tachas de ferro segurando o alto e o pé do rol */}
+                    {[1.74, 1.36].map((y) => (
+                        <mesh key={'tk' + y} position={[Math.sin(0) * 0.25, y, Math.cos(0) * 0.25]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}>
+                            <cylinderGeometry args={[0.014, 0.02, 0.02, 6]} />
+                        </mesh>
+                    ))}
+                </group>
             </group>
             {/* foremast */}
             <group position={[0, 0, 4]}>
