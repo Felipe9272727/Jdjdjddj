@@ -40,6 +40,7 @@ export const Floor6Guest: React.FC<{ playerPositionRef: React.MutableRefObject<T
             if (mesh.isMesh && mesh.material) {
                 const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
                 mat.roughness = Math.max(0.75, mat.roughness);
+                mat.metalness = Math.min(0.15, mat.metalness);   // o mapa Meshy deixava o cabelo como vinil
                 mat.envMapIntensity = 0.35;
                 mesh.material = mat;
                 mesh.castShadow = false; mesh.receiveShadow = false;
