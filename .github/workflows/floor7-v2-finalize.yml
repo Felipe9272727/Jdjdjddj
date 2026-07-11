@@ -1,0 +1,40 @@
+name: Finalizar Floor 7 V2
+on:
+  push:
+    branches: [agent/floor7-rebuild-v2]
+permissions:
+  contents: write
+concurrency:
+  group: floor7-v2-finalize
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/floor7-rebuild-v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: jubileu/package-lock.json
+      - name: Instalar e validar
+        working-directory: jubileu
+        run: |
+          npm ci
+          npm run check
+      - name: Gerar single-file
+        working-directory: jubileu
+        run: |
+          npm run build
+          node inline-build.mjs
+      - name: Anexar build e remover automação
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git rm .github/workflows/floor7-v2-finalize.yml
+          git commit -m "build: gera single-file do Andar 7 V2"
+          git push origin HEAD:agent/floor7-rebuild-v2

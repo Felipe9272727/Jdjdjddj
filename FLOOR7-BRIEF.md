@@ -68,3 +68,16 @@ Receita p/ chegar em ANCHOR/FREE (driblando a quest inteira): ver `floor7Brain.t
 2. **Fase 2** — quebrar `Floor7.tsx` em `floor7/{Hull,Rigging,Deck,Cabin,Captain}.tsx` + `materials.ts` (refactor mecânico; as 6 câmeras provam zero mudança visual).
 3. **Fase 3** — navio novo: testar 1-2 créditos do Higgsfield `generate_3d` (concept → GLB, só visual, colisão/`deckYAt` ficam no WASM); se falhar, casco procedural replanejado (lofts, não caixas).
 4. **Fase 4** — reacoplar poças/capitão/diário/elevador no navio aprovado.
+
+## Reconstrução V2 (`agent/floor7-rebuild-v2`)
+
+O render ativo preserva a quest e as coordenadas do WASM, mas substitui a apresentação:
+
+- `src/floor7v2/Floor7ShipV2.tsx`: casco loftado, deck stack, cabine, mastros,
+  velas, rigging e props instanciados;
+- `src/floor7v2/Floor7WaterV2.tsx`: oceano opaco, duas ondas e foam/wake;
+- `src/floor7v2/Floor7ViewModelV2.tsx`: mãos, escova e balde camera-attached;
+- `src/Floor7PhaseCinematics.tsx`: partida, ancoragem e retorno do elevador;
+- `src/Floor7IntroCutscene.tsx`: chegada de 11,5 s, sem troca de ator ou dips pretos.
+
+O diário só abre em `ST_ANCHOR`, e o build reproduzível recompila o WASM antes do bundle.

@@ -175,15 +175,17 @@ void f7_tick(float dt, float px, float py, float pz, int interact) {
     S.pitch = f7_sin(S.t * 0.85f + 0.6f) * 0.045f * S.calm;
     S.roll  = f7_sin(S.t * 0.62f) * 0.060f * S.calm;
 
-    /* --- the captain's log (diário de bordo) — the floor's own memory. A
-       rising interact on the companionway lid opens it; each further press
-       turns a page; past page 3 it latches logRead ("você lembrou"). --- */
-    if (S.state >= ST_CLEAN && rising) {
+    /* --- the captain's log (diário de bordo) — the floor's own memory.
+       It may only be OPENED once the ship is anchored. Once open, however,
+       every later rising edge keeps turning its pages even if the state moves
+       on. Crucially, an early press is not spent here: the active quest state
+       still receives that same rising edge. --- */
+    if (rising) {
         if (S.logPage >= 1 && S.logPage <= 3) {
             S.logPage++;
             if (S.logPage >= 4) S.logRead = 1;
             rising = 0;                        /* the press was spent on the page */
-        } else {
+        } else if (S.state == ST_ANCHOR) {
             float lx = px - LOG_X, lz = pz - LOG_Z;
             if (lx * lx + lz * lz < LOG_R * LOG_R) { S.logPage = 1; rising = 0; }
         }

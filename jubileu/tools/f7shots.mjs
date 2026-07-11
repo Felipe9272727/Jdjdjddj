@@ -11,7 +11,7 @@
  * Chromium headless via swiftshader (funciona no ambiente remoto).
  */
 import { chromium } from 'playwright';
-import { mkdirSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 
 const arg = (name, dflt) => {
     const i = process.argv.indexOf(`--${name}`);
@@ -33,8 +33,11 @@ const PRESETS = [
     ['6-elevador-escotilha', [-5.2, 5.6, 16], [0.6, 2.6, 7.5]], // área do elevador + escotilha do diário
 ];
 
+const candidates = [process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE, '/opt/pw-browsers/chromium', chromium.executablePath()].filter(Boolean);
+const executablePath = candidates.find((path) => existsSync(path));
+if (!executablePath) throw new Error(`Chromium não encontrado. Tentativas: ${candidates.join(', ')}. Defina PLAYWRIGHT_CHROMIUM_EXECUTABLE.`);
 const browser = await chromium.launch({
-    executablePath: '/opt/pw-browsers/chromium',
+    executablePath,
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'],
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });

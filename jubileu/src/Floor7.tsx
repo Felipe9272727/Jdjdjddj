@@ -23,7 +23,10 @@ import { pirateCaptainModel } from './assets/textureImports';
 // bundled (inlined) GLB — works with no network in the single-file build
 const PIRATE_GLB_URL = pirateCaptainModel;
 useGLTF.preload(PIRATE_GLB_URL);
-import { Floor7Water } from './Floor7Water';
+import { Floor7WaterV2 } from './floor7v2/Floor7WaterV2';
+import { Floor7ShipV2 } from './floor7v2/Floor7ShipV2';
+import { Floor7ViewModelV2 } from './floor7v2/Floor7ViewModelV2';
+import { Floor7PhaseCinematics } from './Floor7PhaseCinematics';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow, makePuddleRipple, makeCrewManifest } from './floor7Textures';
 
 const _puddleRipple = makePuddleRipple();
@@ -56,6 +59,23 @@ function billowSail(w: number, h: number, bulge: number): THREE.PlaneGeometry {
     return g;
 }
 const _mainSailGeo = billowSail(4.5, 3.4, 0.92);
+
+function organicPuddleGeometry(seed: number): THREE.ShapeGeometry {
+    const shape = new THREE.Shape();
+    const points: THREE.Vector2[] = [];
+    for (let i = 0; i < 36; i++) {
+        const a = (i / 36) * Math.PI * 2;
+        const r = 0.82 + Math.sin(a * 3 + seed * 1.7) * 0.11
+            + Math.sin(a * 5 - seed * 0.9) * 0.07
+            + Math.sin(a * 7 + seed * 2.3) * 0.035;
+        points.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r));
+    }
+    shape.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) shape.lineTo(points[i].x, points[i].y);
+    shape.closePath();
+    return new THREE.ShapeGeometry(shape, 1);
+}
+const _organicPuddles = Array.from({ length: 6 }, (_, i) => organicPuddleGeometry(i + 1));
 // (the foresail is FURLED on its yard — see the foremast JSX; a billowed plane
 // there clipped through the elevator cab and crowded the spawn point)
 
@@ -1477,6 +1497,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
     const handsRef = useRef<THREE.Group>(null);
     const brushRef = useRef<THREE.Group>(null);
     const leftHandRef = useRef<THREE.Group>(null);
+    const vmHeldRef = useRef(false);
+    const vmCleaningRef = useRef(false);
+    const vmFillRef = useRef(1);
     const islandRef = useRef<THREE.Group>(null);
     const elevatorRef = useRef<THREE.Group>(null);
     const elevLightRef = useRef<THREE.PointLight>(null);
@@ -1581,6 +1604,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         // object on every call; it was being called 3x — bucket rig, left hand,
         // audio clunk — for the same live WASM state). One read, reuse below.
         const bucketState = b.bucket();
+        vmHeldRef.current = bucketState.held && b.elevFade() < 0.85;
+        vmCleaningRef.current = b.state() === F7_STATE.CLEAN && handleRef.current.interact;
+        vmFillRef.current = bucketState.water;
 
         // captain — rigged: peg-leg walk cycle, jaw flap, blink, head-track
         if (captainRef.current) {
@@ -1984,11 +2010,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             <ambientLight intensity={0.2} color="#9fc0d8" />
 
             {/* the Gerstner-wave ocean */}
-            <Floor7Water sunDir={SUN_DIR} warnRef={_tideWarnRef} calmRef={_calmRef} />
+            <Floor7WaterV2 sunDir={SUN_DIR} warnRef={_tideWarnRef} calmRef={_calmRef} shipScale={FLOOR7_SCALE} />
 
             {/* the ship (sways) */}
             <group ref={shipRef} scale={FLOOR7_SCALE}>
-                <ShipBody />
+                <Floor7ShipV2 />
                 {/* the elevator the player rode in on — dematerialises */}
                 {/* the hotel elevator the player rode in on — a discrete box with CLOSED
                     brushed-steel sliding doors (centre seam), a gold frame and a lit "7"
@@ -2023,18 +2049,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                         as the "floor 7" gag (kept low enough to stay in the look-back frame). */}
                     <mesh position={[0, 1.7, 0.57]} material={M_elevNum}><planeGeometry args={[0.66, 0.66]} /></mesh>
                 </group>
-                {/* CAPTAIN — hybrid. The GLB is the real captain for every frame EXCEPT
-                    the intro's tight LEGS close-up: a single fused mesh skinned by painted
-                    weights smears badly when the legs swing right under the lens. So during
-                    that one beat we hide the GLB and show the articulated PRIMITIVE captain
-                    instead (rigid parts → zero smear), then flip back to the GLB on the
-                    zoom-out. Both ride the same WASM brain, so they sit at the same spot. */}
-                <Captain ref={captainRef} rig={capRig} />
-                {/* isolate the GLB in its OWN Suspense boundary so its async load can
-                    never suspend (and stall the clock of) the intro cutscene or the rest
-                    of the deck — that cross-Suspense catch-up is what blew the cutscene
-                    through all its beats in ~1s. fallback=null: until it resolves the
-                    rigid primitive captain already covers the only beat that needs him. */}
+                {/* One GLB actor for every shot and gameplay beat. */}
                 <React.Suspense fallback={null}>
                     <PirateCaptain brainRef={brainRef} playerPositionRef={playerPositionRef} anchorRef={captainAnchorRef} laughRef={introLaughRef} poseRef={introPoseRef} talkRef={introTalkRef} legsRef={introLegsRef} />
                 </React.Suspense>
@@ -2050,10 +2065,9 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     {/* soapy water surface — drops as the bucket goes stale, refills on a dunk */}
                     <mesh ref={sudsSurfRef} position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M.sudsy}><circleGeometry args={[0.15, 18]} /></mesh>
                     {/* swing handle (iron arc) */}
-                    <mesh position={[0, 0.18, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.iron}><torusGeometry args={[0.155, 0.01, 6, 18, Math.PI]} /></mesh>
+                    <mesh position={[0, 0.18, 0]} material={M.iron}><torusGeometry args={[0.155, 0.01, 6, 18, Math.PI]} /></mesh>
                     {/* draped wet rag over the rim */}
-                    <mesh position={[0.1, 0.13, 0.05]} rotation={[0.5, 0.4, 0.2]} material={M.cloth}><boxGeometry args={[0.2, 0.03, 0.16]} /></mesh>
-                    <mesh position={[0.16, 0.04, 0.08]} rotation={[0.1, 0.4, 0.6]} material={M.cloth}><boxGeometry args={[0.12, 0.02, 0.14]} /></mesh>
+                    <mesh position={[0.11, 0.12, 0.05]} rotation={[-1.18, 0.2, 0.35]} material={M.cloth}><planeGeometry args={[0.25, 0.22, 3, 3]} /></mesh>
                 </group>
                 {/* the captain's LOG (diário de bordo) on the companionway lid — the
                     floor's memory. Reading it is what brings the elevator back. */}
@@ -2067,13 +2081,10 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 {/* puddles: a wet halo soaking the planks + a reflective water disc */}
                 {Array.from({ length: 6 }).map((_, i) => (
                     <group key={i} ref={(g) => { puddleRefs.current[i] = g; }} position={[0, 0.02, 0]}>
-                        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.012, 0]} renderOrder={1}>
-                            <circleGeometry args={[1.28, 20]} />
+                        <mesh geometry={_organicPuddles[i]} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.012, 0]} scale={1.28} renderOrder={1}>
                             <meshBasicMaterial map={_contactTex} color="#0a181c" transparent opacity={0.6} depthWrite={false} />
                         </mesh>
-                        <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={2} material={puddleMats[i]}>
-                            <circleGeometry args={[1, 48]} />
-                        </mesh>
+                        <mesh geometry={_organicPuddles[i]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2} material={puddleMats[i]} />
                     </group>
                 ))}
                 {/* suds particles thrown up by scrubbing */}
@@ -2081,6 +2092,12 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     <pointsMaterial size={0.07} color="#eef7f8" transparent opacity={0.92} depthWrite={false} sizeAttenuation />
                 </points>
             </group>
+
+            <Floor7PhaseCinematics
+                brainRef={brainRef}
+                shipRef={shipRef}
+                disabled={(introElevFadeRef?.current ?? 1) > 0.01 && (introPoseRef?.current ?? 0) > 0.01}
+            />
 
             {/* "terra à vista" — land rises on the horizon when the deck is clean */}
             <group ref={islandRef} visible={false} position={[14, -0.6, 90]}>
@@ -2158,35 +2175,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 <mesh position={[-6, -0.57, -8]} rotation={[-Math.PI / 2, 0, 0]} material={M.islandBeach}><circleGeometry args={[7, 20]} /></mesh>
             </group>
 
-            {/* first-person hands + scrub-brush (rides the camera, world-space).
-                Scale kept SMALL — at 1.4 the cuff/palm filled ~40% of the frame
-                as giant untextured slabs; 0.85 reads as a hand, not a wall. */}
-            <group ref={handsRef} frustumCulled={false} visible={false}>
-                <group ref={brushRef} scale={0.85}>
-                    {/* coat sleeve entering from the lower-right corner + gold cuff */}
-                    <mesh position={[0.07, -0.16, 0.16]} rotation={[0.95, 0.12, 0.22]} material={M.coat}><cylinderGeometry args={[0.052, 0.075, 0.4, 10]} /></mesh>
-                    <mesh position={[0.035, -0.055, 0.02]} rotation={[0.95, 0.12, 0.22]} material={M.goldFp}><cylinderGeometry args={[0.072, 0.072, 0.045, 10]} /></mesh>
-                    {/* flattened palm gripping the brush */}
-                    <mesh position={[0, -0.035, -0.085]} rotation={[0.42, 0, 0]} material={M.skin}><boxGeometry args={[0.088, 0.03, 0.1]} /></mesh>
-                    {/* thumb + four fingers curling over the brush block */}
-                    <mesh position={[-0.052, -0.05, -0.08]} rotation={[0.42, 0, 0.35]} material={M.skin}><capsuleGeometry args={[0.014, 0.05, 3, 6]} /></mesh>
-                    {[-0.03, -0.01, 0.01, 0.03].map((fx, i) => (
-                        <mesh key={i} position={[fx, -0.062, -0.125]} rotation={[1.15, 0, 0]} material={M.skin}><capsuleGeometry args={[0.011, 0.045, 3, 6]} /></mesh>
-                    ))}
-                    {/* scrub brush: wooden block + pale bristles, forward under the palm */}
-                    <mesh position={[0, -0.078, -0.12]} rotation={[0.35, 0, 0]} material={M.barrel}><boxGeometry args={[0.16, 0.045, 0.1]} /></mesh>
-                    <mesh position={[0, -0.112, -0.13]} rotation={[0.35, 0, 0]} material={M.cloth}><boxGeometry args={[0.15, 0.04, 0.09]} /></mesh>
-                </group>
-            </group>
-
-            {/* left hand carrying the bucket by its handle (camera-attached) */}
-            <group ref={leftHandRef} frustumCulled={false} visible={false}>
-                <mesh position={[-0.04, 0.0, 0.1]} rotation={[1.0, 0, -0.2]} material={M.coat}><cylinderGeometry args={[0.05, 0.07, 0.34, 10]} /></mesh>
-                <mesh position={[0, 0.02, 0.0]} material={M.skin}><boxGeometry args={[0.08, 0.05, 0.09]} /></mesh>
-                {/* the iron bail (handle) the fist grips, dropping to the bucket below */}
-                <mesh position={[0, -0.04, 0.0]} rotation={[0, 0, 0]} material={M.iron}><torusGeometry args={[0.09, 0.012, 6, 14, Math.PI]} /></mesh>
-                <mesh position={[0.02, -0.22, 0.02]} material={M.bucket}><cylinderGeometry args={[0.1, 0.085, 0.16, 12, 1, true]} /></mesh>
-            </group>
+            <Floor7ViewModelV2 heldRef={vmHeldRef} cleaningRef={vmCleaningRef} bucketFillRef={vmFillRef} />
         </group>
     );
 };

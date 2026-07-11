@@ -1,79 +1,108 @@
-/**
- * Floor7IntroUI.tsx — DOM layer for the captain's intro cutscene: cinematic
- * letterbox bars, the timed multi-line dialogue, a transition dip that masks the
- * hard cuts, and a skip button. Driven by the beat + line index from the cutscene.
- */
+/** Lightweight DOM presentation for the Floor 7 V2 arrival cinematic. */
 import React from 'react';
-import { F7_DIALOGUE } from './Floor7IntroCutscene';
+import { F7_DIALOGUE, F7_INTRO_BEATS } from './Floor7IntroCutscene';
 
 interface Props {
     beat: number;
-    line: number;                                          // active dialogue line index (-1 = none)
-    dimRef: React.MutableRefObject<number>;                // 0..1 transition dip (read each frame, no re-render)
+    line: number;
+    dimRef: React.MutableRefObject<number>;
     onSkip: () => void;
 }
 
-const Floor7IntroUI: React.FC<Props> = ({ line, dimRef, onSkip }) => {
+const BEAT_LABEL: Record<number, string> = {
+    [F7_INTRO_BEATS.ARRIVAL]: 'ANDAR 7 · MARÉ MORTA',
+    [F7_INTRO_BEATS.CAPTAIN]: 'O CAPITÃO',
+    [F7_INTRO_BEATS.VANISH]: 'SEM VOLTA',
+    [F7_INTRO_BEATS.OBJECTIVE]: 'NOVO OBJETIVO',
+    [F7_INTRO_BEATS.HANDOFF]: 'PEGUE O BALDE',
+};
+
+const Floor7IntroUI: React.FC<Props> = ({ beat, line, dimRef, onSkip }) => {
     const dimEl = React.useRef<HTMLDivElement>(null);
-    // never let a player get stuck on the cutscene: Esc / Enter / Space also skip
+    const mountedAt = React.useRef(performance.now());
+    const skipped = React.useRef(false);
+
+    const trySkip = React.useCallback(() => {
+        // Prevent the same touch/key that starts the level from instantly skipping.
+        if (skipped.current || performance.now() - mountedAt.current < 650) return;
+        skipped.current = true;
+        onSkip();
+    }, [onSkip]);
+
     React.useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSkip(); }
+            if (e.key !== 'Escape' && e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            trySkip();
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, [onSkip]);
-    // drive the transition-dip overlay straight from the ref each frame (the cutscene
-    // writes dimRef in its useFrame); cheaper + smoother than routing it through state.
+    }, [trySkip]);
+
     React.useEffect(() => {
         let raf = 0;
-        const tick = () => { if (dimEl.current) dimEl.current.style.opacity = String(dimRef.current ?? 0); raf = requestAnimationFrame(tick); };
+        const tick = () => {
+            if (dimEl.current) dimEl.current.style.opacity = String(Math.min(0.16, Math.max(0, dimRef.current || 0)));
+            raf = requestAnimationFrame(tick);
+        };
         raf = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf);
     }, [dimRef]);
 
     const text = line >= 0 && line < F7_DIALOGUE.length ? F7_DIALOGUE[line] : null;
+    const objectiveBeat = beat === F7_INTRO_BEATS.OBJECTIVE || beat === F7_INTRO_BEATS.HANDOFF;
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 80, pointerEvents: 'none',
-            fontFamily: '"Source Sans 3","Segoe UI",sans-serif' }}>
+            fontFamily: '"Source Sans 3","Segoe UI",sans-serif', color: '#f5ead5' }}>
             <style>{`
-                @keyframes f7c-bars { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-                @keyframes f7c-line { 0%{transform:translate(-50%,8px);opacity:0;}
-                    100%{transform:translate(-50%,0);opacity:1;} }
-                @keyframes f7c-fadein { 0%{opacity:1;} 70%{opacity:1;} 100%{opacity:0;} }
+                @keyframes f7v2-bar { from { transform: scaleY(0); opacity:0 } to { transform: scaleY(1); opacity:1 } }
+                @keyframes f7v2-enter { from { transform:translate(-50%,10px); opacity:0 } to { transform:translate(-50%,0); opacity:1 } }
+                @keyframes f7v2-label { from { opacity:0; letter-spacing:.38em } to { opacity:.9; letter-spacing:.22em } }
+                @keyframes f7v2-pulse { 50% { box-shadow:0 0 22px rgba(225,177,94,.24) } }
             `}</style>
-            {/* open from black — hides the first ~0.8s while the camera settles onto the boots */}
-            <div style={{ position: 'absolute', inset: 0, background: '#000',
-                animation: 'f7c-fadein 1.1s ease-out both' }} />
-            {/* transition dip — darkens to mask the hard cuts; opacity driven by dimRef */}
-            <div ref={dimEl} style={{ position: 'absolute', inset: 0, background: '#000', opacity: 0 }} />
-            {/* cinematic letterbox */}
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '12%', background: '#080604',
-                transformOrigin: 'top', animation: 'f7c-bars .5s ease-out both' }} />
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '12%', background: '#080604',
-                transformOrigin: 'bottom', animation: 'f7c-bars .5s ease-out both' }} />
 
-            {/* timed dialogue — one line at a time (re-animates on each new line via key) */}
+            <div ref={dimEl} style={{ position: 'absolute', inset: 0, background: '#081015', opacity: 0 }} />
+            <div style={{ position: 'absolute', inset: '0 0 auto', height: '8%', background: '#070706',
+                transformOrigin: 'top', animation: 'f7v2-bar .42s ease-out both' }} />
+            <div style={{ position: 'absolute', inset: 'auto 0 0', height: '8%', background: '#070706',
+                transformOrigin: 'bottom', animation: 'f7v2-bar .42s ease-out both' }} />
+
+            <div key={beat} style={{ position: 'absolute', top: '10.5%', left: '50%', transform: 'translateX(-50%)',
+                whiteSpace: 'nowrap', fontSize: 11, fontWeight: 800, color: objectiveBeat ? '#e8bc72' : '#cfb98f',
+                textShadow: '0 2px 8px #000', animation: 'f7v2-label .45s ease-out both' }}>
+                {BEAT_LABEL[beat] ?? ''}
+            </div>
+
+            {objectiveBeat && (
+                <div style={{ position: 'absolute', top: '15%', left: '50%', transform: 'translateX(-50%)',
+                    border: '1px solid rgba(232,188,114,.55)', borderRadius: 999, padding: '7px 14px',
+                    color: '#f0d39e', background: 'rgba(15,18,18,.68)', fontSize: 12, fontWeight: 700,
+                    letterSpacing: '.08em', animation: 'f7v2-pulse 1.4s ease-in-out infinite' }}>
+                    BALDE → LIMPE AS POÇAS
+                </div>
+            )}
+
             {text && (
-                <div key={line} style={{ position: 'absolute', left: '50%', bottom: '15%',
-                    transform: 'translateX(-50%)', maxWidth: 'min(92vw, 640px)', textAlign: 'center',
-                    animation: 'f7c-line .4s ease-out both' }}>
-                    <div style={{ color: '#caa56a', fontSize: 13, fontWeight: 700, letterSpacing: '0.22em',
-                        textShadow: '0 2px 6px #000', marginBottom: 12 }}>CAPITÃO</div>
-                    <div style={{ background: 'rgba(20,14,8,0.88)', border: '1px solid rgba(202,165,106,0.5)',
-                        borderRadius: 12, padding: '12px 18px', color: '#f3e7cf', fontSize: 17, lineHeight: 1.4,
-                        boxShadow: '0 6px 24px rgba(0,0,0,0.6)' }}>
+                <div key={line} style={{ position: 'absolute', left: '50%', bottom: '11.5%',
+                    transform: 'translateX(-50%)', width: 'min(88vw, 620px)', textAlign: 'center',
+                    animation: 'f7v2-enter .3s ease-out both' }}>
+                    <div style={{ color: '#dcb36f', fontSize: 11, fontWeight: 800, letterSpacing: '.24em',
+                        textShadow: '0 2px 7px #000', marginBottom: 7 }}>CAPITÃO</div>
+                    <div style={{ display: 'inline-block', background: 'rgba(14,13,10,.82)',
+                        border: '1px solid rgba(220,179,111,.38)', borderRadius: 10, padding: '10px 16px',
+                        color: '#f6ead3', fontSize: 'clamp(15px,3.5vw,18px)', lineHeight: 1.35,
+                        boxShadow: '0 6px 20px rgba(0,0,0,.45)', textShadow: '0 1px 3px #000' }}>
                         {text}
                     </div>
                 </div>
             )}
 
-            {/* skip — generous hit area, clearly above the canvas (Esc/Enter/Space also skip) */}
-            <button onClick={onSkip} style={{ position: 'absolute', right: 'calc(env(safe-area-inset-right,0px) + 18px)',
-                bottom: 'calc(12% + 14px)', pointerEvents: 'auto', background: 'rgba(0,0,0,0.55)',
-                border: '1px solid rgba(255,255,255,0.3)', color: '#f0e6d0', fontSize: 14, letterSpacing: '0.12em',
-                borderRadius: 8, padding: '10px 18px', cursor: 'pointer', backdropFilter: 'blur(3px)' }}>PULAR ▸</button>
+            <button onClick={trySkip} aria-label="Pular introdução" style={{ position: 'absolute',
+                right: 'calc(env(safe-area-inset-right,0px) + 14px)', top: 'calc(8% + 12px)', pointerEvents: 'auto',
+                background: 'rgba(8,10,10,.55)', border: '1px solid rgba(255,255,255,.22)', color: '#eee3cf',
+                fontSize: 12, letterSpacing: '.12em', borderRadius: 7, padding: '9px 14px', cursor: 'pointer',
+                backdropFilter: 'blur(3px)', touchAction: 'manipulation' }}>PULAR ▸</button>
         </div>
     );
 };

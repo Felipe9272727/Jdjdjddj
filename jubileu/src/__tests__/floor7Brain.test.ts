@@ -160,6 +160,54 @@ describe('Floor7Brain — the WASM (C + assembly) pirate-ship brain', () => {
         expect(b.logPage()).toBe(0);
     });
 
+    it('the log cannot open while CLEAN or SAIL, and an early press is not consumed', () => {
+        const b = new Floor7Brain();
+        step(b, 4.2, 0, 5, false);                              // -> GREET
+        // A press near the future log must still reach GREET instead of being
+        // swallowed by the log handler.
+        const log = b.logPos();
+        b.tick(1 / 60, log.x, 0, log.z, false);
+        b.tick(1 / 60, log.x, 0, log.z, true);
+        expect(b.state()).toBe(F7_STATE.FETCH);
+        expect(b.logPage()).toBe(0);
+
+        const buc = b.bucket();
+        b.tick(1 / 60, buc.x, 0, buc.z, false);
+        b.tick(1 / 60, buc.x, 0, buc.z, true);
+        expect(b.state()).toBe(F7_STATE.CLEAN);
+        b.tick(1 / 60, log.x, 0, log.z, false);
+        b.tick(1 / 60, log.x, 0, log.z, true);
+        expect(b.logPage()).toBe(0);
+
+        const p: F7Puddle = { x: 0, z: 0, r: 0, prog: 0, cell: new Float32Array(16) };
+        for (let i = 0; i < b.npud; i++) { b.puddle(i, p); mopPuddle(b, p); }
+        step(b, 6.0, log.x, log.z, false);                      // DONE -> SAIL
+        expect(b.state()).toBe(F7_STATE.SAIL);
+        b.tick(1 / 60, log.x, 0, log.z, false);
+        b.tick(1 / 60, log.x, 0, log.z, true);
+        expect(b.logPage()).toBe(0);
+    });
+
+    it('holding interact never turns more than one log page', () => {
+        const b = new Floor7Brain();
+        playToDone(b);
+        step(b, 34.0, 0, 5, false);
+        expect(b.state()).toBe(F7_STATE.ANCHOR);
+        const log = b.logPos();
+
+        b.tick(1 / 60, log.x, 0, log.z, false);
+        b.tick(1 / 60, log.x, 0, log.z, true);                  // open page 1
+        step(b, 1.0, log.x, log.z, true);                       // still held
+        expect(b.logPage()).toBe(1);
+        expect(b.logRead()).toBe(false);
+
+        b.tick(1 / 60, log.x, 0, log.z, false);
+        b.tick(1 / 60, log.x, 0, log.z, true);                  // page 2
+        step(b, 1.0, log.x, log.z, true);                       // still held
+        expect(b.logPage()).toBe(2);
+        expect(b.logRead()).toBe(false);
+    });
+
     it('puddles sit on the WALKABLE deck (never overhanging the bulwark)', () => {
         const b = new Floor7Brain();
         const p: F7Puddle = { x: 0, z: 0, r: 0, prog: 0 };
