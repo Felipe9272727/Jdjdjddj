@@ -64,6 +64,7 @@ export interface F6State {
     // cab
     crankT: number;            // 0..1 — hold-to-crank progress
     blackT: number;
+    idleT: number;             // segundos perto do hóspede em guestIdle (auto-ato-2)
     guestLine: number;
     /** Hotspot id with its examine card open right now (scene animates it). */
     inspecting: string | null;
@@ -82,7 +83,7 @@ const FRESH = (): F6State => ({
     tapOn: false, fogT: 0, fogDone: false, mirrorRead: false, lidOff: false, curtainOpen: false,
     fridgeOpen: false, geloTaken: false, despensaOpen: false, despensaSeen: false,
     stoveLit: false, melting: false, meltT: 0, panRele: false,
-    crankT: 0, blackT: 0, guestLine: 0, inspecting: null, version: 0,
+    crankT: 0, blackT: 0, idleT: 0, guestLine: 0, inspecting: null, version: 0,
 });
 
 export const f6: F6State = FRESH();
@@ -764,8 +765,9 @@ export function f6AdvanceGuest(): void {
 }
 
 /** Per-frame director: bang trigger, steam, melt, blackout→guest. Called by
- *  Floor6Suite's useFrame with the live player Z. */
-export function f6Tick(dt: number, playerZ: number): void {
+ *  Floor6Suite's useFrame with the live player Z (e X, para o gatilho do ato
+ *  2 por aproximação — omitido nos testes antigos, que não auto-disparam). */
+export function f6Tick(dt: number, playerZ: number, playerX = 99): void {
     const s = f6;
     if (s.phase === 'arrive') {
         if (playerZ > -7) { s.phase = 'explore'; emit('bang'); f6Bump(); }
@@ -783,6 +785,17 @@ export function f6Tick(dt: number, playerZ: number): void {
         s.blackT += dt;
         if (s.blackT >= 1.6) { s.phase = 'guest'; s.guestLine = 0; emit('guestAppear'); f6Bump(); }
     }
+    // ATO 2 por APROXIMAÇÃO: em guestIdle, chegar perto dele (ou do vão que
+    // ele guarda) começa a conversa sozinho — sem isso o jogador ficava preso
+    // sem saber que precisava interagir de novo (report do Felipe). O [E]
+    // manual continua funcionando como atalho.
+    if (s.phase === 'guestIdle') {
+        const d = Math.hypot(playerX, playerZ + 8.2);
+        if (d < 2.4) {
+            s.idleT += dt;
+            if (s.idleT >= 0.8) { s.phase = 'guest2'; s.guestLine = 0; f6Bump(); }
+        } else if (s.idleT > 0) s.idleT = 0;
+    }
 }
 
 /** Board the elevator and leave the suite (phase: free → leave). */
@@ -796,7 +809,7 @@ export function f6Objective(): string | null {
     const s = f6;
     if (s.phase === 'arrive' || s.phase === 'leave') return null;
     if (s.phase === 'blackout' || s.phase === 'guest' || s.phase === 'guest2') return null;
-    if (s.phase === 'guestIdle') return 'Ele não sai da frente da porta.';
+    if (s.phase === 'guestIdle') return 'Ele não sai da frente da porta. Chegue perto. Escute.';
     if (s.phase === 'free') return 'O elevador está esperando.';
     const have = F6_PARTS.filter((p) => s.installed[p]).length;
     const carrying = F6_PARTS.filter((p) => s.inv[p]).length;

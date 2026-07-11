@@ -318,7 +318,7 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
     useFrame(({ clock }, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const now = clock.elapsedTime;
-        f6Tick(dt, playerPositionRef.current.z);
+        f6Tick(dt, playerPositionRef.current.z, playerPositionRef.current.x);
 
         // re-render on state version changes (door targets, item visibility, …)
         if (f6.version !== versionSeen.current) { versionSeen.current = f6.version; force(); }
