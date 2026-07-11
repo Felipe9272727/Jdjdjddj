@@ -20,7 +20,10 @@ export type F6Phase =
     | 'explore'     // BANG — cab dead and crooked, 3 parts missing
     | 'blackout'    // crank wound, ding… lights die for a beat
     | 'guest'       // the one-armed guest is between you and the doors
-    | 'guestIdle';  // dialogue done — he won't move. (Felipe writes what's next)
+    | 'guestIdle'   // dialogue done — he won't move (ato 1, 3 falas)
+    | 'guest2'      // ato 2 — 7 falas, a verdade toda sai
+    | 'free'        // hóspede saiu da frente da porta; o player sobe no elevador
+    | 'leave';      // embarcado, portas fechando
 
 export type F6Item =
     | 'cabide' | 'chave' | 'gelo' | 'abridor' | 'fosforos'
@@ -112,6 +115,7 @@ export type F6Event =
     | 'bang' | 'unlock' | 'chain' | 'repaired' | 'guestAppear' | 'melted'
     | 'quadro' | 'drawer' | 'tug' | 'cut' | 'wardrobe' | 'tvflip'
     | 'lid' | 'curtain' | 'fridge' | 'match' | 'placeIce' | 'despensa' | 'fish'
+    | 'guestAside' | 'boarding'
     | `install:${F6Part}` | `pickup:${F6Item}`;
 const events: F6Event[] = [];
 function emit(e: F6Event): void { events.push(e); }
@@ -174,11 +178,18 @@ const _DW_G_BOTH = [DOOR_ELEVATOR_BLOCK, DOOR_BATH, DOOR_KITCHEN];
 const _DW_G_BATH = [DOOR_ELEVATOR_BLOCK, DOOR_BATH];
 const _DW_G_KITCHEN = [DOOR_ELEVATOR_BLOCK, DOOR_KITCHEN];
 const _DW_G_NONE = [DOOR_ELEVATOR_BLOCK];
+const _DW_FREE_BOTH = [DOOR_BATH, DOOR_KITCHEN];
+const _DW_FREE_BATH = [DOOR_BATH];
+const _DW_FREE_KITCHEN = [DOOR_KITCHEN];
+const _DW_FREE_NONE: number[][] = [];
+const _DW_LEAVE = [DOOR_ELEVATOR_BLOCK];
 
 /** Live LOCKED-door segments (resolved per-frame by Player.tsx on level 6).
  *  Prebuilt lists — zero allocation. During 'arrive' the doorway is open
  *  (walking out); after the bang the slammed doors leave a crooked squeeze
- *  gap into the dead cab; once repaired the guest stands in the way. */
+ *  gap into the dead cab; once repaired the guest stands in the way; once
+ *  he moves aside ('free') the doorway opens again; once boarding ('leave')
+ *  the entire doorway blocks off. */
 export function f6DoorWalls(): number[][] {
     const s = f6;
     if (s.phase === 'arrive') return _DW_ARRIVE;
@@ -187,6 +198,13 @@ export function f6DoorWalls(): number[][] {
             ? (!s.kitchenOpen ? _DW_X_BOTH : _DW_X_BATH)
             : (!s.kitchenOpen ? _DW_X_KITCHEN : _DW_X_NONE);
     }
+    if (s.phase === 'free') {
+        return !s.bathOpen
+            ? (!s.kitchenOpen ? _DW_FREE_BOTH : _DW_FREE_BATH)
+            : (!s.kitchenOpen ? _DW_FREE_KITCHEN : _DW_FREE_NONE);
+    }
+    if (s.phase === 'leave') return _DW_LEAVE;
+    // blackout, guest, guestIdle, guest2
     return !s.bathOpen
         ? (!s.kitchenOpen ? _DW_G_BOTH : _DW_G_BATH)
         : (!s.kitchenOpen ? _DW_G_KITCHEN : _DW_G_NONE);
@@ -209,7 +227,7 @@ function allInstalled(): boolean {
 /** Hotspots the player can currently reach for (state-aware). */
 export function f6Hotspots(): F6Hotspot[] {
     const s = f6;
-    if (s.phase === 'arrive') return [];
+    if (s.phase === 'arrive' || s.phase === 'leave') return [];
     const list: F6Hotspot[] = [
         // ── bedroom ──
         H('aviso', -1.7, -9.4, 'Bilhete no batente', { zMin: -9.9 }),
@@ -286,7 +304,13 @@ export function f6Hotspots(): F6Hotspot[] {
             list.push(H('fosforos', 4.5, 6.1, 'Caixa de fósforos'));
         }
     }
-    if (s.phase === 'guestIdle') list.push(H('hospede', 0, -8.2, 'O Hóspede', { reach: 2.2 }));
+    if (s.phase === 'guestIdle' || s.phase === 'guest2') {
+        list.push(H('hospede', 0, -8.2, 'O Hóspede', { reach: 2.2 }));
+    }
+    if (s.phase === 'free') {
+        list.push(H('hospede', -2.35, -8.75, 'O Hóspede', { reach: 2.2 }));
+        list.push(H('botoeira', 2.6, -10.6, 'Apertar T — térreo', { zMax: -10.1 }));
+    }
     return list.filter((h) => h.label !== '');
 }
 
@@ -481,6 +505,14 @@ export const F6_TXT: Record<string, { title: string; text: string }> = {
         title: 'O HÓSPEDE',
         text: 'Ele não sai da frente da porta. A respiração dele é o único relógio do quarto.\n\n"Me escuta. Só me escuta."',
     },
+    hospede_free: {
+        title: 'O HÓSPEDE',
+        text: '"Anda. Antes que eles percebam que a conta não fecha."',
+    },
+    memorycardGuest: {
+        title: 'VOCÊ LEMBROU DO HÓSPEDE DO 612',
+        text: 'O quarto 612 agora é um tijolo seu. Eles não podem apagá-lo.',
+    },
 };
 
 // ── The guest ────────────────────────────────────────────────────────────────
@@ -488,6 +520,16 @@ export const F6_GUEST_LINES: ReadonlyArray<string> = [
     'Você consertou. Claro que consertou. Eles SABIAM que você consertaria… as peças não caíram, foram DEIXADAS. Pra você. Pra medir você.',
     'Eu subi uma vez. O andar de cima não é um andar. O elevador me trouxe de volta… em partes. E eles cuidaram muito bem das partes que sobraram.',
     'Antes de apertar qualquer botão… me escuta. Só me escuta.',
+];
+
+export const F6_GUEST_LINES2: ReadonlyArray<string> = [
+    'Você abriu a despensa. Eu sei — o barbante ainda está tremendo. Então já sabe: são VINTE. E ELE mora no último.',
+    'Amanhã fazem o meu check-out. É assim que eles chamam. A banheira… a parte que sobra… eles tratam bem. Eles são sempre GENTIS com o que sobra.',
+    'Eu tentei descer. O elevador me trouxe de volta. Sempre traz. Mas você… você CONSERTOU. Ele te deve uma descida. Máquina não esquece.',
+    'Antes de ir — meu nome. Eu tinha um nome. Está na máquina de escrever, no diário, nas marmitas… quarenta e sete dias, e ninguém perguntou.',
+    'Memória é tijolo. Enquanto alguém LEMBRAR do 612, eles não podem apagar o quarto. Nem eu.',
+    'Então me faz um favor. Só um. Lembra. De. Mim.',
+    '…vai. O elevador é seu. Eu fico com o quarto — alguém tem que continuar contando os andares.',
 ];
 
 // ── Interactions ──────────────────────────────────────────────────────────────
@@ -500,6 +542,7 @@ export type F6Action =
     | { kind: 'fx'; sfx: F6Sfx }
     | { kind: 'keypad' }
     | { kind: 'crank' }
+    | { kind: 'leave' }
     | { kind: 'none' };
 
 const TXT = (k: string, sfx: F6Sfx = 'paper', delay?: number): F6Action =>
@@ -657,7 +700,6 @@ export function f6Interact(id: string): F6Action {
                 return TXT('soq_fusivel_in', 'none', 800);
             }
             return TXT('soq_fusivel', 'click');
-        case 'botoeira': return TXT('botoeira', 'click');
         case 'soq_rele':
             if (s.installed.rele) return TXT('soq_rele_done', 'none');
             if (s.inv.rele) {
@@ -674,7 +716,16 @@ export function f6Interact(id: string): F6Action {
             }
             if (s.installed.manivela) return TXT('eixo_falta', 'clank');
             return TXT('eixo', 'click');
-        case 'hospede': return TXT('hospede_idle', 'breath');
+        case 'hospede':
+            if (s.phase === 'guestIdle') {
+                s.phase = 'guest2'; s.guestLine = 0; f6Bump();
+                return { kind: 'none' };
+            }
+            if (s.phase === 'free') return TXT('hospede_free', 'breath');
+            return TXT('hospede_idle', 'breath');
+        case 'botoeira':
+            if (s.phase === 'free') return { kind: 'leave' };
+            return TXT('botoeira', 'click');
     }
     return { kind: 'none' };
 }
@@ -703,9 +754,13 @@ export function f6Crank(dt: number): boolean {
 
 /** Advance the guest's dialogue (tap). */
 export function f6AdvanceGuest(): void {
-    if (f6.phase !== 'guest') return;
-    if (f6.guestLine < F6_GUEST_LINES.length - 1) { f6.guestLine++; f6Bump(); }
-    else { f6.phase = 'guestIdle'; f6Bump(); }
+    if (f6.phase === 'guest') {
+        if (f6.guestLine < F6_GUEST_LINES.length - 1) { f6.guestLine++; f6Bump(); }
+        else { f6.phase = 'guestIdle'; f6Bump(); }
+    } else if (f6.phase === 'guest2') {
+        if (f6.guestLine < F6_GUEST_LINES2.length - 1) { f6.guestLine++; f6Bump(); }
+        else { f6.phase = 'free'; emit('guestAside'); f6Bump(); }
+    }
 }
 
 /** Per-frame director: bang trigger, steam, melt, blackout→guest. Called by
@@ -730,12 +785,19 @@ export function f6Tick(dt: number, playerZ: number): void {
     }
 }
 
+/** Board the elevator and leave the suite (phase: free → leave). */
+export function f6BoardElevator(): void {
+    if (f6.phase !== 'free') return;
+    f6.phase = 'leave'; emit('boarding'); f6Bump();
+}
+
 /** The HUD's one-line objective. */
 export function f6Objective(): string | null {
     const s = f6;
-    if (s.phase === 'arrive') return null;
-    if (s.phase === 'blackout' || s.phase === 'guest') return null;
+    if (s.phase === 'arrive' || s.phase === 'leave') return null;
+    if (s.phase === 'blackout' || s.phase === 'guest' || s.phase === 'guest2') return null;
     if (s.phase === 'guestIdle') return 'Ele não sai da frente da porta.';
+    if (s.phase === 'free') return 'O elevador está esperando.';
     const have = F6_PARTS.filter((p) => s.installed[p]).length;
     const carrying = F6_PARTS.filter((p) => s.inv[p]).length;
     if (have === 3) return 'Gire o guincho de emergência, dentro do elevador.';

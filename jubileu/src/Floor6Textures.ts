@@ -344,28 +344,54 @@ const drawCeil: Draw = (ctx, W, H) => {
         ctx.fillStyle = v > 0.5 ? `rgba(255,250,240,${(v - 0.5) * 0.08})` : `rgba(60,52,40,${v * 0.07})`;
         ctx.fillRect(r() * W, r() * H, 2, 2);
     }
-    // water infiltration stains: irregular blob with concentric rings of varying opacity
+    // water infiltration stains — tide marks: one wobbly outline reused at
+    // 3 scales (filled washes, NOT stroked rings), darkest at the rim like
+    // real dried seepage. Nothing circular enough to read as a drawing.
     for (let i = 0; i < 3; i++) {
         const cx = W * (0.55 + r() * 0.4), cy = H * (0.1 + r() * 0.5);
-        const mainRad = 20 + r() * 18;
-        // soft irregular blob center
-        ctx.fillStyle = `rgba(180,140,60,${0.25 + r() * 0.2})`;
-        ctx.beginPath();
-        let px = cx + Math.cos(0) * mainRad * (0.8 + r() * 0.3);
-        let py = cy + Math.sin(0) * mainRad * (0.8 + r() * 0.3);
-        ctx.moveTo(px, py);
-        for (let a = 0.1; a < Math.PI * 2; a += 0.15) {
-            px = cx + Math.cos(a) * mainRad * (0.7 + r() * 0.4);
-            py = cy + Math.sin(a) * mainRad * (0.7 + r() * 0.4);
-            ctx.lineTo(px, py);
-        }
-        ctx.fill();
-        // concentric rings of moisture: very soft, low contrast
-        for (let k = 2; k >= 0; k--) {
-            const ringRad = mainRad * (1 - k * 0.25);
-            ctx.strokeStyle = `rgba(150,110,40,${0.06 + k * 0.04})`;
-            ctx.lineWidth = 3 + r() * 2;
-            ctx.beginPath(); ctx.ellipse(cx, cy, ringRad, ringRad * 0.75, r() * 0.3, 0, Math.PI * 2); ctx.stroke();
+        const mainRad = 22 + r() * 18;
+        // one irregular contour, sampled once, reused scaled
+        const wob: number[] = [];
+        const N = 26;
+        for (let k = 0; k < N; k++) wob.push(0.62 + r() * 0.55);
+        // smooth the wobble so the edge meanders instead of jittering
+        const sm = wob.map((_, k) => (wob[(k + N - 1) % N] + wob[k] * 2 + wob[(k + 1) % N]) / 4);
+        const trace = (scale: number, ox: number, oy: number) => {
+            ctx.beginPath();
+            for (let k = 0; k <= N; k++) {
+                const a = (k % N) / N * Math.PI * 2;
+                const rad = mainRad * sm[k % N] * scale;
+                const px = cx + ox + Math.cos(a) * rad * 1.15;
+                const py = cy + oy + Math.sin(a) * rad * 0.85;
+                if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+        };
+        // outer halo wash (palest, widest)
+        ctx.fillStyle = 'rgba(168,132,66,0.10)';
+        trace(1.0, 0, 0); ctx.fill();
+        // mid wash, slightly offset (water crept unevenly)
+        ctx.fillStyle = 'rgba(158,118,52,0.14)';
+        trace(0.72, 2 - r() * 4, 2 - r() * 4); ctx.fill();
+        // core, brownest
+        ctx.fillStyle = 'rgba(138,98,44,0.20)';
+        trace(0.42, 3 - r() * 6, 3 - r() * 6); ctx.fill();
+        // dark dried rim only on the OUTER contour, broken into arcs
+        ctx.strokeStyle = 'rgba(120,86,40,0.16)';
+        ctx.lineWidth = 1.6;
+        for (let seg = 0; seg < 5; seg++) {
+            if (r() < 0.3) continue;                     // gaps in the rim
+            ctx.beginPath();
+            const a0 = (seg / 5) * Math.PI * 2 + r() * 0.3;
+            for (let s = 0; s <= 8; s++) {
+                const a = a0 + (s / 8) * (Math.PI * 2 / 5) * 0.8;
+                const k = Math.floor((a / (Math.PI * 2)) * N) % N;
+                const rad = mainRad * sm[(k + N) % N];
+                const px = cx + Math.cos(a) * rad * 1.15;
+                const py = cy + Math.sin(a) * rad * 0.85;
+                if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
         }
     }
 };
@@ -606,6 +632,71 @@ export const winchPlaqueTex = colorTex(256, 96, (ctx) => {
     });
 });
 winchPlaqueTex.wrapS = winchPlaqueTex.wrapT = THREE.ClampToEdgeWrapping;
+
+/** Shower curtain — milky plastic with baked vertical fold shading, a grime
+ *  hem and water spotting, so it reads against white tile instead of
+ *  vanishing into it. */
+export const showerCurtainTex = colorTex(256, 256, (ctx) => {
+    const r = rng(79);
+    ctx.fillStyle = '#dfe4de'; ctx.fillRect(0, 0, 256, 256);
+    // vertical fold shading — soft alternating bands
+    for (let x = 0; x < 256; x++) {
+        const s = Math.sin((x / 256) * Math.PI * 12) * 0.5 + Math.sin((x / 256) * Math.PI * 5 + 1.3) * 0.5;
+        const v = Math.round(s * 20);
+        ctx.fillStyle = v >= 0 ? `rgba(255,255,255,${v / 90})` : `rgba(90,100,96,${-v / 70})`;
+        ctx.fillRect(x, 0, 1, 256);
+    }
+    // water spotting
+    for (let i = 0; i < 60; i++) {
+        ctx.fillStyle = `rgba(160,172,168,${0.05 + r() * 0.1})`;
+        ctx.beginPath(); ctx.arc(r() * 256, 40 + r() * 216, 1.5 + r() * 4, 0, Math.PI * 2); ctx.fill();
+    }
+    // mildew grime creeping up the hem
+    const g = ctx.createLinearGradient(0, 200, 0, 256);
+    g.addColorStop(0, 'rgba(96,102,84,0)'); g.addColorStop(1, 'rgba(86,92,72,0.4)');
+    ctx.fillStyle = g; ctx.fillRect(0, 200, 256, 56);
+    // reinforced top hem with eyelet shadows
+    ctx.fillStyle = 'rgba(190,196,190,0.9)'; ctx.fillRect(0, 0, 256, 14);
+    for (let i = 0; i < 8; i++) {
+        ctx.fillStyle = 'rgba(70,74,70,0.7)';
+        ctx.beginPath(); ctx.arc(16 + i * 32, 7, 3.4, 0, Math.PI * 2); ctx.fill();
+    }
+});
+showerCurtainTex.wrapS = showerCurtainTex.wrapT = THREE.ClampToEdgeWrapping;
+
+/** Typed maintenance note taped by the junction box — aged paper, faded
+ *  typewriter lines (mostly illegible), coffee ring, curl shadow. */
+export const typedNoteTex = colorTex(128, 160, (ctx) => {
+    const r = rng(73);
+    ctx.fillStyle = '#d9d0b6'; ctx.fillRect(0, 0, 128, 160);          // aged paper
+    for (let i = 0; i < 260; i++) {                                    // grain
+        ctx.fillStyle = `rgba(120,100,70,${r() * 0.08})`;
+        ctx.fillRect(r() * 128, r() * 160, 1.5, 1.5);
+    }
+    // typed header
+    ctx.fillStyle = '#2e2a22';
+    ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('MANUTENÇÃO', 64, 26);
+    ctx.font = '9px monospace';
+    ctx.fillText('CAIXA DE JUNÇÃO — 612', 64, 42);
+    // faded typed body lines (illegible ribbons of type)
+    for (let li = 0; li < 7; li++) {
+        const y = 62 + li * 13;
+        const len = 88 - r() * 30;
+        ctx.fillStyle = `rgba(52,46,38,${0.35 + r() * 0.3})`;
+        for (let x = 20; x < 20 + len; x += 4) {
+            if (r() > 0.12) ctx.fillRect(x, y, 3, 1.6 + r());
+        }
+    }
+    // coffee ring
+    ctx.strokeStyle = 'rgba(122,84,40,0.22)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(96, 128, 17, 0, Math.PI * 2); ctx.stroke();
+    // bottom curl shadow
+    const g = ctx.createLinearGradient(0, 120, 0, 160);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(60,48,30,0.25)');
+    ctx.fillStyle = g; ctx.fillRect(0, 120, 128, 40);
+});
+typedNoteTex.wrapS = typedNoteTex.wrapT = THREE.ClampToEdgeWrapping;
 
 /** Brass scratch on the wall hidden behind the painting: « 9 ». */
 export const nineTex = colorTex(128, 128, (ctx) => {

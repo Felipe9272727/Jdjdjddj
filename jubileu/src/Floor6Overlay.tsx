@@ -13,7 +13,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Vector3 } from 'three';
 import {
     f6, f6SetOnChange, f6Hotspots, f6Interact, f6TryCode, f6Crank,
-    f6AdvanceGuest, f6Objective, f6SetInspecting, F6_GUEST_LINES,
+    f6AdvanceGuest, f6Objective, f6SetInspecting, f6BoardElevator,
+    F6_GUEST_LINES, F6_GUEST_LINES2,
     type F6Action, type F6Sfx,
 } from './f6Escape';
 import {
@@ -55,7 +56,8 @@ const GuestType: React.FC<{ text: string; onDone: () => void; fastRef: React.Mut
 export const Floor6Overlay: React.FC<{
     playerPositionRef: React.MutableRefObject<Vector3>;
     onUiOpenChange: (open: boolean) => void;
-}> = ({ playerPositionRef, onUiOpenChange }) => {
+    onLeave?: () => void;
+}> = ({ playerPositionRef, onUiOpenChange, onLeave }) => {
     const [, setV] = useState(0);
     const [card, setCard] = useState<{ title: string; text: string; id: string } | null>(null);
     const [keypadOpen, setKeypadOpen] = useState(false);
@@ -65,6 +67,7 @@ export const Floor6Overlay: React.FC<{
     const [prompt, setPrompt] = useState<{ id: string; label: string } | null>(null);
     const promptRef = useRef<{ id: string; label: string } | null>(null);
     const [guestTyped, setGuestTyped] = useState(false);
+    const [memCard, setMemCard] = useState(false);   // "VOCÊ LEMBROU DO HÓSPEDE DO 612"
     const guestFastRef = useRef(false);
     const crankHeld = useRef(false);
     const crankRaf = useRef(0);
@@ -80,7 +83,7 @@ export const Floor6Overlay: React.FC<{
     // proximity prompt: nearest reachable hotspot, polled — no per-frame React
     useEffect(() => {
         const id = setInterval(() => {
-            if (f6.phase === 'arrive' || f6.phase === 'blackout' || f6.phase === 'guest') { setPrompt(null); return; }
+            if (f6.phase === 'arrive' || f6.phase === 'blackout' || f6.phase === 'guest' || f6.phase === 'guest2' || f6.phase === 'leave') { setPrompt(null); return; }
             const p = playerPositionRef.current;
             let best: { id: string; label: string } | null = null;
             let bestD = Infinity;
@@ -116,7 +119,11 @@ export const Floor6Overlay: React.FC<{
         else if (a.kind === 'fx') SFX[a.sfx]();
         else if (a.kind === 'keypad') { playF6Click(); setCode(''); setKeypadOpen(true); }
         else if (a.kind === 'crank') { setCrankOpen(true); }
-    }, [openCard]);
+        else if (a.kind === 'leave') {
+            f6BoardElevator();
+            window.setTimeout(() => { onLeave?.(); }, 1700);
+        }
+    }, [openCard, onLeave]);
 
     // Always reads promptRef (the poll keeps it fresh) — the prompt can flip
     // between a React commit and the effect re-subscription, and a player
@@ -131,6 +138,7 @@ export const Floor6Overlay: React.FC<{
     useEffect(() => {
         const kd = (e: KeyboardEvent) => {
             if (e.key.toLowerCase() !== 'e' && e.key !== 'Escape') return;
+            if (memCard) { setMemCard(false); return; }
             if (card) { closeCard(); return; }
             if (keypadOpen) { if (e.key === 'Escape') setKeypadOpen(false); return; }
             if (crankOpen) {
@@ -146,11 +154,11 @@ export const Floor6Overlay: React.FC<{
         window.addEventListener('keydown', kd);
         window.addEventListener('keyup', ku);
         return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
-    }, [card, keypadOpen, crankOpen, interact, closeCard]);
+    }, [card, keypadOpen, crankOpen, memCard, interact, closeCard]);
 
     // tell App when the player should be frozen (cards, keypad, crank, the guest)
-    const uiOpen = card !== null || keypadOpen || crankOpen
-        || f6.phase === 'blackout' || f6.phase === 'guest';
+    const uiOpen = card !== null || keypadOpen || crankOpen || memCard
+        || f6.phase === 'blackout' || f6.phase === 'guest' || f6.phase === 'guest2' || f6.phase === 'leave';
     useEffect(() => { onUiOpenChange(uiOpen); }, [uiOpen, onUiOpenChange]);
     useEffect(() => () => onUiOpenChange(false), [onUiOpenChange]);
 
@@ -205,7 +213,10 @@ export const Floor6Overlay: React.FC<{
         guestFastRef.current = false;
         setGuestTyped(false);
         playF6Breath(0.5);
+        const wasAct2 = f6.phase === 'guest2';
         f6AdvanceGuest();
+        // last act-2 line just landed → he stepped aside → the memory card
+        if (wasAct2 && (f6.phase as string) === 'free') setMemCard(true);
     };
 
     return (
@@ -361,8 +372,8 @@ export const Floor6Overlay: React.FC<{
                 </div>
             )}
 
-            {/* the guest's dialogue */}
-            {f6.phase === 'guest' && (
+            {/* the guest's dialogue (ato 1 e ato 2) */}
+            {(f6.phase === 'guest' || f6.phase === 'guest2') && (
                 <div onPointerDown={advanceGuest} style={{
                     position: 'absolute', inset: 0, pointerEvents: 'auto', cursor: 'pointer',
                     display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
@@ -376,16 +387,40 @@ export const Floor6Overlay: React.FC<{
                         <div style={{ ...mono, fontSize: 12, letterSpacing: 3, color: '#b06a52', marginBottom: 8 }}>O HÓSPEDE</div>
                         <div style={{ ...mono, fontSize: 16, lineHeight: 1.6, minHeight: 54 }}>
                             <GuestType
-                                text={F6_GUEST_LINES[f6.guestLine]}
+                                text={(f6.phase === 'guest' ? F6_GUEST_LINES : F6_GUEST_LINES2)[f6.guestLine]}
                                 onDone={() => setGuestTyped(true)}
                                 fastRef={guestFastRef}
                             />
                         </div>
                         {guestTyped && (
                             <div style={{ ...mono, fontSize: 11, color: '#7a715c', marginTop: 8, textAlign: 'right' }}>
-                                {f6.guestLine < F6_GUEST_LINES.length - 1 ? 'toque ▸' : 'toque…'}
+                                {f6.guestLine < (f6.phase === 'guest' ? F6_GUEST_LINES : F6_GUEST_LINES2).length - 1 ? 'toque ▸' : 'toque…'}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* memory card — "VOCÊ LEMBROU DO HÓSPEDE DO 612" (borda dourada) */}
+            {memCard && (
+                <div onPointerDown={() => setMemCard(false)} style={{
+                    position: 'absolute', inset: 0, pointerEvents: 'auto', cursor: 'pointer',
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 18, animation: 'f6fadein 0.22s',
+                }}>
+                    <div style={{
+                        maxWidth: 520, width: '100%', background: '#15130f', border: '1px solid #d9b96a',
+                        borderRadius: 10, padding: '18px 20px 16px',
+                        boxShadow: '0 12px 40px rgba(0,0,0,0.8), 0 0 24px rgba(217,185,106,0.25)',
+                        animation: 'f6card 0.3s',
+                    }}>
+                        <div style={{ ...mono, fontSize: 12, letterSpacing: 3, color: '#d9b96a', marginBottom: 10 }}>
+                            VOCÊ LEMBROU DO HÓSPEDE DO 612
+                        </div>
+                        <div style={{ ...mono, fontSize: 15, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                            O quarto 612 agora é um tijolo seu. Eles não podem apagá-lo.
+                        </div>
+                        <div style={{ ...mono, fontSize: 11, color: '#7a715c', marginTop: 14, textAlign: 'right' }}>toque para fechar</div>
                     </div>
                 </div>
             )}

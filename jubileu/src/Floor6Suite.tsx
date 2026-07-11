@@ -552,11 +552,18 @@ export const Floor6Suite: React.FC<{ playerPositionRef: React.MutableRefObject<T
             )}
             {lightsOut && <hemisphereLight args={['#1a1a20', '#050507', 0.3]} />}
 
-            {/* ── the guest ── */}
-            {(f6.phase === 'guest' || f6.phase === 'guestIdle') && (
+            {/* ── the guest ──
+                Rendered through the whole endgame: dialogue acts ('guest',
+                'guestIdle', 'guest2'), the step-aside ('free') and boarding
+                ('leave') — his own animation reads f6.phase; unmounting here
+                would make him vanish instead of dragging aside. */}
+            {(f6.phase === 'guest' || f6.phase === 'guestIdle' || f6.phase === 'guest2'
+                || f6.phase === 'free' || f6.phase === 'leave') && (
                 <>
                     <Floor6Guest playerPositionRef={playerPositionRef} />
-                    <GroundBlob x={0} z={-8.2} w={0.9} d={0.9} />
+                    {(f6.phase === 'free' || f6.phase === 'leave')
+                        ? <GroundBlob x={-2.35} z={-8.75} w={0.9} d={0.9} />
+                        : <GroundBlob x={0} z={-8.2} w={0.9} d={0.9} />}
                 </>
             )}
         </group>

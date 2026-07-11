@@ -96,7 +96,7 @@ const Dev: React.FC = () => {
                 <DevWalker />
                 <Floor6Suite playerPositionRef={posRef} />
             </Canvas>
-            <Floor6Overlay playerPositionRef={posRef} onUiOpenChange={(o) => { frozenRef.current = o; }} />
+            <Floor6Overlay playerPositionRef={posRef} onUiOpenChange={(o) => { frozenRef.current = o; }} onLeave={() => console.log('F6 LEAVE OK')} />
             <div style={{
                 position: 'absolute', bottom: 8, left: 10, color: '#777', zIndex: 50,
                 fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',

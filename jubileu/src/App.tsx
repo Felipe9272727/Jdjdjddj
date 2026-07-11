@@ -825,6 +825,19 @@ export default function App() {
   // pointer lock, same contract as the shop/dialogue overlays.
   const [f6UiOpen, setF6UiOpen] = useState(false);
   const handleF6UiOpenChange = useCallback((open: boolean) => setF6UiOpen(open), []);
+  // Floor 6 FINALE — the guest stepped aside and the player pressed T inside
+  // the repaired cab. Same ride-home path as handleF7Board: doors shut,
+  // teleport into the global elevator interior, 20s down to the lobby.
+  const handleF6Leave = useCallback(() => {
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+    setNextElevatorDestination(0);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
 
   useEffect(() => { cameraShakeRef.current = cameraShake; }, [cameraShake]);
   
@@ -2339,7 +2352,7 @@ export default function App() {
       {currentLevel === 4 && !doorsClosed && <Floor4Canvas2D onExit={handleFloor4Exit} />}
       {currentLevel === 5 && !doorsClosed && <Floor5Race3D onExit={handleFloor5RaceExit} />}
       {hasStarted && currentLevel === 6 && !doorsClosed && (
-        <Floor6Overlay playerPositionRef={sharedPlayerPositionRef} onUiOpenChange={handleF6UiOpenChange} />
+        <Floor6Overlay playerPositionRef={sharedPlayerPositionRef} onUiOpenChange={handleF6UiOpenChange} onLeave={handleF6Leave} />
       )}
 
       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}

@@ -18,30 +18,35 @@ import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { f6 } from './f6Escape';
-import { F6M, puffTex, botoeiraTex, winchPlaqueTex } from './Floor6Textures';
+import { F6M, puffTex, botoeiraTex, winchPlaqueTex, typedNoteTex } from './Floor6Textures';
 import { B, ItemMesh, type F6Fx, since } from './Floor6Props';
-import { playF6Spark, playF6Slam, playF6Creak, playF6Groan } from './floor6Sfx';
+import { playF6Spark, playF6Slam, playF6Creak, playF6Groan, playF6Ding } from './floor6Sfx';
 
 const approach = (cur: number, target: number, dt: number, speed: number) =>
     cur + (target - cur) * Math.min(1, dt * speed);
 
-/** The sliding façade doors — slam crooked at the bang, grind open on repair. */
+/** The sliding façade doors — slam crooked at the bang, grind open on repair,
+ *  and grind fully SHUT once the player boards ('leave'). */
 const FacadeDoors: React.FC<{ fx: F6Fx }> = ({ fx }) => {
     const L = useRef<THREE.Group>(null!);
     const R = useRef<THREE.Group>(null!);
     const slammed = useRef(false);
     const reopened = useRef(false);
+    const dinged = useRef(false);
+    const shut = useRef(false);
     useFrame(({ clock }, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const now = clock.elapsedTime;
         const phase = f6.phase;
         const jammed = phase === 'explore';
-        const open = phase !== 'explore';   // arrive = parked open; repaired = ground back open
-        // targets: parked open / jammed crooked (gap x∈[-0.7,0.7] matches colliders)
-        const lx = jammed ? -1.35 : -1.98;
-        const rx = jammed ? 1.35 : 1.98;
+        const leaving = phase === 'leave';
+        // targets: parked open / jammed crooked (gap x∈[-0.7,0.7] matches
+        // colliders) / fully shut behind the boarded player (slabs meet at 0)
+        const lx = leaving ? -0.66 : jammed ? -1.35 : -1.98;
+        const rx = leaving ? 0.66 : jammed ? 1.35 : 1.98;
         const bangAge = since(fx, 'bang', now);
-        const k = jammed && bangAge < 1 ? 14 : 1.4;   // slam fast, grind slow
+        const k = leaving ? 1.2                        // slow grind shut
+            : jammed && bangAge < 1 ? 14 : 1.4;        // slam fast, grind slow
         if (L.current) {
             L.current.position.x = approach(L.current.position.x, lx, dt, k);
             L.current.rotation.z = approach(L.current.rotation.z, jammed ? 0.045 : 0, dt, k);
@@ -56,7 +61,14 @@ const FacadeDoors: React.FC<{ fx: F6Fx }> = ({ fx }) => {
         if (!jammed && slammed.current && !reopened.current && (phase === 'blackout' || phase === 'guest')) {
             reopened.current = true; playF6Creak(0.8); playF6Groan(0.5);
         }
-        void open;
+        // boarding: one tired ding as the player steps in…
+        if (since(fx, 'boarding', now) !== Infinity && !dinged.current) {
+            dinged.current = true; playF6Ding();
+        }
+        // …and a soft slam the moment the slabs meet
+        if (leaving && !shut.current && L.current && L.current.position.x > -0.7) {
+            shut.current = true; playF6Slam(0.4);
+        }
     });
     return (
         <group position={[0, 0, -9.96]}>
@@ -107,15 +119,23 @@ const JunctionBox: React.FC<{ fx: F6Fx }> = ({ fx }) => {
         <group position={[-1.85, 1.3, -9.83]}>
             <mesh rotation={[0, 0, blown ? -0.3 : 0]} position={blown ? [0.04, -0.06, 0.03] : [0, 0, 0]}>
                 <boxGeometry args={[0.42, 0.6, 0.09]} />
-                <meshStandardMaterial ref={plate} color="#6a7076" metalness={0.6} roughness={0.5}
+                <meshStandardMaterial ref={plate} color="#4e545b" metalness={0.6} roughness={0.6}
                     emissive="#ff8c3a" emissiveIntensity={0} />
+            </mesh>
+            {/* conduit anchoring the box to the wall above */}
+            <mesh position={[0, 0.55, -0.03]} material={F6M.steelPlain}>
+                <cylinderGeometry args={[0.02, 0.02, 0.5, 8]} />
+            </mesh>
+            <mesh position={[0, 0.32, -0.03]} material={F6M.steelPlain}>
+                <cylinderGeometry args={[0.032, 0.032, 0.05, 8]} />
             </mesh>
             {blown && (
                 <>
                     {/* scorch on the wall behind */}
-                    <mesh position={[0, 0.05, -0.035]}>
+                    <mesh position={[0, 0.05, -0.045]}>
                         <planeGeometry args={[0.9, 1.1]} />
-                        <meshStandardMaterial color="#16110c" transparent opacity={0.55} roughness={1} />
+                        <meshStandardMaterial color="#16110c" transparent opacity={0.55} roughness={1}
+                            depthWrite={false} />
                     </mesh>
                     {/* hanging cables */}
                     <mesh position={[0.26, -0.42, 0.04]} rotation={[0, 0, 0.5]} material={F6M.rubber}>
@@ -128,11 +148,20 @@ const JunctionBox: React.FC<{ fx: F6Fx }> = ({ fx }) => {
                         distance={5} decay={2} intensity={0} />
                 </>
             )}
-            {/* the typed note taped beside the box */}
-            <mesh position={[0.42, -0.05, 0.02]} rotation={[0, 0, 0.06]}>
-                <planeGeometry args={[0.26, 0.32]} />
-                <meshStandardMaterial color="#ded6bd" roughness={0.95} />
-            </mesh>
+            {/* the typed note — taped FLAT to the wall below the box (it used
+                to be a blank white plane floating over the doorway void) */}
+            <group position={[-0.14, -0.52, -0.048]} rotation={[0, 0, 0.05]}>
+                <mesh>
+                    <planeGeometry args={[0.26, 0.32]} />
+                    <meshStandardMaterial map={typedNoteTex} roughness={0.95} />
+                </mesh>
+                {/* yellowed tape strip across the top edge */}
+                <mesh position={[0, 0.155, 0.002]}>
+                    <planeGeometry args={[0.12, 0.035]} />
+                    <meshStandardMaterial color="#cfc4a4" transparent opacity={0.8}
+                        roughness={0.5} depthWrite={false} />
+                </mesh>
+            </group>
         </group>
     );
 };
