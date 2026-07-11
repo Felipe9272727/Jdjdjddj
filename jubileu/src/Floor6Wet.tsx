@@ -412,35 +412,61 @@ const Toilet: React.FC = () => {
     );
 };
 
-/** Curtain material: milky plastic with baked folds — module-level single. */
+/** Curtain material: milky plastic with baked folds — module-level single.
+ *  A textura repete 4x pelo arco do varão oval (esticada uma única volta
+ *  virava "vidro jateado" sem dobras). */
+const showerWrapTex = (() => {
+    const t = showerCurtainTex.clone();
+    t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+    t.repeat.set(4, 1); t.needsUpdate = true;
+    return t;
+})();
 const showerMat = new THREE.MeshStandardMaterial({
-    map: showerCurtainTex, transparent: true, opacity: 0.82, roughness: 0.42,
-    side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 0.5,
+    map: showerWrapTex, transparent: true, opacity: 0.88, roughness: 0.55,
+    side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 0.25,
 });
 
-/** Tub — curtain drags aside on its squealing rings. */
+/** Tub — a cortina agora ENVOLVE a banheira solta num varão oval preso ao
+ *  teto (o varão reto antigo deixava a banheira nua, com a cortina boiando
+ *  ao lado). Uma borda fica fixa; a outra é puxada pela elipse: fechada
+ *  embrulha ~275° (fresta encarando o quarto), aberta amontoa ao lado. */
+const curtainFolds = (s: number, l: number): THREE.BufferGeometry => {
+    const g = new THREE.CylinderGeometry(1, 1, 1, 48, 1, true, s, l);
+    const pos = g.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), z = pos.getZ(i);
+        const a = Math.atan2(x, z);
+        const f = 1 + Math.sin(a * 13) * 0.035 + Math.sin(a * 5 + 1.1) * 0.02;
+        pos.setX(i, x * f); pos.setZ(i, z * f);
+    }
+    g.computeVertexNormals();
+    return g;
+};
 const Tub: React.FC = () => {
     const curtain = useRef<THREE.Mesh>(null!);
     const rings = useRef<THREE.Group>(null!);
-    // wavy plastic: real sine folds in the geometry so light breaks on it
-    const curtainGeo = useMemo(() => {
-        const g = new THREE.PlaneGeometry(1.9, 1.74, 32, 1);
-        const pos = g.attributes.position as THREE.BufferAttribute;
-        for (let i = 0; i < pos.count; i++) {
-            const x = pos.getX(i);
-            pos.setZ(i, Math.sin(x * 10.5) * 0.045 + Math.sin(x * 4.2 + 1.7) * 0.025);
-        }
-        g.computeVertexNormals();
-        return g;
-    }, []);
+    const theta = useRef({ s: -2.75, l: 5.15 });        // borda fixa em s+l = 2.4
+    const geo = useMemo(() => curtainFolds(-2.75, 5.15), []);
     useFrame((_, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const open = f6.curtainOpen;
-        if (curtain.current) {
-            curtain.current.position.x = approach(curtain.current.position.x, open ? -0.72 : 0, dt, 3.4);
-            curtain.current.scale.x = approach(curtain.current.scale.x, open ? 0.28 : 1, dt, 3.4);
+        const t = theta.current;
+        const ns = approach(t.s, open ? 1.65 : -2.75, dt, 3.2);
+        const nl = approach(t.l, open ? 0.75 : 5.15, dt, 3.2);
+        if ((Math.abs(ns - t.s) > 0.0004 || Math.abs(nl - t.l) > 0.0004) && curtain.current) {
+            t.s = ns; t.l = nl;
+            curtain.current.geometry.dispose();
+            curtain.current.geometry = curtainFolds(t.s, t.l);
         }
-        if (rings.current) rings.current.position.x = approach(rings.current.position.x, open ? -0.7 : 0, dt, 3.4);
+        // as argolas acompanham a boca da cortina pela elipse do varão
+        if (rings.current) {
+            const n = rings.current.children.length;
+            rings.current.children.forEach((c, i) => {
+                const a = t.s + (i / (n - 1)) * t.l;
+                c.position.set(Math.sin(a) * 1.06, 2.28, Math.cos(a) * 0.55);
+                c.rotation.set(0, a, 0);
+            });
+        }
     });
     return (
         <group position={[3.75, 0, -3.6]}>
@@ -491,19 +517,24 @@ const Tub: React.FC = () => {
             <mesh position={[-0.8, 0.78, 0]} rotation={[Math.PI / 2, 0, 0]} material={F6M.chrome}>
                 <cylinderGeometry args={[0.025, 0.03, 0.2, 8]} />
             </mesh>
-            {/* curtain rod + rings + curtain */}
-            <mesh position={[0, 2.45, 0.48]} rotation={[0, 0, Math.PI / 2]} material={F6M.chrome}>
-                <cylinderGeometry args={[0.018, 0.018, 2.0, 8]} />
+            {/* varão OVAL em volta da banheira, pendurado no teto + argolas + cortina */}
+            <mesh position={[0, 2.3, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1.06, 0.55, 1]} material={F6M.chrome}>
+                <torusGeometry args={[1, 0.016, 6, 44]} />
             </mesh>
+            {[[0, -0.55], [0, 0.55], [-1.06, 0], [1.06, 0]].map(([x, z], i) => (
+                <mesh key={'drop' + i} position={[x, 2.65, z]} material={F6M.chrome}>
+                    <cylinderGeometry args={[0.008, 0.008, 0.7, 6]} />
+                </mesh>
+            ))}
             <group ref={rings}>
-                {[-0.85, -0.6, -0.35, -0.1, 0.15, 0.4, 0.65, 0.9].map((x) => (
-                    <mesh key={x} position={[x, 2.43, 0.48]} rotation={[0, 0, 0.2]} material={F6M.chrome}>
-                        <torusGeometry args={[0.035, 0.007, 5, 10]} />
+                {Array.from({ length: 14 }).map((_, i) => (
+                    <mesh key={i} material={F6M.chrome}>
+                        <torusGeometry args={[0.032, 0.006, 5, 10]} />
                     </mesh>
                 ))}
             </group>
-            <mesh ref={curtain} position={[0, 1.55, 0.48]} material={showerMat}
-                geometry={curtainGeo} />
+            <mesh ref={curtain} position={[0, 1.46, 0]} scale={[1.06, 1.64, 0.55]}
+                material={showerMat} geometry={geo} />
             {/* bath mat */}
             <mesh position={[0, 0.015, 0.85]} rotation={[-Math.PI / 2, 0, 0]} material={F6M.pillow}>
                 <planeGeometry args={[1.0, 0.5]} />
@@ -714,13 +745,22 @@ const Fridge: React.FC<{ fx: F6Fx }> = ({ fx }) => {
     });
     return (
         <group position={[5.55, 0, -1.9]}>
-            {/* body, opening toward -x — rounded like a 60s Kelvinator */}
-            <RB a={[0.82, 1.85, 0.88]} p={[0.03, 0.93, 0]} m={F6M.appliance} rad={0.07} />
-            {/* interior cavity */}
-            <B a={[0.6, 1.6, 0.74]} p={[-0.05, 0.95, 0]} m={F6M.applianceDk} />
-            {/* interior light panel */}
-            <mesh position={[-0.34, 1.5, 0]} rotation={[0, -Math.PI / 2, 0]}>
-                <planeGeometry args={[0.5, 0.2]} />
+            {/* body, opening toward -x — rounded like a 60s Kelvinator.
+                Casca OCA: o antigo corpo maciço (com a "cavidade" enterrada
+                dentro) fazia a porta aberta revelar uma parede creme lisa. */}
+            <RB a={[0.16, 1.85, 0.88]} p={[0.36, 0.93, 0]} m={F6M.appliance} rad={0.06} />
+            <RB a={[0.82, 1.85, 0.1]} p={[0.03, 0.93, -0.39]} m={F6M.appliance} rad={0.05} />
+            <RB a={[0.82, 1.85, 0.1]} p={[0.03, 0.93, 0.39]} m={F6M.appliance} rad={0.05} />
+            <B a={[0.82, 0.1, 0.88]} p={[0.03, 1.8, 0]} m={F6M.appliance} />
+            <B a={[0.82, 0.12, 0.88]} p={[0.03, 0.06, 0]} m={F6M.appliance} />
+            {/* forro interno escuro (fundo + laterais vistos pela porta aberta) */}
+            <B a={[0.03, 1.62, 0.72]} p={[0.27, 0.94, 0]} m={F6M.applianceDk} />
+            <B a={[0.62, 1.62, 0.03]} p={[-0.04, 0.94, -0.33]} m={F6M.applianceDk} />
+            <B a={[0.62, 1.62, 0.03]} p={[-0.04, 0.94, 0.33]} m={F6M.applianceDk} />
+            {/* interior light panel — colado no forro do FUNDO (antes flutuava
+                na boca da cavidade como um cartão branco) */}
+            <mesh position={[0.25, 1.12, 0]} rotation={[0, -Math.PI / 2, 0]}>
+                <planeGeometry args={[0.42, 0.14]} />
                 <meshStandardMaterial ref={lightPanel} color="#f4f2ea" emissive="#fff6da" emissiveIntensity={0} />
             </mesh>
             {/* shelves + the labelled marmitas */}

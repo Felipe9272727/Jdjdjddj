@@ -3639,3 +3639,20 @@ isolados (zero merge conflicts). Passou tsc 0 e 108/108 vitest logo no dia. Vere
 - BLOOM: Floor 7 threshold 0.68→0.85, intensity 0.6→0.38 (verificado em App.tsx) ✓
 - ILHA: Praia + halo turquesa + palmeiras + rochas (tropical, não brócolis) ✓
 Commit: 57ec051 — Build index.html (~65MB single-file), push OK. Comodoro só observou.
+
+## Andar 6 — prioridade total (2026-07-11, Capitão Fable executando direto)
+- Móveis maciços corrigidos: armário e geladeira eram blocos SÓLIDOS com "interior" enterrado
+  dentro (portas abriam pra parede) → reconstruídos como cascas ocas; interior/prateleiras/
+  marmitas/gelo agora visíveis. Luz da geladeira reposicionada no forro do fundo.
+- Cortina da banheira: varão reto virou VARÃO OVAL preso ao teto contornando a banheira solta;
+  cortina = segmento de cilindro elíptico com dobras (rebuild só durante a transição), borda
+  fixa + borda puxada (fechada ~295°, aberta amontoada); argolas acompanham pela elipse.
+- Hóspede procedural SUBSTITUÍDO pelo GLB do Felipe (Meshy "Midnight Trenchcoat", texturas
+  reduzidas 2048→1024 = 7.1MB→0.9MB) em `assets/models/guest-trenchcoat.glb`; Floor6Guest.tsx
+  reescrito: malha estática + vida procedural no grupo (respiração/sway/encarar atrasado) +
+  step-aside 'free'/'leave' preservado.
+- QA E2E no bench: guestIdle→guest2 (7 falas)→card→free (vão passável)→botoeira→'leave'→
+  onLeave ✓. Portas do cab FECHAM no leave (ding + slam do Decorador) — no bench swiftshader
+  (~3fps + clamp de dt) animações rodam ~6x mais lentas: esperar 20s+ antes de acusar bug.
+- Cuidado no bench: perto do hóspede o hotspot 'portabanheiro' (1.75m) ganha do 'hospede'
+  (1.8m) — teste a interação parado em (0,-7).

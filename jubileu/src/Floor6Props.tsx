@@ -301,11 +301,17 @@ export const Wardrobe: React.FC<{ fx: F6Fx }> = ({ fx }) => {
     });
     return (
         <group position={[-3.5, 0, 6.5]} rotation={[0, Math.PI, 0]}>
-            <B a={[1.7, 2.2, 0.85]} p={[0, 1.1, 0]} m={F6M.woodBig} />
+            {/* carcaça OCA (laterais + topo + assoalho) — o antigo bloco maciço
+                tapava o interior: portas abriam para uma parede de madeira */}
+            <B a={[0.07, 2.2, 0.85]} p={[-0.815, 1.1, 0]} m={F6M.woodBig} />
+            <B a={[0.07, 2.2, 0.85]} p={[0.815, 1.1, 0]} m={F6M.woodBig} />
+            <B a={[1.7, 0.07, 0.85]} p={[0, 2.165, 0]} m={F6M.woodBig} />
+            <B a={[1.56, 0.09, 0.78]} p={[0, 0.145, 0]} m={F6M.wood} />
             <B a={[1.76, 0.08, 0.9]} p={[0, 2.24, 0]} m={F6M.woodDk} />
             <B a={[1.76, 0.1, 0.9]} p={[0, 0.05, 0]} m={F6M.woodDk} />
-            {/* interior back + rail */}
+            {/* interior back + teto interno escuro + rail */}
             <B a={[1.58, 1.9, 0.06]} p={[0, 1.12, -0.36]} m={F6M.dark} />
+            <B a={[1.56, 0.03, 0.76]} p={[0, 2.115, 0]} m={F6M.dark} />
             <mesh position={[0, 1.78, -0.05]} rotation={[0, 0, Math.PI / 2]} material={F6M.brassOld}>
                 <cylinderGeometry args={[0.015, 0.015, 1.5, 8]} />
             </mesh>
