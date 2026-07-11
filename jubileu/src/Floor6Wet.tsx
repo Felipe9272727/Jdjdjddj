@@ -6,11 +6,11 @@
  * open into its own light, the stove burns a real blue ring and the ice
  * block visibly melts down to the relay.
  */
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { f6 } from './f6Escape';
-import { F6M, dndTex, truthTex, mirrorFog, puffTex } from './Floor6Textures';
+import { F6M, dndTex, truthTex, mirrorFog, puffTex, showerCurtainTex } from './Floor6Textures';
 import { B, RB, ItemMesh, type F6Fx, since } from './Floor6Props';
 import { playF6Thud } from './floor6Sfx';
 
@@ -412,10 +412,27 @@ const Toilet: React.FC = () => {
     );
 };
 
+/** Curtain material: milky plastic with baked folds — module-level single. */
+const showerMat = new THREE.MeshStandardMaterial({
+    map: showerCurtainTex, transparent: true, opacity: 0.82, roughness: 0.42,
+    side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 0.5,
+});
+
 /** Tub — curtain drags aside on its squealing rings. */
 const Tub: React.FC = () => {
     const curtain = useRef<THREE.Mesh>(null!);
     const rings = useRef<THREE.Group>(null!);
+    // wavy plastic: real sine folds in the geometry so light breaks on it
+    const curtainGeo = useMemo(() => {
+        const g = new THREE.PlaneGeometry(1.9, 1.74, 32, 1);
+        const pos = g.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i);
+            pos.setZ(i, Math.sin(x * 10.5) * 0.045 + Math.sin(x * 4.2 + 1.7) * 0.025);
+        }
+        g.computeVertexNormals();
+        return g;
+    }, []);
     useFrame((_, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const open = f6.curtainOpen;
