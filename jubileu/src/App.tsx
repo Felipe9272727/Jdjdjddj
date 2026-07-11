@@ -826,18 +826,24 @@ export default function App() {
   const [f6UiOpen, setF6UiOpen] = useState(false);
   const handleF6UiOpenChange = useCallback((open: boolean) => setF6UiOpen(open), []);
   // Floor 6 FINALE — the guest stepped aside and the player pressed T inside
-  // the repaired cab. Same ride-home path as handleF7Board: doors shut,
-  // teleport into the global elevator interior, 20s down to the lobby.
+  // the repaired cab. "Máquina não esquece: ele te deve uma descida" — o
+  // Aurélio manda o player pro ANDAR 7 (o navio). O beat de embarque/portas
+  // fechando já aconteceu no cab (f6BoardElevator + os 1.7s do overlay), então
+  // aqui a gente entrega o convés direto — MESMO caminho da entrada que o
+  // Andar 7 já suporta (o creator-jump). A cutscene do capitão faz o reveal e,
+  // no beat LOOK_BACK, mostra o elevador se desmaterializando atrás de você —
+  // exatamente o "o mar não devolve ninguém". Sem a viagem de 20s visível,
+  // que no 7 não teria cabine pra mostrar (o convés não tem interior).
   const handleF6Leave = useCallback(() => {
-    setDoorsClosed(true);
-    setDoorSoundTrigger(prev => prev + 1);
-    playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
-    setNextElevatorDestination(0);
-    setElevatorTimer(20);
-    setTravelPhase('closing');
-    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
-    elevatorHumStopRef.current = createElevatorHum(audioCtx);
-  }, [audioCtx]);
+    setGameState('outdoor');
+    setNightMode(false);
+    setHouseDoorOpen(false);
+    setDoorOpenAmount(0);
+    setDoorsClosed(false);
+    setZoomLevel(0);
+    setCurrentLevel(7);
+    playerPositionCmdRef.current = { x: 0.75 * FLOOR7_SCALE, y: 0, z: 4.3 * FLOOR7_SCALE, theta: Math.PI };
+  }, []);
 
   useEffect(() => { cameraShakeRef.current = cameraShake; }, [cameraShake]);
   

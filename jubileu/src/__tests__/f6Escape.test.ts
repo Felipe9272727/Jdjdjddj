@@ -192,8 +192,11 @@ describe('o cab morto (sockets + crank)', () => {
         f6AdvanceGuest(); f6AdvanceGuest(); f6AdvanceGuest();
         expect(f6.phase).toBe('guestIdle');
         expect(f6Objective()).toContain('porta');
-        // the guest blocks the doorway for good
-        expect(f6DoorWalls().some((w) => w[0] === -1.45 && w[2] === 1.45)).toBe(true);
+        // o CORPO dele barra o meio do vão (0,-8.2), mas dá pra contornar pelos
+        // lados — senão o player fica trancado no cab, longe da mala da foto.
+        const gw = f6DoorWalls();
+        expect(gw.some((w) => w[0] === -0.45 && w[2] === 0.45)).toBe(true);   // guest body
+        expect(gw.some((w) => w[0] === -1.45 && w[2] === 1.45)).toBe(false);  // NÃO sela o vão
     });
 
     it('the botoeira gives the missing 4', () => {
@@ -262,8 +265,11 @@ describe('ato 2 → free → leave (o que vem depois)', () => {
         for (let i = 0; i < F6_GUEST_LINES2.length; i++) f6AdvanceGuest();
         expect(f6.phase).toBe('guestDemand');
         expect(f6DrainEvents()).not.toContain('guestAside');
-        // a porta continua bloqueada — ele não libera de graça
-        expect(f6DoorWalls().some((w) => w[0] === -1.45 && w[2] === 1.45)).toBe(true);
+        // ele ainda está de pé no vão (corpo em 0,-8.2), mas o player PRECISA
+        // contornar pra buscar a foto na mala — o vão não pode estar selado.
+        const dw = f6DoorWalls();
+        expect(dw.some((w) => w[0] === -0.45 && w[2] === 0.45)).toBe(true);   // guest body
+        expect(dw.some((w) => w[0] === -1.45 && w[2] === 1.45)).toBe(false);  // NÃO sela o vão
         expect(f6Objective()).toBe('A fotografia. Na mala dele.');
     });
 

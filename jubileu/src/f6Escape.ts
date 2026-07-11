@@ -166,10 +166,16 @@ export const F6_FURNITURE: ReadonlyArray<readonly [number, number, number, numbe
 
 const DOOR_BATH: number[] = [1.5, -6.2, 1.5, -4.8];
 const DOOR_KITCHEN: number[] = [1.5, 2.3, 1.5, 3.7];
-const DOOR_ELEVATOR_BLOCK: number[] = [-1.45, -9.9, 1.45, -9.9];   // the guest won't move
+const DOOR_ELEVATOR_BLOCK: number[] = [-1.45, -9.9, 1.45, -9.9];   // selado só no embarque ('leave')
 // The slammed doors jam crooked leaving a squeeze gap x∈[-0.7, 0.7].
 const DOOR_JAM_L: number[] = [-1.45, -9.9, -0.7, -9.9];
 const DOOR_JAM_R: number[] = [0.7, -9.9, 1.45, -9.9];
+// O CORPO do hóspede (parado em 0,-8.2): uma cruz de segmentos do tamanho
+// dele — dá pra CONTORNAR pelos lados. Ele não sela mais o vão inteiro:
+// selar dava soft-lock, porque o player conserta o elevador DE DENTRO do
+// cab e a mala (com a fotografia que ele exige) fica no quarto.
+const GUEST_BODY_A: number[] = [-0.45, -8.2, 0.45, -8.2];
+const GUEST_BODY_B: number[] = [0, -8.65, 0, -7.75];
 
 const _DW_ARRIVE = [DOOR_BATH, DOOR_KITCHEN];
 const JAM = [DOOR_JAM_L, DOOR_JAM_R];
@@ -177,10 +183,11 @@ const _DW_X_BOTH = [...JAM, DOOR_BATH, DOOR_KITCHEN];
 const _DW_X_BATH = [...JAM, DOOR_BATH];
 const _DW_X_KITCHEN = [...JAM, DOOR_KITCHEN];
 const _DW_X_NONE = JAM;
-const _DW_G_BOTH = [DOOR_ELEVATOR_BLOCK, DOOR_BATH, DOOR_KITCHEN];
-const _DW_G_BATH = [DOOR_ELEVATOR_BLOCK, DOOR_BATH];
-const _DW_G_KITCHEN = [DOOR_ELEVATOR_BLOCK, DOOR_KITCHEN];
-const _DW_G_NONE = [DOOR_ELEVATOR_BLOCK];
+const GUEST = [GUEST_BODY_A, GUEST_BODY_B];
+const _DW_G_BOTH = [...GUEST, DOOR_BATH, DOOR_KITCHEN];
+const _DW_G_BATH = [...GUEST, DOOR_BATH];
+const _DW_G_KITCHEN = [...GUEST, DOOR_KITCHEN];
+const _DW_G_NONE = GUEST;
 const _DW_FREE_BOTH = [DOOR_BATH, DOOR_KITCHEN];
 const _DW_FREE_BATH = [DOOR_BATH];
 const _DW_FREE_KITCHEN = [DOOR_KITCHEN];
