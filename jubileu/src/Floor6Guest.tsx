@@ -35,16 +35,16 @@ export const Floor6Guest: React.FC<{ playerPositionRef: React.MutableRefObject<T
     const asideStartTime = useRef<number | null>(null);
 
     const mats = useMemo(() => ({
-        robe: new THREE.MeshStandardMaterial({ color: '#6e6552', roughness: 1 }),
-        robeDk: new THREE.MeshStandardMaterial({ color: '#57503f', roughness: 1 }),
-        robeIn: new THREE.MeshStandardMaterial({ color: '#453e2f', roughness: 1, side: THREE.DoubleSide }),
-        belt: new THREE.MeshStandardMaterial({ color: '#453e2f', roughness: 0.95 }),
+        robe: new THREE.MeshStandardMaterial({ color: '#5f5646', roughness: 1 }),
+        robeDk: new THREE.MeshStandardMaterial({ color: '#4d453a', roughness: 1 }),
+        robeIn: new THREE.MeshStandardMaterial({ color: '#3e372c', roughness: 1, side: THREE.DoubleSide }),
+        belt: new THREE.MeshStandardMaterial({ color: '#3e372c', roughness: 0.95 }),
         skin: new THREE.MeshStandardMaterial({ color: '#b3a18c', roughness: 0.72 }),
         skinPale: new THREE.MeshStandardMaterial({ color: '#bfae98', roughness: 0.78 }),
         socket: new THREE.MeshStandardMaterial({ color: '#7a6b5f', roughness: 1 }),
         eyeWhite: new THREE.MeshStandardMaterial({ color: '#d1c4ad', roughness: 0.25 }),
         iris: new THREE.MeshStandardMaterial({ color: '#2a1f17', roughness: 0.15 }),
-        hair: new THREE.MeshStandardMaterial({ color: '#3d3530', roughness: 1 }),
+        hair: new THREE.MeshStandardMaterial({ color: '#3a332c', roughness: 1 }),
         bandage: new THREE.MeshStandardMaterial({ color: '#c4b8a1', roughness: 1 }),
         stain: new THREE.MeshStandardMaterial({ color: '#4a100c', roughness: 0.55 }),
         pin: new THREE.MeshStandardMaterial({ color: '#8a8a8a', metalness: 0.85, roughness: 0.3 }),
@@ -113,9 +113,10 @@ export const Floor6Guest: React.FC<{ playerPositionRef: React.MutableRefObject<T
         if (nextBlink.current <= 0) { nextBlink.current = 3 + Math.random() * 3.5; blinkT.current = 0.32; }
         blinkT.current = Math.max(0, blinkT.current - dt);
         const closed = blinkT.current > 0 ? Math.sin((1 - blinkT.current / 0.32) * Math.PI) : 0;
-        const lidY = -0.004 - closed * 0.02;
-        if (lidL.current) lidL.current.position.y = 0.012 + lidY * 1.2;
-        if (lidR.current) lidR.current.position.y = 0.012 + lidY * 1.2;
+        // rest position already droops over ~40% of the eye; blink slides the rest
+        const lidY = -0.001 - closed * 0.014;
+        if (lidL.current) lidL.current.position.y = lidY;
+        if (lidR.current) lidR.current.position.y = lidY;
 
         // the living hand trembles, slightly, always
         if (handL.current) {
@@ -168,17 +169,18 @@ export const Floor6Guest: React.FC<{ playerPositionRef: React.MutableRefObject<T
                     <cylinderGeometry args={[0.125, 0.135, 0.62, 18]} />
                 </mesh>
                 {/* sliver of sunken chest skin in the collar V — small, high */}
-                <mesh position={[0, 0.24, 0.095]} scale={[0.6, 1.1, 0.35]} material={mats.skin}>
-                    <sphereGeometry args={[0.04, 10, 8]} />
+                <mesh position={[0, 0.2, 0.095]} scale={[0.55, 1.0, 0.3]} material={mats.skin}>
+                    <sphereGeometry args={[0.038, 10, 8]} />
                 </mesh>
-                {/* shawl collar: two SHORT rolls hugging the upper chest in a V */}
-                <mesh position={[-0.052, 0.2, 0.11]} rotation={[0.1, -0.15, 0.35]} scale={[0.45, 0.9, 0.5]}
+                {/* shawl collar lapels: LAID against the chest, below the shoulder
+                    line — tips end under the collarbone, converging in a V */}
+                <mesh position={[-0.055, 0.1, 0.11]} rotation={[0.08, -0.1, 0.6]} scale={[0.42, 0.9, 0.42]}
                     material={mats.robeDk}>
-                    <capsuleGeometry args={[0.05, 0.14, 4, 10]} />
+                    <capsuleGeometry args={[0.048, 0.1, 4, 10]} />
                 </mesh>
-                <mesh position={[0.052, 0.2, 0.11]} rotation={[0.1, 0.15, -0.35]} scale={[0.45, 0.9, 0.5]}
+                <mesh position={[0.055, 0.1, 0.11]} rotation={[0.08, 0.1, -0.6]} scale={[0.42, 0.9, 0.42]}
                     material={mats.robeDk}>
-                    <capsuleGeometry args={[0.05, 0.14, 4, 10]} />
+                    <capsuleGeometry args={[0.048, 0.1, 4, 10]} />
                 </mesh>
                 {/* collar roll behind the neck */}
                 <mesh position={[0, 0.26, -0.02]} rotation={[1.45, 0, 0]} scale={[1, 0.7, 1]} material={mats.robeDk}>
@@ -295,19 +297,19 @@ export const Floor6Guest: React.FC<{ playerPositionRef: React.MutableRefObject<T
                         <sphereGeometry args={[0.026, 10, 8]} />
                     </mesh>
                 ))}
-                {/* eyes — hollow, exhausted, deep-set */}
+                {/* eyes — small tired slits, NOT startled circles */}
                 {[-0.042, 0.042].map((x, i) => (
                     <group key={x} position={[x, 0.055, 0.088]}>
-                        <mesh scale={[1.15, 0.9, 0.7]} material={mats.eyeWhite}>
-                            <sphereGeometry args={[0.021, 10, 8]} />
+                        <mesh scale={[1.1, 0.8, 0.6]} material={mats.eyeWhite}>
+                            <sphereGeometry args={[0.014, 10, 8]} />
                         </mesh>
-                        <mesh position={[0, -0.001, 0.0115]} material={mats.iris}>
-                            <sphereGeometry args={[0.01, 8, 6]} />
+                        <mesh position={[0, -0.0015, 0.0075]} material={mats.iris}>
+                            <sphereGeometry args={[0.008, 8, 6]} />
                         </mesh>
-                        {/* drooping heavy lid — rests lower by default */}
-                        <mesh ref={i === 0 ? lidL : lidR} position={[0, -0.004, 0.002]}
-                            rotation={[0.5, 0, 0]} scale={[1.2, 0.75, 0.75]} material={mats.skinPale}>
-                            <sphereGeometry args={[0.023, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+                        {/* heavy upper lid — rests covering ~40% of the eye */}
+                        <mesh ref={i === 0 ? lidL : lidR} position={[0, -0.001, 0.001]}
+                            rotation={[0.55, 0, 0]} scale={[1.2, 0.8, 0.75]} material={mats.skinPale}>
+                            <sphereGeometry args={[0.016, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
                         </mesh>
                     </group>
                 ))}
@@ -326,9 +328,9 @@ export const Floor6Guest: React.FC<{ playerPositionRef: React.MutableRefObject<T
                 <mesh position={[0, 0.02, 0.105]} rotation={[1.25, 0, 0]} scale={[0.62, 1, 0.7]} material={mats.skinPale}>
                     <capsuleGeometry args={[0.016, 0.05, 4, 8]} />
                 </mesh>
-                {/* mouth — slightly parted, dark interior visible */}
-                <mesh position={[0, -0.056, 0.093]} rotation={[0.25, 0, 0]} scale={[1.25, 0.42, 0.4]} material={mats.mouth}>
-                    <capsuleGeometry args={[0.024, 0.052, 3, 8]} />
+                {/* mouth — a thin dark LINE, barely parted */}
+                <mesh position={[0, -0.056, 0.092]} rotation={[0.2, 0, Math.PI / 2]} scale={[0.18, 1, 0.3]} material={mats.mouth}>
+                    <capsuleGeometry args={[0.012, 0.021, 3, 8]} />
                 </mesh>
                 {/* ears */}
                 {[-0.105, 0.105].map((x) => (
@@ -337,20 +339,12 @@ export const Floor6Guest: React.FC<{ playerPositionRef: React.MutableRefObject<T
                         <sphereGeometry args={[0.032, 8, 8]} />
                     </mesh>
                 ))}
-                {/* thin, receding hair: soft and sparse, not a hard cap */}
-                <mesh position={[0, 0.105, -0.035]} scale={[0.88, 0.48, 0.95]} material={mats.hair}>
-                    <sphereGeometry args={[0.112, 14, 10]} />
+                {/* thin receding hair: ONE flat cap over top + back of the skull,
+                    set back off the brow so the hairline recedes — no seam */}
+                <mesh position={[0, 0.1, -0.028]} rotation={[0.26, 0, 0]} scale={[0.95, 0.62, 1.04]}
+                    material={mats.hair}>
+                    <sphereGeometry args={[0.109, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.52]} />
                 </mesh>
-                {/* back tuft — hair bunched at back of head */}
-                <mesh position={[0, 0.065, -0.085]} scale={[0.75, 0.65, 0.6]} material={mats.hair}>
-                    <sphereGeometry args={[0.085, 10, 8]} />
-                </mesh>
-                {/* balding temples: deep recession at hairline */}
-                {[-0.068, 0.068].map((x) => (
-                    <mesh key={x} position={[x, 0.095, 0.01]} scale={[0.32, 0.45, 0.38]} material={mats.socket}>
-                        <sphereGeometry args={[0.03, 8, 6]} />
-                    </mesh>
-                ))}
                 {/* stray hairs, matted flat against the skull */}
                 <mesh position={[-0.068, 0.118, 0.03]} rotation={[0.45, 0.2, 1.45]} material={mats.hair}>
                     <capsuleGeometry args={[0.0075, 0.042, 3, 6]} />
