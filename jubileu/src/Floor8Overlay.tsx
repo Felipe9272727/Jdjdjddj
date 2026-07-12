@@ -10,7 +10,7 @@
  * do Floor 6.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { f8, f8SetOnChange, f8Lines, f8AdvanceLine, f8Objective, type F8Speaker } from './f8Arquivo';
+import { f8, f8Subscribe, f8Lines, f8AdvanceLine, f8EnterImage, f8DiveDone, f8Objective, type F8Speaker } from './f8Arquivo';
 
 const mono: React.CSSProperties = { fontFamily: 'monospace', color: '#e8e2d2', userSelect: 'none' };
 
@@ -37,10 +37,16 @@ export const Floor8Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void }
     const [typed, setTyped] = useState(false);
     const fastRef = useRef(false);
 
-    useEffect(() => { f8SetOnChange(() => setV((x) => x + 1)); return () => f8SetOnChange(null); }, []);
+    useEffect(() => f8Subscribe(() => setV((x) => x + 1)), []);
 
     const talking = f8.phase === 'interrogatorio';
-    useEffect(() => { onUiOpenChange(talking); }, [talking, onUiOpenChange]);
+    const handing = f8.phase === 'entregaImagem';
+    const diving = f8.phase === 'mergulho';
+    const inImage = f8.phase === 'corredor20' || f8.phase === 'porta21' || f8.phase === 'platformer';
+    // congela o Player 3D sempre que o overlay/imagem está no controle (menos
+    // em entregaImagem, onde o player ainda pode caminhar até a mesa).
+    const uiOpen = talking || diving || inImage;
+    useEffect(() => { onUiOpenChange(uiOpen); }, [uiOpen, onUiOpenChange]);
     useEffect(() => () => onUiOpenChange(false), [onUiOpenChange]);
 
     const lines = f8Lines();
@@ -54,12 +60,12 @@ export const Floor8Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void }
         f8AdvanceLine();
     }, [typed]);
 
-    // teclado: E / Espaço / Enter avançam
+    // teclado: E/Espaço/Enter avança a fala; E entra na imagem
     useEffect(() => {
         const kd = (e: KeyboardEvent) => {
-            if (f8.phase !== 'interrogatorio') return;
             const k = e.key.toLowerCase();
-            if (k === 'e' || k === ' ' || k === 'enter') { e.preventDefault(); advance(); }
+            if (f8.phase === 'interrogatorio') { if (k === 'e' || k === ' ' || k === 'enter') { e.preventDefault(); advance(); } }
+            else if (f8.phase === 'entregaImagem') { if (k === 'e' || k === 'enter') { e.preventDefault(); f8EnterImage(); } }
         };
         window.addEventListener('keydown', kd);
         return () => window.removeEventListener('keydown', kd);
@@ -104,6 +110,29 @@ export const Floor8Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void }
                     </div>
                 </div>
             )}
+
+            {/* entregaImagem: o prompt de entrar na imagem */}
+            {handing && (
+                <div style={{ position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 110px)', textAlign: 'center' }}>
+                    <button onPointerDown={() => f8EnterImage()} style={{
+                        pointerEvents: 'auto', ...mono, fontSize: 16, padding: '12px 26px',
+                        background: 'rgba(122,74,18,0.72)', border: '1px solid #f0d89a', borderRadius: 12, color: '#fff4dc', cursor: 'pointer',
+                        boxShadow: '0 0 26px rgba(255,184,97,0.45)',
+                    }}><span style={{ color: '#ffd98a' }}>[E]</span> Entrar na imagem</button>
+                </div>
+            )}
+
+            {/* mergulho: a imagem engole a tela (dip quente + zoom) */}
+            {diving && (
+                <div onAnimationEnd={() => f8DiveDone()} style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', background: '#000', animation: 'f8dive 2.4s ease-in forwards' }}>
+                    <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 48%, #ffcf8a 0%, #a86a24 30%, #1a0f06 70%)', animation: 'f8diveZoom 2.4s ease-in forwards' }} />
+                </div>
+            )}
+
+            <style>{`
+                @keyframes f8dive { 0%{opacity:0} 20%{opacity:1} 88%{opacity:1} 100%{opacity:1} }
+                @keyframes f8diveZoom { 0%{transform:scale(0.15);opacity:0;filter:blur(6px)} 30%{opacity:0.9} 100%{transform:scale(2.6);opacity:1;filter:blur(0)} }
+            `}</style>
         </div>
     );
 };

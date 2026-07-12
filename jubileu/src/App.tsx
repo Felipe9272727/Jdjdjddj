@@ -58,6 +58,7 @@ import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import Floor8Room from './Floor8Room';
 import Floor8Overlay from './Floor8Overlay';
+import Floor8Image from './Floor8Image';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
 import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient, f7CaptainLaugh, f7CutMusicStart, f7CutBeat, f7CutMusicStop, f7BootClomp, f7ElevatorVanish, f7CaptainVoice } from './floor7Sfx';
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
@@ -2391,6 +2392,9 @@ export default function App() {
       {hasStarted && currentLevel === 8 && !doorsClosed && (
         <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} />
       )}
+      {/* Andar 8 — DENTRO da imagem: o corredor de 20 portas + a porta 21
+          (self-gate por fase; cobre a tela durante corredor20/porta21/platformer) */}
+      {hasStarted && currentLevel === 8 && <Floor8Image />}
 
       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}
       {fallGameOver && (

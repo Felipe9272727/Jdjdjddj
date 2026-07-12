@@ -153,6 +153,12 @@ export function f8EnterImage(): void {
     f8.phase = 'mergulho'; f8.diveT = 0; emit('dive'); f8Bump();
 }
 
+/** Fim da animação de mergulho (wall-clock, dirigido pelo overlay) → corredor. */
+export function f8DiveDone(): void {
+    if (f8.phase !== 'mergulho') return;
+    f8.phase = 'corredor20'; f8Bump();
+}
+
 /** O player alcançou a 21ª porta (a memória perdida dele). */
 export function f8ReachDoor21(): void {
     if (f8.phase !== 'corredor20') return;
