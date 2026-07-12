@@ -36,6 +36,8 @@ export interface F8State {
     line: number;
     /** segundos desde a chegada — usado por gatilhos por tempo/aproximação. */
     t: number;
+    /** segundos dentro da cutscene de mergulho na imagem (0..~2.4). */
+    diveT: number;
     version: number;
 }
 
@@ -52,6 +54,7 @@ const FRESH = (): F8State => ({
     carriesPhoto: readCarriesPhoto(),
     line: 0,
     t: 0,
+    diveT: 0,
     version: 0,
 });
 
@@ -139,6 +142,29 @@ export function f8AdvanceLine(): void {
     else { f8.phase = 'entregaImagem'; emit('handImage'); f8Bump(); }
 }
 
+// ── Dentro da imagem: o corredor de vinte portas + a porta 21 ────────────────
+/** As vinte portas conhecidas (os vinte andares). A 21ª não existe pra ninguém
+ *  — é a memória apagada do próprio player. */
+export const F8_DOORS = 20;
+
+/** O player toca a imagem na mesa → mergulha (cutscene) → o corredor. */
+export function f8EnterImage(): void {
+    if (f8.phase !== 'entregaImagem') return;
+    f8.phase = 'mergulho'; f8.diveT = 0; emit('dive'); f8Bump();
+}
+
+/** O player alcançou a 21ª porta (a memória perdida dele). */
+export function f8ReachDoor21(): void {
+    if (f8.phase !== 'corredor20') return;
+    f8.phase = 'porta21'; emit('door21'); f8Bump();
+}
+
+/** O player entra na porta 21 → o platformer de tricô (M4). */
+export function f8EnterDoor21(): void {
+    if (f8.phase !== 'porta21') return;
+    f8.phase = 'platformer'; f8Bump();
+}
+
 // ── Director por frame: chegada → interrogatório por aproximação ─────────────
 /** Chamado pelo useFrame da cena com o Z do player. Em M1 só destrava o
  *  interrogatório quando o player caminha até perto da mesa. */
@@ -151,6 +177,10 @@ export function f8Tick(dt: number, playerZ: number): void {
         emit('arriveBeat');
         f8Bump();
     }
+    if (s.phase === 'mergulho') {
+        s.diveT += dt;
+        if (s.diveT >= 2.4) { s.phase = 'corredor20'; f8Bump(); }
+    }
 }
 
 /** A linha-objetivo do HUD (cresce nas fases seguintes). */
@@ -159,5 +189,7 @@ export function f8Objective(): string | null {
     if (s.phase === 'arrive') return 'Alguém espera na mesa.';
     if (s.phase === 'interrogatorio') return null;   // o diálogo cobre a tela
     if (s.phase === 'entregaImagem') return 'A imagem, na mesa. Aproxime-se dela.';
+    if (s.phase === 'corredor20') return 'Vinte portas. Ache a que não pertence a nenhum andar.';
+    if (s.phase === 'porta21') return 'A porta 21. É você. Entre.';
     return null;
 }

@@ -11,7 +11,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import Floor8Room from './Floor8Room';
 import Floor8Overlay from './Floor8Overlay';
-import { f8, f8Reset, f8AdvanceLine } from './f8Arquivo';
+import Floor8Image from './Floor8Image';
+import { f8, f8Reset, f8AdvanceLine, f8Bump } from './f8Arquivo';
 import { wallsForState } from './constants';
 import { resolveCollision } from './physics';
 
@@ -76,7 +77,7 @@ const DevWalker: React.FC = () => {
 const Dev: React.FC = () => {
     useEffect(() => {
         f8Reset();
-        if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8dbg = { f8, posRef, adv: f8AdvanceLine };
+        if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8dbg = { f8, posRef, adv: f8AdvanceLine, bump: f8Bump };
     }, []);
     return (
         <div style={{ position: 'fixed', inset: 0, background: '#000' }}>
@@ -85,6 +86,7 @@ const Dev: React.FC = () => {
                 <Floor8Room playerPositionRef={posRef} />
             </Canvas>
             <Floor8Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} />
+            <Floor8Image />
             <div style={{
                 position: 'absolute', bottom: 8, left: 10, color: '#777', zIndex: 50,
                 fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',
