@@ -418,7 +418,9 @@ const Toilet: React.FC = () => {
 const showerWrapTex = (() => {
     const t = showerCurtainTex.clone();
     t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
-    t.repeat.set(4, 1); t.needsUpdate = true;
+    // flipY: sem isso o V fica de cabeça pra baixo no cilindro — os ilhoses/
+    // bainha (topo do canvas) caíam na barra e o mofo subia pro varão.
+    t.repeat.set(4, 1); t.flipY = false; t.needsUpdate = true;
     return t;
 })();
 const showerMat = new THREE.MeshStandardMaterial({
