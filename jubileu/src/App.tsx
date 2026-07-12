@@ -57,6 +57,7 @@ import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
 import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import Floor8Room from './Floor8Room';
+import Floor8Overlay from './Floor8Overlay';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
 import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient, f7CaptainLaugh, f7CutMusicStart, f7CutBeat, f7CutMusicStop, f7BootClomp, f7ElevatorVanish, f7CaptainVoice } from './floor7Sfx';
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
@@ -829,6 +830,10 @@ export default function App() {
   // pointer lock, same contract as the shop/dialogue overlays.
   const [f6UiOpen, setF6UiOpen] = useState(false);
   const handleF6UiOpenChange = useCallback((open: boolean) => setF6UiOpen(open), []);
+  // Andar 8 (interrogatório): true enquanto a caixa de diálogo está na tela —
+  // congela o Player e solta o pointer lock, mesmo contrato do Floor 6.
+  const [f8UiOpen, setF8UiOpen] = useState(false);
+  const handleF8UiOpenChange = useCallback((open: boolean) => setF8UiOpen(open), []);
   // Floor 6 FINALE — the guest stepped aside and the player pressed T inside
   // the repaired cab. "Máquina não esquece: ele te deve uma descida" — o
   // Aurélio manda o player pro ANDAR 7 (o navio). O beat de embarque/portas
@@ -1520,14 +1525,14 @@ export default function App() {
   const activePointers = useRef(new Map<number, { type: 'move' | 'look' | 'aux'; startX: number; startY: number; currX: number; currY: number }>());
 
   useEffect(() => {
-    if (!dialogueOpen && !barneyDialogueOpen && !f6UiOpen) return;
+    if (!dialogueOpen && !barneyDialogueOpen && !f6UiOpen && !f8UiOpen) return;
     moveInput.current = { x: 0, y: 0 };
     lookInput.current = { x: 0, y: 0 };
     keysRef.current = { w: false, a: false, s: false, d: false };
     activePointers.current.clear();
     prevPinchDist.current = null;
     setJoystickVisual(p => ({ ...p, active: false }));
-  }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen, f6UiOpen]);
+  }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen, f6UiOpen, f8UiOpen]);
 
   useEffect(() => {
     if (!dialogueOpen && !barneyDialogueOpen && !diverDialogueOpen) return;
@@ -1539,8 +1544,8 @@ export default function App() {
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!hasStarted) return;
-    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen && !f6UiOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
-    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen) return;
+    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen && !f6UiOpen && !f8UiOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
+    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen) return;
     e.preventDefault(); e.stopPropagation();
     const { pointerId, clientX, clientY } = e; const screenW = window.innerWidth; const screenH = window.innerHeight;
     const isPortrait = screenH > screenW; const zoneLimit = isPortrait ? 0.5 : 0.4;
@@ -1609,7 +1614,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isDesktop || !hasStarted) return;
-    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen) { document.exitPointerLock(); return; }
+    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen) { document.exitPointerLock(); return; }
     const upd = () => { const k = keysRef.current; let x=0, y=0; if (k.w) y-=1; if (k.s) y+=1; if (k.a) x-=1; if (k.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
     const kd = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -1618,7 +1623,7 @@ export default function App() {
         setSettingsOpen((v) => !v);
         return;
       }
-      if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen) return;
+      if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen) return;
       const k = keysRef.current;
       switch(e.key.toLowerCase()) {
         case 'w': k.w=true; break;
@@ -2381,6 +2386,10 @@ export default function App() {
       {currentLevel === 5 && !doorsClosed && <Floor5Race3D onExit={handleFloor5RaceExit} />}
       {hasStarted && currentLevel === 6 && !doorsClosed && (
         <Floor6Overlay playerPositionRef={sharedPlayerPositionRef} onUiOpenChange={handleF6UiOpenChange} onLeave={handleF6Leave} />
+      )}
+      {/* Andar 8 — o interrogatório do Arquivista (caixa de diálogo) */}
+      {hasStarted && currentLevel === 8 && !doorsClosed && (
+        <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} />
       )}
 
       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}

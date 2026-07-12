@@ -10,11 +10,13 @@ import { createRoot } from 'react-dom/client';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import Floor8Room from './Floor8Room';
-import { f8, f8Reset } from './f8Arquivo';
+import Floor8Overlay from './Floor8Overlay';
+import { f8, f8Reset, f8AdvanceLine } from './f8Arquivo';
 import { wallsForState } from './constants';
 import { resolveCollision } from './physics';
 
 const posRef = { current: new Vector3(0, 0, -8.2) };
+const frozenRef = { current: false };
 
 const DevWalker: React.FC = () => {
     const camera = useThree((s) => s.camera);
@@ -28,7 +30,7 @@ const DevWalker: React.FC = () => {
     useEffect(() => {
         const kd = (e: KeyboardEvent) => { keys.current[e.key.toLowerCase()] = true; };
         const ku = (e: KeyboardEvent) => { keys.current[e.key.toLowerCase()] = false; };
-        const pd = (e: PointerEvent) => { drag.current = { x: e.clientX, y: e.clientY }; };
+        const pd = (e: PointerEvent) => { if (!frozenRef.current) drag.current = { x: e.clientX, y: e.clientY }; };
         const pm = (e: PointerEvent) => {
             if (!drag.current) return;
             ang.current.theta -= (e.clientX - drag.current.x) * 0.004;
@@ -49,14 +51,16 @@ const DevWalker: React.FC = () => {
     useFrame((_, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const k = keys.current;
-        const fwd = (k['w'] ? 1 : 0) - (k['s'] ? 1 : 0);
-        const str = (k['d'] ? 1 : 0) - (k['a'] ? 1 : 0);
-        if (fwd || str) {
-            const th = ang.current.theta;
-            const dx = (-Math.sin(th) * fwd + Math.cos(th) * str) * 4 * dt;
-            const dz = (-Math.cos(th) * fwd - Math.sin(th) * str) * 4 * dt;
-            const [x, z] = resolveCollision(posRef.current.x + dx, posRef.current.z + dz, 0.5, wallsForState(8, false, false));
-            posRef.current.set(x, 0, z);
+        if (!frozenRef.current) {
+            const fwd = (k['w'] ? 1 : 0) - (k['s'] ? 1 : 0);
+            const str = (k['d'] ? 1 : 0) - (k['a'] ? 1 : 0);
+            if (fwd || str) {
+                const th = ang.current.theta;
+                const dx = (-Math.sin(th) * fwd + Math.cos(th) * str) * 4 * dt;
+                const dz = (-Math.cos(th) * fwd - Math.sin(th) * str) * 4 * dt;
+                const [x, z] = resolveCollision(posRef.current.x + dx, posRef.current.z + dz, 0.5, wallsForState(8, false, false));
+                posRef.current.set(x, 0, z);
+            }
         }
         camera.position.set(posRef.current.x, 1.6, posRef.current.z);
         camera.rotation.set(0, 0, 0);
@@ -72,7 +76,7 @@ const DevWalker: React.FC = () => {
 const Dev: React.FC = () => {
     useEffect(() => {
         f8Reset();
-        if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8dbg = { f8, posRef };
+        if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8dbg = { f8, posRef, adv: f8AdvanceLine };
     }, []);
     return (
         <div style={{ position: 'fixed', inset: 0, background: '#000' }}>
@@ -80,6 +84,7 @@ const Dev: React.FC = () => {
                 <DevWalker />
                 <Floor8Room playerPositionRef={posRef} />
             </Canvas>
+            <Floor8Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} />
             <div style={{
                 position: 'absolute', bottom: 8, left: 10, color: '#777', zIndex: 50,
                 fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',

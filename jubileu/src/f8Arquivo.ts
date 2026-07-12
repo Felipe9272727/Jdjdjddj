@@ -109,6 +109,36 @@ export const F8_FURNITURE: ReadonlyArray<readonly [number, number, number, numbe
 /** Onde o Arquivista fica (atrás da mesa, encarando o sul/o player). */
 export const F8_ARQUIVISTA_POS: readonly [number, number] = [0, -0.7];
 
+// ── O roteiro do interrogatório ──────────────────────────────────────────────
+export type F8Speaker = 'arq' | 'voce';
+const L = (who: F8Speaker, t: string) => ({ who, t });
+
+/** As falas do interrogatório. A 3ª batida muda se o player trouxe (ou não) a
+ *  FOTOGRAFIA DAS VINTE PORTAS do Andar 6 (flag tne_foto_20portas). */
+export function f8Lines(): ReadonlyArray<{ who: F8Speaker; t: string }> {
+    const photo = f8.carriesPhoto
+        ? L('arq', 'Até agora. *ele ergue uma fotografia da mesa* As vinte portas. Você a carregava no bolso esquerdo, não é? Junto do coração. Sumiu de lá no instante em que cruzou a minha porta. Coisas assim voltam pra mim.')
+        : L('arq', 'Você chegou de mãos vazias — sem a fotografia. *ele ergue uma da própria mesa* Curioso: o escolhido SEMPRE a traz. Talvez ela só estivesse me esperando com você.');
+    return [
+        L('arq', 'Chegou. Sente-se — ou não; ninguém fica muito tempo. Eu sou o ARQUIVISTA. Guardo a ficha de tudo que este hotel tenta esquecer.'),
+        L('arq', 'Conheço cada hóspede que passou por esse elevador. Tenho a ficha de cada um. A sua, no entanto… a sua estava em BRANCO.'),
+        photo,
+        L('voce', '…essa fotografia não é minha.'),
+        L('voce', 'Me entregaram. Lá embaixo. Disseram que era pra um objetivo maior do que eu.'),
+        L('arq', 'Entendi. *uma pausa longa* Então… você é o escolhido.'),
+        L('arq', 'O PROPRIETÁRIO apaga o que ninguém lembra. Apagou VOCÊ — a sua é a única ficha em branco no meu arquivo. E mesmo assim, aqui está. De pé. Lembrando dos outros.'),
+        L('arq', 'Mas lembrar dos outros não basta pra descer. O escolhido tem que lembrar de SI. Provar que ainda existe por baixo do que apagaram.'),
+        L('arq', '*ele desliza uma imagem sobre a mesa, virada pra você* Está tudo aqui dentro — o que você foi. Entre nela. E não me faça arquivar você como os outros.'),
+    ];
+}
+
+/** Avança a fala do interrogatório; ao fim, ele estende a imagem (entregaImagem). */
+export function f8AdvanceLine(): void {
+    if (f8.phase !== 'interrogatorio') return;
+    if (f8.line < f8Lines().length - 1) { f8.line++; f8Bump(); }
+    else { f8.phase = 'entregaImagem'; emit('handImage'); f8Bump(); }
+}
+
 // ── Director por frame: chegada → interrogatório por aproximação ─────────────
 /** Chamado pelo useFrame da cena com o Z do player. Em M1 só destrava o
  *  interrogatório quando o player caminha até perto da mesa. */
@@ -127,6 +157,7 @@ export function f8Tick(dt: number, playerZ: number): void {
 export function f8Objective(): string | null {
     const s = f8;
     if (s.phase === 'arrive') return 'Alguém espera na mesa.';
-    if (s.phase === 'interrogatorio') return 'Escute o Arquivista.';
+    if (s.phase === 'interrogatorio') return null;   // o diálogo cobre a tela
+    if (s.phase === 'entregaImagem') return 'A imagem, na mesa. Aproxime-se dela.';
     return null;
 }
