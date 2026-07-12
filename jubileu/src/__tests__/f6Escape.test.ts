@@ -2,7 +2,7 @@
  * f6Escape.test.ts — walks the whole Suíte 612 puzzle chain end-to-end and
  * pokes the locks/gates from the wrong side first (the way real players do).
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
     f6, f6Reset, f6Interact, f6TryCode, f6Tick, f6Crank, f6DoorWalls,
     f6Hotspots, f6DrainEvents, f6AdvanceGuest, f6Objective, f6BoardElevator,
@@ -295,6 +295,20 @@ describe('ato 2 → free → leave (o que vem depois)', () => {
         expect(f6.phase).toBe('free');
         expect(f6DrainEvents()).toContain('guestAside');
         expect(f6.inv.foto).toBe(true);
+    });
+
+    it('persiste tne_foto_20portas ao fechar o ato 3 (contrato do Andar 20)', () => {
+        // este flag é a ÚNICA ponte pro Andar 20 (a arma contra o Proprietário);
+        // guarda contra regressão de chave/fase. O env é 'node', então stubamos
+        // window pra o guard `typeof window !== 'undefined'` deixar o setItem rodar.
+        const setItem = vi.fn();
+        vi.stubGlobal('window', { localStorage: { setItem } });
+        f6.phase = 'guestGift';
+        f6.guestLine = F6_GUEST_LINES3.length - 1;   // última fala do ato 3
+        f6AdvanceGuest();                             // → free + persiste a fotografia
+        expect(f6.phase).toBe('free');
+        expect(setItem).toHaveBeenCalledWith('tne_foto_20portas', '1');
+        vi.unstubAllGlobals();
     });
 
     it('aproximar-se com a foto na mão inicia o ato 3 sozinho', () => {

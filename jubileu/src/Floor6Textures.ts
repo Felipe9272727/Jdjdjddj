@@ -656,33 +656,71 @@ export const winchPlaqueTex = colorTex(256, 96, (ctx) => {
 });
 winchPlaqueTex.wrapS = winchPlaqueTex.wrapT = THREE.ClampToEdgeWrapping;
 
-/** Shower curtain — milky plastic with baked vertical fold shading, a grime
- *  hem and water spotting, so it reads against white tile instead of
- *  vanishing into it. */
+/** Shower curtain — opaque vinyl with baked vertical folds, water beading,
+ *  mildew at the hem, and reinforced eyelets. The parallel multi-sin in the
+ *  folds layer mimics the meshy crease pattern of actual plastic sheeting. */
 export const showerCurtainTex = colorTex(256, 256, (ctx) => {
     const r = rng(79);
-    ctx.fillStyle = '#dfe4de'; ctx.fillRect(0, 0, 256, 256);
-    // vertical fold shading — soft alternating bands
+    // base vinyl: slightly warm off-white
+    ctx.fillStyle = '#e0e5df'; ctx.fillRect(0, 0, 256, 256);
+
+    // vertical fold shading — layered sines for realistic crease depth
+    // primary folds (wide, deep) + secondary ripples (fine detail)
     for (let x = 0; x < 256; x++) {
-        const s = Math.sin((x / 256) * Math.PI * 12) * 0.5 + Math.sin((x / 256) * Math.PI * 5 + 1.3) * 0.5;
-        const v = Math.round(s * 20);
-        ctx.fillStyle = v >= 0 ? `rgba(255,255,255,${v / 90})` : `rgba(90,100,96,${-v / 70})`;
+        const t = x / 256;
+        // primary folds: deep shadows in valleys
+        const fold1 = Math.sin(t * Math.PI * 10 + 0.3) * 0.55;
+        // secondary ripples: fine mesh-like texture
+        const fold2 = Math.sin(t * Math.PI * 23 + 1.1) * 0.25;
+        const fold3 = Math.sin(t * Math.PI * 6.5 + 0.7) * 0.35;
+        const combined = fold1 + fold2 + fold3;
+        const v = Math.round(combined * 18);
+        // raised areas: brighten; valleys: darken
+        ctx.fillStyle = v >= 0
+            ? `rgba(255,255,255,${Math.min(1, v / 85)})`
+            : `rgba(75,88,82,${Math.min(1, -v / 60)})`;
         ctx.fillRect(x, 0, 1, 256);
     }
-    // water spotting
-    for (let i = 0; i < 60; i++) {
-        ctx.fillStyle = `rgba(160,172,168,${0.05 + r() * 0.1})`;
-        ctx.beginPath(); ctx.arc(r() * 256, 40 + r() * 216, 1.5 + r() * 4, 0, Math.PI * 2); ctx.fill();
+
+    // water beads: scattered across surface, drying rings
+    for (let i = 0; i < 48; i++) {
+        const x = r() * 256, y = r() * 256;
+        const size = 1.2 + r() * 3.8;
+        // bead shadow (dark)
+        ctx.fillStyle = `rgba(140,152,144,${0.08 + r() * 0.12})`;
+        ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2); ctx.fill();
+        // bead shine (light halo inside)
+        ctx.fillStyle = `rgba(255,255,255,${r() * 0.08})`;
+        ctx.beginPath(); ctx.arc(x - 0.4, y - 0.4, size * 0.4, 0, Math.PI * 2); ctx.fill();
     }
-    // mildew grime creeping up the hem
-    const g = ctx.createLinearGradient(0, 200, 0, 256);
-    g.addColorStop(0, 'rgba(96,102,84,0)'); g.addColorStop(1, 'rgba(86,92,72,0.4)');
-    ctx.fillStyle = g; ctx.fillRect(0, 200, 256, 56);
-    // reinforced top hem with eyelet shadows
-    ctx.fillStyle = 'rgba(190,196,190,0.9)'; ctx.fillRect(0, 0, 256, 14);
+
+    // mineral deposits under the waterline (bottom third)
+    for (let i = 0; i < 20; i++) {
+        ctx.fillStyle = `rgba(165,155,130,${0.04 + r() * 0.08})`;
+        ctx.beginPath();
+        const cx = r() * 256, cy = 170 + r() * 86;
+        ctx.arc(cx, cy, 2.5 + r() * 6, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // mildew grime creeping up from the hem (damp zone)
+    const grimGrad = ctx.createLinearGradient(0, 180, 0, 256);
+    grimGrad.addColorStop(0, 'rgba(95,102,85,0)');
+    grimGrad.addColorStop(0.4, 'rgba(95,102,85,0.08)');
+    grimGrad.addColorStop(1, 'rgba(75,82,68,0.28)');
+    ctx.fillStyle = grimGrad; ctx.fillRect(0, 180, 256, 76);
+
+    // reinforced top hem (pocket for the rod)
+    ctx.fillStyle = 'rgba(200,205,200,0.95)'; ctx.fillRect(0, 0, 256, 12);
+    // eyelet holes (cast shadows inside)
     for (let i = 0; i < 8; i++) {
-        ctx.fillStyle = 'rgba(70,74,70,0.7)';
-        ctx.beginPath(); ctx.arc(16 + i * 32, 7, 3.4, 0, Math.PI * 2); ctx.fill();
+        const ex = 16 + i * 32;
+        // hole rim (recessed)
+        ctx.fillStyle = 'rgba(60,65,58,0.6)';
+        ctx.beginPath(); ctx.arc(ex, 6, 3.8, 0, Math.PI * 2); ctx.fill();
+        // inner hole shadow
+        ctx.fillStyle = 'rgba(40,45,40,0.4)';
+        ctx.beginPath(); ctx.arc(ex, 6, 2.2, 0, Math.PI * 2); ctx.fill();
     }
 });
 showerCurtainTex.wrapS = showerCurtainTex.wrapT = THREE.ClampToEdgeWrapping;
