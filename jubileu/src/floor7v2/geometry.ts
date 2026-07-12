@@ -24,7 +24,7 @@ const station = (t: number) => {
     // Kept inside the existing gameplay envelope: the old brain assumes a deck
     // close to y=0 even at the ends of the ship.
     const sheer = 0.02 + 0.27 * Math.pow(Math.min(1, Math.abs(t - 0.48) * 2), 2.35);
-    const keel = -1.75 + 0.65 * Math.pow(Math.abs(t - 0.52) * 2, 1.8);
+    const keel = -2.18 + 0.92 * Math.pow(Math.abs(t - 0.52) * 2, 1.75);
     return { z: THREE.MathUtils.lerp(FLOOR7_V2_STERN_Z, FLOOR7_V2_BOW_Z, t), beam, sheer, keel };
 };
 
@@ -46,7 +46,9 @@ function loftHull(): THREE.BufferGeometry {
             [-s.beam * .9, s.sheer + .62], [-s.beam, s.sheer - .18], [-s.beam * .72, s.keel + .55],
             [0, s.keel], [s.beam * .72, s.keel + .55], [s.beam, s.sheer - .18], [s.beam * .9, s.sheer + .62],
         ];
-        cross.forEach(([x, y], k) => { pos.push(x, y, s.z); uv.push(k / 6, t * 4); });
+        // Texture U follows the ship length and V follows the cross-section so
+        // horizontal source planks run fore/aft instead of wrapping vertically.
+        cross.forEach(([x, y], k) => { pos.push(x, y, s.z); uv.push(t * 4, k / 6); });
     }
     for (let i = 0; i < n; i++) for (let k = 0; k < 6; k++) {
         const a = i * 7 + k, b = a + 7;
@@ -72,6 +74,26 @@ function deck(): THREE.BufferGeometry {
 const box = (size: [number, number, number], at: [number, number, number], rot: [number, number, number] = [0, 0, 0]) =>
     new THREE.BoxGeometry(...size).applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...at), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(1, 1, 1)));
 
+function taperedBlock(backW: number, frontW: number, height: number, depth: number, y: number, z: number): THREE.BufferGeometry {
+    const zb = z - depth / 2, zf = z + depth / 2, y0 = y - height / 2, y1 = y + height / 2;
+    const corners: Array<[number, number, number]> = [
+        [-backW / 2, y0, zb], [backW / 2, y0, zb], [backW / 2, y1, zb], [-backW / 2, y1, zb],
+        [-frontW / 2, y0, zf], [frontW / 2, y0, zf], [frontW / 2, y1, zf], [-frontW / 2, y1, zf],
+    ];
+    const faces = [[0,1,2,3], [4,7,6,5], [0,4,5,1], [3,2,6,7], [0,3,7,4], [1,5,6,2]];
+    const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+    faces.forEach((face) => {
+        const base = pos.length / 3;
+        face.forEach((i) => pos.push(...corners[i]));
+        uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+        idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx); g.computeVertexNormals(); return g;
+}
+
 const cyl = (r: number, h: number, at: [number, number, number], rot: [number, number, number] = [0, 0, 0], seg = 10) =>
     new THREE.CylinderGeometry(r, r * 1.03, h, seg).applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...at), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(1, 1, 1)));
 
@@ -91,11 +113,17 @@ function curvedSail(width: number, height: number, at: [number, number, number],
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); return g;
 }
 
+function triangularSail(at: [number, number, number]): THREE.BufferGeometry {
+    const p = [at[0], at[1], at[2], at[0], at[1] - 2.35, at[2] + 2.5, at[0], at[1] - 2.15, at[2] + .25];
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute([0,1, 1,0, 0,0], 2)); g.setIndex([0,1,2]); g.computeVertexNormals(); return g;
+}
+
 let cached: Floor7ShipGeometrySet | undefined;
 export function buildFloor7V2Geometries(): Floor7ShipGeometrySet {
     if (cached) return cached;
     const merge = (gs: THREE.BufferGeometry[]) => mergeGeometries(gs, false)!;
-    const upper: THREE.BufferGeometry[] = [box([4.0, .18, 2.35], [0, .56, -5.35]), box([3.35, .16, 1.6], [0, .45, 6.75])];
+    const upper: THREE.BufferGeometry[] = [box([3.85, .18, 2.2], [0, .5, -5.45]), box([3.1, .16, 1.35], [0, .38, 6.85])];
     for (let i = 0; i < 5; i++) { upper.push(box([.72, .12, .34], [-1.35, .12 + i * .105, -3.78 + i * .32])); upper.push(box([.72, .12, .34], [1.35, .12 + i * .105, -3.78 + i * .32])); }
     const rails: THREE.BufferGeometry[] = [];
     for (const side of [-1, 1]) {
@@ -109,12 +137,19 @@ export function buildFloor7V2Geometries(): Floor7ShipGeometrySet {
             previous = top;
         }
     }
-    const trim: THREE.BufferGeometry[] = [box([4.35, .12, .12], [0, 1.0, -6.28]), box([3.0, .12, .12], [0, 1.02, 7.55])];
-    for (const side of [-1, 1]) for (let z = -5.7; z < 6.5; z += 1.55) {
-        if (beamV2(z) < 1.45) continue;
-        trim.push(box([.08, .48, .72], [side * beamV2(z) * .96, floor7V2DeckY(z) - .22, z]));
+    const trim: THREE.BufferGeometry[] = [box([3.75, .11, .14], [0, 1.12, -6.38]), box([2.55, .1, .12], [0, .9, 7.48])];
+    for (const side of [-1, 1]) {
+        for (const drop of [.48, .92]) {
+            let prev: THREE.Vector3 | null = null;
+            for (let z = -6.35; z <= 7.55; z += .72) {
+                const cur = new THREE.Vector3(side * beamV2(z) * .985, floor7V2DeckY(z) - drop, z);
+                if (prev) trim.push(between(prev, cur, .052, 7)); prev = cur;
+            }
+        }
     }
-    const masts = merge([cyl(.17, 7.5, [0, 3.75, -.45], [0, 0, -.025], 12), cyl(.13, 5.5, [0, 2.75, 4.4], [0, 0, .02], 12), cyl(.1, 4.4, [0, 2.2, -5.1], [0, 0, -.04], 10), cyl(.09, 4.8, [0, 6.0, -.45], [Math.PI / 2, 0, 0], 10), cyl(.075, 3.8, [0, 4.4, 4.4], [Math.PI / 2, 0, 0], 10)]);
+    // Plank seams now live in the authored deck texture. Keeping the old raised
+    // bars would create a false square grid and trip the player's feet visually.
+    const masts = merge([cyl(.17, 7.5, [0, 3.75, -.45], [0, 0, -.025], 12), cyl(.13, 5.5, [0, 2.75, 4.4], [0, 0, .02], 12), cyl(.1, 4.1, [0, 2.05, -5.1], [0, 0, -.04], 10), cyl(.08, 4.2, [0, 6.15, -.45], [Math.PI / 2, 0, 0], 10), cyl(.07, 3.25, [0, 4.65, 4.4], [Math.PI / 2, 0, 0], 10), between(new THREE.Vector3(0,.82,7.35), new THREE.Vector3(0,1.65,10.55), .075, 9)]);
     const rig = merge([
         between(new THREE.Vector3(0, 7.4, -.45), new THREE.Vector3(-2.25, 1.0, -6), .018), between(new THREE.Vector3(0, 7.4, -.45), new THREE.Vector3(2.25, 1.0, -6), .018),
         between(new THREE.Vector3(0, 7.3, -.45), new THREE.Vector3(0, 1.0, 7.6), .018), between(new THREE.Vector3(-2.4, 6, -.45), new THREE.Vector3(-2.2, .95, 1.6), .014), between(new THREE.Vector3(2.4, 6, -.45), new THREE.Vector3(2.2, .95, 1.6), .014),
@@ -126,9 +161,9 @@ export function buildFloor7V2Geometries(): Floor7ShipGeometrySet {
     }
     cached = {
         hull: loftHull(), deck: deck(), upperDecks: merge(upper),
-        cabin: merge([box([3.55, 1.45, 1.75], [0, 1.28, -5.25]), box([3.86, .14, 2.02], [0, 2.04, -5.25]), box([.18, 1.3, 1.95], [-1.82, 1.3, -5.25]), box([.18, 1.3, 1.95], [1.82, 1.3, -5.25])]),
+        cabin: merge([taperedBlock(3.5, 2.85, 1.08, 1.55, 1.13, -5.55), taperedBlock(3.72, 3.05, .16, 1.82, 1.76, -5.57), box([3.95,.13,.52],[0,.72,-6.45])]),
         rails: merge(rails), trim: merge(trim), masts,
-        sails: merge([curvedSail(4.55, 2.35, [0, 6.75, -.2]), curvedSail(3.55, 1.9, [0, 4.95, 4.5], true), curvedSail(2.7, 1.45, [0, 4.0, -5.05])]),
+        sails: merge([curvedSail(3.85, 1.85, [0, 6.9, -.2]), curvedSail(3.0, 1.45, [0, 5.15, 4.5], true), curvedSail(2.15, 1.12, [0, 3.75, -5.05]), triangularSail([0,4.75,5.1])]),
         sailWear: merge([box([.035, .025, .035], [-.7, 5.55, -.01]), box([.03, .03, .03], [.85, 4.1, 4.32])]), rigging: rig, iron: merge(iron),
     };
     return cached;

@@ -43,7 +43,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on('pageerror', (e) => console.log('PAGE EXCEPTION:', String(e).slice(0, 200)));
 
-await page.goto(`http://localhost:${PORT}/floor7play.html`, { waitUntil: 'load' });
+await page.goto(`http://127.0.0.1:${PORT}/floor7play.html`, { waitUntil: 'load' });
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 45000 });
 await page.waitForTimeout(3500);        // deixa o mar/céu/capitão assentarem
 
