@@ -56,9 +56,11 @@ import Floor5Race3D from './Floor5Race3D';
 import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
 import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
+import Floor8Room from './Floor8Room';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
 import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient, f7CaptainLaugh, f7CutMusicStart, f7CutBeat, f7CutMusicStop, f7BootClomp, f7ElevatorVanish, f7CaptainVoice } from './floor7Sfx';
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
+import { f8Reset } from './f8Arquivo';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE } from './constants';
 import PhysicsProps, { type CrateSpec } from './PhysicsProps';
 import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from './PhotoMode';
@@ -171,6 +173,8 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 4 && <Floor4Environment />}
       {/* Floor 6 — a Suíte 612: "O Hóspede que Sabia Demais" (escape room) */}
       {level === 6 && <Floor6Suite playerPositionRef={playerPositionRef} profile={profile} />}
+      {/* Andar 8 — a sala de interrogatório do Arquivista (→ platformer de tricô) */}
+      {level === 8 && <Floor8Room playerPositionRef={playerPositionRef} />}
       {/* the old baseplate is the FLOOR 7 TEMPLATE now — Creator Mode only */}
       {/* Andar 7 (navio pirata) is mounted as a Canvas sibling below — it needs
           the Floor7 WASM handle ref that this memoized World doesn't carry. */}
@@ -960,6 +964,13 @@ export default function App() {
     if (currentLevel !== 6) return;
     f6Reset();
   }, [currentLevel]);
+  // ── Andar 8 — estado fresco do interrogatório a cada chegada. (Numa viagem
+  // real de elevador o player desembarca na cabine z=-13 e caminha até a mesa;
+  // o creator jump já posiciona em z=-8.2.)
+  useEffect(() => {
+    if (currentLevel !== 8) return;
+    f8Reset();
+  }, [currentLevel]);
   // Mirrors f6.phase into React so World can swap the live cab for the dead
   // one the moment the panel blows (f6 itself mutates outside React).
   const [f6CabDead, setF6CabDead] = useState(false);
@@ -1295,6 +1306,17 @@ export default function App() {
         setDoorOpenAmount(0);
         setDoorsClosed(false);
         playerPositionCmdRef.current = { x: 0.75 * FLOOR7_SCALE, y: 0, z: 4.3 * FLOOR7_SCALE, theta: Math.PI };
+      } else if (startLevel === 8) {
+        // Andar 8 — a sala de interrogatório do Arquivista. 1ª pessoa, estado
+        // fresco, spawn logo à frente do vão pra caminhar até a mesa.
+        f8Reset();
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        setZoomLevel(0);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -8.2, theta: Math.PI };
       }
     }
     // ─── CREATOR MODE: end jump ───
