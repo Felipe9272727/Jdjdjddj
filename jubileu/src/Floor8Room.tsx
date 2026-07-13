@@ -11,11 +11,11 @@
  * Texturas procedurais reusam colorTex/dataTex/rng do Floor6Textures. Os atos
  * (falas, foto, mergulho) crescem nas fases seguintes, dirigidos por f8Arquivo.
  */
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { colorTex, dataTex, rng } from './Floor6Textures';
-import { f8Tick, f8DrainEvents, F8_CEIL, F8_ARQUIVISTA_POS } from './f8Arquivo';
+import { f8, f8Tick, f8DrainEvents, f8Subscribe, F8_CEIL, F8_ARQUIVISTA_POS } from './f8Arquivo';
 import { Arquivista } from './Floor8Arquivista';
 
 // ── texturas procedurais ─────────────────────────────────────────────────────
@@ -73,6 +73,19 @@ const woodTex = colorTex(128, 256, (ctx) => {
     for (let i = 0; i < 22; i++) { const x = r() * 128; ctx.beginPath(); ctx.moveTo(x, 0); ctx.bezierCurveTo(x + (r() - 0.5) * 12, 85, x + (r() - 0.5) * 12, 170, x, 256); ctx.stroke(); }
 });
 
+const maintenanceTex = colorTex(512, 224, (ctx) => {
+    ctx.fillStyle = '#ded4b7'; ctx.fillRect(0, 0, 512, 224);
+    ctx.fillStyle = '#b92e3e'; ctx.fillRect(0, 0, 512, 30); ctx.fillRect(0, 194, 512, 30);
+    for (let x = -50; x < 560; x += 62) {
+        ctx.save(); ctx.translate(x, 0); ctx.rotate(-.46); ctx.fillStyle = '#251d20'; ctx.fillRect(0, -80, 28, 380); ctx.restore();
+    }
+    ctx.fillStyle = '#e5d9bd'; ctx.fillRect(32, 39, 448, 146);
+    ctx.strokeStyle = '#3b2927'; ctx.lineWidth = 7; ctx.strokeRect(32, 39, 448, 146);
+    ctx.fillStyle = '#291c1d'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '900 54px ui-monospace,monospace'; ctx.fillText('EM CONSERTO', 256, 90);
+    ctx.font = '700 25px ui-monospace,monospace'; ctx.fillStyle = '#8e2735'; ctx.fillText('POÇO ABERTO · NÃO ENTRE', 256, 145);
+});
+
 const M8 = {
     concrete: new THREE.MeshStandardMaterial({ map: concreteTex, bumpMap: concreteBump, bumpScale: 0.04, roughness: 0.96, color: '#746b61' }),
     floor: new THREE.MeshStandardMaterial({ map: concreteTex, bumpMap: concreteBump, bumpScale: 0.05, roughness: 1, color: '#554d46' }),
@@ -85,6 +98,9 @@ const M8 = {
     mirror: new THREE.MeshStandardMaterial({ color: '#10131a', roughness: 0.12, metalness: 0.85 }),
     paper: new THREE.MeshStandardMaterial({ color: '#d9cfb2', roughness: 0.95 }),
     felt: new THREE.MeshStandardMaterial({ color: '#221d16', roughness: 1 }),
+    void: new THREE.MeshBasicMaterial({ color: '#010102' }),
+    warning: new THREE.MeshStandardMaterial({ map: maintenanceTex, roughness: 0.84, color: '#eee1c4' }),
+    hazard: new THREE.MeshStandardMaterial({ color: '#7d1828', emissive: '#8e1029', emissiveIntensity: 1.7, roughness: .5 }),
 };
 
 const W = 8, D = 10, H = F8_CEIL;   // sala x∈[-4,4] z∈[-10,0]
@@ -94,6 +110,29 @@ const B: React.FC<{ a: [number, number, number]; p: [number, number, number]; m:
     ({ a, p, m, r }) => (
         <mesh position={p} rotation={r} material={m}><boxGeometry args={a} /></mesh>
     );
+
+const MaintenanceShaft: React.FC = () => (
+    <group>
+        {/* O elevador foi removido: existe apenas profundidade e estrutura de serviço. */}
+        <B a={[2.58, H, .12]} p={[0, H / 2, -10.14]} m={M8.void} />
+        <B a={[.18, H, .24]} p={[-1.25, H / 2, -10.02]} m={M8.steelDk} />
+        <B a={[.18, H, .24]} p={[1.25, H / 2, -10.02]} m={M8.steelDk} />
+        <B a={[2.62, .18, .24]} p={[0, H - .09, -10.02]} m={M8.steelDk} />
+        <B a={[2.35, .1, .16]} p={[0, .25, -9.98]} m={M8.steel} r={[0, 0, .42]} />
+        <B a={[2.35, .1, .16]} p={[0, .25, -9.97]} m={M8.steel} r={[0, 0, -.42]} />
+        {[-.82, -.42, .43, .83].map((x, i) => (
+            <mesh key={x} position={[x, 1.56, -9.99]} rotation={[0, 0, i % 2 ? .035 : -.025]} material={i === 1 ? M8.hazard : M8.steelDk}>
+                <cylinderGeometry args={[.018, .018, 2.85, 7]} />
+            </mesh>
+        ))}
+        <mesh position={[0, 1.12, -9.87]} material={M8.warning}>
+            <planeGeometry args={[1.48, .65]} />
+        </mesh>
+        <mesh position={[-1.05, 2.56, -9.82]} material={M8.hazard}><sphereGeometry args={[.065, 10, 8]} /></mesh>
+        <mesh position={[1.05, 2.56, -9.82]} material={M8.hazard}><sphereGeometry args={[.065, 10, 8]} /></mesh>
+        <pointLight position={[0, 1.5, -9.55]} distance={4.6} decay={2} color="#e42a45" intensity={5.6} />
+    </group>
+);
 
 /** Um banco de estantes de arquivo encostado numa parede, cheio de caixas de
  *  ficha. Construído virado pra +z local; a rotação/posição encaixa na parede. */
@@ -202,6 +241,8 @@ const Desk: React.FC = () => (
 export const Floor8Room: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> =
     ({ playerPositionRef }) => {
         const lamp = useRef<THREE.PointLight>(null!);
+        const [, setRevision] = useState(0);
+        useEffect(() => f8Subscribe(() => setRevision((v) => v + 1)), []);
 
         useFrame((_, rawDt) => {
             const dt = Math.min(rawDt, 0.05);
@@ -223,6 +264,7 @@ export const Floor8Room: React.FC<{ playerPositionRef: React.MutableRefObject<TH
                 {/* parede sul com o vão do elevador (x∈[-1.3,1.3]) */}
                 <B a={[2.7, H, 0.1]} p={[-2.65, H / 2, -10]} m={M8.concrete} />
                 <B a={[2.7, H, 0.1]} p={[2.65, H / 2, -10]} m={M8.concrete} />
+                {(f8.phase === 'lookBack' || f8.phase === 'shove') && <MaintenanceShaft />}
 
                 {/* O ARQUIVO — estantes de fichas do chão ao teto nas paredes laterais */}
                 <ShelfBank pos={[-3.62, 0, -5]} rotY={Math.PI / 2} length={8.6} seed={11} />

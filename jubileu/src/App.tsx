@@ -61,6 +61,7 @@ import Floor8Overlay from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
 import Floor8Memory from './Floor8Memory';
 import Floor8Cinematics from './Floor8Cinematics';
+import Floor8Finale from './Floor8Finale';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
 import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient, f7CaptainLaugh, f7CutMusicStart, f7CutBeat, f7CutMusicStop, f7BootClomp, f7ElevatorVanish, f7CaptainVoice } from './floor7Sfx';
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
@@ -535,14 +536,13 @@ export default function App() {
     if (elevatorHumStopRef.current) elevatorHumStopRef.current();
     elevatorHumStopRef.current = createElevatorHum(audioCtx);
   }, [audioCtx]);
-  // Floor 8 finale: the recovered name closes the record and the global cab
-  // carries the player home. Unlike Floor 7, the regular cab already exists in
-  // World on this level, so no duplicate interior is mounted here.
+  // Floor 8 finale: after the Archivist throws the player into the missing
+  // shaft, the altered cab carries them directly toward the unknown Floor 9.
   const handleF8Leave = useCallback(() => {
     setDoorsClosed(true);
     setDoorSoundTrigger(prev => prev + 1);
     playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
-    setNextElevatorDestination(0);
+    setNextElevatorDestination(9);
     setElevatorTimer(20);
     setTravelPhase('closing');
     if (elevatorHumStopRef.current) elevatorHumStopRef.current();
@@ -2415,12 +2415,13 @@ export default function App() {
       )}
       {/* Andar 8 — o interrogatório do Arquivista (caixa de diálogo) */}
       {hasStarted && currentLevel === 8 && !doorsClosed && (
-        <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} onLeave={handleF8Leave} />
+        <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} />
       )}
       {/* Andar 8 — DENTRO da imagem: o corredor de 20 portas + a porta 21
           (self-gate por fase; cobre a tela durante corredor20/porta21/platformer) */}
       {hasStarted && currentLevel === 8 && <Floor8Image />}
       {hasStarted && currentLevel === 8 && <Floor8Memory />}
+      {hasStarted && currentLevel === 8 && <Floor8Finale onLeave={handleF8Leave} />}
 
       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}
       {fallGameOver && (

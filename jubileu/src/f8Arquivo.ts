@@ -26,6 +26,11 @@ export type F8Phase =
     | 'porta21'           // achou a 21ª porta — a memória perdida do player
     | 'platformer'        // o platformer 2.5D de tricô (a memória tecida)
     | 'memoriaRecuperada' // venceu; a memória volta
+    | 'awakening'         // acorda na sala: zonzo, mão na cabeça
+    | 'ready'             // "você está pronto"
+    | 'lookBack'          // percebe que o elevador virou um poço em manutenção
+    | 'shove'             // o Arquivista o empurra no poço
+    | 'ride9'             // desperta dentro de um elevador... diferente
     | 'leave';            // embarca de volta no elevador
 
 export interface F8State {
@@ -40,6 +45,10 @@ export interface F8State {
     diveT: number;
     /** três palavras bordadas recuperadas no platformer: EU · AINDA · EXISTO. */
     memoryMask: number;
+    /** oito pontos de costura que transformam o cenário e abrem o caminho. */
+    stitchMask: number;
+    /** capítulo visual atual da memória (0..3). */
+    memoryChapter: number;
     /** quedas dentro da memória; só serve para feedback, nunca pune progresso. */
     memoryDeaths: number;
     /** batida atual da cutscene de recuperação. */
@@ -64,6 +73,8 @@ const FRESH = (): F8State => ({
     t: 0,
     diveT: 0,
     memoryMask: 0,
+    stitchMask: 0,
+    memoryChapter: 0,
     memoryDeaths: 0,
     recoveryLine: 0,
     boarded: false,
@@ -97,8 +108,8 @@ export function f8Reset(): void {
 // ── One-shot events (a cena drena → sfx + animações) ─────────────────────────
 export type F8Event =
     | 'arriveBeat' | 'photoReveal' | 'chosen' | 'handImage' | 'dive'
-    | 'door21' | 'memoryFragment' | 'memoryFall' | 'recoveryBeat'
-    | 'win' | 'boarding';
+    | 'door21' | 'memoryFragment' | 'memoryStitch' | 'memoryFall' | 'recoveryBeat'
+    | 'wake' | 'ready' | 'lookBack' | 'shove' | 'ride9' | 'win' | 'boarding';
 const events: F8Event[] = [];
 function emit(e: F8Event): void { events.push(e); }
 export function f8DrainEvents(): F8Event[] { return events.splice(0, events.length); }
@@ -183,12 +194,34 @@ export function f8EnterDoor21(): void {
     if (f8.phase !== 'porta21') return;
     f8.phase = 'platformer';
     f8.memoryMask = 0;
+    f8.stitchMask = 0;
+    f8.memoryChapter = 0;
     f8.memoryDeaths = 0;
     f8Bump();
 }
 
 // ── A memória tecida: platformer → recuperação → elevador ───────────────────
 export const F8_MEMORY_WORDS = ['EU', 'AINDA', 'EXISTO'] as const;
+export const F8_STITCH_COUNT = 8;
+
+/** Costura um ilhós do cenário. Cada ponto é permanente até o reset do andar. */
+export function f8Stitch(index: number): boolean {
+    if (f8.phase !== 'platformer' || index < 0 || index >= F8_STITCH_COUNT) return false;
+    const bit = 1 << index;
+    if ((f8.stitchMask & bit) !== 0) return false;
+    f8.stitchMask |= bit;
+    emit('memoryStitch');
+    f8Bump();
+    return true;
+}
+
+export function f8SetMemoryChapter(chapter: number): void {
+    if (f8.phase !== 'platformer') return;
+    const next = Math.max(0, Math.min(3, Math.floor(chapter)));
+    if (next === f8.memoryChapter) return;
+    f8.memoryChapter = next;
+    f8Bump();
+}
 
 /** Coleta uma palavra da memória. Retorna true só na primeira coleta. */
 export function f8CollectMemory(index: number): boolean {
@@ -211,7 +244,7 @@ export function f8MemoryFall(): void {
 
 /** O tear no fim só aceita o player depois das três palavras. */
 export function f8WinMemory(): boolean {
-    if (f8.phase !== 'platformer' || f8.memoryMask !== 0b111) return false;
+    if (f8.phase !== 'platformer' || f8.memoryMask !== 0b111 || f8.stitchMask !== 0xff) return false;
     f8.phase = 'memoriaRecuperada';
     f8.recoveryLine = 0;
     emit('win');
@@ -225,22 +258,40 @@ export const F8_RECOVERY_LINES = [
     'EU AINDA EXISTO.',
 ] as const;
 
-/** Avança a cutscene de recuperação; ao fim, devolve o player à sala. */
+/** Avança a recordação; ao fim, o player desperta de volta na sala. */
 export function f8AdvanceRecovery(): void {
     if (f8.phase !== 'memoriaRecuperada') return;
     if (f8.recoveryLine < F8_RECOVERY_LINES.length - 1) {
         f8.recoveryLine++;
         emit('recoveryBeat');
     } else {
-        f8.phase = 'leave';
+        f8.phase = 'awakening';
+        emit('wake');
     }
     f8Bump();
 }
 
+/** Diretor idempotente da cutscene final. */
+export function f8AdvanceFinale(): F8Phase {
+    const next: Partial<Record<F8Phase, F8Phase>> = {
+        awakening: 'ready', ready: 'lookBack', lookBack: 'shove', shove: 'ride9',
+    };
+    const n = next[f8.phase];
+    if (!n) return f8.phase;
+    f8.phase = n;
+    if (n === 'ready') emit('ready');
+    if (n === 'lookBack') emit('lookBack');
+    if (n === 'shove') emit('shove');
+    if (n === 'ride9') emit('ride9');
+    f8Bump();
+    return n;
+}
+
 /** Trava o embarque final para impedir dois callbacks em toque + teclado. */
 export function f8BoardElevator(): boolean {
-    if (f8.phase !== 'leave' || f8.boarded) return false;
+    if (f8.phase !== 'ride9' || f8.boarded) return false;
     f8.boarded = true;
+    f8.phase = 'leave';
     emit('boarding');
     try { if (typeof window !== 'undefined') window.localStorage.setItem('tne_floor8_memory', '1'); } catch { /* storage opcional */ }
     f8Bump();
@@ -275,8 +326,13 @@ export function f8Objective(): string | null {
     if (s.phase === 'porta21') return 'A porta 21. É você. Entre.';
     if (s.phase === 'platformer') {
         const n = Number(Boolean(s.memoryMask & 1)) + Number(Boolean(s.memoryMask & 2)) + Number(Boolean(s.memoryMask & 4));
-        return n < 3 ? `Costure a memória de volta. ${n}/3 fragmentos.` : 'O tear conhece o seu nome. Alcance-o.';
+        const stitches = Array.from({ length: F8_STITCH_COUNT }, (_, i) => Number(Boolean(s.stitchMask & (1 << i)))).reduce((a, b) => a + b, 0);
+        return n < 3 || stitches < F8_STITCH_COUNT
+            ? `Costure o caminho. ${stitches}/${F8_STITCH_COUNT} pontos · ${n}/3 lembranças.`
+            : 'A ficha conhece o seu nome. Alcance o tear.';
     }
-    if (s.phase === 'leave') return 'Sua ficha não está mais em branco.';
+    if (s.phase === 'awakening') return 'Respire. Levante devagar.';
+    if (s.phase === 'lookBack') return 'O elevador... sumiu.';
+    if (s.phase === 'leave') return '9';
     return null;
 }

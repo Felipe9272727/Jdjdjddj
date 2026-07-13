@@ -14,6 +14,7 @@ import Floor8Overlay from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
 import Floor8Memory from './Floor8Memory';
 import Floor8Cinematics from './Floor8Cinematics';
+import Floor8Finale from './Floor8Finale';
 import { f8, f8Reset, f8AdvanceLine, f8Bump, f8EnterImage } from './f8Arquivo';
 import { wallsForState } from './constants';
 import { resolveCollision } from './physics';
@@ -88,9 +89,10 @@ const Dev: React.FC = () => {
                 <Floor8Room playerPositionRef={posRef} />
                 <Floor8Cinematics />
             </Canvas>
-            <Floor8Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} onLeave={() => f8Reset()} />
+            <Floor8Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} />
             <Floor8Image />
             <Floor8Memory />
+            <Floor8Finale onLeave={() => f8Reset()} />
             <div style={{
                 position: 'absolute', bottom: 8, left: 10, color: '#777', zIndex: 50,
                 fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',

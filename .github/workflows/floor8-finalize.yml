@@ -1,0 +1,49 @@
+name: Finalize Floor 8 crochet overhaul
+on:
+  push:
+    branches:
+      - agent/floor8-overhaul
+    paths:
+      - .github/workflows/floor8-finalize.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: floor8-finalize-agent
+  cancel-in-progress: false
+
+jobs:
+  verify-build-and-clean:
+    if: github.ref == 'refs/heads/agent/floor8-overhaul'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/floor8-overhaul
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: jubileu/package-lock.json
+      - name: Install locked dependencies
+        working-directory: jubileu
+        run: npm ci
+      - name: Verify source
+        working-directory: jubileu
+        run: npm run check
+      - name: Build and inline
+        working-directory: jubileu
+        run: |
+          npm run build
+          node inline-build.mjs
+      - name: Commit final single-file and remove workflow
+        run: |
+          git config user.name "floor8-build-bot"
+          git config user.email "floor8-build-bot@users.noreply.github.com"
+          git add index.html
+          git rm .github/workflows/floor8-finalize.yml
+          git commit -m "Build Floor 8 crochet overhaul"
+          git push origin HEAD:agent/floor8-overhaul

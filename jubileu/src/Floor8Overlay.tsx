@@ -4,11 +4,11 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    f8, f8AdvanceLine, f8AdvanceRecovery, f8BoardElevator, f8DiveDone,
+    f8, f8AdvanceLine, f8AdvanceRecovery, f8DiveDone,
     f8EnterImage, f8Lines, f8Objective, f8Subscribe, F8_RECOVERY_LINES,
     type F8Speaker,
 } from './f8Arquivo';
-import { f8BoardCue, f8DiveCue, f8Page, f8RecoveryCue } from './floor8Sfx';
+import { f8DiveCue, f8Page, f8RecoveryCue } from './floor8Sfx';
 
 const mono: React.CSSProperties = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', userSelect: 'none' };
 const SPEAKER: Record<F8Speaker, { name: string; color: string; tag: string }> = {
@@ -41,23 +41,19 @@ const PhotoCard: React.FC<{ compact?: boolean }> = ({ compact = false }) => (
 
 export const Floor8Overlay: React.FC<{
     onUiOpenChange: (open: boolean) => void;
-    onLeave?: () => void;
-}> = ({ onUiOpenChange, onLeave }) => {
+}> = ({ onUiOpenChange }) => {
     const [, setV] = useState(0);
     const [typed, setTyped] = useState(false);
-    const [boarding, setBoarding] = useState(false);
     const fastRef = useRef(false);
-    const leaveTimer = useRef(0);
     useEffect(() => f8Subscribe(() => setV((x) => x + 1)), []);
-    useEffect(() => () => window.clearTimeout(leaveTimer.current), []);
 
     const talking = f8.phase === 'interrogatorio';
     const handing = f8.phase === 'entregaImagem';
     const diving = f8.phase === 'mergulho';
     const recovery = f8.phase === 'memoriaRecuperada';
-    const leaving = f8.phase === 'leave';
+    const finale = ['awakening', 'ready', 'lookBack', 'shove', 'ride9'].includes(f8.phase);
     const inImage = ['corredor20', 'porta21', 'platformer'].includes(f8.phase);
-    const uiOpen = talking || handing || diving || inImage || recovery || leaving;
+    const uiOpen = talking || handing || diving || inImage || recovery || finale;
     useEffect(() => { onUiOpenChange(uiOpen); }, [uiOpen, onUiOpenChange]);
     useEffect(() => () => onUiOpenChange(false), [onUiOpenChange]);
 
@@ -69,11 +65,6 @@ export const Floor8Overlay: React.FC<{
     }, [typed]);
     const advanceRecovery = useCallback(() => { f8RecoveryCue(f8.recoveryLine + 1); f8AdvanceRecovery(); }, []);
     const enterImage = useCallback(() => { f8DiveCue(); f8EnterImage(); }, []);
-    const board = useCallback(() => {
-        if (!f8BoardElevator()) return;
-        f8BoardCue(); setBoarding(true);
-        leaveTimer.current = window.setTimeout(() => onLeave?.(), 1050);
-    }, [onLeave]);
 
     useEffect(() => {
         const kd = (e: KeyboardEvent) => {
@@ -81,17 +72,16 @@ export const Floor8Overlay: React.FC<{
             if (talking && ['e', ' ', 'enter'].includes(k)) { e.preventDefault(); advanceDialogue(); }
             else if (handing && ['e', 'enter'].includes(k)) { e.preventDefault(); enterImage(); }
             else if (recovery && ['e', ' ', 'enter'].includes(k)) { e.preventDefault(); advanceRecovery(); }
-            else if (leaving && ['e', 'enter'].includes(k)) { e.preventDefault(); board(); }
         };
         window.addEventListener('keydown', kd); return () => window.removeEventListener('keydown', kd);
-    }, [talking, handing, recovery, leaving, advanceDialogue, advanceRecovery, enterImage, board]);
+    }, [talking, handing, recovery, advanceDialogue, advanceRecovery, enterImage]);
 
     const objective = f8Objective();
     const recoveryLine = F8_RECOVERY_LINES[Math.min(f8.recoveryLine, F8_RECOVERY_LINES.length - 1)];
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 58, pointerEvents: 'none' }}>
-            {objective && !talking && !inImage && !recovery && !leaving && <div style={{ ...mono, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 54px)', left: 18, right: 18, textAlign: 'center', fontSize: 12, letterSpacing: 1.5, color: '#ddd2ba', textShadow: '0 2px 8px #000' }}>{objective}</div>}
+            {objective && !talking && !inImage && !recovery && !finale && <div style={{ ...mono, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 54px)', left: 18, right: 18, textAlign: 'center', fontSize: 12, letterSpacing: 1.5, color: '#ddd2ba', textShadow: '0 2px 8px #000' }}>{objective}</div>}
 
             {talking && cur && <div onPointerDown={advanceDialogue} style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: 'linear-gradient(to bottom,rgba(0,0,0,.1) 0%,transparent 40%,rgba(0,0,0,.82) 100%)' }}>
                 <div className="f8-letterbox f8-top" />
@@ -129,16 +119,6 @@ export const Floor8Overlay: React.FC<{
                 </div>
             </div>}
 
-            {leaving && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: boarding ? '#000' : 'linear-gradient(to bottom,rgba(0,0,0,.05),rgba(0,0,0,.86))', transition: 'background 1s ease' }}>
-                {!boarding && <div style={{ width: 'min(92vw,680px)', margin: '0 auto calc(env(safe-area-inset-bottom) + 26px)', padding: 'clamp(18px,4vw,30px)', boxSizing: 'border-box', border: '1px solid #685438', borderRadius: 5, background: 'rgba(10,9,9,.96)', boxShadow: '0 18px 80px #000' }}>
-                    <div style={{ ...mono, color: '#e2bd74', fontSize: 11, letterSpacing: 3, marginBottom: 14 }}>O ARQUIVISTA · REGISTRO FINAL</div>
-                    <div style={{ ...mono, color: '#eee4d5', fontSize: 'clamp(15px,3vw,19px)', lineHeight: 1.55 }}>“Pronto. Sua ficha deixou de estar em branco. O hotel pode apagar papel — não o que você costurou por dentro.”</div>
-                    <div style={{ marginTop: 18, padding: '13px 15px', borderLeft: '3px solid #c94e66', background: '#171217', ...mono, color: '#e8d6c8', fontSize: 12, letterSpacing: 1.5 }}>STATUS: <strong style={{ color: '#ef788e' }}>LEMBRADO</strong></div>
-                    <button onPointerDown={board} style={{ ...mono, width: '100%', marginTop: 18, padding: '14px 18px', border: '1px solid #d6b473', borderRadius: 3, background: 'linear-gradient(#6e4b23,#3f2b17)', color: '#fff0d5', letterSpacing: 2, cursor: 'pointer' }}>VOLTAR AO ELEVADOR [E]</button>
-                </div>}
-                {boarding && <div style={{ ...mono, position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#8e7d67', letterSpacing: 5, fontSize: 11, animation: 'f8-board 1s ease both' }}>ARQUIVANDO ANDAR 08</div>}
-            </div>}
-
             <style>{`
                 .f8-letterbox{position:absolute;left:0;right:0;height:5.2vh;background:#030303;pointer-events:none}.f8-top{top:0}.f8-bottom{bottom:0}
                 @keyframes f8-photo-in{from{opacity:0;transform:translateY(28px) scale(.88) rotate(2deg)}to{opacity:1;transform:none}}
@@ -149,7 +129,6 @@ export const Floor8Overlay: React.FC<{
                 .f8-thread-ring{position:absolute;width:min(78vw,610px);aspect-ratio:1;border:2px dashed rgba(210,72,98,.42);border-radius:50%;box-shadow:0 0 80px rgba(191,54,81,.22),inset 0 0 80px rgba(191,54,81,.14);animation:f8-ring 12s linear infinite}
                 @keyframes f8-ring{to{transform:rotate(360deg)}}
                 @keyframes f8-recover-line{from{opacity:0;transform:translateY(18px) scale(.97);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
-                @keyframes f8-board{from{opacity:0;letter-spacing:9px}to{opacity:1;letter-spacing:5px}}
                 @media(max-width:520px){.f8-letterbox{height:3.2vh}}
             `}</style>
         </div>

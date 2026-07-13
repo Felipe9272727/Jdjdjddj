@@ -61,3 +61,15 @@ export function f8FallCue(): void { tone(170, 0.55, 0.06, 'triangle', 48); }
 export function f8WinCue(): void { [0, 3, 7, 12].forEach((n, i) => setTimeout(() => tone(220 * Math.pow(2, n / 12), 1.1, 0.055, 'sine'), i * 150)); }
 export function f8RecoveryCue(line: number): void { tone(196 * Math.pow(2, line * 3 / 12), 0.65, 0.035, 'triangle'); }
 export function f8BoardCue(): void { tone(660, 0.25, 0.045, 'sine', 440); setTimeout(() => tone(330, 0.65, 0.055, 'sine', 165), 180); }
+export function f8StitchCue(index: number): void {
+    hiss(.11, .025, 2100);
+    tone(510 + index * 28, .18, .035, 'triangle', 720 + index * 32);
+    setTimeout(() => tone(180 + index * 9, .24, .025, 'sine', 120), 80);
+}
+export function f8WakeCue(): void { hiss(1.2, .045, 260); tone(58, 1.4, .065, 'sine', 38); }
+export function f8ReadyCue(): void { tone(92, 1.4, .055, 'triangle', 64); setTimeout(() => tone(370, .4, .025, 'sine', 280), 420); }
+export function f8LookBackCue(): void { hiss(1, .07, 720); tone(46, 1.8, .08, 'sawtooth', 25); }
+export function f8ShoveCue(): void { hiss(.45, .16, 180); tone(96, .55, .15, 'square', 28); }
+export function f8Ride9Cue(): void {
+    [74, 111, 166, 249].forEach((freq, i) => setTimeout(() => tone(freq, 1.8, .028, i === 3 ? 'triangle' : 'sine', freq * .82), i * 210));
+}
