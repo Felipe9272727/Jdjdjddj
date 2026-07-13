@@ -1,0 +1,86 @@
+diff --git a/jubileu/src/App.tsx b/jubileu/src/App.tsx
+index ff98220bd833d78aae95437bf2277aca47fe75d7..56e7bff35eb23d5fcefc82fdd3e35c64a2ab0e3f 100755
+--- a/jubileu/src/App.tsx
++++ b/jubileu/src/App.tsx
+@@ -59,10 +59,13 @@ import Floor6Overlay from './Floor6Overlay';
+ import Floor8Room from './Floor8Room';
+ import Floor8Overlay from './Floor8Overlay';
+ import Floor8Image from './Floor8Image';
++import Floor8Memory from './Floor8Memory';
++import Floor8Cinematics from './Floor8Cinematics';
+ import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
+ import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient, f7CaptainLaugh, f7CutMusicStart, f7CutBeat, f7CutMusicStop, f7BootClomp, f7ElevatorVanish, f7CaptainVoice } from './floor7Sfx';
+ import { f6, f6Reset, f6Subscribe } from './f6Escape';
+ import { f8Reset } from './f8Arquivo';
++import { configureFloor8Sfx, clearFloor8Sfx, startFloor8Ambient } from './floor8Sfx';
+ import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE } from './constants';
+ import PhysicsProps, { type CrateSpec } from './PhysicsProps';
+ import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from './PhotoMode';
+@@ -532,6 +535,19 @@ export default function App() {
+     if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+     elevatorHumStopRef.current = createElevatorHum(audioCtx);
+   }, [audioCtx]);
++  // Floor 8 finale: the recovered name closes the record and the global cab
++  // carries the player home. Unlike Floor 7, the regular cab already exists in
++  // World on this level, so no duplicate interior is mounted here.
++  const handleF8Leave = useCallback(() => {
++    setDoorsClosed(true);
++    setDoorSoundTrigger(prev => prev + 1);
++    playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
++    setNextElevatorDestination(0);
++    setElevatorTimer(20);
++    setTravelPhase('closing');
++    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
++    elevatorHumStopRef.current = createElevatorHum(audioCtx);
++  }, [audioCtx]);
+   useEffect(() => { if (currentLevel !== 7) setF7Boarded(false); }, [currentLevel]);
+   // CUTSCENE SCORE: start the building music bed while the intro runs, fade it on end.
+   useEffect(() => {
+@@ -958,7 +974,7 @@ export default function App() {
+   useFloor4Audio(currentLevel === 4, audioCtx, cartoonBusRef);
+   // Floors 4/5 are overlays: lock the 3D camera to first person beneath them —
+   // both transitions begin in FP (Floor 5 then pulls out to its own 3rd person).
+-  useEffect(() => { if (currentLevel === 4 || currentLevel === 5 || currentLevel === 6) setZoomLevel(0); }, [currentLevel]);
++  useEffect(() => { if (currentLevel === 4 || currentLevel === 5 || currentLevel === 6 || currentLevel === 8) setZoomLevel(0); }, [currentLevel]);
+   // ── Floor 5 audio: point the race SFX at the master bus while up there.
+   useEffect(() => {
+     if (currentLevel !== 5 || !audioCtx) return;
+@@ -999,6 +1015,13 @@ export default function App() {
+     return () => { stopFloor7Ambient(); clearFloor7Sfx(); };
+   }, [currentLevel, audioCtx, muted]);
+ 
++  useEffect(() => {
++    if (currentLevel !== 8 || !audioCtx) return;
++    configureFloor8Sfx(audioCtx, cartoonBusRef.current);
++    if (!muted) startFloor8Ambient();
++    return () => clearFloor8Sfx();
++  }, [currentLevel, audioCtx, muted]);
++
+   useEffect(() => {
+       if (gameState !== 'chase') return;
+       setNightMode(true);
+@@ -1741,7 +1764,9 @@ export default function App() {
+             {visibleRemotePlayerIds.map(id => (
+                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
+             ))}
+-            <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
++            <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
++            {/* Mounted after Player so the interrogation camera wins the frame. */}
++            {currentLevel === 8 && <Floor8Cinematics />}
+             {/* Andar 7 captain-arrival cutscene — mounted AFTER <Player> so its
+                 priority-0 useFrame overwrites the player camera while it runs. */}
+             {currentLevel === 7 && f7Intro && (
+@@ -2390,11 +2415,12 @@ export default function App() {
+       )}
+       {/* Andar 8 — o interrogatório do Arquivista (caixa de diálogo) */}
+       {hasStarted && currentLevel === 8 && !doorsClosed && (
+-        <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} />
++        <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} onLeave={handleF8Leave} />
+       )}
+       {/* Andar 8 — DENTRO da imagem: o corredor de 20 portas + a porta 21
+           (self-gate por fase; cobre a tela durante corredor20/porta21/platformer) */}
+       {hasStarted && currentLevel === 8 && <Floor8Image />}
++      {hasStarted && currentLevel === 8 && <Floor8Memory />}
+ 
+       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}
+       {fallGameOver && (

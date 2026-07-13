@@ -1,0 +1,123 @@
+diff --git a/jubileu/src/f8Arquivo.ts b/jubileu/src/f8Arquivo.ts
+index 45775ba0b90befff6d34c28ba87f2afb40e44643..2972407f29ccdd7e98fda18dced184e2dbe78c84 100644
+--- a/jubileu/src/f8Arquivo.ts
++++ b/jubileu/src/f8Arquivo.ts
+@@ -38,6 +38,14 @@ export interface F8State {
+     t: number;
+     /** segundos dentro da cutscene de mergulho na imagem (0..~2.4). */
+     diveT: number;
++    /** três palavras bordadas recuperadas no platformer: EU · AINDA · EXISTO. */
++    memoryMask: number;
++    /** quedas dentro da memória; só serve para feedback, nunca pune progresso. */
++    memoryDeaths: number;
++    /** batida atual da cutscene de recuperação. */
++    recoveryLine: number;
++    /** trava idempotente do embarque final. */
++    boarded: boolean;
+     version: number;
+ }
+ 
+@@ -55,6 +63,10 @@ const FRESH = (): F8State => ({
+     line: 0,
+     t: 0,
+     diveT: 0,
++    memoryMask: 0,
++    memoryDeaths: 0,
++    recoveryLine: 0,
++    boarded: false,
+     version: 0,
+ });
+ 
+@@ -85,7 +97,8 @@ export function f8Reset(): void {
+ // ── One-shot events (a cena drena → sfx + animações) ─────────────────────────
+ export type F8Event =
+     | 'arriveBeat' | 'photoReveal' | 'chosen' | 'handImage' | 'dive'
+-    | 'door21' | 'win' | 'boarding';
++    | 'door21' | 'memoryFragment' | 'memoryFall' | 'recoveryBeat'
++    | 'win' | 'boarding';
+ const events: F8Event[] = [];
+ function emit(e: F8Event): void { events.push(e); }
+ export function f8DrainEvents(): F8Event[] { return events.splice(0, events.length); }
+@@ -168,7 +181,70 @@ export function f8ReachDoor21(): void {
+ /** O player entra na porta 21 → o platformer de tricô (M4). */
+ export function f8EnterDoor21(): void {
+     if (f8.phase !== 'porta21') return;
+-    f8.phase = 'platformer'; f8Bump();
++    f8.phase = 'platformer';
++    f8.memoryMask = 0;
++    f8.memoryDeaths = 0;
++    f8Bump();
++}
++
++// ── A memória tecida: platformer → recuperação → elevador ───────────────────
++export const F8_MEMORY_WORDS = ['EU', 'AINDA', 'EXISTO'] as const;
++
++/** Coleta uma palavra da memória. Retorna true só na primeira coleta. */
++export function f8CollectMemory(index: number): boolean {
++    if (f8.phase !== 'platformer' || index < 0 || index >= F8_MEMORY_WORDS.length) return false;
++    const bit = 1 << index;
++    if ((f8.memoryMask & bit) !== 0) return false;
++    f8.memoryMask |= bit;
++    emit('memoryFragment');
++    f8Bump();
++    return true;
++}
++
++/** Queda não remove palavras já coletadas: falhar nunca obriga a repetir lore. */
++export function f8MemoryFall(): void {
++    if (f8.phase !== 'platformer') return;
++    f8.memoryDeaths++;
++    emit('memoryFall');
++    f8Bump();
++}
++
++/** O tear no fim só aceita o player depois das três palavras. */
++export function f8WinMemory(): boolean {
++    if (f8.phase !== 'platformer' || f8.memoryMask !== 0b111) return false;
++    f8.phase = 'memoriaRecuperada';
++    f8.recoveryLine = 0;
++    emit('win');
++    f8Bump();
++    return true;
++}
++
++export const F8_RECOVERY_LINES = [
++    'Você lembra da chuva antes do hotel — e de uma mão que não soltou a sua.',
++    'O Proprietário apagou o nome na ficha. Não conseguiu arrancar o fio por baixo.',
++    'EU AINDA EXISTO.',
++] as const;
++
++/** Avança a cutscene de recuperação; ao fim, devolve o player à sala. */
++export function f8AdvanceRecovery(): void {
++    if (f8.phase !== 'memoriaRecuperada') return;
++    if (f8.recoveryLine < F8_RECOVERY_LINES.length - 1) {
++        f8.recoveryLine++;
++        emit('recoveryBeat');
++    } else {
++        f8.phase = 'leave';
++    }
++    f8Bump();
++}
++
++/** Trava o embarque final para impedir dois callbacks em toque + teclado. */
++export function f8BoardElevator(): boolean {
++    if (f8.phase !== 'leave' || f8.boarded) return false;
++    f8.boarded = true;
++    emit('boarding');
++    try { if (typeof window !== 'undefined') window.localStorage.setItem('tne_floor8_memory', '1'); } catch { /* storage opcional */ }
++    f8Bump();
++    return true;
+ }
+ 
+ // ── Director por frame: chegada → interrogatório por aproximação ─────────────
+@@ -197,5 +273,10 @@ export function f8Objective(): string | null {
+     if (s.phase === 'entregaImagem') return 'A imagem, na mesa. Aproxime-se dela.';
+     if (s.phase === 'corredor20') return 'Vinte portas. Ache a que não pertence a nenhum andar.';
+     if (s.phase === 'porta21') return 'A porta 21. É você. Entre.';
++    if (s.phase === 'platformer') {
++        const n = Number(Boolean(s.memoryMask & 1)) + Number(Boolean(s.memoryMask & 2)) + Number(Boolean(s.memoryMask & 4));
++        return n < 3 ? `Costure a memória de volta. ${n}/3 fragmentos.` : 'O tear conhece o seu nome. Alcance-o.';
++    }
++    if (s.phase === 'leave') return 'Sua ficha não está mais em branco.';
+     return null;
+ }
