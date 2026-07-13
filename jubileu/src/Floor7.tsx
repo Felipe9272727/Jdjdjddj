@@ -26,7 +26,8 @@ useGLTF.preload(PIRATE_GLB_URL);
 import { Floor7WaterV2 } from './floor7v2/Floor7WaterV2';
 import { Floor7ShipV2 } from './floor7v2/Floor7ShipV2';
 import { Floor7ViewModelV2 } from './floor7v2/Floor7ViewModelV2';
-import { Floor7PhaseCinematics } from './Floor7PhaseCinematics';
+import { Floor7HelmV2 } from './floor7v2/Floor7HelmV2';
+import { floor7HelmProgress, resolveFloor7CaptainRenderPose } from './floor7v2/helm';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow, makePuddleRipple, makeCrewManifest } from './floor7Textures';
 
 const _puddleRipple = makePuddleRipple();
@@ -1236,6 +1237,8 @@ const PirateCaptain: React.FC<{
     const outer = useRef<THREE.Group>(null);
     const rigRef = useRef<PirateRig | null>(null);
     const _w = useRef(new THREE.Vector3());
+    const _helmPos = useRef(new THREE.Vector3());
+    const _helmTangent = useRef(new THREE.Vector3());
     const _hd = useRef(0); // smoothed head yaw
     const _rollLag = useRef(0); // lagged deck-roll for torso follow-through
 
@@ -1247,6 +1250,10 @@ const PirateCaptain: React.FC<{
         if (!b || !g || !r) return;
         const t = state.clock.elapsedTime;
         const c = b.captain();
+        const floorState = b.state();
+        const helmProgress = floorState === F7_STATE.DONE ? floor7HelmProgress(c.z) : (floorState === F7_STATE.SAIL ? 1 : 0);
+        const helmBlend = floorState === F7_STATE.SAIL ? 1 : THREE.MathUtils.smoothstep(helmProgress, 0.72, 0.98);
+        const resolvedYaw = resolveFloor7CaptainRenderPose(floorState, c, _helmPos.current, _helmTangent.current);
         const walking = b.capWalking();
         const roll = b.roll(), pitch = b.pitch();
         const ph = t * 7.0;
@@ -1270,18 +1277,18 @@ const PirateCaptain: React.FC<{
         // The elevFade gate only applies while the cab is still DEmaterialising in the
         // intro (ST_INTRO) — on ST_FREE the fade rises AGAIN as the cab returns, and the
         // captain must stay on deck to wave you off.
-        g.visible = (b.state() !== F7_STATE.INTRO || b.elevFade() < 0.85) && (legsRef?.current ?? 0) < 0.5;
+        g.visible = (floorState !== F7_STATE.INTRO || b.elevFade() < 0.85) && (legsRef?.current ?? 0) < 0.5;
         if (!g.visible) return;
         // The group carries ONLY horizontal position + facing (+ a brief walk lurch).
         // The idle bob + breath live on the BODY bone (with the legs counter-translated
         // below) so they bob the chest without ever lifting the boots off the deck; the
         // weight-shift is a hip lean, not a whole-body tilt (which used to rock the feet).
-        g.position.set(c.x, -lurch, c.z);
+        g.position.set(_helmPos.current.x, _helmPos.current.y - lurch, _helmPos.current.z);
         // NEGATE capFace: the brain's f7_atan2 yields a facing mirrored in X, so the
         // captain turned to the player's reflection (~33° off) instead of AT the player
         // — which read as a back-left view in the dialogue cam. Negating aims him dead
         // at the player; capFace is 0 during the walk so the entry stride is unaffected.
-        g.rotation.y = -c.face + PIRATE_FACE_OFFSET;
+        g.rotation.y = resolvedYaw;
         g.rotation.z = waddle;   // clumsy waddle while striding in
 
         const bn = r.bones;
@@ -1350,6 +1357,22 @@ const PirateCaptain: React.FC<{
             // drifting toward the sash) so the silhouette isn't a clean mirror.
             bn[PB.l_arm].rotation.set(0.10 + Math.sin(t * 1.5) * 0.16, 0, 0.14 + _rollLag.current * 0.18 + breath * 0.4);
             bn[PB.r_arm].rotation.set(0.06 + Math.sin(t * 1.27 + 1.1) * 0.14, 0.05, -0.18 + _rollLag.current * 0.18 - breath * 0.4);
+        }
+        // HELM POSE — once his boots reach the quarterdeck, both hands settle on
+        // the wheel and the torso braces into the swell. This is blended late in
+        // the walk so he can still swing his arms naturally while climbing.
+        if (helmBlend > 0.001) {
+            // The model faces local +X, so rotating both hanging arms around +Z
+            // swings them forward toward the wheel. Procedural cuffs at the helm
+            // complete the short reach that this rig-less GLB cannot articulate.
+            bn[PB.l_arm].rotation.x = THREE.MathUtils.lerp(bn[PB.l_arm].rotation.x, -0.08, helmBlend);
+            bn[PB.r_arm].rotation.x = THREE.MathUtils.lerp(bn[PB.r_arm].rotation.x, 0.08, helmBlend);
+            bn[PB.l_arm].rotation.y = THREE.MathUtils.lerp(bn[PB.l_arm].rotation.y, 0, helmBlend);
+            bn[PB.r_arm].rotation.y = THREE.MathUtils.lerp(bn[PB.r_arm].rotation.y, 0, helmBlend);
+            bn[PB.l_arm].rotation.z = THREE.MathUtils.lerp(bn[PB.l_arm].rotation.z, 1.18, helmBlend);
+            bn[PB.r_arm].rotation.z = THREE.MathUtils.lerp(bn[PB.r_arm].rotation.z, 1.18, helmBlend);
+            bn[PB.body].rotation.x = THREE.MathUtils.lerp(bn[PB.body].rotation.x, 0.12 - pitch * 0.18, helmBlend);
+            bn[PB.head].rotation.x = THREE.MathUtils.lerp(bn[PB.head].rotation.x, 0.18, helmBlend);
         }
         // POWER STANCE (intro REVEAL): hands drop to the hips (akimbo), chest out, chin up —
         // a confident "behold the captain" posture blended over the idle as he's revealed.
@@ -1429,6 +1452,10 @@ const PirateCaptain: React.FC<{
 interface Floor7Props {
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     handleRef: React.MutableRefObject<Floor7Handle>;
+    /** Shared with the finale camera, which is mounted after Player in App. */
+    shipRef?: React.MutableRefObject<THREE.Group | null>;
+    /** Hides camera-mounted hands while a Floor 7 payoff shot owns the camera. */
+    phaseActiveRef?: React.MutableRefObject<boolean>;
     captainAnchorRef?: React.MutableRefObject<THREE.Vector3>;   // captain feet world pos (dialogue cam)
     // intro cutscene override for the elevator dematerialisation: when non-null the
     // cab fade is driven by the cutscene (so it vanishes on the LOOK_BACK beat)
@@ -1449,8 +1476,10 @@ interface Floor7Props {
     introLegsRef?: React.MutableRefObject<number>;
 }
 
-export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, handleRef, captainAnchorRef, introElevFadeRef, introLaughRef, introPoseRef, introTalkRef, introHideSailsRef, introLegsRef }) => {
-    const shipRef = useRef<THREE.Group>(null);
+export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, handleRef, shipRef: externalShipRef, phaseActiveRef, captainAnchorRef, introElevFadeRef, introLaughRef, introPoseRef, introTalkRef, introHideSailsRef, introLegsRef }) => {
+    const localShipRef = useRef<THREE.Group>(null);
+    const shipRef = externalShipRef ?? localShipRef;
+    const helmWheelRef = useRef<THREE.Group>(null);
     const captainRef = useRef<THREE.Group>(null);
     const capRig: CaptainRig = {
         legL: useRef<THREE.Group>(null), legR: useRef<THREE.Group>(null),
@@ -1599,12 +1628,16 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
         ship.position.y = b.heave();
         ship.rotation.x = b.pitch();
         ship.rotation.z = b.roll();
+        if (helmWheelRef.current) {
+            const steering = b.state() === F7_STATE.SAIL ? Math.sin(t * 0.72) * 0.24 - b.roll() * 0.45 : 0;
+            helmWheelRef.current.rotation.z += (steering - helmWheelRef.current.rotation.z) * Math.min(1, dt * 3.5);
+        }
 
         // read the bucket snapshot ONCE per frame (b.bucket() allocates a fresh
         // object on every call; it was being called 3x — bucket rig, left hand,
         // audio clunk — for the same live WASM state). One read, reuse below.
         const bucketState = b.bucket();
-        vmHeldRef.current = bucketState.held && b.elevFade() < 0.85;
+        vmHeldRef.current = bucketState.held && b.elevFade() < 0.85 && !(phaseActiveRef?.current ?? false);
         vmCleaningRef.current = b.state() === F7_STATE.CLEAN && handleRef.current.interact;
         vmFillRef.current = bucketState.water;
 
@@ -1720,7 +1753,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                 if (capRig.feather.current) { capRig.feather.current.rotation.x = cl.featX; capRig.feather.current.rotation.z = cl.featZ; }
                 // fingers: relaxed normally, curl tight to grip the wheel at the helm;
                 // the distal knuckle curls further and lags the proximal one
-                const gripTo = b.state() === F7_STATE.DONE ? 1.15 : 0.35;
+                const gripTo = (b.state() >= F7_STATE.DONE && b.state() <= F7_STATE.SAIL) ? 1.15 : 0.35;
                 cl.grip += (gripTo - cl.grip) * Math.min(1, dt * 4);
                 cl.grip2 += (cl.grip - cl.grip2) * Math.min(1, dt * 3);   // distal lags the proximal
                 if (capRig.gripR.current) capRig.gripR.current.rotation.x = cl.grip;
@@ -1843,7 +1876,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             // the scrub-brush hand only exists once you actually HOLD the bucket
             // (it was on-screen from the intro on — a giant unexplained prop) and
             // goes away for the boarding beat (elevFade rises again on ST_FREE).
-            handsRef.current.visible = bucketState.held && b.elevFade() < 0.85;
+            handsRef.current.visible = bucketState.held && b.elevFade() < 0.85 && !(phaseActiveRef?.current ?? false);
             if (brushRef.current) {
                 const scrubbing = b.state() === F7_STATE.CLEAN && handleRef.current.interact;
                 // player velocity in CAMERA-local XZ (so the stroke sweeps where
@@ -1882,7 +1915,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             leftHandRef.current.position.copy(cam.position);
             leftHandRef.current.quaternion.copy(cam.quaternion);
             leftHandRef.current.translateX(-0.26); leftHandRef.current.translateY(-0.34 + Math.sin(t * 1.5) * 0.01); leftHandRef.current.translateZ(-0.4);
-            leftHandRef.current.visible = bucketState.held && b.elevFade() < 0.85;
+            leftHandRef.current.visible = bucketState.held && b.elevFade() < 0.85 && !(phaseActiveRef?.current ?? false);
         }
 
         // payoff: land rises on the horizon once the deck is clean — and then
@@ -2015,6 +2048,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             {/* the ship (sways) */}
             <group ref={shipRef} scale={FLOOR7_SCALE}>
                 <Floor7ShipV2 />
+                <Floor7HelmV2 ref={helmWheelRef} />
                 {/* the elevator the player rode in on — dematerialises */}
                 {/* the hotel elevator the player rode in on — a discrete box with CLOSED
                     brushed-steel sliding doors (centre seam), a gold frame and a lit "7"
@@ -2092,12 +2126,6 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     <pointsMaterial size={0.07} color="#eef7f8" transparent opacity={0.92} depthWrite={false} sizeAttenuation />
                 </points>
             </group>
-
-            <Floor7PhaseCinematics
-                brainRef={brainRef}
-                shipRef={shipRef}
-                disabled={(introElevFadeRef?.current ?? 1) > 0.01 && (introPoseRef?.current ?? 0) > 0.01}
-            />
 
             {/* "terra à vista" — land rises on the horizon when the deck is clean */}
             <group ref={islandRef} visible={false} position={[14, -0.6, 90]}>

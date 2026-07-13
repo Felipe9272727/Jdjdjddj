@@ -12,6 +12,7 @@
  */
 import { chromium } from 'playwright';
 import { existsSync, mkdirSync } from 'fs';
+import { createServer } from 'vite';
 
 const arg = (name, dflt) => {
     const i = process.argv.indexOf(`--${name}`);
@@ -21,6 +22,11 @@ const OUT = arg('out', '/tmp/f7shots');
 const LABEL = arg('label', 'atual');
 const PORT = arg('port', '5173');
 mkdirSync(OUT, { recursive: true });
+const server = await createServer({
+    server: { host: '127.0.0.1', port: Number(PORT), strictPort: true },
+    logLevel: 'error',
+});
+await server.listen();
 
 // Câmeras em COORDENADAS DE MUNDO (ship-local × 1.85). Proa = +z, popa = −z.
 // [nome, pos(x,y,z), target(x,y,z)]
@@ -56,4 +62,5 @@ for (const [name, p, t] of PRESETS) {
 }
 await page.evaluate(() => window.__camOff());
 await browser.close();
+await server.close();
 console.log(`OK — 6 postais "${LABEL}" em ${OUT}`);

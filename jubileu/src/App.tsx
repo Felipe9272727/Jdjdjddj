@@ -3,7 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
 import { EffectComposer, Bloom, ChromaticAberration, Vignette, N8AO, HueSaturation, Sepia, BrightnessContrast } from '@react-three/postprocessing';
 import { KernelSize, BlendFunction } from 'postprocessing';
-import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Object3D } from 'three';
+import { Vector3, ACESFilmicToneMapping, SRGBColorSpace, type Group, type Object3D } from 'three';
 
 // ─── Error Boundary for Canvas ─────────────────────────────────────────────
 class CanvasErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
@@ -51,6 +51,7 @@ import { f4Demo } from './floor4Sfx';
 import { f4 } from './f4Lore';
 import { Floor7Environment, Floor7Overlay, useFloor7Handle } from './Floor7';
 import Floor7IntroCutscene, { F7_DIALOGUE } from './Floor7IntroCutscene';
+import Floor7PhaseCinematics from './Floor7PhaseCinematics';
 import Floor7IntroUI from './Floor7IntroUI';
 import Floor5Race3D from './Floor5Race3D';
 import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
@@ -464,6 +465,8 @@ export default function App() {
   const [cutsceneLine, setCutsceneLine] = useState(0);             // active Diabrete script line
   const cutsceneTargetRef = useRef(new Vector3(0.9, 0, -9.2));     // camera look-at (devil's feet) during the cutscene
   const captainAnchorRef = useRef(new Vector3(0, 0, 0));           // Floor7 captain feet (dialogue-camera look-at)
+  const f7ShipRef = useRef<Group | null>(null);                    // shared ship transform for post-Player finale cameras
+  const f7PhaseActiveRef = useRef(false);                          // suppresses FP hands while a payoff shot owns the camera
   const f7ElevFadeRef = useRef<number | null>(null);              // intro cutscene drives the elevator dematerialisation (null = brain)
   const f7LaughRef = useRef(0);
   const f7PoseRef = useRef(0);
@@ -1695,7 +1698,7 @@ export default function App() {
               }} />
             {/* Andar 7 — the pirate ship, 100% driven by the WASM (C + assembly)
                 brain. Mounted here (not in World) so it gets the Floor7 handle. */}
-            {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} captainAnchorRef={captainAnchorRef} introElevFadeRef={f7ElevFadeRef} introLaughRef={f7LaughRef} introPoseRef={f7PoseRef} introTalkRef={f7TalkRef} introHideSailsRef={f7HideSailsRef} introLegsRef={f7LegsRef} />}
+            {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} shipRef={f7ShipRef} phaseActiveRef={f7PhaseActiveRef} captainAnchorRef={captainAnchorRef} introElevFadeRef={f7ElevFadeRef} introLaughRef={f7LaughRef} introPoseRef={f7PoseRef} introTalkRef={f7TalkRef} introHideSailsRef={f7HideSailsRef} introLegsRef={f7LegsRef} />}
             {/* Andar 7 finale: once the player boards the returned cab, mount the
                 global elevator interior around them for the ride home (the World
                 memo suppresses it on level 7 for the "elevator is gone" gag). */}
@@ -1708,6 +1711,16 @@ export default function App() {
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
             <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
+            {/* Mounted after Player: its priority-0 camera write wins during the
+                captain-to-wheel, anchor and elevator-return payoff shots. */}
+            {currentLevel === 7 && (
+                <Floor7PhaseCinematics
+                    handleRef={floor7Handle}
+                    shipRef={f7ShipRef}
+                    activeRef={f7PhaseActiveRef}
+                    disabled={f7Intro}
+                />
+            )}
             {/* Andar 7 captain-arrival cutscene — mounted AFTER <Player> so its
                 priority-0 useFrame overwrites the player camera while it runs. */}
             {currentLevel === 7 && f7Intro && (

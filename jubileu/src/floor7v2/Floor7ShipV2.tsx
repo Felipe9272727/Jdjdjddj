@@ -51,7 +51,7 @@ export const Floor7ShipV2 = forwardRef<THREE.Group, Floor7ShipV2Props>(function 
         <mesh name="lofted-hull" geometry={G.hull} material={M.hull} castShadow receiveShadow />
         <mesh name="continuous-deck" geometry={G.deck} material={M.deck} receiveShadow />
         <mesh name="raised-decks-and-stairs" geometry={G.upperDecks} material={M.deck} castShadow receiveShadow />
-        <mesh name="stern-cabin" geometry={G.cabin} material={M.hull} castShadow receiveShadow />
+        <mesh name="stern-cabin" geometry={G.cabin} material={M.darkWood} castShadow receiveShadow />
         <mesh name="rails" geometry={G.rails} material={M.darkWood} castShadow />
         <mesh name="hull-trim" geometry={G.trim} material={M.trim} castShadow />
         <mesh name="masts-and-yards" geometry={G.masts} material={M.darkWood} castShadow />
@@ -60,7 +60,7 @@ export const Floor7ShipV2 = forwardRef<THREE.Group, Floor7ShipV2Props>(function 
         <mesh name="rigging" geometry={G.rigging} material={M.rope} />
         <mesh name="gunports" geometry={G.iron} material={M.iron} />
         {/* Cabin windows frame the stern without adding another generated batch. */}
-        {[-.86, 0, .86].map((x) => <mesh key={x} position={[x, 1.18, -4.765]} material={M.glass}><planeGeometry args={[.48, .48]} /></mesh>)}
+        {[-1.08, 0, 1.08].map((x) => <mesh key={x} position={[x, 1.4, -4.35]} material={M.glass}><planeGeometry args={[.52, .58]} /></mesh>)}
         <instancedMesh ref={barrels} args={[undefined, undefined, 4]} material={M.trim} castShadow>
             <cylinderGeometry args={[.22, .25, .56, 9]} />
         </instancedMesh>

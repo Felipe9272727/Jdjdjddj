@@ -9,6 +9,7 @@ import { createRoot } from 'react-dom/client';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Floor7Environment, useFloor7Handle } from './Floor7';
+import Floor7PhaseCinematics from './Floor7PhaseCinematics';
 import { wallsForState, FLOOR7_SCALE } from './constants';
 import { resolveCollision } from './physics';
 
@@ -24,6 +25,9 @@ declare global {
         __interact?: (v: boolean) => void;
         __forceTick?: (n: number, lx: number, lz: number, it: boolean) => void;
         __state?: () => { state: number; cleaned: number; npud: number; tideWarn?: number };
+        __brainState?: () => number;
+        __phaseActive?: () => boolean;
+        __setPhaseActive?: (active: boolean) => void;
         __puddles?: () => { x: number; z: number }[];
         __playerPos?: () => [number, number, number];
     }
@@ -199,6 +203,8 @@ const Controller: React.FC<{ posRef: React.MutableRefObject<THREE.Vector3> }> = 
 
 const Play: React.FC = () => {
     const handle = useFloor7Handle();
+    const shipRef = useRef<THREE.Group | null>(null);
+    const phaseActiveRef = useRef(false);
     const posRef = useRef(new THREE.Vector3(0.75 * FLOOR7_SCALE, 0, 4.3 * FLOOR7_SCALE));  // beside the foremast, like the real spawn
     // fast-forward the WASM brain past the intro so the elevator is gone and the
     // captain is in place (regardless of render fps), like the dev workbench.
@@ -225,6 +231,9 @@ const Play: React.FC = () => {
         // 400-tick fast-forward otherwise skips past.
         (window as unknown as { __resetBrain?: () => void }).__resetBrain = () => { handle.current.brain?.reset(); };
         window.__state = () => ({ state: handle.current.state, cleaned: handle.current.cleaned, npud: handle.current.npud, tideWarn: handle.current.tideWarn });
+        window.__brainState = () => handle.current.brain?.state() ?? -1;
+        window.__phaseActive = () => phaseActiveRef.current;
+        window.__setPhaseActive = (active: boolean) => { phaseActiveRef.current = active; };
         window.__puddles = () => {
             const b = handle.current.brain; if (!b) return [];
             const out: { x: number; z: number }[] = [];
@@ -232,11 +241,13 @@ const Play: React.FC = () => {
             for (let i = 0; i < b.npud; i++) { const p = b.puddle(i, tmp); out.push({ x: p.x, z: p.z }); }
             return out;
         };
-    }, [handle]);
+    }, [handle, phaseActiveRef]);
     return (
         <>
-            <Floor7Environment playerPositionRef={posRef} handleRef={handle} />
+            <Floor7Environment playerPositionRef={posRef} handleRef={handle} shipRef={shipRef} phaseActiveRef={phaseActiveRef} />
             <Controller posRef={posRef} />
+            {/* Same mount order as App: camera payoff owns the final write. */}
+            <Floor7PhaseCinematics handleRef={handle} shipRef={shipRef} activeRef={phaseActiveRef} />
         </>
     );
 };

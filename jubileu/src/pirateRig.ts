@@ -107,7 +107,10 @@ function paintWeights(pos: Float32Array): { joints: Uint16Array; weights: Float3
 
         // ARMS — the coat SLEEVES: outer-x columns from mid-torso to shoulder, so an arm move
         // carries its sleeve (but stays off the chest/back so the coat body doesn't follow).
-        const armY = ss(y, -0.04, 0.07) * (1 - ss(y, 0.18, 0.28));
+        // Include the hanging forearm + hand. The old -0.04 cutoff weighted the
+        // lower half back to BODY, so shoulder animation moved only a short
+        // sleeve while the hand remained pinned to the coat at the helm.
+        const armY = ss(y, -0.24, -0.13) * (1 - ss(y, 0.18, 0.28));
         s[PB.l_arm] = armY * ss(-x, 0.06, 0.12);   // left  (x < 0)
         s[PB.r_arm] = armY * ss( x, 0.06, 0.12);   // right (x > 0)
 
