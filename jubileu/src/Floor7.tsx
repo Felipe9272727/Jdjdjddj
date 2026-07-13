@@ -24,10 +24,8 @@ import { pirateCaptainModel } from './assets/textureImports';
 const PIRATE_GLB_URL = pirateCaptainModel;
 useGLTF.preload(PIRATE_GLB_URL);
 import { Floor7WaterV2 } from './floor7v2/Floor7WaterV2';
-import { Floor7ShipV2 } from './floor7v2/Floor7ShipV2';
 import { Floor7ViewModelV2 } from './floor7v2/Floor7ViewModelV2';
-import { Floor7HelmV2 } from './floor7v2/Floor7HelmV2';
-import { floor7HelmProgress, resolveFloor7CaptainRenderPose } from './floor7v2/helm';
+import { FLOOR7_HELM, floor7HelmProgress, resolveFloor7CaptainRenderPose } from './floor7v2/helm';
 import { makeWood, makeJollyRoger, makeCloud, makeGlow, makeSkyEquirect, makeSailcloth, makeContactShadow, makePuddleRipple, makeCrewManifest } from './floor7Textures';
 
 const _puddleRipple = makePuddleRipple();
@@ -623,7 +621,7 @@ const ContactShadows: React.FC = () => {
 };
 
 // ── the static ship hull + deck + masts (no per-frame logic) ──
-const ShipBody: React.FC = () => {
+const ShipBody: React.FC<{ helmWheelRef?: React.MutableRefObject<THREE.Group | null> }> = ({ helmWheelRef }) => {
     // hull + deck + rail caps are ALL MODELLED IN C++ (floor7_geo.cpp → WASM):
     // the deck and rails sample the same sheer/beam curves as the hull, so the
     // whole ship sweeps together. JS only uploads the buffers. Plus a thin spray
@@ -758,9 +756,10 @@ const ShipBody: React.FC = () => {
                 ))}
             </group>
             {/* binnacle: pedestal base for the helm (ship's wheel) */}
-            <mesh position={[0, 0.35, -6.8]} material={M.rail}><boxGeometry args={[0.5, 0.7, 0.4]} /></mesh>
-            {/* helm (ship's wheel) at the stern — repositioned atop the binnacle */}
-            <group position={[0, 0.95, -6.8]}>
+            <mesh position={[FLOOR7_HELM.wheelX, 0.35, FLOOR7_HELM.wheelZ]} material={M.rail}><boxGeometry args={[0.5, 0.7, 0.4]} /></mesh>
+            {/* Real helm in front of the deckhouse. The original -6.8 location
+                put the entire cabin between the captain and the wheel. */}
+            <group ref={helmWheelRef} position={[FLOOR7_HELM.wheelX, FLOOR7_HELM.wheelY, FLOOR7_HELM.wheelZ]}>
                 <mesh material={M.wheel}><torusGeometry args={[0.42, 0.06, 8, 18]} /></mesh>
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                     <mesh key={i} rotation={[0, 0, (i * Math.PI) / 3]} material={M.wheel}>
@@ -2047,8 +2046,7 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
 
             {/* the ship (sways) */}
             <group ref={shipRef} scale={FLOOR7_SCALE}>
-                <Floor7ShipV2 />
-                <Floor7HelmV2 ref={helmWheelRef} />
+                <ShipBody helmWheelRef={helmWheelRef} />
                 {/* the elevator the player rode in on — dematerialises */}
                 {/* the hotel elevator the player rode in on — a discrete box with CLOSED
                     brushed-steel sliding doors (centre seam), a gold frame and a lit "7"

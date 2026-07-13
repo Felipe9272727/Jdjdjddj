@@ -3,26 +3,26 @@ import { F7_STATE } from '../Floor7Brain';
 
 /** Shared visual contract for the quarterdeck helm. All values are ship-local. */
 export const FLOOR7_HELM = Object.freeze({
-    wheelX: -0.45,
-    wheelY: 1.34,
-    wheelZ: -4.08,
-    captainX: -0.45,
-    captainY: 0.56,
-    captainZ: -3.52,
+    wheelX: 0,
+    wheelY: 0.95,
+    wheelZ: -4.85,
+    captainX: -0.32,
+    captainY: 0.06,
+    captainZ: -4.2,
 });
 
 const BRAIN_TALK_Z = 2.2;
 const BRAIN_HELM_Z = -5.3;
 
 // The WASM still owns quest timing. This render path turns its straight-line
-// progress into a collision-free blocking pass: open deck -> port stair ->
-// quarterdeck -> wheel. The last point stays forward of the cabin wall.
+// progress into a collision-free blocking pass around the main mast and toward
+// the old ship's relocated wheel. The last point stays forward of the cabin.
 const HELM_PATH = new THREE.CatmullRomCurve3([
     new THREE.Vector3(0.6, 0.02, 2.2),
-    new THREE.Vector3(-0.2, 0.02, 0.2),
-    new THREE.Vector3(-1.18, 0.02, -2.18),
-    new THREE.Vector3(-1.35, 0.12, -2.58),
-    new THREE.Vector3(-1.35, FLOOR7_HELM.captainY, -3.68),
+    new THREE.Vector3(0.92, 0.02, 0.45),
+    new THREE.Vector3(1.05, 0.02, -1.45),
+    new THREE.Vector3(0.82, 0.03, -2.8),
+    new THREE.Vector3(0.34, 0.045, -3.72),
     new THREE.Vector3(FLOOR7_HELM.captainX, FLOOR7_HELM.captainY, FLOOR7_HELM.captainZ),
 ], false, 'centripetal', 0.5);
 
@@ -52,8 +52,8 @@ export function resolveFloor7CaptainRenderPose(
         outPosition.y = THREE.MathUtils.clamp(outPosition.y, 0, FLOOR7_HELM.captainY);
         HELM_PATH.getTangentAt(progress, outTangent).normalize();
         const pathYaw = Math.atan2(-outTangent.z, outTangent.x);
-        // He arrives side-on from the stair, then plants his feet and turns to
-        // face the wheel during the final fifth of the walk.
+        // He rounds the mast, plants his feet, then turns to face the wheel
+        // during the final fifth of the walk.
         const turnToWheel = smooth01((progress - 0.78) / 0.22);
         return lerpAngle(pathYaw, Math.PI / 2, turnToWheel);
     }

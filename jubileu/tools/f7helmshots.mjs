@@ -62,7 +62,7 @@ for (let i = 0; i < beats.length; i++) {
 // Dedicated final proof: the cabin, captain and wheel must share one readable
 // frame after the cinematic releases the player camera.
 await page.evaluate(() => window.__setPhaseActive?.(true));
-await page.evaluate(() => window.__cam?.(4.6, 3.35, -3.25, -0.83, 2.3, -7.15));
+await page.evaluate(() => window.__cam?.(-4.8, 3.25, -4.15, -0.35, 2.15, -8.3));
 await page.waitForTimeout(250);
 await page.screenshot({ path: `${OUT}/7-final-helm-starboard.png` });
 await page.evaluate(() => window.__camOff?.());

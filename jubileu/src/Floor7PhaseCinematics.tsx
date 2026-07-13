@@ -65,12 +65,12 @@ export const Floor7PhaseCinematics: React.FC<Props> = ({ handleRef, shipRef, act
         elapsed.current += Math.min(Math.max(rawDt, 0), 0.12);
         const p = clamp01(elapsed.current / PHASE_DURATION[active]);
         if (active === 'departure') {
-            // Track the corrected route up the port stair, then arc around to a
-            // clean 3/4 view of the captain taking the newly visible wheel.
+            // Track the corrected route around the main mast, then arc into a
+            // clean 3/4 view of the captain taking the old ship's real wheel.
             // Stay on starboard so the camera never crosses through the mast or
             // flips screen direction. The cabin and wheel remain behind him as
             // readable destinations throughout the walk.
-            from.current.set(2.9, 1.58, 0.9); to.current.set(2.25, 1.72, -2.25);
+            from.current.set(2.9, 1.58, 0.9); to.current.set(2.35, 1.6, -2.85);
             const c = brain.captain();
             resolveFloor7CaptainRenderPose(state, c, captain.current, captainTangent.current);
             look.current.copy(captain.current); look.current.y += 0.92; look.current.z -= 0.12;
