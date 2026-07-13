@@ -12,6 +12,8 @@ import { Vector3 } from 'three';
 import Floor8Room from './Floor8Room';
 import Floor8Overlay from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
+import Floor8Memory from './Floor8Memory';
+import Floor8Cinematics from './Floor8Cinematics';
 import { f8, f8Reset, f8AdvanceLine, f8Bump, f8EnterImage } from './f8Arquivo';
 import { wallsForState } from './constants';
 import { resolveCollision } from './physics';
@@ -84,9 +86,11 @@ const Dev: React.FC = () => {
             <Canvas camera={{ fov: 75, near: 0.1, far: 100, position: [0, 1.6, -8.2] }}>
                 <DevWalker />
                 <Floor8Room playerPositionRef={posRef} />
+                <Floor8Cinematics />
             </Canvas>
-            <Floor8Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} />
+            <Floor8Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} onLeave={() => f8Reset()} />
             <Floor8Image />
+            <Floor8Memory />
             <div style={{
                 position: 'absolute', bottom: 8, left: 10, color: '#777', zIndex: 50,
                 fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',

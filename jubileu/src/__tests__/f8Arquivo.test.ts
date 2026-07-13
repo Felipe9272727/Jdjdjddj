@@ -1,0 +1,80 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import {
+    f8, f8AdvanceLine, f8AdvanceRecovery, f8BoardElevator,
+    f8CollectMemory, f8DiveDone, f8DrainEvents, f8EnterDoor21,
+    f8EnterImage, f8Lines, f8MemoryFall, f8Objective, f8ReachDoor21,
+    f8Reset, f8Tick, f8WinMemory, F8_RECOVERY_LINES,
+} from '../f8Arquivo';
+
+beforeEach(() => { f8Reset(); f8DrainEvents(); });
+
+function reachMemory() {
+    f8Tick(0.016, -4);
+    for (let i = 0; i < f8Lines().length; i++) f8AdvanceLine();
+    f8EnterImage();
+    f8DiveDone();
+    f8ReachDoor21();
+    f8EnterDoor21();
+}
+
+describe('Floor 8 — fluxo completo da ficha em branco', () => {
+    it('não pula nenhum ato antes da Porta 21', () => {
+        expect(f8.phase).toBe('arrive');
+        f8EnterDoor21();
+        expect(f8.phase).toBe('arrive');
+        f8Tick(0.016, -4);
+        expect(f8.phase).toBe('interrogatorio');
+        for (let i = 0; i < f8Lines().length; i++) f8AdvanceLine();
+        expect(f8.phase).toBe('entregaImagem');
+        f8EnterImage();
+        expect(f8.phase).toBe('mergulho');
+        f8DiveDone();
+        expect(f8.phase).toBe('corredor20');
+        f8ReachDoor21();
+        expect(f8.phase).toBe('porta21');
+        f8EnterDoor21();
+        expect(f8.phase).toBe('platformer');
+    });
+
+    it('preserva fragmentos após cair e rejeita coleta duplicada', () => {
+        reachMemory();
+        expect(f8CollectMemory(0)).toBe(true);
+        expect(f8CollectMemory(0)).toBe(false);
+        f8MemoryFall();
+        expect(f8.memoryMask).toBe(0b001);
+        expect(f8.memoryDeaths).toBe(1);
+        expect(f8DrainEvents()).toEqual(expect.arrayContaining(['memoryFragment', 'memoryFall']));
+    });
+
+    it('o tear só abre com EU · AINDA · EXISTO', () => {
+        reachMemory();
+        f8CollectMemory(0); f8CollectMemory(2);
+        expect(f8WinMemory()).toBe(false);
+        expect(f8.phase).toBe('platformer');
+        f8CollectMemory(1);
+        expect(f8Objective()).toContain('tear');
+        expect(f8WinMemory()).toBe(true);
+        expect(f8.phase).toBe('memoriaRecuperada');
+    });
+
+    it('termina a cutscene e embarca uma única vez', () => {
+        reachMemory();
+        f8CollectMemory(0); f8CollectMemory(1); f8CollectMemory(2); f8WinMemory();
+        for (let i = 0; i < F8_RECOVERY_LINES.length; i++) f8AdvanceRecovery();
+        expect(f8.phase).toBe('leave');
+        expect(f8BoardElevator()).toBe(true);
+        expect(f8BoardElevator()).toBe(false);
+        expect(f8.boarded).toBe(true);
+        expect(f8DrainEvents()).toEqual(expect.arrayContaining(['win', 'boarding']));
+    });
+
+    it('reset limpa uma tentativa anterior inteira', () => {
+        reachMemory();
+        f8CollectMemory(1); f8MemoryFall();
+        f8Reset();
+        expect(f8.phase).toBe('arrive');
+        expect(f8.memoryMask).toBe(0);
+        expect(f8.memoryDeaths).toBe(0);
+        expect(f8.boarded).toBe(false);
+    });
+});

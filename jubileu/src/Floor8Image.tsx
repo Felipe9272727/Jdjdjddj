@@ -16,9 +16,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { f8, f8Subscribe, f8ReachDoor21, f8EnterDoor21, f8Objective, F8_DOORS } from './f8Arquivo';
+import { f8DoorCue } from './floor8Sfx';
 
 const DOOR0 = 3;
-const DOOR_GAP = 2.4;
+// O protótipo levava ~13s de caminhada repetida. Mantemos as vinte portas,
+// mas comprimimos a fotografia e dobramos o ritmo: leitura sem enchimento.
+const DOOR_GAP = 2.08;
 const DOOR21_X = DOOR0 + F8_DOORS * DOOR_GAP + 1.6;
 const END_X = DOOR21_X + 2.5;
 
@@ -75,13 +78,13 @@ const woodTex = cvs(64, 128, (x) => {
 });
 
 const M = {
-    wall: new THREE.MeshStandardMaterial({ map: wallpaperTex, roughness: 1 }),
+    wall: new THREE.MeshStandardMaterial({ map: wallpaperTex, roughness: 1, color: '#c3aa83' }),
     runner: new THREE.MeshStandardMaterial({ map: runnerTex, roughness: 1 }),
-    floor: new THREE.MeshStandardMaterial({ color: '#1c150f', roughness: 1 }),
+    floor: new THREE.MeshStandardMaterial({ color: '#2a1d17', roughness: 1 }),
     ceil: new THREE.MeshStandardMaterial({ color: '#0e0b08', roughness: 1 }),
     trim: new THREE.MeshStandardMaterial({ color: '#26190f', roughness: 0.85 }),
     frame: new THREE.MeshStandardMaterial({ color: '#3a2718', roughness: 0.8 }),
-    door: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.7, color: '#a98a63' }),
+    door: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.7, color: '#c39a6c' }),
     panel: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.75, color: '#6e553b' }),
     brass: new THREE.MeshStandardMaterial({ color: '#c69a4a', roughness: 0.35, metalness: 0.85 }),
     kick: new THREE.MeshStandardMaterial({ color: '#7a6a4a', roughness: 0.4, metalness: 0.7 }),
@@ -209,17 +212,17 @@ const CorridorScene: React.FC<{ xRef: React.MutableRefObject<number>; movingRef:
         const scene = useThree((s) => s.scene);
         const [, force] = useState(0);
         const verSeen = useRef(f8.version);
-        useEffect(() => { scene.fog = new THREE.Fog('#080606', 6, 20); return () => { scene.fog = null; }; }, [scene]);
+        useEffect(() => { scene.fog = new THREE.Fog('#0b0708', 8, 25); return () => { scene.fog = null; }; }, [scene]);
         useFrame((_, rawDt) => {
             const dt = Math.min(rawDt, 0.05);
             if (f8.phase === 'corredor20') {
                 const dir = (keys.current['d'] || keys.current['arrowright'] ? 1 : 0) - (keys.current['a'] || keys.current['arrowleft'] ? 1 : 0) + touchRef.current;
                 movingRef.current = dir;
-                if (dir !== 0) xRef.current = Math.max(0, Math.min(END_X, xRef.current + dir * 4 * dt));
+                if (dir !== 0) xRef.current = Math.max(0, Math.min(END_X, xRef.current + dir * 6.6 * dt));
                 if (xRef.current >= DOOR21_X - 1.0) f8ReachDoor21();
             } else if (f8.phase === 'porta21') {
                 movingRef.current = xRef.current < DOOR21_X - 0.05 ? 1 : 0;
-                xRef.current = Math.min(DOOR21_X, xRef.current + 4 * dt);
+                xRef.current = Math.min(DOOR21_X, xRef.current + 5.2 * dt);
             } else movingRef.current = 0;
             cam.position.x += (xRef.current + 1.6 - cam.position.x) * Math.min(1, dt * 4);
             cam.position.y = 2.0; cam.position.z = 10; cam.rotation.set(0, 0, 0); cam.lookAt(cam.position.x, 2.0, 0);
@@ -230,8 +233,9 @@ const CorridorScene: React.FC<{ xRef: React.MutableRefObject<number>; movingRef:
         for (let i = 0; i <= F8_DOORS; i++) sconces.push(<Sconce key={i} x={DOOR0 - DOOR_GAP / 2 + i * DOOR_GAP} />);
         return (
             <>
-                <ambientLight color="#33291c" intensity={0.5} />
-                <hemisphereLight color="#4a3a28" groundColor="#0a0806" intensity={0.35} />
+                <ambientLight color="#5e4936" intensity={0.82} />
+                <hemisphereLight color="#7c6144" groundColor="#120a0b" intensity={0.72} />
+                <directionalLight position={[-3, 7, 6]} color="#d2b584" intensity={0.48} />
                 {/* casca */}
                 <Pl a={[END_X + 12, 4.6]} p={[END_X / 2, 1.2, -0.6]} m={M.wall} />
                 <mesh position={[END_X / 2, 0, 1]} rotation={[-Math.PI / 2, 0, 0]} material={M.floor}><planeGeometry args={[END_X + 12, 4]} /></mesh>
@@ -255,33 +259,35 @@ export const Floor8Image: React.FC<{ onEnterPlatformer?: () => void }> = ({ onEn
     const movingRef = useRef(0);
     const keys = useRef<Record<string, boolean>>({});
     const touchRef = useRef(0);
+    const enterDoor = () => { if (f8.phase !== 'porta21') return; f8DoorCue(); f8EnterDoor21(); onEnterPlatformer?.(); };
 
     useEffect(() => f8Subscribe(() => setV((x) => x + 1)), []);
     useEffect(() => { if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8img = { xRef }; }, []);
     useEffect(() => {
         const kd = (e: KeyboardEvent) => {
             keys.current[e.key.toLowerCase()] = true;
-            if ((e.key.toLowerCase() === 'e' || e.key === 'Enter') && f8.phase === 'porta21') { f8EnterDoor21(); onEnterPlatformer?.(); }
+            if ((e.key.toLowerCase() === 'e' || e.key === 'Enter') && f8.phase === 'porta21') enterDoor();
         };
         const ku = (e: KeyboardEvent) => { keys.current[e.key.toLowerCase()] = false; };
         window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
         return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
     }, [onEnterPlatformer]);
 
-    const active = f8.phase === 'corredor20' || f8.phase === 'porta21' || f8.phase === 'platformer';
+    const active = f8.phase === 'corredor20' || f8.phase === 'porta21';
     if (!active) return null;
     const objective = f8Objective();
     const atDoor = f8.phase === 'porta21';
 
     return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 55, background: '#070506', touchAction: 'none' }}>
-            <Canvas orthographic camera={{ position: [1.6, 2, 10], zoom: 82, near: 0.1, far: 100 }} gl={{ antialias: true }}>
+            <Canvas orthographic camera={{ position: [1.6, 2, 10], zoom: 120, near: 0.1, far: 100 }} gl={{ antialias: true }}>
                 <CorridorScene xRef={xRef} movingRef={movingRef} keys={keys} touchRef={touchRef} />
             </Canvas>
 
             {/* tratamento "foto": tinta quente + vinheta + grão sutil */}
             <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 45%, rgba(60,40,20,0.08) 0%, rgba(0,0,0,0) 45%, rgba(0,0,0,0.78) 100%)' }} />
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'overlay', opacity: 0.06, backgroundImage: 'repeating-linear-gradient(0deg,#fff 0 1px,#000 1px 2px)' }} />
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'overlay', opacity: 0.045, backgroundImage: 'repeating-linear-gradient(0deg,#fff 0 1px,#000 1px 2px)' }} />
+            <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 14px)', left: 20, pointerEvents: 'none', fontFamily: 'monospace', fontSize: 9, letterSpacing: 3, color: '#806f59' }}>FOTOGRAFIA · ARQUIVO 08</div>
 
             {objective && (
                 <div style={{
@@ -295,6 +301,7 @@ export const Floor8Image: React.FC<{ onEnterPlatformer?: () => void }> = ({ onEn
                     <button key={s}
                         onPointerDown={() => { touchRef.current = i === 0 ? -1 : 1; }}
                         onPointerUp={() => { touchRef.current = 0; }}
+                        onPointerCancel={() => { touchRef.current = 0; }}
                         onPointerLeave={() => { touchRef.current = 0; }}
                         style={{
                             pointerEvents: 'auto', width: 76, height: 76, borderRadius: 40, fontSize: 26,
@@ -305,13 +312,14 @@ export const Floor8Image: React.FC<{ onEnterPlatformer?: () => void }> = ({ onEn
 
             {atDoor && (
                 <div style={{ position: 'absolute', left: 0, right: 0, bottom: 130, textAlign: 'center' }}>
-                    <button onPointerDown={() => { f8EnterDoor21(); onEnterPlatformer?.(); }} style={{
+                    <button onPointerDown={enterDoor} style={{
                         pointerEvents: 'auto', fontFamily: 'monospace', fontSize: 16, padding: '12px 26px',
                         background: 'rgba(122,74,18,0.75)', border: '1px solid #f0d89a', borderRadius: 12, color: '#fff4dc', cursor: 'pointer',
                         boxShadow: '0 0 28px rgba(255,184,97,0.5)',
                     }}><span style={{ color: '#ffd98a' }}>[E]</span> Entrar</button>
                 </div>
             )}
+            {!atDoor && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 18, textAlign: 'center', pointerEvents: 'none', fontFamily: 'monospace', fontSize: 9, letterSpacing: 2, color: '#665b4d' }}>SIGA O FIO ATÉ O QUE NÃO FOI ARQUIVADO</div>}
         </div>
     );
 };
