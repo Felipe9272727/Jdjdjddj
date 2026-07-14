@@ -59,10 +59,12 @@ import Floor6Overlay from './Floor6Overlay';
 import Floor8Room from './Floor8Room';
 import Floor8Overlay from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
+import Floor8Platformer from './Floor8Platformer';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
 import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient, f7CaptainLaugh, f7CutMusicStart, f7CutBeat, f7CutMusicStop, f7BootClomp, f7ElevatorVanish, f7CaptainVoice } from './floor7Sfx';
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
-import { f8Reset } from './f8Arquivo';
+import { f8, f8Reset, f8Subscribe } from './f8Arquivo';
+import { p8Reset } from './f8Platformer';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE } from './constants';
 import PhysicsProps, { type CrateSpec } from './PhysicsProps';
 import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from './PhotoMode';
@@ -94,6 +96,7 @@ interface WorldProps {
   timer: number | null;
   doorsClosed: boolean;
   level: number;
+  f8InImage?: boolean;
   houseDoorOpen: boolean;
   npcPositionRef: React.MutableRefObject<Vector3>;
   isPaused: boolean;
@@ -149,7 +152,7 @@ const LOBBY_CRATES: CrateSpec[] = [
 // Sealed lobby perimeter — keeps debris in the room no matter the door state.
 const LOBBY_PHYS_WALLS = wallsForState(0, true, false);
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves, floor3FallActive, f6CabDead }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves, floor3FallActive, f6CabDead, f8InImage }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -176,7 +179,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {/* Floor 6 — a Suíte 612: "O Hóspede que Sabia Demais" (escape room) */}
       {level === 6 && <Floor6Suite playerPositionRef={playerPositionRef} profile={profile} />}
       {/* Andar 8 — a sala de interrogatório do Arquivista (→ platformer de tricô) */}
-      {level === 8 && <Floor8Room playerPositionRef={playerPositionRef} />}
+      {level === 8 && !f8InImage && <Floor8Room playerPositionRef={playerPositionRef} />}
       {/* the old baseplate is the FLOOR 7 TEMPLATE now — Creator Mode only */}
       {/* Andar 7 (navio pirata) is mounted as a Canvas sibling below — it needs
           the Floor7 WASM handle ref that this memoized World doesn't carry. */}
@@ -975,7 +978,7 @@ export default function App() {
   // o creator jump já posiciona em z=-8.2.)
   useEffect(() => {
     if (currentLevel !== 8) return;
-    f8Reset();
+    f8Reset(); p8Reset();
   }, [currentLevel]);
   // Mirrors f6.phase into React so World can swap the live cab for the dead
   // one the moment the panel blows (f6 itself mutates outside React).
@@ -984,6 +987,17 @@ export default function App() {
     setF6CabDead((prev) => {
       const dead = f6.phase !== 'arrive';
       return prev !== dead ? dead : prev;
+    });
+  }), []);
+  // Mirrors f8.phase: quando o player está DENTRO da imagem (corredor/porta21/
+  // platformer/vitória) o overlay 2.5D opaco cobre a tela — então desmontamos a
+  // sala 3D do interrogatório atrás dele pra não renderizar dois mundos à toa.
+  const [f8InImage, setF8InImage] = useState(false);
+  useEffect(() => f8Subscribe(() => {
+    setF8InImage((prev) => {
+      const inImg = f8.phase === 'corredor20' || f8.phase === 'porta21'
+        || f8.phase === 'platformer' || f8.phase === 'memoriaRecuperada';
+      return prev !== inImg ? inImg : prev;
     });
   }), []);
   useEffect(() => {
@@ -1315,7 +1329,7 @@ export default function App() {
       } else if (startLevel === 8) {
         // Andar 8 — a sala de interrogatório do Arquivista. 1ª pessoa, estado
         // fresco, spawn logo à frente do vão pra caminhar até a mesa.
-        f8Reset();
+        f8Reset(); p8Reset();
         setGameState('outdoor');
         setNightMode(false);
         setHouseDoorOpen(false);
@@ -1705,7 +1719,7 @@ export default function App() {
           : <AdaptiveDpr pixelated />}
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} f6CabDead={f6CabDead} onPlayerCaught={() => {
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} f6CabDead={f6CabDead} f8InImage={f8InImage} onPlayerCaught={() => {
                 setFishJumpscareKey(k => k + 1);
                 setDevoured(true);
                 playJumpscareStab(audioCtx);
@@ -2395,6 +2409,8 @@ export default function App() {
       {/* Andar 8 — DENTRO da imagem: o corredor de 20 portas + a porta 21
           (self-gate por fase; cobre a tela durante corredor20/porta21/platformer) */}
       {hasStarted && currentLevel === 8 && <Floor8Image />}
+      {/* Andar 8 — DENTRO da porta 21: o platformer 2.5D de tricô (self-gate por fase) */}
+      {hasStarted && currentLevel === 8 && <Floor8Platformer />}
 
       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}
       {fallGameOver && (

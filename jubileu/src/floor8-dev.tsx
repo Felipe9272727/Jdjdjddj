@@ -12,7 +12,9 @@ import { Vector3 } from 'three';
 import Floor8Room from './Floor8Room';
 import Floor8Overlay from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
+import Floor8Platformer from './Floor8Platformer';
 import { f8, f8Reset, f8AdvanceLine, f8Bump, f8EnterImage } from './f8Arquivo';
+import { p8, p8Reset } from './f8Platformer';
 import { wallsForState } from './constants';
 import { resolveCollision } from './physics';
 
@@ -33,7 +35,8 @@ const DevWalker: React.FC = () => {
         const ku = (e: KeyboardEvent) => { keys.current[e.key.toLowerCase()] = false; };
         const pd = (e: PointerEvent) => { if (!frozenRef.current) drag.current = { x: e.clientX, y: e.clientY }; };
         const pm = (e: PointerEvent) => {
-            if (!drag.current) return;
+            // se a UI congelou (interrogatório/imagem/platformer), aborta o giro em curso
+            if (frozenRef.current || !drag.current) { drag.current = null; return; }
             ang.current.theta -= (e.clientX - drag.current.x) * 0.004;
             ang.current.phi = Math.max(-1.4, Math.min(1.4, ang.current.phi + (e.clientY - drag.current.y) * 0.004));
             drag.current = { x: e.clientX, y: e.clientY };
@@ -76,8 +79,8 @@ const DevWalker: React.FC = () => {
 
 const Dev: React.FC = () => {
     useEffect(() => {
-        f8Reset();
-        if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8dbg = { f8, posRef, adv: f8AdvanceLine, bump: f8Bump, enterImage: f8EnterImage };
+        f8Reset(); p8Reset();
+        if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8dbg = { f8, p8, posRef, adv: f8AdvanceLine, bump: f8Bump, enterImage: f8EnterImage, platReset: p8Reset };
     }, []);
     return (
         <div style={{ position: 'fixed', inset: 0, background: '#000' }}>
@@ -87,6 +90,7 @@ const Dev: React.FC = () => {
             </Canvas>
             <Floor8Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} />
             <Floor8Image />
+            <Floor8Platformer />
             <div style={{
                 position: 'absolute', bottom: 8, left: 10, color: '#777', zIndex: 50,
                 fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',

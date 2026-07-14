@@ -268,7 +268,7 @@ export const Floor8Image: React.FC<{ onEnterPlatformer?: () => void }> = ({ onEn
         return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
     }, [onEnterPlatformer]);
 
-    const active = f8.phase === 'corredor20' || f8.phase === 'porta21' || f8.phase === 'platformer';
+    const active = f8.phase === 'corredor20' || f8.phase === 'porta21';
     if (!active) return null;
     const objective = f8Objective();
     const atDoor = f8.phase === 'porta21';

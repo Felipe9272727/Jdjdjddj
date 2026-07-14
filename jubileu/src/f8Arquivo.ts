@@ -171,6 +171,16 @@ export function f8EnterDoor21(): void {
     f8.phase = 'platformer'; f8Bump();
 }
 
+/** Venceu o platformer (f8Platformer chama daqui): a memória volta. */
+export function f8WinMemory(): void {
+    if (f8.phase !== 'platformer') return;
+    f8.phase = 'memoriaRecuperada';
+    try {
+        if (typeof window !== 'undefined') window.localStorage.setItem('tne_memoria_player', '1');
+    } catch { /* ignore */ }
+    emit('win'); f8Bump();
+}
+
 // ── Director por frame: chegada → interrogatório por aproximação ─────────────
 /** Chamado pelo useFrame da cena com o Z do player. Em M1 só destrava o
  *  interrogatório quando o player caminha até perto da mesa. */
