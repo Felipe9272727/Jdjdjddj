@@ -99,10 +99,12 @@ function skyPaint(m: Memory): THREE.CanvasTexture {
     });
 }
 
-/** O FUNDO distante de cada memória (a cena em silhuetas detalhadas). */
+/** O FUNDO distante de cada memória (a cena em silhuetas detalhadas).
+ *  Pintado em 2x e desenhado via transform — nítido no recorte da câmera. */
 function farPaint(m: Memory): THREE.CanvasTexture {
-    return cvs(1024, 300, (x) => {
-        x.clearRect(0, 0, 1024, 300);
+    return cvs(2048, 600, (x) => {
+        x.clearRect(0, 0, 2048, 600);
+        x.scale(2, 2);
         const r = seedRng(13);
         if (m.key === 'quintal') {
             // colinas quentes
@@ -573,15 +575,16 @@ const Kite: React.FC<{ kit: Kit }> = ({ kit }) => {
         if (g.current) { g.current.position.y = 9 + Math.sin(t * 0.7) * 0.4; g.current.rotation.z = Math.sin(t * 0.9) * 0.18; }
     });
     return (
-        <group ref={g} position={[22, 9, -6]}>
+        <group ref={g} position={[22, 7.2, -9]} scale={[0.8, 0.8, 1]}>
             <mesh rotation={[0, 0, Math.PI / 4]}><planeGeometry args={[1.1, 1.1]} /><meshBasicMaterial color="#e8564a" side={THREE.DoubleSide} /></mesh>
             <mesh rotation={[0, 0, Math.PI / 4]} position={[0, 0, 0.01]}><planeGeometry args={[0.5, 0.5]} /><meshBasicMaterial color="#ffd94a" side={THREE.DoubleSide} /></mesh>
-            {[0.5, 1.0, 1.5].map((d, i) => (
-                <mesh key={i} position={[-d * 0.4, -0.8 - d * 0.5, 0]} rotation={[0, 0, 0.6 - i * 0.3]}>
+            {/* o rabo: pinguelas penduradas na linha, descendo do bico */}
+            {[0.45, 0.9, 1.35].map((d, i) => (
+                <mesh key={i} position={[-d * 0.35, -0.78 - d * 0.55, 0]} rotation={[0, 0, 0.6 - i * 0.3]}>
                     <planeGeometry args={[0.22, 0.12]} /><meshBasicMaterial color={i % 2 ? '#ffd94a' : '#e8564a'} side={THREE.DoubleSide} />
                 </mesh>
             ))}
-            <mesh position={[-0.6, -1.6, 0]} rotation={[0, 0, 0.5]} material={kit.thread}><cylinderGeometry args={[0.012, 0.012, 2.4, 3]} /></mesh>
+            <mesh position={[-0.35, -1.15, -0.01]} rotation={[0, 0, 0.42]} material={kit.thread}><cylinderGeometry args={[0.014, 0.014, 1.7, 3]} /></mesh>
         </group>
     );
 };
@@ -623,7 +626,7 @@ const Scene: React.FC<{
         cam.lookAt(cam.position.x, cam.position.y, 0);
         // parallax em três profundidades
         if (sky.current) sky.current.position.set(cam.position.x * 0.92, cam.position.y * 0.85 + 3.4, -26);
-        if (far.current) far.current.position.set(cam.position.x * 0.62, cam.position.y * 0.4 + 1.6, -14);
+        if (far.current) far.current.position.set(cam.position.x * 0.62, cam.position.y * 0.3 + 2.1, -14);
         if (fg.current) fg.current.position.set(cam.position.x * -0.18, -1.1, 4.4);
         // relâmpago da tempestade
         if (mem.key === 'tempestade' && flash.current) {
@@ -645,7 +648,7 @@ const Scene: React.FC<{
 
             {/* as três camadas pintadas */}
             <group ref={sky}><mesh material={kit.sky}><planeGeometry args={[110, 55]} /></mesh></group>
-            <group ref={far}><mesh material={kit.far}><planeGeometry args={[42, 12.3]} /></mesh></group>
+            <group ref={far}><mesh material={kit.far}><planeGeometry args={[32, 9.4]} /></mesh></group>
             <group ref={fg}><mesh material={kit.fg}><planeGeometry args={[34, 4.25]} /></mesh></group>
 
             {mem.key === 'quintal' && <Kite kit={kit} />}

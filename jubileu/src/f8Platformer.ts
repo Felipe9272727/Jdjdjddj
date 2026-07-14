@@ -59,19 +59,22 @@ export interface Memory {
 
 // ── Tuning físico ─────────────────────────────────────────────────────────────
 export const P8 = {
-    RUN: 6.4,
-    ACCEL: 28,
-    AIR_CTRL: 0.55,
-    GRAV: -28,
-    JUMP_V: 10.5,
+    RUN: 7.0,
+    ACCEL: 30,
+    AIR_CTRL: 0.6,
+    GRAV: -32,
+    JUMP_V: 11.2,
     COYOTE: 0.12,
     JUMP_BUF: 0.12,
     GRAB_RANGE: 8.5,     // alcance pra fisgar uma laçada
     MAX_ROPE: 8.5,
-    MIN_ROPE: 1.6,
-    SWING_ACCEL: 15,     // "bombear" o balanço com esquerda/direita
+    MIN_ROPE: 2.2,
+    GRAB_TIGHTEN: 0.8,   // ao fisgar, o fio já encurta (te ergue — vivo, não morto)
+    AUTO_REEL: 1.15,     // o fio encurta sozinho enquanto preso (energia + nunca afunda)
+    SWING_ACCEL: 26,     // "bombear" o balanço com esquerda/direita
     REEL: 3.2,           // subir/descer no fio (cima/baixo)
-    RELEASE_BOOST: 3.0,  // empurrãozinho vertical ao soltar pulando
+    RELEASE_BOOST: 3.5,  // empurrãozinho vertical ao soltar pulando
+    RELEASE_CARRY: 1.12, // o embalo horizontal ganha um sopro ao soltar
     VOID_DY: -6,         // dy abaixo do respawn = caiu
 } as const;
 
@@ -300,7 +303,8 @@ function tryGrab(p: P8State, m: Memory): boolean {
     }
     if (best < 0) return false;
     p.anchor = best;
-    p.ropeLen = clamp(bestD, P8.MIN_ROPE, P8.MAX_ROPE);
+    // o fio já nasce mais curto que a distância: te ERGUE na hora (feel vivo)
+    p.ropeLen = clamp(bestD * P8.GRAB_TIGHTEN, P8.MIN_ROPE, P8.MAX_ROPE);
     return true;
 }
 
@@ -321,13 +325,14 @@ export function stepPlayer(inp: P8Input, dt: number): P8Events {
 
     // ── gancho: pega / solta ──
     if (inp.grapple && p.anchor === null && p.grabCd <= 0 && p.stun <= 0) { if (tryGrab(p, m)) ev.grabbed = true; }
-    if (!inp.grapple && p.anchor !== null) { p.anchor = null; p.grabCd = 0.2; ev.released = true; }
+    if (!inp.grapple && p.anchor !== null) { p.anchor = null; p.grabCd = 0.2; p.vx *= P8.RELEASE_CARRY; ev.released = true; }
 
     if (p.anchor !== null) {
         // ── BALANÇO (pêndulo) ──
         const a = m.anchors[p.anchor];
-        // rebobina/estica o fio (cima/baixo)
-        p.ropeLen = clamp(p.ropeLen - inp.vert * P8.REEL * dt, P8.MIN_ROPE, P8.MAX_ROPE);
+        // o fio encurta sozinho (constrói energia e te tira do chão), e o player
+        // ainda rebobina/estica com cima/baixo
+        p.ropeLen = clamp(p.ropeLen - (P8.AUTO_REEL + inp.vert * P8.REEL) * dt, P8.MIN_ROPE, P8.MAX_ROPE);
         // gravidade
         p.vy += P8.GRAV * dt;
         // bombeia o balanço na tangente
@@ -348,8 +353,18 @@ export function stepPlayer(inp: P8Input, dt: number): P8Events {
         }
         p.onGround = false;
         if (Math.abs(p.vx) > 0.1) p.facing = p.vx < 0 ? -1 : 1;
-        // soltar pulando dá um empurrão
-        if (p.jumpBuf > 0) { p.anchor = null; p.grabCd = 0.28; p.vy += P8.RELEASE_BOOST; p.jumpBuf = 0; ev.released = true; ev.jumped = true; }
+        // o pêndulo NUNCA afunda no chão: tocou uma plataforma descendo → pousa e solta
+        const swGh = groundAt(p.x, p.y);
+        if (swGh !== null && p.y <= swGh + 0.02 && p.vy <= 0) {
+            p.y = swGh; p.vy = 0; p.onGround = true;
+            p.anchor = null; p.grabCd = 0.25; ev.released = true; ev.landed = true;
+        }
+        // soltar pulando dá um empurrão (e o embalo horizontal ganha um sopro)
+        if (p.anchor !== null && p.jumpBuf > 0) {
+            p.anchor = null; p.grabCd = 0.28;
+            p.vy += P8.RELEASE_BOOST; p.vx *= P8.RELEASE_CARRY;
+            p.jumpBuf = 0; ev.released = true; ev.jumped = true;
+        }
     } else {
         // ── CORRIDA / PULO ──
         const ctrl = p.stun > 0 ? 0 : (p.onGround ? 1 : P8.AIR_CTRL);
