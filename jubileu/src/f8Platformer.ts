@@ -139,18 +139,24 @@ export const MEMORIES: Memory[] = [
         key: 'obscuro', title: 'IV. O FUNDO',
         caption: 'No fundo não há sol. Só a verdade que apagaram de você. Alcance-a — e acorde.',
         pal: PAL_OBSCURO,
-        startX: 0, startY: 0, goalX: 68, endX: 74,
+        startX: 0, startY: 0, goalX: 82, endX: 88,
         ledges: [
             { x0: -3, x1: 4, y: 0 },
             { x0: 11, x1: 14, y: 1.2 },
             { x0: 21, x1: 24, y: 0.4 },
             { x0: 31, x1: 34, y: 1.6 },
             { x0: 42, x1: 45, y: 0.6 },
-            { x0: 53, x1: 74, y: 0 },
+            // o VÃO LONGO final: uma ilhota estreita no meio — balanço duplo,
+            // laçada → pouso apertado → laçada, sem chão em volta
+            { x0: 57, x1: 59.5, y: 1.0 },
+            { x0: 67, x1: 88, y: 0 },
         ],
-        anchors: [{ x: 8, y: 7.2 }, { x: 17.5, y: 7.4 }, { x: 27.5, y: 7.8 }, { x: 38, y: 8.0 }, { x: 49, y: 7.4 }],
-        hazards: [{ x: 13, y: 1.2 }, { x: 23, y: 0.4 }, { x: 33, y: 1.6 }, { x: 44, y: 0.6 }, { x: 60, y: 0 }],
-        spools: [{ x: 20, y: 5.2 }, { x: 37, y: 5.4 }, { x: 66, y: 1.6 }],
+        anchors: [
+            { x: 8, y: 7.2 }, { x: 17.5, y: 7.4 }, { x: 27.5, y: 7.8 }, { x: 38, y: 8.0 },
+            { x: 50.5, y: 6.4 }, { x: 63, y: 7.8 },
+        ],
+        hazards: [{ x: 13, y: 1.2 }, { x: 23, y: 0.4 }, { x: 33, y: 1.6 }, { x: 44, y: 0.6 }, { x: 74, y: 0 }],
+        spools: [{ x: 20, y: 5.2 }, { x: 37, y: 5.4 }, { x: 58.2, y: 3.4 }, { x: 80, y: 1.6 }],
     },
 ];
 

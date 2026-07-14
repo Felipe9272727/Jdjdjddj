@@ -74,6 +74,38 @@ const woodTex = cvs(64, 128, (x) => {
     for (let i = 0; i < 18; i++) { x.strokeStyle = `rgba(${30 + rnd() * 20},${20 + rnd() * 12},12,0.5)`; x.lineWidth = 1; const xx = rnd() * 64; x.beginPath(); x.moveTo(xx, 0); x.bezierCurveTo(xx + (rnd() - 0.5) * 8, 42, xx + (rnd() - 0.5) * 8, 85, xx, 128); x.stroke(); }
 });
 
+/** Halo radial suave (luz sem custo) — substitui os quads chapados. */
+function haloTex(inner: string, outer = 'rgba(0,0,0,0)'): THREE.CanvasTexture {
+    return cvs(128, 128, (x) => {
+        const g = x.createRadialGradient(64, 64, 4, 64, 64, 62);
+        g.addColorStop(0, inner); g.addColorStop(1, outer);
+        x.fillStyle = g; x.beginPath(); x.arc(64, 64, 63, 0, 7); x.fill();
+    });
+}
+const warmHalo = haloTex('rgba(255,196,110,0.85)');
+const doorHalo = haloTex('rgba(255,178,90,0.9)');
+const shadowBlob = haloTex('rgba(0,0,0,0.55)');
+
+/** Quadrinho de parede: paisagem borrada numa moldura (procedural, com seed). */
+const paintCache = new Map<number, THREE.CanvasTexture>();
+function paintingTex(seed: number): THREE.CanvasTexture {
+    const hit = paintCache.get(seed); if (hit) return hit;
+    const t = cvs(64, 80, (x) => {
+        const r = (() => { let s = seed; return () => { s = (s * 16807) % 2147483647; return s / 2147483647; }; })();
+        const hues = [['#5a4a33', '#8a7550'], ['#3d4a42', '#6a7a60'], ['#4a3a45', '#7a5a68']][seed % 3];
+        const g = x.createLinearGradient(0, 0, 0, 80); g.addColorStop(0, hues[1]); g.addColorStop(1, hues[0]);
+        x.fillStyle = g; x.fillRect(0, 0, 64, 80);
+        for (let i = 0; i < 7; i++) {
+            x.fillStyle = `rgba(${20 + r() * 60},${18 + r() * 45},${14 + r() * 30},0.5)`;
+            x.beginPath(); x.ellipse(r() * 64, 26 + r() * 48, 6 + r() * 16, 3 + r() * 8, r(), 0, 7); x.fill();
+        }
+        // "céu" e um traço de horizonte
+        x.fillStyle = 'rgba(220,200,150,0.25)'; x.fillRect(0, 0, 64, 18);
+        x.strokeStyle = 'rgba(16,12,8,0.65)'; x.lineWidth = 5; x.strokeRect(2, 2, 60, 76);
+    });
+    paintCache.set(seed, t); return t;
+}
+
 const M = {
     wall: new THREE.MeshStandardMaterial({ map: wallpaperTex, roughness: 1 }),
     runner: new THREE.MeshStandardMaterial({ map: runnerTex, roughness: 1 }),
@@ -101,15 +133,68 @@ const Bx: React.FC<{ a: [number, number, number]; p: [number, number, number]; m
 const Pl: React.FC<{ a: [number, number]; p: [number, number, number]; m: THREE.Material; r?: [number, number, number] }> =
     ({ a, p, m, r }) => (<mesh position={p} rotation={r} material={m}><planeGeometry args={a} /></mesh>);
 
-/** Arandela de parede — copo + brilho morno (emissivo, sem custo de luz real). */
+const haloMat = new THREE.MeshBasicMaterial({ map: warmHalo, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+const doorHaloMat = new THREE.MeshBasicMaterial({ map: doorHalo, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+const shadowMat = new THREE.MeshBasicMaterial({ map: shadowBlob, transparent: true, depthWrite: false });
+
+/** Arandela de parede — copo + bulbo + HALO radial suave (nada de quad chapado). */
 const Sconce: React.FC<{ x: number }> = ({ x }) => (
     <group position={[x, 2.55, -0.3]}>
         <Bx a={[0.06, 0.28, 0.06]} p={[0, -0.16, 0]} m={M.sconce} />
         <mesh position={[0, 0, 0.02]} material={M.sconce}><coneGeometry args={[0.12, 0.22, 10, 1, true]} /></mesh>
         <mesh position={[0, 0.02, 0.04]}><sphereGeometry args={[0.06, 8, 8]} /><meshBasicMaterial color="#ffce87" /></mesh>
-        <Pl a={[0.7, 0.7]} p={[0, 0, 0.08]} m={M.warmGlow} />
+        <Pl a={[1.5, 1.5]} p={[0, 0.05, 0.09]} m={haloMat} />
+        {/* poça de luz que a arandela joga na parede, alongada */}
+        <mesh position={[0, -0.5, 0.06]} scale={[0.6, 1.6, 1]} material={haloMat}><planeGeometry args={[1, 1]} /></mesh>
     </group>
 );
+
+/** Quadro entre portas (moldura + paisagem procedural, levemente torto). */
+const Painting: React.FC<{ x: number; seed: number }> = ({ x, seed }) => (
+    <group position={[x, 1.78, -0.36]} rotation={[0, 0, (seed % 5 - 2) * 0.015]}>
+        <Bx a={[0.5, 0.62, 0.04]} p={[0, 0, 0]} m={M.frame} />
+        <mesh position={[0, 0, 0.025]}><planeGeometry args={[0.42, 0.54]} /><meshStandardMaterial map={paintingTex(seed)} roughness={0.9} /></mesh>
+    </group>
+);
+
+/** Mesinha-console com vaso e flores secas (a cada tantas portas). */
+const Console: React.FC<{ x: number }> = ({ x }) => (
+    <group position={[x, 0, -0.28]}>
+        <Bx a={[0.7, 0.05, 0.26]} p={[0, 0.78, 0]} m={M.frame} />
+        {[-0.28, 0.28].map((dx, i) => (
+            <mesh key={i} position={[dx, 0.39, 0]} material={M.frame}><cylinderGeometry args={[0.03, 0.04, 0.78, 6]} /></mesh>
+        ))}
+        <mesh position={[0.12, 0.92, 0]} material={M.sconce}><cylinderGeometry args={[0.05, 0.08, 0.22, 8]} /></mesh>
+        {/* hastes secas no vaso */}
+        {[-0.12, 0, 0.14].map((rz, i) => (
+            <mesh key={'h' + i} position={[0.12, 1.14, 0]} rotation={[0, 0, rz]} material={M.trim}><cylinderGeometry args={[0.008, 0.008, 0.3, 4]} /></mesh>
+        ))}
+        {/* livro esquecido */}
+        <Bx a={[0.2, 0.04, 0.14]} p={[-0.18, 0.83, 0.02]} m={M.door21} r={[0, 0.3, 0]} />
+    </group>
+);
+
+/** Poeira suspensa — pontos derivando devagar na luz. */
+const Motes: React.FC = () => {
+    const pts = useRef<THREE.Points>(null!);
+    const geo = useMemo(() => {
+        const g = new THREE.BufferGeometry();
+        const n = 90, arr = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) { arr[i * 3] = Math.random() * END_X; arr[i * 3 + 1] = 0.4 + Math.random() * 3; arr[i * 3 + 2] = Math.random() * 1.4 - 0.3; }
+        g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+        return g;
+    }, []);
+    const mat = useMemo(() => new THREE.PointsMaterial({ color: '#d8c49a', size: 0.035, transparent: true, opacity: 0.55, depthWrite: false }), []);
+    useFrame(({ clock }) => {
+        const a = geo.attributes.position as THREE.BufferAttribute;
+        const t = clock.elapsedTime;
+        for (let i = 0; i < a.count; i++) {
+            a.setY(i, 0.4 + ((a.getY(i) - 0.4 + 0.0016 + Math.sin(t * 0.4 + i) * 0.0006 + 3) % 3));
+        }
+        a.needsUpdate = true;
+    });
+    return <points ref={pts} geometry={geo} material={mat} />;
+};
 
 /** Porta de hotel numerada: moldura, almofadas, maçaneta de latão, chapa de
  *  chute, bandeira e plaqueta. */
@@ -155,20 +240,26 @@ const Door21: React.FC = () => {
             {/* novelo caído no umbral */}
             <mesh position={[0.2, 0.14, 0.2]} material={M.yarn}><sphereGeometry args={[0.13, 10, 10]} /></mesh>
             <mesh position={[0, 2.2, 0.12]}><planeGeometry args={[0.34, 0.46]} /><meshStandardMaterial map={numTex('21', true)} roughness={0.5} /></mesh>
-            <Pl a={[2.4, 3.4]} p={[0, 1.4, 0.5]} m={M.warmGlow} />
+            <Pl a={[4.4, 5.2]} p={[0, 1.4, 0.5]} m={doorHaloMat} />
             <pointLight ref={glow} position={[0, 1.3, 1.0]} distance={8} decay={1.5} color="#ffb861" intensity={7} />
         </group>
     );
 };
 
-/** Avatar do player: silhueta de chapéu e sobretudo, lanterna na mão. */
+/** Avatar do player: chapéu e sobretudo, lanterna na mão que TREMULA, braços
+ *  balançando no passo, aba do casaco com inércia e sombra no tapete. */
 const Walker: React.FC<{ xRef: React.MutableRefObject<number>; movingRef: React.MutableRefObject<number> }> = ({ xRef, movingRef }) => {
     const g = useRef<THREE.Group>(null!);
     const legL = useRef<THREE.Mesh>(null!);
     const legR = useRef<THREE.Mesh>(null!);
+    const armB = useRef<THREE.Mesh>(null!);          // braço de trás (balança)
+    const armF = useRef<THREE.Group>(null!);         // braço da lanterna
+    const coat = useRef<THREE.Mesh>(null!);          // aba do sobretudo
     const lamp = useRef<THREE.PointLight>(null!);
+    const bulb = useRef<THREE.Mesh>(null!);
+    const shadow = useRef<THREE.Mesh>(null!);
     const ph = useRef(0);
-    useFrame((_, dt) => {
+    useFrame(({ clock }, dt) => {
         const g0 = g.current; if (!g0) return;
         g0.position.x = xRef.current;
         const mv = movingRef.current;
@@ -176,8 +267,18 @@ const Walker: React.FC<{ xRef: React.MutableRefObject<number>; movingRef: React.
         const sw = mv !== 0 ? Math.sin(ph.current) * 0.42 : 0;
         if (legL.current) legL.current.rotation.z = sw;
         if (legR.current) legR.current.rotation.z = -sw;
+        // braços: o de trás balança oposto às pernas; o da lanterna sobe um tico
+        if (armB.current) armB.current.rotation.z = -sw * 0.8 + 0.12;
+        if (armF.current) armF.current.rotation.z = (mv !== 0 ? Math.sin(ph.current) * 0.1 : Math.sin(clock.elapsedTime * 1.1) * 0.05) - 0.14;
+        // aba do casaco abre com o passo (inércia fake)
+        if (coat.current) { const open = mv !== 0 ? 0.16 + Math.abs(Math.sin(ph.current)) * 0.12 : 0.05; coat.current.rotation.x = -open; }
         g0.position.y = mv !== 0 ? Math.abs(Math.sin(ph.current)) * 0.05 : 0;
-        if (lamp.current) { lamp.current.position.x = xRef.current + (g0.scale.x < 0 ? -0.5 : 0.5); }
+        // lanterna tremula (chama viva) e acompanha a mão
+        const t = clock.elapsedTime;
+        const flick = 8.5 + Math.sin(t * 11) * 0.9 + Math.sin(t * 23 + 1.7) * 0.55;
+        if (lamp.current) { lamp.current.position.x = xRef.current + (g0.scale.x < 0 ? -0.5 : 0.5); lamp.current.intensity = flick; }
+        if (bulb.current) { const s = 1 + Math.sin(t * 17) * 0.12; bulb.current.scale.setScalar(s); }
+        if (shadow.current) { shadow.current.position.x = xRef.current; const sc = 1 - g0.position.y * 2; shadow.current.scale.set(0.9 * sc, 0.35 * sc, 1); }
     });
     return (
         <>
@@ -185,18 +286,27 @@ const Walker: React.FC<{ xRef: React.MutableRefObject<number>; movingRef: React.
                 {/* pernas */}
                 <mesh ref={legL} position={[-0.11, 0.52, 0.5]} material={M.coat}><boxGeometry args={[0.15, 0.62, 0.16]} /></mesh>
                 <mesh ref={legR} position={[0.11, 0.52, 0.5]} material={M.coat}><boxGeometry args={[0.15, 0.62, 0.16]} /></mesh>
-                {/* sobretudo (tronco trapezoidal) */}
+                {/* sobretudo (tronco) + aba inferior articulada */}
                 <mesh position={[0, 1.05, 0.5]} material={M.coat}><boxGeometry args={[0.44, 0.72, 0.26]} /></mesh>
-                <mesh position={[0, 0.72, 0.5]} material={M.coat}><boxGeometry args={[0.5, 0.3, 0.28]} /></mesh>
-                {/* braço + lanterna à frente */}
-                <mesh position={[0.28, 1.02, 0.55]} material={M.coat}><boxGeometry args={[0.12, 0.5, 0.14]} /></mesh>
-                <mesh position={[0.42, 0.86, 0.62]} material={M.lantern}><boxGeometry args={[0.12, 0.16, 0.1]} /></mesh>
-                <mesh position={[0.42, 0.86, 0.68]}><sphereGeometry args={[0.05, 8, 8]} /><meshBasicMaterial color="#fff0cf" /></mesh>
+                <mesh ref={coat} position={[0, 0.78, 0.5]} material={M.coat}><boxGeometry args={[0.5, 0.34, 0.28]} /></mesh>
+                {/* gola levantada */}
+                <mesh position={[0, 1.42, 0.5]} material={M.coat}><boxGeometry args={[0.4, 0.12, 0.3]} /></mesh>
+                {/* braço de trás balançando */}
+                <mesh ref={armB} position={[-0.27, 1.16, 0.46]} material={M.coat}><boxGeometry args={[0.12, 0.52, 0.14]} /></mesh>
+                {/* braço da frente + lanterna */}
+                <group ref={armF} position={[0.27, 1.2, 0.52]}>
+                    <mesh position={[0.02, -0.2, 0.03]} material={M.coat}><boxGeometry args={[0.12, 0.5, 0.14]} /></mesh>
+                    <mesh position={[0.14, -0.4, 0.1]} material={M.lantern}><boxGeometry args={[0.12, 0.18, 0.1]} /></mesh>
+                    <mesh position={[0.14, -0.3, 0.1]} material={M.lantern}><torusGeometry args={[0.05, 0.014, 6, 10]} /></mesh>
+                    <mesh ref={bulb} position={[0.14, -0.4, 0.16]}><sphereGeometry args={[0.05, 8, 8]} /><meshBasicMaterial color="#fff0cf" /></mesh>
+                </group>
                 {/* cabeça + chapéu */}
                 <mesh position={[0, 1.55, 0.5]} material={M.skin}><sphereGeometry args={[0.15, 12, 12]} /></mesh>
                 <mesh position={[0, 1.66, 0.5]} material={M.hat}><cylinderGeometry args={[0.15, 0.16, 0.14, 12]} /></mesh>
                 <mesh position={[0, 1.6, 0.5]} rotation={[-Math.PI / 2, 0, 0]} material={M.hat}><ringGeometry args={[0.14, 0.26, 16]} /></mesh>
             </group>
+            {/* sombra macia no tapete */}
+            <mesh ref={shadow} position={[0, 0.035, 0.55]} rotation={[-Math.PI / 2, 0, 0]} material={shadowMat}><planeGeometry args={[1, 1]} /></mesh>
             {/* a luz da lanterna (baixa, à frente — revela o corredor, não a cabeça) */}
             <pointLight ref={lamp} position={[0.5, 0.9, 1.3]} distance={8} decay={1.4} color="#ffe4bd" intensity={9} />
         </>
@@ -225,9 +335,19 @@ const CorridorScene: React.FC<{ xRef: React.MutableRefObject<number>; movingRef:
             cam.position.y = 2.0; cam.position.z = 10; cam.rotation.set(0, 0, 0); cam.lookAt(cam.position.x, 2.0, 0);
             if (f8.version !== verSeen.current) { verSeen.current = f8.version; force((v) => v + 1); }
         });
-        const doors = [], sconces = [];
+        const doors = [], sconces = [], paintings = [], consoles = [], beams = [];
         for (let i = 1; i <= F8_DOORS; i++) doors.push(<HotelDoor key={i} x={DOOR0 + (i - 1) * DOOR_GAP} n={i} />);
-        for (let i = 0; i <= F8_DOORS; i++) sconces.push(<Sconce key={i} x={DOOR0 - DOOR_GAP / 2 + i * DOOR_GAP} />);
+        for (let i = 0; i <= F8_DOORS; i++) {
+            const gx = DOOR0 - DOOR_GAP / 2 + i * DOOR_GAP;
+            sconces.push(<Sconce key={i} x={gx} />);
+            // entre as portas: quadros (maioria) e mesinhas (a cada 5)
+            if (i > 0 && i < F8_DOORS) {
+                if (i % 5 === 2) consoles.push(<Console key={'c' + i} x={gx} />);
+                else paintings.push(<Painting key={'p' + i} x={gx} seed={i * 7 + 3} />);
+            }
+            // vigas do teto marcando o ritmo do corredor
+            beams.push(<Bx key={'b' + i} a={[0.24, 0.18, 3.4]} p={[gx, 4.16, 0.2]} m={M.trim} />);
+        }
         return (
             <>
                 <ambientLight color="#33291c" intensity={0.5} />
@@ -237,13 +357,18 @@ const CorridorScene: React.FC<{ xRef: React.MutableRefObject<number>; movingRef:
                 <mesh position={[END_X / 2, 0, 1]} rotation={[-Math.PI / 2, 0, 0]} material={M.floor}><planeGeometry args={[END_X + 12, 4]} /></mesh>
                 <mesh position={[END_X / 2, 0.02, 0.9]} rotation={[-Math.PI / 2, 0, 0]} material={M.runner}><planeGeometry args={[END_X + 12, 1.5]} /></mesh>
                 <Bx a={[END_X + 12, 0.35, 4]} p={[END_X / 2, 4.3, 0]} m={M.ceil} />
-                {/* rodapé + sanca */}
+                {/* rodapé + friso do lambri + sanca */}
                 <Bx a={[END_X + 12, 0.26, 0.12]} p={[END_X / 2, 0.13, -0.32]} m={M.trim} />
+                <Bx a={[END_X + 12, 0.07, 0.1]} p={[END_X / 2, 1.06, -0.33]} m={M.trim} />
                 <Bx a={[END_X + 12, 0.16, 0.12]} p={[END_X / 2, 2.72, -0.32]} m={M.trim} />
+                {beams}
                 {sconces}
+                {paintings}
+                {consoles}
                 {doors}
                 <Door21 />
                 <Bx a={[0.5, 4.6, 3]} p={[END_X + 1.4, 2, 0]} m={M.frame} />
+                <Motes />
                 <Walker xRef={xRef} movingRef={movingRef} />
             </>
         );

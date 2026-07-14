@@ -132,6 +132,63 @@ const ShelfBank: React.FC<{ pos: [number, number, number]; rotY: number; length:
         return <group position={pos} rotation={[0, rotY, 0]}>{boxes}</group>;
     };
 
+// a FOTOGRAFIA DAS VINTE PORTAS (o corredor escuro com as vinte frestas de luz)
+const photo20Tex = colorTex(128, 96, (ctx) => {
+    ctx.fillStyle = '#151009'; ctx.fillRect(0, 0, 128, 96);
+    const g = ctx.createLinearGradient(0, 0, 0, 96); g.addColorStop(0, 'rgba(90,70,40,0.4)'); g.addColorStop(1, 'rgba(0,0,0,0.5)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 96);
+    for (let i = 0; i < 20; i++) {
+        const x = 8 + i * 5.8;
+        ctx.fillStyle = 'rgba(230,190,120,0.85)'; ctx.fillRect(x, 30, 2.2, 40);
+        ctx.fillStyle = 'rgba(120,90,50,0.5)'; ctx.fillRect(x - 1.4, 28, 5, 2);
+    }
+    ctx.fillStyle = '#e8e0cc'; ctx.fillRect(0, 0, 128, 5); ctx.fillRect(0, 91, 128, 5);
+    ctx.fillRect(0, 0, 4, 96); ctx.fillRect(124, 0, 4, 96);
+});
+
+/** Direção de cena do interrogatório (sem re-render; lê f8 por frame):
+ *  - a FOTOGRAFIA se ergue quando a batida dela chega (linha 2) e baixa depois;
+ *  - a IMAGEM na mesa acende e pulsa quando vira o alvo (entregaImagem+). */
+const InterroDirector: React.FC = () => {
+    const photo = useRef<THREE.Group>(null!);
+    const img = useRef<THREE.Mesh>(null!);
+    const imgLight = useRef<THREE.PointLight>(null!);
+    const lift = useRef(0);
+    useFrame(({ clock }, rawDt) => {
+        const dt = Math.min(rawDt, 0.05);
+        const t = clock.elapsedTime;
+        // a foto no ar: sobe na linha 2-3 do interrogatório (a batida da foto)
+        const want = f8.phase === 'interrogatorio' && f8.line >= 2 && f8.line <= 3 ? 1 : 0;
+        lift.current += (want - lift.current) * Math.min(1, dt * 3.5);
+        if (photo.current) {
+            const k = lift.current;
+            photo.current.visible = k > 0.02;
+            photo.current.position.set(0.35, 1.02 + k * 0.55, -1.15);
+            photo.current.rotation.set(-Math.PI / 2 + k * 1.35, 0, 0.15 - k * 0.1);
+        }
+        // a imagem-alvo na mesa (entregaImagem em diante, até o mergulho)
+        const hot = f8.phase === 'entregaImagem';
+        if (img.current) {
+            const m = img.current.material as THREE.MeshStandardMaterial;
+            m.emissiveIntensity = hot ? 0.85 + Math.sin(t * 2.6) * 0.35 : 0.06;
+        }
+        if (imgLight.current) imgLight.current.intensity = hot ? 2.6 + Math.sin(t * 2.6) * 1.1 : 0;
+    });
+    return (
+        <>
+            <group ref={photo} visible={false}>
+                <mesh><planeGeometry args={[0.5, 0.38]} /><meshStandardMaterial map={photo20Tex} roughness={0.8} side={THREE.DoubleSide} /></mesh>
+            </group>
+            {/* a imagem sobre a mesa, virada pro player (o alvo do E) */}
+            <mesh ref={img} position={[-0.15, 1.0, -1.2]} rotation={[-Math.PI / 2, 0, -0.12]}>
+                <planeGeometry args={[0.46, 0.36]} />
+                <meshStandardMaterial color="#c9a25a" emissive="#ffb861" emissiveIntensity={0.06} roughness={0.6} />
+            </mesh>
+            <pointLight ref={imgLight} position={[-0.15, 1.35, -1.2]} distance={2.6} decay={2} color="#ffc478" intensity={0} />
+        </>
+    );
+};
+
 /** A lâmpada de interrogatório: cúpula + bulbo + gaiola de arames. */
 const CagedLamp: React.FC<{ lampRef: React.MutableRefObject<THREE.PointLight> }> = ({ lampRef }) => {
     const bars = [];
@@ -143,19 +200,33 @@ const CagedLamp: React.FC<{ lampRef: React.MutableRefObject<THREE.PointLight> }>
             </mesh>,
         );
     }
+    const swing = useRef<THREE.Group>(null!);
+    useFrame(({ clock }) => {
+        const t = clock.elapsedTime;
+        // pêndulo lento e assimétrico — as sombras da sala respiram
+        if (swing.current) {
+            swing.current.rotation.z = Math.sin(t * 0.62) * 0.055 + Math.sin(t * 0.23 + 1.3) * 0.02;
+            swing.current.rotation.x = Math.sin(t * 0.41 + 0.7) * 0.035;
+        }
+    });
     return (
-        <group position={[0, 2.0, -1.6]}>
-            <B a={[0.03, 0.9, 0.03]} p={[0, 0.5, 0]} m={M8.steelDk} />
-            <mesh position={[0, 0.12, 0]} rotation={[Math.PI, 0, 0]} material={M8.shade}>
-                <coneGeometry args={[0.3, 0.26, 18, 1, true]} />
-            </mesh>
-            {bars}
-            <mesh position={[0, -0.02, 0]}><sphereGeometry args={[0.05, 10, 10]} /><meshBasicMaterial color="#fff2cf" /></mesh>
-            <pointLight ref={lampRef} position={[0, -0.02, 0]} distance={9.5} decay={1.5} color="#ffe6b8" intensity={44} />
-            <mesh position={[0, -0.28, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                <ringGeometry args={[0.13, 0.14, 6]} />
-                <meshStandardMaterial color="#26262a" roughness={0.6} metalness={0.6} side={THREE.DoubleSide} />
-            </mesh>
+        <group position={[0, 2.95, -1.6]}>
+            {/* pivô no TETO: o conjunto todo pende e balança daqui */}
+            <group ref={swing}>
+                <B a={[0.03, 0.9, 0.03]} p={[0, -0.45, 0]} m={M8.steelDk} />
+                <group position={[0, -0.95, 0]}>
+                    <mesh position={[0, 0.12, 0]} rotation={[Math.PI, 0, 0]} material={M8.shade}>
+                        <coneGeometry args={[0.3, 0.26, 18, 1, true]} />
+                    </mesh>
+                    {bars}
+                    <mesh position={[0, -0.02, 0]}><sphereGeometry args={[0.05, 10, 10]} /><meshBasicMaterial color="#fff2cf" /></mesh>
+                    <pointLight ref={lampRef} position={[0, -0.02, 0]} distance={9.5} decay={1.5} color="#ffe6b8" intensity={44} />
+                    <mesh position={[0, -0.28, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                        <ringGeometry args={[0.13, 0.14, 6]} />
+                        <meshStandardMaterial color="#26262a" roughness={0.6} metalness={0.6} side={THREE.DoubleSide} />
+                    </mesh>
+                </group>
+            </group>
         </group>
     );
 };
@@ -289,6 +360,7 @@ export const Floor8Room: React.FC<{ playerPositionRef: React.MutableRefObject<TH
                 {/* a mesa + a lâmpada engaiolada + cadeiras */}
                 <Desk />
                 <CagedLamp lampRef={lamp} />
+                <InterroDirector />
                 <Chair p={[0, 0, -3.0]} rotY={0} />
                 <Chair p={[0, 0, -0.35]} rotY={Math.PI} />
 
