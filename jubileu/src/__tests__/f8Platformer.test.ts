@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
-    p8, p8Reset, stepPlayer, groundAt, curMem, activeAnchor, MEMORIES, P8, type Memory,
+    p8, p8Reset, p8JumpToMemory, stepPlayer, groundAt, curMem, activeAnchor, MEMORIES, P8, type Memory,
 } from '../f8Platformer';
 import { f8, f8Reset } from '../f8Arquivo';
 
@@ -114,11 +114,10 @@ describe('f8Platformer — respawn e coleta', () => {
     });
 
     it('encostar num fio preto desfaz (respawn + hurt)', () => {
-        // a memória 2 tem hazards; troca pra ela
-        p8.memIdx = 1; Object.assign(p8, { anchor: null });
+        // a TEMPESTADE (memória 3) tem fios pretos; pula pra ela
+        p8JumpToMemory(2);
         const m = curMem();
         const h = m.hazards[0];
-        p8.lastGroundX = m.startX; p8.lastGroundY = m.startY;
         p8.x = h.x; p8.y = h.y + 0.3; p8.onGround = true; p8.stun = 0;
         const ev = stepPlayer({ ...IDLE }, 1 / 60);
         expect(ev.hurt).toBe(true);
@@ -131,6 +130,74 @@ describe('f8Platformer — respawn e coleta', () => {
         stepPlayer({ ...IDLE }, 1 / 60);
         expect(p8.gotSpools[0]).toBe(true);
         expect(p8.spools).toBe(1);
+    });
+});
+
+describe('f8Platformer — os valentões da ESCOLA (stomp)', () => {
+    beforeEach(() => { p8Reset(); p8JumpToMemory(1); });   // II. A ESCOLA
+
+    it('o valentão patrulha e inverte nas bordas', () => {
+        const def = curMem().enemies[0];
+        const e = p8.enemies[0];
+        p8.x = -3; p8.y = 0;                       // longe, só observa
+        e.x = def.x1 - 0.01; e.dir = 1;
+        for (let i = 0; i < 5; i++) stepPlayer({ ...IDLE }, 1 / 60);
+        expect(e.dir).toBe(-1);
+        expect(e.x).toBeLessThanOrEqual(def.x1);
+    });
+
+    it('encostar DE LADO no valentão machuca (respawn)', () => {
+        const def = curMem().enemies[0];
+        const e = p8.enemies[0];
+        p8.x = e.x - 0.3; p8.y = def.y; p8.onGround = true; p8.vy = 0; p8.stun = 0;
+        const ev = stepPlayer({ ...IDLE }, 1 / 60);
+        expect(ev.hurt).toBe(true);
+        expect(e.dead).toBe(false);
+    });
+
+    it('cair EM CIMA desfaz o valentão e quica o player (stomp)', () => {
+        const def = curMem().enemies[0];
+        const e = p8.enemies[0];
+        p8.x = e.x; p8.y = def.y + 0.9; p8.vy = -4; p8.onGround = false; p8.stun = 0;
+        const ev = stepPlayer({ ...IDLE }, 1 / 60);
+        expect(ev.stomped).toBe(true);
+        expect(e.dead).toBe(true);
+        expect(p8.vy).toBeGreaterThan(0);          // o quique
+        expect(ev.hurt).toBe(false);
+    });
+
+    it('o valentão morto é inofensivo', () => {
+        const def = curMem().enemies[0];
+        const e = p8.enemies[0];
+        e.dead = true;
+        p8.x = e.x; p8.y = def.y; p8.onGround = true; p8.stun = 0;
+        const ev = stepPlayer({ ...IDLE }, 1 / 60);
+        expect(ev.hurt).toBe(false);
+    });
+});
+
+describe('f8Platformer — as batidas de história', () => {
+    beforeEach(() => p8Reset());
+
+    it('cruzar o x de uma batida mostra a legenda (e não repete)', () => {
+        const b = curMem().beats[0];
+        p8.x = b.x + 0.1; p8.y = 0; p8.onGround = true;
+        const ev = stepPlayer({ ...IDLE }, 1 / 60);
+        expect(ev.beat).toBe(true);
+        expect(p8.beatText).toBe(b.text);
+        expect(p8.beatIdx).toBe(1);
+        // a legenda expira sozinha (5.4s)
+        for (let i = 0; i < 400; i++) stepPlayer({ ...IDLE }, 1 / 60);
+        expect(p8.beatText).toBeNull();
+    });
+
+    it('cada memória carrega sua própria história (beats zerados ao avançar)', () => {
+        const m0 = MEMORIES[0];
+        p8.x = m0.goalX; p8.y = 0; p8.onGround = true;
+        stepPlayer({ ...IDLE }, 1 / 60);
+        expect(p8.memIdx).toBe(1);
+        expect(p8.beatIdx).toBe(0);
+        expect(p8.enemies.length).toBe(MEMORIES[1].enemies.length);
     });
 });
 

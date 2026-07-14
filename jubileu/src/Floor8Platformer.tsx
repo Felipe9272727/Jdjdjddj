@@ -1,97 +1,374 @@
 /**
- * Floor8Platformer.tsx — DENTRO DA PORTA 21: a memória em CROCHÊ (2.5D).
+ * Floor8Platformer.tsx — DENTRO DA PORTA 21: quatro fotografias da vida do
+ * player, e ele acorda dentro de cada uma.
  *
- * O player empunha uma AGULHA GIGANTE de crochê com os dois braços; do bico corre
- * um FIO que ele fisga nas LAÇADAS penduradas no céu tecido e BALANÇA de vão em
- * vão. Quatro memórias (mini-fases) da vida dele, escurecendo a cada uma — cada
- * uma com sua paleta e seu humor.
+ * A entrada de cada memória é um ritual: a FOTO emoldurada aparece (com a
+ * legenda manuscrita), os olhos PISCAM (pálpebras fecham e abrem) — e você
+ * está lá. Cada memória é uma cena pintada com parallax profundo (céu →
+ * fundo → meio → primeiro plano), trilha sonora própria (f8Music) e a
+ * história contada em batidas conforme você avança. Na ESCOLA, os valentões
+ * patrulham — pule em cima pra desfazê-los em fio.
  *
- * Câmera ortográfica seguindo o player (molde Floor8Image), física lida de
- * f8Platformer.ts. Arte procedural de crochê (pontos-baixos em canvas), paralaxe
- * de lã, névoa por memória. Leve de propósito: poucos meshes, texturas em cache.
+ * Física em f8Platformer.ts (grapple + stomp). Arte 100% procedural em canvas.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
-    p8, p8Subscribe, p8Reset, stepPlayer, curMem, activeAnchor, p8Objective, MEMORIES, P8, type Palette,
+    p8, p8Subscribe, p8Reset, stepPlayer, curMem, activeAnchor, p8Objective, P8, type Memory,
 } from './f8Platformer';
 import { f8, f8Subscribe, f8Wake } from './f8Arquivo';
+import { f8MusicStart, f8MusicStop, f8Sting } from './f8Music';
 
-// ── texturas procedurais (cache por paleta) ──────────────────────────────────
-function cvs(w: number, h: number, draw: (x: CanvasRenderingContext2D) => void, rep?: [number, number]) {
+// ── pintura das cenas (canvas grandes, cacheados por memória) ────────────────
+function cvs(w: number, h: number, draw: (x: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
     const c = document.createElement('canvas'); c.width = w; c.height = h;
     draw(c.getContext('2d')!);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-    if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); }
     return t;
 }
+const seedRng = (seed: number) => { let s = seed || 1; return () => { s = (s * 16807) % 2147483647; return s / 2147483647; }; };
 
-/** Ponto-baixo de crochê: fileiras de laçadas em "V" com deslocamento. */
-function crochetTex(base: string, hi: string, lo: string): THREE.CanvasTexture {
-    return cvs(96, 96, (x) => {
-        x.fillStyle = base; x.fillRect(0, 0, 96, 96);
-        const cols = 6, rows = 6, cw = 96 / cols, ch = 96 / rows;
-        x.lineCap = 'round';
-        for (let r = -1; r < rows + 1; r++) {
-            for (let c = -1; c < cols + 1; c++) {
-                const px = c * cw + (r % 2 ? cw / 2 : 0), py = r * ch;
-                x.strokeStyle = lo; x.lineWidth = cw * 0.36;
-                x.beginPath(); x.moveTo(px + cw * 0.14, py + ch * 0.05); x.lineTo(px + cw * 0.5, py + ch * 0.95); x.lineTo(px + cw * 0.86, py + ch * 0.05); x.stroke();
-                x.strokeStyle = hi; x.lineWidth = cw * 0.16;
-                x.beginPath(); x.moveTo(px + cw * 0.2, py + ch * 0.12); x.lineTo(px + cw * 0.5, py + ch * 0.88); x.lineTo(px + cw * 0.8, py + ch * 0.12); x.stroke();
+/** O CÉU de cada memória (gradiente + astro + nuvens/estrelas). */
+function skyPaint(m: Memory): THREE.CanvasTexture {
+    return cvs(512, 256, (x) => {
+        const g = x.createLinearGradient(0, 0, 0, 256);
+        g.addColorStop(0, m.pal.bgHi); g.addColorStop(1, m.pal.bgLo);
+        x.fillStyle = g; x.fillRect(0, 0, 512, 256);
+        const r = seedRng(7);
+        if (m.key === 'quintal') {
+            // o sol de fim de tarde, com halo em camadas
+            for (let i = 5; i >= 1; i--) {
+                x.fillStyle = `rgba(255,236,180,${0.09 * i})`;
+                x.beginPath(); x.arc(140, 86, 18 + i * 14, 0, 7); x.fill();
+            }
+            x.fillStyle = '#fff3cd'; x.beginPath(); x.arc(140, 86, 22, 0, 7); x.fill();
+            // cúmulos preguiçosos com barriga sombreada
+            for (const [cx, cy, s] of [[330, 60, 1.2], [430, 110, 0.8], [70, 150, 0.9], [250, 130, 0.6]]) {
+                x.fillStyle = 'rgba(255,244,224,0.92)';
+                for (const [ox, oy, cr] of [[0, 0, 26], [-24, 8, 18], [24, 8, 20], [8, -12, 18], [-14, -8, 15]]) {
+                    x.beginPath(); x.arc(cx + ox * s, cy + oy * s, cr * s, 0, 7); x.fill();
+                }
+                x.fillStyle = 'rgba(230,160,120,0.35)';
+                x.beginPath(); x.ellipse(cx, cy + 16 * s, 40 * s, 8 * s, 0, 0, 7); x.fill();
+            }
+            // pássaros em "v"
+            x.strokeStyle = 'rgba(90,50,30,0.65)'; x.lineWidth = 2;
+            for (const [bx, by] of [[380, 50], [400, 44], [418, 56]]) {
+                x.beginPath(); x.moveTo(bx - 7, by); x.quadraticCurveTo(bx, by - 6, bx + 7, by); x.stroke();
+            }
+        } else if (m.key === 'escola') {
+            // manhã: nuvens de papel e um aviãozinho
+            for (const [cx, cy, s] of [[100, 70, 1], [300, 50, 1.3], [440, 120, 0.8], [200, 140, 0.7]]) {
+                x.fillStyle = 'rgba(255,255,255,0.9)';
+                for (const [ox, oy, cr] of [[0, 0, 24], [-22, 6, 17], [22, 6, 19], [6, -10, 16]]) {
+                    x.beginPath(); x.arc(cx + ox * s, cy + oy * s, cr * s, 0, 7); x.fill();
+                }
+            }
+            x.fillStyle = 'rgba(255,255,255,0.95)';
+            x.beginPath(); x.moveTo(390, 74); x.lineTo(420, 66); x.lineTo(398, 84); x.closePath(); x.fill();
+            x.strokeStyle = 'rgba(255,255,255,0.5)'; x.setLineDash([4, 6]);
+            x.beginPath(); x.moveTo(300, 96); x.quadraticCurveTo(350, 70, 392, 76); x.stroke();
+            x.setLineDash([]);
+        } else if (m.key === 'tempestade') {
+            // nuvens de tempestade em massas pesadas
+            for (const [cx, cy, s, a] of [[120, 50, 1.6, 0.85], [330, 40, 2.0, 0.9], [460, 90, 1.2, 0.8], [230, 100, 1.4, 0.75]]) {
+                x.fillStyle = `rgba(16,20,30,${a})`;
+                for (const [ox, oy, cr] of [[0, 0, 30], [-30, 10, 22], [30, 10, 24], [10, -14, 20], [-16, -10, 18]]) {
+                    x.beginPath(); x.arc(cx + ox * s, cy + oy * s, cr * s, 0, 7); x.fill();
+                }
+            }
+            // uma fresta de lua fria
+            x.fillStyle = 'rgba(200,214,236,0.35)'; x.beginPath(); x.arc(420, 140, 12, 0, 7); x.fill();
+            // chuva ao longe (traços diagonais fracos)
+            x.strokeStyle = 'rgba(160,180,210,0.12)'; x.lineWidth = 1;
+            for (let i = 0; i < 90; i++) { const rx = r() * 512, ry = r() * 256; x.beginPath(); x.moveTo(rx, ry); x.lineTo(rx - 4, ry + 14); x.stroke(); }
+        } else {
+            // hotel: noite funda com estrelas costuradas
+            for (let i = 0; i < 90; i++) {
+                const sx = r() * 512, sy = r() * 190, sr = r();
+                x.fillStyle = `rgba(214,222,255,${0.25 + sr * 0.5})`;
+                x.fillRect(sx, sy, sr > 0.85 ? 2 : 1, sr > 0.85 ? 2 : 1);
+            }
+            // a lua costurada (com pontos de linha)
+            x.fillStyle = '#cfd4ea'; x.beginPath(); x.arc(120, 70, 20, 0, 7); x.fill();
+            x.fillStyle = m.pal.bgHi; x.beginPath(); x.arc(128, 64, 17, 0, 7); x.fill();
+            x.strokeStyle = 'rgba(230,236,255,0.5)'; x.setLineDash([3, 4]);
+            x.beginPath(); x.arc(120, 70, 26, 0, 7); x.stroke(); x.setLineDash([]);
+        }
+    });
+}
+
+/** O FUNDO distante de cada memória (a cena em silhuetas detalhadas). */
+function farPaint(m: Memory): THREE.CanvasTexture {
+    return cvs(1024, 300, (x) => {
+        x.clearRect(0, 0, 1024, 300);
+        const r = seedRng(13);
+        if (m.key === 'quintal') {
+            // colinas quentes
+            x.fillStyle = 'rgba(158,120,70,0.85)';
+            x.beginPath(); x.moveTo(0, 300);
+            for (let i = 0; i <= 1024; i += 8) x.lineTo(i, 235 + Math.sin(i * 0.008) * 22 + Math.sin(i * 0.03) * 6);
+            x.lineTo(1024, 300); x.fill();
+            // a CASA AMARELA com varanda e janelas acesas
+            const hx = 560;
+            x.fillStyle = '#caa14a'; x.fillRect(hx, 150, 190, 110);
+            x.fillStyle = '#8a4a2a'; x.beginPath(); x.moveTo(hx - 16, 152); x.lineTo(hx + 95, 96); x.lineTo(hx + 206, 152); x.closePath(); x.fill();
+            x.fillStyle = '#6a3a20'; x.fillRect(hx + 150, 108, 16, 40);
+            x.fillStyle = 'rgba(255,238,170,0.95)';
+            x.fillRect(hx + 24, 176, 30, 34); x.fillRect(hx + 130, 176, 30, 34);
+            x.strokeStyle = '#6a4a22'; x.lineWidth = 3;
+            x.strokeRect(hx + 24, 176, 30, 34); x.strokeRect(hx + 130, 176, 30, 34);
+            x.beginPath(); x.moveTo(hx + 39, 176); x.lineTo(hx + 39, 210); x.moveTo(hx + 24, 193); x.lineTo(hx + 54, 193); x.stroke();
+            // porta + varanda
+            x.fillStyle = '#7a4a26'; x.fillRect(hx + 82, 196, 30, 64);
+            x.fillStyle = 'rgba(120,70,36,0.9)'; x.fillRect(hx - 8, 256, 210, 8);
+            for (let px = hx - 4; px < hx + 200; px += 22) x.fillRect(px, 232, 5, 26);
+            // árvore com balanço
+            const tx = 240;
+            x.strokeStyle = '#6a4626'; x.lineWidth = 14;
+            x.beginPath(); x.moveTo(tx, 300); x.quadraticCurveTo(tx - 6, 210, tx + 8, 168); x.stroke();
+            x.lineWidth = 7; x.beginPath(); x.moveTo(tx + 4, 190); x.quadraticCurveTo(tx + 60, 168, tx + 96, 176); x.stroke();
+            x.fillStyle = 'rgba(110,140,70,0.95)';
+            for (const [ox, oy, cr] of [[10, 130, 46], [-38, 152, 34], [58, 148, 38], [10, 168, 40], [96, 168, 26]]) {
+                x.beginPath(); x.arc(tx + ox, oy, cr, 0, 7); x.fill();
+            }
+            // o balanço pendurado
+            x.strokeStyle = '#e8d8b0'; x.lineWidth = 2;
+            x.beginPath(); x.moveTo(tx + 72, 178); x.lineTo(tx + 66, 242); x.moveTo(tx + 92, 178); x.lineTo(tx + 86, 242); x.stroke();
+            x.fillStyle = '#8a5a2e'; x.fillRect(tx + 58, 242, 38, 7);
+            // varal com roupas ao vento
+            x.strokeStyle = 'rgba(240,230,210,0.8)'; x.lineWidth = 2;
+            x.beginPath(); x.moveTo(820, 190); x.quadraticCurveTo(900, 205, 990, 192); x.stroke();
+            for (const [cx2, w2, col] of [[850, 26, '#e8788a'], [900, 30, '#eee6d0'], [950, 24, '#7fae9c']] as [number, number, string][]) {
+                x.fillStyle = col;
+                x.beginPath(); x.moveTo(cx2 - w2 / 2, 198); x.lineTo(cx2 + w2 / 2, 198);
+                x.lineTo(cx2 + w2 / 2 - 4, 232); x.quadraticCurveTo(cx2, 240, cx2 - w2 / 2 + 4, 232); x.closePath(); x.fill();
+            }
+        } else if (m.key === 'escola') {
+            // a ESCOLA de tijolo com relógio e bandeira
+            x.fillStyle = 'rgba(140,150,168,0.5)';
+            x.beginPath(); x.moveTo(0, 300);
+            for (let i = 0; i <= 1024; i += 10) x.lineTo(i, 250 + Math.sin(i * 0.01) * 10);
+            x.lineTo(1024, 300); x.fill();
+            const sx = 380;
+            x.fillStyle = '#b06a4a'; x.fillRect(sx, 120, 300, 150);
+            x.fillStyle = '#c9805c'; x.fillRect(sx + 110, 90, 80, 180);
+            x.strokeStyle = 'rgba(90,45,30,0.35)'; x.lineWidth = 1;
+            for (let yy = 128; yy < 268; yy += 12) { x.beginPath(); x.moveTo(sx, yy); x.lineTo(sx + 300, yy); x.stroke(); }
+            // relógio
+            x.fillStyle = '#f4efe0'; x.beginPath(); x.arc(sx + 150, 116, 17, 0, 7); x.fill();
+            x.strokeStyle = '#4a3a2a'; x.lineWidth = 2.5;
+            x.beginPath(); x.arc(sx + 150, 116, 17, 0, 7); x.stroke();
+            x.beginPath(); x.moveTo(sx + 150, 116); x.lineTo(sx + 150, 104); x.moveTo(sx + 150, 116); x.lineTo(sx + 159, 119); x.stroke();
+            // janelas em grade
+            x.fillStyle = 'rgba(220,236,248,0.9)';
+            for (let cx2 = sx + 22; cx2 < sx + 290; cx2 += 46) for (let cy = 150; cy < 240; cy += 44) {
+                if (cx2 > sx + 100 && cx2 < sx + 190) continue;
+                x.fillRect(cx2, cy, 26, 30);
+            }
+            // porta dupla + escadaria
+            x.fillStyle = '#5a3a28'; x.fillRect(sx + 128, 210, 44, 60);
+            x.fillStyle = '#98a2b0'; x.fillRect(sx + 112, 262, 76, 8);
+            // mastro com bandeirinha
+            x.strokeStyle = '#8a8a92'; x.lineWidth = 3;
+            x.beginPath(); x.moveTo(sx - 40, 270); x.lineTo(sx - 40, 130); x.stroke();
+            x.fillStyle = '#d96a5a'; x.beginPath(); x.moveTo(sx - 38, 132); x.lineTo(sx - 6, 140); x.lineTo(sx - 38, 150); x.fill();
+            // parquinho ao longe: escorregador + trepa-trepa
+            x.strokeStyle = 'rgba(90,100,120,0.8)'; x.lineWidth = 4;
+            x.beginPath(); x.moveTo(160, 268); x.lineTo(196, 218); x.lineTo(196, 268); x.stroke();
+            x.beginPath(); x.moveTo(196, 218); x.quadraticCurveTo(240, 224, 258, 268); x.stroke();
+            for (let gx = 60; gx <= 120; gx += 20) { x.beginPath(); x.moveTo(gx, 268); x.lineTo(gx, 224); x.stroke(); }
+            for (let gy = 224; gy <= 264; gy += 14) { x.beginPath(); x.moveTo(60, gy); x.lineTo(120, gy); x.stroke(); }
+        } else if (m.key === 'tempestade') {
+            // a MESMA casa amarela — mas cinza, uma janela acesa, mala na porta
+            x.fillStyle = 'rgba(30,38,52,0.9)';
+            x.beginPath(); x.moveTo(0, 300);
+            for (let i = 0; i <= 1024; i += 8) x.lineTo(i, 238 + Math.sin(i * 0.008) * 20);
+            x.lineTo(1024, 300); x.fill();
+            const hx = 560;
+            x.fillStyle = '#4a4e5c'; x.fillRect(hx, 150, 190, 110);
+            x.fillStyle = '#343846'; x.beginPath(); x.moveTo(hx - 16, 152); x.lineTo(hx + 95, 96); x.lineTo(hx + 206, 152); x.closePath(); x.fill();
+            // só UMA janela acesa (a outra apagada)
+            x.fillStyle = 'rgba(28,32,44,0.95)'; x.fillRect(hx + 24, 176, 30, 34);
+            x.fillStyle = 'rgba(255,220,140,0.9)'; x.fillRect(hx + 130, 176, 30, 34);
+            x.strokeStyle = '#262a38'; x.lineWidth = 3;
+            x.strokeRect(hx + 24, 176, 30, 34); x.strokeRect(hx + 130, 176, 30, 34);
+            x.fillStyle = '#2a2e3c'; x.fillRect(hx + 82, 196, 30, 64);
+            // a porta ENTREABERTA com luz fria vazando + a mala
+            x.fillStyle = 'rgba(180,200,230,0.4)'; x.fillRect(hx + 108, 196, 5, 64);
+            x.fillStyle = '#20242f'; x.fillRect(hx + 120, 238, 26, 20);
+            x.fillStyle = '#3a3e4c'; x.fillRect(hx + 128, 232, 10, 6);
+            // a árvore SEM folhas, o balanço quebrado (uma corda só)
+            const tx = 240;
+            x.strokeStyle = '#20242e'; x.lineWidth = 12;
+            x.beginPath(); x.moveTo(tx, 300); x.quadraticCurveTo(tx - 6, 210, tx + 8, 158); x.stroke();
+            x.lineWidth = 5;
+            for (const [ax, ay, bx2, by] of [[tx + 4, 200, tx + 70, 160], [tx + 2, 180, tx - 50, 150], [tx + 8, 165, tx + 40, 120], [tx + 6, 172, tx - 24, 128]]) {
+                x.beginPath(); x.moveTo(ax, ay); x.quadraticCurveTo((ax + bx2) / 2, (ay + by) / 2 - 8, bx2, by); x.stroke();
+            }
+            x.strokeStyle = 'rgba(200,200,210,0.5)'; x.lineWidth = 2;
+            x.beginPath(); x.moveTo(tx + 62, 166); x.lineTo(tx + 58, 232); x.stroke();
+            x.save(); x.translate(tx + 58, 232); x.rotate(0.7); x.fillStyle = '#4a4030'; x.fillRect(0, 0, 30, 6); x.restore();
+        } else {
+            // o HOTEL à noite: fachada alta, 20 janelas acesas + a 21ª apagada
+            x.fillStyle = 'rgba(10,8,18,0.95)';
+            x.beginPath(); x.moveTo(0, 300);
+            for (let i = 0; i <= 1024; i += 12) x.lineTo(i, 262 + Math.sin(i * 0.012) * 8);
+            x.lineTo(1024, 300); x.fill();
+            // prédios vizinhos apagados
+            x.fillStyle = 'rgba(18,14,30,0.9)'; x.fillRect(120, 150, 120, 130); x.fillRect(760, 130, 140, 150);
+            // o hotel
+            const hx = 400; const hw = 280;
+            x.fillStyle = '#181226'; x.fillRect(hx, 60, hw, 220);
+            x.fillStyle = '#241c38'; x.fillRect(hx - 14, 52, hw + 28, 14);
+            // 21 janelas: 3 fileiras de 7 — TODAS acesas menos a última
+            let n = 0;
+            for (let row = 0; row < 3; row++) for (let col = 0; col < 7; col++) {
+                n++;
+                const wx = hx + 22 + col * 35, wy = 84 + row * 44;
+                if (n === 21) {
+                    x.fillStyle = 'rgba(8,6,14,0.95)';
+                    x.fillRect(wx, wy, 22, 28);
+                    x.strokeStyle = 'rgba(230,180,90,0.65)'; x.lineWidth = 1.6;
+                    x.setLineDash([3, 3]); x.strokeRect(wx - 2, wy - 2, 26, 32); x.setLineDash([]);
+                } else {
+                    x.fillStyle = `rgba(255,206,120,${0.75 + r() * 0.2})`;
+                    x.fillRect(wx, wy, 22, 28);
+                    x.fillStyle = 'rgba(60,40,20,0.5)';
+                    if (r() > 0.72) x.fillRect(wx + 4 + r() * 8, wy + 8, 6, 18);   // silhuetas nas janelas
+                }
+            }
+            // marquise + THE NORMAL ELEVATOR
+            x.fillStyle = '#2e2444'; x.fillRect(hx + 60, 232, 160, 12);
+            x.fillStyle = 'rgba(232,180,90,0.9)';
+            x.font = 'bold 13px Georgia, serif'; x.textAlign = 'center';
+            x.fillText('THE NORMAL ELEVATOR', hx + 140, 228);
+            x.fillStyle = 'rgba(255,206,120,0.28)'; x.fillRect(hx + 60, 244, 160, 36);
+            // as portas do elevador na entrada
+            x.fillStyle = '#3a3052'; x.fillRect(hx + 122, 244, 36, 36);
+            x.strokeStyle = '#181226'; x.lineWidth = 2;
+            x.beginPath(); x.moveTo(hx + 140, 244); x.lineTo(hx + 140, 280); x.stroke();
+            // postes de rua
+            for (const px of [200, 950]) {
+                x.strokeStyle = '#141020'; x.lineWidth = 5;
+                x.beginPath(); x.moveTo(px, 280); x.lineTo(px, 190); x.stroke();
+                x.fillStyle = 'rgba(255,214,130,0.9)'; x.beginPath(); x.arc(px, 186, 7, 0, 7); x.fill();
+                x.fillStyle = 'rgba(255,214,130,0.12)'; x.beginPath(); x.arc(px, 186, 26, 0, 7); x.fill();
             }
         }
     });
 }
 
-/** Fundo em gradiente + laçadas fantasma (céu tecido da memória). */
-function skyTex(hi: string, lo: string): THREE.CanvasTexture {
-    return cvs(128, 128, (x) => {
-        const g = x.createLinearGradient(0, 0, 0, 128); g.addColorStop(0, hi); g.addColorStop(1, lo);
-        x.fillStyle = g; x.fillRect(0, 0, 128, 128);
-        x.globalAlpha = 0.06; x.strokeStyle = '#ffffff'; x.lineWidth = 2;
-        for (let yy = 8; yy < 128; yy += 16) for (let xx = 6; xx < 128; xx += 18) {
-            x.beginPath(); x.arc(xx + (yy % 32 ? 9 : 0), yy, 5, 0, Math.PI, true); x.stroke();
+/** O PRIMEIRO PLANO (silhuetas passando rápido na frente — profundidade). */
+function fgPaint(m: Memory): THREE.CanvasTexture {
+    return cvs(1024, 128, (x) => {
+        x.clearRect(0, 0, 1024, 128);
+        const r = seedRng(29);
+        const col = m.key === 'quintal' ? 'rgba(110,70,40,0.9)'
+            : m.key === 'escola' ? 'rgba(70,84,100,0.9)'
+            : m.key === 'tempestade' ? 'rgba(10,14,22,0.95)' : 'rgba(6,4,12,0.95)';
+        x.fillStyle = col;
+        x.fillRect(0, 96, 1024, 32);
+        if (m.key === 'quintal') {
+            // girassóis e capim
+            for (let i = 0; i < 26; i++) {
+                const gx = r() * 1024, gh = 26 + r() * 46;
+                x.strokeStyle = col; x.lineWidth = 3;
+                x.beginPath(); x.moveTo(gx, 104); x.quadraticCurveTo(gx + 4, 104 - gh / 2, gx + (r() - 0.5) * 10, 104 - gh); x.stroke();
+                if (r() > 0.6) {
+                    x.fillStyle = 'rgba(200,140,40,0.9)';
+                    x.beginPath(); x.arc(gx + (r() - 0.5) * 10, 102 - gh, 7, 0, 7); x.fill();
+                    x.fillStyle = col;
+                    x.beginPath(); x.arc(gx + (r() - 0.5) * 10, 102 - gh, 3.4, 0, 7); x.fill();
+                }
+            }
+        } else if (m.key === 'escola') {
+            // cerca da escola
+            for (let gx = 0; gx < 1024; gx += 26) { x.fillRect(gx, 56, 6, 48); x.beginPath(); x.arc(gx + 3, 56, 3, 0, 7); x.fill(); }
+            x.fillRect(0, 66, 1024, 5); x.fillRect(0, 88, 1024, 5);
+        } else if (m.key === 'tempestade') {
+            // mato morto vergado pelo vento
+            for (let i = 0; i < 30; i++) {
+                const gx = r() * 1024, gh = 20 + r() * 40;
+                x.strokeStyle = col; x.lineWidth = 2.5;
+                x.beginPath(); x.moveTo(gx, 106); x.quadraticCurveTo(gx + gh * 0.5, 104 - gh * 0.5, gx + gh * 0.9, 104 - gh); x.stroke();
+            }
+        } else {
+            // gradil de ferro do hotel
+            for (let gx = 0; gx < 1024; gx += 34) {
+                x.fillRect(gx, 40, 5, 64);
+                x.beginPath(); x.moveTo(gx - 3, 44); x.lineTo(gx + 2.5, 30); x.lineTo(gx + 8, 44); x.closePath(); x.fill();
+            }
+            x.fillRect(0, 52, 1024, 4); x.fillRect(0, 92, 1024, 4);
         }
-        x.globalAlpha = 1;
     });
 }
 
 interface Kit {
+    sky: THREE.MeshBasicMaterial; far: THREE.MeshBasicMaterial; fg: THREE.MeshBasicMaterial;
     wool: THREE.MeshStandardMaterial; woolTop: THREE.MeshStandardMaterial;
-    sky: THREE.MeshBasicMaterial; hills: THREE.MeshBasicMaterial;
     anchor: THREE.MeshStandardMaterial; anchorHot: THREE.MeshStandardMaterial;
     thread: THREE.MeshBasicMaterial; hazard: THREE.MeshStandardMaterial;
-    spool: THREE.MeshStandardMaterial; glow: THREE.MeshBasicMaterial;
+    spool: THREE.MeshStandardMaterial; glowSoft: THREE.MeshBasicMaterial;
     body: THREE.MeshStandardMaterial; head: THREE.MeshStandardMaterial;
     hat: THREE.MeshStandardMaterial; hook: THREE.MeshStandardMaterial; button: THREE.MeshStandardMaterial;
+    bully: THREE.MeshStandardMaterial; bullyDark: THREE.MeshStandardMaterial;
 }
-function makeKit(pal: Palette): Kit {
-    const woolT = crochetTex(pal.wool, pal.woolHi, pal.woolLo);
-    return {
-        wool: new THREE.MeshStandardMaterial({ map: woolT, roughness: 1 }),
-        woolTop: new THREE.MeshStandardMaterial({ color: pal.woolHi, roughness: 1 }),
-        sky: new THREE.MeshBasicMaterial({ map: skyTex(pal.bgHi, pal.bgLo) }),
-        hills: new THREE.MeshBasicMaterial({ color: pal.woolLo }),
-        anchor: new THREE.MeshStandardMaterial({ color: pal.anchor, roughness: 0.85, emissive: pal.anchor, emissiveIntensity: 0.15 }),
-        anchorHot: new THREE.MeshStandardMaterial({ color: pal.thread, roughness: 0.6, emissive: pal.thread, emissiveIntensity: 0.9 }),
-        thread: new THREE.MeshBasicMaterial({ color: pal.thread }),
-        hazard: new THREE.MeshStandardMaterial({ color: pal.hazard, roughness: 1, emissive: pal.hazard, emissiveIntensity: 0.2 }),
-        spool: new THREE.MeshStandardMaterial({ color: pal.woolHi, roughness: 0.85, emissive: pal.thread, emissiveIntensity: 0.3 }),
-        glow: new THREE.MeshBasicMaterial({ color: pal.light, transparent: true, opacity: 0.4, depthWrite: false }),
+
+function knitTex(base: string, hi: string, lo: string): THREE.CanvasTexture {
+    return cvs(84, 84, (x) => {
+        x.fillStyle = base; x.fillRect(0, 0, 84, 84);
+        const cols = 6, rows = 6, cw = 84 / cols, ch = 84 / rows;
+        x.lineCap = 'round';
+        for (let rr = -1; rr < rows + 1; rr++) for (let c = -1; c < cols + 1; c++) {
+            const px = c * cw + (rr % 2 ? cw / 2 : 0), py = rr * ch;
+            x.strokeStyle = lo; x.lineWidth = cw * 0.34;
+            x.beginPath(); x.moveTo(px + cw * 0.15, py + ch * 0.06); x.lineTo(px + cw * 0.5, py + ch * 0.94); x.lineTo(px + cw * 0.85, py + ch * 0.06); x.stroke();
+            x.strokeStyle = hi; x.lineWidth = cw * 0.15;
+            x.beginPath(); x.moveTo(px + cw * 0.2, py + ch * 0.12); x.lineTo(px + cw * 0.5, py + ch * 0.86); x.lineTo(px + cw * 0.8, py + ch * 0.12); x.stroke();
+        }
+    });
+}
+
+function glowTex(): THREE.CanvasTexture {
+    return cvs(128, 128, (x) => {
+        const g = x.createRadialGradient(64, 64, 4, 64, 64, 62);
+        g.addColorStop(0, 'rgba(255,230,170,0.85)'); g.addColorStop(1, 'rgba(255,230,170,0)');
+        x.fillStyle = g; x.beginPath(); x.arc(64, 64, 63, 0, 7); x.fill();
+    });
+}
+
+const kitCache = new Map<string, Kit>();
+function makeKit(m: Memory): Kit {
+    const hit = kitCache.get(m.key); if (hit) return hit;
+    const kit: Kit = {
+        sky: new THREE.MeshBasicMaterial({ map: skyPaint(m) }),
+        far: new THREE.MeshBasicMaterial({ map: farPaint(m), transparent: true, depthWrite: false }),
+        fg: new THREE.MeshBasicMaterial({ map: fgPaint(m), transparent: true, depthWrite: false }),
+        wool: new THREE.MeshStandardMaterial({ map: knitTex(m.pal.wool, m.pal.woolHi, m.pal.woolLo), roughness: 1 }),
+        woolTop: new THREE.MeshStandardMaterial({ color: m.pal.woolHi, roughness: 1 }),
+        anchor: new THREE.MeshStandardMaterial({ color: m.pal.anchor, roughness: 0.85, emissive: m.pal.anchor, emissiveIntensity: 0.15 }),
+        anchorHot: new THREE.MeshStandardMaterial({ color: m.pal.thread, roughness: 0.6, emissive: m.pal.thread, emissiveIntensity: 0.9 }),
+        thread: new THREE.MeshBasicMaterial({ color: m.pal.thread }),
+        hazard: new THREE.MeshStandardMaterial({ color: m.pal.hazard, roughness: 1, emissive: m.pal.hazard, emissiveIntensity: 0.2 }),
+        spool: new THREE.MeshStandardMaterial({ color: m.pal.woolHi, roughness: 0.85, emissive: m.pal.thread, emissiveIntensity: 0.35 }),
+        glowSoft: new THREE.MeshBasicMaterial({ map: glowTex(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
         body: new THREE.MeshStandardMaterial({ color: '#c88a5a', roughness: 1 }),
         head: new THREE.MeshStandardMaterial({ color: '#e6c49a', roughness: 1 }),
         hat: new THREE.MeshStandardMaterial({ color: '#2a2420', roughness: 0.95 }),
         hook: new THREE.MeshStandardMaterial({ color: '#e8c96a', roughness: 0.35, metalness: 0.6 }),
         button: new THREE.MeshStandardMaterial({ color: '#20140c', roughness: 0.5 }),
+        bully: new THREE.MeshStandardMaterial({ map: knitTex('#5a6474', '#78849a', '#3e4654'), roughness: 1 }),
+        bullyDark: new THREE.MeshStandardMaterial({ color: '#2c323e', roughness: 0.9 }),
     };
+    kitCache.set(m.key, kit);
+    return kit;
 }
 
 const Bx: React.FC<{ a: [number, number, number]; p: [number, number, number]; m: THREE.Material; r?: [number, number, number] }> =
     ({ a, p, m, r }) => (<mesh position={p} rotation={r} material={m}><boxGeometry args={a} /></mesh>);
 
-/** Plataforma de crochê. */
 const YarnLedge: React.FC<{ l: { x0: number; x1: number; y: number }; kit: Kit }> = ({ l, kit }) => {
     const w = l.x1 - l.x0, cx = (l.x0 + l.x1) / 2, depth = 1.4, thick = 0.9;
     return (
@@ -104,7 +381,6 @@ const YarnLedge: React.FC<{ l: { x0: number; x1: number; y: number }; kit: Kit }
     );
 };
 
-/** Laçada de gancho pendurada — pulsa quente quando o player está no alcance. */
 const Anchor: React.FC<{ a: { x: number; y: number }; kit: Kit }> = ({ a, kit }) => {
     const ring = useRef<THREE.Mesh>(null!);
     const near = useRef(false);
@@ -116,15 +392,12 @@ const Anchor: React.FC<{ a: { x: number; y: number }; kit: Kit }> = ({ a, kit })
     });
     return (
         <group position={[a.x, a.y, 0.1]}>
-            {/* fio subindo até o "céu" */}
             <mesh position={[0, 1.6, -0.05]} material={kit.thread}><cylinderGeometry args={[0.03, 0.03, 3.2, 4]} /></mesh>
-            {/* a laçada */}
             <mesh ref={ring} material={kit.anchor}><torusGeometry args={[0.34, 0.11, 10, 20]} /></mesh>
         </group>
     );
 };
 
-/** Fio preto — o hazard. Um tufo emaranhado espinhoso. */
 const BlackThread: React.FC<{ h: { x: number; y: number }; kit: Kit }> = ({ h, kit }) => {
     const spikes = useMemo(() => Array.from({ length: 7 }, (_, i) => ({ rz: (i - 3) * 0.24, len: 0.7 + (i % 3) * 0.35 })), []);
     return (
@@ -151,225 +424,242 @@ const Spool: React.FC<{ s: { x: number; y: number }; i: number; kit: Kit }> = ({
         <group ref={g} position={[s.x, s.y, 0.25]}>
             <mesh material={kit.spool}><sphereGeometry args={[0.28, 12, 12]} /></mesh>
             <mesh rotation={[0.6, 0, 0]} material={kit.thread}><torusGeometry args={[0.28, 0.03, 6, 18]} /></mesh>
-            <mesh material={kit.glow}><planeGeometry args={[1, 1]} /></mesh>
+            <mesh material={kit.glowSoft} scale={[1.3, 1.3, 1]}><planeGeometry args={[1, 1]} /></mesh>
         </group>
     );
 };
 
-/** O player: bonequinho de crochê segurando a AGULHA GIGANTE com os DOIS braços;
- *  o gancho fica no bico, um novelo pendura na parte de TRÁS da agulha, e o FIO
- *  do gancho vai até a laçada presa. Ao balançar, o corpo pendura da agulha. */
-const CrochetPlayer: React.FC<{ kit: Kit }> = ({ kit }) => {
+/** O VALENTÃO de lã: maior que você, carranca de botão, patrulha pesada.
+ *  Stomp → ele se desfaz (encolhe girando, sobra um novelo). */
+const Bully: React.FC<{ i: number; kit: Kit }> = ({ i, kit }) => {
     const g = useRef<THREE.Group>(null!);
-    const armL = useRef<THREE.Mesh>(null!);
-    const armR = useRef<THREE.Mesh>(null!);
     const legL = useRef<THREE.Mesh>(null!);
     const legR = useRef<THREE.Mesh>(null!);
-    const tip = useRef<THREE.Object3D>(null!);        // marcador no BICO da agulha
-    const tail = useRef<THREE.Group>(null!);          // fiapo atrás da agulha
-    const thread = useRef<THREE.Mesh>(null!);         // fio do gancho (WORLD-space)
-    const tipW = useMemo(() => new THREE.Vector3(), []);
+    const ball = useRef<THREE.Mesh>(null!);
     useFrame(({ clock }) => {
+        const e = p8.enemies[i]; const gg = g.current;
+        if (!e || !gg) { if (gg) gg.visible = false; return; }
+        if (e.dead) {
+            const k = Math.max(0, 1 - e.deadT * 1.4);
+            gg.visible = k > 0;
+            gg.scale.set(k, k, k);
+            gg.rotation.z = e.deadT * 9;
+            if (ball.current) { ball.current.visible = e.deadT < 3; ball.current.position.set(e.x, (curMem().enemies[i]?.y ?? 0) + 0.3, 0.2); }
+            return;
+        }
+        gg.visible = true; gg.scale.set(e.dir < 0 ? -1 : 1, 1, 1); gg.rotation.z = 0;
+        gg.position.set(e.x, curMem().enemies[i]?.y ?? 0, 0);
+        const sw = Math.sin(clock.elapsedTime * 6 + i * 2) * 0.4;
+        if (legL.current) legL.current.rotation.z = sw;
+        if (legR.current) legR.current.rotation.z = -sw;
+        if (ball.current) ball.current.visible = false;
+    });
+    return (
+        <>
+            <group ref={g}>
+                <mesh ref={legL} position={[-0.16, 0.36, 0]} material={kit.bullyDark}><boxGeometry args={[0.2, 0.66, 0.24]} /></mesh>
+                <mesh ref={legR} position={[0.16, 0.36, 0]} material={kit.bullyDark}><boxGeometry args={[0.2, 0.66, 0.24]} /></mesh>
+                {/* tronco parrudo */}
+                <mesh position={[0, 1.05, 0]} material={kit.bully}><boxGeometry args={[0.74, 0.8, 0.42]} /></mesh>
+                {/* braços cruzados */}
+                <mesh position={[0, 1.06, 0.24]} rotation={[0, 0, 0.5]} material={kit.bullyDark}><boxGeometry args={[0.56, 0.16, 0.16]} /></mesh>
+                <mesh position={[0, 0.96, 0.26]} rotation={[0, 0, -0.5]} material={kit.bullyDark}><boxGeometry args={[0.56, 0.16, 0.16]} /></mesh>
+                {/* cabeçorra + carranca */}
+                <mesh position={[0, 1.72, 0]} material={kit.bully}><sphereGeometry args={[0.34, 14, 14]} /></mesh>
+                <mesh position={[-0.12, 1.78, 0.3]} rotation={[Math.PI / 2, 0, 0]} material={kit.button}><cylinderGeometry args={[0.06, 0.06, 0.04, 8]} /></mesh>
+                <mesh position={[0.12, 1.78, 0.3]} rotation={[Math.PI / 2, 0, 0]} material={kit.button}><cylinderGeometry args={[0.06, 0.06, 0.04, 8]} /></mesh>
+                {/* sobrancelha fechada (a carranca) */}
+                <mesh position={[0, 1.9, 0.3]} rotation={[0, 0, 0.16]} material={kit.button}><boxGeometry args={[0.34, 0.05, 0.03]} /></mesh>
+                <mesh position={[0, 1.62, 0.32]} rotation={[0, 0, -0.2]} material={kit.button}><boxGeometry args={[0.2, 0.04, 0.03]} /></mesh>
+            </group>
+            {/* o novelo que sobra quando ele se desfaz */}
+            <mesh ref={ball} visible={false} material={kit.spool}><sphereGeometry args={[0.22, 10, 10]} /></mesh>
+        </>
+    );
+};
+
+const CrochetPlayer: React.FC<{ kit: Kit }> = ({ kit }) => {
+    const g = useRef<THREE.Group>(null!);
+    const legL = useRef<THREE.Mesh>(null!);
+    const legR = useRef<THREE.Mesh>(null!);
+    const needle = useRef<THREE.Group>(null!);
+    const thread = useRef<THREE.Mesh>(null!);
+    const hookTip = new THREE.Vector3();
+    useFrame(() => {
         const gg = g.current; if (!gg) return;
         gg.position.set(p8.x, p8.y, 0);
         const anchor = activeAnchor();
         const swinging = anchor !== null;
         gg.scale.x = p8.facing < 0 ? -1 : 1;
-
-        // ao balançar, o corpo inclina apontando a agulha pro fio (pendura)
         let bodyRot = 0;
         if (swinging && anchor) {
             const dx = anchor.x - p8.x, dy = anchor.y - p8.y;
             bodyRot = Math.atan2(dx, dy) * (gg.scale.x < 0 ? -1 : 1) * 0.55;
         }
         gg.rotation.z = THREE.MathUtils.lerp(gg.rotation.z, bodyRot, 0.35);
-
-        // braços: os dois agarram a haste (sobem mais quando balança)
-        const raise = swinging ? -1.35 : -1.0;
-        if (armL.current) armL.current.rotation.z = raise + Math.sin(p8.t * 2.2) * 0.03;
-        if (armR.current) armR.current.rotation.z = raise - 0.22;
-
-        // pernas balançam ao correr; penduradas no balanço
         const moving = p8.onGround && Math.abs(p8.vx) > 0.4;
-        const sw = moving ? Math.sin(p8.runPhase * 3.4) * 0.5 : (swinging ? Math.sin(p8.t * 3) * 0.25 : 0);
+        const sw = moving ? Math.sin(p8.runPhase * 3.4) * 0.5 : (swinging ? Math.sin(p8.t * 3) * 0.2 : 0);
         if (legL.current) legL.current.rotation.z = sw;
         if (legR.current) legR.current.rotation.z = -sw;
-
-        // o fiapo atrás da agulha ondula
-        if (tail.current) tail.current.rotation.z = Math.sin(clock.elapsedTime * 2.4) * 0.25 - 0.4;
-
-        // o fio do gancho: do BICO REAL (world) até a laçada — sem gap
+        if (needle.current) needle.current.rotation.z = swinging ? -0.15 : -0.5;
         if (thread.current) {
-            if (swinging && anchor && tip.current) {
+            if (swinging && anchor) {
                 thread.current.visible = true;
-                tip.current.getWorldPosition(tipW);
-                const dx = anchor.x - tipW.x, dy = anchor.y - tipW.y;
-                thread.current.position.set((tipW.x + anchor.x) / 2, (tipW.y + anchor.y) / 2, 0.3);
-                thread.current.rotation.set(0, 0, Math.atan2(dy, dx) - Math.PI / 2);
-                thread.current.scale.y = Math.max(0.05, Math.hypot(dx, dy));
+                hookTip.set(p8.x + (gg.scale.x < 0 ? -0.5 : 0.5), p8.y + 2.0, 0.3);
+                const mx = (hookTip.x + anchor.x) / 2, my = (hookTip.y + anchor.y) / 2;
+                const dx = anchor.x - hookTip.x, dy = anchor.y - hookTip.y;
+                thread.current.position.set(mx - p8.x, my - p8.y, 0.3);
+                thread.current.rotation.set(0, 0, Math.atan2(dy, dx) - Math.PI / 2 - gg.rotation.z);
+                thread.current.scale.y = Math.hypot(dx, dy);
             } else thread.current.visible = false;
         }
     });
     return (
-        <>
-            <group ref={g}>
-                {/* pernas */}
-                <mesh ref={legL} position={[-0.12, 0.34, 0]} material={kit.body}><boxGeometry args={[0.16, 0.6, 0.2]} /></mesh>
-                <mesh ref={legR} position={[0.12, 0.34, 0]} material={kit.body}><boxGeometry args={[0.16, 0.6, 0.2]} /></mesh>
-                <mesh position={[-0.12, 0.06, 0.04]} material={kit.hat}><boxGeometry args={[0.2, 0.14, 0.26]} /></mesh>
-                <mesh position={[0.12, 0.06, 0.04]} material={kit.hat}><boxGeometry args={[0.2, 0.14, 0.26]} /></mesh>
-                {/* tronco */}
-                <mesh position={[0, 0.92, 0]} material={kit.body}><boxGeometry args={[0.5, 0.66, 0.34]} /></mesh>
-                {/* cabeça + chapéu */}
-                <mesh position={[0, 1.5, 0]} material={kit.head}><sphereGeometry args={[0.32, 14, 14]} /></mesh>
-                <mesh position={[-0.12, 1.55, 0.3]} rotation={[Math.PI / 2, 0, 0]} material={kit.button}><cylinderGeometry args={[0.06, 0.06, 0.04, 10]} /></mesh>
-                <mesh position={[0.12, 1.55, 0.3]} rotation={[Math.PI / 2, 0, 0]} material={kit.button}><cylinderGeometry args={[0.06, 0.06, 0.04, 10]} /></mesh>
-                <mesh position={[0, 1.78, 0]} material={kit.hat}><cylinderGeometry args={[0.26, 0.28, 0.22, 14]} /></mesh>
-                <mesh position={[0, 1.68, 0]} rotation={[Math.PI / 2, 0, 0]} material={kit.hat}><ringGeometry args={[0.24, 0.42, 16]} /></mesh>
-                {/* DOIS braços agarrando a haste (pivô no ombro) */}
-                <group position={[0, 1.12, 0.3]}>
-                    <mesh ref={armL} position={[-0.2, 0.06, 0.06]} material={kit.body}><boxGeometry args={[0.13, 0.56, 0.16]} /></mesh>
-                    <mesh ref={armR} position={[0.24, 0.02, 0.1]} material={kit.body}><boxGeometry args={[0.13, 0.52, 0.16]} /></mesh>
-                    {/* A AGULHA GIGANTE, diagonal sobre o ombro */}
-                    <group position={[0.08, 0.7, 0.14]} rotation={[0, 0, -0.5]}>
-                        {/* haste afinando pro bico */}
-                        <mesh position={[0, 0.55, 0]} material={kit.hook}><cylinderGeometry args={[0.055, 0.095, 2.5, 10]} /></mesh>
-                        {/* punhos das mãos na haste */}
-                        <mesh position={[0, -0.18, 0]} material={kit.body}><sphereGeometry args={[0.13, 8, 8]} /></mesh>
-                        <mesh position={[0, 0.22, 0]} material={kit.body}><sphereGeometry args={[0.13, 8, 8]} /></mesh>
-                        {/* O GANCHO no bico: curva aberta bem visível */}
-                        <mesh position={[0.05, 1.86, 0]} rotation={[0, 0, 2.4]} material={kit.hook}><torusGeometry args={[0.17, 0.055, 8, 14, Math.PI * 1.35]} /></mesh>
-                        <object3D ref={tip} position={[0.1, 1.95, 0]} />
-                        {/* atrás da agulha: o NOVELO + fiapo pendurado */}
-                        <mesh position={[0, -0.78, 0]} material={kit.spool}><sphereGeometry args={[0.2, 10, 10]} /></mesh>
-                        <mesh position={[0, -0.78, 0]} rotation={[0.7, 0, 0.4]} material={kit.thread}><torusGeometry args={[0.2, 0.028, 6, 14]} /></mesh>
-                        <group ref={tail} position={[0, -0.94, 0]}>
-                            <mesh position={[0, -0.3, 0]} material={kit.thread}><cylinderGeometry args={[0.028, 0.028, 0.6, 4]} /></mesh>
-                            <mesh position={[0.08, -0.62, 0]} rotation={[0, 0, 0.6]} material={kit.thread}><cylinderGeometry args={[0.024, 0.024, 0.3, 4]} /></mesh>
-                        </group>
-                    </group>
+        <group ref={g}>
+            <mesh ref={legL} position={[-0.12, 0.34, 0]} material={kit.body}><boxGeometry args={[0.16, 0.6, 0.2]} /></mesh>
+            <mesh ref={legR} position={[0.12, 0.34, 0]} material={kit.body}><boxGeometry args={[0.16, 0.6, 0.2]} /></mesh>
+            <mesh position={[-0.12, 0.06, 0.04]} material={kit.hat}><boxGeometry args={[0.2, 0.14, 0.26]} /></mesh>
+            <mesh position={[0.12, 0.06, 0.04]} material={kit.hat}><boxGeometry args={[0.2, 0.14, 0.26]} /></mesh>
+            <mesh position={[0, 0.92, 0]} material={kit.body}><boxGeometry args={[0.5, 0.66, 0.34]} /></mesh>
+            <mesh position={[0, 1.5, 0]} material={kit.head}><sphereGeometry args={[0.32, 14, 14]} /></mesh>
+            <mesh position={[-0.12, 1.55, 0.3]} rotation={[Math.PI / 2, 0, 0]} material={kit.button}><cylinderGeometry args={[0.06, 0.06, 0.04, 10]} /></mesh>
+            <mesh position={[0.12, 1.55, 0.3]} rotation={[Math.PI / 2, 0, 0]} material={kit.button}><cylinderGeometry args={[0.06, 0.06, 0.04, 10]} /></mesh>
+            <mesh position={[0, 1.78, 0]} material={kit.hat}><cylinderGeometry args={[0.26, 0.28, 0.22, 14]} /></mesh>
+            <mesh position={[0, 1.68, 0]} rotation={[Math.PI / 2, 0, 0]} material={kit.hat}><ringGeometry args={[0.24, 0.42, 16]} /></mesh>
+            {/* os DOIS braços erguidos segurando a agulha gigante */}
+            <group position={[0, 1.12, 0.3]}>
+                <mesh position={[-0.24, 0.28, 0]} rotation={[0, 0, -1.9]} material={kit.body}><boxGeometry args={[0.13, 0.5, 0.16]} /></mesh>
+                <mesh position={[0.24, 0.28, 0]} rotation={[0, 0, -1.9]} material={kit.body}><boxGeometry args={[0.13, 0.5, 0.16]} /></mesh>
+                <group ref={needle} position={[0.1, 0.7, 0.12]} rotation={[0, 0, -0.5]}>
+                    <mesh position={[0, 0.7, 0]} material={kit.hook}><cylinderGeometry args={[0.07, 0.08, 1.9, 8]} /></mesh>
+                    <mesh position={[0, 1.62, 0]} rotation={[Math.PI / 2, 0, 0]} material={kit.hook}><torusGeometry args={[0.12, 0.05, 8, 12, Math.PI * 1.4]} /></mesh>
+                    {/* o NOVELO na parte de trás da agulha + fiapo pendendo */}
+                    <mesh position={[0, -0.32, 0]} material={kit.spool}><sphereGeometry args={[0.16, 10, 10]} /></mesh>
+                    <mesh position={[0, -0.56, 0.02]} rotation={[0, 0, 0.3]} material={kit.thread}><cylinderGeometry args={[0.02, 0.02, 0.4, 4]} /></mesh>
                 </group>
             </group>
-            {/* o fio do gancho — em WORLD space (irmão do grupo, sem herdar rotação) */}
             <mesh ref={thread} material={kit.thread}><cylinderGeometry args={[0.035, 0.035, 1, 5]} /></mesh>
-        </>
+        </group>
     );
 };
 
-/** Cenário próprio de cada memória (meio-fundo, barato: materiais compartilhados). */
-const MemoryProps: React.FC<{ memKey: string; kit: Kit; endX: number }> = ({ memKey, kit, endX }) => {
-    const sun = useRef<THREE.Group>(null!);
-    useFrame(({ clock }) => { if (sun.current) sun.current.rotation.z = clock.elapsedTime * 0.1; });
-    if (memKey === 'infancia') {
-        return (
-            <>
-                {/* um sol de tricô girando devagar */}
-                <group ref={sun} position={[14, 9.5, -6]}>
-                    <mesh material={kit.spool}><circleGeometry args={[1.4, 20]} /></mesh>
-                    {Array.from({ length: 8 }, (_, i) => (
-                        <mesh key={i} position={[Math.cos(i * Math.PI / 4) * 2, Math.sin(i * Math.PI / 4) * 2, 0]} rotation={[0, 0, i * Math.PI / 4 - Math.PI / 2]} material={kit.spool}>
-                            <coneGeometry args={[0.22, 0.9, 5]} />
-                        </mesh>
-                    ))}
-                </group>
-                {/* cortinas quadradas de vovó flutuando */}
-                {[8, 22, 34].map((x, i) => (
-                    <mesh key={i} position={[x, 5 + (i % 2) * 1.6, -5]} rotation={[0, 0, 0.2 + i * 0.3]} material={kit.glow}><planeGeometry args={[1.6, 1.6]} /></mesh>
-                ))}
-            </>
-        );
-    }
-    if (memKey === 'lar') {
-        return (
-            <group position={[30, 0, -6]}>
-                {/* a casa de lã — telhado, corpo, e UMA janela acesa */}
-                <mesh position={[0, 2.2, 0]} material={kit.hills}><boxGeometry args={[7, 4.4, 0.5]} /></mesh>
-                <mesh position={[0, 5.2, 0]} rotation={[0, 0, Math.PI / 4]} material={kit.wool}><boxGeometry args={[5.1, 5.1, 0.45]} /></mesh>
-                <mesh position={[1.4, 2.6, 0.3]} material={kit.glow}><planeGeometry args={[1.1, 1.3]} /></mesh>
-                {/* a porta que se fechou (escura) */}
-                <mesh position={[-1.5, 1.2, 0.3]} material={kit.hazard}><planeGeometry args={[1.2, 2.4]} /></mesh>
-            </group>
-        );
-    }
-    if (memKey === 'rasgado') {
-        return (
-            <>
-                {/* fios rasgados pendendo do alto, tortos */}
-                {[6, 14, 22, 33, 44, 55].map((x, i) => (
-                    <group key={i} position={[x, 10.5, -4]} rotation={[0, 0, (i % 3 - 1) * 0.22]}>
-                        <mesh position={[0, -1.6 - (i % 3), 0]} material={kit.hazard}><cylinderGeometry args={[0.05, 0.02, 3.2 + (i % 3) * 2, 4]} /></mesh>
-                    </group>
-                ))}
-                {/* um retrato rasgado caído */}
-                <mesh position={[40, 1.8, -5]} rotation={[0, 0, -0.35]} material={kit.glow}><planeGeometry args={[1.8, 2.2]} /></mesh>
-            </>
-        );
-    }
-    // obscuro: olhos-botão brilhando na escuridão, observando
+/** Chuva (só na TEMPESTADE): pontos caindo em loop. */
+const Rain: React.FC<{ endX: number }> = ({ endX }) => {
+    const geo = useMemo(() => {
+        const g = new THREE.BufferGeometry();
+        const n = 260, arr = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) { arr[i * 3] = Math.random() * (endX + 20) - 6; arr[i * 3 + 1] = Math.random() * 12; arr[i * 3 + 2] = Math.random() * 4 - 2; }
+        g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+        return g;
+    }, [endX]);
+    const mat = useMemo(() => new THREE.PointsMaterial({ color: '#9fb4d0', size: 0.06, transparent: true, opacity: 0.6, depthWrite: false }), []);
+    useFrame((_, dt) => {
+        const a = geo.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < a.count; i++) {
+            let y = a.getY(i) - dt * 11;
+            if (y < -1) y = 11;
+            a.setY(i, y); a.setX(i, a.getX(i) - dt * 2.4);
+        }
+        a.needsUpdate = true;
+    });
+    return <points geometry={geo} material={mat} />;
+};
+
+/** A PIPA presa no céu do quintal (a que você nunca quis que descesse). */
+const Kite: React.FC<{ kit: Kit }> = ({ kit }) => {
+    const g = useRef<THREE.Group>(null!);
+    useFrame(({ clock }) => {
+        const t = clock.elapsedTime;
+        if (g.current) { g.current.position.y = 9 + Math.sin(t * 0.7) * 0.4; g.current.rotation.z = Math.sin(t * 0.9) * 0.18; }
+    });
     return (
-        <>
-            {[[10, 6.5], [26, 4.2], [41, 7.4], [58, 5.0], [endX - 8, 8.6]].map(([x, y], i) => (
-                <group key={i} position={[x, y, -7]}>
-                    <mesh position={[-0.28, 0, 0]} material={kit.anchorHot}><circleGeometry args={[0.12, 8]} /></mesh>
-                    <mesh position={[0.28, 0, 0]} material={kit.anchorHot}><circleGeometry args={[0.12, 8]} /></mesh>
-                </group>
+        <group ref={g} position={[22, 9, -6]}>
+            <mesh rotation={[0, 0, Math.PI / 4]}><planeGeometry args={[1.1, 1.1]} /><meshBasicMaterial color="#e8564a" side={THREE.DoubleSide} /></mesh>
+            <mesh rotation={[0, 0, Math.PI / 4]} position={[0, 0, 0.01]}><planeGeometry args={[0.5, 0.5]} /><meshBasicMaterial color="#ffd94a" side={THREE.DoubleSide} /></mesh>
+            {[0.5, 1.0, 1.5].map((d, i) => (
+                <mesh key={i} position={[-d * 0.4, -0.8 - d * 0.5, 0]} rotation={[0, 0, 0.6 - i * 0.3]}>
+                    <planeGeometry args={[0.22, 0.12]} /><meshBasicMaterial color={i % 2 ? '#ffd94a' : '#e8564a'} side={THREE.DoubleSide} />
+                </mesh>
             ))}
-        </>
+            <mesh position={[-0.6, -1.6, 0]} rotation={[0, 0, 0.5]} material={kit.thread}><cylinderGeometry args={[0.012, 0.012, 2.4, 3]} /></mesh>
+        </group>
     );
 };
 
 // ── a cena ────────────────────────────────────────────────────────────────────
-const Scene: React.FC<{ moveRef: React.MutableRefObject<number>; vertRef: React.MutableRefObject<number>; jumpRef: React.MutableRefObject<boolean>; grappleRef: React.MutableRefObject<boolean> }> =
-    ({ moveRef, vertRef, jumpRef, grappleRef }) => {
-        const cam = useThree((s) => s.camera);
-        const scene = useThree((s) => s.scene);
-        const bg1 = useRef<THREE.Group>(null!);
-        const bg2 = useRef<THREE.Group>(null!);
-        const mem = curMem();
-        const kit = useMemo(() => makeKit(mem.pal), [mem.pal]);
-        useEffect(() => {
-            scene.fog = new THREE.Fog(mem.pal.fog, 16, 40);
-            return () => { scene.fog = null; };
-        }, [scene, mem.pal.fog]);
+const Scene: React.FC<{
+    moveRef: React.MutableRefObject<number>; vertRef: React.MutableRefObject<number>;
+    jumpRef: React.MutableRefObject<boolean>; grappleRef: React.MutableRefObject<boolean>;
+    introRef: React.MutableRefObject<boolean>;
+}> = ({ moveRef, vertRef, jumpRef, grappleRef, introRef }) => {
+    const cam = useThree((s) => s.camera);
+    const scene = useThree((s) => s.scene);
+    const sky = useRef<THREE.Group>(null!);
+    const far = useRef<THREE.Group>(null!);
+    const fg = useRef<THREE.Group>(null!);
+    const flash = useRef<THREE.AmbientLight>(null!);
+    const nextBolt = useRef(4);
+    const mem = curMem();
+    const kit = makeKit(mem);
+    useEffect(() => {
+        scene.fog = new THREE.Fog(mem.pal.fog, 18, 46);
+        return () => { scene.fog = null; };
+    }, [scene, mem.pal.fog]);
 
-        useFrame((_, rawDt) => {
-            const dt = Math.min(rawDt, 0.05);
-            if (f8.phase === 'platformer') {
-                stepPlayer({ move: moveRef.current, vert: vertRef.current, jump: jumpRef.current, grapple: grappleRef.current }, dt);
-                jumpRef.current = false;
+    useFrame(({ clock }, rawDt) => {
+        const dt = Math.min(rawDt, 0.05);
+        if (f8.phase === 'platformer' && !introRef.current) {
+            const ev = stepPlayer({ move: moveRef.current, vert: vertRef.current, jump: jumpRef.current, grapple: grappleRef.current }, dt);
+            jumpRef.current = false;
+            if (ev.stomped) f8Sting('stomp');
+            if (ev.beat) f8Sting('beat');
+            if (ev.won) { f8Sting('win'); f8MusicStop(2.4); }
+        }
+        const tx = Math.max(2, Math.min(mem.endX - 6, p8.x + 2.4));
+        cam.position.x += (tx - cam.position.x) * Math.min(1, dt * 4);
+        const ty = 2.6 + Math.max(0, p8.y) * 0.4;
+        cam.position.y += (ty - cam.position.y) * Math.min(1, dt * 3);
+        cam.position.z = 14; cam.rotation.set(0, 0, 0);
+        cam.lookAt(cam.position.x, cam.position.y, 0);
+        // parallax em três profundidades
+        if (sky.current) sky.current.position.set(cam.position.x * 0.92, cam.position.y * 0.85 + 3.4, -26);
+        if (far.current) far.current.position.set(cam.position.x * 0.62, cam.position.y * 0.4 + 1.6, -14);
+        if (fg.current) fg.current.position.set(cam.position.x * -0.18, -1.1, 4.4);
+        // relâmpago da tempestade
+        if (mem.key === 'tempestade' && flash.current) {
+            const t = clock.elapsedTime;
+            if (t > nextBolt.current) {
+                flash.current.intensity = 2.6;
+                nextBolt.current = t + 5 + Math.random() * 9;
             }
-            const tx = Math.max(2, Math.min(mem.endX - 6, p8.x + 2.4));
-            cam.position.x += (tx - cam.position.x) * Math.min(1, dt * 4);
-            const ty = 2.6 + Math.max(0, p8.y) * 0.4;
-            cam.position.y += (ty - cam.position.y) * Math.min(1, dt * 3);
-            cam.position.z = 14; cam.rotation.set(0, 0, 0);
-            cam.lookAt(cam.position.x, cam.position.y, 0);
-            if (bg1.current) bg1.current.position.set(cam.position.x * 0.5, cam.position.y * 0.5 + 3, -18);
-            if (bg2.current) bg2.current.position.set(cam.position.x * 0.72, cam.position.y * 0.6 + 1, -11);
-        });
+            flash.current.intensity = Math.max(0, flash.current.intensity - dt * 5);
+        }
+    });
 
-        return (
-            <>
-                <ambientLight color={mem.pal.ambient} intensity={0.85} />
-                <hemisphereLight color={mem.pal.light} groundColor={mem.pal.bgLo} intensity={0.6} />
-                <directionalLight position={[6, 12, 8]} intensity={0.7} color={mem.pal.light} />
+    return (
+        <>
+            <ambientLight color={mem.pal.ambient} intensity={0.85} />
+            <hemisphereLight color={mem.pal.light} groundColor={mem.pal.bgLo} intensity={0.6} />
+            <directionalLight position={[6, 12, 8]} intensity={0.7} color={mem.pal.light} />
+            {mem.key === 'tempestade' && <ambientLight ref={flash} color="#cfe0ff" intensity={0} />}
 
-                <group ref={bg1}><mesh material={kit.sky}><planeGeometry args={[90, 52]} /></mesh></group>
-                <group ref={bg2}>
-                    {[-24, -8, 8, 24, 40].map((hx, i) => (
-                        <mesh key={i} position={[hx, -14 + (i % 2) * 2, 0]} material={kit.hills}><circleGeometry args={[11 + (i % 3) * 3, 22]} /></mesh>
-                    ))}
-                </group>
+            {/* as três camadas pintadas */}
+            <group ref={sky}><mesh material={kit.sky}><planeGeometry args={[110, 55]} /></mesh></group>
+            <group ref={far}><mesh material={kit.far}><planeGeometry args={[42, 12.3]} /></mesh></group>
+            <group ref={fg}><mesh material={kit.fg}><planeGeometry args={[34, 4.25]} /></mesh></group>
 
-                <MemoryProps memKey={mem.key} kit={kit} endX={mem.endX} />
-                {mem.ledges.map((l, i) => <YarnLedge key={i} l={l} kit={kit} />)}
-                {mem.anchors.map((a, i) => <Anchor key={i} a={a} kit={kit} />)}
-                {mem.hazards.map((h, i) => <BlackThread key={i} h={h} kit={kit} />)}
-                {mem.spools.map((s, i) => <Spool key={i} s={s} i={i} kit={kit} />)}
-                <CrochetPlayer kit={kit} />
-            </>
-        );
-    };
+            {mem.key === 'quintal' && <Kite kit={kit} />}
+            {mem.key === 'tempestade' && <Rain endX={mem.endX} />}
+
+            {mem.ledges.map((l, i) => <YarnLedge key={mem.key + i} l={l} kit={kit} />)}
+            {mem.anchors.map((a, i) => <Anchor key={mem.key + 'a' + i} a={a} kit={kit} />)}
+            {mem.hazards.map((h, i) => <BlackThread key={mem.key + 'h' + i} h={h} kit={kit} />)}
+            {mem.enemies.map((_, i) => <Bully key={mem.key + 'e' + i} i={i} kit={kit} />)}
+            {mem.spools.map((s, i) => <Spool key={mem.key + 's' + i} s={s} i={i} kit={kit} />)}
+            <CrochetPlayer kit={kit} />
+        </>
+    );
+};
 
 // ── overlay ───────────────────────────────────────────────────────────────────
 export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
@@ -378,30 +668,37 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
     const vertRef = useRef(0);
     const jumpRef = useRef(false);
     const grappleRef = useRef(false);
+    const introRef = useRef(true);
     const keys = useRef<Record<string, boolean>>({});
     const touchMove = useRef(0);
-    const [caption, setCaption] = useState<string | null>(null);
+    const [introKey, setIntroKey] = useState(-1);
     const lastMem = useRef(-1);
 
-    // OUVE OS DOIS estados: o gate `active` lê f8.phase (a entrada na porta 21
-    // chega por f8Bump — sem essa inscrição o overlay nunca acorda = tela preta),
-    // e o HUD/veil leem p8.
+    // OUVE OS DOIS estados: o gate `active` lê f8.phase; o resto lê p8.
     useEffect(() => {
         const bump = () => setV((x) => x + 1);
         const offF8 = f8Subscribe(bump);
         const offP8 = p8Subscribe(bump);
         return () => { offF8(); offP8(); };
     }, []);
-    useEffect(() => { if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8plat = { p8, reset: p8Reset }; }, []);
+    useEffect(() => { if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8plat = { p8, reset: p8Reset, introRef }; }, []);
 
-    // legenda da memória ao entrar
+    const activePhase = f8.phase === 'platformer' || f8.phase === 'memoriaRecuperada';
+
+    // entrada de memória → o ritual FOTO → PISCADA (e a música da memória)
     useEffect(() => {
+        if (!activePhase) { lastMem.current = -1; return; }
         if (p8.memIdx === lastMem.current) return;
         lastMem.current = p8.memIdx;
-        setCaption(curMem().caption);
-        const id = setTimeout(() => setCaption(null), 5200);
-        return () => clearTimeout(id);
+        introRef.current = true;
+        setIntroKey(p8.memIdx);
+        f8MusicStart(curMem().key);
     });
+    // fim do platformer → silêncio
+    useEffect(() => {
+        if (!activePhase) return;
+        return () => f8MusicStop(1.0);
+    }, [activePhase]);
 
     useEffect(() => {
         const isJump = (k: string) => k === ' ' || k === 'w';
@@ -433,10 +730,10 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
         return () => cancelAnimationFrame(raf);
     }, []);
 
-    const active = f8.phase === 'platformer' || f8.phase === 'memoriaRecuperada';
-    if (!active) return null;
+    if (!activePhase) return null;
     const won = p8.won || f8.phase === 'memoriaRecuperada';
-    const pal = curMem().pal;
+    const mem = curMem();
+    const pal = mem.pal;
 
     const hold = (fn: () => void, off: () => void) => ({
         onPointerDown: (e: React.PointerEvent) => { e.preventDefault(); fn(); },
@@ -446,15 +743,39 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
     return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 56, background: pal.bgLo, touchAction: 'none' }}>
             <Canvas orthographic camera={{ position: [2, 2.6, 14], zoom: 58, near: 0.1, far: 120 }} gl={{ antialias: true }}>
-                <Scene moveRef={moveRef} vertRef={vertRef} jumpRef={jumpRef} grappleRef={grappleRef} />
+                <Scene moveRef={moveRef} vertRef={vertRef} jumpRef={jumpRef} grappleRef={grappleRef} introRef={introRef} />
             </Canvas>
 
-            {/* vinheta suave */}
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 44%, rgba(0,0,0,0) 42%, rgba(0,0,0,0.55) 100%)' }} />
-            {/* fade de transição ao entrar em cada memória (CSS puro — anima
-                sozinho; nada de ler p8.transition no DOM, que não re-renderiza
-                por frame e congelava o véu opaco na tela) */}
-            <div key={p8.memIdx} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: pal.bgLo, animation: 'f8memfade 1.2s ease-out forwards' }} />
+            {/* tratamento de foto: vinheta + grão */}
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 44%, rgba(0,0,0,0) 44%, rgba(0,0,0,0.5) 100%)' }} />
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'overlay', opacity: 0.05, backgroundImage: 'repeating-linear-gradient(0deg,#fff 0 1px,#000 1px 2px)' }} />
+
+            {/* O RITUAL: a foto emoldurada → a piscada → acordar dentro */}
+            {introKey >= 0 && (
+                <div key={introKey} style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none' }}>
+                    {/* a foto (some quando os olhos fecham) */}
+                    <div style={{
+                        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'rgba(8,6,10,0.94)', animation: 'f8photoHold 3.4s ease forwards',
+                    }}>
+                        <div style={{ background: '#f4eee0', padding: '14px 14px 44px', borderRadius: 3, boxShadow: '0 18px 60px rgba(0,0,0,0.8)', transform: 'rotate(-2deg)', maxWidth: 'min(74vw, 420px)' }}>
+                            <div style={{
+                                width: 'min(68vw, 392px)', height: 'min(40vw, 230px)', borderRadius: 2,
+                                background: `linear-gradient(to bottom, ${pal.bgHi} 0%, ${pal.bgLo} 62%, ${pal.woolLo} 100%)`,
+                                boxShadow: 'inset 0 0 30px rgba(60,40,20,0.45)', position: 'relative', overflow: 'hidden',
+                            }}>
+                                <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 50% 40%, rgba(255,240,210,0.3) 0%, rgba(0,0,0,0) 55%)' }} />
+                                <div style={{ position: 'absolute', inset: 0, mixBlendMode: 'overlay', opacity: 0.14, backgroundImage: 'repeating-linear-gradient(0deg,#fff 0 1px,#000 1px 2px)' }} />
+                                <div style={{ position: 'absolute', left: 0, right: 0, bottom: 10, textAlign: 'center', fontFamily: 'Georgia, serif', fontSize: 13, letterSpacing: 4, color: 'rgba(255,255,255,0.85)', textShadow: '0 1px 4px #000' }}>{mem.title}</div>
+                            </div>
+                            <div style={{ marginTop: 12, textAlign: 'center', fontFamily: '"Segoe Script","Bradley Hand",cursive', fontSize: 14, lineHeight: 1.5, color: '#4a3c2a' }}>{mem.caption}</div>
+                        </div>
+                    </div>
+                    {/* as pálpebras */}
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '50%', background: '#000', transformOrigin: 'top', animation: 'f8blinkTop 5s ease-in-out forwards' }} />
+                    <div onAnimationEnd={() => { introRef.current = false; }} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '50%', background: '#000', transformOrigin: 'bottom', animation: 'f8blinkBot 5s ease-in-out forwards' }} />
+                </div>
+            )}
 
             {/* HUD */}
             {!won && (
@@ -464,10 +785,10 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
                 </div>
             )}
 
-            {/* legenda da memória */}
-            {caption && !won && (
-                <div style={{ position: 'absolute', left: 0, right: 0, top: '38%', textAlign: 'center', padding: '0 32px', pointerEvents: 'none' }}>
-                    <div style={{ display: 'inline-block', maxWidth: 620, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 18, lineHeight: 1.6, color: '#fff', textShadow: '0 2px 12px #000', animation: 'f8cap 5.2s ease-in-out' }}>{caption}</div>
+            {/* a batida de história (a narrativa em campo) */}
+            {p8.beatText && !won && (
+                <div style={{ position: 'absolute', left: 0, right: 0, bottom: 148, textAlign: 'center', padding: '0 34px', pointerEvents: 'none' }}>
+                    <div style={{ display: 'inline-block', maxWidth: 640, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 17, lineHeight: 1.6, color: '#fff', textShadow: '0 2px 12px #000, 0 0 30px rgba(0,0,0,0.7)', animation: 'f8beatIn 0.6s ease' }}>{p8.beatText}</div>
                 </div>
             )}
 
@@ -483,12 +804,12 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
                         <button {...hold(() => { jumpRef.current = true; }, () => { })} style={{ ...btn, width: 86, height: 86, fontSize: 14 }}>PULAR</button>
                     </div>
                     <div style={{ position: 'absolute', bottom: 120, right: 20, fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'right', pointerEvents: 'none' }}>
-                        segure FIO perto de uma laçada<br />solte pra ser arremessado
+                        segure FIO perto de uma laçada · solte pra voar<br />pule EM CIMA dos valentões
                     </div>
                 </>
             )}
 
-            {/* vitória (transição pro despertar é o M5) */}
+            {/* vitória */}
             {won && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(4,3,8,0.72)', animation: 'f8platwin 1.6s ease-out' }}>
                     <div style={{ fontFamily: 'Georgia, serif', fontSize: 30, letterSpacing: 4, color: '#dfe4ff', textShadow: '0 0 24px rgba(120,140,220,0.7)', marginBottom: 10 }}>VOCÊ SE LEMBROU</div>
@@ -499,8 +820,10 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
 
             <style>{`
                 @keyframes f8platwin { 0%{opacity:0} 100%{opacity:1} }
-                @keyframes f8cap { 0%{opacity:0} 15%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
-                @keyframes f8memfade { 0%{opacity:1} 100%{opacity:0} }
+                @keyframes f8beatIn { 0%{opacity:0; transform:translateY(8px)} 100%{opacity:1; transform:translateY(0)} }
+                @keyframes f8photoHold { 0%{opacity:0} 8%{opacity:1} 72%{opacity:1} 82%{opacity:0} 100%{opacity:0} }
+                @keyframes f8blinkTop { 0%,64%{transform:scaleY(0)} 74%{transform:scaleY(1)} 82%{transform:scaleY(1)} 100%{transform:scaleY(0)} }
+                @keyframes f8blinkBot { 0%,64%{transform:scaleY(0)} 74%{transform:scaleY(1)} 82%{transform:scaleY(1)} 100%{transform:scaleY(0)} }
             `}</style>
         </div>
     );

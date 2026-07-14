@@ -33,14 +33,23 @@ export interface Palette {
     ambient: string; light: string;  // luz da memória
 }
 
+/** Um valentão de lã: patrulha [x0,x1] no topo y; morre de STOMP (pulo em cima). */
+export interface EnemyDef { x0: number; x1: number; y: number; speed: number; }
+export interface EnemyState { x: number; dir: number; dead: boolean; deadT: number; }
+
+/** Uma batida de história: cruzou x → a legenda aparece (a narrativa da vida). */
+export interface StoryBeat { x: number; text: string; }
+
 /** Uma memória = uma mini-fase (layout próprio + humor próprio). */
 export interface Memory {
     key: string;
     title: string;
-    caption: string;                 // a frase da memória (aparece ao entrar)
+    caption: string;                 // a legenda manuscrita da FOTO (na entrada)
+    beats: StoryBeat[];              // a história contada em campo
     ledges: Ledge[];
     anchors: Vec2[];                 // laçadas de crochê pra enganchar
     hazards: Vec2[];                 // fios pretos (encostar = desfaz)
+    enemies: EnemyDef[];             // valentões (derrote com o pulo em cima)
     spools: Vec2[];                  // novelos coletáveis (opcional)
     startX: number; startY: number;
     goalX: number;                   // alcançar = próxima memória
@@ -67,33 +76,40 @@ export const P8 = {
 } as const;
 
 // ── As quatro memórias ────────────────────────────────────────────────────────
-// Paletas: começam quentes e macias, terminam frias e escuras.
-const PAL_INFANCIA: Palette = {
-    bgHi: '#f6d9c2', bgLo: '#e7a9b0', wool: '#f0a7b8', woolHi: '#ffcbd6', woolLo: '#d07f95',
-    anchor: '#8fd4c2', thread: '#e8738f', hazard: '#c98a3a', fog: '#f2c4bd',
-    ambient: '#f4c9b8', light: '#fff2d8',
+// Quatro FOTOGRAFIAS gradeadas: fim de tarde dourada → manhã azul-papel →
+// tempestade → a noite do hotel. Cada uma é uma cena, não uma troca de paleta.
+const PAL_QUINTAL: Palette = {
+    bgHi: '#ffd9a0', bgLo: '#ff9e6b', wool: '#c98a4a', woolHi: '#e8b06a', woolLo: '#9a6432',
+    anchor: '#7fae72', thread: '#e8738f', hazard: '#6a4a2a', fog: '#ffc492',
+    ambient: '#ffd2a8', light: '#fff2d8',
 };
-const PAL_LAR: Palette = {
-    bgHi: '#9fb4c9', bgLo: '#5f7690', wool: '#7b93ad', woolHi: '#a7bdd2', woolLo: '#516781',
-    anchor: '#c9b57a', thread: '#dcc98a', hazard: '#3f4a5a', fog: '#7b8ea6',
-    ambient: '#8ba0b8', light: '#dfe7f0',
+const PAL_ESCOLA: Palette = {
+    bgHi: '#a8c8e0', bgLo: '#7ba6c4', wool: '#b08a5a', woolHi: '#d0aa74', woolLo: '#8a6a42',
+    anchor: '#d96a5a', thread: '#e8a03a', hazard: '#3f4a5a', fog: '#9cbcd4',
+    ambient: '#b8d0e2', light: '#f4f8fc',
 };
-const PAL_RASGADO: Palette = {
-    bgHi: '#4a2b34', bgLo: '#1f1218', wool: '#7a3543', woolHi: '#a4505f', woolLo: '#4c1f28',
-    anchor: '#b06a5a', thread: '#e06a5a', hazard: '#120a0d', fog: '#341a22',
-    ambient: '#5a2f38', light: '#c98a86',
+const PAL_TEMPESTADE: Palette = {
+    bgHi: '#3a4456', bgLo: '#1a2030', wool: '#4a5468', woolHi: '#68748a', woolLo: '#323a4a',
+    anchor: '#c9b57a', thread: '#dcc98a', hazard: '#0c0e16', fog: '#2a3242',
+    ambient: '#4a5668', light: '#9fb0c8',
 };
-const PAL_OBSCURO: Palette = {
-    bgHi: '#16151f', bgLo: '#05040a', wool: '#26243a', woolHi: '#3b3856', woolLo: '#141324',
-    anchor: '#5a6a8a', thread: '#8a9ec9', hazard: '#000000', fog: '#0a0912',
-    ambient: '#1a1830', light: '#6a78a8',
+const PAL_HOTEL: Palette = {
+    bgHi: '#1c1826', bgLo: '#08060e', wool: '#302a42', woolHi: '#4a4262', woolLo: '#1c1830',
+    anchor: '#c9973a', thread: '#e8b45a', hazard: '#000000', fog: '#100c1a',
+    ambient: '#241e36', light: '#8a78a8',
 };
 
 export const MEMORIES: Memory[] = [
     {
-        key: 'infancia', title: 'I. A INFÂNCIA',
-        caption: 'Havia sol nas cortinas, e lã por todo canto. Alguém tricotava, e eu ria.',
-        pal: PAL_INFANCIA,
+        key: 'quintal', title: 'I. O QUINTAL',
+        caption: 'Verão. O quintal da casa amarela. Eu tinha seis anos e o mundo inteiro cabia ali.',
+        beats: [
+            { x: 6, text: 'A grama ainda guarda o calor da tarde.' },
+            { x: 18, text: 'A pipa ficou presa no céu. Você nunca quis que descesse.' },
+            { x: 30, text: 'Alguém chama seu nome da varanda. Um nome que você esqueceu.' },
+            { x: 38, text: 'Você ria. Disso você lembra: você ria.' },
+        ],
+        pal: PAL_QUINTAL,
         startX: 0, startY: 0, goalX: 40, endX: 46,
         ledges: [
             { x0: -3, x1: 7, y: 0 },
@@ -102,12 +118,19 @@ export const MEMORIES: Memory[] = [
         ],
         anchors: [{ x: 11, y: 6.2 }, { x: 20, y: 7.0 }, { x: 28, y: 6.4 }],
         hazards: [],
+        enemies: [],
         spools: [{ x: 11, y: 3.2 }, { x: 38, y: 1.6 }],
     },
     {
-        key: 'lar', title: 'II. O LAR',
-        caption: 'Uma casa. Uma porta que se fechou e não abriu de novo. O fio ficou frouxo.',
-        pal: PAL_LAR,
+        key: 'escola', title: 'II. A ESCOLA',
+        caption: 'O pátio da escola. O sinal já tocou — mas eles estão esperando você no caminho.',
+        beats: [
+            { x: 5, text: 'O corredor cheira a giz e a medo.' },
+            { x: 16, text: 'Os valentões. Eles eram maiores. PULE EM CIMA deles — hoje você sabe como.' },
+            { x: 34, text: 'Foi aqui que você aprendeu a não chorar na frente dos outros.' },
+            { x: 46, text: 'E foi aqui que, um dia, você revidou.' },
+        ],
+        pal: PAL_ESCOLA,
         startX: 0, startY: 0, goalX: 52, endX: 58,
         ledges: [
             { x0: -3, x1: 6, y: 0 },
@@ -116,13 +139,24 @@ export const MEMORIES: Memory[] = [
             { x0: 40, x1: 58, y: 0 },
         ],
         anchors: [{ x: 10, y: 6.6 }, { x: 16, y: 7.6 }, { x: 23, y: 7.0 }, { x: 36, y: 6.6 }],
-        hazards: [{ x: 29, y: 0.4 }],
+        hazards: [],
+        enemies: [
+            { x0: 14, x1: 18.4, y: 1.4, speed: 1.4 },
+            { x0: 27, x1: 31.4, y: 0.4, speed: 1.9 },
+            { x0: 43, x1: 49, y: 0, speed: 2.3 },
+        ],
         spools: [{ x: 16, y: 4.4 }, { x: 46, y: 1.6 }],
     },
     {
-        key: 'rasgado', title: 'III. O RASGO',
-        caption: 'Aqui a lã se rasga. Fios pretos crescem no que deveria ser meu. Não olhe muito.',
-        pal: PAL_RASGADO,
+        key: 'tempestade', title: 'III. A TEMPESTADE',
+        caption: 'A noite em que a casa amarela ficou cinza. Choveu por meses dentro de você.',
+        beats: [
+            { x: 5, text: 'A mesma casa. Mas a luz da varanda apagou.' },
+            { x: 20, text: 'Tem uma mala na porta. Alguém não vai voltar.' },
+            { x: 36, text: 'Os fios pretos crescem onde faltou abraço.' },
+            { x: 54, text: 'Você guardou essa noite tão fundo que ela virou parede.' },
+        ],
+        pal: PAL_TEMPESTADE,
         startX: 0, startY: 0, goalX: 60, endX: 66,
         ledges: [
             { x0: -3, x1: 5, y: 0 },
@@ -133,12 +167,20 @@ export const MEMORIES: Memory[] = [
         ],
         anchors: [{ x: 8.5, y: 7.0 }, { x: 19.5, y: 7.8 }, { x: 30.5, y: 8.0 }, { x: 42, y: 7.2 }],
         hazards: [{ x: 25, y: 2.0 }, { x: 36, y: 1.0 }, { x: 52, y: 0 }],
+        enemies: [{ x0: 56, x1: 62, y: 0, speed: 1.6 }],
         spools: [{ x: 21, y: 5.4 }, { x: 30, y: 5.0 }, { x: 58, y: 1.6 }],
     },
     {
-        key: 'obscuro', title: 'IV. O FUNDO',
-        caption: 'No fundo não há sol. Só a verdade que apagaram de você. Alcance-a — e acorde.',
-        pal: PAL_OBSCURO,
+        key: 'hotel', title: 'IV. O HOTEL',
+        caption: 'A memória que apagaram: a noite em que você entrou no The Normal Elevator.',
+        beats: [
+            { x: 5, text: 'Você já esteve aqui. Antes de tudo. Esta é a memória que ELE apagou.' },
+            { x: 20, text: 'Vinte janelas acesas. Uma apagada. Você sabe qual era a sua.' },
+            { x: 40, text: 'O Proprietário apertou sua mão. A caneta ainda estava quente na ficha.' },
+            { x: 58, text: 'Ele disse: "o hotel só esquece quem deixa". Você não deixou.' },
+            { x: 74, text: 'A porta 21 sempre foi sua. Alcance-a — e acorde.' },
+        ],
+        pal: PAL_HOTEL,
         startX: 0, startY: 0, goalX: 82, endX: 88,
         ledges: [
             { x0: -3, x1: 4, y: 0 },
@@ -156,6 +198,7 @@ export const MEMORIES: Memory[] = [
             { x: 50.5, y: 6.4 }, { x: 63, y: 7.8 },
         ],
         hazards: [{ x: 13, y: 1.2 }, { x: 23, y: 0.4 }, { x: 33, y: 1.6 }, { x: 44, y: 0.6 }, { x: 74, y: 0 }],
+        enemies: [],
         spools: [{ x: 20, y: 5.2 }, { x: 37, y: 5.4 }, { x: 58.2, y: 3.4 }, { x: 80, y: 1.6 }],
     },
 ];
@@ -191,6 +234,10 @@ export interface P8State {
     lastGroundX: number; lastGroundY: number;   // respawn suave
     gotSpools: boolean[];
     spools: number;
+    enemies: EnemyState[];    // os valentões vivos da memória atual
+    beatIdx: number;          // próxima batida de história a cruzar
+    beatText: string | null;  // a legenda ativa (a cena mostra e apaga)
+    beatT: number;            // segundos restantes da legenda
     hurtFlash: number;
     transition: number;       // >0 → acabou de entrar numa memória (fade na cena)
     won: boolean;
@@ -204,6 +251,8 @@ function freshFor(memIdx: number): Partial<P8State> {
         memIdx, x: m.startX, y: m.startY, vx: 0, vy: 0, onGround: true, coyote: 0, jumpBuf: 0,
         stun: 0, facing: 1, runPhase: 0, anchor: null, ropeLen: 0, grabCd: 0,
         lastGroundX: m.startX, lastGroundY: m.startY, gotSpools: m.spools.map(() => false),
+        enemies: m.enemies.map((e) => ({ x: (e.x0 + e.x1) / 2, dir: 1, dead: false, deadT: 0 })),
+        beatIdx: 0, beatText: null, beatT: 0,
         hurtFlash: 0, transition: 1.0,
     };
 }
@@ -219,11 +268,18 @@ export function p8Subscribe(fn: () => void): () => void { listeners.add(fn); ret
 export function p8Bump(): void { p8.version++; listeners.forEach((fn) => fn()); }
 export function p8Reset(): void { const v = p8.version; Object.assign(p8, FRESH()); p8.version = v; p8Bump(); }
 
+/** Pula direto pra memória `i` (estado fresco dela) — dev/testes. */
+export function p8JumpToMemory(i: number): void {
+    Object.assign(p8, freshFor(Math.max(0, Math.min(MEMORIES.length - 1, i))));
+    p8Bump();
+}
+
 // ── Passo físico ──────────────────────────────────────────────────────────────
 export interface P8Input { move: number; vert: number; jump: boolean; grapple: boolean; }
 export interface P8Events {
     jumped: boolean; landed: boolean; hurt: boolean; respawned: boolean;
     collected: number; grabbed: boolean; released: boolean; advanced: boolean; won: boolean;
+    stomped: boolean; beat: boolean;
 }
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
@@ -250,7 +306,7 @@ function tryGrab(p: P8State, m: Memory): boolean {
 
 export function stepPlayer(inp: P8Input, dt: number): P8Events {
     const p = p8;
-    const ev: P8Events = { jumped: false, landed: false, hurt: false, respawned: false, collected: 0, grabbed: false, released: false, advanced: false, won: false };
+    const ev: P8Events = { jumped: false, landed: false, hurt: false, respawned: false, collected: 0, grabbed: false, released: false, advanced: false, won: false, stomped: false, beat: false };
     if (p.won) return ev;
     const m = curMem();
 
@@ -331,6 +387,35 @@ export function stepPlayer(inp: P8Input, dt: number): P8Events {
                 respawn(p, ev); ev.hurt = true; p8Bump(); return ev;
             }
         }
+    }
+
+    // os valentões: patrulham; pulo EM CIMA desfaz (stomp), encostar do lado dói
+    for (let i = 0; i < p.enemies.length; i++) {
+        const e = p.enemies[i], def = m.enemies[i];
+        if (e.dead) { e.deadT += dt; continue; }
+        e.x += e.dir * def.speed * dt;
+        if (e.x < def.x0) { e.x = def.x0; e.dir = 1; }
+        if (e.x > def.x1) { e.x = def.x1; e.dir = -1; }
+        const dx = Math.abs(p.x - e.x);
+        if (dx < 0.62 && p.y < def.y + 1.15 && p.y > def.y - 0.4) {
+            if (p.vy < -1 && p.y > def.y + 0.55) {
+                // STOMP: o valentão se desfaz em fio; o player quica
+                e.dead = true; e.deadT = 0; p.vy = 7.2; p.onGround = false;
+                ev.stomped = true; p8Bump();
+            } else if (p.stun <= 0) {
+                respawn(p, ev); ev.hurt = true; p8Bump(); return ev;
+            }
+        }
+    }
+
+    // as batidas de história (a narrativa em campo)
+    if (p.beatT > 0) { p.beatT -= dt; if (p.beatT <= 0) { p.beatText = null; p8Bump(); } }
+    if (p.beatIdx < m.beats.length && p.x >= m.beats[p.beatIdx].x) {
+        p.beatText = m.beats[p.beatIdx].text;
+        p.beatT = 5.4;
+        p.beatIdx++;
+        ev.beat = true;
+        p8Bump();
     }
 
     // novelos
