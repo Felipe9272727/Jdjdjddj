@@ -16,7 +16,7 @@ import * as THREE from 'three';
 import {
     p8, p8Subscribe, p8Reset, stepPlayer, curMem, activeAnchor, p8Objective, MEMORIES, P8, type Palette,
 } from './f8Platformer';
-import { f8 } from './f8Arquivo';
+import { f8, f8Wake } from './f8Arquivo';
 
 // ── texturas procedurais (cache por paleta) ──────────────────────────────────
 function cvs(w: number, h: number, draw: (x: CanvasRenderingContext2D) => void, rep?: [number, number]) {
@@ -483,7 +483,7 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(4,3,8,0.72)', animation: 'f8platwin 1.6s ease-out' }}>
                     <div style={{ fontFamily: 'Georgia, serif', fontSize: 30, letterSpacing: 4, color: '#dfe4ff', textShadow: '0 0 24px rgba(120,140,220,0.7)', marginBottom: 10 }}>VOCÊ SE LEMBROU</div>
                     <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#b8c0dc', marginBottom: 24 }}>🧶 {p8.spools} novelos</div>
-                    <button onPointerDown={() => onDone?.()} style={{ ...btn, width: 'auto', height: 'auto', padding: '12px 30px', fontSize: 16, borderColor: '#a9b6f0', color: '#fff' }}>Continuar</button>
+                    <button onPointerDown={() => { f8Wake(); onDone?.(); }} style={{ ...btn, width: 'auto', height: 'auto', padding: '12px 30px', fontSize: 16, borderColor: '#a9b6f0', color: '#fff' }}>Acordar</button>
                 </div>
             )}
 

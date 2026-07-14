@@ -57,7 +57,7 @@ import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
 import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import Floor8Room from './Floor8Room';
-import Floor8Overlay from './Floor8Overlay';
+import Floor8Overlay, { Floor8Ride } from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
 import Floor8Platformer from './Floor8Platformer';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
@@ -838,6 +838,19 @@ export default function App() {
   // congela o Player e solta o pointer lock, mesmo contrato do Floor 6.
   const [f8UiOpen, setF8UiOpen] = useState(false);
   const handleF8UiOpenChange = useCallback((open: boolean) => setF8UiOpen(open), []);
+  // Andar 8 FINALE — o Arquivista te JOGA: você acorda dentro do elevador em
+  // trânsito (mesmo caminho do embarque do 7). O painel marca "9"; o destino
+  // real fica no térreo até o Andar 9 existir — o elevador mente, o hotel deixa.
+  const handleF8Thrown = useCallback(() => {
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+    setNextElevatorDestination(0);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
   // Floor 6 FINALE — the guest stepped aside and the player pressed T inside
   // the repaired cab. "Máquina não esquece: ele te deve uma descida" — o
   // Aurélio manda o player pro ANDAR 7 (o navio). O beat de embarque/portas
@@ -2404,8 +2417,11 @@ export default function App() {
       )}
       {/* Andar 8 — o interrogatório do Arquivista (caixa de diálogo) */}
       {hasStarted && currentLevel === 8 && !doorsClosed && (
-        <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} />
+        <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} onLeave={handleF8Thrown} />
       )}
+      {/* Andar 8 — a volta: acorda no elevador "subindo pro 9", com o fio vermelho
+          (self-gate na fase leave; fica de pé durante o doorsClosed do trânsito) */}
+      {hasStarted && currentLevel === 8 && <Floor8Ride />}
       {/* Andar 8 — DENTRO da imagem: o corredor de 20 portas + a porta 21
           (self-gate por fase; cobre a tela durante corredor20/porta21/platformer) */}
       {hasStarted && currentLevel === 8 && <Floor8Image />}

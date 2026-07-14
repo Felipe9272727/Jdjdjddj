@@ -10,10 +10,10 @@ import { createRoot } from 'react-dom/client';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import Floor8Room from './Floor8Room';
-import Floor8Overlay from './Floor8Overlay';
+import Floor8Overlay, { Floor8Ride } from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
 import Floor8Platformer from './Floor8Platformer';
-import { f8, f8Reset, f8AdvanceLine, f8Bump, f8EnterImage } from './f8Arquivo';
+import { f8, f8Reset, f8AdvanceLine, f8Bump, f8EnterImage, f8Wake, f8AdvanceWake } from './f8Arquivo';
 import { p8, p8Reset } from './f8Platformer';
 import { wallsForState } from './constants';
 import { resolveCollision } from './physics';
@@ -80,7 +80,7 @@ const DevWalker: React.FC = () => {
 const Dev: React.FC = () => {
     useEffect(() => {
         f8Reset(); p8Reset();
-        if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8dbg = { f8, p8, posRef, adv: f8AdvanceLine, bump: f8Bump, enterImage: f8EnterImage, platReset: p8Reset };
+        if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8dbg = { f8, p8, posRef, adv: f8AdvanceLine, bump: f8Bump, enterImage: f8EnterImage, platReset: p8Reset, wake: f8Wake, advWake: f8AdvanceWake };
     }, []);
     return (
         <div style={{ position: 'fixed', inset: 0, background: '#000' }}>
@@ -91,6 +91,7 @@ const Dev: React.FC = () => {
             <Floor8Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} />
             <Floor8Image />
             <Floor8Platformer />
+            <Floor8Ride />
             <div style={{
                 position: 'absolute', bottom: 8, left: 10, color: '#777', zIndex: 50,
                 fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',

@@ -11,11 +11,11 @@
  * Texturas procedurais reusam colorTex/dataTex/rng do Floor6Textures. Os atos
  * (falas, foto, mergulho) crescem nas fases seguintes, dirigidos por f8Arquivo.
  */
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { colorTex, dataTex, rng } from './Floor6Textures';
-import { f8Tick, f8DrainEvents, F8_CEIL, F8_ARQUIVISTA_POS } from './f8Arquivo';
+import { f8, f8Subscribe, f8Tick, f8DrainEvents, F8_CEIL, F8_ARQUIVISTA_POS } from './f8Arquivo';
 import { Arquivista } from './Floor8Arquivista';
 
 // ── texturas procedurais ─────────────────────────────────────────────────────
@@ -199,6 +199,53 @@ const Desk: React.FC = () => (
     </group>
 );
 
+// fita zebrada amarela/preta (barricada de manutenção)
+const tapeTex = colorTex(128, 32, (ctx) => {
+    ctx.fillStyle = '#d8b13a'; ctx.fillRect(0, 0, 128, 32);
+    ctx.fillStyle = '#17150f';
+    for (let x = -32; x < 128; x += 32) { ctx.beginPath(); ctx.moveTo(x, 32); ctx.lineTo(x + 16, 0); ctx.lineTo(x + 32, 0); ctx.lineTo(x + 16, 32); ctx.fill(); }
+}, 3, 1);
+const signTex = colorTex(256, 128, (ctx) => {
+    ctx.fillStyle = '#cfc4a4'; ctx.fillRect(0, 0, 256, 128);
+    ctx.strokeStyle = '#4a4030'; ctx.lineWidth = 6; ctx.strokeRect(6, 6, 244, 116);
+    ctx.fillStyle = '#3a3226'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 26px Georgia, serif'; ctx.fillText('EM MANUTENÇÃO', 128, 46);
+    ctx.font = '20px monospace'; ctx.fillText('— A GERÊNCIA —', 128, 88);
+});
+const M8b = {
+    plank: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.9, color: '#8a7a60' }),
+    tape: new THREE.MeshStandardMaterial({ map: tapeTex, roughness: 0.8, side: THREE.DoubleSide }),
+    sign: new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.85 }),
+};
+
+/** O tapume do elevador: quando o player desperta, o vão do sul está LACRADO —
+ *  tábuas tortas, fita zebrada em X e a placa. O elevador simplesmente não está
+ *  mais lá. Monta nas fases do despertar em diante (f8Subscribe). */
+const ElevatorGone: React.FC = () => {
+    const [, setV] = useState(0);
+    useEffect(() => f8Subscribe(() => setV((v) => v + 1)), []);
+    const on = f8.phase === 'despertar' || f8.phase === 'elevadorSumiu' || f8.phase === 'arremesso' || f8.phase === 'leave';
+    if (!on) return null;
+    return (
+        <group position={[0, 0, -9.92]}>
+            {/* fundo cego atrás das tábuas (nada de poço — o elevador SUMIU) */}
+            <B a={[2.6, H, 0.06]} p={[0, H / 2, -0.06]} m={M8.concrete} />
+            {/* tábuas horizontais tortas */}
+            <B a={[2.9, 0.3, 0.05]} p={[0, 0.6, 0.02]} m={M8b.plank} r={[0, 0, 0.06]} />
+            <B a={[2.9, 0.3, 0.05]} p={[0, 1.35, 0.02]} m={M8b.plank} r={[0, 0, -0.05]} />
+            <B a={[2.9, 0.3, 0.05]} p={[0, 2.1, 0.02]} m={M8b.plank} r={[0, 0, 0.04]} />
+            {/* fita zebrada em X */}
+            <mesh position={[0, 1.4, 0.08]} rotation={[0, 0, 0.6]} material={M8b.tape}><planeGeometry args={[3.2, 0.16]} /></mesh>
+            <mesh position={[0, 1.4, 0.09]} rotation={[0, 0, -0.6]} material={M8b.tape}><planeGeometry args={[3.2, 0.16]} /></mesh>
+            {/* a placa */}
+            <mesh position={[0, 1.75, 0.12]} rotation={[0, 0, -0.03]} material={M8b.sign}><planeGeometry args={[1.1, 0.55]} /></mesh>
+            {/* luz fraca de serviço em cima do vão */}
+            <mesh position={[0, 2.7, 0.1]}><sphereGeometry args={[0.05, 8, 8]} /><meshBasicMaterial color="#c9b16a" /></mesh>
+            <pointLight position={[0, 2.6, 0.4]} distance={3.5} decay={2} color="#c9a95a" intensity={5} />
+        </group>
+    );
+};
+
 export const Floor8Room: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> =
     ({ playerPositionRef }) => {
         const lamp = useRef<THREE.PointLight>(null!);
@@ -223,6 +270,8 @@ export const Floor8Room: React.FC<{ playerPositionRef: React.MutableRefObject<TH
                 {/* parede sul com o vão do elevador (x∈[-1.3,1.3]) */}
                 <B a={[2.7, H, 0.1]} p={[-2.65, H / 2, -10]} m={M8.concrete} />
                 <B a={[2.7, H, 0.1]} p={[2.65, H / 2, -10]} m={M8.concrete} />
+                {/* depois do despertar, o vão está lacrado: o elevador sumiu */}
+                <ElevatorGone />
 
                 {/* O ARQUIVO — estantes de fichas do chão ao teto nas paredes laterais */}
                 <ShelfBank pos={[-3.62, 0, -5]} rotY={Math.PI / 2} length={8.6} seed={11} />

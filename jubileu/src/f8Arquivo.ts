@@ -24,9 +24,12 @@ export type F8Phase =
     | 'mergulho'          // cutscene: o player se aproxima e ENTRA na imagem
     | 'corredor20'        // dentro da imagem: o corredor de vinte portas
     | 'porta21'           // achou a 21ª porta — a memória perdida do player
-    | 'platformer'        // o platformer 2.5D de tricô (a memória tecida)
+    | 'platformer'        // o platformer 2.5D de crochê (a memória tecida)
     | 'memoriaRecuperada' // venceu; a memória volta
-    | 'leave';            // embarca de volta no elevador
+    | 'despertar'         // acorda zonzo na sala; o Arquivista: "você está pronto"
+    | 'elevadorSumiu'     // manca até o sul, olha pra trás: o elevador SUMIU
+    | 'arremesso'         // o Arquivista te ergue e te JOGA (tela gira → preto)
+    | 'leave';            // acorda no elevador, subindo — e tem algo diferente nele
 
 export interface F8State {
     phase: F8Phase;
@@ -85,7 +88,7 @@ export function f8Reset(): void {
 // ── One-shot events (a cena drena → sfx + animações) ─────────────────────────
 export type F8Event =
     | 'arriveBeat' | 'photoReveal' | 'chosen' | 'handImage' | 'dive'
-    | 'door21' | 'win' | 'boarding';
+    | 'door21' | 'win' | 'wake' | 'gone' | 'throw' | 'boarding';
 const events: F8Event[] = [];
 function emit(e: F8Event): void { events.push(e); }
 export function f8DrainEvents(): F8Event[] { return events.splice(0, events.length); }
@@ -181,6 +184,46 @@ export function f8WinMemory(): void {
     emit('win'); f8Bump();
 }
 
+// ── O DESPERTAR: zonzo, "você está pronto", o elevador que sumiu, o arremesso ─
+/** Acorda de volta na sala (zonzo, mal). O Arquivista já sabe. */
+export const F8_DESPERTAR_LINES: ReadonlyArray<{ who: F8Speaker; t: string }> = [
+    L('voce', '…a cabeça. *o chão gira; a luz da lâmpada dói* Onde… quanto tempo eu…'),
+    L('arq', 'Vinte e um minutos. Você gritou duas vezes. *ele guarda a imagem na gaveta, com carinho* Bem-vindo de volta ao que você é.'),
+    L('arq', 'Você está pronto.'),
+];
+
+/** Ao mancar de volta e olhar o vão: o elevador não está mais lá. */
+export const F8_SUMIU_LINES: ReadonlyArray<{ who: F8Speaker; t: string }> = [
+    L('voce', 'O… o elevador. SUMIU. Tem só tapume e fita. Como é que eu—'),
+    L('arq', '*a voz dele vem de trás de você, perto demais* Em manutenção. Sempre está, quando alguém fica pronto.'),
+    L('arq', 'O nono andar não se alcança por dentro do elevador, escolhido. Se alcança sendo ENTREGUE. *as mãos dele fecham no seu casaco*'),
+    L('arq', 'Sua ficha agora tem um nome. Eu mesmo datilografei. Boa viagem.'),
+];
+
+/** memoriaRecuperada → despertar (o botão "Continuar" da vitória chama). */
+export function f8Wake(): void {
+    if (f8.phase !== 'memoriaRecuperada') return;
+    f8.phase = 'despertar'; f8.line = 0; emit('wake'); f8Bump();
+}
+
+/** Avança as falas do despertar/elevadorSumiu. A última do sumiu = o arremesso. */
+export function f8AdvanceWake(): void {
+    if (f8.phase === 'despertar') {
+        if (f8.line < F8_DESPERTAR_LINES.length) { f8.line++; f8Bump(); }
+        return;
+    }
+    if (f8.phase === 'elevadorSumiu') {
+        if (f8.line < F8_SUMIU_LINES.length - 1) { f8.line++; f8Bump(); }
+        else { f8.phase = 'arremesso'; emit('throw'); f8Bump(); }
+    }
+}
+
+/** Fim da animação do arremesso (wall-clock, o overlay dirige) → o elevador. */
+export function f8ThrownDone(): void {
+    if (f8.phase !== 'arremesso') return;
+    f8.phase = 'leave'; emit('boarding'); f8Bump();
+}
+
 // ── Director por frame: chegada → interrogatório por aproximação ─────────────
 /** Chamado pelo useFrame da cena com o Z do player. Em M1 só destrava o
  *  interrogatório quando o player caminha até perto da mesa. */
@@ -197,6 +240,13 @@ export function f8Tick(dt: number, playerZ: number): void {
         s.diveT += dt;
         if (s.diveT >= 2.4) { s.phase = 'corredor20'; f8Bump(); }
     }
+    // despertar: já falou tudo e mancou até o sul → percebe que o elevador sumiu
+    if (s.phase === 'despertar' && s.line >= F8_DESPERTAR_LINES.length && playerZ < -7.5) {
+        s.phase = 'elevadorSumiu';
+        s.line = 0;
+        emit('gone');
+        f8Bump();
+    }
 }
 
 /** A linha-objetivo do HUD (cresce nas fases seguintes). */
@@ -207,5 +257,6 @@ export function f8Objective(): string | null {
     if (s.phase === 'entregaImagem') return 'A imagem, na mesa. Aproxime-se dela.';
     if (s.phase === 'corredor20') return 'Vinte portas. Ache a que não pertence a nenhum andar.';
     if (s.phase === 'porta21') return 'A porta 21. É você. Entre.';
+    if (s.phase === 'despertar' && s.line >= F8_DESPERTAR_LINES.length) return 'Volte ao elevador.';
     return null;
 }
