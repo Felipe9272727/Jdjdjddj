@@ -19,6 +19,24 @@ import {
 } from './f8Platformer';
 import { f8, f8Subscribe, f8Wake } from './f8Arquivo';
 import { f8MusicStart, f8MusicStop, f8Sting } from './f8Music';
+import bgQuintal from './assets/f8/quintal.jpg';
+import bgEscola from './assets/f8/escola.jpg';
+import bgTempestade from './assets/f8/tempestade.jpg';
+import bgHotel from './assets/f8/hotel.jpg';
+
+// os cenários PINTADOS (dioramas de lã gerados) — um por memória
+const BG_URLS: Record<string, string> = { quintal: bgQuintal, escola: bgEscola, tempestade: bgTempestade, hotel: bgHotel };
+// recorte vertical (algumas placas têm a "borda da mesa" do diorama embaixo)
+const BG_CROP: Record<string, number> = { quintal: 0.04, escola: 0.26, tempestade: 0.05, hotel: 0.04 };
+const bgTexCache = new Map<string, THREE.Texture>();
+function bgTex(key: string): THREE.Texture {
+    const hit = bgTexCache.get(key); if (hit) return hit;
+    const t = new THREE.TextureLoader().load(BG_URLS[key]);
+    t.colorSpace = THREE.SRGBColorSpace;
+    const crop = BG_CROP[key] ?? 0;
+    t.repeat.set(1, 1 - crop); t.offset.set(0, crop);
+    bgTexCache.set(key, t); return t;
+}
 
 // ── pintura das cenas (canvas grandes, cacheados por memória) ────────────────
 function cvs(w: number, h: number, draw: (x: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
@@ -28,239 +46,6 @@ function cvs(w: number, h: number, draw: (x: CanvasRenderingContext2D) => void):
     return t;
 }
 const seedRng = (seed: number) => { let s = seed || 1; return () => { s = (s * 16807) % 2147483647; return s / 2147483647; }; };
-
-/** O CÉU de cada memória (gradiente + astro + nuvens/estrelas). */
-function skyPaint(m: Memory): THREE.CanvasTexture {
-    return cvs(512, 256, (x) => {
-        const g = x.createLinearGradient(0, 0, 0, 256);
-        g.addColorStop(0, m.pal.bgHi); g.addColorStop(1, m.pal.bgLo);
-        x.fillStyle = g; x.fillRect(0, 0, 512, 256);
-        const r = seedRng(7);
-        if (m.key === 'quintal') {
-            // o sol de fim de tarde, com halo em camadas
-            for (let i = 5; i >= 1; i--) {
-                x.fillStyle = `rgba(255,236,180,${0.09 * i})`;
-                x.beginPath(); x.arc(140, 86, 18 + i * 14, 0, 7); x.fill();
-            }
-            x.fillStyle = '#fff3cd'; x.beginPath(); x.arc(140, 86, 22, 0, 7); x.fill();
-            // cúmulos preguiçosos com barriga sombreada
-            for (const [cx, cy, s] of [[330, 60, 1.2], [430, 110, 0.8], [70, 150, 0.9], [250, 130, 0.6]]) {
-                x.fillStyle = 'rgba(255,244,224,0.92)';
-                for (const [ox, oy, cr] of [[0, 0, 26], [-24, 8, 18], [24, 8, 20], [8, -12, 18], [-14, -8, 15]]) {
-                    x.beginPath(); x.arc(cx + ox * s, cy + oy * s, cr * s, 0, 7); x.fill();
-                }
-                x.fillStyle = 'rgba(230,160,120,0.35)';
-                x.beginPath(); x.ellipse(cx, cy + 16 * s, 40 * s, 8 * s, 0, 0, 7); x.fill();
-            }
-            // pássaros em "v"
-            x.strokeStyle = 'rgba(90,50,30,0.65)'; x.lineWidth = 2;
-            for (const [bx, by] of [[380, 50], [400, 44], [418, 56]]) {
-                x.beginPath(); x.moveTo(bx - 7, by); x.quadraticCurveTo(bx, by - 6, bx + 7, by); x.stroke();
-            }
-        } else if (m.key === 'escola') {
-            // manhã: nuvens de papel e um aviãozinho
-            for (const [cx, cy, s] of [[100, 70, 1], [300, 50, 1.3], [440, 120, 0.8], [200, 140, 0.7]]) {
-                x.fillStyle = 'rgba(255,255,255,0.9)';
-                for (const [ox, oy, cr] of [[0, 0, 24], [-22, 6, 17], [22, 6, 19], [6, -10, 16]]) {
-                    x.beginPath(); x.arc(cx + ox * s, cy + oy * s, cr * s, 0, 7); x.fill();
-                }
-            }
-            x.fillStyle = 'rgba(255,255,255,0.95)';
-            x.beginPath(); x.moveTo(390, 74); x.lineTo(420, 66); x.lineTo(398, 84); x.closePath(); x.fill();
-            x.strokeStyle = 'rgba(255,255,255,0.5)'; x.setLineDash([4, 6]);
-            x.beginPath(); x.moveTo(300, 96); x.quadraticCurveTo(350, 70, 392, 76); x.stroke();
-            x.setLineDash([]);
-        } else if (m.key === 'tempestade') {
-            // nuvens de tempestade em massas pesadas
-            for (const [cx, cy, s, a] of [[120, 50, 1.6, 0.85], [330, 40, 2.0, 0.9], [460, 90, 1.2, 0.8], [230, 100, 1.4, 0.75]]) {
-                x.fillStyle = `rgba(16,20,30,${a})`;
-                for (const [ox, oy, cr] of [[0, 0, 30], [-30, 10, 22], [30, 10, 24], [10, -14, 20], [-16, -10, 18]]) {
-                    x.beginPath(); x.arc(cx + ox * s, cy + oy * s, cr * s, 0, 7); x.fill();
-                }
-            }
-            // uma fresta de lua fria
-            x.fillStyle = 'rgba(200,214,236,0.35)'; x.beginPath(); x.arc(420, 140, 12, 0, 7); x.fill();
-            // chuva ao longe (traços diagonais fracos)
-            x.strokeStyle = 'rgba(160,180,210,0.12)'; x.lineWidth = 1;
-            for (let i = 0; i < 90; i++) { const rx = r() * 512, ry = r() * 256; x.beginPath(); x.moveTo(rx, ry); x.lineTo(rx - 4, ry + 14); x.stroke(); }
-        } else {
-            // hotel: noite funda com estrelas costuradas
-            for (let i = 0; i < 90; i++) {
-                const sx = r() * 512, sy = r() * 190, sr = r();
-                x.fillStyle = `rgba(214,222,255,${0.25 + sr * 0.5})`;
-                x.fillRect(sx, sy, sr > 0.85 ? 2 : 1, sr > 0.85 ? 2 : 1);
-            }
-            // a lua costurada (com pontos de linha)
-            x.fillStyle = '#cfd4ea'; x.beginPath(); x.arc(120, 70, 20, 0, 7); x.fill();
-            x.fillStyle = m.pal.bgHi; x.beginPath(); x.arc(128, 64, 17, 0, 7); x.fill();
-            x.strokeStyle = 'rgba(230,236,255,0.5)'; x.setLineDash([3, 4]);
-            x.beginPath(); x.arc(120, 70, 26, 0, 7); x.stroke(); x.setLineDash([]);
-        }
-    });
-}
-
-/** O FUNDO distante de cada memória (a cena em silhuetas detalhadas).
- *  Pintado em 2x e desenhado via transform — nítido no recorte da câmera. */
-function farPaint(m: Memory): THREE.CanvasTexture {
-    return cvs(2048, 600, (x) => {
-        x.clearRect(0, 0, 2048, 600);
-        x.scale(2, 2);
-        const r = seedRng(13);
-        if (m.key === 'quintal') {
-            // colinas quentes
-            x.fillStyle = 'rgba(158,120,70,0.85)';
-            x.beginPath(); x.moveTo(0, 300);
-            for (let i = 0; i <= 1024; i += 8) x.lineTo(i, 235 + Math.sin(i * 0.008) * 22 + Math.sin(i * 0.03) * 6);
-            x.lineTo(1024, 300); x.fill();
-            // a CASA AMARELA com varanda e janelas acesas
-            const hx = 560;
-            x.fillStyle = '#caa14a'; x.fillRect(hx, 150, 190, 110);
-            x.fillStyle = '#8a4a2a'; x.beginPath(); x.moveTo(hx - 16, 152); x.lineTo(hx + 95, 96); x.lineTo(hx + 206, 152); x.closePath(); x.fill();
-            x.fillStyle = '#6a3a20'; x.fillRect(hx + 150, 108, 16, 40);
-            x.fillStyle = 'rgba(255,238,170,0.95)';
-            x.fillRect(hx + 24, 176, 30, 34); x.fillRect(hx + 130, 176, 30, 34);
-            x.strokeStyle = '#6a4a22'; x.lineWidth = 3;
-            x.strokeRect(hx + 24, 176, 30, 34); x.strokeRect(hx + 130, 176, 30, 34);
-            x.beginPath(); x.moveTo(hx + 39, 176); x.lineTo(hx + 39, 210); x.moveTo(hx + 24, 193); x.lineTo(hx + 54, 193); x.stroke();
-            // porta + varanda
-            x.fillStyle = '#7a4a26'; x.fillRect(hx + 82, 196, 30, 64);
-            x.fillStyle = 'rgba(120,70,36,0.9)'; x.fillRect(hx - 8, 256, 210, 8);
-            for (let px = hx - 4; px < hx + 200; px += 22) x.fillRect(px, 232, 5, 26);
-            // árvore com balanço
-            const tx = 240;
-            x.strokeStyle = '#6a4626'; x.lineWidth = 14;
-            x.beginPath(); x.moveTo(tx, 300); x.quadraticCurveTo(tx - 6, 210, tx + 8, 168); x.stroke();
-            x.lineWidth = 7; x.beginPath(); x.moveTo(tx + 4, 190); x.quadraticCurveTo(tx + 60, 168, tx + 96, 176); x.stroke();
-            x.fillStyle = 'rgba(110,140,70,0.95)';
-            for (const [ox, oy, cr] of [[10, 130, 46], [-38, 152, 34], [58, 148, 38], [10, 168, 40], [96, 168, 26]]) {
-                x.beginPath(); x.arc(tx + ox, oy, cr, 0, 7); x.fill();
-            }
-            // o balanço pendurado
-            x.strokeStyle = '#e8d8b0'; x.lineWidth = 2;
-            x.beginPath(); x.moveTo(tx + 72, 178); x.lineTo(tx + 66, 242); x.moveTo(tx + 92, 178); x.lineTo(tx + 86, 242); x.stroke();
-            x.fillStyle = '#8a5a2e'; x.fillRect(tx + 58, 242, 38, 7);
-            // varal com roupas ao vento
-            x.strokeStyle = 'rgba(240,230,210,0.8)'; x.lineWidth = 2;
-            x.beginPath(); x.moveTo(820, 190); x.quadraticCurveTo(900, 205, 990, 192); x.stroke();
-            for (const [cx2, w2, col] of [[850, 26, '#e8788a'], [900, 30, '#eee6d0'], [950, 24, '#7fae9c']] as [number, number, string][]) {
-                x.fillStyle = col;
-                x.beginPath(); x.moveTo(cx2 - w2 / 2, 198); x.lineTo(cx2 + w2 / 2, 198);
-                x.lineTo(cx2 + w2 / 2 - 4, 232); x.quadraticCurveTo(cx2, 240, cx2 - w2 / 2 + 4, 232); x.closePath(); x.fill();
-            }
-        } else if (m.key === 'escola') {
-            // a ESCOLA de tijolo com relógio e bandeira
-            x.fillStyle = 'rgba(140,150,168,0.5)';
-            x.beginPath(); x.moveTo(0, 300);
-            for (let i = 0; i <= 1024; i += 10) x.lineTo(i, 250 + Math.sin(i * 0.01) * 10);
-            x.lineTo(1024, 300); x.fill();
-            const sx = 380;
-            x.fillStyle = '#b06a4a'; x.fillRect(sx, 120, 300, 150);
-            x.fillStyle = '#c9805c'; x.fillRect(sx + 110, 90, 80, 180);
-            x.strokeStyle = 'rgba(90,45,30,0.35)'; x.lineWidth = 1;
-            for (let yy = 128; yy < 268; yy += 12) { x.beginPath(); x.moveTo(sx, yy); x.lineTo(sx + 300, yy); x.stroke(); }
-            // relógio
-            x.fillStyle = '#f4efe0'; x.beginPath(); x.arc(sx + 150, 116, 17, 0, 7); x.fill();
-            x.strokeStyle = '#4a3a2a'; x.lineWidth = 2.5;
-            x.beginPath(); x.arc(sx + 150, 116, 17, 0, 7); x.stroke();
-            x.beginPath(); x.moveTo(sx + 150, 116); x.lineTo(sx + 150, 104); x.moveTo(sx + 150, 116); x.lineTo(sx + 159, 119); x.stroke();
-            // janelas em grade
-            x.fillStyle = 'rgba(220,236,248,0.9)';
-            for (let cx2 = sx + 22; cx2 < sx + 290; cx2 += 46) for (let cy = 150; cy < 240; cy += 44) {
-                if (cx2 > sx + 100 && cx2 < sx + 190) continue;
-                x.fillRect(cx2, cy, 26, 30);
-            }
-            // porta dupla + escadaria
-            x.fillStyle = '#5a3a28'; x.fillRect(sx + 128, 210, 44, 60);
-            x.fillStyle = '#98a2b0'; x.fillRect(sx + 112, 262, 76, 8);
-            // mastro com bandeirinha
-            x.strokeStyle = '#8a8a92'; x.lineWidth = 3;
-            x.beginPath(); x.moveTo(sx - 40, 270); x.lineTo(sx - 40, 130); x.stroke();
-            x.fillStyle = '#d96a5a'; x.beginPath(); x.moveTo(sx - 38, 132); x.lineTo(sx - 6, 140); x.lineTo(sx - 38, 150); x.fill();
-            // parquinho ao longe: escorregador + trepa-trepa
-            x.strokeStyle = 'rgba(90,100,120,0.8)'; x.lineWidth = 4;
-            x.beginPath(); x.moveTo(160, 268); x.lineTo(196, 218); x.lineTo(196, 268); x.stroke();
-            x.beginPath(); x.moveTo(196, 218); x.quadraticCurveTo(240, 224, 258, 268); x.stroke();
-            for (let gx = 60; gx <= 120; gx += 20) { x.beginPath(); x.moveTo(gx, 268); x.lineTo(gx, 224); x.stroke(); }
-            for (let gy = 224; gy <= 264; gy += 14) { x.beginPath(); x.moveTo(60, gy); x.lineTo(120, gy); x.stroke(); }
-        } else if (m.key === 'tempestade') {
-            // a MESMA casa amarela — mas cinza, uma janela acesa, mala na porta
-            x.fillStyle = 'rgba(30,38,52,0.9)';
-            x.beginPath(); x.moveTo(0, 300);
-            for (let i = 0; i <= 1024; i += 8) x.lineTo(i, 238 + Math.sin(i * 0.008) * 20);
-            x.lineTo(1024, 300); x.fill();
-            const hx = 560;
-            x.fillStyle = '#4a4e5c'; x.fillRect(hx, 150, 190, 110);
-            x.fillStyle = '#343846'; x.beginPath(); x.moveTo(hx - 16, 152); x.lineTo(hx + 95, 96); x.lineTo(hx + 206, 152); x.closePath(); x.fill();
-            // só UMA janela acesa (a outra apagada)
-            x.fillStyle = 'rgba(28,32,44,0.95)'; x.fillRect(hx + 24, 176, 30, 34);
-            x.fillStyle = 'rgba(255,220,140,0.9)'; x.fillRect(hx + 130, 176, 30, 34);
-            x.strokeStyle = '#262a38'; x.lineWidth = 3;
-            x.strokeRect(hx + 24, 176, 30, 34); x.strokeRect(hx + 130, 176, 30, 34);
-            x.fillStyle = '#2a2e3c'; x.fillRect(hx + 82, 196, 30, 64);
-            // a porta ENTREABERTA com luz fria vazando + a mala
-            x.fillStyle = 'rgba(180,200,230,0.4)'; x.fillRect(hx + 108, 196, 5, 64);
-            x.fillStyle = '#20242f'; x.fillRect(hx + 120, 238, 26, 20);
-            x.fillStyle = '#3a3e4c'; x.fillRect(hx + 128, 232, 10, 6);
-            // a árvore SEM folhas, o balanço quebrado (uma corda só)
-            const tx = 240;
-            x.strokeStyle = '#20242e'; x.lineWidth = 12;
-            x.beginPath(); x.moveTo(tx, 300); x.quadraticCurveTo(tx - 6, 210, tx + 8, 158); x.stroke();
-            x.lineWidth = 5;
-            for (const [ax, ay, bx2, by] of [[tx + 4, 200, tx + 70, 160], [tx + 2, 180, tx - 50, 150], [tx + 8, 165, tx + 40, 120], [tx + 6, 172, tx - 24, 128]]) {
-                x.beginPath(); x.moveTo(ax, ay); x.quadraticCurveTo((ax + bx2) / 2, (ay + by) / 2 - 8, bx2, by); x.stroke();
-            }
-            x.strokeStyle = 'rgba(200,200,210,0.5)'; x.lineWidth = 2;
-            x.beginPath(); x.moveTo(tx + 62, 166); x.lineTo(tx + 58, 232); x.stroke();
-            x.save(); x.translate(tx + 58, 232); x.rotate(0.7); x.fillStyle = '#4a4030'; x.fillRect(0, 0, 30, 6); x.restore();
-        } else {
-            // o HOTEL à noite: fachada alta, 20 janelas acesas + a 21ª apagada
-            x.fillStyle = 'rgba(10,8,18,0.95)';
-            x.beginPath(); x.moveTo(0, 300);
-            for (let i = 0; i <= 1024; i += 12) x.lineTo(i, 262 + Math.sin(i * 0.012) * 8);
-            x.lineTo(1024, 300); x.fill();
-            // prédios vizinhos apagados
-            x.fillStyle = 'rgba(18,14,30,0.9)'; x.fillRect(120, 150, 120, 130); x.fillRect(760, 130, 140, 150);
-            // o hotel
-            const hx = 400; const hw = 280;
-            x.fillStyle = '#181226'; x.fillRect(hx, 60, hw, 220);
-            x.fillStyle = '#241c38'; x.fillRect(hx - 14, 52, hw + 28, 14);
-            // 21 janelas: 3 fileiras de 7 — TODAS acesas menos a última
-            let n = 0;
-            for (let row = 0; row < 3; row++) for (let col = 0; col < 7; col++) {
-                n++;
-                const wx = hx + 22 + col * 35, wy = 84 + row * 44;
-                if (n === 21) {
-                    x.fillStyle = 'rgba(8,6,14,0.95)';
-                    x.fillRect(wx, wy, 22, 28);
-                    x.strokeStyle = 'rgba(230,180,90,0.65)'; x.lineWidth = 1.6;
-                    x.setLineDash([3, 3]); x.strokeRect(wx - 2, wy - 2, 26, 32); x.setLineDash([]);
-                } else {
-                    x.fillStyle = `rgba(255,206,120,${0.75 + r() * 0.2})`;
-                    x.fillRect(wx, wy, 22, 28);
-                    x.fillStyle = 'rgba(60,40,20,0.5)';
-                    if (r() > 0.72) x.fillRect(wx + 4 + r() * 8, wy + 8, 6, 18);   // silhuetas nas janelas
-                }
-            }
-            // marquise + THE NORMAL ELEVATOR
-            x.fillStyle = '#2e2444'; x.fillRect(hx + 60, 232, 160, 12);
-            x.fillStyle = 'rgba(232,180,90,0.9)';
-            x.font = 'bold 13px Georgia, serif'; x.textAlign = 'center';
-            x.fillText('THE NORMAL ELEVATOR', hx + 140, 228);
-            x.fillStyle = 'rgba(255,206,120,0.28)'; x.fillRect(hx + 60, 244, 160, 36);
-            // as portas do elevador na entrada
-            x.fillStyle = '#3a3052'; x.fillRect(hx + 122, 244, 36, 36);
-            x.strokeStyle = '#181226'; x.lineWidth = 2;
-            x.beginPath(); x.moveTo(hx + 140, 244); x.lineTo(hx + 140, 280); x.stroke();
-            // postes de rua
-            for (const px of [200, 950]) {
-                x.strokeStyle = '#141020'; x.lineWidth = 5;
-                x.beginPath(); x.moveTo(px, 280); x.lineTo(px, 190); x.stroke();
-                x.fillStyle = 'rgba(255,214,130,0.9)'; x.beginPath(); x.arc(px, 186, 7, 0, 7); x.fill();
-                x.fillStyle = 'rgba(255,214,130,0.12)'; x.beginPath(); x.arc(px, 186, 26, 0, 7); x.fill();
-            }
-        }
-    });
-}
 
 /** O PRIMEIRO PLANO (silhuetas passando rápido na frente — profundidade). */
 function fgPaint(m: Memory): THREE.CanvasTexture {
@@ -308,7 +93,7 @@ function fgPaint(m: Memory): THREE.CanvasTexture {
 }
 
 interface Kit {
-    sky: THREE.MeshBasicMaterial; far: THREE.MeshBasicMaterial; fg: THREE.MeshBasicMaterial;
+    bg: THREE.MeshBasicMaterial; fg: THREE.MeshBasicMaterial;
     wool: THREE.MeshStandardMaterial; woolTop: THREE.MeshStandardMaterial;
     anchor: THREE.MeshStandardMaterial; anchorHot: THREE.MeshStandardMaterial;
     thread: THREE.MeshBasicMaterial; hazard: THREE.MeshStandardMaterial;
@@ -345,8 +130,7 @@ const kitCache = new Map<string, Kit>();
 function makeKit(m: Memory): Kit {
     const hit = kitCache.get(m.key); if (hit) return hit;
     const kit: Kit = {
-        sky: new THREE.MeshBasicMaterial({ map: skyPaint(m) }),
-        far: new THREE.MeshBasicMaterial({ map: farPaint(m), transparent: true, depthWrite: false }),
+        bg: new THREE.MeshBasicMaterial({ map: bgTex(m.key) }),
         fg: new THREE.MeshBasicMaterial({ map: fgPaint(m), transparent: true, depthWrite: false }),
         wool: new THREE.MeshStandardMaterial({ map: knitTex(m.pal.wool, m.pal.woolHi, m.pal.woolLo), roughness: 1 }),
         woolTop: new THREE.MeshStandardMaterial({ color: m.pal.woolHi, roughness: 1 }),
@@ -567,27 +351,6 @@ const Rain: React.FC<{ endX: number }> = ({ endX }) => {
     return <points geometry={geo} material={mat} />;
 };
 
-/** A PIPA presa no céu do quintal (a que você nunca quis que descesse). */
-const Kite: React.FC<{ kit: Kit }> = ({ kit }) => {
-    const g = useRef<THREE.Group>(null!);
-    useFrame(({ clock }) => {
-        const t = clock.elapsedTime;
-        if (g.current) { g.current.position.y = 9 + Math.sin(t * 0.7) * 0.4; g.current.rotation.z = Math.sin(t * 0.9) * 0.18; }
-    });
-    return (
-        <group ref={g} position={[22, 7.2, -9]} scale={[0.8, 0.8, 1]}>
-            <mesh rotation={[0, 0, Math.PI / 4]}><planeGeometry args={[1.1, 1.1]} /><meshBasicMaterial color="#e8564a" side={THREE.DoubleSide} /></mesh>
-            <mesh rotation={[0, 0, Math.PI / 4]} position={[0, 0, 0.01]}><planeGeometry args={[0.5, 0.5]} /><meshBasicMaterial color="#ffd94a" side={THREE.DoubleSide} /></mesh>
-            {/* o rabo: pinguelas penduradas na linha, descendo do bico */}
-            {[0.45, 0.9, 1.35].map((d, i) => (
-                <mesh key={i} position={[-d * 0.35, -0.78 - d * 0.55, 0]} rotation={[0, 0, 0.6 - i * 0.3]}>
-                    <planeGeometry args={[0.22, 0.12]} /><meshBasicMaterial color={i % 2 ? '#ffd94a' : '#e8564a'} side={THREE.DoubleSide} />
-                </mesh>
-            ))}
-            <mesh position={[-0.35, -1.15, -0.01]} rotation={[0, 0, 0.42]} material={kit.thread}><cylinderGeometry args={[0.014, 0.014, 1.7, 3]} /></mesh>
-        </group>
-    );
-};
 
 // ── a cena ────────────────────────────────────────────────────────────────────
 const Scene: React.FC<{
@@ -598,7 +361,6 @@ const Scene: React.FC<{
     const cam = useThree((s) => s.camera);
     const scene = useThree((s) => s.scene);
     const sky = useRef<THREE.Group>(null!);
-    const far = useRef<THREE.Group>(null!);
     const fg = useRef<THREE.Group>(null!);
     const flash = useRef<THREE.AmbientLight>(null!);
     const nextBolt = useRef(4);
@@ -624,9 +386,8 @@ const Scene: React.FC<{
         cam.position.y += (ty - cam.position.y) * Math.min(1, dt * 3);
         cam.position.z = 14; cam.rotation.set(0, 0, 0);
         cam.lookAt(cam.position.x, cam.position.y, 0);
-        // parallax em três profundidades
-        if (sky.current) sky.current.position.set(cam.position.x * 0.92, cam.position.y * 0.85 + 3.4, -26);
-        if (far.current) far.current.position.set(cam.position.x * 0.62, cam.position.y * 0.3 + 2.1, -14);
+        // parallax: o diorama pintado desliza devagar atrás; o 1º plano corre à frente
+        if (sky.current) sky.current.position.set(cam.position.x * 0.92, cam.position.y * 0.28 + 2.2, -16);
         if (fg.current) fg.current.position.set(cam.position.x * -0.18, -1.1, 4.4);
         // relâmpago da tempestade
         if (mem.key === 'tempestade' && flash.current) {
@@ -647,11 +408,10 @@ const Scene: React.FC<{
             {mem.key === 'tempestade' && <ambientLight ref={flash} color="#cfe0ff" intensity={0} />}
 
             {/* as três camadas pintadas */}
-            <group ref={sky}><mesh material={kit.sky}><planeGeometry args={[110, 55]} /></mesh></group>
-            <group ref={far}><mesh material={kit.far}><planeGeometry args={[32, 9.4]} /></mesh></group>
+            {/* o diorama pintado (2.37:1 do plate; alto o bastante pra cobrir o quadro) */}
+            <group ref={sky}><mesh material={kit.bg}><planeGeometry args={[33.2, 14]} /></mesh></group>
             <group ref={fg}><mesh material={kit.fg}><planeGeometry args={[34, 4.25]} /></mesh></group>
 
-            {mem.key === 'quintal' && <Kite kit={kit} />}
             {mem.key === 'tempestade' && <Rain endX={mem.endX} />}
 
             {mem.ledges.map((l, i) => <YarnLedge key={mem.key + i} l={l} kit={kit} />)}
