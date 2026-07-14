@@ -39,6 +39,10 @@ export interface F8State {
     line: number;
     /** segundos desde a chegada — usado por gatilhos por tempo/aproximação. */
     t: number;
+    /** o gatilho da mesa só arma depois do player aparecer NO SUL da sala —
+     *  sem isso, a posição velha de outro andar (z=0/8) dispara o interrogatório
+     *  no primeiro frame, antes do teleporte de spawn aplicar. */
+    armed: boolean;
     /** segundos dentro da cutscene de mergulho na imagem (0..~2.4). */
     diveT: number;
     version: number;
@@ -57,6 +61,7 @@ const FRESH = (): F8State => ({
     carriesPhoto: readCarriesPhoto(),
     line: 0,
     t: 0,
+    armed: false,
     diveT: 0,
     version: 0,
 });
@@ -230,7 +235,8 @@ export function f8ThrownDone(): void {
 export function f8Tick(dt: number, playerZ: number): void {
     const s = f8;
     s.t += dt;
-    if (s.phase === 'arrive' && playerZ > -4.5) {
+    if (s.phase === 'arrive' && !s.armed && playerZ < -6) s.armed = true;
+    if (s.phase === 'arrive' && s.armed && playerZ > -4.5) {
         s.phase = 'interrogatorio';
         s.line = 0;
         emit('arriveBeat');

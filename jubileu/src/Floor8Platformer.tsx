@@ -16,7 +16,7 @@ import * as THREE from 'three';
 import {
     p8, p8Subscribe, p8Reset, stepPlayer, curMem, activeAnchor, p8Objective, MEMORIES, P8, type Palette,
 } from './f8Platformer';
-import { f8, f8Wake } from './f8Arquivo';
+import { f8, f8Subscribe, f8Wake } from './f8Arquivo';
 
 // ── texturas procedurais (cache por paleta) ──────────────────────────────────
 function cvs(w: number, h: number, draw: (x: CanvasRenderingContext2D) => void, rep?: [number, number]) {
@@ -383,7 +383,15 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
     const [caption, setCaption] = useState<string | null>(null);
     const lastMem = useRef(-1);
 
-    useEffect(() => p8Subscribe(() => setV((x) => x + 1)), []);
+    // OUVE OS DOIS estados: o gate `active` lê f8.phase (a entrada na porta 21
+    // chega por f8Bump — sem essa inscrição o overlay nunca acorda = tela preta),
+    // e o HUD/veil leem p8.
+    useEffect(() => {
+        const bump = () => setV((x) => x + 1);
+        const offF8 = f8Subscribe(bump);
+        const offP8 = p8Subscribe(bump);
+        return () => { offF8(); offP8(); };
+    }, []);
     useEffect(() => { if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8plat = { p8, reset: p8Reset }; }, []);
 
     // legenda da memória ao entrar
@@ -443,8 +451,10 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
 
             {/* vinheta suave */}
             <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 44%, rgba(0,0,0,0) 42%, rgba(0,0,0,0.55) 100%)' }} />
-            {/* fade de transição entre memórias */}
-            {p8.transition > 0 && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: pal.bgLo, opacity: p8.transition }} />}
+            {/* fade de transição ao entrar em cada memória (CSS puro — anima
+                sozinho; nada de ler p8.transition no DOM, que não re-renderiza
+                por frame e congelava o véu opaco na tela) */}
+            <div key={p8.memIdx} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: pal.bgLo, animation: 'f8memfade 1.2s ease-out forwards' }} />
 
             {/* HUD */}
             {!won && (
@@ -490,6 +500,7 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
             <style>{`
                 @keyframes f8platwin { 0%{opacity:0} 100%{opacity:1} }
                 @keyframes f8cap { 0%{opacity:0} 15%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
+                @keyframes f8memfade { 0%{opacity:1} 100%{opacity:0} }
             `}</style>
         </div>
     );

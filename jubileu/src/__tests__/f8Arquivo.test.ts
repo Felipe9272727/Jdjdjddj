@@ -10,9 +10,20 @@ describe('f8Arquivo — a máquina de fases do Andar 8 (ida)', () => {
 
     it('arrive → interrogatorio quando o player se aproxima da mesa', () => {
         expect(f8.phase).toBe('arrive');
-        f8Tick(1 / 60, -8);              // longe: nada
+        f8Tick(1 / 60, -8);              // no sul (arma o gatilho); longe: nada
         expect(f8.phase).toBe('arrive');
         f8Tick(1 / 60, -4);              // perto da mesa
+        expect(f8.phase).toBe('interrogatorio');
+    });
+
+    it('NÃO dispara com a posição velha de outro andar (antes do spawn aplicar)', () => {
+        // o primeiro frame chega com z=0/8 (ref do andar anterior); o gatilho só
+        // arma depois do player aparecer de verdade no sul da sala
+        f8Tick(1 / 60, 8);
+        f8Tick(1 / 60, 0);
+        expect(f8.phase).toBe('arrive');
+        f8Tick(1 / 60, -8.2);            // spawn real aplicou
+        f8Tick(1 / 60, -4);              // agora sim: caminhou até a mesa
         expect(f8.phase).toBe('interrogatorio');
     });
 
