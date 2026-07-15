@@ -5,7 +5,7 @@
  *
  * Run:  cd jubileu && npm run dev  →  http://localhost:3000/floor8.html
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
@@ -13,7 +13,7 @@ import Floor8Room from './Floor8Room';
 import Floor8Overlay, { Floor8Ride } from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
 import Floor8Platformer from './Floor8Platformer';
-import { f8, f8Reset, f8AdvanceLine, f8Bump, f8EnterImage, f8Wake, f8AdvanceWake } from './f8Arquivo';
+import { f8, f8Reset, f8AdvanceLine, f8Bump, f8EnterImage, f8Wake, f8AdvanceWake, f8Subscribe } from './f8Arquivo';
 import { p8, p8Reset, p8JumpToMemory } from './f8Platformer';
 import { wallsForState } from './constants';
 import { resolveCollision } from './physics';
@@ -78,13 +78,19 @@ const DevWalker: React.FC = () => {
 };
 
 const Dev: React.FC = () => {
+    const [insideImage, setInsideImage] = useState(false);
     useEffect(() => {
         f8Reset(); p8Reset();
         if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8dbg = { f8, p8, posRef, adv: f8AdvanceLine, bump: f8Bump, enterImage: f8EnterImage, platReset: p8Reset, wake: f8Wake, advWake: f8AdvanceWake, jumpMem: p8JumpToMemory };
     }, []);
+    useEffect(() => f8Subscribe(() => {
+        const inside = f8.phase === 'corredor20' || f8.phase === 'porta21'
+            || f8.phase === 'platformer' || f8.phase === 'memoriaRecuperada';
+        setInsideImage((old) => old === inside ? old : inside);
+    }), []);
     return (
         <div style={{ position: 'fixed', inset: 0, background: '#000' }}>
-            <Canvas camera={{ fov: 75, near: 0.1, far: 100, position: [0, 1.6, -8.2] }}>
+            <Canvas frameloop={insideImage ? 'never' : 'always'} style={{ visibility: insideImage ? 'hidden' : 'visible' }} camera={{ fov: 75, near: 0.1, far: 100, position: [0, 1.6, -8.2] }}>
                 <DevWalker />
                 <Floor8Room playerPositionRef={posRef} />
             </Canvas>

@@ -4,7 +4,8 @@
  * Cada memória tem seu humor: o QUINTAL é um pad maior quente com uma
  * pentatônica dedilhada (fim de tarde); a ESCOLA é staccato travesso; a
  * TEMPESTADE é um menor esparso com chuva de ruído filtrado e trovões; o
- * HOTEL é um drone grave com batimento cardíaco e um music-box distante.
+ * HOTEL é um drone grave com batimento cardíaco e um music-box distante; e
+ * YOURSELF devolve fragmentos das quatro faixas numa pulsação quebrada.
  *
  * API: f8MusicStart(key) troca (com crossfade) pra música da memória;
  * f8MusicStop() encerra com fade. Tudo num AudioContext próprio, criado
@@ -62,6 +63,14 @@ const SONGS: Record<string, Song> = {
         scale: [0, 3, 7, 10, 12, 15], melodyRate: 0.3, melodyWave: 'sine',
         melodyGain: 0.045, melodyOctave: 4, melodyDecay: 2.4, restChance: 0.55,
         noiseGain: 0.012, noiseFreq: 300, thunder: false, heartbeat: true,
+    },
+    yourself: {
+        root: 103.8, // Ab2 — familiar, mas meio tom fora do lugar
+        chords: [[0, 3, 7], [0, 6, 10], [-2, 3, 7], [1, 5, 8]],
+        chordSecs: 3.15, padWave: 'sawtooth', padGain: 0.032,
+        scale: [0, 1, 3, 6, 7, 10, 12], melodyRate: 0.72, melodyWave: 'triangle',
+        melodyGain: 0.05, melodyOctave: 3, melodyDecay: 1.7, restChance: 0.42,
+        noiseGain: 0.02, noiseFreq: 520, thunder: false, heartbeat: true,
     },
 };
 
