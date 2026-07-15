@@ -1750,6 +1750,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             const ov = introElevFadeRef?.current;
             const f = (ov != null) ? ov : b.elevFade();
             elevatorRef.current.visible = f > 0.01;
+            // orientação por fase: na CHEGADA/intro o cab fica no 0.7 afinado pra
+            // câmera de look-back; quando REMATERIALIZA (ST_FREE) ele volta virado
+            // pro capitão na popa (Y=π). A troca acontece com o cab invisível
+            // (fade ~0 entre as fases), então nunca dá pop na tela.
+            elevatorRef.current.rotation.y = b.state() === F7_STATE.FREE ? Math.PI : 0.7;
             // ASCEND + dissolve (no shrink — shrinking read as a glitch): the cab rises a
             // little and fades, like it's beaming back up to the hotel.
             elevatorRef.current.position.y = (1 - f) * 1.1;
@@ -2012,11 +2017,10 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     brushed-steel sliding doors (centre seam), a gold frame and a lit "7"
                     floor indicator, yawed so the doors face the off-bow look-back camera. It
                     reads as an elevator, then the whole closed-door box dematerialises. */}
-                {/* O cab rematerializa OLHANDO PRO CAPITÃO: o capitão fica na popa
-                    (z ≈ -5.3) e o cab nasce na proa (z = +5.2); as portas abrem no +Z
-                    local, então Y = π vira o vão de frente pra ele. (O 0.7 antigo era
-                    afinação da câmera de look-back da cutscene, não do embarque.) */}
-                <group ref={elevatorRef} name="elevCab" position={[0, 0, 5.2]} rotation={[0, Math.PI, 0]}>
+                {/* Rotação inicial 0.7 = a pose da CHEGADA (afinada pra câmera de
+                    look-back da intro). O useFrame troca pra Y=π quando o cab
+                    REMATERIALIZA no ST_FREE — de frente pro capitão na popa. */}
+                <group ref={elevatorRef} name="elevCab" position={[0, 0, 5.2]} rotation={[0, 0.7, 0]}>
                     {/* shell: back + side + roof + floor */}
                     <mesh position={[0, 1.2, -0.5]} material={M.elev}><boxGeometry args={[2.0, 2.4, 0.16]} /></mesh>
                     <mesh position={[-0.98, 1.2, 0]} material={M.elev}><boxGeometry args={[0.16, 2.4, 1.0]} /></mesh>

@@ -155,15 +155,33 @@ describe('f8Platformer — os valentões da ESCOLA (stomp)', () => {
         expect(e.dead).toBe(false);
     });
 
-    it('cair EM CIMA desfaz o valentão e quica o player (stomp)', () => {
+    it('cair EM CIMA abre uma costura do nó e quica o player', () => {
         const def = curMem().enemies[0];
         const e = p8.enemies[0];
+        const before = e.seams;
         p8.x = e.x; p8.y = def.y + 0.9; p8.vy = -4; p8.onGround = false; p8.stun = 0;
         const ev = stepPlayer({ ...IDLE }, 1 / 60);
         expect(ev.stomped).toBe(true);
-        expect(e.dead).toBe(true);
+        expect(e.dead).toBe(false);                    // stomp sozinho não é mais um ataque genérico
+        expect(e.seams).toBe(before - 1);
+        expect(e.stunned).toBeGreaterThan(0);          // janela para FIO + AGULHA
         expect(p8.vy).toBeGreaterThan(0);          // o quique
         expect(ev.hurt).toBe(false);
+    });
+
+    it('o ciclo completo é atordoar → fisgar → tensionar → descosturar', () => {
+        const def = curMem().enemies[0];
+        const e = p8.enemies[0];
+        p8.x = e.x; p8.y = def.y + 0.9; p8.vy = -4; p8.onGround = false;
+        stepPlayer({ ...IDLE }, 1 / 60);               // abre a primeira costura
+        p8.x = e.x - 1.4; p8.y = def.y; p8.onGround = true; p8.vy = 0;
+        const grabbed = stepPlayer({ ...IDLE, grapple: true }, 1 / 60);
+        expect(grabbed.grabbed).toBe(true);
+        expect(p8.tetherEnemy).toBe(0);
+        for (let i = 0; i < 18; i++) stepPlayer({ ...IDLE, move: -1, grapple: true }, 1 / 60);
+        const stitched = stepPlayer({ ...IDLE, grapple: true, stitch: true }, 1 / 60);
+        expect(stitched.unravelled).toBe(true);
+        expect(e.dead).toBe(true);
     });
 
     it('o valentão morto é inofensivo', () => {
@@ -213,20 +231,74 @@ describe('f8Platformer — progressão das memórias e vitória', () => {
         expect(p8.x).toBe(MEMORIES[1].startX);
     });
 
-    it('a última memória vence: memoriaRecuperada + flag persistida', () => {
+    it('YOURSELF só termina depois das cinco costuras, então persiste a memória', () => {
         const setItem = vi.fn();
         vi.stubGlobal('window', { localStorage: { setItem, getItem: () => null } });
         const last = MEMORIES.length - 1;
-        p8.memIdx = last;
-        const m = MEMORIES[last];
-        p8.x = m.goalX; p8.y = 0; p8.onGround = true;
+        p8JumpToMemory(last);
         f8.phase = 'platformer';
-        const ev = stepPlayer({ ...IDLE }, 1 / 60);
-        expect(ev.won).toBe(true);
+        expect(p8.boss?.seams).toBe(5);
+        let final = stepPlayer({ ...IDLE }, 1 / 60);
+        for (let i = 0; i < 5; i++) {
+            const boss = p8.boss!;
+            boss.phase = 'bound'; boss.tethered = true;
+            p8.bossTether = true; p8.tension = 1; p8.stitchCd = 0;
+            final = stepPlayer({ ...IDLE, grapple: true, stitch: true }, 1 / 60);
+            if (i < 4) {
+                expect(final.bossSeam).toBe(true);
+                stepPlayer({ ...IDLE }, 1 / 60);        // solta a borda do botão
+            }
+        }
+        expect(final.bossWon).toBe(true);
+        expect(final.won).toBe(true);
         expect(p8.won).toBe(true);
         expect(f8.phase).toBe('memoriaRecuperada');
         expect(setItem).toHaveBeenCalledWith('tne_memoria_player', '1');
         vi.unstubAllGlobals();
+    });
+});
+
+describe('f8Platformer — novas operações de crochê', () => {
+    beforeEach(() => p8Reset());
+
+    it('AGULHA perto de um rasgo repara ponto por ponto e abre a passagem', () => {
+        const gate = curMem().gates[0];
+        p8.x = gate.x - 1; p8.y = gate.y; p8.onGround = true;
+        for (let i = 0; i < gate.needed; i++) {
+            p8.stitchCd = 0;
+            const ev = stepPlayer({ ...IDLE, stitch: true }, 1 / 60);
+            stepPlayer({ ...IDLE }, 1 / 60);
+            if (i === gate.needed - 1) expect(ev.gateRepaired).toBe(true);
+        }
+        expect(p8.gateProgress[0]).toBe(gate.needed);
+    });
+
+    it('AGULHA sem alvo no ar cria um ponto temporário e consome fio', () => {
+        p8.x = 4; p8.y = 5; p8.onGround = false; p8.threadCharge = 1;
+        stepPlayer({ ...IDLE, stitch: true }, 1 / 60);
+        expect(p8.patch).not.toBeNull();
+        expect(p8.threadCharge).toBeLessThan(1);
+    });
+
+    it('pensamento intrusivo voa e não pode ser eliminado com stomp genérico', () => {
+        p8JumpToMemory(1);
+        const idx = curMem().enemies.findIndex((e) => e.kind === 'intrusive');
+        const e = p8.enemies[idx], def = curMem().enemies[idx];
+        const y0 = e.y;
+        p8.x = -3; p8.y = 0;
+        for (let i = 0; i < 30; i++) stepPlayer({ ...IDLE }, 1 / 60);
+        expect(e.y).not.toBeCloseTo(y0, 3);
+        expect(def.kind).toBe('intrusive');
+        expect(e.dead).toBe(false);
+    });
+
+    it('o boss anuncia o golpe e FIO na janela certa abre a costura', () => {
+        p8JumpToMemory(4);
+        const boss = p8.boss!;
+        boss.phase = 'telegraph'; boss.timer = 0.2;
+        const ev = stepPlayer({ ...IDLE, grapple: true }, 1 / 60);
+        expect(ev.parried).toBe(true);
+        expect(boss.phase).toBe('exposed');
     });
 });
 

@@ -1699,6 +1699,12 @@ export default function App() {
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
       <CanvasErrorBoundary>
       <Canvas
+        // O Andar 8 abre um segundo Canvas ortográfico para corredor/memórias.
+        // Manter o mundo FPS animando por trás dobrava o custo (Player, braços,
+        // multiplayer e efeitos continuavam em useFrame embora invisíveis).
+        // `never` preserva o contexto/recursos para o despertar, mas zera esse
+        // loop enquanto a imagem ocupa a tela.
+        frameloop={f8InImage ? 'never' : 'always'}
         // NOTE: no `key` here. Re-keying on settings change would unmount/remount
         // the entire scene (and reload every GLB!), which is what was causing the
         // visible "cut/flash" mid-game. dpr is reactive in r3f; antialias change
