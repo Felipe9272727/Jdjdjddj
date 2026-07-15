@@ -357,9 +357,9 @@ export const MonsterFish: React.FC<MonsterFishProps> = ({
             ).divideScalar(safeDt);
             playerVelRef.current.lerp(_v3.current, safeDt * 4);
         } else {
-            lastPlayerPosRef.current = new THREE.Vector3(px, py, pz);
+            lastPlayerPosRef.current = new THREE.Vector3();  // allocate once in init
         }
-        lastPlayerPosRef.current.set(px, py, pz);
+        lastPlayerPosRef.current.set(px, py, pz);  // reuse always
         const fx = pos.current.x, fy = pos.current.y, fz = pos.current.z;
         const dxp = px - fx, dyp = py - fy, dzp = pz - fz;
         const dist      = Math.sqrt(dxp*dxp + dyp*dyp + dzp*dzp);
