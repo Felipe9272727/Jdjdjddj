@@ -522,14 +522,14 @@ export default function App() {
   const endF7Intro = useCallback(() => { setF7Settling(true); setF7Intro(false); }, []);
   // Andar 7 FINALE — the WASM latched `boarded`: the player stepped into the
   // rematerialised cab and pressed E. "Máquina não esquece": teleport into the
-  // global elevator interior and take the standard 20s ride back to the lobby
-  // (the same in-transit path the Barney SAVED ride uses).
+  // global elevator interior and take the standard 20s ride UP to Floor 8 —
+  // o interrogatório do Arquivista espera o escolhido.
   const handleF7Board = useCallback(() => {
     setF7Boarded(true);
     setDoorsClosed(true);
     setDoorSoundTrigger(prev => prev + 1);
     playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
-    setNextElevatorDestination(0);
+    setNextElevatorDestination(8);
     setElevatorTimer(20);
     setTravelPhase('closing');
     if (elevatorHumStopRef.current) elevatorHumStopRef.current();
