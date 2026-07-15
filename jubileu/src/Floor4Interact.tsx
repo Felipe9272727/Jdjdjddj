@@ -31,6 +31,7 @@ import {
     playF4MemoryChime,
 } from './floor4Sfx';
 import { lobbyPhotoUrl, keeperSceneUrl } from './Floor4Scene2D';
+import balconistPortrait from './assets/f4/balconista.jpg';
 
 type Panel =
     | { kind: 'none' }
@@ -361,6 +362,27 @@ export const Floor4Interact: React.FC<{
                 <div style={{ position: 'absolute', inset: 0, background: '#000', animation: 'f4TalkIn 0.5s ease-out' }}>
                     <img src={keeperSceneUrl} alt="A fogueira do primeiro recepcionista"
                         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', imageRendering: 'pixelated' }} />
+                    {/* Retrato do First Receptionist — visual novel style, só aparece quando ELE fala */}
+                    {talkAnswer && (
+                        <img
+                            src={balconistPortrait}
+                            alt="O Primeiro Recepcionista"
+                            style={{
+                                position: 'absolute',
+                                right: 'calc(env(safe-area-inset-right) + 20px)',
+                                bottom: 'calc(env(safe-area-inset-bottom) + 130px)',
+                                width: '180px',
+                                height: '180px',
+                                objectFit: 'cover',
+                                border: '3px solid #f4f0e6',
+                                borderRadius: 2,
+                                boxShadow: '0 8px 0 rgba(0,0,0,0.6), inset 0 0 12px rgba(255,200,100,0.1)',
+                                imageRendering: 'pixelated',
+                                animation: 'f4PortraitIn 0.3s ease-out',
+                                opacity: 0.95,
+                            }}
+                        />
+                    )}
                     {/* thin cinema bar up top */}
                     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, background: 'linear-gradient(180deg, rgba(0,0,0,0.85), rgba(0,0,0,0))' }} />
                     {/* dialogue band — pure gradient, no box */}
@@ -396,7 +418,18 @@ export const Floor4Interact: React.FC<{
                         style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 8px)', right: 'calc(env(safe-area-inset-right) + 12px)', background: 'none', border: 'none', color: '#d8d2c4', fontFamily: 'monospace', fontSize: 12, letterSpacing: 1.5, cursor: 'pointer', textShadow: '0 2px 0 #000', opacity: 0.8 }}>
                         ✕ SAIR
                     </button>
-                    <style>{'@keyframes f4TalkIn { from { opacity: 0 } to { opacity: 1 } }'}</style>
+                    <style>{`
+                        @keyframes f4TalkIn { from { opacity: 0 } to { opacity: 1 } }
+                        @keyframes f4PortraitIn { from { opacity: 0; transform: scale(0.9) } to { opacity: 0.95; transform: scale(1) } }
+                        @media (max-height: 600px) {
+                            img[alt="O Primeiro Recepcionista"] {
+                                width: 140px !important;
+                                height: 140px !important;
+                                right: calc(env(safe-area-inset-right) + 12px) !important;
+                                bottom: calc(env(safe-area-inset-bottom) + 90px) !important;
+                            }
+                        }
+                    `}</style>
                 </div>
             )}
 
