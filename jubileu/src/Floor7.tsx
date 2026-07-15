@@ -738,14 +738,18 @@ const ShipBody: React.FC = () => {
             </group>
             {/* binnacle: pedestal base for the helm (ship's wheel) */}
             <mesh position={[0, 0.35, -6.8]} material={M.rail}><boxGeometry args={[0.5, 0.7, 0.4]} /></mesh>
-            {/* helm (ship's wheel) at the stern — repositioned atop the binnacle */}
-            <group position={[0, 0.95, -6.8]}>
+            {/* helm (ship's wheel) at the stern — repositioned atop the binnacle.
+                ENLARGED 1.8x to be VISIBLE from player deck position (was too small). */}
+            <group position={[0, 0.95, -6.8]} scale={1.8}>
+                {/* wooden aro (torus rim) with visible wood grain */}
                 <mesh material={M.wheel}><torusGeometry args={[0.42, 0.06, 8, 18]} /></mesh>
+                {/* 6 wooden raios (spokes) radiating from center */}
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                     <mesh key={i} rotation={[0, 0, (i * Math.PI) / 3]} material={M.wheel}>
                         <boxGeometry args={[0.06, 1.0, 0.06]} />
                     </mesh>
                 ))}
+                {/* metal eixo (center hub/axle) */}
                 <mesh material={M.metal}><cylinderGeometry args={[0.07, 0.07, 0.2, 8]} /></mesh>
             </group>
             {/* standing rig: mainstay + fore/aft stays with catenary sag */}
@@ -1256,7 +1260,19 @@ const PirateCaptain: React.FC<{
         // The idle bob + breath live on the BODY bone (with the legs counter-translated
         // below) so they bob the chest without ever lifting the boots off the deck; the
         // weight-shift is a hip lean, not a whole-body tilt (which used to rock the feet).
-        g.position.set(c.x, -lurch, c.z);
+        // CLAMP captain to deck boundaries — prevent piercing bulwarks during WASM motion
+        let capX = c.x;
+        const capZ = c.z;
+        const getMaxX = (z: number) => {
+            const tz = (z + 7.0) / 15.2; // normalize Z to [0,1] along deck length
+            // deck half-width taper: stern narrower, mid-deck widest, bow tapers again
+            if (tz < 0.43) return 1.7 + (1 - tz) * 0.3;   // stern taper
+            if (tz > 0.50) return 1.4 - (tz - 0.50) * 0.2; // bow taper
+            return 1.85; // mid-deck maximum width
+        };
+        const maxX = getMaxX(capZ);
+        capX = Math.max(-maxX, Math.min(maxX, capX));
+        g.position.set(capX, -lurch, capZ);
         // NEGATE capFace: the brain's f7_atan2 yields a facing mirrored in X, so the
         // captain turned to the player's reflection (~33° off) instead of AT the player
         // — which read as a back-left view in the dialogue cam. Negating aims him dead
@@ -1817,7 +1833,8 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             // the scrub-brush hand only exists once you actually HOLD the bucket
             // (it was on-screen from the intro on — a giant unexplained prop) and
             // goes away for the boarding beat (elevFade rises again on ST_FREE).
-            handsRef.current.visible = bucketState.held && b.elevFade() < 0.85;
+            // GATE by state: hands invisible during elevator rematerialization (ST_FREE)
+            handsRef.current.visible = bucketState.held && b.elevFade() < 0.85 && b.state() !== F7_STATE.FREE;
             if (brushRef.current) {
                 const scrubbing = b.state() === F7_STATE.CLEAN && handleRef.current.interact;
                 // player velocity in CAMERA-local XZ (so the stroke sweeps where
@@ -1856,7 +1873,8 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
             leftHandRef.current.position.copy(cam.position);
             leftHandRef.current.quaternion.copy(cam.quaternion);
             leftHandRef.current.translateX(-0.26); leftHandRef.current.translateY(-0.34 + Math.sin(t * 1.5) * 0.01); leftHandRef.current.translateZ(-0.4);
-            leftHandRef.current.visible = bucketState.held && b.elevFade() < 0.85;
+            // GATE by state: left hand invisible during elevator rematerialization (ST_FREE)
+            leftHandRef.current.visible = bucketState.held && b.elevFade() < 0.85 && b.state() !== F7_STATE.FREE;
         }
 
         // payoff: land rises on the horizon once the deck is clean — and then
@@ -1994,7 +2012,11 @@ export const Floor7Environment: React.FC<Floor7Props> = ({ playerPositionRef, ha
                     brushed-steel sliding doors (centre seam), a gold frame and a lit "7"
                     floor indicator, yawed so the doors face the off-bow look-back camera. It
                     reads as an elevator, then the whole closed-door box dematerialises. */}
-                <group ref={elevatorRef} name="elevCab" position={[0, 0, 5.2]} rotation={[0, 0.7, 0]}>
+                {/* O cab rematerializa OLHANDO PRO CAPITÃO: o capitão fica na popa
+                    (z ≈ -5.3) e o cab nasce na proa (z = +5.2); as portas abrem no +Z
+                    local, então Y = π vira o vão de frente pra ele. (O 0.7 antigo era
+                    afinação da câmera de look-back da cutscene, não do embarque.) */}
+                <group ref={elevatorRef} name="elevCab" position={[0, 0, 5.2]} rotation={[0, Math.PI, 0]}>
                     {/* shell: back + side + roof + floor */}
                     <mesh position={[0, 1.2, -0.5]} material={M.elev}><boxGeometry args={[2.0, 2.4, 0.16]} /></mesh>
                     <mesh position={[-0.98, 1.2, 0]} material={M.elev}><boxGeometry args={[0.16, 2.4, 1.0]} /></mesh>
