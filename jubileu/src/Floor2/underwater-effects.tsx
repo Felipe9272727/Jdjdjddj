@@ -585,11 +585,15 @@ export const UnderwaterSediment: React.FC = () => {
 // ─── PlanktonField ────────────────────────────────────────────────────
 export const PlanktonField: React.FC = () => {
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(PLANKTON_COUNT).fill(null));
+    const frameTickRef = useRef(0);
     useFrame((state, dt) => {
         if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         const safeDt = Math.min(dt, 0.033);
         const t = state.clock.elapsedTime;
+        const tick = frameTickRef.current++;
+        // Update half the plankton each frame (alternating indices)
         for (let i = 0; i < PLANKTON_COUNT; i++) {
+            if ((i & 1) !== (tick & 1)) continue;  // Skip if parity doesn't match
             const r = refs.current[i];
             if (!r) continue;
             const seed = i * 7.31;
@@ -624,12 +628,16 @@ export const BubbleField: React.FC = () => {
         }))
     );
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(BUBBLE_COUNT).fill(null));
+    const frameTickRef = useRef(0);
 
     useFrame((_, dt) => {
         if (swimmerY.current >= SWIM_THRESHOLD_Y) return;
         const safeDt = Math.min(dt, 0.033);
         const pos = positions.current;
+        const tick = frameTickRef.current++;
+        // Update half the bubbles each frame (alternating indices)
         for (let i = 0; i < BUBBLE_COUNT; i++) {
+            if ((i & 1) !== (tick & 1)) continue;  // Skip if parity doesn't match
             const p = pos[i];
             p.y += p.speed * safeDt;
             if (p.y > BUBBLE_MAX_Y) {
