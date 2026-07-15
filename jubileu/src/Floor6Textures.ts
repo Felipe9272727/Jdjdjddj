@@ -275,6 +275,35 @@ export const tileTex = colorTex(512, 512, drawTile, 3.5, 5.5);
 export const tileBump = dataTex(512, 512, drawTileBump, 3.5, 5.5);
 export const tileRough = dataTex(256, 256, drawTileRough, 3.5, 5.5);
 
+// ── GELO (ICE) — Suite 612, congelador: rachaduras procedurais, normal map ─────
+/** Texture canvas: rachaduras de gelo (Voronoi simples + noise em escala). */
+const drawIceCracks: Draw = (ctx, W, H) => {
+    const r = rng(42);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);  // branco (neutral)
+    // linhas recurvas (rachaduras principais)
+    const pts = Array.from({ length: 3 }, () => ({
+        x: r() * W, y: r() * H,
+        dx: (r() - 0.5) * 0.8, dy: (r() - 0.5) * 0.8
+    }));
+    ctx.strokeStyle = 'rgba(150,170,180,0.4)';  // azul-cinzento (cristais)
+    ctx.lineWidth = 1.5;
+    pts.forEach(p => {
+        ctx.beginPath(); ctx.moveTo(p.x, p.y);
+        for (let i = 0; i < 6; i++) {
+            p.x += p.dx * W * 0.15; p.y += p.dy * H * 0.15;
+            ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
+    });
+    // ruído fino (superfície de gelo)
+    for (let i = 0; i < 800; i++) {
+        const a = 128 + r() * 60;
+        ctx.fillStyle = `rgb(${a},${a},${a})`;
+        ctx.fillRect(r() * W, r() * H, 1, 1);
+    }
+};
+export const iceNormal = dataTex(256, 256, drawIceCracks, 1, 1);
+
 // ── KITCHEN VINYL — checker, scuffed through in places ───────────────────────
 const drawVinyl: Draw = (ctx, W, H) => {
     const r = rng(17);
@@ -856,7 +885,7 @@ export const F6M = {
     shower: new THREE.MeshStandardMaterial({ color: '#d8dfd8', transparent: true, opacity: 0.55, roughness: 0.6, side: THREE.DoubleSide, depthWrite: false }),
     glass: new THREE.MeshStandardMaterial({ color: '#aebfc4', metalness: 0.4, roughness: 0.05, transparent: true, opacity: 0.3, envMapIntensity: 1.4 }),
     paper: new THREE.MeshStandardMaterial({ color: '#ded6bd', roughness: 0.9 }),
-    ice: new THREE.MeshPhysicalMaterial({ color: '#bfe2ec', transparent: true, opacity: 0.78, roughness: 0.12, transmission: 0, envMapIntensity: 1.3 }),
+    ice: new THREE.MeshPhysicalMaterial({ color: '#bfe2ec', transparent: true, opacity: 0.65, roughness: 0.12, transmission: 0.85, ior: 1.31, metalness: 0.05, normalMap: iceNormal, normalScale: new THREE.Vector2(0.3, 0.3), envMapIntensity: 1.3 }),
     cabWall: new THREE.MeshStandardMaterial({ ...PBR.metal(), metalness: 0.7, roughness: 1, color: '#d4dce2', envMapIntensity: 0.8 }),
     cabFloor: new THREE.MeshStandardMaterial({ map: cabFloorTex, color: '#7d776c', roughness: 0.6, envMapIntensity: 0.3 }),
     leather: new THREE.MeshStandardMaterial({ ...PBR.leather(), roughness: 1, envMapIntensity: 0.7 }),

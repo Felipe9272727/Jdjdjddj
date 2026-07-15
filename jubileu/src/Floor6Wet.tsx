@@ -597,6 +597,15 @@ const Stove: React.FC = () => {
                 const s = 1 - melt01 * 0.92;
                 ice.current.scale.set(s, s * (1 - melt01 * 0.3), s);
                 ice.current.position.y = 1.04 - melt01 * 0.025;
+                // 🔑 NOVO: animar material de gelo (fica mais aquoso e molhado)
+                ice.current.children.forEach((c) => {
+                    if ((c as THREE.Mesh).material) {
+                        const mat = (c as THREE.Mesh).material as THREE.MeshPhysicalMaterial;
+                        mat.opacity = 0.65 - melt01 * 0.35;      // fica aquoso (0.65 → 0.30)
+                        mat.roughness = 0.12 + melt01 * 0.35;   // fica molhado/fosco (0.12 → 0.47)
+                        mat.needsUpdate = true;
+                    }
+                });
             }
         }
         if (water.current) {
