@@ -36,10 +36,18 @@ export interface EnemyState {
 export interface SeamGate { x: number; y: number; needed: number; label: string }
 export interface BossDef { x: number; arenaX: number }
 export type BossPhase = 'dormant' | 'mirror' | 'telegraph' | 'exposed' | 'bound' | 'resolved';
+export type BossAttack = 'pulse' | 'sweep' | 'cage';
 export interface BossState {
     x: number; y: number; phase: BossPhase; timer: number;
     seams: number; pattern: number; tethered: boolean;
     hurtT: number; introSeen: boolean;
+    attack: BossAttack; targetX: number;
+}
+export interface BossPrompt {
+    step: 1 | 2 | 3;
+    verb: 'LEIA' | 'REBATA' | 'FISGUE' | 'TENSIONE' | 'COSTURE';
+    detail: string;
+    ready: boolean;
 }
 
 export interface Memory {
@@ -182,6 +190,7 @@ export const MEMORIES: Memory[] = [
 const HAZARD_HALF = 0.5;
 const HAZARD_H = 1.4;
 const SPOOL_R = 0.8;
+const CHECKPOINT_MARGIN = 0.72;
 const BOSS_SEAM_LINES = [
     'VERGONHA — uma voz emprestada, repetida até parecer sua.',
     'CONTROLE — apertar o fio não impede que alguém vá embora.',
@@ -220,7 +229,9 @@ export function curMem(): Memory { return MEMORIES[Math.min(p8.memIdx, MEMORIES.
 export function groundAt(x: number, feetY: number): number | null {
     let best: number | null = null;
     for (const l of curMem().ledges) {
-        if (x < l.x0 || x > l.x1) continue;
+        // Uma tolerância pequena impede que o pé visualmente apoiado escorregue
+        // por um erro subpixel na borda, sem aumentar o salto real.
+        if (x < l.x0 - 0.08 || x > l.x1 + 0.08) continue;
         if (l.y <= feetY + 0.28 && (best === null || l.y > best)) best = l.y;
     }
     const patch = p8?.patch;
@@ -243,7 +254,7 @@ function freshFor(memIdx: number): Partial<P8State> {
             stunned: 0, tethered: false, aiT: i * 1.73, attackT: 1.4 + i * 0.35,
         })),
         gateProgress: m.gates.map(() => 0),
-        boss: m.boss ? { x: m.boss.x, y: 0, phase: 'dormant', timer: 1.8, seams: 5, pattern: 0, tethered: false, hurtT: 0, introSeen: false } : null,
+        boss: m.boss ? { x: m.boss.x, y: 0, phase: 'dormant', timer: 1.8, seams: 5, pattern: 0, tethered: false, hurtT: 0, introSeen: false, attack: 'pulse', targetX: m.startX } : null,
         beatIdx: 0, beatText: null, beatT: 0, hurtFlash: 0, transition: 1.0,
     };
 }
@@ -269,10 +280,44 @@ function emptyEvents(): P8Events {
 }
 
 function respawn(p: P8State, ev: P8Events): void {
-    p.x = p.lastGroundX; p.y = p.lastGroundY + 0.02; p.vx = 0; p.vy = 0;
+    const safe = validatedRespawnPoint(p);
+    p.x = safe.x; p.y = safe.y + 0.02; p.lastGroundX = safe.x; p.lastGroundY = safe.y;
+    p.vx = 0; p.vy = 0; p.patch = null;
     p.onGround = true; p.anchor = null; p.tetherEnemy = null; p.bossTether = false;
     p.stun = 0.55; p.invuln = 0.7; p.integrity = 3; p.hurtFlash = 0.65;
     p.tension = 0; ev.respawned = true;
+}
+
+function safeXOnLedge(l: Ledge, wanted: number, m: Memory): number {
+    const margin = Math.min(CHECKPOINT_MARGIN, Math.max(0, (l.x1 - l.x0) * 0.28));
+    let x = clamp(wanted, l.x0 + margin, l.x1 - margin);
+    for (const h of m.hazards) {
+        if (Math.abs(h.y - l.y) > 0.3 || Math.abs(h.x - x) > 1.15) continue;
+        const left = h.x - 1.45, right = h.x + 1.45;
+        const candidates = [left, right].filter((v) => v >= l.x0 + margin && v <= l.x1 - margin);
+        if (candidates.length) x = candidates.sort((a, b) => Math.abs(a - wanted) - Math.abs(b - wanted))[0];
+    }
+    return x;
+}
+
+function validatedRespawnPoint(p: P8State): Vec2 {
+    const m = curMem();
+    const exact = m.ledges.filter((l) => p.lastGroundX >= l.x0 && p.lastGroundX <= l.x1 && Math.abs(l.y - p.lastGroundY) < 0.5);
+    const candidates = exact.length ? exact : m.ledges.slice().sort((a, b) => {
+        const da = Math.abs(clamp(p.lastGroundX, a.x0, a.x1) - p.lastGroundX) + Math.abs(a.y - p.lastGroundY) * 1.5;
+        const db = Math.abs(clamp(p.lastGroundX, b.x0, b.x1) - p.lastGroundX) + Math.abs(b.y - p.lastGroundY) * 1.5;
+        return da - db;
+    });
+    const ledge = candidates[0] ?? { x0: m.startX - 2, x1: m.startX + 2, y: m.startY };
+    return { x: safeXOnLedge(ledge, p.lastGroundX, m), y: ledge.y };
+}
+
+function savePermanentCheckpoint(p: P8State, groundY: number): void {
+    const m = curMem();
+    const ledge = m.ledges.find((l) => p.x >= l.x0 - 0.08 && p.x <= l.x1 + 0.08 && Math.abs(l.y - groundY) < 0.08);
+    // Pontos feitos no ar expiram; nunca podem virar local de respawn.
+    if (!ledge) return;
+    p.lastGroundX = safeXOnLedge(ledge, p.x, m); p.lastGroundY = ledge.y;
 }
 
 function hurtPlayer(p: P8State, ev: P8Events, fromX: number): void {
@@ -312,7 +357,10 @@ function tryGrabEnemy(p: P8State, m: Memory): boolean {
     }
     const b = p.boss;
     if (b && (b.phase === 'exposed' || b.phase === 'bound') && Math.hypot(b.x - p.x, b.y + 1.2 - p.y) <= P8.GRAB_RANGE) {
-        p.bossTether = true; b.tethered = true; b.phase = 'bound'; b.timer = 2.8; p.tension = 0.08;
+        p.bossTether = true; b.tethered = true; b.phase = 'bound';
+        // A primeira costura ensina o gesto; as próximas aceleram sem virar
+        // uma janela de precisão frustrante no touch.
+        b.timer = b.pattern === 0 ? 4.2 : 3.5; p.tension = 0.08;
         return true;
     }
     return false;
@@ -394,7 +442,11 @@ function updateBoss(p: P8State, inp: P8Input, dt: number, grapplePress: boolean,
     if (!b || !def || b.phase === 'resolved') return;
     b.hurtT = Math.max(0, b.hurtT - dt);
     if (b.phase === 'dormant') {
-        if (p.x >= def.arenaX) { b.phase = 'mirror'; b.timer = 2.4; b.introSeen = true; p.beatText = 'YOURSELF não avança. Ele devolve.'; p.beatT = 3.8; ev.beat = true; }
+        if (p.x >= def.arenaX) {
+            b.phase = 'mirror'; b.timer = 3.2; b.introSeen = true;
+            p.beatText = 'YOURSELF não avança. Observe: ele sempre devolve o seu gesto.'; p.beatT = 4.8; ev.beat = true;
+            p8Bump();
+        }
         return;
     }
     if (b.phase === 'mirror') {
@@ -402,34 +454,75 @@ function updateBoss(p: P8State, inp: P8Input, dt: number, grapplePress: boolean,
         const desired = clamp(48 - p.x * 0.34, 28, 45);
         b.x += (desired - b.x) * Math.min(1, dt * 2.4);
         b.y = Math.sin(p.t * 1.4 + b.pattern) * 0.16;
-        if (b.timer <= 0) { b.phase = 'telegraph'; b.timer = Math.max(0.5, 0.95 - b.pattern * 0.07); }
+        if (b.timer <= 0) {
+            b.attack = (['pulse', 'sweep', 'cage'] as const)[b.pattern % 3];
+            b.targetX = p.x;
+            b.phase = 'telegraph';
+            b.timer = b.pattern === 0 ? 1.7 : Math.max(0.72, 1.12 - b.pattern * 0.07);
+            p8Bump();
+        }
         return;
     }
     if (b.phase === 'telegraph') {
+        const before = b.timer, parryAt = bossParryWindow(b);
         b.timer -= dt;
-        if (grapplePress && b.timer < 0.32) {
-            b.phase = 'exposed'; b.timer = 2.2; ev.parried = true;
+        // O HUD só redesenha nos marcos relevantes, não a cada frame. Assim o
+        // botão acende precisamente quando a janela do parry realmente abre.
+        if (before >= parryAt && b.timer < parryAt) p8Bump();
+        if (grapplePress && b.timer < parryAt) {
+            b.phase = 'exposed'; b.timer = b.pattern === 0 ? 3.2 : 2.45; ev.parried = true;
             p.threadCharge = clamp(p.threadCharge + 0.22, 0, 1); return;
         }
         if (b.timer <= 0) {
-            if (Math.abs(p.x - b.x) < 10) hurtPlayer(p, ev, b.x);
+            if (b.attack === 'pulse' && Math.abs(p.x - b.x) < 10) hurtPlayer(p, ev, b.x);
+            if (b.attack === 'sweep' && p.onGround && Math.abs(p.x - b.x) < 16) hurtPlayer(p, ev, b.x);
+            if (b.attack === 'cage' && Math.abs(p.x - b.targetX) < 1.65) hurtPlayer(p, ev, b.targetX);
             b.phase = 'exposed'; b.timer = 1.45;
+            p8Bump();
         }
         return;
     }
     if (b.phase === 'exposed') {
         b.timer -= dt;
-        if (b.timer <= 0) { b.phase = 'mirror'; b.timer = Math.max(1.7, 2.8 - b.pattern * 0.16); }
+        if (b.timer <= 0) { b.phase = 'mirror'; b.timer = Math.max(1.7, 2.8 - b.pattern * 0.16); p8Bump(); }
         return;
     }
     if (b.phase === 'bound') {
         b.timer -= dt;
         if (p.bossTether && inp.grapple) {
+            const beforeTension = p.tension;
             p.tension = clamp(p.tension + dt * (0.3 + Math.min(1, Math.abs(p.vx) / P8.RUN) * 0.7), 0, 1);
             b.x += (p.x + Math.sign(b.x - p.x) * 5.2 - b.x) * Math.min(1, dt * 2.5);
+            if (Math.floor(beforeTension * 10) !== Math.floor(p.tension * 10) || (beforeTension < 0.68 && p.tension >= 0.68)) p8Bump();
         }
-        if (!inp.grapple || b.timer <= 0) { releaseThread(p); b.phase = 'exposed'; b.timer = 1.0; }
+        if (!inp.grapple || b.timer <= 0) { releaseThread(p); b.phase = 'exposed'; b.timer = 1.0; p8Bump(); }
     }
+}
+
+function bossParryWindow(b: BossState): number {
+    return b.pattern === 0 ? 0.72 : Math.max(0.34, 0.44 - b.pattern * 0.018);
+}
+
+/** Texto e estado visual vêm da mesma máquina da luta — o HUD nunca ensina
+ * uma ação que o motor ainda não aceita. */
+export function p8BossPrompt(): BossPrompt | null {
+    const b = p8.boss;
+    if (!b || b.phase === 'dormant' || b.phase === 'resolved') return null;
+    if (b.phase === 'mirror') return { step: 1, verb: 'LEIA', detail: 'Ele vai escolher outro padrão. Observe o chão e o corpo.', ready: false };
+    if (b.phase === 'telegraph') {
+        const ready = b.timer < bossParryWindow(b);
+        const hint = b.attack === 'sweep' ? 'O rasante vem pelo chão: pule ou espere o clarão.'
+            : b.attack === 'cage' ? 'A gaiola marcou sua posição: saia do círculo ou rebata.'
+            : 'O pulso está comprimindo: espere o clarão.';
+        return ready
+            ? { step: 1, verb: 'REBATA', detail: 'FIO AGORA — devolva o padrão.', ready: true }
+            : { step: 1, verb: 'LEIA', detail: hint, ready: false };
+    }
+    if (b.phase === 'exposed') return { step: 2, verb: 'FISGUE', detail: 'Segure FIO na costura que ficou acesa.', ready: true };
+    const ready = p8.tension >= 0.68;
+    return ready
+        ? { step: 3, verb: 'COSTURE', detail: 'AGULHA AGORA — refaça esta parte.', ready: true }
+        : { step: 3, verb: 'TENSIONE', detail: 'Continue segurando FIO até a linha encher.', ready: false };
 }
 
 export function stepPlayer(inp: P8Input, rawDt: number): P8Events {
@@ -440,7 +533,7 @@ export function stepPlayer(inp: P8Input, rawDt: number): P8Events {
     const stitchPress = stitchDown && !p.stitchHeld;
     const grapplePress = inp.grapple && !p.grappleHeld;
     p.stitchHeld = stitchDown; p.grappleHeld = inp.grapple;
-    const prevX = p.x;
+    const prevX = p.x, prevY = p.y;
 
     p.stun = Math.max(0, p.stun - dt); p.invuln = Math.max(0, p.invuln - dt);
     p.coyote = Math.max(0, p.coyote - dt); p.jumpBuf = Math.max(0, p.jumpBuf - dt);
@@ -477,9 +570,13 @@ export function stepPlayer(inp: P8Input, rawDt: number): P8Events {
         }
         p.onGround = false; p.threadCharge = clamp(p.threadCharge + Math.abs(p.vx) * dt * 0.008, 0, 1);
         if (Math.abs(p.vx) > 0.1) p.facing = p.vx < 0 ? -1 : 1;
-        const gh = groundAt(p.x, p.y);
+        // Usa a altura anterior como teto da consulta. Em um frame lento o pé
+        // pode atravessar a plataforma inteira; a varredura ainda encontra o
+        // primeiro chão cruzado na descida.
+        const gh = groundAt(p.x, Math.max(prevY, p.y));
         if (gh !== null && p.y <= gh + 0.02 && p.vy <= 0) {
-            p.y = gh; p.vy = 0; p.onGround = true; releaseThread(p); ev.released = true; ev.landed = true;
+            p.y = gh; p.vy = 0; p.onGround = true; savePermanentCheckpoint(p, gh);
+            releaseThread(p); ev.released = true; ev.landed = true;
         }
         if (p.anchor !== null && p.jumpBuf > 0) {
             releaseThread(p); p.vy += P8.RELEASE_BOOST; p.vx *= P8.RELEASE_CARRY;
@@ -494,12 +591,12 @@ export function stepPlayer(inp: P8Input, rawDt: number): P8Events {
             p.vy = P8.JUMP_V; p.onGround = false; p.coyote = 0; p.jumpBuf = 0; ev.jumped = true;
         }
         p.vy += P8.GRAV * dt; p.x += p.vx * dt; p.y += p.vy * dt;
-        const gh = groundAt(p.x, p.y);
+        const gh = groundAt(p.x, Math.max(prevY, p.y));
         if (gh === null) {
             if (p.onGround) { p.onGround = false; p.coyote = P8.COYOTE; }
         } else if (p.y <= gh + 0.02 && p.vy <= 0) {
             if (!p.onGround && p.vy < -3) ev.landed = true;
-            p.y = gh; p.vy = 0; p.onGround = true; p.lastGroundX = clamp(p.x, m.startX, m.goalX); p.lastGroundY = gh;
+            p.y = gh; p.vy = 0; p.onGround = true; savePermanentCheckpoint(p, gh);
         } else if (p.onGround && p.y > gh + 0.06) { p.onGround = false; p.coyote = P8.COYOTE; }
     }
 

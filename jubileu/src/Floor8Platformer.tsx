@@ -9,7 +9,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
-    p8, p8Subscribe, p8Reset, stepPlayer, curMem, activeThreadTarget, p8Objective, P8,
+    p8, p8Subscribe, p8Reset, stepPlayer, curMem, activeThreadTarget, p8Objective, p8BossPrompt, P8,
     type EnemyKind, type Memory,
 } from './f8Platformer';
 import { f8, f8Subscribe, f8Wake } from './f8Arquivo';
@@ -83,6 +83,45 @@ function bgTex(key: string): THREE.Texture {
     const crop = BG_CROP[key] ?? 0; t.repeat.set(1, 1 - crop); t.offset.set(0, crop);
     bgTexCache.set(key, t); return t;
 }
+
+/** As quatro memórias anteriores ficam suspensas atrás do duelo. Elas não são
+ * decoração aleatória: YOURSELF é literalmente montado dos lugares que o
+ * jogador acabou de atravessar. Uma única teia em LineSegments mantém barato. */
+const YourselfDepth: React.FC = () => {
+    const drift = useRef<THREE.Group>(null!);
+    const web = useMemo(() => {
+        const pts: number[] = [], r = seedRng(909);
+        for (let i = 0; i < 30; i++) {
+            const x = (r() - 0.5) * 28, y = (r() - 0.5) * 12;
+            pts.push(x, y, -0.25, x * 0.18, y * 0.22, 0);
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+        return g;
+    }, []);
+    const shards = [
+        { key: 'quintal', x: -9.2, y: 2.6, r: -0.13 },
+        { key: 'escola', x: -3.2, y: -2.1, r: 0.09 },
+        { key: 'tempestade', x: 3.2, y: 2.1, r: -0.08 },
+        { key: 'hotel', x: 9.1, y: -1.8, r: 0.12 },
+    ];
+    useFrame(({ clock }) => {
+        if (!drift.current) return;
+        drift.current.rotation.z = Math.sin(clock.elapsedTime * 0.18) * 0.012;
+        drift.current.position.y = Math.sin(clock.elapsedTime * 0.31) * 0.12;
+    });
+    return (
+        <group ref={drift}>
+            <lineSegments geometry={web}><lineBasicMaterial color="#c65b70" transparent opacity={0.24} depthWrite={false} /></lineSegments>
+            {shards.map((s, i) => <group key={s.key} position={[s.x, s.y, 0.08 + i * 0.05]} rotation={[0, 0, s.r]}>
+                <mesh position={[0.16, -0.14, -0.03]}><planeGeometry args={[4.7, 2.85]} /><meshBasicMaterial color="#09060b" transparent opacity={0.72} depthWrite={false} /></mesh>
+                <mesh><planeGeometry args={[4.35, 2.5]} /><meshBasicMaterial map={bgTex(s.key)} color="#b87983" transparent opacity={0.24} toneMapped={false} depthWrite={false} /></mesh>
+                <mesh position={[0, -1.3, 0.04]}><boxGeometry args={[4.55, 0.045, 0.03]} /><meshBasicMaterial color="#d05a70" transparent opacity={0.62} /></mesh>
+                {[-1.65, -0.55, 0.55, 1.65].map((x, n) => <mesh key={n} position={[x, -1.38 - (n % 2) * 0.12, 0.05]} rotation={[0, 0, n % 2 ? 0.16 : -0.16]}><cylinderGeometry args={[0.018, 0.018, 0.34, 4]} /><meshBasicMaterial color="#db7180" transparent opacity={0.68} /></mesh>)}
+            </group>)}
+        </group>
+    );
+};
 
 function fgPaint(m: Memory): THREE.CanvasTexture {
     return cvs(1024, 128, (x) => {
@@ -456,26 +495,50 @@ const EnemyActor: React.FC<{ i: number; kind: EnemyKind; kit: Kit }> = ({ i, kin
 };
 
 const BossActor: React.FC<{ kit: Kit }> = ({ kit }) => {
-    const g = useRef<THREE.Group>(null!); const warning = useRef<THREE.Group>(null!); const open = useRef<THREE.Group>(null!);
+    const g = useRef<THREE.Group>(null!); const warning = useRef<THREE.Group>(null!); const open = useRef<THREE.Group>(null!); const crown = useRef<THREE.Group>(null!);
+    const cape = useMemo(() => {
+        const s = new THREE.Shape();
+        s.moveTo(-0.58, 1.55); s.lineTo(-1.15, 0.62); s.lineTo(-0.92, -0.55);
+        s.lineTo(-0.48, -0.3); s.lineTo(-0.14, -0.76); s.lineTo(0.18, -0.34);
+        s.lineTo(0.63, -0.62); s.lineTo(1.12, 0.62); s.lineTo(0.58, 1.55); s.closePath();
+        return s;
+    }, []);
     useFrame(({ clock }) => {
         const b = p8.boss; if (!b || !g.current) { if (g.current) g.current.visible = false; return; }
         g.current.visible = b.phase !== 'dormant'; g.current.position.set(b.x, b.y + 0.56, 0.35);
         const tele = b.phase === 'telegraph' ? 1 + Math.sin(clock.elapsedTime * 18) * 0.08 : 1;
         const hurt = b.hurtT > 0 ? 1 - Math.sin(b.hurtT * 25) * 0.08 : 1;
-        g.current.scale.set(-tele * hurt * 1.38, tele * hurt * 1.38, tele * hurt * 1.38);
+        g.current.scale.set(-tele * hurt * 1.5, tele * hurt * 1.5, tele * hurt * 1.5);
         g.current.rotation.z = b.phase === 'bound' ? Math.sin(clock.elapsedTime * 16) * 0.09 : Math.sin(clock.elapsedTime * 1.5) * 0.025;
         if (warning.current) {
-            warning.current.visible = b.phase === 'telegraph'; warning.current.rotation.z = clock.elapsedTime * 2.5;
-            const s = 0.93 + Math.sin(clock.elapsedTime * 18) * 0.08; warning.current.scale.setScalar(s);
+            warning.current.visible = b.phase === 'telegraph' && b.attack === 'pulse'; warning.current.rotation.z = clock.elapsedTime * 2.5;
+            const total = b.pattern === 0 ? 1.7 : Math.max(0.72, 1.12 - b.pattern * 0.07);
+            const ready = p8BossPrompt()?.verb === 'REBATA';
+            const closing = 0.72 + Math.max(0, b.timer / total) * 0.92;
+            const s = ready ? 0.72 + Math.sin(clock.elapsedTime * 22) * 0.07 : closing;
+            warning.current.scale.setScalar(s);
         }
         if (open.current) {
             open.current.visible = b.phase === 'exposed' || b.phase === 'bound';
             open.current.rotation.z = -clock.elapsedTime * 0.8;
+            const s = b.phase === 'exposed' ? 1 + Math.sin(clock.elapsedTime * 8) * 0.07 : 0.88;
+            open.current.scale.setScalar(s);
         }
+        if (crown.current) crown.current.rotation.z = Math.sin(clock.elapsedTime * 0.9) * 0.09;
     });
     return (
         <group ref={g} visible={false}>
-            <mesh position={[0, 1.02, -0.34]} scale={[1.35, 1.85, 1]}><circleGeometry args={[0.82, 24]} /><meshBasicMaterial color="#07040a" transparent opacity={0.72} depthWrite={false} /></mesh>
+            {/* Uma capa rasgada e ecos laterais quebram de vez a silhueta do player. */}
+            <mesh position={[0, 0.45, -0.28]} material={kit.bossDark}><shapeGeometry args={[cape, 2]} /></mesh>
+            {[-1, 1].map((side) => <group key={side} position={[side * 0.55, 1.02, -0.34]} scale={[0.82, 1.34, 1]}>
+                <mesh><circleGeometry args={[0.7, 18]} /><meshBasicMaterial color="#130713" transparent opacity={0.52} depthWrite={false} /></mesh>
+            </group>)}
+            <mesh position={[0, 1.02, -0.32]} scale={[1.45, 1.95, 1]}><circleGeometry args={[0.82, 24]} /><meshBasicMaterial color="#050307" transparent opacity={0.84} depthWrite={false} /></mesh>
+            {/* Tendões de fio: braços que não pertencem ao corpo. */}
+            {[-1.18, -0.82, 0.82, 1.18].map((a, i) => <group key={a} position={[Math.sin(a) * 0.76, 1.0 + Math.cos(a) * 0.18, -0.02]} rotation={[0, 0, a]}>
+                <mesh material={i % 2 ? kit.boss : kit.bossDark}><cylinderGeometry args={[0.05, 0.085, 1.28, 6]} /></mesh>
+                <mesh position={[0, 0.68, 0]} material={kit.knotDark}><torusKnotGeometry args={[0.1, 0.035, 14, 4, 2, 3]} /></mesh>
+            </group>)}
             <group ref={warning} position={[0, 1.02, 0.5]} visible={false}>
                 <mesh material={kit.core}><torusGeometry args={[1.08, 0.045, 6, 32]} /></mesh>
                 {[0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((a, i) => <mesh key={i} position={[Math.cos(a) * 1.08, Math.sin(a) * 1.08, 0]} rotation={[0, 0, a]} material={kit.core}><coneGeometry args={[0.1, 0.28, 5]} /></mesh>)}
@@ -485,14 +548,76 @@ const BossActor: React.FC<{ kit: Kit }> = ({ kit }) => {
                 <mesh rotation={[0, 0, Math.PI / 2]} material={kit.thread}><torusGeometry args={[1.18, 0.018, 5, 32, Math.PI]} /></mesh>
             </group>
             <TravelerShell kit={kit} corrupted />
-            {Array.from({ length: 5 }, (_, i) => {
-                const a = -0.9 + i * 0.45, alive = (p8.boss?.seams ?? 0) > i;
-                return <group key={i} position={[Math.sin(a) * 0.7, 1.05 + Math.cos(a) * 0.75, 0.38]}>
-                    <mesh material={alive ? kit.core : kit.knotDark}><torusKnotGeometry args={[0.1, 0.035, 18, 4, 2, 3]} /></mesh>
-                    {alive && <mesh material={kit.glow} scale={0.65}><planeGeometry args={[1, 1]} /></mesh>}
-                </group>;
-            })}
+            {/* A face original some sob uma máscara vazia com um único olho. */}
+            <mesh position={[0, 1.57, 0.47]} scale={[1.08, 1.22, 0.5]} material={kit.bossDark}><icosahedronGeometry args={[0.37, 1]} /></mesh>
+            <mesh position={[0, 1.58, 0.73]} scale={[2.5, 0.62, 0.55]} material={kit.core}><sphereGeometry args={[0.075, 10, 7]} /></mesh>
+            <mesh position={[0, 1.58, 0.68]} rotation={[Math.PI / 2, 0, 0]} material={kit.thread}><torusGeometry args={[0.22, 0.025, 6, 18]} /></mesh>
+            {/* Costura vertical no peito: o alvo não é uma barra de vida. */}
+            <mesh position={[0, 0.98, 0.5]} material={kit.core}><cylinderGeometry args={[0.025, 0.025, 0.72, 5]} /></mesh>
+            {[-0.28, 0, 0.28].map((y, i) => <mesh key={y} position={[0, 0.98 + y, 0.53]} rotation={[0, 0, i % 2 ? -0.78 : 0.78]} material={kit.thread}><cylinderGeometry args={[0.018, 0.018, 0.34, 4]} /></mesh>)}
+            <group ref={crown}>
+                {Array.from({ length: 5 }, (_, i) => {
+                    const a = -1.05 + i * 0.525, alive = (p8.boss?.seams ?? 0) > i;
+                    return <group key={i} position={[Math.sin(a) * 0.82, 1.13 + Math.cos(a) * 0.92, 0.48]}>
+                        <mesh material={alive ? kit.core : kit.knotDark}><torusKnotGeometry args={[0.11, 0.038, 18, 4, 2, 3]} /></mesh>
+                        {alive && <mesh material={kit.glow} scale={0.76}><planeGeometry args={[1, 1]} /></mesh>}
+                    </group>;
+                })}
+            </group>
         </group>
+    );
+};
+
+/** Cada padrão ocupa uma região diferente da arena. A arte é a própria regra:
+ * círculo fecha no pulso, linha rasteja no chão e gaiola cerca a marca salva. */
+const BossAttackActor: React.FC<{ kit: Kit }> = ({ kit }) => {
+    const pulse = useRef<THREE.Group>(null!); const sweep = useRef<THREE.Group>(null!); const cage = useRef<THREE.Group>(null!);
+    useFrame(({ clock }) => {
+        const b = p8.boss, active = !!b && b.phase === 'telegraph';
+        if (!b) {
+            if (pulse.current) pulse.current.visible = false;
+            if (sweep.current) sweep.current.visible = false;
+            if (cage.current) cage.current.visible = false;
+            return;
+        }
+        const total = b.pattern === 0 ? 1.7 : Math.max(0.72, 1.12 - b.pattern * 0.07);
+        const progress = THREE.MathUtils.clamp(1 - b.timer / total, 0, 1), ready = p8BossPrompt()?.ready ?? false;
+        if (pulse.current) {
+            pulse.current.visible = active && b.attack === 'pulse'; pulse.current.position.set(b.x, b.y + 1.55, 0.76);
+            const s = 1.18 - progress * 0.7; pulse.current.scale.setScalar(s);
+            pulse.current.rotation.z = clock.elapsedTime * (ready ? 3.8 : 1.15);
+        }
+        if (sweep.current) {
+            sweep.current.visible = active && b.attack === 'sweep'; sweep.current.position.set(b.x, 0.16, 0.78);
+            sweep.current.scale.set(0.12 + progress * 0.88, ready ? 1.65 : 1, 1);
+        }
+        if (cage.current) {
+            cage.current.visible = active && b.attack === 'cage'; cage.current.position.set(b.targetX, 0.12, 0.8);
+            cage.current.scale.set(1.45 - progress * 0.45, 0.62 + progress * 0.38, 1);
+            cage.current.rotation.z = Math.sin(clock.elapsedTime * 9) * (ready ? 0.035 : 0.012);
+        }
+    });
+    return (
+        <>
+            <group ref={pulse} visible={false}>
+                <mesh material={kit.core}><torusGeometry args={[6.4, 0.07, 6, 48]} /></mesh>
+                <mesh material={kit.thread}><torusGeometry args={[4.25, 0.045, 5, 40]} /></mesh>
+                {[0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((a) => <mesh key={a} position={[Math.cos(a) * 6.4, Math.sin(a) * 6.4, 0]} rotation={[0, 0, a]} material={kit.core}><coneGeometry args={[0.16, 0.5, 5]} /></mesh>)}
+            </group>
+            <group ref={sweep} visible={false}>
+                <mesh><planeGeometry args={[32, 0.34]} /><meshBasicMaterial color="#ff657d" transparent opacity={0.82} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
+                <mesh position={[0, 0.02, -0.02]}><planeGeometry args={[32, 1.15]} /><meshBasicMaterial color="#c41443" transparent opacity={0.19} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
+                {[-13, -9, -5, -1, 3, 7, 11, 15].map((x) => <mesh key={x} position={[x, 0.34, 0.02]} rotation={[0, 0, -Math.PI / 2]} material={kit.core}><coneGeometry args={[0.14, 0.5, 5]} /></mesh>)}
+            </group>
+            <group ref={cage} visible={false}>
+                <mesh scale={[1.7, 0.34, 1]} material={kit.core}><torusGeometry args={[1, 0.07, 6, 36]} /></mesh>
+                {[-1.45, -0.72, 0, 0.72, 1.45].map((x, i) => <group key={x} position={[x, 2.25, 0]}>
+                    <mesh material={i % 2 ? kit.thread : kit.core}><cylinderGeometry args={[0.035, 0.055, 4.5, 5]} /></mesh>
+                    <mesh position={[0, -2.12, 0]} rotation={[0, 0, Math.PI]} material={kit.core}><coneGeometry args={[0.12, 0.38, 5]} /></mesh>
+                </group>)}
+                <mesh position={[0, 4.42, 0]} scale={[1.7, 0.34, 1]} material={kit.thread}><torusGeometry args={[1, 0.045, 5, 30]} /></mesh>
+            </group>
+        </>
     );
 };
 
@@ -514,7 +639,7 @@ const Scene: React.FC<{
     stitchRef: React.MutableRefObject<boolean>; introRef: React.MutableRefObject<boolean>;
 }> = ({ moveRef, vertRef, jumpRef, grappleRef, stitchRef, introRef }) => {
     const cam = useThree((s) => s.camera), scene = useThree((s) => s.scene);
-    const sky = useRef<THREE.Group>(null!); const fg = useRef<THREE.Group>(null!); const flash = useRef<THREE.AmbientLight>(null!); const nextBolt = useRef(4);
+    const sky = useRef<THREE.Group>(null!); const mid = useRef<THREE.Group>(null!); const fg = useRef<THREE.Group>(null!); const flash = useRef<THREE.AmbientLight>(null!); const nextBolt = useRef(4);
     const mem = curMem(), kit = makeKit(mem), lift = BG_LIFT[mem.key] ?? BG_LIFT.hotel;
     useEffect(() => {
         scene.fog = new THREE.Fog(mem.pal.fog, mem.key === 'yourself' ? 26 : 22, 58);
@@ -536,6 +661,7 @@ const Scene: React.FC<{
         cam.position.y += (ty - cam.position.y) * Math.min(1, dt * 3.4);
         cam.position.z = 14; cam.rotation.set(0, 0, 0); cam.lookAt(cam.position.x, cam.position.y, 0);
         if (sky.current) sky.current.position.set(cam.position.x * 0.925, cam.position.y * 0.24 + 2.25, -16);
+        if (mid.current) mid.current.position.set(cam.position.x * 0.82 + 5, cam.position.y * 0.1 + 1.7, -10);
         if (fg.current) fg.current.position.set(cam.position.x * -0.13, -1.15, 4.6);
         if (mem.key === 'tempestade' && flash.current) {
             if (clock.elapsedTime > nextBolt.current) { flash.current.intensity = 1.8; nextBolt.current = clock.elapsedTime + 6 + Math.random() * 8; }
@@ -553,6 +679,7 @@ const Scene: React.FC<{
                 <mesh material={kit.bg}><planeGeometry args={[33.2, 16]} /></mesh>
                 <mesh position={[0, 0, 0.02]}><planeGeometry args={[33.2, 16]} /><meshBasicMaterial color={lift.color} transparent opacity={lift.opacity} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
             </group>
+            <group ref={mid}>{mem.key === 'yourself' && <YourselfDepth />}</group>
             <group ref={fg}><mesh material={kit.fg}><planeGeometry args={[36, 4.5]} /></mesh></group>
             {mem.key === 'tempestade' && <Rain endX={mem.endX} />}
             {mem.ledges.map((l, i) => <YarnLedge key={`${mem.key}-l${i}`} l={l} kit={kit} />)}
@@ -562,6 +689,7 @@ const Scene: React.FC<{
             {mem.enemies.map((e, i) => <EnemyActor key={`${mem.key}-e${i}`} i={i} kind={e.kind ?? 'knotling'} kit={kit} />)}
             {mem.spools.map((s, i) => <Spool key={`${mem.key}-s${i}`} s={s} i={i} kit={kit} />)}
             <PatchActor kit={kit} />
+            <BossAttackActor kit={kit} />
             <BossActor kit={kit} />
             <CrochetPlayer kit={kit} />
             <LiveThread kit={kit} />
@@ -625,10 +753,10 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
     });
     const bossActive = !!p8.boss && p8.boss.phase !== 'dormant';
     const seamNames = ['VERGONHA', 'CONTROLE', 'RUMINAÇÃO', 'ISOLAMENTO', 'MEDO'];
-    const bossCue = p8.boss?.phase === 'telegraph' ? 'FIO AGORA — DEVOLVA O PADRÃO'
-        : p8.boss?.phase === 'exposed' ? 'FISGUE A COSTURA EXPOSTA'
-        : p8.boss?.phase === 'bound' ? 'MANTENHA TENSO · AGULHA QUANDO BRILHAR'
-        : null;
+    const bossPrompt = p8BossPrompt();
+    const fioHot = !!bossPrompt && ((bossPrompt.step === 1 && bossPrompt.ready) || bossPrompt.step === 2);
+    const needleHot = bossPrompt?.step === 3 && bossPrompt.ready;
+    const attackName = p8.boss?.attack === 'sweep' ? 'RASANTE' : p8.boss?.attack === 'cage' ? 'GAIOLA' : 'PULSO';
     return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 56, background: pal.bgLo, touchAction: 'none', overflow: 'hidden' }}>
             <Canvas orthographic dpr={[0.75, 1.35]} camera={{ position: [2, 2.75, 14], zoom: 58, near: 0.1, far: 120 }} gl={{ antialias: false, powerPreference: 'high-performance', alpha: false }}>
@@ -675,11 +803,22 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
                     {bossActive && <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 5, marginTop: 7 }}>
                         {seamNames.map((name, i) => <span key={name} style={{ padding: '2px 5px', border: '1px solid rgba(240,90,114,.42)', color: i < (p8.boss?.seams ?? 0) ? '#f0a3af' : '#75606a', opacity: i < (p8.boss?.seams ?? 0) ? 1 : 0.42, font: '8px monospace', textDecoration: i < (p8.boss?.seams ?? 0) ? 'none' : 'line-through' }}>{name}</span>)}
                     </div>}
-                    {(p8.tetherEnemy !== null || p8.bossTether) && <div style={{ width: 160, height: 4, margin: '6px auto 0', background: 'rgba(0,0,0,.45)', borderRadius: 4 }}><div style={{ width: `${p8.tension * 100}%`, height: '100%', background: p8.tension > 0.68 ? '#fff1a8' : pal.thread, transition: 'width .08s linear' }} /></div>}
+                    {(p8.tetherEnemy !== null || p8.bossTether) && <div style={{ display: 'flex', width: 210, margin: '7px auto 0', alignItems: 'center', gap: 7, color: p8.tension >= 0.68 ? '#fff1a8' : '#d9bdc5', font: '8px monospace', letterSpacing: 1 }}>
+                        <span>TENSÃO</span><div style={{ flex: 1, height: 7, padding: 1, border: '1px solid rgba(255,255,255,.36)', background: 'rgba(0,0,0,.55)', borderRadius: 5 }}><div style={{ width: `${p8.tension * 100}%`, height: '100%', borderRadius: 3, background: p8.tension >= 0.68 ? '#fff1a8' : pal.thread, boxShadow: p8.tension >= 0.68 ? '0 0 12px #fff1a8' : `0 0 7px ${pal.thread}`, transition: 'width .08s linear' }} /></div><span>{Math.round(p8.tension * 100)}%</span>
+                    </div>}
                 </div>
             )}
 
-            {bossCue && !won && <div style={{ position: 'absolute', top: 90, left: 0, right: 0, textAlign: 'center', pointerEvents: 'none' }}><span style={{ display: 'inline-block', padding: '6px 13px', color: p8.boss?.phase === 'telegraph' ? '#fff2b6' : '#ffd1d8', border: '1px solid rgba(240,90,114,.55)', background: 'rgba(12,5,11,.72)', boxShadow: '0 0 24px rgba(240,90,114,.2)', font: '10px monospace', letterSpacing: 1.5 }}>{bossCue}</span></div>}
+            {bossPrompt && !won && <div style={{ position: 'absolute', top: 94, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none', padding: '0 12px', animation: 'f8bossCueIn .22s ease' }}>
+                <div style={{ width: 'min(94vw,540px)', padding: '8px 11px 9px', border: `1px solid ${bossPrompt.ready ? '#ffd58c' : 'rgba(240,90,114,.54)'}`, borderRadius: 5, background: 'linear-gradient(180deg,rgba(17,7,14,.9),rgba(7,4,10,.8))', boxShadow: bossPrompt.ready ? '0 0 28px rgba(255,190,105,.28)' : '0 0 24px rgba(240,90,114,.16)', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginBottom: 6 }}>
+                        {(['REBATA', 'FISGUE', 'COSTURE'] as const).map((label, i) => { const step = i + 1, active = bossPrompt.step === step; return <span key={label} style={{ flex: 1, maxWidth: 132, padding: '3px 4px', borderBottom: `2px solid ${active ? (bossPrompt.ready ? '#ffd58c' : '#ef667b') : 'rgba(255,255,255,.14)'}`, color: active ? '#fff4db' : 'rgba(255,255,255,.38)', font: '8px monospace', letterSpacing: 1 }}>{step} · {label}</span>; })}
+                    </div>
+                    <div style={{ color: '#d98998', font: '7px monospace', letterSpacing: 2 }}>PADRÃO · {attackName}</div>
+                    <div style={{ color: bossPrompt.ready ? '#fff0b4' : '#f5c8ce', font: '700 12px/1.25 monospace', letterSpacing: 1.6, marginTop: 2 }}>{bossPrompt.verb}</div>
+                    <div style={{ color: 'rgba(255,255,255,.78)', font: '9px/1.35 monospace', marginTop: 2 }}>{bossPrompt.detail}</div>
+                </div>
+            </div>}
 
             {p8.beatText && !won && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 148, padding: '0 28px', textAlign: 'center', pointerEvents: 'none' }}><span style={{ display: 'inline-block', maxWidth: 680, padding: '8px 14px', borderRadius: 3, background: 'linear-gradient(90deg,transparent,rgba(8,5,12,.58),transparent)', color: '#fff', font: 'italic 16px/1.5 Georgia,serif', textShadow: '0 2px 12px #000', animation: 'f8beatIn .45s ease' }}>{p8.beatText}</span></div>}
 
@@ -690,8 +829,8 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
                         <button aria-label="Mover para direita" {...hold(() => { touchMove.current = 1; }, () => { touchMove.current = 0; })} style={btn}>▶</button>
                     </div>
                     <div style={{ position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 18px)', right: 14, display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                        <button aria-label="Usar fio" {...hold(() => { grappleRef.current = true; }, () => { grappleRef.current = false; })} style={{ ...btn, width: 68, height: 68, fontSize: 11, letterSpacing: 1.2, borderColor: pal.thread, color: '#ffd9df' }}>FIO</button>
-                        <button aria-label="Usar agulha" onPointerDown={(e) => { e.preventDefault(); stitchRef.current = true; }} style={{ ...btn, width: 78, height: 78, fontSize: 10, lineHeight: 1.15, borderColor: '#d4ac5b', color: '#ffe5a2' }}>AGULHA</button>
+                        <button aria-label="Usar fio" {...hold(() => { grappleRef.current = true; }, () => { grappleRef.current = false; })} style={{ ...btn, width: 68, height: 68, fontSize: 11, letterSpacing: 1.2, borderColor: fioHot ? '#fff0a8' : pal.thread, color: fioHot ? '#fff8d8' : '#ffd9df', animation: fioHot ? 'f8controlPulse .52s ease-in-out infinite alternate' : undefined }}>FIO</button>
+                        <button aria-label="Usar agulha" onPointerDown={(e) => { e.preventDefault(); stitchRef.current = true; }} style={{ ...btn, width: 78, height: 78, fontSize: 10, lineHeight: 1.15, borderColor: needleHot ? '#fff0a8' : '#d4ac5b', color: needleHot ? '#fff8d8' : '#ffe5a2', animation: needleHot ? 'f8controlPulse .52s ease-in-out infinite alternate' : undefined }}>AGULHA</button>
                         <button aria-label="Pular" onPointerDown={(e) => { e.preventDefault(); jumpRef.current = true; }} style={{ ...btn, width: 68, height: 68, fontSize: 11 }}>PULAR</button>
                     </div>
                     <div style={{ position: 'absolute', right: 16, bottom: 'calc(env(safe-area-inset-bottom) + 104px)', color: 'rgba(255,255,255,.64)', font: '9px/1.45 monospace', textAlign: 'right', pointerEvents: 'none', maxWidth: 240 }}>
@@ -713,6 +852,8 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
             <style>{`
                 @keyframes f8platwin{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:blur(0)}}
                 @keyframes f8beatIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+                @keyframes f8bossCueIn{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:none}}
+                @keyframes f8controlPulse{from{transform:scale(1);box-shadow:inset 0 1px rgba(255,255,255,.12),0 5px 18px rgba(0,0,0,.32)}to{transform:scale(1.09);box-shadow:0 0 24px rgba(255,222,135,.62),inset 0 0 12px rgba(255,245,190,.16)}}
                 @keyframes f8photoHold{0%{opacity:0;transform:scale(1.04)}8%,70%{opacity:1;transform:scale(1)}82%,100%{opacity:0}}
                 @keyframes f8bossName{from{filter:blur(0);transform:scale(1)}to{filter:blur(.45px);transform:scale(1.018)}}
                 @keyframes f8blinkTop{0%,64%{transform:scaleY(0)}74%,82%{transform:scaleY(1)}100%{transform:scaleY(0)}}

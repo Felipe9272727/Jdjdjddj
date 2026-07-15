@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
-    p8, p8Reset, p8JumpToMemory, stepPlayer, groundAt, curMem, activeAnchor, MEMORIES, P8, type Memory,
+    p8, p8Reset, p8JumpToMemory, stepPlayer, groundAt, curMem, activeAnchor, p8BossPrompt, MEMORIES, P8, type Memory,
 } from '../f8Platformer';
 import { f8, f8Reset } from '../f8Arquivo';
 
@@ -44,6 +44,15 @@ describe('f8Platformer — corrida/pulo/pouso', () => {
         expect(p8.onGround).toBe(true);
         expect(p8.y).toBeCloseTo(l.y, 1);
         expect(p8.lastGroundY).toBeCloseTo(l.y, 1);
+    });
+
+    it('uma queda muito rápida não atravessa a plataforma entre dois frames', () => {
+        const l = curMem().ledges[0];
+        p8.x = (l.x0 + l.x1) / 2; p8.y = l.y + 1.1; p8.vy = -52; p8.onGround = false;
+        const ev = stepPlayer({ ...IDLE }, 0.05);
+        expect(ev.landed).toBe(true);
+        expect(p8.onGround).toBe(true);
+        expect(p8.y).toBe(l.y);
     });
 });
 
@@ -111,6 +120,28 @@ describe('f8Platformer — respawn e coleta', () => {
         expect(ev.respawned).toBe(true);
         expect(p8.x).toBe(3);
         expect(p8.stun).toBeGreaterThan(0);
+    });
+
+    it('respawn descarta ponto temporário expirado e volta para chão permanente', () => {
+        p8.lastGroundX = 11; p8.lastGroundY = 4;
+        p8.patch = { x: 11, y: 4, t: 0.01 };
+        p8.x = 11; p8.y = P8.VOID_DY - 2; p8.onGround = false;
+        const ev = stepPlayer({ ...IDLE }, 1 / 60);
+        expect(ev.respawned).toBe(true);
+        expect(p8.patch).toBeNull();
+        expect(curMem().ledges.some((l) => p8.x >= l.x0 && p8.x <= l.x1 && Math.abs(p8.lastGroundY - l.y) < 0.01)).toBe(true);
+        for (let i = 0; i < 80; i++) expect(stepPlayer({ ...IDLE }, 1 / 60).respawned).toBe(false);
+    });
+
+    it('checkpoint sobre fio preto é afastado antes do respawn', () => {
+        p8JumpToMemory(2);
+        const h = curMem().hazards[0];
+        p8.lastGroundX = h.x; p8.lastGroundY = h.y;
+        p8.x = h.x; p8.y = P8.VOID_DY - 1; p8.onGround = false;
+        const ev = stepPlayer({ ...IDLE }, 1 / 60);
+        expect(ev.respawned).toBe(true);
+        expect(Math.abs(p8.x - h.x)).toBeGreaterThan(1);
+        for (let i = 0; i < 80; i++) expect(stepPlayer({ ...IDLE }, 1 / 60).respawned).toBe(false);
     });
 
     it('encostar num fio preto desfaz (respawn + hurt)', () => {
@@ -299,6 +330,47 @@ describe('f8Platformer — novas operações de crochê', () => {
         const ev = stepPlayer({ ...IDLE, grapple: true }, 1 / 60);
         expect(ev.parried).toBe(true);
         expect(boss.phase).toBe('exposed');
+    });
+
+    it('o tutorial do boss acompanha as três ações que o motor aceita', () => {
+        p8JumpToMemory(4);
+        const boss = p8.boss!;
+        boss.phase = 'telegraph'; boss.pattern = 0; boss.timer = 1.1;
+        expect(p8BossPrompt()).toMatchObject({ step: 1, verb: 'LEIA', ready: false });
+        boss.timer = 0.4;
+        expect(p8BossPrompt()).toMatchObject({ step: 1, verb: 'REBATA', ready: true });
+        boss.phase = 'exposed';
+        expect(p8BossPrompt()).toMatchObject({ step: 2, verb: 'FISGUE', ready: true });
+        boss.phase = 'bound'; p8.tension = 0.4;
+        expect(p8BossPrompt()).toMatchObject({ step: 3, verb: 'TENSIONE', ready: false });
+        p8.tension = 0.8;
+        expect(p8BossPrompt()).toMatchObject({ step: 3, verb: 'COSTURE', ready: true });
+    });
+
+    it('o rasante acerta no chão e pode ser evitado pulando', () => {
+        p8JumpToMemory(4);
+        let boss = p8.boss!;
+        p8.x = 36; p8.y = 0; p8.onGround = true; p8.invuln = 0;
+        boss.phase = 'telegraph'; boss.attack = 'sweep'; boss.timer = 0.01;
+        expect(stepPlayer({ ...IDLE }, 0.02).hurt).toBe(true);
+
+        p8JumpToMemory(4); boss = p8.boss!;
+        p8.x = 36; p8.y = 3; p8.vy = 2; p8.onGround = false; p8.invuln = 0;
+        boss.phase = 'telegraph'; boss.attack = 'sweep'; boss.timer = 0.01;
+        expect(stepPlayer({ ...IDLE }, 0.02).hurt).toBe(false);
+    });
+
+    it('a gaiola acerta a marca antiga, mas erra quem sai dela', () => {
+        p8JumpToMemory(4);
+        let boss = p8.boss!;
+        boss.phase = 'telegraph'; boss.attack = 'cage'; boss.targetX = 30; boss.timer = 0.01;
+        p8.x = 30; p8.y = 0; p8.onGround = true; p8.invuln = 0;
+        expect(stepPlayer({ ...IDLE }, 0.02).hurt).toBe(true);
+
+        p8JumpToMemory(4); boss = p8.boss!;
+        boss.phase = 'telegraph'; boss.attack = 'cage'; boss.targetX = 30; boss.timer = 0.01;
+        p8.x = 34; p8.y = 0; p8.onGround = true; p8.invuln = 0;
+        expect(stepPlayer({ ...IDLE }, 0.02).hurt).toBe(false);
     });
 });
 
