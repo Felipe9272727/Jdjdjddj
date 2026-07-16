@@ -65,6 +65,7 @@ import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambie
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
 import { f8, f8Reset, f8Subscribe } from './f8Arquivo';
 import { p8Reset } from './f8Platformer';
+import { f8ApplyBossSkip } from './f8Dev';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE } from './constants';
 import PhysicsProps, { type CrateSpec } from './PhysicsProps';
 import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from './PhotoMode';
@@ -1342,7 +1343,9 @@ export default function App() {
       } else if (startLevel === 8) {
         // Andar 8 — a sala de interrogatório do Arquivista. 1ª pessoa, estado
         // fresco, spawn logo à frente do vão pra caminhar até a mesa.
-        f8Reset(); p8Reset();
+        // No Modo Desenvolvedor, a variante YOURSELF consome o flag e prepara
+        // diretamente a quinta memória. O caminho normal continua intocado.
+        if (!f8ApplyBossSkip()) { f8Reset(); p8Reset(); }
         setGameState('outdoor');
         setNightMode(false);
         setHouseDoorOpen(false);

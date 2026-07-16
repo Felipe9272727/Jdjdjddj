@@ -76,6 +76,39 @@ for (const shot of shots) {
     }, stageFrames);
 }
 
+// Estados congelados da luta: além de regressão visual, estas imagens deixam
+// claro se o telegraph e a resposta de cada problema continuam legíveis.
+const bossShots = [
+    { key: '06-boss-vergonha-slam', attack: 'slam' },
+    { key: '07-boss-controle-sweep', attack: 'sweep' },
+    { key: '08-boss-ruminacao-parry', attack: 'throw' },
+    { key: '09-boss-isolamento-cocoon', attack: 'cocoon' },
+    { key: '10-boss-costura-exposed', attack: 'exposed' },
+];
+for (const shot of bossShots) {
+    await page.evaluate(({ attack }) => {
+        const d = window.__f8dbg; d.jumpMem(4); d.f8.phase = 'platformer'; d.bump();
+        if (window.__f8plat?.introRef) window.__f8plat.introRef.current = true;
+        d.p8.x = 29; d.p8.y = 0; d.p8.lastGroundX = 29; d.p8.lastGroundY = 0;
+        const b = d.p8.boss; b.x = 38; b.y = 0; b.introSeen = true; b.timer = 2;
+        b.seams = attack === 'cocoon' ? 2 : attack === 'throw' ? 3 : attack === 'sweep' ? 4 : 5;
+        b.projectiles = []; b.shield = false; b.atkT = 0.35;
+        if (attack === 'exposed') { b.phase = 'exposed'; b.attack = null; }
+        else {
+            b.phase = 'attack'; b.attack = attack;
+            if (attack === 'slam') { b.slamX = 30.8; b.slamN = 0; }
+            if (attack === 'sweep') { b.atkT = 0.92; b.sweepX = 31.5; b.sweepY = 0.55; b.sweepN = 0; b.sweepDir = -1; }
+            if (attack === 'throw') b.projectiles = [{ x: 33.2, y: 1.55, vx: -9, vy: -0.3, parryable: true, reflected: false, dead: false, t: 0.5 }];
+            if (attack === 'cocoon') {
+                b.x = 31.5; b.y = 3; b.shield = true;
+                d.p8.enemies.forEach((e, i) => { e.dead = false; e.x = 31.5 + (i ? 4.5 : -4.5); e.y = 4.7 + i * 0.7; });
+            }
+        }
+    }, shot);
+    await page.waitForTimeout(180);
+    await page.screenshot({ path: `${out}/${shot.key}.png` });
+}
+
 const frameStats = await page.evaluate(async (frames) => {
     const deltas = [];
     let last = performance.now();
