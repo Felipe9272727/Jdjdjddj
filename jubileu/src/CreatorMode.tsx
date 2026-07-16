@@ -163,6 +163,21 @@ export const FLOORS: FloorOption[] = [
     ),
   },
   {
+    id: 'floor-8-yourself',
+    level: 8,
+    name: 'YOURSELF — Boss',
+    label: 'Teste rápido',
+    variant: 'floor8Boss',
+    description: 'Pula direto para a Etapa V e inicia a batalha final com estado limpo',
+    color: 'from-rose-700 via-red-500 to-amber-400',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <circle cx="12" cy="12" r="8.25" />
+        <path strokeLinecap="round" d="M12 2.5v4m0 11v4M2.5 12h4m11 0h4M9.5 9.5l5 5m0-5l-5 5" />
+      </svg>
+    ),
+  },
+  {
     id: 'transition-2-3',
     level: 3,
     name: 'Transição 2 → 3',
@@ -192,7 +207,7 @@ export const FLOORS: FloorOption[] = [
 ];
 
 interface CreatorModeProps {
-  onSelect: (level: number, multiplayerEnabled: boolean) => void;
+  onSelect: (level: number, multiplayerEnabled: boolean, variant?: string) => void;
   multiplayerEnabled: boolean;
 }
 
@@ -226,6 +241,7 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
           return (
             <button
               key={floor.id}
+              data-creator-floor={floor.id}
               onClick={() => setSelectedId(floor.id)}
               className={`
                 group relative w-full text-left rounded-xl transition-all duration-200
@@ -275,12 +291,13 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
 
       {/* Play button */}
       <button
+        data-creator-start
         onClick={() => {
           if (selectedFloor) {
             f3Demo.fall = selectedFloor.variant === 'fallDemo';   // arm the Floor-3 fall preview
             f4Demo.ride = selectedFloor.variant === 'floor4Transition';   // arm the full 20s ride to Floor 4
             f4Demo.keeper = selectedFloor.variant === 'floor4Keeper';     // arm the fireside-dialogue jump
-            onSelect(selectedFloor.level, multiplayerEnabled);
+            onSelect(selectedFloor.level, multiplayerEnabled, selectedFloor.variant);
           }
         }}
         disabled={selectedFloor === null}

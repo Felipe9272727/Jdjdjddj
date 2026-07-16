@@ -190,7 +190,15 @@ export const MEMORIES: Memory[] = [
         pal: PAL_YOURSELF, startX: 0, startY: 0, goalX: 50, endX: 54,
         ledges: [{ x0: -3, x1: 54, y: 0 }],
         anchors: [{ x: 8, y: 7 }, { x: 18, y: 8 }, { x: 29, y: 7.2 }, { x: 41, y: 8 }],
-        hazards: [], enemies: [], gates: [], spools: [{ x: 11, y: 2.5 }, { x: 24, y: 3.5 }, { x: 39, y: 2.8 }],
+        hazards: [],
+        // Dormem fora da cena e só acordam dentro do ataque ISOLAMENTO. Sem
+        // estas duas definições o casulo v2 encerrava no mesmo frame em que
+        // começava, pois `some(!dead)` nunca encontrava um pensamento vivo.
+        enemies: [
+            { kind: 'intrusive', x0: 22, x1: 34, y: 4.6, speed: 2.0, amplitude: 1.0, seams: 1 },
+            { kind: 'intrusive', x0: 31, x1: 43, y: 5.4, speed: 2.25, amplitude: 1.2, seams: 1 },
+        ],
+        gates: [], spools: [{ x: 11, y: 2.5 }, { x: 24, y: 3.5 }, { x: 39, y: 2.8 }],
         boss: { x: 43, arenaX: 15 },
     },
 ];
@@ -260,7 +268,9 @@ function freshFor(memIdx: number): Partial<P8State> {
         gotSpools: m.spools.map(() => false), threadCharge: 0.45,
         enemies: m.enemies.map((e, i) => ({
             x: (e.x0 + e.x1) / 2, y: e.y, dir: i % 2 ? -1 : 1,
-            dead: false, deadT: 0, seams: e.seams ?? 2, maxSeams: e.seams ?? 2,
+            // Os intrusivos do YOURSELF pertencem ao casulo e não devem
+            // patrulhar a arena antes de serem convocados.
+            dead: !!m.boss, deadT: m.boss ? 1 : 0, seams: e.seams ?? 2, maxSeams: e.seams ?? 2,
             stunned: 0, tethered: false, aiT: i * 1.73, attackT: 1.4 + i * 0.35,
         })),
         gateProgress: m.gates.map(() => 0),
@@ -306,7 +316,7 @@ function battleReset(p: P8State, ev: P8Events): void {
     // os voadores do casulo voltam ao ninho (mortos até serem invocados de novo)
     p.enemies.forEach((e, i) => {
         const d = m.enemies[i];
-        e.dead = false; e.deadT = 0; e.seams = d.seams ?? 1; e.maxSeams = d.seams ?? 1;
+        e.dead = true; e.deadT = 1; e.seams = d.seams ?? 1; e.maxSeams = d.seams ?? 1;
         e.stunned = 0; e.tethered = false; e.x = (d.x0 + d.x1) / 2; e.y = d.y;
     });
     Object.assign(p.boss!, {

@@ -3,8 +3,59 @@ import {
     p8, p8Reset, p8JumpToMemory, stepPlayer, groundAt, curMem, activeAnchor, MEMORIES, P8, type Memory,
 } from '../f8Platformer';
 import { f8, f8Reset } from '../f8Arquivo';
+import { f8StartBoss, F8_BOSS_MEMORY } from '../f8Dev';
 
 const IDLE = { move: 0, vert: 0, jump: false, grapple: false };
+
+describe('f8Dev — atalho do boss no Modo Desenvolvedor', () => {
+    beforeEach(() => {
+        f8Reset();
+        p8Reset();
+    });
+
+    it('entra direto na Etapa V com uma luta nova', () => {
+        f8StartBoss();
+        expect(f8.phase).toBe('platformer');
+        expect(p8.memIdx).toBe(F8_BOSS_MEMORY);
+        expect(curMem().key).toBe('yourself');
+        expect(p8.boss?.phase).toBe('dormant');
+        expect(p8.boss?.seams).toBe(5);
+    });
+
+    it('sempre limpa o estado anterior antes de abrir YOURSELF', () => {
+        p8JumpToMemory(2);
+        p8.integrity = 1;
+        f8StartBoss();
+        expect(p8.memIdx).toBe(F8_BOSS_MEMORY);
+        expect(p8.integrity).toBe(3);
+        expect(p8.boss?.seams).toBe(5);
+    });
+});
+
+describe('YOURSELF — ataque ISOLAMENTO', () => {
+    beforeEach(() => p8JumpToMemory(4));
+
+    it('mantém os dois pensamentos fora da arena até o casulo convocá-los', () => {
+        expect(p8.enemies).toHaveLength(2);
+        expect(p8.enemies.every((e) => e.dead)).toBe(true);
+        const boss = p8.boss!;
+        boss.phase = 'mirror'; boss.timer = 0; boss.seams = 2;
+        p8.x = 24;
+        stepPlayer({ ...IDLE }, 1 / 30);
+        expect(boss.attack).toBe('cocoon');
+        expect(boss.shield).toBe(true);
+        expect(p8.enemies.every((e) => !e.dead)).toBe(true);
+    });
+
+    it('abre a costura quando os dois pensamentos são desfeitos', () => {
+        const boss = p8.boss!;
+        boss.phase = 'attack'; boss.attack = 'cocoon'; boss.shield = true;
+        p8.enemies.forEach((e) => { e.dead = true; });
+        stepPlayer({ ...IDLE }, 1 / 30);
+        expect(boss.shield).toBe(false);
+        expect(boss.phase).toBe('exposed');
+    });
+});
 
 describe('f8Platformer — groundAt (por memória)', () => {
     beforeEach(() => p8Reset());

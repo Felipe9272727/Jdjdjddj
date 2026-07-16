@@ -66,6 +66,7 @@ import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambie
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
 import { f8, f8Reset, f8Subscribe } from './f8Arquivo';
 import { p8Reset } from './f8Platformer';
+import { f8StartBoss } from './f8Dev';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE } from './constants';
 import PhysicsProps, { type CrateSpec } from './PhysicsProps';
 import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from './PhotoMode';
@@ -1237,12 +1238,12 @@ export default function App() {
 
   const handleStartDialogue = () => { setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
   // ─── CREATOR MODE ───
-  // handleStartGame now accepts an optional 3rd arg `startLevel`.
+  // handleStartGame accepts an optional floor and an explicit Creator variant.
   // When provided (via Creator Mode), the game starts directly on that floor,
   // skipping the normal lobby → elevator → floor progression.
   // If omitted, the game starts normally at level 0 (lobby).
   // ─── CREATOR MODE ───
-  const handleStartGame = (mpEnabled: boolean, name?: string, startLevel?: number) => {
+  const handleStartGame = (mpEnabled: boolean, name?: string, startLevel?: number, startVariant?: string) => {
     if (audioCtx) return;
     setMultiplayerEnabled(mpEnabled);
     if (name) setPlayerName(name);
@@ -1343,7 +1344,10 @@ export default function App() {
       } else if (startLevel === 8) {
         // Andar 8 — a sala de interrogatório do Arquivista. 1ª pessoa, estado
         // fresco, spawn logo à frente do vão pra caminhar até a mesa.
-        f8Reset(); p8Reset();
+        // O destino do Modo Desenvolvedor atravessa o fluxo como dado explícito.
+        // Isso torna YOURSELF determinístico e mantém o Andar 8 normal intacto.
+        if (startVariant === 'floor8Boss') f8StartBoss();
+        else { f8Reset(); p8Reset(); }
         setGameState('outdoor');
         setNightMode(false);
         setHouseDoorOpen(false);
@@ -1364,8 +1368,9 @@ export default function App() {
   // (used by the offline playtest harness + the critic to actually play). Inert
   // unless something calls it.
   useEffect(() => {
-    const w = window as unknown as { __startFloor?: (n: number) => void; __playerPos?: () => [number, number, number] };
+    const w = window as unknown as { __startFloor?: (n: number) => void; __startFloor8Boss?: () => void; __playerPos?: () => [number, number, number] };
     w.__startFloor = (n: number) => handleStartGame(false, 'Tester', n);
+    w.__startFloor8Boss = () => handleStartGame(false, 'Tester', 8, 'floor8Boss');
     w.__playerPos = () => [sharedPlayerPositionRef.current.x, sharedPlayerPositionRef.current.y, sharedPlayerPositionRef.current.z];
   });
 

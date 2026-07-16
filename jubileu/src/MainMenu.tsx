@@ -6,7 +6,11 @@ import { useMultiplayer, getPlayerName, setPlayerName } from './Multiplayer';
 import { CreatorMode } from './CreatorMode';
 // ─── CREATOR MODE ───
 
-export const MainMenu = ({ onPlay }: any) => {
+interface MainMenuProps {
+  onPlay: (multiplayerEnabled: boolean, playerName?: string, startLevel?: number, startVariant?: string) => void;
+}
+
+export const MainMenu: React.FC<MainMenuProps> = ({ onPlay }) => {
   const [doorPosition, setDoorPosition] = useState(0);
   const [showContent, setShowContent] = useState(false);
   const [flickerOpacity, setFlickerOpacity] = useState(1);
@@ -63,12 +67,12 @@ export const MainMenu = ({ onPlay }: any) => {
   };
 
   // ─── CREATOR MODE: handler for creator mode floor selection ───
-  const handleCreatorSelect = (level: number, mpEnabled: boolean) => {
+  const handleCreatorSelect = (level: number, mpEnabled: boolean, variant?: string) => {
      if (mpEnabled && !user) {
          // For simplicity, skip MP login in creator mode — just start the game
      }
      const finalName = setPlayerName(playerName);
-     onPlay(mpEnabled, finalName, level);
+     onPlay(mpEnabled, finalName, level, variant);
   };
   // ─── CREATOR MODE: end handler ───
 
