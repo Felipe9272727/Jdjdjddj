@@ -216,6 +216,101 @@ export function f8MusicStart(key: string): void {
     current = { key, gain: bus, timer, nodes };
 }
 
+// ── O SOM DA SALA DO ARQUIVO (3D): drone baixo + ar + eventos esparsos ───────
+let room: { gain: GainNode; timer: number; nodes: AudioNode[] } | null = null;
+
+/** Para o tom-de-sala com fade. */
+export function f8RoomToneStop(fade = 0.9): void {
+    if (!ctx || !room) return;
+    const rm = room; room = null;
+    window.clearInterval(rm.timer);
+    try { rm.gain.gain.setTargetAtTime(0, ctx.currentTime, fade / 3); } catch { /* ctx morto */ }
+    window.setTimeout(() => { try { rm.nodes.forEach((n) => { (n as OscillatorNode).stop?.(); n.disconnect(); }); rm.gain.disconnect(); } catch { /* já foi */ } }, fade * 1000 + 150);
+}
+
+/** O ambiente do interrogatório: um drone de porão, o "ar" dos dutos, e de
+ *  tempos em tempos um BAQUE do tubo pneumático (uma ficha chegou) ou uma
+ *  rajada curta de datilografia vinda de longe. */
+export function f8RoomToneStart(): void {
+    const ac = ensureCtx();
+    if (!ac || !master || room) return;
+
+    const bus = ac.createGain();
+    bus.gain.value = 0;
+    bus.gain.setTargetAtTime(1, ac.currentTime, 0.8);
+    bus.connect(master);
+    const nodes: AudioNode[] = [];
+
+    // drone de porão: duas ondas graves desafinadas por um lowpass fechado
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
+    const dg = ac.createGain(); dg.gain.value = 0.035;
+    lp.connect(dg); dg.connect(bus);
+    for (const [f, det] of [[55, 0], [55.7, -4]] as const) {
+        const o = ac.createOscillator(); o.type = 'sawtooth';
+        o.frequency.value = f; o.detune.value = det;
+        o.connect(lp); o.start(); nodes.push(o);
+    }
+    nodes.push(lp, dg);
+
+    // o "ar" dos dutos (ruído em bandpass bem baixo)
+    const len = ac.sampleRate * 2;
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 420; bp.Q.value = 0.4;
+    const ng = ac.createGain(); ng.gain.value = 0.011;
+    src.connect(bp); bp.connect(ng); ng.connect(bus); src.start();
+    nodes.push(src, bp, ng);
+
+    // eventos esparsos
+    let nextThunk = ac.currentTime + 14 + Math.random() * 18;
+    let nextType = ac.currentTime + 7 + Math.random() * 9;
+    const timer = window.setInterval(() => {
+        if (!ac || ac.state === 'closed') return;
+        const now = ac.currentTime;
+        // o BAQUE pneumático: whoosh curto + toc surdo
+        if (now >= nextThunk) {
+            nextThunk = now + 22 + Math.random() * 26;
+            const wg = ac.createGain();
+            wg.gain.setValueAtTime(0, now);
+            wg.gain.linearRampToValueAtTime(0.05, now + 0.22);
+            wg.gain.exponentialRampToValueAtTime(0.0004, now + 0.55);
+            const wbp = ac.createBiquadFilter(); wbp.type = 'bandpass'; wbp.frequency.setValueAtTime(300, now); wbp.frequency.exponentialRampToValueAtTime(900, now + 0.4);
+            const ws = ac.createBufferSource(); ws.buffer = buf; ws.loop = true;
+            ws.connect(wbp); wbp.connect(wg); wg.connect(bus);
+            ws.start(now); ws.stop(now + 0.6);
+            const o = ac.createOscillator(); o.type = 'sine';
+            o.frequency.setValueAtTime(120, now + 0.42); o.frequency.exponentialRampToValueAtTime(48, now + 0.58);
+            const og = ac.createGain();
+            og.gain.setValueAtTime(0, now + 0.42);
+            og.gain.linearRampToValueAtTime(0.11, now + 0.445);
+            og.gain.exponentialRampToValueAtTime(0.0004, now + 0.72);
+            o.connect(og); og.connect(bus);
+            o.start(now + 0.42); o.stop(now + 0.8);
+        }
+        // rajada de datilografia ao longe (3-7 estalos secos)
+        if (now >= nextType) {
+            nextType = now + 9 + Math.random() * 14;
+            const n = 3 + Math.floor(Math.random() * 5);
+            let t = now + 0.05;
+            for (let i = 0; i < n; i++) {
+                const o = ac.createOscillator(); o.type = 'square';
+                o.frequency.setValueAtTime(1400 + Math.random() * 900, t);
+                const g = ac.createGain();
+                g.gain.setValueAtTime(0.016 + Math.random() * 0.008, t);
+                g.gain.exponentialRampToValueAtTime(0.0004, t + 0.03);
+                const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
+                o.connect(hp); hp.connect(g); g.connect(bus);
+                o.start(t); o.stop(t + 0.04);
+                t += 0.09 + Math.random() * 0.16;
+            }
+        }
+    }, 400);
+
+    room = { gain: bus, timer, nodes };
+}
+
 /** Sting curto de eventos (stomp = plim descendente; beat = sino suave). */
 export function f8Sting(kind: 'stomp' | 'beat' | 'win'): void {
     const ac = ensureCtx();

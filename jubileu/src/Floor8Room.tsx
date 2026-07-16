@@ -16,6 +16,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { colorTex, dataTex, rng } from './Floor6Textures';
 import { f8, f8Subscribe, f8Tick, f8DrainEvents, F8_CEIL, F8_ARQUIVISTA_POS } from './f8Arquivo';
+import { f8RoomToneStart, f8RoomToneStop } from './f8Music';
 import { Arquivista } from './Floor8Arquivista';
 
 // ── texturas procedurais ─────────────────────────────────────────────────────
@@ -569,6 +570,37 @@ const dustSprite = (() => {
     return tex;
 })();
 
+/** MARIPOSAS na lâmpada: 3 pontinhos escuros orbitando o bulbo, erráticos.
+ *  Coordenadas locais do grupo interno da lâmpada (bulbo em y≈-0.02). */
+const Moths: React.FC = () => {
+    const refs = useRef<THREE.Mesh[]>([]);
+    useFrame(({ clock }) => {
+        const t = clock.elapsedTime;
+        refs.current.forEach((m, i) => {
+            if (!m) return;
+            // órbita nervosa: raio e altura oscilam em frequências dessincronizadas
+            const sp = 2.6 + i * 0.9;
+            const rad = 0.14 + Math.sin(t * (1.1 + i * 0.53) + i * 9) * 0.08 + Math.sin(t * 4.7 + i) * 0.025;
+            const a = t * sp + i * 2.6 + Math.sin(t * 3.1 + i * 4) * 0.55;
+            m.position.set(
+                Math.cos(a) * rad,
+                -0.02 + Math.sin(t * (2.3 + i * 0.7) + i) * 0.09 + Math.sin(t * 7.7 + i * 2) * 0.018,
+                Math.sin(a) * rad,
+            );
+        });
+    });
+    return (
+        <group>
+            {[0, 1, 2].map((i) => (
+                <mesh key={i} ref={(m) => { if (m) refs.current[i] = m; }}>
+                    <sphereGeometry args={[0.0085, 5, 4]} />
+                    <meshBasicMaterial color="#141008" />
+                </mesh>
+            ))}
+        </group>
+    );
+};
+
 /** Poeira dançando no cone da lâmpada (CPU, ~80 pontos — barato). */
 const DustMotes: React.FC = () => {
     const geo = useMemo(() => {
@@ -691,6 +723,7 @@ const CagedLamp: React.FC<{ lampRef: React.MutableRefObject<THREE.PointLight> }>
                         <meshBasicMaterial color="#ffdc9a" transparent opacity={0.05} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
                     </mesh>
                     <DustMotes />
+                    <Moths />
                 </group>
             </group>
         </group>
@@ -793,11 +826,28 @@ const ElevatorGone: React.FC = () => {
 export const Floor8Room: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> =
     ({ playerPositionRef }) => {
         const lamp = useRef<THREE.PointLight>(null!);
+        const mirrorM = useRef<THREE.MeshStandardMaterial>(null!);
+
+        // o tom-de-sala (drone + baques do tubo + datilografia ao longe):
+        // liga enquanto a sala 3D está montada, pausa dentro da imagem.
+        useEffect(() => {
+            const sync = () => {
+                const inImg = f8.phase === 'corredor20' || f8.phase === 'porta21'
+                    || f8.phase === 'platformer' || f8.phase === 'memoriaRecuperada';
+                if (inImg) f8RoomToneStop(); else f8RoomToneStart();
+            };
+            sync();
+            const un = f8Subscribe(sync);
+            return () => { un(); f8RoomToneStop(); };
+        }, []);
 
         useFrame((_, rawDt) => {
             const dt = Math.min(rawDt, 0.05);
             f8Tick(dt, playerPositionRef.current.z);
-            if (lamp.current) lamp.current.intensity = 44 + Math.sin(performance.now() * 0.004) * 3;
+            const t = performance.now();
+            if (lamp.current) lamp.current.intensity = 44 + Math.sin(t * 0.004) * 3;
+            // o espelho falso respira uma luz fria — tem alguém do outro lado
+            if (mirrorM.current) mirrorM.current.emissiveIntensity = 0.07 + Math.sin(t * 0.00042) * 0.055;
             f8DrainEvents();
         });
 
@@ -861,7 +911,10 @@ export const Floor8Room: React.FC<{ playerPositionRef: React.MutableRefObject<TH
                     {[0.35, 0.72, 1.09].map((y, i) => (<B key={i} a={[0.7, 0.28, 0.03]} p={[0, y, 0.26]} m={M8.steel} />))}
                     {[0.35, 0.72, 1.09].map((y, i) => (<mesh key={'h' + i} position={[0, y, 0.28]} material={M8.steelDk}><boxGeometry args={[0.16, 0.03, 0.03]} /></mesh>))}
                 </group>
-                <mesh position={[2.2, 1.45, -0.24]} material={M8.mirror}><boxGeometry args={[1.7, 1.1, 0.05]} /></mesh>
+                <mesh position={[2.2, 1.45, -0.24]}>
+                    <boxGeometry args={[1.7, 1.1, 0.05]} />
+                    <meshStandardMaterial ref={mirrorM} color="#10131a" roughness={0.12} metalness={0.85} emissive="#3a5866" emissiveIntensity={0.16} />
+                </mesh>
                 <B a={[1.84, 0.06, 0.07]} p={[2.2, 2.03, -0.22]} m={M8.steelDk} />
                 <B a={[1.84, 0.06, 0.07]} p={[2.2, 0.87, -0.22]} m={M8.steelDk} />
                 {/* o QUADRO DE CORTIÇA atrás dele: fichas ligadas por fio vermelho,
