@@ -292,13 +292,63 @@ describe('f8Platformer — novas operações de crochê', () => {
         expect(e.dead).toBe(false);
     });
 
-    it('o boss anuncia o golpe e FIO na janela certa abre a costura', () => {
+    it('CONTRA-PONTO: FIO com um novelo branco perto reflete e o reflexo expõe o boss', () => {
         p8JumpToMemory(4);
         const boss = p8.boss!;
-        boss.phase = 'telegraph'; boss.timer = 0.2;
+        boss.phase = 'attack'; boss.attack = 'throw';
+        p8.x = 20; p8.y = 0; p8.onGround = true;
+        // um novelo branco chegando na cara do player
+        boss.projectiles.push({ x: 21, y: 0.9, vx: -9, vy: 0, parryable: true, reflected: false, dead: false, t: 0.1 });
         const ev = stepPlayer({ ...IDLE, grapple: true }, 1 / 60);
         expect(ev.parried).toBe(true);
+        expect(boss.projectiles[0].reflected).toBe(true);
+        // o novelo refletido viaja até o boss e quebra o padrão (exposed)
+        for (let i = 0; i < 240 && (boss.phase as string) !== 'exposed'; i++) stepPlayer({ ...IDLE }, 1 / 60);
         expect(boss.phase).toBe('exposed');
+    });
+
+    it('SLAM da VERGONHA: o anel marca o chão e o impacto machuca quem ficar', () => {
+        p8JumpToMemory(4);
+        const boss = p8.boss!;
+        boss.phase = 'attack'; boss.attack = 'slam'; boss.atkT = 0; boss.slamX = 20; boss.slamN = 0;
+        p8.x = 20; p8.y = 0; p8.onGround = true; p8.invuln = 0;
+        const hp = p8.integrity;
+        for (let i = 0; i < 90; i++) stepPlayer({ ...IDLE }, 1 / 60);   // 1.5s > tele+impacto
+        expect(p8.integrity).toBeLessThan(hp);
+    });
+
+    it('MORTE: zerar os corações REINICIA a batalha (boss volta a 5 costuras)', () => {
+        p8JumpToMemory(4);
+        const boss = p8.boss!;
+        boss.phase = 'mirror'; boss.seams = 2; boss.introSeen = true;
+        p8.x = 20; p8.integrity = 1; p8.invuln = 0; p8.stun = 0;
+        // um projétil na cara tira o último coração
+        boss.projectiles.push({ x: 20.2, y: 0.9, vx: -1, vy: 0, parryable: true, reflected: false, dead: false, t: 0.1 });
+        const ev = stepPlayer({ ...IDLE }, 1 / 60);
+        expect(ev.died).toBe(true);
+        expect(p8.deaths).toBe(1);
+        expect(p8.integrity).toBe(3);
+        expect(p8.boss!.seams).toBe(5);              // a batalha recomeçou do zero
+        expect(p8.boss!.projectiles.length).toBe(0);
+    });
+
+    it('CURA: a costura desfeita solta um novelo-coração que restaura 1 coração', () => {
+        p8JumpToMemory(4);
+        p8.integrity = 2;
+        p8.pickups.push({ x: 20, y: 0.35, vy: 0, t: 1 });
+        p8.x = 20; p8.y = 0; p8.onGround = true;
+        const ev = stepPlayer({ ...IDLE }, 1 / 60);
+        expect(ev.healed).toBe(true);
+        expect(p8.integrity).toBe(3);
+    });
+
+    it('INVESTIDA DA AGULHA: AGULHA no ar com direção dá dash com i-frames', () => {
+        p8JumpToMemory(4);
+        p8.x = 18; p8.y = 2.5; p8.onGround = false; p8.vy = 0; p8.dashCd = 0;
+        const ev = stepPlayer({ ...IDLE, move: 1, stitch: true }, 1 / 60);
+        expect(ev.dashed).toBe(true);
+        expect(p8.vx).toBeGreaterThan(P8.RUN);       // arremetida
+        expect(p8.invuln).toBeGreaterThan(0);        // i-frames
     });
 });
 

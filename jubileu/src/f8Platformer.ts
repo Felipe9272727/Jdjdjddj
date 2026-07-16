@@ -35,11 +35,25 @@ export interface EnemyState {
 
 export interface SeamGate { x: number; y: number; needed: number; label: string }
 export interface BossDef { x: number; arenaX: number }
-export type BossPhase = 'dormant' | 'mirror' | 'telegraph' | 'exposed' | 'bound' | 'resolved';
+export type BossPhase = 'dormant' | 'mirror' | 'attack' | 'exposed' | 'bound' | 'resolved';
+/** O ataque ATIVO do boss — um por costura/problema mental, cada um com
+ *  telegraph próprio e resposta própria do player:
+ *  slam (VERGONHA: anel vermelho no seu chão → esquive), sweep (CONTROLE:
+ *  varredura baixa=pule / alta=abaixe), throw (RUMINAÇÃO: novelos brancos
+ *  aparáveis com o FIO), cocoon (ISOLAMENTO: escudo + voadores — mate-os),
+ *  e no MEDO ele alterna slam rápido e arremesso duplo. */
+export type BossAttack = 'slam' | 'sweep' | 'throw' | 'cocoon' | null;
+export interface Projectile { x: number; y: number; vx: number; vy: number; parryable: boolean; reflected: boolean; dead: boolean; t: number }
+export interface Pickup { x: number; y: number; vy: number; t: number }
 export interface BossState {
     x: number; y: number; phase: BossPhase; timer: number;
     seams: number; pattern: number; tethered: boolean;
     hurtT: number; introSeen: boolean;
+    attack: BossAttack; atkT: number;            // telegraph/execução do ataque
+    slamX: number; slamN: number; slamAir: number; // alvo do slam, contagem, arco do salto
+    sweepX: number; sweepY: number; sweepDir: number; sweepN: number;
+    throwN: number; shield: boolean;
+    projectiles: Projectile[];
 }
 
 export interface Memory {
@@ -58,6 +72,8 @@ export const P8 = {
     GRAB_TIGHTEN: 0.81, AUTO_REEL: 1.12, SWING_ACCEL: 26, REEL: 3.2,
     RELEASE_BOOST: 3.6, RELEASE_CARRY: 1.12,
     STITCH_REACH: 2.25, STITCH_COOLDOWN: 0.34,
+    DASH_V: 17, DASH_T: 0.22, DASH_CD: 1.3,      // INVESTIDA DA AGULHA (AGULHA no ar + direção)
+    PARRY_R: 1.8,                                 // raio do CONTRA-PONTO nos novelos brancos
     VOID_DY: -6,
 } as const;
 
@@ -198,6 +214,9 @@ export interface P8State {
     anchor: number | null; ropeLen: number; grabCd: number;
     tetherEnemy: number | null; bossTether: boolean; tension: number;
     stitchT: number; stitchCd: number; stitchHeld: boolean; grappleHeld: boolean; combo: number;
+    dashT: number; dashCd: number;                // a INVESTIDA em curso / recarga
+    pickups: Pickup[];                            // novelos-coração (cura)
+    deaths: number;                               // mortes na luta (a batalha reinicia)
     patch: PatchState | null;
     lastGroundX: number; lastGroundY: number;
     gotSpools: boolean[]; spools: number; threadCharge: number;
@@ -212,6 +231,7 @@ export interface P8Events {
     collected: number; grabbed: boolean; released: boolean; advanced: boolean; won: boolean;
     stomped: boolean; beat: boolean; stitched: boolean; unravelled: boolean;
     parried: boolean; gateRepaired: boolean; bossSeam: boolean; bossWon: boolean;
+    died: boolean; healed: boolean; dashed: boolean; popped: boolean;
 }
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -235,6 +255,7 @@ function freshFor(memIdx: number): Partial<P8State> {
         coyote: 0, jumpBuf: 0, stun: 0, invuln: 0, integrity: 3, facing: 1, runPhase: 0,
         anchor: null, ropeLen: 0, grabCd: 0, tetherEnemy: null, bossTether: false, tension: 0,
         stitchT: 0, stitchCd: 0, stitchHeld: false, grappleHeld: false, combo: 0, patch: null,
+        dashT: 0, dashCd: 0, pickups: [], deaths: 0,
         lastGroundX: m.startX, lastGroundY: m.startY,
         gotSpools: m.spools.map(() => false), threadCharge: 0.45,
         enemies: m.enemies.map((e, i) => ({
@@ -243,7 +264,11 @@ function freshFor(memIdx: number): Partial<P8State> {
             stunned: 0, tethered: false, aiT: i * 1.73, attackT: 1.4 + i * 0.35,
         })),
         gateProgress: m.gates.map(() => 0),
-        boss: m.boss ? { x: m.boss.x, y: 0, phase: 'dormant', timer: 1.8, seams: 5, pattern: 0, tethered: false, hurtT: 0, introSeen: false } : null,
+        boss: m.boss ? {
+            x: m.boss.x, y: 0, phase: 'dormant', timer: 1.8, seams: 5, pattern: 0, tethered: false, hurtT: 0, introSeen: false,
+            attack: null, atkT: 0, slamX: 0, slamN: 0, slamAir: 0,
+            sweepX: 0, sweepY: 0.55, sweepDir: 1, sweepN: 0, throwN: 0, shield: false, projectiles: [],
+        } : null,
         beatIdx: 0, beatText: null, beatT: 0, hurtFlash: 0, transition: 1.0,
     };
 }
@@ -265,23 +290,62 @@ function emptyEvents(): P8Events {
         grabbed: false, released: false, advanced: false, won: false, stomped: false,
         beat: false, stitched: false, unravelled: false, parried: false,
         gateRepaired: false, bossSeam: false, bossWon: false,
+        died: false, healed: false, dashed: false, popped: false,
     };
 }
 
+/** A batalha do YOURSELF reinicia DO ZERO: você morreu — ele te desfez. */
+function battleReset(p: P8State, ev: P8Events): void {
+    const m = curMem(), def = m.boss!;
+    p.deaths++;
+    p.x = def.arenaX - 3; p.y = 0; p.vx = 0; p.vy = 0; p.onGround = true;
+    p.integrity = 3; p.invuln = 1.6; p.stun = 0.8; p.hurtFlash = 1;
+    p.anchor = null; p.tetherEnemy = null; p.bossTether = false; p.tension = 0;
+    p.dashT = 0; p.dashCd = 0; p.pickups = []; p.patch = null; p.threadCharge = 0.45;
+    p.lastGroundX = def.arenaX - 3; p.lastGroundY = 0;
+    // os voadores do casulo voltam ao ninho (mortos até serem invocados de novo)
+    p.enemies.forEach((e, i) => {
+        const d = m.enemies[i];
+        e.dead = false; e.deadT = 0; e.seams = d.seams ?? 1; e.maxSeams = d.seams ?? 1;
+        e.stunned = 0; e.tethered = false; e.x = (d.x0 + d.x1) / 2; e.y = d.y;
+    });
+    Object.assign(p.boss!, {
+        x: def.x, y: 0, phase: 'mirror', timer: 2.0, seams: 5, pattern: 0,
+        tethered: false, hurtT: 0, attack: null, atkT: 0, slamX: 0, slamN: 0, slamAir: 0,
+        sweepX: 0, sweepY: 0.55, sweepDir: 1, sweepN: 0, throwN: 0, shield: false, projectiles: [],
+    });
+    p.beatText = 'Ele te desfez. Mas o fio lembra o caminho: DE NOVO.';
+    p.beatT = 4.2;
+    ev.died = true; ev.respawned = true;
+    p8Bump();
+}
+
 function respawn(p: P8State, ev: P8Events): void {
+    // na luta do boss, cair no vazio NÃO cura: custa um coração e te repõe
+    const inBoss = p.boss && p.boss.phase !== 'dormant' && p.boss.phase !== 'resolved';
     p.x = p.lastGroundX; p.y = p.lastGroundY + 0.02; p.vx = 0; p.vy = 0;
     p.onGround = true; p.anchor = null; p.tetherEnemy = null; p.bossTether = false;
-    p.stun = 0.55; p.invuln = 0.7; p.integrity = 3; p.hurtFlash = 0.65;
+    p.stun = 0.55; p.invuln = 0.7; p.hurtFlash = 0.65;
+    if (inBoss) {
+        p.integrity--;
+        if (p.integrity <= 0) { battleReset(p, ev); return; }
+    } else {
+        p.integrity = 3;
+    }
     p.tension = 0; ev.respawned = true;
 }
 
 function hurtPlayer(p: P8State, ev: P8Events, fromX: number): void {
-    if (p.invuln > 0) return;
+    if (p.invuln > 0 || p.dashT > 0) return;      // a INVESTIDA tem i-frames
     p.integrity--; p.invuln = 1.0; p.stun = 0.38; p.hurtFlash = 0.55;
     p.vx = (p.x < fromX ? -1 : 1) * 8; p.vy = 6.2; p.onGround = false;
     p.anchor = null; p.tetherEnemy = null; p.bossTether = false; p.tension = 0;
     ev.hurt = true;
-    if (p.integrity <= 0) respawn(p, ev);
+    if (p.integrity <= 0) {
+        const inBoss = p.boss && p.boss.phase !== 'dormant' && p.boss.phase !== 'resolved';
+        if (inBoss) battleReset(p, ev);
+        else respawn(p, ev);
+    }
 }
 
 function tryGrabAnchor(p: P8State, m: Memory): boolean {
@@ -311,7 +375,7 @@ function tryGrabEnemy(p: P8State, m: Memory): boolean {
         p.tension = 0.1; return true;
     }
     const b = p.boss;
-    if (b && (b.phase === 'exposed' || b.phase === 'bound') && Math.hypot(b.x - p.x, b.y + 1.2 - p.y) <= P8.GRAB_RANGE) {
+    if (b && !b.shield && (b.phase === 'exposed' || b.phase === 'bound') && Math.hypot(b.x - p.x, b.y + 1.2 - p.y) <= P8.GRAB_RANGE) {
         p.bossTether = true; b.tethered = true; b.phase = 'bound'; b.timer = 2.8; p.tension = 0.08;
         return true;
     }
@@ -337,10 +401,13 @@ function performStitch(p: P8State, m: Memory, ev: P8Events): void {
         b.seams--; b.hurtT = 0.75; b.tethered = false; p.bossTether = false; p.tension = 0; ev.bossSeam = true;
         const line = BOSS_SEAM_LINES[5 - Math.max(0, b.seams) - 1];
         p.beatText = line; p.beatT = 5.8;
+        // a costura desfeita solta um NOVELO-CORAÇÃO (a cura mora no enfrentar)
+        p.pickups.push({ x: b.x, y: b.y + 1.6, vy: 3.5, t: 0 });
+        b.attack = null; b.projectiles = [];
         if (b.seams <= 0) {
             b.phase = 'resolved'; b.timer = 2.6; ev.bossWon = true; finishMemory(p, ev);
         } else {
-            b.pattern++; b.phase = 'mirror'; b.timer = Math.max(1.6, 3.1 - b.pattern * 0.2);
+            b.pattern++; b.phase = 'mirror'; b.timer = Math.max(1.4, 2.8 - b.pattern * 0.2);
         }
         return;
     }
@@ -389,37 +456,146 @@ function performStitch(p: P8State, m: Memory, ev: P8Events): void {
     }
 }
 
-function updateBoss(p: P8State, inp: P8Input, dt: number, grapplePress: boolean, ev: P8Events): void {
+/** O nome do problema mental da costura atual (o HUD destaca o chip). */
+export function bossProblemIdx(b: BossState): number { return clamp(5 - b.seams, 0, 4); }
+
+/** Escolhe o ataque da vez — um por costura; no MEDO (última) ele alterna. */
+function pickAttack(b: BossState, def: BossDef, p: P8State): void {
+    if (b.seams >= 5) b.attack = 'slam';
+    else if (b.seams === 4) b.attack = 'sweep';
+    else if (b.seams === 3) b.attack = 'throw';
+    else if (b.seams === 2) b.attack = 'cocoon';
+    else b.attack = (b.pattern % 2 === 0) ? 'slam' : 'throw';
+    b.atkT = 0; b.slamN = 0; b.sweepN = 0; b.throwN = 0; b.slamAir = 0;
+    if (b.attack === 'slam') b.slamX = p.x;
+    if (b.attack === 'sweep') { b.sweepX = b.x; b.sweepDir = p.x < b.x ? -1 : 1; b.sweepY = 0.55; }
+    if (b.attack === 'cocoon') {
+        // ISOLAMENTO: sobe blindado no centro e acorda os pensamentos
+        b.shield = true;
+        const cx = (def.arenaX + 40) / 2;
+        b.x = cx;
+        p.enemies.forEach((e, i) => {
+            e.dead = false; e.deadT = 0; e.seams = 1; e.maxSeams = 1; e.stunned = 0;
+            e.x = cx + (i % 2 ? 4.5 : -4.5); e.y = 4.6 + (i % 2) * 0.8;
+        });
+    }
+}
+
+function throwProjectile(b: BossState, p: P8State, speed: number): void {
+    const sx = b.x, sy = b.y + 1.5;
+    const dx = p.x - sx, dy = (p.y + 0.9) - sy;
+    const d = Math.hypot(dx, dy) || 0.001;
+    b.projectiles.push({ x: sx, y: sy, vx: (dx / d) * speed, vy: (dy / d) * speed, parryable: true, reflected: false, dead: false, t: 0 });
+}
+
+function updateBoss(p: P8State, inp: P8Input, dt: number, ev: P8Events): void {
     const b = p.boss, def = curMem().boss;
-    if (!b || !def || b.phase === 'resolved') return;
+    if (!b || !def) return;
     b.hurtT = Math.max(0, b.hurtT - dt);
+
+    // ── projéteis (voam mesmo com o boss em outra fase) ──────────────────────
+    for (const pr of b.projectiles) {
+        if (pr.dead) continue;
+        pr.t += dt; pr.x += pr.vx * dt; pr.y += pr.vy * dt;
+        if (pr.t > 6 || pr.y < -2 || pr.y > 14) { pr.dead = true; continue; }
+        if (!pr.reflected) {
+            if (Math.hypot(pr.x - p.x, pr.y - (p.y + 0.9)) < 0.85) { hurtPlayer(p, ev, pr.x); pr.dead = true; }
+        } else if (Math.hypot(pr.x - b.x, pr.y - (b.y + 1.4)) < 1.7 && !b.shield) {
+            // CONTRA-PONTO acertou: o padrão quebra na hora
+            pr.dead = true; b.hurtT = 0.6; b.attack = null;
+            b.phase = 'exposed'; b.timer = 3.2;
+        }
+    }
+    if (b.projectiles.length > 24) b.projectiles = b.projectiles.filter((q) => !q.dead);
+
+    if (b.phase === 'resolved') return;
     if (b.phase === 'dormant') {
-        if (p.x >= def.arenaX) { b.phase = 'mirror'; b.timer = 2.4; b.introSeen = true; p.beatText = 'YOURSELF não avança. Ele devolve.'; p.beatT = 3.8; ev.beat = true; }
+        if (p.x >= def.arenaX) { b.phase = 'mirror'; b.timer = 2.4; b.introSeen = true; p.beatText = 'YOURSELF não avança. Ele devolve. Aprenda o padrão de cada nó.'; p.beatT = 4.4; ev.beat = true; p8Bump(); }
         return;
     }
+
+    const medo = b.seams <= 1;                     // a fúria final é mais rápida
     if (b.phase === 'mirror') {
+        // o respiro entre ataques: ele espelha seu movimento, invertido
         b.timer -= dt;
-        const desired = clamp(48 - p.x * 0.34, 28, 45);
-        b.x += (desired - b.x) * Math.min(1, dt * 2.4);
+        const desired = clamp(48 - p.x * 0.34, def.arenaX + 6, 45);
+        b.x += (desired - b.x) * Math.min(1, dt * (medo ? 4 : 2.4));
         b.y = Math.sin(p.t * 1.4 + b.pattern) * 0.16;
-        if (b.timer <= 0) { b.phase = 'telegraph'; b.timer = Math.max(0.5, 0.95 - b.pattern * 0.07); }
+        if (b.timer <= 0) { b.phase = 'attack' as BossPhase; pickAttack(b, def, p); }
         return;
     }
-    if (b.phase === 'telegraph') {
-        b.timer -= dt;
-        if (grapplePress && b.timer < 0.32) {
-            b.phase = 'exposed'; b.timer = 2.2; ev.parried = true;
-            p.threadCharge = clamp(p.threadCharge + 0.22, 0, 1); return;
+
+    if (b.phase === ('attack' as BossPhase)) {
+        b.atkT += dt;
+        if (b.attack === 'slam') {
+            // VERGONHA/MEDO: anel vermelho marca SEU chão → ele despenca ali
+            const tele = medo ? 0.55 : 0.9;
+            if (b.atkT < tele) {
+                b.slamX += (p.x - b.slamX) * Math.min(1, dt * 3.5);   // o anel te segue no começo
+            } else if (b.atkT < tele + 0.34) {
+                const k = (b.atkT - tele) / 0.34;                     // o salto (arco)
+                b.x += (b.slamX - b.x) * Math.min(1, dt * 14);
+                b.slamAir = Math.sin(k * Math.PI) * 3.2;
+                b.y = b.slamAir;
+            } else {
+                // IMPACTO: onda de choque rente ao chão
+                b.y = 0;
+                if (Math.abs(p.x - b.slamX) < 2.2 && p.y < 1.5) hurtPlayer(p, ev, b.slamX);
+                b.slamN++;
+                if (b.slamN >= 2) { b.attack = null; b.phase = 'exposed'; b.timer = medo ? 2.0 : 2.5; }
+                else { b.atkT = 0; b.slamX = p.x; }
+            }
+            return;
         }
-        if (b.timer <= 0) {
-            if (Math.abs(p.x - b.x) < 10) hurtPlayer(p, ev, b.x);
-            b.phase = 'exposed'; b.timer = 1.45;
+        if (b.attack === 'sweep') {
+            // CONTROLE: varredura baixa (pule) e depois alta (fique no chão)
+            const tele = 0.7;
+            if (b.atkT < tele) return;                                // o fio pisca no caminho
+            b.sweepX += b.sweepDir * 15 * dt;
+            const low = b.sweepN === 0;
+            b.sweepY = low ? 0.55 : 2.0;
+            if (Math.abs(p.x - b.sweepX) < 0.7) {
+                const hit = low ? (p.y < 1.2) : (p.y > 0.55);
+                if (hit) hurtPlayer(p, ev, b.sweepX);
+            }
+            if (b.sweepX < def.arenaX - 2 || b.sweepX > 42) {
+                b.sweepN++;
+                if (b.sweepN >= 2) { b.attack = null; b.phase = 'exposed'; b.timer = 2.3; }
+                else { b.atkT = 0; b.sweepDir *= -1; b.sweepX = b.sweepDir > 0 ? def.arenaX - 2 : 42; }
+            }
+            return;
         }
+        if (b.attack === 'throw') {
+            // RUMINAÇÃO/MEDO: novelos brancos EM VOCÊ — o FIO no tempo certo reflete
+            const gap = medo ? 0.6 : 0.8;
+            const total = medo ? 2 : 3;
+            if (b.throwN < total && b.atkT >= gap * (b.throwN + 0.6)) {
+                throwProjectile(b, p, medo ? 11 : 9.5);
+                b.throwN++;
+            }
+            if (b.atkT >= gap * total + 1.0) { b.attack = null; b.phase = 'exposed'; b.timer = 1.6; }
+            return;
+        }
+        if (b.attack === 'cocoon') {
+            // ISOLAMENTO: blindado no alto; a saída é DESFAZER os dois pensamentos
+            b.y += (3.0 - b.y) * Math.min(1, dt * 3);
+            const alive = p.enemies.some((e) => !e.dead);
+            if (!alive || b.atkT > 26) {
+                b.shield = false; b.attack = null;
+                b.y = 0; b.phase = 'exposed'; b.timer = 3.4;
+            }
+            return;
+        }
+        // sem ataque válido → respiro
+        b.phase = 'mirror'; b.timer = 1.2;
         return;
     }
+
     if (b.phase === 'exposed') {
+        // a fadiga DOURADA: fisgue-o, mantenha o fio tenso e crave a AGULHA
         b.timer -= dt;
-        if (b.timer <= 0) { b.phase = 'mirror'; b.timer = Math.max(1.7, 2.8 - b.pattern * 0.16); }
+        b.y += (0 - b.y) * Math.min(1, dt * 4);
+        if (b.timer <= 0) { b.phase = 'mirror'; b.timer = Math.max(1.0, 2.2 - b.pattern * 0.14); }
         return;
     }
     if (b.phase === 'bound') {
@@ -451,10 +627,24 @@ export function stepPlayer(inp: P8Input, rawDt: number): P8Events {
     if (inp.jump) p.jumpBuf = P8.JUMP_BUF;
     for (const e of p.enemies) { e.stunned = Math.max(0, e.stunned - dt); if (e.dead) e.deadT += dt; }
 
-    // No telegraph do boss, FIO é um parry. Fora dele, escolhe inimigo/boss ou laçada.
-    if (grapplePress && p.boss?.phase === 'telegraph') {
-        // updateBoss resolve a janela exata depois da física.
-    } else if (inp.grapple && p.anchor === null && p.tetherEnemy === null && !p.bossTether && p.grabCd <= 0 && p.stun <= 0) {
+    // CONTRA-PONTO: um toque de FIO com um novelo branco perto REFLETE ele no
+    // boss. Consome o toque (não vira fisgada).
+    let parriedNow = false;
+    if (grapplePress && p.boss) {
+        for (const pr of p.boss.projectiles) {
+            if (pr.dead || pr.reflected || !pr.parryable) continue;
+            if (Math.hypot(pr.x - p.x, pr.y - (p.y + 0.9)) < P8.PARRY_R) {
+                const b = p.boss;
+                const dx = b.x - pr.x, dy = (b.y + 1.4) - pr.y, d = Math.hypot(dx, dy) || 0.001;
+                pr.reflected = true; pr.vx = (dx / d) * 13.5; pr.vy = (dy / d) * 13.5;
+                p.threadCharge = clamp(p.threadCharge + 0.15, 0, 1);
+                p.grabCd = Math.max(p.grabCd, 0.25);
+                ev.parried = true; parriedNow = true;
+                break;
+            }
+        }
+    }
+    if (!parriedNow && inp.grapple && p.anchor === null && p.tetherEnemy === null && !p.bossTether && p.grabCd <= 0 && p.stun <= 0) {
         if (tryGrabEnemy(p, m) || tryGrabAnchor(p, m)) ev.grabbed = true;
     }
     if (!inp.grapple && (p.anchor !== null || p.tetherEnemy !== null || p.bossTether)) {
@@ -527,7 +717,51 @@ export function stepPlayer(inp: P8Input, rawDt: number): P8Events {
     p.runPhase += (p.onGround ? Math.abs(p.vx) : 0) * dt * 1.6;
     if (p.y < P8.VOID_DY) { respawn(p, ev); p8Bump(); return ev; }
 
-    if (stitchPress && p.stitchCd <= 0 && p.stun <= 0) performStitch(p, m, ev);
+    // INVESTIDA DA AGULHA: AGULHA no ar + direção = arremetida perfurante com
+    // i-frames curtos; atordoa/abre costura em inimigo e ESTOURA novelos.
+    p.dashT = Math.max(0, p.dashT - dt); p.dashCd = Math.max(0, p.dashCd - dt);
+    const wantDash = stitchPress && !p.onGround && Math.abs(inp.move) > 0.3
+        && p.dashCd <= 0 && p.anchor === null && p.tetherEnemy === null && !p.bossTether && p.stun <= 0;
+    if (wantDash) {
+        p.dashT = P8.DASH_T; p.dashCd = P8.DASH_CD;
+        p.facing = inp.move < 0 ? -1 : 1;
+        p.vx = p.facing * P8.DASH_V; p.vy = Math.max(p.vy, 0.4);
+        p.invuln = Math.max(p.invuln, 0.3);
+        p.stitchT = 0.26; p.stitchCd = P8.STITCH_COOLDOWN;
+        ev.dashed = true; ev.stitched = true;
+    }
+    if (p.dashT > 0) {
+        p.vy = Math.max(p.vy, -1.5);              // a investida plana no ar
+        for (const e of p.enemies) {
+            if (e.dead || e.stunned > 0.9) continue;
+            if (Math.hypot(p.x - e.x, (p.y + 0.8) - (e.y + 0.7)) < 1.15) {
+                e.seams--; e.stunned = 1.2; ev.unravelled = true;
+                if (e.seams <= 0) { e.dead = true; e.deadT = 0; p.threadCharge = clamp(p.threadCharge + 0.2, 0, 1); }
+            }
+        }
+        if (p.boss) {
+            for (const pr of p.boss.projectiles) {
+                if (!pr.dead && Math.hypot(pr.x - p.x, pr.y - (p.y + 0.9)) < 1.15) {
+                    pr.dead = true; p.threadCharge = clamp(p.threadCharge + 0.08, 0, 1); ev.popped = true;
+                }
+            }
+        }
+    }
+
+    // novelos-coração (cura): caem, quicam de leve e esperam ser colhidos
+    for (const pk of p.pickups) {
+        pk.t += dt;
+        const gh = groundAt(pk.x, pk.y) ?? 0;
+        if (pk.y > gh + 0.35) { pk.vy -= 20 * dt; pk.y += pk.vy * dt; if (pk.y < gh + 0.35) { pk.y = gh + 0.35; pk.vy = 0; } }
+        if (pk.t < 12 && Math.hypot(pk.x - p.x, pk.y - (p.y + 0.8)) < 0.95 && p.integrity < 3) {
+            p.integrity++; pk.t = 99; ev.healed = true;
+            p.threadCharge = clamp(p.threadCharge + 0.1, 0, 1);
+            p8Bump();
+        }
+    }
+    p.pickups = p.pickups.filter((pk) => pk.t < 12);
+
+    if (stitchPress && !wantDash && p.stitchCd <= 0 && p.stun <= 0) performStitch(p, m, ev);
 
     if (p.stun <= 0) {
         for (const h of m.hazards) {
@@ -570,7 +804,7 @@ export function stepPlayer(inp: P8Input, rawDt: number): P8Events {
         }
     }
 
-    updateBoss(p, inp, dt, grapplePress, ev);
+    updateBoss(p, inp, dt, ev);
 
     if (p.beatT > 0) { p.beatT -= dt; if (p.beatT <= 0) { p.beatText = null; p8Bump(); } }
     if (p.beatIdx < m.beats.length && p.x >= m.beats[p.beatIdx].x) {

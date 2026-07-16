@@ -462,12 +462,12 @@ const BossActor: React.FC<{ kit: Kit }> = ({ kit }) => {
     useFrame(({ clock }) => {
         const b = p8.boss; if (!b || !g.current) { if (g.current) g.current.visible = false; return; }
         g.current.visible = b.phase !== 'dormant'; g.current.position.set(b.x, b.y + 0.56, 0.35);
-        const tele = b.phase === 'telegraph' ? 1 + Math.sin(clock.elapsedTime * 18) * 0.08 : 1;
+        const tele = b.phase === 'attack' && b.attack !== 'cocoon' ? 1 + Math.sin(clock.elapsedTime * 18) * 0.08 : 1;
         const hurt = b.hurtT > 0 ? 1 - Math.sin(b.hurtT * 25) * 0.08 : 1;
         g.current.scale.set(-tele * hurt * 1.38, tele * hurt * 1.38, tele * hurt * 1.38);
         g.current.rotation.z = b.phase === 'bound' ? Math.sin(clock.elapsedTime * 16) * 0.09 : Math.sin(clock.elapsedTime * 1.5) * 0.025;
         if (warning.current) {
-            warning.current.visible = b.phase === 'telegraph'; warning.current.rotation.z = clock.elapsedTime * 2.5;
+            warning.current.visible = b.phase === 'attack' && b.attack === 'throw'; warning.current.rotation.z = clock.elapsedTime * 2.5;
             const s = 0.93 + Math.sin(clock.elapsedTime * 18) * 0.08; warning.current.scale.setScalar(s);
         }
         if (open.current) {
@@ -495,6 +495,105 @@ const BossActor: React.FC<{ kit: Kit }> = ({ kit }) => {
                 </group>;
             })}
         </group>
+    );
+};
+
+/** Os EFEITOS da luta: o anel vermelho do slam, a varredura de fio, os novelos
+ *  arremessados (brancos = aparáveis; dourados = refletidos), o casulo do
+ *  isolamento e os novelos-coração de cura. Tudo em pools fixos, sem alocação. */
+const BossFX: React.FC<{ kit: Kit }> = ({ kit }) => {
+    const ring = useRef<THREE.Group>(null!);
+    const sweep = useRef<THREE.Mesh>(null!);
+    const sweepTele = useRef<THREE.Mesh>(null!);
+    const shield = useRef<THREE.Mesh>(null!);
+    const projs = useRef<THREE.Mesh[]>([]);
+    const hearts = useRef<THREE.Group[]>([]);
+    const projMatW = useMemo(() => new THREE.MeshStandardMaterial({ color: '#f4f0e8', emissive: '#d8d0c0', emissiveIntensity: 0.7, roughness: 0.7 }), []);
+    const projMatG = useMemo(() => new THREE.MeshStandardMaterial({ color: '#ffd873', emissive: '#c9973a', emissiveIntensity: 1.1, roughness: 0.5 }), []);
+    useFrame(({ clock }) => {
+        const b = p8.boss, t = clock.elapsedTime;
+        const medo = (b?.seams ?? 5) <= 1;
+        // anel do SLAM
+        if (ring.current) {
+            const on = !!b && b.phase === 'attack' && b.attack === 'slam' && b.atkT < (medo ? 0.55 : 0.9) + 0.34;
+            ring.current.visible = on;
+            if (on && b) {
+                ring.current.position.set(b.slamX, 0.06, 0.3);
+                const k = 1 + Math.sin(t * 16) * 0.1;
+                ring.current.scale.setScalar(k * 2.2);
+            }
+        }
+        // varredura do CONTROLE
+        const sweeping = !!b && b.phase === 'attack' && b.attack === 'sweep';
+        if (sweep.current) {
+            sweep.current.visible = sweeping && b!.atkT >= 0.7;
+            if (sweep.current.visible && b) sweep.current.position.set(b.sweepX, b.sweepY + 0.35, 0.3);
+        }
+        if (sweepTele.current) {
+            sweepTele.current.visible = sweeping && b!.atkT < 0.7 && Math.sin(t * 22) > 0;
+            if (sweepTele.current.visible && b) sweepTele.current.position.set(27, (b.sweepN === 0 ? 0.55 : 2.0) + 0.35, 0.28);
+        }
+        // casulo do ISOLAMENTO
+        if (shield.current) {
+            shield.current.visible = !!b && b.shield;
+            if (shield.current.visible && b) {
+                shield.current.position.set(b.x, b.y + 1.2, 0.35);
+                shield.current.rotation.y = t * 0.7; shield.current.rotation.z = t * 0.4;
+            }
+        }
+        // projéteis
+        const list = b?.projectiles ?? [];
+        let pi = 0;
+        for (const pr of list) {
+            if (pr.dead || pi >= projs.current.length) continue;
+            const m = projs.current[pi++];
+            if (!m) continue;
+            m.visible = true; m.position.set(pr.x, pr.y, 0.4);
+            m.rotation.x = t * 6; m.rotation.y = t * 4;
+            m.material = pr.reflected ? projMatG : projMatW;
+        }
+        for (; pi < projs.current.length; pi++) if (projs.current[pi]) projs.current[pi].visible = false;
+        // corações
+        let hi = 0;
+        for (const pk of p8.pickups) {
+            if (hi >= hearts.current.length) break;
+            const h = hearts.current[hi++];
+            if (!h) continue;
+            h.visible = true;
+            h.position.set(pk.x, pk.y + Math.sin(t * 3 + pk.x) * 0.08, 0.4);
+            h.rotation.z = Math.sin(t * 2) * 0.2;
+            const blink = pk.t > 9 ? (Math.sin(t * 14) > 0 ? 1 : 0.25) : 1;
+            h.scale.setScalar(blink);
+        }
+        for (; hi < hearts.current.length; hi++) if (hearts.current[hi]) hearts.current[hi].visible = false;
+    });
+    return (
+        <>
+            {/* o anel de alerta no chão (VERGONHA/MEDO) */}
+            <group ref={ring} visible={false}>
+                <mesh rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[1, 0.05, 6, 28]} /><meshBasicMaterial color="#ff3b4e" /></mesh>
+                <mesh rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[1, 24]} /><meshBasicMaterial color="#ff3b4e" transparent opacity={0.16} depthWrite={false} /></mesh>
+            </group>
+            {/* a varredura (fio grosso vertical na faixa baixa/alta) */}
+            <mesh ref={sweep} visible={false} material={kit.thread}><boxGeometry args={[0.18, 1.3, 0.5]} /></mesh>
+            <mesh ref={sweepTele} visible={false}><boxGeometry args={[30, 1.1, 0.02]} /><meshBasicMaterial color="#f4f0e8" transparent opacity={0.14} depthWrite={false} /></mesh>
+            {/* o casulo blindado */}
+            <mesh ref={shield} visible={false}><sphereGeometry args={[1.95, 18, 14]} /><meshStandardMaterial color="#241722" transparent opacity={0.55} roughness={0.95} emissive="#4a1f30" emissiveIntensity={0.35} wireframe /></mesh>
+            {/* pool de projéteis */}
+            {Array.from({ length: 6 }, (_, i) => (
+                <mesh key={'pr' + i} ref={(el) => { if (el) projs.current[i] = el; }} visible={false} material={projMatW}>
+                    <sphereGeometry args={[0.34, 10, 8]} />
+                </mesh>
+            ))}
+            {/* pool de novelos-coração */}
+            {Array.from({ length: 4 }, (_, i) => (
+                <group key={'hp' + i} ref={(el) => { if (el) hearts.current[i] = el; }} visible={false}>
+                    <mesh material={kit.core}><sphereGeometry args={[0.28, 12, 10]} /></mesh>
+                    <mesh rotation={[0.5, 0, 0]} material={kit.thread}><torusGeometry args={[0.29, 0.035, 6, 16]} /></mesh>
+                    <mesh material={kit.glow} scale={1.4}><planeGeometry args={[1, 1]} /></mesh>
+                </group>
+            ))}
+        </>
     );
 };
 
@@ -565,6 +664,7 @@ const Scene: React.FC<{
             {mem.spools.map((s, i) => <Spool key={`${mem.key}-s${i}`} s={s} i={i} kit={kit} />)}
             <PatchActor kit={kit} />
             <BossActor kit={kit} />
+            {mem.boss && <BossFX kit={kit} />}
             <CrochetPlayer kit={kit} />
             <LiveThread kit={kit} />
         </>
@@ -583,6 +683,12 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
     const moveRef = useRef(0), vertRef = useRef(0); const jumpRef = useRef(false), grappleRef = useRef(false), stitchRef = useRef(false);
     const introRef = useRef(true), keys = useRef<Record<string, boolean>>({}), touchMove = useRef(0);
     const [introKey, setIntroKey] = useState(-1); const lastMem = useRef(-1);
+    // a MORTE na luta: quando p8.deaths sobe, a tela se desfia e a batalha recomeça
+    const lastDeaths = useRef(p8.deaths);
+    const [deathKey, setDeathKey] = useState(0);
+    useEffect(() => {
+        if (p8.deaths !== lastDeaths.current) { lastDeaths.current = p8.deaths; setDeathKey(Date.now()); }
+    });
     useEffect(() => {
         const bump = () => setV((v) => v + 1), offF8 = f8Subscribe(bump), offP8 = p8Subscribe(bump);
         return () => { offF8(); offP8(); };
@@ -627,9 +733,15 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
     });
     const bossActive = !!p8.boss && p8.boss.phase !== 'dormant';
     const seamNames = ['VERGONHA', 'CONTROLE', 'RUMINAÇÃO', 'ISOLAMENTO', 'MEDO'];
-    const bossCue = p8.boss?.phase === 'telegraph' ? 'FIO AGORA — DEVOLVA O PADRÃO'
-        : p8.boss?.phase === 'exposed' ? 'FISGUE A COSTURA EXPOSTA'
-        : p8.boss?.phase === 'bound' ? 'MANTENHA TENSO · AGULHA QUANDO BRILHAR'
+    const bz = p8.boss;
+    const bossCue = bz?.phase === 'attack' ? (
+        bz.attack === 'slam' ? 'ANEL VERMELHO NO SEU CHÃO — SAIA DALI'
+        : bz.attack === 'sweep' ? (bz.sweepN === 0 ? 'VARREDURA BAIXA — PULE POR CIMA' : 'VARREDURA ALTA — FIQUE NO CHÃO')
+        : bz.attack === 'throw' ? 'NOVELO BRANCO — FIO NO TEMPO CERTO = CONTRA-PONTO'
+        : bz.attack === 'cocoon' ? 'ELE SE ISOLOU — DESFAÇA OS DOIS PENSAMENTOS'
+        : null)
+        : bz?.phase === 'exposed' ? 'ELE CANSOU — FISGUE A COSTURA DOURADA'
+        : bz?.phase === 'bound' ? 'MANTENHA TENSO · AGULHA QUANDO BRILHAR'
         : null;
     return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 56, background: pal.bgLo, touchAction: 'none', overflow: 'hidden' }}>
@@ -681,7 +793,17 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
                 </div>
             )}
 
-            {bossCue && !won && <div style={{ position: 'absolute', top: 90, left: 0, right: 0, textAlign: 'center', pointerEvents: 'none' }}><span style={{ display: 'inline-block', padding: '6px 13px', color: p8.boss?.phase === 'telegraph' ? '#fff2b6' : '#ffd1d8', border: '1px solid rgba(240,90,114,.55)', background: 'rgba(12,5,11,.72)', boxShadow: '0 0 24px rgba(240,90,114,.2)', font: '10px monospace', letterSpacing: 1.5 }}>{bossCue}</span></div>}
+            {bossCue && !won && <div style={{ position: 'absolute', top: 90, left: 0, right: 0, textAlign: 'center', pointerEvents: 'none' }}><span style={{ display: 'inline-block', padding: '6px 13px', color: p8.boss?.phase === 'attack' ? '#fff2b6' : '#ffd1d8', border: '1px solid rgba(240,90,114,.55)', background: 'rgba(12,5,11,.72)', boxShadow: '0 0 24px rgba(240,90,114,.2)', font: '10px monospace', letterSpacing: 1.5 }}>{bossCue}</span></div>}
+
+            {/* A MORTE: você se desfez — a batalha recomeça do zero */}
+            {deathKey > 0 && !won && (
+                <div key={deathKey} onAnimationEnd={() => setDeathKey(0)} style={{ position: 'absolute', inset: 0, zIndex: 9, pointerEvents: 'none', display: 'grid', placeItems: 'center', background: 'radial-gradient(circle at 50% 50%, rgba(120,20,40,.5), rgba(4,2,6,.94) 70%)', animation: 'f8death 2.6s ease forwards' }}>
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ color: '#ff8fa0', font: '600 clamp(30px,8vw,56px)/1 Georgia,serif', textShadow: '0 0 22px #a01c38', animation: 'f8deathTxt 2.6s ease forwards' }}>VOCÊ SE DESFEZ</div>
+                        <div style={{ marginTop: 12, color: '#d8a7ae', font: '11px monospace', letterSpacing: 3 }}>O FIO LEMBRA O CAMINHO · TENTATIVA {p8.deaths + 1}</div>
+                    </div>
+                </div>
+            )}
 
             {p8.beatText && !won && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 148, padding: '0 28px', textAlign: 'center', pointerEvents: 'none' }}><span style={{ display: 'inline-block', maxWidth: 680, padding: '8px 14px', borderRadius: 3, background: 'linear-gradient(90deg,transparent,rgba(8,5,12,.58),transparent)', color: '#fff', font: 'italic 16px/1.5 Georgia,serif', textShadow: '0 2px 12px #000', animation: 'f8beatIn .45s ease' }}>{p8.beatText}</span></div>}
 
@@ -715,6 +837,8 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
             <style>{`
                 @keyframes f8platwin{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:blur(0)}}
                 @keyframes f8beatIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+                @keyframes f8death{0%{opacity:0}12%{opacity:1}70%{opacity:1}100%{opacity:0}}
+                @keyframes f8deathTxt{0%{letter-spacing:2px;filter:blur(8px)}40%{letter-spacing:10px;filter:blur(0)}100%{letter-spacing:12px}}
                 @keyframes f8photoHold{0%{opacity:0;transform:scale(1.04)}8%,70%{opacity:1;transform:scale(1)}82%,100%{opacity:0}}
                 @keyframes f8bossName{from{filter:blur(0);transform:scale(1)}to{filter:blur(.45px);transform:scale(1.018)}}
                 @keyframes f8blinkTop{0%,64%{transform:scaleY(0)}74%,82%{transform:scaleY(1)}100%{transform:scaleY(0)}}
