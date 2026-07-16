@@ -39,8 +39,17 @@ export const Floor8Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void; 
     const [, setV] = useState(0);
     const [typed, setTyped] = useState(false);
     const fastRef = useRef(false);
+    // dip-to-black nos CORTES de câmera (Player ⇄ Floor8Cutscene): entrada e
+    // saída do interrogatório, e o fim das falas do despertar.
+    const [cutId, setCutId] = useState(0);
+    const camPrev = useRef(false);
 
     useEffect(() => f8Subscribe(() => setV((x) => x + 1)), []);
+    useEffect(() => f8Subscribe(() => {
+        const camNow = f8.phase === 'interrogatorio'
+            || (f8.phase === 'despertar' && f8.line < F8_DESPERTAR_LINES.length);
+        if (camNow !== camPrev.current) { camPrev.current = camNow; setCutId((i) => i + 1); }
+    }), []);
 
     const talking = f8.phase === 'interrogatorio';
     const handing = f8.phase === 'entregaImagem';
@@ -89,6 +98,10 @@ export const Floor8Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void; 
 
     return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 40, pointerEvents: 'none' }}>
+            {/* dip do CORTE de câmera: preto instantâneo que dissolve (0.7s) */}
+            {cutId > 0 && (
+                <div key={cutId} style={{ position: 'absolute', inset: 0, background: '#000', pointerEvents: 'none', animation: 'f8cut 0.7s ease-out forwards' }} />
+            )}
             {/* o despertar: zonzo — vinheta pulsando + visão dupla leve */}
             {(waking || goneTalking) && (
                 <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
@@ -163,6 +176,7 @@ export const Floor8Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void; 
             )}
 
             <style>{`
+                @keyframes f8cut { 0%{opacity:1} 100%{opacity:0} }
                 @keyframes f8dive { 0%{opacity:0} 20%{opacity:1} 88%{opacity:1} 100%{opacity:1} }
                 @keyframes f8diveZoom { 0%{transform:scale(0.15);opacity:0;filter:blur(6px)} 30%{opacity:0.9} 100%{transform:scale(2.6);opacity:1;filter:blur(0)} }
                 @keyframes f8dizzy { 0%,100%{opacity:0.7} 50%{opacity:1} }

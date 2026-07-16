@@ -120,6 +120,10 @@ export const F8_FURNITURE: ReadonlyArray<readonly [number, number, number, numbe
 /** Onde o Arquivista fica (atrás da mesa, encarando o sul/o player). */
 export const F8_ARQUIVISTA_POS: readonly [number, number] = [0, -0.7];
 
+/** Posição-mundo do Arquivista, publicada por frame pelo ator (Floor8Arquivista)
+ *  e lida pelo Floor8Cutscene pra enquadrar — dados puros, sem three aqui. */
+export const f8ArqWorld = { x: 0, y: 0, z: -0.58 };
+
 // ── O roteiro do interrogatório ──────────────────────────────────────────────
 export type F8Speaker = 'arq' | 'voce';
 const L = (who: F8Speaker, t: string) => ({ who, t });

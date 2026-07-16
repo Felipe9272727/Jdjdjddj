@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import Floor8Room from './Floor8Room';
+import Floor8Cutscene from './Floor8Cutscene';
 import Floor8Overlay, { Floor8Ride } from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
 import Floor8Platformer from './Floor8Platformer';
@@ -93,6 +94,7 @@ const Dev: React.FC = () => {
             <Canvas frameloop={insideImage ? 'never' : 'always'} style={{ visibility: insideImage ? 'hidden' : 'visible' }} camera={{ fov: 75, near: 0.1, far: 100, position: [0, 1.6, -8.2] }}>
                 <DevWalker />
                 <Floor8Room playerPositionRef={posRef} />
+                <Floor8Cutscene playerPositionRef={posRef} />
             </Canvas>
             <Floor8Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} />
             <Floor8Image />

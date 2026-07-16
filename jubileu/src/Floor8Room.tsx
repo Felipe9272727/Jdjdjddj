@@ -65,6 +65,17 @@ const boxTex = colorTex(128, 128, (ctx) => {
     for (let ln = 0; ln < 3; ln++) for (let c = 0; c < 10 + r() * 6; c++) ctx.fillRect(24 + c * 7, 50 + ln * 11, 4, 2);
 });
 
+// etiqueta datilografada das caixas (linhas + carimbo de índice) — substitui o
+// plano branco puro que brilhava demais sob a lâmpada
+const labelTex = colorTex(64, 32, (ctx) => {
+    const r = rng(806);
+    ctx.fillStyle = '#d9cfae'; ctx.fillRect(0, 0, 64, 32);
+    ctx.strokeStyle = 'rgba(90,74,46,0.55)'; ctx.lineWidth = 1.5; ctx.strokeRect(1, 1, 62, 30);
+    ctx.fillStyle = 'rgba(52,44,30,0.8)';
+    for (let ln = 0; ln < 2; ln++) for (let c = 0; c < 5 + r() * 5; c++) ctx.fillRect(6 + c * 5, 9 + ln * 8, 3, 1.6);
+    ctx.fillStyle = 'rgba(140,40,34,0.7)'; ctx.fillRect(44, 22, 14, 6);
+});
+
 // madeira escura das estantes
 const woodTex = colorTex(128, 256, (ctx) => {
     const r = rng(804);
@@ -78,6 +89,11 @@ const M8 = {
     floor: new THREE.MeshStandardMaterial({ map: concreteTex, bumpMap: concreteBump, bumpScale: 0.05, roughness: 1, color: '#6f6858' }),
     wood: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.85, color: '#b7a892' }),
     box: new THREE.MeshStandardMaterial({ map: boxTex, roughness: 0.92 }),
+    // variações de papelão (idade/umidade diferentes) — quebra a repetição
+    boxOld: new THREE.MeshStandardMaterial({ map: boxTex, roughness: 0.95, color: '#8f7a58' }),
+    boxDark: new THREE.MeshStandardMaterial({ map: boxTex, roughness: 0.97, color: '#6f5f46' }),
+    boxRed: new THREE.MeshStandardMaterial({ map: boxTex, roughness: 0.93, color: '#9a6a50' }),
+    label: new THREE.MeshStandardMaterial({ map: labelTex, roughness: 0.96 }),
     steel: new THREE.MeshStandardMaterial({ color: '#3a3a3e', roughness: 0.5, metalness: 0.7 }),
     steelDk: new THREE.MeshStandardMaterial({ color: '#26262a', roughness: 0.6, metalness: 0.6 }),
     tableTop: new THREE.MeshStandardMaterial({ color: '#4a4034', roughness: 0.65, metalness: 0.15 }),
@@ -96,13 +112,16 @@ const B: React.FC<{ a: [number, number, number]; p: [number, number, number]; m:
     );
 
 /** Um banco de estantes de arquivo encostado numa parede, cheio de caixas de
- *  ficha. Construído virado pra +z local; a rotação/posição encaixa na parede. */
+ *  ficha. Construído virado pra +z local; a rotação/posição encaixa na parede.
+ *  v2: papelões de idades diferentes, caixas tombadas/empilhadas, pastas
+ *  avulsas inclinadas nas folgas, etiquetas datilografadas (não mais brancas). */
 const ShelfBank: React.FC<{ pos: [number, number, number]; rotY: number; length: number; seed: number }> =
     ({ pos, rotY, length, seed }) => {
         const r = useMemo(() => rng(seed), [seed]);
         const levels = [0.5, 1.12, 1.74, 2.36];   // alturas das prateleiras
         const cols = Math.max(1, Math.floor(length / 0.62));
         const step = length / cols;
+        const mats = [M8.box, M8.box, M8.boxOld, M8.boxDark, M8.boxRed];
         const boxes: React.ReactNode[] = [];
         for (let li = 0; li < levels.length; li++) {
             const y = levels[li];
@@ -110,15 +129,42 @@ const ShelfBank: React.FC<{ pos: [number, number, number]; rotY: number; length:
             boxes.push(<B key={`sh${li}`} a={[length, 0.04, 0.32]} p={[0, y - 0.02, 0]} m={M8.wood} />);
             for (let c = 0; c < cols; c++) {
                 const x = -length / 2 + step * (c + 0.5);
-                if (r() < 0.12) continue;                       // uma folga aqui e ali
-                const bh = 0.34 + r() * 0.08, bw = step * 0.82, bd = 0.26;
-                boxes.push(<B key={`b${li}-${c}`} a={[bw, bh, bd]} p={[x, y + bh / 2, 0]} m={M8.box} r={[0, 0, (r() - 0.5) * 0.05]} />);
-                // etiqueta clara na frente (+z)
-                boxes.push(
-                    <mesh key={`l${li}-${c}`} position={[x, y + bh / 2, bd / 2 + 0.002]} material={M8.paper}>
-                        <planeGeometry args={[bw * 0.6, bh * 0.32]} />
-                    </mesh>,
-                );
+                const roll = r();
+                if (roll < 0.1) continue;                       // folga vazia
+                if (roll < 0.2) {
+                    // folga com PASTAS AVULSAS inclinadas (livros cansados)
+                    const n = 2 + Math.floor(r() * 3);
+                    for (let f = 0; f < n; f++) {
+                        boxes.push(<B key={`f${li}-${c}-${f}`} a={[0.035, 0.3 + r() * 0.06, 0.24]}
+                            p={[x - 0.1 + f * 0.055, y + 0.16, 0]} m={f % 2 ? M8.paper : M8.boxOld}
+                            r={[0, 0, 0.24 + r() * 0.18]} />);
+                    }
+                    continue;
+                }
+                const m = mats[Math.floor(r() * mats.length)];
+                if (roll < 0.28) {
+                    // caixa TOMBADA de lado (deitada)
+                    const bw = step * 0.8;
+                    boxes.push(<B key={`t${li}-${c}`} a={[bw, 0.26, 0.3]} p={[x, y + 0.13, 0.01]} m={m} r={[0, (r() - 0.5) * 0.2, 0]} />);
+                    continue;
+                }
+                const bh = 0.3 + r() * 0.1, bw = step * 0.82, bd = 0.26;
+                boxes.push(<B key={`b${li}-${c}`} a={[bw, bh, bd]} p={[x, y + bh / 2, 0]} m={m} r={[0, 0, (r() - 0.5) * 0.05]} />);
+                // caixinha extra EMPILHADA em cima, de vez em quando
+                if (r() < 0.22 && bh < 0.36) {
+                    boxes.push(<B key={`s${li}-${c}`} a={[bw * 0.7, 0.13, bd * 0.85]}
+                        p={[x + (r() - 0.5) * 0.06, y + bh + 0.065, 0]} m={mats[Math.floor(r() * mats.length)]}
+                        r={[0, (r() - 0.5) * 0.3, 0]} />);
+                }
+                // etiqueta datilografada na frente (+z), nem toda caixa tem
+                if (r() < 0.78) {
+                    boxes.push(
+                        <mesh key={`l${li}-${c}`} position={[x, y + bh * 0.42, bd / 2 + 0.002]} material={M8.label}
+                            rotation={[0, 0, (r() - 0.5) * 0.06]}>
+                            <planeGeometry args={[bw * 0.5, bh * 0.3]} />
+                        </mesh>,
+                    );
+                }
             }
         }
         // montantes verticais + topo
@@ -132,53 +178,105 @@ const ShelfBank: React.FC<{ pos: [number, number, number]; rotY: number; length:
         return <group position={pos} rotation={[0, rotY, 0]}>{boxes}</group>;
     };
 
-// a FOTOGRAFIA DAS VINTE PORTAS (o corredor escuro com as vinte frestas de luz)
-const photo20Tex = colorTex(128, 96, (ctx) => {
-    ctx.fillStyle = '#151009'; ctx.fillRect(0, 0, 128, 96);
-    const g = ctx.createLinearGradient(0, 0, 0, 96); g.addColorStop(0, 'rgba(90,70,40,0.4)'); g.addColorStop(1, 'rgba(0,0,0,0.5)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 96);
-    for (let i = 0; i < 20; i++) {
-        const x = 8 + i * 5.8;
-        ctx.fillStyle = 'rgba(230,190,120,0.85)'; ctx.fillRect(x, 30, 2.2, 40);
-        ctx.fillStyle = 'rgba(120,90,50,0.5)'; ctx.fillRect(x - 1.4, 28, 5, 2);
-    }
-    ctx.fillStyle = '#e8e0cc'; ctx.fillRect(0, 0, 128, 5); ctx.fillRect(0, 91, 128, 5);
-    ctx.fillRect(0, 0, 4, 96); ctx.fillRect(124, 0, 4, 96);
+/** A escada de arquivo, encostada na estante — a silhueta que faltava. */
+const ArchiveLadder: React.FC<{ pos: [number, number, number]; rotY: number }> = ({ pos, rotY }) => (
+    <group position={pos} rotation={[0, rotY, 0]}>
+        <group rotation={[0.24, 0, 0]}>
+            {[-0.2, 0.2].map((x) => (
+                <mesh key={x} position={[x, 1.25, 0]} material={M8.wood}><boxGeometry args={[0.05, 2.5, 0.07]} /></mesh>
+            ))}
+            {[0.3, 0.72, 1.14, 1.56, 1.98].map((y) => (
+                <mesh key={y} position={[0, y, 0]} rotation={[0, 0, Math.PI / 2]} material={M8.wood}>
+                    <cylinderGeometry args={[0.02, 0.02, 0.4, 8]} />
+                </mesh>
+            ))}
+        </group>
+    </group>
+);
+
+/** Tralha de chão: uma caixa caída derramando fichas + um maço amarrado. */
+const FloorClutter: React.FC = () => (
+    <group>
+        {/* a caixa caída, de boca aberta */}
+        <group position={[2.7, 0, -7.7]} rotation={[0, -0.7, 0]}>
+            <B a={[0.5, 0.34, 0.32]} p={[0, 0.17, 0]} m={M8.boxOld} r={[0, 0, -1.35]} />
+            <B a={[0.5, 0.03, 0.32]} p={[-0.42, 0.02, 0.12]} m={M8.boxDark} r={[0, 0.5, 0]} />
+            {/* fichas derramadas */}
+            {[[-0.5, 0.22, 0.02], [-0.72, 0.1, 0.12], [-0.6, -0.14, -0.25], [-0.85, 0.3, 0.28], [-0.38, 0.42, 0.35]].map(([dx, dz, rz], i) => (
+                <mesh key={i} position={[dx, 0.012 + i * 0.004, dz]} rotation={[-Math.PI / 2, 0, rz]} material={M8.paper}>
+                    <planeGeometry args={[0.2, 0.28]} />
+                </mesh>
+            ))}
+        </group>
+        {/* maço de fichas amarrado com barbante, esperando arquivamento */}
+        <group position={[-2.9, 0, -8.6]} rotation={[0, 0.4, 0]}>
+            <B a={[0.34, 0.16, 0.26]} p={[0, 0.08, 0]} m={M8.paper} />
+            <B a={[0.36, 0.012, 0.02]} p={[0, 0.09, 0]} m={M8.steelDk} />
+            <B a={[0.02, 0.17, 0.27]} p={[0, 0.08, 0]} m={M8.steelDk} />
+            <B a={[0.3, 0.1, 0.22]} p={[0.05, 0.21, 0.02]} m={M8.paper} r={[0, 0.3, 0]} />
+        </group>
+    </group>
+);
+
+// o stencil pintado na parede norte: ARQUIVO GERAL
+const stencilTex = colorTex(512, 96, (ctx) => {
+    ctx.clearRect(0, 0, 512, 96);
+    ctx.fillStyle = 'rgba(58,48,34,0.85)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 44px monospace';
+    ctx.fillText('A R Q U I V O   G E R A L', 256, 34);
+    ctx.font = '22px monospace';
+    ctx.fillStyle = 'rgba(58,48,34,0.6)';
+    ctx.fillText('— nada aqui se esquece —', 256, 72);
 });
+const stencilMat = new THREE.MeshStandardMaterial({ map: stencilTex, transparent: true, roughness: 0.95 });
+
+/** O relógio de parede PARADO (21 minutos — o tempo que o player ficou lá dentro). */
+const ArchiveClock: React.FC = () => (
+    <group position={[-2.4, 2.45, -0.07]}>
+        {/* aro/corpo, eixo virado pra parede */}
+        <mesh rotation={[Math.PI / 2, 0, 0]} material={M8.steelDk}><cylinderGeometry args={[0.22, 0.22, 0.05, 20]} /></mesh>
+        {/* mostrador encarando a sala (sul) */}
+        <mesh position={[0, 0, -0.028]} rotation={[0, Math.PI, 0]} material={M8.paper}><circleGeometry args={[0.185, 20]} /></mesh>
+        {/* ponteiros parados em 4:21 */}
+        <mesh position={[0.02, 0.035, -0.034]} rotation={[0, 0, 0.9]} material={M8.steelDk}><boxGeometry args={[0.015, 0.11, 0.006]} /></mesh>
+        <mesh position={[-0.035, -0.045, -0.034]} rotation={[0, 0, 2.42]} material={M8.steelDk}><boxGeometry args={[0.012, 0.17, 0.006]} /></mesh>
+        <mesh position={[0, 0, -0.036]} material={M8.steel}><sphereGeometry args={[0.014, 8, 8]} /></mesh>
+    </group>
+);
 
 /** Direção de cena do interrogatório (sem re-render; lê f8 por frame):
- *  - a FOTOGRAFIA se ergue quando a batida dela chega (linha 2) e baixa depois;
- *  - a IMAGEM na mesa acende e pulsa quando vira o alvo (entregaImagem+). */
+ *  a IMAGEM sobre a mesa DESLIZA do lado dele pro lado do player na última
+ *  fala (a mão do Arquivista empurra — o canal 'slide' do ator casa com isso)
+ *  e acende/pulsa quando vira o alvo (entregaImagem). A FOTOGRAFIA das vinte
+ *  portas agora é prop na MÃO do ator (Floor8Arquivista). */
 const InterroDirector: React.FC = () => {
-    const photo = useRef<THREE.Group>(null!);
     const img = useRef<THREE.Mesh>(null!);
     const imgLight = useRef<THREE.PointLight>(null!);
-    const lift = useRef(0);
+    const slide = useRef(0);
     useFrame(({ clock }, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const t = clock.elapsedTime;
-        // a foto no ar: sobe na linha 2-3 do interrogatório (a batida da foto)
-        const want = f8.phase === 'interrogatorio' && f8.line >= 2 && f8.line <= 3 ? 1 : 0;
-        lift.current += (want - lift.current) * Math.min(1, dt * 3.5);
-        if (photo.current) {
-            const k = lift.current;
-            photo.current.visible = k > 0.02;
-            photo.current.position.set(0.35, 1.02 + k * 0.55, -1.15);
-            photo.current.rotation.set(-Math.PI / 2 + k * 1.35, 0, 0.15 - k * 0.1);
-        }
-        // a imagem-alvo na mesa (entregaImagem em diante, até o mergulho)
-        const hot = f8.phase === 'entregaImagem';
+        // o deslize: última fala do interrogatório em diante
+        const ph = f8.phase;
+        const want = (ph === 'interrogatorio' && f8.line >= 8) || ph === 'entregaImagem' || ph === 'mergulho' ? 1 : 0;
+        slide.current += (want - slide.current) * Math.min(1, dt * 1.6);
+        const k = slide.current;
+        const ix = -0.15 + k * 0.25, iz = -1.2 - k * 0.72;
         if (img.current) {
+            img.current.position.set(ix, 1.0, iz);
+            img.current.rotation.z = -0.12 + k * 0.24;
             const m = img.current.material as THREE.MeshStandardMaterial;
-            m.emissiveIntensity = hot ? 0.85 + Math.sin(t * 2.6) * 0.35 : 0.06;
+            const hot = ph === 'entregaImagem';
+            m.emissiveIntensity = hot ? 0.85 + Math.sin(t * 2.6) * 0.35 : 0.06 + k * 0.3;
         }
-        if (imgLight.current) imgLight.current.intensity = hot ? 2.6 + Math.sin(t * 2.6) * 1.1 : 0;
+        if (imgLight.current) {
+            imgLight.current.position.set(ix, 1.35, iz);
+            imgLight.current.intensity = ph === 'entregaImagem' ? 2.6 + Math.sin(t * 2.6) * 1.1 : k * 1.1;
+        }
     });
     return (
         <>
-            <group ref={photo} visible={false}>
-                <mesh><planeGeometry args={[0.5, 0.38]} /><meshStandardMaterial map={photo20Tex} roughness={0.8} side={THREE.DoubleSide} /></mesh>
-            </group>
             {/* a imagem sobre a mesa, virada pro player (o alvo do E) */}
             <mesh ref={img} position={[-0.15, 1.0, -1.2]} rotation={[-Math.PI / 2, 0, -0.12]}>
                 <planeGeometry args={[0.46, 0.36]} />
@@ -186,6 +284,152 @@ const InterroDirector: React.FC = () => {
             </mesh>
             <pointLight ref={imgLight} position={[-0.15, 1.35, -1.2]} distance={2.6} decay={2} color="#ffc478" intensity={0} />
         </>
+    );
+};
+
+// ── o QUADRO DE CORTIÇA: fichas e fotos ligadas por FIO VERMELHO ─────────────
+// (o mesmo fio que aparece amarrado no corrimão do elevador, no final)
+const corkTex = colorTex(512, 256, (ctx) => {
+    const r = rng(807);
+    ctx.fillStyle = '#7c603f'; ctx.fillRect(0, 0, 512, 256);
+    for (let i = 0; i < 900; i++) {
+        const v = r();
+        ctx.fillStyle = v < 0.5 ? `rgba(60,42,24,${0.08 + r() * 0.1})` : `rgba(150,120,80,${0.06 + r() * 0.08})`;
+        ctx.fillRect(r() * 512, r() * 256, 1 + r() * 3, 1 + r() * 3);
+    }
+    // moldura
+    ctx.strokeStyle = '#3a2c1a'; ctx.lineWidth = 10; ctx.strokeRect(5, 5, 502, 246);
+    // fotos/fichas pregadas (com a FICHA EM BRANCO no centro)
+    const pins: [number, number][] = [];
+    const card = (cx: number, cy: number, w: number, h: number, rot: number, kind: 'photo' | 'ficha' | 'blank') => {
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot);
+        ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(-w / 2 + 3, -h / 2 + 4, w, h);
+        ctx.fillStyle = kind === 'blank' ? '#efe7d2' : kind === 'ficha' ? '#ddd2b0' : '#c9c2b2';
+        ctx.fillRect(-w / 2, -h / 2, w, h);
+        if (kind === 'photo') {
+            ctx.fillStyle = '#241c12'; ctx.fillRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 14);
+            ctx.fillStyle = `rgba(${170 + r() * 60},${140 + r() * 50},${90 + r() * 40},0.55)`;
+            ctx.fillRect(-w / 2 + 6, -h / 2 + 8, (w - 12) * (0.3 + r() * 0.6), h - 22);
+        } else if (kind === 'ficha') {
+            ctx.fillStyle = 'rgba(50,42,28,0.7)';
+            for (let ln = 0; ln < Math.floor(h / 9) - 1; ln++)
+                for (let c = 0; c < 3 + r() * 5; c++) ctx.fillRect(-w / 2 + 5 + c * 7, -h / 2 + 8 + ln * 9, 4 + r() * 2, 2);
+        } else {
+            // a ficha em branco — só um "?" datilografado no meio
+            ctx.fillStyle = 'rgba(90,74,48,0.8)'; ctx.font = 'bold 26px monospace';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('?', 0, 2);
+        }
+        ctx.restore();
+        pins.push([cx, cy - h / 2 + 6]);
+    };
+    card(70, 60, 58, 44, -0.08, 'photo');
+    card(160, 100, 46, 60, 0.06, 'ficha');
+    card(80, 170, 50, 40, 0.1, 'photo');
+    card(256, 120, 62, 78, -0.02, 'blank');      // A FICHA EM BRANCO — a do player
+    card(360, 62, 54, 42, 0.07, 'photo');
+    card(438, 110, 46, 58, -0.09, 'ficha');
+    card(372, 186, 56, 44, 0.05, 'photo');
+    card(196, 200, 44, 40, -0.06, 'ficha');
+    // o FIO VERMELHO: tudo converge na ficha em branco
+    ctx.strokeStyle = '#b3232a'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    const hub: [number, number] = [256, 86];
+    for (const [px, py] of pins) {
+        if (Math.abs(px - hub[0]) < 4 && Math.abs(py - hub[1]) < 12) continue;
+        ctx.beginPath(); ctx.moveTo(px, py);
+        const mx = (px + hub[0]) / 2 + (r() - 0.5) * 30, my = (py + hub[1]) / 2 + 14 + r() * 18;
+        ctx.quadraticCurveTo(mx, my, hub[0], hub[1]);
+        ctx.stroke();
+    }
+    // percevejos de latão
+    for (const [px, py] of pins) {
+        ctx.fillStyle = '#c9a145'; ctx.beginPath(); ctx.arc(px, py, 3.4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(70,50,16,0.8)'; ctx.beginPath(); ctx.arc(px + 1, py + 1, 1.4, 0, Math.PI * 2); ctx.fill();
+    }
+});
+const corkMat = new THREE.MeshStandardMaterial({ map: corkTex, roughness: 0.95 });
+
+// sprite circular macio pros pontos de poeira (senão viram quadrados)
+const dustSprite = (() => {
+    const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+    const x = c.getContext('2d')!;
+    const g = x.createRadialGradient(16, 16, 0, 16, 16, 16);
+    g.addColorStop(0, 'rgba(255,240,210,1)'); g.addColorStop(0.4, 'rgba(255,240,210,0.55)'); g.addColorStop(1, 'rgba(255,240,210,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 32, 32);
+    const tex = new THREE.CanvasTexture(c);
+    return tex;
+})();
+
+/** Poeira dançando no cone da lâmpada (CPU, ~80 pontos — barato). */
+const DustMotes: React.FC = () => {
+    const geo = useMemo(() => {
+        const g = new THREE.BufferGeometry();
+        const n = 80;
+        const pos = new Float32Array(n * 3);
+        const r = rng(808);
+        for (let i = 0; i < n; i++) {
+            const h = r();                              // 0 no bulbo, 1 no chão
+            const rad = 0.08 + h * 1.05;
+            const a = r() * Math.PI * 2;
+            pos[i * 3] = Math.cos(a) * rad * r();
+            pos[i * 3 + 1] = -0.05 - h * 1.85;
+            pos[i * 3 + 2] = Math.sin(a) * rad * r();
+        }
+        g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        return g;
+    }, []);
+    const pts = useRef<THREE.Points>(null!);
+    useFrame(({ clock }, rawDt) => {
+        const dt = Math.min(rawDt, 0.05);
+        const t = clock.elapsedTime;
+        const attr = geo.getAttribute('position') as THREE.BufferAttribute;
+        const arr = attr.array as Float32Array;
+        for (let i = 0; i < arr.length; i += 3) {
+            arr[i + 1] -= dt * 0.045;                    // cai devagar
+            arr[i] += Math.sin(t * 0.6 + i) * dt * 0.02; // deriva lateral
+            if (arr[i + 1] < -1.95) { arr[i + 1] = -0.06; arr[i] *= 0.15; arr[i + 2] *= 0.15; }
+        }
+        attr.needsUpdate = true;
+        if (pts.current) (pts.current.material as THREE.PointsMaterial).opacity = 0.5 + Math.sin(t * 1.3) * 0.14;
+    });
+    return (
+        <points ref={pts} geometry={geo}>
+            <pointsMaterial map={dustSprite} size={0.02} color="#ffe9c0" transparent opacity={0.5} depthWrite={false} blending={THREE.AdditiveBlending} sizeAttenuation />
+        </points>
+    );
+};
+
+/** A fumaça do cigarro esquecido no cinzeiro: 5 fiapos subindo em loop. */
+const CigaretteSmoke: React.FC = () => {
+    const wisps = useRef<THREE.Mesh[]>([]);
+    useFrame(({ clock, camera }) => {
+        const t = clock.elapsedTime;
+        wisps.current.forEach((w, i) => {
+            if (!w) return;
+            const k = (t * 0.16 + i / 5) % 1;
+            w.position.set(Math.sin(k * 7 + i * 2) * 0.045 * k, 0.04 + k * 0.6, Math.cos(k * 5 + i) * 0.03 * k);
+            const s = 0.35 + k * 1.3;
+            w.scale.set(s, s, s);
+            (w.material as THREE.MeshBasicMaterial).opacity = 0.16 * (1 - k) * Math.min(1, k * 6);
+            w.quaternion.copy(camera.quaternion);
+        });
+    });
+    return (
+        <group>
+            {/* o cigarro apoiado na borda + brasa */}
+            <mesh position={[0.05, 0.035, 0]} rotation={[0, 0.4, 0.22]} material={M8.paper}>
+                <cylinderGeometry args={[0.006, 0.006, 0.09, 6]} />
+            </mesh>
+            <mesh position={[0.085, 0.048, 0.016]}>
+                <sphereGeometry args={[0.007, 6, 6]} />
+                <meshBasicMaterial color="#ff7a30" />
+            </mesh>
+            {[0, 1, 2, 3, 4].map((i) => (
+                <mesh key={i} ref={(m) => { if (m) wisps.current[i] = m; }} position={[0, 0.1, 0]}>
+                    <planeGeometry args={[0.085, 0.085]} />
+                    <meshBasicMaterial color="#b9b4a8" transparent opacity={0} depthWrite={false} />
+                </mesh>
+            ))}
+        </group>
     );
 };
 
@@ -201,12 +445,18 @@ const CagedLamp: React.FC<{ lampRef: React.MutableRefObject<THREE.PointLight> }>
         );
     }
     const swing = useRef<THREE.Group>(null!);
+    const cone = useRef<THREE.Mesh>(null!);
     useFrame(({ clock }) => {
         const t = clock.elapsedTime;
         // pêndulo lento e assimétrico — as sombras da sala respiram
         if (swing.current) {
             swing.current.rotation.z = Math.sin(t * 0.62) * 0.055 + Math.sin(t * 0.23 + 1.3) * 0.02;
             swing.current.rotation.x = Math.sin(t * 0.41 + 0.7) * 0.035;
+        }
+        // o cone de luz respira com a lâmpada (e falha de vez em quando)
+        if (cone.current) {
+            const drop = Math.sin(t * 7.3) > 0.994 ? 0.4 : 1;
+            (cone.current.material as THREE.MeshBasicMaterial).opacity = (0.05 + Math.sin(t * 0.9) * 0.008) * drop;
         }
     });
     return (
@@ -225,6 +475,12 @@ const CagedLamp: React.FC<{ lampRef: React.MutableRefObject<THREE.PointLight> }>
                         <ringGeometry args={[0.13, 0.14, 6]} />
                         <meshStandardMaterial color="#26262a" roughness={0.6} metalness={0.6} side={THREE.DoubleSide} />
                     </mesh>
+                    {/* o CONE DE LUZ (volumétrico falso) + a poeira dançando dentro */}
+                    <mesh ref={cone} position={[0, -0.99, 0]}>
+                        <coneGeometry args={[1.15, 1.94, 20, 1, true]} />
+                        <meshBasicMaterial color="#ffdc9a" transparent opacity={0.05} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+                    </mesh>
+                    <DustMotes />
                 </group>
             </group>
         </group>
@@ -258,14 +514,19 @@ const Desk: React.FC = () => (
         <B a={[0.4, 0.05, 0.28]} p={[-0.66, 1.16, 0.1]} m={M8.box} r={[0, -0.1, 0]} />
         {/* uma ficha aberta sob a luz */}
         <mesh position={[0.1, 1.0, 0.12]} rotation={[-Math.PI / 2, 0, 0.15]} material={M8.paper}><planeGeometry args={[0.34, 0.46]} /></mesh>
-        {/* máquina de escrever (a do 612) — corpo + carro + teclas */}
+        {/* máquina de escrever (a do 612) — corpo + carro + teclas + a FICHA no rolo */}
         <group position={[0.66, 1.06, -0.02]}>
             <B a={[0.34, 0.14, 0.3]} p={[0, 0, 0]} m={M8.steelDk} />
             <B a={[0.36, 0.04, 0.08]} p={[0, 0.1, -0.12]} m={M8.steel} />
             <B a={[0.28, 0.05, 0.12]} p={[0, -0.02, 0.13]} m={M8.steel} />
+            {/* a folha meio datilografada, curvada pra trás do rolo */}
+            <mesh position={[0, 0.19, -0.14]} rotation={[-0.34, 0, 0.02]} material={M8.paper}>
+                <planeGeometry args={[0.24, 0.2]} />
+            </mesh>
         </group>
-        {/* cinzeiro + caneca */}
+        {/* cinzeiro + o cigarro esquecido fumegando + caneca */}
         <mesh position={[-0.05, 1.0, -0.34]} material={M8.steel}><cylinderGeometry args={[0.08, 0.07, 0.03, 12]} /></mesh>
+        <group position={[-0.05, 1.01, -0.34]}><CigaretteSmoke /></group>
         <mesh position={[0.4, 1.02, 0.34]} material={M8.paper}><cylinderGeometry args={[0.05, 0.045, 0.09, 12]} /></mesh>
     </group>
 );
@@ -347,6 +608,14 @@ export const Floor8Room: React.FC<{ playerPositionRef: React.MutableRefObject<TH
                 {/* O ARQUIVO — estantes de fichas do chão ao teto nas paredes laterais */}
                 <ShelfBank pos={[-3.62, 0, -5]} rotY={Math.PI / 2} length={8.6} seed={11} />
                 <ShelfBank pos={[3.62, 0, -5]} rotY={-Math.PI / 2} length={8.6} seed={23} />
+                {/* a escada do arquivo, a caixa caída, o maço amarrado */}
+                <ArchiveLadder pos={[-3.32, 0, -6.4]} rotY={Math.PI / 2} />
+                <FloorClutter />
+                {/* o stencil na parede norte + o relógio parado */}
+                <mesh position={[0, 2.62, -0.06]} rotation={[0, Math.PI, 0]} material={stencilMat}>
+                    <planeGeometry args={[2.6, 0.48]} />
+                </mesh>
+                <ArchiveClock />
                 {/* atrás do Arquivista: dois arquivos de gaveta + o espelho falso */}
                 <group position={[-2.4, 0, -0.28]}>
                     <B a={[0.9, 1.4, 0.5]} p={[0, 0.7, 0]} m={M8.steelDk} />
@@ -356,6 +625,13 @@ export const Floor8Room: React.FC<{ playerPositionRef: React.MutableRefObject<TH
                 <mesh position={[2.2, 1.45, -0.24]} material={M8.mirror}><boxGeometry args={[1.7, 1.1, 0.05]} /></mesh>
                 <B a={[1.84, 0.06, 0.07]} p={[2.2, 2.03, -0.22]} m={M8.steelDk} />
                 <B a={[1.84, 0.06, 0.07]} p={[2.2, 0.87, -0.22]} m={M8.steelDk} />
+                {/* o QUADRO DE CORTIÇA atrás dele: fichas ligadas por fio vermelho,
+                    todas convergindo na FICHA EM BRANCO (a do player) */}
+                <mesh position={[0, 1.68, -0.055]} rotation={[0, Math.PI, 0]} material={corkMat}>
+                    <planeGeometry args={[2.3, 1.18]} />
+                </mesh>
+                <B a={[2.42, 0.07, 0.06]} p={[0, 2.3, -0.05]} m={M8.wood} />
+                <B a={[2.42, 0.07, 0.06]} p={[0, 1.06, -0.05]} m={M8.wood} />
 
                 {/* a mesa + a lâmpada engaiolada + cadeiras */}
                 <Desk />
