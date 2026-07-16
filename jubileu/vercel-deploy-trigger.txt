@@ -1,0 +1,4 @@
+Vercel preview deployment trigger
+Source commit: f06566334ccbf921fafa3a8da6d7231c0ec99889
+Requested: 2026-07-16T19:48:00-03:00
+Purpose: re-emit the preview push without changing index.html.
