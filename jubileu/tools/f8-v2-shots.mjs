@@ -13,6 +13,9 @@ const url = process.env.F8_URL ?? 'http://127.0.0.1:3000/floor8.html';
 const out = process.env.F8_SHOT_DIR ?? '/tmp/f8-v2-shots';
 const stageFrames = Number(process.env.F8_STAGE_FRAMES ?? 30);
 const finalFrames = Number(process.env.F8_FINAL_FRAMES ?? 120);
+const onlyBoss = process.env.F8_ONLY_BOSS === '1';
+const skipCinematicShots = process.env.F8_SKIP_CINEMATIC_SHOTS === '1';
+const skipStateShots = process.env.F8_SKIP_STATE_SHOTS === '1';
 await mkdir(out, { recursive: true });
 
 const browser = await chromium.launch({
@@ -37,13 +40,31 @@ await page.waitForTimeout(650);
 await page.screenshot({ path: `${out}/00-yourself-intro.png` });
 await page.addStyleTag({ content: '[data-f8-intro]{display:none!important}' });
 
-const shots = [
+if (!skipCinematicShots) {
+    // A introdução da luta é um sistema diferente da abertura da memória: a
+    // simulação pausa, a câmera percorre a arena e dois atlases continuam vivos.
+    await page.evaluate(() => {
+        const d = window.__f8dbg; d.jumpMem(4); d.f8.phase = 'platformer'; d.bump();
+        const ui = window.__f8plat; ui.introRef.current = false;
+        d.p8.x = 15.15; d.p8.y = 0; d.p8.lastGroundX = 15.15; d.p8.lastGroundY = 0;
+        d.p8.boss.phase = 'mirror'; d.p8.boss.x = 43; d.p8.boss.introSeen = true;
+        ui.beginBossIntro();
+    });
+    for (const [wait, key] of [[850, '00a-boss-intro-player'], [2050, '00b-boss-intro-weaving'], [1800, '00c-boss-intro-mask'], [1150, '00d-boss-intro-title']]) {
+        await page.waitForTimeout(wait);
+        await page.screenshot({ path: `${out}/${key}.png` });
+    }
+    await page.evaluate(() => window.__f8plat?.finishBossIntro());
+}
+
+const allShots = [
     { i: 0, key: '01-quintal-gate', x: 36.2 },
     { i: 1, key: '02-escola-intrusive', x: 32.5 },
     { i: 2, key: '03-tempestade-readable', x: 38, patch: true },
     { i: 3, key: '04-hotel-echo', x: 54 },
     { i: 4, key: '05-yourself-boss', x: 27, boss: true },
 ];
+const shots = onlyBoss ? allShots.slice(-1) : allShots;
 
 const stageStats = {};
 for (const shot of shots) {
@@ -53,13 +74,17 @@ for (const shot of shots) {
         d.p8.x = x; d.p8.lastGroundX = x; d.p8.y = 0; d.p8.lastGroundY = 0;
         if (patch) d.p8.patch = { x: x + 2.5, y: 1.7, t: 10 };
         if (boss && d.p8.boss) {
-            d.p8.boss.phase = 'telegraph'; d.p8.boss.timer = 0.6;
+            d.p8.boss.phase = 'mirror'; d.p8.boss.timer = 0.6;
             d.p8.boss.x = 38; d.p8.boss.introSeen = true;
         }
     }, shot);
     await page.waitForTimeout(450);
     await page.evaluate(() => {
         if (window.__f8plat?.introRef) window.__f8plat.introRef.current = false;
+        if (window.__f8plat?.bossIntroRef) {
+            window.__f8plat.bossIntroRef.current.active = false;
+            window.__f8plat.bossIntroRef.current.seen = true;
+        }
     });
     await page.waitForTimeout(550);
     await page.screenshot({ path: `${out}/${shot.key}.png` });
@@ -85,10 +110,14 @@ const bossShots = [
     { key: '09-boss-isolamento-cocoon', attack: 'cocoon' },
     { key: '10-boss-costura-exposed', attack: 'exposed' },
 ];
-for (const shot of bossShots) {
+for (const shot of skipStateShots ? [] : bossShots) {
     await page.evaluate(({ attack }) => {
         const d = window.__f8dbg; d.jumpMem(4); d.f8.phase = 'platformer'; d.bump();
         if (window.__f8plat?.introRef) window.__f8plat.introRef.current = true;
+        if (window.__f8plat?.bossIntroRef) {
+            window.__f8plat.bossIntroRef.current.active = false;
+            window.__f8plat.bossIntroRef.current.seen = true;
+        }
         d.p8.x = 29; d.p8.y = 0; d.p8.lastGroundX = 29; d.p8.lastGroundY = 0;
         const b = d.p8.boss; b.x = 38; b.y = 0; b.introSeen = true; b.timer = 2;
         b.seams = attack === 'cocoon' ? 2 : attack === 'throw' ? 3 : attack === 'sweep' ? 4 : 5;
