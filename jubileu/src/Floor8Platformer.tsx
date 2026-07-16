@@ -5,7 +5,7 @@
  * leitura e para o jogo (herói, pontos, rasgos, inimigos e boss) é geometria
  * leve com silhueta própria. Sem post-processing pesado e sem sombras reais.
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
@@ -21,7 +21,18 @@ import bgHotel from './assets/f8/hotel.jpg';
 import bgYourselfFar from './assets/f8/yourself-parallax-far-v3.webp';
 import bgYourselfMid from './assets/f8/yourself-parallax-mid-v3.webp';
 import bgYourselfNear from './assets/f8/yourself-parallax-near-v3.webp';
+import bgYourselfMemories from './assets/f8/yourself-parallax-memories-v4.webp';
+import bgYourselfMechanisms from './assets/f8/yourself-parallax-mechanisms-v4.webp';
 import bossYourselfAtlas from './assets/f8/yourself-boss-atlas-v3.webp';
+import bossRevealAtlas from './assets/f8/yourself-boss-reveal-atlas-v4.webp';
+import travelerPlayerAtlas from './assets/f8/traveler-player-atlas-v4.webp';
+
+const BOSS_INTRO_DURATION = 7.2;
+interface BossIntroState {
+    active: boolean;
+    seen: boolean;
+    startedAt: number;
+}
 
 const BG_URLS: Record<string, string | undefined> = {
     quintal: bgQuintal, escola: bgEscola, tempestade: bgTempestade, hotel: bgHotel,
@@ -386,6 +397,76 @@ const CrochetPlayer: React.FC<{ kit: Kit }> = ({ kit }) => {
     return <group ref={g}><TravelerShell kit={kit} legL={legL} legR={legR} needle={needle} /></group>;
 };
 
+/**
+ * O viajante pintado pelo GPT Images: dezesseis poses em uma grade 4x4.
+ * A seleção de frame vem do estado real da simulação, então corrida, salto,
+ * fisgada, costura e reação à chegada do boss não são animações decorativas.
+ */
+const CrochetPlayerSprite: React.FC<{
+    kit: Kit;
+    bossIntroRef: React.MutableRefObject<BossIntroState>;
+}> = ({ kit, bossIntroRef }) => {
+    const root = useRef<THREE.Group>(null!);
+    const sprite = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
+    const lastFrame = useRef(-1);
+    const atlas = useMemo(() => {
+        const t = new THREE.TextureLoader().load(travelerPlayerAtlas);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+        t.generateMipmaps = false; t.repeat.set(0.2488, 0.2488);
+        return t;
+    }, []);
+    useEffect(() => () => atlas.dispose(), [atlas]);
+
+    const showFrame = (frame: number) => {
+        if (frame === lastFrame.current) return;
+        lastFrame.current = frame;
+        const col = frame % 4, row = Math.floor(frame / 4);
+        atlas.offset.set(col * 0.25 + 0.0006, 1 - (row + 1) * 0.25 + 0.0006);
+        atlas.needsUpdate = true;
+    };
+
+    useFrame(({ clock }) => {
+        const g = root.current; if (!g) return;
+        const cinematic = bossIntroRef.current;
+        const target = activeThreadTarget();
+        const moving = p8.onGround && Math.abs(p8.vx) > 0.42;
+        let frame = Math.floor(clock.elapsedTime * 1.75) % 2; // respiração
+        if (cinematic.active) {
+            const e = Math.max(0, performance.now() / 1000 - cinematic.startedAt);
+            frame = e < 2.25 ? 2 : 3; // percebe o fio, depois firma os dois braços
+        } else if (p8.stitchT > 0.02) {
+            frame = p8.stitchT > 0.13 ? 14 : 15;
+        } else if (target) {
+            frame = p8.tension > 0.48 ? 13 : 12;
+        } else if (!p8.onGround) {
+            frame = p8.vy > 2.1 ? 8 : p8.vy > -2.3 ? 9 : 10;
+        } else if (moving) {
+            frame = 4 + (Math.floor(p8.runPhase * 1.28) % 4);
+        } else if (Math.abs(p8.vy) > 0.2) frame = 11;
+        showFrame(frame);
+
+        g.position.set(p8.x, p8.y + 1.34, 0.58);
+        g.scale.set(p8.facing < 0 ? -1 : 1, 1, 1);
+        const aimTilt = target ? Math.atan2(target.y - (p8.y + 1), target.x - p8.x) * 0.055 : 0;
+        const breathing = cinematic.active ? 0 : Math.sin(clock.elapsedTime * 2.15) * 0.008;
+        g.rotation.z = THREE.MathUtils.lerp(g.rotation.z, aimTilt + breathing, 0.22);
+        g.visible = Math.floor(p8.invuln * 14) % 2 === 0;
+        if (sprite.current) sprite.current.material.opacity = cinematic.active ? 1 : 0.985;
+    });
+
+    return (
+        <group ref={root} name="traveler-image-sprite">
+            <mesh position={[0, -1.02, -0.04]} scale={[1.1, 0.2, 1]} material={kit.glow}><planeGeometry args={[1.4, 1]} /></mesh>
+            <mesh ref={sprite} renderOrder={6}>
+                <planeGeometry args={[2.88, 2.88]} />
+                <meshBasicMaterial map={atlas} transparent alphaTest={0.028} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
+            </mesh>
+        </group>
+    );
+};
+
 const LiveThread: React.FC<{ kit: Kit }> = ({ kit }) => {
     const line = useRef<THREE.Mesh>(null!); const glow = useRef<THREE.Mesh>(null!);
     useFrame(() => {
@@ -595,11 +676,14 @@ const BossActor: React.FC<{ kit: Kit }> = ({ kit }) => {
  * parallax. A geometria antiga fica acima apenas como referência de autoria,
  * mas não é montada na cena.
  */
-const BossSpriteActor: React.FC<{ kit: Kit }> = ({ kit }) => {
+const BossSpriteActor: React.FC<{
+    kit: Kit;
+    bossIntroRef: React.MutableRefObject<BossIntroState>;
+}> = ({ kit, bossIntroRef }) => {
     const root = useRef<THREE.Group>(null!);
     const sprite = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
     const halo = useRef<THREE.Group>(null!);
-    const lastFrame = useRef(-1);
+    const lastVisual = useRef('');
     const atlas = useMemo(() => {
         const t = new THREE.TextureLoader().load(bossYourselfAtlas);
         t.colorSpace = THREE.SRGBColorSpace;
@@ -610,14 +694,24 @@ const BossSpriteActor: React.FC<{ kit: Kit }> = ({ kit }) => {
         t.repeat.set(0.2486, 0.4977);
         return t;
     }, []);
-    useEffect(() => () => atlas.dispose(), [atlas]);
+    const revealAtlas = useMemo(() => {
+        const t = new THREE.TextureLoader().load(bossRevealAtlas);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+        t.generateMipmaps = false; t.repeat.set(0.2486, 0.4977);
+        return t;
+    }, []);
+    useEffect(() => () => { atlas.dispose(); revealAtlas.dispose(); }, [atlas, revealAtlas]);
 
-    const showFrame = (frame: number) => {
-        if (frame === lastFrame.current) return;
-        lastFrame.current = frame;
+    const showFrame = (map: THREE.Texture, frame: number, key: string) => {
+        const visual = `${key}:${frame}`;
+        if (visual === lastVisual.current) return;
+        lastVisual.current = visual;
         const col = frame % 4, row = Math.floor(frame / 4);
-        atlas.offset.set(col * 0.25 + 0.0007, 1 - (row + 1) * 0.5 + 0.00115);
-        atlas.needsUpdate = true;
+        map.offset.set(col * 0.25 + 0.0007, 1 - (row + 1) * 0.5 + 0.00115);
+        map.needsUpdate = true;
+        if (sprite.current) { sprite.current.material.map = map; sprite.current.material.needsUpdate = true; }
     };
 
     useFrame(({ clock }) => {
@@ -627,20 +721,30 @@ const BossSpriteActor: React.FC<{ kit: Kit }> = ({ kit }) => {
         if (!g.visible) return;
 
         const t = clock.elapsedTime, attack = b.phase === 'attack' ? b.attack : null;
+        const cinematic = bossIntroRef.current;
+        const introElapsed = cinematic.active ? Math.max(0, performance.now() / 1000 - cinematic.startedAt) : 0;
         let frame = Math.floor(t * 2.15) % 2; // duas poses de respiração
-        if (attack === 'slam') frame = b.atkT < (b.seams <= 1 ? 0.42 : 0.7) ? 2 : 3;
-        else if (attack === 'sweep') frame = 4;
-        else if (attack === 'throw') frame = 5;
-        else if (attack === 'cocoon' || b.shield) frame = 6;
-        else if (b.phase === 'exposed' || b.phase === 'bound' || b.hurtT > 0) frame = 7;
-        showFrame(frame);
+        if (cinematic.active) {
+            const revealProgress = THREE.MathUtils.clamp((introElapsed - 0.72) / 4.65, 0, 0.999);
+            frame = Math.floor(revealProgress * 8);
+            showFrame(revealAtlas, frame, 'reveal');
+        } else {
+            if (attack === 'slam') frame = b.atkT < (b.seams <= 1 ? 0.42 : 0.7) ? 2 : 3;
+            else if (attack === 'sweep') frame = 4;
+            else if (attack === 'throw') frame = 5;
+            else if (attack === 'cocoon' || b.shield) frame = 6;
+            else if (b.phase === 'exposed' || b.phase === 'bound' || b.hurtT > 0) frame = 7;
+            showFrame(atlas, frame, 'fight');
+        }
 
         g.position.set(b.x, b.y + 2.72, 0.48);
-        const attackPulse = attack ? 1 + Math.sin(t * 13) * 0.018 : 1;
+        const attackPulse = attack && !cinematic.active ? 1 + Math.sin(t * 13) * 0.018 : 1;
         const hurtPulse = b.hurtT > 0 ? 1 - Math.sin(b.hurtT * 30) * 0.055 : 1;
         const panic = b.seams <= 1 ? 1 + Math.sin(t * 31) * 0.012 : 1;
-        g.scale.set(attackPulse * hurtPulse * panic, attackPulse * hurtPulse, 1);
-        g.rotation.z = b.phase === 'bound' ? Math.sin(t * 19) * 0.045 : Math.sin(t * 1.1) * 0.007;
+        const form = cinematic.active ? 0.92 + THREE.MathUtils.smoothstep(introElapsed, 0.55, 5.2) * 0.08 : 1;
+        g.scale.set(attackPulse * hurtPulse * panic * form, attackPulse * hurtPulse * form, 1);
+        g.rotation.z = cinematic.active ? Math.sin(introElapsed * 8) * Math.max(0, 0.018 - introElapsed * 0.0025)
+            : b.phase === 'bound' ? Math.sin(t * 19) * 0.045 : Math.sin(t * 1.1) * 0.007;
         if (sprite.current) {
             sprite.current.material.opacity = b.hurtT > 0 && Math.sin(t * 28) > 0.2 ? 0.58 : 1;
         }
@@ -825,11 +929,15 @@ const Rain: React.FC<{ endX: number }> = ({ endX }) => {
  * própria. O fundo quase acompanha; as bordas próximas ficam para trás e
  * atravessam o quadro mais depressa.
  */
-const YourselfParallax: React.FC = () => {
+const YourselfParallax: React.FC<{
+    bossIntroRef: React.MutableRefObject<BossIntroState>;
+}> = ({ bossIntroRef }) => {
     const cam = useThree((s) => s.camera);
     const far = useRef<THREE.Mesh>(null!); const mid = useRef<THREE.Mesh>(null!); const near = useRef<THREE.Mesh>(null!);
+    const memories = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
+    const mechanisms = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
     const motes = useRef<THREE.Points>(null!);
-    const textures = useMemo(() => [bgYourselfFar, bgYourselfMid, bgYourselfNear].map((url, i) => {
+    const textures = useMemo(() => [bgYourselfFar, bgYourselfMid, bgYourselfMemories, bgYourselfNear, bgYourselfMechanisms].map((url, i) => {
         const t = new THREE.TextureLoader().load(url);
         t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
         t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
@@ -847,7 +955,17 @@ const YourselfParallax: React.FC = () => {
     useEffect(() => () => { geo.dispose(); mat.dispose(); textures.forEach((t) => t.dispose()); }, [geo, mat, textures]);
     useFrame(({ clock }) => {
         const t = clock.elapsedTime;
+        const intro = bossIntroRef.current;
+        const introT = intro.active ? Math.max(0, performance.now() / 1000 - intro.startedAt) : 0;
+        const pulse = intro.active ? THREE.MathUtils.smoothstep(introT, 0.4, 4.9) : 0;
         if (far.current) far.current.position.set(cam.position.x * 0.985, cam.position.y * 0.12 + 2.42, -17);
+        if (memories.current) {
+            memories.current.position.set(cam.position.x * 0.962, cam.position.y * 0.09 + 2.48 + Math.sin(t * 0.16) * 0.07, -13.3);
+            memories.current.rotation.z = Math.sin(t * 0.1) * 0.0028;
+            memories.current.material.opacity = 0.49 + pulse * 0.32 + Math.sin(t * 0.22) * 0.035;
+            const breathe = 1 + pulse * 0.018 + Math.sin(t * 0.12) * 0.004;
+            memories.current.scale.set(breathe, breathe, 1);
+        }
         if (mid.current) {
             mid.current.position.set(cam.position.x * 0.93, cam.position.y * 0.06 + 2.5 + Math.sin(t * 0.18) * 0.06, -10.5);
             mid.current.rotation.z = Math.sin(t * 0.13) * 0.0025;
@@ -855,6 +973,11 @@ const YourselfParallax: React.FC = () => {
         if (near.current) {
             near.current.position.set(cam.position.x * 0.83, cam.position.y * -0.035 + 2.62 + Math.sin(t * 0.24) * 0.08, 4.7);
             near.current.rotation.z = Math.sin(t * 0.1) * 0.0035;
+        }
+        if (mechanisms.current) {
+            mechanisms.current.position.set(cam.position.x * 0.73, cam.position.y * -0.08 + 2.72 + Math.sin(t * 0.31) * 0.12, 6.1);
+            mechanisms.current.rotation.z = Math.sin(t * 0.17) * (0.004 + pulse * 0.005);
+            mechanisms.current.material.opacity = 0.62 + pulse * 0.2;
         }
         if (motes.current) { motes.current.position.y = Math.sin(t * 0.16) * 0.35; motes.current.rotation.z = Math.sin(t * 0.09) * 0.008; }
     });
@@ -864,6 +987,10 @@ const YourselfParallax: React.FC = () => {
                 <planeGeometry args={[36.5, 20.54]} />
                 <meshBasicMaterial map={textures[0]} depthWrite={false} fog={false} />
             </mesh>
+            <mesh ref={memories} name="parallax-memories" renderOrder={-25}>
+                <planeGeometry args={[40, 22.5]} />
+                <meshBasicMaterial map={textures[2]} transparent opacity={0.52} alphaTest={0.012} depthWrite={false} fog={false} />
+            </mesh>
             <mesh ref={mid} name="parallax-mid" renderOrder={-20}>
                 <planeGeometry args={[42.5, 23.91]} />
                 <meshBasicMaterial map={textures[1]} transparent alphaTest={0.018} depthWrite={false} fog={false} />
@@ -871,7 +998,11 @@ const YourselfParallax: React.FC = () => {
             <points ref={motes} geometry={geo} material={mat} />
             <mesh ref={near} name="parallax-near" renderOrder={20}>
                 <planeGeometry args={[52, 29.25]} />
-                <meshBasicMaterial map={textures[2]} transparent alphaTest={0.018} depthWrite={false} depthTest={false} fog={false} />
+                <meshBasicMaterial map={textures[3]} transparent alphaTest={0.018} depthWrite={false} depthTest={false} fog={false} />
+            </mesh>
+            <mesh ref={mechanisms} name="parallax-mechanisms" renderOrder={2}>
+                <planeGeometry args={[56, 31.5]} />
+                <meshBasicMaterial map={textures[4]} transparent opacity={0.64} alphaTest={0.012} depthWrite={false} depthTest={false} fog={false} />
             </mesh>
         </>
     );
@@ -881,29 +1012,74 @@ const Scene: React.FC<{
     moveRef: React.MutableRefObject<number>; vertRef: React.MutableRefObject<number>;
     jumpRef: React.MutableRefObject<boolean>; grappleRef: React.MutableRefObject<boolean>;
     stitchRef: React.MutableRefObject<boolean>; introRef: React.MutableRefObject<boolean>;
-}> = ({ moveRef, vertRef, jumpRef, grappleRef, stitchRef, introRef }) => {
-    const cam = useThree((s) => s.camera), scene = useThree((s) => s.scene);
+    bossIntroRef: React.MutableRefObject<BossIntroState>; onBossIntro: () => void;
+}> = ({ moveRef, vertRef, jumpRef, grappleRef, stitchRef, introRef, bossIntroRef, onBossIntro }) => {
+    const cam = useThree((s) => s.camera), scene = useThree((s) => s.scene), size = useThree((s) => s.size), setDpr = useThree((s) => s.setDpr);
     const sky = useRef<THREE.Group>(null!); const fg = useRef<THREE.Group>(null!); const flash = useRef<THREE.AmbientLight>(null!); const nextBolt = useRef(4);
     const bossLight = useRef<THREE.PointLight>(null!);
+    const quality = useRef({ sum: 0, frames: 0, dpr: 0.68 });
     const mem = curMem(), kit = makeKit(mem), lift = BG_LIFT[mem.key] ?? BG_LIFT.hotel;
     useEffect(() => {
         scene.fog = new THREE.Fog(mem.pal.fog, mem.key === 'yourself' ? 26 : 22, 58);
         return () => { scene.fog = null; };
     }, [scene, mem.key, mem.pal.fog]);
+    useEffect(() => {
+        const cap = mem.key === 'yourself' ? 0.68 : 1.2;
+        quality.current = { sum: 0, frames: 0, dpr: Math.min(window.devicePixelRatio || 1, cap) };
+        setDpr(quality.current.dpr);
+    }, [mem.key, setDpr]);
     useFrame(({ clock }, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
-        if (f8.phase === 'platformer' && !introRef.current) {
+        if (mem.key === 'yourself') {
+            const q = quality.current; q.sum += rawDt; q.frames++;
+            if (q.sum >= 1.35 && q.frames >= 18) {
+                const avg = q.sum / q.frames;
+                if (avg > 1 / 34 && q.dpr > 0.48) { q.dpr = Math.max(0.48, q.dpr - 0.055); setDpr(q.dpr); }
+                else if (avg < 1 / 52 && q.dpr < 0.68) { q.dpr = Math.min(0.68, q.dpr + 0.035); setDpr(q.dpr); }
+                q.sum = 0; q.frames = 0;
+            }
+        }
+        if (f8.phase === 'platformer' && !introRef.current && !bossIntroRef.current.active) {
             const ev = stepPlayer({ move: moveRef.current, vert: vertRef.current, jump: jumpRef.current, grapple: grappleRef.current, stitch: stitchRef.current }, dt);
             jumpRef.current = false; stitchRef.current = false;
             if (ev.stomped || ev.unravelled) f8Sting('stomp');
-            if (ev.beat || ev.bossSeam) f8Sting('beat');
+            const awakened = mem.key === 'yourself' && p8.boss?.phase === 'mirror' && p8.boss.introSeen && !bossIntroRef.current.seen;
+            if (awakened) onBossIntro();
+            else if (ev.beat || ev.bossSeam) f8Sting('beat');
             if (ev.won) { f8Sting('win'); f8MusicStop(2.4); }
         }
-        const bossFocus = mem.key === 'yourself' && p8.x > 15 ? 1.5 : 2.8;
-        const tx = Math.max(2, Math.min(mem.endX - 6, p8.x + bossFocus));
-        cam.position.x += (tx - cam.position.x) * Math.min(1, dt * 4.3);
-        const ty = 2.75 + Math.max(0, p8.y) * 0.36;
-        cam.position.y += (ty - cam.position.y) * Math.min(1, dt * 3.4);
+        const cinematic = bossIntroRef.current;
+        const ortho = cam as THREE.OrthographicCamera;
+        let tx: number, ty: number, wantedZoom: number;
+        if (cinematic.active && p8.boss) {
+            const e = Math.max(0, performance.now() / 1000 - cinematic.startedAt);
+            const playerX = p8.x + 1.2, bossX = p8.boss.x - 0.8;
+            const closeZoom = THREE.MathUtils.clamp(size.width / 12.8, 38, 68);
+            const wideZoom = THREE.MathUtils.clamp(size.width / 35.5, 20, 48);
+            if (e < 1.15) {
+                tx = playerX; ty = p8.y + 2.0; wantedZoom = closeZoom;
+            } else if (e < 4.65) {
+                const k0 = THREE.MathUtils.clamp((e - 1.15) / 3.5, 0, 1), k = k0 * k0 * (3 - 2 * k0);
+                tx = THREE.MathUtils.lerp(playerX, bossX, k); ty = THREE.MathUtils.lerp(p8.y + 2.0, p8.boss.y + 2.7, k);
+                wantedZoom = closeZoom;
+            } else {
+                const k0 = THREE.MathUtils.clamp((e - 4.65) / 1.65, 0, 1), k = k0 * k0 * (3 - 2 * k0);
+                tx = THREE.MathUtils.lerp(bossX, (p8.x + p8.boss.x) * 0.5, k);
+                ty = THREE.MathUtils.lerp(p8.boss.y + 2.7, 2.6, k);
+                wantedZoom = THREE.MathUtils.lerp(closeZoom, wideZoom, k);
+            }
+            // O encaixe da máscara dá um pequeno tranco de câmera, sem pós-processamento caro.
+            const snap = Math.max(0, 1 - Math.abs(e - 4.93) / 0.34);
+            tx += Math.sin(e * 82) * 0.18 * snap; ty += Math.cos(e * 67) * 0.11 * snap;
+        } else {
+            const bossFocus = mem.key === 'yourself' && p8.x > 15 ? 1.5 : 2.8;
+            tx = Math.max(2, Math.min(mem.endX - 6, p8.x + bossFocus));
+            ty = 2.75 + Math.max(0, p8.y) * 0.36;
+            wantedZoom = 58;
+        }
+        cam.position.x += (tx - cam.position.x) * Math.min(1, dt * (cinematic.active ? 5.2 : 4.3));
+        cam.position.y += (ty - cam.position.y) * Math.min(1, dt * (cinematic.active ? 4.8 : 3.4));
+        ortho.zoom += (wantedZoom - ortho.zoom) * Math.min(1, dt * 4.8); ortho.updateProjectionMatrix();
         cam.position.z = 14; cam.rotation.set(0, 0, 0); cam.lookAt(cam.position.x, cam.position.y, 0);
         if (sky.current) sky.current.position.set(cam.position.x * 0.925, cam.position.y * 0.24 + 2.25, -16);
         if (fg.current) fg.current.position.set(cam.position.x * -0.13, -1.15, 4.6);
@@ -933,7 +1109,7 @@ const Scene: React.FC<{
             </group>}
             {mem.key !== 'yourself' && <group ref={fg}><mesh material={kit.fg}><planeGeometry args={[36, 4.5]} /></mesh></group>}
             {mem.key === 'tempestade' && <Rain endX={mem.endX} />}
-            {mem.key === 'yourself' && <YourselfParallax />}
+            {mem.key === 'yourself' && <YourselfParallax bossIntroRef={bossIntroRef} />}
             {mem.ledges.map((l, i) => <YarnLedge key={`${mem.key}-l${i}`} l={l} kit={kit} />)}
             {mem.anchors.map((a, i) => <Anchor key={`${mem.key}-a${i}`} a={a} i={i} kit={kit} />)}
             {mem.hazards.map((h, i) => <BlackThread key={`${mem.key}-h${i}`} h={h} kit={kit} />)}
@@ -941,9 +1117,9 @@ const Scene: React.FC<{
             {mem.enemies.map((e, i) => <EnemyActor key={`${mem.key}-e${i}`} i={i} kind={e.kind ?? 'knotling'} kit={kit} />)}
             {mem.spools.map((s, i) => <Spool key={`${mem.key}-s${i}`} s={s} i={i} kit={kit} />)}
             <PatchActor kit={kit} />
-            <BossSpriteActor kit={kit} />
+            <BossSpriteActor kit={kit} bossIntroRef={bossIntroRef} />
             {mem.boss && <BossFX kit={kit} />}
-            <CrochetPlayer kit={kit} />
+            <CrochetPlayerSprite kit={kit} bossIntroRef={bossIntroRef} />
             <LiveThread kit={kit} />
         </>
     );
@@ -961,6 +1137,20 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
     const moveRef = useRef(0), vertRef = useRef(0); const jumpRef = useRef(false), grappleRef = useRef(false), stitchRef = useRef(false);
     const introRef = useRef(true), keys = useRef<Record<string, boolean>>({}), touchMove = useRef(0);
     const [introKey, setIntroKey] = useState(-1); const lastMem = useRef(-1);
+    const bossIntroRef = useRef<BossIntroState>({ active: false, seen: false, startedAt: 0 });
+    const [bossIntroKey, setBossIntroKey] = useState(0);
+    const beginBossIntro = useCallback(() => {
+        const s = bossIntroRef.current; if (s.active || s.seen) return;
+        s.active = true; s.seen = true; s.startedAt = performance.now() / 1000;
+        p8.vx = 0; p8.vy = 0; p8.y = 0; p8.onGround = true; p8.lastGroundX = p8.x; p8.lastGroundY = 0;
+        jumpRef.current = false; grappleRef.current = false; stitchRef.current = false;
+        f8Sting('beat'); setBossIntroKey(Date.now());
+    }, []);
+    const finishBossIntro = useCallback(() => {
+        const s = bossIntroRef.current; s.active = false;
+        if (p8.boss?.phase === 'mirror') p8.boss.timer = Math.max(p8.boss.timer, 1.8);
+        f8Sting('stomp'); setBossIntroKey(0); setV((v) => v + 1);
+    }, []);
     // a MORTE na luta: quando p8.deaths sobe, a tela se desfia e a batalha recomeça
     const lastDeaths = useRef(p8.deaths);
     const [deathKey, setDeathKey] = useState(0);
@@ -971,13 +1161,21 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
         const bump = () => setV((v) => v + 1), offF8 = f8Subscribe(bump), offP8 = p8Subscribe(bump);
         return () => { offF8(); offP8(); };
     }, []);
-    useEffect(() => { if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8plat = { p8, reset: p8Reset, introRef }; }, []);
+    useEffect(() => { if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f8plat = { p8, reset: p8Reset, introRef, bossIntroRef, beginBossIntro, finishBossIntro }; }, [beginBossIntro, finishBossIntro]);
     const activePhase = f8.phase === 'platformer' || f8.phase === 'memoriaRecuperada';
     useEffect(() => {
         if (!activePhase) { lastMem.current = -1; return; }
         if (p8.memIdx === lastMem.current) return;
-        lastMem.current = p8.memIdx; introRef.current = true; setIntroKey(p8.memIdx); f8MusicStart(curMem().key);
+        lastMem.current = p8.memIdx; introRef.current = true; setIntroKey(p8.memIdx);
+        bossIntroRef.current = { active: false, seen: false, startedAt: 0 }; setBossIntroKey(0);
+        f8MusicStart(curMem().key);
     });
+    useEffect(() => {
+        if (!bossIntroKey) return;
+        const maskSnap = window.setTimeout(() => f8Sting('stomp'), 4880);
+        const eyeOpen = window.setTimeout(() => f8Sting('beat'), 5380);
+        return () => { window.clearTimeout(maskSnap); window.clearTimeout(eyeOpen); };
+    }, [bossIntroKey]);
     useEffect(() => { if (activePhase) return () => f8MusicStop(1); }, [activePhase]);
     useEffect(() => {
         const jump = (k: string) => k === ' ' || k === 'w';
@@ -1010,6 +1208,7 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
         onPointerUp: off, onPointerLeave: off, onPointerCancel: off,
     });
     const bossActive = !!p8.boss && p8.boss.phase !== 'dormant';
+    const bossIntroActive = bossIntroKey > 0;
     const seamNames = ['VERGONHA', 'CONTROLE', 'RUMINAÇÃO', 'ISOLAMENTO', 'MEDO'];
     const bz = p8.boss;
     const bossCue: { name: string; action: string; response: string; color: string; soft: string } | null = bz?.phase === 'attack' ? (
@@ -1025,12 +1224,29 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
         : null;
     return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 56, background: pal.bgLo, touchAction: 'none', overflow: 'hidden' }}>
-            <Canvas orthographic dpr={mem.key === 'yourself' ? [0.65, 0.82] : [0.75, 1.2]} camera={{ position: [2, 2.75, 14], zoom: 58, near: 0.1, far: 120 }} gl={{ antialias: false, powerPreference: 'high-performance', alpha: false }}>
-                <Scene moveRef={moveRef} vertRef={vertRef} jumpRef={jumpRef} grappleRef={grappleRef} stitchRef={stitchRef} introRef={introRef} />
+            <Canvas orthographic dpr={mem.key === 'yourself' ? [0.55, 0.68] : [0.75, 1.2]} camera={{ position: [2, 2.75, 14], zoom: 58, near: 0.1, far: 120 }} gl={{ antialias: false, powerPreference: 'high-performance', alpha: false }}>
+                <Scene moveRef={moveRef} vertRef={vertRef} jumpRef={jumpRef} grappleRef={grappleRef} stitchRef={stitchRef} introRef={introRef} bossIntroRef={bossIntroRef} onBossIntro={beginBossIntro} />
             </Canvas>
             <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 45%,transparent 58%,rgba(3,2,7,.28) 100%)' }} />
             <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'soft-light', opacity: 0.028, backgroundImage: 'repeating-linear-gradient(0deg,#fff 0 1px,#000 1px 3px)' }} />
-            {bossActive && bossCue && <div data-f8-attack-vignette style={{ position: 'absolute', inset: 0, pointerEvents: 'none', boxShadow: `inset 0 0 150px ${bossCue.soft}`, transition: 'box-shadow .24s ease' }} />}
+            {bossIntroActive && (
+                <div data-f8-boss-cutscene key={bossIntroKey} style={{ position: 'absolute', inset: 0, zIndex: 18, pointerEvents: 'none', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 72% 48%,rgba(177,31,63,.16),transparent 32%),linear-gradient(90deg,rgba(0,0,0,.25),transparent 32%,transparent 67%,rgba(0,0,0,.45))', animation: 'f8BossGrade 7.2s ease both' }} />
+                    {Array.from({ length: 7 }, (_, i) => <i key={i} style={{ position: 'absolute', left: `${10 + i * 13.2}%`, top: '-18%', width: 1 + (i % 3), height: '136%', background: i % 2 ? 'rgba(242,174,153,.24)' : 'rgba(179,32,68,.34)', boxShadow: '0 0 12px rgba(222,49,83,.35)', transformOrigin: 'top', animation: `f8BossThread ${1.5 + i * 0.11}s ${0.25 + i * 0.09}s cubic-bezier(.2,.8,.2,1) both` }} />)}
+                    <div style={{ position: 'absolute', inset: '-30%', background: 'radial-gradient(circle,rgba(255,225,196,.82) 0,rgba(230,54,85,.26) 9%,transparent 25%)', opacity: 0, animation: 'f8BossSnap 7.2s linear both' }} />
+                    <div style={{ position: 'absolute', left: '7%', right: '7%', bottom: '21%', textAlign: 'center', color: '#e6c8c0', font: 'italic clamp(13px,2.4vw,19px)/1.4 Georgia,serif', letterSpacing: 1.2, textShadow: '0 3px 14px #000', animation: 'f8BossLineOne 7.2s ease both' }}>O fio à frente se move sem mãos.</div>
+                    <div style={{ position: 'absolute', left: '7%', right: '7%', bottom: '21%', textAlign: 'center', color: '#f0d4cb', font: 'italic clamp(13px,2.4vw,19px)/1.4 Georgia,serif', letterSpacing: 1.2, textShadow: '0 3px 14px #000', animation: 'f8BossLineTwo 7.2s ease both' }}>Não era algo esperando no fim.</div>
+                    <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', alignContent: 'center', textAlign: 'center', animation: 'f8BossTitle 7.2s cubic-bezier(.2,.8,.2,1) both' }}>
+                        <div style={{ color: '#a97b80', font: '9px/1.2 monospace', letterSpacing: 'clamp(3px,1.2vw,9px)', marginBottom: 10 }}>A QUINTA LEMBRANÇA NÃO TEM SAÍDA</div>
+                        <div style={{ color: '#f4d3cc', font: '600 clamp(48px,13vw,126px)/.82 Georgia,serif', letterSpacing: 'clamp(5px,2vw,22px)', textShadow: '0 0 8px #fff2da,0 0 28px #d52f55,0 0 90px #6f102d' }}>YOURSELF</div>
+                        <div style={{ color: '#d9aeb0', font: '10px/1.2 monospace', letterSpacing: 'clamp(2px,.8vw,6px)', marginTop: 20 }}>VOCÊ NÃO ENTROU NA ARENA · ELA LEMBROU DE VOCÊ</div>
+                    </div>
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '12.5%', background: 'linear-gradient(#000 70%,rgba(0,0,0,.92))', boxShadow: '0 8px 30px #000', animation: 'f8BossBarTop 7.2s ease both' }} />
+                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '12.5%', background: 'linear-gradient(rgba(0,0,0,.92),#000 30%)', boxShadow: '0 -8px 30px #000', animation: 'f8BossBarBot 7.2s ease both' }} />
+                    <div onAnimationEnd={finishBossIntro} style={{ position: 'absolute', width: 1, height: 1, opacity: 0, animation: `f8BossTimer ${BOSS_INTRO_DURATION}s linear both` }} />
+                </div>
+            )}
+            {!bossIntroActive && bossActive && bossCue && <div data-f8-attack-vignette style={{ position: 'absolute', inset: 0, pointerEvents: 'none', boxShadow: `inset 0 0 150px ${bossCue.soft}`, transition: 'box-shadow .24s ease' }} />}
 
             {introKey >= 0 && (
                 <div data-f8-intro key={introKey} style={{ position: 'absolute', inset: 0, zIndex: 8, pointerEvents: 'none' }}>
@@ -1059,7 +1275,7 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
                 </div>
             )}
 
-            {!won && (
+            {!won && !bossIntroActive && (
                 <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top) + 12px)', left: 12, right: 12, color: '#fff', textAlign: 'center', textShadow: '0 2px 10px #000', pointerEvents: 'none' }}>
                     <div style={{ font: '600 13px/1.2 Georgia,serif', letterSpacing: bossActive ? 2 : 2.4 }}>{p8Objective()}</div>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: 12, alignItems: 'center', marginTop: 7, font: '10px monospace' }}>
@@ -1074,7 +1290,7 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
                 </div>
             )}
 
-            {bossCue && !won && <div style={{ position: 'absolute', top: 88, left: 12, right: 12, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+            {bossCue && !won && !bossIntroActive && <div style={{ position: 'absolute', top: 88, left: 12, right: 12, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
                 <div style={{ minWidth: 'min(92vw,340px)', maxWidth: 520, padding: '8px 16px 9px', textAlign: 'center', color: bossCue.color, borderStyle: 'solid', borderColor: `${bossCue.color}88`, borderTopWidth: 1, borderBottomWidth: 1, borderLeftWidth: 4, borderRightWidth: 4, background: 'linear-gradient(90deg,rgba(8,4,9,.52),rgba(14,7,13,.9),rgba(8,4,9,.52))', boxShadow: `0 0 32px ${bossCue.soft},inset 0 0 22px ${bossCue.soft}`, clipPath: 'polygon(10px 0,calc(100% - 10px) 0,100% 50%,calc(100% - 10px) 100%,10px 100%,0 50%)' }}>
                     <div style={{ font: '700 10px/1.1 monospace', letterSpacing: 2.2 }}>{bossCue.name}</div>
                     <div style={{ marginTop: 3, color: '#ead9d3', font: 'italic 12px/1.2 Georgia,serif' }}>{bossCue.action}</div>
@@ -1094,7 +1310,7 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
 
             {p8.beatText && !won && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 148, padding: '0 28px', textAlign: 'center', pointerEvents: 'none' }}><span style={{ display: 'inline-block', maxWidth: 680, padding: '8px 14px', borderRadius: 3, background: 'linear-gradient(90deg,transparent,rgba(8,5,12,.58),transparent)', color: '#fff', font: 'italic 16px/1.5 Georgia,serif', textShadow: '0 2px 12px #000', animation: 'f8beatIn .45s ease' }}>{p8.beatText}</span></div>}
 
-            {!won && (
+            {!won && !bossIntroActive && (
                 <>
                     <div style={{ position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 20px)', left: 16, display: 'flex', gap: 9 }}>
                         <button aria-label="Mover para esquerda" {...hold(() => { touchMove.current = -1; }, () => { touchMove.current = 0; })} style={btn}>◀</button>
@@ -1130,6 +1346,15 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
                 @keyframes f8bossName{from{filter:blur(0);transform:scale(1)}to{filter:blur(.45px);transform:scale(1.018)}}
                 @keyframes f8blinkTop{0%,64%{transform:scaleY(0)}74%,82%{transform:scaleY(1)}100%{transform:scaleY(0)}}
                 @keyframes f8blinkBot{0%,64%{transform:scaleY(0)}74%,82%{transform:scaleY(1)}100%{transform:scaleY(0)}}
+                @keyframes f8BossTimer{from{transform:translateX(0)}to{transform:translateX(1px)}}
+                @keyframes f8BossGrade{0%{opacity:0;filter:saturate(.65)}10%,88%{opacity:1;filter:saturate(1)}100%{opacity:0;filter:saturate(.8)}}
+                @keyframes f8BossThread{0%{transform:translateY(-100%) scaleY(.2);opacity:0}30%{opacity:.85}72%{transform:translateY(0) scaleY(1);opacity:.56}100%{transform:translateY(13%) scaleY(1.08);opacity:0}}
+                @keyframes f8BossSnap{0%,66%{opacity:0;transform:scale(.55)}68%{opacity:.9;transform:scale(1)}72%,100%{opacity:0;transform:scale(1.35)}}
+                @keyframes f8BossLineOne{0%,7%{opacity:0;transform:translateY(8px);filter:blur(4px)}12%,25%{opacity:1;transform:none;filter:blur(0)}31%,100%{opacity:0;transform:translateY(-5px);filter:blur(2px)}}
+                @keyframes f8BossLineTwo{0%,31%{opacity:0;transform:translateY(8px);filter:blur(4px)}37%,50%{opacity:1;transform:none;filter:blur(0)}58%,100%{opacity:0;transform:translateY(-5px);filter:blur(2px)}}
+                @keyframes f8BossTitle{0%,63%{opacity:0;transform:scale(1.12);filter:blur(14px)}70%{opacity:1;transform:scale(1);filter:blur(0)}88%{opacity:1;transform:scale(1.012);filter:blur(0)}100%{opacity:0;transform:scale(1.035);filter:blur(3px)}}
+                @keyframes f8BossBarTop{0%{transform:translateY(-105%)}8%,91%{transform:none}100%{transform:translateY(-105%)}}
+                @keyframes f8BossBarBot{0%{transform:translateY(105%)}8%,91%{transform:none}100%{transform:translateY(105%)}}
                 @media(max-width:520px){button{user-select:none;-webkit-user-select:none}.f8-help{display:none}}
             `}</style>
         </div>
