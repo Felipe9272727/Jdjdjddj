@@ -84,6 +84,52 @@ const woodTex = colorTex(128, 256, (ctx) => {
     for (let i = 0; i < 22; i++) { const x = r() * 128; ctx.beginPath(); ctx.moveTo(x, 0); ctx.bezierCurveTo(x + (r() - 0.5) * 12, 85, x + (r() - 0.5) * 12, 170, x, 256); ctx.stroke(); }
 });
 
+// frente de FICHÁRIO: grade de gavetinhas com puxador de latão e porta-etiqueta
+const drawerGridTex = colorTex(128, 160, (ctx) => {
+    const r = rng(809);
+    ctx.fillStyle = '#3a2c1e'; ctx.fillRect(0, 0, 128, 160);
+    const cols = 4, rows = 5, cw = 128 / cols, chh = 160 / rows;
+    for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
+        const x = cx * cw + 2, y = cy * chh + 2, w = cw - 4, h = chh - 4;
+        ctx.fillStyle = `rgb(${74 + r() * 14},${56 + r() * 12},${38 + r() * 8})`;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = 'rgba(14,10,6,0.8)'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, h);
+        // porta-etiqueta + etiqueta
+        ctx.fillStyle = '#c9bd9a'; ctx.fillRect(x + w / 2 - 8, y + 4, 16, 7);
+        ctx.strokeStyle = '#8a6f3a'; ctx.lineWidth = 1; ctx.strokeRect(x + w / 2 - 8, y + 4, 16, 7);
+        // puxador de latão
+        ctx.fillStyle = '#b08d45';
+        ctx.beginPath(); ctx.arc(x + w / 2, y + h - 8, 3.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(40,26,8,0.6)';
+        ctx.beginPath(); ctx.arc(x + w / 2 + 1, y + h - 7, 1.3, 0, Math.PI * 2); ctx.fill();
+    }
+});
+const drawerMat = new THREE.MeshStandardMaterial({ map: drawerGridTex, roughness: 0.8 });
+
+// o TAPETE surrado sob a mesa (âncora de cor no centro da sala)
+const rugTex = colorTex(256, 192, (ctx) => {
+    const r = rng(810);
+    ctx.fillStyle = '#4a2226'; ctx.fillRect(0, 0, 256, 192);
+    ctx.strokeStyle = '#2a3438'; ctx.lineWidth = 10; ctx.strokeRect(10, 10, 236, 172);
+    ctx.strokeStyle = '#6a3a30'; ctx.lineWidth = 3; ctx.strokeRect(22, 22, 212, 148);
+    // losangos centrais desbotados
+    ctx.strokeStyle = 'rgba(140,110,80,0.5)'; ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+        const cx = 78 + i * 50;
+        ctx.beginPath(); ctx.moveTo(cx, 66); ctx.lineTo(cx + 24, 96); ctx.lineTo(cx, 126); ctx.lineTo(cx - 24, 96); ctx.closePath(); ctx.stroke();
+    }
+    // puimento/desgaste
+    for (let i = 0; i < 700; i++) {
+        ctx.fillStyle = `rgba(${20 + r() * 30},${14 + r() * 20},${10 + r() * 16},${0.06 + r() * 0.1})`;
+        ctx.fillRect(r() * 256, r() * 192, 1 + r() * 3, 1 + r() * 2);
+    }
+    // a trilha gasta na frente da cadeira do interrogado
+    const g = ctx.createRadialGradient(128, 150, 4, 128, 150, 60);
+    g.addColorStop(0, 'rgba(120,100,80,0.28)'); g.addColorStop(1, 'rgba(120,100,80,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 192);
+});
+const rugMat = new THREE.MeshStandardMaterial({ map: rugTex, roughness: 1 });
+
 const M8 = {
     concrete: new THREE.MeshStandardMaterial({ map: concreteTex, bumpMap: concreteBump, bumpScale: 0.04, roughness: 0.96, color: '#8a8272' }),
     floor: new THREE.MeshStandardMaterial({ map: concreteTex, bumpMap: concreteBump, bumpScale: 0.05, roughness: 1, color: '#6f6858' }),
@@ -93,13 +139,14 @@ const M8 = {
     boxOld: new THREE.MeshStandardMaterial({ map: boxTex, roughness: 0.95, color: '#8f7a58' }),
     boxDark: new THREE.MeshStandardMaterial({ map: boxTex, roughness: 0.97, color: '#6f5f46' }),
     boxRed: new THREE.MeshStandardMaterial({ map: boxTex, roughness: 0.93, color: '#9a6a50' }),
-    label: new THREE.MeshStandardMaterial({ map: labelTex, roughness: 0.96 }),
-    steel: new THREE.MeshStandardMaterial({ color: '#3a3a3e', roughness: 0.5, metalness: 0.7 }),
+    label: new THREE.MeshStandardMaterial({ map: labelTex, roughness: 0.96, side: THREE.DoubleSide }),
+    brassPipe: new THREE.MeshStandardMaterial({ color: '#8a6d38', roughness: 0.38, metalness: 0.75 }),
+    steel: new THREE.MeshStandardMaterial({ color: '#4a4a52', roughness: 0.5, metalness: 0.7 }),
     steelDk: new THREE.MeshStandardMaterial({ color: '#26262a', roughness: 0.6, metalness: 0.6 }),
     tableTop: new THREE.MeshStandardMaterial({ color: '#4a4034', roughness: 0.65, metalness: 0.15 }),
     shade: new THREE.MeshStandardMaterial({ color: '#1a1a17', roughness: 0.5, metalness: 0.4, side: THREE.DoubleSide }),
     mirror: new THREE.MeshStandardMaterial({ color: '#10131a', roughness: 0.12, metalness: 0.85 }),
-    paper: new THREE.MeshStandardMaterial({ color: '#d9cfb2', roughness: 0.95 }),
+    paper: new THREE.MeshStandardMaterial({ color: '#d9cfb2', roughness: 0.95, side: THREE.DoubleSide }),
     felt: new THREE.MeshStandardMaterial({ color: '#221d16', roughness: 1 }),
 };
 
@@ -218,6 +265,169 @@ const FloorClutter: React.FC = () => (
     </group>
 );
 
+/** FICHÁRIO de gavetinhas (card catalog) — o móvel que diz "arquivo". */
+const CardCatalog: React.FC<{ pos: [number, number, number]; rotY?: number; w?: number; h?: number }> =
+    ({ pos, rotY = 0, w = 0.78, h = 1.5 }) => (
+        <group position={pos} rotation={[0, rotY, 0]}>
+            <B a={[w, h, 0.44]} p={[0, h / 2 + 0.06, 0]} m={M8.wood} />
+            <mesh position={[0, h / 2 + 0.06, 0.222]} material={drawerMat}>
+                <planeGeometry args={[w - 0.05, h - 0.05]} />
+            </mesh>
+            <B a={[w + 0.06, 0.05, 0.5]} p={[0, h + 0.09, 0]} m={M8.wood} />
+            {/* pezinhos */}
+            <B a={[w - 0.1, 0.06, 0.36]} p={[0, 0.03, 0]} m={M8.steelDk} />
+            {/* uma gaveta entreaberta com fichas espiando */}
+            <B a={[w / 4 - 0.02, 0.06, 0.12]} p={[-w / 4 + w / 8, h * 0.62, 0.27]} m={M8.wood} />
+            <B a={[w / 4 - 0.06, 0.04, 0.09]} p={[-w / 4 + w / 8, h * 0.62 + 0.045, 0.26]} m={M8.paper} />
+        </group>
+    );
+
+/** O TUBO PNEUMÁTICO: por onde as fichas chegam ao arquivo. Um cano de latão
+ *  desce do teto até um terminal com bandeja de cápsulas ao lado da mesa. */
+const PneumaticTube: React.FC = () => (
+    <group position={[1.62, 0, -0.55]}>
+        {/* o cano desce do teto */}
+        <mesh position={[0, (H + 1.32) / 2, 0]} material={M8.brassPipe}>
+            <cylinderGeometry args={[0.05, 0.05, H - 1.32, 10]} />
+        </mesh>
+        {/* braçadeiras */}
+        {[1.7, 2.5].map((y) => (
+            <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={M8.steelDk}>
+                <torusGeometry args={[0.055, 0.012, 6, 12]} />
+            </mesh>
+        ))}
+        {/* o TERMINAL: caixa de latão com boca e alavanca */}
+        <B a={[0.26, 0.34, 0.2]} p={[0, 1.16, 0]} m={M8.brassPipe} />
+        <mesh position={[0, 1.02, 0.09]} rotation={[Math.PI / 2.6, 0, 0]} material={M8.steelDk}>
+            <cylinderGeometry args={[0.055, 0.07, 0.12, 10, 1, true]} />
+        </mesh>
+        <B a={[0.03, 0.12, 0.03]} p={[0.16, 1.2, 0]} m={M8.steel} r={[0, 0, -0.5]} />
+        {/* o pedestal */}
+        <B a={[0.1, 1.0, 0.1]} p={[0, 0.5, 0]} m={M8.steelDk} />
+        <B a={[0.3, 0.04, 0.3]} p={[0, 0.02, 0]} m={M8.steelDk} />
+        {/* a bandeja com cápsulas que já chegaram */}
+        <B a={[0.34, 0.03, 0.22]} p={[0.02, 0.86, 0.16]} m={M8.steelDk} />
+        {[[-0.07, 0.4], [0.06, -0.3], [0.13, 1.2]].map(([dx, rz], i) => (
+            <mesh key={i} position={[dx as number, 0.91, 0.16]} rotation={[Math.PI / 2, 0, rz as number]} material={M8.brassPipe}>
+                <capsuleGeometry args={[0.028, 0.09, 4, 8]} />
+            </mesh>
+        ))}
+    </group>
+);
+
+/** As JANELAS ALTAS gradeadas da parede norte: o arquivo continua além,
+ *  numa luz fria — a segunda cor da sala. */
+const Transom: React.FC<{ x: number }> = ({ x }) => (
+    <group position={[x, 2.52, -0.08]}>
+        {/* o vão escuro + o brilho frio lá dentro */}
+        <mesh position={[0, 0, 0]} rotation={[0, Math.PI, 0]}>
+            <planeGeometry args={[1.0, 0.44]} />
+            <meshStandardMaterial color="#0a1216" emissive="#5a92aa" emissiveIntensity={2.2} roughness={1} />
+        </mesh>
+        {/* silhuetas de estantes ao longe (planos escuros) */}
+        {[-0.3, 0.05, 0.38].map((dx) => (
+            <mesh key={dx} position={[dx, -0.04, -0.004]} rotation={[0, Math.PI, 0]}>
+                <planeGeometry args={[0.1, 0.36]} />
+                <meshBasicMaterial color="#060a0c" />
+            </mesh>
+        ))}
+        {/* moldura + grade */}
+        <B a={[1.08, 0.05, 0.05]} p={[0, 0.245, -0.02]} m={M8.steelDk} />
+        <B a={[1.08, 0.05, 0.05]} p={[0, -0.245, -0.02]} m={M8.steelDk} />
+        <B a={[0.05, 0.54, 0.05]} p={[-0.54, 0, -0.02]} m={M8.steelDk} />
+        <B a={[0.05, 0.54, 0.05]} p={[0.54, 0, -0.02]} m={M8.steelDk} />
+        {[-0.27, 0, 0.27].map((dx) => (
+            <mesh key={dx} position={[dx, 0, -0.035]} material={M8.steelDk}>
+                <cylinderGeometry args={[0.014, 0.014, 0.5, 6]} />
+            </mesh>
+        ))}
+    </group>
+);
+
+/** A LUMINÁRIA DE BANQUEIRO na mesa: a poça de luz verde (segunda cor quente).
+ *  Coordenadas locais do grupo da mesa (mesa em z=-1.6 no mundo). */
+const BankerLamp: React.FC = () => (
+    <group position={[-0.42, 1.0, 0.3]} rotation={[0, 0.5, 0]}>
+        <mesh material={M8.brassPipe}><cylinderGeometry args={[0.06, 0.075, 0.025, 12]} /></mesh>
+        <mesh position={[0, 0.11, 0]} material={M8.brassPipe}><cylinderGeometry args={[0.012, 0.012, 0.2, 8]} /></mesh>
+        {/* a cúpula de vidro verde (meia-cana) */}
+        <mesh position={[0, 0.22, 0.02]} rotation={[0.15, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.085, 0.085, 0.26, 12, 1, true, 0, Math.PI]} />
+            <meshStandardMaterial color="#1e4a30" emissive="#2f7a46" emissiveIntensity={0.55} roughness={0.3} metalness={0.2} side={THREE.DoubleSide} />
+        </mesh>
+        {/* o miolo aceso + a luz */}
+        <mesh position={[0, 0.19, 0.03]}><sphereGeometry args={[0.03, 8, 8]} /><meshBasicMaterial color="#eaffd8" /></mesh>
+        <pointLight position={[0, 0.16, 0.05]} distance={2.1} decay={2} color="#b8e8a0" intensity={4.5} />
+    </group>
+);
+
+/** Vigas do teto + cabos pendurados em catenária + conduítes. */
+const CeilingWork: React.FC = () => {
+    const cables = useMemo(() => {
+        const mk = (a: THREE.Vector3, b: THREE.Vector3, sag: number) => {
+            const mid = a.clone().lerp(b, 0.5); mid.y -= sag;
+            return new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(a, mid, b), 14, 0.012, 5);
+        };
+        return [
+            mk(new THREE.Vector3(-3.4, H - 0.16, -2.55), new THREE.Vector3(0.02, H - 0.62, -1.62), 0.35),
+            mk(new THREE.Vector3(0.02, H - 0.62, -1.62), new THREE.Vector3(3.4, H - 0.16, -2.55), 0.3),
+            mk(new THREE.Vector3(-3.4, H - 0.16, -7.45), new THREE.Vector3(1.5, H - 0.2, -7.5), 0.5),
+        ];
+    }, []);
+    return (
+        <group>
+            {[-2.5, -5, -7.5].map((z) => (
+                <B key={z} a={[W, 0.16, 0.2]} p={[0, H - 0.08, z]} m={M8.wood} />
+            ))}
+            {cables.map((g, i) => (
+                <mesh key={i} geometry={g}>
+                    <meshStandardMaterial color="#14120e" roughness={0.9} />
+                </mesh>
+            ))}
+        </group>
+    );
+};
+
+/** A TEIA DO FIO VERMELHO: sai do quadro de cortiça e cruza o teto até as
+ *  estantes, com etiquetas de papel penduradas balançando de leve. */
+const ThreadWeb: React.FC = () => {
+    const geo = useMemo(() => {
+        const pts: number[] = [];
+        const seg = (a: [number, number, number], b: [number, number, number]) => pts.push(...a, ...b);
+        seg([-0.9, 2.2, -0.1], [-3.35, 2.7, -3.9]);
+        seg([0.6, 2.25, -0.1], [3.35, 2.72, -4.6]);
+        seg([0.05, 2.28, -0.1], [0.9, 2.86, -6.8]);
+        seg([-0.4, 2.24, -0.1], [-3.3, 2.62, -6.6]);
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3));
+        return g;
+    }, []);
+    const tags = useRef<THREE.Group>(null!);
+    useFrame(({ clock }) => {
+        const t = clock.elapsedTime;
+        if (tags.current) tags.current.children.forEach((tag, i) => { tag.rotation.z = Math.sin(t * 0.8 + i * 1.7) * 0.12; tag.rotation.x = Math.sin(t * 0.6 + i) * 0.06; });
+    });
+    // pontos de pendura ao longo dos fios (interpolados à mão)
+    const hang: [number, number, number][] = [
+        [-2.1, 2.45, -2.0], [1.95, 2.48, -2.35], [0.5, 2.58, -3.6], [-1.9, 2.44, -3.5], [0.72, 2.74, -5.5],
+    ];
+    return (
+        <group>
+            <primitive object={new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: '#8a1c22' }))} />
+            <group ref={tags}>
+                {hang.map((p, i) => (
+                    <group key={i} position={p}>
+                        <mesh position={[0, -0.055, 0]} material={M8.steelDk}><cylinderGeometry args={[0.003, 0.003, 0.11, 4]} /></mesh>
+                        <mesh position={[0, -0.16, 0]} rotation={[0, (i * 1.3) % 1.5 - 0.7, 0]} material={i % 2 ? M8.label : M8.paper}>
+                            <planeGeometry args={[0.11, 0.15]} />
+                        </mesh>
+                    </group>
+                ))}
+            </group>
+        </group>
+    );
+};
+
 // o stencil pintado na parede norte: ARQUIVO GERAL
 const stencilTex = colorTex(512, 96, (ctx) => {
     ctx.clearRect(0, 0, 512, 96);
@@ -233,7 +443,7 @@ const stencilMat = new THREE.MeshStandardMaterial({ map: stencilTex, transparent
 
 /** O relógio de parede PARADO (21 minutos — o tempo que o player ficou lá dentro). */
 const ArchiveClock: React.FC = () => (
-    <group position={[-2.4, 2.45, -0.07]}>
+    <group position={[-1.62, 2.5, -0.07]}>
         {/* aro/corpo, eixo virado pra parede */}
         <mesh rotation={[Math.PI / 2, 0, 0]} material={M8.steelDk}><cylinderGeometry args={[0.22, 0.22, 0.05, 20]} /></mesh>
         {/* mostrador encarando a sala (sul) */}
@@ -516,7 +726,7 @@ const Desk: React.FC = () => (
         <mesh position={[0.1, 1.0, 0.12]} rotation={[-Math.PI / 2, 0, 0.15]} material={M8.paper}><planeGeometry args={[0.34, 0.46]} /></mesh>
         {/* máquina de escrever (a do 612) — corpo + carro + teclas + a FICHA no rolo */}
         <group position={[0.66, 1.06, -0.02]}>
-            <B a={[0.34, 0.14, 0.3]} p={[0, 0, 0]} m={M8.steelDk} />
+            <B a={[0.34, 0.14, 0.3]} p={[0, 0, 0]} m={M8.steel} />
             <B a={[0.36, 0.04, 0.08]} p={[0, 0.1, -0.12]} m={M8.steel} />
             <B a={[0.28, 0.05, 0.12]} p={[0, -0.02, 0.13]} m={M8.steel} />
             {/* a folha meio datilografada, curvada pra trás do rolo */}
@@ -528,6 +738,8 @@ const Desk: React.FC = () => (
         <mesh position={[-0.05, 1.0, -0.34]} material={M8.steel}><cylinderGeometry args={[0.08, 0.07, 0.03, 12]} /></mesh>
         <group position={[-0.05, 1.01, -0.34]}><CigaretteSmoke /></group>
         <mesh position={[0.4, 1.02, 0.34]} material={M8.paper}><cylinderGeometry args={[0.05, 0.045, 0.09, 12]} /></mesh>
+        {/* a luminária de banqueiro (a poça verde sobre a ficha) */}
+        <BankerLamp />
     </group>
 );
 
@@ -616,6 +828,33 @@ export const Floor8Room: React.FC<{ playerPositionRef: React.MutableRefObject<TH
                     <planeGeometry args={[2.6, 0.48]} />
                 </mesh>
                 <ArchiveClock />
+
+                {/* ── a segunda camada do set ─────────────────────────────── */}
+                {/* lambri de madeira na base da parede norte + rodapés */}
+                <B a={[W - 0.2, 0.85, 0.05]} p={[0, 0.425, -0.08]} m={M8.wood} />
+                <B a={[W - 0.2, 0.05, 0.07]} p={[0, 0.87, -0.08]} m={M8.steelDk} />
+                {/* o tapete surrado sob a mesa do interrogatório */}
+                <mesh position={[0, 0.012, -1.85]} rotation={[-Math.PI / 2, 0, 0]} material={rugMat}>
+                    <planeGeometry args={[3.1, 2.5]} />
+                </mesh>
+                {/* fichários de gavetinhas: flanqueando a cena + um baixo no fundo */}
+                <CardCatalog pos={[-3.35, 0, -1.05]} rotY={Math.PI / 2} />
+                <CardCatalog pos={[3.35, 0, -1.2]} rotY={-Math.PI / 2} h={1.15} />
+                <CardCatalog pos={[-2.0, 0, -9.55]} w={1.1} h={0.9} />
+                {/* o tubo pneumático por onde as fichas chegam */}
+                <PneumaticTube />
+                {/* as janelas altas do arquivo-além (a luz FRIA da sala) */}
+                <Transom x={-2.35} />
+                <Transom x={2.6} />
+                <pointLight position={[0, 2.55, -0.9]} distance={3.4} decay={2} color="#6f98a8" intensity={2.2} />
+                {/* vigas + cabos + a teia do fio vermelho */}
+                <CeilingWork />
+                <ThreadWeb />
+                {/* mancha úmida ao redor do dreno */}
+                <mesh position={[0, 0.008, -5.2]} rotation={[-Math.PI / 2, 0, 0]}>
+                    <circleGeometry args={[0.62, 18]} />
+                    <meshStandardMaterial color="#3a3529" roughness={1} transparent opacity={0.55} />
+                </mesh>
                 {/* atrás do Arquivista: dois arquivos de gaveta + o espelho falso */}
                 <group position={[-2.4, 0, -0.28]}>
                     <B a={[0.9, 1.4, 0.5]} p={[0, 0.7, 0]} m={M8.steelDk} />

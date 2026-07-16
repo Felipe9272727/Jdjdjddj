@@ -114,7 +114,11 @@ export const F8_STATIC_WALLS: number[][] = [
 
 /** Móveis [cx, cz, w, d] — Floor8Room renderiza, constants.ts vira colisor. */
 export const F8_FURNITURE: ReadonlyArray<readonly [number, number, number, number]> = [
-    [0, -1.6, 1.9, 0.95],   // a mesa do interrogatório
+    [0, -1.6, 1.9, 0.95],       // a mesa do interrogatório
+    [-3.3, -1.05, 0.5, 0.85],   // fichário alto (oeste)
+    [3.35, -1.2, 0.5, 0.85],    // fichário médio (leste)
+    [-2.0, -9.55, 1.15, 0.5],   // fichário baixo (fundo sul)
+    [1.62, -0.55, 0.4, 0.4],    // o terminal do tubo pneumático
 ];
 
 /** Onde o Arquivista fica (atrás da mesa, encarando o sul/o player). */
