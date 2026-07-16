@@ -18,11 +18,14 @@ import bgQuintal from './assets/f8/quintal.jpg';
 import bgEscola from './assets/f8/escola.jpg';
 import bgTempestade from './assets/f8/tempestade.jpg';
 import bgHotel from './assets/f8/hotel.jpg';
-import bgYourself from './assets/f8/yourself-arena-v2.webp';
+import bgYourselfFar from './assets/f8/yourself-parallax-far-v3.webp';
+import bgYourselfMid from './assets/f8/yourself-parallax-mid-v3.webp';
+import bgYourselfNear from './assets/f8/yourself-parallax-near-v3.webp';
+import bossYourselfAtlas from './assets/f8/yourself-boss-atlas-v3.webp';
 
 const BG_URLS: Record<string, string | undefined> = {
     quintal: bgQuintal, escola: bgEscola, tempestade: bgTempestade, hotel: bgHotel,
-    yourself: bgYourself,
+    yourself: bgYourselfFar,
 };
 const BG_CROP: Record<string, number> = { quintal: 0.04, escola: 0.26, tempestade: 0.05, hotel: 0.04, yourself: 0 };
 const BG_LIFT: Record<string, { color: string; opacity: number }> = {
@@ -586,6 +589,89 @@ const BossActor: React.FC<{ kit: Kit }> = ({ kit }) => {
     );
 };
 
+/**
+ * YOURSELF em sprites pintados pelo GPT Images. O atlas tem oito poses em uma
+ * grade 4x2; trocar UVs custa um único draw call e preserva orçamento para o
+ * parallax. A geometria antiga fica acima apenas como referência de autoria,
+ * mas não é montada na cena.
+ */
+const BossSpriteActor: React.FC<{ kit: Kit }> = ({ kit }) => {
+    const root = useRef<THREE.Group>(null!);
+    const sprite = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
+    const halo = useRef<THREE.Group>(null!);
+    const lastFrame = useRef(-1);
+    const atlas = useMemo(() => {
+        const t = new THREE.TextureLoader().load(bossYourselfAtlas);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+        t.generateMipmaps = false;
+        // Um pequeno recuo impede a interpolação de buscar pixels da célula vizinha.
+        t.repeat.set(0.2486, 0.4977);
+        return t;
+    }, []);
+    useEffect(() => () => atlas.dispose(), [atlas]);
+
+    const showFrame = (frame: number) => {
+        if (frame === lastFrame.current) return;
+        lastFrame.current = frame;
+        const col = frame % 4, row = Math.floor(frame / 4);
+        atlas.offset.set(col * 0.25 + 0.0007, 1 - (row + 1) * 0.5 + 0.00115);
+        atlas.needsUpdate = true;
+    };
+
+    useFrame(({ clock }) => {
+        const b = p8.boss, g = root.current;
+        if (!b || !g) { if (g) g.visible = false; return; }
+        g.visible = b.phase !== 'dormant';
+        if (!g.visible) return;
+
+        const t = clock.elapsedTime, attack = b.phase === 'attack' ? b.attack : null;
+        let frame = Math.floor(t * 2.15) % 2; // duas poses de respiração
+        if (attack === 'slam') frame = b.atkT < (b.seams <= 1 ? 0.42 : 0.7) ? 2 : 3;
+        else if (attack === 'sweep') frame = 4;
+        else if (attack === 'throw') frame = 5;
+        else if (attack === 'cocoon' || b.shield) frame = 6;
+        else if (b.phase === 'exposed' || b.phase === 'bound' || b.hurtT > 0) frame = 7;
+        showFrame(frame);
+
+        g.position.set(b.x, b.y + 2.72, 0.48);
+        const attackPulse = attack ? 1 + Math.sin(t * 13) * 0.018 : 1;
+        const hurtPulse = b.hurtT > 0 ? 1 - Math.sin(b.hurtT * 30) * 0.055 : 1;
+        const panic = b.seams <= 1 ? 1 + Math.sin(t * 31) * 0.012 : 1;
+        g.scale.set(attackPulse * hurtPulse * panic, attackPulse * hurtPulse, 1);
+        g.rotation.z = b.phase === 'bound' ? Math.sin(t * 19) * 0.045 : Math.sin(t * 1.1) * 0.007;
+        if (sprite.current) {
+            sprite.current.material.opacity = b.hurtT > 0 && Math.sin(t * 28) > 0.2 ? 0.58 : 1;
+        }
+        if (halo.current) {
+            halo.current.rotation.z = t * (b.seams <= 1 ? -0.32 : 0.11);
+            halo.current.scale.setScalar(1 + Math.sin(t * 2.25) * 0.035);
+        }
+    });
+
+    return (
+        <group ref={root} visible={false} name="YOURSELF-sprite">
+            <mesh position={[0, 0.12, -0.08]} scale={[4.9, 5.9, 1]} material={kit.glow}><planeGeometry args={[1, 1]} /></mesh>
+            <mesh ref={sprite} renderOrder={4}>
+                <planeGeometry args={[5.35, 5.98]} />
+                <meshBasicMaterial map={atlas} transparent alphaTest={0.035} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
+            </mesh>
+            {/* cinco nós legíveis continuam sendo a vida diegética, não uma barra genérica */}
+            <group ref={halo} position={[0, 0.25, -0.02]}>
+                <mesh material={kit.bossDark}><torusGeometry args={[2.46, 0.025, 5, 48]} /></mesh>
+                {Array.from({ length: 5 }, (_, i) => {
+                    const a = -Math.PI * 0.82 + i * (Math.PI * 0.41), alive = (p8.boss?.seams ?? 0) > i;
+                    return <group key={i} position={[Math.sin(a) * 2.46, Math.cos(a) * 2.46, 0.04]}>
+                        <mesh material={alive ? kit.core : kit.knotDark}><torusKnotGeometry args={[0.13, 0.04, 18, 4, 2, 3]} /></mesh>
+                        {alive && <mesh material={kit.glow} scale={0.72}><planeGeometry args={[1, 1]} /></mesh>}
+                    </group>;
+                })}
+            </group>
+        </group>
+    );
+};
+
 /** Os EFEITOS da luta: o anel vermelho do slam, a varredura de fio, os novelos
  *  arremessados (brancos = aparáveis; dourados = refletidos), o casulo do
  *  isolamento e os novelos-coração de cura. Tudo em pools fixos, sem alocação. */
@@ -733,34 +819,60 @@ const Rain: React.FC<{ endX: number }> = ({ endX }) => {
     return <points ref={points} geometry={geo} material={mat} />;
 };
 
-/** Camadas leves que ligam a pintura do GPT Images ao espaço jogável. A arte
- *  dá a arquitetura; estes fios, poeira e o arco do tear dão paralaxe e pulso
- *  sem adicionar pós-processamento pesado. */
-const YourselfAtmosphere: React.FC = () => {
-    const loom = useRef<THREE.Group>(null!); const motes = useRef<THREE.Points>(null!);
+/**
+ * Parallax ortográfico real: distância Z não altera escala numa câmera
+ * ortográfica, portanto cada pintura acompanha X/Y da câmera por uma fração
+ * própria. O fundo quase acompanha; as bordas próximas ficam para trás e
+ * atravessam o quadro mais depressa.
+ */
+const YourselfParallax: React.FC = () => {
+    const cam = useThree((s) => s.camera);
+    const far = useRef<THREE.Mesh>(null!); const mid = useRef<THREE.Mesh>(null!); const near = useRef<THREE.Mesh>(null!);
+    const motes = useRef<THREE.Points>(null!);
+    const textures = useMemo(() => [bgYourselfFar, bgYourselfMid, bgYourselfNear].map((url, i) => {
+        const t = new THREE.TextureLoader().load(url);
+        t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+        if (i > 0) t.generateMipmaps = false;
+        return t;
+    }), []);
     const geo = useMemo(() => {
-        const g = new THREE.BufferGeometry(), n = 96, a = new Float32Array(n * 3), r = seedRng(8021);
+        const g = new THREE.BufferGeometry(), n = 78, a = new Float32Array(n * 3), r = seedRng(8021);
         for (let i = 0; i < n; i++) {
-            a[i * 3] = r() * 58 - 2; a[i * 3 + 1] = r() * 12 - 1.5; a[i * 3 + 2] = -2 - r() * 6;
+            a[i * 3] = r() * 62 - 4; a[i * 3 + 1] = r() * 13 - 2; a[i * 3 + 2] = -2 - r() * 8;
         }
         g.setAttribute('position', new THREE.BufferAttribute(a, 3)); return g;
     }, []);
-    const mat = useMemo(() => new THREE.PointsMaterial({ color: '#edc79a', size: 0.055, transparent: true, opacity: 0.58, depthWrite: false, blending: THREE.AdditiveBlending }), []);
-    useEffect(() => () => { geo.dispose(); mat.dispose(); }, [geo, mat]);
+    const mat = useMemo(() => new THREE.PointsMaterial({ color: '#edc79a', size: 0.05, transparent: true, opacity: 0.52, depthWrite: false, blending: THREE.AdditiveBlending }), []);
+    useEffect(() => () => { geo.dispose(); mat.dispose(); textures.forEach((t) => t.dispose()); }, [geo, mat, textures]);
     useFrame(({ clock }) => {
         const t = clock.elapsedTime;
-        if (loom.current) loom.current.rotation.z = Math.sin(t * 0.18) * 0.006;
+        if (far.current) far.current.position.set(cam.position.x * 0.985, cam.position.y * 0.12 + 2.42, -17);
+        if (mid.current) {
+            mid.current.position.set(cam.position.x * 0.93, cam.position.y * 0.06 + 2.5 + Math.sin(t * 0.18) * 0.06, -10.5);
+            mid.current.rotation.z = Math.sin(t * 0.13) * 0.0025;
+        }
+        if (near.current) {
+            near.current.position.set(cam.position.x * 0.83, cam.position.y * -0.035 + 2.62 + Math.sin(t * 0.24) * 0.08, 4.7);
+            near.current.rotation.z = Math.sin(t * 0.1) * 0.0035;
+        }
         if (motes.current) { motes.current.position.y = Math.sin(t * 0.16) * 0.35; motes.current.rotation.z = Math.sin(t * 0.09) * 0.008; }
     });
     return (
         <>
+            <mesh ref={far} name="parallax-far" renderOrder={-30}>
+                <planeGeometry args={[36.5, 20.54]} />
+                <meshBasicMaterial map={textures[0]} depthWrite={false} fog={false} />
+            </mesh>
+            <mesh ref={mid} name="parallax-mid" renderOrder={-20}>
+                <planeGeometry args={[42.5, 23.91]} />
+                <meshBasicMaterial map={textures[1]} transparent alphaTest={0.018} depthWrite={false} fog={false} />
+            </mesh>
             <points ref={motes} geometry={geo} material={mat} />
-            <group ref={loom} position={[28, -3.3, -8]}>
-                {[-10, -6, -2, 2, 6, 10].map((x, i) => <group key={i} position={[x, 7.2 - (i % 3) * 0.55, 0.2]}>
-                    <mesh rotation={[0, 0, (i % 2 ? 1 : -1) * 0.025]}><cylinderGeometry args={[0.014, 0.028, 8.5 + (i % 2) * 1.2, 4]} /><meshBasicMaterial color={i % 3 === 0 ? '#d0a45d' : '#8d2940'} transparent opacity={0.62} depthWrite={false} /></mesh>
-                    {i % 3 === 0 && <mesh position={[0, -3.4, 0.05]}><torusGeometry args={[0.24, 0.035, 5, 15]} /><meshBasicMaterial color="#d2a966" transparent opacity={0.72} /></mesh>}
-                </group>)}
-            </group>
+            <mesh ref={near} name="parallax-near" renderOrder={20}>
+                <planeGeometry args={[52, 29.25]} />
+                <meshBasicMaterial map={textures[2]} transparent alphaTest={0.018} depthWrite={false} depthTest={false} fog={false} />
+            </mesh>
         </>
     );
 };
@@ -815,13 +927,13 @@ const Scene: React.FC<{
             <pointLight position={[p8.x, p8.y + 3, 5]} intensity={0.7} distance={12} color={mem.pal.thread} />
             {mem.key === 'yourself' && <pointLight ref={bossLight} position={[43, 2.4, 5]} intensity={1.18} distance={15} decay={1.45} color="#e16672" />}
             {mem.key === 'tempestade' && <ambientLight ref={flash} color="#dceaff" intensity={0} />}
-            <group ref={sky}>
+            {mem.key !== 'yourself' && <group ref={sky}>
                 <mesh material={kit.bg}><planeGeometry args={[33.2, 16]} /></mesh>
                 <mesh position={[0, 0, 0.02]}><planeGeometry args={[33.2, 16]} /><meshBasicMaterial color={lift.color} transparent opacity={lift.opacity} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
-            </group>
-            <group ref={fg}><mesh material={kit.fg}><planeGeometry args={[36, 4.5]} /></mesh></group>
+            </group>}
+            {mem.key !== 'yourself' && <group ref={fg}><mesh material={kit.fg}><planeGeometry args={[36, 4.5]} /></mesh></group>}
             {mem.key === 'tempestade' && <Rain endX={mem.endX} />}
-            {mem.key === 'yourself' && <YourselfAtmosphere />}
+            {mem.key === 'yourself' && <YourselfParallax />}
             {mem.ledges.map((l, i) => <YarnLedge key={`${mem.key}-l${i}`} l={l} kit={kit} />)}
             {mem.anchors.map((a, i) => <Anchor key={`${mem.key}-a${i}`} a={a} i={i} kit={kit} />)}
             {mem.hazards.map((h, i) => <BlackThread key={`${mem.key}-h${i}`} h={h} kit={kit} />)}
@@ -829,7 +941,7 @@ const Scene: React.FC<{
             {mem.enemies.map((e, i) => <EnemyActor key={`${mem.key}-e${i}`} i={i} kind={e.kind ?? 'knotling'} kit={kit} />)}
             {mem.spools.map((s, i) => <Spool key={`${mem.key}-s${i}`} s={s} i={i} kit={kit} />)}
             <PatchActor kit={kit} />
-            <BossActor kit={kit} />
+            <BossSpriteActor kit={kit} />
             {mem.boss && <BossFX kit={kit} />}
             <CrochetPlayer kit={kit} />
             <LiveThread kit={kit} />
@@ -913,7 +1025,7 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
         : null;
     return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 56, background: pal.bgLo, touchAction: 'none', overflow: 'hidden' }}>
-            <Canvas orthographic dpr={[0.75, 1.2]} camera={{ position: [2, 2.75, 14], zoom: 58, near: 0.1, far: 120 }} gl={{ antialias: false, powerPreference: 'high-performance', alpha: false }}>
+            <Canvas orthographic dpr={mem.key === 'yourself' ? [0.65, 0.82] : [0.75, 1.2]} camera={{ position: [2, 2.75, 14], zoom: 58, near: 0.1, far: 120 }} gl={{ antialias: false, powerPreference: 'high-performance', alpha: false }}>
                 <Scene moveRef={moveRef} vertRef={vertRef} jumpRef={jumpRef} grappleRef={grappleRef} stitchRef={stitchRef} introRef={introRef} />
             </Canvas>
             <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(ellipse at 50% 45%,transparent 58%,rgba(3,2,7,.28) 100%)' }} />

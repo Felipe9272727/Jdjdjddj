@@ -7,7 +7,6 @@
 import React, { useState } from 'react';
 import { f3Demo } from './f3Hazards';
 import { f4Demo } from './floor4Sfx';
-import { f8Dev } from './f8Dev';
 
 export interface FloorOption {
   id: string;           // unique (cards can share a level, e.g. the cutscene)
@@ -208,7 +207,7 @@ export const FLOORS: FloorOption[] = [
 ];
 
 interface CreatorModeProps {
-  onSelect: (level: number, multiplayerEnabled: boolean) => void;
+  onSelect: (level: number, multiplayerEnabled: boolean, variant?: string) => void;
   multiplayerEnabled: boolean;
 }
 
@@ -242,6 +241,7 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
           return (
             <button
               key={floor.id}
+              data-creator-floor={floor.id}
               onClick={() => setSelectedId(floor.id)}
               className={`
                 group relative w-full text-left rounded-xl transition-all duration-200
@@ -291,13 +291,13 @@ export const CreatorMode: React.FC<CreatorModeProps> = ({ onSelect, multiplayerE
 
       {/* Play button */}
       <button
+        data-creator-start
         onClick={() => {
           if (selectedFloor) {
             f3Demo.fall = selectedFloor.variant === 'fallDemo';   // arm the Floor-3 fall preview
             f4Demo.ride = selectedFloor.variant === 'floor4Transition';   // arm the full 20s ride to Floor 4
             f4Demo.keeper = selectedFloor.variant === 'floor4Keeper';     // arm the fireside-dialogue jump
-            f8Dev.boss = selectedFloor.variant === 'floor8Boss';          // Etapa V: YOURSELF
-            onSelect(selectedFloor.level, multiplayerEnabled);
+            onSelect(selectedFloor.level, multiplayerEnabled, selectedFloor.variant);
           }
         }}
         disabled={selectedFloor === null}

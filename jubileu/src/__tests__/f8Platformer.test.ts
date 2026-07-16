@@ -3,32 +3,32 @@ import {
     p8, p8Reset, p8JumpToMemory, stepPlayer, groundAt, curMem, activeAnchor, MEMORIES, P8, type Memory,
 } from '../f8Platformer';
 import { f8, f8Reset } from '../f8Arquivo';
-import { f8ApplyBossSkip, f8Dev, F8_BOSS_MEMORY } from '../f8Dev';
+import { f8StartBoss, F8_BOSS_MEMORY } from '../f8Dev';
 
 const IDLE = { move: 0, vert: 0, jump: false, grapple: false };
 
 describe('f8Dev — atalho do boss no Modo Desenvolvedor', () => {
     beforeEach(() => {
-        f8Dev.boss = false;
         f8Reset();
         p8Reset();
     });
 
-    it('entra direto na Etapa V com uma luta nova e consome o flag', () => {
-        f8Dev.boss = true;
-        expect(f8ApplyBossSkip()).toBe(true);
+    it('entra direto na Etapa V com uma luta nova', () => {
+        f8StartBoss();
         expect(f8.phase).toBe('platformer');
         expect(p8.memIdx).toBe(F8_BOSS_MEMORY);
         expect(curMem().key).toBe('yourself');
         expect(p8.boss?.phase).toBe('dormant');
         expect(p8.boss?.seams).toBe(5);
-        expect(f8Dev.boss).toBe(false);
     });
 
-    it('não altera o andar quando o atalho não foi armado', () => {
-        expect(f8ApplyBossSkip()).toBe(false);
-        expect(f8.phase).toBe('arrive');
-        expect(p8.memIdx).toBe(0);
+    it('sempre limpa o estado anterior antes de abrir YOURSELF', () => {
+        p8JumpToMemory(2);
+        p8.integrity = 1;
+        f8StartBoss();
+        expect(p8.memIdx).toBe(F8_BOSS_MEMORY);
+        expect(p8.integrity).toBe(3);
+        expect(p8.boss?.seams).toBe(5);
     });
 });
 
