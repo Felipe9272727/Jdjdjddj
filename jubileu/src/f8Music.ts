@@ -235,3 +235,110 @@ export function f8Sting(kind: 'stomp' | 'beat' | 'win'): void {
     else if (kind === 'beat') { mk(880, 880, 0.9, 0.035, 'sine'); mk(1320, 1320, 0.7, 0.02, 'sine'); }
     else { mk(523, 1046, 1.4, 0.07, 'triangle'); mk(659, 1318, 1.6, 0.05, 'triangle'); }
 }
+
+type BossCombatSound = 'slam' | 'impact' | 'sweep' | 'throw' | 'cocoon';
+
+function noiseBurst(ac: AudioContext, destination: AudioNode, at: number, duration: number, gain: number, frequency: number, type: BiquadFilterType): void {
+    const length = Math.max(1, Math.ceil(ac.sampleRate * duration));
+    const buffer = ac.createBuffer(1, length, ac.sampleRate), data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+    const source = ac.createBufferSource(); source.buffer = buffer;
+    const filter = ac.createBiquadFilter(); filter.type = type; filter.frequency.value = frequency; filter.Q.value = 0.72;
+    const envelope = ac.createGain();
+    envelope.gain.setValueAtTime(0.0001, at);
+    envelope.gain.exponentialRampToValueAtTime(gain, at + Math.min(0.025, duration * 0.2));
+    envelope.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+    source.connect(filter); filter.connect(envelope); envelope.connect(destination);
+    source.start(at); source.stop(at + duration + 0.02);
+}
+
+function pitchedHit(ac: AudioContext, destination: AudioNode, at: number, from: number, to: number, duration: number, gain: number, wave: OscillatorType): void {
+    const oscillator = ac.createOscillator(); oscillator.type = wave;
+    oscillator.frequency.setValueAtTime(from, at);
+    oscillator.frequency.exponentialRampToValueAtTime(Math.max(1, to), at + duration);
+    const envelope = ac.createGain();
+    envelope.gain.setValueAtTime(0.0001, at);
+    envelope.gain.exponentialRampToValueAtTime(gain, at + Math.min(0.025, duration * 0.2));
+    envelope.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+    oscillator.connect(envelope); envelope.connect(destination);
+    oscillator.start(at); oscillator.stop(at + duration + 0.03);
+}
+
+/**
+ * Sequência sonora da manifestação. Os tempos espelham os quadros da câmera:
+ * fios tensionam, a máscara encaixa, há uma inspiração e só então vem o rugido.
+ * A cauda termina antes de os controles serem devolvidos ao jogador.
+ */
+export function f8BossIntroSfx(): void {
+    const ac = ensureCtx();
+    if (!ac || !master) return;
+    const start = ac.currentTime + 0.025;
+
+    // Rumor contínuo de algo pesado se formando sob o tear.
+    pitchedHit(ac, master, start, 48, 27, 3.55, 0.09, 'sine');
+    pitchedHit(ac, master, start + 0.22, 73, 34, 2.7, 0.038, 'triangle');
+    for (const [delay, pitch] of [[0.68, 1180], [1.03, 930], [1.42, 760], [1.93, 610]] as const) {
+        noiseBurst(ac, master, start + delay, 0.085, 0.042, pitch, 'highpass');
+        pitchedHit(ac, master, start + delay, pitch * 0.52, pitch * 0.32, 0.09, 0.025, 'square');
+    }
+
+    // Inspiração: ruído filtrado que cresce até o quadro de antecipação.
+    const inhaleAt = start + 2.18, inhaleDur = 0.62;
+    const inhaleLength = Math.ceil(ac.sampleRate * inhaleDur);
+    const inhaleBuffer = ac.createBuffer(1, inhaleLength, ac.sampleRate), inhaleData = inhaleBuffer.getChannelData(0);
+    for (let i = 0; i < inhaleLength; i++) inhaleData[i] = Math.random() * 2 - 1;
+    const inhale = ac.createBufferSource(); inhale.buffer = inhaleBuffer;
+    const inhaleFilter = ac.createBiquadFilter(); inhaleFilter.type = 'bandpass'; inhaleFilter.Q.value = 0.9;
+    inhaleFilter.frequency.setValueAtTime(180, inhaleAt); inhaleFilter.frequency.exponentialRampToValueAtTime(920, inhaleAt + inhaleDur);
+    const inhaleGain = ac.createGain(); inhaleGain.gain.setValueAtTime(0.0001, inhaleAt); inhaleGain.gain.exponentialRampToValueAtTime(0.052, inhaleAt + inhaleDur * 0.86); inhaleGain.gain.exponentialRampToValueAtTime(0.0001, inhaleAt + inhaleDur);
+    inhale.connect(inhaleFilter); inhaleFilter.connect(inhaleGain); inhaleGain.connect(master);
+    inhale.start(inhaleAt); inhale.stop(inhaleAt + inhaleDur + 0.02);
+
+    // Encaixe seco da máscara imediatamente antes da boca se abrir.
+    noiseBurst(ac, master, start + 2.64, 0.13, 0.085, 1450, 'highpass');
+    pitchedHit(ac, master, start + 2.64, 260, 72, 0.22, 0.075, 'square');
+
+    // Rugido: duas gargantas distorcidas, ar grave e uma reflexão curta.
+    const roarAt = start + 2.82, roarDur = 0.92;
+    const roarBus = ac.createGain(); roarBus.gain.setValueAtTime(0.0001, roarAt);
+    roarBus.gain.exponentialRampToValueAtTime(0.12, roarAt + 0.065);
+    roarBus.gain.setValueAtTime(0.12, roarAt + 0.48);
+    roarBus.gain.exponentialRampToValueAtTime(0.0001, roarAt + roarDur);
+    const lowpass = ac.createBiquadFilter(); lowpass.type = 'lowpass'; lowpass.Q.value = 1.4;
+    lowpass.frequency.setValueAtTime(1250, roarAt); lowpass.frequency.exponentialRampToValueAtTime(240, roarAt + roarDur);
+    const shaper = ac.createWaveShaper(), curve = new Float32Array(256);
+    for (let i = 0; i < curve.length; i++) { const x = i * 2 / (curve.length - 1) - 1; curve[i] = Math.tanh(x * 2.8); }
+    shaper.curve = curve; shaper.oversample = '2x';
+    for (const [frequency, detune] of [[168, -11], [116, 8], [83, -4]] as const) {
+        const voice = ac.createOscillator(); voice.type = frequency > 100 ? 'sawtooth' : 'triangle'; voice.detune.value = detune;
+        voice.frequency.setValueAtTime(frequency, roarAt); voice.frequency.exponentialRampToValueAtTime(frequency * 0.34, roarAt + roarDur);
+        voice.connect(shaper); voice.start(roarAt); voice.stop(roarAt + roarDur + 0.03);
+    }
+    noiseBurst(ac, shaper, roarAt, roarDur * 0.88, 0.16, 260, 'bandpass');
+    shaper.connect(lowpass); lowpass.connect(roarBus); roarBus.connect(master);
+    const echo = ac.createDelay(0.4), echoGain = ac.createGain(); echo.delayTime.value = 0.16; echoGain.gain.value = 0.19;
+    roarBus.connect(echo); echo.connect(echoGain); echoGain.connect(master);
+    pitchedHit(ac, master, start + 3.72, 76, 29, 0.36, 0.1, 'sine');
+}
+
+/** Pequenos sinais sincronizados aos extremos dos ataques do YOURSELF. */
+export function f8BossCombatSfx(kind: BossCombatSound): void {
+    const ac = ensureCtx();
+    if (!ac || !master) return;
+    const at = ac.currentTime + 0.01;
+    if (kind === 'slam') {
+        pitchedHit(ac, master, at, 54, 92, 0.42, 0.045, 'sine');
+    } else if (kind === 'impact') {
+        pitchedHit(ac, master, at, 82, 28, 0.31, 0.115, 'sine');
+        noiseBurst(ac, master, at, 0.16, 0.08, 180, 'lowpass');
+    } else if (kind === 'sweep') {
+        noiseBurst(ac, master, at, 0.24, 0.065, 1250, 'bandpass');
+        pitchedHit(ac, master, at, 430, 120, 0.21, 0.042, 'sawtooth');
+    } else if (kind === 'throw') {
+        pitchedHit(ac, master, at, 360, 92, 0.23, 0.047, 'triangle');
+        noiseBurst(ac, master, at + 0.025, 0.13, 0.03, 850, 'highpass');
+    } else {
+        noiseBurst(ac, master, at, 0.48, 0.05, 340, 'bandpass');
+        pitchedHit(ac, master, at, 118, 61, 0.52, 0.045, 'triangle');
+    }
+}
