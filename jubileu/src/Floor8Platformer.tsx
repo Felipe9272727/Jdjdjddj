@@ -24,10 +24,16 @@ import bgYourselfNear from './assets/f8/yourself-parallax-near-v3.webp';
 import bgYourselfMemories from './assets/f8/yourself-parallax-memories-v4.webp';
 import bgYourselfMechanisms from './assets/f8/yourself-parallax-mechanisms-v4.webp';
 import bossYourselfAtlas from './assets/f8/yourself-boss-atlas-v3.webp';
-import bossRevealAtlas from './assets/f8/yourself-boss-reveal-atlas-v4.webp';
-import travelerPlayerAtlas from './assets/f8/traveler-player-atlas-v4.webp';
+import bossRevealAtlas from './assets/f8/yourself-boss-reveal-atlas-v5.webp';
+import travelerWalkAtlas from './assets/f8/traveler-walk-atlas-v5.webp';
+import travelerActionAtlas from './assets/f8/traveler-action-atlas-v5.webp';
+import yourselfArenaFloor from './assets/f8/yourself-arena-floor-v5.webp';
+import crochetVfxAtlas from './assets/f8/crochet-vfx-atlas-v5.webp';
 
-const BOSS_INTRO_DURATION = 7.2;
+const BOSS_INTRO_DURATION = 9.2;
+const BOSS_REVEAL_START = 2.35;
+const BOSS_REVEAL_END = 7.15;
+const BOSS_MASK_SNAP = 6.72;
 interface BossIntroState {
     active: boolean;
     seen: boolean;
@@ -229,6 +235,59 @@ const YarnLedge: React.FC<{ l: { x0: number; x1: number; y: number }; kit: Kit }
     );
 };
 
+/**
+ * A arena final continua usando a mesma superfície lógica da simulação, mas a
+ * leitura visual é um tear inteiro, não uma barra de lã esticada. O sprite
+ * concentra o detalhe caro num draw call e as poucas pontas em geometria dão
+ * movimento sem fazer o chão (e a colisão) oscilar.
+ */
+const YourselfArenaFloor: React.FC<{
+    l: { x0: number; x1: number; y: number };
+    kit: Kit;
+}> = ({ l, kit }) => {
+    const loose = useRef<THREE.Group[]>([]);
+    const mirrorGlow = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
+    const w = l.x1 - l.x0, cx = (l.x0 + l.x1) * 0.5;
+    const texture = useMemo(() => {
+        const t = new THREE.TextureLoader().load(yourselfArenaFloor);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+        t.generateMipmaps = false;
+        return t;
+    }, []);
+    useEffect(() => () => texture.dispose(), [texture]);
+    useFrame(({ clock }) => {
+        const t = clock.elapsedTime;
+        loose.current.forEach((g, i) => {
+            if (!g) return;
+            g.rotation.z = Math.sin(t * (0.72 + (i % 3) * 0.11) + i * 1.7) * (0.045 + (i % 2) * 0.018);
+        });
+        if (mirrorGlow.current) {
+            const s = 1 + Math.sin(t * 1.35) * 0.055;
+            mirrorGlow.current.scale.set(s * 2.6, s * 1.55, 1);
+        }
+    });
+    return (
+        <group position={[cx, l.y, 0]} name="YOURSELF-loom-arena">
+            <mesh ref={mirrorGlow} position={[0, -1.28, 0.08]} material={kit.glow}><planeGeometry args={[1, 1]} /></mesh>
+            <mesh position={[0, -1.24, 0.32]} renderOrder={2}>
+                <planeGeometry args={[w + 0.25, 3.12]} />
+                <meshBasicMaterial map={texture} transparent alphaTest={0.025} depthWrite={false} toneMapped={false} />
+            </mesh>
+            {/* O trilho mantém a borda caminhável nítida até em telas pequenas. */}
+            <mesh position={[0, -0.015, 0.12]} material={kit.bossDark}><boxGeometry args={[w - 0.18, 0.16, 0.72]} /></mesh>
+            <mesh position={[0, 0.045, 0.18]} rotation={[0, 0, Math.PI / 2]} material={kit.thread}><cylinderGeometry args={[0.034, 0.034, w - 0.3, 6]} /></mesh>
+            {[-23, -17, -11, -5.5, 5.5, 11, 17, 23].map((x, i) => (
+                <group key={x} ref={(g) => { if (g) loose.current[i] = g; }} position={[x, -1.95 - (i % 3) * 0.13, 0.42]}>
+                    <mesh material={i % 2 ? kit.thread : kit.boss}><cylinderGeometry args={[0.024, 0.035, 0.72 + (i % 3) * 0.16, 5]} /></mesh>
+                    <mesh position={[0.04, -0.42 - (i % 3) * 0.08, 0]} rotation={[Math.PI / 2, 0, i % 2 ? 0.7 : -0.65]} material={kit.metal}><torusGeometry args={[0.11, 0.021, 5, 12, Math.PI * 1.35]} /></mesh>
+                </group>
+            ))}
+        </group>
+    );
+};
+
 const Anchor: React.FC<{ a: { x: number; y: number }; kit: Kit; i: number }> = ({ a, kit, i }) => {
     const ring = useRef<THREE.Mesh>(null!); const halo = useRef<THREE.Mesh>(null!);
     useFrame(({ clock }) => {
@@ -397,10 +456,23 @@ const CrochetPlayer: React.FC<{ kit: Kit }> = ({ kit }) => {
     return <group ref={g}><TravelerShell kit={kit} legL={legL} legR={legR} needle={needle} /></group>;
 };
 
+const PLAYER_PLANE = 2.88;
+const PLAYER_BASELINE = 235 / 256;
+
+function atlasTexture(url: string, cols: number, rows: number): THREE.Texture {
+    const t = new THREE.TextureLoader().load(url);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+    t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+    t.generateMipmaps = false;
+    t.repeat.set(1 / cols - 0.002, 1 / rows - 0.002);
+    return t;
+}
+
 /**
- * O viajante pintado pelo GPT Images: dezesseis poses em uma grade 4x4.
- * A seleção de frame vem do estado real da simulação, então corrida, salto,
- * fisgada, costura e reação à chegada do boss não são animações decorativas.
+ * Dois atlases com funções separadas: oito passos simétricos e doze poses de
+ * transição/ação. Cada frame é ancorado pela linha real dos pés; assim a margem
+ * interna gerada pela arte nunca vira um falso mancar ou um salto de corpo.
  */
 const CrochetPlayerSprite: React.FC<{
     kit: Kit;
@@ -408,46 +480,61 @@ const CrochetPlayerSprite: React.FC<{
 }> = ({ kit, bossIntroRef }) => {
     const root = useRef<THREE.Group>(null!);
     const sprite = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
-    const lastFrame = useRef(-1);
-    const atlas = useMemo(() => {
-        const t = new THREE.TextureLoader().load(travelerPlayerAtlas);
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
-        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
-        t.generateMipmaps = false; t.repeat.set(0.2488, 0.2488);
-        return t;
-    }, []);
-    useEffect(() => () => atlas.dispose(), [atlas]);
+    const lastVisual = useRef('');
+    const wasGrounded = useRef(p8.onGround);
+    const landingT = useRef(0);
+    const walkAtlas = useMemo(() => atlasTexture(travelerWalkAtlas, 4, 2), []);
+    const actionAtlas = useMemo(() => atlasTexture(travelerActionAtlas, 4, 3), []);
+    useEffect(() => () => { walkAtlas.dispose(); actionAtlas.dispose(); }, [walkAtlas, actionAtlas]);
 
-    const showFrame = (frame: number) => {
-        if (frame === lastFrame.current) return;
-        lastFrame.current = frame;
+    const showFrame = (map: THREE.Texture, frame: number, rows: number, key: string) => {
+        const visual = `${key}:${frame}`;
+        if (visual === lastVisual.current) return;
+        lastVisual.current = visual;
         const col = frame % 4, row = Math.floor(frame / 4);
-        atlas.offset.set(col * 0.25 + 0.0006, 1 - (row + 1) * 0.25 + 0.0006);
-        atlas.needsUpdate = true;
+        map.offset.set(col * 0.25 + 0.001, 1 - (row + 1) / rows + 0.001);
+        map.needsUpdate = true;
+        if (sprite.current) {
+            sprite.current.material.map = map;
+            sprite.current.material.needsUpdate = true;
+        }
     };
 
-    useFrame(({ clock }) => {
+    useFrame(({ clock }, rawDt) => {
         const g = root.current; if (!g) return;
+        const dt = Math.min(rawDt, 0.05);
         const cinematic = bossIntroRef.current;
         const target = activeThreadTarget();
         const moving = p8.onGround && Math.abs(p8.vx) > 0.42;
-        let frame = Math.floor(clock.elapsedTime * 1.75) % 2; // respiração
+        if (!wasGrounded.current && p8.onGround) landingT.current = 0.17;
+        wasGrounded.current = p8.onGround;
+        landingT.current = Math.max(0, landingT.current - dt);
+
+        let frame = Math.floor(clock.elapsedTime * 1.55) % 2;
+        let map = actionAtlas, rows = 3, key = 'action';
+        const baseline = PLAYER_BASELINE;
         if (cinematic.active) {
             const e = Math.max(0, performance.now() / 1000 - cinematic.startedAt);
-            frame = e < 2.25 ? 2 : 3; // percebe o fio, depois firma os dois braços
+            frame = e < 0.72 ? 1 : e < 1.45 ? 2 : 3;
         } else if (p8.stitchT > 0.02) {
-            frame = p8.stitchT > 0.13 ? 14 : 15;
+            const progress = THREE.MathUtils.clamp(1 - p8.stitchT / 0.26, 0, 0.999);
+            frame = 8 + Math.floor(progress * 4);
         } else if (target) {
-            frame = p8.tension > 0.48 ? 13 : 12;
+            frame = p8.tension > 0.48 ? 2 : 1;
         } else if (!p8.onGround) {
-            frame = p8.vy > 2.1 ? 8 : p8.vy > -2.3 ? 9 : 10;
+            frame = p8.vy > 3.2 ? 4 : p8.vy > 0.55 ? 5 : p8.vy > -2.5 ? 6 : 7;
+        } else if (landingT.current > 0) {
+            frame = landingT.current > 0.085 ? 11 : 0;
         } else if (moving) {
-            frame = 4 + (Math.floor(p8.runPhase * 1.28) % 4);
-        } else if (Math.abs(p8.vy) > 0.2) frame = 11;
-        showFrame(frame);
+            map = walkAtlas; rows = 2; key = 'walk';
+            frame = Math.floor(p8.runPhase * 1.25) % 8;
+        }
+        showFrame(map, frame, rows, key);
 
-        g.position.set(p8.x, p8.y + 1.34, 0.58);
+        // Mantém os pés em y=.31 mesmo quando o desenho ocupa outra margem da célula.
+        const localFoot = PLAYER_PLANE * 0.5 - baseline * PLAYER_PLANE;
+        const gaitEase = key === 'walk' ? Math.sin((frame / 8) * Math.PI * 2) * 0.008 : 0;
+        g.position.set(p8.x, p8.y + 0.31 - localFoot + gaitEase, 0.58);
         g.scale.set(p8.facing < 0 ? -1 : 1, 1, 1);
         const aimTilt = target ? Math.atan2(target.y - (p8.y + 1), target.x - p8.x) * 0.055 : 0;
         const breathing = cinematic.active ? 0 : Math.sin(clock.elapsedTime * 2.15) * 0.008;
@@ -460,11 +547,53 @@ const CrochetPlayerSprite: React.FC<{
         <group ref={root} name="traveler-image-sprite">
             <mesh position={[0, -1.02, -0.04]} scale={[1.1, 0.2, 1]} material={kit.glow}><planeGeometry args={[1.4, 1]} /></mesh>
             <mesh ref={sprite} renderOrder={6}>
-                <planeGeometry args={[2.88, 2.88]} />
-                <meshBasicMaterial map={atlas} transparent alphaTest={0.028} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
+                <planeGeometry args={[PLAYER_PLANE, PLAYER_PLANE]} />
+                <meshBasicMaterial map={actionAtlas} transparent alphaTest={0.035} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
             </mesh>
         </group>
     );
+};
+
+/** Um único sprite reaproveitado para pouso e impacto da agulha. */
+const PlayerTransitionFX: React.FC = () => {
+    const root = useRef<THREE.Group>(null!);
+    const sprite = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
+    const lastFrame = useRef(-1);
+    const wasGrounded = useRef(p8.onGround);
+    const previousStitch = useRef(p8.stitchT);
+    const active = useRef<{ kind: 'land' | 'stitch'; start: number; x: number; y: number; facing: number } | null>(null);
+    const atlas = useMemo(() => atlasTexture(crochetVfxAtlas, 4, 2), []);
+    useEffect(() => () => atlas.dispose(), [atlas]);
+    useFrame(({ clock }) => {
+        const now = clock.elapsedTime;
+        if (previousStitch.current <= 0.02 && p8.stitchT > 0.2) {
+            active.current = { kind: 'stitch', start: now, x: p8.x + p8.facing * 1.25, y: p8.y + 1.15, facing: p8.facing };
+        } else if (!wasGrounded.current && p8.onGround && Math.abs(p8.vy) < 0.1) {
+            active.current = { kind: 'land', start: now, x: p8.x, y: p8.y + 0.12, facing: p8.facing };
+        }
+        previousStitch.current = p8.stitchT; wasGrounded.current = p8.onGround;
+        const fx = active.current, g = root.current;
+        if (!fx || !g) { if (g) g.visible = false; return; }
+        const age = now - fx.start, frameInStrip = Math.floor(age / 0.075);
+        if (frameInStrip > 3) { g.visible = false; active.current = null; return; }
+        const frame = (fx.kind === 'stitch' ? 4 : 0) + frameInStrip;
+        if (frame !== lastFrame.current) {
+            lastFrame.current = frame;
+            const col = frame % 4, row = Math.floor(frame / 4);
+            atlas.offset.set(col * 0.25 + 0.001, 1 - (row + 1) * 0.5 + 0.001);
+            atlas.needsUpdate = true;
+        }
+        g.visible = true; g.position.set(fx.x, fx.y, 0.72);
+        const s = fx.kind === 'stitch' ? 1.75 : 1.32;
+        g.scale.set(fx.facing * s, s, 1);
+        if (sprite.current) sprite.current.material.opacity = Math.min(1, (0.31 - age) * 7.5);
+    });
+    return <group ref={root} visible={false} name="traveler-transition-vfx">
+        <mesh ref={sprite} renderOrder={8}>
+            <planeGeometry args={[1, 1]} />
+            <meshBasicMaterial map={atlas} transparent alphaTest={0.025} depthWrite={false} toneMapped={false} />
+        </mesh>
+    </group>;
 };
 
 const LiveThread: React.FC<{ kit: Kit }> = ({ kit }) => {
@@ -670,11 +799,14 @@ const BossActor: React.FC<{ kit: Kit }> = ({ kit }) => {
     );
 };
 
+const BOSS_REVEAL_BASELINE = [418, 418, 418, 418, 418, 418, 418, 418, 271, 274, 271, 269].map((v) => v / 418);
+const BOSS_REVEAL_SCALE = [0.44, 0.42, 0.48, 0.62, 0.63, 0.66, 0.70, 0.74, 1.12, 1.13, 1.15, 1.15];
+const BOSS_PLANE_H = 5.98;
+
 /**
- * YOURSELF em sprites pintados pelo GPT Images. O atlas tem oito poses em uma
- * grade 4x2; trocar UVs custa um único draw call e preserva orçamento para o
- * parallax. A geometria antiga fica acima apenas como referência de autoria,
- * mas não é montada na cena.
+ * YOURSELF usa um atlas de combate 4x2 e uma manifestação 4x3. A introdução
+ * segura a câmera no boss durante os doze quadros e ancora cada forma no chão,
+ * em vez de deixar a transformação acontecer fora da tela ou flutuar.
  */
 const BossSpriteActor: React.FC<{
     kit: Kit;
@@ -683,33 +815,18 @@ const BossSpriteActor: React.FC<{
     const root = useRef<THREE.Group>(null!);
     const sprite = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
     const halo = useRef<THREE.Group>(null!);
+    const bossGlow = useRef<THREE.Mesh>(null!);
     const lastVisual = useRef('');
-    const atlas = useMemo(() => {
-        const t = new THREE.TextureLoader().load(bossYourselfAtlas);
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
-        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
-        t.generateMipmaps = false;
-        // Um pequeno recuo impede a interpolação de buscar pixels da célula vizinha.
-        t.repeat.set(0.2486, 0.4977);
-        return t;
-    }, []);
-    const revealAtlas = useMemo(() => {
-        const t = new THREE.TextureLoader().load(bossRevealAtlas);
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
-        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
-        t.generateMipmaps = false; t.repeat.set(0.2486, 0.4977);
-        return t;
-    }, []);
+    const atlas = useMemo(() => atlasTexture(bossYourselfAtlas, 4, 2), []);
+    const revealAtlas = useMemo(() => atlasTexture(bossRevealAtlas, 4, 3), []);
     useEffect(() => () => { atlas.dispose(); revealAtlas.dispose(); }, [atlas, revealAtlas]);
 
-    const showFrame = (map: THREE.Texture, frame: number, key: string) => {
+    const showFrame = (map: THREE.Texture, frame: number, rows: number, key: string) => {
         const visual = `${key}:${frame}`;
         if (visual === lastVisual.current) return;
         lastVisual.current = visual;
         const col = frame % 4, row = Math.floor(frame / 4);
-        map.offset.set(col * 0.25 + 0.0007, 1 - (row + 1) * 0.5 + 0.00115);
+        map.offset.set(col * 0.25 + 0.001, 1 - (row + 1) / rows + 0.001);
         map.needsUpdate = true;
         if (sprite.current) { sprite.current.material.map = map; sprite.current.material.needsUpdate = true; }
     };
@@ -717,31 +834,36 @@ const BossSpriteActor: React.FC<{
     useFrame(({ clock }) => {
         const b = p8.boss, g = root.current;
         if (!b || !g) { if (g) g.visible = false; return; }
-        g.visible = b.phase !== 'dormant';
+        const cinematic = bossIntroRef.current;
+        g.visible = b.phase !== 'dormant' || cinematic.active;
         if (!g.visible) return;
 
         const t = clock.elapsedTime, attack = b.phase === 'attack' ? b.attack : null;
-        const cinematic = bossIntroRef.current;
         const introElapsed = cinematic.active ? Math.max(0, performance.now() / 1000 - cinematic.startedAt) : 0;
         let frame = Math.floor(t * 2.15) % 2; // duas poses de respiração
+        let revealScale = 1;
         if (cinematic.active) {
-            const revealProgress = THREE.MathUtils.clamp((introElapsed - 0.72) / 4.65, 0, 0.999);
-            frame = Math.floor(revealProgress * 8);
-            showFrame(revealAtlas, frame, 'reveal');
+            const raw = THREE.MathUtils.clamp((introElapsed - BOSS_REVEAL_START) / (BOSS_REVEAL_END - BOSS_REVEAL_START), 0, 0.999);
+            // Cadência uniforme: nenhum quadro intermediário some no meio da curva.
+            frame = Math.floor(raw * 12);
+            revealScale = BOSS_REVEAL_SCALE[frame];
+            showFrame(revealAtlas, frame, 3, 'reveal');
         } else {
             if (attack === 'slam') frame = b.atkT < (b.seams <= 1 ? 0.42 : 0.7) ? 2 : 3;
             else if (attack === 'sweep') frame = 4;
             else if (attack === 'throw') frame = 5;
             else if (attack === 'cocoon' || b.shield) frame = 6;
             else if (b.phase === 'exposed' || b.phase === 'bound' || b.hurtT > 0) frame = 7;
-            showFrame(atlas, frame, 'fight');
+            showFrame(atlas, frame, 2, 'fight');
         }
 
-        g.position.set(b.x, b.y + 2.72, 0.48);
+        const revealFoot = BOSS_PLANE_H * 0.5 - (BOSS_REVEAL_BASELINE[frame] ?? 1) * BOSS_PLANE_H;
+        const rootY = cinematic.active ? b.y - 0.08 - revealFoot * revealScale : b.y + 2.72;
+        g.position.set(b.x, rootY, 0.48);
         const attackPulse = attack && !cinematic.active ? 1 + Math.sin(t * 13) * 0.018 : 1;
         const hurtPulse = b.hurtT > 0 ? 1 - Math.sin(b.hurtT * 30) * 0.055 : 1;
         const panic = b.seams <= 1 ? 1 + Math.sin(t * 31) * 0.012 : 1;
-        const form = cinematic.active ? 0.92 + THREE.MathUtils.smoothstep(introElapsed, 0.55, 5.2) * 0.08 : 1;
+        const form = cinematic.active ? revealScale : 1;
         g.scale.set(attackPulse * hurtPulse * panic * form, attackPulse * hurtPulse * form, 1);
         g.rotation.z = cinematic.active ? Math.sin(introElapsed * 8) * Math.max(0, 0.018 - introElapsed * 0.0025)
             : b.phase === 'bound' ? Math.sin(t * 19) * 0.045 : Math.sin(t * 1.1) * 0.007;
@@ -749,16 +871,18 @@ const BossSpriteActor: React.FC<{
             sprite.current.material.opacity = b.hurtT > 0 && Math.sin(t * 28) > 0.2 ? 0.58 : 1;
         }
         if (halo.current) {
+            halo.current.visible = !cinematic.active || introElapsed > 7.05;
             halo.current.rotation.z = t * (b.seams <= 1 ? -0.32 : 0.11);
             halo.current.scale.setScalar(1 + Math.sin(t * 2.25) * 0.035);
         }
+        if (bossGlow.current) bossGlow.current.visible = !cinematic.active || introElapsed > 4.35;
     });
 
     return (
         <group ref={root} visible={false} name="YOURSELF-sprite">
-            <mesh position={[0, 0.12, -0.08]} scale={[4.9, 5.9, 1]} material={kit.glow}><planeGeometry args={[1, 1]} /></mesh>
+            <mesh ref={bossGlow} position={[0, 0.12, -0.08]} scale={[4.9, 5.9, 1]} material={kit.glow}><planeGeometry args={[1, 1]} /></mesh>
             <mesh ref={sprite} renderOrder={4}>
-                <planeGeometry args={[5.35, 5.98]} />
+                <planeGeometry args={[5.35, BOSS_PLANE_H]} />
                 <meshBasicMaterial map={atlas} transparent alphaTest={0.035} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
             </mesh>
             {/* cinco nós legíveis continuam sendo a vida diegética, não uma barra genérica */}
@@ -1056,20 +1180,23 @@ const Scene: React.FC<{
             const playerX = p8.x + 1.2, bossX = p8.boss.x - 0.8;
             const closeZoom = THREE.MathUtils.clamp(size.width / 12.8, 38, 68);
             const wideZoom = THREE.MathUtils.clamp(size.width / 35.5, 20, 48);
-            if (e < 1.15) {
+            if (e < 1.05) {
                 tx = playerX; ty = p8.y + 2.0; wantedZoom = closeZoom;
-            } else if (e < 4.65) {
-                const k0 = THREE.MathUtils.clamp((e - 1.15) / 3.5, 0, 1), k = k0 * k0 * (3 - 2 * k0);
+            } else if (e < BOSS_REVEAL_START) {
+                const k0 = THREE.MathUtils.clamp((e - 1.05) / (BOSS_REVEAL_START - 1.05), 0, 1), k = k0 * k0 * (3 - 2 * k0);
                 tx = THREE.MathUtils.lerp(playerX, bossX, k); ty = THREE.MathUtils.lerp(p8.y + 2.0, p8.boss.y + 2.7, k);
                 wantedZoom = closeZoom;
+            } else if (e < 7.35) {
+                // A câmera já chegou antes do primeiro quadro de manifestação.
+                tx = bossX; ty = p8.boss.y + 2.55; wantedZoom = closeZoom;
             } else {
-                const k0 = THREE.MathUtils.clamp((e - 4.65) / 1.65, 0, 1), k = k0 * k0 * (3 - 2 * k0);
+                const k0 = THREE.MathUtils.clamp((e - 7.35) / 1.45, 0, 1), k = k0 * k0 * (3 - 2 * k0);
                 tx = THREE.MathUtils.lerp(bossX, (p8.x + p8.boss.x) * 0.5, k);
                 ty = THREE.MathUtils.lerp(p8.boss.y + 2.7, 2.6, k);
                 wantedZoom = THREE.MathUtils.lerp(closeZoom, wideZoom, k);
             }
             // O encaixe da máscara dá um pequeno tranco de câmera, sem pós-processamento caro.
-            const snap = Math.max(0, 1 - Math.abs(e - 4.93) / 0.34);
+            const snap = Math.max(0, 1 - Math.abs(e - BOSS_MASK_SNAP) / 0.34);
             tx += Math.sin(e * 82) * 0.18 * snap; ty += Math.cos(e * 67) * 0.11 * snap;
         } else {
             const bossFocus = mem.key === 'yourself' && p8.x > 15 ? 1.5 : 2.8;
@@ -1110,7 +1237,9 @@ const Scene: React.FC<{
             {mem.key !== 'yourself' && <group ref={fg}><mesh material={kit.fg}><planeGeometry args={[36, 4.5]} /></mesh></group>}
             {mem.key === 'tempestade' && <Rain endX={mem.endX} />}
             {mem.key === 'yourself' && <YourselfParallax bossIntroRef={bossIntroRef} />}
-            {mem.ledges.map((l, i) => <YarnLedge key={`${mem.key}-l${i}`} l={l} kit={kit} />)}
+            {mem.key === 'yourself' && mem.ledges[0]
+                ? <YourselfArenaFloor l={mem.ledges[0]} kit={kit} />
+                : mem.ledges.map((l, i) => <YarnLedge key={`${mem.key}-l${i}`} l={l} kit={kit} />)}
             {mem.anchors.map((a, i) => <Anchor key={`${mem.key}-a${i}`} a={a} i={i} kit={kit} />)}
             {mem.hazards.map((h, i) => <BlackThread key={`${mem.key}-h${i}`} h={h} kit={kit} />)}
             {mem.gates.map((_, i) => <SeamGateActor key={`${mem.key}-g${i}`} i={i} kit={kit} />)}
@@ -1120,6 +1249,7 @@ const Scene: React.FC<{
             <BossSpriteActor kit={kit} bossIntroRef={bossIntroRef} />
             {mem.boss && <BossFX kit={kit} />}
             <CrochetPlayerSprite kit={kit} bossIntroRef={bossIntroRef} />
+            <PlayerTransitionFX />
             <LiveThread kit={kit} />
         </>
     );
@@ -1231,18 +1361,19 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
             <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'soft-light', opacity: 0.028, backgroundImage: 'repeating-linear-gradient(0deg,#fff 0 1px,#000 1px 3px)' }} />
             {bossIntroActive && (
                 <div data-f8-boss-cutscene key={bossIntroKey} style={{ position: 'absolute', inset: 0, zIndex: 18, pointerEvents: 'none', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 72% 48%,rgba(177,31,63,.16),transparent 32%),linear-gradient(90deg,rgba(0,0,0,.25),transparent 32%,transparent 67%,rgba(0,0,0,.45))', animation: 'f8BossGrade 7.2s ease both' }} />
+                    <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 72% 48%,rgba(177,31,63,.16),transparent 32%),linear-gradient(90deg,rgba(0,0,0,.25),transparent 32%,transparent 67%,rgba(0,0,0,.45))', animation: `f8BossGrade ${BOSS_INTRO_DURATION}s ease both` }} />
                     {Array.from({ length: 7 }, (_, i) => <i key={i} style={{ position: 'absolute', left: `${10 + i * 13.2}%`, top: '-18%', width: 1 + (i % 3), height: '136%', background: i % 2 ? 'rgba(242,174,153,.24)' : 'rgba(179,32,68,.34)', boxShadow: '0 0 12px rgba(222,49,83,.35)', transformOrigin: 'top', animation: `f8BossThread ${1.5 + i * 0.11}s ${0.25 + i * 0.09}s cubic-bezier(.2,.8,.2,1) both` }} />)}
-                    <div style={{ position: 'absolute', inset: '-30%', background: 'radial-gradient(circle,rgba(255,225,196,.82) 0,rgba(230,54,85,.26) 9%,transparent 25%)', opacity: 0, animation: 'f8BossSnap 7.2s linear both' }} />
-                    <div style={{ position: 'absolute', left: '7%', right: '7%', bottom: '21%', textAlign: 'center', color: '#e6c8c0', font: 'italic clamp(13px,2.4vw,19px)/1.4 Georgia,serif', letterSpacing: 1.2, textShadow: '0 3px 14px #000', animation: 'f8BossLineOne 7.2s ease both' }}>O fio à frente se move sem mãos.</div>
-                    <div style={{ position: 'absolute', left: '7%', right: '7%', bottom: '21%', textAlign: 'center', color: '#f0d4cb', font: 'italic clamp(13px,2.4vw,19px)/1.4 Georgia,serif', letterSpacing: 1.2, textShadow: '0 3px 14px #000', animation: 'f8BossLineTwo 7.2s ease both' }}>Não era algo esperando no fim.</div>
-                    <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', alignContent: 'center', textAlign: 'center', animation: 'f8BossTitle 7.2s cubic-bezier(.2,.8,.2,1) both' }}>
+                    <div style={{ position: 'absolute', inset: '-30%', background: 'radial-gradient(circle,rgba(255,225,196,.82) 0,rgba(230,54,85,.26) 9%,transparent 25%)', opacity: 0, animation: `f8BossSnap ${BOSS_INTRO_DURATION}s linear both` }} />
+                    <div style={{ position: 'absolute', left: '7%', right: '7%', bottom: '21%', textAlign: 'center', color: '#e6c8c0', font: 'italic clamp(13px,2.4vw,19px)/1.4 Georgia,serif', letterSpacing: 1.2, textShadow: '0 3px 14px #000', animation: `f8BossLineOne ${BOSS_INTRO_DURATION}s ease both` }}>O fio à frente se move sem mãos.</div>
+                    <div style={{ position: 'absolute', left: '7%', right: '7%', bottom: '21%', textAlign: 'center', color: '#f0d4cb', font: 'italic clamp(13px,2.4vw,19px)/1.4 Georgia,serif', letterSpacing: 1.2, textShadow: '0 3px 14px #000', animation: `f8BossLineTwo ${BOSS_INTRO_DURATION}s ease both` }}>Não era algo esperando no fim.</div>
+                    <div style={{ position: 'absolute', left: '7%', right: '7%', bottom: '18%', textAlign: 'center', color: '#e4b6b3', font: 'italic clamp(12px,2.2vw,18px)/1.4 Georgia,serif', letterSpacing: 1.1, textShadow: '0 3px 14px #000', animation: `f8BossLineThree ${BOSS_INTRO_DURATION}s ease both` }}>Era o que continuou se costurando quando você desviou o olhar.</div>
+                    <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', alignContent: 'center', textAlign: 'center', animation: `f8BossTitle ${BOSS_INTRO_DURATION}s cubic-bezier(.2,.8,.2,1) both` }}>
                         <div style={{ color: '#a97b80', font: '9px/1.2 monospace', letterSpacing: 'clamp(3px,1.2vw,9px)', marginBottom: 10 }}>A QUINTA LEMBRANÇA NÃO TEM SAÍDA</div>
                         <div style={{ color: '#f4d3cc', font: '600 clamp(48px,13vw,126px)/.82 Georgia,serif', letterSpacing: 'clamp(5px,2vw,22px)', textShadow: '0 0 8px #fff2da,0 0 28px #d52f55,0 0 90px #6f102d' }}>YOURSELF</div>
                         <div style={{ color: '#d9aeb0', font: '10px/1.2 monospace', letterSpacing: 'clamp(2px,.8vw,6px)', marginTop: 20 }}>VOCÊ NÃO ENTROU NA ARENA · ELA LEMBROU DE VOCÊ</div>
                     </div>
-                    <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '12.5%', background: 'linear-gradient(#000 70%,rgba(0,0,0,.92))', boxShadow: '0 8px 30px #000', animation: 'f8BossBarTop 7.2s ease both' }} />
-                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '12.5%', background: 'linear-gradient(rgba(0,0,0,.92),#000 30%)', boxShadow: '0 -8px 30px #000', animation: 'f8BossBarBot 7.2s ease both' }} />
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '12.5%', background: 'linear-gradient(#000 70%,rgba(0,0,0,.92))', boxShadow: '0 8px 30px #000', animation: `f8BossBarTop ${BOSS_INTRO_DURATION}s ease both` }} />
+                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '12.5%', background: 'linear-gradient(rgba(0,0,0,.92),#000 30%)', boxShadow: '0 -8px 30px #000', animation: `f8BossBarBot ${BOSS_INTRO_DURATION}s ease both` }} />
                     <div onAnimationEnd={finishBossIntro} style={{ position: 'absolute', width: 1, height: 1, opacity: 0, animation: `f8BossTimer ${BOSS_INTRO_DURATION}s linear both` }} />
                 </div>
             )}
@@ -1347,14 +1478,15 @@ export const Floor8Platformer: React.FC<{ onDone?: () => void }> = ({ onDone }) 
                 @keyframes f8blinkTop{0%,64%{transform:scaleY(0)}74%,82%{transform:scaleY(1)}100%{transform:scaleY(0)}}
                 @keyframes f8blinkBot{0%,64%{transform:scaleY(0)}74%,82%{transform:scaleY(1)}100%{transform:scaleY(0)}}
                 @keyframes f8BossTimer{from{transform:translateX(0)}to{transform:translateX(1px)}}
-                @keyframes f8BossGrade{0%{opacity:0;filter:saturate(.65)}10%,88%{opacity:1;filter:saturate(1)}100%{opacity:0;filter:saturate(.8)}}
+                @keyframes f8BossGrade{0%{opacity:0;filter:saturate(.65)}7%,92%{opacity:1;filter:saturate(1)}100%{opacity:0;filter:saturate(.8)}}
                 @keyframes f8BossThread{0%{transform:translateY(-100%) scaleY(.2);opacity:0}30%{opacity:.85}72%{transform:translateY(0) scaleY(1);opacity:.56}100%{transform:translateY(13%) scaleY(1.08);opacity:0}}
-                @keyframes f8BossSnap{0%,66%{opacity:0;transform:scale(.55)}68%{opacity:.9;transform:scale(1)}72%,100%{opacity:0;transform:scale(1.35)}}
-                @keyframes f8BossLineOne{0%,7%{opacity:0;transform:translateY(8px);filter:blur(4px)}12%,25%{opacity:1;transform:none;filter:blur(0)}31%,100%{opacity:0;transform:translateY(-5px);filter:blur(2px)}}
-                @keyframes f8BossLineTwo{0%,31%{opacity:0;transform:translateY(8px);filter:blur(4px)}37%,50%{opacity:1;transform:none;filter:blur(0)}58%,100%{opacity:0;transform:translateY(-5px);filter:blur(2px)}}
-                @keyframes f8BossTitle{0%,63%{opacity:0;transform:scale(1.12);filter:blur(14px)}70%{opacity:1;transform:scale(1);filter:blur(0)}88%{opacity:1;transform:scale(1.012);filter:blur(0)}100%{opacity:0;transform:scale(1.035);filter:blur(3px)}}
-                @keyframes f8BossBarTop{0%{transform:translateY(-105%)}8%,91%{transform:none}100%{transform:translateY(-105%)}}
-                @keyframes f8BossBarBot{0%{transform:translateY(105%)}8%,91%{transform:none}100%{transform:translateY(105%)}}
+                @keyframes f8BossSnap{0%,70%{opacity:0;transform:scale(.55)}73%{opacity:.9;transform:scale(1)}77%,100%{opacity:0;transform:scale(1.35)}}
+                @keyframes f8BossLineOne{0%,5%{opacity:0;transform:translateY(8px);filter:blur(4px)}9%,19%{opacity:1;transform:none;filter:blur(0)}24%,100%{opacity:0;transform:translateY(-5px);filter:blur(2px)}}
+                @keyframes f8BossLineTwo{0%,20%{opacity:0;transform:translateY(8px);filter:blur(4px)}25%,34%{opacity:1;transform:none;filter:blur(0)}39%,100%{opacity:0;transform:translateY(-5px);filter:blur(2px)}}
+                @keyframes f8BossLineThree{0%,39%{opacity:0;transform:translateY(8px);filter:blur(4px)}44%,61%{opacity:1;transform:none;filter:blur(0)}68%,100%{opacity:0;transform:translateY(-5px);filter:blur(2px)}}
+                @keyframes f8BossTitle{0%,77%{opacity:0;transform:scale(1.12);filter:blur(14px)}82%{opacity:1;transform:scale(1);filter:blur(0)}94%{opacity:1;transform:scale(1.012);filter:blur(0)}100%{opacity:0;transform:scale(1.035);filter:blur(3px)}}
+                @keyframes f8BossBarTop{0%{transform:translateY(-105%)}6%,94%{transform:none}100%{transform:translateY(-105%)}}
+                @keyframes f8BossBarBot{0%{transform:translateY(105%)}6%,94%{transform:none}100%{transform:translateY(105%)}}
                 @media(max-width:520px){button{user-select:none;-webkit-user-select:none}.f8-help{display:none}}
             `}</style>
         </div>
