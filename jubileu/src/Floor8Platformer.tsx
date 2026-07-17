@@ -1168,25 +1168,29 @@ const MemoryParallax: React.FC<{ memKey: 'quintal' | 'escola' }> = ({ memKey }) 
     const cam = useThree((s) => s.camera);
     const layers = MEM_PARALLAX[memKey];
     const refs = useRef<(THREE.Mesh | null)[]>([]);
-    const textures = useMemo(() => layers.map((l, i) => {
+    const gl = useThree((s) => s.gl);
+    const textures = useMemo(() => layers.map((l) => {
         const t = new THREE.TextureLoader().load(l.url);
         t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
-        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
-        if (i > 0) t.generateMipmaps = false;
+        // MIPMAPS trilineares + anisotropia: sem isso o tricô (altíssima
+        // frequência) cintila a cada frame quando a textura minifica.
+        t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
+        t.anisotropy = Math.min(4, gl.capabilities.getMaxAnisotropy());
         if (l.crop) { t.repeat.set(1, l.crop[1] - l.crop[0]); t.offset.set(0, l.crop[0]); }
         return t;
-    }), [layers]);
+    }), [layers, gl]);
     useEffect(() => () => { textures.forEach((t) => t.dispose()); }, [textures]);
     useFrame(({ clock }) => {
         const t = clock.elapsedTime;
         layers.forEach((l, i) => {
             const m = refs.current[i]; if (!m) return;
+            // sem micro-rotação: em planos gigantes ela vira "crawling" de
+            // pixel constante — só um bob vertical lento e sutil.
             m.position.set(
                 cam.position.x * l.factor,
-                cam.position.y * l.yF + l.y + Math.sin(t * (0.16 + i * 0.07)) * l.sway,
+                cam.position.y * l.yF + l.y + Math.sin(t * (0.14 + i * 0.06)) * l.sway,
                 l.z,
             );
-            m.rotation.z = l.sway ? Math.sin(t * (0.09 + i * 0.05)) * 0.003 : 0;
         });
     });
     return (
@@ -1194,10 +1198,13 @@ const MemoryParallax: React.FC<{ memKey: 'quintal' | 'escola' }> = ({ memKey }) 
             {layers.map((l, i) => (
                 <mesh key={i} ref={(el) => { refs.current[i] = el; }} renderOrder={l.order}>
                     <planeGeometry args={[l.w, l.w * (9 / 21) * (l.crop ? l.crop[1] - l.crop[0] : 1)]} />
+                    {/* cutout OPACO com depth real (alphaTest sem blending): zero
+                        briga de ordenação com os outros transparentes da cena e
+                        menos overdraw — o flicker de sort morre aqui. */}
                     <meshBasicMaterial
-                        map={textures[i]} depthWrite={false} fog={false} toneMapped={false}
-                        transparent={!!l.alpha} alphaTest={l.alpha ? 0.02 : 0} depthTest={!l.alpha || l.z < 0}
-                        opacity={l.opacity ?? 1}
+                        map={textures[i]} fog={false} toneMapped={false}
+                        transparent={false} alphaTest={l.alpha ? 0.4 : 0}
+                        depthWrite depthTest
                     />
                 </mesh>
             ))}
