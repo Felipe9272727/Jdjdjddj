@@ -4,14 +4,15 @@
  *
  * Run:  cd jubileu && npm run dev  →  http://localhost:3000/floor9.html
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import Floor9Forest from './Floor9Forest';
 import Floor9Overlay from './Floor9Overlay';
 import Floor9Cutscene from './Floor9Cutscene';
-import { f9, f9Reset, f9QuedaDone, f9ChegadaDone, f9Subscribe } from './f9Floresta';
+import { Fiapo } from './Floor9Fauna';
+import { f9, f9Reset, f9QuedaDone, f9ChegadaDone, f9Subscribe, F9_OCOS } from './f9Floresta';
 import { f9eco, f9EcoReset } from './f9Eco';
 import { wallsForState } from './constants';
 import { resolveCollision } from './physics';
@@ -86,11 +87,33 @@ const Dev: React.FC = () => {
         };
     }, []);
     useEffect(() => f9Subscribe(() => setV((x) => x + 1)), []);
+    // replantio no bench: acorda na boca do oco mais próximo
+    const prevPhase = useRef(f9.phase);
+    useEffect(() => f9Subscribe(() => {
+        if (f9.phase === 'explorar' && prevPhase.current === 'apagando') {
+            let best = F9_OCOS[0], bd = Infinity;
+            for (const o of F9_OCOS) {
+                const d = (posRef.current.x - o[0]) ** 2 + (posRef.current.z - o[1]) ** 2;
+                if (d < bd) { bd = d; best = o; }
+            }
+            posRef.current.set(best[0], 0, best[1] + best[2] + 0.7);
+        }
+        prevPhase.current = f9.phase;
+    }), []);
+    // o Fiapo orbita pelo theta do walker (adapter pro ref de ângulo do dev)
+    const thetaAdapter = useMemo(() => ({
+        get current(): number {
+            const a = (window as unknown as { __f9ang?: { current: { theta: number } } }).__f9ang;
+            return a ? a.current.theta : Math.PI;
+        },
+        set current(_v: number) { /* dev: só leitura */ },
+    }) as React.MutableRefObject<number>, []);
     return (
         <div style={{ position: 'fixed', inset: 0, background: '#000' }}>
             <Canvas camera={{ fov: 74, near: 0.1, far: 130, position: [0, 1.6, -1.5] }}>
                 <DevWalker />
                 <Floor9Forest playerPositionRef={posRef} />
+                <Fiapo playerPositionRef={posRef} cameraThetaRef={thetaAdapter} />
                 <Floor9Cutscene />
             </Canvas>
             <Floor9Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} />

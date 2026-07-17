@@ -61,7 +61,8 @@ import Floor8Cutscene from './Floor8Cutscene';
 import Floor9Forest from './Floor9Forest';
 import Floor9Overlay from './Floor9Overlay';
 import Floor9Cutscene from './Floor9Cutscene';
-import { f9Reset } from './f9Floresta';
+import { Fiapo } from './Floor9Fauna';
+import { f9, f9Reset, f9Subscribe, F9_OCOS } from './f9Floresta';
 import { f9EcoReset } from './f9Eco';
 import Floor8Overlay, { Floor8Ride } from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
@@ -1015,6 +1016,21 @@ export default function App() {
     f9Reset(); f9EcoReset();
     playerPositionCmdRef.current = { x: 0, y: 0, z: -1.5 };
   }, [currentLevel]);
+  // Replantio do Viveiro: quando a onda (ou o vulto) apaga o player, ele
+  // acorda na BOCA do oco mais próximo — não onde foi pego.
+  const f9PrevPhaseRef = useRef(f9.phase);
+  useEffect(() => f9Subscribe(() => {
+    if (f9.phase === 'explorar' && f9PrevPhaseRef.current === 'apagando') {
+      const p = sharedPlayerPositionRef.current;
+      let best = F9_OCOS[0], bd = Infinity;
+      for (const o of F9_OCOS) {
+        const d = (p.x - o[0]) ** 2 + (p.z - o[1]) ** 2;
+        if (d < bd) { bd = d; best = o; }
+      }
+      playerPositionCmdRef.current = { x: best[0], y: 0, z: best[1] + best[2] + 0.7 };
+    }
+    f9PrevPhaseRef.current = f9.phase;
+  }), []);
   // Mirrors f6.phase into React so World can swap the live cab for the dead
   // one the moment the panel blows (f6 itself mutates outside React).
   const [f6CabDead, setF6CabDead] = useState(false);
@@ -1821,7 +1837,12 @@ export default function App() {
             {hasStarted && currentLevel === 8 && (
                 <Floor8Cutscene playerPositionRef={sharedPlayerPositionRef} />
             )}
-            {/* Andar 9: a QUEDA pela copa (idem: depois do Player). */}
+            {/* Andar 9: o FIAPO (player-bicho, 3ª pessoa) + a QUEDA pela copa.
+                Ordem importa: Fiapo depois do Player (rouba a câmera), cutscene
+                por último (a queda ganha de todo mundo). */}
+            {hasStarted && currentLevel === 9 && (
+                <Fiapo playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} />
+            )}
             {hasStarted && currentLevel === 9 && <Floor9Cutscene />}
             {/* Andar 7 captain-arrival cutscene — mounted AFTER <Player> so its
                 priority-0 useFrame overwrites the player camera while it runs. */}

@@ -4,7 +4,7 @@
  * pra toca, a onda apaga os retardatários e o renascer repõe as populações.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { f9eco, f9EcoReset, f9EcoTick, F9_SPECIES } from '../f9Eco';
+import { f9eco, f9EcoReset, f9EcoTick, f9EcoDrainEvents, F9_SPECIES } from '../f9Eco';
 import { f9, f9Reset, f9Tick, F9_OCOS } from '../f9Floresta';
 
 // player parado longe de tudo (canto do viveiro) pra não assustar ninguém
@@ -67,19 +67,63 @@ describe('f9Eco — o Viveiro vive sem o player', () => {
         f9eco.cycleT = f9eco.cycleLen * 0.985;
         sim(6);
         expect(f9eco.phase === 'onda' || f9eco.phase === 'aviso').toBe(true);
-        // captura o momento exato do renascer: o musgo volta cheio (antes dos
-        // bichos famintos comerem de novo). Depois só a repopulação importa.
+        // captura o momento EXATO do renascer: musgo cheio e populações repostas
+        // (depois disso a predação normal volta a valer — um vulto faminto pode
+        // abater um saltito-sentinela em segundos, e isso é o ecossistema certo).
         let mossFullOnRebirth = false;
+        let popsOnRebirth: { saltito: number; cervo: number } | null = null;
         for (let i = 0; i < 22 * 30; i++) {
             const wasRenascer = f9eco.phase === 'renascer';
             f9EcoTick(1 / 30, PX, PZ, 200);
-            if (wasRenascer && f9eco.phase === 'calmo') mossFullOnRebirth = f9eco.moss.every((m) => m.amount > 0.9);
+            if (wasRenascer && f9eco.phase === 'calmo') {
+                mossFullOnRebirth = f9eco.moss.every((m) => m.amount > 0.9);
+                const bySp = (sp: string) => f9eco.agents.filter((a) => a.sp === sp && a.state !== 'dead').length;
+                popsOnRebirth = { saltito: bySp('saltito'), cervo: bySp('cervo') };
+            }
         }
         expect(f9eco.phase).toBe('calmo');
         expect(mossFullOnRebirth).toBe(true);
-        const bySp = (sp: string) => f9eco.agents.filter((a) => a.sp === sp && a.state !== 'dead').length;
-        expect(bySp('saltito')).toBe(3 * F9_SPECIES.saltito.perDen);
-        expect(bySp('cervo')).toBe(2 * F9_SPECIES.cervo.perDen);
+        expect(popsOnRebirth).not.toBeNull();
+        expect(popsOnRebirth!.saltito).toBe(3 * F9_SPECIES.saltito.perDen);
+        expect(popsOnRebirth!.cervo).toBe(2 * F9_SPECIES.cervo.perDen);
+    });
+
+    it('CAÇA AO PLAYER: vulto faminto persegue e pega o player-bicho (evento cacaPlayer)', () => {
+        const v = f9eco.agents.find((a) => a.sp === 'vulto')!;
+        v.hunger = 0.95; v.err = 0.2;
+        // player-bicho parado perto do vulto, fora de oco
+        const px = v.x + 4, pz = v.z;
+        let caught = false;
+        for (let i = 0; i < 30 * 30 && !caught; i++) {
+            f9EcoTick(1 / 30, px, pz, 200, { huntable: true, safeInOco: false, stillT: 0 });
+            if (f9EcoDrainEvents().includes('cacaPlayer')) caught = true;
+        }
+        expect(caught).toBe(true);
+    });
+
+    it('OCO REPELE: com o player dentro do oco, o vulto desiste da caçada', () => {
+        const v = f9eco.agents.find((a) => a.sp === 'vulto')!;
+        v.hunger = 0.95;
+        const px = v.x + 3, pz = v.z;
+        let caught = false;
+        for (let i = 0; i < 15 * 30; i++) {
+            f9EcoTick(1 / 30, px, pz, 200, { huntable: true, safeInOco: true, stillT: 0 });
+            if (f9EcoDrainEvents().includes('cacaPlayer')) caught = true;
+        }
+        expect(caught).toBe(false);
+    });
+
+    it('CURIOSIDADE: saltito corajoso se aproxima do player-bicho parado (sniff)', () => {
+        // um saltito corajoso a ~8 de distância de um player imóvel há tempo
+        const s = f9eco.agents.find((a) => a.sp === 'saltito')!;
+        s.brave = 0.9; s.fear = 0; s.hunger = 0.2; s.state = 'wander';
+        const px = s.x + 8, pz = s.z;
+        let sniffed = false;
+        for (let i = 0; i < 20 * 30 && !sniffed; i++) {
+            f9EcoTick(1 / 30, px, pz, 200, { huntable: false, safeInOco: false, stillT: 10 });
+            if ((s.state as string) === 'sniff') sniffed = true;
+        }
+        expect(sniffed).toBe(true);
     });
 
     it('GUARDIÃO: nunca vira presa, nunca se abriga, segue andando na onda', () => {

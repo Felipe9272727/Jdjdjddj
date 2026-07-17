@@ -23,10 +23,12 @@ export interface F9State {
     abrigo: number;
     /** quantas vezes o player foi apagado/replantado */
     apagos: number;
+    /** o que apagou o player da última vez (texto do replantio muda) */
+    causa: 'onda' | 'vulto';
     version: number;
 }
 
-const FRESH = (): F9State => ({ phase: 'queda', t: 0, quedaT: 0, abrigo: -1, apagos: 0, version: 0 });
+const FRESH = (): F9State => ({ phase: 'queda', t: 0, quedaT: 0, abrigo: -1, apagos: 0, causa: 'onda', version: 0 });
 export const f9: F9State = FRESH();
 
 const listeners = new Set<() => void>();
@@ -60,6 +62,8 @@ export const F9_RAIZ: readonly [number, number] = [6, -47];
 
 /** ponto de pouso da queda */
 export const F9_POUSO: readonly [number, number] = [0, -1.5];
+// (as árvores-mãe/obstáculos vivem em f9Eco.F9_TREE_OBSTACLES — a IA desvia
+// delas e a cena as renderiza da mesma lista, sem duplicação.)
 
 /** limites andáveis do viveiro */
 export const F9_STATIC_WALLS: number[][] = [
@@ -84,6 +88,12 @@ export function f9ReplantioDone(): void {
     f9.phase = 'explorar'; emit('replantado'); f9Bump();
 }
 
+/** O VULTO pegou o player (a cena chama ao drenar o evento do eco). */
+export function f9Cacado(): void {
+    if (f9.phase !== 'explorar') return;
+    f9.phase = 'apagando'; f9.causa = 'vulto'; f9.apagos++; emit('apagado'); f9Bump();
+}
+
 /** Por frame: abrigo, onda×player, chegada na raiz. */
 export function f9Tick(dt: number, px: number, pz: number): void {
     const s = f9;
@@ -100,7 +110,7 @@ export function f9Tick(dt: number, px: number, pz: number): void {
 
     // a onda pega quem está fora de um oco
     if (s.phase === 'explorar' && f9eco.phase === 'onda' && f9eco.waveT > 2.2 && ab < 0) {
-        s.phase = 'apagando'; s.apagos++; emit('apagado'); f9Bump();
+        s.phase = 'apagando'; s.causa = 'onda'; s.apagos++; emit('apagado'); f9Bump();
         return;
     }
 
@@ -129,8 +139,9 @@ export function f9Objective(): string | null {
 /** Legendas da chegada (o overlay avança por toque). */
 export const F9_CHEGADA_LINES: ReadonlyArray<string> = [
     'Você atravessa a copa inteira antes do chão te aceitar.',
-    'Isto não deveria caber num hotel. E há OLHOS entre as árvores — nenhum se importa com você.',
-    'O fio vermelho continua aqui embaixo, amarrado de galho em galho, fundo adentro.',
+    'Você olha pras próprias mãos. Não são mãos. O Viveiro só aceita FAUNA — ele te replantou em algo pequeno, macio, com cauda.',
+    'Isto não deveria caber num hotel. E há OLHOS entre as árvores — nenhum se importa com você. Agora você é só mais um bicho aqui.',
+    'O fio vermelho continua aqui embaixo, amarrado de galho em galho, fundo adentro. Siga-o. E longe do chão baixo: algo caça rente a ele.',
 ];
 
 /** As falas da RAIZ (v1: o gancho). */

@@ -80,7 +80,9 @@ export const Floor9Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void }
                         ...mono, position: 'absolute', left: 0, right: 0, top: '46%', textAlign: 'center',
                         fontSize: 15, color: '#41503c', letterSpacing: 2, animation: 'f9wipeTxt 3.4s ease-in-out forwards', opacity: 0,
                     }}>
-                        a onda te encontrou. algo te replanta perto de um oco.
+                        {f9.causa === 'vulto'
+                            ? 'dentes na nuca. escuro. …o Viveiro não te deixa acabar: algo te replanta.'
+                            : 'a onda te encontrou. algo te replanta perto de um oco.'}
                     </div>
                 </div>
             )}

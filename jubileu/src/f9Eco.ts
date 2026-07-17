@@ -49,7 +49,8 @@ export const F9_SPECIES: Record<F9Species, F9SpeciesDef> = {
 };
 
 export type F9AgentState =
-    | 'wander' | 'graze' | 'stalk' | 'chase' | 'eat' | 'flee' | 'toDen' | 'denned' | 'dead';
+    | 'wander' | 'graze' | 'lookout' | 'sniff'
+    | 'stalk' | 'chase' | 'eat' | 'flee' | 'toDen' | 'denned' | 'dead';
 
 export interface F9Agent {
     id: number; sp: F9Species;
@@ -69,7 +70,7 @@ export interface F9Den { x: number; z: number; sp: F9Species }
 export interface F9Moss { x: number; z: number; amount: number }
 
 export type F9CyclePhase = 'calmo' | 'aviso' | 'onda' | 'renascer';
-export type F9EcoEvent = 'alarme' | 'abate' | 'ondaComeca' | 'ondaTermina' | 'renasceu';
+export type F9EcoEvent = 'alarme' | 'abate' | 'ondaComeca' | 'ondaTermina' | 'renasceu' | 'cacaPlayer' | 'bote';
 
 export interface F9EcoState {
     agents: F9Agent[];
@@ -200,13 +201,33 @@ function nearestThreat(ag: F9Agent, def: F9SpeciesDef, px: number, pz: number): 
     return best;
 }
 
-/** anda em direção a (tx,tz); retorna true se chegou (< eps). */
+// as árvores-mãe entram como obstáculos de steering (importar criaria ciclo —
+// f9Floresta importa f9eco — então a lista vive aqui e a cena a reexporta).
+export const F9_TREE_OBSTACLES: ReadonlyArray<readonly [number, number, number]> = [
+    [-12, -14, 0.9], [9, -10, 0.8], [-5, -22, 1.0], [19, -18, 0.9],
+    [-19, -24, 0.85], [3, -37, 1.0], [-13, -40, 0.9], [24, -30, 0.85],
+    [-27, -16, 0.8], [14, -45, 0.9], [-8, -30, 0.7], [28, -42, 0.8],
+];
+
+/** anda em direção a (tx,tz) DESVIANDO das árvores-mãe; true se chegou. */
 function stepToward(ag: F9Agent, speed: number, dt: number, eps = 0.6): boolean {
     const dx = ag.tx - ag.x, dz = ag.tz - ag.z;
     const d = Math.hypot(dx, dz);
     ag.speedNow = speed;
     if (d < eps) return true;
-    const want = Math.atan2(dx, dz);
+    // direção desejada + empurrão pra fora dos troncos próximos
+    let mx = dx / d, mz = dz / d;
+    for (const [ox, oz, or_] of F9_TREE_OBSTACLES) {
+        const ax = ag.x - ox, az = ag.z - oz;
+        const ad = Math.hypot(ax, az);
+        const clear = or_ + 0.6;
+        if (ad < clear + 1.2 && ad > 0.001) {
+            const f = Math.max(0, (clear + 1.2 - ad)) * 1.6;
+            mx += (ax / ad) * f; mz += (az / ad) * f;
+        }
+    }
+    const ml = Math.hypot(mx, mz) || 1;
+    const want = Math.atan2(mx / ml, mz / ml);
     let dh = want - ag.heading;
     while (dh > Math.PI) dh -= Math.PI * 2; while (dh < -Math.PI) dh += Math.PI * 2;
     ag.heading += dh * Math.min(1, dt * 6);
@@ -219,18 +240,31 @@ function stepToward(ag: F9Agent, speed: number, dt: number, eps = 0.6): boolean 
     return false;
 }
 
-/** ponto aleatório no território da toca (com o erro do indivíduo). */
+/** ponto aleatório no território da toca (com o erro do indivíduo).
+ *  Cervos têm COESÃO DE MANADA: o alvo é puxado pro centro dos outros cervos. */
 function pickWander(ag: F9Agent, def: F9SpeciesDef): void {
     const d = f9eco.dens[ag.den];
     const a = rnd() * Math.PI * 2;
     const r = rnd() * def.homeR;
-    ag.tx = d.x + Math.cos(a) * r + (rnd() - 0.5) * ag.err * 2;
-    ag.tz = d.z + Math.sin(a) * r + (rnd() - 0.5) * ag.err * 2;
-    ag.tz = Math.min(2, ag.tz);
+    let tx = d.x + Math.cos(a) * r + (rnd() - 0.5) * ag.err * 2;
+    let tz = d.z + Math.sin(a) * r + (rnd() - 0.5) * ag.err * 2;
+    if (ag.sp === 'cervo') {
+        let cx = 0, cz = 0, n = 0;
+        for (const o of f9eco.agents) {
+            if (o.sp !== 'cervo' || o.id === ag.id || o.state === 'dead' || o.state === 'denned') continue;
+            cx += o.x; cz += o.z; n++;
+        }
+        if (n > 0) { tx = tx * 0.55 + (cx / n) * 0.45; tz = tz * 0.55 + (cz / n) * 0.45; }
+    }
+    ag.tx = tx; ag.tz = Math.min(2, tz);
 }
 
+/** contexto da caçada ao player (a cena informa por tick). */
+interface HuntCtx { huntable: boolean; safeInOco: boolean; stillT: number }
+const NO_HUNT: HuntCtx = { huntable: false, safeInOco: false, stillT: 0 };
+
 /** o cérebro de um agente (full sim). */
-function think(ag: F9Agent, dt: number, px: number, pz: number): void {
+function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = NO_HUNT): void {
     const def = F9_SPECIES[ag.sp];
     ag.stateT += dt;
     ag.thinkT -= dt;
@@ -288,6 +322,53 @@ function think(ag: F9Agent, dt: number, px: number, pz: number): void {
         return;
     }
 
+    // ── ETOLOGIA: sentinela (para, ergue a cabeça, varre o entorno) ──
+    if (ag.state === 'lookout') {
+        ag.speedNow = 0;
+        ag.heading += dt * 0.5 * Math.sin(ag.stateT * 1.3);
+        if (ag.stateT > 2.2 + ag.lazy * 1.5) { ag.state = 'wander'; pickWander(ag, def); }
+        return;
+    }
+    // ── CURIOSIDADE do saltito: player-bicho parado vira coisa a cheirar ──
+    if (ag.sp === 'saltito') {
+        const pd = Math.hypot(px - ag.x, pz - ag.z);
+        if (ag.state === 'sniff') {
+            if (pd < 2.6 || ag.stateT > 6) {
+                ag.speedNow = 0;
+                if (ag.stateT > 6 || pd < 1.4) { ag.fear = 0.75; ag.state = 'flee'; ag.stateT = 0; }
+                return;
+            }
+            ag.tx = px; ag.tz = pz;
+            stepToward(ag, def.speed * 0.55, dt, 2.4);
+            return;
+        }
+        if (ag.state === 'wander' && hunt.stillT > 3.5 && pd > 5 && pd < 11 && ag.fear < 0.2 && ag.brave > 0.35) {
+            ag.state = 'sniff'; ag.stateT = 0;
+            return;
+        }
+    }
+    // ── o VULTO caça o PLAYER-bicho (você faz parte da cadeia agora) ──
+    if (ag.sp === 'vulto' && hunt.huntable && ag.hunger > 0.45) {
+        const pd = Math.hypot(px - ag.x, pz - ag.z);
+        if (hunt.safeInOco) {
+            // a luz quente do oco repele — ronda a distância e desiste
+            if (ag.targetId === -2) { ag.targetId = -1; ag.state = 'wander'; pickWander(ag, def); }
+        } else if (pd < def.sense * 1.25) {
+            ag.targetId = -2;
+            ag.state = pd > 6.5 ? 'stalk' : 'chase';
+            ag.tx = px + (rnd() - 0.5) * ag.err * (ag.state === 'chase' ? 1.2 : 0.3);
+            ag.tz = pz + (rnd() - 0.5) * ag.err * (ag.state === 'chase' ? 1.2 : 0.3);
+            if (ag.state === 'chase' && pd < 6.5 && ag.stateT < 0.05) emit('bote');
+            stepToward(ag, ag.state === 'stalk' ? def.speed * 0.7 : def.run, dt, 0.5);
+            if (pd < 1.15) {
+                emit('cacaPlayer');
+                ag.hunger = Math.max(0, ag.hunger - 0.45);
+                ag.state = 'lookout'; ag.stateT = 0; ag.targetId = -1;
+            }
+            return;
+        } else if (ag.targetId === -2) { ag.targetId = -1; ag.state = 'wander'; }
+    }
+
     // fome: musgo (herbívoros) ou caça (vulto)
     if (ag.hunger > 0.55) {
         if ((def.eats as readonly string[]).includes('musgo')) {
@@ -328,10 +409,12 @@ function think(ag: F9Agent, dt: number, px: number, pz: number): void {
         return;
     }
 
-    // vagar pelo território (com pausas — bicho também descansa)
+    // vagar pelo território (com pausas e olhares — bicho também descansa)
     if (ag.thinkT <= 0) {
         ag.thinkT = 1.2 + rnd() * 2.4 + ag.lazy * 1.5;
-        if (rnd() < 0.3 + ag.lazy * 0.3) { ag.tx = ag.x; ag.tz = ag.z; }
+        const roll = rnd();
+        if (roll < 0.16 && ag.sp !== 'vulto') { ag.state = 'lookout'; ag.stateT = 0; return; }
+        if (roll < 0.3 + ag.lazy * 0.3) { ag.tx = ag.x; ag.tz = ag.z; }
         else pickWander(ag, def);
     }
     ag.state = 'wander';
@@ -365,9 +448,15 @@ let absAcc = 0;
 
 /**
  * O tick do mundo. `px,pz` = player; `lodR` = raio de simulação full.
+ * `hunt` (opcional): o player é caçável? está num oco? há quanto tempo parado?
  * Chame por frame; o abstrato interno roda a 2 Hz sozinho.
  */
-export function f9EcoTick(dt: number, px: number, pz: number, lodR = 24): void {
+export function f9EcoTick(dt: number, px: number, pz: number, lodR = 24, hunt?: Partial<HuntCtx>): void {
+    const huntCtx: HuntCtx = { ...NO_HUNT, ...hunt };
+    return f9EcoTickInner(dt, px, pz, lodR, huntCtx);
+}
+
+function f9EcoTickInner(dt: number, px: number, pz: number, lodR: number, hunt: HuntCtx): void {
     const s = f9eco;
     s.t += dt;
     s.cycleT += dt;
@@ -412,7 +501,7 @@ export function f9EcoTick(dt: number, px: number, pz: number, lodR = 24): void {
     const lod2 = lodR * lodR;
     for (const ag of s.agents) {
         if (ag.state === 'dead') { ag.deadT += dt; continue; }
-        if (dist2(ag.x, ag.z, px, pz) <= lod2) think(ag, dt, px, pz);
+        if (dist2(ag.x, ag.z, px, pz) <= lod2) think(ag, dt, px, pz, hunt);
         else if (absStep > 0) thinkAbstract(ag, absStep);
     }
     if (absStep > 0) absAcc = 0;
