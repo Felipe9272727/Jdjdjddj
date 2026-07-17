@@ -29,6 +29,12 @@ import travelerWalkAtlas from './assets/f8/traveler-walk-atlas-v5.webp';
 import travelerActionAtlas from './assets/f8/traveler-action-atlas-v5.webp';
 import yourselfArenaFloor from './assets/f8/yourself-arena-floor-v5.webp';
 import crochetVfxAtlas from './assets/f8/crochet-vfx-atlas-v5.webp';
+import pxQuintalFar from './assets/f8/quintal-parallax-far.webp';
+import pxQuintalMid from './assets/f8/quintal-parallax-mid.webp';
+import pxQuintalNear from './assets/f8/quintal-parallax-near.webp';
+import pxEscolaFar from './assets/f8/escola-parallax-far.webp';
+import pxEscolaMid from './assets/f8/escola-parallax-mid.webp';
+import pxEscolaNear from './assets/f8/escola-parallax-near.webp';
 
 const BOSS_INTRO_DURATION = 9.2;
 const BOSS_REVEAL_START = 2.35;
@@ -1132,6 +1138,164 @@ const YourselfParallax: React.FC<{
     );
 };
 
+// ── Parallax em camadas das memórias antigas (a técnica do boss, replicada) ──
+// Cada pintura segue o X da câmera por uma fração própria: o céu quase gruda
+// na câmera, o meio fica pra trás e o primeiro plano atravessa o quadro. As
+// camadas mid/near são recortes com alpha (geradas no Higgsfield).
+interface PxLayer {
+    url: string; w: number; factor: number; y: number; yF: number; z: number; order: number;
+    alpha?: boolean; sway: number; opacity?: number;
+    /** recorte vertical da textura [y0,y1] em fração (0=base, 1=topo) — as
+     *  gerações vieram com elementos ALTOS demais; usamos só a faixa útil. */
+    crop?: [number, number];
+}
+const MEM_PARALLAX: Record<string, PxLayer[]> = {
+    quintal: [
+        { url: pxQuintalFar, w: 37, factor: 0.985, y: 2.6, yF: 0.12, z: -17, order: -30, sway: 0 },
+        // linha de árvores/casa ao fundo: só a metade de cima do strip gerado
+        { url: pxQuintalMid, w: 34, factor: 0.92, y: 2.9, yF: 0.05, z: -10.5, order: -20, alpha: true, sway: 0.05, crop: [0.24, 0.98], opacity: 0.98 },
+        // franja de primeiro plano: os topos da cerca + girassóis
+        { url: pxQuintalNear, w: 40, factor: 0.78, y: -1.75, yF: -0.04, z: 4.7, order: 20, alpha: true, sway: 0.07, crop: [0.36, 0.72], opacity: 0.96 },
+    ],
+    escola: [
+        { url: pxEscolaFar, w: 37, factor: 0.985, y: 2.6, yF: 0.12, z: -17, order: -30, sway: 0 },
+        { url: pxEscolaMid, w: 34, factor: 0.92, y: 2.7, yF: 0.05, z: -10.5, order: -20, alpha: true, sway: 0.04, crop: [0.22, 0.96], opacity: 0.98 },
+        { url: pxEscolaNear, w: 40, factor: 0.78, y: -1.7, yF: -0.04, z: 4.7, order: 20, alpha: true, sway: 0.06, crop: [0.3, 0.68], opacity: 0.96 },
+    ],
+};
+
+const MemoryParallax: React.FC<{ memKey: 'quintal' | 'escola' }> = ({ memKey }) => {
+    const cam = useThree((s) => s.camera);
+    const layers = MEM_PARALLAX[memKey];
+    const refs = useRef<(THREE.Mesh | null)[]>([]);
+    const textures = useMemo(() => layers.map((l, i) => {
+        const t = new THREE.TextureLoader().load(l.url);
+        t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+        if (i > 0) t.generateMipmaps = false;
+        if (l.crop) { t.repeat.set(1, l.crop[1] - l.crop[0]); t.offset.set(0, l.crop[0]); }
+        return t;
+    }), [layers]);
+    useEffect(() => () => { textures.forEach((t) => t.dispose()); }, [textures]);
+    useFrame(({ clock }) => {
+        const t = clock.elapsedTime;
+        layers.forEach((l, i) => {
+            const m = refs.current[i]; if (!m) return;
+            m.position.set(
+                cam.position.x * l.factor,
+                cam.position.y * l.yF + l.y + Math.sin(t * (0.16 + i * 0.07)) * l.sway,
+                l.z,
+            );
+            m.rotation.z = l.sway ? Math.sin(t * (0.09 + i * 0.05)) * 0.003 : 0;
+        });
+    });
+    return (
+        <>
+            {layers.map((l, i) => (
+                <mesh key={i} ref={(el) => { refs.current[i] = el; }} renderOrder={l.order}>
+                    <planeGeometry args={[l.w, l.w * (9 / 21) * (l.crop ? l.crop[1] - l.crop[0] : 1)]} />
+                    <meshBasicMaterial
+                        map={textures[i]} depthWrite={false} fog={false} toneMapped={false}
+                        transparent={!!l.alpha} alphaTest={l.alpha ? 0.02 : 0} depthTest={!l.alpha || l.z < 0}
+                        opacity={l.opacity ?? 1}
+                    />
+                </mesh>
+            ))}
+        </>
+    );
+};
+
+/** A vida no fundo do QUINTAL: sementes de dente-de-leão subindo à deriva e
+ *  três borboletas de lã batendo asas em oitos preguiçosos. */
+const QuintalAmbience: React.FC<{ endX: number }> = ({ endX }) => {
+    const seeds = useRef<THREE.Points>(null!);
+    const wings = useRef<(THREE.Group | null)[]>([]);
+    const geo = useMemo(() => {
+        const g = new THREE.BufferGeometry(), n = 46, a = new Float32Array(n * 3), r = seedRng(414);
+        for (let i = 0; i < n; i++) { a[i * 3] = r() * (endX + 14) - 5; a[i * 3 + 1] = r() * 9 - 1; a[i * 3 + 2] = -1.5 - r() * 5; }
+        g.setAttribute('position', new THREE.BufferAttribute(a, 3)); return g;
+    }, [endX]);
+    const mat = useMemo(() => new THREE.PointsMaterial({ color: '#fff3d6', size: 0.06, transparent: true, opacity: 0.75, depthWrite: false }), []);
+    useEffect(() => () => { geo.dispose(); mat.dispose(); }, [geo, mat]);
+    useFrame(({ clock }, dt) => {
+        const t = clock.elapsedTime;
+        if (seeds.current) {
+            seeds.current.position.y += dt * 0.32;
+            seeds.current.position.x += dt * 0.5;
+            if (seeds.current.position.y > 7) seeds.current.position.set(-2, -2, 0);
+        }
+        wings.current.forEach((w, i) => {
+            if (!w) return;
+            const sp = 0.23 + i * 0.06, ph = i * 2.4;
+            // um oito preguiçoso pela fase; cada borboleta num trecho do nível
+            w.position.set(
+                6 + i * 13 + Math.sin(t * sp + ph) * 3.4,
+                2.4 + Math.sin(t * sp * 2 + ph) * 1.1 + i * 0.5,
+                -2.2 - i * 1.4,
+            );
+            w.rotation.y = Math.cos(t * sp + ph) > 0 ? 0.35 : Math.PI - 0.35;
+            const flap = Math.sin(t * (9 + i)) * 0.85;
+            const L = w.children[0], R = w.children[1];
+            if (L) L.rotation.y = flap; if (R) R.rotation.y = -flap;
+        });
+    });
+    const wingMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#e8a23c', transparent: true, opacity: 0.92, side: THREE.DoubleSide, toneMapped: false }), []);
+    const wingMat2 = useMemo(() => new THREE.MeshBasicMaterial({ color: '#d4703a', transparent: true, opacity: 0.92, side: THREE.DoubleSide, toneMapped: false }), []);
+    return (
+        <>
+            <points ref={seeds} geometry={geo} material={mat} />
+            {[0, 1, 2].map((i) => (
+                <group key={i} ref={(el) => { wings.current[i] = el; }}>
+                    <mesh position={[-0.09, 0, 0]} material={i % 2 ? wingMat : wingMat2}><circleGeometry args={[0.16, 7]} /></mesh>
+                    <mesh position={[0.09, 0, 0]} material={i % 2 ? wingMat : wingMat2}><circleGeometry args={[0.16, 7]} /></mesh>
+                    <mesh><capsuleGeometry args={[0.022, 0.14, 3, 5]} /><meshBasicMaterial color="#4a2c18" /></mesh>
+                </group>
+            ))}
+        </>
+    );
+};
+
+/** A vida no fundo da ESCOLA: aviõezinhos de papel planando e folhas de
+ *  caderno caindo em zigue-zague. */
+const EscolaAmbience: React.FC<{ endX: number }> = ({ endX }) => {
+    const planes = useRef<(THREE.Mesh | null)[]>([]);
+    const sheets = useRef<(THREE.Mesh | null)[]>([]);
+    const state = useRef(Array.from({ length: 3 }, (_, i) => ({ x: -6 - i * 14, y: 5 + i * 1.2, v: 2.1 + i * 0.5 })));
+    useFrame(({ clock }, dt) => {
+        const t = clock.elapsedTime;
+        state.current.forEach((s, i) => {
+            s.x += s.v * dt;
+            if (s.x > endX + 10) { s.x = -8; s.y = 4.5 + (i % 3) * 1.3; }
+            const m = planes.current[i]; if (!m) return;
+            m.position.set(s.x, s.y + Math.sin(t * 1.6 + i * 2) * 0.55, -3 - i * 1.2);
+            m.rotation.z = -0.18 + Math.sin(t * 1.6 + i * 2) * 0.22;
+        });
+        sheets.current.forEach((m, i) => {
+            if (!m) return;
+            const cyc = 11 + i * 2.7, k = ((t + i * 4.1) % cyc) / cyc;
+            m.position.set(8 + i * 9 + Math.sin(t * 1.1 + i) * 1.6, 8.5 - k * 11, -4 - i);
+            m.rotation.set(Math.sin(t * 2.1 + i) * 0.7, 0, Math.sin(t * 1.7 + i * 3) * 0.9);
+            (m.material as THREE.MeshBasicMaterial).opacity = k < 0.06 ? k / 0.06 : k > 0.92 ? (1 - k) / 0.08 : 1;
+        });
+    });
+    const paperMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#efe9d6', side: THREE.DoubleSide, toneMapped: false }), []);
+    return (
+        <>
+            {[0, 1, 2].map((i) => (
+                <mesh key={i} ref={(el) => { planes.current[i] = el; }} material={paperMat}>
+                    <coneGeometry args={[0.14, 0.5, 4]} />
+                </mesh>
+            ))}
+            {[0, 1, 2, 3].map((i) => (
+                <mesh key={'s' + i} ref={(el) => { sheets.current[i] = el; }}>
+                    <planeGeometry args={[0.26, 0.34]} />
+                    <meshBasicMaterial color="#f2ecda" transparent opacity={1} side={THREE.DoubleSide} toneMapped={false} />
+                </mesh>
+            ))}
+        </>
+    );
+};
+
 const Scene: React.FC<{
     moveRef: React.MutableRefObject<number>; vertRef: React.MutableRefObject<number>;
     jumpRef: React.MutableRefObject<boolean>; grappleRef: React.MutableRefObject<boolean>;
@@ -1230,11 +1394,14 @@ const Scene: React.FC<{
             <pointLight position={[p8.x, p8.y + 3, 5]} intensity={0.7} distance={12} color={mem.pal.thread} />
             {mem.key === 'yourself' && <pointLight ref={bossLight} position={[43, 2.4, 5]} intensity={1.18} distance={15} decay={1.45} color="#e16672" />}
             {mem.key === 'tempestade' && <ambientLight ref={flash} color="#dceaff" intensity={0} />}
-            {mem.key !== 'yourself' && <group ref={sky}>
+            {(mem.key === 'tempestade' || mem.key === 'hotel') && <group ref={sky}>
                 <mesh material={kit.bg}><planeGeometry args={[33.2, 16]} /></mesh>
                 <mesh position={[0, 0, 0.02]}><planeGeometry args={[33.2, 16]} /><meshBasicMaterial color={lift.color} transparent opacity={lift.opacity} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
             </group>}
-            {mem.key !== 'yourself' && <group ref={fg}><mesh material={kit.fg}><planeGeometry args={[36, 4.5]} /></mesh></group>}
+            {(mem.key === 'tempestade' || mem.key === 'hotel') && <group ref={fg}><mesh material={kit.fg}><planeGeometry args={[36, 4.5]} /></mesh></group>}
+            {(mem.key === 'quintal' || mem.key === 'escola') && <MemoryParallax memKey={mem.key} />}
+            {mem.key === 'quintal' && <QuintalAmbience endX={mem.endX} />}
+            {mem.key === 'escola' && <EscolaAmbience endX={mem.endX} />}
             {mem.key === 'tempestade' && <Rain endX={mem.endX} />}
             {mem.key === 'yourself' && <YourselfParallax bossIntroRef={bossIntroRef} />}
             {mem.key === 'yourself' && mem.ledges[0]
