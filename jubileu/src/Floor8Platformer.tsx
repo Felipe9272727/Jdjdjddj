@@ -10,7 +10,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
     p8, p8Subscribe, p8Reset, stepPlayer, curMem, activeThreadTarget, p8Objective, P8,
-    type EnemyKind, type Memory,
+    type EnemyKind, type EnemyState, type Memory,
 } from './f8Platformer';
 import { f8, f8Subscribe, f8Wake } from './f8Arquivo';
 import { f8BossCombatSfx, f8BossIntroSfx, f8MusicStart, f8MusicStop, f8Sting } from './f8Music';
@@ -18,6 +18,14 @@ import bgQuintal from './assets/f8/quintal.jpg';
 import bgEscola from './assets/f8/escola.jpg';
 import bgTempestade from './assets/f8/tempestade.jpg';
 import bgHotel from './assets/f8/hotel.jpg';
+import bgQuintalMid from './assets/f8/quintal-mid-v1.webp';
+import bgQuintalNear from './assets/f8/quintal-near-v1.webp';
+import bgEscolaMid from './assets/f8/escola-mid-v1.webp';
+import bgEscolaNear from './assets/f8/escola-near-v1.webp';
+import bgTempestadeMid from './assets/f8/tempestade-mid-v1.webp';
+import bgTempestadeNear from './assets/f8/tempestade-near-v1.webp';
+import bgHotelMid from './assets/f8/hotel-mid-v1.webp';
+import bgHotelNear from './assets/f8/hotel-near-v1.webp';
 import bgYourselfFar from './assets/f8/yourself-parallax-far-v3.webp';
 import bgYourselfMid from './assets/f8/yourself-parallax-mid-v3.webp';
 import bgYourselfNear from './assets/f8/yourself-parallax-near-v3.webp';
@@ -30,6 +38,9 @@ import travelerWalkAtlas from './assets/f8/traveler-walk-atlas-v6.webp';
 import travelerActionAtlas from './assets/f8/traveler-action-atlas-v6.webp';
 import yourselfArenaFloor from './assets/f8/yourself-arena-floor-v6.webp';
 import crochetVfxAtlas from './assets/f8/crochet-vfx-atlas-v5.webp';
+import enemyKnotlingAtlas from './assets/f8/enemy-knotling-atlas-v1.png';
+import enemyIntrusiveAtlas from './assets/f8/enemy-intrusive-atlas-v1.png';
+import enemyEchoAtlas from './assets/f8/enemy-echo-atlas-v1.png';
 
 const BOSS_INTRO_DURATION = 4.85;
 const BOSS_REVEAL_START = 0.62;
@@ -54,7 +65,12 @@ const BG_URLS: Record<string, string | undefined> = {
     quintal: bgQuintal, escola: bgEscola, tempestade: bgTempestade, hotel: bgHotel,
     yourself: bgYourselfFar,
 };
-const BG_CROP: Record<string, number> = { quintal: 0.04, escola: 0.26, tempestade: 0.05, hotel: 0.04, yourself: 0 };
+const MEMORY_PARALLAX_URLS: Record<string, readonly [string, string, string]> = {
+    quintal: [bgQuintal, bgQuintalMid, bgQuintalNear],
+    escola: [bgEscola, bgEscolaMid, bgEscolaNear],
+    tempestade: [bgTempestade, bgTempestadeMid, bgTempestadeNear],
+    hotel: [bgHotel, bgHotelMid, bgHotelNear],
+};
 const BG_LIFT: Record<string, { color: string; opacity: number }> = {
     quintal: { color: '#f5b36b', opacity: 0.025 },
     escola: { color: '#8ec9e6', opacity: 0.04 },
@@ -71,81 +87,6 @@ function cvs(w: number, h: number, draw: (x: CanvasRenderingContext2D) => void):
     return t;
 }
 const seedRng = (seed: number) => { let s = seed || 1; return () => { s = (s * 16807) % 2147483647; return s / 2147483647; }; };
-
-/** A quinta memória não é uma foto: é um autorretrato rasgado num tear. */
-function yourselfBackdrop(): THREE.CanvasTexture {
-    return cvs(1280, 540, (x) => {
-        const g = x.createLinearGradient(0, 0, 1280, 540);
-        g.addColorStop(0, '#24131c'); g.addColorStop(0.48, '#4b2834'); g.addColorStop(1, '#100b17');
-        x.fillStyle = g; x.fillRect(0, 0, 1280, 540);
-        const r = seedRng(821);
-        x.globalAlpha = 0.2;
-        for (let yy = 0; yy < 540; yy += 8) {
-            x.strokeStyle = yy % 16 ? '#b56b72' : '#291821'; x.lineWidth = 2;
-            x.beginPath(); x.moveTo(0, yy);
-            for (let xx = 0; xx <= 1280; xx += 32) x.lineTo(xx, yy + Math.sin(xx * 0.035 + yy) * 3);
-            x.stroke();
-        }
-        x.globalAlpha = 1;
-        // O contorno do player ocupa o tecido, mas está vazio por dentro.
-        x.fillStyle = '#110b11';
-        x.beginPath(); x.ellipse(655, 210, 105, 120, 0, 0, Math.PI * 2); x.fill();
-        x.fillRect(585, 300, 140, 190);
-        x.strokeStyle = '#d04f63'; x.lineWidth = 7; x.setLineDash([14, 11]);
-        x.beginPath(); x.ellipse(655, 210, 122, 138, 0, 0, Math.PI * 2); x.stroke();
-        x.strokeRect(568, 286, 174, 215); x.setLineDash([]);
-        // Cinco costuras irradiando do retrato.
-        const knots = [[130, 100], [280, 440], [1020, 95], [1140, 420], [655, 65]];
-        for (const [kx, ky] of knots) {
-            x.strokeStyle = '#e08475'; x.lineWidth = 3; x.beginPath(); x.moveTo(655, 285); x.quadraticCurveTo((kx + 655) / 2, ky + (r() - 0.5) * 100, kx, ky); x.stroke();
-            x.fillStyle = '#d6a45e'; x.beginPath(); x.arc(kx, ky, 10, 0, Math.PI * 2); x.fill();
-        }
-        const vignette = x.createRadialGradient(640, 270, 120, 640, 270, 660);
-        vignette.addColorStop(0, 'rgba(0,0,0,0)'); vignette.addColorStop(1, 'rgba(0,0,0,.7)');
-        x.fillStyle = vignette; x.fillRect(0, 0, 1280, 540);
-    });
-}
-
-const bgTexCache = new Map<string, THREE.Texture>();
-function bgTex(key: string): THREE.Texture {
-    const hit = bgTexCache.get(key); if (hit) return hit;
-    const url = BG_URLS[key];
-    const t = url ? new THREE.TextureLoader().load(url) : yourselfBackdrop();
-    t.colorSpace = THREE.SRGBColorSpace;
-    const crop = BG_CROP[key] ?? 0; t.repeat.set(1, 1 - crop); t.offset.set(0, crop);
-    bgTexCache.set(key, t); return t;
-}
-
-function fgPaint(m: Memory): THREE.CanvasTexture {
-    return cvs(1024, 128, (x) => {
-        const r = seedRng(m.key.length * 37 + 11);
-        const col = m.key === 'quintal' ? 'rgba(73,45,31,.74)'
-            : m.key === 'escola' ? 'rgba(40,53,66,.78)'
-            : m.key === 'tempestade' ? 'rgba(12,18,28,.8)'
-            : m.key === 'yourself' ? 'rgba(17,8,15,.86)' : 'rgba(12,9,20,.82)';
-        x.fillStyle = col; x.fillRect(0, 98, 1024, 30);
-        if (m.key === 'quintal') {
-            for (let i = 0; i < 22; i++) {
-                const px = r() * 1024, hh = 24 + r() * 42;
-                x.strokeStyle = col; x.lineWidth = 4; x.beginPath(); x.moveTo(px, 105); x.quadraticCurveTo(px + 5, 85, px + 8, 105 - hh); x.stroke();
-                if (i % 3 === 0) { x.fillStyle = '#b77837'; x.beginPath(); x.arc(px + 8, 104 - hh, 7, 0, 7); x.fill(); }
-            }
-        } else if (m.key === 'escola') {
-            for (let px = 0; px < 1024; px += 27) x.fillRect(px, 55, 5, 50);
-            x.fillRect(0, 65, 1024, 5); x.fillRect(0, 90, 1024, 5);
-        } else if (m.key === 'yourself') {
-            for (let px = 0; px < 1024; px += 44) {
-                x.strokeStyle = iColor(px); x.lineWidth = 3; x.beginPath(); x.moveTo(px, 110); x.bezierCurveTo(px - 18, 80, px + 20, 62, px - 6, 35); x.stroke();
-            }
-        } else {
-            for (let i = 0; i < 26; i++) {
-                const px = r() * 1024, hh = 18 + r() * 45;
-                x.strokeStyle = col; x.lineWidth = 3; x.beginPath(); x.moveTo(px, 106); x.quadraticCurveTo(px + hh * 0.5, 92, px + hh, 105 - hh); x.stroke();
-            }
-        }
-        function iColor(px: number) { return px % 88 ? '#28101a' : '#8d3448'; }
-    });
-}
 
 function knitTex(base: string, hi: string, lo: string): THREE.CanvasTexture {
     const t = cvs(96, 96, (x) => {
@@ -173,7 +114,6 @@ function glowTex(): THREE.CanvasTexture {
 }
 
 interface Kit {
-    bg: THREE.MeshBasicMaterial; fg: THREE.MeshBasicMaterial;
     wool: THREE.MeshStandardMaterial; woolTop: THREE.MeshStandardMaterial;
     anchor: THREE.MeshStandardMaterial; anchorHot: THREE.MeshStandardMaterial;
     thread: THREE.MeshBasicMaterial; hazard: THREE.MeshStandardMaterial;
@@ -190,8 +130,6 @@ const kitCache = new Map<string, Kit>();
 function makeKit(m: Memory): Kit {
     const hit = kitCache.get(m.key); if (hit) return hit;
     const kit: Kit = {
-        bg: new THREE.MeshBasicMaterial({ map: bgTex(m.key), toneMapped: false }),
-        fg: new THREE.MeshBasicMaterial({ map: fgPaint(m), transparent: true, depthWrite: false, toneMapped: false }),
         wool: new THREE.MeshStandardMaterial({ map: knitTex(m.pal.wool, m.pal.woolHi, m.pal.woolLo), roughness: 1 }),
         woolTop: new THREE.MeshStandardMaterial({ color: m.pal.woolHi, roughness: 1, emissive: m.pal.woolHi, emissiveIntensity: 0.04 }),
         anchor: new THREE.MeshStandardMaterial({ color: m.pal.anchor, roughness: 0.7, emissive: m.pal.anchor, emissiveIntensity: 0.18 }),
@@ -628,57 +566,111 @@ const LiveThread: React.FC<{ kit: Kit }> = ({ kit }) => {
     );
 };
 
+const ENEMY_ATLAS_URL: Record<EnemyKind, string> = {
+    knotling: enemyKnotlingAtlas,
+    intrusive: enemyIntrusiveAtlas,
+    echo: enemyEchoAtlas,
+};
+const ENEMY_PLANE: Record<EnemyKind, number> = { knotling: 2.62, intrusive: 2.5, echo: 3.42 };
+const ENEMY_BASELINE = 244 / 256;
+interface EnemyVisualPose { frame: number; next: number; mix: number }
+
+function enemyStrip(base: number, x: number, loop = true): EnemyVisualPose {
+    const safe = Math.max(0, x), whole = Math.floor(safe), local = safe - whole;
+    const idx = loop ? whole % 4 : Math.min(3, whole);
+    const next = loop ? (idx + 1) % 4 : Math.min(3, idx + 1);
+    return { frame: base + idx, next: base + next, mix: THREE.MathUtils.smoothstep(local, 0.7, 0.98) };
+}
+
+function enemyShortStrip(base: number, count: number, x: number, loop: boolean): EnemyVisualPose {
+    const safe = Math.max(0, x), whole = Math.floor(safe), local = safe - whole;
+    const idx = loop ? whole % count : Math.min(count - 1, whole);
+    const next = loop ? (idx + 1) % count : Math.min(count - 1, idx + 1);
+    return { frame: base + idx, next: base + next, mix: THREE.MathUtils.smoothstep(local, 0.7, 0.98) };
+}
+
+function enemyPose(kind: EnemyKind, enemy: EnemyState, now: number): EnemyVisualPose {
+    if (enemy.dead) return enemyStrip(12, Math.min(3.999, enemy.deadT / 0.19), false);
+    if (enemy.tethered) return enemyShortStrip(9, 3, Math.min(2.999, p8.tension * 3), false);
+    if (enemy.stunned > 0.02) return enemyShortStrip(10, 2, now * 6.4, true);
+    const distance = Math.abs(enemy.x - p8.x);
+    if (kind === 'intrusive' && enemy.attackT <= 0) return enemyStrip(4, Math.min(3.999, (-enemy.attackT / 0.65) * 4), false);
+    if (kind === 'echo' && distance < 4.4) return enemyStrip(4, now * 4.8 + enemy.aiT * 0.35, true);
+    if (kind === 'knotling' && distance < 3.1) return enemyStrip(4, now * 5.3 + enemy.aiT * 0.25, true);
+    return enemyStrip(0, enemy.aiT * (kind === 'intrusive' ? 4.6 : kind === 'echo' ? 3.25 : 4.1), true);
+}
+
+/**
+ * Cada criatura usa uma prancha 4x4 própria. A troca de pose acontece só nos
+ * últimos 30% do quadro e os dois planos cruzam opacidade por poucos frames:
+ * conserva o desenho do Image, mas dá o mesmo fluxo que tornou o boss limpo.
+ */
 const EnemyActor: React.FC<{ i: number; kind: EnemyKind; kit: Kit }> = ({ i, kind, kit }) => {
-    const g = useRef<THREE.Group>(null!); const wingL = useRef<THREE.Group>(null!); const wingR = useRef<THREE.Group>(null!);
+    const root = useRef<THREE.Group>(null!);
+    const primary = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
+    const secondary = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
+    const lastPrimary = useRef(-1), lastSecondary = useRef(-1);
+    const atlasPair = useMemo(() => [atlasTexture(ENEMY_ATLAS_URL[kind], 4, 4), atlasTexture(ENEMY_ATLAS_URL[kind], 4, 4)] as const, [kind]);
+    useEffect(() => () => atlasPair.forEach((t) => t.dispose()), [atlasPair]);
+    const plane = ENEMY_PLANE[kind];
+    const spriteY = kind === 'intrusive' ? 0 : -(plane * 0.5 - ENEMY_BASELINE * plane);
+
+    const setFrame = (map: THREE.Texture, frame: number, last: React.MutableRefObject<number>) => {
+        if (last.current === frame) return;
+        last.current = frame;
+        const col = frame % 4, row = Math.floor(frame / 4);
+        map.offset.set(col * 0.25 + 0.001, 1 - (row + 1) * 0.25 + 0.001);
+        map.needsUpdate = true;
+    };
+
     useFrame(({ clock }) => {
-        const e = p8.enemies[i], gg = g.current; if (!e || !gg) return;
-        if (e.dead) { const s = Math.max(0, 1 - e.deadT * 1.35); gg.visible = s > 0; gg.scale.setScalar(s); gg.rotation.z = e.deadT * 7; return; }
-        gg.visible = true; gg.position.set(e.x, e.y + (kind === 'intrusive' ? 0 : 0.08), 0.34);
-        const pulse = e.tethered ? 1.12 + Math.sin(clock.elapsedTime * 12) * 0.08 : 1;
-        gg.scale.set(e.dir < 0 ? -pulse : pulse, pulse, pulse);
-        gg.rotation.z = kind === 'intrusive' ? Math.sin(e.aiT * 2) * 0.18 : e.stunned > 0 ? Math.sin(clock.elapsedTime * 22) * 0.1 : 0;
-        if (wingL.current) wingL.current.rotation.z = -0.42 + Math.sin(clock.elapsedTime * 10 + i) * 0.3;
-        if (wingR.current) wingR.current.rotation.z = 0.42 - Math.sin(clock.elapsedTime * 10 + i) * 0.3;
+        const e = p8.enemies[i], g = root.current;
+        if (!e || !g || !primary.current || !secondary.current) { if (g) g.visible = false; return; }
+        if (e.dead && e.deadT > 0.92) { g.visible = false; return; }
+        g.visible = true;
+        const pose = enemyPose(kind, e, clock.elapsedTime);
+        setFrame(atlasPair[0], pose.frame, lastPrimary);
+        setFrame(atlasPair[1], pose.next, lastSecondary);
+        const fade = e.dead ? THREE.MathUtils.clamp((0.92 - e.deadT) / 0.2, 0, 1) : 1;
+        const blending = pose.next !== pose.frame && pose.mix > 0.002;
+        primary.current.material.opacity = fade * (blending ? 1 - pose.mix : 1);
+        secondary.current.visible = blending;
+        secondary.current.material.opacity = fade * (blending ? pose.mix : 0);
+
+        const attacking = (kind === 'intrusive' && e.attackT <= 0)
+            || (kind !== 'intrusive' && Math.abs(e.x - p8.x) < (kind === 'echo' ? 4.4 : 3.1));
+        const tetherPulse = e.tethered ? 1 + Math.sin(clock.elapsedTime * 13) * 0.045 : 1;
+        const anticipation = attacking ? Math.sin(Math.min(1, kind === 'intrusive' ? Math.max(0, -e.attackT / 0.65) : 0.6) * Math.PI) : 0;
+        const squashY = tetherPulse * (1 - anticipation * 0.045);
+        const squashX = tetherPulse * (1 + anticipation * 0.035);
+        g.position.set(e.x, e.y + (kind === 'intrusive' ? 0 : ACTOR_GROUND_LIFT), 0.46);
+        g.scale.set((e.dir < 0 ? -1 : 1) * squashX, squashY, 1);
+        g.rotation.z = kind === 'intrusive'
+            ? Math.sin(e.aiT * 2.15) * 0.075 + (attacking ? e.dir * -0.12 : 0)
+            : e.stunned > 0 ? Math.sin(clock.elapsedTime * 25) * 0.035 : e.dir * anticipation * -0.025;
     });
 
     const seams = p8.enemies[i]?.maxSeams ?? 1;
-    if (kind === 'intrusive') return (
-        <group ref={g}>
-            <mesh material={kit.knot}><torusKnotGeometry args={[0.34, 0.105, 28, 6, 2, 3]} /></mesh>
-            <mesh material={kit.core}><sphereGeometry args={[0.18, 12, 9]} /></mesh>
-            <mesh material={kit.glow} scale={1.45}><planeGeometry args={[1.4, 1.4]} /></mesh>
-            <group ref={wingL} position={[-0.35, 0.04, -0.04]} rotation={[0, 0, -0.45]}>
-                <mesh scale={[1.2, 0.42, 0.22]} material={kit.boss}><sphereGeometry args={[0.5, 10, 7]} /></mesh>
-                <mesh position={[-0.4, 0, 0]} rotation={[0, 0, -0.5]} scale={[0.75, 0.28, 0.16]} material={kit.bossDark}><sphereGeometry args={[0.45, 8, 6]} /></mesh>
-            </group>
-            <group ref={wingR} position={[0.35, 0.04, -0.04]} rotation={[0, 0, 0.45]}>
-                <mesh scale={[1.2, 0.42, 0.22]} material={kit.boss}><sphereGeometry args={[0.5, 10, 7]} /></mesh>
-                <mesh position={[0.4, 0, 0]} rotation={[0, 0, 0.5]} scale={[0.75, 0.28, 0.16]} material={kit.bossDark}><sphereGeometry args={[0.45, 8, 6]} /></mesh>
-            </group>
-            {[-0.45, 0, 0.45].map((x, n) => <mesh key={n} position={[x * 0.55, -0.42, 0]} rotation={[0, 0, x]} material={kit.knotDark}><torusGeometry args={[0.18, 0.035, 5, 12, Math.PI * 1.5]} /></mesh>)}
+    const seamY = kind === 'intrusive' ? plane * 0.43 : plane * 0.96;
+    return <group ref={root} name={`enemy-${kind}-image-sprite`} visible={false}>
+        {kind !== 'intrusive' && <mesh position={[0, 0.08, -0.08]} scale={[kind === 'echo' ? 1.45 : 1.1, 0.2, 1]} renderOrder={4}>
+            <circleGeometry args={[0.62, 24]} />
+            <meshBasicMaterial color="#09070d" transparent opacity={0.34} depthWrite={false} toneMapped={false} />
+        </mesh>}
+        <mesh ref={primary} position={[0, spriteY, 0]} renderOrder={6}>
+            <planeGeometry args={[plane, plane]} />
+            <meshBasicMaterial map={atlasPair[0]} transparent alphaTest={0.012} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
+        </mesh>
+        <mesh ref={secondary} position={[0, spriteY, 0.012]} renderOrder={7} visible={false}>
+            <planeGeometry args={[plane, plane]} />
+            <meshBasicMaterial map={atlasPair[1]} transparent alphaTest={0.012} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
+        </mesh>
+        <group position={[0, seamY, 0.08]}>
+            {Array.from({ length: seams }, (_, n) => <mesh key={n} position={[(n - (seams - 1) / 2) * 0.24, 0, 0]} material={(p8.enemies[i]?.seams ?? 0) > n ? kit.thread : kit.knotDark} renderOrder={8}>
+                <torusGeometry args={[0.075, 0.021, 5, 10]} />
+            </mesh>)}
         </group>
-    );
-    if (kind === 'echo') return (
-        <group ref={g}>
-            <mesh position={[0, 0.93, 0]} scale={[0.78, 1.1, 0.58]} material={kit.echo}><sphereGeometry args={[0.47, 12, 9]} /></mesh>
-            <mesh position={[0, 1.52, 0]} material={kit.echo}><sphereGeometry args={[0.32, 12, 9]} /></mesh>
-            <mesh position={[-0.12, 1.55, 0.3]} material={kit.core}><sphereGeometry args={[0.045, 7, 6]} /></mesh>
-            <mesh position={[0.12, 1.55, 0.3]} material={kit.core}><sphereGeometry args={[0.045, 7, 6]} /></mesh>
-            <mesh position={[0.42, 1.3, 0]} rotation={[0, 0, -0.7]} material={kit.metal}><cylinderGeometry args={[0.045, 0.06, 1.8, 8]} /></mesh>
-            <mesh position={[0, 0.2, -0.1]} scale={[1.4, 0.55, 1]} material={kit.glow}><planeGeometry args={[1.2, 1.2]} /></mesh>
-            {Array.from({ length: seams }, (_, n) => <mesh key={n} position={[-0.28 + n * 0.28, 1.03, 0.44]} material={(p8.enemies[i]?.seams ?? 0) > n ? kit.core : kit.knotDark}><torusGeometry args={[0.09, 0.025, 5, 10]} /></mesh>)}
-        </group>
-    );
-    return (
-        <group ref={g}>
-            <mesh position={[0, 0.78, 0]} material={kit.knot}><torusKnotGeometry args={[0.38, 0.13, 32, 7, 2, 3]} /></mesh>
-            <mesh position={[-0.24, 0.2, 0]} material={kit.knotDark}><sphereGeometry args={[0.19, 9, 7]} /></mesh>
-            <mesh position={[0.24, 0.2, 0]} material={kit.knotDark}><sphereGeometry args={[0.19, 9, 7]} /></mesh>
-            <mesh position={[-0.16, 0.91, 0.36]} material={kit.core}><sphereGeometry args={[0.07, 8, 6]} /></mesh>
-            <mesh position={[0.16, 0.91, 0.36]} material={kit.core}><sphereGeometry args={[0.07, 8, 6]} /></mesh>
-            {Array.from({ length: seams }, (_, n) => <mesh key={n} position={[-0.28 + n * 0.28, 1.31, 0.05]} rotation={[Math.PI / 2, 0, 0]} material={(p8.enemies[i]?.seams ?? 0) > n ? kit.thread : kit.knotDark}><torusGeometry args={[0.11, 0.035, 6, 12]} /></mesh>)}
-        </group>
-    );
+    </group>;
 };
 
 const BossActor: React.FC<{ kit: Kit }> = ({ kit }) => {
@@ -1142,6 +1134,63 @@ const Rain: React.FC<{ endX: number }> = ({ endX }) => {
 };
 
 /**
+ * Três planos pintados para cada lembrança. A câmera atualiza primeiro (-2) e
+ * estes planos depois (-1); todos compartilham exatamente a mesma âncora Y.
+ * Assim o salto não sacode o cenário, enquanto a diferença apenas em X cria
+ * profundidade estável mesmo quando um frame demora mais no celular.
+ */
+const MemoryParallax: React.FC<{ memory: Memory }> = ({ memory }) => {
+    const cam = useThree((s) => s.camera);
+    const far = useRef<THREE.Mesh>(null!);
+    const mid = useRef<THREE.Mesh>(null!);
+    const near = useRef<THREE.Mesh>(null!);
+    const tint = useRef<THREE.Mesh>(null!);
+    const urls = MEMORY_PARALLAX_URLS[memory.key];
+    const textures = useMemo(() => urls.map((url, i) => {
+        const t = new THREE.TextureLoader().load(url);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+        if (i > 0) t.generateMipmaps = false;
+        return t;
+    }), [urls]);
+    useEffect(() => () => textures.forEach((t) => t.dispose()), [textures]);
+    useFrame(({ clock }, rawDt) => {
+        const dt = Math.min(rawDt, 0.05), t = clock.elapsedTime, y = cam.position.y;
+        const move = (mesh: THREE.Object3D | null, xFactor: number, lambda: number, yy: number, z: number) => {
+            if (!mesh) return;
+            mesh.position.x = THREE.MathUtils.damp(mesh.position.x, cam.position.x * xFactor, lambda, dt);
+            mesh.position.y = yy; mesh.position.z = z;
+        };
+        move(far.current, 0.985, 15, y, -17);
+        move(tint.current, 0.985, 15, y, -16.9);
+        move(mid.current, 0.925, 12.5, y + Math.sin(t * 0.15) * 0.025, -10.5);
+        move(near.current, 0.805, 10, y - 0.08 + Math.sin(t * 0.19) * 0.04, 4.5);
+        if (mid.current) mid.current.rotation.z = Math.sin(t * 0.09) * 0.0018;
+        if (near.current) near.current.rotation.z = Math.sin(t * 0.075) * 0.0024;
+    }, -1);
+    const lift = BG_LIFT[memory.key] ?? BG_LIFT.hotel;
+    return <>
+        <mesh ref={far} name={`parallax-${memory.key}-far`} renderOrder={-30}>
+            <planeGeometry args={[38, 16.03]} />
+            <meshBasicMaterial map={textures[0]} depthWrite={false} fog={false} toneMapped={false} />
+        </mesh>
+        <mesh ref={mid} name={`parallax-${memory.key}-mid`} renderOrder={-20}>
+            <planeGeometry args={[42, 17.72]} />
+            <meshBasicMaterial map={textures[1]} transparent opacity={0.84} alphaTest={0.012} depthWrite={false} fog={false} toneMapped={false} />
+        </mesh>
+        <mesh ref={near} name={`parallax-${memory.key}-near`} renderOrder={5}>
+            <planeGeometry args={[52, 21.94]} />
+            <meshBasicMaterial map={textures[2]} transparent opacity={0.78} alphaTest={0.012} depthWrite={false} depthTest={false} fog={false} toneMapped={false} />
+        </mesh>
+        <mesh ref={tint} renderOrder={-19}>
+            <planeGeometry args={[42, 17.72]} />
+            <meshBasicMaterial color={lift.color} transparent opacity={lift.opacity} blending={THREE.AdditiveBlending} depthWrite={false} fog={false} toneMapped={false} />
+        </mesh>
+    </>;
+};
+
+/**
  * Parallax ortográfico real: distância Z não altera escala numa câmera
  * ortográfica, portanto cada pintura acompanha X/Y da câmera por uma fração
  * própria. O fundo quase acompanha; as bordas próximas ficam para trás e
@@ -1256,30 +1305,30 @@ const Scene: React.FC<{
     bossIntroRef: React.MutableRefObject<BossIntroState>; onBossIntro: () => void;
 }> = ({ moveRef, vertRef, jumpRef, grappleRef, stitchRef, introRef, bossIntroRef, onBossIntro }) => {
     const cam = useThree((s) => s.camera), scene = useThree((s) => s.scene), size = useThree((s) => s.size), setDpr = useThree((s) => s.setDpr);
-    const sky = useRef<THREE.Group>(null!); const fg = useRef<THREE.Group>(null!); const flash = useRef<THREE.AmbientLight>(null!); const nextBolt = useRef(4);
+    const flash = useRef<THREE.AmbientLight>(null!); const nextBolt = useRef(4);
     const bossLight = useRef<THREE.PointLight>(null!);
     const bossAudio = useRef<{ attack: string | null; slamN: number; sweepN: number; throwN: number }>({ attack: null, slamN: 0, sweepN: 0, throwN: 0 });
     const quality = useRef({ sum: 0, frames: 0, dpr: 0.68 });
-    const mem = curMem(), kit = makeKit(mem), lift = BG_LIFT[mem.key] ?? BG_LIFT.hotel;
+    const mem = curMem(), kit = makeKit(mem);
     useEffect(() => {
         scene.fog = new THREE.Fog(mem.pal.fog, mem.key === 'yourself' ? 26 : 22, 58);
         return () => { scene.fog = null; };
     }, [scene, mem.key, mem.pal.fog]);
     useEffect(() => {
-        const cap = mem.key === 'yourself' ? 0.68 : 1.2;
+        const cap = mem.key === 'yourself' ? 0.68 : 0.95;
         quality.current = { sum: 0, frames: 0, dpr: Math.min(window.devicePixelRatio || 1, cap) };
         setDpr(quality.current.dpr);
     }, [mem.key, setDpr]);
     useFrame(({ clock }, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
-        if (mem.key === 'yourself') {
-            const q = quality.current; q.sum += rawDt; q.frames++;
-            if (q.sum >= 1.35 && q.frames >= 18) {
-                const avg = q.sum / q.frames;
-                if (avg > 1 / 34 && q.dpr > 0.48) { q.dpr = Math.max(0.48, q.dpr - 0.055); setDpr(q.dpr); }
-                else if (avg < 1 / 52 && q.dpr < 0.68) { q.dpr = Math.min(0.68, q.dpr + 0.035); setDpr(q.dpr); }
-                q.sum = 0; q.frames = 0;
-            }
+        const q = quality.current; q.sum += rawDt; q.frames++;
+        if (q.sum >= 1.35 && q.frames >= 18) {
+            const avg = q.sum / q.frames;
+            const minDpr = mem.key === 'yourself' ? 0.48 : 0.6;
+            const maxDpr = mem.key === 'yourself' ? 0.68 : 0.95;
+            if (avg > 1 / 34 && q.dpr > minDpr) { q.dpr = Math.max(minDpr, q.dpr - 0.055); setDpr(q.dpr); }
+            else if (avg < 1 / 52 && q.dpr < maxDpr) { q.dpr = Math.min(maxDpr, q.dpr + 0.035); setDpr(q.dpr); }
+            q.sum = 0; q.frames = 0;
         }
         if (f8.phase === 'platformer' && !introRef.current && !bossIntroRef.current.active) {
             const ev = stepPlayer({ move: moveRef.current, vert: vertRef.current, jump: jumpRef.current, grapple: grappleRef.current, stitch: stitchRef.current }, dt);
@@ -1333,7 +1382,12 @@ const Scene: React.FC<{
         } else {
             const bossFocus = mem.key === 'yourself' && p8.x > 15 ? 1.5 : 2.8;
             tx = Math.max(2, Math.min(mem.endX - 6, p8.x + bossFocus));
-            ty = 2.75 + Math.max(0, p8.y) * 0.36;
+            const baseY = 2.75 + Math.max(0, p8.y) * 0.36;
+            const nearbyFlyingY = p8.enemies.reduce((highest, e, i) => {
+                const flying = mem.enemies[i]?.kind === 'intrusive' && !e.dead && Math.abs(e.x - p8.x) < 8.5;
+                return flying ? Math.max(highest, e.y) : highest;
+            }, -Infinity);
+            ty = Number.isFinite(nearbyFlyingY) ? Math.max(baseY, Math.min(4.1, nearbyFlyingY - 2.3)) : baseY;
             wantedZoom = 58;
         }
         // THREE.damp é independente do FPS. A câmera roda antes do parallax
@@ -1343,8 +1397,6 @@ const Scene: React.FC<{
         cam.position.y = THREE.MathUtils.damp(cam.position.y, ty, cinematic.active ? 6.8 : 3.4, dt);
         ortho.zoom = THREE.MathUtils.damp(ortho.zoom, wantedZoom, cinematic.active ? 6.4 : 4.8, dt); ortho.updateProjectionMatrix();
         cam.position.z = 14; cam.rotation.set(0, 0, 0); cam.lookAt(cam.position.x, cam.position.y, 0);
-        if (sky.current) sky.current.position.set(cam.position.x * 0.925, cam.position.y * 0.24 + 2.25, -16);
-        if (fg.current) fg.current.position.set(cam.position.x * -0.13, -1.15, 4.6);
         if (mem.key === 'tempestade' && flash.current) {
             if (clock.elapsedTime > nextBolt.current) { flash.current.intensity = 1.8; nextBolt.current = clock.elapsedTime + 6 + Math.random() * 8; }
             flash.current.intensity = Math.max(0, flash.current.intensity - dt * 4.2);
@@ -1365,11 +1417,7 @@ const Scene: React.FC<{
             <pointLight position={[p8.x, p8.y + 3, 5]} intensity={0.7} distance={12} color={mem.pal.thread} />
             {mem.key === 'yourself' && <pointLight ref={bossLight} position={[43, 2.4, 5]} intensity={1.18} distance={15} decay={1.45} color="#e16672" />}
             {mem.key === 'tempestade' && <ambientLight ref={flash} color="#dceaff" intensity={0} />}
-            {mem.key !== 'yourself' && <group ref={sky}>
-                <mesh material={kit.bg}><planeGeometry args={[33.2, 16]} /></mesh>
-                <mesh position={[0, 0, 0.02]}><planeGeometry args={[33.2, 16]} /><meshBasicMaterial color={lift.color} transparent opacity={lift.opacity} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
-            </group>}
-            {mem.key !== 'yourself' && <group ref={fg}><mesh material={kit.fg}><planeGeometry args={[36, 4.5]} /></mesh></group>}
+            {mem.key !== 'yourself' && <MemoryParallax memory={mem} />}
             {mem.key === 'tempestade' && <Rain endX={mem.endX} />}
             {mem.key === 'yourself' && <YourselfParallax bossIntroRef={bossIntroRef} />}
             {mem.key === 'yourself' && mem.ledges[0]
