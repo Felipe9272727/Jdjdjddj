@@ -257,6 +257,10 @@ export default function App() {
   useEffect(() => () => { pendingTimeoutsRef.current.forEach(clearTimeout); pendingTimeoutsRef.current.clear(); }, []);
   const [elevatorTimer, setElevatorTimer] = useState<number | null>(null); const [doorsClosed, setDoorsClosed] = useState(false);
   const [currentLevel, setCurrentLevel] = useState(0); const [overlayOpacity, setOverlayOpacity] = useState(0);
+  // Creator variants are prepared synchronously inside handleStartGame. Keep
+  // the pending variant across the currentLevel render so the normal Floor 8
+  // arrival effect does not immediately erase a direct YOURSELF jump.
+  const floor8StartVariantRef = useRef<string | null>(null);
   const [travelPhase, setTravelPhase] = useState('idle');
   const elevatorHumStopRef = useRef<(() => void) | null>(null);
   const [floorReveal, setFloorReveal] = useState(false);
@@ -992,6 +996,9 @@ export default function App() {
   // o creator jump já posiciona em z=-8.2.)
   useEffect(() => {
     if (currentLevel !== 8) return;
+    const creatorVariant = floor8StartVariantRef.current;
+    floor8StartVariantRef.current = null;
+    if (creatorVariant === 'floor8Boss') return;
     f8Reset(); p8Reset();
   }, [currentLevel]);
   // Mirrors f6.phase into React so World can swap the live cab for the dead
@@ -1254,6 +1261,7 @@ export default function App() {
     setHasStarted(true);
     // ─── CREATOR MODE: jump to selected floor ───
     if (startLevel !== undefined && startLevel !== 0) {
+      if (startLevel === 8) floor8StartVariantRef.current = startVariant ?? null;
       setCurrentLevel(startLevel);
       // Set appropriate game state for the chosen floor
       if (startLevel === 1) {
@@ -1984,7 +1992,10 @@ export default function App() {
       {hasStarted && currentLevel === 0 && gameState === 'lobby' && (
           <WatchingText />
       )}
-      <Loader />
+      {/* The 2.5D Floor 8 owns its own opaque loading/cinematic surface. The
+          global drei loader also tracks unrelated hotel textures and could sit
+          over the YOURSELF reveal while one of those remote files timed out. */}
+      {!f8InImage && <Loader />}
       {!hasStarted && <MainMenu onPlay={handleStartGame} />}
       {hasStarted && (
         <InventoryHUD
