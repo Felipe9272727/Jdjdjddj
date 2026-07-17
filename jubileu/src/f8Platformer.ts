@@ -530,7 +530,9 @@ function updateBoss(p: P8State, inp: P8Input, dt: number, ev: P8Events): void {
         b.timer -= dt;
         const desired = clamp(48 - p.x * 0.34, def.arenaX + 6, 45);
         b.x += (desired - b.x) * Math.min(1, dt * (medo ? 4 : 2.4));
-        b.y = Math.sin(p.t * 1.4 + b.pattern) * 0.16;
+        // O respiro visual acontece no sprite ancorado; mover o corpo lógico
+        // para cima fazia as solas pairarem sem comunicar nenhum ataque.
+        b.y = 0;
         if (b.timer <= 0) { b.phase = 'attack' as BossPhase; pickAttack(b, def, p); }
         return;
     }
