@@ -20,6 +20,10 @@ describe('f8Dev — atalho do boss no Modo Desenvolvedor', () => {
         expect(curMem().key).toBe('yourself');
         expect(p8.boss?.phase).toBe('dormant');
         expect(p8.boss?.seams).toBe(5);
+        expect(p8.x).toBe(curMem().boss?.arenaX);
+        stepPlayer({ ...IDLE }, 1 / 60);
+        expect(p8.boss?.phase).toBe('mirror');
+        expect(p8.boss?.introSeen).toBe(true);
     });
 
     it('sempre limpa o estado anterior antes de abrir YOURSELF', () => {
@@ -54,6 +58,18 @@ describe('YOURSELF — ataque ISOLAMENTO', () => {
         stepPlayer({ ...IDLE }, 1 / 30);
         expect(boss.shield).toBe(false);
         expect(boss.phase).toBe('exposed');
+    });
+});
+
+describe('YOURSELF — contato com o chão', () => {
+    beforeEach(() => p8JumpToMemory(4));
+
+    it('não faz o boss pairar durante o respiro espelhado', () => {
+        const boss = p8.boss!;
+        boss.phase = 'mirror'; boss.timer = 1; boss.y = 0.16;
+        p8.x = 18;
+        stepPlayer({ ...IDLE }, 1 / 60);
+        expect(boss.y).toBe(0);
     });
 });
 
