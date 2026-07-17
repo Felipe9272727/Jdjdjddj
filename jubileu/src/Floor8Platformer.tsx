@@ -29,12 +29,15 @@ import travelerWalkAtlas from './assets/f8/traveler-walk-atlas-v5.webp';
 import travelerActionAtlas from './assets/f8/traveler-action-atlas-v5.webp';
 import yourselfArenaFloor from './assets/f8/yourself-arena-floor-v5.webp';
 import crochetVfxAtlas from './assets/f8/crochet-vfx-atlas-v5.webp';
-import pxQuintalFar from './assets/f8/quintal-parallax-far.webp';
-import pxQuintalMid from './assets/f8/quintal-parallax-mid.webp';
-import pxQuintalNear from './assets/f8/quintal-parallax-near.webp';
-import pxEscolaFar from './assets/f8/escola-parallax-far.webp';
-import pxEscolaMid from './assets/f8/escola-parallax-mid.webp';
-import pxEscolaNear from './assets/f8/escola-parallax-near.webp';
+import pxQuintalSky from './assets/f8/quintal-px-sky.webp';
+import pxQuintalHorizon from './assets/f8/quintal-px-horizon.webp';
+import pxQuintalGrass from './assets/f8/quintal-px-grass.webp';
+import pxQuintalMid from './assets/f8/quintal-px-mid.webp';
+import pxQuintalNear from './assets/f8/quintal-px-near.webp';
+import pxEscolaSky from './assets/f8/escola-px-sky.webp';
+import pxEscolaBuilding from './assets/f8/escola-px-building.webp';
+import pxEscolaMid from './assets/f8/escola-px-mid.webp';
+import pxEscolaNear from './assets/f8/escola-px-near.webp';
 
 const BOSS_INTRO_DURATION = 9.2;
 const BOSS_REVEAL_START = 2.35;
@@ -1143,24 +1146,32 @@ const YourselfParallax: React.FC<{
 // na câmera, o meio fica pra trás e o primeiro plano atravessa o quadro. As
 // camadas mid/near são recortes com alpha (geradas no Higgsfield).
 interface PxLayer {
-    url: string; w: number; factor: number; y: number; yF: number; z: number; order: number;
-    alpha?: boolean; sway: number; opacity?: number;
-    /** recorte vertical da textura [y0,y1] em fração (0=base, 1=topo) — as
-     *  gerações vieram com elementos ALTOS demais; usamos só a faixa útil. */
+    url: string; w: number;
+    /** proporção altura/largura da FONTE (bandas têm alturas diferentes) */
+    hOverW: number;
+    factor: number; y: number; yF: number; z: number; order: number;
+    alpha?: boolean; sway: number;
+    /** recorte vertical extra da textura [y0,y1] (0=base, 1=topo) */
     crop?: [number, number];
 }
+// "Uma pintura, fatiada": céu/horizonte/chão vêm da MESMA pintura-mestre
+// (coerência de luz e escala garantida); árvores/armários entram menores e
+// com névoa atmosférica; cerca/carteiras são quase-silhueta na frente.
+// Proporções (h/w) das fatias: quintal sky .285, horizon .126, grass .1;
+// mid/near strips 21:9 (.4286); escola sky .243, building .212.
 const MEM_PARALLAX: Record<string, PxLayer[]> = {
     quintal: [
-        { url: pxQuintalFar, w: 37, factor: 0.985, y: 2.6, yF: 0.12, z: -17, order: -30, sway: 0 },
-        // linha de árvores/casa ao fundo: só a metade de cima do strip gerado
-        { url: pxQuintalMid, w: 34, factor: 0.92, y: 2.9, yF: 0.05, z: -10.5, order: -20, alpha: true, sway: 0.05, crop: [0.24, 0.98], opacity: 0.98 },
-        // franja de primeiro plano: os topos da cerca + girassóis
-        { url: pxQuintalNear, w: 40, factor: 0.78, y: -1.75, yF: -0.04, z: 4.7, order: 20, alpha: true, sway: 0.07, crop: [0.36, 0.72], opacity: 0.96 },
+        { url: pxQuintalSky, w: 46, hOverW: 0.285, factor: 0.99, y: 3.6, yF: 0.1, z: -18, order: -32, sway: 0 },
+        { url: pxQuintalHorizon, w: 40, hOverW: 0.126, factor: 0.945, y: 2.5, yF: 0.06, z: -14, order: -26, alpha: true, sway: 0.03 },
+        { url: pxQuintalGrass, w: 40, hOverW: 0.1, factor: 0.9, y: 0.7, yF: 0.03, z: -11, order: -22, alpha: true, sway: 0 },
+        { url: pxQuintalMid, w: 21, hOverW: 0.4286, factor: 0.86, y: 1.6, yF: 0.02, z: -8.5, order: -18, alpha: true, sway: 0.04, crop: [0.2, 0.96] },
+        { url: pxQuintalNear, w: 40, hOverW: 0.4286, factor: 0.74, y: -1.85, yF: -0.04, z: 4.7, order: 20, alpha: true, sway: 0.05, crop: [0.36, 0.72] },
     ],
     escola: [
-        { url: pxEscolaFar, w: 37, factor: 0.985, y: 2.6, yF: 0.12, z: -17, order: -30, sway: 0 },
-        { url: pxEscolaMid, w: 34, factor: 0.92, y: 2.7, yF: 0.05, z: -10.5, order: -20, alpha: true, sway: 0.04, crop: [0.22, 0.96], opacity: 0.98 },
-        { url: pxEscolaNear, w: 40, factor: 0.78, y: -1.7, yF: -0.04, z: 4.7, order: 20, alpha: true, sway: 0.06, crop: [0.3, 0.68], opacity: 0.96 },
+        { url: pxEscolaSky, w: 46, hOverW: 0.243, factor: 0.99, y: 3.4, yF: 0.1, z: -18, order: -32, sway: 0 },
+        { url: pxEscolaBuilding, w: 40, hOverW: 0.212, factor: 0.945, y: 1.9, yF: 0.05, z: -14, order: -26, alpha: true, sway: 0 },
+        { url: pxEscolaMid, w: 22, hOverW: 0.4286, factor: 0.87, y: 1.7, yF: 0.02, z: -8.5, order: -18, alpha: true, sway: 0.03, crop: [0.18, 0.96] },
+        { url: pxEscolaNear, w: 40, hOverW: 0.4286, factor: 0.74, y: -1.8, yF: -0.04, z: 4.7, order: 20, alpha: true, sway: 0.04, crop: [0.3, 0.68] },
     ],
 };
 
@@ -1197,14 +1208,15 @@ const MemoryParallax: React.FC<{ memKey: 'quintal' | 'escola' }> = ({ memKey }) 
         <>
             {layers.map((l, i) => (
                 <mesh key={i} ref={(el) => { refs.current[i] = el; }} renderOrder={l.order}>
-                    <planeGeometry args={[l.w, l.w * (9 / 21) * (l.crop ? l.crop[1] - l.crop[0] : 1)]} />
-                    {/* cutout OPACO com depth real (alphaTest sem blending): zero
-                        briga de ordenação com os outros transparentes da cena e
-                        menos overdraw — o flicker de sort morre aqui. */}
+                    <planeGeometry args={[l.w, l.w * l.hOverW * (l.crop ? l.crop[1] - l.crop[0] : 1)]} />
+                    {/* bandas com borda esfumada precisam de blending suave; a
+                        ordem é resolvida por renderOrder estrito (fatias sempre
+                        atrás do gameplay, franja sempre na frente). O shimmer
+                        continua morto: mipmaps trilineares + sem rotação. */}
                     <meshBasicMaterial
                         map={textures[i]} fog={false} toneMapped={false}
-                        transparent={false} alphaTest={l.alpha ? 0.4 : 0}
-                        depthWrite depthTest
+                        transparent={!!l.alpha} alphaTest={l.alpha ? 0.02 : 0}
+                        depthWrite={!l.alpha} depthTest={l.z < 0}
                     />
                 </mesh>
             ))}
