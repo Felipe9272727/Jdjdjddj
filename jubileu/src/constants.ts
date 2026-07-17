@@ -2,6 +2,7 @@ import { Vector3, Euler } from 'three';
 import { boxCollider } from './physics';
 import { F6_STATIC_WALLS, F6_FURNITURE } from './f6Escape';
 import { F8_STATIC_WALLS, F8_FURNITURE } from './f8Arquivo';
+import { F9_STATIC_WALLS, F9_OCOS, F9_RAIZ } from './f9Floresta';
 
 // Keep in sync with `data.level <= MAX_LEVEL` in firestore.rules.
 export const MAX_LEVEL = 100;
@@ -288,6 +289,13 @@ const F8_FURN_W = F8_FURNITURE.flatMap(([cx, cz, w, d]) => boxCollider(cx, cz, w
 const _WALLS_FLOOR8        = [...ELEV_W, ...F8_STATIC_WALLS, ...F8_FURN_W];
 const _WALLS_FLOOR8_SEALED = [..._WALLS_FLOOR8, DOOR_SEAL];
 
+// Andar 9 (O VIVEIRO): a tigela da floresta + os troncos dos ocos + a raiz
+const _WALLS_FLOOR9 = [
+    ...F9_STATIC_WALLS,
+    ...F9_OCOS.flatMap(([cx, cz]) => boxCollider(cx, cz - 0.6, 2.6, 1.6)),
+    ...boxCollider(F9_RAIZ[0], F9_RAIZ[1] - 2.5, 6.5, 6.5),
+];
+
 // Floor 7 (pirate ship). The whole ship is scaled up so it reads as a SHIP, not
 // a dinghy; the deck/spawn/water all use this one factor.
 export const FLOOR7_SCALE = 1.85;
@@ -350,6 +358,7 @@ export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen
     if (level === 6) return doorsClosed ? _WALLS_FLOOR6_SEALED : _WALLS_FLOOR6;
     if (level === 7) return _WALLS_FLOOR7;
     if (level === 8) return doorsClosed ? _WALLS_FLOOR8_SEALED : _WALLS_FLOOR8;
+    if (level === 9) return _WALLS_FLOOR9;
     if (level >= 4) return doorsClosed ? _WALLS_FLOOR5_SEALED : _WALLS_FLOOR5;
     if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
     return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;

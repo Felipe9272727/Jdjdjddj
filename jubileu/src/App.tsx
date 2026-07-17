@@ -58,6 +58,11 @@ import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import Floor8Room from './Floor8Room';
 import Floor8Cutscene from './Floor8Cutscene';
+import Floor9Forest from './Floor9Forest';
+import Floor9Overlay from './Floor9Overlay';
+import Floor9Cutscene from './Floor9Cutscene';
+import { f9Reset } from './f9Floresta';
+import { f9EcoReset } from './f9Eco';
 import Floor8Overlay, { Floor8Ride } from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
 import Floor8Platformer from './Floor8Platformer';
@@ -182,6 +187,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 6 && <Floor6Suite playerPositionRef={playerPositionRef} profile={profile} />}
       {/* Andar 8 — a sala de interrogatório do Arquivista (→ platformer de tricô) */}
       {level === 8 && !f8InImage && <Floor8Room playerPositionRef={playerPositionRef} />}
+      {level === 9 && <Floor9Forest playerPositionRef={playerPositionRef} />}
       {/* the old baseplate is the FLOOR 7 TEMPLATE now — Creator Mode only */}
       {/* Andar 7 (navio pirata) is mounted as a Canvas sibling below — it needs
           the Floor7 WASM handle ref that this memoized World doesn't carry. */}
@@ -845,13 +851,13 @@ export default function App() {
   const [f8UiOpen, setF8UiOpen] = useState(false);
   const handleF8UiOpenChange = useCallback((open: boolean) => setF8UiOpen(open), []);
   // Andar 8 FINALE — o Arquivista te JOGA: você acorda dentro do elevador em
-  // trânsito (mesmo caminho do embarque do 7). O painel marca "9"; o destino
-  // real fica no térreo até o Andar 9 existir — o elevador mente, o hotel deixa.
+  // trânsito. O painel marca "9" — e agora o 9 EXISTE: o Viveiro. As portas
+  // abrem e não há chão; a queda pela copa é a chegada.
   const handleF8Thrown = useCallback(() => {
     setDoorsClosed(true);
     setDoorSoundTrigger(prev => prev + 1);
     playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
-    setNextElevatorDestination(0);
+    setNextElevatorDestination(9);
     setElevatorTimer(20);
     setTravelPhase('closing');
     if (elevatorHumStopRef.current) elevatorHumStopRef.current();
@@ -1001,6 +1007,13 @@ export default function App() {
     floor8StartVariantRef.current = null;
     if (creatorVariant === 'floor8Boss') return;
     f8Reset(); p8Reset();
+  }, [currentLevel]);
+  // ── Andar 9 — O VIVEIRO: ecossistema + queda frescos a cada chegada, e o
+  // player nasce no ar sobre a clareira de pouso (a cutscene da queda dirige).
+  useEffect(() => {
+    if (currentLevel !== 9) return;
+    f9Reset(); f9EcoReset();
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -1.5 };
   }, [currentLevel]);
   // Mirrors f6.phase into React so World can swap the live cab for the dead
   // one the moment the panel blows (f6 itself mutates outside React).
@@ -1363,6 +1376,16 @@ export default function App() {
         setDoorsClosed(false);
         setZoomLevel(0);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -8.2, theta: Math.PI };
+      } else if (startLevel === 9) {
+        // Andar 9 — O VIVEIRO: ecossistema fresco + a queda pela copa.
+        f9Reset(); f9EcoReset();
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        setZoomLevel(0);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -1.5, theta: Math.PI };
       }
     }
     // ─── CREATOR MODE: end jump ───
@@ -1794,6 +1817,8 @@ export default function App() {
             {hasStarted && currentLevel === 8 && (
                 <Floor8Cutscene playerPositionRef={sharedPlayerPositionRef} />
             )}
+            {/* Andar 9: a QUEDA pela copa (idem: depois do Player). */}
+            {hasStarted && currentLevel === 9 && <Floor9Cutscene />}
             {/* Andar 7 captain-arrival cutscene — mounted AFTER <Player> so its
                 priority-0 useFrame overwrites the player camera while it runs. */}
             {currentLevel === 7 && f7Intro && (
@@ -2446,6 +2471,9 @@ export default function App() {
       {/* Andar 8 — o interrogatório do Arquivista (caixa de diálogo) */}
       {hasStarted && currentLevel === 8 && !doorsClosed && (
         <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} onLeave={handleF8Thrown} />
+      )}
+      {hasStarted && currentLevel === 9 && (
+        <Floor9Overlay onUiOpenChange={handleF8UiOpenChange} />
       )}
       {/* Andar 8 — a volta: acorda no elevador "subindo pro 9", com o fio vermelho
           (self-gate na fase leave; fica de pé durante o doorsClosed do trânsito) */}
