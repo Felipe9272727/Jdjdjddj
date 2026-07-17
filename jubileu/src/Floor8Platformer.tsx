@@ -36,8 +36,15 @@ import bossReactAtlas from './assets/f8/yourself-boss-react-atlas-v4.webp';
 import bossRevealAtlas from './assets/f8/yourself-boss-reveal-atlas-v6.webp';
 import travelerWalkAtlas from './assets/f8/traveler-walk-atlas-v6.webp';
 import travelerActionAtlas from './assets/f8/traveler-action-atlas-v6.webp';
+import travelerAirStitchAtlas from './assets/f8/traveler-air-stitch-atlas-v7.png';
 import yourselfArenaFloor from './assets/f8/yourself-arena-floor-v6.webp';
 import crochetVfxAtlas from './assets/f8/crochet-vfx-atlas-v5.webp';
+import bossAttackVfxAtlas from './assets/f8/yourself-attack-vfx-atlas-v7.png';
+import floorQuintal from './assets/f8/floor-quintal-v2.webp';
+import floorEscola from './assets/f8/floor-escola-v2.webp';
+import floorTempestade from './assets/f8/floor-tempestade-v2.webp';
+import floorHotel from './assets/f8/floor-hotel-v2.webp';
+import floorYourself from './assets/f8/floor-yourself-v2.webp';
 import enemyKnotlingAtlas from './assets/f8/enemy-knotling-atlas-v1.png';
 import enemyIntrusiveAtlas from './assets/f8/enemy-intrusive-atlas-v1.png';
 import enemyEchoAtlas from './assets/f8/enemy-echo-atlas-v1.png';
@@ -64,6 +71,13 @@ interface BossIntroState {
 const BG_URLS: Record<string, string | undefined> = {
     quintal: bgQuintal, escola: bgEscola, tempestade: bgTempestade, hotel: bgHotel,
     yourself: bgYourselfFar,
+};
+const FLOOR_URLS: Record<string, string> = {
+    quintal: floorQuintal,
+    escola: floorEscola,
+    tempestade: floorTempestade,
+    hotel: floorHotel,
+    yourself: floorYourself,
 };
 const MEMORY_PARALLAX_URLS: Record<string, readonly [string, string, string]> = {
     quintal: [bgQuintal, bgQuintalMid, bgQuintalNear],
@@ -113,8 +127,20 @@ function glowTex(): THREE.CanvasTexture {
     });
 }
 
+function floorTex(url: string): THREE.Texture {
+    const t = new THREE.TextureLoader().load(url);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.magFilter = THREE.LinearFilter;
+    t.anisotropy = 4;
+    t.repeat.set(2.2, 1);
+    return t;
+}
+
 interface Kit {
     wool: THREE.MeshStandardMaterial; woolTop: THREE.MeshStandardMaterial;
+    floor: THREE.MeshStandardMaterial;
     anchor: THREE.MeshStandardMaterial; anchorHot: THREE.MeshStandardMaterial;
     thread: THREE.MeshBasicMaterial; hazard: THREE.MeshStandardMaterial;
     spool: THREE.MeshStandardMaterial; glow: THREE.MeshBasicMaterial;
@@ -132,6 +158,10 @@ function makeKit(m: Memory): Kit {
     const kit: Kit = {
         wool: new THREE.MeshStandardMaterial({ map: knitTex(m.pal.wool, m.pal.woolHi, m.pal.woolLo), roughness: 1 }),
         woolTop: new THREE.MeshStandardMaterial({ color: m.pal.woolHi, roughness: 1, emissive: m.pal.woolHi, emissiveIntensity: 0.04 }),
+        floor: new THREE.MeshStandardMaterial({
+            map: floorTex(FLOOR_URLS[m.key]), roughness: 0.93, metalness: 0,
+            color: '#ffffff', emissive: m.pal.woolHi, emissiveIntensity: m.key === 'yourself' ? 0.075 : 0.025,
+        }),
         anchor: new THREE.MeshStandardMaterial({ color: m.pal.anchor, roughness: 0.7, emissive: m.pal.anchor, emissiveIntensity: 0.18 }),
         anchorHot: new THREE.MeshStandardMaterial({ color: m.pal.thread, roughness: 0.55, emissive: m.pal.thread, emissiveIntensity: 1.1 }),
         thread: new THREE.MeshBasicMaterial({ color: m.pal.thread, toneMapped: false }),
@@ -156,6 +186,18 @@ function makeKit(m: Memory): Kit {
 
 const YarnLedge: React.FC<{ l: { x0: number; x1: number; y: number }; kit: Kit }> = ({ l, kit }) => {
     const w = l.x1 - l.x0, cx = (l.x0 + l.x1) / 2;
+    const floorMat = useMemo(() => {
+        const mat = kit.floor.clone();
+        if (kit.floor.map) {
+            const map = kit.floor.map.clone();
+            map.repeat.set(Math.max(1, w / 4.2), 1.08);
+            map.offset.set(((cx * 0.071) % 1 + 1) % 1, 0.02);
+            map.needsUpdate = true;
+            mat.map = map;
+        }
+        return mat;
+    }, [kit.floor, w, cx]);
+    useEffect(() => () => { floorMat.map?.dispose(); floorMat.dispose(); }, [floorMat]);
     const face = useMemo(() => {
         const s = new THREE.Shape(), half = w / 2;
         s.moveTo(-half + 0.12, 0.02); s.lineTo(half - 0.12, 0.02);
@@ -172,8 +214,8 @@ const YarnLedge: React.FC<{ l: { x0: number; x1: number; y: number }; kit: Kit }
     return (
         <group position={[cx, l.y, 0]}>
             <mesh position={[0, -0.38, -0.08]} material={kit.wool}><boxGeometry args={[Math.max(0.2, w - 0.22), 0.67, 1.12]} /></mesh>
-            <mesh position={[0, 0.015, 0.03]} material={kit.woolTop}><boxGeometry args={[Math.max(0.2, w - 0.12), 0.13, 1.38]} /></mesh>
-            <mesh position={[0, 0, 0.7]} material={kit.wool}><shapeGeometry args={[face, 2]} /></mesh>
+            <mesh position={[0, 0.015, 0.03]} material={floorMat}><boxGeometry args={[Math.max(0.2, w - 0.12), 0.13, 1.38]} /></mesh>
+            <mesh position={[0, 0, 0.7]} material={floorMat}><shapeGeometry args={[face, 2]} /></mesh>
             {/* Pontas soltas fazem a silhueta parecer tecido, não um bloco. */}
             {[-1, 1].map((side) => <group key={side} position={[side * (w / 2 - 0.2), -0.72, 0.71]}>
                 <mesh rotation={[0, 0, side * 0.22]} material={kit.woolTop}><cylinderGeometry args={[0.035, 0.035, 0.42, 5]} /></mesh>
@@ -195,6 +237,16 @@ const YourselfArenaFloor: React.FC<{
 }> = ({ l, kit }) => {
     const mirrorGlow = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
     const w = l.x1 - l.x0, cx = (l.x0 + l.x1) * 0.5;
+    const surfaceMat = useMemo(() => {
+        const mat = kit.floor.clone();
+        if (kit.floor.map) {
+            const map = kit.floor.map.clone();
+            map.repeat.set(Math.max(2, w / 6.2), 1);
+            map.offset.set(0.11, 0.03); map.needsUpdate = true;
+            mat.map = map;
+        }
+        return mat;
+    }, [kit.floor, w]);
     const texture = useMemo(() => {
         const t = new THREE.TextureLoader().load(yourselfArenaFloor);
         t.colorSpace = THREE.SRGBColorSpace;
@@ -203,7 +255,9 @@ const YourselfArenaFloor: React.FC<{
         t.generateMipmaps = false;
         return t;
     }, []);
-    useEffect(() => () => texture.dispose(), [texture]);
+    useEffect(() => () => {
+        texture.dispose(); surfaceMat.map?.dispose(); surfaceMat.dispose();
+    }, [texture, surfaceMat]);
     useFrame(({ clock }) => {
         const t = clock.elapsedTime;
         if (mirrorGlow.current) {
@@ -218,6 +272,11 @@ const YourselfArenaFloor: React.FC<{
             <mesh position={[0, -3.01, 0.32]} renderOrder={2}>
                 <planeGeometry args={[w + 0.25, 6.2]} />
                 <meshBasicMaterial map={texture} transparent alphaTest={0.025} depthWrite={false} toneMapped={false} />
+            </mesh>
+            {/* A faixa jogável recebe uma tapeçaria própria: rachaduras de
+                espelho, nós tensos e fios de ouro ancoram os pés no cenário. */}
+            <mesh position={[0, -0.54, 0.37]} material={surfaceMat} renderOrder={3}>
+                <planeGeometry args={[w - 0.18, 1.18]} />
             </mesh>
             {/* A colisão fica marcada por uma única borda reta; todo o detalhe
                 pesado do tear vive abaixo dela e não compete com os pés. */}
@@ -312,7 +371,15 @@ const PatchActor: React.FC<{ kit: Kit }> = ({ kit }) => {
     useFrame(({ clock }) => {
         if (!g.current) return;
         const patch = p8.patch; g.current.visible = !!patch;
-        if (patch) { g.current.position.set(patch.x, patch.y, 0.25); g.current.scale.y = 0.92 + Math.sin(clock.elapsedTime * 5) * 0.08; }
+        if (patch) {
+            const age = Math.max(0, p8.t - patch.born);
+            const woven = THREE.MathUtils.smoothstep(age, 0.02, 0.31);
+            const fading = THREE.MathUtils.smoothstep(patch.t, 0.04, 0.42);
+            const width = Math.max(0.025, woven * fading);
+            g.current.position.set(patch.x, patch.y, 0.25);
+            g.current.scale.set(width, (0.92 + Math.sin(clock.elapsedTime * 5) * 0.055) * Math.max(0.15, fading), 1);
+            g.current.rotation.z = Math.sin(age * 8) * 0.018 * (1 - woven);
+        }
     });
     return (
         <group ref={g} visible={false}>
@@ -410,6 +477,11 @@ function atlasTexture(url: string, cols: number, rows: number): THREE.Texture {
     return t;
 }
 
+function setAtlasFrame(t: THREE.Texture, frame: number, cols: number, rows: number): void {
+    const col = frame % cols, row = Math.floor(frame / cols);
+    t.offset.set(col / cols + 0.001, 1 - (row + 1) / rows + 0.001);
+}
+
 /**
  * Dois atlases com funções separadas: oito passos simétricos e doze poses de
  * transição/ação. Cada frame é ancorado pela linha real dos pés; assim a margem
@@ -426,7 +498,10 @@ const CrochetPlayerSprite: React.FC<{
     const landingT = useRef(0);
     const walkAtlas = useMemo(() => atlasTexture(travelerWalkAtlas, 4, 2), []);
     const actionAtlas = useMemo(() => atlasTexture(travelerActionAtlas, 4, 3), []);
-    useEffect(() => () => { walkAtlas.dispose(); actionAtlas.dispose(); }, [walkAtlas, actionAtlas]);
+    const airStitchAtlas = useMemo(() => atlasTexture(travelerAirStitchAtlas, 4, 2), []);
+    useEffect(() => () => {
+        walkAtlas.dispose(); actionAtlas.dispose(); airStitchAtlas.dispose();
+    }, [walkAtlas, actionAtlas, airStitchAtlas]);
 
     const showFrame = (map: THREE.Texture, frame: number, rows: number, key: string) => {
         const visual = `${key}:${frame}`;
@@ -447,6 +522,8 @@ const CrochetPlayerSprite: React.FC<{
         const cinematic = bossIntroRef.current;
         const target = activeThreadTarget();
         const moving = p8.onGround && Math.abs(p8.vx) > 0.42;
+        const patchAge = p8.patch ? p8.t - p8.patch.born : Infinity;
+        const weavingAir = patchAge >= 0 && patchAge < 0.56;
         if (!wasGrounded.current && p8.onGround) landingT.current = 0.17;
         wasGrounded.current = p8.onGround;
         landingT.current = Math.max(0, landingT.current - dt);
@@ -458,6 +535,9 @@ const CrochetPlayerSprite: React.FC<{
         if (cinematic.active) {
             const e = Math.max(0, performance.now() / 1000 - cinematic.startedAt);
             frame = e < 0.38 ? 1 : e < 0.82 ? 2 : 3;
+        } else if (weavingAir) {
+            map = airStitchAtlas; rows = 2; key = 'air-stitch';
+            frame = Math.min(7, Math.floor(patchAge / 0.07));
         } else if (p8.stitchT > 0.02) {
             const progress = THREE.MathUtils.clamp(1 - p8.stitchT / 0.26, 0, 0.999);
             frame = 8 + Math.floor(progress * 4);
@@ -516,7 +596,10 @@ const PlayerTransitionFX: React.FC = () => {
     useFrame(({ clock }) => {
         const now = clock.elapsedTime;
         if (previousStitch.current <= 0.02 && p8.stitchT > 0.2) {
-            active.current = { kind: 'stitch', start: now, x: p8.x + p8.facing * 1.25, y: p8.y + 1.15, facing: p8.facing };
+            const patchAge = p8.patch ? p8.t - p8.patch.born : Infinity;
+            // O novo atlas mostra corpo, agulha, fio e ponto nascendo. Não
+            // empilhe o antigo impacto por cima ou o player aparece duplicado.
+            if (patchAge > 0.1) active.current = { kind: 'stitch', start: now, x: p8.x + p8.facing * 1.25, y: p8.y + 1.15, facing: p8.facing };
         } else if (!wasGrounded.current && p8.onGround && Math.abs(p8.vy) < 0.1) {
             active.current = { kind: 'land', start: now, x: p8.x, y: p8.y + 0.12, facing: p8.facing };
         }
@@ -994,14 +1077,58 @@ const BossFX: React.FC<{ kit: Kit }> = ({ kit }) => {
     const sweep = useRef<THREE.Group>(null!);
     const sweepTele = useRef<THREE.Group>(null!);
     const shield = useRef<THREE.Group>(null!);
+    const attackSprite = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
     const projs = useRef<THREE.Group[]>([]);
+    const projSprites = useRef<THREE.Mesh[]>([]);
     const hearts = useRef<THREE.Group[]>([]);
+    const attackAtlas = useMemo(() => atlasTexture(bossAttackVfxAtlas, 4, 4), []);
+    const projectileAtlases = useMemo(() => Array.from({ length: 6 }, () => {
+        const t = attackAtlas.clone(); t.needsUpdate = true; return t;
+    }), [attackAtlas]);
+    const attackLastFrame = useRef(-1);
+    const projectileLastFrames = useRef<number[]>(Array(6).fill(-1));
     const projMatW = useMemo(() => new THREE.MeshStandardMaterial({ color: '#f4f0e8', emissive: '#d8d0c0', emissiveIntensity: 0.7, roughness: 0.7 }), []);
     const projMatG = useMemo(() => new THREE.MeshStandardMaterial({ color: '#ffe49a', emissive: '#e3a53c', emissiveIntensity: 1.55, roughness: 0.42 }), []);
-    useEffect(() => () => { projMatW.dispose(); projMatG.dispose(); }, [projMatW, projMatG]);
+    useEffect(() => () => {
+        attackAtlas.dispose(); projectileAtlases.forEach((t) => t.dispose());
+        projMatW.dispose(); projMatG.dispose();
+    }, [attackAtlas, projectileAtlases, projMatW, projMatG]);
     useFrame(({ clock }) => {
         const b = p8.boss, t = clock.elapsedTime;
         const medo = (b?.seams ?? 5) <= 1;
+        // Um atlas pintado dá peso e continuidade aos quatro ataques sem
+        // substituir os telegraphs geométricos, que continuam exatos.
+        if (attackSprite.current) {
+            const fx = attackSprite.current;
+            let visible = !!b && b.phase === 'attack' && !!b.attack;
+            let frame = 0;
+            if (visible && b) {
+                if (b.attack === 'slam') {
+                    const tele = medo ? 0.55 : 0.9;
+                    frame = b.atkT < tele * 0.48 ? 0 : b.atkT < tele ? 1 : b.atkT < tele + 0.24 ? 2 : 3;
+                    fx.position.set(b.slamX, 1.52, 0.78);
+                    const pulse = 4.7 + Math.sin(t * 18) * 0.12;
+                    fx.scale.set(pulse, pulse, 1); fx.rotation.z = 0;
+                } else if (b.attack === 'sweep') {
+                    frame = 4 + (Math.floor(Math.max(0, b.atkT - 0.58) * 12) % 4);
+                    fx.position.set(b.atkT < 0.7 ? 27 : b.sweepX, b.sweepY + 1.02, 0.78);
+                    fx.scale.set(b.sweepDir * 5.15, 3.35, 1); fx.rotation.z = 0;
+                } else if (b.attack === 'throw') {
+                    frame = 8 + (Math.floor(b.atkT * 10) % 4);
+                    fx.position.set(b.x - b.sweepDir * 0.35, b.y + 2.05, 0.78);
+                    fx.scale.set(3.85, 3.85, 1); fx.rotation.z = Math.sin(t * 7) * 0.035;
+                } else if (b.attack === 'cocoon') {
+                    frame = 12 + Math.min(3, Math.floor(b.atkT * 7.2));
+                    fx.position.set(b.x, b.y + 2.0, 0.78);
+                    const breathe = 5.1 + Math.sin(t * 2.7) * 0.14;
+                    fx.scale.set(breathe, breathe, 1); fx.rotation.z = Math.sin(t * 0.8) * 0.018;
+                } else visible = false;
+            }
+            fx.visible = visible;
+            if (visible && frame !== attackLastFrame.current) {
+                attackLastFrame.current = frame; setAtlasFrame(attackAtlas, frame, 4, 4);
+            }
+        }
         // anel do SLAM
         if (ring.current) {
             const on = !!b && b.phase === 'attack' && b.attack === 'slam' && b.atkT < (medo ? 0.55 : 0.9) + 0.34;
@@ -1045,12 +1172,21 @@ const BossFX: React.FC<{ kit: Kit }> = ({ kit }) => {
         let pi = 0;
         for (const pr of list) {
             if (pr.dead || pi >= projs.current.length) continue;
-            const m = projs.current[pi++]; if (!m) continue;
+            const slot = pi++, m = projs.current[slot]; if (!m) continue;
             m.visible = true; m.position.set(pr.x, pr.y, 0.68);
             m.rotation.z = Math.atan2(pr.vy, pr.vx);
-            const pulse = 1 + Math.sin(t * 13 + pi) * 0.06; m.scale.setScalar(pulse);
+            const pulse = 1 + Math.sin(t * 13 + slot) * 0.06; m.scale.setScalar(pulse);
             const signalMat = pr.reflected ? projMatG : projMatW;
             for (const child of m.children) if (child.name === 'signal' && (child as THREE.Mesh).isMesh) (child as THREE.Mesh).material = signalMat;
+            const sprite = projSprites.current[slot];
+            if (sprite) {
+                const frame = 8 + (Math.floor(pr.t * 14 + slot * 0.7) % 4);
+                if (frame !== projectileLastFrames.current[slot]) {
+                    projectileLastFrames.current[slot] = frame;
+                    setAtlasFrame(projectileAtlases[slot], frame, 4, 4);
+                }
+                (sprite.material as THREE.MeshBasicMaterial).color.set(pr.reflected ? '#ffe49a' : '#ffffff');
+            }
         }
         for (; pi < projs.current.length; pi++) if (projs.current[pi]) projs.current[pi].visible = false;
         // corações
@@ -1069,6 +1205,10 @@ const BossFX: React.FC<{ kit: Kit }> = ({ kit }) => {
     });
     return (
         <>
+            <mesh ref={attackSprite} visible={false} renderOrder={9} name="YOURSELF-painted-attack-vfx">
+                <planeGeometry args={[1, 1]} />
+                <meshBasicMaterial map={attackAtlas} transparent alphaTest={0.02} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
+            </mesh>
             {/* o anel de alerta no chão (VERGONHA/MEDO) */}
             <group ref={ring} visible={false}>
                 <mesh scale={[1, 0.2, 1]}><ringGeometry args={[0.72, 1, 36]} /><meshBasicMaterial color="#ff334f" transparent opacity={0.78} depthWrite={false} toneMapped={false} /></mesh>
@@ -1102,11 +1242,15 @@ const BossFX: React.FC<{ kit: Kit }> = ({ kit }) => {
             {/* pool de projéteis */}
             {Array.from({ length: 6 }, (_, i) => (
                 <group key={'pr' + i} ref={(el) => { if (el) projs.current[i] = el; }} visible={false}>
-                    <mesh name="signal" material={projMatW}><icosahedronGeometry args={[0.36, 1]} /></mesh>
-                    {[0, Math.PI / 3, Math.PI * 0.68].map((r, n) => <mesh name="signal" key={n} rotation={[r, r * 0.5, r]} material={projMatW}><torusGeometry args={[0.37, 0.027, 5, 18]} /></mesh>)}
-                    <mesh name="signal" position={[-0.58, 0, -0.04]} rotation={[0, 0, Math.PI / 2]} material={projMatW}><cylinderGeometry args={[0.018, 0.045, 1.05, 5]} /></mesh>
-                    <mesh name="signal" scale={1.55} material={projMatW}><torusGeometry args={[0.47, 0.018, 5, 24]} /></mesh>
-                    <mesh scale={1.5} material={kit.glow}><planeGeometry args={[1.25, 1.25]} /></mesh>
+                    <mesh name="signal" material={projMatW}><icosahedronGeometry args={[0.19, 1]} /></mesh>
+                    <mesh
+                        ref={(el) => { if (el) projSprites.current[i] = el; }}
+                        rotation={[0, 0, 0]} renderOrder={10} scale={1.82}
+                    >
+                        <planeGeometry args={[1, 1]} />
+                        <meshBasicMaterial map={projectileAtlases[i]} transparent alphaTest={0.018} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
+                    </mesh>
+                    <mesh scale={1.42} material={kit.glow}><planeGeometry args={[1.1, 1.1]} /></mesh>
                 </group>
             ))}
             {/* pool de novelos-coração */}
