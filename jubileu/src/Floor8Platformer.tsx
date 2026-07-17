@@ -40,7 +40,7 @@ import travelerAirStitchAtlas from './assets/f8/traveler-air-stitch-atlas-v7.png
 import airStitchPlatformAtlas from './assets/f8/air-stitch-platform-atlas-v8.png';
 import yourselfArenaFloor from './assets/f8/yourself-arena-floor-v6.webp';
 import crochetVfxAtlas from './assets/f8/crochet-vfx-atlas-v5.webp';
-import bossAttackVfxAtlas from './assets/f8/yourself-attack-vfx-atlas-v7.png';
+import bossAttackVfxAtlas from './assets/f8/yourself-attack-vfx-atlas-v8.png';
 import floorQuintal from './assets/f8/floor-quintal-v2.webp';
 import floorEscola from './assets/f8/floor-escola-v2.webp';
 import floorTempestade from './assets/f8/floor-tempestade-v2.webp';
@@ -369,16 +369,11 @@ const SeamGateActor: React.FC<{ i: number; kit: Kit }> = ({ i, kit }) => {
 
 interface AtlasBlendPose { frame: number; next: number; mix: number }
 
-function lateAtlasRowPose(base: number, progress: number, loop = false): AtlasBlendPose {
-    const x = loop
-        ? ((progress % 1) + 1) % 1 * 4
-        : THREE.MathUtils.clamp(progress, 0, 0.9999) * 4;
-    const localFrame = Math.min(3, Math.floor(x));
-    const local = x - localFrame;
+function lateAtlasPairPose(frame: number, next: number, progress: number): AtlasBlendPose {
     return {
-        frame: base + localFrame,
-        next: base + (loop ? (localFrame + 1) % 4 : Math.min(3, localFrame + 1)),
-        mix: THREE.MathUtils.smoothstep(local, 0.7, 0.98),
+        frame,
+        next,
+        mix: THREE.MathUtils.smoothstep(THREE.MathUtils.clamp(progress, 0, 1), 0.7, 0.98),
     };
 }
 
@@ -1151,51 +1146,107 @@ const BossFX: React.FC<{ kit: Kit }> = ({ kit }) => {
     }), [attackAtlas]);
     const attackLastFrames = useRef([-1, -1]);
     const projectileLastFrames = useRef(Array.from({ length: 6 }, () => [-1, -1]));
+    const projectileReflectMix = useRef(Array(6).fill(0));
+    const lastSlamCount = useRef(0);
+    const slamImpactUntil = useRef(0);
+    const slamImpactX = useRef(0);
+    const attackTailUntil = useRef(0);
+    const wasLiveAttack = useRef(false);
     useEffect(() => () => {
         attackAtlas.dispose(); attackAtlasNext.dispose();
         projectileAtlases.forEach((pair) => pair.forEach((t) => t.dispose()));
     }, [attackAtlas, attackAtlasNext, projectileAtlases]);
-    useFrame(({ clock }) => {
+    useFrame(({ clock }, delta) => {
         const b = p8.boss, t = clock.elapsedTime;
         const medo = (b?.seams ?? 5) <= 1;
         const attackA = attackPrimary.current, attackB = attackSecondary.current;
         if (attackRoot.current && attackA && attackB) {
             const root = attackRoot.current;
-            let visible = !!b && b.phase === 'attack' && !!b.attack;
+            const liveAttack = !!b && b.phase === 'attack' && !!b.attack;
+            const slamCount = b?.slamN ?? 0;
+            if (b && slamCount > lastSlamCount.current) {
+                // O motor registra o dano e reinicia/encerra o slam no mesmo
+                // passo. Preserve a posição anterior para que esse impacto
+                // nunca aconteça em um frame visual vazio.
+                slamImpactX.current = root.visible ? root.position.x : b.slamX;
+                slamImpactUntil.current = t + 0.22;
+            }
+            lastSlamCount.current = slamCount;
+            if (wasLiveAttack.current && !liveAttack) attackTailUntil.current = t + 0.16;
+            wasLiveAttack.current = liveAttack;
+
+            const showingSlamImpact = t < slamImpactUntil.current;
+            const showingAttackTail = t < attackTailUntil.current;
+            let visible = liveAttack || showingSlamImpact || showingAttackTail;
+            let updatePose = false;
             let pose: AtlasBlendPose = { frame: 0, next: 0, mix: 0 };
-            if (visible && b) {
+            if (showingSlamImpact) {
+                const progress = 1 - (slamImpactUntil.current - t) / 0.22;
+                pose = lateAtlasPairPose(2, 3, progress);
+                root.position.set(slamImpactX.current, 1.52, 0.78);
+                const pulse = 4.95 + Math.sin(t * 20) * 0.1;
+                root.scale.set(pulse, pulse, 1); root.rotation.z = 0;
+                updatePose = true;
+            } else if (liveAttack && b) {
                 if (b.attack === 'slam') {
                     const tele = medo ? 0.55 : 0.9;
-                    const progress = b.atkT < tele
-                        ? (b.atkT / tele) * 0.49
-                        : 0.5 + THREE.MathUtils.clamp((b.atkT - tele) / 0.34, 0, 1) * 0.499;
-                    pose = lateAtlasRowPose(0, progress);
+                    pose = b.atkT < tele
+                        ? lateAtlasPairPose(0, 1, b.atkT / tele)
+                        : lateAtlasPairPose(1, 2, (b.atkT - tele) / 0.34);
                     root.position.set(b.slamX, 1.52, 0.78);
                     const pulse = 4.7 + Math.sin(t * 18) * 0.12;
                     root.scale.set(pulse, pulse, 1); root.rotation.z = 0;
                 } else if (b.attack === 'sweep') {
-                    const progress = b.atkT < 0.7
-                        ? (b.atkT / 0.7) * 0.49
-                        : 0.5 + THREE.MathUtils.clamp((b.atkT - 0.7) / 0.32, 0, 1) * 0.499;
-                    pose = lateAtlasRowPose(4, progress);
+                    if (b.atkT < 0.7) {
+                        pose = lateAtlasPairPose(4, 5, b.atkT / 0.7);
+                    } else {
+                        // A hitbox cruza a arena por bem mais de 0,32 s. As
+                        // duas poses ativas ficam alternando até ela sair dos
+                        // limites, sem cair num frame de dissipação antecipado.
+                        const x = Math.max(0, b.atkT - 0.7) * 4.4;
+                        const step = Math.floor(x), local = x - step;
+                        pose = {
+                            frame: 6 + (step % 2),
+                            next: 6 + ((step + 1) % 2),
+                            mix: THREE.MathUtils.smoothstep(local, 0.7, 0.98),
+                        };
+                    }
                     root.position.set(b.atkT < 0.7 ? 27 : b.sweepX, b.sweepY + 1.02, 0.78);
                     root.scale.set(b.sweepDir * 5.15, 3.35, 1); root.rotation.z = 0;
                 } else if (b.attack === 'throw') {
                     const gap = medo ? 0.6 : 0.8;
-                    pose = lateAtlasRowPose(8, (b.atkT % gap) / gap);
+                    const total = medo ? 2 : 3;
+                    pose = b.throwN >= total
+                        ? { frame: 9, next: 9, mix: 0 }
+                        : lateAtlasPairPose(8, 9, (b.atkT % gap) / gap);
                     root.position.set(b.x, b.y + 2.05, 0.78);
                     root.scale.set(3.85, 3.85, 1); root.rotation.z = Math.sin(t * 7) * 0.035;
                 } else if (b.attack === 'cocoon') {
-                    pose = b.atkT < 0.62
-                        ? lateAtlasRowPose(12, (b.atkT / 0.62) * 0.749)
-                        : { frame: 14, next: 14, mix: 0 };
-                    root.position.set(b.x, b.y + 2.0, 0.78);
-                    const breathe = 5.1 + Math.sin(t * 2.7) * 0.14;
+                    if (b.atkT < 0.72) {
+                        const x = THREE.MathUtils.clamp(b.atkT / 0.72, 0, 0.9999) * 2;
+                        const step = Math.floor(x), local = x - step;
+                        pose = {
+                            frame: 12 + step,
+                            next: 13 + step,
+                            mix: THREE.MathUtils.smoothstep(local, 0.7, 0.98),
+                        };
+                    } else {
+                        const x = (b.atkT - 0.72) * 1.15;
+                        const step = Math.floor(x), local = x - step;
+                        pose = {
+                            frame: 14 + (step % 2),
+                            next: 14 + ((step + 1) % 2),
+                            mix: THREE.MathUtils.smoothstep(local, 0.74, 0.98),
+                        };
+                    }
+                    root.position.set(b.x, b.y + 1.72, 0.78);
+                    const breathe = 4.7 + Math.sin(t * 2.7) * 0.12;
                     root.scale.set(breathe, breathe, 1); root.rotation.z = Math.sin(t * 0.8) * 0.018;
                 } else visible = false;
+                updatePose = visible;
             }
             root.visible = visible;
-            if (visible) {
+            if (visible && updatePose) {
                 if (attackLastFrames.current[0] !== pose.frame) {
                     attackLastFrames.current[0] = pose.frame; setAtlasFrame(attackAtlas, pose.frame, 4, 4);
                 }
@@ -1208,8 +1259,9 @@ const BossFX: React.FC<{ kit: Kit }> = ({ kit }) => {
             }
         }
 
-        // Os novelos também são exclusivamente sprites. O branco oscila entre
-        // carga e voo; ao ser refletido fixa na pose dourada do mesmo atlas.
+        // Os novelos também são exclusivamente sprites. Enquanto a colisão
+        // existe, o hostil segura sua pose marfim; ao ser refletido troca para
+        // a pose dourada, e só some quando o motor marca o projétil como morto.
         const list = b?.projectiles ?? [];
         let pi = 0;
         for (const pr of list) {
@@ -1220,17 +1272,17 @@ const BossFX: React.FC<{ kit: Kit }> = ({ kit }) => {
             const pulse = 1 + Math.sin(t * 13 + slot) * 0.045; m.scale.setScalar(pulse);
             const pa = projPrimary.current[slot], pb = projSecondary.current[slot];
             if (pa && pb) {
-                const x = (pr.t * 5.2 + slot * 0.31) % 2;
-                const frame = pr.reflected ? 11 : 8 + Math.floor(x);
-                const next = pr.reflected ? 11 : 8 + ((Math.floor(x) + 1) % 2);
-                const mix = pr.reflected ? 0 : THREE.MathUtils.smoothstep(x - Math.floor(x), 0.72, 0.98);
                 const cache = projectileLastFrames.current[slot];
-                if (cache[0] !== frame) { cache[0] = frame; setAtlasFrame(projectileAtlases[slot][0], frame, 4, 4); }
-                if (cache[1] !== next) { cache[1] = next; setAtlasFrame(projectileAtlases[slot][1], next, 4, 4); }
-                const color = pr.reflected ? '#ffe49a' : '#ffffff';
-                pa.material.color.set(color); pb.material.color.set(color);
-                pa.material.opacity = 1 - mix; pb.material.opacity = mix;
-                pb.visible = next !== frame && mix > 0.002;
+                if (cache[0] !== 10) { cache[0] = 10; setAtlasFrame(projectileAtlases[slot][0], 10, 4, 4); }
+                if (cache[1] !== 11) { cache[1] = 11; setAtlasFrame(projectileAtlases[slot][1], 11, 4, 4); }
+                const reflectMix = pr.reflected
+                    ? Math.min(1, projectileReflectMix.current[slot] + delta / 0.12)
+                    : 0;
+                projectileReflectMix.current[slot] = reflectMix;
+                pa.material.color.set('#ffffff'); pb.material.color.set('#ffffff');
+                pa.material.opacity = 1 - reflectMix;
+                pb.material.opacity = reflectMix;
+                pb.visible = reflectMix > 0.002;
             }
         }
         for (; pi < projs.current.length; pi++) if (projs.current[pi]) projs.current[pi].visible = false;
