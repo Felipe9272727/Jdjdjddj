@@ -1140,7 +1140,11 @@ export default function App() {
     // 3D elevator zone beneath them, so this proximity trigger would re-arm the
     // elevator and silently yank the player back ("volto do nada pro lobby").
     // Floor 6's elevator is BROKEN (and later blocked by the guest) — no rides.
-    if (lv === 4 || lv === 5 || lv === 6) return;
+    // Floor 9 (O Viveiro) has NO ridable elevator — you FELL in through the
+    // canopy and leave via the RAIZ; the player spawns near the world origin
+    // (the pouso), which sits in the elevator zone, so without this guard the
+    // proximity trigger armed a 5s timer and yanked you back to the lobby.
+    if (lv === 4 || lv === 5 || lv === 6 || lv === 9) return;
     if (t === null && !d) setElevatorTimer(5);
   }, []);
   const handleInteractionUpdate = useCallback((c: boolean) => { setCanInteractDoor(p => p !== c ? c : p); }, []);
