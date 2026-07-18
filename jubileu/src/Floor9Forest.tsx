@@ -982,6 +982,71 @@ const GroundMist: React.FC = () => {
 };
 
 // ── o FIO VERMELHO com PULSO VIAJANTE (guiando o olho até a raiz) ────────────
+/** O FAROL DO OBJETIVO: pilar de luz na RAIZ (visível sobre a copa) + um NÓ
+ *  DE FIO flutuante quicando sobre o próximo waypoint do caminho — que vira
+ *  ÂMBAR e pula pro oco mais próximo durante aviso/onda (sobreviver primeiro). */
+const ObjectiveBeacon: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
+    const marker = useRef<THREE.Group>(null!);
+    const pillar = useRef<THREE.Mesh>(null!);
+    const markerMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ff4a52', transparent: true, opacity: 0.95, depthWrite: false }), []);
+    const haloMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ff4a52', transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending }), []);
+    useFrame(({ clock }) => {
+        const t = clock.elapsedTime;
+        const p = playerPositionRef.current;
+        const emergency = f9eco.phase === 'aviso' || f9eco.phase === 'onda';
+        // pilar da raiz respira; some quando você chega
+        if (pillar.current) {
+            pillar.current.visible = f9.phase === 'explorar' || f9.phase === 'chegada';
+            (pillar.current.material as THREE.MeshBasicMaterial).opacity = 0.1 + Math.sin(t * 1.1) * 0.035;
+        }
+        if (!marker.current) return;
+        marker.current.visible = f9.phase === 'explorar';
+        if (!marker.current.visible) return;
+        let tx: number, tz: number;
+        if (emergency) {
+            // sobreviver primeiro: aponta o oco mais próximo
+            let bx = F9_OCOS[0][0], bz = F9_OCOS[0][1], bd = Infinity;
+            for (const [ox, oz] of F9_OCOS) {
+                const d = (p.x - ox) ** 2 + (p.z - oz) ** 2;
+                if (d < bd) { bd = d; bx = ox; bz = oz; }
+            }
+            tx = bx; tz = bz;
+            markerMat.color.setStyle('#ffca7a'); haloMat.color.setStyle('#ffca7a');
+        } else {
+            // o próximo nó do fio à frente (o mais perto que ainda está longe o
+            // bastante pra valer como "próximo passo")
+            let ni = 0, nd = Infinity;
+            F9_FIO.forEach(([fx, fz], i) => {
+                const d = (p.x - fx) ** 2 + (p.z - fz) ** 2;
+                if (d < nd) { nd = d; ni = i; }
+            });
+            const next = F9_FIO[Math.min(ni + 1, F9_FIO.length - 1)];
+            tx = next[0]; tz = next[1];
+            markerMat.color.setStyle('#ff4a52'); haloMat.color.setStyle('#ff4a52');
+        }
+        marker.current.position.x += (tx - marker.current.position.x) * 0.08;
+        marker.current.position.z += (tz - marker.current.position.z) * 0.08;
+        marker.current.position.y = f9GroundHeight(tx, tz) + 2.1 + Math.sin(t * 2.2) * 0.25;
+        marker.current.rotation.y = t * 1.4;
+        const pulse = 1 + Math.sin(t * 3.1) * 0.12;
+        marker.current.scale.setScalar(pulse);
+    });
+    return (<>
+        {/* o pilar da RAIZ atravessando a copa */}
+        <mesh ref={pillar} position={[F9_RAIZ[0], 9, F9_RAIZ[1] - 2.5]}>
+            <cylinderGeometry args={[0.7, 1.6, 20, 12, 1, true]} />
+            <meshBasicMaterial color="#ffd98a" transparent opacity={0.11} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} fog={false} />
+        </mesh>
+        {/* o nó-guia flutuante */}
+        <group ref={marker} visible={false}>
+            <mesh material={markerMat}><torusKnotGeometry args={[0.22, 0.07, 48, 6]} /></mesh>
+            <mesh material={haloMat}><sphereGeometry args={[0.55, 10, 8]} /></mesh>
+            {/* a setinha caída apontando pro chão */}
+            <mesh position={[0, -0.55, 0]} rotation={[Math.PI, 0, 0]} material={markerMat}><coneGeometry args={[0.12, 0.3, 5]} /></mesh>
+        </group>
+    </>);
+};
+
 const RedThread: React.FC = () => {
     const built = useMemo(() => {
         const pts = F9_FIO.map(([x, z], i) => new THREE.Vector3(x, 0.5 + Math.sin(i * 1.7) * 0.28 + (i % 3 === 0 ? 0.9 : 0), z));
@@ -1189,6 +1254,7 @@ export const Floor9Forest: React.FC<{ playerPositionRef: React.MutableRefObject<
                 <Spores low={quality === 'low'} />
                 <GroundMist />
                 <RedThread />
+                <ObjectiveBeacon playerPositionRef={playerPositionRef} />
                 <Ocos />
                 <Raiz />
 

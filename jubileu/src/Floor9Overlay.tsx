@@ -6,13 +6,37 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     f9, f9Subscribe, f9Objective, f9ChegadaDone, f9ReplantioDone,
-    F9_CHEGADA_LINES, F9_RAIZ_LINES,
+    F9_CHEGADA_LINES, F9_RAIZ_LINES, F9_OCOS, F9_RAIZ,
 } from './f9Floresta';
 import { f9eco, f9EcoSubscribe } from './f9Eco';
 
 const mono: React.CSSProperties = { fontFamily: 'monospace', color: '#dfe8d2', userSelect: 'none' };
 
-export const Floor9Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void }> = ({ onUiOpenChange }) => {
+/** distância legível: “A RAIZ · 43 m” — atualizada a 2 Hz fora do rerender do three. */
+const useObjectiveDistance = (playerPositionRef?: React.MutableRefObject<{ x: number; z: number }>) => {
+    const [dist, setDist] = useState<number | null>(null);
+    useEffect(() => {
+        if (!playerPositionRef) return;
+        const id = window.setInterval(() => {
+            const p = playerPositionRef.current;
+            if (!p || f9.phase !== 'explorar') { setDist(null); return; }
+            if (f9eco.phase === 'aviso' || f9eco.phase === 'onda') {
+                let best = Infinity;
+                for (const [ox, oz] of F9_OCOS) best = Math.min(best, Math.hypot(p.x - ox, p.z - oz));
+                setDist(Math.round(best));
+            } else {
+                setDist(Math.round(Math.hypot(p.x - F9_RAIZ[0], p.z - F9_RAIZ[1])));
+            }
+        }, 500);
+        return () => window.clearInterval(id);
+    }, [playerPositionRef]);
+    return dist;
+};
+
+export const Floor9Overlay: React.FC<{
+    onUiOpenChange: (open: boolean) => void;
+    playerPositionRef?: React.MutableRefObject<{ x: number; z: number }>;
+}> = ({ onUiOpenChange, playerPositionRef }) => {
     const [, setV] = useState(0);
     const [line, setLine] = useState(0);
     const [raizLine, setRaizLine] = useState(0);
@@ -37,6 +61,7 @@ export const Floor9Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void }
 
     const objective = f9Objective();
     const aviso = f9.phase === 'explorar' && f9eco.phase === 'aviso';
+    const dist = useObjectiveDistance(playerPositionRef);
     // vinheta opressiva em CSS puro (zero GPU): cobre as qualities sem o
     // EffectComposer; aperta quando o ciclo fecha (aviso/onda)
     const vigK = f9eco.phase === 'onda' ? 0.78 : aviso ? 0.66 : 0.52;
@@ -48,15 +73,26 @@ export const Floor9Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void }
                 position: 'absolute', inset: 0,
                 background: `radial-gradient(ellipse at center, transparent 40%, rgba(3,7,5,${vigK}) 100%)`,
             }} />
-            {/* objetivo */}
+            {/* objetivo + distância: sempre saber PRA ONDE e QUÃO LONGE */}
             {objective && !chegada && (
                 <div style={{
-                    ...mono, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 62px)', left: 0, right: 0,
-                    textAlign: 'center', fontSize: 13, letterSpacing: 1,
-                    color: aviso || f9eco.phase === 'onda' ? '#ffe9c9' : '#cfdcc0',
-                    textShadow: '0 1px 3px #000',
+                    ...mono, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 58px)', left: 0, right: 0,
+                    textAlign: 'center', textShadow: '0 1px 3px #000',
                     animation: aviso ? 'f9pulse 1.1s ease-in-out infinite' : undefined,
-                }}>{objective}</div>
+                }}>
+                    <div style={{
+                        fontSize: 13, letterSpacing: 1,
+                        color: aviso || f9eco.phase === 'onda' ? '#ffe9c9' : '#cfdcc0',
+                    }}>{objective}</div>
+                    {dist !== null && (
+                        <div style={{
+                            fontSize: 15, letterSpacing: 3, marginTop: 4, fontWeight: 700,
+                            color: aviso || f9eco.phase === 'onda' ? '#ffca7a' : '#e88a8a',
+                        }}>
+                            {aviso || f9eco.phase === 'onda' ? '⌂ OCO' : '➤ A RAIZ'} · {dist} m
+                        </div>
+                    )}
+                </div>
             )}
 
             {/* legendas da chegada (toque pra avançar) */}

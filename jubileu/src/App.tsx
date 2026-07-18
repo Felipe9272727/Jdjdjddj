@@ -2510,7 +2510,7 @@ export default function App() {
         <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} onLeave={handleF8Thrown} />
       )}
       {hasStarted && currentLevel === 9 && (
-        <Floor9Overlay onUiOpenChange={handleF8UiOpenChange} />
+        <Floor9Overlay onUiOpenChange={handleF8UiOpenChange} playerPositionRef={sharedPlayerPositionRef} />
       )}
       {/* Andar 8 — a volta: acorda no elevador "subindo pro 9", com o fio vermelho
           (self-gate na fase leave; fica de pé durante o doorsClosed do trânsito) */}

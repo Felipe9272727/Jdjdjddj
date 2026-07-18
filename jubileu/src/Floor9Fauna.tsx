@@ -742,24 +742,27 @@ export const BlobShadows: React.FC = () => {
     </>);
 };
 
-// ── O FIAPO: o player-bicho + câmera em terceira pessoa ─────────────────────
+// ── O FIAPO em PRIMEIRA PESSOA: você DENTRO do corpo do bicho ───────────────
 /**
- * O corpo segue sharedPlayerPositionRef (o Player continua sendo o motor de
- * input/colisão); a câmera orbita pelo MESMO cameraThetaRef do look normal.
+ * O Player nativo segue dono do input/colisão/olhar; aqui a gente (1) abaixa
+ * a câmera pra altura de olho de bicho (~0.55 m — samambaia vira mata fechada,
+ * cervo vira gigante) somando o galope, e (2) cola um RIG no nariz da câmera:
+ * focinho, bigodes e as patinhas dianteiras remando quando você corre. O
+ * "corpo" continua existindo como âncora invisível na posição do player — é
+ * ele que carrega o follow-light e a sombra-blob do v3 (os bichos e a cena
+ * seguem te "vendo"). `cameraThetaRef` fica no contrato pra poses futuras.
  * Montar DEPOIS do <Player> e ANTES da <Floor9Cutscene> (a queda ganha).
  */
 export const Fiapo: React.FC<{
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     cameraThetaRef: React.MutableRefObject<number>;
-}> = ({ playerPositionRef, cameraThetaRef }) => {
+}> = ({ playerPositionRef, cameraThetaRef: _cameraThetaRef }) => {
     const { camera } = useThree();
     const body = useRef<THREE.Group>(null!);
-    const wasActive = useRef(false);
+    const rig = useRef<THREE.Group>(null!);
     const prev = useRef(new THREE.Vector3());
     const speed = useRef(0);
-    const heading = useRef(Math.PI);
-    const camPos = useRef(new THREE.Vector3());
-    const earSprings = useRef({ l: new F9Spring(), r: new F9Spring() });
+    const drop = useRef(0);
     const quality = useMemo(f9Quality, []); // follow-light desliga em 'low' (brief §7)
 
     // o Fiapo também tem sombra-blob (e entra no registro de corpos); refs de
@@ -782,91 +785,87 @@ export const Fiapo: React.FC<{
         const p = playerPositionRef.current;
         const active = f9.phase !== 'queda';
         if (body.current) body.current.visible = active;
-        if (!active) { wasActive.current = false; prev.current.copy(p); return; }
+        if (rig.current) rig.current.visible = active;
+        if (!active) { drop.current = 0; prev.current.copy(p); return; }
 
-        // velocidade e heading a partir do movimento real
+        // velocidade a partir do movimento real
         const dx = p.x - prev.current.x, dz = p.z - prev.current.z;
         const sp = Math.hypot(dx, dz) / Math.max(dt, 1e-4);
         speed.current += (Math.min(sp, 9) - speed.current) * Math.min(1, dt * 8);
-        if (sp > 0.4) {
-            const want = Math.atan2(dx, dz);
-            let dh = want - heading.current;
-            while (dh > Math.PI) dh -= Math.PI * 2; while (dh < -Math.PI) dh += Math.PI * 2;
-            heading.current += dh * Math.min(1, dt * 10);
-        }
         prev.current.copy(p);
-        const gy = f9GroundHeight(p.x, p.z); // os pés do player pisam no relevo
+        const gy = f9GroundHeight(p.x, p.z);
+        const run = Math.min(1, speed.current / 4);
+        const gait = t * 11;
 
-        // o corpo
-        if (body.current) {
-            const gait = t * 11;
-            const run = Math.min(1, speed.current / 4);
-            body.current.position.set(p.x, gy + Math.abs(Math.sin(gait)) * 0.16 * run, p.z);
-            body.current.rotation.y = heading.current;
-            const sq = 1 + Math.sin(gait * 2) * 0.1 * run + (run < 0.05 ? Math.sin(t * 2.4) * 0.02 : 0);
-            body.current.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
-            const spine = parts.current.fspine as THREE.Group | undefined;
-            if (spine) spine.rotation.x = -run * 0.3;
-            const tail = parts.current.ftail as THREE.Group | undefined;
-            if (tail) { tail.rotation.y = Math.sin(t * (3 + run * 6)) * 0.5; tail.rotation.x = 0.5 + run * 0.4; }
-            const earL = parts.current.fearL as THREE.Mesh | undefined;
-            const earR = parts.current.fearR as THREE.Mesh | undefined;
-            const bounce = Math.sin(gait) * 0.24 * run;
-            if (earL) earL.rotation.z = earSprings.current.l.step(0.4 + bounce + (Math.sin(t * 1.3) > 0.97 ? 0.4 : 0), dt);
-            if (earR) earR.rotation.z = earSprings.current.r.step(-0.4 - bounce, dt);
-        }
+        // a ÂNCORA invisível na posição do player: sombra-blob + follow-light
+        if (body.current) body.current.position.set(p.x, gy, p.z);
 
-        // a câmera em 3ª pessoa (orbita pelo theta do look normal) — mais longe
-        // e mais baixa: enquadra o Fiapo "por cima do ombro", não de drone.
-        const th = cameraThetaRef.current;
-        const dist = 4.4, height = 1.75, pitchAim = 0.95;
-        const tx = p.x + Math.sin(th) * dist;
-        const tz = p.z + Math.cos(th) * dist;
-        if (!wasActive.current) { wasActive.current = true; camPos.current.set(tx, height + gy, tz); }
-        camPos.current.x += (tx - camPos.current.x) * Math.min(1, dt * 7);
-        camPos.current.z += (tz - camPos.current.z) * Math.min(1, dt * 7);
-        camPos.current.y += (height + gy - camPos.current.y) * Math.min(1, dt * 7);
-        camera.position.copy(camPos.current);
-        camera.up.set(0, 1, 0);
-        camera.lookAt(p.x, pitchAim + gy, p.z);
+        // 1ª PESSOA DE BICHO: desce a câmera do olho humano (1.6) pro olho do
+        // Fiapo (~0.55 + relevo), com easing na chegada, + galope
+        drop.current += (1 - drop.current) * Math.min(1, dt * 2.2);
+        camera.position.y -= (1.05 - gy) * drop.current;
+        camera.position.y += Math.abs(Math.sin(gait)) * 0.055 * run;
         const cam = camera as THREE.PerspectiveCamera;
-        cam.fov += (62 - cam.fov) * Math.min(1, dt * 4); cam.updateProjectionMatrix();
+        cam.fov += (80 - cam.fov) * Math.min(1, dt * 3); cam.updateProjectionMatrix();
+        camera.updateMatrixWorld();
+
+        // o RIG cola no nariz da câmera
+        if (rig.current) {
+            rig.current.position.copy(camera.position);
+            rig.current.quaternion.copy(camera.quaternion);
+            const pawL = parts.current.pawL as THREE.Group | undefined;
+            const pawR = parts.current.pawR as THREE.Group | undefined;
+            // as patas remam alternadas no galope; paradas, descansam
+            const stride = Math.sin(gait) * 0.16 * run;
+            if (pawL) { pawL.position.z = -0.52 + stride; pawL.position.y = -0.34 + Math.max(0, Math.sin(gait)) * 0.1 * run; }
+            if (pawR) { pawR.position.z = -0.52 - stride; pawR.position.y = -0.34 + Math.max(0, -Math.sin(gait)) * 0.1 * run; }
+            const snout = parts.current.snout as THREE.Group | undefined;
+            if (snout) {
+                // o focinho fareja de leve quando você para
+                snout.position.y = -0.315 + (run < 0.1 ? Math.sin(t * 5.2) * 0.006 : 0);
+                snout.rotation.x = run * 0.1;
+            }
+        }
     });
 
-    return (
+    // os refs de partes agora vivem no RIG (o corpo é âncora sem malha)
+    useEffect(() => {
+        const r = rig.current;
+        if (!r) return;
+        const p: Record<string, THREE.Object3D> = {};
+        r.traverse((o) => { if (o.name) p[o.name] = o; });
+        Object.assign(parts.current, p);
+    }, []);
+
+    return (<>
+        {/* âncora: follow-light + sombra-blob na posição do player (sem malha —
+            em 1ª pessoa o corpo não pode tapar a lente) */}
         <group ref={body} visible={false}>
-            {/* follow-light suave: o player + o chão imediato leem em TODAS as
-                fases (breu do calmo, estouro da onda) — desliga em low (§4.4) */}
             {quality !== 'low' && <pointLight position={[0, 2.2, 0.6]} color="#cfe0c0" intensity={0.9} distance={7} decay={2} />}
-            <group name="fspine">
-                {/* corpo macio alongado + barriga clara */}
-                <mesh position={[0, 0.32, -0.05]} rotation={[Math.PI / 2, 0, 0]} scale={[0.95, 1, 0.9]} material={FM.fiapo}><capsuleGeometry args={[0.21, 0.42, 5, 9]} /></mesh>
-                <mesh position={[0, 0.26, 0.02]} rotation={[Math.PI / 2, 0, 0]} scale={[0.78, 0.9, 0.72]} material={FM.fiapoBelly}><capsuleGeometry args={[0.19, 0.36, 4, 8]} /></mesh>
-                {/* glow quente da barriga: o avatar é a coisa mais importante do quadro (§4.2) */}
-                <mesh position={[0, 0.3, 0.04]}><sphereGeometry args={[0.32, 10, 8]} /><meshBasicMaterial color="#ffe0b0" transparent opacity={0.12} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
-                {/* cabeçona redonda com focinho */}
-                <group position={[0, 0.46, 0.34]}>
-                    <mesh scale={[1, 0.95, 1]} material={FM.fiapo}><sphereGeometry args={[0.21, 10, 9]} /></mesh>
-                    <mesh position={[0, -0.04, 0.16]} scale={[0.65, 0.55, 0.8]} material={FM.fiapoBelly}><sphereGeometry args={[0.13, 8, 7]} /></mesh>
-                    <mesh position={[0, 0, 0.24]} material={FM.eye}><sphereGeometry args={[0.028, 5, 5]} /></mesh>
-                    <mesh position={[-0.09, 0.06, 0.17]} material={FM.eye}><sphereGeometry args={[0.042, 6, 6]} /></mesh>
-                    <mesh position={[0.09, 0.06, 0.17]} material={FM.eye}><sphereGeometry args={[0.042, 6, 6]} /></mesh>
-                    {/* catchlight branco: o player lê SEMPRE (§4.2/§5.8) */}
-                    <mesh position={[-0.09, 0.075, 0.205]} material={FM.catchlightFiapo}><sphereGeometry args={[0.012, 5, 5]} /></mesh>
-                    <mesh position={[0.09, 0.075, 0.205]} material={FM.catchlightFiapo}><sphereGeometry args={[0.012, 5, 5]} /></mesh>
-                    <mesh name="fearL" position={[-0.11, 0.22, 0.02]} rotation={[0.1, 0, 0.4]} material={FM.fiapo}><capsuleGeometry args={[0.05, 0.2, 4, 6]} /></mesh>
-                    <mesh name="fearR" position={[0.11, 0.22, 0.02]} rotation={[0.1, 0, -0.4]} material={FM.fiapo}><capsuleGeometry args={[0.05, 0.2, 4, 6]} /></mesh>
-                </group>
-                {/* patinhas */}
-                {[[-0.12, 0.22], [0.12, 0.22], [-0.12, -0.22], [0.12, -0.22]].map(([x, z], li) => (
-                    <mesh key={li} position={[x, 0.08, z]} material={FM.fiapoDark}><sphereGeometry args={[0.065, 6, 5]} /></mesh>
-                ))}
-                {/* a cauda longa em 2 segmentos */}
-                <group name="ftail" position={[0, 0.34, -0.38]}>
-                    <mesh position={[0, 0.03, -0.18]} rotation={[0.5, 0, 0]} material={FM.fiapo}><capsuleGeometry args={[0.055, 0.3, 3, 6]} /></mesh>
-                    <mesh position={[0, 0.18, -0.4]} rotation={[0.9, 0, 0]} material={FM.fiapoDark}><capsuleGeometry args={[0.035, 0.24, 3, 6]} /></mesh>
-                </group>
+        </group>
+        {/* o RIG do focinho: o que você vê de SI MESMO */}
+        <group ref={rig} visible={false}>
+            <group name="snout" position={[0, -0.315, -0.45]} scale={[0.6, 0.6, 0.6]}>
+                <mesh scale={[1.5, 0.75, 1]} material={FM.fiapo}><sphereGeometry args={[0.13, 10, 8]} /></mesh>
+                <mesh position={[0, 0.045, -0.1]} material={FM.eye}><sphereGeometry args={[0.035, 6, 6]} /></mesh>
+                <mesh position={[-0.09, -0.02, -0.03]} scale={[1, 0.8, 1]} material={FM.fiapoBelly}><sphereGeometry args={[0.075, 8, 6]} /></mesh>
+                <mesh position={[0.09, -0.02, -0.03]} scale={[1, 0.8, 1]} material={FM.fiapoBelly}><sphereGeometry args={[0.075, 8, 6]} /></mesh>
+                {/* bigodes */}
+                {[-1, 1].map((s) => [0, 1, 2].map((k) => (
+                    <mesh key={`${s}-${k}`} position={[s * 0.16, -0.01 + k * 0.018, -0.06]} rotation={[0, 0, s * (-0.24 - k * 0.12)]} material={FM.fiapoDark}>
+                        <cylinderGeometry args={[0.0022, 0.0022, 0.2, 3]} />
+                    </mesh>
+                )))}
+            </group>
+            {/* as PATINHAS dianteiras remando na borda de baixo da visão */}
+            <group name="pawL" position={[-0.17, -0.34, -0.52]}>
+                <mesh rotation={[0.5, 0, 0]} material={FM.fiapo}><capsuleGeometry args={[0.05, 0.16, 4, 7]} /></mesh>
+                <mesh position={[0, -0.1, 0.04]} material={FM.fiapoDark}><sphereGeometry args={[0.055, 7, 6]} /></mesh>
+            </group>
+            <group name="pawR" position={[0.17, -0.34, -0.52]}>
+                <mesh rotation={[0.5, 0, 0]} material={FM.fiapo}><capsuleGeometry args={[0.05, 0.16, 4, 7]} /></mesh>
+                <mesh position={[0, -0.1, 0.04]} material={FM.fiapoDark}><sphereGeometry args={[0.055, 7, 6]} /></mesh>
             </group>
         </group>
-    );
+    </>);
 };
