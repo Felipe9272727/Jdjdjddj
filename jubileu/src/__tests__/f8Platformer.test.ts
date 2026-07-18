@@ -180,6 +180,30 @@ describe('f8Platformer — respawn e coleta', () => {
         expect(p8.stun).toBeGreaterThan(0);
     });
 
+    it('não transforma um ponto temporário no checkpoint de respawn', () => {
+        const stableX = p8.lastGroundX, stableY = p8.lastGroundY;
+        p8.patch = { x: 6, y: 4, t: 0.2, born: p8.t };
+        p8.x = 6; p8.y = 4.08; p8.vy = -2; p8.onGround = false;
+        for (let i = 0; i < 3; i++) stepPlayer({ ...IDLE }, 1 / 60);
+        expect(p8.onGround).toBe(true);
+        expect(p8.y).toBeCloseTo(4, 2);
+        expect(p8.lastGroundX).toBe(stableX);
+        expect(p8.lastGroundY).toBe(stableY);
+    });
+
+    it('recupera um checkpoint legado que ficou salvo sobre um ponto já desfeito', () => {
+        p8.lastGroundX = 6; p8.lastGroundY = 4;
+        p8.patch = null;
+        p8.x = 6; p8.y = P8.VOID_DY - 2; p8.onGround = false;
+        const ev = stepPlayer({ ...IDLE }, 1 / 60);
+        expect(ev.respawned).toBe(true);
+        expect(p8.y).toBeCloseTo(0.02, 2);
+        expect(groundAt(p8.x, p8.y)).toBe(0);
+        expect(p8.patch).toBeNull();
+        // O frame seguinte permanece estável; não inicia outro loop de morte.
+        expect(stepPlayer({ ...IDLE }, 1 / 60).respawned).toBe(false);
+    });
+
     it('encostar num fio preto desfaz (respawn + hurt)', () => {
         // a TEMPESTADE (memória 3) tem fios pretos; pula pra ela
         p8JumpToMemory(2);

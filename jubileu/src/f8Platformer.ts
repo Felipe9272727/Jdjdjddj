@@ -214,7 +214,7 @@ const BOSS_SEAM_LINES = [
     'MEDO — não desaparece; aprende a caminhar ao seu lado.',
 ] as const;
 
-export interface PatchState { x: number; y: number; t: number }
+export interface PatchState { x: number; y: number; t: number; born: number }
 export interface P8State {
     memIdx: number; x: number; y: number; vx: number; vy: number;
     onGround: boolean; coyote: number; jumpBuf: number; stun: number; invuln: number;
@@ -245,12 +245,17 @@ export interface P8Events {
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 export function curMem(): Memory { return MEMORIES[Math.min(p8.memIdx, MEMORIES.length - 1)]; }
 
-export function groundAt(x: number, feetY: number): number | null {
+export function permanentGroundAt(x: number, feetY: number): number | null {
     let best: number | null = null;
     for (const l of curMem().ledges) {
         if (x < l.x0 || x > l.x1) continue;
         if (l.y <= feetY + 0.28 && (best === null || l.y > best)) best = l.y;
     }
+    return best;
+}
+
+export function groundAt(x: number, feetY: number): number | null {
+    let best = permanentGroundAt(x, feetY);
     const patch = p8?.patch;
     if (patch && patch.t > 0 && Math.abs(x - patch.x) < 1.45 && patch.y <= feetY + 0.3 && (best === null || patch.y > best)) best = patch.y;
     return best;
@@ -333,8 +338,24 @@ function battleReset(p: P8State, ev: P8Events): void {
 function respawn(p: P8State, ev: P8Events): void {
     // na luta do boss, cair no vazio NÃO cura: custa um coração e te repõe
     const inBoss = p.boss && p.boss.phase !== 'dormant' && p.boss.phase !== 'resolved';
+    const m = curMem();
+    // Um ponto costurado no ar é piso, mas nunca checkpoint. Versões antigas
+    // podiam salvar a altura desse ponto; quando ele sumia, o respawn nascia
+    // sobre o vazio e acionava um novo respawn para sempre. Valide o checkpoint
+    // contra plataformas permanentes e recue para a última faixa segura.
+    let ledge = m.ledges.find((l) =>
+        p.lastGroundX >= l.x0 && p.lastGroundX <= l.x1 && Math.abs(l.y - p.lastGroundY) < 0.16,
+    );
+    if (!ledge) {
+        const behind = m.ledges.filter((l) => l.x0 <= p.x + 0.5);
+        ledge = behind[behind.length - 1] ?? m.ledges[0];
+    }
+    const halfMargin = Math.max(0.12, Math.min(0.65, (ledge.x1 - ledge.x0) * 0.5 - 0.08));
+    p.lastGroundX = clamp(p.lastGroundX, ledge.x0 + halfMargin, ledge.x1 - halfMargin);
+    p.lastGroundY = ledge.y;
     p.x = p.lastGroundX; p.y = p.lastGroundY + 0.02; p.vx = 0; p.vy = 0;
     p.onGround = true; p.anchor = null; p.tetherEnemy = null; p.bossTether = false;
+    p.patch = null; p.stitchHeld = false; p.grappleHeld = false;
     p.stun = 0.55; p.invuln = 0.7; p.hurtFlash = 0.65;
     if (inBoss) {
         p.integrity--;
@@ -461,7 +482,7 @@ function performStitch(p: P8State, m: Memory, ev: P8Events): void {
 
     // Sem alvo, a agulha faz crochê no próprio espaço: um ponto temporário.
     if (!p.onGround && p.threadCharge >= 0.32) {
-        p.patch = { x: p.x + p.facing * 1.15, y: p.y - 0.55, t: 4.6 };
+        p.patch = { x: p.x + p.facing * 1.15, y: p.y - 0.55, t: 4.6, born: p.t };
         p.threadCharge -= 0.32;
     }
 }
@@ -701,7 +722,11 @@ export function stepPlayer(inp: P8Input, rawDt: number): P8Events {
             if (p.onGround) { p.onGround = false; p.coyote = P8.COYOTE; }
         } else if (p.y <= gh + 0.02 && p.vy <= 0) {
             if (!p.onGround && p.vy < -3) ev.landed = true;
-            p.y = gh; p.vy = 0; p.onGround = true; p.lastGroundX = clamp(p.x, m.startX, m.goalX); p.lastGroundY = gh;
+            p.y = gh; p.vy = 0; p.onGround = true;
+            const permanent = permanentGroundAt(p.x, gh);
+            if (permanent !== null && Math.abs(permanent - gh) < 0.05) {
+                p.lastGroundX = clamp(p.x, m.startX, m.goalX); p.lastGroundY = permanent;
+            }
         } else if (p.onGround && p.y > gh + 0.06) { p.onGround = false; p.coyote = P8.COYOTE; }
     }
 
