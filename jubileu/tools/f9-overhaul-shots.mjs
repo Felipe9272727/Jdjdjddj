@@ -31,13 +31,21 @@ await page.evaluate(() => window.__f9dbg.posRef.current.set(-12, 0, -23));
 await page.waitForTimeout(450);
 await page.screenshot({ path: `${out}/02-painted-ecosystem.png` });
 
+await page.evaluate(() => window.__f9dbg.posRef.current.set(21.5, 0, -9.5));
+await page.waitForTimeout(450);
+await page.screenshot({ path: `${out}/03-relic-shrine.png` });
+
 await page.evaluate(() => window.__f9dbg.warpCycle(.81));
 await page.waitForTimeout(450);
-await page.screenshot({ path: `${out}/03-wave-warning.png` });
+await page.screenshot({ path: `${out}/04-wave-warning.png` });
 
 await page.evaluate(() => window.__f9dbg.posRef.current.set(8.5, 0, -42));
 await page.waitForTimeout(450);
-await page.screenshot({ path: `${out}/04-root-approach.png` });
+await page.screenshot({ path: `${out}/05-root-locked.png` });
+
+await page.evaluate(() => window.__f9dbg.collectRelics());
+await page.waitForTimeout(450);
+await page.screenshot({ path: `${out}/06-root-awake.png` });
 
 await browser.close();
 if (errors.length) throw new Error(`Floor 9 browser errors:\n${errors.join('\n')}`);

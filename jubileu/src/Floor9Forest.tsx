@@ -11,7 +11,10 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { colorTex, rng } from './Floor6Textures';
-import { f9Tick, f9DrainEvents, F9_OCOS, F9_FIO, F9_RAIZ } from './f9Floresta';
+import {
+    f9, f9Tick, f9DrainEvents, f9PredadorPegou, f9RelicCount,
+    F9_OCOS, F9_FIO, F9_RAIZ, F9_RELICS, F9_RELIC_ALL, F9_TREES,
+} from './f9Floresta';
 import {
     f9eco, f9EcoTick, f9EcoDrainEvents, f9CycleFrac, F9_AVISO_AT,
     type F9Agent, type F9Species,
@@ -22,6 +25,7 @@ import groundUrl from './assets/f9/viveiro-ground-v1.webp';
 import canopyUrl from './assets/f9/viveiro-canopy-v1.webp';
 import rootUrl from './assets/f9/viveiro-root-v1.webp';
 import creaturesAtlasUrl from './assets/f9/viveiro-creatures-atlas-v1.png';
+import relicsAtlasUrl from './assets/f9/viveiro-relics-atlas-v1.png';
 
 function painted(url: string, rx = 1, ry = 1, repeat = true): THREE.Texture {
     const t = new THREE.TextureLoader().load(url);
@@ -44,6 +48,7 @@ const groundTex = painted(groundUrl, 7, 6);
 const canopyTex = painted(canopyUrl, 5, 4);
 const rootTex = painted(rootUrl, 2, 3.5);
 const creatureAtlas = painted(creaturesAtlasUrl, 1, 1, false);
+const relicAtlas = painted(relicsAtlasUrl, 1, 1, false);
 
 const glowDotTex = colorTex(64, 64, (ctx, w, h) => {
     ctx.clearRect(0, 0, w, h);
@@ -102,24 +107,6 @@ const M9 = {
 const B: React.FC<{ a: [number, number, number]; p: [number, number, number]; m: THREE.Material; r?: [number, number, number] }> =
     ({ a, p, m, r }) => <mesh position={p} rotation={r} material={m}><boxGeometry args={a} /></mesh>;
 
-function distanceToSegment(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
-    const dx = bx - ax, dz = bz - az;
-    const len2 = dx * dx + dz * dz;
-    const t = len2 > 0 ? THREE.MathUtils.clamp(((px - ax) * dx + (pz - az) * dz) / len2, 0, 1) : 0;
-    return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
-}
-
-function threadClearance(x: number, z: number): number {
-    let best = Infinity;
-    for (let i = 0; i < F9_FIO.length - 1; i++) {
-        const [ax, az] = F9_FIO[i], [bx, bz] = F9_FIO[i + 1];
-        const d = distanceToSegment(x, z, ax, az, bx, bz);
-        const final = i >= F9_FIO.length - 3;
-        best = Math.min(best, d - (final ? 1.1 : 0));
-    }
-    return best;
-}
-
 /** Pintura de profundidade: hotel, floresta e fio continuam muito além do mapa. */
 const ViveiroBackdrop: React.FC = () => (
     <group position={[0, 16.2, -51.55]}>
@@ -137,27 +124,19 @@ const ViveiroBackdrop: React.FC = () => (
 /** Árvores instanciadas, com o trajeto do fio realmente aberto até a raiz. */
 const Trees: React.FC = () => {
     const { trunks, crowns, crownsHi } = useMemo(() => {
-        const r = rng(910);
-        const spots: Array<[number, number, number]> = [];
-        for (let tries = 0; tries < 145 && spots.length < 76; tries++) {
-            const x = (r() * 2 - 1) * 32.5, z = -51 + r() * 55;
-            if (Math.hypot(x, z + 1.5) < 6.4) continue;
-            if (threadClearance(x, z) < 3.5) continue;
-            if (Math.hypot(x - F9_RAIZ[0], z - F9_RAIZ[1]) < 7.2) continue;
-            spots.push([x, z, 0.72 + r() * 1.25]);
-        }
-        const n = spots.length;
+        const n = F9_TREES.length;
         const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.25, 0.44, 7.3, 8), M9.bark, n);
         const crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1.62, 1), M9.canopy, n);
         const crownsHi = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1.08, 1), M9.canopyHi, n);
         const matrix = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3();
-        spots.forEach(([x, z, s], i) => {
-            q.setFromEuler(new THREE.Euler(0, r() * Math.PI * 2, (r() - 0.5) * 0.06));
+        F9_TREES.forEach(({ x, z, scale: s, rotation, crownX, crownZ, crown2X, crown2Z }, i) => {
+            q.setFromEuler(new THREE.Euler(0, rotation, ((i % 7) - 3) * .009));
             pos.set(x, 3.65 * s, z); sc.set(s, s, s); matrix.compose(pos, q, sc); trunks.setMatrixAt(i, matrix);
-            pos.set(x + (r() - .5) * .7, 6.7 * s, z + (r() - .5) * .7);
-            sc.set(s * (1.05 + r() * .35), s * (.84 + r() * .22), s * (1.05 + r() * .35));
+            pos.set(x + crownX, 6.7 * s, z + crownZ);
+            const crownWide = 1.05 + (i % 6) * .065;
+            sc.set(s * crownWide, s * (.84 + (i % 5) * .045), s * crownWide);
             matrix.compose(pos, q, sc); crowns.setMatrixAt(i, matrix);
-            pos.set(x + (r() - .5) * 1.1, 7.7 * s, z + (r() - .5) * 1.1);
+            pos.set(x + crown2X, 7.7 * s, z + crown2Z);
             sc.set(s * .86, s * .66, s * .86); matrix.compose(pos, q, sc); crownsHi.setMatrixAt(i, matrix);
         });
         trunks.instanceMatrix.needsUpdate = crowns.instanceMatrix.needsUpdate = crownsHi.instanceMatrix.needsUpdate = true;
@@ -204,6 +183,99 @@ const RedThread: React.FC = () => {
     </>;
 };
 
+/** Ramais do fio conduzem às três lembranças e acordam quando recuperados. */
+const MemoryBranches: React.FC = () => {
+    const branches = useMemo(() => F9_RELICS.map((relic, i) => {
+        const [ax, az] = F9_FIO[relic.anchor];
+        const midX = (ax + relic.x) * .5 + (i - 1) * .8;
+        const midZ = (az + relic.z) * .5;
+        const curve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(ax, .39, az),
+            new THREE.Vector3(midX, .28 + i * .08, midZ),
+            new THREE.Vector3(relic.x, .48, relic.z),
+        ]);
+        const geometry = new THREE.TubeGeometry(curve, 54, .045, 7);
+        const material = M9.thread.clone();
+        material.transparent = true;
+        return { geometry, material };
+    }), []);
+    useEffect(() => () => branches.forEach(({ geometry, material }) => { geometry.dispose(); material.dispose(); }), [branches]);
+    useFrame(() => {
+        branches.forEach(({ material }, i) => {
+            const awake = (f9.reliquias & (1 << i)) !== 0;
+            material.opacity = awake ? 1 : .44;
+            material.emissiveIntensity = awake ? 1.65 : .35;
+        });
+    });
+    return <>{branches.map(({ geometry, material }, i) => <mesh key={i} geometry={geometry} material={material} />)}</>;
+};
+
+const RelicSprite: React.FC<{ index: number }> = ({ index }) => {
+    const relic = F9_RELICS[index];
+    const mesh = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
+    const geo = useMemo(() => new THREE.PlaneGeometry(3.4, 3.4), []);
+    const mat = useMemo(() => new THREE.MeshBasicMaterial({
+        map: relicAtlas, transparent: true, alphaTest: .018, depthWrite: false,
+        toneMapped: false, side: THREE.DoubleSide,
+    }), []);
+    const lastFrame = useRef(-1);
+    useEffect(() => () => { geo.dispose(); mat.dispose(); }, [geo, mat]);
+    useFrame(({ camera }, rawDt) => {
+        const m = mesh.current; if (!m) return;
+        const collected = (f9.reliquias & (1 << index)) !== 0;
+        mat.opacity = THREE.MathUtils.lerp(mat.opacity, collected ? 0 : 1, Math.min(1, rawDt * 4.8));
+        m.visible = mat.opacity > .025;
+        m.position.y = 1.65 + Math.sin(f9.t * 1.4 + index) * .08;
+        m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z);
+        const frame = Math.floor(f9.t * 1.7 + index) % 4;
+        if (frame !== lastFrame.current) { lastFrame.current = frame; setAtlasFrame(geo, frame, relic.row); }
+    });
+    return <mesh ref={mesh} geometry={geo} material={mat} position={[0, 1.65, 0]} renderOrder={5} />;
+};
+
+const RelicShrines: React.FC = () => <>{F9_RELICS.map((relic, i) => (
+    <group key={relic.title} position={[relic.x, 0, relic.z]} rotation={[0, i * 1.8 - .5, 0]}>
+        <mesh position={[0, .07, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M9.root}>
+            <circleGeometry args={[2.25, 24]} />
+        </mesh>
+        {[-1, 0, 1].map((k) => (
+            <mesh key={k} position={[k * .92, .42 + Math.abs(k) * .16, -.38]} rotation={[.12 * k, 0, -.16 * k]} material={M9.root}>
+                <cylinderGeometry args={[.2, .38, 1.15 + (k === 0 ? .45 : 0), 7]} />
+            </mesh>
+        ))}
+        <mesh position={[0, 1.3, -.28]} rotation={[Math.PI / 2, 0, 0]} material={M9.brass}>
+            <torusGeometry args={[1.1, .08, 8, 24, Math.PI]} />
+        </mesh>
+        <RelicSprite index={i} />
+        <pointLight position={[0, 1.25, .45]} color="#d8ff94" intensity={2.8} distance={6.5} decay={2} />
+    </group>
+))}</>;
+
+/** Nó central: as quatro poses da última linha mostram 0/3 → 3/3 memórias. */
+const RootKnot: React.FC = () => {
+    const mesh = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
+    const light = useRef<THREE.PointLight>(null!);
+    const geo = useMemo(() => new THREE.PlaneGeometry(3.6, 3.6), []);
+    const mat = useMemo(() => new THREE.MeshBasicMaterial({
+        map: relicAtlas, transparent: true, alphaTest: .018, depthWrite: false,
+        toneMapped: false, side: THREE.DoubleSide,
+    }), []);
+    const lastFrame = useRef(-1);
+    useEffect(() => () => { geo.dispose(); mat.dispose(); }, [geo, mat]);
+    useFrame(({ camera }) => {
+        const m = mesh.current; if (!m) return;
+        const frame = Math.min(3, f9RelicCount());
+        if (frame !== lastFrame.current) { lastFrame.current = frame; setAtlasFrame(geo, frame, 3); }
+        m.lookAt(camera.position.x, m.position.y, camera.position.z);
+        m.position.y = 1.7 + Math.sin(f9.t * 1.15) * .06;
+        if (light.current) light.current.intensity = frame === 3 ? 5.2 : .75 + frame * .8;
+    });
+    return <group position={[F9_RAIZ[0], 0, F9_RAIZ[1] + 1.6]}>
+        <mesh ref={mesh} geometry={geo} material={mat} position={[0, 1.7, 0]} renderOrder={5} />
+        <pointLight ref={light} position={[0, 1.6, .4]} color="#e33a44" intensity={.75} distance={8} decay={2} />
+    </group>;
+};
+
 const Ocos: React.FC = () => <>{F9_OCOS.map(([x, z, r], i) => (
     <group key={i} position={[x, 0, z]}>
         <mesh position={[0, 3.6, 0]} material={M9.bark}><cylinderGeometry args={[1.5, 2.1, 7.4, 10]} /></mesh>
@@ -214,6 +286,21 @@ const Ocos: React.FC = () => <>{F9_OCOS.map(([x, z, r], i) => (
     </group>
 ) )}</>;
 
+const RootKey: React.FC = () => {
+    const group = useRef<THREE.Group>(null!);
+    useFrame(() => { if (group.current) group.current.visible = f9.reliquias === F9_RELIC_ALL; });
+    return <group ref={group} visible={false}>
+        <group rotation={[0, 0, -.16]}>
+            <mesh material={M9.brass}><torusGeometry args={[.28, .07, 10, 28]} /></mesh>
+            <mesh position={[0, -.63, 0]} material={M9.brass}><boxGeometry args={[.12, .82, .1]} /></mesh>
+            <mesh position={[.13, -1.0, 0]} material={M9.brass}><boxGeometry args={[.38, .12, .1]} /></mesh>
+            <mesh position={[.23, -.86, 0]} material={M9.brass}><boxGeometry args={[.12, .34, .1]} /></mesh>
+            <mesh position={[0, -.38, -.03]}><circleGeometry args={[.82, 32]} /><meshBasicMaterial color="#f4c75c" transparent opacity={.1} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
+        </group>
+        <pointLight position={[0, -.15, .63]} distance={9} decay={2} color="#ffdf8a" intensity={5.2} />
+    </group>;
+};
+
 const Raiz: React.FC = () => (
     <group position={[F9_RAIZ[0], 0, F9_RAIZ[1] - 2.5]}>
         <mesh position={[0, 5, 0]} material={M9.root}><cylinderGeometry args={[2.2, 4.4, 10, 14]} /></mesh>
@@ -222,15 +309,8 @@ const Raiz: React.FC = () => (
             return <mesh key={i} position={[Math.cos(a) * 3.4, .7, Math.sin(a) * 3.4]} rotation={[0, -a, .9]} material={M9.root}><cylinderGeometry args={[.3, .86, 4.5, 7]} /></mesh>;
         })}
         <mesh position={[0, 11, 0]} material={M9.canopyHi}><icosahedronGeometry args={[5, 1]} /></mesh>
-        {/* A chave do décimo é um objeto legível, não apenas um palito. */}
-        <group position={[0, 2.65, 3.62]} rotation={[0, 0, -.16]}>
-            <mesh material={M9.brass}><torusGeometry args={[.28, .07, 10, 28]} /></mesh>
-            <mesh position={[0, -.63, 0]} material={M9.brass}><boxGeometry args={[.12, .82, .1]} /></mesh>
-            <mesh position={[.13, -1.0, 0]} material={M9.brass}><boxGeometry args={[.38, .12, .1]} /></mesh>
-            <mesh position={[.23, -.86, 0]} material={M9.brass}><boxGeometry args={[.12, .34, .1]} /></mesh>
-            <mesh position={[0, -.38, -.03]}><circleGeometry args={[.82, 32]} /><meshBasicMaterial color="#f4c75c" transparent opacity={.1} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
-        </group>
-        <pointLight position={[0, 2.5, 4.25]} distance={9} decay={2} color="#ffdf8a" intensity={5.2} />
+        {/* A chave do décimo só existe quando as três lembranças acordam o nó. */}
+        <group position={[0, 2.65, 3.62]}><RootKey /></group>
     </group>
 );
 
@@ -393,7 +473,9 @@ export const Floor9Forest: React.FC<{ playerPositionRef: React.MutableRefObject<
     useFrame((_, rawDt) => {
         const dt = Math.min(rawDt, .05), p = playerPositionRef.current;
         f9EcoTick(dt, p.x, p.z); f9Tick(dt, p.x, p.z);
-        f9DrainEvents(); f9EcoDrainEvents();
+        const ecoEvents = f9EcoDrainEvents();
+        if (ecoEvents.includes('playerCaught')) f9PredadorPegou(p.x, p.z);
+        f9DrainEvents();
         const frac = f9CycleFrac();
         const warn = f9eco.phase === 'aviso' ? (frac - F9_AVISO_AT) / (1 - F9_AVISO_AT) : 0;
         const wave = f9eco.phase === 'onda' ? 1 : 0;
@@ -426,8 +508,11 @@ export const Floor9Forest: React.FC<{ playerPositionRef: React.MutableRefObject<
         <Fireflies />
         <LeafDrift />
         <RedThread />
+        <MemoryBranches />
+        <RelicShrines />
         <Ocos />
         <Raiz />
+        <RootKnot />
         <CreatureSprites />
         <Wave />
 

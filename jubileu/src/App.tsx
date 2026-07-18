@@ -854,6 +854,9 @@ export default function App() {
   const handleF8UiOpenChange = useCallback((open: boolean) => setF8UiOpen(open), []);
   const [f9UiOpen, setF9UiOpen] = useState(false);
   const handleF9UiOpenChange = useCallback((open: boolean) => setF9UiOpen(open), []);
+  const handleF9Replant = useCallback(([x, z]: readonly [number, number]) => {
+    playerPositionCmdRef.current = { x, y: 0, z, theta: 0 };
+  }, []);
   // A ENTREGA termina já do outro lado: o empurrão vira a queda do Viveiro,
   // sem uma viagem de elevador que quebraria o corte cinematográfico.
   const handleF8FinaleDone = useCallback(() => {
@@ -2487,7 +2490,7 @@ export default function App() {
         <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} onLeave={handleF8FinaleDone} />
       )}
       {hasStarted && currentLevel === 9 && (
-        <Floor9Overlay onUiOpenChange={handleF9UiOpenChange} />
+        <Floor9Overlay onUiOpenChange={handleF9UiOpenChange} onReplant={handleF9Replant} />
       )}
       {/* Andar 8 — a volta: acorda no elevador "subindo pro 9", com o fio vermelho
           (self-gate na fase leave; fica de pé durante o doorsClosed do trânsito) */}

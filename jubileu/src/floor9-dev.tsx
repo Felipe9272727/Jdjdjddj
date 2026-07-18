@@ -11,7 +11,7 @@ import { Vector3 } from 'three';
 import Floor9Forest from './Floor9Forest';
 import Floor9Overlay from './Floor9Overlay';
 import Floor9Cutscene from './Floor9Cutscene';
-import { f9, f9Reset, f9QuedaDone, f9ChegadaDone, f9Subscribe } from './f9Floresta';
+import { f9, f9Reset, f9QuedaDone, f9ChegadaDone, f9Subscribe, f9Bump, F9_RELIC_ALL } from './f9Floresta';
 import { f9eco, f9EcoReset } from './f9Eco';
 import { wallsForState } from './constants';
 import { resolveCollision } from './physics';
@@ -82,6 +82,7 @@ const Dev: React.FC = () => {
             f9, f9eco, posRef,
             skipQueda: () => { f9QuedaDone(); f9ChegadaDone(); },
             wake: f9QuedaDone, chegou: f9ChegadaDone,
+            collectRelics: () => { f9.reliquias = F9_RELIC_ALL; f9Bump(); },
             warpCycle: (frac: number) => { f9eco.cycleT = f9eco.cycleLen * frac; },
         };
     }, []);
@@ -93,7 +94,10 @@ const Dev: React.FC = () => {
                 <Floor9Forest playerPositionRef={posRef} />
                 <Floor9Cutscene />
             </Canvas>
-            <Floor9Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} />
+            <Floor9Overlay
+                onUiOpenChange={(o) => { frozenRef.current = o; }}
+                onReplant={([x, z]) => { posRef.current.set(x, 0, z); }}
+            />
             <div style={{
                 position: 'absolute', bottom: 8, left: 10, color: '#777', zIndex: 50,
                 fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',

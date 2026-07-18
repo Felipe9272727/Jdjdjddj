@@ -4,8 +4,11 @@
  * pra toca, a onda apaga os retardatários e o renascer repõe as populações.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { f9eco, f9EcoReset, f9EcoTick, F9_SPECIES } from '../f9Eco';
-import { f9, f9Reset, f9Tick, F9_OCOS } from '../f9Floresta';
+import { f9eco, f9EcoDrainEvents, f9EcoReset, f9EcoTick, F9_SPECIES } from '../f9Eco';
+import {
+    f9, f9Reset, f9Tick, f9LembrancaDone, f9PredadorPegou, f9ReplantioDone,
+    F9_OCOS, F9_RELICS, F9_RELIC_ALL, F9_TREES,
+} from '../f9Floresta';
 
 // player parado longe de tudo (canto do viveiro) pra não assustar ninguém
 const PX = 30, PZ = 2;
@@ -52,6 +55,14 @@ describe('f9Eco — o Viveiro vive sem o player', () => {
         sim(90);
         const preyAlive = f9eco.agents.filter((a) => (a.sp === 'saltito' || a.sp === 'cervo') && a.state !== 'dead').length;
         expect(preyAlive).toBeLessThan(prey0);
+    });
+
+    it('um Vulto faminto caça o player com os mesmos estados e emite captura', () => {
+        const vulto = f9eco.agents.find((a) => a.sp === 'vulto')!;
+        vulto.x = 0; vulto.z = -12; vulto.hunger = .92;
+        f9EcoTick(1 / 30, .2, -12, 200);
+        expect(vulto.state).toBe('eat');
+        expect(f9EcoDrainEvents()).toContain('playerCaught');
     });
 
     it('MEDO: saltito perto do player foge (estado flee)', () => {
@@ -109,9 +120,51 @@ describe('f9Floresta — o player dentro do ciclo', () => {
         expect(f9.phase).toBe('explorar');
     });
 
-    it('chegar na RAIZ fecha o andar (fase raiz)', () => {
+    it('coletar uma relíquia abre sua lembrança e marca o bit correto', () => {
+        f9.phase = 'explorar';
+        const relic = F9_RELICS[1];
+        f9Tick(1 / 30, relic.x, relic.z);
+        expect(f9.phase).toBe('lembranca');
+        expect(f9.lembranca).toBe(1);
+        expect(f9.reliquias).toBe(1 << 1);
+        f9LembrancaDone();
+        expect(f9.phase).toBe('explorar');
+    });
+
+    it('a RAIZ recusa o player até as três relíquias acordarem o nó', () => {
         f9.phase = 'explorar';
         f9Tick(1 / 30, 6, -47);
+        expect(f9.phase).toBe('explorar');
+        expect(f9.pertoRaiz).toBe(true);
+        f9.reliquias = F9_RELIC_ALL;
+        f9Tick(1 / 30, 6, -47);
         expect(f9.phase).toBe('raiz');
+    });
+
+    it('captura do Vulto replanta no oco mais próximo e dá imunidade curta', () => {
+        f9.phase = 'explorar';
+        const [ox, oz, r] = F9_OCOS[2];
+        f9PredadorPegou(ox + 3, oz);
+        expect(f9.phase).toBe('apagando');
+        expect(f9.replantCause).toBe('vulto');
+        expect(f9ReplantioDone()).toEqual([ox, oz + r * .62]);
+        expect(f9.phase).toBe('explorar');
+        expect(f9.abrigo).toBe(2);
+        expect(f9.replantGrace).toBeGreaterThan(1);
+    });
+
+    it('a madeira-mãe do oco impede a captura pelo Vulto', () => {
+        f9.phase = 'explorar';
+        const [ox, oz] = F9_OCOS[0];
+        f9Tick(1 / 30, ox, oz);
+        f9PredadorPegou(ox, oz);
+        expect(f9.phase).toBe('explorar');
+        expect(f9.apagos).toBe(0);
+    });
+
+    it('as 76 árvores sólidas têm posições determinísticas e únicas', () => {
+        expect(F9_TREES).toHaveLength(76);
+        const positions = new Set(F9_TREES.map(({ x, z }) => `${x.toFixed(6)}:${z.toFixed(6)}`));
+        expect(positions.size).toBe(F9_TREES.length);
     });
 });

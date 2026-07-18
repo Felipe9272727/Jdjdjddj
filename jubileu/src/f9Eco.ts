@@ -19,7 +19,7 @@ export type F9Species = 'saltito' | 'cervo' | 'vulto' | 'guardiao';
 export interface F9SpeciesDef {
     speed: number; run: number; radius: number;
     sense: number;                        // raio de percepção
-    eats: ReadonlyArray<F9Species | 'musgo'>;
+    eats: ReadonlyArray<F9Species | 'musgo' | 'player'>;
     fears: ReadonlyArray<F9Species | 'player'>;
     hungerRate: number;                   // fome por segundo
     homeR: number;                        // território ao redor da toca
@@ -39,7 +39,7 @@ export const F9_SPECIES: Record<F9Species, F9SpeciesDef> = {
     },
     vulto: {
         speed: 2.0, run: 6.9, radius: 0.55, sense: 12,
-        eats: ['saltito', 'cervo'], fears: ['guardiao'],
+        eats: ['saltito', 'cervo', 'player'], fears: ['guardiao'],
         hungerRate: 0.03, homeR: 18, perDen: 1,
     },
     guardiao: {
@@ -69,7 +69,7 @@ export interface F9Den { x: number; z: number; sp: F9Species }
 export interface F9Moss { x: number; z: number; amount: number }
 
 export type F9CyclePhase = 'calmo' | 'aviso' | 'onda' | 'renascer';
-export type F9EcoEvent = 'alarme' | 'abate' | 'ondaComeca' | 'ondaTermina' | 'renasceu';
+export type F9EcoEvent = 'alarme' | 'abate' | 'playerCaught' | 'ondaComeca' | 'ondaTermina' | 'renasceu';
 
 export interface F9EcoState {
     agents: F9Agent[];
@@ -285,6 +285,28 @@ function think(ag: F9Agent, dt: number, px: number, pz: number): void {
     }
     if (ag.fear > 0.6) { // alarmado por vizinho: corre pro território
         ag.state = 'flee'; ag.tx = den.x; ag.tz = den.z; ag.stateT = 0;
+        return;
+    }
+
+    // O Vulto também reconhece o player como carne. Ele não recebe uma IA
+    // paralela "de inimigo": usa os mesmos drives, erro de mira e estados com
+    // que caça o resto do viveiro. Com fome baixa, continua ignorando você.
+    const playerD2 = dist2(ag.x, ag.z, px, pz);
+    if (ag.sp === 'vulto'
+        && (def.eats as readonly string[]).includes('player')
+        && ag.hunger > .5
+        && playerD2 < def.sense * def.sense * 1.15) {
+        ag.targetId = 0; // id reservado ao player
+        ag.state = playerD2 > 18 ? 'stalk' : 'chase';
+        const aimError = ag.state === 'chase' ? 1.25 : .36;
+        ag.tx = px + (rnd() - .5) * ag.err * aimError;
+        ag.tz = pz + (rnd() - .5) * ag.err * aimError;
+        stepToward(ag, ag.state === 'stalk' ? def.speed * .72 : def.run, dt, .72);
+        if (playerD2 < (def.radius + .62) ** 2) {
+            ag.state = 'eat'; ag.stateT = 0; ag.speedNow = 0;
+            ag.hunger = .12;
+            emit('playerCaught');
+        }
         return;
     }
 

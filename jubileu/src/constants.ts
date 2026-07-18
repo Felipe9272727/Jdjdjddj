@@ -2,7 +2,7 @@ import { Vector3, Euler } from 'three';
 import { boxCollider } from './physics';
 import { F6_STATIC_WALLS, F6_FURNITURE } from './f6Escape';
 import { F8_STATIC_WALLS, F8_FURNITURE } from './f8Arquivo';
-import { F9_STATIC_WALLS, F9_OCOS, F9_RAIZ } from './f9Floresta';
+import { F9_STATIC_WALLS, F9_OCOS, F9_RAIZ, F9_TREES } from './f9Floresta';
 
 // Keep in sync with `data.level <= MAX_LEVEL` in firestore.rules.
 export const MAX_LEVEL = 100;
@@ -292,6 +292,7 @@ const _WALLS_FLOOR8_SEALED = [..._WALLS_FLOOR8, DOOR_SEAL];
 // Andar 9 (O VIVEIRO): a tigela da floresta + os troncos dos ocos + a raiz.
 const _WALLS_FLOOR9 = [
     ...F9_STATIC_WALLS,
+    ...F9_TREES.flatMap(({ x, z, scale }) => boxCollider(x, z, .68 * scale, .68 * scale)),
     ...F9_OCOS.flatMap(([cx, cz]) => boxCollider(cx, cz - 0.6, 2.6, 1.6)),
     ...boxCollider(F9_RAIZ[0], F9_RAIZ[1] - 2.5, 6.5, 6.5),
 ];
