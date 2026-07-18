@@ -33,6 +33,16 @@
  *    mais fácil, herbívoros sem sentinela), fome altera risco (fearEff),
  *    necrofagia (cadáver fresco <6 s vira refeição direta).
  *
+ * V4 as 3 OFERENDAS (o objetivo do andar): a Raiz está DORMENTE e 3 frutos
+ *    dourados esperam em spots perigosos (toca do vulto, oco longe do spawn,
+ *    clareira do guardião) — presentes desde o início, objetivo legível de
+ *    longe. Player a ≤1.2 u por 0.4 s PEGA (só 1 por vez: pegar outra exige
+ *    entregar a atual; a carregada segue o player); a ≤3 u da Raiz ENTREGA
+ *    (rootWake++). A 3ª entrega DESABROCHA a Raiz e abre a passagem
+ *    (f9TryComplete no portal à frente dela). Carregando, o player é lento e
+ *    barulhento (a cena aplica) e o vulto o fareja a ×1.6 de alcance
+ *    (hunt.carry). Morreu carregando: f9DropOffering devolve o fruto ao spot.
+ *
  * DETERMINISMO (rng semeado Park-Miller): os consumos de rnd() por tick são,
  * em ordem: sentinela/vagar do Guardião; rolagem de escape da presa agarrada
  * (1 por tick por presa, só no full-sim — no tick abstrato o arrasto é
@@ -123,13 +133,30 @@ export interface F9Moss { x: number; z: number; amount: number }
 export type F9CyclePhase = 'calmo' | 'aviso' | 'onda' | 'renascer';
 export type F9EcoEvent = 'alarme' | 'abate' | 'ondaComeca' | 'ondaTermina' | 'renasceu' | 'cacaPlayer' | 'bote'
     // OVERHAUL RW
-    | 'agarrou' | 'escapou' | 'vinculo';
+    | 'agarrou' | 'escapou' | 'vinculo'
+    // V4 — AS 3 OFERENDAS
+    | 'oferendaPega' | 'oferendaEntregue' | 'raizDesabrocha' | 'f9Completo';
+
+// ── V4: AS 3 OFERENDAS (o objetivo do andar) ────────────────────────────────
+export type F9OfferingSpot = 'vulto' | 'oco' | 'guardiao';
+export type F9OfferingState = 'noChao' | 'carregada' | 'entregue';
+export interface F9Offering {
+    id: number;                         // 0..2
+    spot: F9OfferingSpot;
+    x: number; z: number;               // posição atual (noChao = spot; carregada = segue o player na cena)
+    state: F9OfferingState;
+}
+export type F9RootState = 'dormente' | 'desabrochada';
 
 export interface F9EcoState {
     agents: F9Agent[];
     dens: F9Den[];
     moss: F9Moss[];
     sounds: F9Sound[];                    // sons vivos do mundo (percepção auditiva)
+    // V4
+    offerings: F9Offering[];
+    rootWake: number;                     // 0..3 corações acesos da Raiz
+    rootState: F9RootState;
     t: number;
     cycleT: number; cycleLen: number;
     phase: F9CyclePhase;
@@ -186,11 +213,48 @@ function freshAgents(): F9Agent[] {
     return out;
 }
 
+/** V4 — os 3 spots de oferenda (perigo crescente: guardião → oco longe → toca do vulto).
+ *  O oco escolhido é o [-22,-34]: o mais longe do spawn [0,-1.5] FORA o [6,-44],
+ *  que guarda a própria Raiz (uma oferenda ali trivializaria a entrega).
+ *  Exportada pra cena/testes (a cena posiciona os faróis desde o 1º frame). */
+export function freshOfferings(): F9Offering[] {
+    return [
+        { id: 0, spot: 'guardiao', x: 2, z: -29, state: 'noChao' },
+        { id: 1, spot: 'oco', x: -21, z: -32.5, state: 'noChao' },
+        { id: 2, spot: 'vulto', x: -26, z: -42, state: 'noChao' },
+    ];
+}
+
+/** player morreu/replantou carregando: a oferenda volta pro spot dela. */
+export function f9DropOffering(): void {
+    const carregada = f9eco.offerings.find((o) => o.state === 'carregada');
+    if (!carregada) return;
+    const home = freshOfferings().find((o) => o.id === carregada.id)!;
+    carregada.state = 'noChao'; carregada.x = home.x; carregada.z = home.z;
+    f9EcoBump();
+}
+
+// V4: f9Completo dispara 1x por run — a cena pergunta por frame e o stinger
+// de resolução não pode tocar em loop enquanto o player estiver no portal.
+let completed = false;
+
+/** a cena pergunta se o player está no portal da Raiz desabrochada (completar o andar).
+ *  true enquanto estiver no portal; o EVENTO 'f9Completo' só sai na 1ª vez. */
+export function f9TryComplete(px: number, pz: number): boolean {
+    if (f9eco.rootState !== 'desabrochada') return false;
+    const dx = px - F9_RAIZ[0], dz = pz - (F9_RAIZ[1] + 2.5);      // portal à frente da Raiz
+    if (dx * dx + dz * dz > 1.8 * 1.8) return false;
+    if (!completed) { completed = true; emit('f9Completo'); }
+    return true;
+}
+
 const FRESH = (): F9EcoState => ({
     agents: freshAgents(),
     dens: DENS,
     moss: MOSS.map((m) => ({ ...m })),
     sounds: [],
+    offerings: freshOfferings(),
+    rootWake: 0, rootState: 'dormente',
     t: 0, cycleT: 0, cycleLen: CYCLE_LEN,
     phase: 'calmo', waveT: 0, version: 0,
 });
@@ -222,6 +286,8 @@ export function f9EcoReset(): void {
     events.length = 0;
     absAcc = 0;                         // acumulador do tick abstrato (A8)
     stepSndT = 0;                       // rate-limit dos passos do player (A2)
+    pickupId = -1; pickupT = 0;         // V4: "segurar pra pegar" da oferenda
+    completed = false;                  // V4: o portal volta a poder completar
     f9EcoBump();
 }
 
@@ -280,6 +346,10 @@ function nearestThreat(ag: F9Agent, def: F9SpeciesDef, px: number, pz: number, n
     }
     return best;
 }
+
+/** Onde fica a RAIZ (fim do fio). Vive AQUI porque a IA entrega oferendas nela —
+ *  f9Floresta reexporta para manter o contrato antigo. */
+export const F9_RAIZ: readonly [number, number] = [6, -47];
 
 /** OCOS (abrigos universais): troncos-mãe com brilho quente. [x, z, raio].
  *  Vivem AQUI (não em f9Floresta) porque a IA também se abriga neles —
@@ -477,8 +547,8 @@ function pickWander(ag: F9Agent, def: F9SpeciesDef): void {
 
 /** contexto da caçada ao player (a cena informa por tick).
  *  `noise`: 0..1 barulho do player (0 = parado/agachado, 1 = correndo). */
-interface HuntCtx { huntable: boolean; safeInOco: boolean; stillT: number; noise: number }
-const NO_HUNT: HuntCtx = { huntable: false, safeInOco: false, stillT: 0, noise: 0 };
+interface HuntCtx { huntable: boolean; safeInOco: boolean; stillT: number; noise: number; carry: boolean }
+const NO_HUNT: HuntCtx = { huntable: false, safeInOco: false, stillT: 0, noise: 0, carry: false };
 
 /** o cérebro de um agente (full sim). */
 function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = NO_HUNT): void {
@@ -665,8 +735,11 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
             if (ag.targetId === -2) { ag.targetId = -1; ag.state = 'wander'; pickWander(ag, def); }
         } else {
             // A2: precisa VER (com oclusão) ou OUVIR o player (passos barulhentos)
-            const seesPlayer = pd < def.sense * 1.25 && f9LineOfSight(ag.x, ag.z, px, pz);
-            const hearsPlayer = hunt.noise > 0.25 && pd < def.hearR * hunt.noise;
+            // V4: carregando uma OFERENDA (hunt.carry) o player se destaca —
+            // lento e barulhento, os vultos o farejam a ×1.6 de alcance
+            const carryR = hunt.carry ? 1.6 : 1;
+            const seesPlayer = pd < def.sense * 1.25 * carryR && f9LineOfSight(ag.x, ag.z, px, pz);
+            const hearsPlayer = hunt.noise > 0.25 && pd < def.hearR * hunt.noise * carryR;
             if (seesPlayer || hearsPlayer) {
                 ag.targetId = -2;
                 ag.state = pd > 6.5 ? 'stalk' : 'chase';
@@ -830,6 +903,10 @@ function thinkAbstract(ag: F9Agent, dt: number): void {
 let absAcc = 0;
 // rate-limit da emissão dos passos do player (A2: 1 som a cada 0.3 s)
 let stepSndT = 0;
+// V4: "segurar pra pegar" — id da oferenda sob o pé do player e o tempo
+// contínuo a ≤1.2 u dela (0.4 s pega; sair do raio zera)
+let pickupId = -1;
+let pickupT = 0;
 
 /**
  * O tick do mundo. `px,pz` = player; `lodR` = raio de simulação full.
@@ -890,6 +967,43 @@ function f9EcoTickInner(dt: number, px: number, pz: number, lodR: number, hunt: 
 
     // musgo rebrota devagar sempre
     for (const m of s.moss) m.amount = Math.min(1, m.amount + dt * 0.008);
+
+    // ── V4: AS 3 OFERENDAS — pegar (≤1.2 u por 0.4 s), carregar, entregar (≤3 u) ──
+    // (determinístico: não consome rnd — a ordem de consumo do topo se mantém)
+    const carregada = s.offerings.find((o) => o.state === 'carregada');
+    if (carregada) {
+        // a carregada segue o player (a cena lê x/z pro glow sobre a cabeça);
+        // e só 1 por vez: enquanto houver carregada nenhuma outra é pega
+        carregada.x = px; carregada.z = pz;
+        pickupId = -1; pickupT = 0;
+        if (dist2(px, pz, F9_RAIZ[0], F9_RAIZ[1]) <= 3 * 3) {
+            carregada.state = 'entregue'; // fica onde foi entregue: a cena voa ela pro coração
+            s.rootWake = Math.min(3, s.rootWake + 1);
+            emit('oferendaEntregue');
+            if (s.rootWake >= 3 && s.rootState !== 'desabrochada') {
+                s.rootState = 'desabrochada'; // a 3ª entrega DESABROCHA a Raiz (finale)
+                emit('raizDesabrocha');
+            }
+            f9EcoBump();
+        }
+    } else {
+        let cand: F9Offering | null = null;
+        for (const o of s.offerings) {
+            if (o.state !== 'noChao') continue;
+            if (dist2(px, pz, o.x, o.z) <= 1.2 * 1.2) { cand = o; break; }
+        }
+        if (!cand) { pickupId = -1; pickupT = 0; }
+        else {
+            if (pickupId !== cand.id) { pickupId = cand.id; pickupT = 0; }
+            pickupT += dt;
+            if (pickupT >= 0.4) {
+                cand.state = 'carregada';
+                pickupId = -1; pickupT = 0;
+                emit('oferendaPega');
+                f9EcoBump();
+            }
+        }
+    }
 
     // ── agentes: full perto, abstrato longe (2 Hz) ──
     absAcc += dt;

@@ -13,13 +13,60 @@ import Floor9Overlay from './Floor9Overlay';
 import Floor9Cutscene from './Floor9Cutscene';
 import { Fiapo } from './Floor9Fauna';
 import { f9, f9Reset, f9QuedaDone, f9ChegadaDone, f9Subscribe, F9_OCOS } from './f9Floresta';
-import { f9eco, f9EcoReset } from './f9Eco';
+import { f9eco, f9EcoReset, f9EcoBump } from './f9Eco';
 import { configureFloor9Sfx, clearFloor9Sfx } from './floor9Sfx';
 import { wallsForState } from './constants';
 import { resolveCollision } from './physics';
 
 const posRef = { current: new Vector3(0, 0, -1.5) };
 const frozenRef = { current: false };
+
+/**
+ * PERF PROBE do bench (P0 mobile): expõe window.__f9perf() (draw calls/tris do
+ * ÚLTIMO frame renderizado, lidos do renderer.info) e window.__f9deltas()
+ * (tempos entre frames: avg/p95 dos últimos ~240) pro playwright medir por
+ * quality — alvo: draws ≤ ~80 no tier mobile e sem travamento com CPU 4×.
+ */
+const PerfProbe: React.FC = () => {
+    const gl = useThree((s) => s.gl);
+    const scene = useThree((s) => s.scene);
+    const camera = useThree((s) => s.camera);
+    useEffect(() => {
+        const w = window as unknown as Record<string, unknown>;
+        w.__f9r3f = { gl, scene, camera }; // probe de draws por objeto (bench)
+        w.__f9perf = () => ({
+            calls: gl.info.render.calls,
+            tris: gl.info.render.triangles,
+            programs: gl.info.programs ? gl.info.programs.length : 0,
+            geoms: gl.info.memory.geometries,
+        });
+        let last = performance.now();
+        const deltas: number[] = [];
+        let raf = 0;
+        const loop = (now: number) => {
+            deltas.push(now - last);
+            last = now;
+            if (deltas.length > 240) deltas.shift();
+            raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+        w.__f9deltas = (reset?: boolean) => {
+            const sorted = [...deltas].sort((a, b) => a - b);
+            const n = Math.max(1, deltas.length);
+            const out = {
+                n: deltas.length,
+                avg: deltas.reduce((s, d) => s + d, 0) / n,
+                p50: sorted[Math.floor((n - 1) * 0.5)] ?? 0,
+                p95: sorted[Math.floor((n - 1) * 0.95)] ?? 0,
+                worst: sorted[n - 1] ?? 0,
+            };
+            if (reset) deltas.length = 0;
+            return out;
+        };
+        return () => cancelAnimationFrame(raf);
+    }, [gl, scene, camera]);
+    return null;
+};
 
 const DevWalker: React.FC = () => {
     const camera = useThree((s) => s.camera);
@@ -56,7 +103,9 @@ const DevWalker: React.FC = () => {
         if (!frozenRef.current) {
             const fwd = (k['w'] ? 1 : 0) - (k['s'] ? 1 : 0);
             const str = (k['d'] ? 1 : 0) - (k['a'] ? 1 : 0);
-            const sp = k['shift'] ? 9 : 4.5;
+            // V4: carregando oferenda = PESADO (speed ×0.55 — o motor escuta)
+            const carryK = f9eco.offerings.some((o) => o.state === 'carregada') ? 0.55 : 1;
+            const sp = (k['shift'] ? 9 : 4.5) * carryK;
             if (fwd || str) {
                 const th = ang.current.theta;
                 const dx = (-Math.sin(th) * fwd + Math.cos(th) * str) * sp * dt;
@@ -87,6 +136,19 @@ const Dev: React.FC = () => {
             skipQueda: () => { f9QuedaDone(); f9ChegadaDone(); },
             wake: f9QuedaDone, chegou: f9ChegadaDone,
             warpCycle: (frac: number) => { f9eco.cycleT = f9eco.cycleLen * frac; },
+            // V4: warps do objetivo (o visual deve ler mesmo com o motor do A2 no meio)
+            warpToOffering: (i: number) => {
+                const o = f9eco.offerings[i];
+                if (o) posRef.current.set(o.x + 1.5, 0, o.z + 1.5);
+            },
+            setRootWake: (n: number) => {
+                f9eco.rootWake = Math.max(0, Math.min(3, Math.round(n)));
+                f9eco.rootState = f9eco.rootWake >= 3 ? 'desabrochada' : 'dormente';
+                f9EcoBump();
+            },
+            desabrochar: () => {
+                f9eco.rootWake = 3; f9eco.rootState = 'desabrochada'; f9EcoBump();
+            },
         };
     }, []);
     // o SOM do Viveiro no bench: AudioContext precisa de gesto — liga no
@@ -135,6 +197,7 @@ const Dev: React.FC = () => {
     return (
         <div style={{ position: 'fixed', inset: 0, background: '#000' }}>
             <Canvas camera={{ fov: 74, near: 0.1, far: 130, position: [0, 1.6, -1.5] }}>
+                <PerfProbe />
                 <DevWalker />
                 <Floor9Forest playerPositionRef={posRef} />
                 <Fiapo playerPositionRef={posRef} cameraThetaRef={thetaAdapter} />

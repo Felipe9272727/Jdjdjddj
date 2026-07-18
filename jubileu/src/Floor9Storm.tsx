@@ -27,6 +27,10 @@
  * Perf: 1 draw de chuva + 1 de splash + 3 de poças (lâmina/reflexo/mancha)
  * + 1 da garoa (só no renascer) + 1 da parede. Matrizes só são reescritas
  * enquanto a fase pede densidade > 0.
+ *
+ * P0 MOBILE: os orçamentos vêm de f9Quality.ts (mesma chave do Settings) —
+ * fora do 'high' a chuva cai pra ≤300 gotas e os splashes pra ≤48 (o dilúvio
+ * de 1200 gotas + 200 splashes travava o celular na onda).
  */
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -36,6 +40,7 @@ import { f9eco } from './f9Eco';
 import { F9_FIO } from './f9Floresta';
 import { f9GroundHeight } from './f9Ground';
 import { playFloor9Thunder } from './floor9Sfx';
+import { f9Quality, F9_RAIN_N, F9_SPLASH_N, F9_SPLASH_RATE } from './f9Quality';
 
 /** refs compartilhadas com a floresta (sem traversal de cena por frame). */
 export const f9StormShare = {
@@ -45,8 +50,6 @@ export const f9StormShare = {
     flash: 0,
 };
 
-const RAIN_N = 1200;
-const SPLASH_N = 200;
 const RAIN_BOX = 15;     // metade da caixa x/z ao redor da câmera
 const RAIN_TOP = 18;     // altura da caixa (wrap)
 const FALL_SPEED = 18;   // u/s
@@ -60,11 +63,15 @@ function rainTarget(): number {
 
 // ── CHUVA ────────────────────────────────────────────────────────────────────
 const Rain: React.FC = () => {
+    const quality = useMemo(f9Quality, []); // P0: fora do high a caixa cai pra ≤300 gotas
+    const RAIN_N = F9_RAIN_N(quality);
     const built = useMemo(() => {
         // gotas mais longas/grossas que o B1: contra o fog branco da onda a
-        // chuva precisa RISCAR pra ler como dilúvio (cor/opacidade do brief)
-        const geo = new THREE.CylinderGeometry(0.008, 0.008, 0.55, 4);
-        const mat = new THREE.MeshBasicMaterial({ color: '#9db4c2', transparent: true, opacity: 0.42, depthWrite: false });
+        // chuva precisa RISCAR pra ler como dilúvio (cor/opacidade do brief).
+        // No tier leve a gota engrossa um pouco (300 precisam LER como chuva).
+        const lite = RAIN_N <= 300;
+        const geo = new THREE.CylinderGeometry(lite ? 0.011 : 0.008, lite ? 0.011 : 0.008, lite ? 0.62 : 0.55, 4);
+        const mat = new THREE.MeshBasicMaterial({ color: '#9db4c2', transparent: true, opacity: lite ? 0.5 : 0.42, depthWrite: false });
         const mesh = new THREE.InstancedMesh(geo, mat, RAIN_N);
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.frustumCulled = false; // ancorada na câmera: sempre visível
@@ -123,6 +130,9 @@ const Rain: React.FC = () => {
 
 // ── SPLASHES: anéis que nascem, abrem e morrem (0.4 s) ───────────────────────
 const Splashes: React.FC = () => {
+    const quality = useMemo(f9Quality, []); // P0: ≤48 anéis fora do high (era 200)
+    const SPLASH_N = F9_SPLASH_N(quality);
+    const SPAWN_RATE = F9_SPLASH_RATE(quality);
     const built = useMemo(() => {
         const geo = new THREE.RingGeometry(0.05, 0.1, 10);
         geo.rotateX(-Math.PI / 2);
@@ -157,9 +167,9 @@ const Splashes: React.FC = () => {
         const dt = Math.min(rawDt, 0.05);
         const { mesh, px, py, pz, age } = built;
         const { m4, q, p, s, c, live } = scratch;
-        // nasce splash na taxa da chuva (~110/s no dilúvio, ~9/s nos pingos)
+        // nasce splash na taxa da chuva (~110/s no dilúvio high, ~36/s no leve)
         const target = rainTarget();
-        spawnAcc.current += dt * 110 * target;
+        spawnAcc.current += dt * SPAWN_RATE * target;
         while (spawnAcc.current >= 1) {
             spawnAcc.current -= 1;
             // procura um slot morto a partir do cursor (fila circular)
