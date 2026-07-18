@@ -12,13 +12,42 @@
  * LOD de simulação (as "abstract rooms" do Rain World, em escala de sala):
  * agentes perto do player tickam full por frame; longe, tickam abstrato a
  * ~2 Hz (movem em linha reta ao objetivo, sem manobra).
+ *
+ * ── OVERHAUL "RAIN WORLD" ──
+ * A1 predação real: o vulto AGARRA a presa ('grabbed'), ARRASTA pra toca
+ *    ('drag', 55% da velocidade) e só lá mata e come ('eat'); a presa luta
+ *    ('struggle') e pode escapar (rolagem por tick de drag).
+ * A2 percepção: visão exige linha de visão (troncos obstruem) e há SONS
+ *    (fila `sounds`, cap 40, vida 6 s): alarme propaga em cadeia com latência
+ *    individual, passos/galopes delatam quem corre, o grito da presa atrai
+ *    outros vultos. O player é detectado por ruído (`hunt.noise`): parado é
+ *    quase invisível, correndo é ouvido além do sense.
+ * A3 memória (cap 5, ~40 s): presa vista, ameaça, comida. O vulto sem presa
+ *    à vista INVESTIGA o ponto lembrado e seu wander vira PATRULHA.
+ * A4 a onda mata por EXPOSIÇÃO progressiva (correr piora; toca/oco cura) —
+ *    o fim da onda não mata mais ninguém diretamente.
+ * A5 abrigo universal: toca se perto, senão o OCO mais próximo (`shelter`).
+ * A6 vínculo (`bond`): player calado e perto cria confiança; saltito bondado
+ *    SEGUE o player ('follow'); vulto bondado não caça o player.
+ * A7 ritmo: frenesi pré-onda (fração 0.6–0.78: fome ×1.8, caça ao player
+ *    mais fácil, herbívoros sem sentinela), fome altera risco (fearEff),
+ *    necrofagia (cadáver fresco <6 s vira refeição direta).
+ *
+ * DETERMINISMO (rng semeado Park-Miller): os consumos de rnd() por tick são,
+ * em ordem: sentinela/vagar do Guardião; rolagem de escape da presa agarrada
+ * (1 por tick por presa, só no full-sim — no tick abstrato o arrasto é
+ * garantido); jitter do alvo de fuga; jitter de mira da caça (presa/player);
+ * thinkT + sorteio de sentinela/pausa + alvo de wander (com a patrulha do
+ * vulto: cara-ou-coroa 50% memória × território e jitter do ponto). A
+ * audição (latência, reação, reemissão) NÃO consome rnd.
  */
 
 export type F9Species = 'saltito' | 'cervo' | 'vulto' | 'guardiao';
 
 export interface F9SpeciesDef {
     speed: number; run: number; radius: number;
-    sense: number;                        // raio de percepção
+    sense: number;                        // raio de percepção visual
+    hearR: number;                        // raio de audição (sons com loud=1)
     eats: ReadonlyArray<F9Species | 'musgo'>;
     fears: ReadonlyArray<F9Species | 'player'>;
     hungerRate: number;                   // fome por segundo
@@ -28,54 +57,79 @@ export interface F9SpeciesDef {
 
 export const F9_SPECIES: Record<F9Species, F9SpeciesDef> = {
     saltito: {
-        speed: 2.1, run: 5.2, radius: 0.28, sense: 7,
+        speed: 2.1, run: 5.2, radius: 0.28, sense: 7, hearR: 14,
         eats: ['musgo'], fears: ['vulto', 'guardiao', 'player', 'cervo'],
         hungerRate: 0.035, homeR: 9, perDen: 4,
     },
     cervo: {
-        speed: 1.5, run: 6.4, radius: 0.8, sense: 10,
+        speed: 1.5, run: 6.4, radius: 0.8, sense: 10, hearR: 16,
         eats: ['musgo'], fears: ['vulto', 'guardiao', 'player'],
         hungerRate: 0.02, homeR: 15, perDen: 2,
     },
     vulto: {
-        speed: 2.0, run: 6.9, radius: 0.55, sense: 12,
+        speed: 2.0, run: 6.9, radius: 0.55, sense: 12, hearR: 20,
         eats: ['saltito', 'cervo'], fears: ['guardiao'],
         hungerRate: 0.03, homeR: 18, perDen: 1,
     },
     guardiao: {
-        speed: 0.85, run: 0.85, radius: 1.6, sense: 0,
+        speed: 0.85, run: 0.85, radius: 1.6, sense: 0, hearR: 0,
         eats: [], fears: [], hungerRate: 0, homeR: 60, perDen: 1,
     },
 };
 
 export type F9AgentState =
     | 'wander' | 'graze' | 'lookout' | 'sniff'
-    | 'stalk' | 'chase' | 'eat' | 'flee' | 'toDen' | 'denned' | 'dead';
+    | 'stalk' | 'chase' | 'eat' | 'flee' | 'toDen' | 'denned' | 'dead'
+    // OVERHAUL RW: predação com agarrar/arrastar, investigação por memória, vínculo
+    | 'grabbed' | 'drag' | 'investigate' | 'follow';
+
+/** Uma lembrança do agente (presa vista, ameaça, comida) — decai com o tempo. */
+export interface F9Memory { x: number; z: number; t: number; kind: 'prey' | 'threat' | 'food'; stale?: boolean }
+/** Um som no mundo (percepção auditiva). `src` = id do emissor (-1/-2 = mundo/player). */
+export interface F9Sound { x: number; z: number; t: number; kind: 'alarme' | 'passo' | 'thud' | 'grito'; loud: number; src?: number }
+export type F9Shelter = 'den' | 'oco';
 
 export interface F9Agent {
     id: number; sp: F9Species;
     x: number; z: number; heading: number;
     state: F9AgentState;
     tx: number; tz: number;               // ponto-alvo atual
-    targetId: number;                     // presa/ameaça (-1 = nenhum)
+    targetId: number;                     // presa/ameaça (-1 = nenhum; -2 = player)
     hunger: number; fear: number;
     den: number;                          // índice da toca-mãe
     // personalidade (pesquisa: imperfeição proposital)
     brave: number; lazy: number; err: number;
     thinkT: number; stateT: number; deadT: number;
     anim: number; speedNow: number;
+    // ── OVERHAUL RW ──
+    carryingId: number;                   // presa sendo arrastada (-1 = nenhuma)
+    grabbedBy: number;                    // predador que me agarrou (-1 = nenhum)
+    bond: number;                         // 0..1 vínculo com o player
+    exposure: number;                     // 0..1 exposição à onda de apagamento
+    memory: F9Memory[];                   // lembranças (cap 5, ~40 s)
+    shelter: F9Shelter;                   // onde estou abrigado quando 'denned'
+    hearT: number;                        // latência de reação auditiva
+    heardAt: number;                      // t do último som reagido (anti re-emissão infinita)
+    // ── internos do overhaul (não fazem parte do contrato da cena) ──
+    struggle: number;                     // luta acumulada enquanto agarrado [presa]
+    grabCd: number;                       // cooldown pra agarrar de novo [predador]
+    sfxT: number;                         // rate-limit da emissão de galope (1/0.3 s)
+    bonded: boolean;                      // já emitiu 'vinculo' (1x por agente)
 }
 
 export interface F9Den { x: number; z: number; sp: F9Species }
 export interface F9Moss { x: number; z: number; amount: number }
 
 export type F9CyclePhase = 'calmo' | 'aviso' | 'onda' | 'renascer';
-export type F9EcoEvent = 'alarme' | 'abate' | 'ondaComeca' | 'ondaTermina' | 'renasceu' | 'cacaPlayer' | 'bote';
+export type F9EcoEvent = 'alarme' | 'abate' | 'ondaComeca' | 'ondaTermina' | 'renasceu' | 'cacaPlayer' | 'bote'
+    // OVERHAUL RW
+    | 'agarrou' | 'escapou' | 'vinculo';
 
 export interface F9EcoState {
     agents: F9Agent[];
     dens: F9Den[];
     moss: F9Moss[];
+    sounds: F9Sound[];                    // sons vivos do mundo (percepção auditiva)
     t: number;
     cycleT: number; cycleLen: number;
     phase: F9CyclePhase;
@@ -118,6 +172,9 @@ function spawnAgent(sp: F9Species, den: number, atDen = true): F9Agent {
         brave: rnd(), lazy: rnd(), err: 0.5 + rnd(),
         thinkT: rnd() * 0.6, stateT: 0, deadT: 0,
         anim: rnd() * 10, speedNow: 0,
+        carryingId: -1, grabbedBy: -1, bond: 0, exposure: 0,
+        memory: [], shelter: 'den', hearT: 0, heardAt: -1,
+        struggle: 0, grabCd: 0, sfxT: 0, bonded: false,
     };
 }
 
@@ -133,6 +190,7 @@ const FRESH = (): F9EcoState => ({
     agents: freshAgents(),
     dens: DENS,
     moss: MOSS.map((m) => ({ ...m })),
+    sounds: [],
     t: 0, cycleT: 0, cycleLen: CYCLE_LEN,
     phase: 'calmo', waveT: 0, version: 0,
 });
@@ -140,8 +198,17 @@ const FRESH = (): F9EcoState => ({
 export const f9eco: F9EcoState = FRESH();
 
 const events: F9EcoEvent[] = [];
-function emit(e: F9EcoEvent): void { events.push(e); }
+const ecoListeners = new Set<(e: F9EcoEvent) => void>();
+function emit(e: F9EcoEvent): void {
+    events.push(e);
+    ecoListeners.forEach((fn) => fn(e));
+}
 export function f9EcoDrainEvents(): F9EcoEvent[] { return events.splice(0, events.length); }
+/** fan-out de eventos (o drain continua funcionando; listeners recebem tudo na hora). */
+export function f9EcoOn(fn: (e: F9EcoEvent) => void): () => void {
+    ecoListeners.add(fn);
+    return () => { ecoListeners.delete(fn); };
+}
 
 const listeners = new Set<() => void>();
 export function f9EcoSubscribe(fn: () => void): () => void { listeners.add(fn); return () => { listeners.delete(fn); }; }
@@ -150,9 +217,11 @@ export function f9EcoBump(): void { f9eco.version++; listeners.forEach((fn) => f
 export function f9EcoReset(): void {
     nextId = 1; rngS = 20177;
     const v = f9eco.version;
-    Object.assign(f9eco, FRESH());
+    Object.assign(f9eco, FRESH());      // FRESH já limpa `sounds`
     f9eco.version = v;
     events.length = 0;
+    absAcc = 0;                         // acumulador do tick abstrato (A8)
+    stepSndT = 0;                       // rate-limit dos passos do player (A2)
     f9EcoBump();
 }
 
@@ -171,35 +240,53 @@ function nearestMoss(x: number, z: number): F9Moss | null {
     return best;
 }
 
-/** A presa viva mais próxima dentro do alcance (ou null). */
+/** A presa mais próxima COM LINHA DE VISÃO (A2) — alcance consistente
+ *  `sense*1.5` (A8: era 2× o sense). Aceita cadáveres frescos (deadT<6):
+ *  necrofagia (A7). Presas agarradas por outro predador ficam de fora. */
 function nearestPrey(ag: F9Agent, def: F9SpeciesDef): F9Agent | null {
-    let best: F9Agent | null = null, bd = def.sense * def.sense * 4;
+    let best: F9Agent | null = null;
+    const range = def.sense * 1.5;
+    let bd = range * range;
     for (const o of f9eco.agents) {
-        if (o.id === ag.id || o.state === 'dead' || o.state === 'denned') continue;
+        if (o.id === ag.id) continue;
+        if (o.state === 'dead') { if (o.deadT >= 6) continue; }
+        else if (o.state === 'denned' || o.state === 'grabbed') continue;
         if (!(def.eats as readonly string[]).includes(o.sp)) continue;
         const d = dist2(ag.x, ag.z, o.x, o.z);
-        if (d < bd) { bd = d; best = o; }
+        if (d < bd && f9LineOfSight(ag.x, ag.z, o.x, o.z)) { bd = d; best = o; }
     }
     return best;
 }
 
-/** A ameaça mais próxima (agente temido ou o player) e a distância². */
-function nearestThreat(ag: F9Agent, def: F9SpeciesDef, px: number, pz: number): { x: number; z: number; d2: number } | null {
+/** A ameaça mais próxima COM LINHA DE VISÃO (agente temido ou o player).
+ *  O player é percebido por RUÍDO (A2): raio efetivo escala com `noise` —
+ *  parado/agachado é quase invisível. Fome altera risco (A7): presa faminta
+ *  percebe mais tarde (arrisca mais). Vínculo >0.6 tira o player dos fears. */
+function nearestThreat(ag: F9Agent, def: F9SpeciesDef, px: number, pz: number, noise: number): { x: number; z: number; d2: number } | null {
     let best: { x: number; z: number; d2: number } | null = null;
-    const senseBase = def.sense * (1 - ag.brave * 0.45);
+    const risk = 1 - ag.hunger * 0.5; // fearEff nos limiares de detecção (A7)
+    const senseBase = def.sense * (1 - ag.brave * 0.45) * risk;
     const s2 = senseBase * senseBase;
-    if ((def.fears as readonly string[]).includes('player')) {
+    if (ag.bond <= 0.6 && (def.fears as readonly string[]).includes('player')) {
+        const eff = senseBase * (0.35 + 0.65 * noise);
         const d = dist2(ag.x, ag.z, px, pz);
-        if (d < s2) best = { x: px, z: pz, d2: d };
+        if (d < eff * eff && f9LineOfSight(ag.x, ag.z, px, pz)) best = { x: px, z: pz, d2: d };
     }
     for (const o of f9eco.agents) {
-        if (o.state === 'dead' || o.state === 'denned') continue;
+        if (o.state === 'dead' || o.state === 'denned' || o.state === 'grabbed') continue;
         if (!(def.fears as readonly string[]).includes(o.sp)) continue;
         const d = dist2(ag.x, ag.z, o.x, o.z);
-        if (d < s2 && (!best || d < best.d2)) best = { x: o.x, z: o.z, d2: d };
+        if (d < s2 && (!best || d < best.d2) && f9LineOfSight(ag.x, ag.z, o.x, o.z)) best = { x: o.x, z: o.z, d2: d };
     }
     return best;
 }
+
+/** OCOS (abrigos universais): troncos-mãe com brilho quente. [x, z, raio].
+ *  Vivem AQUI (não em f9Floresta) porque a IA também se abriga neles —
+ *  f9Floresta reexporta para manter o contrato antigo. */
+export const F9_OCOS: ReadonlyArray<readonly [number, number, number]> = [
+    [-6, -6, 2.2], [16, -24, 2.2], [-22, -34, 2.2], [6, -44, 2.4],
+];
 
 // as árvores-mãe entram como obstáculos de steering (importar criaria ciclo —
 // f9Floresta importa f9eco — então a lista vive aqui e a cena a reexporta).
@@ -208,6 +295,127 @@ export const F9_TREE_OBSTACLES: ReadonlyArray<readonly [number, number, number]>
     [-19, -24, 0.85], [3, -37, 1.0], [-13, -40, 0.9], [24, -30, 0.85],
     [-27, -16, 0.8], [14, -45, 0.9], [-8, -30, 0.7], [28, -42, 0.8],
 ];
+
+/** linha de visão 2D: false se algum tronco-mãe obstrui o segmento a→b. */
+export function f9LineOfSight(ax: number, az: number, bx: number, bz: number): boolean {
+    const dx = bx - ax, dz = bz - az;
+    const len2 = dx * dx + dz * dz;
+    for (const [ox, oz, or_] of F9_TREE_OBSTACLES) {
+        const r = or_ + 0.15;
+        let t = 0;
+        if (len2 > 0.0001) t = Math.max(0, Math.min(1, ((ox - ax) * dx + (oz - az) * dz) / len2));
+        const cx = ax + dx * t - ox, cz = az + dz * t - oz;
+        if (cx * cx + cz * cz < r * r) return false;
+    }
+    return true;
+}
+
+/** A2: um som novo entra no mundo (fila cap 40 — some o mais antigo).
+ *  Exportado também pra cena/testes; o motor usa internamente pra alarmes,
+ *  galopes, gritos e os passos do player (via `hunt.noise` no tick). */
+export function f9EcoEmitSound(x: number, z: number, kind: F9Sound['kind'], loud: number, src = -1): void {
+    f9eco.sounds.push({ x, z, t: f9eco.t, kind, loud, src });
+    if (f9eco.sounds.length > 40) f9eco.sounds.shift();
+}
+
+function byId(id: number): F9Agent | undefined {
+    return f9eco.agents.find((a) => a.id === id);
+}
+
+/** A3: lembrança nova (cap 5). Funde com uma fresca parecida (≤6 s, ≤4 u)
+ *  em vez de duplicar; limpa as expiradas (>40 s) quando empurra. */
+function remember(ag: F9Agent, kind: F9Memory['kind'], x: number, z: number): void {
+    for (const m of ag.memory) {
+        if (m.kind === kind && !m.stale && f9eco.t - m.t < 6 && dist2(m.x, m.z, x, z) < 16) {
+            m.t = f9eco.t; m.x = x; m.z = z;
+            return;
+        }
+    }
+    ag.memory.push({ x, z, t: f9eco.t, kind });
+    if (ag.memory.length > 5) ag.memory.shift();
+    if (ag.memory.some((m) => f9eco.t - m.t > 40)) ag.memory = ag.memory.filter((m) => f9eco.t - m.t <= 40);
+}
+
+/** A lembrança viva (≤40 s, não gasta) mais recente de um tipo (ou null). */
+function freshMemory(ag: F9Agent, kind: F9Memory['kind']): F9Memory | null {
+    let best: F9Memory | null = null;
+    for (const m of ag.memory) {
+        if (m.kind !== kind || m.stale || f9eco.t - m.t > 40) continue;
+        if (!best || m.t > best.t) best = m;
+    }
+    return best;
+}
+
+/** estados em que o agente para pra OUVIR e reagir (A2). */
+function hearableState(st: F9AgentState): boolean {
+    return st === 'wander' || st === 'graze' || st === 'lookout' || st === 'sniff'
+        || st === 'investigate' || st === 'stalk' || st === 'follow';
+}
+
+/** o som audível e ainda não reagido mais recente (ou null). */
+function hearScan(ag: F9Agent, def: F9SpeciesDef): F9Sound | null {
+    let best: F9Sound | null = null;
+    for (const sn of f9eco.sounds) {
+        if (sn.src === ag.id || sn.t <= ag.heardAt || f9eco.t - sn.t > 6) continue;
+        const range = def.hearR * sn.loud;
+        if (dist2(ag.x, ag.z, sn.x, sn.z) < range * range && (!best || sn.t > best.t)) best = sn;
+    }
+    return best;
+}
+
+function fleeFrom(ag: F9Agent, x: number, z: number): void {
+    const away = Math.atan2(ag.x - x, ag.z - z);
+    ag.tx = ag.x + Math.sin(away) * 7;
+    ag.tz = ag.z + Math.cos(away) * 7;
+}
+
+/** A2: reação a um som ouvido (depois da latência individual).
+ *  'alarme' faz herbívoro fugir e RE-EMITIR (cadeia; 1x por som por agente —
+ *  `heardAt` foi marcado antes). 'grito' atrai vultos (investigam o ponto).
+ *  passos/galopes só assustam quando perto demais (45% do alcance). */
+function hearReact(ag: F9Agent, def: F9SpeciesDef, sn: F9Sound): void {
+    const preyEar = ag.sp !== 'vulto' && def.fears.length > 0; // herbívoros
+    if (sn.kind === 'alarme' && preyEar) {
+        ag.state = 'flee'; ag.fear = 1; ag.stateT = 0;
+        remember(ag, 'threat', sn.x, sn.z);
+        fleeFrom(ag, sn.x, sn.z);
+        f9EcoEmitSound(ag.x, ag.z, 'alarme', 1, ag.id); // propagação em cadeia
+        return;
+    }
+    if (sn.kind === 'grito') {
+        if (preyEar) {
+            ag.state = 'flee'; ag.fear = 1; ag.stateT = 0;
+            remember(ag, 'threat', sn.x, sn.z);
+            fleeFrom(ag, sn.x, sn.z);
+        } else if (ag.sp === 'vulto') {
+            // emergente: caçar perto de outro vulto é arriscado — mas vale a carne
+            remember(ag, 'prey', sn.x, sn.z);
+            if (hearableState(ag.state)) { ag.state = 'investigate'; ag.stateT = 0; ag.tx = sn.x; ag.tz = sn.z; }
+        }
+        return;
+    }
+    if ((sn.kind === 'passo' || sn.kind === 'thud') && preyEar) {
+        const range = def.hearR * sn.loud;
+        if (dist2(ag.x, ag.z, sn.x, sn.z) < range * range * 0.2025) { // 45% do alcance
+            ag.state = 'flee'; ag.fear = Math.max(ag.fear, 0.85); ag.stateT = 0;
+            remember(ag, 'threat', sn.x, sn.z);
+            fleeFrom(ag, sn.x, sn.z);
+        }
+    }
+}
+
+/** A5: abrigo mais sensato — a toca se está perto (≤25 u); senão o oco mais
+ *  próximo (os ocos salvam qualquer espécie, não só o player). */
+function pickShelter(ag: F9Agent): { x: number; z: number; eps: number; kind: F9Shelter } {
+    const d = f9eco.dens[ag.den];
+    if (dist2(ag.x, ag.z, d.x, d.z) <= 25 * 25) return { x: d.x, z: d.z, eps: 1.2, kind: 'den' };
+    let bx = d.x, bz = d.z, bd = Infinity;
+    for (const [ox, oz] of F9_OCOS) {
+        const dd = dist2(ag.x, ag.z, ox, oz);
+        if (dd < bd) { bd = dd; bx = ox; bz = oz; }
+    }
+    return { x: bx, z: bz, eps: 1.8, kind: 'oco' };
+}
 
 /** anda em direção a (tx,tz) DESVIANDO das árvores-mãe; true se chegou. */
 function stepToward(ag: F9Agent, speed: number, dt: number, eps = 0.6): boolean {
@@ -256,19 +464,33 @@ function pickWander(ag: F9Agent, def: F9SpeciesDef): void {
         }
         if (n > 0) { tx = tx * 0.55 + (cx / n) * 0.45; tz = tz * 0.55 + (cz / n) * 0.45; }
     }
-    ag.tx = tx; ag.tz = Math.min(2, tz);
+    // A3: o wander do vulto é uma PATRULHA — metade das rondas passa pelas
+    // lembranças de presa ainda vivas, metade pelo território da toca
+    if (ag.sp === 'vulto') {
+        const mem = freshMemory(ag, 'prey');
+        if (mem && rnd() < 0.5) { tx = mem.x + (rnd() - 0.5) * 3; tz = mem.z + (rnd() - 0.5) * 3; }
+    }
+    // A8: alvos sempre dentro do viveiro (o Guardião não anda mais contra a parede)
+    ag.tx = Math.max(-32, Math.min(32, tx));
+    ag.tz = Math.max(-50, Math.min(2, tz));
 }
 
-/** contexto da caçada ao player (a cena informa por tick). */
-interface HuntCtx { huntable: boolean; safeInOco: boolean; stillT: number }
-const NO_HUNT: HuntCtx = { huntable: false, safeInOco: false, stillT: 0 };
+/** contexto da caçada ao player (a cena informa por tick).
+ *  `noise`: 0..1 barulho do player (0 = parado/agachado, 1 = correndo). */
+interface HuntCtx { huntable: boolean; safeInOco: boolean; stillT: number; noise: number }
+const NO_HUNT: HuntCtx = { huntable: false, safeInOco: false, stillT: 0, noise: 0 };
 
 /** o cérebro de um agente (full sim). */
 function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = NO_HUNT): void {
     const def = F9_SPECIES[ag.sp];
     ag.stateT += dt;
     ag.thinkT -= dt;
-    if (ag.sp !== 'guardiao') ag.hunger = Math.min(1, ag.hunger + def.hungerRate * dt);
+    ag.grabCd -= dt;
+    ag.sfxT -= dt;
+    // A7: frenesi pré-onda — a fome aperta pra todo mundo antes do apagamento
+    const frac = f9eco.cycleT / f9eco.cycleLen;
+    const frenzy = frac >= 0.6 && frac < AVISO_AT;
+    if (ag.sp !== 'guardiao') ag.hunger = Math.min(1, ag.hunger + def.hungerRate * (frenzy ? 1.8 : 1) * dt);
     ag.fear = Math.max(0, ag.fear - dt * 0.25);
 
     // o Guardião: só anda o mundo, imune a tudo — você não é o centro daqui
@@ -282,14 +504,78 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
         return;
     }
 
-    // aviso/onda: prioridade máxima = voltar pra toca (preguiçosos demoram)
     const den = f9eco.dens[ag.den];
-    const cycleFrac = f9eco.cycleT / f9eco.cycleLen;
+    const pd = Math.hypot(px - ag.x, pz - ag.z);
+
+    // A2: quem corre faz barulho — chase/flee emitem 'thud' de galope (1/0.3 s)
+    if ((ag.state === 'flee' || ag.state === 'chase') && ag.sfxT <= 0 && ag.speedNow > def.run * 0.5) {
+        f9EcoEmitSound(ag.x, ag.z, 'thud', Math.min(1, ag.speedNow / def.run), ag.id);
+        ag.sfxT = 0.3;
+    }
+
+    // A2: audição — reage a sons com latência individual (0.2 + err*0.3 s).
+    // heardAt guarda o t do som-GATILHO (a reação é pra ele, não pro mais novo —
+    // senão um thud inócuo roubava a reação do alarme que assustou); cada som
+    // é reagido no máximo 1x por agente.
+    if (ag.hearT > 0) {
+        ag.hearT -= dt;
+        if (ag.hearT <= 0 && hearableState(ag.state)) {
+            const sn = f9eco.sounds.find((s2) => s2.t === ag.heardAt);
+            if (sn) hearReact(ag, def, sn);
+        }
+    } else if (def.hearR > 0 && hearableState(ag.state)) {
+        const sn = hearScan(ag, def);
+        if (sn) { ag.heardAt = sn.t; ag.hearT = 0.2 + ag.err * 0.3; }
+    }
+
+    // ── A1: presa AGARRADA — vai na boca do predador, luta, pode escapar ──
+    if (ag.state === 'grabbed') {
+        const pred = byId(ag.grabbedBy);
+        if (!pred || pred.state === 'dead' || pred.carryingId !== ag.id) {
+            // o predador morreu (ex.: na onda) ou largou — liberdade
+            ag.state = 'flee'; ag.fear = 1; ag.stateT = 0; ag.grabbedBy = -1; ag.struggle = 0;
+            return;
+        }
+        // pendurada atrás da boca do predador
+        ag.x = pred.x - Math.sin(pred.heading) * (def.radius + 0.35);
+        ag.z = pred.z - Math.cos(pred.heading) * (def.radius + 0.35);
+        ag.heading = pred.heading; ag.speedNow = pred.speedNow;
+        ag.struggle += dt;
+        // rolagem de escape: chance POR SEGUNDO (coragem ajuda; predador errático
+        // segura melhor) — dt*30 mantém a taxa que o design tinha a 30 Hz
+        const pEsc = (ag.brave * 0.10 - pred.err * 0.02) * dt * 30 + dt * 0.3;
+        if (ag.struggle > 0.15 && rnd() < pEsc) {
+            ag.state = 'flee'; ag.fear = 1; ag.stateT = 0; ag.grabbedBy = -1; ag.struggle = 0;
+            pred.carryingId = -1; pred.grabCd = 1.4; // cooldown antes de agarrar de novo
+            pred.state = 'chase'; pred.stateT = 0; pred.targetId = ag.id;
+            emit('escapou');
+        }
+        return;
+    }
+
+    // ── A1: predador ARRASTANDO a presa pra toca — a morte só vem lá ──
+    if (ag.state === 'drag') {
+        const prey = byId(ag.carryingId);
+        if (!prey || prey.state === 'dead' || prey.grabbedBy !== ag.id) {
+            ag.carryingId = -1; ag.state = 'wander'; pickWander(ag, def);
+            return;
+        }
+        ag.tx = den.x; ag.tz = den.z;
+        if (stepToward(ag, def.speed * 0.55, dt, 1.5)) { // pesado: 55% da velocidade
+            prey.state = 'dead'; prey.deadT = 0; prey.speedNow = 0; prey.grabbedBy = -1;
+            ag.carryingId = -1; ag.state = 'eat'; ag.stateT = 0; ag.tx = prey.x; ag.tz = prey.z;
+            emit('abate'); // o abate acontece na toca, não no contato
+        }
+        return;
+    }
+
+    // aviso/onda: prioridade máxima = abrigo — toca se perto, senão o OCO (A5)
     const mustHome = f9eco.phase === 'onda'
-        || (f9eco.phase === 'aviso' && cycleFrac > AVISO_AT + ag.lazy * 0.1);
+        || (f9eco.phase === 'aviso' && frac > AVISO_AT + ag.lazy * 0.1);
     if (mustHome && ag.state !== 'denned' && ag.state !== 'dead') {
-        ag.state = 'toDen'; ag.tx = den.x; ag.tz = den.z;
-        if (stepToward(ag, def.run * 0.92, dt, 1.2)) { ag.state = 'denned'; ag.speedNow = 0; }
+        const sh = pickShelter(ag);
+        ag.state = 'toDen'; ag.tx = sh.x; ag.tz = sh.z;
+        if (stepToward(ag, def.run * 0.92, dt, sh.eps)) { ag.state = 'denned'; ag.shelter = sh.kind; ag.speedNow = 0; }
         return;
     }
     if (ag.state === 'denned') {
@@ -298,14 +584,14 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
         else { ag.speedNow = 0; return; }
     }
 
-    // medo: fugir na direção oposta (e alarmar vizinhos da espécie)
-    const threat = nearestThreat(ag, def, px, pz);
+    // medo: fugir na direção oposta — visão com oclusão e ruído (A2)
+    const threat = nearestThreat(ag, def, px, pz, hunt.noise);
     if (threat && ag.state !== 'flee') {
         ag.state = 'flee'; ag.stateT = 0; ag.fear = 1;
+        remember(ag, 'threat', threat.x, threat.z); // A3
         emit('alarme');
-        for (const o of f9eco.agents) {
-            if (o.sp === ag.sp && o.id !== ag.id && dist2(ag.x, ag.z, o.x, o.z) < 64) o.fear = Math.max(o.fear, 0.7);
-        }
+        // o contágio agora é por OUVIDO: quem foge grita 'alarme' e os outros reagem
+        f9EcoEmitSound(ag.x, ag.z, 'alarme', 1, ag.id);
     }
     if (ag.state === 'flee') {
         if (threat) {
@@ -317,10 +603,23 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
         if (!threat && ag.stateT > 1.6 + ag.brave) { ag.state = 'wander'; pickWander(ag, def); }
         return;
     }
-    if (ag.fear > 0.6) { // alarmado por vizinho: corre pro território
+    // A7: fome altera risco — presa faminta dá menos peso ao alarme alheio
+    if (ag.fear * (1 - ag.hunger * 0.5) > 0.6) { // alarmado: corre pro território
         ag.state = 'flee'; ag.tx = den.x; ag.tz = den.z; ag.stateT = 0;
         return;
     }
+
+    // ── A6: vínculo/doma com o player (Fiapo) ──
+    if (hunt.stillT > 2 && pd < 6 && !threat) ag.bond = Math.min(1, ag.bond + dt * 0.03);
+    // oferta de comida: player parado colado num musgo bom (proxy da oferta)
+    if (hunt.stillT > 1.5 && pd < 10 && (def.eats as readonly string[]).includes('musgo')) {
+        for (const m of f9eco.moss) {
+            if (m.amount > 0.3 && dist2(px, pz, m.x, m.z) < 4) { ag.bond = Math.min(1, ag.bond + dt * 0.18); break; }
+        }
+    }
+    // susto: player barulhento dentro do sense corrói o vínculo
+    if (hunt.noise > 0.6 && pd < def.sense) ag.bond = Math.max(0, ag.bond - dt * 1.2);
+    if (!ag.bonded && ag.bond > 0.6) { ag.bonded = true; emit('vinculo'); } // 1x por agente
 
     // ── ETOLOGIA: sentinela (para, ergue a cabeça, varre o entorno) ──
     if (ag.state === 'lookout') {
@@ -330,8 +629,8 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
         return;
     }
     // ── CURIOSIDADE do saltito: player-bicho parado vira coisa a cheirar ──
-    if (ag.sp === 'saltito') {
-        const pd = Math.hypot(px - ag.x, pz - ag.z);
+    // (bondado não cheira — ele já confia; segue o player no 'follow' abaixo)
+    if (ag.sp === 'saltito' && ag.bond <= 0.6) {
         if (ag.state === 'sniff') {
             if (pd < 2.6 || ag.stateT > 6) {
                 ag.speedNow = 0;
@@ -347,33 +646,53 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
             return;
         }
     }
+    // ── A6: saltito bondado SEGUE o player (a 2.5 u; desiste se ficar pra trás) ──
+    if (ag.sp === 'saltito' && ag.bond > 0.6 && (ag.state === 'wander' || ag.state === 'graze' || ag.state === 'follow')) {
+        if (ag.state === 'follow' ? pd < 12 : (pd > 2 && pd < 8)) {
+            if (ag.state !== 'follow') { ag.state = 'follow'; ag.stateT = 0; }
+            ag.tx = px; ag.tz = pz;
+            if (stepToward(ag, def.speed * 1.35, dt, 2.5)) ag.speedNow = 0;
+            return;
+        }
+        if (ag.state === 'follow') { ag.state = 'wander'; pickWander(ag, def); }
+    }
+
     // ── o VULTO caça o PLAYER-bicho (você faz parte da cadeia agora) ──
-    if (ag.sp === 'vulto' && hunt.huntable && ag.hunger > 0.45) {
-        const pd = Math.hypot(px - ag.x, pz - ag.z);
+    // A6: vulto bondado (bond>0.6) NÃO caça o player. A7: no frenesi o limiar cai.
+    if (ag.sp === 'vulto' && hunt.huntable && ag.bond <= 0.6 && ag.state !== 'eat' && ag.hunger > (frenzy ? 0.25 : 0.45)) {
         if (hunt.safeInOco) {
             // a luz quente do oco repele — ronda a distância e desiste
             if (ag.targetId === -2) { ag.targetId = -1; ag.state = 'wander'; pickWander(ag, def); }
-        } else if (pd < def.sense * 1.25) {
-            ag.targetId = -2;
-            ag.state = pd > 6.5 ? 'stalk' : 'chase';
-            ag.tx = px + (rnd() - 0.5) * ag.err * (ag.state === 'chase' ? 1.2 : 0.3);
-            ag.tz = pz + (rnd() - 0.5) * ag.err * (ag.state === 'chase' ? 1.2 : 0.3);
-            if (ag.state === 'chase' && pd < 6.5 && ag.stateT < 0.05) emit('bote');
-            stepToward(ag, ag.state === 'stalk' ? def.speed * 0.7 : def.run, dt, 0.5);
-            if (pd < 1.15) {
-                emit('cacaPlayer');
-                ag.hunger = Math.max(0, ag.hunger - 0.45);
-                ag.state = 'lookout'; ag.stateT = 0; ag.targetId = -1;
+        } else {
+            // A2: precisa VER (com oclusão) ou OUVIR o player (passos barulhentos)
+            const seesPlayer = pd < def.sense * 1.25 && f9LineOfSight(ag.x, ag.z, px, pz);
+            const hearsPlayer = hunt.noise > 0.25 && pd < def.hearR * hunt.noise;
+            if (seesPlayer || hearsPlayer) {
+                ag.targetId = -2;
+                ag.state = pd > 6.5 ? 'stalk' : 'chase';
+                ag.tx = px + (rnd() - 0.5) * ag.err * (ag.state === 'chase' ? 1.2 : 0.3);
+                ag.tz = pz + (rnd() - 0.5) * ag.err * (ag.state === 'chase' ? 1.2 : 0.3);
+                if (ag.state === 'chase' && pd < 6.5 && ag.stateT < 0.05) emit('bote');
+                stepToward(ag, ag.state === 'stalk' ? def.speed * 0.7 : def.run, dt, 0.5);
+                if (pd < 1.15) {
+                    emit('cacaPlayer');
+                    ag.hunger = Math.max(0, ag.hunger - 0.45);
+                    ag.state = 'lookout'; ag.stateT = 0; ag.targetId = -1;
+                }
+                return;
             }
-            return;
-        } else if (ag.targetId === -2) { ag.targetId = -1; ag.state = 'wander'; }
+            if (ag.targetId === -2) { ag.targetId = -1; ag.state = 'wander'; }
+        }
     }
 
-    // fome: musgo (herbívoros) ou caça (vulto)
-    if (ag.hunger > 0.55) {
+    // fome: musgo (herbívoros) ou caça (vulto).
+    // A1: o bloco de caça NÃO executa durante 'eat'/'drag' (fix do eat roubado)
+    // — 'drag' nem chega aqui: o arrasto retorna lá em cima, antes do mustHome.
+    if (ag.hunger > 0.55 && ag.state !== 'eat') {
         if ((def.eats as readonly string[]).includes('musgo')) {
             const m = nearestMoss(ag.x, ag.z);
             if (m) {
+                if (m.amount > 0.5) remember(ag, 'food', m.x, m.z); // A3: musgo bom vira lembrança
                 ag.tx = m.x + (rnd() - 0.5) * ag.err; ag.tz = m.z + (rnd() - 0.5) * ag.err;
                 ag.state = 'graze';
                 if (stepToward(ag, def.speed * 1.25, dt, 1.1)) {
@@ -385,21 +704,41 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
                 return;
             }
         } else {
+            // VULTO × PRESAS (A1): espreita → persegue → AGARRA → arrasta → come na toca
             const prey = nearestPrey(ag, def);
             if (prey) {
                 const d2p = dist2(ag.x, ag.z, prey.x, prey.z);
+                const reach = def.radius + F9_SPECIES[prey.sp].radius + 0.5;
+                if (prey.state === 'dead') {
+                    // A7: necrofagia — cadáver fresco é refeição direta, sem espreita
+                    ag.targetId = prey.id; ag.tx = prey.x; ag.tz = prey.z;
+                    stepToward(ag, def.speed * 1.1, dt, 0.8);
+                    if (d2p < reach * reach) { ag.state = 'eat'; ag.stateT = 0; ag.targetId = -1; }
+                    return;
+                }
+                remember(ag, 'prey', prey.x, prey.z); // A3: registra onde viu a presa
                 ag.targetId = prey.id;
                 // espreita devagar; perto, dispara (com erro de mira individual)
                 ag.state = d2p > 20 ? 'stalk' : 'chase';
                 ag.tx = prey.x + (rnd() - 0.5) * ag.err * (ag.state === 'chase' ? 1.6 : 0.4);
                 ag.tz = prey.z + (rnd() - 0.5) * ag.err * (ag.state === 'chase' ? 1.6 : 0.4);
                 stepToward(ag, ag.state === 'stalk' ? def.speed * 0.75 : def.run, dt, 0.8);
-                if (d2p < (def.radius + F9_SPECIES[prey.sp].radius + 0.5) ** 2) {
-                    prey.state = 'dead'; prey.deadT = 0; prey.speedNow = 0;
-                    ag.state = 'eat'; ag.stateT = 0; ag.tx = prey.x; ag.tz = prey.z;
-                    emit('abate');
+                if (d2p < reach * reach && ag.grabCd <= 0 && prey.state !== 'grabbed') {
+                    // AGARROU — a presa vai arrastada pra toca; o grito dela atrai rivais
+                    prey.state = 'grabbed'; prey.grabbedBy = ag.id; prey.struggle = 0; prey.speedNow = 0;
+                    ag.carryingId = prey.id; ag.state = 'drag'; ag.stateT = 0; ag.targetId = -1;
+                    ag.tx = den.x; ag.tz = den.z;
+                    emit('agarrou');
+                    f9EcoEmitSound(prey.x, prey.z, 'grito', 1.6, prey.id);
                 }
                 return;
+            }
+            // A3: sem presa à vista mas com lembrança viva → investiga o ponto
+            // (NÃO retorna: cai no bloco 'investigate' logo abaixo, no mesmo tick)
+            const mem = freshMemory(ag, 'prey');
+            if (mem) {
+                if (ag.state !== 'investigate') { ag.state = 'investigate'; ag.stateT = 0; }
+                ag.targetId = -1; ag.tx = mem.x; ag.tz = mem.z;
             }
         }
     }
@@ -409,11 +748,22 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
         return;
     }
 
+    // A3: INVESTIGAÇÃO — focinho no chão até o ponto lembrado; nada ali → esquece
+    if (ag.state === 'investigate') {
+        if (stepToward(ag, def.speed * 0.85, dt, 1.5) || ag.stateT > 14) {
+            const mem = freshMemory(ag, 'prey');
+            if (mem) mem.stale = true;
+            ag.state = 'wander'; pickWander(ag, def);
+        }
+        return;
+    }
+
     // vagar pelo território (com pausas e olhares — bicho também descansa)
     if (ag.thinkT <= 0) {
         ag.thinkT = 1.2 + rnd() * 2.4 + ag.lazy * 1.5;
         const roll = rnd();
-        if (roll < 0.16 && ag.sp !== 'vulto') { ag.state = 'lookout'; ag.stateT = 0; return; }
+        // A7: no frenesi pré-onda os herbívoros ignoram a sentinela — é comer e correr
+        if (roll < 0.16 && ag.sp !== 'vulto' && !frenzy) { ag.state = 'lookout'; ag.stateT = 0; return; }
         if (roll < 0.3 + ag.lazy * 0.3) { ag.tx = ag.x; ag.tz = ag.z; }
         else pickWander(ag, def);
     }
@@ -425,26 +775,61 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
 function thinkAbstract(ag: F9Agent, dt: number): void {
     const def = F9_SPECIES[ag.sp];
     if (ag.sp !== 'guardiao') ag.hunger = Math.min(1, ag.hunger + def.hungerRate * dt);
+    // A1 no LOD longe: presa agarrada só acompanha o predador (o escape é
+    // uma rolagem do full-sim — no abstrato o arrasto é garantido)
+    if (ag.state === 'grabbed') {
+        const pred = byId(ag.grabbedBy);
+        if (!pred || pred.state === 'dead' || pred.carryingId !== ag.id) {
+            ag.state = 'flee'; ag.fear = 1; ag.grabbedBy = -1; ag.struggle = 0;
+            return;
+        }
+        ag.x = pred.x - Math.sin(pred.heading) * (def.radius + 0.35);
+        ag.z = pred.z - Math.cos(pred.heading) * (def.radius + 0.35);
+        return;
+    }
+    if (ag.state === 'drag') {
+        const prey = byId(ag.carryingId);
+        if (!prey || prey.state === 'dead' || prey.grabbedBy !== ag.id) { ag.carryingId = -1; ag.state = 'wander'; return; }
+        const d0 = f9eco.dens[ag.den];
+        ag.tx = d0.x; ag.tz = d0.z;
+        if (dist2(ag.x, ag.z, d0.x, d0.z) < 1.5 * 1.5) {
+            prey.state = 'dead'; prey.deadT = 0; prey.speedNow = 0; prey.grabbedBy = -1;
+            ag.carryingId = -1; ag.state = 'eat'; ag.stateT = 0;
+            emit('abate');
+            return;
+        }
+    }
+    if (ag.state === 'eat') { ag.hunger = 0; ag.state = 'wander'; } // abstrato: a refeição conclui direto
     const mustHome = f9eco.phase === 'onda' || f9eco.phase === 'aviso';
-    if (mustHome && ag.sp !== 'guardiao') { ag.tx = f9eco.dens[ag.den].x; ag.tz = f9eco.dens[ag.den].z; ag.state = 'toDen'; }
-    else if (ag.hunger > 0.6 && (def.eats as readonly string[]).includes('musgo')) {
+    let eps = 1.4; let shelter: F9Shelter = 'den';
+    // (o 'drag' já tem a toca como destino — mustHome não o interrompe, como no full-sim)
+    if (mustHome && ag.sp !== 'guardiao' && ag.state !== 'drag') {
+        const sh = pickShelter(ag); // A5: toca perto, senão oco
+        ag.tx = sh.x; ag.tz = sh.z; ag.state = 'toDen'; eps = sh.eps; shelter = sh.kind;
+    } else if (ag.state !== 'drag' && ag.hunger > 0.6 && (def.eats as readonly string[]).includes('musgo')) {
         const m = nearestMoss(ag.x, ag.z);
         if (m) {
             ag.tx = m.x; ag.tz = m.z;
             if (dist2(ag.x, ag.z, m.x, m.z) < 2) { m.amount = Math.max(0, m.amount - dt * 0.1); ag.hunger = Math.max(0, ag.hunger - dt * 0.2); }
         }
-    } else if (dist2(ag.x, ag.z, ag.tx, ag.tz) < 1) pickWander(ag, def);
+    } else if (ag.state !== 'drag' && dist2(ag.x, ag.z, ag.tx, ag.tz) < 1) pickWander(ag, def);
     const dx = ag.tx - ag.x, dz = ag.tz - ag.z, d = Math.hypot(dx, dz) || 1;
-    const sp = ag.state === 'toDen' ? def.run * 0.8 : def.speed;
+    const sp = ag.state === 'toDen' ? def.run * 0.8 : ag.state === 'drag' ? def.speed * 0.55 : def.speed;
     const step = Math.min(d, sp * dt);
     ag.x += (dx / d) * step; ag.z += (dz / d) * step;
+    // A8: clamp nos limites do viveiro (igual stepToward)
+    ag.x = Math.max(-32, Math.min(32, ag.x));
+    ag.z = Math.max(-50, Math.min(4, ag.z));
     ag.heading = Math.atan2(dx, dz);
+    ag.speedNow = sp;
     ag.anim += dt * sp * 2;
-    if (ag.state === 'toDen' && d < 1.4) ag.state = 'denned';
+    if (ag.state === 'toDen' && d < eps) { ag.state = 'denned'; ag.shelter = shelter; }
 }
 
 // acumulador do tick abstrato (2 Hz)
 let absAcc = 0;
+// rate-limit da emissão dos passos do player (A2: 1 som a cada 0.3 s)
+let stepSndT = 0;
 
 /**
  * O tick do mundo. `px,pz` = player; `lodR` = raio de simulação full.
@@ -461,6 +846,16 @@ function f9EcoTickInner(dt: number, px: number, pz: number, lodR: number, hunt: 
     s.t += dt;
     s.cycleT += dt;
 
+    // A2: sons têm vida ~6 s (a fila é ordenada por t — sai o mais velho)
+    while (s.sounds.length > 0 && s.t - s.sounds[0].t > 6) s.sounds.shift();
+    // A2: passos do player — a cena informa `noise` no tick e o motor emite
+    // o som (parado/agachado = silêncio; correndo delata até fora do sense)
+    stepSndT -= dt;
+    if (hunt.noise > 0.25 && stepSndT <= 0) {
+        f9EcoEmitSound(px, pz, 'passo', Math.max(0.3, hunt.noise), -2);
+        stepSndT = 0.3;
+    }
+
     // ── o ciclo do APAGAMENTO ──
     const frac = s.cycleT / s.cycleLen;
     if (s.phase === 'calmo' && frac >= AVISO_AT) { s.phase = 'aviso'; f9EcoBump(); }
@@ -468,20 +863,21 @@ function f9EcoTickInner(dt: number, px: number, pz: number, lodR: number, hunt: 
         s.phase = 'onda'; s.waveT = 0; emit('ondaComeca'); f9EcoBump();
     } else if (s.phase === 'onda') {
         s.waveT += dt;
-        if (s.waveT >= ONDA_LEN) {
-            // apaga quem ficou de fora (menos o Guardião)
-            for (const ag of s.agents) {
-                if (ag.sp !== 'guardiao' && ag.state !== 'denned' && ag.state !== 'dead') { ag.state = 'dead'; ag.deadT = 0; }
-            }
-            s.phase = 'renascer'; s.waveT = 0; emit('ondaTermina'); f9EcoBump();
-        }
+        // A4: o FIM da onda não mata mais ninguém — quem aguentou a exposição
+        // e alcançou um abrigo sobrevive ("quase não deu", o momento RW)
+        if (s.waveT >= ONDA_LEN) { s.phase = 'renascer'; s.waveT = 0; emit('ondaTermina'); f9EcoBump(); }
     } else if (s.phase === 'renascer') {
         s.waveT += dt;
         if (s.waveT >= RENASCER_LEN) {
             // repõe populações nas tocas + musgo rebrota cheio
             const alive: Record<string, number[]> = {};
             s.agents = s.agents.filter((a) => a.state !== 'dead');
-            s.agents.forEach((a) => { (alive[`${a.sp}:${a.den}`] ??= []).push(a.id); a.state = a.sp === 'guardiao' ? 'wander' : 'wander'; a.fear = 0; });
+            s.agents.forEach((a) => {
+                (alive[`${a.sp}:${a.den}`] ??= []).push(a.id);
+                a.state = 'wander'; // A8: sem o ternário morto — todos voltam a vagar
+                a.fear = 0; a.exposure = 0;
+                a.carryingId = -1; a.grabbedBy = -1; a.struggle = 0; // solta tudo ao renascer
+            });
             DENS.forEach((d, i) => {
                 const have = alive[`${d.sp}:${i}`]?.length ?? 0;
                 for (let k = have; k < F9_SPECIES[d.sp].perDen; k++) s.agents.push(spawnAgent(d.sp, i));
@@ -501,6 +897,24 @@ function f9EcoTickInner(dt: number, px: number, pz: number, lodR: number, hunt: 
     const lod2 = lodR * lodR;
     for (const ag of s.agents) {
         if (ag.state === 'dead') { ag.deadT += dt; continue; }
+        // A4: exposição progressiva à onda — fora de abrigo (toca/oco) acumula,
+        // correndo acumula mais rápido; no abrigo (ou fora da onda) recupera.
+        // Preguiçosos aguentam menos (chegaram mais tarde): morre em 1-lazy*0.3.
+        if (ag.sp !== 'guardiao') {
+            let sheltered = ag.state === 'denned';
+            if (!sheltered && dist2(ag.x, ag.z, s.dens[ag.den].x, s.dens[ag.den].z) < 1.8 * 1.8) sheltered = true;
+            if (!sheltered) {
+                for (const [ox, oz, or_] of F9_OCOS) {
+                    if (dist2(ag.x, ag.z, ox, oz) < or_ * or_) { sheltered = true; break; }
+                }
+            }
+            if (s.phase === 'onda' && !sheltered) {
+                ag.exposure += dt * (0.28 + ag.speedNow * 0.04);
+                if (ag.exposure >= 1 - ag.lazy * 0.3) { ag.state = 'dead'; ag.deadT = 0; ag.speedNow = 0; continue; }
+            } else if (ag.exposure > 0) {
+                ag.exposure = Math.max(0, ag.exposure - dt * 2);
+            }
+        }
         if (dist2(ag.x, ag.z, px, pz) <= lod2) think(ag, dt, px, pz, hunt);
         else if (absStep > 0) thinkAbstract(ag, absStep);
     }

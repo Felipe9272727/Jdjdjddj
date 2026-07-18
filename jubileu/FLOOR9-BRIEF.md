@@ -43,9 +43,63 @@ Um ecossistema que existia antes do player e continua sem ele:
   objetivo, ocos, trilha do fio, interação onda×player.
 - `Floor9Forest.tsx` — a cena 3D (terreno, árvores instanciadas, raios de
   deus, musgo emissivo, fio vermelho em tubo, atores dos bichos, onda).
+- `Floor9Fauna.tsx` — os corpos dos bichos (anatomia, marcha no relevo,
+  bocas das tocas, sombras-blob).
+- `Floor9Storm.tsx` — a tempestade (chuva, splashes, poças, relâmpago,
+  a parede da onda recuada).
+- `f9Ground.ts` — a altura do chão, FONTE ÚNICA (cena, fauna e tempestade
+  pisam no mesmo relevo).
+- `floor9Sfx.ts` — o som procedural do andar (WebAudio, zero assets;
+  `configureFloor9Sfx`/`clearFloor9Sfx` pelo App, padrão floor6Sfx).
 - `Floor9Overlay.tsx` — DOM: legendas, aviso da onda, prompt do oco.
 - `Floor9Cutscene.tsx` — a QUEDA pela copa (câmera) + beats.
 - Bench: `floor9.html` + `floor9-dev.tsx` (`window.__f9dbg`).
+
+## Overhaul Rain World (v3)
+O "bosque fofo diurno" morreu: o Viveiro v3 é ÚMIDO, OPRESSIVO e BARULHENTO.
+Motor reescrito (`f9Eco.ts`, 25 testes) + cena, fauna e áudio refeitos.
+
+### IA (motor)
+- **Predação agarrar-arrastar-escape**: o vulto AGARRA a presa, ARRASTA pra
+  toca (55% da velocidade) e só lá mata e come; a presa luta e pode ESCAPAR
+  (rolagem por tick de arrasto).
+- **Percepção som + LOS**: a visão exige linha de visão (troncos obstruem) e
+  há fila de SONS — alarme propaga em cadeia com latência individual, passos
+  delatam quem corre, o grito da presa atrai outros vultos. O player é
+  detectado por RUÍDO: parado é quase invisível, correndo é ouvido de longe.
+- **Memória** (cap 5, ~40 s): presa vista, ameaça, comida. Sem presa à vista
+  o vulto INVESTIGA o ponto lembrado e o vagar vira patrulha.
+- **Exposição progressiva**: a onda não mata mais de uma vez — apaga aos
+  poucos quem fica exposto (correr piora; toca/oco cura).
+- **Abrigo universal**: sem toca por perto, qualquer bicho corre pro OCO mais
+  próximo.
+- **Vínculo**: player calado e perto cria confiança — saltito bondado SEGUE o
+  player; vulto bondado não caça o player.
+- **Frenesi**: o ritmo fecha antes da onda (fome ×1.8, herbívoros sem
+  sentinela, caça ao player mais fácil); fome altera o risco; cadáver fresco
+  vira refeição direta (necrofagia).
+
+### Visual & áudio
+- **Tempestade real**: ~1200 gotas instanciadas ancoradas na câmera, splashes
+  no chão, poças que enchem na onda e secam no renascer, relâmpago a cada
+  3–8 s (clarão + céu em 2 pulsos) com trovão atrasado 0.5–2 s. A parede
+  branca do apagamento recua pra trás da chuva — a chuva protagoniza.
+- **Silêncio pré-chuva**: no AVISO a cama de floresta faz duck até ~0 em ~3 s
+  e os chamados de criatura param — a fauna prende a respiração antes da
+  chuva (a assinatura emocional do Rain World).
+- **Pós-processamento** (quality high): Bloom + HueSaturation + Noise "filme
+  úmido" + Vignette; paleta verde-chumbo doente — musgo, cogumelos e galhada
+  cantam no escuro.
+- **Ghost forest**: anéis de silhuetas gigantes além das paredes (sem fog)
+  recortam contra o clarão da onda; vagalumes individuais morrem no aviso.
+- **Tocas visíveis**: as dens viram BOCAS no chão (círculo escuro + anel de
+  raízes + brilho que chama no aviso); quem entra AFUNDA, quem sai EMERGE —
+  ninguém mais some seco.
+- **Fauna no relevo**: toda pose nasce do `f9GroundHeight` — bichos, sombras-
+  blob e poças pisam no MESMO terreno renderizado.
+- **Som procedural** (zero assets): cama de floresta (ruído 400 Hz + chirps +
+  vento), chuva por fase, trovões, stingers do motor (bote, agarrou, escapou,
+  vínculo, onda, renascer) e o vento da queda com THUD de pouso.
 
 ## Contratos (Fable × Codex)
 - O motor `f9Eco.ts`/`f9Floresta.ts` e a cena 3D são do **Fable**.

@@ -69,6 +69,7 @@ import Floor8Image from './Floor8Image';
 import Floor8Platformer from './Floor8Platformer';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
 import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient, f7CaptainLaugh, f7CutMusicStart, f7CutBeat, f7CutMusicStop, f7BootClomp, f7ElevatorVanish, f7CaptainVoice } from './floor7Sfx';
+import { configureFloor9Sfx, clearFloor9Sfx } from './floor9Sfx';
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
 import { f8, f8Reset, f8Subscribe } from './f8Arquivo';
 import { p8Reset } from './f8Platformer';
@@ -1064,6 +1065,16 @@ export default function App() {
     return () => { stopFloor7Ambient(); clearFloor7Sfx(); };
   }, [currentLevel, audioCtx, muted]);
 
+  // ── Andar 9 — O VIVEIRO: a floresta ganha voz ao entrar no andar e cala ao
+  // sair. Mesmo contrato do floor6Sfx: configure com o bus cartoon na entrada,
+  // clear no cleanup — sem o clear os loops (cama/chuva/vento da queda)
+  // vazariam por cima do hum do elevador na troca de andar.
+  useEffect(() => {
+    if (currentLevel !== 9 || !audioCtx) return;
+    configureFloor9Sfx(audioCtx, cartoonBusRef.current);
+    return () => clearFloor9Sfx();
+  }, [currentLevel, audioCtx]);
+
   useEffect(() => {
       if (gameState !== 'chase') return;
       setNightMode(true);
@@ -1956,7 +1967,8 @@ export default function App() {
             Medium/low: no postprocessing pass at all. */}
         {/* Photo mode takes over the render loop, so the raster post stack is
             disabled while it accumulates samples. */}
-        {hasStarted && !photo.progress.active && (settings.quality === 'high' || currentLevel === 3 || currentLevel === 7) && (
+        {/* o andar 9 tem composer próprio (F9PostEffects) — sem duplicar aqui */}
+        {hasStarted && !photo.progress.active && currentLevel !== 9 && (settings.quality === 'high' || currentLevel === 3 || currentLevel === 7) && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
                 {/* N8AO — screen-space ambient occlusion (Floor 3 only). Tuned
                     conservatively: tight screen-space radius + low intensity +

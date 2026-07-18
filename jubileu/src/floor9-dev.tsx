@@ -14,6 +14,7 @@ import Floor9Cutscene from './Floor9Cutscene';
 import { Fiapo } from './Floor9Fauna';
 import { f9, f9Reset, f9QuedaDone, f9ChegadaDone, f9Subscribe, F9_OCOS } from './f9Floresta';
 import { f9eco, f9EcoReset } from './f9Eco';
+import { configureFloor9Sfx, clearFloor9Sfx } from './floor9Sfx';
 import { wallsForState } from './constants';
 import { resolveCollision } from './physics';
 
@@ -79,11 +80,34 @@ const Dev: React.FC = () => {
     const [, setV] = useState(0);
     useEffect(() => {
         f9Reset(); f9EcoReset();
-        if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f9dbg = {
+        // o bench é ferramenta de debug: expõe o handle SEMPRE (não só em dev
+        // mode — um `vite build` do bench pra smoke headless continua dirigível)
+        (window as unknown as Record<string, unknown>).__f9dbg = {
             f9, f9eco, posRef,
             skipQueda: () => { f9QuedaDone(); f9ChegadaDone(); },
             wake: f9QuedaDone, chegou: f9ChegadaDone,
             warpCycle: (frac: number) => { f9eco.cycleT = f9eco.cycleLen * frac; },
+        };
+    }, []);
+    // o SOM do Viveiro no bench: AudioContext precisa de gesto — liga no
+    // primeiro clique/tecla (no jogo, o wiring no App.tsx é do Coder C)
+    useEffect(() => {
+        let ac: AudioContext | null = null;
+        const boot = () => {
+            if (ac) return;
+            const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+            if (!AC) return;
+            ac = new AC();
+            void ac.resume();
+            configureFloor9Sfx(ac);
+        };
+        window.addEventListener('pointerdown', boot);
+        window.addEventListener('keydown', boot);
+        return () => {
+            window.removeEventListener('pointerdown', boot);
+            window.removeEventListener('keydown', boot);
+            clearFloor9Sfx();
+            if (ac) void ac.close();
         };
     }, []);
     useEffect(() => f9Subscribe(() => setV((x) => x + 1)), []);

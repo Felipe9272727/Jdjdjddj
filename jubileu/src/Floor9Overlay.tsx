@@ -37,9 +37,17 @@ export const Floor9Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void }
 
     const objective = f9Objective();
     const aviso = f9.phase === 'explorar' && f9eco.phase === 'aviso';
+    // vinheta opressiva em CSS puro (zero GPU): cobre as qualities sem o
+    // EffectComposer; aperta quando o ciclo fecha (aviso/onda)
+    const vigK = f9eco.phase === 'onda' ? 0.78 : aviso ? 0.66 : 0.52;
 
     return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 40, pointerEvents: 'none' }}>
+            {/* a moldura úmida do Viveiro (atrás de todo o texto) */}
+            <div style={{
+                position: 'absolute', inset: 0,
+                background: `radial-gradient(ellipse at center, transparent 40%, rgba(3,7,5,${vigK}) 100%)`,
+            }} />
             {/* objetivo */}
             {objective && !chegada && (
                 <div style={{

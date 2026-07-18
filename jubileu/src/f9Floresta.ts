@@ -6,7 +6,11 @@
  * chão — a QUEDA pela copa). O objetivo é seguir o FIO VERMELHO até a RAIZ.
  * A onda de apagamento (f9Eco) obriga a se abrigar nos OCOS.
  */
-import { f9eco } from './f9Eco';
+import { f9eco, F9_OCOS } from './f9Eco';
+
+// F9_OCOS vive em f9Eco.ts (a IA também se abriga nos ocos) — reexportado aqui
+// para manter o contrato antigo (App/constants/cena importam daqui).
+export { F9_OCOS };
 
 export type F9Phase =
     | 'queda'        // caindo pela copa (cutscene)
@@ -48,10 +52,7 @@ function emit(e: F9Event): void { events.push(e); }
 export function f9DrainEvents(): F9Event[] { return events.splice(0, events.length); }
 
 // ── o mundo ──────────────────────────────────────────────────────────────────
-/** OCOS (abrigos): troncos-mãe com brilho quente. [x, z, raio] */
-export const F9_OCOS: ReadonlyArray<readonly [number, number, number]> = [
-    [-6, -6, 2.2], [16, -24, 2.2], [-22, -34, 2.2], [6, -44, 2.4],
-];
+// (F9_OCOS definido em f9Eco.ts e reexportado acima)
 
 /** A trilha do FIO VERMELHO (waypoints até a RAIZ, no fundo do viveiro). */
 export const F9_FIO: ReadonlyArray<readonly [number, number]> = [
