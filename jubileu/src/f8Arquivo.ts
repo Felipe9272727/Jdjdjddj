@@ -16,6 +16,8 @@
  * mergulho, corredor, platformer) crescem nas fases seguintes.
  */
 
+import { f8finale, f8FinaleReset, f8FinaleStart } from './f8Finale';
+
 // ── Phase machine ─────────────────────────────────────────────────────────────
 export type F8Phase =
     | 'arrive'            // desembarcou; ainda andando até a mesa
@@ -87,6 +89,7 @@ export function f8Reset(): void {
     Object.assign(f8, FRESH());
     f8.version = v;
     events.length = 0;
+    f8FinaleReset();
     f8Bump();
 }
 
@@ -218,9 +221,18 @@ export function f8AdvanceWake(): void {
         return;
     }
     if (f8.phase === 'elevadorSumiu') {
+        if (f8finale.active) return;
         if (f8.line < F8_SUMIU_LINES.length - 1) { f8.line++; f8Bump(); }
-        else { f8.phase = 'arremesso'; emit('throw'); f8Bump(); }
+        else f8BeginThrow();
     }
+}
+
+/** A timeline cinematográfica chama no instante exato em que o empurrão começa. */
+export function f8BeginThrow(): void {
+    if (f8.phase !== 'elevadorSumiu') return;
+    f8.phase = 'arremesso';
+    emit('throw');
+    f8Bump();
 }
 
 /** Fim da animação do arremesso (wall-clock, o overlay dirige) → o elevador. */
@@ -251,6 +263,7 @@ export function f8Tick(dt: number, playerZ: number): void {
         s.phase = 'elevadorSumiu';
         s.line = 0;
         emit('gone');
+        f8FinaleStart();
         f8Bump();
     }
 }

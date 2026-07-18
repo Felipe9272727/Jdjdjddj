@@ -60,12 +60,19 @@ import Floor8Room from './Floor8Room';
 import Floor8Overlay, { Floor8Ride } from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
 import Floor8Platformer from './Floor8Platformer';
+import Floor8FinaleCutscene from './Floor8FinaleCutscene';
+import Floor9Forest from './Floor9Forest';
+import Floor9Overlay from './Floor9Overlay';
+import Floor9Cutscene from './Floor9Cutscene';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
 import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient, f7CaptainLaugh, f7CutMusicStart, f7CutBeat, f7CutMusicStop, f7BootClomp, f7ElevatorVanish, f7CaptainVoice } from './floor7Sfx';
 import { f6, f6Reset, f6Subscribe } from './f6Escape';
 import { f8, f8Reset, f8Subscribe } from './f8Arquivo';
 import { p8Reset } from './f8Platformer';
-import { f8StartBoss } from './f8Dev';
+import { f8StartBoss, f8StartFinale } from './f8Dev';
+import { f8finale, f8FinaleReset, f8FinaleSeek, f8FinaleSubscribe } from './f8Finale';
+import { f9Reset } from './f9Floresta';
+import { f9EcoReset } from './f9Eco';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE } from './constants';
 import PhysicsProps, { type CrateSpec } from './PhysicsProps';
 import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from './PhotoMode';
@@ -98,6 +105,7 @@ interface WorldProps {
   doorsClosed: boolean;
   level: number;
   f8InImage?: boolean;
+  f8FinaleActive?: boolean;
   houseDoorOpen: boolean;
   npcPositionRef: React.MutableRefObject<Vector3>;
   isPaused: boolean;
@@ -153,7 +161,7 @@ const LOBBY_CRATES: CrateSpec[] = [
 // Sealed lobby perimeter — keeps debris in the room no matter the door state.
 const LOBBY_PHYS_WALLS = wallsForState(0, true, false);
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves, floor3FallActive, f6CabDead, f8InImage }: WorldProps) => (
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves, floor3FallActive, f6CabDead, f8InImage, f8FinaleActive }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -181,6 +189,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 6 && <Floor6Suite playerPositionRef={playerPositionRef} profile={profile} />}
       {/* Andar 8 — a sala de interrogatório do Arquivista (→ platformer de tricô) */}
       {level === 8 && !f8InImage && <Floor8Room playerPositionRef={playerPositionRef} />}
+      {level === 9 && <Floor9Forest playerPositionRef={playerPositionRef} />}
       {/* the old baseplate is the FLOOR 7 TEMPLATE now — Creator Mode only */}
       {/* Andar 7 (navio pirata) is mounted as a Canvas sibling below — it needs
           the Floor7 WASM handle ref that this memoized World doesn't carry. */}
@@ -210,7 +219,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
           dialogueBeatRef={diverBeatRef}
         />
       )}
-      {!(level === 6 && f6CabDead) && level !== 7 && <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />}
+      {!(level === 6 && f6CabDead) && level !== 7 && level !== 9 && !(level === 8 && f8FinaleActive) && <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />}
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
       {profile.nightLights && <NightAmbient active={nightMode && level === 1} />}
       {/* Night-vision boost. Only mounts when active — adds bright green
@@ -843,19 +852,26 @@ export default function App() {
   // congela o Player e solta o pointer lock, mesmo contrato do Floor 6.
   const [f8UiOpen, setF8UiOpen] = useState(false);
   const handleF8UiOpenChange = useCallback((open: boolean) => setF8UiOpen(open), []);
-  // Andar 8 FINALE — o Arquivista te JOGA: você acorda dentro do elevador em
-  // trânsito (mesmo caminho do embarque do 7). O painel marca "9"; o destino
-  // real fica no térreo até o Andar 9 existir — o elevador mente, o hotel deixa.
-  const handleF8Thrown = useCallback(() => {
-    setDoorsClosed(true);
-    setDoorSoundTrigger(prev => prev + 1);
-    playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
-    setNextElevatorDestination(0);
-    setElevatorTimer(20);
-    setTravelPhase('closing');
-    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
-    elevatorHumStopRef.current = createElevatorHum(audioCtx);
-  }, [audioCtx]);
+  const [f9UiOpen, setF9UiOpen] = useState(false);
+  const handleF9UiOpenChange = useCallback((open: boolean) => setF9UiOpen(open), []);
+  // A ENTREGA termina já do outro lado: o empurrão vira a queda do Viveiro,
+  // sem uma viagem de elevador que quebraria o corte cinematográfico.
+  const handleF8FinaleDone = useCallback(() => {
+    setGameState('outdoor');
+    setNightMode(false);
+    setHouseDoorOpen(false);
+    setDoorOpenAmount(0);
+    setDoorsClosed(false);
+    setElevatorTimer(null);
+    setNextElevatorDestination(null);
+    setTravelPhase('idle');
+    setZoomLevel(0);
+    f9Reset();
+    f9EcoReset();
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -1.5, theta: 0 };
+    setCurrentLevel(9);
+    f8FinaleReset();
+  }, []);
   // Floor 6 FINALE — the guest stepped aside and the player pressed T inside
   // the repaired cab. "Máquina não esquece: ele te deve uma descida" — o
   // Aurélio manda o player pro ANDAR 7 (o navio). O beat de embarque/portas
@@ -998,8 +1014,15 @@ export default function App() {
     if (currentLevel !== 8) return;
     const creatorVariant = floor8StartVariantRef.current;
     floor8StartVariantRef.current = null;
-    if (creatorVariant === 'floor8Boss') return;
+    if (creatorVariant === 'floor8Boss' || creatorVariant === 'floor8Finale') return;
     f8Reset(); p8Reset();
+  }, [currentLevel]);
+  // O Viveiro e sua população começam frescos tanto na progressão normal
+  // quanto no salto do Modo Desenvolvedor.
+  useEffect(() => {
+    if (currentLevel !== 9) return;
+    f9Reset(); f9EcoReset();
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -1.5, theta: 0 };
   }, [currentLevel]);
   // Mirrors f6.phase into React so World can swap the live cab for the dead
   // one the moment the panel blows (f6 itself mutates outside React).
@@ -1020,6 +1043,10 @@ export default function App() {
         || f8.phase === 'platformer' || f8.phase === 'memoriaRecuperada';
       return prev !== inImg ? inImg : prev;
     });
+  }), []);
+  const [f8FinaleActive, setF8FinaleActive] = useState(f8finale.active);
+  useEffect(() => f8FinaleSubscribe(() => {
+    setF8FinaleActive((prev) => prev === f8finale.active ? prev : f8finale.active);
   }), []);
   useEffect(() => {
     if (currentLevel !== 6 || !audioCtx) return;
@@ -1354,6 +1381,7 @@ export default function App() {
         // O destino do Modo Desenvolvedor atravessa o fluxo como dado explícito.
         // Isso torna YOURSELF determinístico e mantém o Andar 8 normal intacto.
         if (startVariant === 'floor8Boss') f8StartBoss();
+        else if (startVariant === 'floor8Finale') f8StartFinale();
         else { f8Reset(); p8Reset(); }
         setGameState('outdoor');
         setNightMode(false);
@@ -1361,7 +1389,18 @@ export default function App() {
         setDoorOpenAmount(0);
         setDoorsClosed(false);
         setZoomLevel(0);
-        playerPositionCmdRef.current = { x: 0, y: 0, z: -8.2, theta: Math.PI };
+        playerPositionCmdRef.current = startVariant === 'floor8Finale'
+          ? { x: 0, y: 0, z: -7.35, theta: 0 }
+          : { x: 0, y: 0, z: -8.2, theta: Math.PI };
+      } else if (startLevel === 9) {
+        f9Reset(); f9EcoReset();
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        setZoomLevel(0);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -1.5, theta: 0 };
       }
     }
     // ─── CREATOR MODE: end jump ───
@@ -1375,9 +1414,11 @@ export default function App() {
   // (used by the offline playtest harness + the critic to actually play). Inert
   // unless something calls it.
   useEffect(() => {
-    const w = window as unknown as { __startFloor?: (n: number) => void; __startFloor8Boss?: () => void; __playerPos?: () => [number, number, number] };
+    const w = window as unknown as { __startFloor?: (n: number) => void; __startFloor8Boss?: () => void; __startFloor8Finale?: () => void; __f8FinaleSeek?: (t: number) => void; __playerPos?: () => [number, number, number] };
     w.__startFloor = (n: number) => handleStartGame(false, 'Tester', n);
     w.__startFloor8Boss = () => handleStartGame(false, 'Tester', 8, 'floor8Boss');
+    w.__startFloor8Finale = () => handleStartGame(false, 'Tester', 8, 'floor8Finale');
+    w.__f8FinaleSeek = f8FinaleSeek;
     w.__playerPos = () => [sharedPlayerPositionRef.current.x, sharedPlayerPositionRef.current.y, sharedPlayerPositionRef.current.z];
   });
 
@@ -1566,14 +1607,14 @@ export default function App() {
   const activePointers = useRef(new Map<number, { type: 'move' | 'look' | 'aux'; startX: number; startY: number; currX: number; currY: number }>());
 
   useEffect(() => {
-    if (!dialogueOpen && !barneyDialogueOpen && !f6UiOpen && !f8UiOpen) return;
+    if (!dialogueOpen && !barneyDialogueOpen && !f6UiOpen && !f8UiOpen && !f9UiOpen) return;
     moveInput.current = { x: 0, y: 0 };
     lookInput.current = { x: 0, y: 0 };
     keysRef.current = { w: false, a: false, s: false, d: false };
     activePointers.current.clear();
     prevPinchDist.current = null;
     setJoystickVisual(p => ({ ...p, active: false }));
-  }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen, f6UiOpen, f8UiOpen]);
+  }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen, f6UiOpen, f8UiOpen, f9UiOpen]);
 
   useEffect(() => {
     if (!dialogueOpen && !barneyDialogueOpen && !diverDialogueOpen) return;
@@ -1585,8 +1626,8 @@ export default function App() {
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!hasStarted) return;
-    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen && !f6UiOpen && !f8UiOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
-    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen) return;
+    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen && !f6UiOpen && !f8UiOpen && !f9UiOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
+    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen || f9UiOpen) return;
     e.preventDefault(); e.stopPropagation();
     const { pointerId, clientX, clientY } = e; const screenW = window.innerWidth; const screenH = window.innerHeight;
     const isPortrait = screenH > screenW; const zoneLimit = isPortrait ? 0.5 : 0.4;
@@ -1604,7 +1645,7 @@ export default function App() {
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!hasStarted) return;
     if (isDesktop) {
-      if (document.pointerLockElement === document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen) {
+      if (document.pointerLockElement === document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen && !f6UiOpen && !f8UiOpen && !f9UiOpen) {
         const sx = settings.sensitivity;
         const sy = settings.sensitivity * (settings.invertY ? -1 : 1);
         lookInput.current.x += e.movementX * sx;
@@ -1655,7 +1696,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isDesktop || !hasStarted) return;
-    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen) { document.exitPointerLock(); return; }
+    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen || f9UiOpen) { document.exitPointerLock(); return; }
     const upd = () => { const k = keysRef.current; let x=0, y=0; if (k.w) y-=1; if (k.s) y+=1; if (k.a) x-=1; if (k.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
     const kd = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -1664,7 +1705,7 @@ export default function App() {
         setSettingsOpen((v) => !v);
         return;
       }
-      if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen) return;
+      if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen || f9UiOpen) return;
       const k = keysRef.current;
       switch(e.key.toLowerCase()) {
         case 'w': k.w=true; break;
@@ -1690,7 +1731,7 @@ export default function App() {
     };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
-  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, diverDialogueOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
+  }, [isDesktop, hasStarted, dialogueOpen, barneyDialogueOpen, shopOpen, diverDialogueOpen, f6UiOpen, f8UiOpen, f9UiOpen, canInteractNPC, canInteractCashier, canInteractDoor, houseDoorOpen, canSleepNow, gameState]);
 
   // Memoize the sliced remote player id list to avoid re-creating on every render.
   const visibleRemotePlayerIds = useMemo(
@@ -1751,7 +1792,7 @@ export default function App() {
           : <AdaptiveDpr pixelated />}
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} f6CabDead={f6CabDead} f8InImage={f8InImage} onPlayerCaught={() => {
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} f6CabDead={f6CabDead} f8InImage={f8InImage} f8FinaleActive={f8FinaleActive} onPlayerCaught={() => {
                 setFishJumpscareKey(k => k + 1);
                 setDevoured(true);
                 playJumpscareStab(audioCtx);
@@ -1787,7 +1828,11 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
+            <Player active={hasStarted && !photo.progress.active && !f8FinaleActive && !f9UiOpen} renderAvatar={hasStarted && !f8FinaleActive} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || f9UiOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
+            {hasStarted && currentLevel === 8 && f8FinaleActive && (
+                <Floor8FinaleCutscene playerPositionRef={sharedPlayerPositionRef} onDone={handleF8FinaleDone} />
+            )}
+            {hasStarted && currentLevel === 9 && <Floor9Cutscene />}
             {/* Andar 7 captain-arrival cutscene — mounted AFTER <Player> so its
                 priority-0 useFrame overwrites the player camera while it runs. */}
             {currentLevel === 7 && f7Intro && (
@@ -1995,7 +2040,7 @@ export default function App() {
       {/* The 2.5D Floor 8 owns its own opaque loading/cinematic surface. The
           global drei loader also tracks unrelated hotel textures and could sit
           over the YOURSELF reveal while one of those remote files timed out. */}
-      {!f8InImage && <Loader />}
+      {!f8InImage && !f8FinaleActive && <Loader />}
       {!hasStarted && <MainMenu onPlay={handleStartGame} />}
       {hasStarted && (
         <InventoryHUD
@@ -2439,7 +2484,10 @@ export default function App() {
       )}
       {/* Andar 8 — o interrogatório do Arquivista (caixa de diálogo) */}
       {hasStarted && currentLevel === 8 && !doorsClosed && (
-        <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} onLeave={handleF8Thrown} />
+        <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} onLeave={handleF8FinaleDone} />
+      )}
+      {hasStarted && currentLevel === 9 && (
+        <Floor9Overlay onUiOpenChange={handleF9UiOpenChange} />
       )}
       {/* Andar 8 — a volta: acorda no elevador "subindo pro 9", com o fio vermelho
           (self-gate na fase leave; fica de pé durante o doorsClosed do trânsito) */}

@@ -178,6 +178,33 @@ export const FLOORS: FloorOption[] = [
     ),
   },
   {
+    id: 'floor-8-finale',
+    level: 8,
+    name: 'A Entrega',
+    label: 'Cutscene',
+    variant: 'floor8Finale',
+    description: 'Elevador interditado → o Arquivista fecha o livro, agarra você e te entrega ao nono andar',
+    color: 'from-stone-800 via-amber-700 to-red-700',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7 3.75h10v16.5H7zM9.5 8.25h5M9.5 12h5M12 20.25v2" />
+      </svg>
+    ),
+  },
+  {
+    id: 'floor-9-viveiro',
+    level: 9,
+    name: 'O Viveiro',
+    label: 'Andar 9',
+    description: 'A floresta do esquecimento: ecossistema vivo, onda de apagamento e o fio vermelho até a RAIZ',
+    color: 'from-emerald-700 via-green-500 to-lime-300',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21V13m0 0c-4 0-6.5-2.5-6.5-6.5C9 6.5 12 8 12 13zm0-2c0-4.5 2.5-7 6.5-7 0 4.5-2.5 7-6.5 7z" />
+      </svg>
+    ),
+  },
+  {
     id: 'transition-2-3',
     level: 3,
     name: 'Transição 2 → 3',

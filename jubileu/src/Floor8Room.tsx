@@ -16,6 +16,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { colorTex, dataTex, rng } from './Floor6Textures';
 import { f8, f8Subscribe, f8Tick, f8DrainEvents, F8_CEIL, F8_ARQUIVISTA_POS } from './f8Arquivo';
+import { f8finale, f8FinaleSubscribe } from './f8Finale';
 import { Arquivista } from './Floor8Arquivista';
 
 // ── texturas procedurais ─────────────────────────────────────────────────────
@@ -320,6 +321,9 @@ const ElevatorGone: React.FC = () => {
 export const Floor8Room: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> =
     ({ playerPositionRef }) => {
         const lamp = useRef<THREE.PointLight>(null!);
+        const [, setFinaleVersion] = useState(0);
+
+        useEffect(() => f8FinaleSubscribe(() => setFinaleVersion((v) => v + 1)), []);
 
         useFrame((_, rawDt) => {
             const dt = Math.min(rawDt, 0.05);
@@ -377,18 +381,21 @@ export const Floor8Room: React.FC<{ playerPositionRef: React.MutableRefObject<TH
                 <ambientLight color="#1c1e28" intensity={0.14} />
                 <pointLight position={[0, 2.6, -8]} distance={6} decay={2} color="#3a4258" intensity={4} />
 
-                {/* o ARQUIVISTA, atrás da mesa */}
-                <group position={[ax, 0, az]}>
-                    <Arquivista
-                        playerPositionRef={playerPositionRef}
-                        bounds={[-1.3, 1.3, -0.35, 0.4]}
-                        pois={[
-                            { x: 0, z: 0.1, kind: 'observar' },
-                            { x: -0.7, z: -0.2, kind: 'ler' },
-                            { x: 0.7, z: -0.2, kind: 'vaguear' },
-                        ]}
-                    />
-                </group>
+                {/* Durante A ENTREGA, somente a prancha pintada da cutscene
+                    encarna o Arquivista; o ator procedural sai de cena. */}
+                {!f8finale.active && f8finale.t === 0 && (
+                    <group position={[ax, 0, az]}>
+                        <Arquivista
+                            playerPositionRef={playerPositionRef}
+                            bounds={[-1.3, 1.3, -0.35, 0.4]}
+                            pois={[
+                                { x: 0, z: 0.1, kind: 'observar' },
+                                { x: -0.7, z: -0.2, kind: 'ler' },
+                                { x: 0.7, z: -0.2, kind: 'vaguear' },
+                            ]}
+                        />
+                    </group>
+                )}
             </group>
         );
     };

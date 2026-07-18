@@ -11,9 +11,6 @@ import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_CO
 import { resolveCollision as _resolve } from './physics';
 import { f6DoorWalls } from './f6Escape';
 
-useGLTF.preload(WALKING_URL);
-useGLTF.preload(IDLE_URL);
-
 // ─── Bone patterns for the right arm (Mixamo + common conventions) ────────
 const ARM_EXACT = ['mixamorig:rightarm', 'rightarm', 'right_arm', 'arm_r', 'upperarm_r', 'r_upperarm'];
 const ARM_SUBSTR = ['rightarm', 'upperarm.r'];
@@ -333,9 +330,11 @@ interface PlayerProps {
   staminaRef?: React.MutableRefObject<number>;
   /** Floor 3 jump trigger — set true to initiate a jump. Cleared after use. */
   jumpRef?: React.MutableRefObject<boolean>;
+  /** Desmonta o GLB do avatar sem desmontar o diretor de posição/câmera. */
+  renderAvatar?: boolean;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueTallNpc = false, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueTallNpc = false, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef, renderAvatar = true }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -876,7 +875,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
     }
   });
-  return (<group ref={avRef} visible={false}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} pickupItem={pickupItem} onHandAnchor={onRightHandAnchor} /></group>);
+  return (<group ref={avRef} visible={false}>{renderAvatar && <Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} pickupItem={pickupItem} onHandAnchor={onRightHandAnchor} />}</group>);
 };
 
 // ─── FPArmModel: first-person viewmodel — simple 3D arm in camera space ──

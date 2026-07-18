@@ -14,6 +14,7 @@ import {
     f8, f8Subscribe, f8Lines, f8AdvanceLine, f8EnterImage, f8DiveDone, f8Objective,
     f8AdvanceWake, f8ThrownDone, F8_DESPERTAR_LINES, F8_SUMIU_LINES, type F8Speaker,
 } from './f8Arquivo';
+import { f8finale, f8FinaleSubscribe, type F8FinaleBeat } from './f8Finale';
 
 const mono: React.CSSProperties = { fontFamily: 'monospace', color: '#e8e2d2', userSelect: 'none' };
 
@@ -41,6 +42,7 @@ export const Floor8Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void; 
     const fastRef = useRef(false);
 
     useEffect(() => f8Subscribe(() => setV((x) => x + 1)), []);
+    useEffect(() => f8FinaleSubscribe(() => setV((x) => x + 1)), []);
 
     const talking = f8.phase === 'interrogatorio';
     const handing = f8.phase === 'entregaImagem';
@@ -49,11 +51,12 @@ export const Floor8Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void; 
     // o despertar: zonzo; fala primeiro (congela), depois manca livre até o sul
     const waking = f8.phase === 'despertar';
     const wakeTalking = waking && f8.line < F8_DESPERTAR_LINES.length;
-    const goneTalking = f8.phase === 'elevadorSumiu';
-    const throwing = f8.phase === 'arremesso';
+    const cinematic = f8finale.active || f8finale.t > 0;
+    const goneTalking = f8.phase === 'elevadorSumiu' && !cinematic;
+    const throwing = f8.phase === 'arremesso' && !cinematic;
     // congela o Player 3D sempre que o overlay/imagem está no controle (menos
     // em entregaImagem, onde o player ainda pode caminhar até a mesa).
-    const uiOpen = talking || diving || inImage || wakeTalking || goneTalking || throwing;
+    const uiOpen = talking || diving || inImage || wakeTalking || goneTalking || throwing || cinematic;
     useEffect(() => { onUiOpenChange(uiOpen); }, [uiOpen, onUiOpenChange]);
     useEffect(() => () => onUiOpenChange(false), [onUiOpenChange]);
 
@@ -75,6 +78,7 @@ export const Floor8Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void; 
     // teclado: E/Espaço/Enter avança a fala; E entra na imagem
     useEffect(() => {
         const kd = (e: KeyboardEvent) => {
+            if (cinematic) return;
             const k = e.key.toLowerCase();
             const ph = f8.phase;
             if (ph === 'interrogatorio' || ph === 'elevadorSumiu' || (ph === 'despertar' && f8.line < F8_DESPERTAR_LINES.length)) {
@@ -83,9 +87,18 @@ export const Floor8Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void; 
         };
         window.addEventListener('keydown', kd);
         return () => window.removeEventListener('keydown', kd);
-    }, [advance]);
+    }, [advance, cinematic]);
 
     const objective = f8Objective();
+    const finaleCaption: Partial<Record<F8FinaleBeat, string>> = {
+        door: 'O elevador está fora de serviço.',
+        turn: 'Atrás de você, um livro se fecha.',
+        reveal: 'Você está pronto.',
+        approach: 'O nono andar não se alcança por dentro.',
+        grip: 'Se alcança sendo ENTREGUE.',
+        push: 'Boa viagem.',
+    };
+    const caption = finaleCaption[f8finale.beat];
 
     return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 40, pointerEvents: 'none' }}>
@@ -162,6 +175,28 @@ export const Floor8Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void; 
                 </div>
             )}
 
+            {/* A ENTREGA: barras, legendas e blackout usam o MESMO relógio do
+                sprite/câmera. Nada some enquanto o empurrão ainda existe. */}
+            {cinematic && (
+                <div style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '10.5vh', background: '#050403', boxShadow: '0 5px 30px rgba(0,0,0,.8)' }} />
+                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '12vh', background: '#050403', boxShadow: '0 -5px 30px rgba(0,0,0,.8)' }} />
+                    {caption && (
+                        <div key={f8finale.beat} style={{
+                            ...mono, position: 'absolute', left: '8vw', right: '8vw', bottom: '4.1vh',
+                            textAlign: 'center', fontSize: 'clamp(14px,2.2vw,22px)', lineHeight: 1.4,
+                            letterSpacing: f8finale.beat === 'grip' ? 2.5 : 0.6,
+                            color: f8finale.beat === 'grip' ? '#f0c56a' : '#eee6d4',
+                            textShadow: '0 2px 12px #000', animation: 'f8capIn .26s ease-out both',
+                        }}>{caption}</div>
+                    )}
+                    {f8finale.beat === 'push' && <div style={{ position: 'absolute', inset: 0, background: '#fff3d6', mixBlendMode: 'screen', animation: 'f8pushFlash .32s ease-out both' }} />}
+                    {(f8finale.beat === 'black' || f8finale.beat === 'done') && (
+                        <div style={{ position: 'absolute', inset: 0, background: '#000', animation: 'f8finalBlack .42s ease-out both' }} />
+                    )}
+                </div>
+            )}
+
             <style>{`
                 @keyframes f8dive { 0%{opacity:0} 20%{opacity:1} 88%{opacity:1} 100%{opacity:1} }
                 @keyframes f8diveZoom { 0%{transform:scale(0.15);opacity:0;filter:blur(6px)} 30%{opacity:0.9} 100%{transform:scale(2.6);opacity:1;filter:blur(0)} }
@@ -174,6 +209,9 @@ export const Floor8Overlay: React.FC<{ onUiOpenChange: (open: boolean) => void; 
                     100%{backdrop-filter:blur(14px);transform:rotate(28deg) scale(1.45)}
                 }
                 @keyframes f8throwFade { 0%{opacity:0} 45%{opacity:0.12} 82%{opacity:0.85} 100%{opacity:1} }
+                @keyframes f8capIn { from{opacity:0;transform:translateY(7px)} to{opacity:1;transform:translateY(0)} }
+                @keyframes f8pushFlash { from{opacity:.62} to{opacity:0} }
+                @keyframes f8finalBlack { from{opacity:0} to{opacity:1} }
             `}</style>
         </div>
     );
