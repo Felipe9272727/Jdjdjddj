@@ -42,11 +42,13 @@ import * as THREE from 'three';
 import { EffectComposer, Bloom, Vignette, Noise, HueSaturation } from '@react-three/postprocessing';
 import { colorTex, rng } from './Floor6Textures';
 import { f9, f9Tick, f9DrainEvents, f9Cacado, F9_OCOS, F9_FIO, F9_RAIZ } from './f9Floresta';
-import { f9eco, f9EcoTick, f9EcoDrainEvents, f9CycleFrac, F9_AVISO_AT, F9_TREE_OBSTACLES, type F9CyclePhase } from './f9Eco';
+import { f9eco, f9EcoTick, f9EcoDrainEvents, f9DropOffering, f9CycleFrac, F9_AVISO_AT, F9_TREE_OBSTACLES, type F9CyclePhase } from './f9Eco';
+import { Floor9Oferendas } from './Floor9Oferendas';
 import { Saltitos, Cervos, Vultos, Guardiao, DenMouths, BlobShadows } from './Floor9Fauna';
 import { Floor9Storm, f9StormShare } from './Floor9Storm';
 import { f9GroundHeight } from './f9Ground';
 import { floor9SfxSetPhase, floor9SfxFloresta } from './floor9Sfx';
+import { f9Quality, f9IsLite, F9_SWAY_BUDGET_LITE, type F9Quality } from './f9Quality';
 
 // ── texturas ─────────────────────────────────────────────────────────────────
 const barkTex = colorTex(128, 256, (ctx) => {
@@ -215,6 +217,33 @@ const mixLook = (dst: F9Look, a: F9Look, b: F9Look, w: number): void => {
 };
 const lerpLook = (dst: F9Look, target: F9Look, k: number): void => { mixLook(dst, dst, target, k); };
 
+// ── PISO DE BRILHO (P0 mobile, quality ≠ 'high') ─────────────────────────────
+// Sem o EffectComposer (que só liga no high) o grade escuro "Rain World" fica
+// ESCURO DEMAIS no celular — o alvo é a legibilidade da versão anterior:
+// floresta legível, Fiapo sempre visível. O high mantém o grade original;
+// os tiers leves clareiam amb/hemi e levantam o fog (menos negro), mantendo
+// a IDENTIDADE de cada fase (aviso bronze, onda estourada, renascer claro).
+const LITE_LIFT = new THREE.Color('#86a488');   // verde-catedral claro (o "chá" do v2)
+const LITE_FOG = new THREE.Color('#33493b');    // fog menos negro (nunca breu)
+const LITE_GHOST = new THREE.Color('#22332a');  // ghost-forest legível sem composer
+function brightenLookLite(l: F9Look): void {
+    // luzes base mais fortes (piso + escala), com teto pra onda não estourar 2×
+    l.ambI = Math.min(1.15, l.ambI * 1.5 + 0.22);
+    l.hemiI = Math.min(1.25, l.hemiI * 1.45 + 0.28);
+    l.dirI = Math.min(1.3, l.dirI + 0.18);
+    // cores de luz levantadas (o hemiGnd quase-preto matava o chão)
+    l.amb.lerp(LITE_LIFT, 0.35);
+    l.hemiSky.lerp(LITE_LIFT, 0.3);
+    l.hemiGnd.lerp(LITE_LIFT, 0.5);
+    // fog menos negro e mais curto de perto, mais longe no fundo (a floresta LÊ)
+    l.fog.lerp(LITE_FOG, 0.55);
+    l.near += 2;
+    l.far = Math.min(70, l.far * 1.25);
+    // céu e ghost-forest acompanham (sem composer não há bloom pra separar)
+    l.sky.lerp(LITE_LIFT, 0.22);
+    l.ghost.lerp(LITE_GHOST, 0.5);
+}
+
 /** o color script escreve; a GroundMist lê (sem traversal de cena por frame). */
 const f9ForestShare = { mistTint: new THREE.Color('#a8c8b4') };
 
@@ -246,23 +275,10 @@ function nearGameplay(x: number, z: number, margin: number): boolean {
     return false;
 }
 
-/**
- * Quality sem depender do SettingsProvider (o bench floor9-dev monta a cena
- * FORA dele): espelha o loadSettings de Settings.tsx — lê a mesma chave do
- * localStorage com o mesmo fallback (mobile → medium, desktop → high).
- */
-type F9Quality = 'low' | 'medium' | 'high';
-function f9Quality(): F9Quality {
-    try {
-        const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('jubileu_settings_v1') : null;
-        if (raw) {
-            const q = (JSON.parse(raw) as { quality?: string }).quality;
-            if (q === 'low' || q === 'medium' || q === 'high') return q;
-        }
-    } catch { /* ignora */ }
-    const mobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent || '');
-    return mobile ? 'medium' : 'high';
-}
+/* Quality vem de f9Quality.ts (fonte única — mesma chave do Settings, mesmo
+ * fallback mobile→medium; o bench floor9-dev monta a cena FORA do
+ * SettingsProvider). P0 mobile: os tiers leves recebem orçamentos menores e
+ * o PISO DE BRILHO (o grade escuro "Rain World" fica só no high). */
 
 // ── o CHÃO vivo: heightfield com vertex colors (relevo vem de f9Ground.ts) ───
 const Ground: React.FC = () => {
@@ -367,12 +383,38 @@ const Trees: React.FC<{ sway: boolean }> = ({ sway }) => {
         });
         trunks.instanceMatrix.needsUpdate = true;
         canopies.forEach((cm) => { cm.instanceMatrix.needsUpdate = true; if (cm.instanceColor) cm.instanceColor.needsUpdate = true; });
-        return { trunks, canopies, basePos, baseSc, baseRot, n, all: [trunkGeo, ...canopyGeos] };
+        // ── as ÁRVORES-MÃE (as mesmas que a IA desvia) INSTANCIADAS: eram
+        //    12 × (tronco + 5 raízes + copa) = 84 draws; agora 3 ──
+        const mtN = F9_TREE_OBSTACLES.length;
+        const mtTrunkGeo = new THREE.CylinderGeometry(0.55, 1, 9.2, 9); // unit: escala xz = rr
+        const mtRootGeo = new THREE.CylinderGeometry(0.238, 1, 1.7, 5);  // unit: escala xz = rr*0.42
+        const mtCanopyGeo = jittered(new THREE.IcosahedronGeometry(1, 1), 0.34, 88);
+        const mtTrunks = new THREE.InstancedMesh(mtTrunkGeo, M9.bark, mtN);
+        const mtRoots = new THREE.InstancedMesh(mtRootGeo, M9.bark, mtN * 5);
+        const mtCanopies = new THREE.InstancedMesh(mtCanopyGeo, M9.canopyDark, mtN);
+        F9_TREE_OBSTACLES.forEach(([x, z, rr], i) => {
+            eu.set(0, 0, 0); q.setFromEuler(eu);
+            m4.compose(pos.set(x, 4.6, z), q, sc.set(rr, 1, rr));
+            mtTrunks.setMatrixAt(i, m4);
+            for (let k = 0; k < 5; k++) {
+                const a = (k / 5) * Math.PI * 2 + i;
+                eu.set(0, -a, 1.05); q.setFromEuler(eu);
+                m4.compose(pos.set(x + Math.cos(a) * rr * 1.15, 0.42, z + Math.sin(a) * rr * 1.15), q, sc.setScalar(rr * 0.42));
+                mtRoots.setMatrixAt(i * 5 + k, m4);
+            }
+            eu.set(0, i * 1.7, 0); q.setFromEuler(eu);
+            m4.compose(pos.set(x, 9.4, z), q, sc.setScalar(2.6 + (i % 3) * 0.5));
+            mtCanopies.setMatrixAt(i, m4);
+        });
+        mtTrunks.instanceMatrix.needsUpdate = true;
+        mtRoots.instanceMatrix.needsUpdate = true;
+        mtCanopies.instanceMatrix.needsUpdate = true;
+        return { trunks, canopies, basePos, baseSc, baseRot, n, mtTrunks, mtRoots, mtCanopies, all: [trunkGeo, ...canopyGeos, mtTrunkGeo, mtRootGeo, mtCanopyGeo] };
     }, []);
     useEffect(() => () => built.all.forEach((g) => g.dispose()), [built]);
     const scratch = useMemo(() => ({ m4: new THREE.Matrix4(), q: new THREE.Quaternion(), e: new THREE.Euler(), s: new THREE.Vector3() }), []);
     useFrame(({ clock }) => {
-        if (!sway) return; // quality baixa: copas estáticas (720 matrizes poupadas)
+        if (!sway) return; // fora do high: copas estáticas (720 matrizes poupadas)
         const t = clock.elapsedTime;
         const { canopies, basePos, baseSc, baseRot, n } = built;
         const { m4, q, e, s } = scratch;
@@ -398,24 +440,21 @@ const Trees: React.FC<{ sway: boolean }> = ({ sway }) => {
     return (<>
         <primitive object={built.trunks} />
         {built.canopies.map((cm, i) => <primitive key={i} object={cm} />)}
-        {/* as ÁRVORES-MÃE (as mesmas que a IA desvia): troncos grossos + raízes */}
-        {F9_TREE_OBSTACLES.map(([x, z, rr], i) => (
-            <group key={i} position={[x, 0, z]}>
-                <mesh position={[0, 4.6, 0]} material={M9.bark}><cylinderGeometry args={[rr * 0.55, rr, 9.2, 9]} /></mesh>
-                {[0, 1, 2, 3, 4].map((k) => {
-                    const a = (k / 5) * Math.PI * 2 + i;
-                    return <mesh key={k} position={[Math.cos(a) * rr * 1.15, 0.42, Math.sin(a) * rr * 1.15]} rotation={[0, -a, 1.05]} material={M9.bark}><cylinderGeometry args={[0.1, rr * 0.42, 1.7, 5]} /></mesh>;
-                })}
-                <mesh position={[0, 9.4, 0]} material={M9.canopyDark}><icosahedronGeometry args={[2.6 + (i % 3) * 0.5, 1]} /></mesh>
-            </group>
-        ))}
+        {/* as ÁRVORES-MÃE (as mesmas que a IA desvia): 3 draws instanciados */}
+        <primitive object={built.mtTrunks} />
+        <primitive object={built.mtRoots} />
+        <primitive object={built.mtCanopies} />
     </>);
 };
 
 // ── SUB-BOSQUE: samambaias (com vento) + pedras + cogumelos INSTANCIADOS ─────
 // brief §2.L2: 560 frondes em 2 faixas de tamanho (a variedade de escala é o
 // que vende "mundo grande"); quality low reduz pra ~300 e desliga o vento.
-const Undergrowth: React.FC<{ low: boolean; sway: boolean }> = ({ low, sway }) => {
+// P0 mobile: swayMode 'storm' (medium) = vento SÓ em aviso/onda e com passo
+// (stride) pra nunca passar de ~150 plantas escritas por frame.
+type F9SwayMode = 'full' | 'storm' | 'off';
+const SWAY_FERNS_LITE = 150; // + 50 da moldura = teto de 200 plantas (P0)
+const Undergrowth: React.FC<{ low: boolean; swayMode: F9SwayMode }> = ({ low, swayMode }) => {
     const built = useMemo(() => {
         const r = rng(912);
         // samambaias (planos únicos) — agora com base guardada pro vento
@@ -502,32 +541,56 @@ const Undergrowth: React.FC<{ low: boolean; sway: boolean }> = ({ low, sway }) =
         });
         stems.instanceMatrix.needsUpdate = true;
         capsCyan.instanceMatrix.needsUpdate = true; capsAmber.instanceMatrix.needsUpdate = true;
-        // os 8 MAIORES viram farol (halo aditivo) — NUNCA na faixa do fio,
-        // pra não confundir com o objetivo (brief §3: luz grande = marco)
+        // os MAIORES viram farol (halo aditivo) — NUNCA na faixa do fio,
+        // pra não confundir com o objetivo (brief §3: luz grande = marco).
+        // P0: 8 sprites no high, 4 nos tiers leves (cada sprite = 1 draw).
         const halos = spots
             .filter(([x, z]) => !nearGameplay(x, z, 0))
             .sort((a, b) => b[2] - a[2])
-            .slice(0, 8)
+            .slice(0, swayMode === 'full' ? 8 : 4)
             .map(([x, z, s, cyan]) => ({ x, z, y: f9GroundHeight(x, z) + 0.34 * s + 0.12, cyan }));
-        // troncos caídos
+        // troncos caídos — INSTANCIADOS (eram 7 grupos × 2 meshes = 14 draws)
         const logs: Array<[number, number, number, number]> = [];
         for (let i = 0; i < 200 && logs.length < 7; i++) {
             const x = (r() * 2 - 1) * 28, z = -46 + r() * 46;
             if (nearGameplay(x, z, 1.6)) continue;
             logs.push([x, z, r() * Math.PI, 2.4 + r() * 2.2]);
         }
-        return { ferns, fBase, rocks, stems, capsCyan, capsAmber, halos, logs, geos: [fGeo, rGeo, stemGeo, capGeo] };
-    }, [low]);
+        const logGeo = new THREE.CylinderGeometry(0.34, 0.4, 1, 8); // altura 1: o comprimento vai na escala
+        const logCapGeo = new THREE.SphereGeometry(0.4, 7, 6);
+        const logMeshes = new THREE.InstancedMesh(logGeo, M9.bark, logs.length);
+        const logCaps = new THREE.InstancedMesh(logCapGeo, M9.moss, logs.length);
+        const qg = new THREE.Quaternion(), ql = new THREE.Quaternion(), off = new THREE.Vector3();
+        logs.forEach(([x, z, a, len], i) => {
+            const gy = f9GroundHeight(x, z) + 0.32;
+            qg.setFromEuler(eu.set(0, a, (i % 2 ? 0.04 : -0.05)));
+            ql.setFromEuler(new THREE.Euler(0, 0, Math.PI / 2));
+            m4.compose(pos.set(x, gy, z), qg.clone().multiply(ql), sc.set(1, len, 1));
+            logMeshes.setMatrixAt(i, m4);
+            off.set(len * 0.2, 0.3, 0).applyQuaternion(qg);
+            m4.compose(pos.set(x + off.x, gy + off.y, z + off.z), qg, sc.set(1, 0.4, 1));
+            logCaps.setMatrixAt(i, m4);
+        });
+        logMeshes.instanceMatrix.needsUpdate = true;
+        logCaps.instanceMatrix.needsUpdate = true;
+        return { ferns, fBase, rocks, stems, capsCyan, capsAmber, halos, logMeshes, logCaps, geos: [fGeo, rGeo, stemGeo, capGeo, logGeo, logCapGeo] };
+    }, [low, swayMode]);
     useEffect(() => () => built.geos.forEach((g) => g.dispose()), [built]);
     const scratch = useMemo(() => ({ m4: new THREE.Matrix4(), q: new THREE.Quaternion(), e: new THREE.Euler(), p: new THREE.Vector3(), s: new THREE.Vector3() }), []);
     useFrame(({ clock }) => {
-        if (!sway) return; // quality baixa: sub-bosque estático (brief §7)
+        if (swayMode === 'off') return; // quality baixa: sub-bosque estático (brief §7)
+        // P0: no tier leve o vento SÓ sopra no aviso/onda (no calmo: zero matrizes)
+        const stormOnly = swayMode === 'storm';
+        if (stormOnly && f9eco.phase !== 'aviso' && f9eco.phase !== 'onda') return;
         // VENTO no sub-bosque: cada fronde balança defasada (sin(t*3+i))
         const t = clock.elapsedTime;
         const { ferns, fBase } = built;
         const { m4, q, e, p, s } = scratch;
         const amp = 0.04 + (f9eco.phase === 'aviso' ? 0.09 : 0) + (f9eco.phase === 'onda' ? 0.16 : 0);
-        for (let i = 0; i < fBase.length; i++) {
+        // P0: no tier leve, passo (stride) pra ≤ ~150 frondes/frame — espalhado
+        // pelo mapa todo, o olho não percebe que nem toda fronde balança
+        const stride = stormOnly ? Math.max(1, Math.ceil(fBase.length / SWAY_FERNS_LITE)) : 1;
+        for (let i = 0; i < fBase.length; i += stride) {
             const [x, z, sc0, ry, tx, tz] = fBase[i];
             e.set(tx + Math.sin(t * 3 + i * 1.31) * amp * 0.5, ry, tz + Math.sin(t * 3 + i * 1.7) * amp);
             q.setFromEuler(e);
@@ -543,16 +606,13 @@ const Undergrowth: React.FC<{ low: boolean; sway: boolean }> = ({ low, sway }) =
         <primitive object={built.stems} />
         <primitive object={built.capsCyan} />
         <primitive object={built.capsAmber} />
-        {/* os faróis: halo aditivo nos 8 cogumelos-mãe (longe da faixa do fio) */}
+        {/* os faróis: halo aditivo nos cogumelos-mãe (longe da faixa do fio) */}
         {built.halos.map((h, i) => (
             <sprite key={'h' + i} position={[h.x, h.y, h.z]} material={h.cyan ? haloMatCyan : haloMatAmber} scale={[1.6, 1.6, 1]} />
         ))}
-        {built.logs.map(([x, z, a, len], i) => (
-            <group key={'l' + i} position={[x, f9GroundHeight(x, z) + 0.32, z]} rotation={[0, a, (i % 2 ? 0.04 : -0.05)]}>
-                <mesh rotation={[0, 0, Math.PI / 2]} material={M9.bark}><cylinderGeometry args={[0.34, 0.4, len, 8]} /></mesh>
-                <mesh position={[len * 0.2, 0.3, 0]} scale={[1, 0.4, 1]} material={M9.moss}><sphereGeometry args={[0.4, 7, 6]} /></mesh>
-            </group>
-        ))}
+        {/* troncos caídos: 2 draws no total (instanciados) */}
+        <primitive object={built.logMeshes} />
+        <primitive object={built.logCaps} />
     </>);
 };
 
@@ -561,7 +621,7 @@ const Undergrowth: React.FC<{ low: boolean; sway: boolean }> = ({ low, sway }) =
 //    tocos/raízes baixos. Rain World sempre tem uma silhueta escura recortando
 //    a base do quadro: dá escala (o Fiapo é menor que uma fronde) e profundidade
 //    imediata. NUNCA em cima do fio/ocos nem tapando o cone central da câmera. ──
-const ForegroundFringe: React.FC<{ low: boolean; sway: boolean }> = ({ low, sway }) => {
+const ForegroundFringe: React.FC<{ low: boolean; swayMode: F9SwayMode }> = ({ low, swayMode }) => {
     const built = useMemo(() => {
         const r = rng(918);
         const fGeo = new THREE.PlaneGeometry(1.15, 1.05);
@@ -636,7 +696,9 @@ const ForegroundFringe: React.FC<{ low: boolean; sway: boolean }> = ({ low, sway
     useEffect(() => () => built.geos.forEach((g) => g.dispose()), [built]);
     const scratch = useMemo(() => ({ m4: new THREE.Matrix4(), q: new THREE.Quaternion(), e: new THREE.Euler(), p: new THREE.Vector3(), s: new THREE.Vector3() }), []);
     useFrame(({ clock }) => {
-        if (!sway) return; // quality baixa: moldura estática (brief §7)
+        if (swayMode === 'off') return; // quality baixa: moldura estática (brief §7)
+        // P0: no tier leve a moldura SÓ balança no aviso/onda
+        if (swayMode === 'storm' && f9eco.phase !== 'aviso' && f9eco.phase !== 'onda') return;
         const t = clock.elapsedTime;
         const { ferns, fBase } = built;
         const { m4, q, e, p, s } = scratch;
@@ -713,11 +775,17 @@ const CanopyAndLight: React.FC<{ low: boolean }> = ({ low }) => {
         }
         vines.count = vi;
         vines.instanceMatrix.needsUpdate = true;
-        return { blobs, vines, geo, vineGeo, gaps: CANOPY_GAPS };
+        // POÇAS DE LUZ SALPICADA instanciadas (eram 5 draws; agora 1)
+        const poolGeo = new THREE.CircleGeometry(1, 18);
+        poolGeo.rotateX(-Math.PI / 2);
+        const poolMat = new THREE.MeshBasicMaterial({ color: '#d2e8ae', transparent: true, opacity: 0.14, depthWrite: false, blending: THREE.AdditiveBlending });
+        const poolsIM = new THREE.InstancedMesh(poolGeo, poolMat, CANOPY_GAPS.length);
+        poolsIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        return { blobs, vines, geo, vineGeo, gaps: CANOPY_GAPS, poolsIM, poolGeo, poolMat };
     }, [low]);
-    useEffect(() => () => { built.geo.dispose(); built.vineGeo.dispose(); }, [built]);
+    useEffect(() => () => { built.geo.dispose(); built.vineGeo.dispose(); built.poolGeo.dispose(); built.poolMat.dispose(); }, [built]);
     const rays = useRef<THREE.Group>(null!);
-    const pools = useRef<(THREE.Mesh | null)[]>([]);
+    const poolScratch = useMemo(() => ({ m4: new THREE.Matrix4(), q: new THREE.Quaternion(), s: new THREE.Vector3(), p: new THREE.Vector3() }), []);
     useFrame(({ clock, camera }) => {
         const t = clock.elapsedTime;
         if (rays.current) rays.current.children.forEach((c, i) => {
@@ -729,12 +797,18 @@ const CanopyAndLight: React.FC<{ low: boolean }> = ({ low }) => {
             const inside = Math.min(1, Math.max(0, (dCam - 2.4) / 2.6));
             m.opacity = (0.13 + Math.sin(t * 0.27 + i * 2.1) * 0.04) * (0.12 + 0.88 * inside); // a luz CAI e se lê (brief §5.10)
         });
-        pools.current.forEach((p, i) => {
-            if (!p) return;
-            p.position.x = built.gaps[i % built.gaps.length][0] + Math.sin(t * 0.11 + i * 2) * 1.6;
-            p.position.z = built.gaps[i % built.gaps.length][1] + Math.cos(t * 0.09 + i * 3) * 1.4;
-            (p.material as THREE.MeshBasicMaterial).opacity = 0.14 + Math.sin(t * 0.4 + i) * 0.035;
-        });
+        // poças de luz deslizando no chão (1 draw; a opacidade pulsa junto)
+        const { m4, q, s, p } = poolScratch;
+        q.identity();
+        built.poolsIM.material.opacity = 0.14 + Math.sin(t * 0.4) * 0.03;
+        for (let i = 0; i < built.gaps.length; i++) {
+            const [gx, gz] = built.gaps[i];
+            p.set(gx + Math.sin(t * 0.11 + i * 2) * 1.6, 0.045, gz + Math.cos(t * 0.09 + i * 3) * 1.4);
+            s.setScalar(2.5 + (i % 3) * 0.8);
+            m4.compose(p, q, s);
+            built.poolsIM.setMatrixAt(i, m4);
+        }
+        built.poolsIM.instanceMatrix.needsUpdate = true;
     });
     return (<>
         {/* o céu doente acima da copa (era verde-claro alegre) — o relâmpago
@@ -753,20 +827,15 @@ const CanopyAndLight: React.FC<{ low: boolean }> = ({ low }) => {
                 </mesh>
             ))}
         </group>
-        {/* POÇAS DE LUZ SALPICADA deslizando no chão */}
-        {built.gaps.map(([x, z], i) => (
-            <mesh key={'p' + i} ref={(el) => { pools.current[i] = el; }} position={[x, 0.045, z]} rotation={[-Math.PI / 2, 0, 0]}>
-                <circleGeometry args={[2.5 + (i % 3) * 0.8, 18]} />
-                <meshBasicMaterial color="#d2e8ae" transparent opacity={0.14} depthWrite={false} blending={THREE.AdditiveBlending} />
-            </mesh>
-        ))}
+        {/* POÇAS DE LUZ SALPICADA deslizando no chão (instanciadas) */}
+        <primitive object={built.poolsIM} />
     </>);
 };
 
 // ── FLORESTA-FANTASMA: anéis de silhueta ALÉM das paredes (profundidade) ─────
 // Sem fog (fog:false): no calmo são manchas mais escuras que o breu; na onda
 // (fog claro) elas RECORTAM como uma muralha de gigantes. 2 draw calls.
-const GhostForest: React.FC = () => {
+const GhostForest: React.FC<{ low: boolean }> = ({ low }) => {
     const built = useMemo(() => {
         const r = rng(917);
         const trunkGeo = new THREE.CylinderGeometry(0.7, 2.0, 24, 7);
@@ -794,50 +863,86 @@ const GhostForest: React.FC = () => {
         });
         trunks.instanceMatrix.needsUpdate = true;
         canopies.instanceMatrix.needsUpdate = true;
-        return { trunks, canopies, geos: [trunkGeo, canopyGeo] };
+        // troncos-coluna gigantes INSTANCIADOS (brief §2: colunas de catedral
+        // que SOMEM no teto — eram 6 draws soltos; agora 1)
+        const colGeo = new THREE.CylinderGeometry(1.3, 2.6, 22, 9);
+        const cols = new THREE.InstancedMesh(colGeo, M9.bark, 6);
+        ([[-31.5, -12], [31.5, -30], [-30.5, -48], [31.5, -8], [-31.5, -30], [12, -50]] as const).forEach(([x, z], i) => {
+            m4.compose(pos.set(x, 8, z), q.identity(), sc.set(1, 1, 1));
+            cols.setMatrixAt(i, m4);
+        });
+        cols.instanceMatrix.needsUpdate = true;
+        return { trunks, canopies, cols, geos: [trunkGeo, canopyGeo, colGeo] };
     }, []);
     useEffect(() => () => built.geos.forEach((g) => g.dispose()), [built]);
     return (<>
-        <primitive object={built.trunks} />
-        <primitive object={built.canopies} />
-        {/* troncos-coluna gigantes (brief §2: colunas de catedral que SOMEM
-            no teto — 3→6, h 18→22, raio base 2.1→2.6) */}
-        {([[-31.5, -12], [31.5, -30], [-30.5, -48], [31.5, -8], [-31.5, -30], [12, -50]] as const).map(([x, z], i) => (
-            <mesh key={i} position={[x, 8, z]} material={M9.bark}>
-                <cylinderGeometry args={[1.3, 2.6, 22, 9]} />
-            </mesh>
-        ))}
+        {/* os ANÉIS de gigantes somem no low (P0: "sem ghost forest extra");
+            as colunas da nave ficam em todos os tiers */}
+        {!low && <primitive object={built.trunks} />}
+        {!low && <primitive object={built.canopies} />}
+        <primitive object={built.cols} />
     </>);
 };
 
 const MossPatches: React.FC = () => {
-    const refs = useRef<(THREE.Mesh | null)[]>([]);
+    // TUDO instanciado: coração (9), pedrinhas (9×3) e discos (9) = 3 draws no
+    // total (eram 45). O amount de cada patch vira escala por instância (o
+    // emissive pulsa no material compartilhado — lê junto, a variação por
+    // patch fica na ESCALA, que é o que a fauna segue).
+    const built = useMemo(() => {
+        const n = f9eco.moss.length;
+        const heartGeo = new THREE.IcosahedronGeometry(1.4, 1);
+        const pebGeo = new THREE.IcosahedronGeometry(1, 0);
+        const discGeo = new THREE.CircleGeometry(2.0, 12);
+        discGeo.rotateX(-Math.PI / 2);
+        const discMat = new THREE.MeshBasicMaterial({ color: '#4ade82', transparent: true, opacity: 0.09, depthWrite: false, blending: THREE.AdditiveBlending });
+        const hearts = new THREE.InstancedMesh(heartGeo, M9.moss, n);
+        hearts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        const pebbles = new THREE.InstancedMesh(pebGeo, M9.moss, n * 3);
+        const discs = new THREE.InstancedMesh(discGeo, discMat, n);
+        const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), eu = new THREE.Euler();
+        f9eco.moss.forEach((m, i) => {
+            const gy = f9GroundHeight(m.x, m.z) + 0.02;
+            eu.set(0, i * 1.7, 0); q.setFromEuler(eu);
+            m4.compose(pos.set(m.x, gy, m.z), q, sc.set(1, 0.28, 1));
+            hearts.setMatrixAt(i, m4);
+            for (let k = 0; k < 3; k++) {
+                const a = (k / 3) * Math.PI * 2 + i;
+                const s = 0.4 + (k % 2) * 0.2;
+                eu.set(0, a, 0); q.setFromEuler(eu);
+                m4.compose(pos.set(m.x + Math.cos(a) * 1.1, gy + 0.04, m.z + Math.sin(a) * 1.1), q, sc.set(s, s * 0.3, s));
+                pebbles.setMatrixAt(i * 3 + k, m4);
+            }
+            eu.set(0, 0, 0); q.setFromEuler(eu);
+            m4.compose(pos.set(m.x, gy + 0.12, m.z), q, sc.set(1, 1, 1));
+            discs.setMatrixAt(i, m4);
+        });
+        hearts.instanceMatrix.needsUpdate = true;
+        pebbles.instanceMatrix.needsUpdate = true;
+        discs.instanceMatrix.needsUpdate = true;
+        return { hearts, pebbles, discs, all: [heartGeo, pebGeo, discGeo], discMat };
+    }, []);
+    useEffect(() => () => { built.all.forEach((g) => g.dispose()); built.discMat.dispose(); }, [built]);
+    const scratch = useMemo(() => ({ m4: new THREE.Matrix4(), q: new THREE.Quaternion(), sc: new THREE.Vector3(), pos: new THREE.Vector3(), eu: new THREE.Euler() }), []);
     useFrame(({ clock }) => {
         const t = clock.elapsedTime;
+        const { m4, q, sc, pos, eu } = scratch;
+        // o brilho do tapete sagrado pulsa junto (material único) — e o amount
+        // de cada patch dirige a ESCALA da instância (musgo comido encolhe)
+        M9.moss.emissiveIntensity = 0.55 + Math.sin(t * 1.4) * 0.06;
         f9eco.moss.forEach((m, i) => {
-            const mesh = refs.current[i]; if (!mesh) return;
-            const mat = mesh.material as THREE.MeshStandardMaterial;
-            mat.emissiveIntensity = 0.18 + m.amount * 0.55 + Math.sin(t * 1.4 + i * 2) * 0.06 * m.amount; // tapete sagrado, base mais alta (brief §3)
             const s = 0.6 + m.amount * 0.55;
-            mesh.scale.set(s, s * 0.28, s);
+            eu.set(0, i * 1.7, 0); q.setFromEuler(eu);
+            pos.set(m.x, f9GroundHeight(m.x, m.z) + 0.02, m.z);
+            m4.compose(pos, q, sc.set(s, s * 0.28, s));
+            built.hearts.setMatrixAt(i, m4);
         });
+        built.hearts.instanceMatrix.needsUpdate = true;
     });
     return (<>
-        {f9eco.moss.map((m, i) => (
-            <group key={i} position={[m.x, f9GroundHeight(m.x, m.z) + 0.02, m.z]}>
-                <mesh ref={(el) => { refs.current[i] = el; }} scale={[1, 0.28, 1]} material={M9.moss.clone()}>
-                    <icosahedronGeometry args={[1.4, 1]} />
-                </mesh>
-                {[0, 1, 2].map((k) => {
-                    const a = (k / 3) * Math.PI * 2 + i;
-                    return <mesh key={k} position={[Math.cos(a) * 1.1, 0.04, Math.sin(a) * 1.1]} scale={[1, 0.3, 1]} material={M9.moss.clone()}><icosahedronGeometry args={[0.4 + (k % 2) * 0.2, 0]} /></mesh>;
-                })}
-                <mesh position={[0, 0.12, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                    <circleGeometry args={[2.0, 12]} />
-                    <meshBasicMaterial color="#4ade82" transparent opacity={0.09} depthWrite={false} blending={THREE.AdditiveBlending} />
-                </mesh>
-            </group>
-        ))}
+        <primitive object={built.hearts} />
+        <primitive object={built.pebbles} />
+        <primitive object={built.discs} />
     </>);
 };
 
@@ -996,9 +1101,16 @@ const RedThread: React.FC = () => {
         const beads = new THREE.InstancedMesh(beadGeo, beadMat, 4);
         beads.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         beads.frustumCulled = false;
-        return { curve, tube, beads, beadGeo, beadMat };
+        // os nós do fio INSTANCIADOS (eram ~5 draws soltos; agora 1)
+        const knotGeo = new THREE.SphereGeometry(0.1, 6, 6);
+        const knotPts = F9_FIO.filter((_, i) => i % 2 === 1);
+        const knots = new THREE.InstancedMesh(knotGeo, M9.thread, knotPts.length);
+        const km4 = new THREE.Matrix4();
+        knotPts.forEach(([x, z], i) => { km4.makeTranslation(x, 0.5, z); knots.setMatrixAt(i, km4); });
+        knots.instanceMatrix.needsUpdate = true;
+        return { curve, tube, beads, knots, beadGeo, knotGeo, beadMat };
     }, []);
-    useEffect(() => () => { built.tube.dispose(); built.beadGeo.dispose(); built.beadMat.dispose(); }, [built]);
+    useEffect(() => () => { built.tube.dispose(); built.beadGeo.dispose(); built.knotGeo.dispose(); built.beadMat.dispose(); }, [built]);
     const scratch = useMemo(() => ({ m4: new THREE.Matrix4(), p: new THREE.Vector3(), q: new THREE.Quaternion(), s: new THREE.Vector3() }), []);
     useFrame(({ clock }) => {
         const t = clock.elapsedTime;
@@ -1017,43 +1129,170 @@ const RedThread: React.FC = () => {
     });
     return (<>
         <mesh geometry={built.tube} material={M9.thread} />
-        {F9_FIO.filter((_, i) => i % 2 === 1).map(([x, z], i) => (
-            <mesh key={i} position={[x, 0.5, z]} material={M9.thread}><sphereGeometry args={[0.1, 6, 6]} /></mesh>
-        ))}
+        <primitive object={built.knots} />
         <primitive object={built.beads} />
     </>);
 };
 
-const Ocos: React.FC = () => (
-    <>
+// ── OCOS INSTANCIADOS: eram 4 × 7 meshes = 28 draws; agora 5 (as 4 point
+//    lights ficam — são luzes EXISTENTES do santuário, não são novas) ──
+const Ocos: React.FC = () => {
+    const built = useMemo(() => {
+        const n = F9_OCOS.length;
+        const trunkGeo = new THREE.CylinderGeometry(1.5, 2.3, 7.4, 9, 1);
+        const canopyGeo = jittered(new THREE.IcosahedronGeometry(2.5, 1), 0.5, 91);
+        const rootGeo = new THREE.CylinderGeometry(0.09, 0.6, 1.5, 5);
+        const glowGeo = new THREE.CircleGeometry(0.75, 12);
+        const haloGeo = new THREE.CircleGeometry(1.35, 12);
+        const haloMat = new THREE.MeshBasicMaterial({ color: '#ffca7a', transparent: true, opacity: 0.14, depthWrite: false, blending: THREE.AdditiveBlending });
+        const trunks = new THREE.InstancedMesh(trunkGeo, M9.bark, n);
+        const canopies = new THREE.InstancedMesh(canopyGeo, M9.canopyDark, n);
+        const roots = new THREE.InstancedMesh(rootGeo, M9.bark, n * 3);
+        const glows = new THREE.InstancedMesh(glowGeo, M9.ocoGlow, n);
+        const halos = new THREE.InstancedMesh(haloGeo, haloMat, n);
+        const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), pos = new THREE.Vector3(), eu = new THREE.Euler();
+        F9_OCOS.forEach(([x, z, r], i) => {
+            eu.set(0, 0, 0); q.setFromEuler(eu);
+            m4.compose(pos.set(x, 3.6, z), q, sc.set(1, 1, 1)); trunks.setMatrixAt(i, m4);
+            m4.compose(pos.set(x, 6.4, z), q, sc.set(1, 1, 1)); canopies.setMatrixAt(i, m4);
+            for (let k = 0; k < 3; k++) {
+                const a = (k / 3) * Math.PI * 2 + i * 1.3;
+                eu.set(0, -a, 1.1); q.setFromEuler(eu);
+                m4.compose(pos.set(x + Math.cos(a) * 2.0, 0.4, z + Math.sin(a) * 2.0), q, sc.set(1, 1, 1));
+                roots.setMatrixAt(i * 3 + k, m4);
+            }
+            eu.set(0, 0, 0); q.setFromEuler(eu);
+            m4.compose(pos.set(x, 1.05, z + r * 0.62), q, sc.set(1, 1, 1)); glows.setMatrixAt(i, m4);
+            m4.compose(pos.set(x, 1.05, z + r * 0.6), q, sc.set(1, 1, 1)); halos.setMatrixAt(i, m4);
+        });
+        trunks.instanceMatrix.needsUpdate = true;
+        canopies.instanceMatrix.needsUpdate = true;
+        roots.instanceMatrix.needsUpdate = true;
+        glows.instanceMatrix.needsUpdate = true;
+        halos.instanceMatrix.needsUpdate = true;
+        return { trunks, canopies, roots, glows, halos, all: [trunkGeo, canopyGeo, rootGeo, glowGeo, haloGeo], haloMat };
+    }, []);
+    useEffect(() => () => { built.all.forEach((g) => g.dispose()); built.haloMat.dispose(); }, [built]);
+    return (<>
+        <primitive object={built.trunks} />
+        <primitive object={built.canopies} />
+        <primitive object={built.roots} />
+        <primitive object={built.glows} />
+        <primitive object={built.halos} />
         {F9_OCOS.map(([x, z, r], i) => (
-            <group key={i} position={[x, 0, z]}>
-                <mesh position={[0, 3.6, 0]} material={M9.bark}><cylinderGeometry args={[1.5, 2.3, 7.4, 9, 1]} /></mesh>
-                <mesh position={[0, 6.4, 0]} material={M9.canopyDark}><icosahedronGeometry args={[2.5, 1]} /></mesh>
-                {[0, 1, 2].map((k) => {
-                    const a = (k / 3) * Math.PI * 2 + i * 1.3;
-                    return <mesh key={k} position={[Math.cos(a) * 2.0, 0.4, Math.sin(a) * 2.0]} rotation={[0, -a, 1.1]} material={M9.bark}><cylinderGeometry args={[0.09, 0.6, 1.5, 5]} /></mesh>;
-                })}
-                <mesh position={[0, 1.05, r * 0.62]} material={M9.ocoGlow}><circleGeometry args={[0.75, 12]} /></mesh>
-                <mesh position={[0, 1.05, r * 0.6]}><circleGeometry args={[1.35, 12]} /><meshBasicMaterial color="#ffca7a" transparent opacity={0.14} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
-                <pointLight position={[0, 1.3, r * 0.4]} distance={5.5} decay={2} color="#ffca7a" intensity={3.4} />
-            </group>
+            <pointLight key={i} position={[x, 1.3, z + r * 0.4]} distance={5.5} decay={2} color="#ffca7a" intensity={3.4} />
         ))}
-    </>
-);
+    </>);
+};
 
-const Raiz: React.FC = () => (
-    <group position={[F9_RAIZ[0], 0, F9_RAIZ[1] - 2.5]}>
-        <mesh position={[0, 5, 0]} material={M9.bark}><cylinderGeometry args={[2.2, 4.6, 10, 12, 1]} /></mesh>
-        {[0, 1, 2, 3, 4, 5].map((i) => {
+// ── V4: A RAIZ DORMENTE → DESABROCHADA ───────────────────────────────────────
+// 3 corações-vagens no tronco ACENDEM por rootWake (emissive — SEM luz nova:
+// a point light EXISTENTE da Raiz só ganha intensidade por estágio, é o farol
+// do objetivo). God rays intensificam + veias de raiz brilhantes se espalham
+// no chão (instanciadas, instanceColor por estágio). Desabrochada: tudo no máx.
+const RAIZ_VEINS = 12; // 4 veias por estágio
+const Raiz: React.FC = () => {
+    const quality = useMemo(f9Quality, []);
+    // as 6 raízes INSTANCIADAS (eram 6 draws; agora 1)
+    const roots = useMemo(() => {
+        const geo = new THREE.CylinderGeometry(0.28, 0.95, 4.6, 6);
+        const im = new THREE.InstancedMesh(geo, M9.bark, 6);
+        const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), pos = new THREE.Vector3(), eu = new THREE.Euler();
+        for (let i = 0; i < 6; i++) {
             const a = (i / 6) * Math.PI * 2;
-            return <mesh key={i} position={[Math.cos(a) * 3.6, 0.7, Math.sin(a) * 3.6]} rotation={[0, -a, 0.95]} material={M9.bark}><cylinderGeometry args={[0.28, 0.95, 4.6, 6]} /></mesh>;
-        })}
-        <mesh position={[0, 11.4, 0]} material={M9.canopyDark}><icosahedronGeometry args={[5.4, 1]} /></mesh>
-        <mesh position={[0, 2.2, 3.6]} rotation={[0.4, 0, 0]} material={M9.shroomCapAmber}><boxGeometry args={[0.14, 0.9, 0.08]} /></mesh>
-        <pointLight position={[0, 2.4, 4.3]} distance={7} decay={2} color="#ffdf8a" intensity={4} />
-    </group>
-);
+            eu.set(0, -a, 0.95); q.setFromEuler(eu);
+            m4.compose(pos.set(Math.cos(a) * 3.6, 0.7, Math.sin(a) * 3.6), q, sc);
+            im.setMatrixAt(i, m4);
+        }
+        im.instanceMatrix.needsUpdate = true;
+        return im;
+    }, []);
+    // corações + raios + veias (materiais próprios pra animar por estágio)
+    const v4 = useMemo(() => {
+        const hearts = [0, 1, 2].map(() => new THREE.MeshStandardMaterial({ color: '#4a3210', emissive: '#ffca4a', emissiveIntensity: 0.12, roughness: 0.4 }));
+        const rays = [0, 1, 2].map(() => new THREE.MeshBasicMaterial({ color: '#ffe9b0', transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+        const veinGeo = new THREE.BoxGeometry(0.16, 0.05, 1);
+        const veinMat = new THREE.MeshStandardMaterial({ color: '#241a08', emissive: '#ffca4a', emissiveIntensity: 0.9, roughness: 0.7 });
+        const veins = new THREE.InstancedMesh(veinGeo, veinMat, RAIZ_VEINS);
+        const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), eu = new THREE.Euler();
+        const dark = new THREE.Color('#241a08'), lit = new THREE.Color('#ffca4a');
+        const veinGeoPos: Array<[number, number, number, number]> = []; // x, z, ang, len
+        for (let k = 0; k < RAIZ_VEINS; k++) {
+            const a = (k / RAIZ_VEINS) * Math.PI * 2 + (k % 3) * 0.22;
+            const len = 2.6 + (k % 4) * 1.1;
+            const dist = 2.8 + len / 2;
+            const x = Math.cos(a) * dist, z = Math.sin(a) * dist;
+            eu.set(0, -a + Math.PI / 2, 0); q.setFromEuler(eu);
+            m4.compose(pos.set(x, 0.045, z), q, sc.set(1, 1, len));
+            veins.setMatrixAt(k, m4);
+            veins.setColorAt(k, dark);
+            veinGeoPos.push([x, z, a, len]);
+        }
+        veins.instanceMatrix.needsUpdate = true;
+        if (veins.instanceColor) veins.instanceColor.needsUpdate = true;
+        return { hearts, rays, veins, dark, lit, veinGeo, veinMat };
+    }, []);
+    const heartRefs = useRef<Array<THREE.Mesh | null>>([null, null, null]);
+    const rayRefs = useRef<Array<THREE.Mesh | null>>([null, null, null]);
+    const lightRef = useRef<THREE.PointLight>(null!);
+    const lastWake = useRef(-1);
+    useEffect(() => () => { roots.geometry.dispose(); v4.veinGeo.dispose(); v4.veinMat.dispose(); v4.hearts.forEach((m) => m.dispose()); v4.rays.forEach((m) => m.dispose()); }, [roots, v4]);
+    useFrame(({ clock }) => {
+        const t = clock.elapsedTime;
+        const wake = f9eco.rootWake;
+        const bloom = f9eco.rootState === 'desabrochada';
+        // corações: wake > i aceso (pulsa como coração); desabrochada = todos vivos
+        for (let i = 0; i < 3; i++) {
+            const m = heartRefs.current[i]; if (!m) continue;
+            const on = bloom || wake > i;
+            const mat = m.material as THREE.MeshStandardMaterial;
+            const beat = on ? 0.5 + Math.abs(Math.sin(t * 2.4 + i * 1.9)) * 1.6 : 0.12;
+            mat.emissiveIntensity += (beat - mat.emissiveIntensity) * 0.12;
+            const s = on ? 1 + Math.sin(t * 2.4 + i * 1.9) * 0.09 : 0.85;
+            m.scale.setScalar(s);
+        }
+        // god rays sobre a copa: opacidade por estágio
+        for (let i = 0; i < 3; i++) {
+            const m = rayRefs.current[i]; if (!m) continue;
+            const mat = m.material as THREE.MeshBasicMaterial;
+            const target = bloom ? 0.3 : wake * 0.055 + Math.sin(t * 0.5 + i * 2.1) * 0.012;
+            mat.opacity += (Math.max(0, target) - mat.opacity) * 0.1;
+        }
+        // veias: acendem 4 por estágio (instanceColor — 1 draw só)
+        if (wake !== lastWake.current || bloom) {
+            lastWake.current = wake;
+            const litN = bloom ? RAIZ_VEINS : wake * 4;
+            for (let k = 0; k < RAIZ_VEINS; k++) v4.veins.setColorAt(k, k < litN ? v4.lit : v4.dark);
+            if (v4.veins.instanceColor) v4.veins.instanceColor.needsUpdate = true;
+        }
+        // a point light EXISTENTE vira o farol do objetivo (sem luz nova — P0)
+        if (lightRef.current) lightRef.current.intensity = bloom ? 8 : 2.5 + wake * 2.2 + Math.sin(t * 2.4) * (wake > 0 ? 0.4 : 0);
+    });
+    return (
+        <group position={[F9_RAIZ[0], 0, F9_RAIZ[1] - 2.5]}>
+            <mesh position={[0, 5, 0]} material={M9.bark}><cylinderGeometry args={[2.2, 4.6, 10, 12, 1]} /></mesh>
+            <primitive object={roots} />
+            <mesh position={[0, 11.4, 0]} material={M9.canopyDark}><icosahedronGeometry args={[5.4, 1]} /></mesh>
+            <mesh position={[0, 2.2, 3.6]} rotation={[0.4, 0, 0]} material={M9.shroomCapAmber}><boxGeometry args={[0.14, 0.9, 0.08]} /></mesh>
+            {/* os 3 CORAÇÕES-VAGENS no tronco (acordam por entrega) */}
+            {[[-0.9, 2.3, 3.55], [0.85, 3.5, 3.0], [-0.15, 4.7, 2.5]].map(([hx, hy, hz], i) => (
+                <mesh key={i} ref={(el) => { heartRefs.current[i] = el; }} position={[hx, hy, hz]} material={v4.hearts[i]}>
+                    <sphereGeometry args={[0.34, 10, 9]} />
+                </mesh>
+            ))}
+            {/* god rays descendo sobre a Raiz (intensificam por estágio) —
+                somem no low (P0: o finale já tem corações+veias+portal) */}
+            {quality !== 'low' && [[-2.2, 7.5, 1.2, 0.16], [1.8, 7.8, 0.4, -0.12], [0.2, 8.2, 2.4, 0.06]].map(([rx, ry, rz, tilt], i) => (
+                <mesh key={i} ref={(el) => { rayRefs.current[i] = el; }} position={[rx, ry, rz]} rotation={[tilt, i * 1.1, tilt * 0.7]} material={v4.rays[i]}>
+                    <coneGeometry args={[1.5 + i * 0.4, 9, 8, 1, true]} />
+                </mesh>
+            ))}
+            {/* veias de raiz brilhantes se espalhando no chão */}
+            <primitive object={v4.veins} />
+            <pointLight ref={lightRef} position={[0, 2.4, 4.3]} distance={7} decay={2} color="#ffdf8a" intensity={4} />
+        </group>
+    );
+};
 
 // ── PÓS-PROCESSAMENTO (só quality 'high' — padrão do Floor 3) ────────────────
 // Bloom: musgo/cogumelos/galhadas/brasas/ocos/vagalumes cantam no escuro.
@@ -1091,8 +1330,14 @@ export const Floor9Forest: React.FC<{ playerPositionRef: React.MutableRefObject<
         const noiseRef = useRef({ lx: 0, lz: 0, v: -1 }); // barulho do player (0..1; -1 = âncora o 1º frame)
         const fogScratch = useMemo(() => new THREE.Color(), []);
         const quality = useMemo(f9Quality, []);
-        // o color script: o estado CORRENTE (nasce no calmo) + a última fase
-        const look = useMemo(() => cloneLook(F9_LOOKS.calmo), []);
+        const lite = f9IsLite(quality); // P0: tier leve = brightness floor + orçamentos
+        // o color script: o estado CORRENTE (nasce no calmo, já com o piso de
+        // brilho se for tier leve) + a última fase
+        const look = useMemo(() => {
+            const l = cloneLook(F9_LOOKS.calmo);
+            if (f9IsLite(quality)) brightenLookLite(l);
+            return l;
+        }, [quality]);
         const lookTarget = useMemo(() => cloneLook(F9_LOOKS.calmo), []);
         const lastPhase = useRef<F9CyclePhase>('calmo');
 
@@ -1118,14 +1363,41 @@ export const Floor9Forest: React.FC<{ playerPositionRef: React.MutableRefObject<
             const spd = Math.hypot(p.x - noiseRef.current.lx, p.z - noiseRef.current.lz) / Math.max(dt, 1e-4);
             noiseRef.current.lx = p.x; noiseRef.current.lz = p.z;
             noiseRef.current.v += (Math.min(1, spd / 8) - noiseRef.current.v) * Math.min(1, dt * 6);
+            // V4: carregar oferenda = lento e BARULHENTO — ruído com piso 0.7
+            // (os vultos te ouvem) + hunt.carry (o motor caça a ×1.6 de alcance)
+            const carrying = f9eco.offerings.some((o) => o.state === 'carregada');
             f9EcoTick(dt, p.x, p.z, 24, {
                 huntable: f9.phase === 'explorar',
                 safeInOco: f9.abrigo >= 0,
                 stillT: still.current.t,
-                noise: noiseRef.current.v,
+                noise: carrying ? Math.max(0.7, noiseRef.current.v) : noiseRef.current.v,
+                carry: carrying,
             });
             f9Tick(dt, p.x, p.z);
-            for (const e of f9DrainEvents()) floor9SfxFloresta(e);
+            for (const e of f9DrainEvents()) {
+                floor9SfxFloresta(e);
+                // V4: morreu carregando (onda OU vulto) → a oferenda volta pro spot
+                if (e === 'apagado') f9DropOffering();
+                // SOFTLOCK FIX (P0): no replantio o player ACORDA na boca do
+                // oco mais próximo (padrão do bench floor9-dev). Sem isso ele
+                // renascia no MESMO lugar onde foi pego → pego de novo no
+                // frame seguinte → loop infinito de morte. Acordar na boca do
+                // oco = abrigo imediato (safeInOco) tanto pra onda quanto pro
+                // vulto. O noiseRef acompanha o teleporte: senão o salto vira
+                // "ruído" gigante e atrai o predador de volta ao abrigo.
+                if (e === 'replantado') {
+                    let best = F9_OCOS[0], bd = Infinity;
+                    for (const o of F9_OCOS) {
+                        const d = (p.x - o[0]) ** 2 + (p.z - o[1]) ** 2;
+                        if (d < bd) { bd = d; best = o; }
+                    }
+                    // DENTRO do raio do oco (safeInOco): a boca (z+r+0.7) fica
+                    // FORA do raio — se a onda ainda estiver ativa o player
+                    // seria pego no tick seguinte (o loop do vídeo do Felipe)
+                    p.set(best[0], 0, best[1] + best[2] * 0.35);
+                    noiseRef.current.lx = p.x; noiseRef.current.lz = p.z; noiseRef.current.v = 0;
+                }
+            }
             for (const e of f9EcoDrainEvents()) if (e === 'cacaPlayer') f9Cacado();
             // o som do mundo, dirigido pela fase (a cama cala no aviso)
             const frac = f9CycleFrac();
@@ -1143,6 +1415,10 @@ export const Floor9Forest: React.FC<{ playerPositionRef: React.MutableRefObject<
                 const w = Math.min(1, Math.max(0, (frac - F9_AVISO_AT) / (1 - F9_AVISO_AT)));
                 mixLook(lookTarget, F9_LOOKS.calmo, F9_LOOKS.aviso, w);
             }
+            // PISO DE BRILHO do tier leve (P0 mobile): o grade escuro "Rain
+            // World" fica só no high — sem composer, amb/hemi sobem e o fog
+            // clareia (floresta legível, Fiapo sempre visível)
+            if (lite) brightenLookLite(lookTarget);
             // renascer entra em ease-out ~2 s; a volta renascer→calmo leva ~6 s
             const rate = phase === 'renascer' ? 1.4 : phase === 'calmo' ? 0.55 : 2.5;
             lerpLook(look, lookTarget, Math.min(1, dt * rate));
@@ -1179,18 +1455,28 @@ export const Floor9Forest: React.FC<{ playerPositionRef: React.MutableRefObject<
                 <hemisphereLight ref={hemi} color="#8aa88f" groundColor="#1c2a20" intensity={0.5} />
                 <directionalLight ref={dir} position={[8, 14, -6]} intensity={0.75} color="#cfe0bd" />
 
-                <Trees sway={quality !== 'low'} />
-                <Undergrowth low={quality === 'low'} sway={quality !== 'low'} />
-                <ForegroundFringe low={quality === 'low'} sway={quality !== 'low'} />
+                {/* P0 mobile — orçamentos por tier:
+                    high:   sway pleno (copas + 560 frondes + moldura) + névoa +
+                            ghost-forest + 8 faróis + composer.
+                    medium: copas ESTÁTICAS, vento SÓ em aviso/onda (≤150 frondes
+                            + ≤50 da moldura = ≤200 plantas), sem névoa de chão,
+                            ghost-forest ligada, 4 faróis, fireflies 60, esporos 200.
+                    low:    sem vento nenhum, sem ghost-forest extra (os anéis —
+                            as colunas ficam), sem névoa, 4 faróis, flora reduzida. */}
+                <Trees sway={quality === 'high'} />
+                <Undergrowth low={quality === 'low'} swayMode={quality === 'high' ? 'full' : quality === 'medium' ? 'storm' : 'off'} />
+                <ForegroundFringe low={quality === 'low'} swayMode={quality === 'high' ? 'full' : quality === 'medium' ? 'storm' : 'off'} />
                 <CanopyAndLight low={quality === 'low'} />
-                <GhostForest />
+                <GhostForest low={quality === 'low'} />
                 <MossPatches />
-                <Fireflies low={quality === 'low'} />
-                <Spores low={quality === 'low'} />
-                <GroundMist />
+                <Fireflies low={quality !== 'high'} />
+                <Spores low={quality !== 'high'} />
+                {quality === 'high' && <GroundMist />}
                 <RedThread />
                 <Ocos />
                 <Raiz />
+                {/* V4: as 3 oferendas + portal (objetivo do andar) */}
+                <Floor9Oferendas playerPositionRef={playerPositionRef} />
 
                 <DenMouths />
                 <Saltitos playerRef={playerPositionRef} />

@@ -29,7 +29,8 @@
  *    MeshBasic (#e8fff2; #ffffff no Fiapo) à frente de cada olho — no escuro,
  *    dois pontinhos = um ser vivo te encarando.
  *  - FOLLOW-LIGHT: pointLight #cfe0c0 (0.9, dist 7) acima do Fiapo — o player
- *    lê em todas as fases; desliga em quality 'low'. + glow quente na barriga.
+ *    lê em todas as fases; P0 mobile: LIGADA em todas as qualities (o piso de
+ *    brilho manda o Fiapo estar sempre visível). + glow quente na barriga.
  *  - POR ESPÉCIE: listra dorsal no saltito; lanterna do cervo com halo maior
  *    (lê a 30 u); brasas do vulto maiores + sheen 0.45 p/ pegar o rim frio.
  *    Budget: +2 luzes (rim dir + follow point), nenhuma projeta shadow (§7).
@@ -41,6 +42,7 @@ import { f9 } from './f9Floresta';
 import { f9eco, f9CycleFrac, F9_AVISO_AT, type F9Agent, type F9CyclePhase, type F9Species } from './f9Eco';
 import { f9GroundHeight } from './f9Ground';
 import { f9StormShare } from './Floor9Storm';
+import { f9Quality, f9IsLite } from './f9Quality';
 
 const FM = {
     saltito: new THREE.MeshStandardMaterial({ color: '#c4b088', roughness: 0.9 }),
@@ -66,6 +68,26 @@ const FM = {
 };
 
 const POOL: Record<F9Species, number> = { saltito: 14, cervo: 5, vulto: 3, guardiao: 1 };
+
+// ── LOD da fauna (P0 mobile) ─────────────────────────────────────────────────
+// Medição do bench: os corpos detalhados (15–24 meshes por bicho) eram ~100
+// dos ~163 draws no pior ângulo. No tier leve (quality ≠ high):
+//   1. os MICRO-DETALHES nem montam (catchlights, patinhas, cascos, listras,
+//      focinhos — num celular eles têm 2 px);
+//   2. o bicho SOME além do raio de LOD (fog + escala já escondem — o draw
+//      call não vale). O guardião nunca some (marco da clareira dele).
+const F9_FAUNA_LITE = f9IsLite(f9Quality());
+const FAUNA_FAR2: Record<F9Species, number> = { saltito: 22 * 22, cervo: 34 * 34, vulto: 30 * 30, guardiao: 0 };
+
+/** esconde o corpo além do raio de LOD (só tier leve chama). true = escondido. */
+function faunaLodHide(g: THREE.Group, sp: F9Species, cam: THREE.Camera): boolean {
+    const far2 = FAUNA_FAR2[sp];
+    if (!far2) return false;
+    const dx = g.position.x - cam.position.x, dz = g.position.z - cam.position.z;
+    if (dx * dx + dz * dz <= far2) return false;
+    g.visible = false;
+    return true;
+}
 
 // ── casamento estável slot ↔ ag.id (fix do deslize) + bySpecies sem alocação ─
 interface SpeciesCache {
@@ -167,22 +189,11 @@ function avisoSecs(): number {
 }
 
 /**
- * Quality sem depender do SettingsProvider — espelha o f9Quality do
- * Floor9Forest (mesma chave de localStorage, mesmo fallback mobile→medium).
- * A follow-light do Fiapo desliga em 'low' (brief §7).
+ * Quality vem de f9Quality.ts (fonte única — mesma chave do Settings, mesmo
+ * fallback mobile→medium). P0 mobile: a follow-light do Fiapo fica LIGADA em
+ * TODOS os tiers (o piso de brilho manda o Fiapo estar sempre visível — sem
+ * composer o low/medium ficavam escuros demais sem ela).
  */
-type F9Quality = 'low' | 'medium' | 'high';
-function f9Quality(): F9Quality {
-    try {
-        const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('jubileu_settings_v1') : null;
-        if (raw) {
-            const q = (JSON.parse(raw) as { quality?: string }).quality;
-            if (q === 'low' || q === 'medium' || q === 'high') return q;
-        }
-    } catch { /* ignora */ }
-    const mobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent || '');
-    return mobile ? 'medium' : 'high';
-}
 
 // ── RIM LIGHT: a contra-luz fria que recorta TODA criatura do chão (§4.1) ───
 /**
@@ -278,7 +289,7 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
     const slots = useRef<BodySlot[]>([]);
     const metas = useRef<SlotMeta[]>([]);
     const springs = useRef<Array<{ earL: F9Spring; earR: F9Spring }>>([]);
-    useFrame(({ clock }, rawDt) => {
+    useFrame(({ clock, camera }, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const t = clock.elapsedTime;
         const list = speciesSlots('saltito');
@@ -294,6 +305,7 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
             if (!posed || !slot.g) continue;
             const { ag, gy } = posed;
             if (ag.state === 'dead') continue;
+            if (F9_FAUNA_LITE && faunaLodHide(slot.g, 'saltito', camera)) continue;
             const g = slot.g, parts = slot.parts;
             const spr = springs.current[i];
             const body = parts.sbody as THREE.Group | undefined;
@@ -345,25 +357,28 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
             {(i) => (
                 <group key={i} ref={slotRef(slots, metas, i, 0.34)} visible={false}>
                     <group name="sbody">
-                        {/* corpo-gota: esfera escalada, barriga clara, focinho */}
+                        {/* corpo-gota: esfera escalada, barriga clara, focinho.
+                            P0 (tier leve): micro-detalhes (listra/barriga/focinho/
+                            catchlights/patinhas/pompom) NÃO montam — 6 meshes ficam. */}
                         <mesh position={[0, 0.3, 0]} scale={[0.9, 1, 1.15]} material={FM.saltito}><sphereGeometry args={[0.27, 10, 9]} /></mesh>
                         {/* listra dorsal escura: a silhueta lê de cima/costas (brief §4.3) */}
-                        <mesh position={[0, 0.48, -0.06]} rotation={[1.25, 0, 0]} scale={[0.55, 1, 0.42]} material={FM.saltitoStripe}><capsuleGeometry args={[0.055, 0.3, 4, 6]} /></mesh>
-                        <mesh position={[0, 0.22, 0.1]} scale={[0.72, 0.8, 0.95]} material={FM.saltitoBelly}><sphereGeometry args={[0.24, 9, 8]} /></mesh>
+                        {!F9_FAUNA_LITE && <mesh position={[0, 0.48, -0.06]} rotation={[1.25, 0, 0]} scale={[0.55, 1, 0.42]} material={FM.saltitoStripe}><capsuleGeometry args={[0.055, 0.3, 4, 6]} /></mesh>}
+                        {!F9_FAUNA_LITE && <mesh position={[0, 0.22, 0.1]} scale={[0.72, 0.8, 0.95]} material={FM.saltitoBelly}><sphereGeometry args={[0.24, 9, 8]} /></mesh>}
                         <mesh position={[0, 0.42, 0.24]} scale={[0.8, 0.75, 0.9]} material={FM.saltito}><sphereGeometry args={[0.15, 9, 8]} /></mesh>
-                        <mesh position={[0, 0.38, 0.37]} material={FM.earIn}><sphereGeometry args={[0.035, 6, 5]} /></mesh>
+                        {!F9_FAUNA_LITE && <mesh position={[0, 0.38, 0.37]} material={FM.earIn}><sphereGeometry args={[0.035, 6, 5]} /></mesh>}
                         {/* orelhonas */}
                         <mesh name="earL" position={[-0.09, 0.58, 0.16]} rotation={[0.1, 0, 0.35]} material={FM.saltito}><capsuleGeometry args={[0.05, 0.26, 4, 6]} /></mesh>
                         <mesh name="earR" position={[0.09, 0.58, 0.16]} rotation={[0.1, 0, -0.35]} material={FM.saltito}><capsuleGeometry args={[0.05, 0.26, 4, 6]} /></mesh>
-                        {/* olhos-botão grandes + catchlight (lê no escuro, §4.2) */}
+                        {/* olhos-botão grandes: lê no escuro mesmo no tier leve (§4.2) */}
                         <mesh position={[-0.08, 0.46, 0.33]} material={FM.eye}><sphereGeometry args={[0.038, 6, 6]} /></mesh>
                         <mesh position={[0.08, 0.46, 0.33]} material={FM.eye}><sphereGeometry args={[0.038, 6, 6]} /></mesh>
-                        <mesh position={[-0.08, 0.472, 0.362]} material={FM.catchlight}><sphereGeometry args={[0.012, 5, 5]} /></mesh>
-                        <mesh position={[0.08, 0.472, 0.362]} material={FM.catchlight}><sphereGeometry args={[0.012, 5, 5]} /></mesh>
+                        {/* catchlight: dois pontinhos = um ser vivo te encarando (§4.2) */}
+                        {!F9_FAUNA_LITE && <mesh position={[-0.08, 0.472, 0.362]} material={FM.catchlight}><sphereGeometry args={[0.012, 5, 5]} /></mesh>}
+                        {!F9_FAUNA_LITE && <mesh position={[0.08, 0.472, 0.362]} material={FM.catchlight}><sphereGeometry args={[0.012, 5, 5]} /></mesh>}
                         {/* patinhas + rabinho pompom */}
-                        <mesh position={[-0.1, 0.06, 0.12]} material={FM.earIn}><sphereGeometry args={[0.055, 6, 5]} /></mesh>
-                        <mesh position={[0.1, 0.06, 0.12]} material={FM.earIn}><sphereGeometry args={[0.055, 6, 5]} /></mesh>
-                        <mesh position={[0, 0.28, -0.3]} material={FM.saltitoBelly}><sphereGeometry args={[0.08, 6, 6]} /></mesh>
+                        {!F9_FAUNA_LITE && <mesh position={[-0.1, 0.06, 0.12]} material={FM.earIn}><sphereGeometry args={[0.055, 6, 5]} /></mesh>}
+                        {!F9_FAUNA_LITE && <mesh position={[0.1, 0.06, 0.12]} material={FM.earIn}><sphereGeometry args={[0.055, 6, 5]} /></mesh>}
+                        {!F9_FAUNA_LITE && <mesh position={[0, 0.28, -0.3]} material={FM.saltitoBelly}><sphereGeometry args={[0.08, 6, 6]} /></mesh>}
                     </group>
                 </group>
             )}
@@ -375,7 +390,7 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
 export const Cervos: React.FC = () => {
     const slots = useRef<BodySlot[]>([]);
     const metas = useRef<SlotMeta[]>([]);
-    useFrame(({ clock }, rawDt) => {
+    useFrame(({ clock, camera }, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const t = clock.elapsedTime;
         const list = speciesSlots('cervo');
@@ -388,6 +403,7 @@ export const Cervos: React.FC = () => {
             if (!posed || !slot.g) continue;
             const { ag, gy } = posed;
             if (ag.state === 'dead') continue;
+            if (F9_FAUNA_LITE && faunaLodHide(slot.g, 'cervo', camera)) continue;
             const g = slot.g, parts = slot.parts;
             const body = parts.cbody as THREE.Group | undefined;
             const legs = parts.legs as THREE.Group | undefined;
@@ -432,27 +448,30 @@ export const Cervos: React.FC = () => {
             {(i) => (
                 <group key={i} ref={slotRef(slots, metas, i, 0.9)} visible={false}>
                     <group name="cbody">
-                        {/* torso arqueado: 2 esferas escaladas (peito maior, garupa) */}
+                        {/* torso arqueado: 2 esferas escaladas (peito maior, garupa).
+                            P0 (tier leve): rabo/focinho/nariz/catchlights/orelhas/galhada
+                            e os 2ºs segmentos de perna NÃO montam (24 → 11 meshes). */}
                         <mesh position={[0, 1.22, 0.28]} scale={[0.72, 0.82, 1.05]} material={FM.cervo}><sphereGeometry args={[0.42, 10, 9]} /></mesh>
                         <mesh position={[0, 1.18, -0.32]} scale={[0.62, 0.7, 0.85]} material={FM.cervoLight}><sphereGeometry args={[0.4, 10, 9]} /></mesh>
-                        <mesh name="tail" position={[0, 1.3, -0.66]} rotation={[0.5, 0, 0]} material={FM.saltitoBelly}><capsuleGeometry args={[0.05, 0.14, 3, 6]} /></mesh>
+                        {!F9_FAUNA_LITE && <mesh name="tail" position={[0, 1.3, -0.66]} rotation={[0.5, 0, 0]} material={FM.saltitoBelly}><capsuleGeometry args={[0.05, 0.14, 3, 6]} /></mesh>}
                         <group name="neck" position={[0, 1.45, 0.6]}>
                             {/* pescoço erguido em S + cabeça com focinho */}
                             <mesh position={[0, 0.28, 0.1]} rotation={[0.4, 0, 0]} material={FM.cervo}><capsuleGeometry args={[0.12, 0.5, 4, 7]} /></mesh>
                             <group position={[0, 0.6, 0.26]}>
                                 <mesh scale={[0.85, 0.9, 1.15]} material={FM.cervo}><sphereGeometry args={[0.15, 9, 8]} /></mesh>
-                                <mesh position={[0, -0.03, 0.18]} scale={[0.6, 0.6, 1]} material={FM.cervoLight}><sphereGeometry args={[0.1, 8, 7]} /></mesh>
-                                <mesh position={[0, 0.02, 0.28]} material={FM.hoof}><sphereGeometry args={[0.032, 5, 5]} /></mesh>
+                                {!F9_FAUNA_LITE && <mesh position={[0, -0.03, 0.18]} scale={[0.6, 0.6, 1]} material={FM.cervoLight}><sphereGeometry args={[0.1, 8, 7]} /></mesh>}
+                                {!F9_FAUNA_LITE && <mesh position={[0, 0.02, 0.28]} material={FM.hoof}><sphereGeometry args={[0.032, 5, 5]} /></mesh>}
                                 <mesh position={[-0.07, 0.08, 0.12]} material={FM.eye}><sphereGeometry args={[0.028, 5, 5]} /></mesh>
                                 <mesh position={[0.07, 0.08, 0.12]} material={FM.eye}><sphereGeometry args={[0.028, 5, 5]} /></mesh>
                                 {/* catchlight: dois pontinhos = um ser vivo te encarando (§4.2) */}
-                                <mesh position={[-0.07, 0.09, 0.144]} material={FM.catchlight}><sphereGeometry args={[0.01, 5, 5]} /></mesh>
-                                <mesh position={[0.07, 0.09, 0.144]} material={FM.catchlight}><sphereGeometry args={[0.01, 5, 5]} /></mesh>
+                                {!F9_FAUNA_LITE && <mesh position={[-0.07, 0.09, 0.144]} material={FM.catchlight}><sphereGeometry args={[0.01, 5, 5]} /></mesh>}
+                                {!F9_FAUNA_LITE && <mesh position={[0.07, 0.09, 0.144]} material={FM.catchlight}><sphereGeometry args={[0.01, 5, 5]} /></mesh>}
                                 {/* orelhas */}
-                                <mesh position={[-0.13, 0.14, -0.02]} rotation={[0, 0, 0.9]} material={FM.cervoLight}><capsuleGeometry args={[0.035, 0.12, 3, 5]} /></mesh>
-                                <mesh position={[0.13, 0.14, -0.02]} rotation={[0, 0, -0.9]} material={FM.cervoLight}><capsuleGeometry args={[0.035, 0.12, 3, 5]} /></mesh>
-                                {/* a COROA-LANTERNA: galhada em candelabro */}
-                                {[-1, 1].map((sx) => (
+                                {!F9_FAUNA_LITE && <mesh position={[-0.13, 0.14, -0.02]} rotation={[0, 0, 0.9]} material={FM.cervoLight}><capsuleGeometry args={[0.035, 0.12, 3, 5]} /></mesh>}
+                                {!F9_FAUNA_LITE && <mesh position={[0.13, 0.14, -0.02]} rotation={[0, 0, -0.9]} material={FM.cervoLight}><capsuleGeometry args={[0.035, 0.12, 3, 5]} /></mesh>}
+                                {/* a COROA-LANTERNA: galhada em candelabro (só no high —
+                                    no leve o HALO quente carrega a leitura a 30 u) */}
+                                {!F9_FAUNA_LITE && [-1, 1].map((sx) => (
                                     <group key={sx} position={[sx * 0.08, 0.16, -0.03]} rotation={[0, 0, sx * -0.5]}>
                                         <mesh position={[0, 0.2, 0]} material={FM.antler}><cylinderGeometry args={[0.02, 0.028, 0.4, 5]} /></mesh>
                                         <mesh position={[sx * 0.1, 0.36, 0.02]} rotation={[0, 0, sx * -0.7]} material={FM.antler}><cylinderGeometry args={[0.014, 0.02, 0.26, 4]} /></mesh>
@@ -465,13 +484,13 @@ export const Cervos: React.FC = () => {
                             </group>
                         </group>
                     </group>
-                    {/* pernas finas com "joelho" (2 segmentos visuais) */}
+                    {/* pernas finas: no leve só o segmento superior (o joelho some) */}
                     <group name="legs">
                         {[[-0.22, 0.42], [0.22, 0.42], [-0.2, -0.42], [0.2, -0.42]].map(([x, z], li) => (
                             <group key={li} position={[x, 1.05, z]}>
                                 <mesh position={[0, -0.28, 0]} material={FM.cervo}><cylinderGeometry args={[0.05, 0.038, 0.56, 6]} /></mesh>
-                                <mesh position={[0, -0.75, 0.02]} rotation={[0.08, 0, 0]} material={FM.cervoLight}><cylinderGeometry args={[0.034, 0.026, 0.42, 5]} /></mesh>
-                                <mesh position={[0, -0.98, 0.03]} material={FM.hoof}><cylinderGeometry args={[0.038, 0.045, 0.07, 6]} /></mesh>
+                                {!F9_FAUNA_LITE && <mesh position={[0, -0.75, 0.02]} rotation={[0.08, 0, 0]} material={FM.cervoLight}><cylinderGeometry args={[0.034, 0.026, 0.42, 5]} /></mesh>}
+                                {!F9_FAUNA_LITE && <mesh position={[0, -0.98, 0.03]} material={FM.hoof}><cylinderGeometry args={[0.038, 0.045, 0.07, 6]} /></mesh>}
                             </group>
                         ))}
                     </group>
@@ -485,7 +504,7 @@ export const Cervos: React.FC = () => {
 export const Vultos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vector3> }> = ({ playerRef }) => {
     const slots = useRef<BodySlot[]>([]);
     const metas = useRef<SlotMeta[]>([]);
-    useFrame(({ clock }, rawDt) => {
+    useFrame(({ clock, camera }, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const t = clock.elapsedTime;
         const list = speciesSlots('vulto');
@@ -499,6 +518,7 @@ export const Vultos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vector3
             if (!posed || !slot.g) continue;
             const { ag, gy } = posed;
             if (ag.state === 'dead') continue;
+            if (F9_FAUNA_LITE && faunaLodHide(slot.g, 'vulto', camera)) continue;
             const g = slot.g, parts = slot.parts;
             const stalking = ag.state === 'stalk';
             const chasing = ag.state === 'chase';
@@ -555,29 +575,32 @@ export const Vultos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vector3
                         <mesh position={[0, 0.42, 0.42]} scale={[0.75, 0.8, 1.1]} material={FM.vulto}><sphereGeometry args={[0.3, 9, 8]} /></mesh>
                         <mesh position={[0, 0.4, -0.05]} scale={[0.68, 0.72, 1.35]} material={FM.vultoSheen}><sphereGeometry args={[0.28, 9, 8]} /></mesh>
                         <mesh position={[0, 0.44, -0.52]} scale={[0.6, 0.68, 0.95]} material={FM.vulto}><sphereGeometry args={[0.27, 9, 8]} /></mesh>
-                        {/* cabeça achatada + mandíbula (ENCARA o player — nomeada) */}
+                        {/* cabeça achatada + mandíbula (ENCARA o player — nomeada).
+                            P0 (tier leve): mandíbula/orelhas/2º segmento de cauda e
+                            as bolinhas das patas NÃO montam (as brasas ficam — é
+                            como o predador lê no breu). */}
                         <group name="vhead" position={[0, 0.5, 0.82]}>
                             <mesh scale={[0.8, 0.62, 1.1]} material={FM.vulto}><sphereGeometry args={[0.19, 9, 8]} /></mesh>
-                            <mesh position={[0, -0.05, 0.12]} scale={[0.55, 0.35, 0.8]} material={FM.vultoSheen}><sphereGeometry args={[0.14, 8, 7]} /></mesh>
+                            {!F9_FAUNA_LITE && <mesh position={[0, -0.05, 0.12]} scale={[0.55, 0.35, 0.8]} material={FM.vultoSheen}><sphereGeometry args={[0.14, 8, 7]} /></mesh>}
                             {/* brasas + halo — o predador lê pelas brasas no breu (§4.3/§5.19) */}
                             <mesh position={[-0.08, 0.05, 0.15]} material={FM.ember}><sphereGeometry args={[0.034, 5, 5]} /></mesh>
                             <mesh position={[0.08, 0.05, 0.15]} material={FM.ember}><sphereGeometry args={[0.034, 5, 5]} /></mesh>
                             <mesh name="vglow" position={[0, 0.04, 0.16]}><sphereGeometry args={[0.16, 7, 6]} /><meshBasicMaterial color="#ff5a2a" transparent opacity={0.34} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
                             {/* orelhas pontudas pra trás */}
-                            <mesh position={[-0.1, 0.14, -0.06]} rotation={[-0.6, 0, 0.3]} material={FM.vulto}><coneGeometry args={[0.045, 0.14, 4]} /></mesh>
-                            <mesh position={[0.1, 0.14, -0.06]} rotation={[-0.6, 0, -0.3]} material={FM.vulto}><coneGeometry args={[0.045, 0.14, 4]} /></mesh>
+                            {!F9_FAUNA_LITE && <mesh position={[-0.1, 0.14, -0.06]} rotation={[-0.6, 0, 0.3]} material={FM.vulto}><coneGeometry args={[0.045, 0.14, 4]} /></mesh>}
+                            {!F9_FAUNA_LITE && <mesh position={[0.1, 0.14, -0.06]} rotation={[-0.6, 0, -0.3]} material={FM.vulto}><coneGeometry args={[0.045, 0.14, 4]} /></mesh>}
                         </group>
-                        {/* cauda-fita em 2 segmentos */}
+                        {/* cauda-fita em 2 segmentos (no leve: 1) */}
                         <group name="vtail" position={[0, 0.5, -0.78]}>
                             <mesh position={[0, 0.05, -0.22]} rotation={[0.4, 0, 0]} material={FM.vulto}><capsuleGeometry args={[0.05, 0.4, 3, 6]} /></mesh>
-                            <mesh position={[0, 0.22, -0.52]} rotation={[0.8, 0, 0]} material={FM.vultoSheen}><capsuleGeometry args={[0.032, 0.34, 3, 6]} /></mesh>
+                            {!F9_FAUNA_LITE && <mesh position={[0, 0.22, -0.52]} rotation={[0.8, 0, 0]} material={FM.vultoSheen}><capsuleGeometry args={[0.032, 0.34, 3, 6]} /></mesh>}
                         </group>
                     </group>
                     <group name="vlegs">
                         {[[-0.18, 0.45], [0.18, 0.45], [-0.17, -0.45], [0.17, -0.45]].map(([x, z], li) => (
                             <group key={li} position={[x, 0.4, z]}>
                                 <mesh position={[0, -0.2, 0]} material={FM.vulto}><cylinderGeometry args={[0.05, 0.032, 0.4, 5]} /></mesh>
-                                <mesh position={[0, -0.4, 0.03]} material={FM.vultoSheen}><sphereGeometry args={[0.045, 5, 5]} /></mesh>
+                                {!F9_FAUNA_LITE && <mesh position={[0, -0.4, 0.03]} material={FM.vultoSheen}><sphereGeometry args={[0.045, 5, 5]} /></mesh>}
                             </group>
                         ))}
                     </group>
@@ -760,7 +783,6 @@ export const Fiapo: React.FC<{
     const heading = useRef(Math.PI);
     const camPos = useRef(new THREE.Vector3());
     const earSprings = useRef({ l: new F9Spring(), r: new F9Spring() });
-    const quality = useMemo(f9Quality, []); // follow-light desliga em 'low' (brief §7)
 
     // o Fiapo também tem sombra-blob (e entra no registro de corpos); refs de
     // partes resolvidos UMA vez no mount (nada de getObjectByName por frame)
@@ -836,8 +858,10 @@ export const Fiapo: React.FC<{
     return (
         <group ref={body} visible={false}>
             {/* follow-light suave: o player + o chão imediato leem em TODAS as
-                fases (breu do calmo, estouro da onda) — desliga em low (§4.4) */}
-            {quality !== 'low' && <pointLight position={[0, 2.2, 0.6]} color="#cfe0c0" intensity={0.9} distance={7} decay={2} />}
+                fases (breu do calmo, estouro da onda). P0 mobile: LIGADA em
+                todos os tiers — o piso de brilho exige o Fiapo sempre visível
+                (sem ela o low/medium, sem composer, apagavam o player) */}
+            <pointLight position={[0, 2.2, 0.6]} color="#cfe0c0" intensity={0.9} distance={7} decay={2} />
             <group name="fspine">
                 {/* corpo macio alongado + barriga clara */}
                 <mesh position={[0, 0.32, -0.05]} rotation={[Math.PI / 2, 0, 0]} scale={[0.95, 1, 0.9]} material={FM.fiapo}><capsuleGeometry args={[0.21, 0.42, 5, 9]} /></mesh>

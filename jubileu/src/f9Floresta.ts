@@ -6,11 +6,12 @@
  * chão — a QUEDA pela copa). O objetivo é seguir o FIO VERMELHO até a RAIZ.
  * A onda de apagamento (f9Eco) obriga a se abrigar nos OCOS.
  */
-import { f9eco, F9_OCOS } from './f9Eco';
+import { f9eco, F9_OCOS, F9_RAIZ } from './f9Eco';
 
-// F9_OCOS vive em f9Eco.ts (a IA também se abriga nos ocos) — reexportado aqui
-// para manter o contrato antigo (App/constants/cena importam daqui).
-export { F9_OCOS };
+// F9_OCOS e F9_RAIZ vivem em f9Eco.ts (a IA se abriga nos ocos e entrega
+// oferendas na Raiz) — reexportados aqui para manter o contrato antigo
+// (App/constants/cena importam daqui).
+export { F9_OCOS, F9_RAIZ };
 
 export type F9Phase =
     | 'queda'        // caindo pela copa (cutscene)
@@ -58,8 +59,7 @@ export function f9DrainEvents(): F9Event[] { return events.splice(0, events.leng
 export const F9_FIO: ReadonlyArray<readonly [number, number]> = [
     [0, 1.5], [-3, -4], [-10, -9], [-16, -16], [-12, -24], [-2, -28], [8, -33], [12, -40], [6, -47],
 ];
-/** Onde fica a RAIZ (fim do fio). */
-export const F9_RAIZ: readonly [number, number] = [6, -47];
+/** Onde fica a RAIZ (fim do fio) — definida em f9Eco.ts e reexportada no topo. */
 
 /** ponto de pouso da queda */
 export const F9_POUSO: readonly [number, number] = [0, -1.5];

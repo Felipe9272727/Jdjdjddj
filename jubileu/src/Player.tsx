@@ -10,6 +10,7 @@ import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, t
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
 import { f6DoorWalls } from './f6Escape';
+import { f9eco } from './f9Eco';
 
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
@@ -663,7 +664,9 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             moving = true;
             const cd = _v.current[3].set(Math.sin(camAng.current.theta), 0, Math.cos(camAng.current.theta));
             const rd = _v.current[4].set(Math.sin(camAng.current.theta-Math.PI/2), 0, Math.cos(camAng.current.theta-Math.PI/2));
-            const mv = _v.current[5].set(0,0,0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * safeDt);
+            // Andar 9 (V4): carregando oferenda o Fiapo fica PESADO — speed ×0.55
+            const carryK = currentLevel === 9 && f9eco.offerings.some((o) => o.state === 'carregada') ? 0.55 : 1;
+            const mv = _v.current[5].set(0,0,0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * carryK * safeDt);
             const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
 
             const [rx, rz] = _resolve(nx, nz, PR, walls);

@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
     f9eco, f9EcoReset, f9EcoTick, f9EcoDrainEvents, f9EcoOn, f9EcoEmitSound,
-    F9_SPECIES, F9_OCOS,
+    F9_SPECIES, F9_OCOS, F9_RAIZ, f9DropOffering, f9TryComplete, freshOfferings,
 } from '../f9Eco';
 import { f9, f9Reset, f9Tick, F9_OCOS as F9_OCOS_FLORESTA } from '../f9Floresta';
 
@@ -506,5 +506,174 @@ describe('f9Floresta — o player dentro do ciclo', () => {
         f9.phase = 'explorar';
         f9Tick(1 / 30, 6, -47);
         expect(f9.phase).toBe('raiz');
+    });
+});
+
+describe('f9Eco — V4: as 3 OFERENDAS (o objetivo do andar)', () => {
+    const bySpot = (spot: 'vulto' | 'oco' | 'guardiao') => f9eco.offerings.find((o) => o.spot === spot)!;
+
+    it('SPOTS: 3 oferendas no chão desde o início, em spots válidos e distintos', () => {
+        expect(f9eco.offerings).toHaveLength(3);
+        expect(f9eco.offerings.map((o) => o.spot).sort()).toEqual(['guardiao', 'oco', 'vulto']);
+        expect(f9eco.offerings.every((o) => o.state === 'noChao')).toBe(true);
+        // posições distintas entre si
+        for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) {
+            const a = f9eco.offerings[i], b = f9eco.offerings[j];
+            expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThan(5);
+        }
+        // 'guardiao': na clareira do guardião (perto da toca dele)
+        const g = bySpot('guardiao');
+        const gDen = f9eco.dens.find((d) => d.sp === 'guardiao')!;
+        expect(Math.hypot(g.x - gDen.x, g.z - gDen.z)).toBeLessThan(4);
+        // 'oco': colado no oco mais longe do spawn [0,-1.5] — FORA o [6,-44],
+        // que guarda a própria Raiz (uma oferenda ali trivializaria a entrega)
+        const oc = bySpot('oco');
+        let bi = -1, bd = Infinity;
+        F9_OCOS.forEach(([ox, oz], i) => {
+            const d = Math.hypot(oc.x - ox, oc.z - oz);
+            if (d < bd) { bd = d; bi = i; }
+        });
+        expect(bd).toBeLessThan(4);
+        const longeDaRaiz = F9_OCOS.map((_, i) => i)
+            .filter((i) => Math.hypot(F9_OCOS[i][0] - F9_RAIZ[0], F9_OCOS[i][1] - F9_RAIZ[1]) > 6);
+        const maisLongeDoSpawn = longeDaRaiz.reduce((m, i) =>
+            Math.hypot(F9_OCOS[i][0], F9_OCOS[i][1] + 1.5) > Math.hypot(F9_OCOS[m][0], F9_OCOS[m][1] + 1.5) ? i : m);
+        expect(bi).toBe(maisLongeDoSpawn);
+        // 'vulto': perto de uma toca de vulto (perigo de verdade)
+        const v = bySpot('vulto');
+        expect(f9eco.dens.some((d) => d.sp === 'vulto' && Math.hypot(v.x - d.x, v.z - d.z) < 4)).toBe(true);
+    });
+
+    it('PEGAR: ≤1.2 u por 0.4 s vira carregada (oferendaPega) e segue o player; antes do tempo, não', () => {
+        const o = bySpot('guardiao');
+        sim(0.3, 1 / 30, o.x, o.z);
+        expect(o.state).toBe('noChao');              // 0.3 < 0.4: encostar de passagem não pega
+        sim(0.2, 1 / 30, o.x, o.z);
+        expect(o.state).toBe('carregada');           // 0.5 ≥ 0.4 contínuos: pegou
+        expect(f9EcoDrainEvents()).toContain('oferendaPega');
+        sim(0.2, 1 / 30, 8, -29);                    // a carregada segue o player
+        expect(o.x).toBeCloseTo(8, 5);
+        expect(o.z).toBeCloseTo(-29, 5);
+    });
+
+    it('PEGAR: sair do raio zera o timer; e só UMA por vez até entregar', () => {
+        const o0 = bySpot('guardiao');
+        const o1 = bySpot('oco');
+        sim(0.3, 1 / 30, o0.x, o0.z);
+        sim(0.3, 1 / 30, o0.x + 5, o0.z);            // sai do raio → o timer zera
+        sim(0.3, 1 / 30, o0.x, o0.z);
+        expect(o0.state).toBe('noChao');             // 0.3 + 0.3 NÃO soma
+        sim(0.2, 1 / 30, o0.x, o0.z);
+        expect(o0.state).toBe('carregada');
+        f9EcoDrainEvents();
+        // carregando: ficar 1 s em cima de outra NÃO pega (pegar outra exige entregar a atual)
+        sim(1.0, 1 / 30, o1.x, o1.z);
+        expect(o1.state).toBe('noChao');
+        expect(f9EcoDrainEvents()).not.toContain('oferendaPega');
+        expect(o0.state).toBe('carregada');
+        expect(o0.x).toBeCloseTo(o1.x, 5);           // e a carregada foi junto
+        expect(o0.z).toBeCloseTo(o1.z, 5);
+    });
+
+    it('ENTREGAR: carregada a ≤3 u da Raiz → entregue, rootWake++, oferendaEntregue', () => {
+        expect(f9TryComplete(F9_RAIZ[0], F9_RAIZ[1] + 2.5)).toBe(false); // Raiz dormente: sem portal
+        const o = bySpot('guardiao');
+        sim(0.5, 1 / 30, o.x, o.z);
+        expect(o.state).toBe('carregada');
+        f9EcoDrainEvents();
+        sim(0.5, 1 / 30, F9_RAIZ[0], F9_RAIZ[1] + 4);   // a 4 u: perto, mas não entrega
+        expect(o.state).toBe('carregada');
+        expect(f9eco.rootWake).toBe(0);
+        sim(0.2, 1 / 30, F9_RAIZ[0], F9_RAIZ[1] + 2.5); // a 2.5 u: entrega
+        expect(o.state).toBe('entregue');
+        expect(f9eco.rootWake).toBe(1);
+        expect(f9eco.rootState).toBe('dormente');       // 1ª entrega acorda 1 estágio só
+        const ev = f9EcoDrainEvents();
+        expect(ev).toContain('oferendaEntregue');
+        expect(ev).not.toContain('raizDesabrocha');
+    });
+
+    it('CARRY: carregando oferenda, o vulto caça o player a ×1.6 de alcance', () => {
+        const v = f9eco.agents.find((a) => a.sp === 'vulto')!;
+        v.hunger = 0.7; v.bond = 0;
+        // 19 u: fora do alcance normal de visão (12×1.25 = 15), dentro do ×1.6 (24), linha limpa
+        const px = 0, pz = -29;
+        // (a) SEM carry: longe demais — não detecta
+        for (let i = 0; i < 30; i++) {
+            v.x = 0; v.z = -10; v.tx = 0; v.tz = -10;
+            pinAllExcept([v.id]);
+            f9EcoTick(1 / 30, px, pz, 200, { huntable: true, safeInOco: false, stillT: 0, noise: 0, carry: false });
+        }
+        expect(v.targetId).not.toBe(-2);
+        expect(['stalk', 'chase']).not.toContain(v.state);
+        // (b) COM carry: o farejo estendido alcança — espreita vira caçada
+        let cacou = false;
+        for (let i = 0; i < 30 && !cacou; i++) {
+            v.x = 0; v.z = -10; v.tx = 0; v.tz = -10;
+            pinAllExcept([v.id]);
+            f9EcoTick(1 / 30, px, pz, 200, { huntable: true, safeInOco: false, stillT: 0, noise: 0, carry: true });
+            if (v.targetId === -2 && (v.state === 'stalk' || v.state === 'chase')) cacou = true;
+        }
+        expect(cacou).toBe(true);
+    });
+
+    it('3ª ENTREGA: a Raiz DESABROCHA (raizDesabrocha) e o portal emite f9Completo 1x', () => {
+        (['guardiao', 'oco', 'vulto'] as const).forEach((spot, k) => {
+            const o = bySpot(spot);
+            sim(0.5, 1 / 30, o.x, o.z);                     // pega a próxima
+            expect(o.state).toBe('carregada');
+            sim(0.2, 1 / 30, F9_RAIZ[0], F9_RAIZ[1] + 2.5); // entrega
+            expect(o.state).toBe('entregue');
+            expect(f9eco.rootWake).toBe(k + 1);
+        });
+        expect(f9eco.rootState).toBe('desabrochada');
+        const ev = f9EcoDrainEvents();
+        expect(ev.filter((e) => e === 'oferendaEntregue')).toHaveLength(3);
+        expect(ev.filter((e) => e === 'raizDesabrocha')).toHaveLength(1);
+        // o portal à frente da Raiz: completa o andar — e o evento sai só 1x
+        expect(f9TryComplete(F9_RAIZ[0], F9_RAIZ[1] + 2.5)).toBe(true);
+        expect(f9EcoDrainEvents()).toContain('f9Completo');
+        expect(f9TryComplete(F9_RAIZ[0], F9_RAIZ[1] + 2.5)).toBe(true);
+        expect(f9EcoDrainEvents()).not.toContain('f9Completo');
+    });
+
+    it('DROP: morrer carregando devolve a oferenda pro spot dela (noChao)', () => {
+        const o = bySpot('oco');
+        const sx = o.x, sz = o.z;
+        sim(0.5, 1 / 30, sx, sz);
+        expect(o.state).toBe('carregada');
+        sim(0.3, 1 / 30, 10, -10);                        // carrega pra longe do spot
+        expect(Math.hypot(o.x - 10, o.z + 10)).toBeLessThan(0.01);
+        f9DropOffering();                                  // a cena chama na morte do player
+        expect(o.state).toBe('noChao');
+        expect(o.x).toBeCloseTo(sx, 5);
+        expect(o.z).toBeCloseTo(sz, 5);
+    });
+
+    it('RESET: oferendas frescas no chão, rootWake 0, Raiz dormente, timer e portal zerados', () => {
+        const o = bySpot('guardiao');
+        sim(0.5, 1 / 30, o.x, o.z);
+        sim(0.2, 1 / 30, F9_RAIZ[0], F9_RAIZ[1] + 2.5);
+        expect(f9eco.rootWake).toBe(1);
+        const o1 = bySpot('oco');
+        sim(0.3, 1 / 30, o1.x, o1.z);                     // timer parcial na 2ª (0.3 < 0.4)
+        expect(o1.state).toBe('noChao');
+        f9EcoReset();
+        expect(f9eco.rootWake).toBe(0);
+        expect(f9eco.rootState).toBe('dormente');
+        expect(f9eco.offerings).toHaveLength(3);
+        expect(f9eco.offerings.every((x) => x.state === 'noChao')).toBe(true);
+        // tudo de volta aos spots originais
+        for (const x of f9eco.offerings) {
+            const home = freshOfferings().find((h) => h.id === x.id)!;
+            expect(x.x).toBe(home.x);
+            expect(x.z).toBe(home.z);
+        }
+        // o timer também zerou: mais 0.3 s em cima NÃO pega (senão 0.3+0.3 ≥ 0.4)
+        const oc = bySpot('oco');
+        sim(0.3, 1 / 30, oc.x, oc.z);
+        expect(oc.state).toBe('noChao');
+        // e o portal voltou a não completar (Raiz dormente)
+        expect(f9TryComplete(F9_RAIZ[0], F9_RAIZ[1] + 2.5)).toBe(false);
     });
 });

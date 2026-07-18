@@ -865,6 +865,22 @@ export default function App() {
     if (elevatorHumStopRef.current) elevatorHumStopRef.current();
     elevatorHumStopRef.current = createElevatorHum(audioCtx);
   }, [audioCtx]);
+  // Andar 9 FINALE (V4) — a Raiz desabrochou, o player entrou na luz e o
+  // cartão teaser manda "Voltar ao elevador". MESMO fluxo do finale do 8
+  // (handleF8Thrown), só que a viagem é de VOLTA pro saguão (0): o 9 não tem
+  // elevador navegável — a entrada foi pela copa, a saída é pela Raiz. Não
+  // existe flag de andar completo no App (convenção conferida), então é só
+  // o retorno.
+  const handleF9Complete = useCallback(() => {
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+    setNextElevatorDestination(0);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
   // Floor 6 FINALE — the guest stepped aside and the player pressed T inside
   // the repaired cab. "Máquina não esquece: ele te deve uma descida" — o
   // Aurélio manda o player pro ANDAR 7 (o navio). O beat de embarque/portas
@@ -2510,7 +2526,7 @@ export default function App() {
         <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} onLeave={handleF8Thrown} />
       )}
       {hasStarted && currentLevel === 9 && (
-        <Floor9Overlay onUiOpenChange={handleF8UiOpenChange} />
+        <Floor9Overlay onUiOpenChange={handleF8UiOpenChange} onComplete={handleF9Complete} />
       )}
       {/* Andar 8 — a volta: acorda no elevador "subindo pro 9", com o fio vermelho
           (self-gate na fase leave; fica de pé durante o doorsClosed do trânsito) */}

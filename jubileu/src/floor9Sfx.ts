@@ -22,7 +22,7 @@
  * entrar no andar, clearFloor9Sfx() ao sair; a cena chama
  * floor9SfxSetPhase(phase, frac) por frame. Sem ctx configurado tudo é no-op.
  */
-import { f9EcoOn, type F9CyclePhase, type F9EcoEvent } from './f9Eco';
+import { f9eco, f9EcoOn, type F9CyclePhase, type F9EcoEvent } from './f9Eco';
 import type { F9Event } from './f9Floresta';
 
 // ── estado do módulo ─────────────────────────────────────────────────────────
@@ -40,6 +40,9 @@ let rainHighGain: GainNode | null = null; // "patter" agudo da chuva cheia
 let ondaGain: GainNode | null = null;   // sub-drone contínuo da onda
 let quedaGain: GainNode | null = null;  // vento da queda
 let quedaFilt: BiquadFilterNode | null = null; // brilho do vento (sobe com k)
+
+// V4 — o HUM da Raiz: sobe um estágio por oferenda entregue (rootWake 0..3)
+let rootHumGain: GainNode | null = null;
 
 let schedTimer: number | null = null;
 let unsubEco: (() => void) | null = null;
@@ -153,6 +156,14 @@ function buildGraph(): void {
     for (const f of [42, 44.6]) {
         const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
         o.connect(ondaGain); o.start();
+        liveSrcs.push(o);
+    }
+
+    // ── V4: o HUM da Raiz (acorda por estágio: ganho 0 → 0.02/0.038/0.06) ──
+    rootHumGain = ctx.createGain(); rootHumGain.gain.value = 0; rootHumGain.connect(master);
+    for (const f of [55, 82.5, 110.3]) { // fundamental + quinta + terça (coração da árvore)
+        const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+        o.connect(rootHumGain); o.start();
         liveSrcs.push(o);
     }
 
@@ -275,6 +286,43 @@ function onEcoEvent(e: F9EcoEvent): void {
         case 'renasceu':
             playF9MemoryPulse();
             break;
+        // ── V4: AS 3 OFERENDAS ──
+        case 'oferendaPega': {
+            // sino dourado (fruto na mão): trino claro com cauda longa
+            const t = ctx.currentTime;
+            tone(1046, 1046, 0.9, 0.04, 'sine', t);
+            tone(1568, 1568, 0.8, 0.024, 'sine', t + 0.04);
+            tone(2093, 2093, 0.55, 0.012, 'sine', t + 0.09);
+            break;
+        }
+        case 'oferendaEntregue': {
+            // acorde maior + o CORAÇÃO da Raiz batendo (o hum sobe um estágio)
+            const t = ctx.currentTime;
+            [261.6, 329.6, 392].forEach((f, i) => tone(f, f, 1.6, 0.03, 'sine', t + i * 0.1));
+            tone(65, 55, 0.3, 0.09, 'sine', t + 0.15);  // baque do coração
+            tone(65, 52, 0.34, 0.07, 'sine', t + 0.55); // ...segunda batida
+            if (rootHumGain) {
+                const wake = f9eco.rootWake;
+                rootHumGain.gain.setTargetAtTime([0, 0.02, 0.038, 0.06][Math.min(3, wake)], t, 0.8);
+            }
+            break;
+        }
+        case 'raizDesabrocha': {
+            // crescendo orquestral procedural: cluster subindo + shimmer + pico
+            const t = ctx.currentTime;
+            [110, 138.6, 164.8, 220, 277.2, 329.6].forEach((f, i) => tone(f, f * 1.5, 3.4, 0.02, 'sawtooth', t + i * 0.22));
+            noiseBurst(0.03, 3.0, 'highpass', 3200, 0.8, t + 1.0);
+            tone(55, 110, 3.6, 0.05, 'sine', t);
+            if (rootHumGain) rootHumGain.gain.setTargetAtTime(0.06, t, 1.2);
+            break;
+        }
+        case 'f9Completo': {
+            // resolução: o acorde da entrega resolvendo na tônica, shimmer longo
+            const t = ctx.currentTime;
+            [392, 523.3, 659.3].forEach((f, i) => tone(f, f, 2.6, 0.026, 'sine', t + i * 0.16));
+            tone(1046, 1046, 2.0, 0.012, 'sine', t + 0.6);
+            break;
+        }
         default:
             break; // alarme/abate/cacaPlayer/ondaTermina: sem stinger próprio
     }
@@ -312,7 +360,7 @@ export function clearFloor9Sfx(): void {
     const c = ctx, m = master;
     const nodes = liveNodes, srcs = liveSrcs;
     liveNodes = []; liveSrcs = [];
-    bedDuck = rainGain = rainHighGain = ondaGain = quedaGain = quedaFilt = null;
+    bedDuck = rainGain = rainHighGain = ondaGain = quedaGain = quedaFilt = rootHumGain = null;
     master = null; ctx = null; noiseBuf = null;
     curPhase = 'calmo'; curFrac = 0; bedOpen = 1;
     if (c && m) {
