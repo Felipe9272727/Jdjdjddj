@@ -1917,6 +1917,7 @@ export default function App() {
             {hasStarted && (
                 <FPArmModel
                   zoomLevel={zoomLevel}
+                  currentLevel={currentLevel}
                   armExtended={inventory.flashlight.owned && inventory.flashlight.active}
                   pickupTrigger={pickupTrigger}
                   pickupItem={pickupItem}

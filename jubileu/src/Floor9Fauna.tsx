@@ -38,11 +38,24 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { f9 } from './f9Floresta';
 import { f9eco, f9CycleFrac, F9_AVISO_AT, type F9Agent, type F9CyclePhase, type F9Species } from './f9Eco';
 import { f9GroundHeight } from './f9Ground';
 import { f9StormShare } from './Floor9Storm';
 import { f9Quality, f9IsLite } from './f9Quality';
+import fiapoFurAlbedoUrl from './assets/f9/fiapo-fur-albedo-v1.webp';
+import fiapoFurHeightUrl from './assets/f9/fiapo-fur-height-v1.webp';
+import fiapoSkinAlbedoUrl from './assets/f9/fiapo-skin-albedo-v1.webp';
+import fiapoSkinHeightUrl from './assets/f9/fiapo-skin-height-v1.webp';
+import saltitoFurAlbedoUrl from './assets/f9/fauna-saltito-fur-albedo-v1.webp';
+import saltitoFurHeightUrl from './assets/f9/fauna-saltito-fur-height-v1.webp';
+import cervoFurAlbedoUrl from './assets/f9/fauna-cervo-fur-albedo-v1.webp';
+import cervoFurHeightUrl from './assets/f9/fauna-cervo-fur-height-v1.webp';
+import vultoFurAlbedoUrl from './assets/f9/fauna-vulto-fur-albedo-v1.webp';
+import vultoFurHeightUrl from './assets/f9/fauna-vulto-fur-height-v1.webp';
+import guardiaoBarkAlbedoUrl from './assets/f9/fauna-guardiao-bark-albedo-v1.webp';
+import guardiaoBarkHeightUrl from './assets/f9/fauna-guardiao-bark-height-v1.webp';
 
 const FM = {
     saltito: new THREE.MeshStandardMaterial({ color: '#c4b088', roughness: 0.9 }),
@@ -61,10 +74,71 @@ const FM = {
     eye: new THREE.MeshBasicMaterial({ color: '#1a120c' }), // preto quente; o que lê no escuro é o catchlight (brief §4.2)
     catchlight: new THREE.MeshBasicMaterial({ color: '#e8fff2' }), // o pontinho que diz "um ser vivo te encara"
     catchlightFiapo: new THREE.MeshBasicMaterial({ color: '#ffffff' }), // o player lê SEMPRE (brief §5.8)
-    fiapo: new THREE.MeshStandardMaterial({ color: '#d8c8a0', roughness: 0.92 }),
-    fiapoBelly: new THREE.MeshStandardMaterial({ color: '#eee2c6', roughness: 0.95 }),
-    fiapoDark: new THREE.MeshStandardMaterial({ color: '#9a8862', roughness: 0.95 }),
+    guardianEye: new THREE.MeshBasicMaterial({ color: '#cbff86' }),
     denMouth: new THREE.MeshBasicMaterial({ color: '#05080a' }),
+};
+
+/**
+ * Carrega os materiais gerados só quando o Viveiro existe no Canvas. Os mapas
+ * são compartilhados entre variações da mesma espécie, então ganhamos pelo,
+ * casca e bump sem acrescentar nenhum draw call aos corpos.
+ */
+const FaunaTextureBootstrap: React.FC = () => {
+    const { gl } = useThree();
+    useEffect(() => {
+        const anisotropy = Math.min(8, gl.capabilities.getMaxAnisotropy());
+        const load = (url: string, color: boolean, repeat: number): THREE.Texture => {
+            const texture = new THREE.TextureLoader().load(url);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(repeat, repeat);
+            texture.anisotropy = anisotropy;
+            if (color) texture.colorSpace = THREE.SRGBColorSpace;
+            return texture;
+        };
+        const saltito = [load(saltitoFurAlbedoUrl, true, 2.3), load(saltitoFurHeightUrl, false, 2.3)] as const;
+        const cervo = [load(cervoFurAlbedoUrl, true, 1.9), load(cervoFurHeightUrl, false, 1.9)] as const;
+        const vulto = [load(vultoFurAlbedoUrl, true, 2.2), load(vultoFurHeightUrl, false, 2.2)] as const;
+        const guardiao = [load(guardiaoBarkAlbedoUrl, true, 1.7), load(guardiaoBarkHeightUrl, false, 1.7)] as const;
+        const touched = new Set<THREE.MeshStandardMaterial>();
+        const bind = (
+            material: THREE.MeshStandardMaterial,
+            maps: readonly [THREE.Texture, THREE.Texture],
+            color: THREE.ColorRepresentation,
+            roughness: number,
+            bumpScale: number,
+        ): void => {
+            material.map = maps[0];
+            material.bumpMap = maps[1];
+            material.color.set(color);
+            material.roughness = roughness;
+            material.bumpScale = bumpScale;
+            material.needsUpdate = true;
+            touched.add(material);
+        };
+
+        bind(FM.saltito, saltito, '#fff0cf', 0.96, 0.016);
+        bind(FM.saltitoBelly, saltito, '#fff8e8', 0.98, 0.010);
+        bind(FM.saltitoStripe, saltito, '#a77c47', 0.96, 0.014);
+        bind(FM.earIn, saltito, '#d4a985', 0.97, 0.008);
+        bind(FM.cervo, cervo, '#d4b99e', 0.92, 0.014);
+        bind(FM.cervoLight, cervo, '#ead2b3', 0.94, 0.011);
+        bind(FM.vulto, vulto, '#aeb4c6', 0.88, 0.012);
+        bind(FM.vultoSheen, vulto, '#c4c7d5', 0.46, 0.009);
+        bind(FM.guardian, guardiao, '#bec3a8', 0.96, 0.042);
+        bind(FM.guardianMoss, guardiao, '#9db57d', 1, 0.035);
+
+        const textures = [...saltito, ...cervo, ...vulto, ...guardiao];
+        return () => {
+            touched.forEach((material) => {
+                if (textures.includes(material.map as THREE.Texture)) material.map = null;
+                if (textures.includes(material.bumpMap as THREE.Texture)) material.bumpMap = null;
+                material.needsUpdate = true;
+            });
+            textures.forEach((texture) => texture.dispose());
+        };
+    }, [gl]);
+    return null;
 };
 
 const POOL: Record<F9Species, number> = { saltito: 14, cervo: 5, vulto: 3, guardiao: 1 };
@@ -72,8 +146,8 @@ const POOL: Record<F9Species, number> = { saltito: 14, cervo: 5, vulto: 3, guard
 // ── LOD da fauna (P0 mobile) ─────────────────────────────────────────────────
 // Medição do bench: os corpos detalhados (15–24 meshes por bicho) eram ~100
 // dos ~163 draws no pior ângulo. No tier leve (quality ≠ high):
-//   1. os MICRO-DETALHES nem montam (catchlights, patinhas, cascos, listras,
-//      focinhos — num celular eles têm 2 px);
+//   1. os MICRO-DETALHES nem montam (patinhas, cascos, listras, focinhos — num
+//      celular eles têm 2 px). OLHOS e catchlights nunca somem;
 //   2. o bicho SOME além do raio de LOD (fog + escala já escondem — o draw
 //      call não vale). O guardião nunca some (marco da clareira dele).
 const F9_FAUNA_LITE = f9IsLite(f9Quality());
@@ -358,8 +432,8 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
                 <group key={i} ref={slotRef(slots, metas, i, 0.34)} visible={false}>
                     <group name="sbody">
                         {/* corpo-gota: esfera escalada, barriga clara, focinho.
-                            P0 (tier leve): micro-detalhes (listra/barriga/focinho/
-                            catchlights/patinhas/pompom) NÃO montam — 6 meshes ficam. */}
+                            P0 (tier leve): listra/barriga/focinho/patinhas/pompom
+                            NÃO montam. Olhos e catchlights ficam em todo tier. */}
                         <mesh position={[0, 0.3, 0]} scale={[0.9, 1, 1.15]} material={FM.saltito}><sphereGeometry args={[0.27, 10, 9]} /></mesh>
                         {/* listra dorsal escura: a silhueta lê de cima/costas (brief §4.3) */}
                         {!F9_FAUNA_LITE && <mesh position={[0, 0.48, -0.06]} rotation={[1.25, 0, 0]} scale={[0.55, 1, 0.42]} material={FM.saltitoStripe}><capsuleGeometry args={[0.055, 0.3, 4, 6]} /></mesh>}
@@ -373,8 +447,8 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
                         <mesh position={[-0.08, 0.46, 0.33]} material={FM.eye}><sphereGeometry args={[0.038, 6, 6]} /></mesh>
                         <mesh position={[0.08, 0.46, 0.33]} material={FM.eye}><sphereGeometry args={[0.038, 6, 6]} /></mesh>
                         {/* catchlight: dois pontinhos = um ser vivo te encarando (§4.2) */}
-                        {!F9_FAUNA_LITE && <mesh position={[-0.08, 0.472, 0.362]} material={FM.catchlight}><sphereGeometry args={[0.012, 5, 5]} /></mesh>}
-                        {!F9_FAUNA_LITE && <mesh position={[0.08, 0.472, 0.362]} material={FM.catchlight}><sphereGeometry args={[0.012, 5, 5]} /></mesh>}
+                        <mesh position={[-0.08, 0.472, 0.362]} material={FM.catchlight}><sphereGeometry args={[0.012, 5, 5]} /></mesh>
+                        <mesh position={[0.08, 0.472, 0.362]} material={FM.catchlight}><sphereGeometry args={[0.012, 5, 5]} /></mesh>
                         {/* patinhas + rabinho pompom */}
                         {!F9_FAUNA_LITE && <mesh position={[-0.1, 0.06, 0.12]} material={FM.earIn}><sphereGeometry args={[0.055, 6, 5]} /></mesh>}
                         {!F9_FAUNA_LITE && <mesh position={[0.1, 0.06, 0.12]} material={FM.earIn}><sphereGeometry args={[0.055, 6, 5]} /></mesh>}
@@ -449,8 +523,8 @@ export const Cervos: React.FC = () => {
                 <group key={i} ref={slotRef(slots, metas, i, 0.9)} visible={false}>
                     <group name="cbody">
                         {/* torso arqueado: 2 esferas escaladas (peito maior, garupa).
-                            P0 (tier leve): rabo/focinho/nariz/catchlights/orelhas/galhada
-                            e os 2ºs segmentos de perna NÃO montam (24 → 11 meshes). */}
+                            P0 (tier leve): rabo/focinho/nariz/orelhas/galhada e os
+                            2ºs segmentos de perna NÃO montam; os olhos ficam. */}
                         <mesh position={[0, 1.22, 0.28]} scale={[0.72, 0.82, 1.05]} material={FM.cervo}><sphereGeometry args={[0.42, 10, 9]} /></mesh>
                         <mesh position={[0, 1.18, -0.32]} scale={[0.62, 0.7, 0.85]} material={FM.cervoLight}><sphereGeometry args={[0.4, 10, 9]} /></mesh>
                         {!F9_FAUNA_LITE && <mesh name="tail" position={[0, 1.3, -0.66]} rotation={[0.5, 0, 0]} material={FM.saltitoBelly}><capsuleGeometry args={[0.05, 0.14, 3, 6]} /></mesh>}
@@ -464,8 +538,8 @@ export const Cervos: React.FC = () => {
                                 <mesh position={[-0.07, 0.08, 0.12]} material={FM.eye}><sphereGeometry args={[0.028, 5, 5]} /></mesh>
                                 <mesh position={[0.07, 0.08, 0.12]} material={FM.eye}><sphereGeometry args={[0.028, 5, 5]} /></mesh>
                                 {/* catchlight: dois pontinhos = um ser vivo te encarando (§4.2) */}
-                                {!F9_FAUNA_LITE && <mesh position={[-0.07, 0.09, 0.144]} material={FM.catchlight}><sphereGeometry args={[0.01, 5, 5]} /></mesh>}
-                                {!F9_FAUNA_LITE && <mesh position={[0.07, 0.09, 0.144]} material={FM.catchlight}><sphereGeometry args={[0.01, 5, 5]} /></mesh>}
+                                <mesh position={[-0.07, 0.09, 0.144]} material={FM.catchlight}><sphereGeometry args={[0.01, 5, 5]} /></mesh>
+                                <mesh position={[0.07, 0.09, 0.144]} material={FM.catchlight}><sphereGeometry args={[0.01, 5, 5]} /></mesh>
                                 {/* orelhas */}
                                 {!F9_FAUNA_LITE && <mesh position={[-0.13, 0.14, -0.02]} rotation={[0, 0, 0.9]} material={FM.cervoLight}><capsuleGeometry args={[0.035, 0.12, 3, 5]} /></mesh>}
                                 {!F9_FAUNA_LITE && <mesh position={[0.13, 0.14, -0.02]} rotation={[0, 0, -0.9]} material={FM.cervoLight}><capsuleGeometry args={[0.035, 0.12, 3, 5]} /></mesh>}
@@ -649,6 +723,15 @@ export const Guardiao: React.FC = () => {
             <mesh position={[0, 6.5, 0.1]} material={FM.guardian}><icosahedronGeometry args={[1.5, 0]} /></mesh>
             <mesh position={[0.5, 7.3, -0.2]} material={FM.guardianMoss}><icosahedronGeometry args={[1.0, 0]} /></mesh>
             <mesh position={[-0.7, 7.0, 0.3]} material={FM.guardianMoss}><icosahedronGeometry args={[0.8, 0]} /></mesh>
+            {/* Olhos enormes de criatura-catedral: cavidade escura + pupila viva.
+                Permanecem em todos os tiers e deixam claro que ele não é árvore. */}
+            {[-1, 1].map((side) => (
+                <group key={side} position={[side * 0.48, 6.55, 1.34]} rotation={[0, side * 0.10, 0]}>
+                    <mesh scale={[1.15, 0.82, 0.48]} material={FM.eye}><sphereGeometry args={[0.22, 8, 7]} /></mesh>
+                    <mesh position={[side * -0.018, 0.018, 0.115]} material={FM.guardianEye}><sphereGeometry args={[0.085, 7, 6]} /></mesh>
+                    <mesh position={[side * -0.038, 0.052, 0.180]} material={FM.catchlight}><sphereGeometry args={[0.025, 5, 5]} /></mesh>
+                </group>
+            ))}
             {/* BARBA de musgo/cipó pendendo da copa */}
             <group name="gbeard" position={[0, 5.6, 0.6]}>
                 {[-0.7, -0.35, 0, 0.35, 0.7].map((x, i) => (
@@ -760,43 +843,214 @@ export const BlobShadows: React.FC = () => {
     // o rim das criaturas mora aqui: o BlobShadows é o "serviço de cena" do
     // Fauna que o Floor9Forest sempre monta (assim a luz entra sem tocar nele)
     return (<>
+        <FaunaTextureBootstrap />
         <primitive object={built.mesh} />
         <FaunaRimLight />
     </>);
 };
 
-// ── O FIAPO em PRIMEIRA PESSOA: você DENTRO do corpo do bicho ───────────────
+// ── O FIAPO em PRIMEIRA PESSOA: viewmodel 3D texturizado ────────────────────
+
+function baked(
+    geometry: THREE.BufferGeometry,
+    position: readonly [number, number, number],
+    rotation: readonly [number, number, number] = [0, 0, 0],
+    scale: readonly [number, number, number] = [1, 1, 1],
+): THREE.BufferGeometry {
+    const matrix = new THREE.Matrix4().compose(
+        new THREE.Vector3(...position),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)),
+        new THREE.Vector3(...scale),
+    );
+    geometry.applyMatrix4(matrix);
+    return geometry;
+}
+
+function merged(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
+    const result = mergeGeometries(parts, false);
+    if (!result) throw new Error('Fiapo viewmodel geometry could not be merged');
+    for (const part of parts) part.dispose();
+    result.computeBoundingSphere();
+    return result;
+}
+
+interface FiapoViewGeometry {
+    muzzleFur: THREE.BufferGeometry;
+    muzzleSkin: THREE.BufferGeometry;
+    nostrils: THREE.BufferGeometry;
+    whiskers: THREE.BufferGeometry;
+    pawFur: THREE.BufferGeometry;
+    pawPads: THREE.BufferGeometry;
+    pawClaws: THREE.BufferGeometry;
+}
+
+function buildFiapoViewGeometry(): FiapoViewGeometry {
+    const muzzleFur = merged([
+        // Ponte longa e baixa: vista de cima, como o focinho de um quadrúpede
+        // realmente apareceria abaixo dos olhos — sem virar um busto na tela.
+        // A ponte vem de trás da borda inferior: o modelo se conecta ao corpo
+        // do jogador, em vez de parecer uma cabeça flutuando no centro.
+        baked(new THREE.SphereGeometry(1, 24, 16), [0, -0.450, -0.600], [-0.025, 0, 0], [0.062, 0.032, 0.360]),
+        // Um único pad achatado de bigodes evita as duas esferas que pareciam
+        // olhos quando vistas por cima.
+        baked(new THREE.SphereGeometry(1, 20, 12), [0, -0.412, -0.890], [0, 0, 0], [0.083, 0.038, 0.088]),
+    ]);
+    const muzzleSkin = merged([
+        baked(new THREE.SphereGeometry(1, 20, 12), [0, -0.379, -0.966], [0.10, 0, 0], [0.045, 0.025, 0.034]),
+    ]);
+    const mouthCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.032, -0.430, -0.932),
+        new THREE.Vector3(0, -0.438, -0.944),
+        new THREE.Vector3(0.032, -0.430, -0.932),
+    ]);
+    const nostrils = merged([
+        baked(new THREE.SphereGeometry(1, 10, 7), [-0.016, -0.370, -0.992], [0, 0, 0], [0.007, 0.004, 0.0045]),
+        baked(new THREE.SphereGeometry(1, 10, 7), [0.016, -0.370, -0.992], [0, 0, 0], [0.007, 0.004, 0.0045]),
+        new THREE.TubeGeometry(mouthCurve, 8, 0.0013, 4, false),
+    ]);
+    const whiskerParts: THREE.BufferGeometry[] = [];
+    for (const side of [-1, 1]) {
+        for (let i = 0; i < 4; i++) {
+            const y = -0.407 + i * 0.010;
+            const curve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(side * 0.058, y, -0.916),
+                new THREE.Vector3(side * (0.132 + i * 0.004), y + 0.002, -0.935),
+                new THREE.Vector3(side * (0.220 + i * 0.012), y + (i - 1.5) * 0.012, -0.918 + i * 0.004),
+            ]);
+            whiskerParts.push(new THREE.TubeGeometry(curve, 7, 0.0009, 4, false));
+        }
+    }
+    const whiskers = merged(whiskerParts);
+
+    const pawFurParts: THREE.BufferGeometry[] = [
+        // Antebraço deitado no eixo da marcha; a câmera enxerga o dorso, não
+        // uma palma humana levantada.
+        baked(new THREE.CapsuleGeometry(0.040, 0.205, 4, 10), [0, -0.010, 0.090], [Math.PI / 2, 0, 0], [1.08, 1, 1]),
+        baked(new THREE.SphereGeometry(1, 16, 11), [0, -0.012, -0.040], [0, 0, 0], [0.057, 0.040, 0.080]),
+        baked(new THREE.SphereGeometry(1, 18, 12), [0, -0.010, -0.125], [-0.06, 0, 0], [0.076, 0.043, 0.100]),
+    ];
+    const pawPadParts: THREE.BufferGeometry[] = [
+        // Pads ficam fisicamente na face inferior e só piscam quando a passada
+        // levanta e inclina a pata.
+        baked(new THREE.SphereGeometry(1, 12, 8), [0, -0.050, -0.124], [0, 0, 0], [0.043, 0.007, 0.050]),
+    ];
+    const pawClawParts: THREE.BufferGeometry[] = [];
+    const toeX = [-0.047, -0.016, 0.016, 0.047];
+    for (let i = 0; i < toeX.length; i++) {
+        pawFurParts.push(baked(
+            new THREE.SphereGeometry(1, 12, 8),
+            [toeX[i], -0.004, -0.210 - (i === 1 || i === 2 ? 0.008 : 0)],
+            [0, 0, (i - 1.5) * 0.035],
+            [0.020, 0.022, 0.049 + (i === 1 || i === 2 ? 0.006 : 0)],
+        ));
+        pawPadParts.push(baked(
+            new THREE.SphereGeometry(1, 10, 7),
+            [toeX[i], -0.027, -0.213],
+            [0, 0, 0],
+            [0.012, 0.005, 0.018],
+        ));
+        pawClawParts.push(baked(
+            new THREE.ConeGeometry(0.0065, 0.027, 6),
+            [toeX[i], -0.002, -0.270 - (i === 1 || i === 2 ? 0.006 : 0)],
+            [-Math.PI / 2, 0, 0],
+        ));
+    }
+    return {
+        muzzleFur,
+        muzzleSkin,
+        nostrils,
+        whiskers,
+        pawFur: merged(pawFurParts),
+        pawPads: merged(pawPadParts),
+        pawClaws: merged(pawClawParts),
+    };
+}
+
+function poseFiapoPaw(group: THREE.Group, side: -1 | 1, stride: number, run: number, t: number): void {
+    const swing = stride * run;
+    const lift = Math.max(0, stride) * 0.075 * run;
+    const plant = Math.max(0, -stride) * 0.025 * run;
+    const idle = Math.sin(t * 1.45 + side * 0.8) * 0.003 * (1 - run);
+    group.position.set(
+        side * 0.285 + side * swing * 0.008,
+        -0.535 + lift - plant + idle,
+        -0.640 - swing * 0.060,
+    );
+    group.rotation.set(
+        0.05 - Math.max(0, stride) * 0.24 * run,
+        side * (0.035 + swing * 0.020),
+        side * -0.090 + side * swing * 0.025,
+    );
+}
+
 /**
- * O Player nativo segue dono do input/colisão/olhar; aqui a gente (1) abaixa
- * a câmera pra altura de olho de bicho (~0.55 m — samambaia vira mata fechada,
- * cervo vira gigante) somando o galope, e (2) cola um RIG no nariz da câmera:
- * focinho, bigodes e as patinhas dianteiras remando quando você corre. O
- * "corpo" continua existindo como âncora invisível na posição do player — é
- * ele que carrega o follow-light e a sombra-blob do v3 (os bichos e a cena
- * seguem te "vendo"). `cameraThetaRef` fica no contrato pra poses futuras.
- * Montar DEPOIS do <Player> e ANTES da <Floor9Cutscene> (a queda ganha).
+ * O Player continua dono de input/colisão. Este componente só baixa o olho à
+ * altura do Fiapo e monta um viewmodel 3D de verdade no espaço da câmera. A
+ * imagem gerada vira albedo + relevo do material; nunca aparece como prancha.
+ * Focinho, bochechas, nariz, narinas, oito bigodes, antebraços, dedos, pads,
+ * garras e toda a passada são geometria/luz reais.
  */
 export const Fiapo: React.FC<{
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     cameraThetaRef: React.MutableRefObject<number>;
 }> = ({ playerPositionRef, cameraThetaRef: _cameraThetaRef }) => {
-    const { camera } = useThree();
+    const { camera, gl, size } = useThree();
     const body = useRef<THREE.Group>(null!);
     const rig = useRef<THREE.Group>(null!);
+    const view = useRef<THREE.Group>(null!);
+    const snout = useRef<THREE.Group>(null!);
+    const pawL = useRef<THREE.Group>(null!);
+    const pawR = useRef<THREE.Group>(null!);
     const prev = useRef(new THREE.Vector3());
     const speed = useRef(0);
     const drop = useRef(0);
+    const gait = useRef(0);
 
-    // o Fiapo também tem sombra-blob (e entra no registro de corpos); refs de
-    // partes resolvidos UMA vez no mount (nada de getObjectByName por frame)
-    const parts = useRef<Record<string, THREE.Object3D>>({});
+    const viewGeometry = useMemo(buildFiapoViewGeometry, []);
+    const viewResources = useMemo(() => {
+        const anisotropy = Math.min(8, gl.capabilities.getMaxAnisotropy());
+        const load = (url: string, color: boolean, repeat: number): THREE.Texture => {
+            const texture = new THREE.TextureLoader().load(url);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(repeat, repeat);
+            texture.anisotropy = anisotropy;
+            if (color) texture.colorSpace = THREE.SRGBColorSpace;
+            return texture;
+        };
+        const furMap = load(fiapoFurAlbedoUrl, true, 2.8);
+        const furHeight = load(fiapoFurHeightUrl, false, 2.8);
+        const skinMap = load(fiapoSkinAlbedoUrl, true, 2.2);
+        const skinHeight = load(fiapoSkinHeightUrl, false, 2.2);
+        // Opacity 1 coloca o rig na fila transparente, depois do mundo. O
+        // primeiro mesh limpa apenas o depth; daí o próprio Fiapo escreve e
+        // testa profundidade normalmente (pads inferiores não vazam pelo pelo).
+        const common = { transparent: true, opacity: 1, depthTest: true, depthWrite: true, metalness: 0 };
+        const fur = new THREE.MeshStandardMaterial({
+            ...common, map: furMap, bumpMap: furHeight, bumpScale: 0.0045,
+            color: '#fff8e6', roughness: 0.96,
+            emissive: '#211a11', emissiveMap: furMap, emissiveIntensity: 0.075,
+        });
+        const skin = new THREE.MeshStandardMaterial({
+            ...common, map: skinMap, bumpMap: skinHeight, bumpScale: 0.0035,
+            color: '#c9beb2', roughness: 0.82,
+            emissive: '#120e0b', emissiveMap: skinMap, emissiveIntensity: 0.06,
+        });
+        const deep = new THREE.MeshStandardMaterial({ ...common, color: '#171311', roughness: 0.58 });
+        const whisker = new THREE.MeshStandardMaterial({ ...common, color: '#ded5bd', roughness: 0.68 });
+        return { textures: [furMap, furHeight, skinMap, skinHeight], materials: { fur, skin, deep, whisker } };
+    }, [gl]);
+
+    useEffect(() => () => {
+        for (const geometry of Object.values(viewGeometry)) geometry.dispose();
+        for (const texture of viewResources.textures) texture.dispose();
+        for (const material of Object.values(viewResources.materials)) material.dispose();
+    }, [viewGeometry, viewResources]);
+
     useEffect(() => {
         const b = body.current;
         if (!b) return;
         b.userData.blobR = 0.34;
-        const p: Record<string, THREE.Object3D> = {};
-        b.traverse((o) => { if (o.name) p[o.name] = o; });
-        parts.current = p;
         bodyRegistry.add(b);
         return () => { bodyRegistry.delete(b); };
     }, []);
@@ -808,89 +1062,74 @@ export const Fiapo: React.FC<{
         const active = f9.phase !== 'queda';
         if (body.current) body.current.visible = active;
         if (rig.current) rig.current.visible = active;
-        if (!active) { drop.current = 0; prev.current.copy(p); return; }
+        if (!active) { drop.current = 0; gait.current = 0; speed.current = 0; prev.current.copy(p); return; }
 
-        // velocidade a partir do movimento real
         const dx = p.x - prev.current.x, dz = p.z - prev.current.z;
-        const sp = Math.hypot(dx, dz) / Math.max(dt, 1e-4);
+        const teleported = dx * dx + dz * dz > 2.25;
+        const sp = teleported ? 0 : Math.hypot(dx, dz) / Math.max(dt, 1e-4);
+        if (teleported) { speed.current = 0; gait.current = 0; }
         speed.current += (Math.min(sp, 9) - speed.current) * Math.min(1, dt * 8);
         prev.current.copy(p);
         const gy = f9GroundHeight(p.x, p.z);
         const run = Math.min(1, speed.current / 4);
-        const gait = t * 11;
+        if (run >= 0.08) gait.current = (gait.current + dt * (3.8 + speed.current * 1.45)) % 6;
+        const gaitPhase = gait.current / 6 * Math.PI * 2;
 
-        // a ÂNCORA invisível na posição do player: sombra-blob + follow-light
         if (body.current) body.current.position.set(p.x, gy, p.z);
 
-        // 1ª PESSOA DE BICHO: desce a câmera do olho humano (1.6) pro olho do
-        // Fiapo (~0.55 + relevo), com easing na chegada, + galope
         drop.current += (1 - drop.current) * Math.min(1, dt * 2.2);
         camera.position.y -= (1.05 - gy) * drop.current;
-        camera.position.y += Math.abs(Math.sin(gait)) * 0.055 * run;
+        camera.position.y += Math.abs(Math.sin(gaitPhase)) * 0.024 * run;
         const cam = camera as THREE.PerspectiveCamera;
-        cam.fov += (80 - cam.fov) * Math.min(1, dt * 3); cam.updateProjectionMatrix();
+        const viewFov = size.width / size.height < 0.85 ? 87 : 80;
+        cam.fov += (viewFov - cam.fov) * (1 - Math.exp(-dt * 7));
+        cam.updateProjectionMatrix();
         camera.updateMatrixWorld();
 
-        // o RIG cola no nariz da câmera
         if (rig.current) {
             rig.current.position.copy(camera.position);
             rig.current.quaternion.copy(camera.quaternion);
-            const pawL = parts.current.pawL as THREE.Group | undefined;
-            const pawR = parts.current.pawR as THREE.Group | undefined;
-            // as patas remam alternadas no galope; paradas, descansam
-            const stride = Math.sin(gait) * 0.16 * run;
-            if (pawL) { pawL.position.z = -0.52 + stride; pawL.position.y = -0.34 + Math.max(0, Math.sin(gait)) * 0.1 * run; }
-            if (pawR) { pawR.position.z = -0.52 - stride; pawR.position.y = -0.34 + Math.max(0, -Math.sin(gait)) * 0.1 * run; }
-            const snout = parts.current.snout as THREE.Group | undefined;
-            if (snout) {
-                // o focinho fareja de leve quando você para
-                snout.position.y = -0.315 + (run < 0.1 ? Math.sin(t * 5.2) * 0.006 : 0);
-                snout.rotation.x = run * 0.1;
-            }
+        }
+        if (view.current) {
+            const portrait = size.width / size.height < 0.85;
+            view.current.position.set(0, portrait ? -0.080 : 0, portrait ? -0.160 : 0);
+            view.current.scale.setScalar(portrait ? 0.86 : 1);
+        }
+        const stride = Math.sin(gaitPhase);
+        if (pawL.current) poseFiapoPaw(pawL.current, -1, stride, run, t);
+        if (pawR.current) poseFiapoPaw(pawR.current, 1, -stride, run, t);
+        if (snout.current) {
+            const sniff = Math.pow(Math.max(0, Math.sin(t * 0.62)), 12);
+            snout.current.position.set(0, -sniff * 0.009 + Math.abs(stride) * 0.004 * run, 0);
+            snout.current.rotation.set(-0.025 + sniff * 0.050 + run * 0.012, 0, stride * 0.006 * run);
         }
     });
 
-    // os refs de partes agora vivem no RIG (o corpo é âncora sem malha)
-    useEffect(() => {
-        const r = rig.current;
-        if (!r) return;
-        const p: Record<string, THREE.Object3D> = {};
-        r.traverse((o) => { if (o.name) p[o.name] = o; });
-        Object.assign(parts.current, p);
-    }, []);
-
+    const G = viewGeometry;
+    const M = viewResources.materials;
+    const clearViewDepth = (renderer: THREE.WebGLRenderer): void => { renderer.clearDepth(); };
     return (<>
-        {/* âncora: follow-light + sombra-blob na posição do player (sem malha —
-            em 1ª pessoa o corpo não pode tapar a lente) */}
         <group ref={body} visible={false}>
-            {/* follow-light suave: o player + o chão imediato leem em TODAS as
-                fases (breu do calmo, estouro da onda). P0 mobile: LIGADA em
-                todos os tiers — o piso de brilho exige o Fiapo sempre visível
-                (sem ela o low/medium, sem composer, apagavam o player) */}
             <pointLight position={[0, 2.2, 0.6]} color="#cfe0c0" intensity={0.9} distance={7} decay={2} />
         </group>
-        {/* o RIG do focinho: o que você vê de SI MESMO */}
         <group ref={rig} visible={false}>
-            <group name="snout" position={[0, -0.315, -0.45]} scale={[0.6, 0.6, 0.6]}>
-                <mesh scale={[1.5, 0.75, 1]} material={FM.fiapo}><sphereGeometry args={[0.13, 10, 8]} /></mesh>
-                <mesh position={[0, 0.045, -0.1]} material={FM.eye}><sphereGeometry args={[0.035, 6, 6]} /></mesh>
-                <mesh position={[-0.09, -0.02, -0.03]} scale={[1, 0.8, 1]} material={FM.fiapoBelly}><sphereGeometry args={[0.075, 8, 6]} /></mesh>
-                <mesh position={[0.09, -0.02, -0.03]} scale={[1, 0.8, 1]} material={FM.fiapoBelly}><sphereGeometry args={[0.075, 8, 6]} /></mesh>
-                {/* bigodes */}
-                {[-1, 1].map((s) => [0, 1, 2].map((k) => (
-                    <mesh key={`${s}-${k}`} position={[s * 0.16, -0.01 + k * 0.018, -0.06]} rotation={[0, 0, s * (-0.24 - k * 0.12)]} material={FM.fiapoDark}>
-                        <cylinderGeometry args={[0.0022, 0.0022, 0.2, 3]} />
-                    </mesh>
-                )))}
-            </group>
-            {/* as PATINHAS dianteiras remando na borda de baixo da visão */}
-            <group name="pawL" position={[-0.17, -0.34, -0.52]}>
-                <mesh rotation={[0.5, 0, 0]} material={FM.fiapo}><capsuleGeometry args={[0.05, 0.16, 4, 7]} /></mesh>
-                <mesh position={[0, -0.1, 0.04]} material={FM.fiapoDark}><sphereGeometry args={[0.055, 7, 6]} /></mesh>
-            </group>
-            <group name="pawR" position={[0.17, -0.34, -0.52]}>
-                <mesh rotation={[0.5, 0, 0]} material={FM.fiapo}><capsuleGeometry args={[0.05, 0.16, 4, 7]} /></mesh>
-                <mesh position={[0, -0.1, 0.04]} material={FM.fiapoDark}><sphereGeometry args={[0.055, 7, 6]} /></mesh>
+            <group ref={view}>
+                <group ref={snout}>
+                    <mesh geometry={G.muzzleFur} material={M.fur} renderOrder={970} frustumCulled={false} onBeforeRender={clearViewDepth} />
+                    <mesh geometry={G.muzzleSkin} material={M.skin} renderOrder={971} frustumCulled={false} />
+                    <mesh geometry={G.nostrils} material={M.deep} renderOrder={972} frustumCulled={false} />
+                    <mesh geometry={G.whiskers} material={M.whisker} renderOrder={973} frustumCulled={false} />
+                </group>
+                <group ref={pawL}>
+                    <mesh geometry={G.pawFur} material={M.fur} renderOrder={975} frustumCulled={false} />
+                    <mesh geometry={G.pawPads} material={M.skin} renderOrder={976} frustumCulled={false} />
+                    <mesh geometry={G.pawClaws} material={M.deep} renderOrder={977} frustumCulled={false} />
+                </group>
+                <group ref={pawR}>
+                    <mesh geometry={G.pawFur} material={M.fur} renderOrder={975} frustumCulled={false} />
+                    <mesh geometry={G.pawPads} material={M.skin} renderOrder={976} frustumCulled={false} />
+                    <mesh geometry={G.pawClaws} material={M.deep} renderOrder={977} frustumCulled={false} />
+                </group>
             </group>
         </group>
     </>);
