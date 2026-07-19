@@ -531,20 +531,17 @@ describe('f9Eco — V4: as 3 OFERENDAS (o objetivo do andar)', () => {
         const g = bySpot('guardiao');
         const gDen = f9eco.dens.find((d) => d.sp === 'guardiao')!;
         expect(Math.hypot(g.x - gDen.x, g.z - gDen.z)).toBeLessThan(4);
-        // 'oco': colado no oco mais longe do spawn [0,-1.5] — FORA o [6,-44],
-        // que guarda a própria Raiz (uma oferenda ali trivializaria a entrega)
+        // 'oco': colado num oco (fora o [6,-44], que guarda a própria Raiz), na
+        // VEREDA DIREITA — o objetivo agora se ESPALHA em 3 direções, sem
+        // amontoar as oferendas todas no fundo-esquerda como antes
         const oc = bySpot('oco');
-        let bi = -1, bd = Infinity;
-        F9_OCOS.forEach(([ox, oz], i) => {
-            const d = Math.hypot(oc.x - ox, oc.z - oz);
-            if (d < bd) { bd = d; bi = i; }
-        });
+        let bd = Infinity;
+        F9_OCOS.forEach(([ox, oz]) => { bd = Math.min(bd, Math.hypot(oc.x - ox, oc.z - oz)); });
         expect(bd).toBeLessThan(4);
-        const longeDaRaiz = F9_OCOS.map((_, i) => i)
-            .filter((i) => Math.hypot(F9_OCOS[i][0] - F9_RAIZ[0], F9_OCOS[i][1] - F9_RAIZ[1]) > 6);
-        const maisLongeDoSpawn = longeDaRaiz.reduce((m, i) =>
-            Math.hypot(F9_OCOS[i][0], F9_OCOS[i][1] + 1.5) > Math.hypot(F9_OCOS[m][0], F9_OCOS[m][1] + 1.5) ? i : m);
-        expect(bi).toBe(maisLongeDoSpawn);
+        // as 3 oferendas em VEREDAS distintas: pelo menos uma à direita e uma à esquerda
+        const xs = f9eco.offerings.map((o) => o.x);
+        expect(Math.max(...xs)).toBeGreaterThan(8);   // vereda DIREITA
+        expect(Math.min(...xs)).toBeLessThan(-8);     // vereda ESQUERDA
         // 'vulto': perto de uma toca de vulto (perigo de verdade)
         const v = bySpot('vulto');
         expect(f9eco.dens.some((d) => d.sp === 'vulto' && Math.hypot(v.x - d.x, v.z - d.z) < 4)).toBe(true);

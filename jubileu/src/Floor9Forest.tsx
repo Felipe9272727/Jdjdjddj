@@ -1161,52 +1161,11 @@ const ObjectiveBeacon: React.FC<{ playerPositionRef: React.MutableRefObject<THRE
     </>);
 };
 
-const RedThread: React.FC = () => {
-    const built = useMemo(() => {
-        const pts = F9_FIO.map(([x, z], i) => new THREE.Vector3(x, 0.5 + Math.sin(i * 1.7) * 0.28 + (i % 3 === 0 ? 0.9 : 0), z));
-        const curve = new THREE.CatmullRomCurve3(pts);
-        const tube = new THREE.TubeGeometry(curve, 90, 0.035, 6);
-        // o pulso: 4 contas de brasa que viajam o tubo (u = t·vel + i/4)
-        const beadGeo = new THREE.SphereGeometry(0.07, 8, 6);
-        const beadMat = new THREE.MeshBasicMaterial({
-            color: '#ff7a5a', transparent: true, opacity: 0.9,
-            depthWrite: false, blending: THREE.AdditiveBlending,
-        });
-        const beads = new THREE.InstancedMesh(beadGeo, beadMat, 4);
-        beads.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        beads.frustumCulled = false;
-        // os nós do fio INSTANCIADOS (eram ~5 draws soltos; agora 1)
-        const knotGeo = new THREE.SphereGeometry(0.1, 6, 6);
-        const knotPts = F9_FIO.filter((_, i) => i % 2 === 1);
-        const knots = new THREE.InstancedMesh(knotGeo, M9.thread, knotPts.length);
-        const km4 = new THREE.Matrix4();
-        knotPts.forEach(([x, z], i) => { km4.makeTranslation(x, 0.5, z); knots.setMatrixAt(i, km4); });
-        knots.instanceMatrix.needsUpdate = true;
-        return { curve, tube, beads, knots, beadGeo, knotGeo, beadMat };
-    }, []);
-    useEffect(() => () => { built.tube.dispose(); built.beadGeo.dispose(); built.knotGeo.dispose(); built.beadMat.dispose(); }, [built]);
-    const scratch = useMemo(() => ({ m4: new THREE.Matrix4(), p: new THREE.Vector3(), q: new THREE.Quaternion(), s: new THREE.Vector3() }), []);
-    useFrame(({ clock }) => {
-        const t = clock.elapsedTime;
-        M9.thread.emissiveIntensity = 0.7 + Math.sin(t * 1.8) * 0.15;
-        const { curve, beads } = built;
-        const { m4, p, q, s } = scratch;
-        for (let i = 0; i < 4; i++) {
-            const u = (t * 0.055 + i / 4) % 1;
-            curve.getPointAt(u, p);
-            // cabeça brilhante com cauda de escala (o pulso "viaja")
-            s.setScalar(0.8 + 0.45 * Math.sin(t * 5 - i * 1.4));
-            m4.compose(p, q, s);
-            beads.setMatrixAt(i, m4);
-        }
-        beads.instanceMatrix.needsUpdate = true;
-    });
-    return (<>
-        <mesh geometry={built.tube} material={M9.thread} />
-        <primitive object={built.knots} />
-        <primitive object={built.beads} />
-    </>);
-};
+// ── O FIO VERMELHO foi REMOVIDO (pedido do Felipe): era muleta de UI e não
+//    combina com o Viveiro — Rain World não te dá linha, te faz LER o mundo. A
+//    navegação virou diegética: a RAIZ como farol (pilar de luz sobre a copa) +
+//    as colunas douradas das oferendas + o nó-guia. F9_FIO segue só como layout
+//    INVISÍVEL (as árvores-mãe abrem uma clareira até a Raiz, sem thread). ──
 
 // ── OCOS INSTANCIADOS: eram 4 × 7 meshes = 28 draws; agora 5 (as 4 point
 //    lights ficam — são luzes EXISTENTES do santuário, não são novas) ──
@@ -1546,7 +1505,6 @@ export const Floor9Forest: React.FC<{ playerPositionRef: React.MutableRefObject<
                 <Fireflies low={quality !== 'high'} />
                 <Spores low={quality !== 'high'} />
                 {quality === 'high' && <GroundMist />}
-                <RedThread />
                 <ObjectiveBeacon playerPositionRef={playerPositionRef} />
                 <Ocos />
                 <Raiz />

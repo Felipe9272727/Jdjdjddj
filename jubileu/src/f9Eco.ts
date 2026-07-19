@@ -213,14 +213,16 @@ function freshAgents(): F9Agent[] {
     return out;
 }
 
-/** V4 — os 3 spots de oferenda (perigo crescente: guardião → oco longe → toca do vulto).
- *  O oco escolhido é o [-22,-34]: o mais longe do spawn [0,-1.5] FORA o [6,-44],
- *  que guarda a própria Raiz (uma oferenda ali trivializaria a entrega).
- *  Exportada pra cena/testes (a cena posiciona os faróis desde o 1º frame). */
+/** V4 — as 3 OFERENDAS, espalhadas em 3 VEREDAS (direções distintas do spawn,
+ *  sem amontoar num canto só): a FÁCIL no oco DIREITO [16,-24] (só herbívoros
+ *  por perto — o player aprende o loop em segurança), a MÉDIA na clareira do
+ *  GUARDIÃO [0,-30], a DIFÍCIL na toca do VULTO [-28,-44] (fundo-esquerda). O
+ *  oco [6,-44] guarda a própria Raiz — nunca uma oferenda ali (trivializaria a
+ *  entrega). Exportada pra cena/testes (a cena posiciona os faróis no 1º frame). */
 export function freshOfferings(): F9Offering[] {
     return [
         { id: 0, spot: 'guardiao', x: 2, z: -29, state: 'noChao' },
-        { id: 1, spot: 'oco', x: -21, z: -32.5, state: 'noChao' },
+        { id: 1, spot: 'oco', x: 15, z: -25, state: 'noChao' },
         { id: 2, spot: 'vulto', x: -26, z: -42, state: 'noChao' },
     ];
 }
