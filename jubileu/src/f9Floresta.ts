@@ -3,8 +3,10 @@
  *
  * O hotel PLANTA o que apaga: memórias esquecidas descem pelo fio vermelho e
  * daqui cresce floresta. O player chega ARREMESSADO (as portas abrem e não há
- * chão — a QUEDA pela copa). O objetivo é seguir o FIO VERMELHO até a RAIZ.
- * A onda de apagamento (f9Eco) obriga a se abrigar nos OCOS.
+ * chão — a QUEDA pela copa) e é replantado em BICHO. O OBJETIVO (v4) é achar as
+ * TRÊS OFERENDAS (frutos de memória viva, sob colunas de luz) e levá-las à RAIZ:
+ * a 3ª entrega DESABROCHA a árvore-mãe e abre a passagem pra cima. A onda de
+ * apagamento (f9Eco) obriga a se abrigar nos OCOS.
  */
 import { f9eco, F9_OCOS, F9_RAIZ } from './f9Eco';
 
@@ -16,9 +18,9 @@ export { F9_OCOS, F9_RAIZ };
 export type F9Phase =
     | 'queda'        // caindo pela copa (cutscene)
     | 'chegada'      // acabou de pousar; primeira leitura do lugar
-    | 'explorar'     // livre: siga o fio, sobreviva às ondas
+    | 'explorar'     // livre: ache as oferendas, leve à raiz, sobreviva às ondas
     | 'apagando'     // pego fora do oco pela onda (veil + replantio)
-    | 'raiz';        // alcançou a árvore-raiz (gancho do 10)
+    | 'raiz';        // (legado v1; a conclusão v4 é o PORTAL — não é mais entrada)
 
 export interface F9State {
     phase: F9Phase;
@@ -95,7 +97,7 @@ export function f9Cacado(): void {
     f9.phase = 'apagando'; f9.causa = 'vulto'; f9.apagos++; emit('apagado'); f9Bump();
 }
 
-/** Por frame: abrigo, onda×player, chegada na raiz. */
+/** Por frame: abrigo do player e onda×player. */
 export function f9Tick(dt: number, px: number, pz: number): void {
     const s = f9;
     s.t += dt;
@@ -115,38 +117,35 @@ export function f9Tick(dt: number, px: number, pz: number): void {
         return;
     }
 
-    // a raiz
-    if (s.phase === 'explorar') {
-        const dx = px - F9_RAIZ[0], dz = pz - F9_RAIZ[1];
-        if (dx * dx + dz * dz < 6.5) {
-            s.phase = 'raiz';
-            try { if (typeof window !== 'undefined') window.localStorage.setItem('tne_raiz_9', '1'); } catch { /* ignore */ }
-            emit('raiz'); f9Bump();
-        }
-    }
+    // V4: a conclusão do andar é o PORTAL da Raiz DESABROCHADA (as 3 oferendas,
+    // em Floor9Oferendas → f9TryComplete → evento 'f9Completo'). A antiga chegada
+    // "por proximidade da Raiz" foi REMOVIDA daqui: ela disparava cedo demais (a
+    // entrega da oferenda é a ≤3 u e a árvore fica a ~2.5 u), trancando o player
+    // numa fase 'raiz' de beco-sem-saída com o final v1 antes das oferendas. O
+    // 'tne_raiz_9' agora é gravado na conclusão REAL (Floor9Overlay, no
+    // 'f9Completo'), não ao encostar na árvore.
 }
 
-/** A linha-objetivo do HUD. */
+/** A linha-objetivo do HUD (fallback; o overlay refina pras oferendas). */
 export function f9Objective(): string | null {
     if (f9.phase === 'explorar') {
         if (f9eco.phase === 'aviso') return 'O ar está clareando demais. ACHE UM OCO.';
         if (f9eco.phase === 'onda') return 'A ONDA. Fique no oco.';
-        return 'Siga o fio vermelho até a raiz.';
+        return 'Ache os frutos de luz e leve-os à Raiz.';
     }
-    if (f9.phase === 'raiz') return null;
     return null;
 }
 
-/** Legendas da chegada (o overlay avança por toque). */
+/** Legendas da chegada — ENSINAM o objetivo (as 3 oferendas) e as regras. */
 export const F9_CHEGADA_LINES: ReadonlyArray<string> = [
-    'Você atravessa a copa inteira antes do chão te aceitar.',
-    'Você olha pras próprias mãos. Não são mãos. O Viveiro só aceita FAUNA — ele te replantou em algo pequeno, macio, com cauda.',
-    'Isto não deveria caber num hotel. E há OLHOS entre as árvores — nenhum se importa com você. Agora você é só mais um bicho aqui.',
-    'O fio vermelho continua aqui embaixo, amarrado de galho em galho, fundo adentro. Siga-o. E longe do chão baixo: algo caça rente a ele.',
+    'Você atravessa a copa inteira antes do chão te aceitar. Olha pras patas — quatro, com garras. O Viveiro só aceita BICHO, e te replantou em um.',
+    'Aqui o hotel enterra o que esquece, e do enterro cresce floresta. Cada árvore já foi uma memória. O Arquivista te arremessou pra virar terra também.',
+    'Mas três MEMÓRIAS ainda estão inteiras: frutos de luz pulsando entre os troncos, cada um sob uma coluna dourada que fura a copa. Leve os três até a RAIZ — a árvore-mãe, lá no fundo do viveiro.',
+    'Quando a Raiz recebe os três, ela DESABROCHA, e onde uma árvore-mãe desabrocha abre passagem pra cima: a saída. Cuidado — quando o ar clareia demais vem a ONDA de apagamento. Fora de um OCO ela te apaga e te replanta. E rente ao chão, algo caça.',
 ];
 
-/** As falas da RAIZ (v1: o gancho). */
+/** As falas da RAIZ (agora no TEASER de fim de andar — o gancho do 10º). */
 export const F9_RAIZ_LINES: ReadonlyArray<string> = [
-    'A árvore-raiz. Cada anel do tronco é um corredor; cada nó, uma porta.',
-    'No meio dela, cravada como uma unha: a chave do DÉCIMO. O fio vermelho termina… não. Ele SOBE.',
+    'A Raiz desabrocha. Cada anel do tronco é um corredor; cada nó, uma porta. A floresta inteira lembra de você agora.',
+    'No coração dela, o fio vermelho não termina — ele SOBE. A passagem pro DÉCIMO abriu.',
 ];

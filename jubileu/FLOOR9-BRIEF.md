@@ -12,8 +12,12 @@ nasce de novo numa toca, sem lembrar da própria fuga.
 O jogador chega ARREMESSADO pelo Arquivista: o painel marcava "9", as
 portas abrem e não há chão — só copa. O FIO VERMELHO atravessa a floresta
 inteira: é a trilha do Arquivista, que rouba fichas enterradas antes que
-virem árvore. Objetivo: **seguir o fio até a RAIZ** — a árvore-mãe onde
-todas as memórias do hotel se encontram (o gancho pro Andar 10).
+virem árvore. Objetivo (v4 — AS 3 OFERENDAS): achar os **três frutos de memória viva**
+(pulsam sob colunas de luz douradas que furam a copa) e levá-los à **RAIZ**, a
+árvore-mãe no fim do fio. A 3ª entrega DESABROCHA a Raiz e abre a **passagem pra
+cima** (o gancho pro Andar 10). O fio vermelho guia até a Raiz; os OCOS abrigam
+da onda. (A chegada por proximidade da Raiz do v1 foi removida — ela trancava o
+player num beco antes das oferendas.)
 
 ## O que é (à la Rain World, em 3D)
 Um ecossistema que existia antes do player e continua sem ele:

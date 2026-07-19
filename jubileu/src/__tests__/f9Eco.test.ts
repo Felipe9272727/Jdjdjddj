@@ -502,10 +502,16 @@ describe('f9Floresta — o player dentro do ciclo', () => {
         expect(f9.phase).toBe('explorar');
     });
 
-    it('chegar na RAIZ fecha o andar (fase raiz)', () => {
+    it('chegar na RAIZ de mãos vazias NÃO fecha o andar (v4: quem fecha é o portal das 3 oferendas)', () => {
         f9.phase = 'explorar';
-        f9Tick(1 / 30, 6, -47);
-        expect(f9.phase).toBe('raiz');
+        f9eco.rootState = 'dormente';
+        f9Tick(1 / 30, F9_RAIZ[0], F9_RAIZ[1]);       // encostar na árvore-mãe
+        expect(f9.phase).toBe('explorar');             // sem beco-sem-saída do v1
+        // o portal só completa com a Raiz DESABROCHADA (as 3 oferendas entregues)
+        expect(f9TryComplete(F9_RAIZ[0], F9_RAIZ[1] + 2.5)).toBe(false);
+        f9eco.rootState = 'desabrochada';
+        expect(f9TryComplete(F9_RAIZ[0] + 6, F9_RAIZ[1] + 2.5)).toBe(false); // longe do portal
+        expect(f9TryComplete(F9_RAIZ[0], F9_RAIZ[1] + 2.5)).toBe(true);      // dentro do portal
     });
 });
 

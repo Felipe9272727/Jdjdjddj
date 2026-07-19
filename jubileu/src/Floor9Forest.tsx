@@ -1087,9 +1087,11 @@ const GroundMist: React.FC = () => {
 };
 
 // ── o FIO VERMELHO com PULSO VIAJANTE (guiando o olho até a raiz) ────────────
-/** O FAROL DO OBJETIVO: pilar de luz na RAIZ (visível sobre a copa) + um NÓ
- *  DE FIO flutuante quicando sobre o próximo waypoint do caminho — que vira
- *  ÂMBAR e pula pro oco mais próximo durante aviso/onda (sobreviver primeiro). */
+/** O FAROL DO OBJETIVO: pilar de luz na RAIZ (landmark da árvore-mãe, sobre a
+ *  copa) + um NÓ-GUIA flutuante que segue o MESMO passo do HUD das oferendas —
+ *  achar o fruto mais próximo (dourado) → carregando, a Raiz (dourado) →
+ *  passagem aberta, o portal (âmbar) → e vira ÂMBAR pro oco mais próximo durante
+ *  aviso/onda (sobreviver primeiro). */
 const ObjectiveBeacon: React.FC<{ playerPositionRef: React.MutableRefObject<THREE.Vector3> }> = ({ playerPositionRef }) => {
     const marker = useRef<THREE.Group>(null!);
     const pillar = useRef<THREE.Mesh>(null!);
@@ -1109,7 +1111,7 @@ const ObjectiveBeacon: React.FC<{ playerPositionRef: React.MutableRefObject<THRE
         if (!marker.current.visible) return;
         let tx: number, tz: number;
         if (emergency) {
-            // sobreviver primeiro: aponta o oco mais próximo
+            // sobreviver primeiro: aponta o OCO mais próximo (âmbar)
             let bx = F9_OCOS[0][0], bz = F9_OCOS[0][1], bd = Infinity;
             for (const [ox, oz] of F9_OCOS) {
                 const d = (p.x - ox) ** 2 + (p.z - oz) ** 2;
@@ -1117,17 +1119,24 @@ const ObjectiveBeacon: React.FC<{ playerPositionRef: React.MutableRefObject<THRE
             }
             tx = bx; tz = bz;
             markerMat.color.setStyle('#ffca7a'); haloMat.color.setStyle('#ffca7a');
+        } else if (f9eco.rootState === 'desabrochada') {
+            // a passagem abriu: o PORTAL à frente da Raiz (âmbar forte)
+            tx = F9_RAIZ[0]; tz = F9_RAIZ[1] + 2.5;
+            markerMat.color.setStyle('#ffca4a'); haloMat.color.setStyle('#ffca4a');
+        } else if (f9eco.offerings.some((o) => o.state === 'carregada')) {
+            // carregando: leve a oferenda à RAIZ (dourado)
+            tx = F9_RAIZ[0]; tz = F9_RAIZ[1];
+            markerMat.color.setStyle('#ffd97a'); haloMat.color.setStyle('#ffd97a');
         } else {
-            // o próximo nó do fio à frente (o mais perto que ainda está longe o
-            // bastante pra valer como "próximo passo")
-            let ni = 0, nd = Infinity;
-            F9_FIO.forEach(([fx, fz], i) => {
-                const d = (p.x - fx) ** 2 + (p.z - fz) ** 2;
-                if (d < nd) { nd = d; ni = i; }
-            });
-            const next = F9_FIO[Math.min(ni + 1, F9_FIO.length - 1)];
-            tx = next[0]; tz = next[1];
-            markerMat.color.setStyle('#ff4a52'); haloMat.color.setStyle('#ff4a52');
+            // padrão: o FRUTO (no chão) mais próximo — o próximo passo (dourado)
+            let bx = F9_RAIZ[0], bz = F9_RAIZ[1], bd = Infinity;
+            for (const o of f9eco.offerings) {
+                if (o.state !== 'noChao') continue;
+                const d = (p.x - o.x) ** 2 + (p.z - o.z) ** 2;
+                if (d < bd) { bd = d; bx = o.x; bz = o.z; }
+            }
+            tx = bx; tz = bz;
+            markerMat.color.setStyle('#ffd97a'); haloMat.color.setStyle('#ffd97a');
         }
         marker.current.position.x += (tx - marker.current.position.x) * 0.08;
         marker.current.position.z += (tz - marker.current.position.z) * 0.08;

@@ -1,7 +1,8 @@
 /**
- * Floor9Overlay.tsx — a camada DOM do Viveiro: legendas da chegada, a linha-
- * objetivo, o aviso da onda, o VEIL do replantio (pego fora do oco) e o beat
- * da RAIZ. Mesmo contrato de uiOpen dos outros andares.
+ * Floor9Overlay.tsx — a camada DOM do Viveiro: legendas da chegada (que ENSINAM
+ * o objetivo), a linha-objetivo das 3 OFERENDAS, a SETA/distância que sempre
+ * aponta pro PRÓXIMO passo certo, o aviso da onda, o VEIL do replantio e o
+ * TEASER de fim de andar. Mesmo contrato de uiOpen dos outros andares.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -12,25 +13,55 @@ import { f9eco, f9EcoOn, f9EcoSubscribe } from './f9Eco';
 
 const mono: React.CSSProperties = { fontFamily: 'monospace', color: '#dfe8d2', userSelect: 'none' };
 
-/** distância legível: “A RAIZ · 43 m” — atualizada a 2 Hz fora do rerender do three. */
-const useObjectiveDistance = (playerPositionRef?: React.MutableRefObject<{ x: number; z: number }>) => {
-    const [dist, setDist] = useState<number | null>(null);
+type ObjKind = 'oco' | 'oferenda' | 'raiz' | 'passagem';
+interface ObjTarget { dist: number; kind: ObjKind; }
+const OBJ_LABEL: Record<ObjKind, string> = {
+    oco: '⌂ OCO', oferenda: '➤ OFERENDA', raiz: '➤ A RAIZ', passagem: '➤ A PASSAGEM',
+};
+
+/**
+ * A SETA do HUD: sempre aponta pro PRÓXIMO passo certo, com distância legível.
+ * Prioridade: EMERGÊNCIA (aviso/onda → OCO) > passagem aberta (→ portal) >
+ * carregando (→ Raiz) > achar a próxima oferenda no chão. Atualiza a 2 Hz, fora
+ * do rerender do three.
+ */
+const useObjectiveTarget = (playerPositionRef?: React.MutableRefObject<{ x: number; z: number }>): ObjTarget | null => {
+    const [t, setT] = useState<ObjTarget | null>(null);
     useEffect(() => {
         if (!playerPositionRef) return;
         const id = window.setInterval(() => {
             const p = playerPositionRef.current;
-            if (!p || f9.phase !== 'explorar') { setDist(null); return; }
+            if (!p || f9.phase !== 'explorar') { setT(null); return; }
+            // 1) EMERGÊNCIA: durante o aviso/onda, o único alvo que salva é o OCO
             if (f9eco.phase === 'aviso' || f9eco.phase === 'onda') {
                 let best = Infinity;
                 for (const [ox, oz] of F9_OCOS) best = Math.min(best, Math.hypot(p.x - ox, p.z - oz));
-                setDist(Math.round(best));
-            } else {
-                setDist(Math.round(Math.hypot(p.x - F9_RAIZ[0], p.z - F9_RAIZ[1])));
+                setT({ dist: Math.round(best), kind: 'oco' });
+                return;
             }
+            // 2) a passagem já abriu → o portal, à frente da Raiz
+            if (f9eco.rootState === 'desabrochada') {
+                setT({ dist: Math.round(Math.hypot(p.x - F9_RAIZ[0], p.z - (F9_RAIZ[1] + 2.5))), kind: 'passagem' });
+                return;
+            }
+            // 3) carregando uma oferenda → leve-a à Raiz
+            if (f9eco.offerings.some((o) => o.state === 'carregada')) {
+                setT({ dist: Math.round(Math.hypot(p.x - F9_RAIZ[0], p.z - F9_RAIZ[1])), kind: 'raiz' });
+                return;
+            }
+            // 4) padrão → o fruto (no chão) mais próximo
+            let best = Infinity;
+            for (const o of f9eco.offerings) {
+                if (o.state !== 'noChao') continue;
+                best = Math.min(best, Math.hypot(p.x - o.x, p.z - o.z));
+            }
+            setT(best < Infinity
+                ? { dist: Math.round(best), kind: 'oferenda' }
+                : { dist: Math.round(Math.hypot(p.x - F9_RAIZ[0], p.z - F9_RAIZ[1])), kind: 'raiz' });
         }, 500);
         return () => window.clearInterval(id);
     }, [playerPositionRef]);
-    return dist;
+    return t;
 };
 
 export const Floor9Overlay: React.FC<{
@@ -40,7 +71,6 @@ export const Floor9Overlay: React.FC<{
 }> = ({ onUiOpenChange, playerPositionRef, onComplete }) => {
     const [, setV] = useState(0);
     const [line, setLine] = useState(0);
-    const [raizLine, setRaizLine] = useState(0);
     const [completo, setCompleto] = useState(false);   // V4: teaser do Andar 10
     const [bloomFlash, setBloomFlash] = useState(0);   // V4: flash branco→dourado da desabrochada
     const prevPhase = useRef(f9.phase);
@@ -50,20 +80,23 @@ export const Floor9Overlay: React.FC<{
     useEffect(() => f9Subscribe(() => {
         if (f9.phase !== prevPhase.current) {
             if (f9.phase === 'chegada') setLine(0);
-            if (f9.phase === 'raiz') setRaizLine(0);
             prevPhase.current = f9.phase;
         }
     }), []);
     // V4: eventos do motor (fan-out — o drain da cena não é tocado)
     useEffect(() => f9EcoOn((e) => {
-        if (e === 'f9Completo') setCompleto(true);
+        if (e === 'f9Completo') {
+            setCompleto(true);
+            // a conclusão REAL do andar grava a flag (a antiga chegada por
+            // proximidade da Raiz, que gravava isto, saiu do f9Tick).
+            try { if (typeof window !== 'undefined') window.localStorage.setItem('tne_raiz_9', '1'); } catch { /* ignore */ }
+        }
         if (e === 'raizDesabrocha') setBloomFlash((k) => k + 1);
     }), []);
 
     const chegada = f9.phase === 'chegada';
     const apagando = f9.phase === 'apagando';
-    const raiz = f9.phase === 'raiz' && raizLine < F9_RAIZ_LINES.length;
-    const uiOpen = chegada || apagando || raiz || completo || f9.phase === 'queda';
+    const uiOpen = chegada || apagando || completo || f9.phase === 'queda';
     useEffect(() => { onUiOpenChange(uiOpen); }, [uiOpen, onUiOpenChange]);
     useEffect(() => () => onUiOpenChange(false), [onUiOpenChange]);
 
@@ -78,19 +111,20 @@ export const Floor9Overlay: React.FC<{
         return () => clearTimeout(t);
     }, [apagando]);
 
-    // V4: o objetivo principal passa a ser as OFERENDAS (os avisos de onda,
-    // que salvam a vida, continuam com prioridade sobre ele)
-    let objective = f9Objective();
-    if (f9.phase === 'explorar' && f9eco.phase !== 'aviso' && f9eco.phase !== 'onda' && !completo) {
-        objective = f9eco.rootState === 'desabrochada'
-            ? 'A passagem abriu. Entre na luz.'
-            : `Leve as Oferendas à Raiz — ${f9eco.rootWake}/3`;
-    }
-    const carrying = f9eco.offerings.some((o) => o.state === 'carregada');
+    const emergency = f9.phase === 'explorar' && (f9eco.phase === 'aviso' || f9eco.phase === 'onda');
     const aviso = f9.phase === 'explorar' && f9eco.phase === 'aviso';
-    const dist = useObjectiveDistance(playerPositionRef);
-    // vinheta opressiva em CSS puro (zero GPU): cobre as qualities sem o
-    // EffectComposer; aperta quando o ciclo fecha (aviso/onda)
+    const carrying = f9eco.offerings.some((o) => o.state === 'carregada');
+
+    // V4: o objetivo principal são as OFERENDAS; a emergência da onda (que salva
+    // a vida) tem prioridade sobre ele.
+    let objective = f9Objective();
+    if (f9.phase === 'explorar' && !emergency && !completo) {
+        if (f9eco.rootState === 'desabrochada') objective = 'A passagem abriu. Entre na luz.';
+        else if (carrying) objective = `Leve a Oferenda até a Raiz  ·  ${f9eco.rootWake}/3`;
+        else objective = `Ache um fruto de luz  ·  ${f9eco.rootWake}/3 entregues`;
+    }
+    const target = useObjectiveTarget(playerPositionRef);
+    // vinheta opressiva em CSS puro (zero GPU): aperta quando o ciclo fecha.
     const vigK = f9eco.phase === 'onda' ? 0.78 : aviso ? 0.66 : 0.52;
 
     return (
@@ -100,8 +134,9 @@ export const Floor9Overlay: React.FC<{
                 position: 'absolute', inset: 0,
                 background: `radial-gradient(ellipse at center, transparent 40%, rgba(3,7,5,${vigK}) 100%)`,
             }} />
-            {/* objetivo + distância: sempre saber PRA ONDE e QUÃO LONGE */}
-            {objective && !chegada && (
+
+            {/* objetivo + seta/distância: PRA ONDE, QUÃO LONGE e POR QUÊ */}
+            {objective && !chegada && !completo && (
                 <div style={{
                     ...mono, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 58px)', left: 0, right: 0,
                     textAlign: 'center', textShadow: '0 1px 3px #000',
@@ -109,14 +144,17 @@ export const Floor9Overlay: React.FC<{
                 }}>
                     <div style={{
                         fontSize: 13, letterSpacing: 1,
-                        color: aviso || f9eco.phase === 'onda' ? '#ffe9c9' : '#cfdcc0',
+                        color: emergency ? '#ffe9c9' : '#cfdcc0',
                     }}>{objective}</div>
-                    {dist !== null && (
+                    {target && (
                         <div style={{
                             fontSize: 15, letterSpacing: 3, marginTop: 4, fontWeight: 700,
-                            color: aviso || f9eco.phase === 'onda' ? '#ffca7a' : '#e88a8a',
+                            color: emergency ? '#ffca7a'
+                                : target.kind === 'oferenda' ? '#ffd97a'
+                                : target.kind === 'passagem' ? '#ffca4a'
+                                : '#e88a8a',
                         }}>
-                            {aviso || f9eco.phase === 'onda' ? '⌂ OCO' : '➤ A RAIZ'} · {dist} m
+                            {OBJ_LABEL[target.kind]} · {target.dist} m
                         </div>
                     )}
                 </div>
@@ -142,6 +180,7 @@ export const Floor9Overlay: React.FC<{
                     </div>
                 </div>
             )}
+
             {/* V4: o hint de carregar (pesado e barulhento) */}
             {carrying && f9.phase === 'explorar' && !completo && (
                 <div style={{
@@ -160,7 +199,7 @@ export const Floor9Overlay: React.FC<{
                 }} />
             )}
 
-            {/* V4: o CARTÃO TEASER do fim de andar (Andar 10 em breve) */}
+            {/* V4: o CARTÃO TEASER do fim de andar (Andar 10) — com a lore da Raiz */}
             {completo && (
                 <div style={{
                     position: 'absolute', inset: 0, pointerEvents: 'auto',
@@ -168,15 +207,18 @@ export const Floor9Overlay: React.FC<{
                     background: 'rgba(6,8,5,0.72)',
                 }}>
                     <div style={{
-                        ...mono, maxWidth: 480, margin: '0 16px', textAlign: 'center',
+                        ...mono, maxWidth: 500, margin: '0 16px', textAlign: 'center',
                         background: 'rgba(14,12,6,0.96)', border: '1px solid #d9b96a', borderRadius: 12,
                         padding: '26px 24px 22px', boxShadow: '0 0 44px rgba(255,202,74,0.25)',
                     }}>
-                        <div style={{ fontSize: 11, letterSpacing: 4, color: '#d9b96a', marginBottom: 12 }}>ANDAR 9 — O VIVEIRO</div>
-                        <div style={{ fontSize: 17, lineHeight: 1.7, fontStyle: 'italic' }}>
-                            A Raiz desabrocha. A floresta lembra de você.
-                        </div>
-                        <div style={{ fontSize: 12, color: '#9a8f6c', marginTop: 12, letterSpacing: 1 }}>(Andar 10 em breve)</div>
+                        <div style={{ fontSize: 11, letterSpacing: 4, color: '#d9b96a', marginBottom: 14 }}>ANDAR 9 — O VIVEIRO</div>
+                        {F9_RAIZ_LINES.map((l, i) => (
+                            <div key={i} style={{
+                                fontSize: 15.5, lineHeight: 1.6, fontStyle: 'italic', marginBottom: 10,
+                                color: i === F9_RAIZ_LINES.length - 1 ? '#ffe4a6' : '#dfe8d2',
+                            }}>{l}</div>
+                        ))}
+                        <div style={{ fontSize: 12, color: '#9a8f6c', marginTop: 8, letterSpacing: 1 }}>(Andar 10 em breve)</div>
                         <button
                             onPointerDown={(e) => { e.stopPropagation(); if (onComplete) onComplete(); }}
                             style={{
@@ -189,7 +231,7 @@ export const Floor9Overlay: React.FC<{
                 </div>
             )}
 
-            {/* legendas da chegada (toque pra avançar) */}
+            {/* legendas da chegada (toque pra avançar) — ENSINAM as oferendas */}
             {chegada && (
                 <div onPointerDown={() => {
                     if (line < F9_CHEGADA_LINES.length - 1) setLine((l) => l + 1);
@@ -205,7 +247,9 @@ export const Floor9Overlay: React.FC<{
                         textShadow: '0 2px 8px #000',
                     }}>
                         {F9_CHEGADA_LINES[line]}
-                        <div style={{ fontSize: 11, color: '#8a967c', marginTop: 10 }}>toque ▸</div>
+                        <div style={{ fontSize: 11, color: '#8a967c', marginTop: 10 }}>
+                            {line < F9_CHEGADA_LINES.length - 1 ? 'toque ▸' : 'toque pra começar ▸'}
+                        </div>
                     </div>
                 </div>
             )}
@@ -221,25 +265,6 @@ export const Floor9Overlay: React.FC<{
                         {f9.causa === 'vulto'
                             ? 'dentes na nuca. escuro. …o Viveiro não te deixa acabar: algo te replanta.'
                             : 'a onda te encontrou. algo te replanta perto de um oco.'}
-                    </div>
-                </div>
-            )}
-
-            {/* a RAIZ */}
-            {raiz && (
-                <div onPointerDown={() => setRaizLine((l) => l + 1)} style={{
-                    position: 'absolute', inset: 0, pointerEvents: 'auto', cursor: 'pointer',
-                    display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-                    background: 'linear-gradient(to bottom, rgba(0,0,0,0) 55%, rgba(20,14,4,0.6) 100%)',
-                }}>
-                    <div style={{
-                        ...mono, maxWidth: 640, margin: '0 16px calc(env(safe-area-inset-bottom) + 30px)',
-                        background: 'rgba(10,9,6,0.92)', border: '1px solid #5a4f30', borderRadius: 10,
-                        padding: '14px 18px', fontSize: 15.5, lineHeight: 1.6,
-                    }}>
-                        <div style={{ fontSize: 11, letterSpacing: 3, color: '#d9b96a', marginBottom: 8 }}>A RAIZ</div>
-                        {F9_RAIZ_LINES[raizLine]}
-                        <div style={{ fontSize: 11, color: '#7a715c', marginTop: 8, textAlign: 'right' }}>toque ▸</div>
                     </div>
                 </div>
             )}
