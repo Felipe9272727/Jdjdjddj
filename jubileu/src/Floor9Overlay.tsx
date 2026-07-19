@@ -5,23 +5,44 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    f9, f9Subscribe, f9Objective, f9ChegadaDone, f9LembrancaDone,
-    f9ReplantioDone, f9RelicCount, F9_CHEGADA_LINES, F9_RAIZ_LINES, F9_RELICS,
+    f9, f9Subscribe, f9Objective, f9ChegadaDone, f9ReplantioDone,
+    F9_CHEGADA_LINES, F9_RAIZ_LINES, F9_OCOS, F9_RAIZ,
 } from './f9Floresta';
-import { f9eco, f9EcoSubscribe } from './f9Eco';
+import { f9eco, f9EcoOn, f9EcoSubscribe } from './f9Eco';
 
 const mono: React.CSSProperties = { fontFamily: 'monospace', color: '#dfe8d2', userSelect: 'none' };
 
-interface Floor9OverlayProps {
-    onUiOpenChange: (open: boolean) => void;
-    onReplant?: (point: readonly [number, number]) => void;
-}
+/** distância legível: “A RAIZ · 43 m” — atualizada a 2 Hz fora do rerender do three. */
+const useObjectiveDistance = (playerPositionRef?: React.MutableRefObject<{ x: number; z: number }>) => {
+    const [dist, setDist] = useState<number | null>(null);
+    useEffect(() => {
+        if (!playerPositionRef) return;
+        const id = window.setInterval(() => {
+            const p = playerPositionRef.current;
+            if (!p || f9.phase !== 'explorar') { setDist(null); return; }
+            if (f9eco.phase === 'aviso' || f9eco.phase === 'onda') {
+                let best = Infinity;
+                for (const [ox, oz] of F9_OCOS) best = Math.min(best, Math.hypot(p.x - ox, p.z - oz));
+                setDist(Math.round(best));
+            } else {
+                setDist(Math.round(Math.hypot(p.x - F9_RAIZ[0], p.z - F9_RAIZ[1])));
+            }
+        }, 500);
+        return () => window.clearInterval(id);
+    }, [playerPositionRef]);
+    return dist;
+};
 
-export const Floor9Overlay: React.FC<Floor9OverlayProps> = ({ onUiOpenChange, onReplant }) => {
+export const Floor9Overlay: React.FC<{
+    onUiOpenChange: (open: boolean) => void;
+    playerPositionRef?: React.MutableRefObject<{ x: number; z: number }>;
+    onComplete?: () => void;
+}> = ({ onUiOpenChange, playerPositionRef, onComplete }) => {
     const [, setV] = useState(0);
     const [line, setLine] = useState(0);
-    const [memoryLine, setMemoryLine] = useState(0);
     const [raizLine, setRaizLine] = useState(0);
+    const [completo, setCompleto] = useState(false);   // V4: teaser do Andar 10
+    const [bloomFlash, setBloomFlash] = useState(0);   // V4: flash branco→dourado da desabrochada
     const prevPhase = useRef(f9.phase);
 
     useEffect(() => f9Subscribe(() => setV((x) => x + 1)), []);
@@ -29,46 +50,142 @@ export const Floor9Overlay: React.FC<Floor9OverlayProps> = ({ onUiOpenChange, on
     useEffect(() => f9Subscribe(() => {
         if (f9.phase !== prevPhase.current) {
             if (f9.phase === 'chegada') setLine(0);
-            if (f9.phase === 'lembranca') setMemoryLine(0);
             if (f9.phase === 'raiz') setRaizLine(0);
             prevPhase.current = f9.phase;
         }
     }), []);
+    // V4: eventos do motor (fan-out — o drain da cena não é tocado)
+    useEffect(() => f9EcoOn((e) => {
+        if (e === 'f9Completo') setCompleto(true);
+        if (e === 'raizDesabrocha') setBloomFlash((k) => k + 1);
+    }), []);
 
     const chegada = f9.phase === 'chegada';
-    const lembranca = f9.phase === 'lembranca';
     const apagando = f9.phase === 'apagando';
     const raiz = f9.phase === 'raiz' && raizLine < F9_RAIZ_LINES.length;
-    const uiOpen = chegada || lembranca || apagando || raiz || f9.phase === 'queda';
+    const uiOpen = chegada || apagando || raiz || completo || f9.phase === 'queda';
     useEffect(() => { onUiOpenChange(uiOpen); }, [uiOpen, onUiOpenChange]);
     useEffect(() => () => onUiOpenChange(false), [onUiOpenChange]);
 
-    const objective = f9Objective();
+    // SOFTLOCK FIX (P0): o fim do veil dependia SÓ do onAnimationEnd do CSS —
+    // frágil (main thread engasgada no mobile atrasa/perde o evento e o jogo
+    // ficava preso no 'apagando'). Fallback por timer: 3.4s do wipe + margem.
+    // f9ReplantioDone é idempotente (checa a fase), então tanto faz quem chega
+    // primeiro; o timer é cancelado se a fase sair por outro caminho.
+    useEffect(() => {
+        if (!apagando) return;
+        const t = setTimeout(() => { f9ReplantioDone(); }, 3600);
+        return () => clearTimeout(t);
+    }, [apagando]);
+
+    // V4: o objetivo principal passa a ser as OFERENDAS (os avisos de onda,
+    // que salvam a vida, continuam com prioridade sobre ele)
+    let objective = f9Objective();
+    if (f9.phase === 'explorar' && f9eco.phase !== 'aviso' && f9eco.phase !== 'onda' && !completo) {
+        objective = f9eco.rootState === 'desabrochada'
+            ? 'A passagem abriu. Entre na luz.'
+            : `Leve as Oferendas à Raiz — ${f9eco.rootWake}/3`;
+    }
+    const carrying = f9eco.offerings.some((o) => o.state === 'carregada');
     const aviso = f9.phase === 'explorar' && f9eco.phase === 'aviso';
-    const relicCount = f9RelicCount();
-    const relic = f9.lembranca >= 0 ? F9_RELICS[f9.lembranca] : null;
+    const dist = useObjectiveDistance(playerPositionRef);
+    // vinheta opressiva em CSS puro (zero GPU): cobre as qualities sem o
+    // EffectComposer; aperta quando o ciclo fecha (aviso/onda)
+    const vigK = f9eco.phase === 'onda' ? 0.78 : aviso ? 0.66 : 0.52;
 
     return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 40, pointerEvents: 'none' }}>
-            {/* objetivo */}
+            {/* a moldura úmida do Viveiro (atrás de todo o texto) */}
+            <div style={{
+                position: 'absolute', inset: 0,
+                background: `radial-gradient(ellipse at center, transparent 40%, rgba(3,7,5,${vigK}) 100%)`,
+            }} />
+            {/* objetivo + distância: sempre saber PRA ONDE e QUÃO LONGE */}
             {objective && !chegada && (
                 <div style={{
-                    ...mono, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 62px)', left: 0, right: 0,
-                    textAlign: 'center', fontSize: 13, letterSpacing: 1,
-                    color: aviso || f9eco.phase === 'onda' ? '#ffe9c9' : '#cfdcc0',
-                    textShadow: '0 1px 3px #000',
+                    ...mono, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 58px)', left: 0, right: 0,
+                    textAlign: 'center', textShadow: '0 1px 3px #000',
                     animation: aviso ? 'f9pulse 1.1s ease-in-out infinite' : undefined,
-                }}>{objective}</div>
+                }}>
+                    <div style={{
+                        fontSize: 13, letterSpacing: 1,
+                        color: aviso || f9eco.phase === 'onda' ? '#ffe9c9' : '#cfdcc0',
+                    }}>{objective}</div>
+                    {dist !== null && (
+                        <div style={{
+                            fontSize: 15, letterSpacing: 3, marginTop: 4, fontWeight: 700,
+                            color: aviso || f9eco.phase === 'onda' ? '#ffca7a' : '#e88a8a',
+                        }}>
+                            {aviso || f9eco.phase === 'onda' ? '⌂ OCO' : '➤ A RAIZ'} · {dist} m
+                        </div>
+                    )}
+                </div>
             )}
 
-            {f9.phase === 'explorar' && (
+            {/* V4: os 3 PIPS de oferenda (canto superior esquerdo) */}
+            {f9.phase === 'explorar' && !completo && (
                 <div style={{
-                    ...mono, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 92px)', left: 18,
-                    padding: '7px 10px', border: '1px solid rgba(197,43,52,.38)', borderRadius: 6,
-                    background: 'rgba(8,16,10,.58)', color: '#bdc9ae', fontSize: 11,
-                    letterSpacing: 1.6, textShadow: '0 1px 3px #000',
+                    position: 'absolute', top: 'calc(env(safe-area-inset-top) + 14px)', left: 16,
+                    display: 'flex', alignItems: 'center', gap: 7, pointerEvents: 'none',
                 }}>
-                    RELÍQUIAS&nbsp; {F9_RELICS.map((_, i) => i < relicCount ? '●' : '○').join(' ')}
+                    {[0, 1, 2].map((i) => (
+                        <div key={i} style={{
+                            width: 11, height: 11, borderRadius: '50%',
+                            border: '1.5px solid #d9b96a',
+                            background: f9eco.rootWake > i ? '#ffca4a' : 'transparent',
+                            boxShadow: f9eco.rootWake > i ? '0 0 9px #ffca4a' : 'none',
+                            transition: 'background 0.4s, box-shadow 0.4s',
+                        }} />
+                    ))}
+                    <div style={{ ...mono, fontSize: 11, color: '#d9b96a', letterSpacing: 1, textShadow: '0 1px 3px #000', marginLeft: 4 }}>
+                        Oferendas {f9eco.rootWake}/3
+                    </div>
+                </div>
+            )}
+            {/* V4: o hint de carregar (pesado e barulhento) */}
+            {carrying && f9.phase === 'explorar' && !completo && (
+                <div style={{
+                    ...mono, position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 18px)', left: 0, right: 0,
+                    textAlign: 'center', fontSize: 12, letterSpacing: 1, color: '#ffd97a',
+                    textShadow: '0 1px 3px #000', animation: 'f9pulse 1.6s ease-in-out infinite',
+                }}>uma oferenda nos ombros — lento, barulhento. leve-a à Raiz.</div>
+            )}
+
+            {/* V4: o FLASH branco→dourado da desabrochada */}
+            {bloomFlash > 0 && (
+                <div key={bloomFlash} style={{
+                    position: 'absolute', inset: 0, pointerEvents: 'none',
+                    background: 'radial-gradient(circle at 50% 60%, #fff8e8 0%, #ffca4a 55%, rgba(255,202,74,0) 100%)',
+                    animation: 'f9bloom 1.5s ease-out forwards',
+                }} />
+            )}
+
+            {/* V4: o CARTÃO TEASER do fim de andar (Andar 10 em breve) */}
+            {completo && (
+                <div style={{
+                    position: 'absolute', inset: 0, pointerEvents: 'auto',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(6,8,5,0.72)',
+                }}>
+                    <div style={{
+                        ...mono, maxWidth: 480, margin: '0 16px', textAlign: 'center',
+                        background: 'rgba(14,12,6,0.96)', border: '1px solid #d9b96a', borderRadius: 12,
+                        padding: '26px 24px 22px', boxShadow: '0 0 44px rgba(255,202,74,0.25)',
+                    }}>
+                        <div style={{ fontSize: 11, letterSpacing: 4, color: '#d9b96a', marginBottom: 12 }}>ANDAR 9 — O VIVEIRO</div>
+                        <div style={{ fontSize: 17, lineHeight: 1.7, fontStyle: 'italic' }}>
+                            A Raiz desabrocha. A floresta lembra de você.
+                        </div>
+                        <div style={{ fontSize: 12, color: '#9a8f6c', marginTop: 12, letterSpacing: 1 }}>(Andar 10 em breve)</div>
+                        <button
+                            onPointerDown={(e) => { e.stopPropagation(); if (onComplete) onComplete(); }}
+                            style={{
+                                ...mono, marginTop: 20, fontSize: 14, letterSpacing: 1.5, cursor: 'pointer',
+                                background: '#d9b96a', color: '#14100a', border: 'none', borderRadius: 8,
+                                padding: '11px 22px',
+                            }}
+                        >Voltar ao elevador</button>
+                    </div>
                 </div>
             )}
 
@@ -93,45 +210,17 @@ export const Floor9Overlay: React.FC<Floor9OverlayProps> = ({ onUiOpenChange, on
                 </div>
             )}
 
-            {/* cada objeto devolve uma lembrança antes de liberar o player */}
-            {lembranca && relic && (
-                <div onPointerDown={() => {
-                    if (memoryLine < relic.lines.length - 1) setMemoryLine((l) => l + 1);
-                    else f9LembrancaDone();
-                }} style={{
-                    position: 'absolute', inset: 0, pointerEvents: 'auto', cursor: 'pointer',
-                    display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-                    background: 'radial-gradient(circle at 50% 62%, rgba(129,32,38,.16), rgba(2,7,4,.78) 78%)',
-                }}>
-                    <div style={{
-                        ...mono, width: 'min(650px, calc(100vw - 32px))',
-                        margin: '0 16px calc(env(safe-area-inset-bottom) + 34px)',
-                        background: 'rgba(7,10,7,.94)', border: '1px solid #733039', borderRadius: 10,
-                        boxShadow: '0 0 42px rgba(160,28,39,.2)', padding: '16px 19px',
-                        fontSize: 15, lineHeight: 1.65,
-                    }}>
-                        <div style={{ fontSize: 10, letterSpacing: 2.8, color: '#b98472', marginBottom: 5 }}>{relic.kicker}</div>
-                        <div style={{ fontSize: 17, letterSpacing: 1.4, color: '#e6d1a8', marginBottom: 11 }}>{relic.title}</div>
-                        {relic.lines[memoryLine]}
-                        <div style={{ fontSize: 11, color: '#746c5e', marginTop: 10, textAlign: 'right' }}>toque ▸</div>
-                    </div>
-                </div>
-            )}
-
             {/* o REPLANTIO: pego fora do oco — branco engole, e devolve */}
             {apagando && (
                 <div style={{ position: 'absolute', inset: 0, pointerEvents: 'auto' }}>
-                    <div onAnimationEnd={() => {
-                        const point = f9ReplantioDone();
-                        if (point) onReplant?.(point);
-                    }} style={{ position: 'absolute', inset: 0, background: '#eef4e8', animation: 'f9wipe 3.4s ease-in-out forwards' }} />
+                    <div onAnimationEnd={() => f9ReplantioDone()} style={{ position: 'absolute', inset: 0, background: '#eef4e8', animation: 'f9wipe 3.4s ease-in-out forwards' }} />
                     <div style={{
                         ...mono, position: 'absolute', left: 0, right: 0, top: '46%', textAlign: 'center',
                         fontSize: 15, color: '#41503c', letterSpacing: 2, animation: 'f9wipeTxt 3.4s ease-in-out forwards', opacity: 0,
                     }}>
-                        {f9.replantCause === 'vulto'
-                            ? 'o vulto te alcançou. a mata te devolve dentro de um oco.'
-                            : 'a onda te encontrou. algo te replanta dentro de um oco.'}
+                        {f9.causa === 'vulto'
+                            ? 'dentes na nuca. escuro. …o Viveiro não te deixa acabar: algo te replanta.'
+                            : 'a onda te encontrou. algo te replanta perto de um oco.'}
                     </div>
                 </div>
             )}
@@ -159,6 +248,7 @@ export const Floor9Overlay: React.FC<Floor9OverlayProps> = ({ onUiOpenChange, on
                 @keyframes f9pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
                 @keyframes f9wipe { 0%{opacity:0} 22%{opacity:1} 74%{opacity:1} 100%{opacity:0} }
                 @keyframes f9wipeTxt { 0%{opacity:0} 30%{opacity:0} 45%{opacity:1} 70%{opacity:1} 85%{opacity:0} 100%{opacity:0} }
+                @keyframes f9bloom { 0%{opacity:1} 100%{opacity:0} }
             `}</style>
         </div>
     );

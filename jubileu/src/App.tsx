@@ -62,6 +62,7 @@ import Floor8Image from './Floor8Image';
 import Floor8Platformer from './Floor8Platformer';
 import Floor8FinaleCutscene from './Floor8FinaleCutscene';
 import Floor9Forest from './Floor9Forest';
+import { Fiapo } from './Floor9Fauna';
 import Floor9Overlay from './Floor9Overlay';
 import Floor9Cutscene from './Floor9Cutscene';
 import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
@@ -71,8 +72,9 @@ import { f8, f8Reset, f8Subscribe } from './f8Arquivo';
 import { p8Reset } from './f8Platformer';
 import { f8StartBoss, f8StartFinale } from './f8Dev';
 import { f8finale, f8FinaleReset, f8FinaleSeek, f8FinaleSubscribe } from './f8Finale';
-import { f9Reset } from './f9Floresta';
+import { f9, f9Reset, f9Subscribe, F9_OCOS } from './f9Floresta';
 import { f9EcoReset } from './f9Eco';
+import { configureFloor9Sfx, clearFloor9Sfx } from './floor9Sfx';
 import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE } from './constants';
 import PhysicsProps, { type CrateSpec } from './PhysicsProps';
 import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from './PhotoMode';
@@ -854,9 +856,16 @@ export default function App() {
   const handleF8UiOpenChange = useCallback((open: boolean) => setF8UiOpen(open), []);
   const [f9UiOpen, setF9UiOpen] = useState(false);
   const handleF9UiOpenChange = useCallback((open: boolean) => setF9UiOpen(open), []);
-  const handleF9Replant = useCallback(([x, z]: readonly [number, number]) => {
-    playerPositionCmdRef.current = { x, y: 0, z, theta: 0 };
-  }, []);
+  const handleF9Complete = useCallback(() => {
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+    setNextElevatorDestination(0);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
   // A ENTREGA termina já do outro lado: o empurrão vira a queda do Viveiro,
   // sem uma viagem de elevador que quebraria o corte cinematográfico.
   const handleF8FinaleDone = useCallback(() => {
@@ -1027,6 +1036,22 @@ export default function App() {
     f9Reset(); f9EcoReset();
     playerPositionCmdRef.current = { x: 0, y: 0, z: -1.5, theta: 0 };
   }, [currentLevel]);
+  // O replantio devolve o Fiapo ao oco mais próximo depois do wipe. A escolha
+  // usa a posição lógica do Player, então overlay e cena nunca divergem.
+  const f9PrevPhaseRef = useRef(f9.phase);
+  useEffect(() => f9Subscribe(() => {
+    if (f9.phase === 'explorar' && f9PrevPhaseRef.current === 'apagando') {
+      const p = sharedPlayerPositionRef.current;
+      let best = F9_OCOS[0];
+      let bestDist = Infinity;
+      for (const oco of F9_OCOS) {
+        const d = (p.x - oco[0]) ** 2 + (p.z - oco[1]) ** 2;
+        if (d < bestDist) { bestDist = d; best = oco; }
+      }
+      playerPositionCmdRef.current = { x: best[0], y: 0, z: best[1] + best[2] + 0.7 };
+    }
+    f9PrevPhaseRef.current = f9.phase;
+  }), []);
   // Mirrors f6.phase into React so World can swap the live cab for the dead
   // one the moment the panel blows (f6 itself mutates outside React).
   const [f6CabDead, setF6CabDead] = useState(false);
@@ -1063,6 +1088,12 @@ export default function App() {
     if (!muted) startFloor7Ambient();
     return () => { stopFloor7Ambient(); clearFloor7Sfx(); };
   }, [currentLevel, audioCtx, muted]);
+
+  useEffect(() => {
+    if (currentLevel !== 9 || !audioCtx) return;
+    configureFloor9Sfx(audioCtx, cartoonBusRef.current);
+    return () => clearFloor9Sfx();
+  }, [currentLevel, audioCtx]);
 
   useEffect(() => {
       if (gameState !== 'chase') return;
@@ -1835,6 +1866,9 @@ export default function App() {
             {hasStarted && currentLevel === 8 && f8FinaleActive && (
                 <Floor8FinaleCutscene playerPositionRef={sharedPlayerPositionRef} onDone={handleF8FinaleDone} />
             )}
+            {hasStarted && currentLevel === 9 && (
+                <Fiapo playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} />
+            )}
             {hasStarted && currentLevel === 9 && <Floor9Cutscene />}
             {/* Andar 7 captain-arrival cutscene — mounted AFTER <Player> so its
                 priority-0 useFrame overwrites the player camera while it runs. */}
@@ -2490,7 +2524,11 @@ export default function App() {
         <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} onLeave={handleF8FinaleDone} />
       )}
       {hasStarted && currentLevel === 9 && (
-        <Floor9Overlay onUiOpenChange={handleF9UiOpenChange} onReplant={handleF9Replant} />
+        <Floor9Overlay
+          onUiOpenChange={handleF9UiOpenChange}
+          playerPositionRef={sharedPlayerPositionRef}
+          onComplete={handleF9Complete}
+        />
       )}
       {/* Andar 8 — a volta: acorda no elevador "subindo pro 9", com o fio vermelho
           (self-gate na fase leave; fica de pé durante o doorsClosed do trânsito) */}

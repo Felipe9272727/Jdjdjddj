@@ -11,6 +11,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import archivistAtlasUrl from './assets/f8/archivist-finale-atlas-v1.png';
 import elevatorGoneUrl from './assets/f8/elevator-out-of-service-v1.png';
+import memoryVortexUrl from './assets/f8/finale-memory-vortex-atlas-v2.png';
 import {
     f8finale,
     f8FinaleProgress,
@@ -75,7 +76,11 @@ const Floor8FinaleCutscene: React.FC<{
     const archivistRoot = useRef<THREE.Group>(null!);
     const archivistA = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
     const archivistB = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
+    const memoryHalo = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
+    const memoryBurst = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null!);
+    const memoryLight = useRef<THREE.PointLight>(null!);
     const lastFrames = useRef([-1, -1]);
+    const lastMemoryFrames = useRef([-1, -1]);
     const lastBeat = useRef<F8FinaleBeat>('idle');
     const calledDone = useRef(false);
     const look = useRef(new THREE.Vector3());
@@ -94,12 +99,20 @@ const Floor8FinaleCutscene: React.FC<{
         t.magFilter = THREE.LinearFilter;
         return t;
     }, []);
+    const memoryVortex = useMemo(() => {
+        const t = new THREE.TextureLoader().load(memoryVortexUrl);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.minFilter = THREE.LinearMipmapLinearFilter;
+        t.magFilter = THREE.LinearFilter;
+        return t;
+    }, []);
 
     useEffect(() => () => {
         atlas.dispose();
         elevator.dispose();
+        memoryVortex.dispose();
         camera.up.set(0, 1, 0);
-    }, [atlas, elevator, camera]);
+    }, [atlas, elevator, memoryVortex, camera]);
 
     useFrame((_state, rawDt) => {
         const beat = f8FinaleTick(Math.min(rawDt, 0.05));
@@ -165,6 +178,72 @@ const Floor8FinaleCutscene: React.FC<{
         perspective.fov += (fov - perspective.fov) * Math.min(1, rawDt * 10);
         perspective.updateProjectionMatrix();
 
+        // O hotel perde a forma entre o olhar e o empurrão: primeiro só o fio
+        // vermelho e poeira, depois páginas/chaves girando, por fim o rasgo
+        // verde que já pertence ao Viveiro. São dois billboards do atlas
+        // pintado (halo atrás do Arquivista + impacto diante da câmera), nunca
+        // geometria procedural fingindo ser a animação principal.
+        const halo = memoryHalo.current;
+        const burst = memoryBurst.current;
+        const memoryVisible = beat === 'turn' || beat === 'reveal' || beat === 'approach' || beat === 'grip' || beat === 'push';
+        if (halo && burst) {
+            halo.visible = memoryVisible;
+            burst.visible = beat === 'grip' || beat === 'push';
+            if (memoryVisible) {
+                const revealP = beat === 'reveal' ? ease(f8FinaleProgress('reveal')) : 0;
+                const approachP = beat === 'approach' ? ease(f8FinaleProgress('approach')) : 0;
+                const gripP = beat === 'grip' ? ease(f8FinaleProgress('grip')) : 0;
+                const pushP = beat === 'push' ? ease(f8FinaleProgress('push')) : 0;
+                const haloFrame = beat === 'turn' ? 0
+                    : beat === 'reveal' ? Math.min(1, Math.floor(revealP * 2))
+                    : beat === 'approach' ? 1 + Math.min(2, Math.floor(approachP * 3))
+                    : beat === 'grip' ? 3 + Math.min(1, Math.floor(gripP * 2))
+                    : 4 + Math.min(3, Math.floor(pushP * 4));
+                if (lastMemoryFrames.current[0] !== haloFrame) {
+                    lastMemoryFrames.current[0] = haloFrame;
+                    setAtlasFrame(halo.geometry, haloFrame, 4, 2);
+                }
+                const haloP = beat === 'approach' ? approachP : beat === 'grip' ? 1 : beat === 'push' ? 1 : revealP;
+                halo.position.set(0, 1.48, THREE.MathUtils.lerp(-3.7, -6.42, haloP));
+                halo.lookAt(camera.position);
+                const haloScale = THREE.MathUtils.lerp(3.4, 5.8, haloP);
+                halo.scale.set(haloScale, haloScale, 1);
+                halo.rotation.z += rawDt * (beat === 'push' ? 1.8 : 0.34);
+                halo.material.opacity = beat === 'turn' ? 0.08
+                    : beat === 'reveal' ? 0.12 + revealP * 0.1
+                    : beat === 'approach' ? 0.18 + approachP * 0.12
+                    : beat === 'grip' ? 0.34
+                    : 0.34 * (1 - pushP * 0.72);
+
+                if (burst.visible) {
+                    const impactP = beat === 'grip' ? gripP * 0.35 : 0.35 + pushP * 0.65;
+                    const burstFrame = beat === 'grip'
+                        ? 4 + Math.min(1, Math.floor(gripP * 2))
+                        : 5 + Math.min(2, Math.floor(pushP * 3));
+                    if (lastMemoryFrames.current[1] !== burstFrame) {
+                        lastMemoryFrames.current[1] = burstFrame;
+                        setAtlasFrame(burst.geometry, burstFrame, 4, 2);
+                    }
+                    burst.position.set(0, 1.52, THREE.MathUtils.lerp(-6.55, -7.58, impactP));
+                    burst.lookAt(camera.position);
+                    const burstScale = THREE.MathUtils.lerp(2.15, 8.6, impactP);
+                    burst.scale.set(burstScale, burstScale, 1);
+                    burst.rotation.z -= rawDt * (1.1 + pushP * 4.2);
+                    burst.material.opacity = beat === 'grip'
+                        ? 0.08 + gripP * 0.14
+                        : 0.26 * (1 - pushP * 0.55);
+                }
+            }
+        }
+        if (memoryLight.current) {
+            const lightP = beat === 'approach' ? ease(f8FinaleProgress('approach'))
+                : beat === 'grip' ? 1.15
+                : beat === 'push' ? 1.4 * (1 - ease(f8FinaleProgress('push')) * 0.45)
+                : beat === 'reveal' ? 0.4 : 0;
+            memoryLight.current.intensity = lightP * 3.8;
+            memoryLight.current.position.set(0, 1.7, beat === 'push' ? -7.1 : -5.9);
+        }
+
         const root = archivistRoot.current;
         const visible = beat !== 'door';
         root.visible = visible;
@@ -194,6 +273,32 @@ const Floor8FinaleCutscene: React.FC<{
                 <meshBasicMaterial map={elevator} transparent alphaTest={0.025} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
             </mesh>
             <pointLight position={[0, 2.55, -8.95]} color="#d49d53" intensity={5.2} distance={4.2} decay={2} />
+
+            <mesh ref={memoryHalo} visible={false} renderOrder={26}>
+                <planeGeometry args={[1, 1]} />
+                <meshBasicMaterial
+                    map={memoryVortex}
+                    transparent
+                    alphaTest={0.006}
+                    depthWrite={false}
+                    toneMapped={false}
+                    side={THREE.DoubleSide}
+                    blending={THREE.AdditiveBlending}
+                />
+            </mesh>
+            <mesh ref={memoryBurst} visible={false} renderOrder={40}>
+                <planeGeometry args={[1, 1]} />
+                <meshBasicMaterial
+                    map={memoryVortex}
+                    transparent
+                    alphaTest={0.006}
+                    depthWrite={false}
+                    toneMapped={false}
+                    side={THREE.DoubleSide}
+                    blending={THREE.AdditiveBlending}
+                />
+            </mesh>
+            <pointLight ref={memoryLight} color="#a9d6ad" intensity={0} distance={5.5} decay={2} />
 
             <group ref={archivistRoot} visible={false} renderOrder={30}>
                 <mesh ref={archivistA} renderOrder={30}>

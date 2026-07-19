@@ -196,8 +196,8 @@ export const FLOORS: FloorOption[] = [
     level: 9,
     name: 'O Viveiro',
     label: 'Andar 9',
-    description: 'A floresta do esquecimento: ecossistema vivo, onda de apagamento e o fio vermelho até a RAIZ',
-    color: 'from-emerald-700 via-green-500 to-lime-300',
+    description: 'A floresta do esquecimento: um ecossistema vivo (à la Rain World), a onda de apagamento e o fio até a RAIZ',
+    color: 'from-emerald-600 via-green-400 to-lime-300',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 21V13m0 0c-4 0-6.5-2.5-6.5-6.5C9 6.5 12 8 12 13zm0-2c0-4.5 2.5-7 6.5-7 0 4.5-2.5 7-6.5 7z" />
