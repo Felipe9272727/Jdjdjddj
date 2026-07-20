@@ -144,6 +144,22 @@ export const F9_CHEGADA_LINES: ReadonlyArray<string> = [
     'Quando a Raiz recebe os três, ela DESABROCHA, e onde uma árvore-mãe desabrocha abre passagem pra cima: a saída. Cuidado — quando o ar clareia demais vem a ONDA de apagamento. Fora de um OCO ela te apaga e te replanta. E rente ao chão, algo caça.',
 ];
 
+/** O SUSSURRO de cada fruto ao ser colhido — cada oferenda é uma memória que o
+ *  hotel apagou de um ANDAR (a lore do Viveiro: aqui se planta o que se
+ *  esquece). id 0 = a foto das vinte portas (6º), id 1 = o navio (7º),
+ *  id 2 = o interrogatório (8º). */
+export const F9_MEMORIA_LINES: ReadonlyArray<string> = [
+    '“…cloro, vinte portas iguais, o estouro de um flash.” Você conhece essa memória — a FOTO era sua. O fruto pesa como culpa.',
+    '“…sal, ferro, um navio inteiro rangendo dentro de um corredor.” O mar que não coube no hotel. O fruto balança como maré.',
+    '“…uma mesa, uma luz dura, alguém perguntando QUEM É VOCÊ.” Ninguém respondeu. O fruto treme feito quem mente.',
+];
+
+/** A resposta da RAIZ a cada entrega (a 3ª é o desabrochar — flash + teaser). */
+export const F9_ENTREGA_LINES: ReadonlyArray<string> = [
+    'A Raiz estremece. Um anel do tronco ACENDE — um andar inteiro, lembrado de volta.',
+    'Segundo anel. A floresta inteira se inclina — os olhos entre as árvores agora seguem VOCÊ.',
+];
+
 /** As falas da RAIZ (agora no TEASER de fim de andar — o gancho do 10º). */
 export const F9_RAIZ_LINES: ReadonlyArray<string> = [
     'A Raiz desabrocha. Cada anel do tronco é um corredor; cada nó, uma porta. A floresta inteira lembra de você agora.',

@@ -910,6 +910,14 @@ let stepSndT = 0;
 let pickupId = -1;
 let pickupT = 0;
 
+/** HUD: progresso do "segurar pra colher" (0..1) e qual fruto — null se não
+ *  está colhendo. O motor era invisível aqui: o player ficava 0.4 s parado sem
+ *  NENHUM feedback e não descobria a mecânica. */
+export function f9PickupProgress(): { id: number; k: number } | null {
+    if (pickupId < 0) return null;
+    return { id: pickupId, k: Math.min(1, pickupT / 0.4) };
+}
+
 /**
  * O tick do mundo. `px,pz` = player; `lodR` = raio de simulação full.
  * `hunt` (opcional): o player é caçável? está num oco? há quanto tempo parado?
@@ -970,7 +978,7 @@ function f9EcoTickInner(dt: number, px: number, pz: number, lodR: number, hunt: 
     // musgo rebrota devagar sempre
     for (const m of s.moss) m.amount = Math.min(1, m.amount + dt * 0.008);
 
-    // ── V4: AS 3 OFERENDAS — pegar (≤1.2 u por 0.4 s), carregar, entregar (≤3 u) ──
+    // ── V4: AS 3 OFERENDAS — pegar (≤1.6 u por 0.4 s), carregar, entregar (≤3 u) ──
     // (determinístico: não consome rnd — a ordem de consumo do topo se mantém)
     const carregada = s.offerings.find((o) => o.state === 'carregada');
     if (carregada) {
@@ -992,7 +1000,9 @@ function f9EcoTickInner(dt: number, px: number, pz: number, lodR: number, hunt: 
         let cand: F9Offering | null = null;
         for (const o of s.offerings) {
             if (o.state !== 'noChao') continue;
-            if (dist2(px, pz, o.x, o.z) <= 1.2 * 1.2) { cand = o; break; }
+            // raio 1.6 (era 1.2): em 1ª pessoa de bicho o player não vê os pés —
+            // o raio apertado fazia parecer que o fruto "não pegava"
+            if (dist2(px, pz, o.x, o.z) <= 1.6 * 1.6) { cand = o; break; }
         }
         if (!cand) { pickupId = -1; pickupT = 0; }
         else {

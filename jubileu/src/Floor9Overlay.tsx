@@ -1,98 +1,177 @@
 /**
- * Floor9Overlay.tsx — a camada DOM do Viveiro: legendas da chegada (que ENSINAM
- * o objetivo), a linha-objetivo das 3 OFERENDAS, a SETA/distância que sempre
- * aponta pro PRÓXIMO passo certo, o aviso da onda, o VEIL do replantio e o
- * TEASER de fim de andar. Mesmo contrato de uiOpen dos outros andares.
+ * Floor9Overlay.tsx — a camada DOM do Viveiro. Além das legendas/veils, aqui
+ * mora a LEGIBILIDADE do andar (o feedback que faltava nas mecânicas):
+ *  - BÚSSOLA: a seta do objetivo GIRA apontando a direção real relativa à
+ *    câmera (antes era só "26 m" sem direção — inútil no mato escuro).
+ *  - COLHER: hint ao se aproximar do fruto + barra "colhendo memória…" nos
+ *    0.4 s de segurar (o motor era invisível — o player não descobria).
+ *  - SUSSURROS: cada fruto colhido conta a memória que ele é (a lore — a foto
+ *    do 6º, o navio do 7º, o interrogatório do 8º) e a Raiz responde a cada
+ *    entrega.
+ *  - TUTORIAL DA ONDA: callout grande na PRIMEIRA vez que o ar clareia.
+ *  - NOVO OBJETIVO: banner ao ganhar o controle (chegada → explorar).
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
     f9, f9Subscribe, f9Objective, f9ChegadaDone, f9ReplantioDone,
-    F9_CHEGADA_LINES, F9_RAIZ_LINES, F9_OCOS, F9_RAIZ,
+    F9_CHEGADA_LINES, F9_RAIZ_LINES, F9_MEMORIA_LINES, F9_ENTREGA_LINES,
+    F9_OCOS, F9_RAIZ,
 } from './f9Floresta';
-import { f9eco, f9EcoOn, f9EcoSubscribe } from './f9Eco';
+import { f9eco, f9EcoOn, f9EcoSubscribe, f9PickupProgress } from './f9Eco';
 
 const mono: React.CSSProperties = { fontFamily: 'monospace', color: '#dfe8d2', userSelect: 'none' };
 
 type ObjKind = 'oco' | 'oferenda' | 'raiz' | 'passagem';
-interface ObjTarget { dist: number; kind: ObjKind; }
+interface ObjTarget { dist: number; kind: ObjKind; bearing: number | null; }
 const OBJ_LABEL: Record<ObjKind, string> = {
-    oco: '⌂ OCO', oferenda: '➤ OFERENDA', raiz: '➤ A RAIZ', passagem: '➤ A PASSAGEM',
+    oco: 'OCO', oferenda: 'OFERENDA', raiz: 'A RAIZ', passagem: 'A PASSAGEM',
 };
 
 /**
- * A SETA do HUD: sempre aponta pro PRÓXIMO passo certo, com distância legível.
- * Prioridade: EMERGÊNCIA (aviso/onda → OCO) > passagem aberta (→ portal) >
- * carregando (→ Raiz) > achar a próxima oferenda no chão. Atualiza a 2 Hz, fora
- * do rerender do three.
+ * O alvo do HUD (10 Hz): prioridade EMERGÊNCIA (aviso/onda → oco) > passagem
+ * aberta (→ portal) > carregando (→ Raiz) > o fruto no chão mais próximo.
+ * `bearing` = ângulo do alvo RELATIVO à câmera (0 = à frente, +90° = à
+ * direita) — vira a rotação da seta; null sem cameraThetaRef (a seta fica ↑).
  */
-const useObjectiveTarget = (playerPositionRef?: React.MutableRefObject<{ x: number; z: number }>): ObjTarget | null => {
+const useObjectiveTarget = (
+    playerPositionRef?: React.MutableRefObject<{ x: number; z: number }>,
+    cameraThetaRef?: React.MutableRefObject<number>,
+): ObjTarget | null => {
     const [t, setT] = useState<ObjTarget | null>(null);
     useEffect(() => {
         if (!playerPositionRef) return;
         const id = window.setInterval(() => {
             const p = playerPositionRef.current;
             if (!p || f9.phase !== 'explorar') { setT(null); return; }
-            // 1) EMERGÊNCIA: durante o aviso/onda, o único alvo que salva é o OCO
+            let tx: number, tz: number, kind: ObjKind;
             if (f9eco.phase === 'aviso' || f9eco.phase === 'onda') {
-                let best = Infinity;
-                for (const [ox, oz] of F9_OCOS) best = Math.min(best, Math.hypot(p.x - ox, p.z - oz));
-                setT({ dist: Math.round(best), kind: 'oco' });
+                let bx = F9_OCOS[0][0], bz = F9_OCOS[0][1], bd = Infinity;
+                for (const [ox, oz] of F9_OCOS) {
+                    const d = Math.hypot(p.x - ox, p.z - oz);
+                    if (d < bd) { bd = d; bx = ox; bz = oz; }
+                }
+                tx = bx; tz = bz; kind = 'oco';
+            } else if (f9eco.rootState === 'desabrochada') {
+                tx = F9_RAIZ[0]; tz = F9_RAIZ[1] + 2.5; kind = 'passagem';
+            } else if (f9eco.offerings.some((o) => o.state === 'carregada')) {
+                tx = F9_RAIZ[0]; tz = F9_RAIZ[1]; kind = 'raiz';
+            } else {
+                let bx = F9_RAIZ[0], bz = F9_RAIZ[1], bd = Infinity;
+                for (const o of f9eco.offerings) {
+                    if (o.state !== 'noChao') continue;
+                    const d = Math.hypot(p.x - o.x, p.z - o.z);
+                    if (d < bd) { bd = d; bx = o.x; bz = o.z; }
+                }
+                tx = bx; tz = bz; kind = bd < Infinity ? 'oferenda' : 'raiz';
+            }
+            const dx = tx - p.x, dz = tz - p.z;
+            let bearing: number | null = null;
+            if (cameraThetaRef) {
+                // forward do player: (-sinθ, -cosθ); right: (cosθ, -sinθ).
+                const th = cameraThetaRef.current;
+                const fx = -Math.sin(th), fz = -Math.cos(th);
+                const rx = Math.cos(th), rz = -Math.sin(th);
+                bearing = Math.atan2(dx * rx + dz * rz, dx * fx + dz * fz) * 180 / Math.PI;
+            }
+            setT({ dist: Math.round(Math.hypot(dx, dz)), kind, bearing });
+        }, 100);
+        return () => window.clearInterval(id);
+    }, [playerPositionRef, cameraThetaRef]);
+    return t;
+};
+
+/** Proximidade do fruto + progresso da colheita (10 Hz — feedback da mecânica). */
+const usePickup = (playerPositionRef?: React.MutableRefObject<{ x: number; z: number }>) => {
+    const [st, setSt] = useState<{ near: boolean; k: number }>({ near: false, k: 0 });
+    useEffect(() => {
+        if (!playerPositionRef) return;
+        const id = window.setInterval(() => {
+            const p = playerPositionRef.current;
+            if (!p || f9.phase !== 'explorar' || f9eco.offerings.some((o) => o.state === 'carregada')) {
+                setSt((s) => (s.near || s.k ? { near: false, k: 0 } : s));
                 return;
             }
-            // 2) a passagem já abriu → o portal, à frente da Raiz
-            if (f9eco.rootState === 'desabrochada') {
-                setT({ dist: Math.round(Math.hypot(p.x - F9_RAIZ[0], p.z - (F9_RAIZ[1] + 2.5))), kind: 'passagem' });
-                return;
-            }
-            // 3) carregando uma oferenda → leve-a à Raiz
-            if (f9eco.offerings.some((o) => o.state === 'carregada')) {
-                setT({ dist: Math.round(Math.hypot(p.x - F9_RAIZ[0], p.z - F9_RAIZ[1])), kind: 'raiz' });
-                return;
-            }
-            // 4) padrão → o fruto (no chão) mais próximo
-            let best = Infinity;
+            let near = false;
             for (const o of f9eco.offerings) {
                 if (o.state !== 'noChao') continue;
-                best = Math.min(best, Math.hypot(p.x - o.x, p.z - o.z));
+                if (Math.hypot(p.x - o.x, p.z - o.z) < 4.5) { near = true; break; }
             }
-            setT(best < Infinity
-                ? { dist: Math.round(best), kind: 'oferenda' }
-                : { dist: Math.round(Math.hypot(p.x - F9_RAIZ[0], p.z - F9_RAIZ[1])), kind: 'raiz' });
-        }, 500);
+            const prog = f9PickupProgress();
+            setSt({ near, k: prog ? prog.k : 0 });
+        }, 100);
         return () => window.clearInterval(id);
     }, [playerPositionRef]);
-    return t;
+    return st;
 };
 
 export const Floor9Overlay: React.FC<{
     onUiOpenChange: (open: boolean) => void;
     playerPositionRef?: React.MutableRefObject<{ x: number; z: number }>;
+    cameraThetaRef?: React.MutableRefObject<number>;
     onComplete?: () => void;
-}> = ({ onUiOpenChange, playerPositionRef, onComplete }) => {
+}> = ({ onUiOpenChange, playerPositionRef, cameraThetaRef, onComplete }) => {
     const [, setV] = useState(0);
     const [line, setLine] = useState(0);
     const [completo, setCompleto] = useState(false);   // V4: teaser do Andar 10
-    const [bloomFlash, setBloomFlash] = useState(0);   // V4: flash branco→dourado da desabrochada
+    const [bloomFlash, setBloomFlash] = useState(0);   // V4: flash da desabrochada
+    const [whisper, setWhisper] = useState<{ text: string; key: number } | null>(null);
+    const [banner, setBanner] = useState(false);       // "novo objetivo" pós-chegada
+    const [ondaTut, setOndaTut] = useState(false);     // tutorial da 1ª onda
+    const ondaSeen = useRef(false);
     const prevPhase = useRef(f9.phase);
+    const prevEco = useRef(f9eco.phase);
 
     useEffect(() => f9Subscribe(() => setV((x) => x + 1)), []);
     useEffect(() => f9EcoSubscribe(() => setV((x) => x + 1)), []);
+    // transições de fase do ANDAR: reset das legendas + banner de objetivo
     useEffect(() => f9Subscribe(() => {
         if (f9.phase !== prevPhase.current) {
             if (f9.phase === 'chegada') setLine(0);
+            if (prevPhase.current === 'chegada' && f9.phase === 'explorar') setBanner(true);
             prevPhase.current = f9.phase;
         }
     }), []);
-    // V4: eventos do motor (fan-out — o drain da cena não é tocado)
+    useEffect(() => {
+        if (!banner) return;
+        const t = setTimeout(() => setBanner(false), 4000);
+        return () => clearTimeout(t);
+    }, [banner]);
+    // transições do ECO: o tutorial da PRIMEIRA onda
+    useEffect(() => f9EcoSubscribe(() => {
+        if (f9eco.phase !== prevEco.current) {
+            if (f9eco.phase === 'aviso' && !ondaSeen.current && f9.phase === 'explorar') {
+                ondaSeen.current = true;
+                setOndaTut(true);
+            }
+            prevEco.current = f9eco.phase;
+        }
+    }), []);
+    useEffect(() => {
+        if (!ondaTut) return;
+        const t = setTimeout(() => setOndaTut(false), 5000);
+        return () => clearTimeout(t);
+    }, [ondaTut]);
+    // eventos do motor: conclusão, flash, e os SUSSURROS de lore
     useEffect(() => f9EcoOn((e) => {
         if (e === 'f9Completo') {
             setCompleto(true);
-            // a conclusão REAL do andar grava a flag (a antiga chegada por
-            // proximidade da Raiz, que gravava isto, saiu do f9Tick).
             try { if (typeof window !== 'undefined') window.localStorage.setItem('tne_raiz_9', '1'); } catch { /* ignore */ }
         }
         if (e === 'raizDesabrocha') setBloomFlash((k) => k + 1);
+        if (e === 'oferendaPega') {
+            const o = f9eco.offerings.find((x) => x.state === 'carregada');
+            const text = o ? F9_MEMORIA_LINES[o.id] : null;
+            if (text) setWhisper({ text, key: Date.now() });
+        }
+        if (e === 'oferendaEntregue' && f9eco.rootWake <= F9_ENTREGA_LINES.length) {
+            setWhisper({ text: F9_ENTREGA_LINES[f9eco.rootWake - 1], key: Date.now() });
+        }
     }), []);
+    useEffect(() => {
+        if (!whisper) return;
+        const t = setTimeout(() => setWhisper(null), 6500);
+        return () => clearTimeout(t);
+    }, [whisper]);
 
     const chegada = f9.phase === 'chegada';
     const apagando = f9.phase === 'apagando';
@@ -100,11 +179,8 @@ export const Floor9Overlay: React.FC<{
     useEffect(() => { onUiOpenChange(uiOpen); }, [uiOpen, onUiOpenChange]);
     useEffect(() => () => onUiOpenChange(false), [onUiOpenChange]);
 
-    // SOFTLOCK FIX (P0): o fim do veil dependia SÓ do onAnimationEnd do CSS —
-    // frágil (main thread engasgada no mobile atrasa/perde o evento e o jogo
-    // ficava preso no 'apagando'). Fallback por timer: 3.4s do wipe + margem.
-    // f9ReplantioDone é idempotente (checa a fase), então tanto faz quem chega
-    // primeiro; o timer é cancelado se a fase sair por outro caminho.
+    // SOFTLOCK FIX (P0): fallback por timer do fim do veil (onAnimationEnd é
+    // frágil no mobile); f9ReplantioDone é idempotente.
     useEffect(() => {
         if (!apagando) return;
         const t = setTimeout(() => { f9ReplantioDone(); }, 3600);
@@ -115,27 +191,29 @@ export const Floor9Overlay: React.FC<{
     const aviso = f9.phase === 'explorar' && f9eco.phase === 'aviso';
     const carrying = f9eco.offerings.some((o) => o.state === 'carregada');
 
-    // V4: o objetivo principal são as OFERENDAS; a emergência da onda (que salva
-    // a vida) tem prioridade sobre ele.
     let objective = f9Objective();
     if (f9.phase === 'explorar' && !emergency && !completo) {
         if (f9eco.rootState === 'desabrochada') objective = 'A passagem abriu. Entre na luz.';
         else if (carrying) objective = `Leve a Oferenda até a Raiz  ·  ${f9eco.rootWake}/3`;
         else objective = `Ache um fruto de luz  ·  ${f9eco.rootWake}/3 entregues`;
     }
-    const target = useObjectiveTarget(playerPositionRef);
-    // vinheta opressiva em CSS puro (zero GPU): aperta quando o ciclo fecha.
+    const target = useObjectiveTarget(playerPositionRef, cameraThetaRef);
+    const pickup = usePickup(playerPositionRef);
     const vigK = f9eco.phase === 'onda' ? 0.78 : aviso ? 0.66 : 0.52;
+    const accent = emergency ? '#ffca7a'
+        : target?.kind === 'oferenda' ? '#ffd97a'
+        : target?.kind === 'passagem' ? '#ffca4a'
+        : '#e88a8a';
 
     return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 40, pointerEvents: 'none' }}>
-            {/* a moldura úmida do Viveiro (atrás de todo o texto) */}
+            {/* a moldura úmida do Viveiro */}
             <div style={{
                 position: 'absolute', inset: 0,
                 background: `radial-gradient(ellipse at center, transparent 40%, rgba(3,7,5,${vigK}) 100%)`,
             }} />
 
-            {/* objetivo + seta/distância: PRA ONDE, QUÃO LONGE e POR QUÊ */}
+            {/* objetivo + BÚSSOLA (a seta gira pra direção real) + distância */}
             {objective && !chegada && !completo && (
                 <div style={{
                     ...mono, position: 'absolute', top: 'calc(env(safe-area-inset-top) + 58px)', left: 0, right: 0,
@@ -148,19 +226,21 @@ export const Floor9Overlay: React.FC<{
                     }}>{objective}</div>
                     {target && (
                         <div style={{
-                            fontSize: 15, letterSpacing: 3, marginTop: 4, fontWeight: 700,
-                            color: emergency ? '#ffca7a'
-                                : target.kind === 'oferenda' ? '#ffd97a'
-                                : target.kind === 'passagem' ? '#ffca4a'
-                                : '#e88a8a',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            marginTop: 4, fontSize: 15, letterSpacing: 3, fontWeight: 700, color: accent,
                         }}>
+                            <span style={{
+                                display: 'inline-block', fontSize: 19, lineHeight: 1,
+                                transform: `rotate(${(target.bearing ?? 0) - 90}deg)`,
+                                transition: 'transform 0.12s linear',
+                            }}>➤</span>
                             {OBJ_LABEL[target.kind]} · {target.dist} m
                         </div>
                     )}
                 </div>
             )}
 
-            {/* V4: os 3 PIPS de oferenda (canto superior esquerdo) */}
+            {/* os 3 PIPS de oferenda */}
             {f9.phase === 'explorar' && !completo && (
                 <div style={{
                     position: 'absolute', top: 'calc(env(safe-area-inset-top) + 14px)', left: 16,
@@ -181,7 +261,32 @@ export const Floor9Overlay: React.FC<{
                 </div>
             )}
 
-            {/* V4: o hint de carregar (pesado e barulhento) */}
+            {/* COLHER: hint de proximidade + barra de progresso dos 0.4 s */}
+            {f9.phase === 'explorar' && !completo && !emergency && (pickup.near || pickup.k > 0) && (
+                <div style={{
+                    position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 64px)', left: 0, right: 0,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                }}>
+                    <div style={{
+                        ...mono, fontSize: 12.5, letterSpacing: 1, color: '#ffe9b0',
+                        textShadow: '0 1px 3px #000',
+                        animation: pickup.k > 0 ? undefined : 'f9pulse 1.4s ease-in-out infinite',
+                    }}>
+                        {pickup.k > 0 ? 'colhendo a memória…' : 'chegue JUNTO do fruto pra colher'}
+                    </div>
+                    {pickup.k > 0 && (
+                        <div style={{ width: 150, height: 5, borderRadius: 3, background: 'rgba(255,233,176,0.18)', overflow: 'hidden' }}>
+                            <div style={{
+                                width: `${Math.round(pickup.k * 100)}%`, height: '100%',
+                                background: '#ffca4a', boxShadow: '0 0 8px #ffca4a',
+                                transition: 'width 0.1s linear',
+                            }} />
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* o hint de carregar */}
             {carrying && f9.phase === 'explorar' && !completo && (
                 <div style={{
                     ...mono, position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 18px)', left: 0, right: 0,
@@ -190,7 +295,58 @@ export const Floor9Overlay: React.FC<{
                 }}>uma oferenda nos ombros — lento, barulhento. leve-a à Raiz.</div>
             )}
 
-            {/* V4: o FLASH branco→dourado da desabrochada */}
+            {/* SUSSURRO de lore (fruto colhido / resposta da Raiz) */}
+            {whisper && f9.phase === 'explorar' && !completo && (
+                <div key={whisper.key} style={{
+                    position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 108px)',
+                    display: 'flex', justifyContent: 'center', padding: '0 18px',
+                }}>
+                    <div style={{
+                        ...mono, maxWidth: 520, textAlign: 'center', fontSize: 13.5, lineHeight: 1.55,
+                        fontStyle: 'italic', color: '#e8dfc4', textShadow: '0 2px 6px #000',
+                        background: 'rgba(8,10,6,0.66)', border: '1px solid rgba(217,185,106,0.35)',
+                        borderRadius: 10, padding: '10px 14px', animation: 'f9whisper 6.5s ease-in-out forwards',
+                    }}>{whisper.text}</div>
+                </div>
+            )}
+
+            {/* NOVO OBJETIVO (pós-chegada) */}
+            {banner && f9.phase === 'explorar' && (
+                <div style={{
+                    position: 'absolute', left: 0, right: 0, top: '30%',
+                    display: 'flex', justifyContent: 'center',
+                }}>
+                    <div style={{
+                        ...mono, textAlign: 'center', animation: 'f9banner 4s ease-in-out forwards',
+                        background: 'rgba(8,10,6,0.7)', border: '1px solid #d9b96a', borderRadius: 10,
+                        padding: '12px 22px',
+                    }}>
+                        <div style={{ fontSize: 10, letterSpacing: 4, color: '#d9b96a', marginBottom: 6 }}>NOVO OBJETIVO</div>
+                        <div style={{ fontSize: 15, letterSpacing: 1 }}>As três Oferendas — leve os frutos de luz à Raiz</div>
+                    </div>
+                </div>
+            )}
+
+            {/* TUTORIAL DA PRIMEIRA ONDA */}
+            {ondaTut && (
+                <div style={{
+                    position: 'absolute', left: 0, right: 0, top: '38%',
+                    display: 'flex', justifyContent: 'center', padding: '0 16px',
+                }}>
+                    <div style={{
+                        ...mono, maxWidth: 460, textAlign: 'center', animation: 'f9banner 5s ease-in-out forwards',
+                        background: 'rgba(20,14,4,0.85)', border: '1px solid #ffca7a', borderRadius: 10,
+                        padding: '14px 20px', boxShadow: '0 0 30px rgba(255,202,122,0.25)',
+                    }}>
+                        <div style={{ fontSize: 11, letterSpacing: 3, color: '#ffca7a', marginBottom: 7 }}>O AR ESTÁ CLAREANDO</div>
+                        <div style={{ fontSize: 14.5, lineHeight: 1.5, color: '#ffe9c9' }}>
+                            A ONDA DE APAGAMENTO vem aí. Corra pro OCO mais perto — a árvore de boca AZUL. Fora dela, você é apagado.
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* o FLASH da desabrochada */}
             {bloomFlash > 0 && (
                 <div key={bloomFlash} style={{
                     position: 'absolute', inset: 0, pointerEvents: 'none',
@@ -199,7 +355,7 @@ export const Floor9Overlay: React.FC<{
                 }} />
             )}
 
-            {/* V4: o CARTÃO TEASER do fim de andar (Andar 10) — com a lore da Raiz */}
+            {/* o CARTÃO TEASER do fim de andar — com a lore da Raiz */}
             {completo && (
                 <div style={{
                     position: 'absolute', inset: 0, pointerEvents: 'auto',
@@ -231,7 +387,7 @@ export const Floor9Overlay: React.FC<{
                 </div>
             )}
 
-            {/* legendas da chegada (toque pra avançar) — ENSINAM as oferendas */}
+            {/* legendas da chegada */}
             {chegada && (
                 <div onPointerDown={() => {
                     if (line < F9_CHEGADA_LINES.length - 1) setLine((l) => l + 1);
@@ -254,7 +410,7 @@ export const Floor9Overlay: React.FC<{
                 </div>
             )}
 
-            {/* o REPLANTIO: pego fora do oco — branco engole, e devolve */}
+            {/* o REPLANTIO */}
             {apagando && (
                 <div style={{ position: 'absolute', inset: 0, pointerEvents: 'auto' }}>
                     <div onAnimationEnd={() => f9ReplantioDone()} style={{ position: 'absolute', inset: 0, background: '#eef4e8', animation: 'f9wipe 3.4s ease-in-out forwards' }} />
@@ -274,6 +430,8 @@ export const Floor9Overlay: React.FC<{
                 @keyframes f9wipe { 0%{opacity:0} 22%{opacity:1} 74%{opacity:1} 100%{opacity:0} }
                 @keyframes f9wipeTxt { 0%{opacity:0} 30%{opacity:0} 45%{opacity:1} 70%{opacity:1} 85%{opacity:0} 100%{opacity:0} }
                 @keyframes f9bloom { 0%{opacity:1} 100%{opacity:0} }
+                @keyframes f9whisper { 0%{opacity:0; transform: translateY(8px)} 8%{opacity:1; transform: translateY(0)} 82%{opacity:1} 100%{opacity:0} }
+                @keyframes f9banner { 0%{opacity:0; transform: scale(0.96)} 10%{opacity:1; transform: scale(1)} 82%{opacity:1} 100%{opacity:0} }
             `}</style>
         </div>
     );

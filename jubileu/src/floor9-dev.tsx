@@ -203,7 +203,7 @@ const Dev: React.FC = () => {
                 <Fiapo playerPositionRef={posRef} cameraThetaRef={thetaAdapter} />
                 <Floor9Cutscene />
             </Canvas>
-            <Floor9Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} playerPositionRef={posRef} />
+            <Floor9Overlay onUiOpenChange={(o) => { frozenRef.current = o; }} playerPositionRef={posRef} cameraThetaRef={thetaAdapter} />
             <div style={{
                 position: 'absolute', bottom: 8, left: 10, color: '#777', zIndex: 50,
                 fontFamily: 'monospace', fontSize: 11, pointerEvents: 'none',
