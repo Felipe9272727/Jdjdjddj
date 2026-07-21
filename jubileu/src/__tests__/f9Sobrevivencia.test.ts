@@ -202,9 +202,9 @@ describe('f9Sobrevivencia — M21: a inteligência SENTIDA (a rede dirige a rea�
         pinAllExcept([s.id]);
         let froze = false;
         for (let i = 0; i < 20 && !froze; i++) {
-            if (s.state === 'wander') { s.x = 0; s.z = -4.5; }  // segura até reagir
+            if ((s.state as string) === 'wander') { s.x = 0; s.z = -4.5; }  // segura até reagir
             f9EcoTick(1 / 30, 0, -8, 200, noisyPlayer);  // player a 3.5 u, barulhento (te percebe)
-            if (s.state === 'freeze') froze = true;
+            if ((s.state as string) === 'freeze') froze = true;
         }
         expect(froze).toBe(true);
     });
@@ -218,10 +218,10 @@ describe('f9Sobrevivencia — M21: a inteligência SENTIDA (a rede dirige a rea�
         pinAllExcept([s.id]);
         let fled = false, froze = false;
         for (let i = 0; i < 20; i++) {
-            if (s.state === 'wander') { s.x = 0; s.z = -4.5; }
+            if ((s.state as string) === 'wander') { s.x = 0; s.z = -4.5; }
             f9EcoTick(1 / 30, 0, -8, 200, noisyPlayer);
-            if (s.state === 'freeze') froze = true;
-            if (s.state === 'flee') { fled = true; break; }
+            if ((s.state as string) === 'freeze') froze = true;
+            if ((s.state as string) === 'flee') { fled = true; break; }
         }
         expect(fled).toBe(true);
         expect(froze).toBe(false);                     // o aprendizado troca observar por fugir
@@ -243,7 +243,7 @@ describe('f9Sobrevivencia — M21: a inteligência SENTIDA (a rede dirige a rea�
             for (let d = 12; d > 0.5; d -= 0.25) {
                 a.x = 0; a.z = 0;
                 f9EcoTick(1 / 30, 0, -d, 200, { ...noisyPlayer });
-                if (a.state === 'freeze' || a.state === 'flee') return d;
+                if ((a.state as string) === 'freeze' || (a.state as string) === 'flee') return d;
             }
             return 0;
         };
