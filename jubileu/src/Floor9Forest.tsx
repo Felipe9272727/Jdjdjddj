@@ -41,8 +41,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { EffectComposer, Bloom, Vignette, Noise, HueSaturation } from '@react-three/postprocessing';
 import { colorTex, rng } from './Floor6Textures';
-import { f9, f9Tick, f9DrainEvents, f9Cacado, F9_OCOS, F9_FIO, F9_RAIZ } from './f9Floresta';
-import { f9eco, f9EcoTick, f9EcoDrainEvents, f9DropOffering, f9CycleFrac, F9_AVISO_AT, F9_TREE_OBSTACLES, type F9CyclePhase } from './f9Eco';
+import { f9, f9Tick, f9DrainEvents, f9Cacado, F9_OCOS, F9_OCO_MOUTH, F9_RAIZ_MOUTH, F9_FIO, F9_RAIZ } from './f9Floresta';
+import { f9eco, f9EcoTick, f9EcoDrainEvents, f9DropOffering, f9CycleFrac, F9_AVISO_AT, F9_TREE_OBSTACLES, freshOfferings, type F9CyclePhase } from './f9Eco';
 import { Floor9Oferendas } from './Floor9Oferendas';
 import { Saltitos, Cervos, Vultos, Guardiao, DenMouths, BlobShadows } from './Floor9Fauna';
 import { Floor9Storm, f9StormShare } from './Floor9Storm';
@@ -271,8 +271,17 @@ function nearGameplay(x: number, z: number, margin: number): boolean {
     if (Math.hypot(x, z + 2) < 5 + margin) return true;
     for (const [fx, fz] of F9_FIO) if (dist2(x, z, fx, fz) < (1.7 + margin) ** 2) return true;
     for (const [ox, oz] of F9_OCOS) if (dist2(x, z, ox, oz) < (2.8 + margin) ** 2) return true;
-    if (dist2(x, z, F9_RAIZ[0], F9_RAIZ[1] - 2.5) < (4.5 + margin) ** 2) return true;
+    // M18: raio maior — a flora não pode plantar no corredor da PORTA da câmara
+    if (dist2(x, z, F9_RAIZ[0], F9_RAIZ[1] - 2.5) < (6.2 + margin) ** 2) return true;
     return false;
+}
+
+/** M18: dentro de um SANTUÁRIO (interior de oco / câmara da Raiz)? Bloqueio
+ *  DURO — os scatters têm um roll de 15-30% que planta MESMO perto do gameplay
+ *  (densidade), mas dentro dos pisos nivelados não pode nascer NADA. */
+function inSanctuary(x: number, z: number): boolean {
+    for (const [ox, oz] of F9_OCOS) if (dist2(x, z, ox, oz) < 3.2 * 3.2) return true;
+    return dist2(x, z, F9_RAIZ[0], F9_RAIZ[1] - 2.5) < 6.4 * 6.4;
 }
 
 /* Quality vem de f9Quality.ts (fonte única — mesma chave do Settings, mesmo
@@ -337,6 +346,7 @@ const Trees: React.FC<{ sway: boolean }> = ({ sway }) => {
         const spots: Array<[number, number, number]> = [];
         for (let i = 0; i < 400 && spots.length < 240; i++) {
             const x = (r() * 2 - 1) * 33, z = -52 + r() * 57;
+            if (inSanctuary(x, z)) continue;
             if (nearGameplay(x, z, 0.4) && r() < 0.85) continue;
             // adensa nas bordas (paredes de floresta)
             const edge = Math.max(Math.abs(x) / 33, (z < -24 ? (-z - 24) / 28 : (z + 2) / 6));
@@ -469,6 +479,7 @@ const Undergrowth: React.FC<{ low: boolean; swayMode: F9SwayMode }> = ({ low, sw
         let fi = 0;
         for (let i = 0; i < 2200 && fi < nF; i++) {
             const x = (r() * 2 - 1) * 32, z = -50 + r() * 54;
+            if (inSanctuary(x, z)) continue;
             if (nearGameplay(x, z, -0.4) && r() < 0.8) continue;
             const tx = (r() - 0.5) * 0.2, ry = r() * Math.PI * 2, tz = (r() - 0.5) * 0.15;
             // 2 faixas: 60% normal (0.55–1.1) · 40% "samambaia-mãe" (1.4–2.2)
@@ -505,6 +516,7 @@ const Undergrowth: React.FC<{ low: boolean; swayMode: F9SwayMode }> = ({ low, sw
         const spots: Array<[number, number, number, boolean, number]> = []; // x,z,s,cyan,rotY
         for (let i = 0; i < 600 && spots.length < 64; i++) {
             const x = (r() * 2 - 1) * 31, z = -49 + r() * 52;
+            if (inSanctuary(x, z)) continue;
             if (nearGameplay(x, z, -0.6) && r() < 0.7) continue;
             // 3 tamanhos (brief §3): ~85% normal 0.5–0.9 · ~15% "mãe" 1.2–1.8
             const s = r() < 0.15 ? 1.2 + r() * 0.6 : 0.5 + r() * 0.4;
@@ -636,7 +648,7 @@ const ForegroundFringe: React.FC<{ low: boolean; swayMode: F9SwayMode }> = ({ lo
         const blocked = (x: number, z: number): boolean => {
             for (const [fx, fz] of F9_FIO) if (dist2(x, z, fx, fz) < 2.1 * 2.1) return true;
             for (const [ox, oz] of F9_OCOS) if (dist2(x, z, ox, oz) < 3.4 * 3.4) return true;
-            if (dist2(x, z, F9_RAIZ[0], F9_RAIZ[1] - 2.5) < 5 * 5) return true;
+            if (dist2(x, z, F9_RAIZ[0], F9_RAIZ[1] - 2.5) < 6.5 * 6.5) return true; // M18: porta livre
             return false;
         };
         const fBase: Array<[number, number, number, number, number, number]> = []; // x,z,sc,rotY,tiltX,tiltZ
@@ -1167,55 +1179,106 @@ const ObjectiveBeacon: React.FC<{ playerPositionRef: React.MutableRefObject<THRE
 //    as colunas douradas das oferendas + o nó-guia. F9_FIO segue só como layout
 //    INVISÍVEL (as árvores-mãe abrem uma clareira até a Raiz, sem thread). ──
 
-// ── OCOS INSTANCIADOS: eram 4 × 7 meshes = 28 draws; agora 5 (as 4 point
-//    lights ficam — são luzes EXISTENTES do santuário, não são novas) ──
-const Ocos: React.FC = () => {
+// ── OCOS REAIS (M18): tronco em C com BOCA de verdade no ângulo da colisão
+//    (F9_OCO_MOUTH — mesma fonte de constants), interior com chão de musgo,
+//    fungos-prateleira e raízes penduradas, e a entrada emoldurada por
+//    cogumelos + a luz de dentro VAZANDO pela boca (o farol natural — sem
+//    seta). As 4 point lights são as MESMAS de antes, só mudaram pra dentro. ──
+const OCO_GAP_HALF = 0.62; // rad — vão visual do tronco (colisão usa 0.72)
+const Oco: React.FC<{ i: number; lite: boolean }> = ({ i, lite }) => {
+    const [x, z] = F9_OCOS[i];
+    const mouth = F9_OCO_MOUTH[i];
+    const gy = f9GroundHeight(x, z);
     const built = useMemo(() => {
-        const n = F9_OCOS.length;
-        const trunkGeo = new THREE.CylinderGeometry(1.5, 2.3, 7.4, 9, 1);
-        const canopyGeo = jittered(new THREE.IcosahedronGeometry(2.5, 1), 0.5, 91);
-        const rootGeo = new THREE.CylinderGeometry(0.09, 0.6, 1.5, 5);
-        const glowGeo = new THREE.CircleGeometry(0.75, 12);
-        const haloGeo = new THREE.CircleGeometry(1.35, 12);
-        const haloMat = new THREE.MeshBasicMaterial({ color: '#ffca7a', transparent: true, opacity: 0.14, depthWrite: false, blending: THREE.AdditiveBlending });
-        const trunks = new THREE.InstancedMesh(trunkGeo, M9.bark, n);
-        const canopies = new THREE.InstancedMesh(canopyGeo, M9.canopyDark, n);
-        const roots = new THREE.InstancedMesh(rootGeo, M9.bark, n * 3);
-        const glows = new THREE.InstancedMesh(glowGeo, M9.ocoGlow, n);
-        const halos = new THREE.InstancedMesh(haloGeo, haloMat, n);
-        const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), pos = new THREE.Vector3(), eu = new THREE.Euler();
-        F9_OCOS.forEach(([x, z, r], i) => {
-            eu.set(0, 0, 0); q.setFromEuler(eu);
-            m4.compose(pos.set(x, 3.6, z), q, sc.set(1, 1, 1)); trunks.setMatrixAt(i, m4);
-            m4.compose(pos.set(x, 6.4, z), q, sc.set(1, 1, 1)); canopies.setMatrixAt(i, m4);
-            for (let k = 0; k < 3; k++) {
-                const a = (k / 3) * Math.PI * 2 + i * 1.3;
-                eu.set(0, -a, 1.1); q.setFromEuler(eu);
-                m4.compose(pos.set(x + Math.cos(a) * 2.0, 0.4, z + Math.sin(a) * 2.0), q, sc.set(1, 1, 1));
-                roots.setMatrixAt(i * 3 + k, m4);
-            }
-            eu.set(0, 0, 0); q.setFromEuler(eu);
-            m4.compose(pos.set(x, 1.05, z + r * 0.62), q, sc.set(1, 1, 1)); glows.setMatrixAt(i, m4);
-            m4.compose(pos.set(x, 1.05, z + r * 0.6), q, sc.set(1, 1, 1)); halos.setMatrixAt(i, m4);
-        });
-        trunks.instanceMatrix.needsUpdate = true;
-        canopies.instanceMatrix.needsUpdate = true;
-        roots.instanceMatrix.needsUpdate = true;
-        glows.instanceMatrix.needsUpdate = true;
-        halos.instanceMatrix.needsUpdate = true;
-        return { trunks, canopies, roots, glows, halos, all: [trunkGeo, canopyGeo, rootGeo, glowGeo, haloGeo], haloMat };
-    }, []);
-    useEffect(() => () => { built.all.forEach((g) => g.dispose()); built.haloMat.dispose(); }, [built]);
-    return (<>
-        <primitive object={built.trunks} />
-        <primitive object={built.canopies} />
-        <primitive object={built.roots} />
-        <primitive object={built.glows} />
-        <primitive object={built.halos} />
-        {F9_OCOS.map(([x, z, r], i) => (
-            <pointLight key={i} position={[x, 1.3, z + r * 0.4]} distance={5.5} decay={2} color="#ffca7a" intensity={3.4} />
-        ))}
-    </>);
+        // cilindro: x = r·sinθ, z = r·cosθ ⇒ θ = π/2 − a (a = ângulo mundo)
+        const thetaC = Math.PI / 2 - mouth;
+        const trunkGeo = new THREE.CylinderGeometry(1.6, 2.15, 6.8, 12, 1, true, thetaC + OCO_GAP_HALF, Math.PI * 2 - OCO_GAP_HALF * 2);
+        // DoubleSide + madeira de MIOLO (mais clara que a casca) + emissive:
+        // o interior é legível mesmo no breu — cerne exposto, não breu vazio
+        const barkIn = M9.bark.clone(); barkIn.side = THREE.DoubleSide;
+        barkIn.color = new THREE.Color('#a89070');
+        barkIn.emissive = new THREE.Color('#4a3418'); barkIn.emissiveIntensity = 0.3;
+        const canopyGeo = jittered(new THREE.IcosahedronGeometry(2.5, 1), 0.5, 91 + i);
+        const floorMat = new THREE.MeshStandardMaterial({ color: '#31402a', roughness: 1, emissive: '#ff9a4a', emissiveIntensity: 0.1 });
+        const haloMat = new THREE.MeshBasicMaterial({ color: '#ffca7a', transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending });
+        return { trunkGeo, barkIn, canopyGeo, floorMat, haloMat };
+    }, [i, mouth]);
+    useEffect(() => () => { built.trunkGeo.dispose(); built.barkIn.dispose(); built.canopyGeo.dispose(); built.floorMat.dispose(); built.haloMat.dispose(); }, [built]);
+    const mx = Math.cos(mouth), mz = Math.sin(mouth);            // direção da boca
+    const px_ = -mz, pz_ = mx;                                   // perpendicular
+    const lipR = 2.0;                                            // raio das ombreiras
+    const chord = Math.sin(OCO_GAP_HALF) * lipR;                 // meia-largura da boca
+    const padY = (d: number) => f9GroundHeight(x + mx * d, z + mz * d);
+    return (
+        <group>
+            {/* o tronco em C (DoubleSide: o interior existe de verdade) */}
+            <mesh position={[x, gy + 3.0, z]} geometry={built.trunkGeo} material={built.barkIn} />
+            <mesh position={[x, gy + 6.2, z]} geometry={built.canopyGeo} material={M9.canopyDark} />
+            {/* chão interno de musgo morno + a luz do santuário (a MESMA de antes) */}
+            <mesh position={[x, gy + 0.06, z]} rotation={[-Math.PI / 2, 0, 0]} material={built.floorMat}>
+                <circleGeometry args={[1.95, 14]} />
+            </mesh>
+            <pointLight position={[x, gy + 2.2, z]} distance={7} decay={2} color="#ffca7a" intensity={4.2} />
+            {/* OMBREIRAS + VERGA: a boca é uma moldura intencional, não um corte */}
+            {[-1, 1].map((s) => (
+                <mesh key={s} position={[x + mx * lipR * Math.cos(OCO_GAP_HALF) + px_ * chord * s, gy + 1.5, z + mz * lipR * Math.cos(OCO_GAP_HALF) + pz_ * chord * s]}
+                    rotation={[0.1 * s, Math.PI / 2 - mouth, 0.14 * -s]} material={M9.bark}>
+                    <cylinderGeometry args={[0.17, 0.24, 3.2, 6]} />
+                </mesh>
+            ))}
+            <mesh position={[x + mx * lipR * 0.92, gy + 3.05, z + mz * lipR * 0.92]}
+                rotation={[0, Math.PI / 2 - mouth, Math.PI / 2]} material={M9.bark}>
+                <cylinderGeometry args={[0.15, 0.15, chord * 2 + 0.7, 6]} />
+            </mesh>
+            {/* fungos emoldurando a entrada (teal fora, âmbar na verga) */}
+            {[-1, 1].flatMap((s) => [0, 1].map((k) => (
+                <mesh key={`${s}:${k}`} position={[x + mx * (lipR + 0.25) + px_ * (chord + 0.15) * s, gy + 0.16 + k * 0.34, z + mz * (lipR + 0.25) + pz_ * (chord + 0.15) * s]} material={M9.shroomCap}>
+                    <coneGeometry args={[0.16 - k * 0.05, 0.2, 6]} />
+                </mesh>
+            )))}
+            <mesh position={[x + mx * lipR * 0.95, gy + 3.3, z + mz * lipR * 0.95]} material={M9.shroomCapAmber}>
+                <coneGeometry args={[0.15, 0.2, 6]} />
+            </mesh>
+            {/* dentro: prateleira de fungos + raízes penduradas (somem no lite) */}
+            {!lite && [0, 1, 2].map((k) => {
+                const a = mouth + Math.PI + (k - 1) * 0.8;
+                const wr = 2.02 - (0.9 + k * 0.5) * 0.08; // encostados NA parede (raio segue o afunilamento)
+                return (
+                    <mesh key={k} position={[x + Math.cos(a) * wr, gy + 0.9 + k * 0.5, z + Math.sin(a) * wr]} material={M9.shroomCapAmber}>
+                        <coneGeometry args={[0.13, 0.18, 6]} />
+                    </mesh>
+                );
+            })}
+            {!lite && [0, 1].map((k) => {
+                const a = mouth + Math.PI + (k === 0 ? -0.5 : 0.6);
+                return (
+                    <mesh key={k} position={[x + Math.cos(a) * 1.0, gy + 3.4, z + Math.sin(a) * 1.0]} material={M9.bark}>
+                        <cylinderGeometry args={[0.03, 0.06, 1.6, 4]} />
+                    </mesh>
+                );
+            })}
+            {/* raízes-contraforte EXTERNAS (recuadas da boca) */}
+            {[0.95, Math.PI, -0.95].map((off, k) => {
+                const a = mouth + off;
+                return (
+                    <mesh key={k} position={[x + Math.cos(a) * 2.0, gy + 0.4, z + Math.sin(a) * 2.0]} rotation={[0, -a, 1.1]} material={M9.bark}>
+                        <cylinderGeometry args={[0.09, 0.6, 1.5, 5]} />
+                    </mesh>
+                );
+            })}
+            {/* o TAPETE DE LUZ: dois discos no chão saindo da boca (trilha) */}
+            <mesh position={[x + mx * 2.9, padY(2.9) + 0.05, z + mz * 2.9]} rotation={[-Math.PI / 2, 0, 0]} material={M9.ocoGlow}>
+                <circleGeometry args={[0.75, 12]} />
+            </mesh>
+            <mesh position={[x + mx * 3.1, padY(3.1) + 0.045, z + mz * 3.1]} rotation={[-Math.PI / 2, 0, 0]} material={built.haloMat}>
+                <circleGeometry args={[1.35, 12]} />
+            </mesh>
+        </group>
+    );
+};
+const Ocos: React.FC = () => {
+    const lite = f9IsLite(useMemo(f9Quality, []));
+    return (<>{F9_OCOS.map((_, i) => <Oco key={i} i={i} lite={lite} />)}</>);
 };
 
 // ── V4: A RAIZ DORMENTE → DESABROCHADA ───────────────────────────────────────
@@ -1265,11 +1328,33 @@ const Raiz: React.FC = () => {
         if (veins.instanceColor) veins.instanceColor.needsUpdate = true;
         return { hearts, rays, veins, dark, lit, veinGeo, veinMat };
     }, []);
+    // M18 — a CÂMARA: tronco em C (boca +z, mesma da colisão F9_RAIZ_MOUTH),
+    // verga fechando o alto da porta, chão com os ANÉIS-corredor (lore), o
+    // CORAÇÃO pendurado (alvo visível da entrega) e o feixe de luz interno.
+    const m18 = useMemo(() => {
+        const thetaC = Math.PI / 2 - F9_RAIZ_MOUTH; // = 0 (boca em +z)
+        const trunkGeo = new THREE.CylinderGeometry(2.4, 4.3, 10, 16, 1, true, thetaC + 0.34, Math.PI * 2 - 0.68);
+        const lintelGeo = new THREE.CylinderGeometry(2.4, 3.42, 5.4, 6, 1, true, thetaC - 0.34, 0.68);
+        const barkIn = M9.bark.clone(); barkIn.side = THREE.DoubleSide;
+        barkIn.color = new THREE.Color('#9a8262');
+        barkIn.emissive = new THREE.Color('#3e2c12'); barkIn.emissiveIntensity = 0.32;
+        const floorMat = new THREE.MeshStandardMaterial({ color: '#2e3a26', roughness: 1, emissive: '#242010', emissiveIntensity: 0.3 });
+        const ringMat = new THREE.MeshStandardMaterial({ color: '#241a08', emissive: '#ffca4a', emissiveIntensity: 0.15, roughness: 0.8 });
+        const heartMat = new THREE.MeshStandardMaterial({ color: '#4a1410', emissive: '#ff7a4a', emissiveIntensity: 0.5, roughness: 0.5 });
+        const shaftMat = new THREE.MeshBasicMaterial({ color: '#ffe9b0', transparent: true, opacity: 0.04, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+        return { trunkGeo, lintelGeo, barkIn, floorMat, ringMat, heartMat, shaftMat };
+    }, []);
     const heartRefs = useRef<Array<THREE.Mesh | null>>([null, null, null]);
     const rayRefs = useRef<Array<THREE.Mesh | null>>([null, null, null]);
+    const heartBigRef = useRef<THREE.Mesh>(null!);
     const lightRef = useRef<THREE.PointLight>(null!);
     const lastWake = useRef(-1);
-    useEffect(() => () => { roots.geometry.dispose(); v4.veinGeo.dispose(); v4.veinMat.dispose(); v4.hearts.forEach((m) => m.dispose()); v4.rays.forEach((m) => m.dispose()); }, [roots, v4]);
+    useEffect(() => () => {
+        roots.geometry.dispose(); v4.veinGeo.dispose(); v4.veinMat.dispose();
+        v4.hearts.forEach((m) => m.dispose()); v4.rays.forEach((m) => m.dispose());
+        m18.trunkGeo.dispose(); m18.lintelGeo.dispose(); m18.barkIn.dispose();
+        m18.floorMat.dispose(); m18.ringMat.dispose(); m18.heartMat.dispose(); m18.shaftMat.dispose();
+    }, [roots, v4, m18]);
     useFrame(({ clock }) => {
         const t = clock.elapsedTime;
         const wake = f9eco.rootWake;
@@ -1300,15 +1385,69 @@ const Raiz: React.FC = () => {
         }
         // a point light EXISTENTE vira o farol do objetivo (sem luz nova — P0)
         if (lightRef.current) lightRef.current.intensity = bloom ? 8 : 2.5 + wake * 2.2 + Math.sin(t * 2.4) * (wake > 0 ? 0.4 : 0);
+        // M18 — o CORAÇÃO bate mais forte a cada entrega; anéis e feixe acordam
+        m18.heartMat.emissiveIntensity = (bloom ? 2.0 : 0.45 + wake * 0.5) + Math.abs(Math.sin(t * 2.2)) * (0.3 + wake * 0.25);
+        if (bloom) m18.heartMat.emissive.setStyle('#ffca4a');
+        if (heartBigRef.current) heartBigRef.current.scale.setScalar(1 + Math.sin(t * 2.2) * (0.05 + wake * 0.03));
+        m18.ringMat.emissiveIntensity = (bloom ? 1.3 : 0.12 + wake * 0.32) + Math.sin(t * 1.4) * 0.05;
+        m18.shaftMat.opacity += ((bloom ? 0.2 : 0.03 + wake * 0.04) - m18.shaftMat.opacity) * 0.08;
     });
     return (
         <group position={[F9_RAIZ[0], 0, F9_RAIZ[1] - 2.5]}>
-            <mesh position={[0, 5, 0]} material={M9.bark}><cylinderGeometry args={[2.2, 4.6, 10, 12, 1]} /></mesh>
+            {/* M18: o tronco em C (a PORTA existe) + a verga fechando o alto */}
+            <mesh position={[0, 5, 0]} geometry={m18.trunkGeo} material={m18.barkIn} />
+            <mesh position={[0, 7.3, 0]} geometry={m18.lintelGeo} material={m18.barkIn} />
             <primitive object={roots} />
             <mesh position={[0, 11.4, 0]} material={M9.canopyDark}><icosahedronGeometry args={[5.4, 1]} /></mesh>
-            <mesh position={[0, 2.2, 3.6]} rotation={[0.4, 0, 0]} material={M9.shroomCapAmber}><boxGeometry args={[0.14, 0.9, 0.08]} /></mesh>
-            {/* os 3 CORAÇÕES-VAGENS no tronco (acordam por entrega) */}
-            {[[-0.9, 2.3, 3.55], [0.85, 3.5, 3.0], [-0.15, 4.7, 2.5]].map(([hx, hy, hz], i) => (
+            {/* ombreiras da porta: duas raízes-batente + fungos teal na base */}
+            {[-1, 1].map((s) => (
+                <mesh key={s} position={[s * 1.62, 2.2, 3.95]} rotation={[0.12, 0, -s * 0.1]} material={M9.bark}>
+                    <cylinderGeometry args={[0.2, 0.34, 4.6, 6]} />
+                </mesh>
+            ))}
+            {[-1, 1].map((s) => (
+                <mesh key={s} position={[s * 1.95, 0.22, 4.05]} material={M9.shroomCap}>
+                    <coneGeometry args={[0.18, 0.26, 6]} />
+                </mesh>
+            ))}
+            {/* o INTERIOR: chão + os ANÉIS-corredor (cada anel, um andar lembrado) */}
+            <mesh position={[0, 0.055, 0]} rotation={[-Math.PI / 2, 0, 0]} material={m18.floorMat}>
+                <circleGeometry args={[3.95, 18]} />
+            </mesh>
+            {[1.15, 2.05, 2.95].map((r, k) => (
+                <mesh key={k} position={[0, 0.075 + k * 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]} material={m18.ringMat}>
+                    <ringGeometry args={[r - 0.055, r + 0.055, 26]} />
+                </mesh>
+            ))}
+            {/* o CORAÇÃO pendurado (o alvo da entrega — visível da porta) */}
+            <mesh position={[0, 5.9, 1.6]} rotation={[0.32, 0, 0]} material={M9.bark}>
+                <cylinderGeometry args={[0.05, 0.09, 4.6, 5]} />
+            </mesh>
+            <mesh ref={heartBigRef} position={[0, 3.45, 2.4]} material={m18.heartMat}>
+                <icosahedronGeometry args={[0.56, 1]} />
+            </mesh>
+            {/* costelas internas acompanhando a parede + fungos de prateleira */}
+            {[1.05, 1.95, Math.PI, -1.95, -1.05].map((off, k) => {
+                const a = Math.PI / 2 + off;
+                return (
+                    <group key={k} rotation={[0, -a, 0]}>
+                        <mesh position={[3.55, 4.6, 0]} rotation={[0, 0, 0.19]} material={M9.bark}>
+                            <cylinderGeometry args={[0.13, 0.3, 8.4, 5]} />
+                        </mesh>
+                    </group>
+                );
+            })}
+            {[[-2.4, 0.5], [2.5, 0.9], [-1.2, 1.4]].map(([fx, fy], k) => (
+                <mesh key={k} position={[fx, fy, -2.4]} material={M9.shroomCapAmber}>
+                    <coneGeometry args={[0.14, 0.2, 6]} />
+                </mesh>
+            ))}
+            {/* o FEIXE: luz descendo do olho da copa até o coração */}
+            <mesh position={[0, 5.2, 1.2]} material={m18.shaftMat}>
+                <coneGeometry args={[2.0, 8.2, 10, 1, true]} />
+            </mesh>
+            {/* os 3 CORAÇÕES-VAGENS na parede EXTERNA, ladeando a porta */}
+            {[[2.7, 2.3, 2.75], [-2.7, 3.3, 2.7], [0, 5.6, 3.1]].map(([hx, hy, hz], i) => (
                 <mesh key={i} ref={(el) => { heartRefs.current[i] = el; }} position={[hx, hy, hz]} material={v4.hearts[i]}>
                     <sphereGeometry args={[0.34, 10, 9]} />
                 </mesh>
@@ -1322,9 +1461,64 @@ const Raiz: React.FC = () => {
             ))}
             {/* veias de raiz brilhantes se espalhando no chão */}
             <primitive object={v4.veins} />
-            <pointLight ref={lightRef} position={[0, 2.4, 4.3]} distance={7} decay={2} color="#ffdf8a" intensity={4} />
+            {/* a luz mora DENTRO agora — vaza pela porta (a entrada se anuncia) */}
+            <pointLight ref={lightRef} position={[0, 2.6, 2.4]} distance={8} decay={2} color="#ffdf8a" intensity={4} />
         </group>
     );
+};
+
+// ── RELÍQUIAS (M18 — a IDENTIDADE em cena): cada spot de oferenda guarda o
+//    OBJETO da memória que o fruto é — o hotel enterrou, a floresta engoliu.
+//    A moldura da FOTO (6º), o SINO do navio (7º), a LUMINÁRIA do
+//    interrogatório (8º). Estáticas, ~20 draws, todas as qualities. ──
+const Reliquias: React.FC = () => {
+    const mats = useMemo(() => ({
+        wood: new THREE.MeshStandardMaterial({ color: '#3a2e20', roughness: 0.9 }),
+        photo: new THREE.MeshStandardMaterial({ color: '#cfc8b0', roughness: 0.8, emissive: '#d8d0b8', emissiveIntensity: 0.2, side: THREE.DoubleSide }),
+        bronze: new THREE.MeshStandardMaterial({ color: '#4a6a5e', roughness: 0.5, metalness: 0.55, emissive: '#40e0d0', emissiveIntensity: 0.08 }),
+        metal: new THREE.MeshStandardMaterial({ color: '#2e3234', roughness: 0.6, metalness: 0.5 }),
+        shade: new THREE.MeshStandardMaterial({ color: '#2a4a34', roughness: 0.5, emissive: '#e8e4c0', emissiveIntensity: 0.22 }),
+        vine: new THREE.MeshStandardMaterial({ color: '#2e4a2a', roughness: 1 }),
+    }), []);
+    useEffect(() => () => { Object.values(mats).forEach((m) => m.dispose()); }, [mats]);
+    const spots = useMemo(() => freshOfferings(), []);
+    const gy = (x: number, z: number) => f9GroundHeight(x, z);
+    const foto = spots.find((o) => o.spot === 'guardiao')!;   // a FOTO (6º)
+    const navio = spots.find((o) => o.spot === 'oco')!;       // o NAVIO (7º)
+    const inter = spots.find((o) => o.spot === 'vulto')!;     // o INTERROGATÓRIO (8º)
+    return (<>
+        {/* A MOLDURA DA FOTO — meio engolida, vidro rachado, vinhas por cima */}
+        <group position={[foto.x + 1.7, gy(foto.x + 1.7, foto.z - 1.0) - 0.12, foto.z - 1.0]} rotation={[-0.12, -0.55, 0.05]} scale={[0.82, 0.82, 0.82]}>
+            {[[0, 1.06, 1.7, 0.12], [0, -1.06, 1.7, 0.12], [-0.79, 0, 0.12, 2.0], [0.79, 0, 0.12, 2.0]].map(([bx, by, w, h], k) => (
+                <mesh key={k} position={[bx, by + 1.05, 0]} material={mats.wood}><boxGeometry args={[w, h, 0.14]} /></mesh>
+            ))}
+            <mesh position={[0, 1.05, -0.02]} material={mats.photo}><planeGeometry args={[1.46, 1.96]} /></mesh>
+            <mesh position={[0.22, 1.2, 0.02]} rotation={[0, 0, 0.6]} material={mats.wood}><boxGeometry args={[0.02, 1.4, 0.02]} /></mesh>
+            <mesh position={[-0.3, 0.6, 0.09]} rotation={[0, 0, 1.2]} material={mats.vine}><cylinderGeometry args={[0.035, 0.05, 1.9, 5]} /></mesh>
+            <mesh position={[0.4, 1.5, 0.09]} rotation={[0, 0, -0.9]} material={mats.vine}><cylinderGeometry args={[0.03, 0.045, 1.5, 5]} /></mesh>
+        </group>
+        {/* O SINO DO NAVIO — pendurado numa raiz-forca, âncora meio enterrada */}
+        <group position={[navio.x - 1.4, gy(navio.x - 1.4, navio.z + 1.1), navio.z + 1.1]} rotation={[0, -0.6, 0]}>
+            <mesh position={[0, 1.25, 0]} rotation={[0, 0, 0.14]} material={M9.bark}><cylinderGeometry args={[0.09, 0.14, 2.5, 5]} /></mesh>
+            <mesh position={[0.42, 2.34, 0]} rotation={[0, 0, 1.45]} material={M9.bark}><cylinderGeometry args={[0.06, 0.09, 0.9, 5]} /></mesh>
+            <mesh position={[0.74, 2.06, 0]} material={mats.bronze}><coneGeometry args={[0.3, 0.46, 10, 1, true]} /></mesh>
+            <mesh position={[0.74, 1.8, 0]} material={mats.metal}><sphereGeometry args={[0.07, 6, 6]} /></mesh>
+            <mesh position={[-0.5, 0.16, 0.5]} rotation={[Math.PI / 2 - 0.3, 0, 0.4]} material={mats.bronze}>
+                <torusGeometry args={[0.42, 0.08, 6, 10, Math.PI]} />
+            </mesh>
+            <mesh position={[-0.5, 0.55, 0.42]} rotation={[0.24, 0, 0]} material={mats.bronze}><cylinderGeometry args={[0.06, 0.06, 1.0, 6]} /></mesh>
+        </group>
+        {/* A LUMINÁRIA DO INTERROGATÓRIO — mesa afundada, abajur ainda aceso */}
+        <group position={[inter.x + 1.5, gy(inter.x + 1.5, inter.z + 1.0), inter.z + 1.0]} rotation={[0, 0.9, 0]}>
+            <mesh position={[0, 0.52, 0]} rotation={[0.16, 0, -0.1]} material={mats.wood}><boxGeometry args={[1.6, 0.09, 0.9]} /></mesh>
+            <mesh position={[-0.62, 0.2, 0.3]} rotation={[0, 0, 0.12]} material={mats.wood}><boxGeometry args={[0.09, 0.55, 0.09]} /></mesh>
+            <mesh position={[0.66, 0.24, -0.28]} material={mats.wood}><boxGeometry args={[0.09, 0.62, 0.09]} /></mesh>
+            <mesh position={[0.3, 0.82, 0.1]} rotation={[0.16, 0, 0.3]} material={mats.metal}><cylinderGeometry args={[0.035, 0.05, 0.55, 6]} /></mesh>
+            <mesh position={[0.44, 1.05, 0.14]} rotation={[0.5, 0, 0.7]} material={mats.shade}><coneGeometry args={[0.24, 0.3, 10, 1, true]} /></mesh>
+            <mesh position={[-0.9, 0.34, -0.7]} rotation={[-1.4, 0.3, 0.5]} material={mats.wood}><boxGeometry args={[0.45, 0.8, 0.06]} /></mesh>
+            <mesh position={[-1.0, 0.2, -0.5]} rotation={[-1.35, 0.3, 0.5]} material={mats.wood}><boxGeometry args={[0.42, 0.5, 0.05]} /></mesh>
+        </group>
+    </>);
 };
 
 // ── PÓS-PROCESSAMENTO (só quality 'high' — padrão do Floor 3) ────────────────
@@ -1507,6 +1701,7 @@ export const Floor9Forest: React.FC<{ playerPositionRef: React.MutableRefObject<
                 {quality === 'high' && <GroundMist />}
                 <ObjectiveBeacon playerPositionRef={playerPositionRef} />
                 <Ocos />
+                <Reliquias />
                 <Raiz />
                 {/* V4: as 3 oferendas + portal (objetivo do andar) */}
                 <Floor9Oferendas playerPositionRef={playerPositionRef} />

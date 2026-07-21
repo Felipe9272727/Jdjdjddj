@@ -168,7 +168,10 @@ export interface F9EcoState {
 const DENS: F9Den[] = [
     { x: -18, z: -10, sp: 'saltito' }, { x: 14, z: -20, sp: 'saltito' }, { x: -8, z: -38, sp: 'saltito' },
     { x: 22, z: -36, sp: 'cervo' }, { x: -24, z: -28, sp: 'cervo' },
-    { x: 4, z: -46, sp: 'vulto' }, { x: -28, z: -44, sp: 'vulto' },
+    // vulto sul em (0,-44): guarda a aproximação da Raiz SEM morar dentro da
+    // câmara nova (era (4,-46) — cairia DENTRO do anel de colisão M18) e fica
+    // a ~10 u da toca de saltitos (-8,-38): a caça emergente continua viva.
+    { x: 0, z: -44, sp: 'vulto' }, { x: -28, z: -44, sp: 'vulto' },
     { x: 0, z: -30, sp: 'guardiao' },
 ];
 const MOSS: F9Moss[] = [
@@ -357,7 +360,9 @@ export const F9_RAIZ: readonly [number, number] = [6, -47];
  *  Vivem AQUI (não em f9Floresta) porque a IA também se abriga neles —
  *  f9Floresta reexporta para manter o contrato antigo. */
 export const F9_OCOS: ReadonlyArray<readonly [number, number, number]> = [
-    [-6, -6, 2.2], [16, -24, 2.2], [-22, -34, 2.2], [6, -44, 2.4],
+    // o guardião da Raiz saiu de (6,-44) → (9.5,-41.5): o anel de colisão M18
+    // dele invadia o corredor da PORTA da câmara (a sonda de QA pegou).
+    [-6, -6, 2.2], [16, -24, 2.2], [-22, -34, 2.2], [9.5, -41.5, 2.4],
 ];
 
 // as árvores-mãe entram como obstáculos de steering (importar criaria ciclo —

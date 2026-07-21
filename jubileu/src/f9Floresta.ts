@@ -65,6 +65,19 @@ export const F9_FIO: ReadonlyArray<readonly [number, number]> = [
 
 /** ponto de pouso da queda */
 export const F9_POUSO: readonly [number, number] = [0, -1.5];
+
+/** A BOCA de cada OCO (ângulo rad no círculo do tronco; ponto no círculo =
+ *  (x + cos a·r, z + sin a·r)). Aponta pro miolo do mapa (0,-26) — a entrada
+ *  fica de frente pra quem chega. FONTE ÚNICA: a cena corta o tronco em C
+ *  neste ângulo e a colisão (constants) abre o vão do anel no MESMO ângulo. */
+export const F9_OCO_MOUTH: ReadonlyArray<number> =
+    F9_OCOS.map(([x, z]) => Math.atan2(-26 - z, 0 - x));
+
+/** A boca da câmara da RAIZ (aponta +z, pro mapa; câmara centrada em
+ *  (F9_RAIZ[0], F9_RAIZ[1]-2.5) — o mesmo centro do tronco visual). */
+export const F9_RAIZ_MOUTH = Math.PI / 2;
+export const F9_RAIZ_CHAMBER: readonly [number, number, number] =
+    [F9_RAIZ[0], F9_RAIZ[1] - 2.5, 4.05]; // cx, cz, raio do anel de colisão
 // (as árvores-mãe/obstáculos vivem em f9Eco.F9_TREE_OBSTACLES — a IA desvia
 // delas e a cena as renderiza da mesma lista, sem duplicação.)
 

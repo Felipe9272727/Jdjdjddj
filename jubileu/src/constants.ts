@@ -2,7 +2,8 @@ import { Vector3, Euler } from 'three';
 import { boxCollider } from './physics';
 import { F6_STATIC_WALLS, F6_FURNITURE } from './f6Escape';
 import { F8_STATIC_WALLS, F8_FURNITURE } from './f8Arquivo';
-import { F9_STATIC_WALLS, F9_OCOS, F9_RAIZ } from './f9Floresta';
+import { F9_STATIC_WALLS, F9_OCOS, F9_OCO_MOUTH, F9_RAIZ_MOUTH, F9_RAIZ_CHAMBER } from './f9Floresta';
+import { F9_TREE_OBSTACLES } from './f9Eco';
 
 // Keep in sync with `data.level <= MAX_LEVEL` in firestore.rules.
 export const MAX_LEVEL = 100;
@@ -289,11 +290,29 @@ const F8_FURN_W = F8_FURNITURE.flatMap(([cx, cz, w, d]) => boxCollider(cx, cz, w
 const _WALLS_FLOOR8        = [...ELEV_W, ...F8_STATIC_WALLS, ...F8_FURN_W];
 const _WALLS_FLOOR8_SEALED = [..._WALLS_FLOOR8, DOOR_SEAL];
 
-// Andar 9 (O VIVEIRO): a tigela da floresta + os troncos dos ocos + a raiz
+// Andar 9 (O VIVEIRO) — colisão de verdade (revisão M18):
+//  - ANEL COM VÃO: o tronco de cada oco e a câmara da Raiz são anéis de
+//    segmentos com uma BOCA aberta no ângulo compartilhado com a cena
+//    (F9_OCO_MOUTH/F9_RAIZ_MOUTH) — entra-se SÓ pela boca, nunca varando
+//    a parede do tronco.
+//  - as 12 árvores-mãe ganham caixa (o player varava os troncos).
+const ringCollider = (cx: number, cz: number, r: number, segs: number, mouth: number, mouthHalf: number): number[][] => {
+    const out: number[][] = [];
+    for (let i = 0; i < segs; i++) {
+        const a0 = (i / segs) * Math.PI * 2, a1 = ((i + 1) / segs) * Math.PI * 2;
+        let d = ((a0 + a1) / 2 - mouth) % (Math.PI * 2);
+        if (d > Math.PI) d -= Math.PI * 2;
+        if (d < -Math.PI) d += Math.PI * 2;
+        if (Math.abs(d) < mouthHalf) continue;               // o vão da boca
+        out.push([cx + Math.cos(a0) * r, cz + Math.sin(a0) * r, cx + Math.cos(a1) * r, cz + Math.sin(a1) * r]);
+    }
+    return out;
+};
 const _WALLS_FLOOR9 = [
     ...F9_STATIC_WALLS,
-    ...F9_OCOS.flatMap(([cx, cz]) => boxCollider(cx, cz - 0.6, 2.6, 1.6)),
-    ...boxCollider(F9_RAIZ[0], F9_RAIZ[1] - 2.5, 6.5, 6.5),
+    ...F9_OCOS.flatMap(([cx, cz], i) => ringCollider(cx, cz, 2.05, 12, F9_OCO_MOUTH[i], 0.72)),
+    ...ringCollider(F9_RAIZ_CHAMBER[0], F9_RAIZ_CHAMBER[1], F9_RAIZ_CHAMBER[2], 16, F9_RAIZ_MOUTH, 0.42),
+    ...F9_TREE_OBSTACLES.flatMap(([tx, tz, tr]) => boxCollider(tx, tz, tr * 1.7, tr * 1.7)),
 ];
 
 // Floor 7 (pirate ship). The whole ship is scaled up so it reads as a SHIP, not
