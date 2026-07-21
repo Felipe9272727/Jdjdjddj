@@ -17,14 +17,14 @@ import {
     F9_CHEGADA_LINES, F9_RAIZ_LINES, F9_MEMORIA_LINES, F9_ENTREGA_LINES,
     F9_OCOS, F9_RAIZ,
 } from './f9Floresta';
-import { f9eco, f9EcoOn, f9EcoSubscribe, f9PickupProgress, f9EatProgress, f9HuntProgress, type F9Drama } from './f9Eco';
+import { f9eco, f9EcoOn, f9EcoSubscribe, f9PickupProgress, f9EatProgress, type F9Drama } from './f9Eco';
 
 const mono: React.CSSProperties = { fontFamily: 'monospace', color: '#dfe8d2', userSelect: 'none' };
 
-type ObjKind = 'oco' | 'oferenda' | 'raiz' | 'passagem';
+type ObjKind = 'oco' | 'oferenda' | 'raiz' | 'passagem' | 'comida';
 interface ObjTarget { dist: number; kind: ObjKind; bearing: number | null; }
 const OBJ_LABEL: Record<ObjKind, string> = {
-    oco: 'OCO', oferenda: 'OFERENDA', raiz: 'A RAIZ', passagem: 'A PASSAGEM',
+    oco: 'OCO', oferenda: 'OFERENDA', raiz: 'A RAIZ', passagem: 'A PASSAGEM', comida: 'MUSGO',
 };
 
 /**
@@ -51,6 +51,17 @@ const useObjectiveTarget = (
                     if (d < bd) { bd = d; bx = ox; bz = oz; }
                 }
                 tx = bx; tz = bz; kind = 'oco';
+            } else if (f9eco.fome > 0.62 && !f9eco.offerings.some((o) => o.state === 'carregada')) {
+                // M20: FOME em primeiro lugar — a bússola aponta pro MUSGO mais
+                // próximo (a comida confiável). Sem isso o player não sabia onde
+                // comer e só morria. Se não houver musgo com comida, cai na Raiz.
+                let bx = F9_RAIZ[0], bz = F9_RAIZ[1], bd = Infinity, found = false;
+                for (const m of f9eco.moss) {
+                    if (m.amount < 0.2) continue;
+                    const d = Math.hypot(p.x - m.x, p.z - m.z);
+                    if (d < bd) { bd = d; bx = m.x; bz = m.z; found = true; }
+                }
+                tx = bx; tz = bz; kind = found ? 'comida' : 'raiz';
             } else if (f9eco.rootState === 'desabrochada') {
                 tx = F9_RAIZ[0]; tz = F9_RAIZ[1] + 2.5; kind = 'passagem';
             } else if (f9eco.offerings.some((o) => o.state === 'carregada')) {
@@ -80,14 +91,14 @@ const useObjectiveTarget = (
     return t;
 };
 
-/** M19: fome + progresso de comer/caçar (10 Hz — a sobrevivência sentível). */
+/** M19: fome + progresso de pastar (10 Hz — a sobrevivência sentível). */
 const useSurvival = () => {
-    const [st, setSt] = useState<{ fome: number; eatK: number; huntK: number }>({ fome: 0.25, eatK: 0, huntK: 0 });
+    const [st, setSt] = useState<{ fome: number; eatK: number }>({ fome: 0.25, eatK: 0 });
     useEffect(() => {
         const id = window.setInterval(() => {
             setSt((s) => {
-                const fome = f9eco.fome, eatK = f9EatProgress(), huntK = f9HuntProgress();
-                return s.fome === fome && s.eatK === eatK && s.huntK === huntK ? s : { fome, eatK, huntK };
+                const fome = f9eco.fome, eatK = f9EatProgress();
+                return s.fome === fome && s.eatK === eatK ? s : { fome, eatK };
             });
         }, 100);
         return () => window.clearInterval(id);
@@ -259,14 +270,16 @@ export const Floor9Overlay: React.FC<{
     const target = useObjectiveTarget(playerPositionRef, cameraThetaRef);
     const pickup = usePickup(playerPositionRef);
     const surv = useSurvival();
-    // M19: a fome apertando toma o objetivo (comer vem antes de qualquer fruto)
+    // M19/M20: a fome apertando toma o objetivo (comer vem antes de qualquer
+    // fruto) — e a seta já aponta pro musgo (kind 'comida')
     if (f9.phase === 'explorar' && !emergency && !completo && surv.fome > 0.78) {
-        objective = 'A FOME aperta — paste o MUSGO-BRILHO (pare em cima) ou cace.';
+        objective = 'A FOME aperta — siga a seta até o MUSGO (pare em cima) ou dê o BOTE num saltito.';
     }
     const barriga = Math.max(0, Math.min(1, 1 - surv.fome)); // 1 = saciado
     const fomeAlta = surv.fome > 0.72;
     const vigK = f9eco.phase === 'onda' ? 0.78 : aviso ? 0.66 : 0.52;
     const accent = emergency ? '#ffca7a'
+        : target?.kind === 'comida' ? '#9fca7a'
         : target?.kind === 'oferenda' ? '#ffd97a'
         : target?.kind === 'passagem' ? '#ffca4a'
         : '#e88a8a';
@@ -353,23 +366,22 @@ export const Floor9Overlay: React.FC<{
                 </div>
             )}
 
-            {/* M19: comer/caçar em progresso (o mastigar e o bote são SENTIDOS) */}
-            {f9.phase === 'explorar' && !completo && (surv.eatK > 0 || surv.huntK > 0) && (
+            {/* M19/M20: PASTAR em progresso (o mastigar é SENTIDO) */}
+            {f9.phase === 'explorar' && !completo && surv.eatK > 0 && (
                 <div style={{
                     position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 92px)', left: 0, right: 0,
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                 }}>
                     <div style={{
                         ...mono, fontSize: 12.5, letterSpacing: 1,
-                        color: surv.huntK > 0 ? '#e8917a' : '#b8d99a', textShadow: '0 1px 3px #000',
+                        color: '#b8d99a', textShadow: '0 1px 3px #000',
                     }}>
-                        {surv.huntK > 0 ? 'garras na presa…' : 'pastando o musgo-brilho…'}
+                        pastando o musgo-brilho…
                     </div>
                     <div style={{ width: 130, height: 5, borderRadius: 3, background: 'rgba(184,217,154,0.18)', overflow: 'hidden' }}>
                         <div style={{
-                            width: `${Math.round(Math.max(surv.eatK, surv.huntK) * 100)}%`, height: '100%',
-                            background: surv.huntK > 0 ? '#e8917a' : '#9fca7a',
-                            boxShadow: `0 0 8px ${surv.huntK > 0 ? '#e8917a' : '#9fca7a'}`,
+                            width: `${Math.round(surv.eatK * 100)}%`, height: '100%',
+                            background: '#9fca7a', boxShadow: '0 0 8px #9fca7a',
                             transition: 'width 0.1s linear',
                         }} />
                     </div>
@@ -469,7 +481,7 @@ export const Floor9Overlay: React.FC<{
                     }}>
                         <div style={{ fontSize: 11, letterSpacing: 3, color: '#9fca7a', marginBottom: 7 }}>A BARRIGA RONCA</div>
                         <div style={{ fontSize: 14.5, lineHeight: 1.5, color: '#dfe8d2' }}>
-                            Bicho tem FOME. Pare em cima de um MUSGO-BRILHO pra pastar — ou encoste num saltito e segure pra caçar. Vazia de vez, ela te apaga.
+                            Bicho tem FOME. A seta te leva ao MUSGO-BRILHO — pare em cima pra pastar. Pra caçar, chegue perto de um saltito e dê o BOTE (o botão, ou ESPAÇO). Vazia de vez, ela te apaga.
                         </div>
                     </div>
                 </div>

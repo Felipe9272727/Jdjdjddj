@@ -66,6 +66,18 @@ export const F9_FIO: ReadonlyArray<readonly [number, number]> = [
 /** ponto de pouso da queda */
 export const F9_POUSO: readonly [number, number] = [0, -1.5];
 
+/** M20: A TOCA DO PLAYER — spawn/respawn FIXO, estilo abrigo (shelter) do Rain
+ *  World. É o oco mais ao norte (F9_OCOS[0], perto do pouso da queda): você
+ *  SEMPRE volta pra cá quando é apagado, e é seguro da onda (é um oco). O
+ *  respawn "no oco mais próximo" (que variava) foi trocado por este ponto fixo:
+ *  ter uma casa pra onde voltar é metade da alma do Rain World. */
+export const F9_HOME_OCO = 0;
+export const F9_HOME: readonly [number, number] = [F9_OCOS[0][0], F9_OCOS[0][1]];
+/** O ponto exato onde o player renasce: dentro do oco-casa (safeInOco imediato
+ *  — a onda não pega, e o predador não persegue pra dentro da luz quente). */
+export const F9_HOME_SPAWN: readonly [number, number] =
+    [F9_OCOS[0][0], F9_OCOS[0][1] + F9_OCOS[0][2] * 0.35];
+
 /** A BOCA de cada OCO (ângulo rad no círculo do tronco; ponto no círculo =
  *  (x + cos a·r, z + sin a·r)). Aponta pro miolo do mapa (0,-26) — a entrada
  *  fica de frente pra quem chega. FONTE ÚNICA: a cena corta o tronco em C
@@ -160,7 +172,8 @@ export const F9_CHEGADA_LINES: ReadonlyArray<string> = [
     'Você atravessa a copa inteira antes do chão te aceitar. Olha pras patas — quatro, com garras. O Viveiro só aceita BICHO, e te replantou em um.',
     'Aqui o hotel enterra o que esquece, e do enterro cresce floresta. Cada árvore já foi uma memória. O Arquivista te arremessou pra virar terra também.',
     'Mas três MEMÓRIAS ainda estão inteiras: frutos de luz pulsando entre os troncos, cada um sob uma coluna dourada que fura a copa. Leve os três até a RAIZ — a árvore-mãe, lá no fundo do viveiro.',
-    'E bicho tem FOME. Paste o MUSGO-BRILHO (pare em cima e espere) ou cace os saltitos — mas a floresta VÊ quem mata, e não esquece. De barriga vazia, o Viveiro te apaga por dentro.',
+    'E bicho tem FOME. Paste o MUSGO-BRILHO (pare em cima; a seta te guia) ou dê o BOTE num saltito — chegue perto e ataque. Caçar enche mais a barriga, mas a floresta VÊ quem mata e não esquece. De barriga vazia, o Viveiro te apaga por dentro.',
+    'Quando te apagam, você acorda na sua TOCA — o oco de boca azul mais ao norte, perto de onde caiu. É seu abrigo: a onda não entra ali. Sempre que precisar, volte pra casa.',
     'Quando a Raiz recebe os três, ela DESABROCHA, e onde uma árvore-mãe desabrocha abre passagem pra cima: a saída. Cuidado — quando o ar clareia demais vem a ONDA de apagamento. Fora de um OCO ela te apaga e te replanta. E rente ao chão, algo caça.',
 ];
 

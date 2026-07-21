@@ -332,7 +332,8 @@ export function f9EcoReset(): void {
     stepSndT = 0;                       // rate-limit dos passos do player (A2)
     pickupId = -1; pickupT = 0;         // V4: "segurar pra pegar" da oferenda
     completed = false;                  // V4: o portal volta a poder completar
-    eatT = 0; huntId = -1; huntT = 0;   // M19: comer/caçar do player
+    eatT = 0;                           // M19: pastar do player
+    pounceReq = false; pounceCd = 0;    // M20: o bote
     f9EcoBump();
 }
 
@@ -1053,10 +1054,13 @@ let stepSndT = 0;
 // contínuo a ≤1.2 u dela (0.4 s pega; sair do raio zera)
 let pickupId = -1;
 let pickupT = 0;
-// M19: "segurar pra comer/caçar" do player (mesmo padrão do pickup)
+// M19: "segurar pra comer" do player (pastar musgo — o mesmo padrão do pickup)
 let eatT = 0;
-let huntId = -1;
-let huntT = 0;
+// M20: o BOTE (pounce) — a caça agora é ATIVA (botão), não mais "encostar e
+// segurar" (impossível: a presa foge antes). O player pede o bote; a cena
+// (Fiapo) consome com a direção do olhar; um cooldown evita spam.
+let pounceReq = false;
+let pounceCd = 0;
 
 /** HUD: progresso do "segurar pra colher" (0..1) e qual fruto — null se não
  *  está colhendo. O motor era invisível aqui: o player ficava 0.4 s parado sem
@@ -1068,8 +1072,60 @@ export function f9PickupProgress(): { id: number; k: number } | null {
 
 /** M19 HUD: progresso do "pastando o musgo…" (0..1; 0 = não está comendo). */
 export function f9EatProgress(): number { return Math.min(1, eatT / 0.5); }
-/** M19 HUD: progresso do bote no saltito (0..1; 0 = nenhuma presa na garra). */
-export function f9HuntProgress(): number { return huntId >= 0 ? Math.min(1, huntT / 0.3) : 0; }
+/** M20: o player pede o BOTE (o botão da cena chama). */
+export function f9RequestPounce(): void { pounceReq = true; }
+/** M20 HUD: o bote está pronto (fora do cooldown)? */
+export function f9PounceReady(): boolean { return pounceCd <= 0; }
+/** M20 HUD: fração do cooldown do bote já recuperada (0..1). */
+export function f9PounceCooldown(): number { return Math.max(0, Math.min(1, 1 - pounceCd / POUNCE_CD)); }
+const POUNCE_CD = 0.9;
+
+/** M20: as testemunhas de uma caçada APRENDEM a temer o player (playerFear sobe)
+ *  e as presas fogem. Vultos ficam de fora (o grito já os atrai). Reusado pelo
+ *  BOTE e por qualquer abate causado pelo player. */
+function witnessPlayerKill(px: number, pz: number, quarryId: number): void {
+    for (const w of f9eco.agents) {
+        if (w.id === quarryId || w.sp === 'vulto' || w.sp === 'guardiao') continue;
+        if (w.state === 'dead' || w.state === 'denned') continue;
+        if (dist2(w.x, w.z, px, pz) > 12 * 12) continue;
+        if (!f9LineOfSight(w.x, w.z, px, pz)) continue;
+        w.playerFear = Math.min(1, w.playerFear + 0.55);   // aprendizado individual
+        w.dangerMem = { x: px, z: pz, t: f9eco.t };
+        w.state = 'flee'; w.fear = 1; w.stateT = 0;
+        fleeFrom(w, px, pz);
+    }
+}
+
+/** M20: O BOTE — a cena (Fiapo) chama quando o player deu o bote, com a POSIÇÃO
+ *  e a DIREÇÃO do olhar. Pega o saltito mais próximo à frente (≤2.6 u, cone de
+ *  ~60°). Devolve 'catch' (abateu), 'whiff' (errou) ou null (não pediu/cooldown).
+ *  A caça é ATIVA e possível: o player espreita/corre até a presa e dá o bote. */
+export function f9EcoTryPounce(px: number, pz: number, theta: number): 'catch' | 'whiff' | null {
+    if (!pounceReq) return null;
+    pounceReq = false;
+    if (pounceCd > 0) return null;
+    pounceCd = POUNCE_CD;
+    const fx = -Math.sin(theta), fz = -Math.cos(theta); // frente do player
+    let best: F9Agent | null = null, bd = Infinity;
+    for (const o of f9eco.agents) {
+        if (o.sp !== 'saltito') continue;
+        if (o.state === 'dead' || o.state === 'denned' || o.state === 'grabbed') continue;
+        const dx = o.x - px, dz = o.z - pz, d = Math.hypot(dx, dz);
+        if (d > 2.6) continue;
+        const dot = d > 0.01 ? (dx * fx + dz * fz) / d : 1;
+        if (dot < 0.5) continue;                        // ~60° à frente
+        if (d < bd) { bd = d; best = o; }
+    }
+    if (!best) { emit('bote'); return 'whiff'; }        // errou: só o whoosh
+    best.state = 'dead'; best.deadT = 0; best.speedNow = 0; best.grabbedBy = -1;
+    f9eco.fome = Math.max(0, f9eco.fome - 0.75);
+    drama('cacouPresa', best.x, best.z);
+    emit('cacouPresa');
+    f9EcoEmitSound(best.x, best.z, 'grito', 1.5, best.id);
+    witnessPlayerKill(px, pz, best.id);
+    f9EcoBump();
+    return 'catch';
+}
 
 /**
  * O tick do mundo. `px,pz` = player; `lodR` = raio de simulação full.
@@ -1131,59 +1187,33 @@ function f9EcoTickInner(dt: number, px: number, pz: number, lodR: number, hunt: 
     // musgo rebrota devagar sempre
     for (const m of s.moss) m.amount = Math.min(1, m.amount + dt * 0.008);
 
-    // ── M19: a FOME do player — você é só mais um bicho: coma ou apague ──
+    // ── M19/M20: a FOME do player — você é só mais um bicho: coma ou apague ──
     // (determinístico: nada aqui consome rnd — a ordem do topo se mantém)
+    if (pounceCd > 0) pounceCd -= dt;                    // M20: cooldown do bote
     if (hunt.huntable) {
-        s.fome = Math.min(1, s.fome + dt * 0.0042);
-        // PASTAR: parado/quieto colado num musgo-brilho (0.5 s de mastigar)
+        // M20: fome mais gentil (0.0034/s ≈ 4,5 min do zero) — a morte por fome
+        // é evitável de sobra com a bússola apontando pro musgo mais próximo.
+        s.fome = Math.min(1, s.fome + dt * 0.0034);
+        // PASTAR (a comida CONFIÁVEL, não foge): parado colado num musgo-brilho.
+        // Raio generoso (1,6) e 0,45 s de mastigar — a fome nunca é beco-sem-saída.
         let mossNear: F9Moss | null = null;
         for (const m of s.moss) {
-            if (m.amount > 0.25 && dist2(px, pz, m.x, m.z) <= 1.3 * 1.3) { mossNear = m; break; }
+            if (m.amount > 0.2 && dist2(px, pz, m.x, m.z) <= 1.6 * 1.6) { mossNear = m; break; }
         }
-        if (mossNear && s.fome > 0.12 && hunt.noise < 0.45) {
+        if (mossNear && s.fome > 0.1 && hunt.noise < 0.55) {
             eatT += dt;
-            if (eatT >= 0.5) {
-                mossNear.amount = Math.max(0, mossNear.amount - 0.35);
-                s.fome = Math.max(0, s.fome - 0.4);
+            if (eatT >= 0.45) {
+                mossNear.amount = Math.max(0, mossNear.amount - 0.32);
+                s.fome = Math.max(0, s.fome - 0.42);
                 eatT = 0;
                 emit('comeuMusgo');
                 f9EcoBump();
             }
         } else eatT = 0;
-        // CAÇAR: encostar num saltito e SEGURAR — desprevenido cai em 0.3 s,
-        // fugindo exige 0.55 s de contato. Caçar tem preço: o grito atrai
-        // vultos e TESTEMUNHAS com linha de visão aprendem a te temer.
-        let quarry: F9Agent | null = null;
-        for (const o of s.agents) {
-            if (o.sp !== 'saltito' || o.state === 'dead' || o.state === 'denned' || o.state === 'grabbed') continue;
-            if (dist2(px, pz, o.x, o.z) <= 0.95 * 0.95) { quarry = o; break; }
-        }
-        if (quarry) {
-            if (huntId !== quarry.id) { huntId = quarry.id; huntT = 0; }
-            huntT += dt;
-            if (huntT >= (quarry.state === 'flee' ? 0.55 : 0.3)) {
-                quarry.state = 'dead'; quarry.deadT = 0; quarry.speedNow = 0;
-                s.fome = Math.max(0, s.fome - 0.75);
-                huntId = -1; huntT = 0;
-                drama('cacouPresa', quarry.x, quarry.z);
-                emit('cacouPresa');
-                f9EcoEmitSound(quarry.x, quarry.z, 'grito', 1.5, quarry.id);
-                // TESTEMUNHAS: presas com linha de visão APRENDEM a te temer
-                // (aquele indivíduo passa a te detectar de longe) e fogem. Os
-                // vultos NÃO entram aqui — o grito já os atrai (hearReact).
-                for (const w of s.agents) {
-                    if (w.id === quarry.id || w.sp === 'vulto' || w.sp === 'guardiao') continue;
-                    if (w.state === 'dead' || w.state === 'denned') continue;
-                    if (dist2(w.x, w.z, px, pz) > 12 * 12) continue;
-                    if (!f9LineOfSight(w.x, w.z, px, pz)) continue;
-                    w.playerFear = Math.min(1, w.playerFear + 0.55);   // aprendizado individual
-                    w.dangerMem = { x: px, z: pz, t: s.t };
-                    w.state = 'flee'; w.fear = 1; w.stateT = 0;
-                    fleeFrom(w, px, pz);
-                }
-                f9EcoBump();
-            }
-        } else { huntId = -1; huntT = 0; }
+        // CAÇAR é ATIVO agora: o BOTE (f9EcoTryPounce, chamado pela cena com a
+        // direção do olhar). Não há mais "encostar e segurar" — a presa fugia
+        // antes de você segurar. Caçar dá muito mais comida que pastar, mas faz
+        // barulho (grito atrai vultos) e ensina as testemunhas a te temer.
         // INANIÇÃO: fome cheia apaga o player por dentro (a cena drena o
         // evento e replanta via f9Faminto; o reset pra 0.55 evita o loop)
         if (s.fome >= 1) { s.fome = 0.55; emit('inanicao'); }

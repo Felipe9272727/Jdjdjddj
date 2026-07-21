@@ -63,7 +63,7 @@ import Floor9Overlay from './Floor9Overlay';
 import Floor9Cutscene from './Floor9Cutscene';
 import { Fiapo } from './Floor9Fauna';
 import { f9, f9Reset, f9Subscribe, F9_OCOS } from './f9Floresta';
-import { f9EcoReset } from './f9Eco';
+import { f9EcoReset, f9RequestPounce } from './f9Eco';
 import Floor8Overlay, { Floor8Ride } from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
 import Floor8Platformer from './Floor8Platformer';
@@ -1744,7 +1744,10 @@ export default function App() {
         case 'd': k.d=true; break;
         case 'f': if (inventoryRef.current.flashlight.owned) handleToggleFlashlight(); break;
         case 'n': if (inventoryRef.current.nightVision.owned) toggleNightVision(); break;
-        case ' ': if (currentLevel === 3) { jumpRef.current = true; e.preventDefault(); } break;
+        case ' ':
+          if (currentLevel === 3) { jumpRef.current = true; e.preventDefault(); }
+          else if (currentLevel === 9 && f9.phase === 'explorar') { f9RequestPounce(); e.preventDefault(); } // M20: o BOTE
+          break;
         case 'e':
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
@@ -2633,6 +2636,27 @@ export default function App() {
             </svg>
           </button>
         </div>
+      )}
+
+      {/* M20: BOTE button — Andar 9, mobile, durante o explorar. É o botão que
+          FALTAVA pra caçar (o player não tinha como pegar presa). Desktop: Espaço. */}
+      {hasStarted && currentLevel === 9 && !isDesktop && f9.phase === 'explorar' && (
+        <button
+          aria-label="Dar o bote"
+          className="fixed z-[45] right-[calc(env(safe-area-inset-right,0px)+18px)] bottom-[calc(env(safe-area-inset-bottom,0px)+26px)] w-24 h-24 rounded-full flex flex-col items-center justify-center select-none touch-none active:scale-90 transition-transform"
+          style={{
+            background: 'radial-gradient(circle at 50% 32%, #e8917a, #8a3020)',
+            boxShadow: '0 6px 0 #4a1a12, 0 0 0 4px #241410, 0 10px 20px rgba(0,0,0,0.5)',
+            border: '3px solid #241410',
+          }}
+          onPointerDown={(e) => { e.stopPropagation(); f9RequestPounce(); }}
+        >
+          <svg viewBox="0 0 24 24" className="w-9 h-9" fill="#fff2e8" stroke="#241410" strokeWidth={1.5} strokeLinejoin="round">
+            {/* uma pata com garras (o bote) */}
+            <path d="M12 3c1 0 1.6 1 1.6 2.4S13 8 12 8s-1.6-1.2-1.6-2.6S11 3 12 3zM6.5 5.2c.9.3 1.2 1.5.8 2.8s-1.4 2-2.3 1.7-1.2-1.5-.8-2.8 1.4-2 2.3-1.7zM17.5 5.2c.9-.3 1.9.4 2.3 1.7s0 2.5-.8 2.8-1.9-.4-2.3-1.7 0-2.5.8-2.8zM12 9.5c3 0 5.2 2 5.2 4.3 0 2-1.6 3.2-3.4 3.2-.8 0-1.2-.3-1.8-.3s-1 .3-1.8.3c-1.8 0-3.4-1.2-3.4-3.2C6.8 11.5 9 9.5 12 9.5z" />
+          </svg>
+          <span style={{ color: '#fff2e8', fontSize: 12, letterSpacing: 1.5, textShadow: '1.5px 1.5px 0 #241410' }}>BOTE</span>
+        </button>
       )}
 
       {/* Jump button — Floor 3 only, mobile only. Desktop uses Space. */}

@@ -12,8 +12,8 @@ import Floor9Forest from './Floor9Forest';
 import Floor9Overlay from './Floor9Overlay';
 import Floor9Cutscene from './Floor9Cutscene';
 import { Fiapo } from './Floor9Fauna';
-import { f9, f9Reset, f9QuedaDone, f9ChegadaDone, f9Subscribe, F9_OCOS } from './f9Floresta';
-import { f9eco, f9EcoReset, f9EcoBump } from './f9Eco';
+import { f9, f9Reset, f9QuedaDone, f9ChegadaDone, f9Subscribe, F9_HOME_SPAWN } from './f9Floresta';
+import { f9eco, f9EcoReset, f9EcoBump, f9RequestPounce } from './f9Eco';
 import { configureFloor9Sfx, clearFloor9Sfx } from './floor9Sfx';
 import { wallsForState } from './constants';
 import { resolveCollision } from './physics';
@@ -76,7 +76,10 @@ const DevWalker: React.FC = () => {
     if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__f9ang = ang;
 
     useEffect(() => {
-        const kd = (e: KeyboardEvent) => { keys.current[e.key.toLowerCase()] = true; };
+        const kd = (e: KeyboardEvent) => {
+            keys.current[e.key.toLowerCase()] = true;
+            if (e.key === ' ' && f9.phase === 'explorar') f9RequestPounce(); // M20: o BOTE
+        };
         const ku = (e: KeyboardEvent) => { keys.current[e.key.toLowerCase()] = false; };
         const pd = (e: PointerEvent) => { if (!frozenRef.current) drag.current = { x: e.clientX, y: e.clientY }; };
         const pm = (e: PointerEvent) => {
@@ -135,6 +138,7 @@ const Dev: React.FC = () => {
             f9, f9eco, posRef,
             skipQueda: () => { f9QuedaDone(); f9ChegadaDone(); },
             wake: f9QuedaDone, chegou: f9ChegadaDone,
+            pounce: f9RequestPounce,     // M20: dispara o bote (QA headless)
             warpCycle: (frac: number) => { f9eco.cycleT = f9eco.cycleLen * frac; },
             // V4: warps do objetivo (o visual deve ler mesmo com o motor do A2 no meio)
             warpToOffering: (i: number) => {
@@ -176,13 +180,9 @@ const Dev: React.FC = () => {
     // replantio no bench: acorda na boca do oco mais próximo
     const prevPhase = useRef(f9.phase);
     useEffect(() => f9Subscribe(() => {
+        // M20: respawn no SPAWN FIXO (a toca-casa), igual ao jogo
         if (f9.phase === 'explorar' && prevPhase.current === 'apagando') {
-            let best = F9_OCOS[0], bd = Infinity;
-            for (const o of F9_OCOS) {
-                const d = (posRef.current.x - o[0]) ** 2 + (posRef.current.z - o[1]) ** 2;
-                if (d < bd) { bd = d; best = o; }
-            }
-            posRef.current.set(best[0], 0, best[1] + best[2] + 0.7);
+            posRef.current.set(F9_HOME_SPAWN[0], 0, F9_HOME_SPAWN[1]);
         }
         prevPhase.current = f9.phase;
     }), []);

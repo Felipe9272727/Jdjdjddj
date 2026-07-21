@@ -9,7 +9,7 @@
  *  - a convivência calma HABITUA (o medo aprendido derrete).
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { f9eco, f9EcoReset, f9EcoTick, f9EcoDrainEvents } from '../f9Eco';
+import { f9eco, f9EcoReset, f9EcoTick, f9EcoDrainEvents, f9RequestPounce, f9EcoTryPounce } from '../f9Eco';
 import { f9Reset } from '../f9Floresta';
 
 const HUNT = { huntable: true, safeInOco: false, stillT: 0, noise: 0, carry: false };
@@ -68,36 +68,54 @@ describe('f9Sobrevivencia — M19: a fome do player', () => {
     });
 });
 
-describe('f9Sobrevivencia — M19: caçar, e o preço de caçar', () => {
-    it('CAÇAR: encostar e segurar num saltito mata a presa (evento cacouPresa + fome cai)', () => {
-        const px = 0, pz = -2;
+describe('f9Sobrevivencia — M19/M20: caçar (o BOTE), e o preço de caçar', () => {
+    it('BOTE: presa no cone à frente é abatida (evento cacouPresa + fome cai)', () => {
         const quarry = f9eco.agents.find((a) => a.sp === 'saltito')!;
         pinAllExcept([quarry.id]);
         f9eco.fome = 0.8;
-        let cacou = false;
-        for (let i = 0; i < 3 * 30 && !cacou; i++) {
-            quarry.x = px; quarry.z = pz;             // fica na garra do player
-            f9EcoTick(1 / 30, px, pz, 200, HUNT);
-            if (f9EcoDrainEvents().includes('cacouPresa')) cacou = true;
-        }
-        expect(cacou).toBe(true);
+        // M20: o BOTE é a caça ATIVA. player em (0,0) olhando pra -z (θ=0);
+        // presa 2 u à frente, no cone. f9RequestPounce() + f9EcoTryPounce().
+        quarry.x = 0; quarry.z = -2; quarry.tx = 0; quarry.tz = -2;
+        f9RequestPounce();
+        const res = f9EcoTryPounce(0, 0, 0);         // θ=0 → frente = (0,-1)
+        expect(res).toBe('catch');
         expect(quarry.state).toBe('dead');
         expect(f9eco.fome).toBeLessThan(0.8);
+        expect(f9EcoDrainEvents()).toContain('cacouPresa');
     });
 
-    it('TESTEMUNHA: presa que VÊ a caçada aprende a temer o player (playerFear sobe)', () => {
-        const px = 0, pz = -2;
+    it('BOTE ERRADO: sem presa no cone à frente, o bote é um WHIFF (não pega)', () => {
+        const quarry = f9eco.agents.find((a) => a.sp === 'saltito')!;
+        pinAllExcept([quarry.id]);
+        quarry.x = 0; quarry.z = 3;                   // ATRÁS do player (θ=0 olha -z)
+        f9RequestPounce();
+        expect(f9EcoTryPounce(0, 0, 0)).toBe('whiff');
+        expect(quarry.state).not.toBe('dead');
+    });
+
+    it('COOLDOWN: dois botes seguidos — o segundo não sai antes de recarregar', () => {
+        const [a, b] = f9eco.agents.filter((x) => x.sp === 'saltito');
+        pinAllExcept([a.id, b.id]);
+        a.x = 0; a.z = -2; b.x = 0; b.z = -2;
+        f9RequestPounce();
+        expect(f9EcoTryPounce(0, 0, 0)).toBe('catch'); // pega o 'a'
+        f9RequestPounce();
+        expect(f9EcoTryPounce(0, 0, 0)).toBeNull();    // cooldown: o pedido é engolido
+        for (let i = 0; i < 40; i++) f9EcoTick(1 / 30, 30, 3, 200, HUNT); // recarrega (>0,9 s)
+        b.x = 0; b.z = -2; b.state = 'wander';         // 'b' vagou/fugiu nos ticks — recoloca no cone
+        f9RequestPounce();
+        expect(f9EcoTryPounce(0, 0, 0)).toBe('catch'); // agora o bote recarregado pega o 'b'
+    });
+
+    it('TESTEMUNHA: presa que VÊ o bote aprende a temer o player (playerFear sobe)', () => {
         const all = f9eco.agents.filter((a) => a.sp === 'saltito');
         const quarry = all[0], witness = all[1];
         pinAllExcept([quarry.id, witness.id]);
-        witness.x = 3; witness.z = -2;               // 3 u, com linha de visão limpa
+        quarry.x = 0; quarry.z = -2;                  // à frente (θ=0)
+        witness.x = 3; witness.z = -2;                // 3 u, linha de visão limpa
         const fearBefore = witness.playerFear;
-        for (let i = 0; i < 3 * 30; i++) {
-            quarry.x = px; quarry.z = pz;
-            witness.x = 3; witness.z = -2;           // fica de testemunha
-            f9EcoTick(1 / 30, px, pz, 200, HUNT);
-            if (quarry.state === 'dead') break;
-        }
+        f9RequestPounce();
+        expect(f9EcoTryPounce(0, 0, 0)).toBe('catch');
         expect(quarry.state).toBe('dead');
         expect(witness.playerFear).toBeGreaterThan(fearBefore);
         expect(witness.dangerMem).not.toBeNull();

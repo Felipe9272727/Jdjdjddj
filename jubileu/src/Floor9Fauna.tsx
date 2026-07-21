@@ -39,8 +39,10 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { f9 } from './f9Floresta';
-import { f9eco, f9CycleFrac, F9_AVISO_AT, type F9Agent, type F9CyclePhase, type F9Species } from './f9Eco';
+import { f9eco, f9CycleFrac, F9_AVISO_AT, f9EcoTryPounce, type F9Agent, type F9CyclePhase, type F9Species } from './f9Eco';
 import { f9GroundHeight } from './f9Ground';
+import { wallsForState } from './constants';
+import { resolveCollision } from './physics';
 import { f9StormShare } from './Floor9Storm';
 import { f9Quality, f9IsLite } from './f9Quality';
 
@@ -779,13 +781,15 @@ export const BlobShadows: React.FC = () => {
 export const Fiapo: React.FC<{
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     cameraThetaRef: React.MutableRefObject<number>;
-}> = ({ playerPositionRef, cameraThetaRef: _cameraThetaRef }) => {
+}> = ({ playerPositionRef, cameraThetaRef }) => {
     const { camera } = useThree();
     const body = useRef<THREE.Group>(null!);
     const rig = useRef<THREE.Group>(null!);
     const prev = useRef(new THREE.Vector3());
     const speed = useRef(0);
     const drop = useRef(0);
+    const lunge = useRef(0);   // M20: o impulso do BOTE (0..~0.26 s)
+    const pounceWalls = useMemo(() => wallsForState(9, false, false), []);
 
     // o Fiapo também tem sombra-blob (e entra no registro de corpos); refs de
     // partes resolvidos UMA vez no mount (nada de getObjectByName por frame)
@@ -809,6 +813,25 @@ export const Fiapo: React.FC<{
         if (body.current) body.current.visible = active;
         if (rig.current) rig.current.visible = active;
         if (!active) { drop.current = 0; prev.current.copy(p); return; }
+
+        // ── M20: O BOTE (pounce) — a caça ATIVA ──
+        // consome o pedido do player (o botão/tecla chamou f9RequestPounce); o
+        // abate acontece no motor (cone de ~60° à frente, ≤2.6 u). Aqui vem o
+        // IMPULSO físico: um salto curto pra frente (fecha o último metro e dá
+        // peso ao bote), resolvido por colisão como o resto do movimento.
+        if (f9.phase === 'explorar') {
+            const res = f9EcoTryPounce(p.x, p.z, cameraThetaRef.current);
+            if (res) lunge.current = 0.26;   // 'catch' e 'whiff' ambos saltam
+        }
+        if (lunge.current > 0) {
+            const th = cameraThetaRef.current;
+            const fx = -Math.sin(th), fz = -Math.cos(th);
+            const stp = 5.5 * dt;            // ~5,5 u/s → ~1,4 u no salto
+            const [rx, rz] = resolveCollision(p.x + fx * stp, p.z + fz * stp, 0.5, pounceWalls);
+            p.set(rx, p.y, rz);
+            camera.position.x = rx; camera.position.z = rz;   // a lente acompanha o salto
+            lunge.current -= dt;
+        }
 
         // velocidade a partir do movimento real
         const dx = p.x - prev.current.x, dz = p.z - prev.current.z;

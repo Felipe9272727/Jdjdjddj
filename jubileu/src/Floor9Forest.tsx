@@ -41,7 +41,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { EffectComposer, Bloom, Vignette, Noise, HueSaturation } from '@react-three/postprocessing';
 import { colorTex, rng } from './Floor6Textures';
-import { f9, f9Tick, f9DrainEvents, f9Cacado, f9Faminto, F9_OCOS, F9_OCO_MOUTH, F9_RAIZ_MOUTH, F9_FIO, F9_RAIZ } from './f9Floresta';
+import { f9, f9Tick, f9DrainEvents, f9Cacado, f9Faminto, F9_OCOS, F9_OCO_MOUTH, F9_RAIZ_MOUTH, F9_FIO, F9_RAIZ, F9_HOME_SPAWN } from './f9Floresta';
 import { f9eco, f9EcoTick, f9EcoDrainEvents, f9DropOffering, f9CycleFrac, F9_AVISO_AT, F9_TREE_OBSTACLES, freshOfferings, type F9CyclePhase } from './f9Eco';
 import { Floor9Oferendas } from './Floor9Oferendas';
 import { Saltitos, Cervos, Vultos, Guardiao, DenMouths, BlobShadows } from './Floor9Fauna';
@@ -1613,15 +1613,11 @@ export const Floor9Forest: React.FC<{ playerPositionRef: React.MutableRefObject<
                 // vulto. O noiseRef acompanha o teleporte: senão o salto vira
                 // "ruído" gigante e atrai o predador de volta ao abrigo.
                 if (e === 'replantado') {
-                    let best = F9_OCOS[0], bd = Infinity;
-                    for (const o of F9_OCOS) {
-                        const d = (p.x - o[0]) ** 2 + (p.z - o[1]) ** 2;
-                        if (d < bd) { bd = d; best = o; }
-                    }
-                    // DENTRO do raio do oco (safeInOco): a boca (z+r+0.7) fica
-                    // FORA do raio — se a onda ainda estiver ativa o player
-                    // seria pego no tick seguinte (o loop do vídeo do Felipe)
-                    p.set(best[0], 0, best[1] + best[2] * 0.35);
+                    // M20: SPAWN FIXO — o player sempre volta pra TOCA-CASA
+                    // (F9_HOME_SPAWN, dentro do oco norte), não mais pro oco
+                    // mais próximo. É seguro da onda (safeInOco imediato) e dá
+                    // o "lar pra onde voltar" do Rain World.
+                    p.set(F9_HOME_SPAWN[0], 0, F9_HOME_SPAWN[1]);
                     noiseRef.current.lx = p.x; noiseRef.current.lz = p.z; noiseRef.current.v = 0;
                 }
             }
