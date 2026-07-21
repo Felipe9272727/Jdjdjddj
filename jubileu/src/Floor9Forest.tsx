@@ -141,7 +141,7 @@ const haloTex = (() => {
 
 const M9 = {
     ground: new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1, vertexColors: true }),
-    bark: new THREE.MeshStandardMaterial({ map: barkTex, roughness: 0.95, color: '#8a7a62' }),
+    bark: new THREE.MeshStandardMaterial({ map: barkTex, roughness: 0.95, color: '#8a7a62', emissive: new THREE.Color('#14322c'), emissiveIntensity: 0.05 }), // M22: as árvores-mãe respiram um brilho teal fraco
     canopy: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: true }),
     canopyDark: new THREE.MeshStandardMaterial({ color: '#0a140c', roughness: 1, flatShading: true }), // teto mais fechado (brief §1.3)
     moss: new THREE.MeshStandardMaterial({ color: '#3a5a34', roughness: 1, emissive: '#6adf8a', emissiveIntensity: 0.55 }), // tapete sagrado brilha mais (§3)
@@ -187,7 +187,7 @@ const mkLook = (o: F9LookSpec): F9Look => ({
     ghost: new THREE.Color(o.ghost), mist: new THREE.Color(o.mist),
 });
 const F9_LOOKS: Record<F9CyclePhase, F9Look> = {
-    calmo: mkLook({ sky: '#7e9a82', fog: '#101d18', near: 15, far: 54, amb: '#5f7a66', ambI: 0.38, hemiSky: '#8aa88f', hemiGnd: '#1c2a20', hemiI: 0.5, dir: '#cfe0bd', dirI: 0.75, ghost: '#121d16', mist: '#a8c8b4' }),
+    calmo: mkLook({ sky: '#7e9a82', fog: '#101d18', near: 15, far: 54, amb: '#5f7a66', ambI: 0.38, hemiSky: '#8aa88f', hemiGnd: '#1c2a20', hemiI: 0.5, dir: '#cfe0bd', dirI: 0.75, ghost: '#121d16', mist: '#7fbcd0' }),
     aviso: mkLook({ sky: '#a8a06a', fog: '#4a4630', near: 13, far: 40, amb: '#8a7a52', ambI: 0.42, hemiSky: '#a89a5e', hemiGnd: '#2a2416', hemiI: 0.5, dir: '#d8c88a', dirI: 0.6, ghost: '#1a2216', mist: '#b0a86a' }),
     onda: mkLook({ sky: '#eef4e4', fog: '#e6eee0', near: 9, far: 28, amb: '#c8d4c0', ambI: 1.05, hemiSky: '#e4ecd8', hemiGnd: '#8a9480', hemiI: 0.95, dir: '#f2f8ea', dirI: 1.1, ghost: '#1a2a20', mist: '#e6eee0' }),
     renascer: mkLook({ sky: '#cfe0c2', fog: '#b9c8b2', near: 15, far: 50, amb: '#9ab098', ambI: 0.5, hemiSky: '#b9cdae', hemiGnd: '#3a4434', hemiI: 0.6, dir: '#e8efd6', dirI: 0.7, ghost: '#22301f', mist: '#bcd0b6' }),
@@ -245,7 +245,7 @@ function brightenLookLite(l: F9Look): void {
 }
 
 /** o color script escreve; a GroundMist lê (sem traversal de cena por frame). */
-const f9ForestShare = { mistTint: new THREE.Color('#a8c8b4') };
+const f9ForestShare = { mistTint: new THREE.Color('#7fbcd0') };
 
 const B: React.FC<{ a: [number, number, number]; p: [number, number, number]; m: THREE.Material; r?: [number, number, number] }> =
     ({ a, p, m, r }) => (<mesh position={p} rotation={r} material={m}><boxGeometry args={a} /></mesh>);
@@ -800,14 +800,19 @@ const CanopyAndLight: React.FC<{ low: boolean }> = ({ low }) => {
     const poolScratch = useMemo(() => ({ m4: new THREE.Matrix4(), q: new THREE.Quaternion(), s: new THREE.Vector3(), p: new THREE.Vector3() }), []);
     useFrame(({ clock, camera }) => {
         const t = clock.elapsedTime;
-        if (rays.current) rays.current.children.forEach((c, i) => {
-            const m = (c as THREE.Mesh).material as THREE.MeshBasicMaterial;
-            // dentro do cone (a câmera está NA clareira) o feixe apaga — senão
-            // ele lava a tela inteira de branco (visto de fora: luz que CAI)
+        if (rays.current) rays.current.children.forEach((grp, i) => {
+            // M22: cada clareira agora é um FEIXE VOLUMÉTRICO em camadas (halo
+            // macio + núcleo brilhante). Dentro do cone (câmera NA clareira) o
+            // feixe apaga — senão lava a tela de branco (visto de fora: luz que CAI).
             const gx = built.gaps[i][0], gz = built.gaps[i][1];
             const dCam = Math.hypot(camera.position.x - gx, camera.position.z - gz);
             const inside = Math.min(1, Math.max(0, (dCam - 2.4) / 2.6));
-            m.opacity = (0.13 + Math.sin(t * 0.27 + i * 2.1) * 0.04) * (0.12 + 0.88 * inside); // a luz CAI e se lê (brief §5.10)
+            const pulse = 0.86 + Math.sin(t * 0.33 + i * 2.1) * 0.14;      // a poeira no ar respira
+            const gate = 0.1 + 0.9 * inside;
+            (grp as THREE.Group).children.forEach((c, k) => {
+                const m = (c as THREE.Mesh).material as THREE.MeshBasicMaterial;
+                m.opacity = (k === 0 ? 0.19 : 0.36) * pulse * gate;          // halo / núcleo
+            });
         });
         // poças de luz deslizando no chão (1 draw; a opacidade pulsa junto)
         const { m4, q, s, p } = poolScratch;
@@ -830,13 +835,24 @@ const CanopyAndLight: React.FC<{ low: boolean }> = ({ low }) => {
         </mesh>
         <primitive object={built.blobs} />
         <primitive object={built.vines} />
-        {/* feixes descendo das clareiras */}
+        {/* M22: FEIXES VOLUMÉTRICOS das clareiras — halo largo e macio + núcleo
+            brilhante (no high). Descem ~da copa até o chão, ligando às poças. */}
         <group ref={rays}>
             {built.gaps.map(([x, z], i) => (
-                <mesh key={i} position={[x, 5.6, z]} rotation={[0.1, i * 1.2, 0.14]}>
-                    <coneGeometry args={[2.6 + (i % 2), 11.5, 10, 1, true]} />
-                    <meshBasicMaterial color="#cfe6b0" transparent opacity={0.13} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
-                </mesh>
+                <group key={i} position={[x, 5.4, z]} rotation={[0.1, i * 1.2, 0.14]}>
+                    {/* HALO: cone largo e suave (verde-limo frio) */}
+                    <mesh>
+                        <coneGeometry args={[3.1 + (i % 2), 12.4, 14, 1, true]} />
+                        <meshBasicMaterial color="#c6e6a6" transparent opacity={0.16} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+                    </mesh>
+                    {/* NÚCLEO: cone estreito e quente-claro (o coração do feixe) */}
+                    {!low && (
+                        <mesh>
+                            <coneGeometry args={[1.25 + (i % 2) * 0.4, 12.4, 12, 1, true]} />
+                            <meshBasicMaterial color="#f4f8de" transparent opacity={0.3} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+                        </mesh>
+                    )}
+                </group>
             ))}
         </group>
         {/* POÇAS DE LUZ SALPICADA deslizando no chão (instanciadas) */}
@@ -942,6 +958,8 @@ const MossPatches: React.FC = () => {
         // o brilho do tapete sagrado pulsa junto (material único) — e o amount
         // de cada patch dirige a ESCALA da instância (musgo comido encolhe)
         M9.moss.emissiveIntensity = 0.55 + Math.sin(t * 1.4) * 0.06;
+        // M22: as árvores-mãe respiram devagar (um pulso teal bem fraco no tronco)
+        M9.bark.emissiveIntensity = 0.045 + Math.sin(t * 0.6) * 0.03;
         f9eco.moss.forEach((m, i) => {
             const s = 0.6 + m.amount * 0.55;
             eu.set(0, i * 1.7, 0); q.setFromEuler(eu);
@@ -1046,7 +1064,8 @@ const Spores: React.FC<{ low: boolean }> = ({ low }) => {
         }
         g.setAttribute('color', new THREE.BufferAttribute(colAttr, 3));
         const mat = new THREE.PointsMaterial({
-            color: '#ffffff', size: 0.05, transparent: true, opacity: 0.5, vertexColors: true,
+            // M22: esporos maiores e mais brilhantes — faíscas de luz no ar úmido
+            color: '#ffffff', size: 0.075, transparent: true, opacity: 0.62, vertexColors: true,
             map: haloTex, // pontos REDONDOS e macios (pó, não confete quadrado)
             depthWrite: false, blending: THREE.AdditiveBlending,
         });
@@ -1055,7 +1074,7 @@ const Spores: React.FC<{ low: boolean }> = ({ low }) => {
     useEffect(() => () => { built.g.dispose(); built.mat.dispose(); }, [built]);
     useFrame(({ clock }) => {
         const t = clock.elapsedTime;
-        const { g, n, base, ph } = built;
+        const { g, mat, n, base, ph } = built;
         const pos = g.getAttribute('position') as THREE.BufferAttribute;
         for (let i = 0; i < n; i++) {
             pos.setXYZ(i,
@@ -1064,6 +1083,8 @@ const Spores: React.FC<{ low: boolean }> = ({ low }) => {
                 base[i * 3 + 2] + Math.cos(t * 0.09 * ph[i * 2 + 1] + ph[i * 2]) * 1.5);
         }
         pos.needsUpdate = true;
+        // M22: o campo de esporos RESPIRA (cintila devagar como pó em luz)
+        mat.opacity = 0.5 + (0.5 + 0.5 * Math.sin(t * 0.5)) * 0.28;
     });
     return <points geometry={built.g} material={built.mat} frustumCulled={false} />;
 };
@@ -1071,12 +1092,12 @@ const Spores: React.FC<{ low: boolean }> = ({ low }) => {
 // ── NÉVOA DE CHÃO: billboards largos e rasteiros deslizando na altura do
 //    joelho; o TINT segue a fase (brief §1.1) via f9ForestShare.mistTint ──
 const GroundMist: React.FC = () => {
-    const mats = useMemo(() => Array.from({ length: 14 }, () => new THREE.SpriteMaterial({
-        map: mistTex, transparent: true, opacity: 0.07, depthWrite: false,
-        blending: THREE.AdditiveBlending, color: '#a8c8b4',
+    const mats = useMemo(() => Array.from({ length: 16 }, () => new THREE.SpriteMaterial({
+        map: mistTex, transparent: true, opacity: 0.09, depthWrite: false,
+        blending: THREE.AdditiveBlending, color: '#7fbcd0',
     })), []);
     const refs = useRef<(THREE.Sprite | null)[]>([]);
-    const seeds = useMemo(() => { const r = rng(923); return Array.from({ length: 14 }, () => ({ x: (r() * 2 - 1) * 28, z: -48 + r() * 50, p: r() * Math.PI * 2, s: 0.5 + r() })); }, []);
+    const seeds = useMemo(() => { const r = rng(923); return Array.from({ length: 16 }, () => ({ x: (r() * 2 - 1) * 28, z: -48 + r() * 50, p: r() * Math.PI * 2, s: 0.5 + r() })); }, []);
     useEffect(() => () => mats.forEach((m) => m.dispose()), [mats]);
     useFrame(({ clock }) => {
         const t = clock.elapsedTime;
@@ -1087,13 +1108,14 @@ const GroundMist: React.FC = () => {
             sp.position.x = sd.x + Math.sin(t * 0.07 * sd.s + sd.p) * 5;
             sp.position.z = sd.z + Math.cos(t * 0.05 * sd.s + sd.p * 2) * 4;
             sp.position.y = f9GroundHeight(sp.position.x, sp.position.z) + 0.55;
-            mats[i].opacity = 0.055 + (0.5 + 0.5 * Math.sin(t * 0.3 * sd.s + sd.p)) * 0.03;
+            // M22: a névoa RESPIRA mais fundo (0.06→0.12) — o chão exalando azul
+            mats[i].opacity = 0.06 + (0.5 + 0.5 * Math.sin(t * 0.28 * sd.s + sd.p)) * 0.06;
             mats[i].color.copy(tint);
         });
     });
     return (<>
         {mats.map((m, i) => (
-            <sprite key={i} ref={(el) => { refs.current[i] = el; }} material={m} scale={[16, 5, 1]} />
+            <sprite key={i} ref={(el) => { refs.current[i] = el; }} material={m} scale={[17, 5.5, 1]} />
         ))}
     </>);
 };
