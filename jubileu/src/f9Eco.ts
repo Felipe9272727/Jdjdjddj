@@ -137,6 +137,7 @@ export interface F9Agent {
     calmNearT: number;                    // convivência calma acumulada com o player (habituação)
     terrCd: number;                       // cooldown da disputa de território
     pursueT: number;                      // s em perseguição contínua (stalk/chase) — a caçada CANSA
+    brain: F9Brain;                       // M20: o perceptron do indivíduo (disposições que aprendem)
     thinkT: number; stateT: number; deadT: number;
     anim: number; speedNow: number;
     // ── OVERHAUL RW ──
@@ -225,6 +226,80 @@ let nextId = 1;
 let rngS = 20177;
 const rnd = () => { rngS = (rngS * 16807) % 2147483647; return rngS / 2147483647; };
 
+// ── M20: A REDE NEURAL de cada bicho ─────────────────────────────────────────
+// Pesquisa (rainworld.miraheze.org): o Rain World NÃO roda rede neural — a
+// "IA maravilhosa" dele é personalidade por indivíduo (energia, bravura,
+// dominância…) semeada + regras simples. Nós JÁ temos isso (brave/agress/curio/
+// playerFear/memórias). O Felipe pediu uma rede neural mesmo assim — então cada
+// bicho ganha um PERCEPTRON MINÚSCULO por cima, como camada de disposição que
+// APRENDE com a vida:
+//   entrada(5) → oculta(5, tanh, PESOS FIXOS = as "features de personalidade"
+//   semeadas) → saída(2, tanh, PESOS QUE APRENDEM por reforço).
+// Saídas: [cautela, fome-drive]. A leitura linear (saída) aprende por regra
+// Hebbiana modulada por recompensa (perigo↑cautela; comer↑forrageio) — barato
+// (≈35 mults por bicho, ~13 bichos), sem backprop, e PERSISTENTE na vida do
+// indivíduo. Determinismo: um RNG PRÓPRIO (brnd) semeia os pesos, então o
+// stream principal rnd() (documentado no topo) fica intacto; avaliar/aprender
+// não consome rnd. Perto do neutro ao nascer (pesos de saída pequenos): o
+// ecossistema afinado de M16–M19 segue igual até o bicho VIVER e aprender.
+const NN_IN = 5, NN_HID = 5, NN_OUT = 2;
+let brainRngS = 990931;
+const brnd = () => { brainRngS = (brainRngS * 16807) % 2147483647; return brainRngS / 2147483647; };
+
+export interface F9Brain {
+    w1: number[];   // NN_HID×NN_IN — features de personalidade (FIXAS)
+    b1: number[];   // NN_HID
+    w2: number[];   // NN_OUT×NN_HID — a leitura que APRENDE
+    hid: number[];  // cache da última ativação oculta (pro aprendizado)
+    out: number[];  // [cautela, fome-drive] da última avaliação
+}
+
+function makeBrain(): F9Brain {
+    const w1: number[] = [], b1: number[] = [], w2: number[] = [];
+    for (let i = 0; i < NN_HID * NN_IN; i++) w1.push((brnd() - 0.5) * 2.2); // features fortes
+    for (let i = 0; i < NN_HID; i++) b1.push((brnd() - 0.5) * 1.2);
+    for (let i = 0; i < NN_OUT * NN_HID; i++) w2.push((brnd() - 0.5) * 0.5); // leitura pequena (near-neutro)
+    return { w1, b1, w2, hid: new Array(NN_HID).fill(0), out: [0, 0] };
+}
+
+/** avalia a rede do bicho com o estado atual (puro; não consome rnd). */
+function brainEval(br: F9Brain, hunger: number, fear: number, pf: number, closeP: number, frac: number): void {
+    const inp = [hunger, fear, pf, closeP, frac];
+    for (let j = 0; j < NN_HID; j++) {
+        let s = br.b1[j];
+        for (let i = 0; i < NN_IN; i++) s += br.w1[j * NN_IN + i] * inp[i];
+        br.hid[j] = Math.tanh(s);
+    }
+    for (let k = 0; k < NN_OUT; k++) {
+        let s = 0;
+        for (let j = 0; j < NN_HID; j++) s += br.w2[k * NN_HID + j] * br.hid[j];
+        br.out[k] = Math.tanh(s);
+    }
+}
+
+const NN_LR = 0.03;
+/** aprendizado por reforço na leitura (saída): recompensa (±) reforça a
+ *  associação entre a ativação oculta ATUAL e a disposição. `rC` mexe na
+ *  cautela, `rF` no forrageio. Pesos limitados a [-2.5, 2.5]. */
+function brainLearn(br: F9Brain, rC: number, rF: number): void {
+    for (let j = 0; j < NN_HID; j++) {
+        const h = br.hid[j];
+        br.w2[0 * NN_HID + j] = Math.max(-2.5, Math.min(2.5, br.w2[0 * NN_HID + j] + NN_LR * rC * h));
+        br.w2[1 * NN_HID + j] = Math.max(-2.5, Math.min(2.5, br.w2[1 * NN_HID + j] + NN_LR * rF * h));
+    }
+}
+
+/** HUD/testes: as disposições aprendidas do indivíduo (cautela, fome-drive). */
+export function f9BrainDisposition(id: number): { caution: number; forage: number } | null {
+    const ag = f9eco.agents.find((a) => a.id === id);
+    if (!ag) return null;
+    return { caution: ag.brain.out[0], forage: ag.brain.out[1] };
+}
+
+/** superfície de TESTE da rede (pura): permite avaliar/aprender sem simular o
+ *  mundo inteiro. Não usar em runtime. */
+export const __f9Brain = { makeBrain, brainEval, brainLearn };
+
 function spawnAgent(sp: F9Species, den: number, atDen = true): F9Agent {
     const d = DENS[den];
     const a = atDen ? rnd() * Math.PI * 2 : 0;
@@ -238,6 +313,7 @@ function spawnAgent(sp: F9Species, den: number, atDen = true): F9Agent {
         brave: rnd(), lazy: rnd(), err: 0.5 + rnd(),
         agress: rnd(), curio: rnd(), playerFear: 0.3 + rnd() * 0.4,
         foodMem: null, dangerMem: null, wounded: 0, calmNearT: 0, terrCd: 0, pursueT: 0,
+        brain: makeBrain(),
         thinkT: rnd() * 0.6, stateT: 0, deadT: 0,
         anim: rnd() * 10, speedNow: 0,
         carryingId: -1, grabbedBy: -1, bond: 0, exposure: 0,
@@ -323,7 +399,7 @@ export function f9EcoSubscribe(fn: () => void): () => void { listeners.add(fn); 
 export function f9EcoBump(): void { f9eco.version++; listeners.forEach((fn) => fn()); }
 
 export function f9EcoReset(): void {
-    nextId = 1; rngS = 20177;
+    nextId = 1; rngS = 20177; brainRngS = 990931;   // M20: o RNG dos cérebros também zera
     const v = f9eco.version;
     Object.assign(f9eco, FRESH());      // FRESH já limpa `sounds`
     f9eco.version = v;
@@ -658,6 +734,14 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
     const den = f9eco.dens[ag.den];
     const pd = Math.hypot(px - ag.x, pz - ag.z);
 
+    // M20: avalia a REDE do indivíduo com o estado atual → disposições.
+    // `caution` (>0 = mais medroso/prudente) e `forage` (>0 = mais faminto por
+    // buscar comida). São NUDGES pequenos por cima da personalidade e das
+    // regras; o aprendizado (perigo/comida) desloca a leitura ao longo da vida.
+    brainEval(ag.brain, ag.hunger, ag.fear, ag.playerFear, Math.max(0, 1 - pd / 18), frac);
+    const caution = ag.brain.out[0];
+    const forage = ag.brain.out[1];
+
     // A2: quem corre faz barulho — chase/flee emitem 'thud' de galope (1/0.3 s)
     if ((ag.state === 'flee' || ag.state === 'chase') && ag.sfxT <= 0 && ag.speedNow > def.run * 0.5) {
         f9EcoEmitSound(ag.x, ag.z, 'thud', Math.min(1, ag.speedNow / def.run), ag.id);
@@ -748,6 +832,7 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
         remember(ag, 'threat', threat.x, threat.z); // A3
         // M19: cada susto com o player REFORÇA o medo aprendido (individual)
         if (threat.player) { ag.playerFear = Math.min(1, ag.playerFear + 0.1); ag.calmNearT = 0; }
+        brainLearn(ag.brain, 1, 0);   // M20: levar susto ENSINA cautela (reforço)
         emit('alarme');
         // o contágio agora é por OUVIDO: quem foge grita 'alarme' e os outros reagem
         f9EcoEmitSound(ag.x, ag.z, 'alarme', 1, ag.id);
@@ -759,7 +844,8 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
             ag.tz = ag.z + Math.cos(away) * 7 + (rnd() - 0.5) * ag.err * 2.5;
         }
         stepToward(ag, def.run, dt, 1);
-        if (!threat && ag.stateT > 1.6 + ag.brave) { ag.state = 'wander'; pickWander(ag, def); }
+        // M20: o cauteloso demora mais pra baixar a guarda (caution nudge)
+        if (!threat && ag.stateT > 1.6 + ag.brave + caution * 0.7) { ag.state = 'wander'; pickWander(ag, def); }
         return;
     }
     // A7: fome altera risco — presa faminta dá menos peso ao alarme alheio
@@ -848,7 +934,7 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
 
     // ── o VULTO caça o PLAYER-bicho (você faz parte da cadeia agora) ──
     // A6: vulto bondado (bond>0.6) NÃO caça o player. A7: no frenesi o limiar cai.
-    if (ag.sp === 'vulto' && hunt.huntable && ag.bond <= 0.6 && ag.state !== 'eat' && ag.hunger > (frenzy ? 0.25 : 0.45)) {
+    if (ag.sp === 'vulto' && hunt.huntable && ag.bond <= 0.6 && ag.state !== 'eat' && ag.hunger > (frenzy ? 0.25 : 0.45) + caution * 0.1) {
         if (hunt.safeInOco) {
             // a luz quente do oco repele — ronda a distância e desiste
             if (ag.targetId === -2) { ag.targetId = -1; ag.state = 'wander'; pickWander(ag, def); }
@@ -891,7 +977,9 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
     // fome: musgo (herbívoros) ou caça (vulto).
     // A1: o bloco de caça NÃO executa durante 'eat'/'drag' (fix do eat roubado)
     // — 'drag' nem chega aqui: o arrasto retorna lá em cima, antes do mustHome.
-    if (ag.hunger > 0.55 && ag.state !== 'eat') {
+    // M20: forage nudge — o mais "forrageiro" (rede) busca comida com um pouco
+    // menos de fome; o preguiçoso-de-barriga, um pouco mais. (limiar 0.55∓0.12)
+    if (ag.hunger > 0.55 - forage * 0.12 && ag.state !== 'eat') {
         if ((def.eats as readonly string[]).includes('musgo')) {
             const m = nearestMoss(ag.x, ag.z);
             if (m) {
@@ -904,7 +992,7 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
                     ag.hunger = Math.max(0, ag.hunger - dt * 0.22);
                     if (ag.hunger <= 0.08 || m.amount <= 0.1) {
                         // M19: saciou → ESTE musgo vira a memória de comida do indivíduo
-                        if (ag.hunger <= 0.08) ag.foodMem = { x: m.x, z: m.z };
+                        if (ag.hunger <= 0.08) { ag.foodMem = { x: m.x, z: m.z }; brainLearn(ag.brain, -0.4, 1); } // M20: comer bem RELAXA e reforça forrageio
                         ag.state = 'wander'; pickWander(ag, def);
                     }
                 }
@@ -941,6 +1029,7 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
                 if (d2p < reach * reach && ag.grabCd <= 0 && prey.state !== 'grabbed') {
                     // AGARROU — a presa vai arrastada pra toca; o grito dela atrai rivais
                     prey.state = 'grabbed'; prey.grabbedBy = ag.id; prey.struggle = 0; prey.speedNow = 0;
+                    brainLearn(prey.brain, 1.5, 0);   // M20: ser agarrado é a lição de cautela mais dura
                     ag.carryingId = prey.id; ag.state = 'drag'; ag.stateT = 0; ag.targetId = -1;
                     ag.tx = den.x; ag.tz = den.z;
                     drama('agarrou', prey.x, prey.z);
