@@ -313,6 +313,12 @@ const _WALLS_FLOOR9 = [
     ...F9_OCOS.flatMap(([cx, cz], i) => ringCollider(cx, cz, 2.05, 12, F9_OCO_MOUTH[i], 0.72)),
     ...ringCollider(F9_RAIZ_CHAMBER[0], F9_RAIZ_CHAMBER[1], F9_RAIZ_CHAMBER[2], 16, F9_RAIZ_MOUTH, 0.42),
     ...F9_TREE_OBSTACLES.flatMap(([tx, tz, tr]) => boxCollider(tx, tz, tr * 1.7, tr * 1.7)),
+    // O ELEVADOR QUEBRADO no meio do Viveiro: o <ElevatorInterior> é renderizado
+    // em (0,-13) em TODO nível (App.tsx) menos o 7 — inclusive aqui. Sem esta
+    // caixa o player ATRAVESSAVA as paredes dele (bug do Felipe). Agora é SÓLIDO:
+    // o elevador que te despejou aqui, engolido pela floresta. boxCollider usa
+    // LARGURA CHEIA (hw=w/2) → o footprint do cab é EW6.5 × ED6.0 em (0,-13).
+    ...boxCollider(0, -13, 6.5, 6.0),
 ];
 
 // Floor 7 (pirate ship). The whole ship is scaled up so it reads as a SHIP, not
