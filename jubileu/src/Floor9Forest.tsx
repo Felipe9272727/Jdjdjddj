@@ -41,7 +41,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { EffectComposer, Bloom, Vignette, Noise, HueSaturation } from '@react-three/postprocessing';
 import { colorTex, rng } from './Floor6Textures';
-import { f9, f9Tick, f9DrainEvents, f9Cacado, F9_OCOS, F9_OCO_MOUTH, F9_RAIZ_MOUTH, F9_FIO, F9_RAIZ } from './f9Floresta';
+import { f9, f9Tick, f9DrainEvents, f9Cacado, f9Faminto, F9_OCOS, F9_OCO_MOUTH, F9_RAIZ_MOUTH, F9_FIO, F9_RAIZ } from './f9Floresta';
 import { f9eco, f9EcoTick, f9EcoDrainEvents, f9DropOffering, f9CycleFrac, F9_AVISO_AT, F9_TREE_OBSTACLES, freshOfferings, type F9CyclePhase } from './f9Eco';
 import { Floor9Oferendas } from './Floor9Oferendas';
 import { Saltitos, Cervos, Vultos, Guardiao, DenMouths, BlobShadows } from './Floor9Fauna';
@@ -1625,7 +1625,11 @@ export const Floor9Forest: React.FC<{ playerPositionRef: React.MutableRefObject<
                     noiseRef.current.lx = p.x; noiseRef.current.lz = p.z; noiseRef.current.v = 0;
                 }
             }
-            for (const e of f9EcoDrainEvents()) if (e === 'cacaPlayer') f9Cacado();
+            for (const e of f9EcoDrainEvents()) {
+                if (e === 'cacaPlayer') f9Cacado();
+                // M19: fome cheia = apagado por dentro (replantio com causa 'fome')
+                if (e === 'inanicao') f9Faminto();
+            }
             // o som do mundo, dirigido pela fase (a cama cala no aviso)
             const frac = f9CycleFrac();
             floor9SfxSetPhase(f9eco.phase, frac);

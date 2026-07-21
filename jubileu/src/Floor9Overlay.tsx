@@ -17,7 +17,7 @@ import {
     F9_CHEGADA_LINES, F9_RAIZ_LINES, F9_MEMORIA_LINES, F9_ENTREGA_LINES,
     F9_OCOS, F9_RAIZ,
 } from './f9Floresta';
-import { f9eco, f9EcoOn, f9EcoSubscribe, f9PickupProgress } from './f9Eco';
+import { f9eco, f9EcoOn, f9EcoSubscribe, f9PickupProgress, f9EatProgress, f9HuntProgress, type F9Drama } from './f9Eco';
 
 const mono: React.CSSProperties = { fontFamily: 'monospace', color: '#dfe8d2', userSelect: 'none' };
 
@@ -80,6 +80,31 @@ const useObjectiveTarget = (
     return t;
 };
 
+/** M19: fome + progresso de comer/caçar (10 Hz — a sobrevivência sentível). */
+const useSurvival = () => {
+    const [st, setSt] = useState<{ fome: number; eatK: number; huntK: number }>({ fome: 0.25, eatK: 0, huntK: 0 });
+    useEffect(() => {
+        const id = window.setInterval(() => {
+            setSt((s) => {
+                const fome = f9eco.fome, eatK = f9EatProgress(), huntK = f9HuntProgress();
+                return s.fome === fome && s.eatK === eatK && s.huntK === huntK ? s : { fome, eatK, huntK };
+            });
+        }, 100);
+        return () => window.clearInterval(id);
+    }, []);
+    return st;
+};
+
+/** M19: os CAUSOS do mundo viram narração sensorial quando acontecem perto —
+ *  a simulação invisível (agarrões, escapes, disputas) passa a ser SENTIDA. */
+const DRAMA_TEXT: Record<F9Drama['kind'], string> = {
+    agarrou: 'um guincho curto entre os troncos — algo foi agarrado.',
+    escapou: 'mato quebrando: uma presa escapou do agarrão, mancando.',
+    abate: 'um baque surdo perto de uma toca. depois, silêncio.',
+    territorio: 'rosnados baixos: dois vultos disputam o mesmo pedaço de mata.',
+    cacouPresa: 'sangue quente nas suas garras. olhos somem no mato — a floresta VIU.',
+};
+
 /** Proximidade do fruto + progresso da colheita (10 Hz — feedback da mecânica). */
 const usePickup = (playerPositionRef?: React.MutableRefObject<{ x: number; z: number }>) => {
     const [st, setSt] = useState<{ near: boolean; k: number }>({ near: false, k: 0 });
@@ -117,7 +142,11 @@ export const Floor9Overlay: React.FC<{
     const [whisper, setWhisper] = useState<{ text: string; key: number } | null>(null);
     const [banner, setBanner] = useState(false);       // "novo objetivo" pós-chegada
     const [ondaTut, setOndaTut] = useState(false);     // tutorial da 1ª onda
+    const [fomeTut, setFomeTut] = useState(false);     // M19: tutorial da 1ª fome
+    const [dramaTxt, setDramaTxt] = useState<{ text: string; key: number } | null>(null); // M19
     const ondaSeen = useRef(false);
+    const fomeSeen = useRef(false);
+    const dramaSeen = useRef(-1);                      // t do último causo narrado
     const prevPhase = useRef(f9.phase);
     const prevEco = useRef(f9eco.phase);
 
@@ -151,6 +180,36 @@ export const Floor9Overlay: React.FC<{
         const t = setTimeout(() => setOndaTut(false), 5000);
         return () => clearTimeout(t);
     }, [ondaTut]);
+    // M19: tutorial da PRIMEIRA fome apertando + narração dos causos próximos
+    useEffect(() => {
+        const id = window.setInterval(() => {
+            if (f9.phase !== 'explorar') return;
+            if (!fomeSeen.current && f9eco.fome > 0.55) {
+                fomeSeen.current = true;
+                setFomeTut(true);
+            }
+            const d = f9eco.lastDrama;
+            if (d && d.t !== dramaSeen.current) {
+                dramaSeen.current = d.t;
+                const p = playerPositionRef?.current;
+                // só narra o que acontece PERTO (26 u) — longe, o mundo segue sozinho
+                if (p && Math.hypot(p.x - d.x, p.z - d.z) < 26) {
+                    setDramaTxt({ text: DRAMA_TEXT[d.kind], key: Date.now() });
+                }
+            }
+        }, 500);
+        return () => window.clearInterval(id);
+    }, [playerPositionRef]);
+    useEffect(() => {
+        if (!fomeTut) return;
+        const t = setTimeout(() => setFomeTut(false), 6000);
+        return () => clearTimeout(t);
+    }, [fomeTut]);
+    useEffect(() => {
+        if (!dramaTxt) return;
+        const t = setTimeout(() => setDramaTxt(null), 5200);
+        return () => clearTimeout(t);
+    }, [dramaTxt]);
     // eventos do motor: conclusão, flash, e os SUSSURROS de lore
     useEffect(() => f9EcoOn((e) => {
         if (e === 'f9Completo') {
@@ -199,6 +258,13 @@ export const Floor9Overlay: React.FC<{
     }
     const target = useObjectiveTarget(playerPositionRef, cameraThetaRef);
     const pickup = usePickup(playerPositionRef);
+    const surv = useSurvival();
+    // M19: a fome apertando toma o objetivo (comer vem antes de qualquer fruto)
+    if (f9.phase === 'explorar' && !emergency && !completo && surv.fome > 0.78) {
+        objective = 'A FOME aperta — paste o MUSGO-BRILHO (pare em cima) ou cace.';
+    }
+    const barriga = Math.max(0, Math.min(1, 1 - surv.fome)); // 1 = saciado
+    const fomeAlta = surv.fome > 0.72;
     const vigK = f9eco.phase === 'onda' ? 0.78 : aviso ? 0.66 : 0.52;
     const accent = emergency ? '#ffca7a'
         : target?.kind === 'oferenda' ? '#ffd97a'
@@ -257,6 +323,55 @@ export const Floor9Overlay: React.FC<{
                     ))}
                     <div style={{ ...mono, fontSize: 11, color: '#d9b96a', letterSpacing: 1, textShadow: '0 1px 3px #000', marginLeft: 4 }}>
                         Oferendas {f9eco.rootWake}/3
+                    </div>
+                </div>
+            )}
+
+            {/* M19: o MEDIDOR DE FOME (as "bolinhas" à la Rain World — cheias = saciado) */}
+            {f9.phase === 'explorar' && !completo && (
+                <div style={{
+                    position: 'absolute', top: 'calc(env(safe-area-inset-top) + 36px)', left: 16,
+                    display: 'flex', alignItems: 'center', gap: 6, pointerEvents: 'none',
+                    animation: fomeAlta ? 'f9pulse 1s ease-in-out infinite' : undefined,
+                }}>
+                    {[0, 1, 2, 3, 4].map((i) => {
+                        const cheio = barriga * 5 >= i + 0.5;
+                        return (
+                            <div key={i} style={{
+                                width: 9, height: 9, borderRadius: '50%',
+                                border: `1.5px solid ${fomeAlta ? '#e8917a' : '#9fca7a'}`,
+                                background: cheio ? (fomeAlta ? '#e8917a' : '#9fca7a') : 'transparent',
+                                boxShadow: cheio ? `0 0 7px ${fomeAlta ? '#e8917a' : '#9fca7a'}66` : 'none',
+                                transition: 'background 0.4s, border-color 0.4s',
+                            }} />
+                        );
+                    })}
+                    <div style={{
+                        ...mono, fontSize: 10.5, letterSpacing: 1, marginLeft: 4,
+                        color: fomeAlta ? '#e8917a' : '#9fca7a', textShadow: '0 1px 3px #000',
+                    }}>{fomeAlta ? 'FOME' : 'barriga'}</div>
+                </div>
+            )}
+
+            {/* M19: comer/caçar em progresso (o mastigar e o bote são SENTIDOS) */}
+            {f9.phase === 'explorar' && !completo && (surv.eatK > 0 || surv.huntK > 0) && (
+                <div style={{
+                    position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom) + 92px)', left: 0, right: 0,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                }}>
+                    <div style={{
+                        ...mono, fontSize: 12.5, letterSpacing: 1,
+                        color: surv.huntK > 0 ? '#e8917a' : '#b8d99a', textShadow: '0 1px 3px #000',
+                    }}>
+                        {surv.huntK > 0 ? 'garras na presa…' : 'pastando o musgo-brilho…'}
+                    </div>
+                    <div style={{ width: 130, height: 5, borderRadius: 3, background: 'rgba(184,217,154,0.18)', overflow: 'hidden' }}>
+                        <div style={{
+                            width: `${Math.round(Math.max(surv.eatK, surv.huntK) * 100)}%`, height: '100%',
+                            background: surv.huntK > 0 ? '#e8917a' : '#9fca7a',
+                            boxShadow: `0 0 8px ${surv.huntK > 0 ? '#e8917a' : '#9fca7a'}`,
+                            transition: 'width 0.1s linear',
+                        }} />
                     </div>
                 </div>
             )}
@@ -323,6 +438,39 @@ export const Floor9Overlay: React.FC<{
                     }}>
                         <div style={{ fontSize: 10, letterSpacing: 4, color: '#d9b96a', marginBottom: 6 }}>NOVO OBJETIVO</div>
                         <div style={{ fontSize: 15, letterSpacing: 1 }}>As três Oferendas — leve os frutos de luz à Raiz</div>
+                    </div>
+                </div>
+            )}
+
+            {/* M19: NARRAÇÃO SENSORIAL dos causos próximos (o mundo é sentido) */}
+            {dramaTxt && !whisper && f9.phase === 'explorar' && !completo && (
+                <div key={dramaTxt.key} style={{
+                    position: 'absolute', left: 0, right: 0, bottom: 'calc(env(safe-area-inset-bottom) + 152px)',
+                    display: 'flex', justifyContent: 'center', padding: '0 18px', pointerEvents: 'none',
+                }}>
+                    <div style={{
+                        ...mono, maxWidth: 480, textAlign: 'center', fontSize: 12.5, lineHeight: 1.5,
+                        fontStyle: 'italic', color: '#b9c4ab', textShadow: '0 2px 6px #000',
+                        animation: 'f9whisper 5.2s ease-in-out forwards',
+                    }}>{dramaTxt.text}</div>
+                </div>
+            )}
+
+            {/* M19: TUTORIAL DA PRIMEIRA FOME */}
+            {fomeTut && f9.phase === 'explorar' && !completo && (
+                <div style={{
+                    position: 'absolute', left: 0, right: 0, top: '38%',
+                    display: 'flex', justifyContent: 'center', padding: '0 16px',
+                }}>
+                    <div style={{
+                        ...mono, maxWidth: 460, textAlign: 'center', animation: 'f9banner 6s ease-in-out forwards',
+                        background: 'rgba(10,18,8,0.85)', border: '1px solid #9fca7a', borderRadius: 10,
+                        padding: '14px 20px', boxShadow: '0 0 30px rgba(159,202,122,0.22)',
+                    }}>
+                        <div style={{ fontSize: 11, letterSpacing: 3, color: '#9fca7a', marginBottom: 7 }}>A BARRIGA RONCA</div>
+                        <div style={{ fontSize: 14.5, lineHeight: 1.5, color: '#dfe8d2' }}>
+                            Bicho tem FOME. Pare em cima de um MUSGO-BRILHO pra pastar — ou encoste num saltito e segure pra caçar. Vazia de vez, ela te apaga.
+                        </div>
                     </div>
                 </div>
             )}
@@ -420,7 +568,9 @@ export const Floor9Overlay: React.FC<{
                     }}>
                         {f9.causa === 'vulto'
                             ? 'dentes na nuca. escuro. …o Viveiro não te deixa acabar: algo te replanta.'
-                            : 'a onda te encontrou. algo te replanta perto de um oco.'}
+                            : f9.causa === 'fome'
+                                ? 'a fome te apagou por dentro, folha a folha. …o Viveiro te replanta — coma desta vez.'
+                                : 'a onda te encontrou. algo te replanta perto de um oco.'}
                     </div>
                 </div>
             )}

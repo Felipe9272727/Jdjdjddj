@@ -31,7 +31,7 @@ export interface F9State {
     /** quantas vezes o player foi apagado/replantado */
     apagos: number;
     /** o que apagou o player da última vez (texto do replantio muda) */
-    causa: 'onda' | 'vulto';
+    causa: 'onda' | 'vulto' | 'fome';
     version: number;
 }
 
@@ -110,6 +110,12 @@ export function f9Cacado(): void {
     f9.phase = 'apagando'; f9.causa = 'vulto'; f9.apagos++; emit('apagado'); f9Bump();
 }
 
+/** M19: a FOME apagou o player (a cena chama ao drenar 'inanicao' do eco). */
+export function f9Faminto(): void {
+    if (f9.phase !== 'explorar') return;
+    f9.phase = 'apagando'; f9.causa = 'fome'; f9.apagos++; emit('apagado'); f9Bump();
+}
+
 /** Por frame: abrigo do player e onda×player. */
 export function f9Tick(dt: number, px: number, pz: number): void {
     const s = f9;
@@ -154,6 +160,7 @@ export const F9_CHEGADA_LINES: ReadonlyArray<string> = [
     'Você atravessa a copa inteira antes do chão te aceitar. Olha pras patas — quatro, com garras. O Viveiro só aceita BICHO, e te replantou em um.',
     'Aqui o hotel enterra o que esquece, e do enterro cresce floresta. Cada árvore já foi uma memória. O Arquivista te arremessou pra virar terra também.',
     'Mas três MEMÓRIAS ainda estão inteiras: frutos de luz pulsando entre os troncos, cada um sob uma coluna dourada que fura a copa. Leve os três até a RAIZ — a árvore-mãe, lá no fundo do viveiro.',
+    'E bicho tem FOME. Paste o MUSGO-BRILHO (pare em cima e espere) ou cace os saltitos — mas a floresta VÊ quem mata, e não esquece. De barriga vazia, o Viveiro te apaga por dentro.',
     'Quando a Raiz recebe os três, ela DESABROCHA, e onde uma árvore-mãe desabrocha abre passagem pra cima: a saída. Cuidado — quando o ar clareia demais vem a ONDA de apagamento. Fora de um OCO ela te apaga e te replanta. E rente ao chão, algo caça.',
 ];
 

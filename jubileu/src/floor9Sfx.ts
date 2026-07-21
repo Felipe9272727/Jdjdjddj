@@ -323,6 +323,36 @@ function onEcoEvent(e: F9EcoEvent): void {
             tone(1046, 1046, 2.0, 0.012, 'sine', t + 0.6);
             break;
         }
+        // ── M19: a sobrevivência do player ──
+        case 'comeuMusgo': {
+            // mastigada macia: dois toques surdos + um brilho curto (saciou)
+            const t = ctx.currentTime;
+            noiseBurst(0.05, 0.08, 'lowpass', 500, 1, t);
+            noiseBurst(0.04, 0.08, 'lowpass', 440, 1, t + 0.12);
+            tone(660, 880, 0.22, 0.014, 'sine', t + 0.2);
+            break;
+        }
+        case 'cacouPresa': {
+            // o bote do PLAYER: thud seco + squeal curto morrendo
+            const t = ctx.currentTime;
+            noiseBurst(0.1, 0.12, 'lowpass', 700, 1, t);
+            tone(1100, 320, 0.26, 0.05, 'sawtooth', t + 0.04);
+            break;
+        }
+        case 'territorio': {
+            // dois rosnados graves se sobrepondo (a disputa de vultos)
+            const t = ctx.currentTime;
+            tone(82, 64, 0.5, 0.07, 'sawtooth', t);
+            tone(96, 70, 0.44, 0.06, 'sawtooth', t + 0.18);
+            break;
+        }
+        case 'inanicao': {
+            // o apagar por dentro: descida longa + sopro
+            const t = ctx.currentTime;
+            tone(220, 55, 1.4, 0.05, 'sine', t);
+            noiseBurst(0.04, 1.2, 'lowpass', 300, 0.8, t + 0.2);
+            break;
+        }
         default:
             break; // alarme/abate/cacaPlayer/ondaTermina: sem stinger próprio
     }

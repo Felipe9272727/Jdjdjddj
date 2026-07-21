@@ -1,0 +1,167 @@
+/**
+ * f9Sobrevivencia.test.ts — M19: "você é só mais um bicho". Prova que a
+ * SOBREVIVÊNCIA do player e a IA INDIVIDUAL/APRENDIZADO existem de verdade:
+ *  - a FOME do player sobe e o mata (inanição) se ele não comer;
+ *  - PASTAR o musgo e CAÇAR o saltito saciam;
+ *  - CAÇAR tem preço: as testemunhas APRENDEM a temer o player (playerFear);
+ *  - quem escapa de um agarrão fica FERIDO e vira alvo preferido;
+ *  - vultos DISPUTAM território;
+ *  - a convivência calma HABITUA (o medo aprendido derrete).
+ */
+import { describe, it, expect, beforeEach } from 'vitest';
+import { f9eco, f9EcoReset, f9EcoTick, f9EcoDrainEvents } from '../f9Eco';
+import { f9Reset } from '../f9Floresta';
+
+const HUNT = { huntable: true, safeInOco: false, stillT: 0, noise: 0, carry: false };
+
+/** manda toda espécie não-sujeito pro seu canto (ninguém interfere). */
+function pinAllExcept(ids: number[]): void {
+    for (const a of f9eco.agents) {
+        if (ids.includes(a.id)) continue;
+        if (a.sp === 'saltito') { a.x = 28; a.z = -48; }
+        else if (a.sp === 'cervo') { a.x = 28; a.z = -6; }
+        else if (a.sp === 'vulto') { a.x = -31; a.z = -48; a.hunger = 0; }
+        else { a.x = -31; a.z = 3; }
+        a.tx = a.x; a.tz = a.z;
+    }
+}
+
+beforeEach(() => { f9EcoReset(); f9Reset(); });
+
+describe('f9Sobrevivencia — M19: a fome do player', () => {
+    it('FOME sobe com o tempo quando o player não come (longe de musgo/presa)', () => {
+        const f0 = f9eco.fome;
+        // canto vazio do viveiro: sem musgo a ≤1.3, sem saltito a ≤0.95
+        for (let i = 0; i < 30 * 30; i++) f9EcoTick(1 / 30, 30, 3, 200, HUNT);
+        expect(f9eco.fome).toBeGreaterThan(f0);
+    });
+
+    it('a fome NÃO sobe fora do explorar (huntable=false: queda/chegada/apagando)', () => {
+        const f0 = f9eco.fome;
+        for (let i = 0; i < 30 * 30; i++) f9EcoTick(1 / 30, 30, 3, 200, { ...HUNT, huntable: false });
+        expect(f9eco.fome).toBe(f0);
+    });
+
+    it('PASTAR: parado em cima de um musgo-brilho sacia (fome cai + evento comeuMusgo)', () => {
+        const px = 30, pz = 3;
+        f9eco.moss[0].x = px; f9eco.moss[0].z = pz; f9eco.moss[0].amount = 1;
+        f9eco.fome = 0.6;
+        let comeu = false;
+        for (let i = 0; i < 3 * 30 && !comeu; i++) {
+            f9EcoTick(1 / 30, px, pz, 200, HUNT);
+            if (f9EcoDrainEvents().includes('comeuMusgo')) comeu = true;
+        }
+        expect(comeu).toBe(true);
+        expect(f9eco.fome).toBeLessThan(0.6);
+        expect(f9eco.moss[0].amount).toBeLessThan(1); // o musgo foi consumido
+    });
+
+    it('INANIÇÃO: fome cheia apaga o player (evento inanicao) e reseta pra 0.55', () => {
+        f9eco.fome = 0.995;
+        let inaniu = false;
+        for (let i = 0; i < 10 * 30 && !inaniu; i++) {
+            f9EcoTick(1 / 30, 30, 3, 200, HUNT);
+            if (f9EcoDrainEvents().includes('inanicao')) inaniu = true;
+        }
+        expect(inaniu).toBe(true);
+        expect(f9eco.fome).toBeCloseTo(0.55, 2); // não fica cravado em 1 (sem loop de morte)
+    });
+});
+
+describe('f9Sobrevivencia — M19: caçar, e o preço de caçar', () => {
+    it('CAÇAR: encostar e segurar num saltito mata a presa (evento cacouPresa + fome cai)', () => {
+        const px = 0, pz = -2;
+        const quarry = f9eco.agents.find((a) => a.sp === 'saltito')!;
+        pinAllExcept([quarry.id]);
+        f9eco.fome = 0.8;
+        let cacou = false;
+        for (let i = 0; i < 3 * 30 && !cacou; i++) {
+            quarry.x = px; quarry.z = pz;             // fica na garra do player
+            f9EcoTick(1 / 30, px, pz, 200, HUNT);
+            if (f9EcoDrainEvents().includes('cacouPresa')) cacou = true;
+        }
+        expect(cacou).toBe(true);
+        expect(quarry.state).toBe('dead');
+        expect(f9eco.fome).toBeLessThan(0.8);
+    });
+
+    it('TESTEMUNHA: presa que VÊ a caçada aprende a temer o player (playerFear sobe)', () => {
+        const px = 0, pz = -2;
+        const all = f9eco.agents.filter((a) => a.sp === 'saltito');
+        const quarry = all[0], witness = all[1];
+        pinAllExcept([quarry.id, witness.id]);
+        witness.x = 3; witness.z = -2;               // 3 u, com linha de visão limpa
+        const fearBefore = witness.playerFear;
+        for (let i = 0; i < 3 * 30; i++) {
+            quarry.x = px; quarry.z = pz;
+            witness.x = 3; witness.z = -2;           // fica de testemunha
+            f9EcoTick(1 / 30, px, pz, 200, HUNT);
+            if (quarry.state === 'dead') break;
+        }
+        expect(quarry.state).toBe('dead');
+        expect(witness.playerFear).toBeGreaterThan(fearBefore);
+        expect(witness.dangerMem).not.toBeNull();
+    });
+});
+
+describe('f9Sobrevivencia — M19: aprendizado individual e território', () => {
+    it('FERIDO: quem escapa de um agarrão fica wounded>0 e marca dangerMem', () => {
+        const v = f9eco.agents.find((a) => a.sp === 'vulto')!;
+        const s = f9eco.agents.find((a) => a.sp === 'saltito')!;
+        const den = f9eco.dens[v.den];
+        v.x = den.x + 3; v.z = den.z; v.tx = v.x; v.tz = v.z; v.hunger = 0.95; v.err = 1;
+        s.x = v.x + 1; s.z = v.z; s.tx = s.x; s.tz = s.z;
+        s.brave = 1; s.err = 0.2;                    // corajoso: escapa do arrasto
+        pinAllExcept([v.id, s.id]);
+        let escapou = false;
+        for (let i = 0; i < 20 * 30 && !escapou; i++) {
+            f9EcoTick(1 / 30, 30, 3, 200);
+            if (f9EcoDrainEvents().includes('escapou')) escapou = true;
+        }
+        expect(escapou).toBe(true);
+        expect(s.wounded).toBeGreaterThan(0);        // manca depois do sufoco
+        expect(s.dangerMem).not.toBeNull();          // lembra ONDE quase morreu
+    });
+
+    it('CAÇA AO FERIDO: o vulto prefere a presa mancando (mesmo um pouco mais longe)', () => {
+        const v = f9eco.agents.find((a) => a.sp === 'vulto')!;
+        const prey = f9eco.agents.filter((a) => a.sp === 'saltito');
+        const hurt = prey[0], healthy = prey[1];
+        v.x = 0; v.z = -2; v.tx = 0; v.tz = -2; v.hunger = 0.95;
+        hurt.x = 6; hurt.z = -2; hurt.wounded = 30;  // ferida a 6 u
+        healthy.x = 5; healthy.z = -3;               // sã a ~5.1 u (mais perto)
+        pinAllExcept([v.id, hurt.id, healthy.id]);
+        f9EcoTick(1 / 30, 30, 3, 200);
+        expect(v.targetId).toBe(hurt.id);            // o cheiro de sangue vence a distância
+    });
+
+    it('TERRITÓRIO: dois vultos perto demais disputam (evento territorio; o menos dominante foge)', () => {
+        const v = f9eco.agents.filter((a) => a.sp === 'vulto');
+        const [a, b] = v;
+        a.x = 0; a.z = -44; a.tx = 0; a.tz = -44; a.state = 'wander'; a.hunger = 0.1;
+        a.brave = 0.9; a.agress = 0.9; a.terrCd = 0;   // dominante
+        b.x = 3; b.z = -44; b.tx = 3; b.tz = -44; b.state = 'wander'; b.hunger = 0.1;
+        b.brave = 0.1; b.agress = 0.1; b.terrCd = 0;   // submisso
+        pinAllExcept([a.id, b.id]);
+        let disputa = false;
+        for (let i = 0; i < 3 * 30 && !disputa; i++) {
+            f9EcoTick(1 / 30, 0, -44, 200, { ...HUNT, huntable: false });
+            if (f9EcoDrainEvents().includes('territorio')) disputa = true;
+        }
+        expect(disputa).toBe(true);
+        expect(b.state).toBe('flee');                 // o submisso cede o pedaço
+    });
+
+    it('HABITUAÇÃO: convivência calma derrete o medo aprendido (playerFear cai)', () => {
+        const s = f9eco.agents.find((a) => a.sp === 'saltito')!;
+        s.brave = 0.9; s.hunger = 0.2; s.playerFear = 0.9; s.fear = 0;
+        pinAllExcept([s.id]);
+        const px = s.x + 5, pz = s.z;                 // longe o bastante pra não assustar
+        const fear0 = s.playerFear;
+        for (let i = 0; i < 15 * 30; i++) {
+            s.x = px - 5; s.z = pz; s.tx = s.x; s.tz = s.z; // fica pertinho, sem fugir
+            f9EcoTick(1 / 30, px, pz, 200, { huntable: false, safeInOco: false, stillT: 10, noise: 0, carry: false });
+        }
+        expect(s.playerFear).toBeLessThan(fear0);
+    });
+});

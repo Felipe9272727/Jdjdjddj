@@ -33,6 +33,24 @@
  *    mais fácil, herbívoros sem sentinela), fome altera risco (fearEff),
  *    necrofagia (cadáver fresco <6 s vira refeição direta).
  *
+ * ── M19 "VOCÊ É SÓ MAIS UM BICHO" (a essência Rain World de verdade) ──
+ * B1 FOME DO PLAYER (`fome` 0..1): sobe sempre; PASTAR musgo-brilho (parado
+ *    colado, 0.5 s) ou CAÇAR saltito (encostar e segurar — desprevenido cai
+ *    rápido, fugindo é difícil) derruba. fome=1 → 'inanicao' (a cena replanta).
+ * B2 CAÇAR TEM PREÇO: o abate grita (atrai vultos) e TESTEMUNHAS com linha de
+ *    visão aprendem: `playerFear` individual sobe — aquele bicho específico
+ *    passa a te detectar de longe. Convivência calma habitua de volta.
+ * B3 INDIVIDUALIDADE: além de brave/lazy/err, cada bicho nasce com `agress`
+ *    (dominância), `curio` (chega mais perto do estranho) e um `playerFear`
+ *    próprio; vultos DISPUTAM TERRITÓRIO (o menos dominante cede).
+ * B4 APRENDIZADO LEVE: `foodMem` (o musgo que saciou — fome alta puxa o wander
+ *    pra lá), `dangerMem` (~180 s: onde quase morri — o wander evita),
+ *    `wounded` (escapou do agarrão → manca 60 s; predadores PREFEREM feridos).
+ * B5 IMPERFEIÇÃO: perseguição longa cansa — o predador DESISTE no meio da
+ *    caçada (player e presa), lembra o ponto e volta a patrulhar.
+ * B6 DRAMA SENTÍVEL: `lastDrama` registra o último causo (agarrão, escape,
+ *    abate, disputa) — o HUD narra o que aconteceu perto do player.
+ *
  * V4 as 3 OFERENDAS (o objetivo do andar): a Raiz está DORMENTE e 3 frutos
  *    dourados esperam em spots perigosos (toca do vulto, oco longe do spawn,
  *    clareira do guardião) — presentes desde o início, objetivo legível de
@@ -109,6 +127,16 @@ export interface F9Agent {
     den: number;                          // índice da toca-mãe
     // personalidade (pesquisa: imperfeição proposital)
     brave: number; lazy: number; err: number;
+    // ── M19: individualidade Rain World ──
+    agress: number;                       // dominância (disputas de território)
+    curio: number;                        // curiosidade: tolera o estranho mais perto
+    playerFear: number;                   // medo APRENDIDO do player (testemunha de caçada sobe; calma derrete)
+    foodMem: { x: number; z: number } | null;              // o musgo que me saciou
+    dangerMem: { x: number; z: number; t: number } | null; // onde quase morri (~180 s)
+    wounded: number;                      // s restantes mancando (escapou de um agarrão)
+    calmNearT: number;                    // convivência calma acumulada com o player (habituação)
+    terrCd: number;                       // cooldown da disputa de território
+    pursueT: number;                      // s em perseguição contínua (stalk/chase) — a caçada CANSA
     thinkT: number; stateT: number; deadT: number;
     anim: number; speedNow: number;
     // ── OVERHAUL RW ──
@@ -135,7 +163,12 @@ export type F9EcoEvent = 'alarme' | 'abate' | 'ondaComeca' | 'ondaTermina' | 're
     // OVERHAUL RW
     | 'agarrou' | 'escapou' | 'vinculo'
     // V4 — AS 3 OFERENDAS
-    | 'oferendaPega' | 'oferendaEntregue' | 'raizDesabrocha' | 'f9Completo';
+    | 'oferendaPega' | 'oferendaEntregue' | 'raizDesabrocha' | 'f9Completo'
+    // M19 — a sobrevivência do player + dramas do mundo
+    | 'comeuMusgo' | 'cacouPresa' | 'inanicao' | 'territorio';
+
+/** M19: o último "causo" do mundo — o HUD narra quando acontece perto. */
+export interface F9Drama { kind: 'agarrou' | 'escapou' | 'abate' | 'territorio' | 'cacouPresa'; x: number; z: number; t: number }
 
 // ── V4: AS 3 OFERENDAS (o objetivo do andar) ────────────────────────────────
 export type F9OfferingSpot = 'vulto' | 'oco' | 'guardiao';
@@ -157,6 +190,9 @@ export interface F9EcoState {
     offerings: F9Offering[];
     rootWake: number;                     // 0..3 corações acesos da Raiz
     rootState: F9RootState;
+    // M19 — o player é só mais um bicho
+    fome: number;                         // 0..1 fome do player (1 = inanição)
+    lastDrama: F9Drama | null;
     t: number;
     cycleT: number; cycleLen: number;
     phase: F9CyclePhase;
@@ -200,6 +236,8 @@ function spawnAgent(sp: F9Species, den: number, atDen = true): F9Agent {
         hunger: 0.25 + rnd() * 0.3, fear: 0,
         den,
         brave: rnd(), lazy: rnd(), err: 0.5 + rnd(),
+        agress: rnd(), curio: rnd(), playerFear: 0.3 + rnd() * 0.4,
+        foodMem: null, dangerMem: null, wounded: 0, calmNearT: 0, terrCd: 0, pursueT: 0,
         thinkT: rnd() * 0.6, stateT: 0, deadT: 0,
         anim: rnd() * 10, speedNow: 0,
         carryingId: -1, grabbedBy: -1, bond: 0, exposure: 0,
@@ -260,6 +298,7 @@ const FRESH = (): F9EcoState => ({
     sounds: [],
     offerings: freshOfferings(),
     rootWake: 0, rootState: 'dormente',
+    fome: 0.25, lastDrama: null,
     t: 0, cycleT: 0, cycleLen: CYCLE_LEN,
     phase: 'calmo', waveT: 0, version: 0,
 });
@@ -293,7 +332,13 @@ export function f9EcoReset(): void {
     stepSndT = 0;                       // rate-limit dos passos do player (A2)
     pickupId = -1; pickupT = 0;         // V4: "segurar pra pegar" da oferenda
     completed = false;                  // V4: o portal volta a poder completar
+    eatT = 0; huntId = -1; huntT = 0;   // M19: comer/caçar do player
     f9EcoBump();
+}
+
+/** M19: registra o último causo do mundo (o HUD narra quando perto). */
+function drama(kind: F9Drama['kind'], x: number, z: number): void {
+    f9eco.lastDrama = { kind, x, z, t: f9eco.t };
 }
 
 const dist2 = (ax: number, az: number, bx: number, bz: number) => {
@@ -323,7 +368,9 @@ function nearestPrey(ag: F9Agent, def: F9SpeciesDef): F9Agent | null {
         if (o.state === 'dead') { if (o.deadT >= 6) continue; }
         else if (o.state === 'denned' || o.state === 'grabbed') continue;
         if (!(def.eats as readonly string[]).includes(o.sp)) continue;
-        const d = dist2(ag.x, ag.z, o.x, o.z);
+        // M19: sangue no ar — presa FERIDA (mancando) é preferida e "cheirada"
+        // de mais longe (a distância efetiva encolhe pra ela)
+        const d = dist2(ag.x, ag.z, o.x, o.z) * (o.wounded > 0 ? 0.35 : 1);
         if (d < bd && f9LineOfSight(ag.x, ag.z, o.x, o.z)) { bd = d; best = o; }
     }
     return best;
@@ -333,15 +380,21 @@ function nearestPrey(ag: F9Agent, def: F9SpeciesDef): F9Agent | null {
  *  O player é percebido por RUÍDO (A2): raio efetivo escala com `noise` —
  *  parado/agachado é quase invisível. Fome altera risco (A7): presa faminta
  *  percebe mais tarde (arrisca mais). Vínculo >0.6 tira o player dos fears. */
-function nearestThreat(ag: F9Agent, def: F9SpeciesDef, px: number, pz: number, noise: number): { x: number; z: number; d2: number } | null {
-    let best: { x: number; z: number; d2: number } | null = null;
+function nearestThreat(ag: F9Agent, def: F9SpeciesDef, px: number, pz: number, noise: number): { x: number; z: number; d2: number; player?: boolean } | null {
+    let best: { x: number; z: number; d2: number; player?: boolean } | null = null;
     const risk = 1 - ag.hunger * 0.5; // fearEff nos limiares de detecção (A7)
     const senseBase = def.sense * (1 - ag.brave * 0.45) * risk;
     const s2 = senseBase * senseBase;
     if (ag.bond <= 0.6 && (def.fears as readonly string[]).includes('player')) {
-        const eff = senseBase * (0.35 + 0.65 * noise);
+        // M19: o medo do player é APRENDIDO por indivíduo — o bicho de base
+        // (playerFear ~0.3-0.7) fica ~na vigilância normal (wary~1); quem
+        // TESTEMUNHOU uma caçada dispara de bem mais longe (wary→1.6); o
+        // curioso/habituado deixa chegar mais perto. O piso 0.96 no fresco
+        // mantém o predador-evasor de sempre; o teto evita hipervigilância.
+        const wary = Math.max(0.5, Math.min(1.6, 1 + ag.playerFear * 0.7 - ag.curio * 0.25));
+        const eff = senseBase * (0.35 + 0.65 * noise) * wary;
         const d = dist2(ag.x, ag.z, px, pz);
-        if (d < eff * eff && f9LineOfSight(ag.x, ag.z, px, pz)) best = { x: px, z: pz, d2: d };
+        if (d < eff * eff && f9LineOfSight(ag.x, ag.z, px, pz)) best = { x: px, z: pz, d2: d, player: true };
     }
     for (const o of f9eco.agents) {
         if (o.state === 'dead' || o.state === 'denned' || o.state === 'grabbed') continue;
@@ -496,6 +549,7 @@ function pickShelter(ag: F9Agent): { x: number; z: number; eps: number; kind: F9
 
 /** anda em direção a (tx,tz) DESVIANDO das árvores-mãe; true se chegou. */
 function stepToward(ag: F9Agent, speed: number, dt: number, eps = 0.6): boolean {
+    if (ag.wounded > 0) speed *= 0.78;  // M19: quem escapou de um agarrão MANCA
     const dx = ag.tx - ag.x, dz = ag.tz - ag.z;
     const d = Math.hypot(dx, dz);
     ag.speedNow = speed;
@@ -547,6 +601,20 @@ function pickWander(ag: F9Agent, def: F9SpeciesDef): void {
         const mem = freshMemory(ag, 'prey');
         if (mem && rnd() < 0.5) { tx = mem.x + (rnd() - 0.5) * 3; tz = mem.z + (rnd() - 0.5) * 3; }
     }
+    // M19: APRENDIZADO no vagar — fome alta puxa o alvo pro musgo que saciou
+    // (foodMem); alvo caindo perto de um susto recente (dangerMem ~180 s) é
+    // empurrado pra longe: o bicho passa a EVITAR o lugar onde quase morreu.
+    if (ag.foodMem && ag.hunger > 0.45 && (def.eats as readonly string[]).includes('musgo')) {
+        tx = tx * 0.35 + ag.foodMem.x * 0.65; tz = tz * 0.35 + ag.foodMem.z * 0.65;
+    }
+    const dm = ag.dangerMem;
+    if (dm && f9eco.t - dm.t < 180) {
+        const dd = Math.hypot(tx - dm.x, tz - dm.z);
+        if (dd < 7) {
+            const ux = dd > 0.01 ? (tx - dm.x) / dd : 1, uz = dd > 0.01 ? (tz - dm.z) / dd : 0;
+            tx = dm.x + ux * 9; tz = dm.z + uz * 9;
+        }
+    }
     // A8: alvos sempre dentro do viveiro (o Guardião não anda mais contra a parede)
     ag.tx = Math.max(-32, Math.min(32, tx));
     ag.tz = Math.max(-50, Math.min(2, tz));
@@ -564,6 +632,11 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
     ag.thinkT -= dt;
     ag.grabCd -= dt;
     ag.sfxT -= dt;
+    // M19: a manqueira do escapado e o cooldown de disputa derretem com o tempo
+    if (ag.wounded > 0) ag.wounded = Math.max(0, ag.wounded - dt);
+    if (ag.terrCd > 0) ag.terrCd -= dt;
+    // M19: o cronômetro da perseguição — só corre enquanto ESPREITA/PERSEGUE
+    if (ag.state === 'stalk' || ag.state === 'chase') ag.pursueT += dt; else ag.pursueT = 0;
     // A7: frenesi pré-onda — a fome aperta pra todo mundo antes do apagamento
     const frac = f9eco.cycleT / f9eco.cycleLen;
     const frenzy = frac >= 0.6 && frac < AVISO_AT;
@@ -625,6 +698,11 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
             ag.state = 'flee'; ag.fear = 1; ag.stateT = 0; ag.grabbedBy = -1; ag.struggle = 0;
             pred.carryingId = -1; pred.grabCd = 1.4; // cooldown antes de agarrar de novo
             pred.state = 'chase'; pred.stateT = 0; pred.targetId = ag.id;
+            // M19: escapou FERIDO — manca 60 s (predadores preferem feridos) e
+            // APRENDE: o lugar do agarrão vira memória de perigo (~180 s)
+            ag.wounded = 60;
+            ag.dangerMem = { x: ag.x, z: ag.z, t: f9eco.t };
+            drama('escapou', ag.x, ag.z);
             emit('escapou');
         }
         return;
@@ -641,6 +719,7 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
         if (stepToward(ag, def.speed * 0.55, dt, 1.5)) { // pesado: 55% da velocidade
             prey.state = 'dead'; prey.deadT = 0; prey.speedNow = 0; prey.grabbedBy = -1;
             ag.carryingId = -1; ag.state = 'eat'; ag.stateT = 0; ag.tx = prey.x; ag.tz = prey.z;
+            drama('abate', prey.x, prey.z);
             emit('abate'); // o abate acontece na toca, não no contato
         }
         return;
@@ -666,6 +745,8 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
     if (threat && ag.state !== 'flee') {
         ag.state = 'flee'; ag.stateT = 0; ag.fear = 1;
         remember(ag, 'threat', threat.x, threat.z); // A3
+        // M19: cada susto com o player REFORÇA o medo aprendido (individual)
+        if (threat.player) { ag.playerFear = Math.min(1, ag.playerFear + 0.1); ag.calmNearT = 0; }
         emit('alarme');
         // o contágio agora é por OUVIDO: quem foge grita 'alarme' e os outros reagem
         f9EcoEmitSound(ag.x, ag.z, 'alarme', 1, ag.id);
@@ -688,6 +769,12 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
 
     // ── A6: vínculo/doma com o player (Fiapo) ──
     if (hunt.stillT > 2 && pd < 6 && !threat) ag.bond = Math.min(1, ag.bond + dt * 0.03);
+    // M19: HABITUAÇÃO — perto do player, sem barulho e sem susto, o medo
+    // aprendido derrete devagar (o mesmo bicho que te temia volta a chegar)
+    if (pd < 7 && hunt.noise < 0.35 && !threat) {
+        ag.calmNearT += dt;
+        if (ag.calmNearT > 4) ag.playerFear = Math.max(0, ag.playerFear - dt * 0.02);
+    } else if (ag.calmNearT > 0) ag.calmNearT = Math.max(0, ag.calmNearT - dt);
     // oferta de comida: player parado colado num musgo bom (proxy da oferta)
     if (hunt.stillT > 1.5 && pd < 10 && (def.eats as readonly string[]).includes('musgo')) {
         for (const m of f9eco.moss) {
@@ -734,6 +821,30 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
         if (ag.state === 'follow') { ag.state = 'wander'; pickWander(ag, def); }
     }
 
+    // ── M19: TERRITÓRIO — dois vultos perto demais DISPUTAM; o menos dominante
+    // (brave+agress) cede e corre; o dominante fica de guarda. Emergente: a
+    // disputa pode salvar uma presa (o caçador larga a ronda) ou empurrar um
+    // vulto pro caminho do player.
+    if (ag.sp === 'vulto' && ag.terrCd <= 0
+        && (ag.state === 'wander' || ag.state === 'investigate')) {
+        for (const o of f9eco.agents) {
+            if (o.sp !== 'vulto' || o.id === ag.id || o.terrCd > 0) continue;
+            if (o.state === 'dead' || o.state === 'denned' || o.state === 'drag' || o.state === 'grabbed') continue;
+            if (dist2(ag.x, ag.z, o.x, o.z) > 6 * 6) continue;
+            const loser = (ag.brave + ag.agress) < (o.brave + o.agress) ? ag : o;
+            const winner = loser === ag ? o : ag;
+            loser.state = 'flee'; loser.stateT = 0; loser.fear = 0.8;
+            fleeFrom(loser, winner.x, winner.z);
+            loser.tx = loser.x + (loser.tx - loser.x) * 1.5; // cede LONGE, não só um passo
+            loser.dangerMem = { x: winner.x, z: winner.z, t: f9eco.t };
+            winner.state = 'lookout'; winner.stateT = 0;
+            ag.terrCd = 22; o.terrCd = 22;
+            drama('territorio', winner.x, winner.z);
+            emit('territorio');
+            break;
+        }
+    }
+
     // ── o VULTO caça o PLAYER-bicho (você faz parte da cadeia agora) ──
     // A6: vulto bondado (bond>0.6) NÃO caça o player. A7: no frenesi o limiar cai.
     if (ag.sp === 'vulto' && hunt.huntable && ag.bond <= 0.6 && ag.state !== 'eat' && ag.hunger > (frenzy ? 0.25 : 0.45)) {
@@ -747,6 +858,17 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
             const carryR = hunt.carry ? 1.6 : 1;
             const seesPlayer = pd < def.sense * 1.25 * carryR && f9LineOfSight(ag.x, ag.z, px, pz);
             const hearsPlayer = hunt.noise > 0.25 && pd < def.hearR * hunt.noise * carryR;
+            // M19: perseguição longa CANSA — o predador DESISTE no meio da
+            // caçada (imperfeição RW), lembra o ponto e para pra recuperar o
+            // fôlego (lookout ~2-4 s). A presa "ganha" essa. Sem rnd: o
+            // lookout não chama pickWander.
+            if (ag.targetId === -2 && (ag.state === 'chase' || ag.state === 'stalk')
+                && ag.pursueT > 5 + ag.brave * 5 && pd > 2.5) {
+                ag.targetId = -1;
+                remember(ag, 'prey', px, pz);
+                ag.state = 'lookout'; ag.stateT = 0;
+                return;
+            }
             if (seesPlayer || hearsPlayer) {
                 ag.targetId = -2;
                 ag.state = pd > 6.5 ? 'stalk' : 'chase';
@@ -779,7 +901,11 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
                     ag.speedNow = 0;
                     m.amount = Math.max(0, m.amount - dt * 0.12);
                     ag.hunger = Math.max(0, ag.hunger - dt * 0.22);
-                    if (ag.hunger <= 0.08 || m.amount <= 0.1) { ag.state = 'wander'; pickWander(ag, def); }
+                    if (ag.hunger <= 0.08 || m.amount <= 0.1) {
+                        // M19: saciou → ESTE musgo vira a memória de comida do indivíduo
+                        if (ag.hunger <= 0.08) ag.foodMem = { x: m.x, z: m.z };
+                        ag.state = 'wander'; pickWander(ag, def);
+                    }
                 }
                 return;
             }
@@ -797,6 +923,14 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
                     return;
                 }
                 remember(ag, 'prey', prey.x, prey.z); // A3: registra onde viu a presa
+                // M19: a caçada à presa também cansa — desistir no meio é o que
+                // torna o mundo imprevisível (a presa "ganha" às vezes). Para
+                // pra recuperar (lookout), sem re-travar na mesma presa na hora.
+                if ((ag.state === 'chase' || ag.state === 'stalk') && ag.targetId === prey.id
+                    && ag.pursueT > 6 + ag.brave * 3 && d2p > 4) {
+                    ag.targetId = -1; ag.state = 'lookout'; ag.stateT = 0;
+                    return;
+                }
                 ag.targetId = prey.id;
                 // espreita devagar; perto, dispara (com erro de mira individual)
                 ag.state = d2p > 20 ? 'stalk' : 'chase';
@@ -808,6 +942,7 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
                     prey.state = 'grabbed'; prey.grabbedBy = ag.id; prey.struggle = 0; prey.speedNow = 0;
                     ag.carryingId = prey.id; ag.state = 'drag'; ag.stateT = 0; ag.targetId = -1;
                     ag.tx = den.x; ag.tz = den.z;
+                    drama('agarrou', prey.x, prey.z);
                     emit('agarrou');
                     f9EcoEmitSound(prey.x, prey.z, 'grito', 1.6, prey.id);
                 }
@@ -855,6 +990,9 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
 function thinkAbstract(ag: F9Agent, dt: number): void {
     const def = F9_SPECIES[ag.sp];
     if (ag.sp !== 'guardiao') ag.hunger = Math.min(1, ag.hunger + def.hungerRate * dt);
+    // M19: os relógios individuais correm também no LOD longe
+    if (ag.wounded > 0) ag.wounded = Math.max(0, ag.wounded - dt);
+    if (ag.terrCd > 0) ag.terrCd -= dt;
     // A1 no LOD longe: presa agarrada só acompanha o predador (o escape é
     // uma rolagem do full-sim — no abstrato o arrasto é garantido)
     if (ag.state === 'grabbed') {
@@ -894,7 +1032,8 @@ function thinkAbstract(ag: F9Agent, dt: number): void {
         }
     } else if (ag.state !== 'drag' && dist2(ag.x, ag.z, ag.tx, ag.tz) < 1) pickWander(ag, def);
     const dx = ag.tx - ag.x, dz = ag.tz - ag.z, d = Math.hypot(dx, dz) || 1;
-    const sp = ag.state === 'toDen' ? def.run * 0.8 : ag.state === 'drag' ? def.speed * 0.55 : def.speed;
+    const sp = (ag.state === 'toDen' ? def.run * 0.8 : ag.state === 'drag' ? def.speed * 0.55 : def.speed)
+        * (ag.wounded > 0 ? 0.78 : 1);
     const step = Math.min(d, sp * dt);
     ag.x += (dx / d) * step; ag.z += (dz / d) * step;
     // A8: clamp nos limites do viveiro (igual stepToward)
@@ -914,6 +1053,10 @@ let stepSndT = 0;
 // contínuo a ≤1.2 u dela (0.4 s pega; sair do raio zera)
 let pickupId = -1;
 let pickupT = 0;
+// M19: "segurar pra comer/caçar" do player (mesmo padrão do pickup)
+let eatT = 0;
+let huntId = -1;
+let huntT = 0;
 
 /** HUD: progresso do "segurar pra colher" (0..1) e qual fruto — null se não
  *  está colhendo. O motor era invisível aqui: o player ficava 0.4 s parado sem
@@ -922,6 +1065,11 @@ export function f9PickupProgress(): { id: number; k: number } | null {
     if (pickupId < 0) return null;
     return { id: pickupId, k: Math.min(1, pickupT / 0.4) };
 }
+
+/** M19 HUD: progresso do "pastando o musgo…" (0..1; 0 = não está comendo). */
+export function f9EatProgress(): number { return Math.min(1, eatT / 0.5); }
+/** M19 HUD: progresso do bote no saltito (0..1; 0 = nenhuma presa na garra). */
+export function f9HuntProgress(): number { return huntId >= 0 ? Math.min(1, huntT / 0.3) : 0; }
 
 /**
  * O tick do mundo. `px,pz` = player; `lodR` = raio de simulação full.
@@ -982,6 +1130,64 @@ function f9EcoTickInner(dt: number, px: number, pz: number, lodR: number, hunt: 
 
     // musgo rebrota devagar sempre
     for (const m of s.moss) m.amount = Math.min(1, m.amount + dt * 0.008);
+
+    // ── M19: a FOME do player — você é só mais um bicho: coma ou apague ──
+    // (determinístico: nada aqui consome rnd — a ordem do topo se mantém)
+    if (hunt.huntable) {
+        s.fome = Math.min(1, s.fome + dt * 0.0042);
+        // PASTAR: parado/quieto colado num musgo-brilho (0.5 s de mastigar)
+        let mossNear: F9Moss | null = null;
+        for (const m of s.moss) {
+            if (m.amount > 0.25 && dist2(px, pz, m.x, m.z) <= 1.3 * 1.3) { mossNear = m; break; }
+        }
+        if (mossNear && s.fome > 0.12 && hunt.noise < 0.45) {
+            eatT += dt;
+            if (eatT >= 0.5) {
+                mossNear.amount = Math.max(0, mossNear.amount - 0.35);
+                s.fome = Math.max(0, s.fome - 0.4);
+                eatT = 0;
+                emit('comeuMusgo');
+                f9EcoBump();
+            }
+        } else eatT = 0;
+        // CAÇAR: encostar num saltito e SEGURAR — desprevenido cai em 0.3 s,
+        // fugindo exige 0.55 s de contato. Caçar tem preço: o grito atrai
+        // vultos e TESTEMUNHAS com linha de visão aprendem a te temer.
+        let quarry: F9Agent | null = null;
+        for (const o of s.agents) {
+            if (o.sp !== 'saltito' || o.state === 'dead' || o.state === 'denned' || o.state === 'grabbed') continue;
+            if (dist2(px, pz, o.x, o.z) <= 0.95 * 0.95) { quarry = o; break; }
+        }
+        if (quarry) {
+            if (huntId !== quarry.id) { huntId = quarry.id; huntT = 0; }
+            huntT += dt;
+            if (huntT >= (quarry.state === 'flee' ? 0.55 : 0.3)) {
+                quarry.state = 'dead'; quarry.deadT = 0; quarry.speedNow = 0;
+                s.fome = Math.max(0, s.fome - 0.75);
+                huntId = -1; huntT = 0;
+                drama('cacouPresa', quarry.x, quarry.z);
+                emit('cacouPresa');
+                f9EcoEmitSound(quarry.x, quarry.z, 'grito', 1.5, quarry.id);
+                // TESTEMUNHAS: presas com linha de visão APRENDEM a te temer
+                // (aquele indivíduo passa a te detectar de longe) e fogem. Os
+                // vultos NÃO entram aqui — o grito já os atrai (hearReact).
+                for (const w of s.agents) {
+                    if (w.id === quarry.id || w.sp === 'vulto' || w.sp === 'guardiao') continue;
+                    if (w.state === 'dead' || w.state === 'denned') continue;
+                    if (dist2(w.x, w.z, px, pz) > 12 * 12) continue;
+                    if (!f9LineOfSight(w.x, w.z, px, pz)) continue;
+                    w.playerFear = Math.min(1, w.playerFear + 0.55);   // aprendizado individual
+                    w.dangerMem = { x: px, z: pz, t: s.t };
+                    w.state = 'flee'; w.fear = 1; w.stateT = 0;
+                    fleeFrom(w, px, pz);
+                }
+                f9EcoBump();
+            }
+        } else { huntId = -1; huntT = 0; }
+        // INANIÇÃO: fome cheia apaga o player por dentro (a cena drena o
+        // evento e replanta via f9Faminto; o reset pra 0.55 evita o loop)
+        if (s.fome >= 1) { s.fome = 0.55; emit('inanicao'); }
+    }
 
     // ── V4: AS 3 OFERENDAS — pegar (≤1.6 u por 0.4 s), carregar, entregar (≤3 u) ──
     // (determinístico: não consome rnd — a ordem de consumo do topo se mantém)
