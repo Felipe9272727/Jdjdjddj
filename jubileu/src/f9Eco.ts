@@ -109,7 +109,9 @@ export type F9AgentState =
     | 'wander' | 'graze' | 'lookout' | 'sniff'
     | 'stalk' | 'chase' | 'eat' | 'flee' | 'toDen' | 'denned' | 'dead'
     // OVERHAUL RW: predação com agarrar/arrastar, investigação por memória, vínculo
-    | 'grabbed' | 'drag' | 'investigate' | 'follow';
+    | 'grabbed' | 'drag' | 'investigate' | 'follow'
+    // M21: o OUSADO congela e OBSERVA o player em vez de disparar
+    | 'freeze';
 
 /** Uma lembrança do agente (presa vista, ameaça, comida) — decai com o tempo. */
 export interface F9Memory { x: number; z: number; t: number; kind: 'prey' | 'threat' | 'food'; stale?: boolean }
@@ -168,8 +170,11 @@ export type F9EcoEvent = 'alarme' | 'abate' | 'ondaComeca' | 'ondaTermina' | 're
     // M19 — a sobrevivência do player + dramas do mundo
     | 'comeuMusgo' | 'cacouPresa' | 'inanicao' | 'territorio';
 
-/** M19: o último "causo" do mundo — o HUD narra quando acontece perto. */
-export interface F9Drama { kind: 'agarrou' | 'escapou' | 'abate' | 'territorio' | 'cacouPresa'; x: number; z: number; t: number }
+/** M19/M21: o último "causo" do mundo — o HUD narra quando acontece perto.
+ *  M21 acrescenta os causos de ENCONTRO com o player (a inteligência sentida):
+ *  'teObserva' (um ousado te encara, avaliando) e 'teTemeu' (um que aprendeu
+ *  a te temer dispara só de te ver). */
+export interface F9Drama { kind: 'agarrou' | 'escapou' | 'abate' | 'territorio' | 'cacouPresa' | 'teObserva' | 'teTemeu'; x: number; z: number; t: number }
 
 // ── V4: AS 3 OFERENDAS (o objetivo do andar) ────────────────────────────────
 export type F9OfferingSpot = 'vulto' | 'oco' | 'guardiao';
@@ -258,7 +263,9 @@ function makeBrain(): F9Brain {
     const w1: number[] = [], b1: number[] = [], w2: number[] = [];
     for (let i = 0; i < NN_HID * NN_IN; i++) w1.push((brnd() - 0.5) * 2.2); // features fortes
     for (let i = 0; i < NN_HID; i++) b1.push((brnd() - 0.5) * 1.2);
-    for (let i = 0; i < NN_OUT * NN_HID; i++) w2.push((brnd() - 0.5) * 0.5); // leitura pequena (near-neutro)
+    // M21: leitura com TEMPERAMENTO REAL desde o nascimento (era 0.5, invisível):
+    // cada bicho já nasce ousado ou arisco; o aprendizado desloca daí.
+    for (let i = 0; i < NN_OUT * NN_HID; i++) w2.push((brnd() - 0.5) * 1.0);
     return { w1, b1, w2, hid: new Array(NN_HID).fill(0), out: [0, 0] };
 }
 
@@ -277,7 +284,7 @@ function brainEval(br: F9Brain, hunger: number, fear: number, pf: number, closeP
     }
 }
 
-const NN_LR = 0.03;
+const NN_LR = 0.06;   // M21: aprende mais rápido (o jogador SENTE a mudança na sessão)
 /** aprendizado por reforço na leitura (saída): recompensa (±) reforça a
  *  associação entre a ativação oculta ATUAL e a disposição. `rC` mexe na
  *  cautela, `rF` no forrageio. Pesos limitados a [-2.5, 2.5]. */
@@ -463,12 +470,15 @@ function nearestThreat(ag: F9Agent, def: F9SpeciesDef, px: number, pz: number, n
     const senseBase = def.sense * (1 - ag.brave * 0.45) * risk;
     const s2 = senseBase * senseBase;
     if (ag.bond <= 0.6 && (def.fears as readonly string[]).includes('player')) {
-        // M19: o medo do player é APRENDIDO por indivíduo — o bicho de base
-        // (playerFear ~0.3-0.7) fica ~na vigilância normal (wary~1); quem
-        // TESTEMUNHOU uma caçada dispara de bem mais longe (wary→1.6); o
-        // curioso/habituado deixa chegar mais perto. O piso 0.96 no fresco
-        // mantém o predador-evasor de sempre; o teto evita hipervigilância.
-        const wary = Math.max(0.5, Math.min(1.6, 1 + ag.playerFear * 0.7 - ag.curio * 0.25));
+        // M21: a REDE NEURAL do indivíduo DIRIGE a distância de fuga — é o que
+        // faz a inteligência ser SENTIDA. `caution` (saída 0 da rede, temperamento
+        // que aprende) domina o `wary`: o OUSADO (caution<0) deixa você chegar
+        // rente (wary→0.35); o ARISCO/traumatizado (caution>0 + playerFear alto)
+        // dispara do outro lado da clareira (wary→2.4). O medo-escalar rápido
+        // (playerFear) soma; a curiosidade encolhe. Espectro largo = cada bicho
+        // reage DIFERENTE de você, e MUDA conforme aprende.
+        const cau = ag.brain.out[0];
+        const wary = Math.max(0.35, Math.min(2.4, 1 + cau * 0.75 + ag.playerFear * 0.7 - ag.curio * 0.25));
         const eff = senseBase * (0.35 + 0.65 * noise) * wary;
         const d = dist2(ag.x, ag.z, px, pz);
         if (d < eff * eff && f9LineOfSight(ag.x, ag.z, px, pz)) best = { x: px, z: pz, d2: d, player: true };
@@ -827,11 +837,46 @@ function think(ag: F9Agent, dt: number, px: number, pz: number, hunt: HuntCtx = 
 
     // medo: fugir na direção oposta — visão com oclusão e ruído (A2)
     const threat = nearestThreat(ag, def, px, pz, hunt.noise);
+
+    // ── M21: FREEZE-and-watch — o OUSADO (rede: caution baixa), ao ver o PLAYER
+    // a média distância e sem estar em pânico, CONGELA e te ENCARA (torcendo pra
+    // não ser notado) em vez de disparar. Só bota o pé no chão se você fechar a
+    // distância. É a leitura mais forte de "inteligência de verdade": bicho que
+    // te avalia, não um autômato que só corre. ──
+    if (ag.state === 'freeze') {
+        ag.speedNow = 0;
+        if (!threat) { if (ag.stateT > 1.8) { ag.state = 'wander'; pickWander(ag, def); } return; }
+        ag.heading = Math.atan2(px - ag.x, pz - ag.z);            // te encara
+        const pdF = Math.sqrt(threat.d2);
+        if (pdF < 2.9 || ag.stateT > 4.5) {                       // você chegou perto / os nervos cederam
+            ag.state = 'flee'; ag.fear = 1; ag.stateT = 0;
+            if (threat.player) { ag.playerFear = Math.min(1, ag.playerFear + 0.12); ag.calmNearT = 0; brainLearn(ag.brain, 0.7, 0); }
+            fleeFrom(ag, threat.x, threat.z);
+        }
+        return;
+    }
     if (threat && ag.state !== 'flee') {
+        // M21: FREEZE-and-watch é a reação de quem AINDA NÃO te teme (playerFear
+        // baixo): notou você a média distância, não entrou em pânico → CONGELA e
+        // avalia (o ousado, caution baixa, mais ainda). Quem JÁ APRENDEU a te
+        // temer (playerFear≥0.6) ou o muito arisco dispara na hora. É o arco de
+        // aprendizado visível: 1º encontro = te encara; depois de apanhar = foge
+        // só de te ver.
+        if (threat.player && Math.sqrt(threat.d2) > 3.2 && ag.fear < 0.45
+            && ag.playerFear < 0.6 && caution < 0.3 && ag.bond <= 0.6) {
+            ag.state = 'freeze'; ag.stateT = 0;
+            remember(ag, 'threat', threat.x, threat.z);
+            drama('teObserva', ag.x, ag.z);   // M21: legibilidade — "te encara, avaliando"
+            return;
+        }
         ag.state = 'flee'; ag.stateT = 0; ag.fear = 1;
         remember(ag, 'threat', threat.x, threat.z); // A3
-        // M19: cada susto com o player REFORÇA o medo aprendido (individual)
-        if (threat.player) { ag.playerFear = Math.min(1, ag.playerFear + 0.1); ag.calmNearT = 0; }
+        // M19/M21: cada susto com o player REFORÇA o medo aprendido (individual),
+        // agora com peso maior — dá pra SENTIR o bicho ficar arisco na sessão
+        if (threat.player) {
+            ag.playerFear = Math.min(1, ag.playerFear + 0.18); ag.calmNearT = 0;
+            if (ag.playerFear > 0.75) drama('teTemeu', ag.x, ag.z); // já aprendeu a te temer
+        }
         brainLearn(ag.brain, 1, 0);   // M20: levar susto ENSINA cautela (reforço)
         emit('alarme');
         // o contágio agora é por OUVIDO: quem foge grita 'alarme' e os outros reagem

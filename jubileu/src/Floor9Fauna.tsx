@@ -38,7 +38,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { f9 } from './f9Floresta';
+import { f9, f9WakeShare } from './f9Floresta';
 import { f9eco, f9CycleFrac, F9_AVISO_AT, f9EcoTryPounce, type F9Agent, type F9CyclePhase, type F9Species } from './f9Eco';
 import { f9GroundHeight } from './f9Ground';
 import { wallsForState } from './constants';
@@ -850,6 +850,16 @@ export const Fiapo: React.FC<{
         drop.current += (1 - drop.current) * Math.min(1, dt * 2.2);
         camera.position.y -= (1.05 - gy) * drop.current;
         camera.position.y += Math.abs(Math.sin(gait)) * 0.055 * run;
+        // M21: DESPERTAR no respawn — a câmera BROTA do chão da toca (sobe da
+        // terra até a altura do olho, ~1,4 s, ease-out) + uma leve tontura de
+        // "acordar". É a animação de respawn que o Felipe pediu.
+        if (f9WakeShare.at >= 0) {
+            const wk = (f9.t - f9WakeShare.at) / 1.4;
+            if (wk >= 0 && wk < 1) {
+                const rise = (1 - wk) * (1 - wk);          // fundo → topo (ease-out)
+                camera.position.y -= rise * 0.72;           // brota de ~0,7 u abaixo do olho
+            }
+        }
         const cam = camera as THREE.PerspectiveCamera;
         cam.fov += (80 - cam.fov) * Math.min(1, dt * 3); cam.updateProjectionMatrix();
         camera.updateMatrixWorld();

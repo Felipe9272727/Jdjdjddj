@@ -46,6 +46,7 @@ export function f9Reset(): void {
     Object.assign(f9, FRESH());
     f9.version = v;
     events.length = 0;
+    f9WakeShare.at = -1;   // M21: zera a animação de despertar
     f9Bump();
 }
 
@@ -97,6 +98,13 @@ export const F9_RAIZ_CHAMBER: readonly [number, number, number] =
 export const F9_STATIC_WALLS: number[][] = [
     [-34, 4, 34, 4], [-34, -52, 34, -52], [-34, -52, -34, 4], [34, -52, 34, 4],
 ];
+
+// M21: a ANIMAÇÃO DE DESPERTAR no respawn. Quando o player é replantado na
+// toca, a cena (Fiapo) faz a câmera BROTAR do chão (sobe da terra até a altura
+// do olho) com um clarão. `at` = f9.t do último despertar (-1 = nenhum); a
+// cena lê o progresso pela diferença pro f9.t atual.
+export const f9WakeShare = { at: -1 };
+export function f9TriggerWake(): void { f9WakeShare.at = f9.t; }
 
 /** A queda terminou (o Floor9Cutscene chama) → chegada. */
 export function f9QuedaDone(): void {

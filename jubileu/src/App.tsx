@@ -62,7 +62,7 @@ import Floor9Forest from './Floor9Forest';
 import Floor9Overlay from './Floor9Overlay';
 import Floor9Cutscene from './Floor9Cutscene';
 import { Fiapo } from './Floor9Fauna';
-import { f9, f9Reset, f9Subscribe, F9_OCOS } from './f9Floresta';
+import { f9, f9Reset, f9Subscribe, F9_HOME_SPAWN, f9TriggerWake } from './f9Floresta';
 import { f9EcoReset, f9RequestPounce } from './f9Eco';
 import Floor8Overlay, { Floor8Ride } from './Floor8Overlay';
 import Floor8Image from './Floor8Image';
@@ -1033,18 +1033,17 @@ export default function App() {
     f9Reset(); f9EcoReset();
     playerPositionCmdRef.current = { x: 0, y: 0, z: -1.5 };
   }, [currentLevel]);
-  // Replantio do Viveiro: quando a onda (ou o vulto) apaga o player, ele
-  // acorda na BOCA do oco mais próximo — não onde foi pego.
+  // M20/M21 SPAWN FIXO: quando a onda (ou o vulto) apaga o player, ele SEMPRE
+  // acorda na TOCA-CASA (F9_HOME_SPAWN) — não mais no oco mais próximo (que
+  // variava). É aqui que o respawn REALMENTE acontece no jogo: via
+  // playerPositionCmdRef, que o <Player> obedece (setar sharedPlayerPositionRef
+  // direto não cola — o Player sobrescreve todo frame). f9TriggerWake dispara a
+  // animação de DESPERTAR (a câmera brota do chão na toca).
   const f9PrevPhaseRef = useRef(f9.phase);
   useEffect(() => f9Subscribe(() => {
     if (f9.phase === 'explorar' && f9PrevPhaseRef.current === 'apagando') {
-      const p = sharedPlayerPositionRef.current;
-      let best = F9_OCOS[0], bd = Infinity;
-      for (const o of F9_OCOS) {
-        const d = (p.x - o[0]) ** 2 + (p.z - o[1]) ** 2;
-        if (d < bd) { bd = d; best = o; }
-      }
-      playerPositionCmdRef.current = { x: best[0], y: 0, z: best[1] + best[2] + 0.7 };
+      playerPositionCmdRef.current = { x: F9_HOME_SPAWN[0], y: 0, z: F9_HOME_SPAWN[1], theta: 0 };
+      f9TriggerWake();
     }
     f9PrevPhaseRef.current = f9.phase;
   }), []);

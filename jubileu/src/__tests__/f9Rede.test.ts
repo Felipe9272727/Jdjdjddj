@@ -38,12 +38,18 @@ describe('f9Rede — a rede neural de cada bicho', () => {
         expect(d2.forage).toBeCloseTo(d1.forage, 10);
     });
 
-    it('NASCE PERTO DO NEUTRO: a leitura inicial é pequena (não sequestra a IA afinada)', () => {
-        for (let k = 0; k < 20; k++) {
-            const [c, f] = evalOut(makeBrain());
-            expect(Math.abs(c)).toBeLessThan(0.85);
-            expect(Math.abs(f)).toBeLessThan(0.85);
+    it('NASCE COM TEMPERAMENTO: a população se espalha entre OUSADOS e ARISCOS (não clones)', () => {
+        let bold = 0, wary = 0;
+        for (let k = 0; k < 40; k++) {
+            const [c] = evalOut(makeBrain());
+            expect(Math.abs(c)).toBeLessThanOrEqual(1); // saída de tanh, válida
+            if (c < -0.12) bold++;
+            if (c > 0.12) wary++;
         }
+        // desde o nascimento há dos dois — é o que faz cada bicho reagir a você
+        // de um jeito (M21): uns deixam chegar perto, outros disparam de longe.
+        expect(bold).toBeGreaterThan(0);
+        expect(wary).toBeGreaterThan(0);
     });
 
     it('APRENDE CAUTELA: repetição de PERIGO empurra a cautela pra cima', () => {

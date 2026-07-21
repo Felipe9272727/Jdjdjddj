@@ -12,7 +12,7 @@ import Floor9Forest from './Floor9Forest';
 import Floor9Overlay from './Floor9Overlay';
 import Floor9Cutscene from './Floor9Cutscene';
 import { Fiapo } from './Floor9Fauna';
-import { f9, f9Reset, f9QuedaDone, f9ChegadaDone, f9Subscribe, F9_HOME_SPAWN } from './f9Floresta';
+import { f9, f9Reset, f9QuedaDone, f9ChegadaDone, f9Subscribe, F9_HOME_SPAWN, f9TriggerWake } from './f9Floresta';
 import { f9eco, f9EcoReset, f9EcoBump, f9RequestPounce } from './f9Eco';
 import { configureFloor9Sfx, clearFloor9Sfx } from './floor9Sfx';
 import { wallsForState } from './constants';
@@ -139,6 +139,7 @@ const Dev: React.FC = () => {
             skipQueda: () => { f9QuedaDone(); f9ChegadaDone(); },
             wake: f9QuedaDone, chegou: f9ChegadaDone,
             pounce: f9RequestPounce,     // M20: dispara o bote (QA headless)
+            wakeAnim: f9TriggerWake,     // M21: dispara a animação de despertar (QA)
             warpCycle: (frac: number) => { f9eco.cycleT = f9eco.cycleLen * frac; },
             // V4: warps do objetivo (o visual deve ler mesmo com o motor do A2 no meio)
             warpToOffering: (i: number) => {
@@ -180,9 +181,10 @@ const Dev: React.FC = () => {
     // replantio no bench: acorda na boca do oco mais próximo
     const prevPhase = useRef(f9.phase);
     useEffect(() => f9Subscribe(() => {
-        // M20: respawn no SPAWN FIXO (a toca-casa), igual ao jogo
+        // M20/M21: respawn no SPAWN FIXO (a toca-casa) + animação de despertar
         if (f9.phase === 'explorar' && prevPhase.current === 'apagando') {
             posRef.current.set(F9_HOME_SPAWN[0], 0, F9_HOME_SPAWN[1]);
+            f9TriggerWake();
         }
         prevPhase.current = f9.phase;
     }), []);

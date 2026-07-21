@@ -183,3 +183,71 @@ describe('f9Sobrevivencia — M19: aprendizado individual e território', () => 
         expect(s.playerFear).toBeLessThan(fear0);
     });
 });
+
+describe('f9Sobrevivencia — M21: a inteligência SENTIDA (a rede dirige a reação ao player)', () => {
+    // força a rede do bicho pra uma cautela conhecida (features fixas em ~+1,
+    // leitura da cautela = `c`): hid≈tanh(3)=.995, out[0]=tanh(~5·.995·c).
+    const forceBrain = (ag: (typeof f9eco.agents)[number], c: number) => {
+        ag.brain.w1.fill(0); ag.brain.b1.fill(3); ag.brain.w2.fill(0);
+        for (let j = 0; j < 5; j++) ag.brain.w2[j] = c;
+    };
+    const noisyPlayer = { huntable: false, safeInOco: false, stillT: 0, noise: 0.7, carry: false };
+
+    it('FREEZE: o naïve (ainda não te teme) CONGELA e te observa a média distância', () => {
+        const s = f9eco.agents.find((a) => a.sp === 'saltito')!;
+        forceBrain(s, 0);                              // cautela ~0 (não-arisco)
+        s.brave = 0.3; s.curio = 0.4; s.hunger = 0.2; s.fear = 0; s.bond = 0;
+        s.playerFear = 0.3;                            // NAÏVE: ainda não aprendeu a te temer
+        s.state = 'wander'; s.x = 0; s.z = -4.5; s.tx = 0; s.tz = -4.5;
+        pinAllExcept([s.id]);
+        let froze = false;
+        for (let i = 0; i < 20 && !froze; i++) {
+            if (s.state === 'wander') { s.x = 0; s.z = -4.5; }  // segura até reagir
+            f9EcoTick(1 / 30, 0, -8, 200, noisyPlayer);  // player a 3.5 u, barulhento (te percebe)
+            if (s.state === 'freeze') froze = true;
+        }
+        expect(froze).toBe(true);
+    });
+
+    it('BOLTA NA HORA: quem JÁ te teme (playerFear alto) dispara só de te ver, não congela', () => {
+        const s = f9eco.agents.find((a) => a.sp === 'saltito')!;
+        forceBrain(s, 0);
+        s.brave = 0.3; s.curio = 0.4; s.hunger = 0.2; s.fear = 0; s.bond = 0;
+        s.playerFear = 0.9;                            // JÁ APRENDEU a te temer
+        s.state = 'wander'; s.x = 0; s.z = -4.5; s.tx = 0; s.tz = -4.5;
+        pinAllExcept([s.id]);
+        let fled = false, froze = false;
+        for (let i = 0; i < 20; i++) {
+            if (s.state === 'wander') { s.x = 0; s.z = -4.5; }
+            f9EcoTick(1 / 30, 0, -8, 200, noisyPlayer);
+            if (s.state === 'freeze') froze = true;
+            if (s.state === 'flee') { fled = true; break; }
+        }
+        expect(fled).toBe(true);
+        expect(froze).toBe(false);                     // o aprendizado troca observar por fugir
+    });
+
+    it('DISTÂNCIA DE FUGA INDIVIDUAL: o arisco (rede) percebe o player de MUITO mais longe que o ousado', () => {
+        const [bold, wary] = f9eco.agents.filter((a) => a.sp === 'saltito');
+        // mesmas condições, só a REDE difere: um ousado (cautela −1), um arisco (+1)
+        for (const s of [bold, wary]) { s.brave = 0.4; s.curio = 0.3; s.hunger = 0.2; s.fear = 0; s.bond = 0; s.playerFear = 0.4; }
+        forceBrain(bold, -1); forceBrain(wary, 1);
+        // mede a que distância cada um DETECTA (entra em freeze/flee) o player que se aproxima
+        const flightDist = (s: (typeof f9eco.agents)[number]) => {
+            f9EcoReset(); f9Reset();
+            const a = f9eco.agents.find((x) => x.sp === 'saltito')!;
+            Object.assign(a, { brave: 0.4, curio: 0.3, hunger: 0.2, fear: 0, bond: 0, playerFear: 0.4 });
+            forceBrain(a, s === bold ? -1 : 1);
+            pinAllExcept([a.id]);
+            a.x = 0; a.z = 0; a.tx = 0; a.tz = 0; a.state = 'wander';
+            for (let d = 12; d > 0.5; d -= 0.25) {
+                a.x = 0; a.z = 0;
+                f9EcoTick(1 / 30, 0, -d, 200, { ...noisyPlayer });
+                if (a.state === 'freeze' || a.state === 'flee') return d;
+            }
+            return 0;
+        };
+        const dBold = flightDist(bold), dWary = flightDist(wary);
+        expect(dWary).toBeGreaterThan(dBold + 1);       // o arisco reage bem antes
+    });
+});

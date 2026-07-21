@@ -114,6 +114,9 @@ const DRAMA_TEXT: Record<F9Drama['kind'], string> = {
     abate: 'um baque surdo perto de uma toca. depois, silêncio.',
     territorio: 'rosnados baixos: dois vultos disputam o mesmo pedaço de mata.',
     cacouPresa: 'sangue quente nas suas garras. olhos somem no mato — a floresta VIU.',
+    // M21: os encontros com o player — a inteligência individual, SENTIDA
+    teObserva: 'um saltito trava no lugar e te ENCARA, imóvel — te avaliando, sem fugir.',
+    teTemeu: 'aquele já te conhece: disparou no susto, antes de você chegar perto.',
 };
 
 /** Proximidade do fruto + progresso da colheita (10 Hz — feedback da mecânica). */
@@ -579,10 +582,10 @@ export const Floor9Overlay: React.FC<{
                         fontSize: 15, color: '#41503c', letterSpacing: 2, animation: 'f9wipeTxt 3.4s ease-in-out forwards', opacity: 0,
                     }}>
                         {f9.causa === 'vulto'
-                            ? 'dentes na nuca. escuro. …o Viveiro não te deixa acabar: algo te replanta.'
+                            ? 'dentes na nuca. escuro. …o Viveiro te replanta — você desperta na sua TOCA.'
                             : f9.causa === 'fome'
-                                ? 'a fome te apagou por dentro, folha a folha. …o Viveiro te replanta — coma desta vez.'
-                                : 'a onda te encontrou. algo te replanta perto de um oco.'}
+                                ? 'a fome te apagou por dentro, folha a folha. …você brota de novo na sua TOCA — coma desta vez.'
+                                : 'a onda te encontrou. …o Viveiro te replanta: você desperta na sua TOCA.'}
                     </div>
                 </div>
             )}

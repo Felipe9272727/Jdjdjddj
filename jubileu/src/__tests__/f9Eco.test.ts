@@ -294,6 +294,10 @@ describe('f9Eco — OVERHAUL Rain World (A1–A9)', () => {
         const setup = () => {
             const s = f9eco.agents.find((x) => x.sp === 'saltito')!;
             s.brave = 0; s.hunger = 0; s.fear = 0; s.state = 'wander';
+            // M21: este teste é sobre VISÃO/audição, não sobre freeze-vs-flee.
+            // Um bicho que JÁ te teme (playerFear alto) dispara ao te detectar,
+            // então o 'flee' isola limpo a percepção (o naïve CONGELA — outro teste).
+            s.playerFear = 0.9;
             s.x = -5; s.z = -19; s.tx = -5; s.tz = -19; // 4.5 u ao norte do tronco (-5,-22)
             return s;
         };
