@@ -273,6 +273,10 @@ function nearGameplay(x: number, z: number, margin: number): boolean {
     for (const [ox, oz] of F9_OCOS) if (dist2(x, z, ox, oz) < (2.8 + margin) ** 2) return true;
     // M18: raio maior — a flora não pode plantar no corredor da PORTA da câmara
     if (dist2(x, z, F9_RAIZ[0], F9_RAIZ[1] - 2.5) < (6.2 + margin) ** 2) return true;
+    // M23: o cab do ELEVADOR quebrado é um marco sólido em (0,-13). A queda
+    // abriu uma CLAREIRA — nada de árvore/samambaia/pedra brotando em cima nem
+    // logo atrás (senão um tronco atravessa a vista-herói do interior aceso).
+    if (dist2(x, z, 0, -13) < (7.2 + margin) ** 2) return true;
     return false;
 }
 
@@ -281,6 +285,7 @@ function nearGameplay(x: number, z: number, margin: number): boolean {
  *  (densidade), mas dentro dos pisos nivelados não pode nascer NADA. */
 function inSanctuary(x: number, z: number): boolean {
     for (const [ox, oz] of F9_OCOS) if (dist2(x, z, ox, oz) < 3.2 * 3.2) return true;
+    if (dist2(x, z, 0, -13) < 7.2 * 7.2) return true; // M23: clareira do elevador
     return dist2(x, z, F9_RAIZ[0], F9_RAIZ[1] - 2.5) < 6.4 * 6.4;
 }
 

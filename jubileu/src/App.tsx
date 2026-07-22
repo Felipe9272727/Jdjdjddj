@@ -59,6 +59,7 @@ import Floor6Overlay from './Floor6Overlay';
 import Floor8Room from './Floor8Room';
 import Floor8Cutscene from './Floor8Cutscene';
 import Floor9Forest from './Floor9Forest';
+import { Floor9Elevator } from './Floor9Elevator';
 import Floor9Overlay from './Floor9Overlay';
 import Floor9Cutscene from './Floor9Cutscene';
 import { Fiapo } from './Floor9Fauna';
@@ -219,7 +220,10 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
           dialogueBeatRef={diverBeatRef}
         />
       )}
-      {!(level === 6 && f6CabDead) && level !== 7 && <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />}
+      {!(level === 6 && f6CabDead) && level !== 7 && level !== 9 && <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />}
+      {/* Andar 9 (O Viveiro): o elevador é o cab enferrujado/coberto de vinhas
+          (GLB modelado no Blender), não o <ElevatorInterior> genérico. */}
+      {level === 9 && <Floor9Elevator />}
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
       {profile.nightLights && <NightAmbient active={nightMode && level === 1} />}
       {/* Night-vision boost. Only mounts when active — adds bright green

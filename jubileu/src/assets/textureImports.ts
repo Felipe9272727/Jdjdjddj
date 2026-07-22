@@ -77,3 +77,4 @@ export { default as guestTrenchcoatModel } from './models/guest-trenchcoat.glb';
 export { default as diabreteModel }      from './models/diabrete.glb';       // Floor 3 rival
 export { default as glovesModel }        from './models/cartoon_gloves.glb'; // Floor 3 hands
 export { default as sharkModel }         from './models/monster/shark.glb';  // Floor 2 monster fish
+export { default as elevadorQuebradoModel } from './models/elevadorQuebrado.glb'; // Floor 9 — cab enferrujado/coberto de vinhas (Blender/bpy headless)

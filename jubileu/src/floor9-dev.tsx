@@ -9,6 +9,7 @@ import { createRoot } from 'react-dom/client';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import Floor9Forest from './Floor9Forest';
+import { Floor9Elevator } from './Floor9Elevator';
 import Floor9Overlay from './Floor9Overlay';
 import Floor9Cutscene from './Floor9Cutscene';
 import { Fiapo } from './Floor9Fauna';
@@ -202,6 +203,7 @@ const Dev: React.FC = () => {
                 <PerfProbe />
                 <DevWalker />
                 <Floor9Forest playerPositionRef={posRef} />
+                <Floor9Elevator />
                 <Fiapo playerPositionRef={posRef} cameraThetaRef={thetaAdapter} />
                 <Floor9Cutscene />
             </Canvas>
