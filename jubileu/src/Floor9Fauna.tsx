@@ -37,7 +37,9 @@
  */
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import saltitoModel from './assets/models/critters/saltito.glb';
 import { f9, f9WakeShare } from './f9Floresta';
 import { f9eco, f9CycleFrac, F9_AVISO_AT, f9EcoTryPounce, type F9Agent, type F9CyclePhase, type F9Species } from './f9Eco';
 import { f9GroundHeight } from './f9Ground';
@@ -287,6 +289,30 @@ const Pool: React.FC<{ sp: F9Species; children: (i: number) => React.ReactNode }
 );
 
 // ── SALTITO v3: gota com orelhonas; antecipação + molas + olhares + grabbed ──
+// ── SALTITO: modelo 3D real (GLB do Felipe) no lugar do corpo procedural ──────
+// O GLB é um mesh estático (sem ossos). O "rig" é PROCEDURAL e vem de graça do
+// motor do Fauna: o slot faz o SALTO (g.position.y) + squash/stretch (g.scale) e
+// o sbody faz o LEAN (rotation.x) — o coelho salta como um corpo só, que é
+// exatamente como coelho pula. Aqui só normalizamos, viramos o focinho pro +Z
+// (forward do jogo; o modelo nasce olhando −X) e escalamos pro tamanho do bicho.
+useGLTF.preload(saltitoModel);
+const SaltitoGLB: React.FC = () => {
+    const { scene } = useGLTF(saltitoModel);
+    const model = useMemo(() => {
+        const s = scene.clone(true);
+        const box = new THREE.Box3().setFromObject(s);
+        const ctr = new THREE.Vector3(); box.getCenter(ctr);
+        s.position.set(-ctr.x, -box.min.y, -ctr.z);   // base em y=0, centrado no xz
+        s.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = false; m.receiveShadow = false; m.frustumCulled = false; } });
+        const wrap = new THREE.Group();
+        wrap.add(s);
+        wrap.rotation.y = Math.PI / 2;   // focinho −X → +Z (forward do jogo)
+        wrap.scale.setScalar(0.6);       // ~0,6 u de altura (bicho pequeno)
+        return wrap;
+    }, [scene]);
+    return <primitive object={model} />;
+};
+
 export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vector3> }> = ({ playerRef }) => {
     const slots = useRef<BodySlot[]>([]);
     const metas = useRef<SlotMeta[]>([]);
@@ -359,28 +385,8 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
             {(i) => (
                 <group key={i} ref={slotRef(slots, metas, i, 0.34)} visible={false}>
                     <group name="sbody">
-                        {/* corpo-gota: esfera escalada, barriga clara, focinho.
-                            P0 (tier leve): micro-detalhes (listra/barriga/focinho/
-                            catchlights/patinhas/pompom) NÃO montam — 6 meshes ficam. */}
-                        <mesh position={[0, 0.3, 0]} scale={[0.9, 1, 1.15]} material={FM.saltito}><sphereGeometry args={[0.27, 10, 9]} /></mesh>
-                        {/* listra dorsal escura: a silhueta lê de cima/costas (brief §4.3) */}
-                        {!F9_FAUNA_LITE && <mesh position={[0, 0.48, -0.06]} rotation={[1.25, 0, 0]} scale={[0.55, 1, 0.42]} material={FM.saltitoStripe}><capsuleGeometry args={[0.055, 0.3, 4, 6]} /></mesh>}
-                        {!F9_FAUNA_LITE && <mesh position={[0, 0.22, 0.1]} scale={[0.72, 0.8, 0.95]} material={FM.saltitoBelly}><sphereGeometry args={[0.24, 9, 8]} /></mesh>}
-                        <mesh position={[0, 0.42, 0.24]} scale={[0.8, 0.75, 0.9]} material={FM.saltito}><sphereGeometry args={[0.15, 9, 8]} /></mesh>
-                        {!F9_FAUNA_LITE && <mesh position={[0, 0.38, 0.37]} material={FM.earIn}><sphereGeometry args={[0.035, 6, 5]} /></mesh>}
-                        {/* orelhonas */}
-                        <mesh name="earL" position={[-0.09, 0.58, 0.16]} rotation={[0.1, 0, 0.35]} material={FM.saltito}><capsuleGeometry args={[0.05, 0.26, 4, 6]} /></mesh>
-                        <mesh name="earR" position={[0.09, 0.58, 0.16]} rotation={[0.1, 0, -0.35]} material={FM.saltito}><capsuleGeometry args={[0.05, 0.26, 4, 6]} /></mesh>
-                        {/* olhos-botão grandes: lê no escuro mesmo no tier leve (§4.2) */}
-                        <mesh position={[-0.08, 0.46, 0.33]} material={FM.eye}><sphereGeometry args={[0.038, 6, 6]} /></mesh>
-                        <mesh position={[0.08, 0.46, 0.33]} material={FM.eye}><sphereGeometry args={[0.038, 6, 6]} /></mesh>
-                        {/* catchlight: dois pontinhos = um ser vivo te encarando (§4.2) */}
-                        {!F9_FAUNA_LITE && <mesh position={[-0.08, 0.472, 0.362]} material={FM.catchlight}><sphereGeometry args={[0.012, 5, 5]} /></mesh>}
-                        {!F9_FAUNA_LITE && <mesh position={[0.08, 0.472, 0.362]} material={FM.catchlight}><sphereGeometry args={[0.012, 5, 5]} /></mesh>}
-                        {/* patinhas + rabinho pompom */}
-                        {!F9_FAUNA_LITE && <mesh position={[-0.1, 0.06, 0.12]} material={FM.earIn}><sphereGeometry args={[0.055, 6, 5]} /></mesh>}
-                        {!F9_FAUNA_LITE && <mesh position={[0.1, 0.06, 0.12]} material={FM.earIn}><sphereGeometry args={[0.055, 6, 5]} /></mesh>}
-                        {!F9_FAUNA_LITE && <mesh position={[0, 0.28, -0.3]} material={FM.saltitoBelly}><sphereGeometry args={[0.08, 6, 6]} /></mesh>}
+                        {/* corpo 3D real (GLB) — o salto/squash/lean vem do motor */}
+                        <SaltitoGLB />
                     </group>
                 </group>
             )}
