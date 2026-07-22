@@ -51,6 +51,10 @@ const Floor9Cutscene: React.FC = () => {
             if (wasActive.current) {
                 wasActive.current = false;
                 camera.up.set(0, 1, 0); mat.opacity = 0;
+                // assenta o fov no valor de jogo (o Fiapo assume em 80) — evita
+                // que uma queda cortada no meio do punch deixe a chegada com zoom.
+                const cam = camera as THREE.PerspectiveCamera;
+                cam.fov = 80; cam.updateProjectionMatrix();
                 if (leaves.current) leaves.current.visible = false;
                 // o POUSO: corta o vento e bate o thud (uma vez só, na saída)
                 floor9SfxPousou();
@@ -58,8 +62,13 @@ const Floor9Cutscene: React.FC = () => {
             return;
         }
         if (!wasActive.current) { wasActive.current = true; t.current = 0; if (leaves.current) leaves.current.visible = true; }
+        // TIMELINE independente de FPS: a queda dura ~QUEDA_LEN em tempo REAL
+        // mesmo quando o 1º carregamento do Viveiro derruba o framerate. O cap
+        // de 0.1 tolera até ~10 fps sem virar câmera-lenta (o bug da intro
+        // "arrastada/travada" no celular); a suavização de câmera segue no cap
+        // 0.05 pra não tremer num pico de lag.
         const dt = Math.min(rawDt, 0.05);
-        t.current += dt;
+        t.current += Math.min(rawDt, 0.1);
         const k = Math.min(1, t.current / QUEDA_LEN);
         // o vento crescente da queda (dirigido por frame)
         floor9SfxQueda(k);
@@ -81,8 +90,13 @@ const Floor9Cutscene: React.FC = () => {
         const roll = Math.sin(t.current * 2.2) * (1 - k) * 0.35 + shake * 0.12 * Math.sin(t.current * 41);
         camera.up.set(Math.sin(roll), Math.cos(roll), 0);
         camera.lookAt(px + Math.sin(spin) * 2, Math.max(0.4, y - 6), pz + Math.cos(spin) * 2 - 2);
+        // FOV: cai LARGO (sensação de velocidade) → PUNCH de impacto no freio →
+        // RECUPERA pro fov de jogo (80, o mesmo do Fiapo) até o pouso. Assim o
+        // handoff pra 1ª pessoa de bicho é SEM salto — antes a queda terminava
+        // em 52 e a câmera do Fiapo dava um zoom-out brusco pra 80 na aterragem.
         const cam = camera as THREE.PerspectiveCamera;
-        cam.fov += ((k > 0.86 ? 52 : 74) - cam.fov) * Math.min(1, dt * 3); cam.updateProjectionMatrix();
+        const fovTarget = (k > 0.80 && k < 0.95) ? 58 : 80;
+        cam.fov += (fovTarget - cam.fov) * Math.min(1, dt * 5); cam.updateProjectionMatrix();
         // folhas subindo em relação à câmera que cai
         if (leaves.current) {
             leaves.current.position.set(px, y - 6, pz);
