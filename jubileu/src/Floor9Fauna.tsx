@@ -37,9 +37,12 @@
  */
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useGLTF } from '@react-three/drei';
+import { useGLTF, useAnimations } from '@react-three/drei';
+import { SkeletonUtils } from 'three-stdlib';
 import * as THREE from 'three';
 import saltitoModel from './assets/models/critters/saltito.glb';
+import cervoRig from './assets/models/critters/cervoRig.glb';
+import vultoRig from './assets/models/critters/vultoRig.glb';
 import { f9, f9WakeShare } from './f9Floresta';
 import { f9eco, f9CycleFrac, F9_AVISO_AT, f9EcoTryPounce, type F9Agent, type F9CyclePhase, type F9Species } from './f9Eco';
 import { f9GroundHeight } from './f9Ground';
@@ -399,6 +402,47 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
     );
 };
 
+// ── QUAD GLB: modelo 3D rigado (Cervo/Vulto) com WALK realista assado no
+// Blender (4 tempos, pés plantados). Cada slot é uma cópia (SkeletonUtils
+// preserva o skinning) com seu próprio mixer. O motor do Fauna posiciona/
+// orienta o slot; aqui a gente só faz o crossfade walk↔idle pela velocidade
+// real do bicho e sincroniza o timeScale (foot-lock aproximado). O modelo
+// rigado olha −X, então giramos +90° em Y pra encarar o +Z (forward do jogo). ─
+useGLTF.preload(cervoRig); useGLTF.preload(vultoRig);
+const QuadGLB: React.FC<{ url: string; sp: F9Species; slot: number; scale: number }> = ({ url, sp, slot, scale }) => {
+    const { scene, animations } = useGLTF(url);
+    const model = useMemo(() => {
+        const c = SkeletonUtils.clone(scene) as THREE.Object3D;
+        const box = new THREE.Box3().setFromObject(c);
+        const ctr = new THREE.Vector3(); box.getCenter(ctr);
+        c.position.set(-ctr.x, -box.min.y, -ctr.z);
+        c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.frustumCulled = false; m.castShadow = false; m.receiveShadow = false; } });
+        const wrap = new THREE.Group(); wrap.add(c);
+        wrap.rotation.y = Math.PI / 2; wrap.scale.setScalar(scale);
+        return wrap;
+    }, [scene, scale]);
+    const { actions } = useAnimations(animations, model);
+    const pick = (kw: string) => { for (const k in actions) if (k.toLowerCase().includes(kw)) return actions[k]; return null; };
+    useEffect(() => {
+        const w = pick('walk'), idle = pick('idle');
+        if (idle) { idle.reset().play(); idle.setEffectiveWeight(1); }
+        if (w) { w.reset().play(); w.setEffectiveWeight(0); }
+    }, [actions]);
+    useFrame((_s, dt) => {
+        const ag = speciesSlots(sp)[slot];
+        const spd = ag && ag.state !== 'dead' ? ag.speedNow : 0;
+        const moving = spd > 0.25;
+        const k = Math.min(1, dt * 6);
+        const w = pick('walk'), idle = pick('idle');
+        if (w) {
+            w.setEffectiveWeight(THREE.MathUtils.lerp(w.getEffectiveWeight(), moving ? 1 : 0, k));
+            w.timeScale = THREE.MathUtils.clamp(spd / 1.5, 0.7, 2.4);
+        }
+        if (idle) idle.setEffectiveWeight(THREE.MathUtils.lerp(idle.getEffectiveWeight(), moving ? 0 : 1, k));
+    });
+    return <primitive object={model} />;
+};
+
 // ── CERVO-LANTERNA v3: arco dorsal, pescoço que pasta, coroa acesa ──────────
 export const Cervos: React.FC = () => {
     const slots = useRef<BodySlot[]>([]);
@@ -461,51 +505,11 @@ export const Cervos: React.FC = () => {
             {(i) => (
                 <group key={i} ref={slotRef(slots, metas, i, 0.9)} visible={false}>
                     <group name="cbody">
-                        {/* torso arqueado: 2 esferas escaladas (peito maior, garupa).
-                            P0 (tier leve): rabo/focinho/nariz/catchlights/orelhas/galhada
-                            e os 2ºs segmentos de perna NÃO montam (24 → 11 meshes). */}
-                        <mesh position={[0, 1.22, 0.28]} scale={[0.72, 0.82, 1.05]} material={FM.cervo}><sphereGeometry args={[0.42, 10, 9]} /></mesh>
-                        <mesh position={[0, 1.18, -0.32]} scale={[0.62, 0.7, 0.85]} material={FM.cervoLight}><sphereGeometry args={[0.4, 10, 9]} /></mesh>
-                        {!F9_FAUNA_LITE && <mesh name="tail" position={[0, 1.3, -0.66]} rotation={[0.5, 0, 0]} material={FM.saltitoBelly}><capsuleGeometry args={[0.05, 0.14, 3, 6]} /></mesh>}
-                        <group name="neck" position={[0, 1.45, 0.6]}>
-                            {/* pescoço erguido em S + cabeça com focinho */}
-                            <mesh position={[0, 0.28, 0.1]} rotation={[0.4, 0, 0]} material={FM.cervo}><capsuleGeometry args={[0.12, 0.5, 4, 7]} /></mesh>
-                            <group position={[0, 0.6, 0.26]}>
-                                <mesh scale={[0.85, 0.9, 1.15]} material={FM.cervo}><sphereGeometry args={[0.15, 9, 8]} /></mesh>
-                                {!F9_FAUNA_LITE && <mesh position={[0, -0.03, 0.18]} scale={[0.6, 0.6, 1]} material={FM.cervoLight}><sphereGeometry args={[0.1, 8, 7]} /></mesh>}
-                                {!F9_FAUNA_LITE && <mesh position={[0, 0.02, 0.28]} material={FM.hoof}><sphereGeometry args={[0.032, 5, 5]} /></mesh>}
-                                <mesh position={[-0.07, 0.08, 0.12]} material={FM.eye}><sphereGeometry args={[0.028, 5, 5]} /></mesh>
-                                <mesh position={[0.07, 0.08, 0.12]} material={FM.eye}><sphereGeometry args={[0.028, 5, 5]} /></mesh>
-                                {/* catchlight: dois pontinhos = um ser vivo te encarando (§4.2) */}
-                                {!F9_FAUNA_LITE && <mesh position={[-0.07, 0.09, 0.144]} material={FM.catchlight}><sphereGeometry args={[0.01, 5, 5]} /></mesh>}
-                                {!F9_FAUNA_LITE && <mesh position={[0.07, 0.09, 0.144]} material={FM.catchlight}><sphereGeometry args={[0.01, 5, 5]} /></mesh>}
-                                {/* orelhas */}
-                                {!F9_FAUNA_LITE && <mesh position={[-0.13, 0.14, -0.02]} rotation={[0, 0, 0.9]} material={FM.cervoLight}><capsuleGeometry args={[0.035, 0.12, 3, 5]} /></mesh>}
-                                {!F9_FAUNA_LITE && <mesh position={[0.13, 0.14, -0.02]} rotation={[0, 0, -0.9]} material={FM.cervoLight}><capsuleGeometry args={[0.035, 0.12, 3, 5]} /></mesh>}
-                                {/* a COROA-LANTERNA: galhada em candelabro (só no high —
-                                    no leve o HALO quente carrega a leitura a 30 u) */}
-                                {!F9_FAUNA_LITE && [-1, 1].map((sx) => (
-                                    <group key={sx} position={[sx * 0.08, 0.16, -0.03]} rotation={[0, 0, sx * -0.5]}>
-                                        <mesh position={[0, 0.2, 0]} material={FM.antler}><cylinderGeometry args={[0.02, 0.028, 0.4, 5]} /></mesh>
-                                        <mesh position={[sx * 0.1, 0.36, 0.02]} rotation={[0, 0, sx * -0.7]} material={FM.antler}><cylinderGeometry args={[0.014, 0.02, 0.26, 4]} /></mesh>
-                                        <mesh position={[sx * 0.03, 0.4, -0.06]} rotation={[0.6, 0, sx * -0.25]} material={FM.antler}><cylinderGeometry args={[0.012, 0.018, 0.2, 4]} /></mesh>
-                                        <mesh position={[sx * 0.16, 0.5, 0.04]} material={FM.antler}><sphereGeometry args={[0.028, 5, 5]} /></mesh>
-                                    </group>
-                                ))}
-                                {/* halo quente da lanterna — o farol ambulante: lê a 30 u (§4.3/§5.18) */}
-                                <mesh position={[0, 0.42, 0]}><sphereGeometry args={[0.55, 8, 6]} /><meshBasicMaterial color="#ffd97a" transparent opacity={0.16} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
-                            </group>
-                        </group>
-                    </group>
-                    {/* pernas finas: no leve só o segmento superior (o joelho some) */}
-                    <group name="legs">
-                        {[[-0.22, 0.42], [0.22, 0.42], [-0.2, -0.42], [0.2, -0.42]].map(([x, z], li) => (
-                            <group key={li} position={[x, 1.05, z]}>
-                                <mesh position={[0, -0.28, 0]} material={FM.cervo}><cylinderGeometry args={[0.05, 0.038, 0.56, 6]} /></mesh>
-                                {!F9_FAUNA_LITE && <mesh position={[0, -0.75, 0.02]} rotation={[0.08, 0, 0]} material={FM.cervoLight}><cylinderGeometry args={[0.034, 0.026, 0.42, 5]} /></mesh>}
-                                {!F9_FAUNA_LITE && <mesh position={[0, -0.98, 0.03]} material={FM.hoof}><cylinderGeometry args={[0.038, 0.045, 0.07, 6]} /></mesh>}
-                            </group>
-                        ))}
+                        {/* corpo 3D real do Felipe, rigado com WALK realista (Blender) */}
+                        <QuadGLB url={cervoRig} sp="cervo" slot={i} scale={0.82} />
+                        {/* a LANTERNA: halo quente acima da galhada — o farol do cervo
+                            (lê a 30 u; a identidade "cervo-lanterna" mora aqui) */}
+                        <mesh position={[0, 1.28, 0.12]}><sphereGeometry args={[0.34, 8, 6]} /><meshBasicMaterial color="#ffd97a" transparent opacity={0.17} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
                     </group>
                 </group>
             )}
@@ -584,38 +588,11 @@ export const Vultos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vector3
             {(i) => (
                 <group key={i} ref={slotRef(slots, metas, i, 0.62)} visible={false}>
                     <group name="spine">
-                        {/* corpo longo e baixo em 3 massas */}
-                        <mesh position={[0, 0.42, 0.42]} scale={[0.75, 0.8, 1.1]} material={FM.vulto}><sphereGeometry args={[0.3, 9, 8]} /></mesh>
-                        <mesh position={[0, 0.4, -0.05]} scale={[0.68, 0.72, 1.35]} material={FM.vultoSheen}><sphereGeometry args={[0.28, 9, 8]} /></mesh>
-                        <mesh position={[0, 0.44, -0.52]} scale={[0.6, 0.68, 0.95]} material={FM.vulto}><sphereGeometry args={[0.27, 9, 8]} /></mesh>
-                        {/* cabeça achatada + mandíbula (ENCARA o player — nomeada).
-                            P0 (tier leve): mandíbula/orelhas/2º segmento de cauda e
-                            as bolinhas das patas NÃO montam (as brasas ficam — é
-                            como o predador lê no breu). */}
-                        <group name="vhead" position={[0, 0.5, 0.82]}>
-                            <mesh scale={[0.8, 0.62, 1.1]} material={FM.vulto}><sphereGeometry args={[0.19, 9, 8]} /></mesh>
-                            {!F9_FAUNA_LITE && <mesh position={[0, -0.05, 0.12]} scale={[0.55, 0.35, 0.8]} material={FM.vultoSheen}><sphereGeometry args={[0.14, 8, 7]} /></mesh>}
-                            {/* brasas + halo — o predador lê pelas brasas no breu (§4.3/§5.19) */}
-                            <mesh position={[-0.08, 0.05, 0.15]} material={FM.ember}><sphereGeometry args={[0.034, 5, 5]} /></mesh>
-                            <mesh position={[0.08, 0.05, 0.15]} material={FM.ember}><sphereGeometry args={[0.034, 5, 5]} /></mesh>
-                            <mesh name="vglow" position={[0, 0.04, 0.16]}><sphereGeometry args={[0.16, 7, 6]} /><meshBasicMaterial color="#ff5a2a" transparent opacity={0.34} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
-                            {/* orelhas pontudas pra trás */}
-                            {!F9_FAUNA_LITE && <mesh position={[-0.1, 0.14, -0.06]} rotation={[-0.6, 0, 0.3]} material={FM.vulto}><coneGeometry args={[0.045, 0.14, 4]} /></mesh>}
-                            {!F9_FAUNA_LITE && <mesh position={[0.1, 0.14, -0.06]} rotation={[-0.6, 0, -0.3]} material={FM.vulto}><coneGeometry args={[0.045, 0.14, 4]} /></mesh>}
-                        </group>
-                        {/* cauda-fita em 2 segmentos (no leve: 1) */}
-                        <group name="vtail" position={[0, 0.5, -0.78]}>
-                            <mesh position={[0, 0.05, -0.22]} rotation={[0.4, 0, 0]} material={FM.vulto}><capsuleGeometry args={[0.05, 0.4, 3, 6]} /></mesh>
-                            {!F9_FAUNA_LITE && <mesh position={[0, 0.22, -0.52]} rotation={[0.8, 0, 0]} material={FM.vultoSheen}><capsuleGeometry args={[0.032, 0.34, 3, 6]} /></mesh>}
-                        </group>
-                    </group>
-                    <group name="vlegs">
-                        {[[-0.18, 0.45], [0.18, 0.45], [-0.17, -0.45], [0.17, -0.45]].map(([x, z], li) => (
-                            <group key={li} position={[x, 0.4, z]}>
-                                <mesh position={[0, -0.2, 0]} material={FM.vulto}><cylinderGeometry args={[0.05, 0.032, 0.4, 5]} /></mesh>
-                                {!F9_FAUNA_LITE && <mesh position={[0, -0.4, 0.03]} material={FM.vultoSheen}><sphereGeometry args={[0.045, 5, 5]} /></mesh>}
-                            </group>
-                        ))}
+                        {/* o Embervein Wolf do Felipe, rigado com WALK realista (Blender).
+                            As brasas já vêm na textura; o glow abaixo é o farol de leitura
+                            no breu (a identidade "predador que brilha" — §4.3/§5.19). */}
+                        <QuadGLB url={vultoRig} sp="vulto" slot={i} scale={0.82} />
+                        <mesh name="vglow" position={[0, 0.66, 0.55]}><sphereGeometry args={[0.17, 7, 6]} /><meshBasicMaterial color="#ff5a2a" transparent opacity={0.3} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh>
                     </group>
                 </group>
             )}
