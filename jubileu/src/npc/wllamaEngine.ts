@@ -19,12 +19,15 @@
 import { npc, npcSet } from './npcStore';
 
 const WLLAMA_V = '3.5.1';
-// esm.sh é mais robusto que esm.run pra pacotes com wasm (o esm.run dava
-// "Failed to fetch dynamically imported module").
-const WLLAMA_ESM = `https://esm.sh/@wllama/wllama@${WLLAMA_V}`;
-const WLLAMA_CDN_HELPER = `https://esm.sh/@wllama/wllama@${WLLAMA_V}/esm/wasm-from-cdn.js`;
-// fallback: caminhos do wasm no jsdelivr (se o helper WasmFromCDN não importar)
-const WASM_BASE = `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_V}/esm/`;
+// IMPORTANTE: esm.sh/esm.run FALHAM ("Failed to fetch dynamically imported
+// module") porque tentam RE-EMPACOTAR o wllama (que tem wasm/worker) e engasgam.
+// A solução é importar o ESM JÁ PRÉ-BUILDADO cru (esm/index.js) direto do
+// jsdelivr — o browser segue os imports relativos (todos servidos pelo jsdelivr),
+// sem re-bundle. Em v3.5.1 tem UM wasm só em esm/wasm/wllama.wasm.
+const CDN = `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_V}/esm`;
+const WLLAMA_ESM = `${CDN}/index.js`;
+const WLLAMA_CDN_HELPER = `${CDN}/wasm-from-cdn.js`;
+const WASM_SINGLE = `${CDN}/wasm/wllama.wasm`;
 const HF = (repo: string, file: string) => `https://huggingface.co/${repo}/resolve/main/${file}`;
 
 type ModelDef = { url: string; label: string; qwen3?: boolean };
@@ -85,18 +88,15 @@ export function initLLM(): Promise<WllamaInstance> {
         const mod = (await import(/* @vite-ignore */ WLLAMA_ESM)) as unknown as { Wllama: WllamaCtor };
         // caminhos do wasm: de preferência o helper do próprio pacote (sabe a
         // estrutura da versão); se não importar, cai no jsdelivr manual.
+        // config do wasm: de preferência o helper oficial (sabe as chaves certas
+        // da versão); senão, o wasm único do v3.5.1 em ambas as chaves.
+        const fallbackPaths = { 'single-thread/wllama.wasm': WASM_SINGLE, 'multi-thread/wllama.wasm': WASM_SINGLE };
         let paths: Record<string, string>;
         try {
             const helper = (await import(/* @vite-ignore */ WLLAMA_CDN_HELPER)) as unknown as { default?: Record<string, string> };
-            paths = helper.default ?? {
-                'single-thread/wllama.wasm': WASM_BASE + 'single-thread/wllama.wasm',
-                'multi-thread/wllama.wasm': WASM_BASE + 'multi-thread/wllama.wasm',
-            };
+            paths = helper.default ?? fallbackPaths;
         } catch {
-            paths = {
-                'single-thread/wllama.wasm': WASM_BASE + 'single-thread/wllama.wasm',
-                'multi-thread/wllama.wasm': WASM_BASE + 'multi-thread/wllama.wasm',
-            };
+            paths = fallbackPaths;
         }
         let lastErr: unknown = null;
         for (let i = startIndex(); i < MODELS.length; i++) {
