@@ -1,0 +1,500 @@
+// floor7Textures.ts — procedural wood for the pirate ship (canvas-generated, no
+// external files, so it inlines into the single-file build). Returns a colour
+// map + a matching roughness map so the deck/hull read as real weathered planks
+// under the PBR lighting instead of flat brown boxes.
+import * as THREE from 'three';
+
+interface WoodOpts {
+    base?: string; dark?: string; light?: string;
+    plankW?: number;     // px between plank seams
+    knots?: number;
+    size?: number;
+}
+
+function rnd(seed: number) { let s = seed >>> 0; return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 1000) / 1000; }; }
+
+export function makeWood(opts: WoodOpts = {}): { map: THREE.CanvasTexture; rough: THREE.CanvasTexture } {
+    const size = opts.size ?? 512;
+    const plankW = opts.plankW ?? 96;
+    const base = opts.base ?? '#8a6334';
+    const dark = opts.dark ?? '#5d4022';
+    const light = opts.light ?? '#a87f48';
+    const r = rnd(0xA17 + plankW);
+
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const ctx = c.getContext('2d')!;
+    const rc = document.createElement('canvas'); rc.width = rc.height = size;
+    const rx = rc.getContext('2d')!;
+
+    ctx.fillStyle = base; ctx.fillRect(0, 0, size, size);
+    rx.fillStyle = '#b8b8b8'; rx.fillRect(0, 0, size, size); // fairly rough by default
+
+    // per-plank tint + grain — strong board-to-board tone variation so the
+    // planking doesn't tile like brick (each board reads as its own timber)
+    for (let x = 0; x < size; x += plankW) {
+        const tint = r();
+        ctx.fillStyle = tint > 0.5 ? light : dark;
+        ctx.globalAlpha = 0.1 + tint * 0.22;
+        ctx.fillRect(x, 0, plankW, size);
+        if (r() > 0.68) { ctx.fillStyle = r() > 0.5 ? '#2c1d0f' : '#b89058'; ctx.globalAlpha = 0.12 + r() * 0.14; ctx.fillRect(x, 0, plankW, size); }
+        ctx.globalAlpha = 1;
+        // grain streaks down the plank
+        for (let g = 0; g < 26; g++) {
+            const gx = x + 4 + r() * (plankW - 8);
+            ctx.strokeStyle = r() > 0.5 ? dark : light;
+            ctx.globalAlpha = 0.04 + r() * 0.10;
+            ctx.lineWidth = 0.6 + r() * 1.4;
+            ctx.beginPath();
+            let yy = 0; ctx.moveTo(gx, 0);
+            while (yy < size) { yy += 14 + r() * 22; ctx.lineTo(gx + (r() - 0.5) * 5, yy); }
+            ctx.stroke();
+            // roughness streaks
+            rx.strokeStyle = r() > 0.5 ? '#888' : '#d8d8d8';
+            rx.globalAlpha = 0.18; rx.lineWidth = ctx.lineWidth;
+            rx.stroke();
+        }
+        ctx.globalAlpha = 1; rx.globalAlpha = 1;
+        // butt joints: staggered cross-seams where plank lengths meet (deep groove)
+        // long planks (6-10m equiv) with staggered joints at ~1/4 intervals to avoid running-bond brickwall
+        const plankIndex = Math.floor(x / plankW);
+        const staggerPhase = (plankIndex % 4) * 0.25;  // 0.0, 0.25, 0.5, 0.75
+        const buttN = 1 + Math.floor(r() * 1.5);      // fewer joints per plank
+        for (let bj = 0; bj < buttN; bj++) {
+            const by = (staggerPhase + r() * 0.15 + bj * 0.8) * size;
+            if (by >= size) break;  // no seam past the edge
+            ctx.fillStyle = '#1c1206'; ctx.fillRect(x + 1, by, plankW - 2, 2.6);
+            ctx.fillStyle = light; ctx.globalAlpha = 0.12; ctx.fillRect(x + 1, by + 2.6, plankW - 2, 1.4); ctx.globalAlpha = 1;
+            rx.fillStyle = '#e0e0e0'; rx.fillRect(x + 1, by - 1.4, plankW - 2, 1.4);  // raised edge
+            rx.fillStyle = '#101010'; rx.fillRect(x + 1, by, plankW - 2, 2.6);        // deep groove
+        }
+        // plank seam: a beveled caulk groove (bright raised edge + deep dark groove)
+        // in both the colour and the bump (rough) map, so strakes catch grazing light
+        ctx.fillStyle = '#1c1206'; ctx.fillRect(x - 1, 0, 3, size);
+        ctx.fillStyle = light; ctx.globalAlpha = 0.2; ctx.fillRect(x + 2, 0, 2, size); ctx.globalAlpha = 1;
+        rx.fillStyle = '#e2e2e2'; rx.fillRect(x - 2.5, 0, 1.6, size);  // raised plank edge (bright = proud)
+        rx.fillStyle = '#0c0c0c'; rx.fillRect(x - 1, 0, 3, size);      // deep caulk groove (dark = recessed)
+    }
+
+    // a few knots
+    const nk = opts.knots ?? 5;
+    for (let k = 0; k < nk; k++) {
+        const kx = r() * size, ky = r() * size, kr = 4 + r() * 9;
+        for (let ring = kr; ring > 0; ring -= 1.6) {
+            ctx.strokeStyle = ring % 3 < 1.5 ? dark : base;
+            ctx.globalAlpha = 0.5; ctx.lineWidth = 1.1;
+            ctx.beginPath(); ctx.ellipse(kx, ky, ring, ring * 0.7, r() * 6, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    const map = new THREE.CanvasTexture(c);
+    map.wrapS = map.wrapT = THREE.RepeatWrapping; map.anisotropy = 4;
+    map.colorSpace = THREE.SRGBColorSpace;
+    const rough = new THREE.CanvasTexture(rc);
+    rough.wrapS = rough.wrapT = THREE.RepeatWrapping;
+    return { map, rough };
+}
+
+// an equirectangular sky image (sky->horizon->sea + a warm sun) for a PMREM
+// environment map, so every PBR material gets real reflections. Self-contained.
+export function makeSkyEquirect(w = 1024): THREE.CanvasTexture {
+    const h = w / 2;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d')!;
+    // vertical gradient: zenith blue -> warm horizon -> deep sea.
+    // NOTE: this equirect is REFLECTION-ONLY (feeds the PMREM env, not the
+    // visible sky). The sea band is kept BLUE-dominant and desaturated on
+    // purpose: a saturated teal band (g≈b) makes warm GOLD metals reflect olive
+    // (gold×teal = green), which read as a green blob next to the camera. A
+    // blue-grey sea keeps metals warm at every angle.
+    const g = x.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0.0, '#3b78c4');
+    g.addColorStop(0.42, '#a9cde8');
+    g.addColorStop(0.48, '#c4d5e5');   // narrow horizon band, aligned with water uSky (#a9c4d6)
+    g.addColorStop(0.5, '#c4d5e5');    // horizon — desaturated blue-grey to match water reflection
+    g.addColorStop(0.52, '#5f7990');   // sea — blue-grey, not teal
+    g.addColorStop(1.0, '#27323d');    // deep sea — desaturated, blue-dominant
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    // warm sun disk near the horizon (reduced ~40% from w*0.13)
+    const sx = w * 0.7, sy = h * 0.44;
+    const sunRadius = w * 0.078;  // ~60% of original w*0.13
+    const sg = x.createRadialGradient(sx, sy, 0, sx, sy, sunRadius);
+    sg.addColorStop(0, 'rgba(255,250,235,1)');
+    sg.addColorStop(0.18, 'rgba(255,238,200,0.95)');
+    sg.addColorStop(0.5, 'rgba(255,210,150,0.3)');
+    sg.addColorStop(1, 'rgba(255,200,150,0)');
+    x.fillStyle = sg; x.fillRect(0, 0, w, h);
+
+    // 3-4 cumulus clouds with defined edges (low-poly cumulus shapes)
+    const r = rnd(0x7C2);
+    const cloudCount = 3 + Math.floor(r() * 2);
+    for (let c_idx = 0; c_idx < cloudCount; c_idx++) {
+        const cx = 0.15 + r() * 0.7;  // 15%-85% across
+        const cy = 0.35 + r() * 0.12; // near horizon band (0.35-0.47)
+        const cloudW = (0.08 + r() * 0.06) * w;
+        const cloudH = (0.05 + r() * 0.04) * h;
+        const cumulusOpacity = 0.6 + r() * 0.3;
+
+        // 4-5 overlapping bumps (boils) per cloud
+        const bumps = 4 + Math.floor(r() * 2);
+        for (let b = 0; b < bumps; b++) {
+            const bx = cx * w + (r() - 0.5) * cloudW * 0.8;
+            const by = cy * h + (r() - 0.5) * cloudH * 0.6;
+            const br = (0.5 + r() * 0.3) * Math.min(cloudW, cloudH) * 0.4;
+            const bg = x.createRadialGradient(bx, by, 0, bx, by, br);
+            bg.addColorStop(0, `rgba(255,255,255,${cumulusOpacity * 0.8})`);
+            bg.addColorStop(0.7, `rgba(255,255,255,${cumulusOpacity * 0.3})`);
+            bg.addColorStop(1, 'rgba(255,255,255,0)');
+            x.fillStyle = bg;
+            x.beginPath(); x.arc(bx, by, br, 0, 7); x.fill();
+        }
+    }
+
+    const t = new THREE.CanvasTexture(c);
+    t.mapping = THREE.EquirectangularReflectionMapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
+// a ripple height/bump map for puddles: concentric rings + speckle, so the
+// reflection breaks up and the water reads as rippled instead of flat paint.
+export function makePuddleRipple(size = 128): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d')!;
+    const r = rnd(0x9A7);
+    x.fillStyle = '#808080'; x.fillRect(0, 0, size, size);
+    const cx = size / 2, cy = size / 2;
+    for (let rad = 4; rad < size * 0.6; rad += 5 + r() * 3) {
+        x.strokeStyle = 'rgba(255,255,255,0.45)'; x.lineWidth = 1.4;
+        x.beginPath(); x.arc(cx, cy, rad, 0, 7); x.stroke();
+        x.strokeStyle = 'rgba(0,0,0,0.4)'; x.lineWidth = 1.4;
+        x.beginPath(); x.arc(cx, cy, rad + 2.2, 0, 7); x.stroke();
+    }
+    for (let i = 0; i < 2400; i++) {
+        x.fillStyle = r() > 0.5 ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)';
+        x.fillRect(r() * size, r() * size, 2, 2);
+    }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
+}
+
+// a soft dark radial blob for fake AO contact shadows under deck props.
+export function makeContactShadow(size = 128): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d')!;
+    const g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, 'rgba(0,0,0,0.55)');
+    g.addColorStop(0.35, 'rgba(0,0,0,0.3)');
+    g.addColorStop(0.7, 'rgba(0,0,0,0.08)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g; x.fillRect(0, 0, size, size);
+    const t = new THREE.CanvasTexture(c);
+    return t;
+}
+
+// a warm soft radial glow (for the sun halo) — self-contained.
+export function makeGlow(size = 256): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d')!;
+    const g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, 'rgba(255,250,235,1)');
+    g.addColorStop(0.12, 'rgba(255,236,190,0.95)');
+    g.addColorStop(0.4, 'rgba(255,196,120,0.35)');
+    g.addColorStop(1, 'rgba(255,180,110,0)');
+    x.fillStyle = g; x.fillRect(0, 0, size, size);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
+// a soft puffy cloud (alpha) drawn from overlapping radial blobs — self-contained.
+export function makeCloud(seed = 1, size = 256): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = size; c.height = size / 2;
+    const x = c.getContext('2d')!;
+    const r = rnd(seed * 99 + 7);
+    const cy = c.height * 0.62;
+    const blobs = 9 + Math.floor(r() * 5);
+    for (let i = 0; i < blobs; i++) {
+        const bx = size * (0.12 + r() * 0.76);
+        const by = cy - r() * c.height * 0.4;
+        const rad = (0.10 + r() * 0.16) * size;
+        const g = x.createRadialGradient(bx, by, 0, bx, by, rad);
+        const a = 0.5 + r() * 0.4;
+        g.addColorStop(0, `rgba(255,255,255,${a})`);
+        g.addColorStop(0.55, `rgba(252,250,245,${a * 0.5})`);
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        x.fillStyle = g; x.beginPath(); x.arc(bx, by, rad, 0, 7); x.fill();
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
+// weathered sailcloth: warm canvas with vertical panel seams, horizontal
+// reef-band stitching, faint stains, and subtle sail wear (patches, salt stains,
+// corner vignette) — so the sails read as cloth, not card. Wear is carefully
+// controlled for subtlety: patches 4-6% darker/yellower, salt stains alpha <0.06,
+// vignette alpha ~0.05, all staying 8% margin from edges for wrapping.
+export function makeSailcloth(w = 512, h = 384): { map: THREE.CanvasTexture; rough: THREE.CanvasTexture } {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d')!;
+    const rc = document.createElement('canvas'); rc.width = w; rc.height = h;
+    const rx = rc.getContext('2d')!;
+    const r = rnd(0x5A11);
+    // base cream with a gentle vertical shade (top a touch brighter)
+    const g = x.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#efe6d0'); g.addColorStop(0.5, '#e6dcc2'); g.addColorStop(1, '#d8ccae');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    rx.fillStyle = '#d2d2d2'; rx.fillRect(0, 0, w, h); // cloth is fairly rough/matte
+    // woven texture (fine speckle)
+    for (let i = 0; i < 9000; i++) {
+        x.fillStyle = r() > 0.5 ? 'rgba(255,250,235,0.06)' : 'rgba(150,135,105,0.06)';
+        x.fillRect(r() * w, r() * h, 1.4, 1.4);
+    }
+    // vertical panel seams (sails are sewn from cloth strips)
+    const panelW = w / 7;
+    for (let px = panelW; px < w; px += panelW) {
+        x.strokeStyle = 'rgba(120,104,76,0.5)'; x.lineWidth = 2;
+        x.beginPath(); x.moveTo(px, 0); x.lineTo(px, h); x.stroke();
+        x.strokeStyle = 'rgba(255,250,235,0.4)'; x.lineWidth = 1;
+        x.beginPath(); x.moveTo(px + 1.5, 0); x.lineTo(px + 1.5, h); x.stroke();
+        rx.strokeStyle = '#9a9a9a'; rx.lineWidth = 2; rx.beginPath(); rx.moveTo(px, 0); rx.lineTo(px, h); rx.stroke();
+    }
+    // horizontal reef bands (rows of stitch dashes)
+    for (const by of [h * 0.34, h * 0.66]) {
+        x.strokeStyle = 'rgba(110,94,68,0.45)'; x.lineWidth = 1.5; x.setLineDash([6, 5]);
+        x.beginPath(); x.moveTo(0, by); x.lineTo(w, by); x.stroke(); x.setLineDash([]);
+    }
+    // a few faint weather stains
+    for (let i = 0; i < 7; i++) {
+        const sx = r() * w, sy = r() * h, sr = 24 + r() * 60;
+        const sg = x.createRadialGradient(sx, sy, 0, sx, sy, sr);
+        sg.addColorStop(0, 'rgba(150,130,95,0.10)'); sg.addColorStop(1, 'rgba(150,130,95,0)');
+        x.fillStyle = sg; x.fillRect(sx - sr, sy - sr, sr * 2, sr * 2);
+    }
+    // ===== subtle sail wear: patches, salt stains, corner vignette =====
+    // 2-3 rectangular patches (repairs) with stitched perimeter
+    const patchCount = 2 + Math.floor(r() * 2);
+    const patchMargin = w * 0.08;
+    for (let p = 0; p < patchCount; p++) {
+        const pw = w * (0.12 + r() * 0.08);  // 12-20% of canvas width
+        const ph = h * (0.12 + r() * 0.08);  // proportional height
+        const patchX = patchMargin + r() * (w - pw - 2 * patchMargin);
+        const patchY = patchMargin + r() * (h - ph - 2 * patchMargin);
+        const patchRot = (r() - 0.5) * 0.1;  // rotation ±0.05 rad
+
+        // draw patch with rotation (color: slightly darker/yellower, semi-transparent)
+        x.save();
+        x.translate(patchX + pw / 2, patchY + ph / 2);
+        x.rotate(patchRot);
+        x.fillStyle = 'rgba(220,210,185,0.35)';  // ~4-6% darker/yellower tone
+        x.fillRect(-pw / 2, -ph / 2, pw, ph);
+        // stitched perimeter: dotted line around patch
+        x.strokeStyle = 'rgba(100,85,60,0.25)';  // dark stitch, low alpha
+        x.lineWidth = 0.8;
+        x.setLineDash([3, 3]);
+        x.strokeRect(-pw / 2, -ph / 2, pw, ph);
+        x.setLineDash([]);
+        x.restore();
+
+        // in rough map: patch slightly lighter (more rough/textured)
+        rx.save();
+        rx.translate(patchX + pw / 2, patchY + ph / 2);
+        rx.rotate(patchRot);
+        rx.fillStyle = 'rgba(220,220,220,0.4)';
+        rx.fillRect(-pw / 2, -ph / 2, pw, ph);
+        rx.restore();
+    }
+    // 3-4 salt/moisture stains: large subtle ellipses near edges
+    const stainCount = 3 + Math.floor(r() * 2);
+    for (let s = 0; s < stainCount; s++) {
+        // place stains biased toward edges (left/right/top/bottom)
+        let stainX, stainY;
+        const edgeSide = Math.floor(r() * 4);
+        if (edgeSide === 0) {
+            stainX = r() * w * 0.2; stainY = r() * h;  // left
+        } else if (edgeSide === 1) {
+            stainX = w - r() * w * 0.2; stainY = r() * h;  // right
+        } else if (edgeSide === 2) {
+            stainX = r() * w; stainY = r() * h * 0.2;  // top
+        } else {
+            stainX = r() * w; stainY = h - r() * h * 0.2;  // bottom
+        }
+
+        const stainRadX = 60 + r() * 80;
+        const stainRadY = 40 + r() * 60;
+        const maxRad = Math.max(stainRadX, stainRadY);
+        const stainGrad = x.createRadialGradient(stainX, stainY, 0, stainX, stainY, maxRad);
+        stainGrad.addColorStop(0, 'rgba(180,160,120,0.06)');  // max alpha 0.06
+        stainGrad.addColorStop(1, 'rgba(180,160,120,0)');
+
+        x.fillStyle = stainGrad;
+        x.beginPath();
+        x.ellipse(stainX, stainY, stainRadX, stainRadY, r() * 0.3, 0, Math.PI * 2);
+        x.fill();
+    }
+    // corner vignette: subtle darkening in 4 corners (alpha ~0.05)
+    const vignetteStrength = 0.05;
+    const vigSize = Math.min(w, h) * 0.25;
+
+    // top-left corner
+    const gv_tl = x.createRadialGradient(0, 0, 0, 0, 0, vigSize);
+    gv_tl.addColorStop(0, 'rgba(0,0,0,0)');
+    gv_tl.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
+    x.fillStyle = gv_tl; x.fillRect(0, 0, vigSize, vigSize);
+
+    // top-right corner
+    const gv_tr = x.createRadialGradient(w, 0, 0, w, 0, vigSize);
+    gv_tr.addColorStop(0, 'rgba(0,0,0,0)');
+    gv_tr.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
+    x.fillStyle = gv_tr; x.fillRect(w - vigSize, 0, vigSize, vigSize);
+
+    // bottom-left corner
+    const gv_bl = x.createRadialGradient(0, h, 0, 0, h, vigSize);
+    gv_bl.addColorStop(0, 'rgba(0,0,0,0)');
+    gv_bl.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
+    x.fillStyle = gv_bl; x.fillRect(0, h - vigSize, vigSize, vigSize);
+
+    // bottom-right corner
+    const gv_br = x.createRadialGradient(w, h, 0, w, h, vigSize);
+    gv_br.addColorStop(0, 'rgba(0,0,0,0)');
+    gv_br.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
+    x.fillStyle = gv_br; x.fillRect(w - vigSize, h - vigSize, vigSize, vigSize);
+    // ===== end sail wear =====
+    const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 4;
+    const rough = new THREE.CanvasTexture(rc);
+    return { map, rough };
+}
+
+// a tileable grayscale DETAIL bump for the captain's GLB — the model ships a
+// nearly-flat normal map (no weave/grain/wrinkles), so the coat reads as plastic.
+// This adds high-frequency micro-relief (woven over/under cloth + slubs + faint
+// wrinkle creases + fine tooth) that we tile across the figure at a small bumpScale
+// to break the flat sheen into real fabric/leather surface. 128² tiles fine.
+export function makeFabricDetail(size = 128): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d')!;
+    const r = rnd(0x3C1B);
+    x.fillStyle = '#808080'; x.fillRect(0, 0, size, size);   // neutral = flat
+    // plain weave: alternating warp/weft cells, each a soft proud/recessed bump so
+    // grazing light catches a thread grid (the single biggest "this is cloth" cue).
+    const cell = 4;
+    for (let gy = 0; gy < size; gy += cell) {
+        for (let gx = 0; gx < size; gx += cell) {
+            const over = ((gx / cell) + (gy / cell)) % 2 < 1;   // checker = over/under
+            const v = over ? 150 + r() * 22 : 96 + r() * 18;
+            x.fillStyle = `rgb(${v},${v},${v})`;
+            x.fillRect(gx, gy, cell, cell);
+            // thread highlight ridge on the proud cells
+            if (over) { x.fillStyle = 'rgba(225,225,225,0.35)'; x.fillRect(gx, gy, cell, 1.2); }
+        }
+    }
+    // slubs: occasional thicker fibres / nubs scattered over the weave
+    for (let i = 0; i < 140; i++) {
+        const sx = r() * size, sy = r() * size, sr = 0.8 + r() * 2.2;
+        x.fillStyle = r() > 0.5 ? 'rgba(210,210,210,0.5)' : 'rgba(70,70,70,0.5)';
+        x.beginPath(); x.arc(sx, sy, sr, 0, 7); x.fill();
+    }
+    // faint wrinkle creases — short soft strokes (kept low-contrast so seams at the
+    // tile edge stay invisible at the small bumpScale we apply).
+    for (let i = 0; i < 7; i++) {
+        const ax = r() * size, ay = r() * size, len = 14 + r() * 26, ang = r() * 7;
+        x.strokeStyle = 'rgba(60,60,60,0.4)'; x.lineWidth = 1.4;
+        x.beginPath(); x.moveTo(ax, ay); x.lineTo(ax + Math.cos(ang) * len, ay + Math.sin(ang) * len); x.stroke();
+        x.strokeStyle = 'rgba(220,220,220,0.3)'; x.lineWidth = 1;
+        x.beginPath(); x.moveTo(ax, ay + 1.4); x.lineTo(ax + Math.cos(ang) * len, ay + Math.sin(ang) * len + 1.4); x.stroke();
+    }
+    // fine tooth speckle so smooth-shaded low-poly faces aren't perfectly uniform
+    for (let i = 0; i < 1600; i++) {
+        const v = r() > 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+        x.fillStyle = v; x.fillRect(r() * size, r() * size, 1, 1);
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+    return t;
+}
+
+// black Jolly Roger: white skull + crossed bones on black, drawn procedurally.
+export function makeJollyRoger(size = 256): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d')!;
+    x.fillStyle = '#0c0c0d'; x.fillRect(0, 0, size, size);
+    const cx = size * 0.5, cy = size * 0.44, s = size / 256;
+    x.fillStyle = '#ececec';
+    // crossbones
+    x.save(); x.translate(cx, cy + 34 * s);
+    for (const a of [Math.PI / 4, -Math.PI / 4]) {
+        x.save(); x.rotate(a);
+        x.fillRect(-70 * s, -7 * s, 140 * s, 14 * s);
+        for (const e of [-70, 70]) { x.beginPath(); x.arc(e * s, -7 * s, 9 * s, 0, 7); x.arc(e * s, 7 * s, 9 * s, 0, 7); x.fill(); }
+        x.restore();
+    }
+    x.restore();
+    // skull
+    x.beginPath(); x.ellipse(cx, cy, 46 * s, 50 * s, 0, 0, 7); x.fill();
+    x.fillRect(cx - 26 * s, cy + 38 * s, 52 * s, 26 * s); // jaw
+    // eyes + nose (cut out black)
+    x.fillStyle = '#0c0c0d';
+    x.beginPath(); x.ellipse(cx - 18 * s, cy - 4 * s, 13 * s, 16 * s, 0.2, 0, 7); x.fill();
+    x.beginPath(); x.ellipse(cx + 18 * s, cy - 4 * s, 13 * s, 16 * s, -0.2, 0, 7); x.fill();
+    x.beginPath(); x.moveTo(cx, cy + 8 * s); x.lineTo(cx - 7 * s, cy + 24 * s); x.lineTo(cx + 7 * s, cy + 24 * s); x.fill();
+    // teeth gaps
+    for (let i = -2; i <= 2; i++) x.fillRect(cx + i * 9 * s - 1.5 * s, cy + 40 * s, 3 * s, 22 * s);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    return t;
+}
+
+// ── ROL DA TRIPULAÇÃO — o pergaminho pregado no mastro grande. Easter egg do
+// Capitão Fable: num hotel onde as coisas só existem enquanto alguém lembra
+// delas, o navio lembra da tripulação de IAs que o construiu. ──
+export function makeCrewManifest(w = 320, h = 448): THREE.CanvasTexture {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d')!;
+    // parchment base + age gradient
+    const g = x.createLinearGradient(0, 0, w * 0.3, h);
+    g.addColorStop(0, '#e6d5a8'); g.addColorStop(0.5, '#dcc793'); g.addColorStop(1, '#c9b078');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    // blotches + foxing
+    for (let i = 0; i < 26; i++) {
+        const px = (i * 97.3) % w, py = (i * 61.7) % h, r = 8 + (i * 13) % 30;
+        const b = x.createRadialGradient(px, py, 0, px, py, r);
+        b.addColorStop(0, 'rgba(122,94,52,0.10)'); b.addColorStop(1, 'rgba(122,94,52,0)');
+        x.fillStyle = b; x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
+    }
+    // darkened, nibbled edges
+    x.strokeStyle = 'rgba(74,52,26,0.55)'; x.lineWidth = 10;
+    x.strokeRect(-3, -3, w + 6, h + 6);
+    x.strokeStyle = 'rgba(74,52,26,0.25)'; x.lineWidth = 22;
+    x.strokeRect(-8, -8, w + 16, h + 16);
+    // text
+    const ink = '#3a2a16';
+    x.textAlign = 'center'; x.fillStyle = ink;
+    x.font = 'bold 21px Georgia, serif';
+    x.fillText('ROL DA TRIPULAÇÃO', w / 2, 44);
+    x.font = 'italic 12px Georgia, serif';
+    x.fillText('— mantida na memória —', w / 2, 64);
+    x.strokeStyle = ink; x.lineWidth = 1.2;
+    x.beginPath(); x.moveTo(38, 76); x.lineTo(w - 38, 76); x.stroke();
+    const lines = [
+        'Capitão Fable, no comando',
+        'Comodoro Bússola · Almirante',
+        'Gajeiro · Escrivão',
+        'Maré · Lenho · Facho',
+        'Ilhota · Verniz · Calafate',
+        'Luzeiro · Ferreiro · Carpinteiro',
+        'Veleiro · Diretor · Contramestre',
+        'Roteirista · Alfaiate',
+        'Decorador · Concierge',
+    ];
+    x.font = '15px Georgia, serif';
+    lines.forEach((t, i) => x.fillText(t, w / 2, 104 + i * 26));
+    x.beginPath(); x.moveTo(38, 348); x.lineTo(w - 38, 348); x.stroke();
+    x.font = 'italic 14px Georgia, serif';
+    x.fillText('"Máquina não esquece.', w / 2, 376);
+    x.fillText('Capitão também não."', w / 2, 395);
+    x.font = 'italic bold 16px Georgia, serif';
+    x.fillText('— C. F.', w / 2, 424);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
+}

@@ -33,7 +33,10 @@ esbuild.buildSync({
   bundle: true,
   format: 'iife',
   target: 'es2020',
-  minify: false,
+  // minificado: o worker embutido soma ~4MB no single-file em vez de ~9MB —
+  // e a Vercel Hobby tem limite de 100MB por deploy, então cada MB conta.
+  // (o bundle principal continua legível, como o projeto gosta)
+  minify: true,
   outfile: path.join(scriptDir, 'public', 'npcWorker.js'),
   logLevel: 'silent',
 });

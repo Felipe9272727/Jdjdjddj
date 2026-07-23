@@ -1,0 +1,500 @@
+import React, { useRef, useState, useEffect, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { Html, useGLTF, Instances, Instance, useTexture } from '@react-three/drei';
+import { ASSETS, COLORS, BARNEY_URL, DUSSEKAR_URL } from './constants';
+import { TextureMaterial } from './Materials';
+import { ContextSteer, interceptTime } from './ai/contextSteering';
+import { AIDirector } from './ai/AIDirector';
+
+useTexture.preload(BARNEY_URL);
+import { ElevatorFacade } from './Elevator';
+import { Sofa, CoffeeTable, Bed, KitchenCounter, Barrel } from './Furniture';
+import * as THREE from 'three';
+
+// Preload Dussekar's GLB at module load so the first time the player walks
+// near the shop we don't fall to 4fps loading it synchronously. DUSSEKAR_URL
+// is now a bundled (inlined) asset — no runtime fetch in the single-file build.
+useGLTF.preload(DUSSEKAR_URL);
+
+// ─── Tree positions (consolidated) ─────────────────────────────────────
+// The forest around the house used to be defined 4× (one per tree-part:
+// trunk + 3 leaf tiers), with 43 entries each → 172 instances. Reduced
+// to 22 trees (a single source of truth) — picked positions that frame
+// the play area without crowding the horizon. 22 × 4 = 88 instances,
+// almost half of the original cost, with no visible difference until
+// you walk all the way to the map edge.
+type Tree = readonly [number, number, number]; // x, z, scale
+const TREE_POSITIONS: readonly Tree[] = [
+    [13.06,0.55,0.91], [13.76,6.49,1.07], [-6.17,13.14,0.81],
+    [-12.22,8.61,1.02], [-14.72,1.24,1.12], [-14.34,-5.65,1.08],
+    [-7.28,-11.33,1.18], [13.59,-7.29,1.09], [19.92,0.29,1.09],
+    [17.85,7.83,1.21], [11.2,15.02,1.25], [2.96,17.45,0.95],
+    [-5.66,18.04,1.08], [-11.8,13.1,1.03], [-18.5,4.1,1.2],
+    [-18.8,-6.74,1.22], [-13.16,-13.78,1.32], [16.11,-11.22,1.06],
+    [17.2,-5.9,1.36], [19.21,9.99,1.35], [-12.5,20.34,1.07],
+    [10.03,18.71,0.8],
+] as const;
+
+export const DussekarCharacter = ({ position, rotation }: any) => {
+  const [dialogue, setDialogue] = useState<string | null>(null);
+  const { scene } = useGLTF(DUSSEKAR_URL) as any;
+  const clonedScene = useMemo(() => scene.clone(true), [scene]);
+  const group = useRef<any>(null);
+  const timeRef = useRef(0);
+  const proximityTimerRef = useRef(0);
+  const secretTriggeredRef = useRef(false);
+  useFrame((state, dt) => {
+      if (!group.current) return;
+      // Distance cull: the float wobble is invisible past ~12 units. Skipping
+      // the math + matrix update when the camera is far is a free win.
+      const dx = state.camera.position.x - position[0];
+      const dz = state.camera.position.z - position[2];
+      const distSq = dx * dx + dz * dz;
+      if (distSq > 144) return;
+      timeRef.current += dt;
+      group.current.position.y = position[1] + Math.sin(timeRef.current * 0.8) * 0.015;
+
+      // Easter egg: track proximity for 30-second secret message
+      if (distSq < 9) { // within ~3 units
+          proximityTimerRef.current += dt;
+          if (proximityTimerRef.current >= 30 && !secretTriggeredRef.current) {
+              secretTriggeredRef.current = true;
+              setDialogue("You stayed. They always leave. You are... different.");
+              setTimeout(() => setDialogue(null), 12000);
+          }
+      } else {
+          proximityTimerRef.current = 0;
+      }
+  });
+  useEffect(() => {
+      let active = true; let showTimer: any; let hideTimer: any;
+      const lines = ["The geometry is leaking.", "I saw a color that doesn't exist.", "Do the buttons feel pain?", "I am vibrating at the wrong frequency.", "Someone stole the floor yesterday.", "The air is too thick to chew.", "I remember when this was all orange.", "My reflection blinked first.", "Static tastes like lemons.", "The elevator knows what you did.", "Gravity is just a suggestion.", "I am waiting for the Tuesday that never comes.", "Do not look at the corners."];
+      const runCycle = () => {
+          if (!active) return;
+          showTimer = setTimeout(() => {
+              if (!active) return;
+              // Don't override the secret message
+              if (secretTriggeredRef.current) return;
+              const text = lines[Math.floor(Math.random() * lines.length)];
+              setDialogue(text);
+              hideTimer = setTimeout(() => { if (active && !secretTriggeredRef.current) { setDialogue(null); runCycle(); } }, 10000);
+          }, 5000);
+      };
+      runCycle(); return () => { active = false; clearTimeout(showTimer); clearTimeout(hideTimer); };
+  }, []);
+  return (
+      <group ref={group} position={position} rotation={rotation}>
+          <primitive object={clonedScene} scale={3} position={[0, 0, 0]} />
+           {dialogue && (
+              // No `occlude` here. drei's <Html occlude> raycasts the entire scene
+              // every frame to test visibility — that single prop was the cause of
+              // 5fps drops near the shop. The bubble is fine without it.
+              <Html position={[0, 1.0, 0]} center distanceFactor={10}>
+                  <div className="pointer-events-none select-none whitespace-nowrap speech-bubble">
+                      <div className="bg-white text-black px-4 py-2 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center transform -translate-y-full max-w-[180px]">
+                          <p className="text-xs sm:text-sm font-bold m-0 text-center break-words leading-snug">{dialogue}</p>
+                      </div>
+                  </div>
+              </Html>
+           )}
+      </group>
+  )
+};
+
+export const Shop = ({ position }: any) => {
+  const LIGHT_COLOR = "#FFEB3B";
+  return (
+      <group position={position}>
+           <mesh position={[2.0, 0.05, 0]}><boxGeometry args={[4.0, 0.1, 4.8]} /><meshStandardMaterial color="#212121" roughness={0.9} /></mesh>
+           <mesh position={[2.0, 3.95, 0]}><boxGeometry args={[4.0, 0.1, 4.8]} /><meshStandardMaterial color="#3E2723" /></mesh>
+           <mesh position={[2.0, 3.85, 0]}><boxGeometry args={[2.5, 0.1, 3.5]} /><meshStandardMaterial color={LIGHT_COLOR} emissive={LIGHT_COLOR} emissiveIntensity={4.0} toneMapped={false} /></mesh>
+           <mesh position={[3.95, 2.0, 0]}><boxGeometry args={[0.1, 4.0, 4.8]} /><TextureMaterial url={ASSETS.noise} color="#A65E2E" repeat={[4, 4]} roughness={0.5} /></mesh>
+           <mesh position={[2.0, 2.0, -2.4]}><boxGeometry args={[4.0, 4.0, 0.1]} /><TextureMaterial url={ASSETS.noise} color="#A65E2E" repeat={[4, 4]} roughness={0.5} /></mesh>
+           <mesh position={[2.0, 2.0, 2.4]}><boxGeometry args={[4.0, 4.0, 0.1]} /><TextureMaterial url={ASSETS.noise} color="#A65E2E" repeat={[4, 4]} roughness={0.5} /></mesh>
+           <group position={[3.6, 1.1, -1.2]}><mesh><boxGeometry args={[0.2, 2.2, 1.0]} /><meshStandardMaterial color="#EEEEEE" /></mesh></group>
+           <Barrel position={[3.0, 0, 1.8]} />
+           <group position={[0.6, 0, 0]}><mesh position={[0, 1.05, 0]}><boxGeometry args={[1.0, 0.1, 5.0]} /><meshStandardMaterial color="#EEEEEE" roughness={0.2} metalness={0.1} /></mesh><mesh position={[0.1, 0.5, 0]}><boxGeometry args={[0.8, 1.0, 5.0]} /><TextureMaterial url={ASSETS.wood} color="#3E2723" repeat={[1, 1]} rotation={Math.PI/2} /></mesh></group>
+           <group position={[0.6, 1.1, 0]}><mesh position={[0, 0.1, -0.6]}><cylinderGeometry args={[0.12, 0.1, 0.25, 16]} /><meshStandardMaterial color="#1565C0" roughness={0.3} /></mesh><mesh position={[0, 0.1, 0.6]}><cylinderGeometry args={[0.12, 0.1, 0.25, 16]} /><meshStandardMaterial color="#C62828" roughness={0.3} /></mesh></group>
+           <DussekarCharacter position={[2.2, 1.1, 0]} rotation={[0, Math.PI, 0]} />
+      </group>
+  );
+};
+
+export const House = React.memo(({ x, z, rot, doorOpen, doorOpenAmount }: any) => {
+    const doorRef = useRef<any>(null);
+    useFrame((state, delta) => { if (doorRef.current) { const target = doorOpenAmount !== undefined ? -2 * doorOpenAmount : (doorOpen ? -2 : 0); doorRef.current.rotation.y = THREE.MathUtils.lerp(doorRef.current.rotation.y, target, delta * 3); } });
+    return (
+        <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+            <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[7.8, 7.8]} /><TextureMaterial url={ASSETS.wood} color={COLORS.wood} repeat={[4, 4]} roughness={0.5} /></mesh>
+            <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 5.95, 0]}><planeGeometry args={[7.8, 7.8]} /><meshStandardMaterial color="#FFFFFF" roughness={0.9} /></mesh>
+            <mesh position={[0, 3, -4]}><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+            <mesh position={[-4, 3, 0]} rotation={[0, Math.PI/2, 0]}><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+            <mesh position={[4, 3, 0]} rotation={[0, Math.PI/2, 0]}><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+            <mesh position={[-2.35, 3, 4]}><boxGeometry args={[3.3, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+            <mesh position={[2.35, 3, 4]}><boxGeometry args={[3.3, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+            <mesh position={[0, 5.125, 4]}><boxGeometry args={[1.4, 1.75, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+            <mesh position={[-2, 3, 0]}><boxGeometry args={[4, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+            <mesh position={[0, 3, -2]}><boxGeometry args={[0.2, 6, 4]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+            <Sofa x={-2.5} z={2.5} rot={Math.PI/4} /> <CoffeeTable x={-2.0} z={1.5} /> <KitchenCounter x={-3.0} z={-3.5} w={1.5} d={0.8} /> <KitchenCounter x={-1.0} z={-3.5} w={1.5} d={0.8} />
+            <mesh position={[-3.2, 1.5, -0.5]}><boxGeometry args={[1.2, 3, 1]} /><meshStandardMaterial color="#ECEFF1" metalness={0.3} roughness={0.2} /></mesh>
+            <Bed x={2.5} z={-2.5} rot={0} />
+            <group position={[-0.7, 1.25, 4.0]} ref={doorRef}>
+                <group position={[0.7, 0, 0]}>
+                    <mesh><boxGeometry args={[1.4, 2.5, 0.1]} /><meshStandardMaterial color="#5D4037" /></mesh>
+                    <mesh position={[0.5, 0, 0.06]}> <sphereGeometry args={[0.08, 8, 8]} /><meshStandardMaterial color="#FFD700" /></mesh>
+                </group>
+            </group>
+            <mesh position={[0, 8, 0]} rotation={[0, Math.PI/4, 0]}><coneGeometry args={[7, 4, 4]} /><meshStandardMaterial color={COLORS.houseRoof} roughness={0.6} /></mesh>
+            <mesh position={[-2.5, 3.5, 4.15]}><planeGeometry args={[1.5, 1.5]} /><meshStandardMaterial color="#81D4FA" emissive="#000000" roughness={0.2} metalness={0.8} /></mesh>
+            <mesh position={[2.5, 3.5, 4.15]}><planeGeometry args={[1.5, 1.5]} /><meshStandardMaterial color="#81D4FA" emissive="#000000" roughness={0.2} metalness={0.8} /></mesh>
+            <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.01, 7]}><planeGeometry args={[2, 6]} /> <meshStandardMaterial color="#9E9E9E" /></mesh>
+            <pointLight position={[0, 5, 0]} intensity={3} distance={12} color="#FFD54F" />
+        </group>
+    )
+});
+
+export const BarneyActor = ({ gameState, barneyRef, barneyTargetRef, playerPosRef, houseDoorOpen }: any) => {
+    const meshRef = useRef<any>(null);
+    const groupRef = useRef<any>(null);
+    const lightRef = useRef<any>(null);
+    const materialRef = useRef<any>(null);
+    const timeRef = useRef(0);
+    const scaleRef = useRef(0);
+    // ── Smart-chase AI — reuses the exact brains the Floor 2 shark uses, so
+    // Barney now hunts instead of sliding straight at you: he predicts your
+    // run to the elevator (interception), weaves around the trees (context
+    // steering) and paces the chase (drama director: surges then eases). ──
+    const steer      = useMemo(() => new ContextSteer(), []);
+    const director   = useMemo(() => new AIDirector(), []);
+    const chaseVel   = useRef({ x: 0, z: 0 });
+    const playerVel  = useRef({ x: 0, z: 0 });
+    const lastPlayer = useRef<{ x: number; z: number } | null>(null);
+    const wasChasing = useRef(false);
+    const _steerOut  = useMemo(() => new THREE.Vector3(), []);
+    const texture = useTexture(BARNEY_URL);
+    
+    useEffect(() => {
+        if (texture) {
+            texture.magFilter = THREE.LinearFilter;
+            texture.minFilter = THREE.LinearFilter;
+            texture.generateMipmaps = false;
+            texture.anisotropy = 1;
+            texture.needsUpdate = true;
+        }
+    }, [texture]);
+    
+    const isScary = gameState === 'chase' || gameState === 'indoor_night';
+    const isVisible = gameState === 'barney_greet' || gameState === 'indoor_day' || gameState === 'indoor_night' || gameState === 'chase' || gameState === 'sleep_fade';
+
+    useFrame((state, dt) => {
+        if (!groupRef.current || !meshRef.current) return;
+        // Fast path: when Barney is invisible AND fully scaled-out, do nothing.
+        // (The chase loop must still tick to drive him toward the player even
+        // when off-camera, so we only skip on full invisibility.)
+        if (!isVisible && scaleRef.current < 0.005) return;
+        timeRef.current += dt;
+
+        const b = barneyRef.current;
+        const p = playerPosRef.current;
+        const target = barneyTargetRef?.current || { x: b.x, z: b.z, scale: 1 };
+
+        if (gameState === 'chase' && p) {
+            // Fresh chase → reset pacing + velocity memory.
+            if (!wasChasing.current) {
+                wasChasing.current = true;
+                director.reset();
+                chaseVel.current.x = 0; chaseVel.current.z = 0;
+                playerVel.current.x = 0; playerVel.current.z = 0;
+                lastPlayer.current = { x: p.x, z: p.z };
+            }
+            // Smoothed player velocity (for prediction).
+            if (lastPlayer.current) {
+                const vx = (p.x - lastPlayer.current.x) / Math.max(dt, 1e-3);
+                const vz = (p.z - lastPlayer.current.z) / Math.max(dt, 1e-3);
+                const k = Math.min(1, dt * 4);
+                playerVel.current.x += (vx - playerVel.current.x) * k;
+                playerVel.current.z += (vz - playerVel.current.z) * k;
+                lastPlayer.current.x = p.x; lastPlayer.current.z = p.z;
+            }
+            const dx = p.x - b.x, dz = p.z - b.z;
+            const dist = Math.hypot(dx, dz) || 0.001;
+
+            // Drama pacing — surges in a "peak", eases in "respite". The shared
+            // director also drives the chase music intensity (see App.tsx).
+            const pSpeed = Math.hypot(playerVel.current.x, playerVel.current.z);
+            director.update({
+                dt, dist, awareness: 26, perceived: true, alertness: 1,
+                playerSpeed: pSpeed, shards: 0, inLunge: false, berserk: false,
+                px: p.x, pz: p.z,
+            });
+            const speed = 3.0 + director.intensity * 1.1;   // 3.0 → 4.1 u/s
+
+            // Predictive interception — cut off the run to the elevator.
+            let it = interceptTime(b.x, 0, b.z, p.x, 0, p.z,
+                                   playerVel.current.x, 0, playerVel.current.z, speed);
+            if (it < 0) it = dist / speed;
+            it = Math.min(it, 1.5);
+            const aimx = p.x + playerVel.current.x * it;
+            const aimz = p.z + playerVel.current.z * it;
+
+            // Context steering — weave around the trees toward the aim point.
+            steer.reset();
+            steer.addInterest(aimx - b.x, aimz - b.z, 1);
+            const RANGE = 4.5;
+            for (let i = 0; i < TREE_POSITIONS.length; i++) {
+                const odx = TREE_POSITIONS[i][0] - b.x;
+                const odz = TREE_POSITIONS[i][1] - b.z;
+                const od  = Math.hypot(odx, odz);
+                if (od - 1.2 < RANGE) steer.addDanger(odx, odz, od, 1.2, RANGE);
+            }
+            steer.pick(_steerOut);
+
+            // Momentum-limited move — he has mass, so turns are smooth not snappy.
+            const mk = Math.min(1, dt * 4.5);
+            chaseVel.current.x += (_steerOut.x * speed - chaseVel.current.x) * mk;
+            chaseVel.current.z += (_steerOut.z * speed - chaseVel.current.z) * mk;
+            b.x += chaseVel.current.x * dt;
+            b.z += chaseVel.current.z * dt;
+        } else {
+            wasChasing.current = false;
+            b.x = THREE.MathUtils.lerp(b.x, target.x, Math.min(1, dt * 2.5));
+            b.z = THREE.MathUtils.lerp(b.z, target.z, Math.min(1, dt * 2.5));
+        }
+        
+        // When not visible, force target scale to 0 so the actor fades out
+        // instead of lingering at its last scale.
+        const targetScale = isVisible ? (target.scale !== undefined ? target.scale : 1) : 0;
+        scaleRef.current = THREE.MathUtils.lerp(scaleRef.current, targetScale, Math.min(1, dt * (isVisible ? 3 : 5)));
+        groupRef.current.position.set(b.x, 0, b.z);
+        
+        const isActive = gameState === 'chase';
+        const bobSpeed = isActive ? 8 : 2.2;
+        const bobAmp = isActive ? 0.15 : 0.1;
+        const swaySpeed = isActive ? 4 : 1.5;
+        const swayAmp = isActive ? 0.08 : 0.05;
+        
+        const bob = Math.abs(Math.sin(timeRef.current * bobSpeed)) * bobAmp;
+        const sway = Math.sin(timeRef.current * swaySpeed) * swayAmp;
+        const tilt = Math.sin(timeRef.current * swaySpeed * 1.3) * 0.04;
+        
+        meshRef.current.position.set(sway, 0.935 + bob, 0);
+        meshRef.current.rotation.z = tilt;
+        
+        let breathe;
+        if (isActive) {
+            breathe = 1 + Math.sin(timeRef.current * 8) * 0.08;
+        } else {
+            breathe = 1 + Math.sin(timeRef.current * 2.5) * 0.04;
+        }
+        const effectiveScale = isVisible ? scaleRef.current : THREE.MathUtils.lerp(scaleRef.current, 0, Math.min(1, dt * 5));
+        scaleRef.current = effectiveScale;
+        const finalScale = 2.4 * effectiveScale * breathe;
+        meshRef.current.scale.set(finalScale, finalScale, finalScale);
+        
+        const cx = state.camera.position.x;
+        const cz = state.camera.position.z;
+        const fdx = cx - b.x, fdz = cz - b.z;
+        groupRef.current.rotation.y = Math.atan2(fdx, fdz);
+        
+        if (lightRef.current) {
+            lightRef.current.position.set(b.x, 1.5, b.z);
+        }
+    });
+    
+    if (!isVisible && scaleRef.current < 0.01) return null;
+    
+    return (
+        <>
+            <group ref={groupRef}>
+                <mesh ref={meshRef}>
+                    <planeGeometry args={[1.5, 2.0]} />
+                    <meshBasicMaterial 
+                        map={texture} 
+                        transparent={true} 
+                        alphaTest={0.05}
+                        side={THREE.DoubleSide} 
+                        toneMapped={false}
+                        color={isScary ? "#A86090" : "#ffffff"}
+                        depthWrite={false}
+                    />
+                </mesh>
+            </group>
+            {isScary && <pointLight ref={lightRef} intensity={1.8} distance={6} color="#FF1744" decay={2} />}
+        </>
+    );
+};
+
+export const FlatMapEnvironment = React.memo(({ houseDoorOpen, nightMode, doorOpenAmount }: any) => {
+    const bgColor = nightMode ? '#05051a' : '#87CEEB';
+    const fogColor = nightMode ? '#05051a' : '#C8E6F0';
+    const skyColor = nightMode ? '#05051a' : COLORS.sky;
+    const grassTint = nightMode ? '#1a2a1a' : COLORS.grass;
+    return (
+    <group>
+        <color attach="background" args={[bgColor]} />
+        <fog attach="fog" args={[fogColor, nightMode ? 8 : 25, nightMode ? 22 : 60]} />
+        {/* Night mode: cranked DOWN so the flashlight matters. Ambient 0.04
+            (was 0.07) and hemisphere 0.02 (was 0.04) — barely-there fill.
+            Day mode unchanged. */}
+        <ambientLight intensity={nightMode ? 0.04 : 0.5} color={nightMode ? '#1a1a40' : '#E3F2FD'} />
+        <hemisphereLight intensity={nightMode ? 0.02 : 0.4} color={nightMode ? '#0a0a30' : '#87CEEB'} groundColor={nightMode ? '#000000' : '#4CAF50'} />
+        <mesh position={[0, 24, 0]}><boxGeometry args={[60, 60, 60]} /><meshBasicMaterial color={skyColor} side={THREE.BackSide} /></mesh>
+        {!nightMode && <>
+            {/* Sun: 32×32 sphere was wildly overkill for a billboard 50m away.
+                12×10 still reads as round, costs ~1/8 the triangles. */}
+            <mesh position={[-20, 30, -20]}><sphereGeometry args={[4, 12, 10]} /><meshBasicMaterial color="#FFD700" /></mesh>
+            <pointLight position={[-20, 30, -20]} intensity={0.5} distance={80} color="#FFF9C4" />
+        </>}
+        {nightMode && <>
+            <mesh position={[12, 26, -18]}><sphereGeometry args={[1.8, 10, 8]} /><meshBasicMaterial color="#E8E8D8" /></mesh>
+            <pointLight position={[12, 26, -18]} intensity={0.3} distance={100} color="#7070a0" />
+        </>}
+        <directionalLight position={nightMode ? [12, 26, -18] : [-20, 30, -20]} intensity={nightMode ? 0.08 : 1.8} />
+        <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0, 0]}><planeGeometry args={[50, 50]} /><TextureMaterial url={ASSETS.grass} color={grassTint} repeat={[12, 12]} roughness={0.8} /></mesh>
+        <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.015, -2]}><planeGeometry args={[2.5, 14]} /><meshStandardMaterial color={nightMode ? '#555' : '#9E9E9E'} roughness={0.9} /></mesh>
+        <House x={0} z={10} rot={Math.PI} doorOpen={houseDoorOpen} doorOpenAmount={doorOpenAmount} />
+        <group position={[0, 0, -10]}>
+            <ElevatorFacade z={0} height={5} width={10} />
+            <mesh position={[0, 2.5, -6.5]}><boxGeometry args={[11, 5, 1]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+            <mesh position={[-5, 2.5, -3.25]}><boxGeometry args={[1, 5, 7.5]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+            <mesh position={[5, 2.5, -3.25]}><boxGeometry args={[1, 5, 7.5]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+            <mesh position={[0, 5.25, -3.25]}><boxGeometry args={[11, 0.5, 7.5]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+        </group>
+        <Instances limit={32} range={32}>
+            <cylinderGeometry args={[0.15, 0.2, 3, 6]} />
+            <meshStandardMaterial color="#5D4037" roughness={0.9} />
+            {TREE_POSITIONS.map(([tx,tz,s],i) => (
+                <Instance key={i} position={[tx, 1.5*s, tz]} scale={[s,s,s]} />
+            ))}
+        </Instances>
+        <Instances limit={32} range={32}>
+            <coneGeometry args={[1.2, 2, 6]} />
+            <meshStandardMaterial color="#2E7D32" roughness={0.85} />
+            {TREE_POSITIONS.map(([tx,tz,s],i) => (
+                <Instance key={i} position={[tx, 3.5*s, tz]} scale={[s,s,s]} />
+            ))}
+        </Instances>
+        <Instances limit={32} range={32}>
+            <coneGeometry args={[0.9, 1.6, 6]} />
+            <meshStandardMaterial color="#388E3C" roughness={0.85} />
+            {TREE_POSITIONS.map(([tx,tz,s],i) => (
+                <Instance key={i} position={[tx, 4.3*s, tz]} scale={[s,s,s]} />
+            ))}
+        </Instances>
+        <Instances limit={32} range={32}>
+            <coneGeometry args={[0.6, 1.2, 6]} />
+            <meshStandardMaterial color="#43A047" roughness={0.85} />
+            {TREE_POSITIONS.map(([tx,tz,s],i) => (
+                <Instance key={i} position={[tx, 4.9*s, tz]} scale={[s,s,s]} />
+            ))}
+        </Instances>
+        {!nightMode && [[-15,22,10,3],[10,25,-5,4],[20,23,15,2.5],[-5,24,-15,3.5],[0,26,20,2]].map(([cx,cy,cz,cr],i) => (
+            <mesh key={i} position={[cx,cy,cz]}><sphereGeometry args={[cr, 8, 8]} /><meshBasicMaterial color="#FFFFFF" transparent opacity={0.7} /></mesh>
+        ))}
+        {[[-6,5,-6,15],[6,5,6,15],[-6,15,6,15],[-6,5,-4.5,5],[4.5,5,6,5]].map(([x1,z1,x2,z2],i) => {
+            const dx=x2-x1, dz=z2-z1, len=Math.sqrt(dx*dx+dz*dz), ang=Math.atan2(dx,dz);
+            return (<group key={i}>
+                <mesh position={[(x1+x2)/2, 0.4, (z1+z2)/2]} rotation={[0,ang,0]}><boxGeometry args={[0.04, 0.04, len]} /><meshStandardMaterial color="#8D6E63" roughness={0.8} /></mesh>
+                <mesh position={[(x1+x2)/2, 0.7, (z1+z2)/2]} rotation={[0,ang,0]}><boxGeometry args={[0.04, 0.04, len]} /><meshStandardMaterial color="#8D6E63" roughness={0.8} /></mesh>
+            </group>);
+        })}
+    </group>
+    );
+});
+
+// ── Level 2 ────────────────────────────────────────────────────────────
+// "Terror floor" — kept deliberately empty of gameplay. Felipe hasn't
+// decided what this floor becomes yet. Goal of THIS pass is atmosphere:
+// you step out of the elevator and immediately feel "wrong place" —
+// enclosed-but-vast, decayed, the flashlight is the only useful tool.
+// No NPCs, no scripted events, just dread.
+const Level2DistantFlicker = () => {
+    // A faint, slow-pulsing pointLight far away in the void. Mimics a
+    // failing fluorescent on the edge of the map — you can't see WHAT is
+    // flickering, only the glow at the limit of the fog. Cheap: one light.
+    const lightRef = useRef<THREE.PointLight>(null);
+    useFrame((state) => {
+        const l = lightRef.current;
+        if (!l) return;
+        const t = state.clock.elapsedTime;
+        // Mostly off, occasional flicker spikes. Mathematical "stutter" via
+        // squared sin so the pulses are sharp + irregular.
+        const base = Math.sin(t * 0.7) * 0.5 + 0.5;
+        const stutter = Math.pow(Math.sin(t * 11.3), 8) * (Math.sin(t * 2.1) > 0.7 ? 1 : 0);
+        l.intensity = base * 0.4 + stutter * 1.5;
+    });
+    return <pointLight ref={lightRef} position={[28, 4, -28]} distance={14} decay={2} color="#FFCC88" />;
+};
+
+export const Level2Environment = React.memo(() => (
+    <group>
+        {/* Even darker than before — ambient barely-there. The flashlight
+            is meant to be your only real source of vision here. */}
+        <color attach="background" args={['#030304']} />
+        <fog attach="fog" args={['#030304', 5, 18]} />
+        <ambientLight intensity={0.06} color="#2a2a3a" />
+        <hemisphereLight intensity={0.04} color="#1a1a2a" groundColor="#050508" />
+
+        {/* Ceiling — lowered + closer for claustrophobia. */}
+        <mesh position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[80, 80]} />
+            <meshStandardMaterial color="#0c0c12" roughness={1} side={THREE.DoubleSide} />
+        </mesh>
+
+        {/* Floor — concrete-ish gray instead of clinical off-white. Gives
+            the "abandoned basement" vibe and means the flashlight HOT spot
+            stays readable (highly reflective floor was washing the beam). */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+            <planeGeometry args={[80, 80]} />
+            <meshStandardMaterial color="#28282e" roughness={0.95} />
+        </mesh>
+        {/* Subtle floor seams */}
+        {[-20, -10, 0, 10, 20].map((z) => (
+            <mesh key={`seam-z-${z}`} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, z]}>
+                <planeGeometry args={[80, 0.04]} />
+                <meshBasicMaterial color="#1a1a20" />
+            </mesh>
+        ))}
+        {[-20, -10, 0, 10, 20].map((x) => (
+            <mesh key={`seam-x-${x}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.005, 0]}>
+                <planeGeometry args={[0.04, 80]} />
+                <meshBasicMaterial color="#1a1a20" />
+            </mesh>
+        ))}
+
+        {/* WALLS — four big slabs around the play area at radius 30. Just
+            outside the fog start, so you only see them when the flashlight
+            beam catches the edge. Gives "enclosed but huge" feeling. */}
+        <mesh position={[0, 4, -30]}><boxGeometry args={[80, 8, 0.5]} /><meshStandardMaterial color="#15151b" roughness={1} /></mesh>
+        <mesh position={[0, 4, 30]}><boxGeometry args={[80, 8, 0.5]} /><meshStandardMaterial color="#15151b" roughness={1} /></mesh>
+        <mesh position={[-30, 4, 0]}><boxGeometry args={[0.5, 8, 80]} /><meshStandardMaterial color="#15151b" roughness={1} /></mesh>
+        <mesh position={[30, 4, 0]}><boxGeometry args={[0.5, 8, 80]} /><meshStandardMaterial color="#15151b" roughness={1} /></mesh>
+
+        {/* Stains on the floor — couple of darker patches that suggest age
+            without telling a story. Tiny meshes, cheap. */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[6, 0.006, -4]}>
+            <circleGeometry args={[1.2, 12]} />
+            <meshBasicMaterial color="#0c0c12" transparent opacity={0.7} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-8, 0.006, 5]}>
+            <circleGeometry args={[0.8, 10]} />
+            <meshBasicMaterial color="#0c0c12" transparent opacity={0.6} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[2, 0.006, 12]}>
+            <circleGeometry args={[1.6, 12]} />
+            <meshBasicMaterial color="#0c0c12" transparent opacity={0.5} />
+        </mesh>
+
+        {/* Distant flickering light — far away in a corner, edge of fog */}
+        <Level2DistantFlicker />
+
+        {/* Elevator shell back — unchanged. */}
+        <group position={[0, 0, -10]}>
+            <ElevatorFacade z={0} height={5} width={10} />
+            <mesh position={[0, 2.5, -6.5]}><boxGeometry args={[11, 5, 1]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+            <mesh position={[-5, 2.5, -3.25]}><boxGeometry args={[1, 5, 7.5]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+            <mesh position={[5, 2.5, -3.25]}><boxGeometry args={[1, 5, 7.5]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+            <mesh position={[0, 5.25, -3.25]}><boxGeometry args={[11, 0.5, 7.5]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+        </group>
+    </group>
+));

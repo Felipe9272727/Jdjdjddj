@@ -66,16 +66,30 @@ function overrideLabel(): string | null {
 }
 
 // ── rastro de crash (localStorage) ─────────────────────────────────────────
-const CRASH_KEY = (id: string) => `npc_load_crash_${id}`;
+// "v2" na chave INVALIDA os marcadores da era pré-contexto-2048 (eles baniam
+// o 2B pra sempre por crashes que a correção de KV já resolveu). E agora o
+// marcador EXPIRA em 12h: ele existe pra quebrar loop de crash, não pra
+// aposentar o modelo — o celular de amanhã pode ter VRAM de sobra.
+const CRASH_KEY = (id: string) => `npc_load_crash_v2_${id}`;
+const CRASH_TTL_MS = 12 * 60 * 60 * 1000;
 function markAttempt(id: string) {
     try { localStorage.setItem(CRASH_KEY(id), String(Date.now())); } catch { /* ok */ }
 }
 function clearAttempt(id: string) {
     try { localStorage.removeItem(CRASH_KEY(id)); } catch { /* ok */ }
 }
-// se o rastro ficou pra trás (a aba morreu no load), pula esse tamanho.
+// se o rastro ficou pra trás (a aba morreu no load) e ainda é recente, pula.
 function crashedRecently(id: string): boolean {
-    try { return localStorage.getItem(CRASH_KEY(id)) != null; } catch { return false; }
+    try {
+        const raw = localStorage.getItem(CRASH_KEY(id));
+        if (raw == null) return false;
+        const ts = Number(raw);
+        if (!Number.isFinite(ts) || Date.now() - ts > CRASH_TTL_MS) {
+            localStorage.removeItem(CRASH_KEY(id));
+            return false;
+        }
+        return true;
+    } catch { return false; }
 }
 
 type Delta = { choices?: Array<{ delta?: { content?: string }; message?: { content?: string } }> };
@@ -117,7 +131,7 @@ function startIndex(): number {
 
 // watchdogs (ms)
 const LOAD_WATCHDOG_MS = 120_000;   // sem NENHUM evento de progresso = load morto
-const GEN_WATCHDOG_MS = 90_000;     // sem NENHUM token = geração morta
+const GEN_WATCHDOG_MS = 120_000;    // sem NENHUM token = geração morta (celular lento tem folga)
 
 let enginePromise: Promise<Engine> | null = null;
 let loadedQwen3 = false;
@@ -237,54 +251,77 @@ export async function sendToNpc(userText: string): Promise<void> {
     try { engine = await initLLM(); } catch { return; }
     const history = [...npc.history, { role: 'user' as const, content: text }];
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
-    try {
-        const messages = [{ role: 'system', content: PERSONA }, ...history];
-        // WATCHDOG de geração: se o stream morrer em silêncio (worker crash, GPU
-        // engasgou), sem isso a fase ficava 'thinking' PRA SEMPRE e todo envio
-        // seguinte caía no return precoce — o NPC nunca mais respondia.
-        let stalled = false;
-        const fire = () => { stalled = true; try { engine.interruptGenerate?.(); } catch { /* ok */ } };
-        let watchdog = window.setTimeout(fire, GEN_WATCHDOG_MS);
-        let acc = '';
+    const messages = [{ role: 'system', content: PERSONA }, ...history];
+
+    // WATCHDOG de geração: se o stream morrer em silêncio (worker crash, GPU
+    // engasgou), sem isso a fase ficava 'thinking' PRA SEMPRE e todo envio
+    // seguinte caía no return precoce — o NPC nunca mais respondia.
+    // E falha sem NENHUM token ganha UMA segunda tentativa automática: o Abort
+    // de mapAsync do print do Felipe era a GPU engasgando — muitas vezes na
+    // segunda passa, sem ele precisar fazer nada.
+    let stalled = false;
+    let acc = '';
+    let threw: unknown = null;
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+        stalled = false;
+        acc = '';
+        threw = null;
         try {
-            const stream = await engine.chat.completions.create(genOpts(messages, true)) as AsyncIterable<Delta>;
-            for await (const chunk of stream) {
-                window.clearTimeout(watchdog);
-                if (stalled) break;
-                const d = chunk.choices?.[0]?.delta?.content ?? '';
-                if (d) { acc += d; npcSet({ streaming: visibleText(acc) }); }
-                watchdog = window.setTimeout(fire, GEN_WATCHDOG_MS);
-            }
-        } finally {
-            window.clearTimeout(watchdog);
-        }
-        let finalText = visibleText(acc);
-
-        // resposta vazia SEM stall? Uma chance extra SEM streaming (se o problema
-        // for o formato dos chunks, a resposta completa contorna; se for think
-        // comendo tudo, pelo menos confirmamos e mostramos erro de verdade).
-        if (!finalText && !stalled) {
+            const fire = () => { stalled = true; try { engine.interruptGenerate?.(); } catch { /* ok */ } };
+            let watchdog = window.setTimeout(fire, GEN_WATCHDOG_MS);
             try {
-                const full = await engine.chat.completions.create(genOpts(messages, false)) as Delta;
-                finalText = visibleText(full.choices?.[0]?.message?.content ?? '');
-            } catch { /* cai no erro abaixo */ }
-        }
+                const stream = await engine.chat.completions.create(genOpts(messages, true)) as AsyncIterable<Delta>;
+                for await (const chunk of stream) {
+                    window.clearTimeout(watchdog);
+                    if (stalled) break;
+                    const d = chunk.choices?.[0]?.delta?.content ?? '';
+                    if (d) { acc += d; npcSet({ streaming: visibleText(acc) }); }
+                    watchdog = window.setTimeout(fire, GEN_WATCHDOG_MS);
+                }
+            } finally {
+                window.clearTimeout(watchdog);
+            }
+            let finalText = visibleText(acc);
 
-        if (!finalText) {
-            npcSet({
-                phase: 'ready', speaking: false, streaming: '',
-                error: stalled
-                    ? 'Ele travou pensando (90s sem resposta). Manda de novo — se repetir, recarrega a página.'
-                    : 'Ele ficou sem palavras (resposta vazia). Manda de novo; se repetir muito, recarrega a página.',
-            });
-            return;
+            // resposta vazia SEM stall? Uma chance extra SEM streaming (se o
+            // problema for o formato dos chunks, a resposta completa contorna).
+            if (!finalText && !stalled) {
+                try {
+                    const full = await engine.chat.completions.create(genOpts(messages, false)) as Delta;
+                    finalText = visibleText(full.choices?.[0]?.message?.content ?? '');
+                } catch { /* cai nas tentativas abaixo */ }
+            }
+
+            if (finalText) {
+                npcSet({
+                    history: [...history, { role: 'assistant', content: finalText }],
+                    streaming: '', phase: 'ready', speaking: false,
+                });
+                return;
+            }
+        } catch (e: unknown) {
+            threw = e;
         }
-        npcSet({
-            history: [...history, { role: 'assistant', content: finalText }],
-            streaming: '', phase: 'ready', speaking: false,
-        });
-    } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        npcSet({ phase: 'ready', speaking: false, streaming: '', error: `Deu ruim na resposta: ${msg}` });
+        // primeira falha sem NENHUM token produzido: respira 1.5s e tenta de
+        // novo sozinho (a GPU pode ter só engasgado). Com texto parcial ou na
+        // 2ª tentativa, desiste e mostra erro de verdade.
+        if (attempt === 1 && !acc) {
+            npcSet({ streaming: '' });
+            await new Promise((r) => window.setTimeout(r, 1500));
+        }
     }
+
+    const rawMsg = threw instanceof Error ? threw.message : String(threw ?? '');
+    const gpuChoked = /mapAsync|GPUBuffer|device.{0,20}lost|out of memory|oom/i.test(rawMsg);
+    npcSet({
+        phase: 'ready', speaking: false, streaming: '',
+        error: stalled
+            ? 'Ele travou pensando (2min sem resposta). Manda de novo — se repetir, recarrega a página.'
+            : gpuChoked
+                ? 'A GPU do celular engasgou na hora de responder (memória de vídeo no limite — fechar outras abas ajuda). Manda de novo!'
+                : rawMsg
+                    ? `Deu ruim na resposta: ${rawMsg}`
+                    : 'Ele ficou sem palavras (resposta vazia). Manda de novo; se repetir muito, recarrega a página.',
+    });
 }

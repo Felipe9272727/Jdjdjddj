@@ -1,0 +1,6 @@
+.skills/
+node_modules/
+
+# cópias runtime do jubileu/public/ na raiz (só os áudios são versionados)
+/models/
+/textures/
