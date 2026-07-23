@@ -62,7 +62,7 @@ const Floor10NpcChat: React.FC = () => {
     return (
         <div style={panelStyle}>
             <div style={headerStyle}>
-                <span>Hóspede do 10º{st.modelLabel ? ` · Qwen2.5-${st.modelLabel}` : ''}</span>
+                <span>Hóspede do 10º{st.modelLabel ? ` · ${st.modelLabel}` : ''}</span>
                 <button onClick={close} style={xStyle} aria-label="Fechar">✕</button>
             </div>
 
