@@ -58,6 +58,9 @@ import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import Floor8Room from './Floor8Room';
 import Floor10Base from './Floor10Base';
+import Floor10Npc from './Floor10Npc';
+import Floor10NpcChat from './Floor10NpcChat';
+import { useNpcOpen } from './npc/npcStore';
 import Floor8Cutscene from './Floor8Cutscene';
 import Floor9Forest from './Floor9Forest';
 import { Floor9Elevator } from './Floor9Elevator';
@@ -194,6 +197,8 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 9 && <Floor9Forest playerPositionRef={playerPositionRef} />}
       {/* Andar 10 — PLACEHOLDER: base plana, esperando virar um andar */}
       {level === 10 && <Floor10Base />}
+      {/* NPC com LLM real (Qwen2.5 quantizado no browser) — corpo procedural v1 */}
+      {level === 10 && <Floor10Npc playerPositionRef={playerPositionRef} />}
       {/* the old baseplate is the FLOOR 7 TEMPLATE now — Creator Mode only */}
       {/* Andar 7 (navio pirata) is mounted as a Canvas sibling below — it needs
           the Floor7 WASM handle ref that this memoized World doesn't carry. */}
@@ -855,6 +860,9 @@ export default function App() {
   // pointer lock, same contract as the shop/dialogue overlays.
   const [f6UiOpen, setF6UiOpen] = useState(false);
   const handleF6UiOpenChange = useCallback((open: boolean) => setF6UiOpen(open), []);
+  // Andar 10: painel de conversa do NPC (LLM) aberto → congela o player e solta
+  // o pointer lock, mesmo contrato dos overlays acima. Seletor enxuto (só o bool).
+  const npcChatOpen = useNpcOpen();
   // Andar 8 (interrogatório): true enquanto a caixa de diálogo está na tela —
   // congela o Player e solta o pointer lock, mesmo contrato do Floor 6.
   const [f8UiOpen, setF8UiOpen] = useState(false);
@@ -1653,14 +1661,14 @@ export default function App() {
   const activePointers = useRef(new Map<number, { type: 'move' | 'look' | 'aux'; startX: number; startY: number; currX: number; currY: number }>());
 
   useEffect(() => {
-    if (!dialogueOpen && !barneyDialogueOpen && !f6UiOpen && !f8UiOpen) return;
+    if (!dialogueOpen && !barneyDialogueOpen && !f6UiOpen && !f8UiOpen && !npcChatOpen) return;
     moveInput.current = { x: 0, y: 0 };
     lookInput.current = { x: 0, y: 0 };
     keysRef.current = { w: false, a: false, s: false, d: false };
     activePointers.current.clear();
     prevPinchDist.current = null;
     setJoystickVisual(p => ({ ...p, active: false }));
-  }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen, f6UiOpen, f8UiOpen]);
+  }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen, f6UiOpen, f8UiOpen, npcChatOpen]);
 
   useEffect(() => {
     if (!dialogueOpen && !barneyDialogueOpen && !diverDialogueOpen) return;
@@ -1672,8 +1680,8 @@ export default function App() {
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!hasStarted) return;
-    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen && !f6UiOpen && !f8UiOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
-    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen) return;
+    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen && !f6UiOpen && !f8UiOpen && !npcChatOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
+    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen || npcChatOpen) return;
     e.preventDefault(); e.stopPropagation();
     const { pointerId, clientX, clientY } = e; const screenW = window.innerWidth; const screenH = window.innerHeight;
     const isPortrait = screenH > screenW; const zoneLimit = isPortrait ? 0.5 : 0.4;
@@ -1742,7 +1750,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isDesktop || !hasStarted) return;
-    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen) { document.exitPointerLock(); return; }
+    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen || npcChatOpen) { document.exitPointerLock(); return; }
     const upd = () => { const k = keysRef.current; let x=0, y=0; if (k.w) y-=1; if (k.s) y+=1; if (k.a) x-=1; if (k.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
     const kd = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -1751,7 +1759,7 @@ export default function App() {
         setSettingsOpen((v) => !v);
         return;
       }
-      if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen) return;
+      if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen || npcChatOpen) return;
       const k = keysRef.current;
       switch(e.key.toLowerCase()) {
         case 'w': k.w=true; break;
@@ -1877,7 +1885,7 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
+            <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || npcChatOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
             {/* Andar 8: direção de câmera do interrogatório/despertar/arremesso —
                 montada DEPOIS do <Player> pra sobrescrever a câmera por frame. */}
             {hasStarted && currentLevel === 8 && (
@@ -2555,6 +2563,8 @@ export default function App() {
       {hasStarted && currentLevel === 8 && <Floor8Image />}
       {/* Andar 8 — DENTRO da porta 21: o platformer 2.5D de tricô (self-gate por fase) */}
       {hasStarted && currentLevel === 8 && <Floor8Platformer />}
+      {/* Andar 10 — UI de conversa com o NPC (LLM). Overlay DOM fora do Canvas. */}
+      {hasStarted && currentLevel === 10 && <Floor10NpcChat />}
 
       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}
       {fallGameOver && (
