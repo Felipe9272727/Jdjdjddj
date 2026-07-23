@@ -418,7 +418,8 @@ const QuadGLB: React.FC<{ url: string; sp: F9Species; slot: number; scale: numbe
         c.position.set(-ctr.x, -box.min.y, -ctr.z);
         c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.frustumCulled = false; m.castShadow = false; m.receiveShadow = false; } });
         const wrap = new THREE.Group(); wrap.add(c);
-        wrap.rotation.y = Math.PI / 2; wrap.scale.setScalar(scale);
+        // o modelo rigado olha +Z (= forward do jogo), igual o saltito. Sem giro.
+        wrap.rotation.y = 0; wrap.scale.setScalar(scale);
         return wrap;
     }, [scene, scale]);
     const { actions } = useAnimations(animations, model);
@@ -429,14 +430,17 @@ const QuadGLB: React.FC<{ url: string; sp: F9Species; slot: number; scale: numbe
         if (w) { w.reset().play(); w.setEffectiveWeight(0); }
     }, [actions]);
     useFrame((_s, dt) => {
+        // DEV: focing tunável ao vivo (window.__quadFaceY) pra achar o valor certo
+        const tune = (typeof window !== 'undefined') ? (window as unknown as { __quadFaceY?: number }).__quadFaceY : undefined;
+        if (tune != null) model.rotation.y = tune;
         const ag = speciesSlots(sp)[slot];
         const spd = ag && ag.state !== 'dead' ? ag.speedNow : 0;
-        const moving = spd > 0.25;
+        const moving = spd > 0.08;
         const k = Math.min(1, dt * 6);
         const w = pick('walk'), idle = pick('idle');
         if (w) {
             w.setEffectiveWeight(THREE.MathUtils.lerp(w.getEffectiveWeight(), moving ? 1 : 0, k));
-            w.timeScale = THREE.MathUtils.clamp(spd / 1.5, 0.7, 2.4);
+            w.timeScale = THREE.MathUtils.clamp(spd / 1.2, 0.8, 2.6);
         }
         if (idle) idle.setEffectiveWeight(THREE.MathUtils.lerp(idle.getEffectiveWeight(), moving ? 0 : 1, k));
     });
