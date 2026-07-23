@@ -26,9 +26,25 @@ const WLLAMA_V = '3.5.1';
 // sem re-bundle. Em v3.5.1 tem UM wasm só em esm/wasm/wllama.wasm.
 const CDN = `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_V}/esm`;
 const WLLAMA_ESM = `${CDN}/index.js`;
-const WLLAMA_CDN_HELPER = `${CDN}/wasm-from-cdn.js`;
 const WASM_SINGLE = `${CDN}/wasm/wllama.wasm`;
 const HF = (repo: string, file: string) => `https://huggingface.co/${repo}/resolve/main/${file}`;
+
+// wllama v3 usa uma única build e exige literalmente a chave "default".
+// O pacote 3.5.1 não publica esm/wasm-from-cdn.js; tentar importá-lo sempre
+// caía no fallback antigo, que não tinha "default" e produzia o erro da UI.
+export const WLLAMA_PATHS = Object.freeze({ default: WASM_SINGLE });
+export const CPU_LOAD_CONFIG = Object.freeze({
+    n_ctx: 2048,
+    n_threads: 1,
+    n_gpu_layers: 0,
+});
+export const CHAT_COMPLETION_CONFIG = Object.freeze({
+    stream: true,
+    max_tokens: 220,
+    temperature: 0.7,
+    top_p: 0.9,
+    top_k: 40,
+});
 
 type ModelDef = { url: string; label: string; qwen3?: boolean };
 // ordem de tentativa (do desejado pro garantido)
@@ -68,15 +84,26 @@ export function visibleText(s: string): string {
     return s.replace(/^\s+/, '');
 }
 
-type Chunk = { currentText?: string; piece?: string; token?: number };
+export type ChatChunk = {
+    choices?: Array<{ delta?: { content?: string | null } }>;
+    // Compatibilidade defensiva com builds antigos do wllama.
+    currentText?: string;
+    piece?: string;
+};
+
+export function chunkDelta(chunk: ChatChunk): string {
+    const oaiDelta = chunk.choices?.[0]?.delta?.content;
+    if (typeof oaiDelta === 'string') return oaiDelta;
+    return typeof chunk.piece === 'string' ? chunk.piece : '';
+}
+
 type WllamaInstance = {
     loadModelFromUrl(url: string, params: Record<string, unknown>): Promise<void>;
-    createChatCompletion(opts: Record<string, unknown>): Promise<AsyncIterable<Chunk>>;
+    createChatCompletion(opts: Record<string, unknown>): Promise<AsyncIterable<ChatChunk>>;
     exit?: () => Promise<void> | void;
 };
 type WllamaCtor = new (paths: Record<string, string>, cfg?: Record<string, unknown>) => WllamaInstance;
 
-let inst: WllamaInstance | null = null;
 let loadedQwen3 = false;
 let enginePromise: Promise<WllamaInstance> | null = null;
 
@@ -86,33 +113,20 @@ export function initLLM(): Promise<WllamaInstance> {
     enginePromise = (async () => {
         try { await (navigator as unknown as { storage?: { persist?: () => Promise<boolean> } }).storage?.persist?.(); } catch { /* ok */ }
         const mod = (await import(/* @vite-ignore */ WLLAMA_ESM)) as unknown as { Wllama: WllamaCtor };
-        // caminhos do wasm: de preferência o helper do próprio pacote (sabe a
-        // estrutura da versão); se não importar, cai no jsdelivr manual.
-        // config do wasm: de preferência o helper oficial (sabe as chaves certas
-        // da versão); senão, o wasm único do v3.5.1 em ambas as chaves.
-        const fallbackPaths = { 'single-thread/wllama.wasm': WASM_SINGLE, 'multi-thread/wllama.wasm': WASM_SINGLE };
-        let paths: Record<string, string>;
-        try {
-            const helper = (await import(/* @vite-ignore */ WLLAMA_CDN_HELPER)) as unknown as { default?: Record<string, string> };
-            paths = helper.default ?? fallbackPaths;
-        } catch {
-            paths = fallbackPaths;
-        }
         let lastErr: unknown = null;
         for (let i = startIndex(); i < MODELS.length; i++) {
             const m = MODELS[i];
             npcSet({ modelLabel: m.label, loadText: `carregando ${m.label} (CPU)…`, loadProgress: 0 });
             let cur: WllamaInstance | null = null;
             try {
-                cur = new mod.Wllama(paths, { suppressNativeLog: true });
+                cur = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true });
                 await cur.loadModelFromUrl(m.url, {
-                    n_ctx: 2048,
+                    ...CPU_LOAD_CONFIG,
                     progressCallback: (p: { loaded?: number; total?: number }) => {
                         const frac = p.total ? (p.loaded ?? 0) / p.total : 0;
                         npcSet({ loadProgress: frac, loadText: `baixando ${m.label}… ${Math.round(frac * 100)}%` });
                     },
                 });
-                inst = cur;
                 loadedQwen3 = !!m.qwen3;
                 npcSet({ phase: 'ready', loadText: 'pronto', loadProgress: 1 });
                 return cur;
@@ -140,22 +154,24 @@ export async function sendToNpc(userText: string): Promise<void> {
     const history = [...npc.history, { role: 'user' as const, content: text }];
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
     try {
-        // Qwen3.5 tem "modo pensamento"; no GGUF/llama.cpp o interruptor é o
-        // /no_think no prompt (o extra_body do WebLLM não existe aqui).
-        const sys = loadedQwen3 ? `${PERSONA}\n/no_think` : PERSONA;
-        const messages = [{ role: 'system', content: sys }, ...history];
+        // Qwen3.5 tem "modo pensamento"; o wllama v3 encaminha a opção oficial
+        // do chat template, em vez de depender de uma instrução textual.
+        const messages = [{ role: 'system', content: PERSONA }, ...history];
         const stream = await engine.createChatCompletion({
-            messages, stream: true, nPredict: 220,
-            sampling: { temp: 0.7, top_p: 0.9 },
+            messages,
+            ...CHAT_COMPLETION_CONFIG,
+            ...(loadedQwen3 ? { chat_template_kwargs: { enable_thinking: false } } : {}),
         });
         let acc = '';
         for await (const chunk of stream) {
-            // wllama manda currentText (acumulado); alguns builds mandam piece (incremental)
+            // O v3.5.1 segue o formato OpenAI: choices[0].delta.content.
+            // currentText/piece ficam só como compatibilidade com builds antigos.
             if (typeof chunk.currentText === 'string') acc = chunk.currentText;
-            else if (typeof chunk.piece === 'string') acc += chunk.piece;
+            else acc += chunkDelta(chunk);
             npcSet({ streaming: visibleText(acc) });
         }
-        const finalText = visibleText(acc) || '…';
+        const finalText = visibleText(acc).trim();
+        if (!finalText) throw new Error('o modelo terminou sem gerar uma resposta visível');
         npcSet({ history: [...history, { role: 'assistant', content: finalText }], streaming: '', phase: 'ready', speaking: false });
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
