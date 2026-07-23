@@ -79,7 +79,7 @@ import { f6, f6Reset, f6Subscribe } from './f6Escape';
 import { f8, f8Reset, f8Subscribe } from './f8Arquivo';
 import { p8Reset } from './f8Platformer';
 import { f8StartBoss } from './f8Dev';
-import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE } from './constants';
+import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE, hasWalkInElevator } from './constants';
 import PhysicsProps, { type CrateSpec } from './PhysicsProps';
 import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from './PhotoMode';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
@@ -1193,15 +1193,11 @@ export default function App() {
   elevatorStateRef.current = { elevatorTimer, doorsClosed, currentLevel };
   const handlePlayerEnterElevator = useCallback(() => {
     const { elevatorTimer: t, doorsClosed: d, currentLevel: lv } = elevatorStateRef.current;
-    // Floors 4 and 5 are full-screen overlays — the 3D avatar idles INSIDE the
-    // 3D elevator zone beneath them, so this proximity trigger would re-arm the
-    // elevator and silently yank the player back ("volto do nada pro lobby").
-    // Floor 6's elevator is BROKEN (and later blocked by the guest) — no rides.
-    // Floor 9 (O Viveiro) has NO ridable elevator — you FELL in through the
-    // canopy and leave via the RAIZ; the player spawns near the world origin
-    // (the pouso), which sits in the elevator zone, so without this guard the
-    // proximity trigger armed a 5s timer and yanked you back to the lobby.
-    if (lv === 4 || lv === 5 || lv === 6 || lv === 9) return;
+    // Floors 4+ own their exits. In particular, the Viveiro's main path crosses
+    // the lobby cab's old z coordinate; an ever-growing blacklist let this bug
+    // return whenever a new floor shipped. Keep an allow-list here as defense
+    // in depth even though Player suppresses the spatial trigger there too.
+    if (!hasWalkInElevator(lv)) return;
     if (t === null && !d) setElevatorTimer(5);
   }, []);
   const handleInteractionUpdate = useCallback((c: boolean) => { setCanInteractDoor(p => p !== c ? c : p); }, []);
@@ -1945,6 +1941,7 @@ export default function App() {
             {hasStarted && (
                 <FPArmModel
                   zoomLevel={zoomLevel}
+                  currentLevel={currentLevel}
                   armExtended={inventory.flashlight.owned && inventory.flashlight.active}
                   pickupTrigger={pickupTrigger}
                   pickupItem={pickupItem}

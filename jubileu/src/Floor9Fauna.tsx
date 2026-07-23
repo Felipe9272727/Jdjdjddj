@@ -40,9 +40,14 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { SkeletonUtils } from 'three-stdlib';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import saltitoModel from './assets/models/critters/saltitoRig.glb';
 import cervoRig from './assets/models/critters/cervoRig.glb';
 import vultoRig from './assets/models/critters/vultoRig.glb';
+import fiapoFurAlbedoUrl from './assets/f9/fiapo-fur-albedo-v1.webp';
+import fiapoFurHeightUrl from './assets/f9/fiapo-fur-height-v1.webp';
+import fiapoSkinAlbedoUrl from './assets/f9/fiapo-skin-albedo-v1.webp';
+import fiapoSkinHeightUrl from './assets/f9/fiapo-skin-height-v1.webp';
 import { f9, f9WakeShare } from './f9Floresta';
 import { f9eco, f9CycleFrac, F9_AVISO_AT, f9EcoTryPounce, type F9Agent, type F9CyclePhase, type F9Species } from './f9Eco';
 import { f9GroundHeight } from './f9Ground';
@@ -778,7 +783,143 @@ export const BlobShadows: React.FC = () => {
     </>);
 };
 
-// ── O FIAPO em PRIMEIRA PESSOA: você DENTRO do corpo do bicho ───────────────
+// ── O FIAPO em PRIMEIRA PESSOA: viewmodel 3D texturizado ────────────────────
+
+function baked(
+    geometry: THREE.BufferGeometry,
+    position: readonly [number, number, number],
+    rotation: readonly [number, number, number] = [0, 0, 0],
+    scale: readonly [number, number, number] = [1, 1, 1],
+): THREE.BufferGeometry {
+    const matrix = new THREE.Matrix4().compose(
+        new THREE.Vector3(...position),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)),
+        new THREE.Vector3(...scale),
+    );
+    geometry.applyMatrix4(matrix);
+    return geometry;
+}
+
+function merged(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
+    const result = mergeGeometries(parts, false);
+    if (!result) throw new Error('Fiapo viewmodel geometry could not be merged');
+    for (const part of parts) part.dispose();
+    result.computeBoundingSphere();
+    return result;
+}
+
+interface FiapoViewGeometry {
+    muzzleFur: THREE.BufferGeometry;
+    muzzleSkin: THREE.BufferGeometry;
+    nostrils: THREE.BufferGeometry;
+    whiskers: THREE.BufferGeometry;
+    pawFur: THREE.BufferGeometry;
+    pawPads: THREE.BufferGeometry;
+    pawClaws: THREE.BufferGeometry;
+}
+
+function buildFiapoViewGeometry(): FiapoViewGeometry {
+    const muzzleFur = merged([
+        // Only the upper ridge survives at the bottom edge of the frame. A
+        // complete head reads as a floating trunk in first person.
+        baked(new THREE.SphereGeometry(1, 20, 12), [0, -0.860, -1.050], [0.05, 0, 0], [0.075, 0.030, 0.060]),
+    ]);
+    const muzzleSkin = merged([
+        baked(new THREE.SphereGeometry(1, 20, 12), [0, -0.810, -1.115], [0.12, 0, 0], [0.045, 0.018, 0.030]),
+    ]);
+    const mouthCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.026, -0.855, -1.080),
+        new THREE.Vector3(0, -0.861, -1.090),
+        new THREE.Vector3(0.026, -0.855, -1.080),
+    ]);
+    const nostrils = merged([
+        baked(new THREE.SphereGeometry(1, 10, 7), [-0.015, -0.802, -1.139], [0, 0, 0], [0.0055, 0.003, 0.004]),
+        baked(new THREE.SphereGeometry(1, 10, 7), [0.015, -0.802, -1.139], [0, 0, 0], [0.0055, 0.003, 0.004]),
+        new THREE.TubeGeometry(mouthCurve, 8, 0.0011, 4, false),
+    ]);
+    const whiskerParts: THREE.BufferGeometry[] = [];
+    for (const side of [-1, 1]) {
+        for (let i = 0; i < 3; i++) {
+            const y = -0.834 + i * 0.009;
+            const curve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(side * 0.043, y, -1.096),
+                new THREE.Vector3(side * (0.108 + i * 0.005), y + 0.002, -1.105),
+                new THREE.Vector3(side * (0.170 + i * 0.010), y + (i - 1) * 0.012, -1.086 + i * 0.004),
+            ]);
+            whiskerParts.push(new THREE.TubeGeometry(curve, 7, 0.00065, 4, false));
+        }
+    }
+    const whiskers = merged(whiskerParts);
+
+    const pawFurParts: THREE.BufferGeometry[] = [
+        // Tapered forearm and one flat dorsal paw mass: animal anatomy rather
+        // than a human palm with long sausage fingers.
+        baked(new THREE.CylinderGeometry(0.055, 0.035, 0.220, 12, 2, false), [0, -0.004, 0.085], [Math.PI / 2, 0, 0]),
+        baked(new THREE.SphereGeometry(1, 16, 11), [0, -0.003, -0.035], [0, 0, 0], [0.047, 0.034, 0.060]),
+        baked(new THREE.SphereGeometry(1, 18, 12), [0, 0.003, -0.112], [-0.04, 0, 0], [0.074, 0.035, 0.070]),
+    ];
+    const pawPadParts: THREE.BufferGeometry[] = [
+        baked(new THREE.SphereGeometry(1, 12, 8), [0, -0.038, -0.126], [0, 0, 0], [0.040, 0.006, 0.042]),
+    ];
+    const pawClawParts: THREE.BufferGeometry[] = [];
+    const toeX = [-0.044, -0.015, 0.015, 0.044];
+    for (let i = 0; i < toeX.length; i++) {
+        const inner = i === 1 || i === 2;
+        pawFurParts.push(baked(
+            new THREE.SphereGeometry(1, 12, 8),
+            [toeX[i], 0.006, -0.172 - (inner ? 0.006 : 0)],
+            [0, 0, (i - 1.5) * 0.025],
+            [0.016, 0.015, 0.021 + (inner ? 0.003 : 0)],
+        ));
+        pawPadParts.push(baked(
+            new THREE.SphereGeometry(1, 10, 7),
+            [toeX[i], -0.017, -0.178],
+            [0, 0, 0],
+            [0.010, 0.0035, 0.011],
+        ));
+        pawClawParts.push(baked(
+            new THREE.ConeGeometry(0.004, 0.016, 6),
+            [toeX[i], 0.004, -0.202 - (inner ? 0.004 : 0)],
+            [-Math.PI / 2, 0, 0],
+        ));
+    }
+    return {
+        muzzleFur,
+        muzzleSkin,
+        nostrils,
+        whiskers,
+        pawFur: merged(pawFurParts),
+        pawPads: merged(pawPadParts),
+        pawClaws: merged(pawClawParts),
+    };
+}
+
+function poseFiapoPaw(
+    group: THREE.Group,
+    side: -1 | 1,
+    stride: number,
+    run: number,
+    t: number,
+    portrait: boolean,
+): void {
+    const swing = stride * run;
+    const lift = Math.max(0, stride) * 0.095 * run;
+    const plant = Math.max(0, -stride) * 0.020 * run;
+    const idle = Math.sin(t * 1.35 + side * 0.8) * 0.0025 * (1 - run);
+    const spread = portrait ? 0.345 : 0.410;
+    const baseY = portrait ? -0.760 : -0.720;
+    group.position.set(
+        side * spread + side * swing * 0.010,
+        baseY + lift - plant + idle,
+        -0.710 - swing * 0.055,
+    );
+    group.rotation.set(
+        0.08 - Math.max(0, stride) * 0.20 * run,
+        side * (0.055 + swing * 0.022),
+        side * -0.105 + side * swing * 0.025,
+    );
+}
+
 /**
  * O Player nativo segue dono do input/colisão/olhar; aqui a gente (1) abaixa
  * a câmera pra altura de olho de bicho (~0.55 m — samambaia vira mata fechada,
@@ -793,25 +934,64 @@ export const Fiapo: React.FC<{
     playerPositionRef: React.MutableRefObject<THREE.Vector3>;
     cameraThetaRef: React.MutableRefObject<number>;
 }> = ({ playerPositionRef, cameraThetaRef }) => {
-    const { camera } = useThree();
+    const { camera, gl, size } = useThree();
     const body = useRef<THREE.Group>(null!);
     const rig = useRef<THREE.Group>(null!);
+    const view = useRef<THREE.Group>(null!);
+    const snout = useRef<THREE.Group>(null!);
+    const pawL = useRef<THREE.Group>(null!);
+    const pawR = useRef<THREE.Group>(null!);
     const prev = useRef(new THREE.Vector3());
     const speed = useRef(0);
     const drop = useRef(0);
+    const gait = useRef(0);
+    const viewDirection = useRef(new THREE.Vector3());
     const lunge = useRef(0);   // M20: o impulso do BOTE (0..~0.26 s)
     const pounceWalls = useMemo(() => wallsForState(9, false, false), []);
 
-    // o Fiapo também tem sombra-blob (e entra no registro de corpos); refs de
-    // partes resolvidos UMA vez no mount (nada de getObjectByName por frame)
-    const parts = useRef<Record<string, THREE.Object3D>>({});
+    const viewGeometry = useMemo(buildFiapoViewGeometry, []);
+    const viewResources = useMemo(() => {
+        const anisotropy = Math.min(8, gl.capabilities.getMaxAnisotropy());
+        const load = (url: string, color: boolean, repeat: number): THREE.Texture => {
+            const texture = new THREE.TextureLoader().load(url);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(repeat, repeat);
+            texture.anisotropy = anisotropy;
+            if (color) texture.colorSpace = THREE.SRGBColorSpace;
+            return texture;
+        };
+        const furMap = load(fiapoFurAlbedoUrl, true, 2.8);
+        const furHeight = load(fiapoFurHeightUrl, false, 2.8);
+        const skinMap = load(fiapoSkinAlbedoUrl, true, 2.2);
+        const skinHeight = load(fiapoSkinHeightUrl, false, 2.2);
+        const common = { transparent: true, opacity: 1, depthTest: true, depthWrite: true, metalness: 0 };
+        const fur = new THREE.MeshStandardMaterial({
+            ...common, map: furMap, bumpMap: furHeight, bumpScale: 0.0045,
+            color: '#ead5aa', roughness: 0.96,
+            emissive: '#211a11', emissiveMap: furMap, emissiveIntensity: 0.065,
+        });
+        const skin = new THREE.MeshStandardMaterial({
+            ...common, map: skinMap, bumpMap: skinHeight, bumpScale: 0.0028,
+            color: '#746259', roughness: 0.86,
+            emissive: '#100c0a', emissiveMap: skinMap, emissiveIntensity: 0.045,
+        });
+        const deep = new THREE.MeshStandardMaterial({ ...common, color: '#241b18', roughness: 0.64 });
+        const whisker = new THREE.MeshStandardMaterial({ ...common, color: '#e6dcc4', roughness: 0.72 });
+        return { textures: [furMap, furHeight, skinMap, skinHeight], materials: { fur, skin, deep, whisker } };
+    }, [gl]);
+
+    useEffect(() => () => {
+        for (const geometry of Object.values(viewGeometry)) geometry.dispose();
+        for (const texture of viewResources.textures) texture.dispose();
+        for (const material of Object.values(viewResources.materials)) material.dispose();
+    }, [viewGeometry, viewResources]);
+
+    // The invisible anchor keeps the follow-light and blob shadow in the world.
     useEffect(() => {
         const b = body.current;
         if (!b) return;
         b.userData.blobR = 0.34;
-        const p: Record<string, THREE.Object3D> = {};
-        b.traverse((o) => { if (o.name) p[o.name] = o; });
-        parts.current = p;
         bodyRegistry.add(b);
         return () => { bodyRegistry.delete(b); };
     }, []);
@@ -823,7 +1003,14 @@ export const Fiapo: React.FC<{
         const active = f9.phase !== 'queda';
         if (body.current) body.current.visible = active;
         if (rig.current) rig.current.visible = active;
-        if (!active) { drop.current = 0; prev.current.copy(p); return; }
+        if (!active) {
+            drop.current = 0;
+            gait.current = 0;
+            speed.current = 0;
+            lunge.current = 0;
+            prev.current.copy(p);
+            return;
+        }
 
         // ── M20: O BOTE (pounce) — a caça ATIVA ──
         // consome o pedido do player (o botão/tecla chamou f9RequestPounce); o
@@ -844,14 +1031,18 @@ export const Fiapo: React.FC<{
             lunge.current -= dt;
         }
 
-        // velocidade a partir do movimento real
+        // Real movement drives the gait. Respawn/teleport jumps do not count as
+        // speed, otherwise one frame would fling both paws through the camera.
         const dx = p.x - prev.current.x, dz = p.z - prev.current.z;
-        const sp = Math.hypot(dx, dz) / Math.max(dt, 1e-4);
+        const teleported = dx * dx + dz * dz > 2.25;
+        const sp = teleported ? 0 : Math.hypot(dx, dz) / Math.max(dt, 1e-4);
+        if (teleported) { speed.current = 0; gait.current = 0; }
         speed.current += (Math.min(sp, 9) - speed.current) * Math.min(1, dt * 8);
         prev.current.copy(p);
         const gy = f9GroundHeight(p.x, p.z);
         const run = Math.min(1, speed.current / 4);
-        const gait = t * 11;
+        if (run >= 0.08) gait.current = (gait.current + dt * (3.8 + speed.current * 1.45)) % 6;
+        const gaitPhase = gait.current / 6 * Math.PI * 2;
 
         // a ÂNCORA invisível na posição do player: sombra-blob + follow-light
         if (body.current) body.current.position.set(p.x, gy, p.z);
@@ -860,7 +1051,7 @@ export const Fiapo: React.FC<{
         // Fiapo (~0.55 + relevo), com easing na chegada, + galope
         drop.current += (1 - drop.current) * Math.min(1, dt * 2.2);
         camera.position.y -= (1.05 - gy) * drop.current;
-        camera.position.y += Math.abs(Math.sin(gait)) * 0.055 * run;
+        camera.position.y += Math.abs(Math.sin(gaitPhase)) * 0.024 * run;
         // M21: DESPERTAR no respawn — a câmera BROTA do chão da toca (sobe da
         // terra até a altura do olho, ~1,4 s, ease-out) + uma leve tontura de
         // "acordar". É a animação de respawn que o Felipe pediu.
@@ -872,36 +1063,44 @@ export const Fiapo: React.FC<{
             }
         }
         const cam = camera as THREE.PerspectiveCamera;
-        cam.fov += (80 - cam.fov) * Math.min(1, dt * 3); cam.updateProjectionMatrix();
+        const viewFov = size.width / size.height < 0.85 ? 87 : 80;
+        cam.fov += (viewFov - cam.fov) * (1 - Math.exp(-dt * 7));
+        cam.updateProjectionMatrix();
         camera.updateMatrixWorld();
 
-        // o RIG cola no nariz da câmera
+        // The rig follows the camera, while its composition stays peripheral.
         if (rig.current) {
             rig.current.position.copy(camera.position);
             rig.current.quaternion.copy(camera.quaternion);
-            const pawL = parts.current.pawL as THREE.Group | undefined;
-            const pawR = parts.current.pawR as THREE.Group | undefined;
-            // as patas remam alternadas no galope; paradas, descansam
-            const stride = Math.sin(gait) * 0.16 * run;
-            if (pawL) { pawL.position.z = -0.52 + stride; pawL.position.y = -0.34 + Math.max(0, Math.sin(gait)) * 0.1 * run; }
-            if (pawR) { pawR.position.z = -0.52 - stride; pawR.position.y = -0.34 + Math.max(0, -Math.sin(gait)) * 0.1 * run; }
-            const snout = parts.current.snout as THREE.Group | undefined;
-            if (snout) {
-                // o focinho fareja de leve quando você para
-                snout.position.y = -0.315 + (run < 0.1 ? Math.sin(t * 5.2) * 0.006 : 0);
-                snout.rotation.x = run * 0.1;
-            }
+        }
+        let lookDown = 0;
+        const portrait = size.width / size.height < 0.85;
+        if (view.current) {
+            camera.getWorldDirection(viewDirection.current);
+            lookDown = THREE.MathUtils.clamp(-viewDirection.current.y, 0, 0.8);
+            view.current.position.set(0, (portrait ? -0.095 : 0) + lookDown * 0.035, portrait ? -0.140 : 0);
+            view.current.scale.setScalar(portrait ? 0.88 : 1);
+        }
+        const stride = Math.sin(gaitPhase);
+        if (pawL.current) poseFiapoPaw(pawL.current, -1, stride, run, t, portrait);
+        if (pawR.current) poseFiapoPaw(pawR.current, 1, -stride, run, t, portrait);
+        if (snout.current) {
+            const sniff = Math.pow(Math.max(0, Math.sin(t * 0.62)), 12);
+            // Looking straight ahead almost erases the nose; it returns when
+            // the player looks down, like a real muzzle at the edge of vision.
+            const reveal = -0.230 + lookDown * 0.280;
+            snout.current.position.set(
+                stride * 0.0015 * run,
+                reveal + sniff * 0.005 + Math.abs(stride) * 0.002 * run,
+                0,
+            );
+            snout.current.rotation.set(
+                -0.018 + sniff * 0.032 + run * 0.008,
+                0,
+                stride * 0.004 * run,
+            );
         }
     });
-
-    // os refs de partes agora vivem no RIG (o corpo é âncora sem malha)
-    useEffect(() => {
-        const r = rig.current;
-        if (!r) return;
-        const p: Record<string, THREE.Object3D> = {};
-        r.traverse((o) => { if (o.name) p[o.name] = o; });
-        Object.assign(parts.current, p);
-    }, []);
 
     return (<>
         {/* âncora: follow-light + sombra-blob na posição do player (sem malha —
@@ -913,28 +1112,25 @@ export const Fiapo: React.FC<{
                 (sem ela o low/medium, sem composer, apagavam o player) */}
             <pointLight position={[0, 2.2, 0.6]} color="#cfe0c0" intensity={0.9} distance={7} decay={2} />
         </group>
-        {/* o RIG do focinho: o que você vê de SI MESMO */}
+        {/* Textured geometry lives in camera space, never as a flat image. */}
         <group ref={rig} visible={false}>
-            <group name="snout" position={[0, -0.315, -0.45]} scale={[0.6, 0.6, 0.6]}>
-                <mesh scale={[1.5, 0.75, 1]} material={FM.fiapo}><sphereGeometry args={[0.13, 10, 8]} /></mesh>
-                <mesh position={[0, 0.045, -0.1]} material={FM.eye}><sphereGeometry args={[0.035, 6, 6]} /></mesh>
-                <mesh position={[-0.09, -0.02, -0.03]} scale={[1, 0.8, 1]} material={FM.fiapoBelly}><sphereGeometry args={[0.075, 8, 6]} /></mesh>
-                <mesh position={[0.09, -0.02, -0.03]} scale={[1, 0.8, 1]} material={FM.fiapoBelly}><sphereGeometry args={[0.075, 8, 6]} /></mesh>
-                {/* bigodes */}
-                {[-1, 1].map((s) => [0, 1, 2].map((k) => (
-                    <mesh key={`${s}-${k}`} position={[s * 0.16, -0.01 + k * 0.018, -0.06]} rotation={[0, 0, s * (-0.24 - k * 0.12)]} material={FM.fiapoDark}>
-                        <cylinderGeometry args={[0.0022, 0.0022, 0.2, 3]} />
-                    </mesh>
-                )))}
-            </group>
-            {/* as PATINHAS dianteiras remando na borda de baixo da visão */}
-            <group name="pawL" position={[-0.17, -0.34, -0.52]}>
-                <mesh rotation={[0.5, 0, 0]} material={FM.fiapo}><capsuleGeometry args={[0.05, 0.16, 4, 7]} /></mesh>
-                <mesh position={[0, -0.1, 0.04]} material={FM.fiapoDark}><sphereGeometry args={[0.055, 7, 6]} /></mesh>
-            </group>
-            <group name="pawR" position={[0.17, -0.34, -0.52]}>
-                <mesh rotation={[0.5, 0, 0]} material={FM.fiapo}><capsuleGeometry args={[0.05, 0.16, 4, 7]} /></mesh>
-                <mesh position={[0, -0.1, 0.04]} material={FM.fiapoDark}><sphereGeometry args={[0.055, 7, 6]} /></mesh>
+            <group ref={view}>
+                <group ref={snout}>
+                    <mesh geometry={viewGeometry.muzzleFur} material={viewResources.materials.fur} renderOrder={970} frustumCulled={false} onBeforeRender={(renderer) => renderer.clearDepth()} />
+                    <mesh geometry={viewGeometry.muzzleSkin} material={viewResources.materials.skin} renderOrder={971} frustumCulled={false} />
+                    <mesh geometry={viewGeometry.nostrils} material={viewResources.materials.deep} renderOrder={972} frustumCulled={false} />
+                    <mesh geometry={viewGeometry.whiskers} material={viewResources.materials.whisker} renderOrder={973} frustumCulled={false} />
+                </group>
+                <group ref={pawL}>
+                    <mesh geometry={viewGeometry.pawFur} material={viewResources.materials.fur} renderOrder={975} frustumCulled={false} />
+                    <mesh geometry={viewGeometry.pawPads} material={viewResources.materials.skin} renderOrder={976} frustumCulled={false} />
+                    <mesh geometry={viewGeometry.pawClaws} material={viewResources.materials.deep} renderOrder={977} frustumCulled={false} />
+                </group>
+                <group ref={pawR}>
+                    <mesh geometry={viewGeometry.pawFur} material={viewResources.materials.fur} renderOrder={975} frustumCulled={false} />
+                    <mesh geometry={viewGeometry.pawPads} material={viewResources.materials.skin} renderOrder={976} frustumCulled={false} />
+                    <mesh geometry={viewGeometry.pawClaws} material={viewResources.materials.deep} renderOrder={977} frustumCulled={false} />
+                </group>
             </group>
         </group>
     </>);

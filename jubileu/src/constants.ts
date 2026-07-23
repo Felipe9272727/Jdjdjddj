@@ -152,6 +152,13 @@ export const NPC_INTERACT_DIST = 4.0;       // Distance to interact with lobby N
 export const BED_INTERACT_DIST = 3.0;       // Distance to interact with bed
 export const ELEVATOR_ZONE_X = 3.1;         // Half-width of elevator entrance
 export const ELEVATOR_ZONE_Z = -10;         // Z threshold for elevator interior
+/**
+ * Only the original hotel floors expose the global walk-in elevator trigger.
+ * Later floors own their exits (overlays, cutscenes or explicit interactions),
+ * and several maps legitimately extend through z <= -10. Treating that strip
+ * as a cab silently starts the five-second lobby ride.
+ */
+export const hasWalkInElevator = (level: number): boolean => level >= 0 && level <= 3;
 export const MP_GHOST_TTL_MS = 15000;       // Ghost player timeout
 export const MP_WRITE_INTERVAL = 200;       // Firestore write interval (ms)
 export const MP_WRITE_THRESHOLD = 0.1;      // Min position change to trigger write

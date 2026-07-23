@@ -4,6 +4,7 @@ import {
   WALKING_URL, IDLE_URL, NPC_WALK_URL, NPC_IDLE_URL, DUSSEKAR_URL, BARNEY_URL,
   COLORS, ASSETS, BARNEY_DIALOGUE, DIALOGUE_TREE,
   LOBBY_W, ELEV_W, HOUSE_EX, HOUSE_IN, HOUSE_DW, L1_BND, ELEV_BLD, DOOR_SEAL,
+  hasWalkInElevator,
 } from '../constants';
 
 describe('Game constants', () => {
@@ -23,6 +24,13 @@ describe('Game constants', () => {
 
     it('EZ_START should be negative (elevator entrance z)', () => {
       expect(EZ_START).toBeLessThan(0);
+    });
+
+    it('only enables the global walk-in elevator on floors that own one', () => {
+      expect([0, 1, 2, 3].map(hasWalkInElevator)).toEqual([true, true, true, true]);
+      expect([4, 5, 6, 7, 8, 9, 10].map(hasWalkInElevator)).toEqual([
+        false, false, false, false, false, false, false,
+      ]);
     });
   });
 
