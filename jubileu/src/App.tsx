@@ -57,6 +57,7 @@ import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
 import Floor6Suite from './Floor6Suite';
 import Floor6Overlay from './Floor6Overlay';
 import Floor8Room from './Floor8Room';
+import Floor10Base from './Floor10Base';
 import Floor8Cutscene from './Floor8Cutscene';
 import Floor9Forest from './Floor9Forest';
 import { Floor9Elevator } from './Floor9Elevator';
@@ -191,6 +192,8 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {/* Andar 8 — a sala de interrogatório do Arquivista (→ platformer de tricô) */}
       {level === 8 && !f8InImage && <Floor8Room playerPositionRef={playerPositionRef} />}
       {level === 9 && <Floor9Forest playerPositionRef={playerPositionRef} />}
+      {/* Andar 10 — PLACEHOLDER: base plana, esperando virar um andar */}
+      {level === 10 && <Floor10Base />}
       {/* the old baseplate is the FLOOR 7 TEMPLATE now — Creator Mode only */}
       {/* Andar 7 (navio pirata) is mounted as a Canvas sibling below — it needs
           the Floor7 WASM handle ref that this memoized World doesn't carry. */}
@@ -1436,6 +1439,16 @@ export default function App() {
         setDoorsClosed(false);
         setZoomLevel(0);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -1.5, theta: Math.PI };
+      } else if (startLevel === 10) {
+        // Andar 10 — PLACEHOLDER (base plana). 1ª pessoa, spawn na frente das
+        // portas do elevador, olhando pro salão vazio. Vira andar de verdade depois.
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        setZoomLevel(0);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
       }
     }
     // ─── CREATOR MODE: end jump ───

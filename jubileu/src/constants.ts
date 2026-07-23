@@ -375,6 +375,13 @@ const _WALLS_FLOOR7 = (() => {
     return segs;
 })();
 
+// Andar 10 — PLACEHOLDER: base plana e delimitada, esperando virar um andar.
+// Casca do elevador + borda quadrada (±22) pra ninguém andar pro infinito.
+const FLOOR10_BND: number[][] = [
+    [-22, -22, -22, 22], [22, -22, 22, 22], [-22, -22, 22, -22], [-22, 22, 22, 22],
+];
+const _WALLS_FLOOR10 = [...ELEV_W, ...ELEV_BLD, ...FLOOR10_BND];
+
 /** Pick the right pre-built wall list. No allocation per frame. */
 export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
     if (level === 0) return doorsClosed ? _WALLS_LOBBY_SEALED : _WALLS_LOBBY_OPEN;
@@ -384,6 +391,7 @@ export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen
     if (level === 7) return _WALLS_FLOOR7;
     if (level === 8) return doorsClosed ? _WALLS_FLOOR8_SEALED : _WALLS_FLOOR8;
     if (level === 9) return _WALLS_FLOOR9;
+    if (level === 10) return _WALLS_FLOOR10;   // base plana (placeholder)
     if (level >= 4) return doorsClosed ? _WALLS_FLOOR5_SEALED : _WALLS_FLOOR5;
     if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
     return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;
