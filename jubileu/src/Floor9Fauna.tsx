@@ -418,8 +418,9 @@ const QuadGLB: React.FC<{ url: string; sp: F9Species; slot: number; scale: numbe
         c.position.set(-ctr.x, -box.min.y, -ctr.z);
         c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.frustumCulled = false; m.castShadow = false; m.receiveShadow = false; } });
         const wrap = new THREE.Group(); wrap.add(c);
-        // o modelo rigado olha +Z (= forward do jogo), igual o saltito. Sem giro.
-        wrap.rotation.y = 0; wrap.scale.setScalar(scale);
+        // o rig canoniza o focinho pra −X (Blender) → −X no glTF/three. O forward
+        // do jogo é +Z, então giramos +90° em Y pra levar −X→+Z (senão anda de lado).
+        wrap.rotation.y = Math.PI / 2; wrap.scale.setScalar(scale);
         return wrap;
     }, [scene, scale]);
     const { actions } = useAnimations(animations, model);
