@@ -7,6 +7,11 @@ import { initLLM, sendToNpc } from './npc/llmEngine';
 // perto, abre o painel de chat (tecla E ou toque), dispara o download do modelo
 // (com barra de progresso), e transmite a resposta do LLM token a token.
 // Mobile-first (o Felipe joga no celular): input embaixo, alvos grandes.
+//
+// REGRA DE OURO: erro NUNCA fica invisível. Antes, falhas na geração só
+// escreviam st.error na fase 'ready' — e a UI só mostrava erro na fase
+// 'error' → silêncio total (o "tudo quieto" do bug). Agora a faixa de erro
+// aparece em QUALQUER fase enquanto houver mensagem.
 
 const Floor10NpcChat: React.FC = () => {
     const st = useNpc();
@@ -37,7 +42,7 @@ const Floor10NpcChat: React.FC = () => {
     // auto-scroll pro fim quando chega texto
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }, [st.history.length, st.streaming, st.phase]);
+    }, [st.history.length, st.streaming, st.phase, st.error]);
 
     const send = () => {
         const t = input.trim();
@@ -102,6 +107,14 @@ const Floor10NpcChat: React.FC = () => {
                             </div>
                         )}
                     </div>
+                    {/* faixa de erro SEMPRE visível (fase ready/thinking também) —
+                        nunca mais "tudo quieto" */}
+                    {st.error !== '' && (
+                        <div style={errBannerStyle}>
+                            <span style={{ flex: 1 }}>{st.error}</span>
+                            <button onClick={() => npcSet({ error: '' })} style={errXStyle} aria-label="Dispensar">✕</button>
+                        </div>
+                    )}
                     <div style={inputRow}>
                         <input
                             value={input}
@@ -156,5 +169,11 @@ const sendStyle: React.CSSProperties = {
 const retryStyle: React.CSSProperties = { padding: '8px 16px', borderRadius: 10, border: 'none', background: '#3a6df0', color: '#fff', fontSize: 14, cursor: 'pointer' };
 const barOuter: React.CSSProperties = { height: 8, borderRadius: 999, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' };
 const barInner: React.CSSProperties = { height: '100%', background: 'linear-gradient(90deg,#3a6df0,#7aa2ff)', transition: 'width 0.2s' };
+const errBannerStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 12px',
+    borderTop: '1px solid rgba(255,120,120,0.35)', background: 'rgba(120,30,30,0.35)',
+    color: '#ffb4b4', fontSize: 12.5, lineHeight: 1.4,
+};
+const errXStyle: React.CSSProperties = { background: 'none', border: 'none', color: '#ffb4b4', fontSize: 13, cursor: 'pointer', padding: 0 };
 
 export default Floor10NpcChat;

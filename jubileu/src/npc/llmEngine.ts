@@ -2,35 +2,46 @@
 // Roda um Qwen QUANTIZADO (4-bit, q4f16) no WebGPU, dentro do navegador, via
 // WebLLM. Sem servidor, sem API — a IA vive no cliente.
 //
-// PADRÃO = Qwen2.5-3B-Instruct (2.5GB): melhor conversa multilíngue nesse
-// tamanho e comprovadamente carrega no celular (o 7B/5GB estourava a aba). A
-// inferência roda num WEB WORKER (thread separada) pra UI/jogo NÃO travar.
+// PADRÃO = Qwen3.5-2B (2.2GB): novo, leve, 201 idiomas. A inferência roda num
+// WEB WORKER (thread separada) pra UI/jogo NÃO travar.
 //
-// CRASH DE ABA (OOM) é INCAPTURÁVEL — a aba morre antes de qualquer try/catch.
-// Por isso deixo um "rastro" no localStorage ANTES de subir cada modelo pra GPU:
-// se a aba morreu ali, no reload a gente PULA aquele tamanho e vai pra um menor.
-// Assim o app se auto-ajusta pro maior modelo que REALMENTE roda no aparelho.
+// LIÇÕES DE PRODUÇÃO (cada uma virou uma proteção abaixo):
+// 1. CRASH DE ABA (OOM) é INCAPTURÁVEL — a aba morre antes de qualquer catch.
+//    Por isso o "rastro" no localStorage ANTES de subir cada modelo: se a aba
+//    morreu ali, no reload a gente PULA aquele tamanho.
+// 2. KV cache só aloca na PRIMEIRA GERAÇÃO — o modelo "carrega" mas morre na
+//    1ª resposta em celular apertado. Por isso context_window_size=2048
+//    (4º arg, chatOpts) em vez do 4096 de fábrica: KV pela metade.
+// 3. O /no_think no TEXTO não funcionava (template do Qwen3.5 ignorava) → o
+//    raciocínio comia todos os tokens e a resposta vinha vazia. O interruptor
+//    certo é NO MOTOR: extra_body.enable_thinking=false (o WebLLM semeia um
+//    bloco <think></think> vazio e o modelo responde direto).
+// 4. SILÊNCIO É O PIOR BUG: worker morto, esm.run travado, stream morto — tudo
+//    isso antes ficava quieto pra sempre. Agora TUDO tem watchdog e vira erro
+//    VISÍVEL no painel, nunca tela muda.
 //
-// Override manual: window.__npcModel = '4B' | '3B' | '1.5B' | '0.5B'
-// ('4B' = Qwen3-4B, mais esperto porém mais pesado).
+// Override manual: window.__npcModel = '4B' | '2B' | '3B' | '1.5B' | '0.5B'
 import { npc, npcSet } from './npcStore';
 
 const WEBLLM_CDN = 'https://esm.run/@mlc-ai/web-llm@0.2.84';
 
 type Tier = { id: string; label: string; qwen3?: boolean };
-// Escada em ordem DESCENDENTE de tamanho. Os Qwen3.5 (mar/2026, 201 idiomas) são
-// o que há de mais novo; o padrão é o Qwen3.5-2B (2.2GB) — novo, leve e seguro no
-// celular (menor que os 2.5GB que já rodaram; os 5GB do 7B estouravam a aba). O
-// 4B e o Qwen2.5-3B (comprovado) ficam ACIMA, alcançáveis via override ou como
-// fallback. Se um ID novo não existir no WebLLM, dá erro CAPTURÁVEL → cai sozinho.
+// Escada em ordem DESCENDENTE de "inteligência". Se um ID não existir no
+// WebLLM ou não couber na VRAM, dá erro CAPTURÁVEL → cai pro próximo sozinho.
 const TIERS: Tier[] = [
     { id: 'Qwen3.5-4B-q4f16_1-MLC', label: '4B', qwen3: true },       // mais esperto, mais pesado (opt-in)
     { id: 'Qwen3.5-2B-q4f16_1-MLC', label: '2B', qwen3: true },      // PADRÃO: novo + leve + 201 idiomas
-    { id: 'Qwen2.5-3B-Instruct-q4f16_1-MLC', label: '3B' },          // fallback COMPROVADO (se o 3.5 não existir/rodar)
+    { id: 'Qwen2.5-3B-Instruct-q4f16_1-MLC', label: '3B' },          // fallback COMPROVADO (não "pensa")
     { id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC', label: '1.5B' },
     { id: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC', label: '0.5B' },
 ];
 const DEFAULT_LABEL = '2B';
+
+// KV cache menor: 2048 tokens de contexto bastam pra conversa do hóspede
+// (persona ~150 + histórico curto + resposta ≤640) e CABEM na VRAM do celular.
+// O default de fábrica (4096) dobrava a KV e estourava na 1ª geração.
+const CONTEXT_WINDOW = 2048;
+const MAX_REPLY_TOKENS = 640;
 
 export const PERSONA =
 `Você é um HÓSPEDE do décimo andar de um hotel estranho e sem fim ("The Normal Elevator").
@@ -60,15 +71,16 @@ function crashedRecently(id: string): boolean {
     try { return localStorage.getItem(CRASH_KEY(id)) != null; } catch { return false; }
 }
 
-type Delta = { choices?: Array<{ delta?: { content?: string } }> };
+type Delta = { choices?: Array<{ delta?: { content?: string }; message?: { content?: string } }> };
 type Engine = {
-    chat: { completions: { create(opts: unknown): Promise<AsyncIterable<Delta>> } };
+    chat: { completions: { create(opts: unknown): Promise<AsyncIterable<Delta> | Delta> } };
     interruptGenerate?: () => void;
 };
 type WebLLM = {
     CreateWebWorkerMLCEngine(
         worker: Worker, model: string,
         cfg: { initProgressCallback?: (r: { text?: string; progress?: number }) => void },
+        chatOpts?: unknown,
     ): Promise<Engine>;
 };
 
@@ -84,7 +96,14 @@ function makeWorker(): Worker {
 async function hasWebGPU(): Promise<boolean> {
     const gpu = (navigator as unknown as { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
     if (!gpu) return false;
-    try { return !!(await gpu.requestAdapter()); } catch { return false; }
+    try {
+        // alguns Androids nunca resolvem requestAdapter — 10s e caímos fora com erro claro
+        const adapter = await Promise.race([
+            gpu.requestAdapter(),
+            new Promise<null>((res) => window.setTimeout(() => res(null), 10_000)),
+        ]);
+        return !!adapter;
+    } catch { return false; }
 }
 
 function startIndex(): number {
@@ -94,8 +113,48 @@ function startIndex(): number {
     return TIERS.findIndex((t) => t.label === DEFAULT_LABEL);
 }
 
+// watchdogs (ms)
+const LOAD_WATCHDOG_MS = 120_000;   // sem NENHUM evento de progresso = load morto
+const GEN_WATCHDOG_MS = 90_000;     // sem NENHUM token = geração morta
+
 let enginePromise: Promise<Engine> | null = null;
 let loadedQwen3 = false;
+
+/** Cria o engine com watchdog de load + onerror do worker (silêncio → erro real). */
+function createEngineWithWatchdog(
+    webllm: WebLLM, tier: Tier,
+    onProgress: (r: { text?: string; progress?: number }) => void,
+): Promise<Engine> {
+    return new Promise<Engine>((resolve, reject) => {
+        const worker = makeWorker();
+        let done = false;
+        let timer = 0;
+        const fail = (e: Error) => { if (!done) { done = true; window.clearTimeout(timer); reject(e); } };
+        const arm = () => {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(() => fail(new Error(`LOAD_TRAVOU_${tier.label}`)), LOAD_WATCHDOG_MS);
+        };
+        arm();
+        // worker morreu (import do esm.run falhou, erro interno, GPU…) — sem
+        // isso o CreateWebWorkerMLCEngine podia ficar pendente PRA SEMPRE.
+        worker.onerror = (ev) => fail(new Error(`WORKER_${(ev as ErrorEvent).message || 'MORTO'}`));
+        const onProgressW = (r: { text?: string; progress?: number }) => { arm(); onProgress(r); };
+        webllm.CreateWebWorkerMLCEngine(
+            worker, tier.id, { initProgressCallback: onProgressW },
+            { context_window_size: CONTEXT_WINDOW },
+        ).then(
+            (e) => { if (!done) { done = true; window.clearTimeout(timer); resolve(e); } },
+            (err) => fail(err instanceof Error ? err : new Error(String(err))),
+        );
+    });
+}
+
+function describeLoadError(msg: string, label: string): string {
+    if (msg.startsWith('LOAD_TRAVOU')) return `O carregamento do ${label} travou (rede lenta ou motor morto). Toca em tentar de novo.`;
+    if (msg.startsWith('WORKER_')) return `O motor da IA não iniciou: ${msg.slice(7)}. Tenta de novo; se repetir, abre em outro navegador com WebGPU.`;
+    if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed')) return `Falha de rede baixando o ${label}. Confere a conexão e tenta de novo.`;
+    return `Falha ao carregar a IA (${label}): ${msg}`;
+}
 
 export function initLLM(): Promise<Engine> {
     if (enginePromise) return enginePromise;
@@ -120,7 +179,7 @@ export function initLLM(): Promise<Engine> {
                 npcSet({ modelLabel: tier.label, loadText: `carregando ${tier.label}…`, loadProgress: 0 });
                 markAttempt(tier.id);            // rastro: se a aba morrer aqui, no reload a gente pula
                 try {
-                    const engine = await webllm.CreateWebWorkerMLCEngine(makeWorker(), tier.id, { initProgressCallback: onProgress });
+                    const engine = await createEngineWithWatchdog(webllm, tier, onProgress);
                     clearAttempt(tier.id);       // subiu numa boa
                     loadedQwen3 = !!tier.qwen3;
                     npcSet({ phase: 'ready', loadText: 'pronto', loadProgress: 1 });
@@ -138,7 +197,7 @@ export function initLLM(): Promise<Engine> {
                 phase: 'error',
                 error: msg === 'SEM_WEBGPU'
                     ? 'Esse navegador não tem WebGPU. Tente Chrome/Edge no PC (ou Safari 18+ / Chrome recente no Android).'
-                    : `Falha ao carregar a IA: ${msg}`,
+                    : describeLoadError(msg, npc.modelLabel || 'modelo'),
             });
             enginePromise = null;
             throw e;
@@ -150,12 +209,22 @@ export function initLLM(): Promise<Engine> {
 // tira o "pensamento" do Qwen3.x (<think>…</think>) e mostra a RESPOSTA — no-op
 // no Qwen2.5 (sem tags). Prefere o texto DEPOIS do último </think>; se o bloco
 // abriu e não fechou (pensando ainda), mostra só o que veio antes do <think>.
-function visibleText(s: string): string {
+// Exportada pros testes (a filtragem ao vivo do stream depende disso).
+export function visibleText(s: string): string {
     const close = s.lastIndexOf('</think>');
     if (close !== -1) return s.slice(close + '</think>'.length).replace(/^\s+/, '');
     const open = s.indexOf('<think>');
     if (open !== -1) return s.slice(0, open).replace(/^\s+/, '');
     return s.replace(/^\s+/, '');
+}
+
+function genOpts(messages: unknown, stream: boolean): unknown {
+    return {
+        messages, stream, temperature: 0.7, top_p: 0.9, max_tokens: MAX_REPLY_TOKENS,
+        // THINKING DESLIGADO NO MOTOR (não no texto): o WebLLM semeia a resposta
+        // com um bloco <think></think> VAZIO e o modelo pula o raciocínio.
+        ...(loadedQwen3 ? { extra_body: { enable_thinking: false } } : {}),
+    };
 }
 
 /** Manda a fala do jogador e transmite a resposta token a token pro npcStore. */
@@ -167,22 +236,47 @@ export async function sendToNpc(userText: string): Promise<void> {
     const history = [...npc.history, { role: 'user' as const, content: text }];
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
     try {
-        const sys = loadedQwen3 ? `${PERSONA}\n/no_think` : PERSONA;
-        // o switch /no_think do Qwen3.x vale no ÚLTIMO turno — reforço na fala do
-        // usuário (senão ele às vezes ignora e gasta os tokens "pensando").
-        const turns = loadedQwen3
-            ? [...history.slice(0, -1), { role: 'user' as const, content: `${text} /no_think` }]
-            : history;
-        const messages = [{ role: 'system', content: sys }, ...turns];
-        const stream = await engine.chat.completions.create({
-            messages, stream: true, temperature: 0.7, top_p: 0.9, max_tokens: 512,
-        });
+        const messages = [{ role: 'system', content: PERSONA }, ...history];
+        // WATCHDOG de geração: se o stream morrer em silêncio (worker crash, GPU
+        // engasgou), sem isso a fase ficava 'thinking' PRA SEMPRE e todo envio
+        // seguinte caía no return precoce — o NPC nunca mais respondia.
+        let stalled = false;
+        const fire = () => { stalled = true; try { engine.interruptGenerate?.(); } catch { /* ok */ } };
+        let watchdog = window.setTimeout(fire, GEN_WATCHDOG_MS);
         let acc = '';
-        for await (const chunk of stream) {
-            const d = chunk.choices?.[0]?.delta?.content ?? '';
-            if (d) { acc += d; npcSet({ streaming: visibleText(acc) }); }
+        try {
+            const stream = await engine.chat.completions.create(genOpts(messages, true)) as AsyncIterable<Delta>;
+            for await (const chunk of stream) {
+                window.clearTimeout(watchdog);
+                if (stalled) break;
+                const d = chunk.choices?.[0]?.delta?.content ?? '';
+                if (d) { acc += d; npcSet({ streaming: visibleText(acc) }); }
+                watchdog = window.setTimeout(fire, GEN_WATCHDOG_MS);
+            }
+        } finally {
+            window.clearTimeout(watchdog);
         }
-        const finalText = visibleText(acc) || '…';
+        let finalText = visibleText(acc);
+
+        // resposta vazia SEM stall? Uma chance extra SEM streaming (se o problema
+        // for o formato dos chunks, a resposta completa contorna; se for think
+        // comendo tudo, pelo menos confirmamos e mostramos erro de verdade).
+        if (!finalText && !stalled) {
+            try {
+                const full = await engine.chat.completions.create(genOpts(messages, false)) as Delta;
+                finalText = visibleText(full.choices?.[0]?.message?.content ?? '');
+            } catch { /* cai no erro abaixo */ }
+        }
+
+        if (!finalText) {
+            npcSet({
+                phase: 'ready', speaking: false, streaming: '',
+                error: stalled
+                    ? 'Ele travou pensando (90s sem resposta). Manda de novo — se repetir, recarrega a página.'
+                    : 'Ele ficou sem palavras (resposta vazia). Manda de novo; se repetir muito, recarrega a página.',
+            });
+            return;
+        }
         npcSet({
             history: [...history, { role: 'assistant', content: finalText }],
             streaming: '', phase: 'ready', speaking: false,
