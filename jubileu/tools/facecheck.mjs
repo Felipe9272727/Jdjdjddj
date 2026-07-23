@@ -31,8 +31,9 @@ loader.parse(ab, '', (gltf) => {
     }
   });
   const mixer = new THREE.AnimationMixer(c);
-  const walk = gltf.animations.find(a => a.name.toLowerCase().includes('walk'));
-  const act = mixer.clipAction(walk); act.play();
+  const walk = gltf.animations.find(a => a.name.toLowerCase().includes('walk'))
+            || gltf.animations.find(a => a.name.toLowerCase().includes('move'));
+  const act = walk ? mixer.clipAction(walk) : null; if (act) act.play();
   const wp = (b) => { const v=new THREE.Vector3(); b.getWorldPosition(v); return v; };
   // forward do corpo (rest) = tail→head projetado no plano XZ
   mixer.setTime(0); wrap.updateMatrixWorld(true);

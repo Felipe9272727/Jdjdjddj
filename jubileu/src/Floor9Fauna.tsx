@@ -40,7 +40,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { SkeletonUtils } from 'three-stdlib';
 import * as THREE from 'three';
-import saltitoModel from './assets/models/critters/saltito.glb';
+import saltitoModel from './assets/models/critters/saltitoRig.glb';
 import cervoRig from './assets/models/critters/cervoRig.glb';
 import vultoRig from './assets/models/critters/vultoRig.glb';
 import { f9, f9WakeShare } from './f9Floresta';
@@ -299,29 +299,50 @@ const Pool: React.FC<{ sp: F9Species; children: (i: number) => React.ReactNode }
 // exatamente como coelho pula. Aqui só normalizamos, viramos o focinho pro +Z
 // (forward do jogo; o modelo nasce olhando −X) e escalamos pro tamanho do bicho.
 useGLTF.preload(saltitoModel);
-const SaltitoGLB: React.FC = () => {
-    const { scene } = useGLTF(saltitoModel);
+// O Saltito agora é RIGADO: o hop VERTICAL + squash + lean continuam vindo do
+// motor (g.position.y / g.scale / body.rotation), e por CIMA disso a skinning
+// dá vida às patas/mãos, orelhas, perninhas, cauda e cabeça (ação "move",
+// crossfade com "idle" pela velocidade). É o que faltava — o Felipe reclamou
+// que "não mexe nem a mão nem o braço". Orientação preservada → wrap fica 0.
+const SaltitoGLB: React.FC<{ slot: number }> = ({ slot }) => {
+    const { scene, animations } = useGLTF(saltitoModel);
     const model = useMemo(() => {
-        const s = scene.clone(true);
+        const s = SkeletonUtils.clone(scene) as THREE.Object3D;
         const box = new THREE.Box3().setFromObject(s);
         const ctr = new THREE.Vector3(); box.getCenter(ctr);
         s.position.set(-ctr.x, -box.min.y, -ctr.z);   // base em y=0, centrado no xz
         s.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = false; m.receiveShadow = false; m.frustumCulled = false; } });
         const wrap = new THREE.Group();
         wrap.add(s);
-        // o modelo já nasce com o focinho em +Z = forward do jogo (o slot gira
-        // pro heading e o corpo procedural do jogo também aponta +Z). Sem giro.
-        wrap.rotation.y = 0;
+        wrap.rotation.y = 0;             // orientação nativa preservada (focinho já certo)
         wrap.scale.setScalar(0.6);       // ~0,6 u de altura (bicho pequeno)
         return wrap;
     }, [scene]);
+    const { actions } = useAnimations(animations, model);
+    const pick = (kw: string) => { for (const k in actions) if (k.toLowerCase().includes(kw)) return actions[k]; return null; };
+    useEffect(() => {
+        const mv = pick('move'), idle = pick('idle');
+        if (idle) { idle.reset().play(); idle.setEffectiveWeight(1); }
+        if (mv) { mv.reset().play(); mv.setEffectiveWeight(0); }
+    }, [actions]);
+    useFrame((_s, dt) => {
+        const ag = speciesSlots('saltito')[slot];
+        const spd = ag && ag.state !== 'dead' ? ag.speedNow : 0;
+        const moving = spd > 0.06;
+        const k = Math.min(1, dt * 6);
+        const mv = pick('move'), idle = pick('idle');
+        if (mv) {
+            mv.setEffectiveWeight(THREE.MathUtils.lerp(mv.getEffectiveWeight(), moving ? 1 : 0, k));
+            mv.timeScale = THREE.MathUtils.clamp(spd / 0.9, 0.9, 2.8);
+        }
+        if (idle) idle.setEffectiveWeight(THREE.MathUtils.lerp(idle.getEffectiveWeight(), moving ? 0 : 1, k));
+    });
     return <primitive object={model} />;
 };
 
 export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vector3> }> = ({ playerRef }) => {
     const slots = useRef<BodySlot[]>([]);
     const metas = useRef<SlotMeta[]>([]);
-    const springs = useRef<Array<{ earL: F9Spring; earR: F9Spring }>>([]);
     useFrame(({ clock, camera }, rawDt) => {
         const dt = Math.min(rawDt, 0.05);
         const t = clock.elapsedTime;
@@ -332,7 +353,6 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
             const slot = slots.current[i];
             if (!slot) continue;
             if (!metas.current[i]) metas.current[i] = { id: -1, sink: 0 };
-            if (!springs.current[i]) springs.current[i] = { earL: new F9Spring(), earR: new F9Spring() };
             const meta = metas.current[i];
             const posed = poseFromAgent(slot.g, list[i], dt, meta);
             if (!posed || !slot.g) continue;
@@ -340,7 +360,6 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
             if (ag.state === 'dead') continue;
             if (F9_FAUNA_LITE && faunaLodHide(slot.g, 'saltito', camera)) continue;
             const g = slot.g, parts = slot.parts;
-            const spr = springs.current[i];
             const body = parts.sbody as THREE.Group | undefined;
             const earL = parts.earL, earR = parts.earR;
             // GRABBED: pendurado na boca do vulto — corpo mole de lado, balança
@@ -382,10 +401,8 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
                 }
                 body.rotation.y += (wantYaw - body.rotation.y) * Math.min(1, dt * 5);
             }
-            const flick = Math.sin(t * 1.7 + i * 3) > 0.96 ? 0.5 : 0;
-            const earT = 0.35 + flick + (moving ? Math.sin(hopPh) * 0.2 : 0);
-            if (earL) earL.rotation.z = spr.earL.step(earT, dt);
-            if (earR) earR.rotation.z = spr.earR.step(-earT, dt);
+            // orelhas agora balançam pela skinning do GLB (ação "move"), não mais
+            // por parts procedurais (que não existem no corpo GLB) — cf. SaltitoGLB.
         }
     });
     return (
@@ -393,8 +410,9 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
             {(i) => (
                 <group key={i} ref={slotRef(slots, metas, i, 0.34)} visible={false}>
                     <group name="sbody">
-                        {/* corpo 3D real (GLB) — o salto/squash/lean vem do motor */}
-                        <SaltitoGLB />
+                        {/* corpo 3D real RIGADO — hop/squash/lean vem do motor; a
+                            skinning (patas/orelhas/cauda) vem da ação "move" no GLB */}
+                        <SaltitoGLB slot={i} />
                     </group>
                 </group>
             )}
