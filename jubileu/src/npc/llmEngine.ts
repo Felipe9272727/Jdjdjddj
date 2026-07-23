@@ -22,8 +22,15 @@
 //
 // Override manual: window.__npcModel = '4B' | '2B' | '3B' | '1.5B' | '0.5B'
 import { npc, npcSet } from './npcStore';
-
+// A fábrica main-thread (CreateWebWorkerMLCEngine) vem do CDN via import()
+// dinâmico — funciona até em file://. O WORKER é o que mudou: bundle clássico
+// (iife) gerado por esbuild em public/npcWorker.js e EMBUTIDO como Blob URL no
+// single-file pelo inline-build.mjs — module worker de CDN era BLOQUEADO pelo
+// Chrome em file:// (WORKER_MORTO instantâneo em todos os tiers).
 const WEBLLM_CDN = 'https://esm.run/@mlc-ai/web-llm@0.2.84';
+// caminho público do worker pré-empacotado; no single-file, o inline-build
+// substitui esta string pela construção do Blob embutido.
+const NPC_WORKER_PATH = 'npcWorker.js';
 
 type Tier = { id: string; label: string; qwen3?: boolean };
 // Escada em ordem DESCENDENTE de "inteligência". Se um ID não existir no
@@ -85,12 +92,7 @@ type WebLLM = {
 };
 
 function makeWorker(): Worker {
-    const src =
-        `import { WebWorkerMLCEngineHandler } from "${WEBLLM_CDN}";\n` +
-        `const handler = new WebWorkerMLCEngineHandler();\n` +
-        `self.onmessage = (m) => handler.onmessage(m);\n`;
-    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
-    return new Worker(url, { type: 'module' });
+    return new Worker(NPC_WORKER_PATH);
 }
 
 async function hasWebGPU(): Promise<boolean> {
