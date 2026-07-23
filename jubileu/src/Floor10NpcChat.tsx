@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNpc, npc, npcSet } from './npc/npcStore';
-import { initLLM, sendToNpc } from './npc/llmEngine';
+// Motor do NPC agora é o wllama (CPU/WASM, sem WebGPU). O llmEngine (WebGPU) fica
+// preservado no repo; trocar só esta linha volta pra ele.
+import { initLLM, sendToNpc } from './npc/wllamaEngine';
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
 // Vive FORA do Canvas. Reage ao npcStore: mostra a dica quando o player chega
