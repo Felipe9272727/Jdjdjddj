@@ -135,6 +135,22 @@ const GEN_WATCHDOG_MS = 120_000;    // sem NENHUM token = geração morta (celul
 
 let enginePromise: Promise<Engine> | null = null;
 let loadedQwen3 = false;
+// referência pro worker vivo: quando a GPU morre DEPOIS do load (device lost),
+// o engine vira zumbi (ModelNotLoadedError) — pra se curar, o worker morto
+// precisa ser TERMINADO (senão fica segurando VRAM e o novo não sobe).
+let currentWorker: Worker | null = null;
+
+/** Motor zumbi? (GPU/worker morreu após o load — o chat então falha com ModelNotLoadedError) */
+function isEngineDeadError(msg: string): boolean {
+    return /ModelNotLoadedError|model not loaded|device.{0,30}lost|engine.{0,20}(dead|terminated)/i.test(msg);
+}
+
+/** Derruba motor zumbi: termina o worker (libera VRAM) e zera o cache do engine. */
+function teardownEngine(): void {
+    try { currentWorker?.terminate(); } catch { /* ok */ }
+    currentWorker = null;
+    enginePromise = null;
+}
 
 /** Cria o engine com watchdog de load + onerror do worker (silêncio → erro real). */
 function createEngineWithWatchdog(
@@ -143,6 +159,7 @@ function createEngineWithWatchdog(
 ): Promise<Engine> {
     return new Promise<Engine>((resolve, reject) => {
         const worker = makeWorker();
+        currentWorker = worker;
         let done = false;
         let timer = 0;
         const fail = (e: Error) => { if (!done) { done = true; window.clearTimeout(timer); reject(e); } };
@@ -302,6 +319,16 @@ export async function sendToNpc(userText: string): Promise<void> {
             }
         } catch (e: unknown) {
             threw = e;
+        }
+        // MOTOR ZUMBI (ModelNotLoadedError & cia — a GPU/worker morreu depois do
+        // load): derruba TUDO (termina o worker, liberando VRAM) e sobe um motor
+        // novinho — o modelo tá em cache, então a subida é rápida. Uma vez só.
+        if (attempt === 1 && threw != null && isEngineDeadError(threw instanceof Error ? threw.message : String(threw))) {
+            npcSet({ streaming: '', error: '' });
+            teardownEngine();
+            try { engine = await initLLM(); } catch { return; }  // initLLM já mostra o erro
+            npcSet({ phase: 'thinking', speaking: true });
+            continue;
         }
         // primeira falha sem NENHUM token produzido: respira 1.5s e tenta de
         // novo sozinho (a GPU pode ter só engasgado). Com texto parcial ou na
