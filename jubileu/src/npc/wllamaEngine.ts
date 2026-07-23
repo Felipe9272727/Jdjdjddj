@@ -19,8 +19,12 @@
 import { npc, npcSet } from './npcStore';
 
 const WLLAMA_V = '3.5.1';
-const WLLAMA_ESM = `https://esm.run/@wllama/wllama@${WLLAMA_V}`;
-const WASM_BASE = `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_V}/src/`;
+// esm.sh é mais robusto que esm.run pra pacotes com wasm (o esm.run dava
+// "Failed to fetch dynamically imported module").
+const WLLAMA_ESM = `https://esm.sh/@wllama/wllama@${WLLAMA_V}`;
+const WLLAMA_CDN_HELPER = `https://esm.sh/@wllama/wllama@${WLLAMA_V}/esm/wasm-from-cdn.js`;
+// fallback: caminhos do wasm no jsdelivr (se o helper WasmFromCDN não importar)
+const WASM_BASE = `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_V}/esm/`;
 const HF = (repo: string, file: string) => `https://huggingface.co/${repo}/resolve/main/${file}`;
 
 type ModelDef = { url: string; label: string; qwen3?: boolean };
@@ -79,10 +83,21 @@ export function initLLM(): Promise<WllamaInstance> {
     enginePromise = (async () => {
         try { await (navigator as unknown as { storage?: { persist?: () => Promise<boolean> } }).storage?.persist?.(); } catch { /* ok */ }
         const mod = (await import(/* @vite-ignore */ WLLAMA_ESM)) as unknown as { Wllama: WllamaCtor };
-        const paths = {
-            'single-thread/wllama.wasm': WASM_BASE + 'single-thread/wllama.wasm',
-            'multi-thread/wllama.wasm': WASM_BASE + 'multi-thread/wllama.wasm',
-        };
+        // caminhos do wasm: de preferência o helper do próprio pacote (sabe a
+        // estrutura da versão); se não importar, cai no jsdelivr manual.
+        let paths: Record<string, string>;
+        try {
+            const helper = (await import(/* @vite-ignore */ WLLAMA_CDN_HELPER)) as unknown as { default?: Record<string, string> };
+            paths = helper.default ?? {
+                'single-thread/wllama.wasm': WASM_BASE + 'single-thread/wllama.wasm',
+                'multi-thread/wllama.wasm': WASM_BASE + 'multi-thread/wllama.wasm',
+            };
+        } catch {
+            paths = {
+                'single-thread/wllama.wasm': WASM_BASE + 'single-thread/wllama.wasm',
+                'multi-thread/wllama.wasm': WASM_BASE + 'multi-thread/wllama.wasm',
+            };
+        }
         let lastErr: unknown = null;
         for (let i = startIndex(); i < MODELS.length; i++) {
             const m = MODELS[i];
