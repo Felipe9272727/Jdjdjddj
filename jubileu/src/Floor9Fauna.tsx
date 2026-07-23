@@ -306,7 +306,9 @@ const SaltitoGLB: React.FC = () => {
         s.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = false; m.receiveShadow = false; m.frustumCulled = false; } });
         const wrap = new THREE.Group();
         wrap.add(s);
-        wrap.rotation.y = Math.PI / 2;   // focinho −X → +Z (forward do jogo)
+        // o modelo já nasce com o focinho em +Z = forward do jogo (o slot gira
+        // pro heading e o corpo procedural do jogo também aponta +Z). Sem giro.
+        wrap.rotation.y = 0;
         wrap.scale.setScalar(0.6);       // ~0,6 u de altura (bicho pequeno)
         return wrap;
     }, [scene]);
@@ -349,14 +351,17 @@ export const Saltitos: React.FC<{ playerRef?: React.MutableRefObject<THREE.Vecto
                 if (earR) earR.rotation.z = -0.95 - Math.sin(t * 7.4 + i) * 0.1;
                 continue;
             }
-            const moving = ag.speedNow > 0.2;
+            // limiar baixo: o saltito HOP mesmo vagando devagar (antes deslizava
+            // parado abaixo de 0.2 — o GLB não tem orelha/respiração pra disfarçar).
+            const moving = ag.speedNow > 0.06;
             const hopPh = ag.anim * 2.3;
             const followK = ag.state === 'follow' ? 1 : 0; // follow: saltos felizes, mais altos
             const hop = moving ? Math.abs(Math.sin(hopPh)) * 0.42 * (1 + followK * 0.5) : 0;
             g.position.y = gy + hop - meta.sink * 1.4;
-            // squash no chão, stretch no ar + ANTECIPAÇÃO (crouch antes do salto)
+            // squash no chão, stretch no ar + ANTECIPAÇÃO (crouch antes do salto).
+            // Parado: respiração mais visível (o GLB precisa "viver" sem orelhas).
             const antic = moving ? Math.pow(1 - Math.abs(Math.sin(hopPh)), 6) * 0.22 : 0;
-            const sq = moving ? 1 + Math.sin(hopPh * 2) * 0.16 - antic : 1 + Math.sin(t * 2.1 + i) * 0.025;
+            const sq = moving ? 1 + Math.sin(hopPh * 2) * 0.16 - antic : 1 + Math.sin(t * 2.0 + i) * 0.05;
             g.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
             if (body) {
                 body.rotation.z += (0 - body.rotation.z) * Math.min(1, dt * 6);
