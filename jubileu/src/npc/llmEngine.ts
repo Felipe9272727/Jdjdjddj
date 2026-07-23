@@ -147,12 +147,15 @@ export function initLLM(): Promise<Engine> {
     return enginePromise;
 }
 
-// remove blocos de "pensamento" do Qwen3 (<think>…</think>) — no-op no Qwen2.5.
+// tira o "pensamento" do Qwen3.x (<think>…</think>) e mostra a RESPOSTA — no-op
+// no Qwen2.5 (sem tags). Prefere o texto DEPOIS do último </think>; se o bloco
+// abriu e não fechou (pensando ainda), mostra só o que veio antes do <think>.
 function visibleText(s: string): string {
-    let out = s.replace(/<think>[\s\S]*?<\/think>/g, '');
-    const open = out.lastIndexOf('<think>');
-    if (open !== -1) out = out.slice(0, open);   // bloco ainda aberto → esconde o resto
-    return out.replace(/^\s+/, '');
+    const close = s.lastIndexOf('</think>');
+    if (close !== -1) return s.slice(close + '</think>'.length).replace(/^\s+/, '');
+    const open = s.indexOf('<think>');
+    if (open !== -1) return s.slice(0, open).replace(/^\s+/, '');
+    return s.replace(/^\s+/, '');
 }
 
 /** Manda a fala do jogador e transmite a resposta token a token pro npcStore. */
@@ -164,10 +167,15 @@ export async function sendToNpc(userText: string): Promise<void> {
     const history = [...npc.history, { role: 'user' as const, content: text }];
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
     try {
-        const sys = loadedQwen3 ? `${PERSONA}\n/no_think` : PERSONA;   // desliga o "pensar" no Qwen3
-        const messages = [{ role: 'system', content: sys }, ...history];
+        const sys = loadedQwen3 ? `${PERSONA}\n/no_think` : PERSONA;
+        // o switch /no_think do Qwen3.x vale no ÚLTIMO turno — reforço na fala do
+        // usuário (senão ele às vezes ignora e gasta os tokens "pensando").
+        const turns = loadedQwen3
+            ? [...history.slice(0, -1), { role: 'user' as const, content: `${text} /no_think` }]
+            : history;
+        const messages = [{ role: 'system', content: sys }, ...turns];
         const stream = await engine.chat.completions.create({
-            messages, stream: true, temperature: 0.7, top_p: 0.9, max_tokens: 384,
+            messages, stream: true, temperature: 0.7, top_p: 0.9, max_tokens: 512,
         });
         let acc = '';
         for await (const chunk of stream) {

@@ -38,9 +38,14 @@ export function npcReset() {
     npcBump();
 }
 
-// hook React (re-renderiza quando o estado muda)
+// hook React. IMPORTANTE: o getSnapshot precisa devolver algo que MUDA a cada
+// update — como o estado é mutado no lugar (mesma referência `s`), uso o
+// contador `version` como snapshot. Se devolvesse `s`, o useSyncExternalStore
+// via Object.is(s, s) === true e NUNCA re-renderizava (a UI ficava congelada até
+// remontar). Devolvo `s` (dados vivos) e deixo a `version` disparar o re-render.
 export function useNpc(): NpcState {
-    return useSyncExternalStore(npcSubscribe, () => s, () => s);
+    useSyncExternalStore(npcSubscribe, () => s.version, () => s.version);
+    return s;
 }
 
 // seletor enxuto: só o `open` (pro App congelar o player sem re-renderizar a
