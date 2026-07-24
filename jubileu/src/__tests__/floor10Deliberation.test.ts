@@ -90,3 +90,18 @@ describe('npc/floor10Deliberation — o segundo cérebro, lento e barato', () =>
         expect(deliberationBonus(null, 'wander', 0)).toBe(0);
     });
 });
+
+describe('a bolha de pensamento fala como o Nilo, não como sistema', () => {
+    it('traduz a intenção deliberada para a voz dele', async () => {
+        const { deliberationThought } = await import('../npc/floor10Deliberation');
+        expect(deliberationThought('thinking', '')).toBe('pensando…');
+        expect(deliberationThought('decided', 'inspect-elevator')).toContain('aquela porta');
+        expect(deliberationThought('decided', 'wander')).toContain('parado');
+        // Nada de rótulo técnico vazando para a tela.
+        expect(deliberationThought('decided', 'inspect-elevator')).not.toContain('inspect');
+        // Sem nada a mostrar, a bolha não aparece.
+        expect(deliberationThought('off', '')).toBe('');
+        expect(deliberationThought('unavailable', '')).toBe('');
+        expect(deliberationThought('loading', '')).toBe('');
+    });
+});

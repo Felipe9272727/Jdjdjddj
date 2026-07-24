@@ -123,6 +123,26 @@ function extractRationale(raw: string): string {
  * ordem: o reflexo continua livre para ignorá-la se a situação mudou (o jogador
  * chegou perto demais, por exemplo). É uma inclinação que dura um tempo.
  */
+// A intenção deliberada dita como o Nilo diria. A bolha no mundo é do
+// personagem: nenhum rótulo técnico pode vazar para a tela do jogador.
+const DELIBERATION_THOUGHT: Record<DeliberationGoal, string> = {
+    'inspect-elevator': 'preciso olhar aquela porta outra vez…',
+    'wander': 'não consigo ficar parado aqui.',
+    'idle': 'vou ficar quieto um pouco e escutar a sala.',
+    'observe-player': 'quero entender você antes de falar.',
+    'approach-player': 'acho que vou chegar mais perto.',
+    'make-space': 'preciso de um pouco de espaço.',
+    'seek-player': 'para onde foi você?',
+    'talk-player': 'tem algo que eu queria te dizer.',
+};
+
+/** Texto da bolha de pensamento; vazio quando não há nada a mostrar. */
+export function deliberationThought(phase: string, goal: string): string {
+    if (phase === 'thinking') return 'pensando…';
+    if (phase !== 'decided') return '';
+    return DELIBERATION_THOUGHT[goal as DeliberationGoal] ?? 'decidi o que fazer.';
+}
+
 export const DELIBERATION_BONUS = 0.55;
 export const DELIBERATION_TTL_SECONDS = 45;
 

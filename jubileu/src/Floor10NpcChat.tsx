@@ -4,26 +4,7 @@ import { useNpc, npc, npcSet } from './npc/npcStore';
 // preservado no repo; trocar só esta linha volta pra ele.
 import { FLOOR10_MODEL, initLLM, sendToNpc } from './npc/wllamaEngine';
 import { NPC_NAME } from './npc/floor10Canon';
-import { SMALL_BRAIN_MODEL } from './npc/floor10SmallBrain';
-
-// O 2º cérebro trabalha em silêncio; este ícone é a única forma de saber, só
-// olhando, se ele está carregando, pensando, já decidiu ou não coube na memória.
-const DELIBERATION_ICON: Record<string, string> = {
-    off: '💤',
-    loading: '⏳',
-    thinking: '🧠',
-    decided: '💡',
-    unavailable: '🚫',
-};
-
-function deliberationTitle(phase: string, goal: string, count: number): string {
-    const who = SMALL_BRAIN_MODEL.label;
-    if (phase === 'loading') return `${who}: carregando o segundo cérebro…`;
-    if (phase === 'thinking') return `${who}: deliberando por conta própria…`;
-    if (phase === 'decided') return `${who}: decidiu "${goal}" (${count}ª vez)`;
-    if (phase === 'unavailable') return `${who}: não coube na memória — o reflexo segue sozinho`;
-    return `${who}: em repouso`;
-}
+import { deliberationThought } from './npc/floor10Deliberation';
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
 // Vive FORA do Canvas. Reage ao npcStore: mostra a dica quando o player chega
@@ -107,9 +88,21 @@ const Floor10NpcChat: React.FC = () => {
     if (!st.open) {
         const speechAudible = st.autonomousSpeech !== ''
             && (st.perception.player?.distance ?? Infinity) <= 9;
-        if (!st.near && !speechAudible) return null;
+        // Pensamento do 2º cérebro: bolha no mundo, não linha no painel — dá
+        // para ver que ele tem vida própria SEM abrir a conversa. Some quando
+        // ele fala de verdade: a fala manda mais que o pensamento.
+        const thought = deliberationThought(st.deliberationPhase, st.deliberationGoal);
+        const thoughtVisible = thought !== '' && !speechAudible
+            && (st.perception.player?.distance ?? Infinity) <= 9;
+        if (!st.near && !speechAudible && !thoughtVisible) return null;
         return (
             <>
+                {thoughtVisible && (
+                    <div style={thoughtBubbleStyle}>
+                        <span style={{ opacity: 0.75 }}>💭</span>
+                        <span style={{ fontStyle: 'italic' }}>{thought}</span>
+                    </div>
+                )}
                 {speechAudible && (
                     <div style={autonomousSpeechStyle}>
                         <strong style={{ color: '#f5c96b' }}>{NPC_NAME}</strong>
@@ -131,29 +124,9 @@ const Floor10NpcChat: React.FC = () => {
     return (
         <div style={panelStyle}>
             <div style={headerStyle}>
-                <span>
-                    {NPC_NAME} · Hóspede do 10º{st.modelLabel ? ` · ${st.modelLabel}` : ''} · 👁🧭
-                    {/* Estado do 2º cérebro: sem isto não dava para saber se ele vive. */}
-                    <span title={deliberationTitle(st.deliberationPhase, st.deliberationGoal, st.deliberationCount)}>
-                        {' '}{DELIBERATION_ICON[st.deliberationPhase]}
-                    </span>
-                </span>
+                <span>{NPC_NAME} · Hóspede do 10º{st.modelLabel ? ` · ${st.modelLabel}` : ''} · 👁🧭</span>
                 <button onClick={close} style={xStyle} aria-label="Fechar">✕</button>
             </div>
-
-            {/* Linha do 2º cérebro. No celular não existe hover, então o estado
-                precisa aparecer escrito — é como o Felipe sabe se ele está vivo. */}
-            {st.deliberationPhase !== 'off' && (
-                <div style={{
-                    padding: '6px 16px',
-                    fontSize: 11,
-                    opacity: 0.65,
-                    borderBottom: '1px solid rgba(255,255,255,0.06)',
-                }}>
-                    {DELIBERATION_ICON[st.deliberationPhase]}{' '}
-                    {deliberationTitle(st.deliberationPhase, st.deliberationGoal, st.deliberationCount)}
-                </div>
-            )}
 
             {loading && (
                 <div style={{ padding: '14px 16px' }}>
@@ -224,6 +197,15 @@ const hintStyle: React.CSSProperties = {
     zIndex: 60, padding: '10px 18px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.25)',
     background: 'rgba(20,22,28,0.82)', color: '#fff', fontSize: 15, fontWeight: 600,
     backdropFilter: 'blur(6px)', cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
+};
+// Pensamento, não fala: borda tracejada, sem nome, mais apagada. Fica acima da
+// bolha de fala para as duas nunca se sobreporem.
+const thoughtBubbleStyle: React.CSSProperties = {
+    position: 'fixed', bottom: 'max(196px, 29vh)', left: '50%', transform: 'translateX(-50%)',
+    zIndex: 60, maxWidth: 'min(420px, 84vw)', display: 'flex', alignItems: 'center', gap: 8,
+    padding: '8px 14px', borderRadius: 999, border: '1px dashed rgba(180,200,255,0.34)',
+    background: 'rgba(14,16,22,0.72)', color: '#cdd6ea', fontSize: 13, lineHeight: 1.35,
+    backdropFilter: 'blur(6px)', pointerEvents: 'none', fontFamily: 'system-ui, sans-serif',
 };
 const autonomousSpeechStyle: React.CSSProperties = {
     position: 'fixed', bottom: 'max(142px, 21vh)', left: '50%', transform: 'translateX(-50%)',
