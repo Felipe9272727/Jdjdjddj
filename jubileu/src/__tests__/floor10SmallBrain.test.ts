@@ -100,3 +100,19 @@ describe('a conversa tem prioridade absoluta sobre a deliberação', () => {
         expect(npc.deliberationPhase).toBe('off');
     });
 });
+
+describe('um modelo por vez na memória', () => {
+    it('unloadSmallBrain devolve a fase para repouso e libera o motor', async () => {
+        const { unloadSmallBrain } = await import('../npc/floor10SmallBrain');
+        const { npc, npcSet } = await import('../npc/npcStore');
+        npcSet({ deliberationPhase: 'thinking' });
+        await unloadSmallBrain();
+        expect(npc.deliberationPhase).toBe('off');
+    });
+
+    it('descarregar duas vezes seguidas não quebra', async () => {
+        const { unloadSmallBrain } = await import('../npc/floor10SmallBrain');
+        await unloadSmallBrain();
+        await expect(unloadSmallBrain()).resolves.toBeUndefined();
+    });
+});

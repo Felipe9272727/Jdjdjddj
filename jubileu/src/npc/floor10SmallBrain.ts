@@ -72,6 +72,29 @@ export function abortDeliberation(): void {
     }
 }
 
+/**
+ * TIRA O CÉREBRO PEQUENO DA MEMÓRIA. Um modelo por vez, sempre.
+ *
+ * Manter os dois residentes somava 688 MB + 1,93 GB ≈ 2,6 GB numa aba de
+ * celular. Acima de ~1,5-2 GB o navegador entra em pressão de memória e a
+ * inferência despenca — foi o que derrubou a leitura para ~1,5 tok/s e deixou
+ * a resposta sem chegar em 286s. Abortar a deliberação libera CPU, mas só
+ * descarregar libera a MEMÓRIA, que era o gargalo real.
+ *
+ * O arquivo continua em cache no navegador: recarregar depois é rápido e não
+ * baixa nada de novo.
+ */
+export async function unloadSmallBrain(): Promise<void> {
+    abortDeliberation();
+    const pending = enginePromise;
+    enginePromise = null;
+    npcSet({ deliberationPhase: 'off' });
+    try {
+        const engine = await pending;
+        await engine?.exit?.();
+    } catch { /* já morreu; o que importa é a memória voltar */ }
+}
+
 /** Texto da resposta, tolerando os formatos que o wllama já devolveu. */
 export function readCompletionText(response: unknown): string {
     if (typeof response === 'string') return response;
@@ -105,16 +128,6 @@ function ensureSmallEngine(threads: number): Promise<SmallInstance | null> {
         }
     })();
     return enginePromise;
-}
-
-/**
- * Garante o cérebro pequeno em cache ANTES do grande. Pedido do Felipe: ele é
- * leve (688 MB contra 1,93 GB), então baixa rápido e já fica pronto para
- * deliberar assim que a conversa terminar — em vez de começar um download novo
- * justo quando o jogador para de falar.
- */
-export function preloadSmallBrain(threads = 4): Promise<unknown> {
-    return ensureSmallEngine(threads);
 }
 
 export type DeliberateInput = {
