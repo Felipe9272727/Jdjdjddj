@@ -90,13 +90,16 @@ export function cpuThreadCount(
 }
 
 export const STREAM_WATCHDOG = Object.freeze({
-    // Em uma única thread o 2B pode levar alguns minutos no prefill. Timeout
-    // reinicia apenas o mesmo cérebro na próxima interação; nunca muda a rota.
-    firstTokenMultiMs: 150_000,
-    firstTokenSingleMs: 300_000,
+    // O PREFILL de um prompt grande (~1000+ tokens) na CPU do celular passava
+    // dos 150s antigos e o watchdog matava o 2B TRABALHANDO ("parou de
+    // responder"). Como só o mesmo cérebro é reiniciado (nunca troca de rota),
+    // é seguro dar MUITO mais folga: melhor esperar do que falhar. O prefill
+    // real termina bem antes desses tetos.
+    firstTokenMultiMs: 600_000,   // 10 min (era 150s — estourava no prefill)
+    firstTokenSingleMs: 900_000,  // 15 min numa thread só
     // Depois que a fala começou, usamos apenas inatividade entre chunks. Não
     // existe mais um limite total que possa cortar uma resposta saudável.
-    nextTokenMultiMs: 120_000,
+    nextTokenMultiMs: 180_000,
     nextTokenSingleMs: 240_000,
 });
 

@@ -919,21 +919,19 @@ export function speedForWillGoal(goal: Floor10WillGoal): number {
 
 export function formatFloor10WillForPrompt(will: Floor10WillSnapshot): string {
     const commitment = will.commitment === 'follow-player'
-        ? `- Compromisso verbal ativo: Nilo aceitou seguir o jogador e a vontade está cumprindo isso. A fala que criou o compromisso foi: "${will.commitmentReason ?? 'aceitei seguir'}".`
-        : '- Compromisso verbal ativo: nenhum; Nilo continua escolhendo por conta própria.';
+        ? `- Compromisso verbal ativo: aceitou seguir o jogador ("${will.commitmentReason ?? 'aceitei seguir'}").`
+        : '- Compromisso verbal ativo: nenhum; continua escolhendo sozinho.';
     const directive = will.activeDirective
-        ? `- Pedido físico aceito em execução: ${will.activeDirective}. A decisão verbal foi: "${will.activeDirectiveReason ?? 'aceitei fazer isso'}".`
-        : '- Pedido físico temporário em execução: nenhum.';
+        ? `\n- Pedido físico em execução: ${will.activeDirective} ("${will.activeDirectiveReason ?? 'aceitei fazer isso'}").`
+        : '';
     const learnedPreference = will.learning.experiences > 0
-        ? '- Aprendizado por experiência: já está ajustando suavemente as preferências da Utility AI a partir das consequências das decisões anteriores.'
-        : '- Aprendizado por experiência: ainda observando; a Utility AI original continua decidindo.';
+        ? '\n- Já ajusta as preferências a partir das consequências de decisões anteriores.'
+        : '';
     return `VONTADE ATUAL (estado interno real, pode mudar):
 - Nilo escolheu ${will.label}, porque ${will.reason}.
 - Desejos 0..1: social ${will.drives.social.toFixed(2)}, curiosidade ${will.drives.curiosity.toFixed(2)}, inquietação ${will.drives.restlessness.toFixed(2)}, cansaço ${will.drives.fatigue.toFixed(2)}.
-${commitment}
-${directive}
-${learnedPreference}
-- Se perguntarem o que você quer ou por que está agindo, responda naturalmente a partir deste estado; nunca mencione números, scores ou sistemas.`;
+${commitment}${directive}${learnedPreference}
+- Se perguntarem o que quer ou por que age, responda a partir deste estado; nunca cite números nem sistemas.`;
 }
 
 function normalize(text: string): string {

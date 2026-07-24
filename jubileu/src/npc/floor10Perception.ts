@@ -332,7 +332,7 @@ ${playerLine}
 - Elevador: ${RELATIVE_PT[perception.elevator.direction]}, ${perception.elevator.distance} m; `
         + `${perception.elevator.visible ? 'visível' : 'fora da visão'}. Vê agora: `
         + `${perception.visibleObjects.map((object) => OBJECT_PT[object]).join(', ')}.
-- Nunca contradiga estes sensores nem invente objetos visíveis.`;
+- Nunca contradiga estes sensores.`;
 }
 
 function normalize(text: string): string {
