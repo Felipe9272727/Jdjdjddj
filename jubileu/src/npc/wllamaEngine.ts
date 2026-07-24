@@ -59,6 +59,14 @@ export const CHAT_COMPLETION_CONFIG = Object.freeze({
     temperature: 0.45,
     top_p: 0.85,
     top_k: 40,
+    // SEM penalidade o 2B entrava em loop ("meu nome é o mesmo que o seu quando
+    // você for perguntar…"). Pior: a fala degenerada era reprovada na validação
+    // e disparava uma SEGUNDA geração completa — dobrando o tempo de espera.
+    // Reproduzido no modelo real: 1.15 devolve fala coerente e no personagem.
+    penalty_repeat: 1.15,
+    penalty_last_n: 256,
+    // Faz o motor emitir as medições de velocidade durante o stream.
+    timings_per_token: true,
     // DESLIGADO de propósito: o cache híbrido de prompt do Qwen3.5 tem bug de
     // REUSO de contexto (llama.cpp#20225 / Qwen3#1826) — na 2ª mensagem o
     // estado cacheado corrompia e o modelo travava ("parou de responder").

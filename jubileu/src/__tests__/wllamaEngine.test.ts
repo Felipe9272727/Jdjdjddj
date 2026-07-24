@@ -70,6 +70,10 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
             top_p: 0.85,
             top_k: 40,
             cache_prompt: false,
+            // Sem isto o 2B entra em loop e a fala reprovada dispara uma
+            // segunda geração completa, dobrando a espera.
+            penalty_repeat: 1.15,
+            penalty_last_n: 256,
         });
         expect(CHAT_COMPLETION_CONFIG).not.toHaveProperty('nPredict');
         expect(CHAT_COMPLETION_CONFIG).not.toHaveProperty('sampling');
