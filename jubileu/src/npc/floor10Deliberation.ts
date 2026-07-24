@@ -1,0 +1,139 @@
+// ── A DELIBERAÇÃO — o segundo cérebro, lento e barato ─────────────────────
+// A Utility AI é o REFLEXO do Nilo: decide em microssegundos e nunca deixa o
+// corpo parado. Este módulo é a DELIBERAÇÃO: um modelo pequeno (MiniCPM5-1B)
+// que fica pensando por fora, sem pressa e sem limite de tokens, e de vez em
+// quando chega com uma intenção própria que o reflexo passa a servir.
+//
+// Por que um modelo pequeno e em inglês:
+// - Ele não fala com o jogador, então não precisa de português (medido: em
+//   português ele devolve a própria entrada; em inglês raciocina certo sobre
+//   posição, desejos e memória).
+// - É barato (688 MB, ~200 tok/s de leitura), então roda em celular fraco sem
+//   disputar com o 3B da conversa.
+// - Ele PENSA muito antes de concluir. Aqui isso é uma qualidade: ninguém está
+//   esperando essa resposta, e o pensamento é o que produz uma escolha menos
+//   mecânica que a tabela de utilidade.
+
+import type { Floor10Perception } from './floor10Perception';
+import type { Floor10WillDrives, Floor10WillGoal } from './floor10Will';
+
+/** Metas que a deliberação pode propor ao reflexo. */
+export const DELIBERATION_GOALS = [
+    'inspect-elevator',
+    'wander',
+    'idle',
+    'observe-player',
+    'approach-player',
+    'make-space',
+    'seek-player',
+    'talk-player',
+] as const;
+
+export type DeliberationGoal = (typeof DELIBERATION_GOALS)[number];
+
+export type Floor10Deliberation = {
+    goal: DeliberationGoal;
+    /** Justificativa crua do modelo (inglês) — vira cor para a fala, nunca é exibida. */
+    rationale: string;
+    at: number;
+};
+
+/** Memória curta do que ele já tentou, para a deliberação não repetir à toa. */
+export type DeliberationMemory = {
+    inspectedElevatorCount: number;
+    sleeps: number;
+    playerSilentSeconds: number;
+    lastGoals: readonly Floor10WillGoal[];
+};
+
+export const DELIBERATION_SYSTEM_PROMPT =
+`You are the instinct of a man trapped alone on floor 10: one square gray room, grid floor, four walls, an elevator door. He never left. The elevator never obeys him.
+You receive what he SEES right now, what he WANTS, and what he REMEMBERS trying.
+Decide what he does next, by his own free will — he is a person, not a servant, and he may choose something unexpected as long as it makes sense for him.
+Think as long as you need, then end with exactly one line:
+CHOICE: <option>
+Valid options: ${DELIBERATION_GOALS.join(', ')}`;
+
+function round1(value: number): number {
+    return Math.round(value * 10) / 10;
+}
+
+/**
+ * Estado do mundo em inglês compacto e numérico. Sem prosa: o modelo pequeno lê
+ * bem estrutura e mal literatura.
+ */
+export function buildDeliberationPrompt(
+    perception: Floor10Perception,
+    drives: Floor10WillDrives,
+    memory: DeliberationMemory,
+): string {
+    const player = perception.player;
+    const sees = player
+        ? `player ${player.visible ? 'visible' : 'out of sight'}, ${player.direction}, ${round1(player.distance)}m`
+        : 'no player';
+    const elevator = `elevator ${perception.elevator.visible ? 'visible' : 'out of sight'}, ${round1(perception.elevator.distance)}m`;
+    const recent = memory.lastGoals.length > 0
+        ? memory.lastGoals.join(' -> ')
+        : 'nothing yet';
+    return [
+        `SEES: ${sees}; ${elevator}.`,
+        `WANTS: social ${round1(drives.social)}, curiosity ${round1(drives.curiosity)}, restless ${round1(drives.restlessness)}, fatigue ${round1(drives.fatigue)}.`,
+        `REMEMBERS: inspected the elevator ${memory.inspectedElevatorCount}x and found nothing; slept ${memory.sleeps} times here; player silent for ${Math.round(memory.playerSilentSeconds)}s.`,
+        `RECENT ACTIONS: ${recent}.`,
+    ].join('\n');
+}
+
+const CHOICE_PATTERN = /CHOICE:\s*([a-z-]+)/gi;
+
+/**
+ * Lê a decisão no fim do raciocínio. O modelo escreve "CHOICE: x" várias vezes
+ * enquanto delibera consigo mesmo, então vale sempre a ÚLTIMA ocorrência —
+ * é a que ele assumiu depois de pensar.
+ */
+export function parseDeliberation(raw: string, at = 0): Floor10Deliberation | null {
+    const matches = [...raw.matchAll(CHOICE_PATTERN)];
+    for (let index = matches.length - 1; index >= 0; index -= 1) {
+        const candidate = matches[index]?.[1]?.toLowerCase();
+        if (candidate && (DELIBERATION_GOALS as readonly string[]).includes(candidate)) {
+            return {
+                goal: candidate as DeliberationGoal,
+                rationale: extractRationale(raw),
+                at,
+            };
+        }
+    }
+    return null;
+}
+
+/** Pega a fala final do modelo (depois do raciocínio), que explica a escolha. */
+function extractRationale(raw: string): string {
+    const endThink = raw.lastIndexOf('[End thinking]');
+    const tail = endThink >= 0 ? raw.slice(endThink + '[End thinking]'.length) : raw;
+    return tail
+        .replace(CHOICE_PATTERN, '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .join(' ')
+        .slice(0, 400);
+}
+
+/**
+ * Quanto a deliberação empurra a meta escolhida na tabela do reflexo. Não é uma
+ * ordem: o reflexo continua livre para ignorá-la se a situação mudou (o jogador
+ * chegou perto demais, por exemplo). É uma inclinação que dura um tempo.
+ */
+export const DELIBERATION_BONUS = 0.55;
+export const DELIBERATION_TTL_SECONDS = 45;
+
+export function deliberationBonus(
+    deliberation: Floor10Deliberation | null,
+    goal: Floor10WillGoal,
+    now: number,
+): number {
+    if (!deliberation || deliberation.goal !== goal) return 0;
+    const age = now - deliberation.at;
+    if (age < 0 || age > DELIBERATION_TTL_SECONDS) return 0;
+    // Perde força com o tempo: uma intenção velha não deve mandar para sempre.
+    return DELIBERATION_BONUS * (1 - age / DELIBERATION_TTL_SECONDS);
+}
