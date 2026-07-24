@@ -116,12 +116,17 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                         sleeps: 44,
                         playerSilentSeconds: Math.max(0, t - playerQuietSince.current),
                         lastGoals: lastGoalTrail.current.slice(-3) as never,
+                        // Os dois cérebros conversando: o que o 3B prometeu ao
+                        // jogador chega aqui e a deliberação honra a palavra.
+                        agreedAction: npc.willCommand?.action ?? npc.autonomy.commitment ?? null,
+                        agreedReason: npc.willCommand?.reason
+                            ?? npc.autonomy.commitmentReason ?? null,
                     },
                     now: t,
-                    // UMA thread, sempre. Dar 8 ao cérebro pequeno colocava 16
-                    // threads em 8 núcleos e afogava a conversa. Ele é lento de
-                    // propósito: ninguém espera por ele.
-                    threads: 1,
+                    // 4 threads: seguro porque a deliberação NUNCA roda junto com
+                    // a conversa (é abortada ao abrir o painel). Sozinha, ela
+                    // pode usar metade dos núcleos e concluir bem mais rápido.
+                    threads: 4,
                 }).then((decided) => {
                     if (decided) deliberation.current = decided;
                 });

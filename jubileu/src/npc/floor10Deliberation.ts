@@ -44,6 +44,14 @@ export type DeliberationMemory = {
     sleeps: number;
     playerSilentSeconds: number;
     lastGoals: readonly Floor10WillGoal[];
+    /**
+     * O QUE FOI COMBINADO NA CONVERSA. É por aqui que os dois cérebros se
+     * falam: o 3B aceita um pedido do jogador ("entra no elevador"), a Utility
+     * AI passa a cumprir, e a deliberação FICA SABENDO — sem isto ela poderia
+     * decidir algo que contradiz o que o Nilo acabou de prometer.
+     */
+    agreedAction?: string | null;
+    agreedReason?: string | null;
 };
 
 export const DELIBERATION_SYSTEM_PROMPT =
@@ -75,12 +83,22 @@ export function buildDeliberationPrompt(
     const recent = memory.lastGoals.length > 0
         ? memory.lastGoals.join(' -> ')
         : 'nothing yet';
-    return [
+    const lines = [
         `SEES: ${sees}; ${elevator}.`,
         `WANTS: social ${round1(drives.social)}, curiosity ${round1(drives.curiosity)}, restless ${round1(drives.restlessness)}, fatigue ${round1(drives.fatigue)}.`,
         `REMEMBERS: inspected the elevator ${memory.inspectedElevatorCount}x and found nothing; slept ${memory.sleeps} times here; player silent for ${Math.round(memory.playerSilentSeconds)}s.`,
         `RECENT ACTIONS: ${recent}.`,
-    ].join('\n');
+    ];
+    // A palavra dada na conversa vale mais que qualquer impulso: entra por
+    // último, logo antes da decisão, e diz explicitamente para honrá-la.
+    if (memory.agreedAction) {
+        lines.push(
+            `JUST PROMISED THE PLAYER: ${memory.agreedAction}`
+            + (memory.agreedReason ? ` — he said: "${memory.agreedReason}"` : '')
+            + '. Keep your word unless something makes it impossible.',
+        );
+    }
+    return lines.join('\n');
 }
 
 const CHOICE_PATTERN = /CHOICE:\s*([a-z-]+)/gi;

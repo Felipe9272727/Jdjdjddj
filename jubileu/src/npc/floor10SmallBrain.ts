@@ -107,6 +107,16 @@ function ensureSmallEngine(threads: number): Promise<SmallInstance | null> {
     return enginePromise;
 }
 
+/**
+ * Garante o cérebro pequeno em cache ANTES do grande. Pedido do Felipe: ele é
+ * leve (688 MB contra 1,93 GB), então baixa rápido e já fica pronto para
+ * deliberar assim que a conversa terminar — em vez de começar um download novo
+ * justo quando o jogador para de falar.
+ */
+export function preloadSmallBrain(threads = 4): Promise<unknown> {
+    return ensureSmallEngine(threads);
+}
+
 export type DeliberateInput = {
     perception: Floor10Perception;
     drives: Floor10WillDrives;

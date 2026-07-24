@@ -105,3 +105,20 @@ describe('a bolha de pensamento fala como o Nilo, não como sistema', () => {
         expect(deliberationThought('loading', '')).toBe('');
     });
 });
+
+describe('os dois cérebros se falam', () => {
+    it('a promessa feita na conversa chega à deliberação', () => {
+        const semPromessa = buildDeliberationPrompt(PERCEPTION, INITIAL_FLOOR10_WILL.drives, MEMORY);
+        expect(semPromessa).not.toContain('JUST PROMISED');
+
+        // O jogador pediu para entrar no elevador; o 3B aceitou.
+        const comPromessa = buildDeliberationPrompt(PERCEPTION, INITIAL_FLOOR10_WILL.drives, {
+            ...MEMORY,
+            agreedAction: 'enter-elevator',
+            agreedReason: 'Tudo bem, eu entro com você.',
+        });
+        expect(comPromessa).toContain('JUST PROMISED THE PLAYER: enter-elevator');
+        expect(comPromessa).toContain('Tudo bem, eu entro com você.');
+        expect(comPromessa).toContain('Keep your word');
+    });
+});

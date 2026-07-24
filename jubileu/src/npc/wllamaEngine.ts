@@ -14,7 +14,7 @@ import {
     type Floor10ReplyIssue,
 } from './floor10Canon';
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
-import { abortDeliberation } from './floor10SmallBrain';
+import { SMALL_BRAIN_MODEL, abortDeliberation, preloadSmallBrain } from './floor10SmallBrain';
 import {
     answerFloor10WillQuestion,
     hasFloor10PhysicalActionCue,
@@ -351,6 +351,15 @@ export function initLLM(): Promise<WllamaInstance> {
                 await (navigator as unknown as { storage?: { persist?: () => Promise<boolean> } }).storage?.persist?.();
             }
         } catch { /* persistência é só uma otimização */ }
+
+        // O CÉREBRO PEQUENO VEM PRIMEIRO (pedido do Felipe). Ele é leve, baixa
+        // rápido e já fica pronto para deliberar assim que a conversa acabar —
+        // em vez de começar um download novo justo quando o jogador se cala.
+        // Nunca bloqueia: se falhar, a conversa segue normalmente.
+        try {
+            npcSet({ loadText: `preparando o cérebro de deliberação (${SMALL_BRAIN_MODEL.label})…` });
+            await preloadSmallBrain(4);
+        } catch { /* sem deliberação o jogo funciona igual */ }
 
         modulePromise ??= import(/* @vite-ignore */ WLLAMA_ESM) as unknown as Promise<WllamaModule>;
         const mod = await modulePromise;
