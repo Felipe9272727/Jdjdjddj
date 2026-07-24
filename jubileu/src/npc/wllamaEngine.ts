@@ -79,10 +79,22 @@ export type Floor10ModelDef = {
     qwen3: boolean;
 };
 
+/**
+ * Cérebro de fala. Escolhido por comparação medida no modelo real (6 candidatos,
+ * com o prompt e o histórico do jogo): o Qwen3.5-2B saía incoerente ("o teto está
+ * cortando meu ombro", "um fio invisível cortando meu caminho") porque é um
+ * modelo de RACIOCÍNIO rodando com o raciocínio desligado — modo em que ele
+ * obedece pior a instruções. Gemma-4-E2B e MiniCPM5-1B caem no mesmo problema
+ * (gastam a resposta inteira "pensando"); Llama-3.2-3B chegou a negar o próprio
+ * nome; Phi-4-mini virou assistente ("como posso te ajudar hoje?").
+ * O Qwen2.5-3B-Instruct respondeu certo, no personagem e TERMINANDO a frase —
+ * e na mesma faixa de velocidade de leitura do 2B. Como ele acerta de primeira,
+ * evita a segunda geração que a validação disparava: mais rápido na prática.
+ */
 export const FLOOR10_MODEL: Readonly<Floor10ModelDef> = Object.freeze({
-    label: 'Qwen3.5-2B',
-    qwen3: true,
-    url: HF('AaryanK/Qwen3.5-2B-GGUF', 'Qwen3.5-2B.q4_k_m.gguf'),
+    label: 'Qwen2.5-3B',
+    qwen3: false,
+    url: HF('bartowski/Qwen2.5-3B-Instruct-GGUF', 'Qwen2.5-3B-Instruct-Q4_K_M.gguf'),
 });
 
 /**

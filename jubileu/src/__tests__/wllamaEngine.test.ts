@@ -46,10 +46,11 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(cpuThreadCount(true, Number.NaN)).toBe(1);
     });
 
-    it('expõe somente o Qwen3.5-2B como cérebro de fala', () => {
-        expect(FLOOR10_MODEL.label).toBe('Qwen3.5-2B');
-        expect(FLOOR10_MODEL.url).toMatch(/Qwen3\.5-2B/i);
-        expect(JSON.stringify(FLOOR10_MODEL)).not.toMatch(/0\.8B/i);
+    it('usa o Qwen2.5-3B-Instruct como cérebro de fala', () => {
+        expect(FLOOR10_MODEL.label).toBe('Qwen2.5-3B');
+        expect(FLOOR10_MODEL.url).toMatch(/Qwen2\.5-3B-Instruct/i);
+        // Instruct puro: nada de modo-raciocínio para desligar na marra.
+        expect(FLOOR10_MODEL.qwen3).toBe(false);
     });
 
     it('pede autocorreção ao próprio 2B sem fornecer resposta pronta', () => {
