@@ -3,8 +3,14 @@ import { perceiveFloor10 } from '../npc/floor10Perception';
 import {
     Floor10WillBrain,
     answerFloor10WillQuestion,
+    detectFloor10PlayerActionRequest,
+    formatFloor10ActionRequestForPrompt,
     formatFloor10WillForPrompt,
+    hasFloor10PhysicalActionCue,
+    parseFloor10WillLanguageDecision,
+    speedForWillGoal,
     stepFloor10Movement,
+    stripFloor10WillControl,
 } from '../npc/floor10Will';
 
 const NPC = { x: 0, y: 0, z: 2.2 };
@@ -111,6 +117,34 @@ describe('npc/floor10Will — autonomia e desejos do hóspede', () => {
         expect(result.snapshot.target).not.toBeNull();
     });
 
+    it('liga percepção e consequências da Utility AI à RL sem substituir a decisão-base', () => {
+        const brain = new Floor10WillBrain(6);
+        let snapshot = brain.tick({
+            dt: 0.1,
+            time: 0,
+            perception: vision(null),
+            npcPosition: NPC,
+            conversationOpen: false,
+            speaking: false,
+        }).snapshot;
+        for (const time of [5, 10, 15, 20, 25, 30, 35]) {
+            snapshot = brain.tick({
+                dt: 0.1,
+                time,
+                perception: vision(null),
+                npcPosition: NPC,
+                conversationOpen: false,
+                speaking: false,
+            }).snapshot;
+        }
+        expect(snapshot.learning).toMatchObject({
+            source: 'floor10-dueling-double-dqn',
+            parameterCount: 3993,
+        });
+        expect(snapshot.learning.experiences).toBeGreaterThan(0);
+        expect(['inspect-elevator', 'wander', 'idle']).toContain(snapshot.goal);
+    });
+
     it('procura a última posição vista quando o jogador sai do campo de visão', () => {
         const brain = new Floor10WillBrain(21);
         brain.tick({
@@ -148,6 +182,153 @@ describe('npc/floor10Will — autonomia e desejos do hóspede', () => {
             target: null,
             moving: false,
         });
+    });
+
+    it('só transforma um pedido físico em ação quando o 2B aceita', () => {
+        expect(detectFloor10PlayerActionRequest('Nilo, me segue.')).toBe('follow-player');
+        expect(detectFloor10PlayerActionRequest('Follow me, please.')).toBe('follow-player');
+        expect(detectFloor10PlayerActionRequest('Ven conmigo.')).toBe('follow-player');
+        expect(detectFloor10PlayerActionRequest('Não me siga mais.')).toBe('resume-autonomy');
+        expect(detectFloor10PlayerActionRequest('Espere aqui.')).toBe('wait');
+        expect(detectFloor10PlayerActionRequest('Entre no elevador.')).toBe('enter-elevator');
+        expect(detectFloor10PlayerActionRequest('Explore esta sala.')).toBe('explore-room');
+        expect(detectFloor10PlayerActionRequest('Você gosta de café?')).toBeNull();
+        expect(hasFloor10PhysicalActionCue('Vire-se devagar.')).toBe(true);
+        expect(hasFloor10PhysicalActionCue('Pode me dizer onde você está?')).toBe(false);
+
+        const accepted = parseFloor10WillLanguageDecision(
+            'Me segue.',
+            'Tudo bem. Vou com você. [[WILL:FOLLOW_PLAYER]]',
+        );
+        expect(accepted).toEqual({
+            visibleReply: 'Tudo bem. Vou com você.',
+            command: 'follow-player',
+        });
+        expect(parseFloor10WillLanguageDecision(
+            'Me segue.',
+            'Não. Ainda não confio em você. [[WILL:NONE]]',
+        ).command).toBeNull();
+        expect(parseFloor10WillLanguageDecision(
+            'Você pode fazer alguma coisa perto da porta?',
+            'Vou examinar a entrada. [[WILL:INSPECT_ELEVATOR]]',
+        ).command).toBe('inspect-elevator');
+        for (const partial of ['[', '[[', '[[W', '[[WILL:', '[[WILL:FOL']) {
+            expect(stripFloor10WillControl(`Vou com você. ${partial}`)).toBe('Vou com você.');
+        }
+        expect(formatFloor10ActionRequestForPrompt('Me segue.')).toContain('Isso é um pedido, não uma ordem');
+        expect(formatFloor10ActionRequestForPrompt('Você gosta de café?')).toBe('');
+    });
+
+    it('executa pedidos aceitos como diretivas e depois devolve o controle à vontade', () => {
+        const brain = new Floor10WillBrain(37);
+        brain.applyLanguageDecision('enter-elevator', 0, 'Tudo bem, vou entrar.');
+        const entering = brain.tick({
+            dt: 0.1,
+            time: 0.1,
+            perception: vision(null),
+            npcPosition: NPC,
+            conversationOpen: false,
+            speaking: false,
+        }).snapshot;
+        expect(entering).toMatchObject({
+            goal: 'enter-elevator',
+            activeDirective: 'enter-elevator',
+            target: { x: 0, z: -12 },
+            moving: true,
+        });
+        expect(answerFloor10WillQuestion('O que você quer fazer?', entering))
+            .toContain('aceitei o seu pedido');
+
+        const autonomousAgain = brain.tick({
+            dt: 0.1,
+            time: 13,
+            perception: vision(null),
+            npcPosition: NPC,
+            conversationOpen: false,
+            speaking: false,
+        }).snapshot;
+        expect(autonomousAgain.activeDirective).toBeNull();
+        expect(autonomousAgain.goal).not.toBe('enter-elevator');
+    });
+
+    it('uma diretiva temporária não apaga o compromisso persistente de seguir', () => {
+        const brain = new Floor10WillBrain(41);
+        brain.applyLanguageDecision('follow-player', 0, 'Vou com você.');
+        brain.applyLanguageDecision('wait', 1, 'Vou esperar um pouco.');
+        const waiting = brain.tick({
+            dt: 0.1,
+            time: 1.1,
+            perception: vision({ x: 0, y: 0, z: 8 }),
+            npcPosition: NPC,
+            conversationOpen: false,
+            speaking: false,
+        }).snapshot;
+        expect(waiting).toMatchObject({
+            goal: 'wait',
+            commitment: 'follow-player',
+            activeDirective: 'wait',
+        });
+
+        const followingAgain = brain.tick({
+            dt: 0.1,
+            time: 10,
+            perception: vision({ x: 0, y: 0, z: 8 }),
+            npcPosition: NPC,
+            conversationOpen: false,
+            speaking: false,
+        }).snapshot;
+        expect(followingAgain).toMatchObject({
+            goal: 'follow-player',
+            commitment: 'follow-player',
+            activeDirective: null,
+        });
+    });
+
+    it('cumpre no corpo o compromisso aceito pelo 2B e para quando ele aceita cancelar', () => {
+        const brain = new Floor10WillBrain(31);
+        brain.applyLanguageDecision('follow-player', 0, 'Tudo bem, vou com você.');
+
+        const whileTalking = brain.tick({
+            dt: 0.1,
+            time: 0.1,
+            perception: vision({ x: 0, y: 0, z: 8 }),
+            npcPosition: NPC,
+            conversationOpen: true,
+            speaking: false,
+        }).snapshot;
+        expect(whileTalking.goal).toBe('observe-player');
+        expect(whileTalking.commitment).toBe('follow-player');
+        expect(whileTalking.commitmentReason).toBe('Tudo bem, vou com você.');
+
+        const following = brain.tick({
+            dt: 0.1,
+            time: 1,
+            perception: vision({ x: 0, y: 0, z: 8 }),
+            npcPosition: NPC,
+            conversationOpen: false,
+            speaking: false,
+        }).snapshot;
+        expect(following).toMatchObject({
+            goal: 'follow-player',
+            commitment: 'follow-player',
+            target: { x: 0, z: 8 },
+            moving: true,
+        });
+        expect(speedForWillGoal(following.goal)).toBeGreaterThan(1);
+        expect(answerFloor10WillQuestion('O que você quer fazer?', following))
+            .toContain('escolhi te seguir');
+
+        brain.applyLanguageDecision('resume-autonomy', 2);
+        const autonomousAgain = brain.tick({
+            dt: 0.1,
+            time: 2.1,
+            perception: vision(null),
+            npcPosition: NPC,
+            conversationOpen: false,
+            speaking: false,
+        }).snapshot;
+        expect(autonomousAgain.commitment).toBeNull();
+        expect(autonomousAgain.goal).not.toBe('follow-player');
     });
 
     it('move em passos limitados e usa a abertura real do elevador', () => {
@@ -188,5 +369,6 @@ describe('npc/floor10Will — autonomia e desejos do hóspede', () => {
             .toContain('Ahora quiero');
         expect(answerFloor10WillQuestion('Qual é seu nome?', snapshot)).toBeNull();
         expect(formatFloor10WillForPrompt(snapshot)).toContain('VONTADE ATUAL');
+        expect(formatFloor10WillForPrompt(snapshot)).toContain('Compromisso verbal ativo');
     });
 });

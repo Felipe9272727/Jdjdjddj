@@ -2,29 +2,24 @@
 // A inferência roda no processador, dentro de um Worker, via wllama/llama.cpp.
 // O modelo fica em cache no navegador depois do primeiro download.
 //
-// Diagnóstico medido em 2026-07-23:
-// - o GGUF Qwen3.5-2B responde normalmente em llama.cpp nativo;
-// - a configuração web antiga (persona longa + contexto 2048) levou 91s até o
-//   primeiro token mesmo numa CPU de servidor e virava vários minutos no celular;
-// - o 0.8B foi ~2,5× mais rápido, mas perdeu qualidade em português.
-//
-// Agora os dois tamanhos têm funções fixas. Uma micro-IA classifica a pergunta
-// ANTES da inferência: conversa curta/factual vai ao 0.8B com RAG compacto;
-// raciocínio, emoção contextual e perguntas abertas vão ao 2B. Não existe
-// troca silenciosa de modelo depois de timeout.
-import { npc, npcSet, type NpcMsg } from './npcStore';
+// O Qwen3.5-2B é o único LLM. RAG apenas fornece contexto; olhos e vontade
+// continuam sendo micro-IAs independentes, inclusive com suas respostas
+// factuais próprias. Não existe roteamento, fallback ou outro download de LLM.
+import { npc, npcIssueWillCommand, npcSet } from './npcStore';
 import {
     buildFloor10SystemPrompt,
+    floor10ReplyIssue,
     groundedModelHistory,
-    guardNpcReply,
     guardedStreamingText,
+    type Floor10ReplyIssue,
 } from './floor10Canon';
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import {
-    classifyFloor10Question,
-    type Floor10ModelRoute,
-} from './floor10Router';
-import { answerFloor10WillQuestion } from './floor10Will';
+    answerFloor10WillQuestion,
+    hasFloor10PhysicalActionCue,
+    parseFloor10WillLanguageDecision,
+    stripFloor10WillControl,
+} from './floor10Will';
 
 const WLLAMA_V = '3.5.1';
 // esm.sh/esm.run reempacotavam o wllama e quebravam worker/WASM. O ESM
@@ -60,39 +55,17 @@ export const CHAT_COMPLETION_CONFIG = Object.freeze({
     cache_prompt: true,
 });
 
-export type RoutedModelDef = {
-    route: Floor10ModelRoute;
+export type Floor10ModelDef = {
     url: string;
     label: string;
     qwen3: boolean;
 };
 
-export const ROUTED_MODELS: Readonly<Record<Floor10ModelRoute, RoutedModelDef>> = Object.freeze({
-    simple: Object.freeze({
-        route: 'simple',
-        label: 'Qwen3.5-0.8B',
-        qwen3: true,
-        url: HF('unsloth/Qwen3.5-0.8B-GGUF', 'Qwen3.5-0.8B-Q4_K_M.gguf'),
-    }),
-    complex: Object.freeze({
-        route: 'complex',
-        label: 'Qwen3.5-2B',
-        qwen3: true,
-        url: HF('AaryanK/Qwen3.5-2B-GGUF', 'Qwen3.5-2B.q4_k_m.gguf'),
-    }),
+export const FLOOR10_MODEL: Readonly<Floor10ModelDef> = Object.freeze({
+    label: 'Qwen3.5-2B',
+    qwen3: true,
+    url: HF('AaryanK/Qwen3.5-2B-GGUF', 'Qwen3.5-2B.q4_k_m.gguf'),
 });
-
-export function planFloor10Inference(
-    userText: string,
-    history: readonly NpcMsg[] = [],
-) {
-    const decision = classifyFloor10Question(userText, history);
-    return {
-        ...decision,
-        model: ROUTED_MODELS[decision.route],
-        promptMode: decision.route === 'simple' ? 'compact' as const : 'full' as const,
-    };
-}
 
 /**
  * Sem isolamento, SharedArrayBuffer/pthreads não estão disponíveis. Com
@@ -130,6 +103,26 @@ export class GenerationTimeoutError extends Error {
         super(`GENERATION_TIMEOUT_${stage}`);
         this.name = 'GenerationTimeoutError';
     }
+}
+
+class UngroundedNpcReplyError extends Error {
+    constructor(public readonly issue: Floor10ReplyIssue) {
+        super(`UNGROUNDED_NPC_REPLY_${issue}`);
+        this.name = 'UngroundedNpcReplyError';
+    }
+}
+
+export function buildFloor10CorrectionPrompt(
+    systemPrompt: string,
+    issue: Floor10ReplyIssue,
+): string {
+    return `${systemPrompt}
+
+REVISÃO OBRIGATÓRIA:
+- Uma tentativa anterior do próprio modelo foi descartada por: ${issue}.
+- Gere outra fala do zero, respondendo à mesma mensagem do jogador.
+- Confira identidade, cânone, olhos e vontade antes de responder.
+- Nenhuma resposta pronta é fornecida aqui; a nova fala deve ser sua.`;
 }
 
 type StreamWatchdogOptions = {
@@ -255,31 +248,8 @@ let loadedQwen3 = false;
 let currentEngine: WllamaInstance | null = null;
 let activeModelUrl = '';
 let loadedThreads = 1;
-let lastRequestedRoute: Floor10ModelRoute = 'simple';
 let modulePromise: Promise<WllamaModule> | null = null;
 let transitionPromise: Promise<WllamaInstance> | null = null;
-let transitionTargetUrl = '';
-
-function manualOverride(): string | null {
-    if (typeof window === 'undefined') return null;
-    return (window as unknown as { __npcGGUF?: string }).__npcGGUF ?? null;
-}
-
-// Override: window.__npcGGUF = 'Qwen3.5-2B' ou uma URL .gguf completa.
-function modelForRoute(route: Floor10ModelRoute): RoutedModelDef {
-    const override = manualOverride();
-    if (!override) return ROUTED_MODELS[route];
-    if (override.startsWith('http')) {
-        return {
-            route,
-            label: 'custom',
-            qwen3: /qwen3/i.test(override),
-            url: override,
-        };
-    }
-    return Object.values(ROUTED_MODELS).find((model) => model.label === override)
-        ?? ROUTED_MODELS[route];
-}
 
 async function teardownEngine(engine: WllamaInstance | null = currentEngine): Promise<void> {
     if (engine === currentEngine) {
@@ -291,31 +261,21 @@ async function teardownEngine(engine: WllamaInstance | null = currentEngine): Pr
     try { await engine?.exit?.(); } catch { /* worker já morreu */ }
 }
 
-export function initLLM(route: Floor10ModelRoute = lastRequestedRoute): Promise<WllamaInstance> {
-    lastRequestedRoute = route;
-    const model = modelForRoute(route);
+export function initLLM(): Promise<WllamaInstance> {
+    const model = FLOOR10_MODEL;
 
     if (currentEngine && activeModelUrl === model.url) return Promise.resolve(currentEngine);
-    if (transitionPromise) {
-        if (transitionTargetUrl === model.url) return transitionPromise;
-        // Uma troca simultânea não deixa dois GGUFs brigarem pela memória. A
-        // segunda rota espera a transição atual encerrar e então decide de novo.
-        return transitionPromise
-            .catch(() => undefined)
-            .then(() => initLLM(route));
-    }
+    if (transitionPromise) return transitionPromise;
 
-    transitionTargetUrl = model.url;
     npcSet({
         phase: 'loading',
         modelLabel: `${model.label} · detectando CPU`,
-        loadText: `roteador escolheu ${model.label}; preparando a CPU…`,
+        loadText: `preparando ${model.label} na CPU…`,
         loadProgress: 0,
         error: '',
     });
 
     const pending = (async () => {
-        if (currentEngine && activeModelUrl !== model.url) await teardownEngine(currentEngine);
         try {
             if (typeof navigator !== 'undefined') {
                 await (navigator as unknown as { storage?: { persist?: () => Promise<boolean> } }).storage?.persist?.();
@@ -370,14 +330,12 @@ export function initLLM(route: Floor10ModelRoute = lastRequestedRoute): Promise<
         (engine) => {
             if (transitionPromise === tracked) {
                 transitionPromise = null;
-                transitionTargetUrl = '';
             }
             return engine;
         },
         (error: unknown) => {
             if (transitionPromise === tracked) {
                 transitionPromise = null;
-                transitionTargetUrl = '';
             }
             currentEngine = null;
             activeModelUrl = '';
@@ -404,56 +362,57 @@ export async function sendToNpc(userText: string): Promise<void> {
     const text = userText.trim();
     if (!text || npc.phase === 'thinking' || npc.phase === 'loading') return;
 
-    // A vontade conhece a própria escolha sem consultar o LLM. Ela vem antes
-    // dos olhos para "onde você está indo?" significar intenção, não posição.
-    const willAnswer = answerFloor10WillQuestion(text, npc.autonomy);
-    if (willAnswer) {
-        npcSet({
-            history: [
-                ...npc.history,
-                { role: 'user', content: text },
-                { role: 'assistant', content: willAnswer },
-            ],
-            phase: npc.phase === 'error' ? 'cold' : npc.phase,
-            streaming: '',
-            speaking: false,
-            error: '',
-        });
-        return;
+    // Perguntas factuais dos olhos e da vontade preservam as falas rápidas que
+    // dão personalidade às micro-IAs. Um possível pedido corporal sempre vai
+    // ao 2B, pois só a decisão verbal dele pode virar ação na Utility AI.
+    const actionRequest = hasFloor10PhysicalActionCue(text);
+    if (!actionRequest) {
+        const willAnswer = answerFloor10WillQuestion(text, npc.autonomy);
+        if (willAnswer) {
+            npcSet({
+                history: [
+                    ...npc.history,
+                    { role: 'user', content: text },
+                    { role: 'assistant', content: willAnswer },
+                ],
+                phase: npc.phase === 'error' ? 'cold' : npc.phase,
+                modelLabel: 'Vontade · resposta direta',
+                streaming: '',
+                speaking: false,
+                error: '',
+            });
+            return;
+        }
+
+        const sensoryAnswer = answerFloor10PerceptionQuestion(text, npc.perception);
+        if (sensoryAnswer) {
+            npcSet({
+                history: [
+                    ...npc.history,
+                    { role: 'user', content: text },
+                    { role: 'assistant', content: sensoryAnswer },
+                ],
+                phase: npc.phase === 'error' ? 'cold' : npc.phase,
+                modelLabel: 'Olhos · resposta direta',
+                streaming: '',
+                speaking: false,
+                error: '',
+            });
+            return;
+        }
     }
 
-    // Os olhos são outra IA separada: perguntas sobre posição/campo de visão
-    // recebem resposta instantânea e factual, sem gastar inferência do 2B.
-    const sensoryAnswer = answerFloor10PerceptionQuestion(text, npc.perception);
-    if (sensoryAnswer) {
-        npcSet({
-            history: [
-                ...npc.history,
-                { role: 'user', content: text },
-                { role: 'assistant', content: sensoryAnswer },
-            ],
-            phase: npc.phase === 'error' ? 'cold' : npc.phase,
-            streaming: '',
-            speaking: false,
-            error: '',
-        });
-        return;
-    }
-
-    const decision = planFloor10Inference(text, npc.history);
     const history = [...npc.history, { role: 'user' as const, content: text }];
     npcSet({
         history,
         streaming: '',
         speaking: false,
         error: '',
-        modelLabel: `${decision.model.label} · rota ${
-            decision.route === 'simple' ? 'simples' : 'complexa'
-        }`,
+        modelLabel: `${FLOOR10_MODEL.label} · modelo único`,
     });
 
     let engine: WllamaInstance;
-    try { engine = await initLLM(decision.route); } catch { return; }
+    try { engine = await initLLM(); } catch { return; }
 
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
     const systemPrompt = buildFloor10SystemPrompt(
@@ -461,33 +420,43 @@ export async function sendToNpc(userText: string): Promise<void> {
         history,
         npc.perception,
         npc.autonomy,
-        decision.promptMode,
     );
-    const messages = [
-        { role: 'system', content: systemPrompt },
-        ...groundedModelHistory(history),
-    ];
+    const groundedHistory = groundedModelHistory(history);
 
-    // Uma única tentativa no cérebro escolhido. Timeout pode reiniciar este
-    // motor, mas jamais redireciona a pergunta para outro tamanho.
+    // Toda tentativa usa o mesmo 2B. Se a validação detectar uma contradição,
+    // o próprio 2B recebe uma única chance de revisar; não há frase pronta nem
+    // outro modelo respondendo no lugar dele.
     let teardownAfterTimeout: Promise<void> | null = null;
-    const abort = new AbortController();
-    try {
-        const firstTokenMs = loadedThreads > 1
-            ? STREAM_WATCHDOG.firstTokenMultiMs
-            : STREAM_WATCHDOG.firstTokenSingleMs;
-        const nextTokenMs = loadedThreads > 1
-            ? STREAM_WATCHDOG.nextTokenMultiMs
-            : STREAM_WATCHDOG.nextTokenSingleMs;
+    const firstTokenMs = loadedThreads > 1
+        ? STREAM_WATCHDOG.firstTokenMultiMs
+        : STREAM_WATCHDOG.firstTokenSingleMs;
+    const nextTokenMs = loadedThreads > 1
+        ? STREAM_WATCHDOG.nextTokenMultiMs
+        : STREAM_WATCHDOG.nextTokenSingleMs;
+    const generateWith2B = async (
+        prompt: string,
+        sampling: Partial<{
+            temperature: number;
+            top_p: number;
+            top_k: number;
+        }> = {},
+    ): Promise<string> => {
+        const abort = new AbortController();
         const streamPromise = engine.createChatCompletion({
-            messages,
+            messages: [
+                { role: 'system', content: prompt },
+                ...groundedHistory,
+            ],
             ...CHAT_COMPLETION_CONFIG,
+            ...sampling,
             abortSignal: abort.signal,
             ...(loadedQwen3 ? { chat_template_kwargs: { enable_thinking: false } } : {}),
         });
-        const acc = await consumeChatStream(
+        return consumeChatStream(
             streamPromise,
-            (streaming) => npcSet({ streaming: guardedStreamingText(streaming) }),
+            (streaming) => npcSet({
+                streaming: guardedStreamingText(stripFloor10WillControl(streaming)),
+            }),
             {
                 firstTokenMs,
                 nextTokenMs,
@@ -497,7 +466,33 @@ export async function sendToNpc(userText: string): Promise<void> {
                 },
             },
         );
-        const finalText = guardNpcReply(visibleText(acc), text, npc.perception);
+    };
+
+    try {
+        let languageDecision = parseFloor10WillLanguageDecision(
+            text,
+            visibleText(await generateWith2B(systemPrompt)),
+        );
+        let finalText = languageDecision.visibleReply;
+        let replyIssue = floor10ReplyIssue(finalText, text, npc.perception);
+        if (replyIssue) {
+            npcSet({ streaming: 'O 2B está revisando a consistência…' });
+            const correctionPrompt = buildFloor10CorrectionPrompt(systemPrompt, replyIssue);
+            languageDecision = parseFloor10WillLanguageDecision(
+                text,
+                visibleText(await generateWith2B(correctionPrompt, {
+                    temperature: 0.2,
+                    top_p: 0.75,
+                    top_k: 20,
+                })),
+            );
+            finalText = languageDecision.visibleReply;
+            replyIssue = floor10ReplyIssue(finalText, text, npc.perception);
+            if (replyIssue) throw new UngroundedNpcReplyError(replyIssue);
+        }
+        if (languageDecision.command) {
+            npcIssueWillCommand(languageDecision.command, finalText);
+        }
         npcSet({
             history: [...history, { role: 'assistant', content: finalText }],
             streaming: '',
@@ -508,10 +503,27 @@ export async function sendToNpc(userText: string): Promise<void> {
         if (teardownAfterTimeout) await teardownAfterTimeout;
         const timedOut = error instanceof GenerationTimeoutError;
 
-        // Se a fala começou, ela pertence ao modelo escolhido e continua sendo
-        // preservada. Não há troca para o 0.8B nem repetição escondida.
+        // Se a fala começou, ela pertence ao 2B e pode ser preservada desde que
+        // não contradiga o cânone ou os sensores.
         if (timedOut && error.hadVisibleText && error.partialText) {
-            const safePartialText = guardNpcReply(error.partialText, text, npc.perception);
+            const partialDecision = parseFloor10WillLanguageDecision(
+                text,
+                visibleText(error.partialText),
+            );
+            const safePartialText = partialDecision.visibleReply;
+            const replyIssue = floor10ReplyIssue(safePartialText, text, npc.perception);
+            if (replyIssue) {
+                npcSet({
+                    phase: 'ready',
+                    speaking: false,
+                    streaming: '',
+                    error: `O ${FLOOR10_MODEL.label} interrompeu uma fala inconsistente (${replyIssue}). Tente novamente; nenhum texto do RAG foi usado como resposta.`,
+                });
+                return;
+            }
+            if (partialDecision.command) {
+                npcIssueWillCommand(partialDecision.command, safePartialText);
+            }
             npcSet({
                 history: [...history, { role: 'assistant', content: safePartialText }],
                 phase: 'ready',
@@ -522,15 +534,19 @@ export async function sendToNpc(userText: string): Promise<void> {
             return;
         }
 
-        if (!timedOut) await teardownEngine(engine);
+        if (!timedOut && !(error instanceof UngroundedNpcReplyError)) {
+            await teardownEngine(engine);
+        }
         const message = error instanceof Error ? error.message : String(error);
         npcSet({
             phase: 'ready',
             speaking: false,
             streaming: '',
             error: timedOut
-                ? `${decision.model.label} parou de responder. O mesmo cérebro será recarregado na próxima mensagem; nenhum fallback foi ativado.`
-                : `Deu ruim na resposta do ${decision.model.label}: ${message}`,
+                ? `${FLOOR10_MODEL.label} parou de responder. O mesmo cérebro será recarregado na próxima mensagem; nenhum fallback foi ativado.`
+                : error instanceof UngroundedNpcReplyError
+                    ? `${FLOOR10_MODEL.label} produziu uma fala inconsistente (${error.issue}). Tente novamente; o RAG não respondeu no lugar dele.`
+                    : `Deu ruim na resposta do ${FLOOR10_MODEL.label}: ${message}`,
         });
     }
 }

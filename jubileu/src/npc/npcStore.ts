@@ -9,6 +9,8 @@ import {
 } from './floor10Perception';
 import {
     INITIAL_FLOOR10_WILL,
+    type Floor10WillCommand,
+    type Floor10WillCommandAction,
     type Floor10WillSnapshot,
 } from './floor10Will';
 
@@ -28,6 +30,7 @@ export type NpcState = {
     speaking: boolean;      // true enquanto o NPC "fala" (pro corpo animar a boca)
     perception: Floor10Perception; // micro-IA dos olhos (sensores espaciais ao vivo)
     autonomy: Floor10WillSnapshot; // vontade atual escolhida pela Utility AI
+    willCommand: Floor10WillCommand | null; // decisão verbal aceita pelo 2B
     autonomousSpeech: string; // iniciativa de fala fora do painel
     autonomousSpeechId: number;
     error: string;
@@ -39,6 +42,7 @@ const s: NpcState = {
     modelLabel: '', history: [], streaming: '', speaking: false,
     perception: INITIAL_FLOOR10_PERCEPTION,
     autonomy: INITIAL_FLOOR10_WILL,
+    willCommand: null,
     autonomousSpeech: '', autonomousSpeechId: 0,
     error: '', version: 0,
 };
@@ -58,6 +62,15 @@ export function npcPublishAutonomy(autonomy: Floor10WillSnapshot) {
     s.autonomy = autonomy;
     if (changedDecision) npcBump();
 }
+let nextWillCommandId = 0;
+export function npcIssueWillCommand(action: Floor10WillCommandAction, reason: string) {
+    s.willCommand = {
+        id: ++nextWillCommandId,
+        action,
+        reason,
+    };
+    npcBump();
+}
 export function npcAutonomousSay(content: string) {
     const speech = content.trim();
     if (!speech) return;
@@ -68,7 +81,7 @@ export function npcAutonomousSay(content: string) {
 }
 export function npcReset() {
     Object.assign(s, { open: false, phase: s.phase === 'ready' || s.phase === 'thinking' ? 'ready' : s.phase,
-        history: [], streaming: '', speaking: false, autonomousSpeech: '', error: '' });
+        history: [], streaming: '', speaking: false, willCommand: null, autonomousSpeech: '', error: '' });
     npcBump();
 }
 

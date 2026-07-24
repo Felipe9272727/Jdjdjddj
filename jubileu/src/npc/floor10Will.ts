@@ -1,4 +1,11 @@
 import type { Floor10Perception, Vec3Like } from './floor10Perception';
+import {
+    FLOOR10_RL_ACTIONS,
+    Floor10ReinforcementLearner,
+    INITIAL_FLOOR10_REINFORCEMENT,
+    type Floor10ReinforcementSnapshot,
+    type Floor10RlAction,
+} from './floor10Reinforcement';
 
 // ── A VONTADE DO HÓSPEDE ───────────────────────────────────────────────────
 // "Livre-arbítrio" de gameplay: um agente de Utility AI separado dos olhos e
@@ -11,9 +18,12 @@ import type { Floor10Perception, Vec3Like } from './floor10Perception';
 
 export type Floor10WillGoal =
     | 'idle'
+    | 'wait'
     | 'wander'
     | 'inspect-elevator'
+    | 'enter-elevator'
     | 'approach-player'
+    | 'follow-player'
     | 'seek-player'
     | 'observe-player'
     | 'make-space'
@@ -26,6 +36,24 @@ export type Floor10WillDrives = {
     fatigue: number;
 };
 
+export type Floor10WillCommitment = 'follow-player' | null;
+export type Floor10WillCommandAction =
+    | 'follow-player'
+    | 'resume-autonomy'
+    | 'approach-player'
+    | 'wait'
+    | 'inspect-elevator'
+    | 'enter-elevator'
+    | 'explore-room'
+    | 'make-space'
+    | 'observe-player';
+
+export type Floor10WillCommand = {
+    id: number;
+    action: Floor10WillCommandAction;
+    reason: string;
+};
+
 export type Floor10WillSnapshot = {
     source: 'floor10-utility-will';
     decisionId: number;
@@ -34,7 +62,12 @@ export type Floor10WillSnapshot = {
     reason: string;
     target: null | { x: number; z: number };
     moving: boolean;
+    commitment: Floor10WillCommitment;
+    commitmentReason: string | null;
+    activeDirective: Floor10WillCommandAction | null;
+    activeDirectiveReason: string | null;
     drives: Floor10WillDrives;
+    learning: Floor10ReinforcementSnapshot;
 };
 
 export type Floor10WillTick = {
@@ -58,14 +91,41 @@ type Candidate = {
     reason: string;
 };
 
+type ActiveDirective = {
+    action: Exclude<Floor10WillCommandAction, 'follow-player' | 'resume-autonomy'>;
+    issuedAt: number;
+    expiresAt: number;
+    target: Floor10WillSnapshot['target'];
+    reason: string;
+    completed: boolean;
+};
+
+type LearningDecision = {
+    state: Float32Array;
+    action: Floor10RlAction;
+    startedAt: number;
+    playerDistance: number | null;
+    elevatorDistance: number;
+    targetDistance: number | null;
+    restlessness: number;
+    fatigue: number;
+};
+
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
+function isFloor10RlAction(goal: Floor10WillGoal): goal is Floor10RlAction {
+    return (FLOOR10_RL_ACTIONS as readonly string[]).includes(goal);
+}
+
 const GOAL_LABEL: Record<Floor10WillGoal, string> = {
     idle: 'ficar em silêncio por um instante',
+    wait: 'esperar aqui',
     wander: 'explorar a sala',
     'inspect-elevator': 'examinar o elevador',
+    'enter-elevator': 'entrar no elevador',
     'approach-player': 'me aproximar de você',
+    'follow-player': 'seguir você',
     'seek-player': 'procurar você',
     'observe-player': 'observar você',
     'make-space': 'abrir um pouco de espaço',
@@ -74,9 +134,12 @@ const GOAL_LABEL: Record<Floor10WillGoal, string> = {
 
 const GOAL_LABEL_EN: Record<Floor10WillGoal, string> = {
     idle: 'stay quiet for a moment',
+    wait: 'wait here',
     wander: 'explore the room',
     'inspect-elevator': 'inspect the elevator',
+    'enter-elevator': 'enter the elevator',
     'approach-player': 'come closer to you',
+    'follow-player': 'follow you',
     'seek-player': 'look for you',
     'observe-player': 'observe you',
     'make-space': 'give you some space',
@@ -85,9 +148,12 @@ const GOAL_LABEL_EN: Record<Floor10WillGoal, string> = {
 
 const GOAL_LABEL_ES: Record<Floor10WillGoal, string> = {
     idle: 'quedarme en silencio un momento',
+    wait: 'esperar aquí',
     wander: 'explorar la sala',
     'inspect-elevator': 'examinar el ascensor',
+    'enter-elevator': 'entrar en el ascensor',
     'approach-player': 'acercarme a ti',
+    'follow-player': 'seguirte',
     'seek-player': 'buscarte',
     'observe-player': 'observarte',
     'make-space': 'darte un poco de espacio',
@@ -123,12 +189,17 @@ export const INITIAL_FLOOR10_WILL: Floor10WillSnapshot = {
     reason: 'estou entendendo o que existe ao meu redor',
     target: null,
     moving: false,
+    commitment: null,
+    commitmentReason: null,
+    activeDirective: null,
+    activeDirectiveReason: null,
     drives: {
         social: 0.62,
         curiosity: 0.68,
         restlessness: 0.42,
         fatigue: 0.08,
     },
+    learning: { ...INITIAL_FLOOR10_REINFORCEMENT },
 };
 
 /**
@@ -141,6 +212,7 @@ export class Floor10WillBrain {
     private snapshot: Floor10WillSnapshot = {
         ...INITIAL_FLOOR10_WILL,
         drives: drivesCopy(INITIAL_FLOOR10_WILL.drives),
+        learning: { ...INITIAL_FLOOR10_WILL.learning },
     };
     private nextDecisionAt = 0;
     private goalLockedUntil = 0;
@@ -148,6 +220,11 @@ export class Floor10WillBrain {
     private lastSeenPlayer: { x: number; z: number; at: number } | null = null;
     private lastGoal: Floor10WillGoal = 'idle';
     private lastAutonomousLine = -1;
+    private commitment: Floor10WillCommitment = null;
+    private commitmentReason: string | null = null;
+    private activeDirective: ActiveDirective | null = null;
+    private reinforcement: Floor10ReinforcementLearner;
+    private learningDecision: LearningDecision | null = null;
 
     constructor(seed?: number) {
         if (seed === undefined) {
@@ -157,6 +234,62 @@ export class Floor10WillBrain {
             seed = entropy[0] ^ 0x4e494c4f;
         }
         this.randomState = seed >>> 0;
+        this.reinforcement = new Floor10ReinforcementLearner({
+            seed: (seed ^ 0x524c4e49) >>> 0,
+        });
+        this.snapshot.learning = this.reinforcement.snapshot();
+    }
+
+    /**
+     * Recebe apenas compromissos que o cérebro de fala aceitou explicitamente.
+     * A ordem do jogador, sozinha, nunca chega aqui.
+     */
+    applyLanguageDecision(
+        action: Floor10WillCommandAction,
+        time: number,
+        languageReason = '',
+    ): Floor10WillSnapshot {
+        const reason = languageReason.replace(/\s+/g, ' ').trim().slice(0, 180)
+            || 'Nilo aceitou verbalmente.';
+        if (action === 'follow-player') {
+            this.commitment = 'follow-player';
+            this.commitmentReason = reason;
+            this.activeDirective = null;
+        } else if (action === 'resume-autonomy') {
+            this.commitment = null;
+            this.commitmentReason = null;
+            this.activeDirective = null;
+        } else {
+            const duration = action === 'wait' || action === 'observe-player'
+                ? 8
+                : action === 'explore-room'
+                    ? 14
+                    : 12;
+            this.activeDirective = {
+                action,
+                issuedAt: time,
+                expiresAt: time + duration,
+                target: null,
+                reason,
+                completed: false,
+            };
+        }
+        this.goalLockedUntil = time;
+        this.nextDecisionAt = time;
+        this.snapshot = {
+            ...this.snapshot,
+            decisionId: this.snapshot.decisionId + 1,
+            commitment: this.commitment,
+            commitmentReason: this.commitmentReason,
+            activeDirective: this.activeDirective?.action ?? null,
+            activeDirectiveReason: this.activeDirective?.reason ?? null,
+            reason: action === 'follow-player'
+                ? 'eu aceitei acompanhar você e quero cumprir o que disse'
+                : action === 'resume-autonomy'
+                    ? 'eu concordei em cancelar o compromisso e voltei a escolher livremente'
+                    : `eu aceitei um pedido físico e decidi cumpri-lo: ${reason}`,
+        };
+        return this.snapshot;
     }
 
     private random(): number {
@@ -197,7 +330,12 @@ export class Floor10WillBrain {
             reason: candidate.reason,
             target: candidate.target,
             moving: candidate.target !== null,
+            commitment: this.commitment,
+            commitmentReason: this.commitmentReason,
+            activeDirective: this.activeDirective?.action ?? null,
+            activeDirectiveReason: this.activeDirective?.reason ?? null,
             drives: drivesCopy(this.drives),
+            learning: this.reinforcement.snapshot(),
         };
         this.goalLockedUntil = time + lockSeconds;
         this.nextDecisionAt = time + 1.4 + this.random() * 1.7;
@@ -255,8 +393,224 @@ export class Floor10WillBrain {
         }
     }
 
+    private reinforcementState(input: WillInput): Float32Array {
+        const state = new Float32Array(24);
+        const player = input.perception.player;
+        state[0] = this.drives.social;
+        state[1] = this.drives.curiosity;
+        state[2] = this.drives.restlessness;
+        state[3] = this.drives.fatigue;
+        state[4] = player ? 1 : 0;
+        state[5] = player?.visible ? 1 : 0;
+        state[6] = player ? 1 - clamp(player.distance / 18, 0, 1) : 0;
+        state[7] = player && player.distance < 1.05 ? 1 : 0;
+        state[8] = player && player.distance <= 2.6 ? 1 : 0;
+        state[9] = input.perception.elevator.visible ? 1 : 0;
+        state[10] = 1 - clamp(input.perception.elevator.distance / 30, 0, 1);
+        state[11] = this.snapshot.moving ? 1 : 0;
+        state[12] = input.conversationOpen || input.speaking ? 1 : 0;
+        state[13] = this.commitment === 'follow-player' ? 1 : 0;
+        state[14] = this.activeDirective ? 1 : 0;
+        state[15] = this.lastSeenPlayer
+            ? 1 - clamp((input.time - this.lastSeenPlayer.at) / 9, 0, 1)
+            : 0;
+        if (isFloor10RlAction(this.snapshot.goal)) {
+            state[16 + FLOOR10_RL_ACTIONS.indexOf(this.snapshot.goal)] = 1;
+        }
+        return state;
+    }
+
+    private learningReward(decision: LearningDecision, input: WillInput): number {
+        const playerDistance = input.perception.player?.distance ?? null;
+        const targetDistance = this.snapshot.target
+            ? distanceXZ(input.npcPosition, this.snapshot.target)
+            : null;
+        const targetProgress = decision.targetDistance !== null && targetDistance !== null
+            ? clamp((decision.targetDistance - targetDistance) / 4, -1, 1)
+            : 0;
+        const playerProgress = decision.playerDistance !== null && playerDistance !== null
+            ? clamp((decision.playerDistance - playerDistance) / 4, -1, 1)
+            : 0;
+        const elevatorProgress = clamp(
+            (decision.elevatorDistance - input.perception.elevator.distance) / 5,
+            -1,
+            1,
+        );
+        let reward = -0.025;
+
+        if (decision.action === 'idle') {
+            reward += clamp((decision.fatigue - this.drives.fatigue) * 1.2, -0.3, 0.5);
+            if (decision.fatigue >= 0.45) reward += 0.2;
+        } else if (decision.action === 'wander') {
+            reward += targetProgress * 0.45;
+            reward += clamp((decision.restlessness - this.drives.restlessness) * 1.1, -0.3, 0.55);
+        } else if (decision.action === 'inspect-elevator') {
+            reward += elevatorProgress * 0.5;
+            if (input.perception.elevator.distance <= 1.8) reward += 0.65;
+        } else if (decision.action === 'approach-player') {
+            reward += playerProgress * 0.55;
+            if (playerDistance !== null && playerDistance <= 2.6) reward += 0.65;
+            if (!input.perception.player) reward -= 0.25;
+        } else if (decision.action === 'seek-player') {
+            reward += targetProgress * 0.35;
+            if (input.perception.player?.visible) reward += 0.85;
+        } else if (decision.action === 'observe-player') {
+            reward += input.perception.player?.visible ? 0.45 : -0.12;
+            if (input.time - decision.startedAt >= 1) reward += 0.12;
+        } else if (decision.action === 'make-space') {
+            reward -= playerProgress * 0.35;
+            if (playerDistance === null || playerDistance >= 1.3) reward += 0.85;
+        } else if (decision.action === 'talk-player') {
+            const closeAndVisible = input.perception.player?.visible
+                && input.perception.player.distance <= 2.8;
+            reward += closeAndVisible ? 0.72 : -0.35;
+            reward += clamp((decision.restlessness - this.drives.restlessness) * 0.5, -0.2, 0.25);
+        }
+        return clamp(reward, -1.5, 1.5);
+    }
+
+    private settleLearning(input: WillInput, done = false): Float32Array {
+        const nextState = this.reinforcementState(input);
+        const previous = this.learningDecision;
+        if (previous) {
+            this.snapshot.learning = this.reinforcement.remember(
+                previous.state,
+                previous.action,
+                this.learningReward(previous, input),
+                nextState,
+                done,
+            );
+            this.learningDecision = null;
+        }
+        return nextState;
+    }
+
+    private rememberLearningChoice(
+        candidate: Candidate,
+        input: WillInput,
+        state: Float32Array,
+    ) {
+        if (!isFloor10RlAction(candidate.goal)) return;
+        this.learningDecision = {
+            state,
+            action: candidate.goal,
+            startedAt: input.time,
+            playerDistance: input.perception.player?.distance ?? null,
+            elevatorDistance: input.perception.elevator.distance,
+            targetDistance: candidate.target
+                ? distanceXZ(input.npcPosition, candidate.target)
+                : null,
+            restlessness: this.drives.restlessness,
+            fatigue: this.drives.fatigue,
+        };
+    }
+
+    private clearActiveDirective(time: number) {
+        this.activeDirective = null;
+        this.goalLockedUntil = time;
+        this.nextDecisionAt = time;
+        this.snapshot.activeDirective = null;
+        this.snapshot.activeDirectiveReason = null;
+    }
+
+    private runActiveDirective(input: WillInput): Floor10WillSnapshot | null {
+        const directive = this.activeDirective;
+        if (!directive) return null;
+        if (input.time >= directive.expiresAt) {
+            this.clearActiveDirective(input.time);
+            return null;
+        }
+
+        const player = input.perception.player;
+        let goal: Floor10WillGoal;
+        let target: Floor10WillSnapshot['target'] = null;
+        let reason: string;
+
+        if (directive.action === 'wait') {
+            goal = 'wait';
+            reason = 'eu aceitei esperar aqui por um momento';
+        } else if (directive.action === 'observe-player') {
+            goal = 'observe-player';
+            reason = player?.visible
+                ? 'eu aceitei observar você e estou prestando atenção'
+                : 'eu aceitei observar você, mas agora não consigo vê-lo';
+        } else if (directive.action === 'explore-room') {
+            goal = 'wander';
+            if (!directive.target || distanceXZ(input.npcPosition, directive.target) <= 0.4) {
+                directive.target = this.wanderTarget(input.npcPosition);
+            }
+            target = directive.target;
+            reason = 'eu aceitei explorar a sala e escolhi investigar este ponto';
+        } else if (directive.action === 'inspect-elevator') {
+            goal = 'inspect-elevator';
+            directive.target ??= { x: 0, z: -8.35 };
+            if (distanceXZ(input.npcPosition, directive.target) <= 0.42) directive.completed = true;
+            target = directive.completed ? null : directive.target;
+            reason = directive.completed
+                ? 'eu aceitei examinar o elevador e cheguei até a entrada'
+                : 'eu aceitei examinar o elevador e estou indo até a entrada';
+        } else if (directive.action === 'enter-elevator') {
+            goal = 'enter-elevator';
+            directive.target ??= { x: 0, z: -12 };
+            if (distanceXZ(input.npcPosition, directive.target) <= 0.42) directive.completed = true;
+            target = directive.completed ? null : directive.target;
+            reason = directive.completed
+                ? 'eu aceitei entrar no elevador e já estou dentro da cabine'
+                : 'eu aceitei entrar no elevador e estou atravessando a porta';
+        } else if (directive.action === 'approach-player') {
+            goal = 'approach-player';
+            if (player && player.distance <= 1.9) directive.completed = true;
+            if (!directive.completed && player) {
+                target = this.safeTarget(player.position.x, player.position.z);
+            } else if (!directive.completed && this.lastSeenPlayer) {
+                target = this.safeTarget(this.lastSeenPlayer.x, this.lastSeenPlayer.z);
+            }
+            reason = directive.completed
+                ? 'eu aceitei me aproximar e já estou perto o bastante'
+                : 'eu aceitei me aproximar e estou indo até você';
+        } else {
+            goal = 'make-space';
+            if (!player || player.distance >= 1.8) directive.completed = true;
+            if (!directive.completed && player) {
+                directive.target ??= this.makeSpaceTarget(input.npcPosition, player);
+                target = directive.target;
+            }
+            reason = directive.completed
+                ? 'eu aceitei abrir espaço e esta distância parece suficiente'
+                : 'eu aceitei me afastar um pouco para abrir espaço';
+        }
+
+        const targetChanged = (
+            !target && !!this.snapshot.target
+        ) || (
+            !!target
+            && (
+                !this.snapshot.target
+                || distanceXZ(target, this.snapshot.target) > 0.18
+            )
+        );
+        if (this.snapshot.goal !== goal || targetChanged) {
+            this.setGoal({
+                goal,
+                utility: 3,
+                target,
+                reason,
+            }, input.time, Math.max(0.2, directive.expiresAt - input.time));
+        } else {
+            this.snapshot.target = target;
+            this.snapshot.moving = target !== null;
+            this.snapshot.reason = reason;
+            this.snapshot.activeDirective = directive.action;
+            this.snapshot.activeDirectiveReason = directive.reason;
+        }
+        this.snapshot.drives = drivesCopy(this.drives);
+        this.snapshot.learning = this.reinforcement.snapshot();
+        return this.snapshot;
+    }
+
     private decide(input: WillInput): Candidate {
         const { perception, npcPosition, time } = input;
+        const learningState = this.settleLearning(input);
         const candidates: Candidate[] = [];
         const player = perception.player;
         const recentPlayerMemory = this.lastSeenPlayer && time - this.lastSeenPlayer.at <= 9
@@ -333,10 +687,67 @@ export class Floor10WillBrain {
             // Evita loops mecânicos, mas não proíbe repetir algo que ainda faz sentido.
             if (candidate.goal === this.snapshot.goal) candidate.utility -= 0.12;
             else if (candidate.goal === this.lastGoal) candidate.utility -= 0.06;
+            if (isFloor10RlAction(candidate.goal)) {
+                candidate.utility += this.reinforcement.utilityBonus(
+                    learningState,
+                    candidate.goal,
+                );
+            }
             candidate.utility += this.random() * 0.055;
         }
         candidates.sort((a, b) => b.utility - a.utility);
-        return candidates[0];
+        const selected = candidates[0];
+        this.rememberLearningChoice(selected, input, learningState);
+        return selected;
+    }
+
+    private followAcceptedPlayer(input: WillInput): Floor10WillSnapshot | null {
+        if (this.commitment !== 'follow-player' || !input.perception.player) return null;
+        const player = input.perception.player;
+
+        // Seguir não significa invadir o corpo do jogador. O reflexo de abrir
+        // espaço vence por alguns passos, sem cancelar o compromisso aceito.
+        if (player.distance < 1.05) {
+            if (this.snapshot.goal !== 'make-space' || !this.snapshot.target) {
+                this.setGoal({
+                    goal: 'make-space',
+                    utility: 3,
+                    target: this.makeSpaceTarget(input.npcPosition, player),
+                    reason: 'aceitei seguir você, mas preciso manter algum espaço entre nós',
+                }, input.time, 0.8);
+            }
+            this.snapshot.drives = drivesCopy(this.drives);
+            return this.snapshot;
+        }
+
+        const target = player.distance > 1.85
+            ? this.safeTarget(player.position.x, player.position.z)
+            : null;
+        const reason = target
+            ? 'eu aceitei seguir você e estou acompanhando seus passos'
+            : 'eu aceitei seguir você e já estou perto o bastante';
+
+        if (this.snapshot.goal !== 'follow-player') {
+            this.setGoal({
+                goal: 'follow-player',
+                utility: 3,
+                target,
+                reason,
+            }, input.time, 1);
+        } else {
+            // O compromisso não muda só porque o alvo caminhou: atualizamos a
+            // posição sem criar centenas de decisões novas por segundo.
+            this.snapshot.target = target;
+            this.snapshot.moving = target !== null;
+            this.snapshot.reason = reason;
+            this.snapshot.commitment = this.commitment;
+            this.snapshot.commitmentReason = this.commitmentReason;
+            this.snapshot.activeDirective = null;
+            this.snapshot.activeDirectiveReason = null;
+        }
+        this.snapshot.drives = drivesCopy(this.drives);
+        this.snapshot.learning = this.reinforcement.snapshot();
+        return this.snapshot;
     }
 
     private autonomousLine(): string {
@@ -367,8 +778,22 @@ export class Floor10WillBrain {
                     reason: 'estou prestando atenção na conversa',
                 }, input.time, 1);
             }
+            this.snapshot.drives = drivesCopy(this.drives);
+            this.snapshot.learning = this.reinforcement.snapshot();
             return { snapshot: this.snapshot };
         }
+
+        if (this.activeDirective) {
+            if (this.learningDecision) this.settleLearning(input, true);
+            const acceptedDirective = this.runActiveDirective(input);
+            if (acceptedDirective) return { snapshot: acceptedDirective };
+        }
+
+        if (this.commitment === 'follow-player' && this.learningDecision) {
+            this.settleLearning(input, true);
+        }
+        const acceptedFollow = this.followAcceptedPlayer(input);
+        if (acceptedFollow) return { snapshot: acceptedFollow };
 
         const reached = this.goalReached(input.npcPosition, input.perception);
         if (reached) {
@@ -416,6 +841,11 @@ export class Floor10WillBrain {
 
         // Atualiza valores internos no snapshot sem trocar a decisão.
         this.snapshot.drives = drivesCopy(this.drives);
+        this.snapshot.commitment = this.commitment;
+        this.snapshot.commitmentReason = this.commitmentReason;
+        this.snapshot.activeDirective = this.activeDirective?.action ?? null;
+        this.snapshot.activeDirectiveReason = this.activeDirective?.reason ?? null;
+        this.snapshot.learning = this.reinforcement.snapshot();
         return { snapshot: this.snapshot };
     }
 }
@@ -478,17 +908,31 @@ export function stepFloor10Movement(
 }
 
 export function speedForWillGoal(goal: Floor10WillGoal): number {
+    if (goal === 'follow-player') return 1.18;
     if (goal === 'approach-player' || goal === 'seek-player') return 1.12;
     if (goal === 'make-space') return 1.28;
+    if (goal === 'enter-elevator') return 0.92;
     if (goal === 'inspect-elevator') return 0.78;
     if (goal === 'wander') return 0.68;
     return 0;
 }
 
 export function formatFloor10WillForPrompt(will: Floor10WillSnapshot): string {
+    const commitment = will.commitment === 'follow-player'
+        ? `- Compromisso verbal ativo: Nilo aceitou seguir o jogador e a vontade está cumprindo isso. A fala que criou o compromisso foi: "${will.commitmentReason ?? 'aceitei seguir'}".`
+        : '- Compromisso verbal ativo: nenhum; Nilo continua escolhendo por conta própria.';
+    const directive = will.activeDirective
+        ? `- Pedido físico aceito em execução: ${will.activeDirective}. A decisão verbal foi: "${will.activeDirectiveReason ?? 'aceitei fazer isso'}".`
+        : '- Pedido físico temporário em execução: nenhum.';
+    const learnedPreference = will.learning.experiences > 0
+        ? '- Aprendizado por experiência: já está ajustando suavemente as preferências da Utility AI a partir das consequências das decisões anteriores.'
+        : '- Aprendizado por experiência: ainda observando; a Utility AI original continua decidindo.';
     return `VONTADE ATUAL (estado interno real, pode mudar):
 - Nilo escolheu ${will.label}, porque ${will.reason}.
 - Desejos 0..1: social ${will.drives.social.toFixed(2)}, curiosidade ${will.drives.curiosity.toFixed(2)}, inquietação ${will.drives.restlessness.toFixed(2)}, cansaço ${will.drives.fatigue.toFixed(2)}.
+${commitment}
+${directive}
+${learnedPreference}
 - Se perguntarem o que você quer ou por que está agindo, responda naturalmente a partir deste estado; nunca mencione números, scores ou sistemas.`;
 }
 
@@ -497,6 +941,167 @@ function normalize(text: string): string {
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .toLocaleLowerCase();
+}
+
+export function detectFloor10PlayerActionRequest(
+    userText: string,
+): Floor10WillCommandAction | null {
+    const text = normalize(userText);
+    const asksToStopFollowing =
+        /\b(?:nao me siga|pare de me seguir|para de me seguir|pode parar de me seguir)\b/.test(text)
+        || /\b(?:do not follow me|don't follow me|stop following me)\b/.test(text)
+        || /\b(?:no me sigas|deja de seguirme|para de seguirme)\b/.test(text);
+    if (asksToStopFollowing) return 'resume-autonomy';
+
+    const asksToFollow =
+        /\b(?:me siga|me segue|siga-me|venha comigo|vem comigo|ande comigo|anda comigo|me acompanhe|me acompanha)\b/.test(text)
+        || /\b(?:follow me|come with me|walk with me)\b/.test(text)
+        || /\b(?:sigueme|ven conmigo|camina conmigo|acompaname)\b/.test(text);
+    if (asksToFollow) return 'follow-player';
+
+    if (
+        /\b(?:espere aqui|espera aqui|fique aqui|fica aqui|nao saia dai|pare ai)\b/.test(text)
+        || /\b(?:wait here|stay here|do not move|don't move)\b/.test(text)
+        || /\b(?:espera aqui|quedate aqui|no te muevas)\b/.test(text)
+    ) return 'wait';
+    if (
+        /\b(?:entre|entra|va|vai) (?:no|pro|para o) elevador\b/.test(text)
+        || /\b(?:enter|get into|go into) the elevator\b/.test(text)
+        || /\b(?:entra|ve) (?:en|al) (?:el )?ascensor\b/.test(text)
+    ) return 'enter-elevator';
+    if (
+        /\b(?:examine|examina|inspecione|inspeciona|investigue|investiga|olhe|olha) (?:o|pro|para o) elevador\b/.test(text)
+        || /\b(?:inspect|check|examine) the elevator\b/.test(text)
+        || /\b(?:inspecciona|examina|revisa) (?:el )?ascensor\b/.test(text)
+    ) return 'inspect-elevator';
+    if (
+        /\b(?:explore|explora|ande|anda) (?:pela|na|por essa|esta|essa) sala\b/.test(text)
+        || /\b(?:explore|walk around) (?:the|this) room\b/.test(text)
+        || /\b(?:explora|camina por) (?:la|esta) sala\b/.test(text)
+    ) return 'explore-room';
+    if (
+        /\b(?:se afaste|afasta|de um espaco|de espaço|abra espaco|abre espaco)\b/.test(text)
+        || /\b(?:back away|give me space|move back)\b/.test(text)
+        || /\b(?:alejate|dame espacio|hazte atras)\b/.test(text)
+    ) return 'make-space';
+    if (
+        /\b(?:se aproxime|chegue mais perto|vem aqui|venha aqui|fica perto de mim)\b/.test(text)
+        || /\b(?:come closer|come here|stand near me)\b/.test(text)
+        || /\b(?:acercate|ven aqui|ponte cerca de mi)\b/.test(text)
+    ) return 'approach-player';
+    if (
+        /\b(?:olhe pra mim|olha pra mim|me observe|me observa)\b/.test(text)
+        || /\b(?:look at me|watch me|observe me)\b/.test(text)
+        || /\b(?:mirame|observame)\b/.test(text)
+    ) return 'observe-player';
+    return null;
+}
+
+export function hasFloor10PhysicalActionCue(userText: string): boolean {
+    if (detectFloor10PlayerActionRequest(userText)) return true;
+    const text = normalize(userText);
+    return /\b(?:va|vai) (?:ate|para|pro|pra)\b/.test(text)
+        || /\b(?:venha|vem) (?:ate|aqui|comigo)\b/.test(text)
+        || /\b(?:fique|fica|espere|espera|ande|anda|pare|olhe pra|olhe para|olha pra|entre|entra|explore|explora|afaste-se|se afaste|aproxime-se|se aproxime|sente-se|senta|levante-se|se levante|vire-se|se vire|corra|pegue)\b/.test(text)
+        || /\b(?:go to|come here|come with me|stay|wait|walk|stop|look at|enter|explore|move away|come closer|sit down|stand up|turn around|run|pick up)\b/.test(text)
+        || /\b(?:ve a|ven aqui|ven conmigo|quedate|espera|camina|para|mira a|entra|explora|alejate|acercate|sientate|levantate|date la vuelta|corre|recoge)\b/.test(text);
+}
+
+const COMMAND_MARKERS: Record<Floor10WillCommandAction, string> = {
+    'follow-player': '[[WILL:FOLLOW_PLAYER]]',
+    'resume-autonomy': '[[WILL:RESUME_AUTONOMY]]',
+    'approach-player': '[[WILL:APPROACH_PLAYER]]',
+    wait: '[[WILL:WAIT]]',
+    'inspect-elevator': '[[WILL:INSPECT_ELEVATOR]]',
+    'enter-elevator': '[[WILL:ENTER_ELEVATOR]]',
+    'explore-room': '[[WILL:EXPLORE_ROOM]]',
+    'make-space': '[[WILL:MAKE_SPACE]]',
+    'observe-player': '[[WILL:OBSERVE_PLAYER]]',
+};
+
+const MARKER_TO_COMMAND: Record<string, Floor10WillCommandAction> = Object.fromEntries(
+    Object.entries(COMMAND_MARKERS).map(([command, marker]) => [
+        marker.slice('[[WILL:'.length, -2),
+        command as Floor10WillCommandAction,
+    ]),
+) as Record<string, Floor10WillCommandAction>;
+
+const CONTROL_MARKERS = [...Object.values(COMMAND_MARKERS), '[[WILL:NONE]]'];
+
+export function formatFloor10ActionRequestForPrompt(userText: string): string {
+    if (!hasFloor10PhysicalActionCue(userText)) return '';
+    return `
+
+PROTOCOLO SILENCIOSO ENTRE FALA E CORPO:
+- A última fala pode conter um pedido físico. Identifique a intenção você mesmo. Isso é um pedido, não uma ordem: aceite ou recuse conforme sua confiança, olhos e vontade.
+- Se aceitar, finalize com um marcador: seguir ${COMMAND_MARKERS['follow-player']}; cancelar ${COMMAND_MARKERS['resume-autonomy']}; aproximar ${COMMAND_MARKERS['approach-player']}; esperar ${COMMAND_MARKERS.wait}; examinar elevador ${COMMAND_MARKERS['inspect-elevator']}; entrar ${COMMAND_MARKERS['enter-elevator']}; explorar ${COMMAND_MARKERS['explore-room']}; afastar ${COMMAND_MARKERS['make-space']}; observar ${COMMAND_MARKERS['observe-player']}.
+- Se recusar, hesitar ou negociar, finalize com [[WILL:NONE]]. Se não houver pedido físico, não use marcador.
+- O marcador é invisível para o jogador: nunca o explique, leia ou mencione.`;
+}
+
+export function stripFloor10WillControl(text: string): string {
+    const markerStart = text.search(/\[\[WILL:/i);
+    if (markerStart >= 0) return text.slice(0, markerStart).trimEnd();
+    const partialStart = text.lastIndexOf('[[');
+    if (partialStart >= 0) {
+        const partial = text.slice(partialStart).toLocaleUpperCase();
+        if (CONTROL_MARKERS.some((marker) => marker.startsWith(partial))) {
+            return text.slice(0, partialStart).trimEnd();
+        }
+    }
+    // Esconde também o primeiro colchete enquanto o segundo ainda não chegou.
+    return text.endsWith('[') ? text.slice(0, -1).trimEnd() : text;
+}
+
+function inferredAcceptance(
+    request: Floor10WillCommandAction,
+    visibleReply: string,
+): boolean {
+    const text = normalize(visibleReply);
+    const refuses =
+        /\b(?:nao vou|nao quero|nao posso|prefiro nao|recuso|nem pensar)\b/.test(text)
+        || /\b(?:i will not|i won't|i do not want|i don't want|i cannot|i can't|no thanks)\b/.test(text)
+        || /\b(?:no voy|no quiero|no puedo|prefiero no|me niego)\b/.test(text);
+    if (refuses) return false;
+    if (request === 'follow-player') {
+        return /\b(?:vou te seguir|te sigo|vou com voce|irei com voce|vamos juntos|claro que sigo)\b/.test(text)
+            || /\b(?:i will follow you|i'll follow you|i am coming with you|i'm coming with you|let's go together)\b/.test(text)
+            || /\b(?:voy a seguirte|te seguire|voy contigo|vamos juntos|claro que te sigo)\b/.test(text);
+    }
+    if (request === 'resume-autonomy') {
+        return /\b(?:vou parar de te seguir|paro de te seguir|pode deixar|volto a decidir sozinho)\b/.test(text)
+            || /\b(?:i will stop following you|i'll stop following you|i will stop|i'll stop)\b/.test(text)
+            || /\b(?:dejare de seguirte|voy a dejar de seguirte|dejare de hacerlo)\b/.test(text);
+    }
+    // Nas demais ações, só o marcador explícito do 2B cria uma ordem corporal.
+    return false;
+}
+
+export type Floor10WillLanguageDecision = {
+    visibleReply: string;
+    command: Floor10WillCommandAction | null;
+};
+
+export function parseFloor10WillLanguageDecision(
+    userText: string,
+    modelReply: string,
+): Floor10WillLanguageDecision {
+    const request = detectFloor10PlayerActionRequest(userText);
+    const visibleReply = stripFloor10WillControl(modelReply).trim();
+    const marker = modelReply.match(/\[\[WILL:([A-Z_]+)\]\]/i)?.[1]
+        ?.toLocaleUpperCase();
+    if (marker === 'NONE') return { visibleReply, command: null };
+    if (marker && MARKER_TO_COMMAND[marker]) {
+        return { visibleReply, command: MARKER_TO_COMMAND[marker] };
+    }
+    if (marker || !request) return { visibleReply, command: null };
+
+    // Compatibilidade defensiva caso o 2B esqueça o marcador:
+    // só seguir/parar possuem frases inequívocas; dúvida mantém a autonomia.
+    return {
+        visibleReply,
+        command: inferredAcceptance(request, visibleReply) ? request : null,
+    };
 }
 
 export function answerFloor10WillQuestion(
@@ -514,6 +1119,26 @@ export function answerFloor10WillQuestion(
         || /\bpor que estas (?:caminando|viniendo|quieto|mirandome)\b/.test(text)
         || /\bdonde (?:vas|estas yendo)\b/.test(text);
     if (!asksWill) return null;
+
+    if (will.activeDirective) {
+        if (/\b(?:what|why|where)\b/.test(text)) {
+            return `I accepted your request, so right now I want to ${GOAL_LABEL_EN[will.goal]}. After that, I will decide what I want to do next.`;
+        }
+        if (/\b(?:quieres|por que estas|donde)\b/.test(text)) {
+            return `Acepté tu pedido, así que ahora quiero ${GOAL_LABEL_ES[will.goal]}. Después decidiré qué quiero hacer.`;
+        }
+        return `Eu aceitei o seu pedido, então agora quero ${will.label}. Depois disso, volto a decidir o que quero fazer.`;
+    }
+
+    if (will.commitment === 'follow-player') {
+        if (/\b(?:what|why|where)\b/.test(text)) {
+            return 'I chose to follow you because I accepted your request. I can change my mind, but for now I intend to keep my word.';
+        }
+        if (/\b(?:quieres|por que estas|donde)\b/.test(text)) {
+            return 'Elegí seguirte porque acepté tu pedido. Puedo cambiar de opinión, pero por ahora quiero cumplir mi palabra.';
+        }
+        return 'Eu escolhi te seguir porque aceitei o seu pedido. Posso mudar de ideia, mas por enquanto quero cumprir o que falei.';
+    }
 
     if (/\b(?:what|why|where)\b/.test(text)) {
         return `Right now I want to ${GOAL_LABEL_EN[will.goal]}. I chose it because it feels more important than the other things I could do.`;

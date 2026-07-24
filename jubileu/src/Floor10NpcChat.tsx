@@ -7,8 +7,8 @@ import { NPC_NAME } from './npc/floor10Canon';
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
 // Vive FORA do Canvas. Reage ao npcStore: mostra a dica quando o player chega
-// perto, abre o painel de chat (tecla E ou toque), deixa o roteador escolher o
-// modelo só depois da pergunta (com barra de progresso), e transmite a resposta.
+// perto, abre o painel de chat (tecla E ou toque), carrega o único cérebro 2B
+// depois da primeira pergunta (com barra de progresso) e transmite a resposta.
 // Mobile-first (o Felipe joga no celular): input embaixo, alvos grandes.
 //
 // REGRA DE OURO: erro NUNCA fica invisível. Antes, falhas na geração só
@@ -118,7 +118,7 @@ const Floor10NpcChat: React.FC = () => {
             {loading && (
                 <div style={{ padding: '14px 16px' }}>
                     <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 8 }}>
-                        Preparando o cérebro escolhido pelo roteador (depois fica em cache)…
+                        Preparando o Qwen3.5-2B (depois fica em cache)…
                     </div>
                     <div style={barOuter}><div style={{ ...barInner, width: `${pct}%` }} /></div>
                     <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>{pct}% — {st.loadText}</div>
@@ -137,7 +137,7 @@ const Floor10NpcChat: React.FC = () => {
                     <div ref={scrollRef} style={logStyle}>
                         {st.history.length === 0 && (
                             <div style={{ opacity: 0.5, fontSize: 13, textAlign: 'center', marginTop: 20 }}>
-                                Vontade atual: {st.autonomy.label}. O roteador usará 0.8B nas perguntas simples e 2B nas complexas.
+                                Vontade atual: {st.autonomy.label}. Conversa aberta usa o Qwen3.5-2B; olhos e vontade mantêm falas próprias.
                             </div>
                         )}
                         {st.history.map((m, i) => (

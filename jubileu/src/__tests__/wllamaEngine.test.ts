@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
     CHAT_COMPLETION_CONFIG,
     CPU_LOAD_CONFIG,
+    FLOOR10_MODEL,
     GenerationTimeoutError,
-    ROUTED_MODELS,
     WLLAMA_PATHS,
+    buildFloor10CorrectionPrompt,
     chunkDelta,
     consumeChatStream,
     cpuThreadCount,
     modelHistory,
-    planFloor10Inference,
     sendToNpc,
     visibleText,
 } from '../npc/wllamaEngine';
@@ -44,25 +44,20 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(cpuThreadCount(true, Number.NaN)).toBe(1);
     });
 
-    it('dá papéis fixos aos dois modelos, sem cadeia de fallback', () => {
-        expect(Object.keys(ROUTED_MODELS)).toEqual(['simple', 'complex']);
-        expect(ROUTED_MODELS.simple.label).toBe('Qwen3.5-0.8B');
-        expect(ROUTED_MODELS.complex.label).toBe('Qwen3.5-2B');
-        expect(ROUTED_MODELS.simple.route).toBe('simple');
-        expect(ROUTED_MODELS.complex.route).toBe('complex');
+    it('expõe somente o Qwen3.5-2B como cérebro de fala', () => {
+        expect(FLOOR10_MODEL.label).toBe('Qwen3.5-2B');
+        expect(FLOOR10_MODEL.url).toMatch(/Qwen3\.5-2B/i);
+        expect(JSON.stringify(FLOOR10_MODEL)).not.toMatch(/0\.8B/i);
     });
 
-    it('fecha modelo e formato do RAG antes de começar cada inferência', () => {
-        expect(planFloor10Inference('Qual é seu nome?')).toMatchObject({
-            route: 'simple',
-            promptMode: 'compact',
-            model: { label: 'Qwen3.5-0.8B' },
-        });
-        expect(planFloor10Inference('Por que você acha que o elevador escolheu você?')).toMatchObject({
-            route: 'complex',
-            promptMode: 'full',
-            model: { label: 'Qwen3.5-2B' },
-        });
+    it('pede autocorreção ao próprio 2B sem fornecer resposta pronta', () => {
+        const prompt = buildFloor10CorrectionPrompt(
+            'CONTEXTO RAG PARA O MODELO',
+            'contradição com o cânone',
+        );
+        expect(prompt).toContain('CONTEXTO RAG PARA O MODELO');
+        expect(prompt).toContain('contradição com o cânone');
+        expect(prompt).toContain('Nenhuma resposta pronta é fornecida');
     });
 
     it('usa os nomes OpenAI-compatible aceitos pela API v3', () => {
@@ -175,7 +170,7 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         });
     });
 
-    it('deixa a micro-IA dos olhos responder sem iniciar inferência do 2B', async () => {
+    it('preserva a fala própria dos olhos sem iniciar o 2B', async () => {
         npcSet({
             phase: 'ready',
             history: [],
@@ -188,12 +183,12 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         });
         await sendToNpc('Onde você está?');
         expect(npc.phase).toBe('ready');
+        expect(npc.modelLabel).toContain('Olhos');
         expect(npc.history).toHaveLength(2);
-        expect(npc.history[0]).toEqual({ role: 'user', content: 'Onde você está?' });
         expect(npc.history[1]?.content).toContain('Estou no 10º andar');
     });
 
-    it('deixa a vontade explicar a própria decisão sem iniciar o 2B', async () => {
+    it('preserva a fala própria da vontade sem iniciar o 2B', async () => {
         npcSet({
             phase: 'ready',
             history: [],
@@ -208,7 +203,9 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         });
         await sendToNpc('O que você quer fazer?');
         expect(npc.phase).toBe('ready');
+        expect(npc.modelLabel).toContain('Vontade');
         expect(npc.history).toHaveLength(2);
         expect(npc.history[1]?.content).toContain('examinar o elevador');
     });
+
 });

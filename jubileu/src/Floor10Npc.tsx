@@ -47,6 +47,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     const worldQuaternion = useMemo(() => new THREE.Quaternion(), []);
     const lastPerceptionAt = useRef(-Infinity);
     const willBrain = useMemo(() => new Floor10WillBrain(), []);
+    const consumedWillCommandId = useRef(0);
     const autonomousTalkUntil = useRef(0);
 
     useFrame(({ clock }, dt) => {
@@ -77,6 +78,15 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
         let moving = false;
         let desiredYaw: number | null = null;
         if (g) {
+            const languageCommand = npc.willCommand;
+            if (languageCommand && languageCommand.id !== consumedWillCommandId.current) {
+                willBrain.applyLanguageDecision(
+                    languageCommand.action,
+                    t,
+                    languageCommand.reason,
+                );
+                consumedWillCommandId.current = languageCommand.id;
+            }
             const will = willBrain.tick({
                 dt: safeDt,
                 time: t,
@@ -109,6 +119,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 || npc.speaking
                 || will.snapshot.goal === 'talk-player'
                 || will.snapshot.goal === 'observe-player'
+                || will.snapshot.goal === 'follow-player'
             );
             if (!moving && shouldFacePlayer) {
                 tmp.copy(pp).sub(g.position);
