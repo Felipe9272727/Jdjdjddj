@@ -74,3 +74,29 @@ describe('a deliberação inclina o reflexo sem sequestrá-lo', () => {
         expect(() => tickFor('ainda pensando, sem decisão')).not.toThrow();
     });
 });
+
+describe('a conversa tem prioridade absoluta sobre a deliberação', () => {
+    it('não delibera enquanto o 3B está respondendo', async () => {
+        const { deliberateFloor10, resetSmallBrainForTests } = await import('../npc/floor10SmallBrain');
+        const { npcSet } = await import('../npc/npcStore');
+        resetSmallBrainForTests();
+        // Jogador conversando: a deliberação precisa desistir sem tocar na CPU.
+        npcSet({ open: true, phase: 'thinking' });
+        const decided = await deliberateFloor10({
+            perception: PERCEPTION,
+            drives: { social: 0.5, curiosity: 0.5, restlessness: 0.5, fatigue: 0.1 },
+            memory: { inspectedElevatorCount: 0, sleeps: 0, playerSilentSeconds: 0, lastGoals: [] },
+            now: 0,
+        });
+        expect(decided).toBeNull();
+        npcSet({ open: false, phase: 'cold' });
+    });
+
+    it('abortDeliberation devolve a fase para repouso', async () => {
+        const { abortDeliberation } = await import('../npc/floor10SmallBrain');
+        const { npc, npcSet } = await import('../npc/npcStore');
+        npcSet({ deliberationPhase: 'thinking' });
+        abortDeliberation();
+        expect(npc.deliberationPhase).toBe('off');
+    });
+});

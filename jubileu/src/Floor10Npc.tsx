@@ -102,7 +102,11 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
             // pode levar minutos no celular: NADA aqui espera por ela. Se o
             // cérebro pequeno não carregar, a promessa resolve null e o reflexo
             // segue sozinho, como sempre fez.
-            if (!npc.open && t >= nextDeliberationAt.current) {
+            // Só delibera com a conversa REALMENTE parada. Medido: com os dois
+            // modelos juntos a geração do 3B cai de 10,9 para 0,3 tok/s (36x),
+            // que era a resposta que nunca chegava.
+            if (!npc.open && npc.phase !== 'thinking' && npc.phase !== 'loading'
+                && t >= nextDeliberationAt.current) {
                 nextDeliberationAt.current = t + 60;
                 void deliberateFloor10({
                     perception: livePerception,
@@ -114,7 +118,10 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                         lastGoals: lastGoalTrail.current.slice(-3) as never,
                     },
                     now: t,
-                    threads: cpuThreadCount(),
+                    // UMA thread, sempre. Dar 8 ao cérebro pequeno colocava 16
+                    // threads em 8 núcleos e afogava a conversa. Ele é lento de
+                    // propósito: ninguém espera por ele.
+                    threads: 1,
                 }).then((decided) => {
                     if (decided) deliberation.current = decided;
                 });

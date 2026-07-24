@@ -14,6 +14,7 @@ import {
     type Floor10ReplyIssue,
 } from './floor10Canon';
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
+import { abortDeliberation } from './floor10SmallBrain';
 import {
     answerFloor10WillQuestion,
     hasFloor10PhysicalActionCue,
@@ -430,6 +431,12 @@ export function initLLM(): Promise<WllamaInstance> {
 export async function sendToNpc(userText: string): Promise<void> {
     const text = userText.trim();
     if (!text || npc.phase === 'thinking' || npc.phase === 'loading') return;
+
+    // A conversa tem prioridade absoluta sobre a deliberação. Sem isto, o
+    // cérebro pequeno (que roda sem teto de tokens) continuava queimando CPU e
+    // a geração do 3B despencava de 10,9 para 0,3 tok/s — medido nos dois
+    // modelos reais. Era a resposta que nunca chegava.
+    abortDeliberation();
 
     // Perguntas factuais dos olhos e da vontade preservam as falas rápidas que
     // dão personalidade às micro-IAs. Um possível pedido corporal sempre vai

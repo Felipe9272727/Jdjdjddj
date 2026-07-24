@@ -5,6 +5,7 @@ import { useNpc, npc, npcSet } from './npc/npcStore';
 import { FLOOR10_MODEL, initLLM, sendToNpc } from './npc/wllamaEngine';
 import { NPC_NAME } from './npc/floor10Canon';
 import { deliberationThought } from './npc/floor10Deliberation';
+import { abortDeliberation } from './npc/floor10SmallBrain';
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
 // Vive FORA do Canvas. Reage ao npcStore: mostra a dica quando o player chega
@@ -25,6 +26,9 @@ const Floor10NpcChat: React.FC = () => {
 
     const open = useCallback(() => {
         if (npc.open) return;
+        // Libera a CPU assim que o painel abre: o jogador vai falar, e a
+        // deliberação não pode estar queimando núcleos quando isso acontecer.
+        abortDeliberation();
         npcSet({ open: true });
     }, []);
     const close = useCallback(() => { npcSet({ open: false }); }, []);

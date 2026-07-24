@@ -56,6 +56,21 @@ type SmallCtor = new (paths: Record<string, string>, cfg?: Record<string, unknow
 
 let enginePromise: Promise<SmallInstance | null> | null = null;
 let inFlight = false;
+let currentAbort: AbortController | null = null;
+
+/**
+ * Interrompe a deliberação em curso. O 3B da conversa tem PRIORIDADE ABSOLUTA:
+ * sem isto, uma deliberação sem teto de tokens continuava queimando CPU depois
+ * de o jogador mandar mensagem, e os dois modelos disputavam os mesmos núcleos
+ * — foi o que travou a resposta por mais de 370s no aparelho do Felipe.
+ */
+export function abortDeliberation(): void {
+    currentAbort?.abort();
+    currentAbort = null;
+    if (npc.deliberationPhase === 'thinking' || npc.deliberationPhase === 'loading') {
+        npcSet({ deliberationPhase: 'off' });
+    }
+}
 
 /** Texto da resposta, tolerando os formatos que o wllama já devolveu. */
 export function readCompletionText(response: unknown): string {
@@ -112,7 +127,11 @@ export async function deliberateFloor10(
     try {
         const engine = await ensureSmallEngine(input.threads ?? 1);
         if (!engine) return null;
+        // Se o jogador começou a falar enquanto o modelo carregava, desiste
+        // agora: a conversa vem primeiro.
+        if (npc.open || npc.phase === 'thinking') return null;
         npcSet({ deliberationPhase: 'thinking' });
+        currentAbort = new AbortController();
         const response = await engine.createChatCompletion({
             messages: [
                 { role: 'system', content: DELIBERATION_SYSTEM_PROMPT },
@@ -122,6 +141,7 @@ export async function deliberateFloor10(
                 },
             ],
             ...SMALL_BRAIN_COMPLETION_CONFIG,
+            abortSignal: currentAbort.signal,
         });
         const decided = parseDeliberation(readCompletionText(response), input.now);
         if (decided) {
@@ -136,6 +156,7 @@ export async function deliberateFloor10(
         return null;
     } finally {
         inFlight = false;
+        currentAbort = null;
     }
 }
 
