@@ -437,6 +437,17 @@ export async function sendToNpc(userText: string): Promise<void> {
         npc.autonomy,
     );
     const groundedHistory = groundedModelHistory(history);
+    // O kwarg enable_thinking:false NÃO estava suprimindo o raciocínio deste GGUF
+    // (o modelo gastava minutos gerando um <think> oculto até num "oi", que era
+    // jogado fora). O soft-switch treinado do Qwen3 (/no_think na última fala do
+    // jogador) desliga o CoT no nível do modelo, independente do template. Só o
+    // texto que vai ao modelo recebe o marcador; o histórico exibido fica limpo.
+    const modelMessages = loadedQwen3
+        ? groundedHistory.map((message, index) =>
+            index === groundedHistory.length - 1 && message.role === 'user'
+                ? { ...message, content: `${message.content} /no_think` }
+                : message)
+        : groundedHistory;
 
     // Toda tentativa usa o mesmo 2B. Se a validação detectar uma contradição,
     // o próprio 2B recebe uma única chance de revisar; não há frase pronta nem
@@ -460,7 +471,7 @@ export async function sendToNpc(userText: string): Promise<void> {
         const streamPromise = engine.createChatCompletion({
             messages: [
                 { role: 'system', content: prompt },
-                ...groundedHistory,
+                ...modelMessages,
             ],
             ...CHAT_COMPLETION_CONFIG,
             ...sampling,
