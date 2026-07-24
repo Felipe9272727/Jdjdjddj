@@ -30,7 +30,7 @@ describe('npc/floor10Canon — cânone e anti-alucinação', () => {
         expect(retrieveFloor10Canon('Você escolhe sozinho o que quer fazer?').map((fact) => fact.id)).toContain('agency');
     });
 
-    it('constrói um prompt com identidade, fonte factual e admissão de incerteza', () => {
+    it('constrói um prompt com identidade e fonte factual sempre presentes', () => {
         const prompt = buildFloor10SystemPrompt(
             'Qual é seu nome?',
             [],
@@ -41,12 +41,26 @@ describe('npc/floor10Canon — cânone e anti-alucinação', () => {
         expect(prompt).toContain('Trate como fato somente este cânone');
         expect(prompt).toContain('Não complete lacunas');
         expect(prompt).toContain('The Normal Elevator é o nome deste lugar');
-        expect(prompt).toContain('PERCEPÇÃO ESPACIAL AO VIVO');
-        expect(prompt).toContain('sensores do motor');
-        expect(prompt).toContain('VONTADE ATUAL');
     });
 
-    it('entrega ao 2B o RAG, os olhos e a vontade apenas como contexto', () => {
+    it('injeta os sensores ao vivo só quando a fala é espacial (prefill condicional)', () => {
+        const casual = buildFloor10SystemPrompt('Qual é seu nome?', [], LIVE_PERCEPTION, INITIAL_FLOOR10_WILL);
+        expect(casual).not.toContain('PERCEPÇÃO ESPACIAL AO VIVO');
+        const spatial = buildFloor10SystemPrompt('O que tem nessa sala?', [], LIVE_PERCEPTION, INITIAL_FLOOR10_WILL);
+        expect(spatial).toContain('PERCEPÇÃO ESPACIAL AO VIVO');
+        expect(spatial).toContain('sensores do motor');
+        expect(spatial).toContain(LIVE_PERCEPTION.locationDescription);
+    });
+
+    it('injeta a vontade só quando a fala é volitiva (prefill condicional)', () => {
+        const casual = buildFloor10SystemPrompt('Qual é seu nome?', [], LIVE_PERCEPTION, INITIAL_FLOOR10_WILL);
+        expect(casual).not.toContain('VONTADE ATUAL');
+        const volitive = buildFloor10SystemPrompt('O que você quer fazer?', [], LIVE_PERCEPTION, INITIAL_FLOOR10_WILL);
+        expect(volitive).toContain('VONTADE ATUAL');
+        expect(volitive).toContain(INITIAL_FLOOR10_WILL.label);
+    });
+
+    it('entrega o RAG factual e as regras de comportamento como contexto', () => {
         const prompt = buildFloor10SystemPrompt(
             'Você gosta de café?',
             [],
@@ -55,8 +69,6 @@ describe('npc/floor10Canon — cânone e anti-alucinação', () => {
         );
         expect(prompt).toContain('TRECHOS RELEVANTES DO CÂNONE');
         expect(prompt).toContain('Gosta de café sem açúcar');
-        expect(prompt).toContain(LIVE_PERCEPTION.locationDescription);
-        expect(prompt).toContain(INITIAL_FLOOR10_WILL.label);
         expect(prompt).toContain('contexto, não uma resposta pronta');
         expect(prompt).toContain('Só mencione posição, distância');
         expect(prompt).toContain('Responda somente com a fala de Nilo');
