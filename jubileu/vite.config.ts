@@ -3,6 +3,11 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
+const crossOriginIsolationHeaders = {
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'credentialless',
+};
+
 export default defineConfig(({mode: _mode}) => {
   return {
     plugins: [react(), tailwindcss()],
@@ -16,6 +21,10 @@ export default defineConfig(({mode: _mode}) => {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
+      headers: crossOriginIsolationHeaders,
+    },
+    preview: {
+      headers: crossOriginIsolationHeaders,
     },
     build: {
       minify: false,

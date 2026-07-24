@@ -8,6 +8,7 @@ import {
     consumeChatStream,
     cpuThreadCount,
     modelHistory,
+    shouldUseFastFallback,
     visibleText,
 } from '../npc/wllamaEngine';
 
@@ -83,7 +84,7 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         const raw = await consumeChatStream(
             Promise.resolve(chunks()),
             (text) => visible.push(text),
-            { firstTokenMs: 200, nextTokenMs: 200, totalMs: 500 },
+            { firstTokenMs: 200, nextTokenMs: 200 },
         );
         expect(raw).toBe('<think></think> Oi, tudo bem?');
         expect(visible.at(-1)).toBe('Oi, tudo bem?');
@@ -102,10 +103,69 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
             {
                 firstTokenMs: 15,
                 nextTokenMs: 15,
-                totalMs: 40,
                 onTimeout: (stage) => { timeoutStage = stage; },
             },
         )).rejects.toBeInstanceOf(GenerationTimeoutError);
         expect(timeoutStage).toBe('first-token');
+    });
+
+    it('não corta uma resposta longa enquanto os chunks continuam chegando', async () => {
+        async function* slowChunks() {
+            yield { choices: [{ delta: { content: 'Oi' } }] };
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            yield { choices: [{ delta: { content: ', jogador' } }] };
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            yield { choices: [{ delta: { content: '!' } }] };
+        }
+        const raw = await consumeChatStream(
+            Promise.resolve(slowChunks()),
+            () => undefined,
+            { firstTokenMs: 100, nextTokenMs: 100 },
+        );
+        expect(raw).toBe('Oi, jogador!');
+    });
+
+    it('preserva a resposta parcial e identifica timeout após o texto começar', async () => {
+        async function* partialThenStall() {
+            yield { choices: [{ delta: { content: 'Ainda estou aqui' } }] };
+            await new Promise(() => {});
+        }
+        let thrown: unknown;
+        try {
+            await consumeChatStream(
+                Promise.resolve(partialThenStall()),
+                () => undefined,
+                { firstTokenMs: 100, nextTokenMs: 30 },
+            );
+        } catch (error) {
+            thrown = error;
+        }
+        expect(thrown).toBeInstanceOf(GenerationTimeoutError);
+        expect(thrown).toMatchObject({
+            stage: 'next-token',
+            hadVisibleText: true,
+            partialText: 'Ainda estou aqui',
+        });
+    });
+
+    it('só permite o 0.8B quando o 2B não publicou nenhum texto', () => {
+        expect(shouldUseFastFallback(
+            new GenerationTimeoutError('first-token'),
+            0,
+            0,
+            false,
+        )).toBe(true);
+        expect(shouldUseFastFallback(
+            new GenerationTimeoutError('next-token', true, 'Oi,'),
+            0,
+            0,
+            false,
+        )).toBe(false);
+        expect(shouldUseFastFallback(
+            new GenerationTimeoutError('first-token'),
+            1,
+            0,
+            false,
+        )).toBe(false);
     });
 });

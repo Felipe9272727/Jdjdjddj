@@ -76,15 +76,22 @@ export function cpuThreadCount(
 }
 
 export const STREAM_WATCHDOG = Object.freeze({
-    firstTokenMultiMs: 90_000,
-    firstTokenSingleMs: 180_000,
-    nextTokenMs: 45_000,
-    totalMultiMs: 150_000,
-    totalSingleMs: 240_000,
+    // Em uma única thread o 2B pode levar alguns minutos no prefill. O fallback
+    // só deve entrar quando ele não produziu absolutamente nenhum texto.
+    firstTokenMultiMs: 150_000,
+    firstTokenSingleMs: 300_000,
+    // Depois que a fala começou, usamos apenas inatividade entre chunks. Não
+    // existe mais um limite total que possa cortar uma resposta saudável.
+    nextTokenMultiMs: 120_000,
+    nextTokenSingleMs: 240_000,
 });
 
 export class GenerationTimeoutError extends Error {
-    constructor(public readonly stage: 'first-token' | 'next-token' | 'total') {
+    constructor(
+        public readonly stage: 'first-token' | 'next-token',
+        public readonly hadVisibleText = false,
+        public readonly partialText = '',
+    ) {
         super(`GENERATION_TIMEOUT_${stage}`);
         this.name = 'GenerationTimeoutError';
     }
@@ -93,14 +100,13 @@ export class GenerationTimeoutError extends Error {
 type StreamWatchdogOptions = {
     firstTokenMs: number;
     nextTokenMs: number;
-    totalMs: number;
     onTimeout?: (stage: GenerationTimeoutError['stage']) => void;
 };
 
 function raceWithTimeout<T>(
     promise: Promise<T>,
     timeoutMs: number,
-    stage: GenerationTimeoutError['stage'],
+    timeoutError: GenerationTimeoutError,
     onTimeout?: StreamWatchdogOptions['onTimeout'],
 ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
@@ -108,8 +114,8 @@ function raceWithTimeout<T>(
         const timer = globalThis.setTimeout(() => {
             if (settled) return;
             settled = true;
-            onTimeout?.(stage);
-            reject(new GenerationTimeoutError(stage));
+            onTimeout?.(timeoutError.stage);
+            reject(timeoutError);
         }, Math.max(0, timeoutMs));
         promise.then(
             (value) => {
@@ -158,33 +164,30 @@ export async function consumeChatStream(
 ): Promise<string> {
     const startedAt = Date.now();
     const firstDeadline = startedAt + options.firstTokenMs;
-    const totalDeadline = startedAt + options.totalMs;
-    const initialWait = Math.max(0, Math.min(firstDeadline, totalDeadline) - Date.now());
-    const stream = await raceWithTimeout(streamPromise, initialWait, 'first-token', options.onTimeout);
+    const initialWait = Math.max(0, firstDeadline - Date.now());
+    const stream = await raceWithTimeout(
+        streamPromise,
+        initialWait,
+        new GenerationTimeoutError('first-token'),
+        options.onTimeout,
+    );
     const iterator = stream[Symbol.asyncIterator]();
     let acc = '';
     let sawVisibleText = false;
 
     while (true) {
         const now = Date.now();
-        const totalRemaining = totalDeadline - now;
-        if (totalRemaining <= 0) {
-            options.onTimeout?.('total');
-            throw new GenerationTimeoutError('total');
-        }
-
         const stage: GenerationTimeoutError['stage'] = sawVisibleText ? 'next-token' : 'first-token';
         const stageRemaining = sawVisibleText ? options.nextTokenMs : firstDeadline - now;
         if (stageRemaining <= 0) {
             options.onTimeout?.(stage);
-            throw new GenerationTimeoutError(stage);
+            throw new GenerationTimeoutError(stage, sawVisibleText, visibleText(acc).trim());
         }
 
-        const timeoutIsTotal = totalRemaining <= stageRemaining;
         const result = await raceWithTimeout(
             iterator.next(),
-            Math.min(stageRemaining, totalRemaining),
-            timeoutIsTotal ? 'total' : stage,
+            stageRemaining,
+            new GenerationTimeoutError(stage, sawVisibleText, visibleText(acc).trim()),
             options.onTimeout,
         );
         if (result.done) break;
@@ -207,6 +210,7 @@ export function modelHistory<T>(history: T[], maxMessages = 6): T[] {
 type WllamaInstance = {
     loadModelFromUrl(url: string, params: Record<string, unknown>): Promise<void>;
     createChatCompletion(opts: Record<string, unknown>): Promise<AsyncIterable<ChatChunk>>;
+    getNumThreads?: () => number;
     exit?: () => Promise<void> | void;
 };
 type WllamaCtor = new (paths: Record<string, string>, cfg?: Record<string, unknown>) => WllamaInstance;
@@ -218,39 +222,30 @@ let activeModelIndex = -1;
 let runtimeStartIndex: number | null = null;
 let loadedThreads = 1;
 
-const SLOW_2B_KEY = 'npc_cpu_2b_slow_v1';
-const SLOW_2B_TTL_MS = 12 * 60 * 60 * 1000;
-
-function mark2BSlow(): void {
-    try { localStorage.setItem(SLOW_2B_KEY, String(Date.now())); } catch { /* ok */ }
-}
-
-function was2BSlowRecently(): boolean {
-    try {
-        const raw = localStorage.getItem(SLOW_2B_KEY);
-        if (raw === null) return false;
-        const when = Number(raw);
-        if (!Number.isFinite(when) || Date.now() - when > SLOW_2B_TTL_MS) {
-            localStorage.removeItem(SLOW_2B_KEY);
-            return false;
-        }
-        return true;
-    } catch { return false; }
-}
-
 function manualOverride(): string | null {
     if (typeof window === 'undefined') return null;
     return (window as unknown as { __npcGGUF?: string }).__npcGGUF ?? null;
+}
+
+export function shouldUseFastFallback(
+    error: unknown,
+    attempt: number,
+    modelIndexAtStart: number,
+    hasManualOverride: boolean,
+): boolean {
+    return error instanceof GenerationTimeoutError
+        && error.stage === 'first-token'
+        && !error.hadVisibleText
+        && attempt === 0
+        && modelIndexAtStart !== FAST_MODEL_INDEX
+        && !hasManualOverride;
 }
 
 // Override: window.__npcGGUF = 'Qwen3.5-2B' ou uma URL .gguf completa.
 function startIndex(): number {
     const override = manualOverride();
     if (!override) {
-        if (runtimeStartIndex !== null) return runtimeStartIndex;
-        // Um marcador antigo não rebaixa o modelo quando o host agora liberou
-        // múltiplos núcleos (caso da configuração nova do Vercel).
-        return cpuThreadCount() === 1 && was2BSlowRecently() ? FAST_MODEL_INDEX : 0;
+        return runtimeStartIndex ?? 0;
     }
     if (override.startsWith('http')) {
         const custom = MODELS.findIndex((model) => model.label === 'custom');
@@ -284,7 +279,7 @@ export function initLLM(): Promise<WllamaInstance> {
         for (let index = startIndex(); index < MODELS.length; index++) {
             const model = MODELS[index];
             const threads = cpuThreadCount();
-            const cpuLabel = threads > 1 ? `CPU×${threads}` : 'CPU';
+            const cpuLabel = `CPU×${threads}`;
             npcSet({
                 modelLabel: `${model.label} · ${cpuLabel}`,
                 loadText: `carregando ${model.label} (${cpuLabel})…`,
@@ -306,10 +301,18 @@ export function initLLM(): Promise<WllamaInstance> {
                     },
                 });
                 loadedQwen3 = !!model.qwen3;
-                loadedThreads = threads;
+                // O próprio wllama confirma quantas pthreads conseguiu criar.
+                // Assim o cabeçalho nunca promete CPU×4 se o browser recusou
+                // SharedArrayBuffer por algum motivo.
+                loadedThreads = Math.max(1, candidate.getNumThreads?.() ?? threads);
                 activeModelIndex = index;
                 currentEngine = candidate;
-                npcSet({ phase: 'ready', loadText: 'pronto', loadProgress: 1 });
+                npcSet({
+                    phase: 'ready',
+                    modelLabel: `${model.label} · CPU×${loadedThreads}`,
+                    loadText: 'pronto',
+                    loadProgress: 1,
+                });
                 return candidate;
             } catch (error) {
                 lastError = error;
@@ -353,9 +356,9 @@ export async function sendToNpc(userText: string): Promise<void> {
             const firstTokenMs = loadedThreads > 1
                 ? STREAM_WATCHDOG.firstTokenMultiMs
                 : STREAM_WATCHDOG.firstTokenSingleMs;
-            const totalMs = loadedThreads > 1
-                ? STREAM_WATCHDOG.totalMultiMs
-                : STREAM_WATCHDOG.totalSingleMs;
+            const nextTokenMs = loadedThreads > 1
+                ? STREAM_WATCHDOG.nextTokenMultiMs
+                : STREAM_WATCHDOG.nextTokenSingleMs;
             const streamPromise = engine.createChatCompletion({
                 messages,
                 ...CHAT_COMPLETION_CONFIG,
@@ -367,8 +370,7 @@ export async function sendToNpc(userText: string): Promise<void> {
                 (streaming) => npcSet({ streaming }),
                 {
                     firstTokenMs,
-                    nextTokenMs: STREAM_WATCHDOG.nextTokenMs,
-                    totalMs,
+                    nextTokenMs,
                     onTimeout: () => {
                         abort.abort();
                         teardownAfterTimeout ??= teardownEngine(engine);
@@ -387,13 +389,14 @@ export async function sendToNpc(userText: string): Promise<void> {
         } catch (error: unknown) {
             if (teardownAfterTimeout) await teardownAfterTimeout;
             const timedOut = error instanceof GenerationTimeoutError;
-            const canUseFastFallback = timedOut
-                && attempt === 0
-                && modelIndexAtStart !== FAST_MODEL_INDEX
-                && manualOverride() === null;
+            const canUseFastFallback = shouldUseFastFallback(
+                error,
+                attempt,
+                modelIndexAtStart,
+                manualOverride() !== null,
+            );
 
             if (canUseFastFallback) {
-                mark2BSlow();
                 runtimeStartIndex = FAST_MODEL_INDEX;
                 npcSet({
                     phase: 'loading',
@@ -406,6 +409,20 @@ export async function sendToNpc(userText: string): Promise<void> {
                 try { engine = await initLLM(); } catch { return; }
                 npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
                 continue;
+            }
+
+            // Se o stream já publicou texto, ele nunca é trocado pelo 0.8B.
+            // Preservamos a fala recebida e reiniciamos o mesmo 2B apenas na
+            // próxima interação.
+            if (timedOut && error.hadVisibleText && error.partialText) {
+                npcSet({
+                    history: [...history, { role: 'assistant', content: error.partialText }],
+                    phase: 'ready',
+                    speaking: false,
+                    streaming: '',
+                    error: '',
+                });
+                return;
             }
 
             const message = error instanceof Error ? error.message : String(error);
