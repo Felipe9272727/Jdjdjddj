@@ -436,7 +436,10 @@ export async function sendToNpc(userText: string): Promise<void> {
         npc.perception,
         npc.autonomy,
     );
-    const groundedHistory = groundedModelHistory(history);
+    // Memória curta de propósito: as últimas 2 trocas (4 mensagens). Histórico
+    // longo inchava o prefill e fazia o 2B "fixar" num tema. O essencial do
+    // personagem vive na persona, não no histórico.
+    const groundedHistory = groundedModelHistory(history, 4);
 
     // Toda tentativa usa o mesmo 2B. Se a validação detectar uma contradição,
     // o próprio 2B recebe uma única chance de revisar; não há frase pronta nem
