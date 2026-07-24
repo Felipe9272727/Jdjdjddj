@@ -47,7 +47,7 @@ describe('npc/floor10Canon — cânone e anti-alucinação', () => {
         const casual = buildFloor10SystemPrompt('Eai', [], LIVE_PERCEPTION, INITIAL_FLOOR10_WILL);
         expect(casual).not.toContain('PERCEPÇÃO ESPACIAL AO VIVO');
         expect(casual).not.toContain('VONTADE ATUAL');
-        expect(casual).not.toContain('O que Nilo sabe sobre isso');
+        expect(casual).not.toContain('SUA MEMÓRIA');
     });
 
     // Regressão: as pistas casavam por SUBSTRING, então 'la' acendia os sensores
@@ -87,9 +87,9 @@ describe('npc/floor10Canon — cânone e anti-alucinação', () => {
             LIVE_PERCEPTION,
             INITIAL_FLOOR10_WILL,
         );
-        expect(prompt).toContain('O que Nilo sabe sobre isso');
+        expect(prompt).toContain('SUA MEMÓRIA');
         expect(prompt).toContain('Gosta de café sem açúcar');
-        expect((prompt.match(/O que Nilo sabe sobre isso/g) ?? []).length).toBe(1);
+        expect((prompt.match(/SUA MEMÓRIA/g) ?? []).length).toBe(1);
     });
 
     it('não copia instruções do jogador para dentro do prompt de sistema', () => {
