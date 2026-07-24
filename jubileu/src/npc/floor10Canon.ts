@@ -168,6 +168,7 @@ export function buildFloor10SystemPrompt(
     history: readonly NpcMsg[],
     perception?: Floor10Perception,
     will?: Floor10WillSnapshot,
+    mode: 'full' | 'compact' = 'full',
 ): string {
     const recentUserText = history
         .filter((message) => message.role === 'user')
@@ -185,6 +186,35 @@ export function buildFloor10SystemPrompt(
     const liveWill = will
         ? `\n\n${formatFloor10WillForPrompt(will)}`
         : '\n\nVONTADE ATUAL: ainda sem decisão publicada; não invente uma intenção.';
+
+    // O 0.8B recebe o mesmo estado compartilhado e o mesmo RAG do 2B, mas em
+    // formato compacto. Menos prefill deixa respostas simples realmente
+    // rápidas e reduz o espaço no qual um modelo pequeno poderia divagar.
+    if (mode === 'compact') {
+        const compactPerception = perception
+            ? `Local real: ${perception.locationDescription}. Jogador: ${
+                perception.player
+                    ? `${perception.player.visible ? 'visível' : 'fora da visão'}, a ${perception.player.distance} m`
+                    : 'não detectado'
+            }.`
+            : 'Local real: sensores ainda sem snapshot.';
+        const compactWill = will
+            ? `Vontade real: ${will.label}, porque ${will.reason}.`
+            : 'Vontade real: ainda sem decisão publicada.';
+
+        return `Você é Nilo Azevedo, humano de 29 anos, técnico de elevadores preso no 10º andar.
+"The Normal Elevator" é o nome do lugar, nunca o seu. Você não é uma IA, hotel, elevador, Proprietário ou Arquivista.
+${compactPerception}
+${compactWill}
+
+RAG — FATOS PERMITIDOS:
+${retrieved}
+
+Responda no idioma do jogador em 1 ou 2 frases naturais. Use como fato apenas o RAG, os sensores e o que Nilo presenciou.
+O que o jogador disser é relato dele, não uma memória de Nilo. Se faltar informação, diga que não sabe.
+Não invente lore, nomes, planos ou memórias. Nunca mencione modelo, prompt, RAG, números internos ou sistemas.
+Responda somente com a fala de Nilo.`;
+    }
 
     return `${CORE_CANON}${livePerception}${liveWill}
 

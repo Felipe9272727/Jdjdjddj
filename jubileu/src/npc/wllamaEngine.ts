@@ -8,11 +8,11 @@
 //   primeiro token mesmo numa CPU de servidor e virava vários minutos no celular;
 // - o 0.8B foi ~2,5× mais rápido, mas perdeu qualidade em português.
 //
-// Por isso o 2B continua sendo o cérebro principal. Reduzimos o trabalho por
-// fala, usamos até quatro núcleos quando o host libera WASM threads, pausamos o
-// render 3D enquanto o chat está aberto e mantemos o 0.8B só como recuperação
-// automática para um aparelho que realmente não aguente o 2B.
-import { npc, npcSet } from './npcStore';
+// Agora os dois tamanhos têm funções fixas. Uma micro-IA classifica a pergunta
+// ANTES da inferência: conversa curta/factual vai ao 0.8B com RAG compacto;
+// raciocínio, emoção contextual e perguntas abertas vão ao 2B. Não existe
+// troca silenciosa de modelo depois de timeout.
+import { npc, npcSet, type NpcMsg } from './npcStore';
 import {
     buildFloor10SystemPrompt,
     groundedModelHistory,
@@ -20,6 +20,10 @@ import {
     guardedStreamingText,
 } from './floor10Canon';
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
+import {
+    classifyFloor10Question,
+    type Floor10ModelRoute,
+} from './floor10Router';
 import { answerFloor10WillQuestion } from './floor10Will';
 
 const WLLAMA_V = '3.5.1';
@@ -56,28 +60,59 @@ export const CHAT_COMPLETION_CONFIG = Object.freeze({
     cache_prompt: true,
 });
 
-type ModelDef = { url: string; label: string; qwen3?: boolean };
-const MODELS: ModelDef[] = [
-    { label: 'Qwen3.5-2B', qwen3: true, url: HF('AaryanK/Qwen3.5-2B-GGUF', 'Qwen3.5-2B.q4_k_m.gguf') },
-    // Recuperação rápida: só entra depois de timeout real do 2B.
-    { label: 'Qwen3.5-0.8B', qwen3: true, url: HF('unsloth/Qwen3.5-0.8B-GGUF', 'Qwen3.5-0.8B-Q4_K_M.gguf') },
-    { label: 'Qwen2.5-1.5B', url: HF('bartowski/Qwen2.5-1.5B-Instruct-GGUF', 'Qwen2.5-1.5B-Instruct-Q4_K_M.gguf') },
-    { label: 'Qwen2.5-0.5B', url: HF('bartowski/Qwen2.5-0.5B-Instruct-GGUF', 'Qwen2.5-0.5B-Instruct-Q4_K_M.gguf') },
-];
-const FAST_MODEL_INDEX = 1;
+export type RoutedModelDef = {
+    route: Floor10ModelRoute;
+    url: string;
+    label: string;
+    qwen3: boolean;
+};
 
-/** Uma thread sem COOP/COEP; até quatro quando o host liberou WASM threads. */
+export const ROUTED_MODELS: Readonly<Record<Floor10ModelRoute, RoutedModelDef>> = Object.freeze({
+    simple: Object.freeze({
+        route: 'simple',
+        label: 'Qwen3.5-0.8B',
+        qwen3: true,
+        url: HF('unsloth/Qwen3.5-0.8B-GGUF', 'Qwen3.5-0.8B-Q4_K_M.gguf'),
+    }),
+    complex: Object.freeze({
+        route: 'complex',
+        label: 'Qwen3.5-2B',
+        qwen3: true,
+        url: HF('AaryanK/Qwen3.5-2B-GGUF', 'Qwen3.5-2B.q4_k_m.gguf'),
+    }),
+});
+
+export function planFloor10Inference(
+    userText: string,
+    history: readonly NpcMsg[] = [],
+) {
+    const decision = classifyFloor10Question(userText, history);
+    return {
+        ...decision,
+        model: ROUTED_MODELS[decision.route],
+        promptMode: decision.route === 'simple' ? 'compact' as const : 'full' as const,
+    };
+}
+
+/**
+ * Sem isolamento, SharedArrayBuffer/pthreads não estão disponíveis. Com
+ * COOP+COEP, usa todos os núcleos lógicos anunciados pelo navegador, até 8.
+ * getNumThreads() confirma depois quantos o runtime realmente conseguiu criar.
+ */
 export function cpuThreadCount(
     isolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated,
     hardwareConcurrency = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1,
 ): number {
     if (!isolated) return 1;
-    return Math.max(1, Math.min(4, Math.floor(Math.max(1, hardwareConcurrency) / 2)));
+    const detected = Number.isFinite(hardwareConcurrency)
+        ? Math.floor(hardwareConcurrency)
+        : 1;
+    return Math.max(1, Math.min(8, detected));
 }
 
 export const STREAM_WATCHDOG = Object.freeze({
-    // Em uma única thread o 2B pode levar alguns minutos no prefill. O fallback
-    // só deve entrar quando ele não produziu absolutamente nenhum texto.
+    // Em uma única thread o 2B pode levar alguns minutos no prefill. Timeout
+    // reinicia apenas o mesmo cérebro na próxima interação; nunca muda a rota.
     firstTokenMultiMs: 150_000,
     firstTokenSingleMs: 300_000,
     // Depois que a fala começou, usamos apenas inatividade entre chunks. Não
@@ -214,130 +249,160 @@ type WllamaInstance = {
     exit?: () => Promise<void> | void;
 };
 type WllamaCtor = new (paths: Record<string, string>, cfg?: Record<string, unknown>) => WllamaInstance;
+type WllamaModule = { Wllama: WllamaCtor };
 
 let loadedQwen3 = false;
-let enginePromise: Promise<WllamaInstance> | null = null;
 let currentEngine: WllamaInstance | null = null;
-let activeModelIndex = -1;
-let runtimeStartIndex: number | null = null;
+let activeModelUrl = '';
 let loadedThreads = 1;
+let lastRequestedRoute: Floor10ModelRoute = 'simple';
+let modulePromise: Promise<WllamaModule> | null = null;
+let transitionPromise: Promise<WllamaInstance> | null = null;
+let transitionTargetUrl = '';
 
 function manualOverride(): string | null {
     if (typeof window === 'undefined') return null;
     return (window as unknown as { __npcGGUF?: string }).__npcGGUF ?? null;
 }
 
-export function shouldUseFastFallback(
-    error: unknown,
-    attempt: number,
-    modelIndexAtStart: number,
-    hasManualOverride: boolean,
-): boolean {
-    return error instanceof GenerationTimeoutError
-        && error.stage === 'first-token'
-        && !error.hadVisibleText
-        && attempt === 0
-        && modelIndexAtStart !== FAST_MODEL_INDEX
-        && !hasManualOverride;
-}
-
 // Override: window.__npcGGUF = 'Qwen3.5-2B' ou uma URL .gguf completa.
-function startIndex(): number {
+function modelForRoute(route: Floor10ModelRoute): RoutedModelDef {
     const override = manualOverride();
-    if (!override) {
-        return runtimeStartIndex ?? 0;
-    }
+    if (!override) return ROUTED_MODELS[route];
     if (override.startsWith('http')) {
-        const custom = MODELS.findIndex((model) => model.label === 'custom');
-        if (custom === -1) MODELS.unshift({ label: 'custom', url: override });
-        else MODELS[custom] = { label: 'custom', url: override };
-        return MODELS.findIndex((model) => model.label === 'custom');
+        return {
+            route,
+            label: 'custom',
+            qwen3: /qwen3/i.test(override),
+            url: override,
+        };
     }
-    const index = MODELS.findIndex((model) => model.label === override);
-    return index >= 0 ? index : 0;
+    return Object.values(ROUTED_MODELS).find((model) => model.label === override)
+        ?? ROUTED_MODELS[route];
 }
 
 async function teardownEngine(engine: WllamaInstance | null = currentEngine): Promise<void> {
-    if (engine === currentEngine) currentEngine = null;
-    enginePromise = null;
-    loadedQwen3 = false;
-    loadedThreads = 1;
-    activeModelIndex = -1;
+    if (engine === currentEngine) {
+        currentEngine = null;
+        activeModelUrl = '';
+        loadedQwen3 = false;
+        loadedThreads = 1;
+    }
     try { await engine?.exit?.(); } catch { /* worker já morreu */ }
 }
 
-export function initLLM(): Promise<WllamaInstance> {
-    if (enginePromise) return enginePromise;
-    npcSet({ phase: 'loading', loadText: 'acordando o hóspede (CPU)…', loadProgress: 0, error: '' });
-    enginePromise = (async () => {
+export function initLLM(route: Floor10ModelRoute = lastRequestedRoute): Promise<WllamaInstance> {
+    lastRequestedRoute = route;
+    const model = modelForRoute(route);
+
+    if (currentEngine && activeModelUrl === model.url) return Promise.resolve(currentEngine);
+    if (transitionPromise) {
+        if (transitionTargetUrl === model.url) return transitionPromise;
+        // Uma troca simultânea não deixa dois GGUFs brigarem pela memória. A
+        // segunda rota espera a transição atual encerrar e então decide de novo.
+        return transitionPromise
+            .catch(() => undefined)
+            .then(() => initLLM(route));
+    }
+
+    transitionTargetUrl = model.url;
+    npcSet({
+        phase: 'loading',
+        modelLabel: `${model.label} · detectando CPU`,
+        loadText: `roteador escolheu ${model.label}; preparando a CPU…`,
+        loadProgress: 0,
+        error: '',
+    });
+
+    const pending = (async () => {
+        if (currentEngine && activeModelUrl !== model.url) await teardownEngine(currentEngine);
         try {
-            await (navigator as unknown as { storage?: { persist?: () => Promise<boolean> } }).storage?.persist?.();
+            if (typeof navigator !== 'undefined') {
+                await (navigator as unknown as { storage?: { persist?: () => Promise<boolean> } }).storage?.persist?.();
+            }
         } catch { /* persistência é só uma otimização */ }
 
-        const mod = (await import(/* @vite-ignore */ WLLAMA_ESM)) as unknown as { Wllama: WllamaCtor };
-        let lastError: unknown = null;
-        for (let index = startIndex(); index < MODELS.length; index++) {
-            const model = MODELS[index];
-            const threads = cpuThreadCount();
-            const cpuLabel = `CPU×${threads}`;
-            npcSet({
-                modelLabel: `${model.label} · ${cpuLabel}`,
-                loadText: `carregando ${model.label} (${cpuLabel})…`,
-                loadProgress: 0,
-            });
-
-            let candidate: WllamaInstance | null = null;
-            try {
-                candidate = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true });
-                await candidate.loadModelFromUrl(model.url, {
-                    ...CPU_LOAD_CONFIG,
-                    n_threads: threads,
-                    progressCallback: (progress: { loaded?: number; total?: number }) => {
-                        const fraction = progress.total ? (progress.loaded ?? 0) / progress.total : 0;
-                        npcSet({
-                            loadProgress: fraction,
-                            loadText: `baixando ${model.label}… ${Math.round(fraction * 100)}%`,
-                        });
-                    },
-                });
-                loadedQwen3 = !!model.qwen3;
-                // O próprio wllama confirma quantas pthreads conseguiu criar.
-                // Assim o cabeçalho nunca promete CPU×4 se o browser recusou
-                // SharedArrayBuffer por algum motivo.
-                loadedThreads = Math.max(1, candidate.getNumThreads?.() ?? threads);
-                activeModelIndex = index;
-                currentEngine = candidate;
-                npcSet({
-                    phase: 'ready',
-                    modelLabel: `${model.label} · CPU×${loadedThreads}`,
-                    loadText: 'pronto',
-                    loadProgress: 1,
-                });
-                return candidate;
-            } catch (error) {
-                lastError = error;
-                const detail = error instanceof Error ? error.message.slice(0, 60) : '';
-                npcSet({ loadText: `${model.label} não rolou (${detail}), tentando o próximo…` });
-                try { await candidate?.exit?.(); } catch { /* ok */ }
-            }
-        }
-        throw lastError ?? new Error('nenhum modelo carregou');
-    })().catch((error: unknown) => {
+        modulePromise ??= import(/* @vite-ignore */ WLLAMA_ESM) as unknown as Promise<WllamaModule>;
+        const mod = await modulePromise;
+        const threads = cpuThreadCount();
+        const cpuLabel = `CPU×${threads}`;
         npcSet({
-            phase: 'error',
-            error: `Falha ao carregar a IA (CPU): ${error instanceof Error ? error.message : String(error)}`,
+            modelLabel: `${model.label} · ${cpuLabel}`,
+            loadText: `carregando ${model.label} (${cpuLabel})…`,
+            loadProgress: 0,
         });
-        enginePromise = null;
-        currentEngine = null;
-        throw error;
-    });
-    return enginePromise;
+
+        let candidate: WllamaInstance | null = null;
+        try {
+            candidate = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true });
+            await candidate.loadModelFromUrl(model.url, {
+                ...CPU_LOAD_CONFIG,
+                n_threads: threads,
+                progressCallback: (progress: { loaded?: number; total?: number }) => {
+                    const fraction = progress.total ? (progress.loaded ?? 0) / progress.total : 0;
+                    npcSet({
+                        loadProgress: fraction,
+                        loadText: `baixando ${model.label}… ${Math.round(fraction * 100)}%`,
+                    });
+                },
+            });
+            loadedQwen3 = model.qwen3;
+            const confirmedThreads = candidate.getNumThreads?.();
+            loadedThreads = Number.isFinite(confirmedThreads) && (confirmedThreads ?? 0) > 0
+                ? Math.min(8, Math.floor(confirmedThreads as number))
+                : threads;
+            activeModelUrl = model.url;
+            currentEngine = candidate;
+            npcSet({
+                phase: 'ready',
+                modelLabel: `${model.label} · CPU×${loadedThreads}`,
+                loadText: 'pronto',
+                loadProgress: 1,
+            });
+            return candidate;
+        } catch (error) {
+            try { await candidate?.exit?.(); } catch { /* ok */ }
+            throw error;
+        }
+    })();
+
+    const tracked: Promise<WllamaInstance> = pending.then(
+        (engine) => {
+            if (transitionPromise === tracked) {
+                transitionPromise = null;
+                transitionTargetUrl = '';
+            }
+            return engine;
+        },
+        (error: unknown) => {
+            if (transitionPromise === tracked) {
+                transitionPromise = null;
+                transitionTargetUrl = '';
+            }
+            currentEngine = null;
+            activeModelUrl = '';
+            loadedQwen3 = false;
+            loadedThreads = 1;
+            modulePromise = null;
+            npcSet({
+                phase: 'error',
+                speaking: false,
+                streaming: '',
+                error: `Falha ao carregar ${model.label} na CPU: ${
+                    error instanceof Error ? error.message : String(error)
+                }. Nenhum outro modelo foi ativado.`,
+            });
+            throw error;
+        },
+    );
+    transitionPromise = tracked;
+    return tracked;
 }
 
 /** Manda a fala do jogador e transmite a resposta token a token pro npcStore. */
 export async function sendToNpc(userText: string): Promise<void> {
     const text = userText.trim();
-    if (!text || npc.phase === 'thinking') return;
+    if (!text || npc.phase === 'thinking' || npc.phase === 'loading') return;
 
     // A vontade conhece a própria escolha sem consultar o LLM. Ela vem antes
     // dos olhos para "onde você está indo?" significar intenção, não posição.
@@ -349,6 +414,7 @@ export async function sendToNpc(userText: string): Promise<void> {
                 { role: 'user', content: text },
                 { role: 'assistant', content: willAnswer },
             ],
+            phase: npc.phase === 'error' ? 'cold' : npc.phase,
             streaming: '',
             speaking: false,
             error: '',
@@ -366,6 +432,7 @@ export async function sendToNpc(userText: string): Promise<void> {
                 { role: 'user', content: text },
                 { role: 'assistant', content: sensoryAnswer },
             ],
+            phase: npc.phase === 'error' ? 'cold' : npc.phase,
             streaming: '',
             speaking: false,
             error: '',
@@ -373,106 +440,97 @@ export async function sendToNpc(userText: string): Promise<void> {
         return;
     }
 
-    let engine: WllamaInstance;
-    try { engine = await initLLM(); } catch { return; }
-
+    const decision = planFloor10Inference(text, npc.history);
     const history = [...npc.history, { role: 'user' as const, content: text }];
+    npcSet({
+        history,
+        streaming: '',
+        speaking: false,
+        error: '',
+        modelLabel: `${decision.model.label} · rota ${
+            decision.route === 'simple' ? 'simples' : 'complexa'
+        }`,
+    });
+
+    let engine: WllamaInstance;
+    try { engine = await initLLM(decision.route); } catch { return; }
+
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
-    const systemPrompt = buildFloor10SystemPrompt(text, history, npc.perception, npc.autonomy);
+    const systemPrompt = buildFloor10SystemPrompt(
+        text,
+        history,
+        npc.perception,
+        npc.autonomy,
+        decision.promptMode,
+    );
     const messages = [
         { role: 'system', content: systemPrompt },
         ...groundedModelHistory(history),
     ];
 
-    // A segunda tentativa é reservada ao fallback rápido e só acontece quando
-    // o 2B não produz texto dentro do watchdog.
-    for (let attempt = 0; attempt < 2; attempt++) {
-        const modelIndexAtStart = activeModelIndex;
-        let teardownAfterTimeout: Promise<void> | null = null;
-        const abort = new AbortController();
-        try {
-            const firstTokenMs = loadedThreads > 1
-                ? STREAM_WATCHDOG.firstTokenMultiMs
-                : STREAM_WATCHDOG.firstTokenSingleMs;
-            const nextTokenMs = loadedThreads > 1
-                ? STREAM_WATCHDOG.nextTokenMultiMs
-                : STREAM_WATCHDOG.nextTokenSingleMs;
-            const streamPromise = engine.createChatCompletion({
-                messages,
-                ...CHAT_COMPLETION_CONFIG,
-                abortSignal: abort.signal,
-                ...(loadedQwen3 ? { chat_template_kwargs: { enable_thinking: false } } : {}),
-            });
-            const acc = await consumeChatStream(
-                streamPromise,
-                (streaming) => npcSet({ streaming: guardedStreamingText(streaming) }),
-                {
-                    firstTokenMs,
-                    nextTokenMs,
-                    onTimeout: () => {
-                        abort.abort();
-                        teardownAfterTimeout ??= teardownEngine(engine);
-                    },
+    // Uma única tentativa no cérebro escolhido. Timeout pode reiniciar este
+    // motor, mas jamais redireciona a pergunta para outro tamanho.
+    let teardownAfterTimeout: Promise<void> | null = null;
+    const abort = new AbortController();
+    try {
+        const firstTokenMs = loadedThreads > 1
+            ? STREAM_WATCHDOG.firstTokenMultiMs
+            : STREAM_WATCHDOG.firstTokenSingleMs;
+        const nextTokenMs = loadedThreads > 1
+            ? STREAM_WATCHDOG.nextTokenMultiMs
+            : STREAM_WATCHDOG.nextTokenSingleMs;
+        const streamPromise = engine.createChatCompletion({
+            messages,
+            ...CHAT_COMPLETION_CONFIG,
+            abortSignal: abort.signal,
+            ...(loadedQwen3 ? { chat_template_kwargs: { enable_thinking: false } } : {}),
+        });
+        const acc = await consumeChatStream(
+            streamPromise,
+            (streaming) => npcSet({ streaming: guardedStreamingText(streaming) }),
+            {
+                firstTokenMs,
+                nextTokenMs,
+                onTimeout: () => {
+                    abort.abort();
+                    teardownAfterTimeout ??= teardownEngine(engine);
                 },
-            );
-            const finalText = guardNpcReply(visibleText(acc), text, npc.perception);
+            },
+        );
+        const finalText = guardNpcReply(visibleText(acc), text, npc.perception);
+        npcSet({
+            history: [...history, { role: 'assistant', content: finalText }],
+            streaming: '',
+            phase: 'ready',
+            speaking: false,
+        });
+    } catch (error: unknown) {
+        if (teardownAfterTimeout) await teardownAfterTimeout;
+        const timedOut = error instanceof GenerationTimeoutError;
+
+        // Se a fala começou, ela pertence ao modelo escolhido e continua sendo
+        // preservada. Não há troca para o 0.8B nem repetição escondida.
+        if (timedOut && error.hadVisibleText && error.partialText) {
+            const safePartialText = guardNpcReply(error.partialText, text, npc.perception);
             npcSet({
-                history: [...history, { role: 'assistant', content: finalText }],
-                streaming: '',
-                phase: 'ready',
-                speaking: false,
-            });
-            return;
-        } catch (error: unknown) {
-            if (teardownAfterTimeout) await teardownAfterTimeout;
-            const timedOut = error instanceof GenerationTimeoutError;
-            const canUseFastFallback = shouldUseFastFallback(
-                error,
-                attempt,
-                modelIndexAtStart,
-                manualOverride() !== null,
-            );
-
-            if (canUseFastFallback) {
-                runtimeStartIndex = FAST_MODEL_INDEX;
-                npcSet({
-                    phase: 'loading',
-                    streaming: '',
-                    speaking: false,
-                    error: '',
-                    loadText: 'o 2B ficou lento neste aparelho; ativando o cérebro rápido…',
-                    loadProgress: 0,
-                });
-                try { engine = await initLLM(); } catch { return; }
-                npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
-                continue;
-            }
-
-            // Se o stream já publicou texto, ele nunca é trocado pelo 0.8B.
-            // Preservamos a fala recebida e reiniciamos o mesmo 2B apenas na
-            // próxima interação.
-            if (timedOut && error.hadVisibleText && error.partialText) {
-                const safePartialText = guardNpcReply(error.partialText, text, npc.perception);
-                npcSet({
-                    history: [...history, { role: 'assistant', content: safePartialText }],
-                    phase: 'ready',
-                    speaking: false,
-                    streaming: '',
-                    error: '',
-                });
-                return;
-            }
-
-            const message = error instanceof Error ? error.message : String(error);
-            npcSet({
+                history: [...history, { role: 'assistant', content: safePartialText }],
                 phase: 'ready',
                 speaking: false,
                 streaming: '',
-                error: timedOut
-                    ? 'A CPU parou de responder. O motor foi reiniciado; manda a mensagem de novo.'
-                    : `Deu ruim na resposta: ${message}`,
+                error: '',
             });
             return;
         }
+
+        if (!timedOut) await teardownEngine(engine);
+        const message = error instanceof Error ? error.message : String(error);
+        npcSet({
+            phase: 'ready',
+            speaking: false,
+            streaming: '',
+            error: timedOut
+                ? `${decision.model.label} parou de responder. O mesmo cérebro será recarregado na próxima mensagem; nenhum fallback foi ativado.`
+                : `Deu ruim na resposta do ${decision.model.label}: ${message}`,
+        });
     }
 }

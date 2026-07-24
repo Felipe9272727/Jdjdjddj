@@ -7,8 +7,8 @@ import { NPC_NAME } from './npc/floor10Canon';
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
 // Vive FORA do Canvas. Reage ao npcStore: mostra a dica quando o player chega
-// perto, abre o painel de chat (tecla E ou toque), dispara o download do modelo
-// (com barra de progresso), e transmite a resposta do LLM token a token.
+// perto, abre o painel de chat (tecla E ou toque), deixa o roteador escolher o
+// modelo só depois da pergunta (com barra de progresso), e transmite a resposta.
 // Mobile-first (o Felipe joga no celular): input embaixo, alvos grandes.
 //
 // REGRA DE OURO: erro NUNCA fica invisível. Antes, falhas na geração só
@@ -25,7 +25,6 @@ const Floor10NpcChat: React.FC = () => {
     const open = useCallback(() => {
         if (npc.open) return;
         npcSet({ open: true });
-        if (npc.phase === 'cold' || npc.phase === 'error') { void initLLM(); }
     }, []);
     const close = useCallback(() => { npcSet({ open: false }); }, []);
 
@@ -119,7 +118,7 @@ const Floor10NpcChat: React.FC = () => {
             {loading && (
                 <div style={{ padding: '14px 16px' }}>
                     <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 8 }}>
-                        Baixando o cérebro do hóspede (só na 1ª vez, fica em cache)…
+                        Preparando o cérebro escolhido pelo roteador (depois fica em cache)…
                     </div>
                     <div style={barOuter}><div style={{ ...barInner, width: `${pct}%` }} /></div>
                     <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>{pct}% — {st.loadText}</div>
@@ -133,12 +132,12 @@ const Floor10NpcChat: React.FC = () => {
                 </div>
             )}
 
-            {(st.phase === 'ready' || st.phase === 'thinking') && (
+            {(st.phase === 'cold' || st.phase === 'ready' || st.phase === 'thinking') && (
                 <>
                     <div ref={scrollRef} style={logStyle}>
                         {st.history.length === 0 && (
                             <div style={{ opacity: 0.5, fontSize: 13, textAlign: 'center', marginTop: 20 }}>
-                                Vontade atual: {st.autonomy.label}. Os olhos e a autonomia continuam ativos.
+                                Vontade atual: {st.autonomy.label}. O roteador usará 0.8B nas perguntas simples e 2B nas complexas.
                             </div>
                         )}
                         {st.history.map((m, i) => (

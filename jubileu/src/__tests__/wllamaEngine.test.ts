@@ -3,13 +3,14 @@ import {
     CHAT_COMPLETION_CONFIG,
     CPU_LOAD_CONFIG,
     GenerationTimeoutError,
+    ROUTED_MODELS,
     WLLAMA_PATHS,
     chunkDelta,
     consumeChatStream,
     cpuThreadCount,
     modelHistory,
+    planFloor10Inference,
     sendToNpc,
-    shouldUseFastFallback,
     visibleText,
 } from '../npc/wllamaEngine';
 import { npc, npcSet } from '../npc/npcStore';
@@ -22,7 +23,7 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(WLLAMA_PATHS.default).toMatch(/@wllama\/wllama@3\.5\.1\/esm\/wasm\/wllama\.wasm$/);
     });
 
-    it('mantém um fallback CPU de uma thread e contexto curto', () => {
+    it('mantém configuração-base CPU e contexto curto', () => {
         expect(CPU_LOAD_CONFIG).toEqual({
             n_ctx: 1024,
             n_threads: 1,
@@ -34,12 +35,34 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         });
     });
 
-    it('usa até quatro núcleos somente com cross-origin isolation', () => {
+    it('detecta automaticamente até oito núcleos com cross-origin isolation', () => {
         expect(cpuThreadCount(false, 12)).toBe(1);
-        expect(cpuThreadCount(true, 2)).toBe(1);
-        expect(cpuThreadCount(true, 4)).toBe(2);
-        expect(cpuThreadCount(true, 8)).toBe(4);
-        expect(cpuThreadCount(true, 16)).toBe(4);
+        expect(cpuThreadCount(true, 2)).toBe(2);
+        expect(cpuThreadCount(true, 4)).toBe(4);
+        expect(cpuThreadCount(true, 8)).toBe(8);
+        expect(cpuThreadCount(true, 16)).toBe(8);
+        expect(cpuThreadCount(true, Number.NaN)).toBe(1);
+    });
+
+    it('dá papéis fixos aos dois modelos, sem cadeia de fallback', () => {
+        expect(Object.keys(ROUTED_MODELS)).toEqual(['simple', 'complex']);
+        expect(ROUTED_MODELS.simple.label).toBe('Qwen3.5-0.8B');
+        expect(ROUTED_MODELS.complex.label).toBe('Qwen3.5-2B');
+        expect(ROUTED_MODELS.simple.route).toBe('simple');
+        expect(ROUTED_MODELS.complex.route).toBe('complex');
+    });
+
+    it('fecha modelo e formato do RAG antes de começar cada inferência', () => {
+        expect(planFloor10Inference('Qual é seu nome?')).toMatchObject({
+            route: 'simple',
+            promptMode: 'compact',
+            model: { label: 'Qwen3.5-0.8B' },
+        });
+        expect(planFloor10Inference('Por que você acha que o elevador escolheu você?')).toMatchObject({
+            route: 'complex',
+            promptMode: 'full',
+            model: { label: 'Qwen3.5-2B' },
+        });
     });
 
     it('usa os nomes OpenAI-compatible aceitos pela API v3', () => {
@@ -150,27 +173,6 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
             hadVisibleText: true,
             partialText: 'Ainda estou aqui',
         });
-    });
-
-    it('só permite o 0.8B quando o 2B não publicou nenhum texto', () => {
-        expect(shouldUseFastFallback(
-            new GenerationTimeoutError('first-token'),
-            0,
-            0,
-            false,
-        )).toBe(true);
-        expect(shouldUseFastFallback(
-            new GenerationTimeoutError('next-token', true, 'Oi,'),
-            0,
-            0,
-            false,
-        )).toBe(false);
-        expect(shouldUseFastFallback(
-            new GenerationTimeoutError('first-token'),
-            1,
-            0,
-            false,
-        )).toBe(false);
     });
 
     it('deixa a micro-IA dos olhos responder sem iniciar inferência do 2B', async () => {
