@@ -142,6 +142,7 @@ type StreamWatchdogOptions = {
     firstTokenMs: number;
     nextTokenMs: number;
     onTimeout?: (stage: GenerationTimeoutError['stage']) => void;
+    onTimings?: (timings: ChatTimings) => void;
 };
 
 function raceWithTimeout<T>(
@@ -184,17 +185,45 @@ export function visibleText(s: string): string {
     return s.replace(/^\s+/, '');
 }
 
+/** Medições reais do llama.cpp (chegam no último chunk do stream). */
+export type ChatTimings = {
+    prompt_n?: number;
+    prompt_per_second?: number;
+    predicted_per_second?: number;
+    cache_n?: number;
+};
+
 export type ChatChunk = {
     choices?: Array<{ delta?: { content?: string | null } }>;
     // Compatibilidade defensiva com builds antigos do wllama.
     currentText?: string;
     piece?: string;
+    timings?: ChatTimings;
 };
 
 export function chunkDelta(chunk: ChatChunk): string {
     const oaiDelta = chunk.choices?.[0]?.delta?.content;
     if (typeof oaiDelta === 'string') return oaiDelta;
     return typeof chunk.piece === 'string' ? chunk.piece : '';
+}
+
+/**
+ * Resume as medições para a etiqueta da UI. Sem isto só dava para ADIVINHAR a
+ * velocidade do aparelho; agora o número na tela é o que o motor mediu.
+ */
+export function formatTimings(timings: ChatTimings | null): string {
+    if (!timings) return '';
+    const parts: string[] = [];
+    if (typeof timings.prompt_per_second === 'number' && timings.prompt_per_second > 0) {
+        parts.push(`leitura ${Math.round(timings.prompt_per_second)} tok/s`);
+    }
+    if (typeof timings.predicted_per_second === 'number' && timings.predicted_per_second > 0) {
+        parts.push(`fala ${Math.round(timings.predicted_per_second)} tok/s`);
+    }
+    if (typeof timings.prompt_n === 'number' && timings.prompt_n > 0) {
+        parts.push(`${timings.prompt_n} tokens lidos`);
+    }
+    return parts.join(' · ');
 }
 
 /** Consome o stream sem permitir que um Worker silencioso deixe a UI em "…". */
@@ -240,6 +269,7 @@ export async function consumeChatStream(
 
         sawAnyChunk = true;
         const chunk = result.value;
+        if (chunk.timings) options.onTimings?.(chunk.timings);
         if (typeof chunk.currentText === 'string') acc = chunk.currentText;
         else acc += chunkDelta(chunk);
         const visible = visibleText(acc);
@@ -485,6 +515,13 @@ export async function sendToNpc(userText: string): Promise<void> {
             {
                 firstTokenMs,
                 nextTokenMs,
+                // Publica a velocidade MEDIDA pelo motor no aparelho do jogador.
+                onTimings: (timings) => {
+                    const measured = formatTimings(timings);
+                    if (measured) {
+                        npcSet({ modelLabel: `${FLOOR10_MODEL.label} · CPU×${loadedThreads} · ${measured}` });
+                    }
+                },
                 onTimeout: () => {
                     abort.abort();
                     teardownAfterTimeout ??= teardownEngine(engine);

@@ -9,6 +9,7 @@ import {
     chunkDelta,
     consumeChatStream,
     cpuThreadCount,
+    formatTimings,
     modelHistory,
     sendToNpc,
     visibleText,
@@ -72,6 +73,16 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         });
         expect(CHAT_COMPLETION_CONFIG).not.toHaveProperty('nPredict');
         expect(CHAT_COMPLETION_CONFIG).not.toHaveProperty('sampling');
+    });
+
+    it('mostra a velocidade MEDIDA pelo motor, não uma estimativa', () => {
+        expect(formatTimings({
+            prompt_n: 337,
+            prompt_per_second: 12.4,
+            predicted_per_second: 3.2,
+        })).toBe('leitura 12 tok/s · fala 3 tok/s · 337 tokens lidos');
+        expect(formatTimings(null)).toBe('');
+        expect(formatTimings({})).toBe('');
     });
 
     it('extrai texto do streaming OpenAI choices[0].delta.content', () => {
