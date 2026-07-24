@@ -26,6 +26,7 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
     it('mantém configuração-base CPU e contexto curto', () => {
         expect(CPU_LOAD_CONFIG).toEqual({
             n_ctx: 1536,
+            n_batch: 512,
             n_threads: 1,
             n_gpu_layers: 0,
             jinja: true,

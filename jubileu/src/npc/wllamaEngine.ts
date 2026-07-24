@@ -36,6 +36,10 @@ export const CPU_LOAD_CONFIG = Object.freeze({
     // mensagem o contexto transbordava e o 2B parava de responder. 1536 dá
     // folga real (prompt + histórico curto + geração cabem).
     n_ctx: 1536,
+    // Tamanho do bloco de prefill. Sem isto o wllama não define n_batch e o
+    // prompt pode ser processado em pedaços pequenos, desperdiçando as threads.
+    // 512 cabe no n_ctx e deixa o prompt inteiro entrar em poucos blocos.
+    n_batch: 512,
     n_threads: 1,
     n_gpu_layers: 0,
     // Qwen3.5 traz um template Jinja multimodal. Fixar estas opções no load
@@ -423,7 +427,10 @@ export async function sendToNpc(userText: string): Promise<void> {
         streaming: '',
         speaking: false,
         error: '',
-        modelLabel: `${FLOOR10_MODEL.label} · modelo único`,
+        // Mantém CPU×N à vista durante a conversa. Antes virava "modelo único" e
+        // parecia que a inferência caía para 1 thread — o número some da tela,
+        // não as threads (o wllama fixa n_threads no load e não muda depois).
+        modelLabel: `${FLOOR10_MODEL.label} · CPU×${loadedThreads}`,
     });
 
     let engine: WllamaInstance;
