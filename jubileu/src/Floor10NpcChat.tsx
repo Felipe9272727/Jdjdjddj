@@ -3,6 +3,7 @@ import { useNpc, npc, npcSet } from './npc/npcStore';
 // Motor do NPC agora é o wllama (CPU/WASM, sem WebGPU). O llmEngine (WebGPU) fica
 // preservado no repo; trocar só esta linha volta pra ele.
 import { initLLM, sendToNpc } from './npc/wllamaEngine';
+import { NPC_NAME } from './npc/floor10Canon';
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
 // Vive FORA do Canvas. Reage ao npcStore: mostra a dica quando o player chega
@@ -87,7 +88,7 @@ const Floor10NpcChat: React.FC = () => {
     return (
         <div style={panelStyle}>
             <div style={headerStyle}>
-                <span>Hóspede do 10º{st.modelLabel ? ` · ${st.modelLabel}` : ''}</span>
+                <span>{NPC_NAME} · Hóspede do 10º{st.modelLabel ? ` · ${st.modelLabel}` : ''}</span>
                 <button onClick={close} style={xStyle} aria-label="Fechar">✕</button>
             </div>
 
@@ -113,7 +114,7 @@ const Floor10NpcChat: React.FC = () => {
                     <div ref={scrollRef} style={logStyle}>
                         {st.history.length === 0 && (
                             <div style={{ opacity: 0.5, fontSize: 13, textAlign: 'center', marginTop: 20 }}>
-                                Ele te encara, esperando você dizer algo.
+                                Nilo te encara, esperando você dizer algo.
                             </div>
                         )}
                         {st.history.map((m, i) => (

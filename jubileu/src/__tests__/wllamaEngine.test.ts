@@ -42,8 +42,8 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(CHAT_COMPLETION_CONFIG).toMatchObject({
             stream: true,
             max_tokens: 64,
-            temperature: 0.6,
-            top_p: 0.9,
+            temperature: 0.45,
+            top_p: 0.85,
             top_k: 40,
             cache_prompt: true,
         });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
 import { EffectComposer, Bloom, ChromaticAberration, Vignette, N8AO, HueSaturation, Sepia, BrightnessContrast } from '@react-three/postprocessing';
 import { KernelSize, BlendFunction } from 'postprocessing';
@@ -97,6 +97,21 @@ import { perfGovernor } from './ai/perfGovernor';
 // feeds the shared governor that simulation systems read to scale their cost.
 const AdaptivePerfProbe: React.FC = () => {
   useFrame((_, dt) => perfGovernor.tick(dt));
+  return null;
+};
+
+// Ao trocar o Canvas do 10º para `demand`, força um frame já com o painel
+// aberto. `never` deixava o drawing buffer sem uma apresentação nova e alguns
+// Chromes Android exibiam preto. Dois frames bastam para manter o cenário
+// estático visível sem disputar CPU com o LLM.
+const Floor10ChatBackdropFrame: React.FC<{ active: boolean }> = ({ active }) => {
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    if (!active) return;
+    invalidate();
+    const frame = window.requestAnimationFrame(() => invalidate());
+    return () => window.cancelAnimationFrame(frame);
+  }, [active, invalidate]);
   return null;
 };
 
@@ -1809,10 +1824,10 @@ export default function App() {
         // O Andar 8 abre um segundo Canvas ortográfico para corredor/memórias.
         // Manter o mundo FPS animando por trás dobrava o custo (Player, braços,
         // multiplayer e efeitos continuavam em useFrame embora invisíveis).
-        // `never` preserva o contexto/recursos para o despertar, mas zera esse
-        // loop enquanto a imagem ocupa a tela. O chat do Andar 10 também congela
-        // o player; pausar seus 60 FPS deixa a CPU livre para o LLM responder.
-        frameloop={(f8InImage || (currentLevel === 10 && npcChatOpen)) ? 'never' : 'always'}
+        // O Andar 8 fica totalmente coberto e pode usar `never`. No chat do 10º
+        // o cenário precisa continuar visível: `demand` desenha sob demanda,
+        // preservando o fundo sem manter 60 FPS competindo com o LLM.
+        frameloop={f8InImage ? 'never' : ((currentLevel === 10 && npcChatOpen) ? 'demand' : 'always')}
         // NOTE: no `key` here. Re-keying on settings change would unmount/remount
         // the entire scene (and reload every GLB!), which is what was causing the
         // visible "cut/flash" mid-game. dpr is reactive in r3f; antialias change
@@ -1828,6 +1843,7 @@ export default function App() {
           outputColorSpace: SRGBColorSpace,
         }}
       >
+        <Floor10ChatBackdropFrame active={currentLevel === 10 && npcChatOpen} />
         {/* PerformanceMonitor watches the frame rate. When it sees sustained
             slowdowns it calls onDecline → we drop dpr a notch. AdaptiveDpr
             wires that up to the renderer automatically. Keeps the game

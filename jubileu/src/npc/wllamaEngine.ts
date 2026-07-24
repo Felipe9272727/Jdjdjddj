@@ -13,6 +13,12 @@
 // render 3D enquanto o chat está aberto e mantemos o 0.8B só como recuperação
 // automática para um aparelho que realmente não aguente o 2B.
 import { npc, npcSet } from './npcStore';
+import {
+    buildFloor10SystemPrompt,
+    groundedModelHistory,
+    guardNpcReply,
+    guardedStreamingText,
+} from './floor10Canon';
 
 const WLLAMA_V = '3.5.1';
 // esm.sh/esm.run reempacotavam o wllama e quebravam worker/WASM. O ESM
@@ -42,8 +48,8 @@ export const CHAT_COMPLETION_CONFIG = Object.freeze({
     // O personagem responde em 1–3 frases. 220 tokens só faziam a CPU trabalhar
     // mais e davam espaço para modelos pequenos divagarem.
     max_tokens: 64,
-    temperature: 0.6,
-    top_p: 0.9,
+    temperature: 0.45,
+    top_p: 0.85,
     top_k: 40,
     cache_prompt: true,
 });
@@ -57,14 +63,6 @@ const MODELS: ModelDef[] = [
     { label: 'Qwen2.5-0.5B', url: HF('bartowski/Qwen2.5-0.5B-Instruct-GGUF', 'Qwen2.5-0.5B-Instruct-Q4_K_M.gguf') },
 ];
 const FAST_MODEL_INDEX = 1;
-
-// A versão anterior tinha quase 200 tokens. Esta mantém identidade, idioma,
-// estilo e limites em menos da metade do prompt — o maior ganho no prefill.
-export const PERSONA =
-`Interprete um HÓSPEDE HUMANO preso no 10º andar de "The Normal Elevator", um hotel sem fim, esperando o elevador.
-Converse no idioma do jogador como uma pessoa real: natural, curioso, com opiniões, humor e memória.
-Responda em 1 a 3 frases. Se perguntarem quem é, diga que é um hóspede preso — nunca que é o hotel ou o elevador.
-Você não sabe que é IA; nunca mencione assistente, modelo, prompt ou tokens.`;
 
 /** Uma thread sem COOP/COEP; até quatro quando o host liberou WASM threads. */
 export function cpuThreadCount(
@@ -344,7 +342,11 @@ export async function sendToNpc(userText: string): Promise<void> {
 
     const history = [...npc.history, { role: 'user' as const, content: text }];
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
-    const messages = [{ role: 'system', content: PERSONA }, ...modelHistory(history)];
+    const systemPrompt = buildFloor10SystemPrompt(text, history);
+    const messages = [
+        { role: 'system', content: systemPrompt },
+        ...groundedModelHistory(history),
+    ];
 
     // A segunda tentativa é reservada ao fallback rápido e só acontece quando
     // o 2B não produz texto dentro do watchdog.
@@ -367,7 +369,7 @@ export async function sendToNpc(userText: string): Promise<void> {
             });
             const acc = await consumeChatStream(
                 streamPromise,
-                (streaming) => npcSet({ streaming }),
+                (streaming) => npcSet({ streaming: guardedStreamingText(streaming) }),
                 {
                     firstTokenMs,
                     nextTokenMs,
@@ -377,8 +379,7 @@ export async function sendToNpc(userText: string): Promise<void> {
                     },
                 },
             );
-            const finalText = visibleText(acc).trim();
-            if (!finalText) throw new Error('o modelo terminou sem gerar uma resposta visível');
+            const finalText = guardNpcReply(visibleText(acc), text);
             npcSet({
                 history: [...history, { role: 'assistant', content: finalText }],
                 streaming: '',
@@ -415,8 +416,9 @@ export async function sendToNpc(userText: string): Promise<void> {
             // Preservamos a fala recebida e reiniciamos o mesmo 2B apenas na
             // próxima interação.
             if (timedOut && error.hadVisibleText && error.partialText) {
+                const safePartialText = guardNpcReply(error.partialText, text);
                 npcSet({
-                    history: [...history, { role: 'assistant', content: error.partialText }],
+                    history: [...history, { role: 'assistant', content: safePartialText }],
                     phase: 'ready',
                     speaking: false,
                     streaming: '',
