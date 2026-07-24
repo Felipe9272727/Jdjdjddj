@@ -18,6 +18,7 @@ import { initLLM, sendToNpc } from './npc/wllamaEngine';
 const Floor10NpcChat: React.FC = () => {
     const st = useNpc();
     const [input, setInput] = useState('');
+    const [thinkingSeconds, setThinkingSeconds] = useState(0);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const open = useCallback(() => {
@@ -45,6 +46,23 @@ const Floor10NpcChat: React.FC = () => {
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [st.history.length, st.streaming, st.phase, st.error]);
+
+    // O prefill de um LLM local é a parte mais lenta. Mostrar tempo corrido
+    // distingue "a CPU está trabalhando" de um Worker realmente morto; o
+    // watchdog do motor continua sendo o limite de segurança.
+    useEffect(() => {
+        if (st.phase !== 'thinking') {
+            setThinkingSeconds(0);
+            return;
+        }
+        const startedAt = Date.now();
+        setThinkingSeconds(0);
+        const timer = window.setInterval(
+            () => setThinkingSeconds(Math.floor((Date.now() - startedAt) / 1000)),
+            1000,
+        );
+        return () => window.clearInterval(timer);
+    }, [st.phase]);
 
     const send = () => {
         const t = input.trim();
@@ -105,7 +123,9 @@ const Floor10NpcChat: React.FC = () => {
                         ))}
                         {st.phase === 'thinking' && (
                             <div style={{ ...bubbleRow, justifyContent: 'flex-start' }}>
-                                <div style={npcBubble}>{st.streaming || '…'}</div>
+                                <div style={npcBubble} aria-live="polite">
+                                    {st.streaming || `Pensando na CPU… ${thinkingSeconds}s`}
+                                </div>
                             </div>
                         )}
                     </div>

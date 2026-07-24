@@ -45,11 +45,16 @@ const workerB64 = fs.readFileSync(path.join(scriptDir, 'public', 'npcWorker.js')
 // que dist tenha a versão fresca do worker
 fs.copyFileSync(path.join(scriptDir, 'public', 'npcWorker.js'), path.join(dist, 'npcWorker.js'));
 const workerMarker = '"npcWorker.js"';
-if (!js.includes(workerMarker)) {
-  throw new Error('referência "npcWorker.js" não encontrada no chunk principal — o llmEngine mudou?');
+if (js.includes(workerMarker)) {
+  const workerBlobBuilder = '(URL.createObjectURL(new Blob([Uint8Array.from(atob(__NPC_WORKER_B64__),(c)=>c.charCodeAt(0))],{type:"text/javascript"})))';
+  js = `const __NPC_WORKER_B64__="${workerB64}";\n` + js.split(workerMarker).join(workerBlobBuilder);
+} else {
+  // O Floor 10 atual importa wllamaEngine (CPU), então o Rollup remove
+  // llmEngine/npcWorker (WebGPU) do bundle. Não há referência para substituir
+  // e, portanto, nada precisa ser embutido. Se o WebGPU voltar a ser usado, o
+  // marcador reaparece e o caminho acima continua funcionando.
+  console.log('npcWorker.js ausente do chunk (motor WebGPU não utilizado); pulando embed.');
 }
-const workerBlobBuilder = '(URL.createObjectURL(new Blob([Uint8Array.from(atob(__NPC_WORKER_B64__),(c)=>c.charCodeAt(0))],{type:"text/javascript"})))';
-js = `const __NPC_WORKER_B64__="${workerB64}";\n` + js.split(workerMarker).join(workerBlobBuilder);
 // Remove the external script tag from <head>.
 // Use a function replacement to prevent JS's $& / $' / $` special patterns
 // inside the bundle from being expanded by String.prototype.replace().

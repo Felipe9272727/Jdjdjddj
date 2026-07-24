@@ -1810,8 +1810,9 @@ export default function App() {
         // Manter o mundo FPS animando por trás dobrava o custo (Player, braços,
         // multiplayer e efeitos continuavam em useFrame embora invisíveis).
         // `never` preserva o contexto/recursos para o despertar, mas zera esse
-        // loop enquanto a imagem ocupa a tela.
-        frameloop={f8InImage ? 'never' : 'always'}
+        // loop enquanto a imagem ocupa a tela. O chat do Andar 10 também congela
+        // o player; pausar seus 60 FPS deixa a CPU livre para o LLM responder.
+        frameloop={(f8InImage || (currentLevel === 10 && npcChatOpen)) ? 'never' : 'always'}
         // NOTE: no `key` here. Re-keying on settings change would unmount/remount
         // the entire scene (and reload every GLB!), which is what was causing the
         // visible "cut/flash" mid-game. dpr is reactive in r3f; antialias change
