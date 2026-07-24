@@ -394,6 +394,28 @@ export function initLLM(): Promise<WllamaInstance> {
                 loadText: 'pronto',
                 loadProgress: 1,
             });
+
+            // AFERIÇÃO REAL DO APARELHO. Uma geração minúscula (prompt curto,
+            // poucos tokens) logo após o load, só para o llama.cpp devolver
+            // quantos tokens por segundo ESTE celular faz. Sem isto a lentidão
+            // só podia ser estimada, e estimativa já me levou a duas teorias
+            // erradas. Termina em segundos mesmo num aparelho lento.
+            void (async () => {
+                try {
+                    const probe = await candidate!.createChatCompletion({
+                        messages: [{ role: 'user', content: 'Oi' }],
+                        stream: false,
+                        max_tokens: 8,
+                        temperature: 0.1,
+                    });
+                    const timings = (probe as { timings?: ChatTimings })?.timings;
+                    const measured = formatTimings(timings ?? null);
+                    if (measured) {
+                        npcSet({ modelLabel: `${model.label} · CPU×${loadedThreads} · ${measured}` });
+                    }
+                } catch { /* aferição é diagnóstico, nunca bloqueia a conversa */ }
+            })();
+
             return candidate;
         } catch (error) {
             try { await candidate?.exit?.(); } catch { /* ok */ }
