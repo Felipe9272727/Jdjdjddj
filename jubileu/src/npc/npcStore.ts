@@ -33,6 +33,13 @@ export type NpcState = {
     willCommand: Floor10WillCommand | null; // decisão verbal aceita pelo 2B
     autonomousSpeech: string; // iniciativa de fala fora do painel
     autonomousSpeechId: number;
+    // ── DELIBERAÇÃO (o cérebro pequeno pensando por fora) ──────────────────
+    // Visível na UI para dar para saber, olhando, se ele está vivo: sem isto o
+    // segundo cérebro trabalharia invisível e não haveria como diferenciar
+    // "pensando", "decidiu" e "não carregou".
+    deliberationPhase: 'off' | 'loading' | 'thinking' | 'decided' | 'unavailable';
+    deliberationGoal: string;   // a intenção que ele assinou
+    deliberationCount: number;  // quantas vezes já deliberou nesta sessão
     error: string;
     version: number;
 };
@@ -44,6 +51,7 @@ const s: NpcState = {
     autonomy: INITIAL_FLOOR10_WILL,
     willCommand: null,
     autonomousSpeech: '', autonomousSpeechId: 0,
+    deliberationPhase: 'off', deliberationGoal: '', deliberationCount: 0,
     error: '', version: 0,
 };
 

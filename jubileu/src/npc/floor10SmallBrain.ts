@@ -16,6 +16,7 @@ import {
 } from './floor10Deliberation';
 import type { Floor10Perception } from './floor10Perception';
 import type { Floor10WillDrives } from './floor10Will';
+import { npc, npcSet } from './npcStore';
 
 const WLLAMA_V = '3.5.1';
 const CDN = `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_V}/esm`;
@@ -73,6 +74,7 @@ export function readCompletionText(response: unknown): string {
 /** Carrega o cérebro pequeno uma única vez; falha vira null, nunca exceção. */
 function ensureSmallEngine(threads: number): Promise<SmallInstance | null> {
     enginePromise ??= (async () => {
+        npcSet({ deliberationPhase: 'loading' });
         try {
             const mod = await (import(/* @vite-ignore */ WLLAMA_ESM) as Promise<{ Wllama: SmallCtor }>);
             const engine = new mod.Wllama({ default: WASM_SINGLE }, { suppressNativeLog: true });
@@ -83,6 +85,7 @@ function ensureSmallEngine(threads: number): Promise<SmallInstance | null> {
             return engine;
         } catch {
             // Sem memória, sem rede ou modelo incompatível: o reflexo segue só.
+            npcSet({ deliberationPhase: 'unavailable' });
             return null;
         }
     })();
@@ -109,6 +112,7 @@ export async function deliberateFloor10(
     try {
         const engine = await ensureSmallEngine(input.threads ?? 1);
         if (!engine) return null;
+        npcSet({ deliberationPhase: 'thinking' });
         const response = await engine.createChatCompletion({
             messages: [
                 { role: 'system', content: DELIBERATION_SYSTEM_PROMPT },
@@ -119,7 +123,15 @@ export async function deliberateFloor10(
             ],
             ...SMALL_BRAIN_COMPLETION_CONFIG,
         });
-        return parseDeliberation(readCompletionText(response), input.now);
+        const decided = parseDeliberation(readCompletionText(response), input.now);
+        if (decided) {
+            npcSet({
+                deliberationPhase: 'decided',
+                deliberationGoal: decided.goal,
+                deliberationCount: npc.deliberationCount + 1,
+            });
+        }
+        return decided;
     } catch {
         return null;
     } finally {

@@ -2,8 +2,28 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNpc, npc, npcSet } from './npc/npcStore';
 // Motor do NPC agora é o wllama (CPU/WASM, sem WebGPU). O llmEngine (WebGPU) fica
 // preservado no repo; trocar só esta linha volta pra ele.
-import { initLLM, sendToNpc } from './npc/wllamaEngine';
+import { FLOOR10_MODEL, initLLM, sendToNpc } from './npc/wllamaEngine';
 import { NPC_NAME } from './npc/floor10Canon';
+import { SMALL_BRAIN_MODEL } from './npc/floor10SmallBrain';
+
+// O 2º cérebro trabalha em silêncio; este ícone é a única forma de saber, só
+// olhando, se ele está carregando, pensando, já decidiu ou não coube na memória.
+const DELIBERATION_ICON: Record<string, string> = {
+    off: '💤',
+    loading: '⏳',
+    thinking: '🧠',
+    decided: '💡',
+    unavailable: '🚫',
+};
+
+function deliberationTitle(phase: string, goal: string, count: number): string {
+    const who = SMALL_BRAIN_MODEL.label;
+    if (phase === 'loading') return `${who}: carregando o segundo cérebro…`;
+    if (phase === 'thinking') return `${who}: deliberando por conta própria…`;
+    if (phase === 'decided') return `${who}: decidiu "${goal}" (${count}ª vez)`;
+    if (phase === 'unavailable') return `${who}: não coube na memória — o reflexo segue sozinho`;
+    return `${who}: em repouso`;
+}
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
 // Vive FORA do Canvas. Reage ao npcStore: mostra a dica quando o player chega
@@ -111,14 +131,34 @@ const Floor10NpcChat: React.FC = () => {
     return (
         <div style={panelStyle}>
             <div style={headerStyle}>
-                <span>{NPC_NAME} · Hóspede do 10º{st.modelLabel ? ` · ${st.modelLabel}` : ''} · 👁🧭</span>
+                <span>
+                    {NPC_NAME} · Hóspede do 10º{st.modelLabel ? ` · ${st.modelLabel}` : ''} · 👁🧭
+                    {/* Estado do 2º cérebro: sem isto não dava para saber se ele vive. */}
+                    <span title={deliberationTitle(st.deliberationPhase, st.deliberationGoal, st.deliberationCount)}>
+                        {' '}{DELIBERATION_ICON[st.deliberationPhase]}
+                    </span>
+                </span>
                 <button onClick={close} style={xStyle} aria-label="Fechar">✕</button>
             </div>
+
+            {/* Linha do 2º cérebro. No celular não existe hover, então o estado
+                precisa aparecer escrito — é como o Felipe sabe se ele está vivo. */}
+            {st.deliberationPhase !== 'off' && (
+                <div style={{
+                    padding: '6px 16px',
+                    fontSize: 11,
+                    opacity: 0.65,
+                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                }}>
+                    {DELIBERATION_ICON[st.deliberationPhase]}{' '}
+                    {deliberationTitle(st.deliberationPhase, st.deliberationGoal, st.deliberationCount)}
+                </div>
+            )}
 
             {loading && (
                 <div style={{ padding: '14px 16px' }}>
                     <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 8 }}>
-                        Preparando o Qwen3.5-2B (depois fica em cache)…
+                        Preparando o {FLOOR10_MODEL.label} (depois fica em cache)…
                     </div>
                     <div style={barOuter}><div style={{ ...barInner, width: `${pct}%` }} /></div>
                     <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>{pct}% — {st.loadText}</div>
@@ -137,7 +177,7 @@ const Floor10NpcChat: React.FC = () => {
                     <div ref={scrollRef} style={logStyle}>
                         {st.history.length === 0 && (
                             <div style={{ opacity: 0.5, fontSize: 13, textAlign: 'center', marginTop: 20 }}>
-                                Vontade atual: {st.autonomy.label}. Conversa aberta usa o Qwen3.5-2B; olhos e vontade mantêm falas próprias.
+                                Vontade atual: {st.autonomy.label}. Conversa usa o {FLOOR10_MODEL.label}; olhos, vontade e deliberação seguem por conta própria.
                             </div>
                         )}
                         {st.history.map((m, i) => (
