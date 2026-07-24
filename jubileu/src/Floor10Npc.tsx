@@ -14,6 +14,9 @@ import {
     speedForWillGoal,
     stepFloor10Movement,
 } from './npc/floor10Will';
+import { deliberateFloor10 } from './npc/floor10SmallBrain';
+import type { Floor10Deliberation } from './npc/floor10Deliberation';
+import { cpuThreadCount } from './npc/wllamaEngine';
 
 // ── O CORPO DO NPC (procedural, v1) ────────────────────────────────────────
 // Um hóspede humanoide de pé na base do Andar 10. Por enquanto o corpo é
@@ -49,6 +52,14 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     const willBrain = useMemo(() => new Floor10WillBrain(), []);
     const consumedWillCommandId = useRef(0);
     const autonomousTalkUntil = useRef(0);
+    // ── DELIBERAÇÃO ────────────────────────────────────────────────────────
+    // O cérebro pequeno pensa por fora, sem pressa. Guardamos só a última
+    // intenção pronta; o reflexo abaixo continua decidindo a cada quadro.
+    const deliberation = useRef<Floor10Deliberation | null>(null);
+    const nextDeliberationAt = useRef(6);
+    const elevatorInspections = useRef(0);
+    const lastGoalTrail = useRef<string[]>([]);
+    const playerQuietSince = useRef(0);
 
     useFrame(({ clock }, dt) => {
         const t = clock.elapsedTime;
@@ -87,6 +98,28 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 );
                 consumedWillCommandId.current = languageCommand.id;
             }
+            // Dispara uma deliberação quando a anterior já envelheceu. É async e
+            // pode levar minutos no celular: NADA aqui espera por ela. Se o
+            // cérebro pequeno não carregar, a promessa resolve null e o reflexo
+            // segue sozinho, como sempre fez.
+            if (!npc.open && t >= nextDeliberationAt.current) {
+                nextDeliberationAt.current = t + 60;
+                void deliberateFloor10({
+                    perception: livePerception,
+                    drives: npc.autonomy.drives,
+                    memory: {
+                        inspectedElevatorCount: elevatorInspections.current,
+                        sleeps: 44,
+                        playerSilentSeconds: Math.max(0, t - playerQuietSince.current),
+                        lastGoals: lastGoalTrail.current.slice(-3) as never,
+                    },
+                    now: t,
+                    threads: cpuThreadCount(),
+                }).then((decided) => {
+                    if (decided) deliberation.current = decided;
+                });
+            }
+
             const will = willBrain.tick({
                 dt: safeDt,
                 time: t,
@@ -94,8 +127,14 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 npcPosition: g.position,
                 conversationOpen: npc.open,
                 speaking: npc.speaking,
+                deliberation: deliberation.current,
             });
             npcPublishAutonomy(will.snapshot);
+            if (will.snapshot.goal !== lastGoalTrail.current.at(-1)) {
+                lastGoalTrail.current = [...lastGoalTrail.current.slice(-4), will.snapshot.goal];
+                if (will.snapshot.goal === 'inspect-elevator') elevatorInspections.current += 1;
+            }
+            if (npc.open || npc.speaking) playerQuietSince.current = t;
             if (will.speech) {
                 autonomousTalkUntil.current = t + 2.8;
                 npcAutonomousSay(will.speech);

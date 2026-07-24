@@ -1,4 +1,5 @@
 import type { Floor10Perception, Vec3Like } from './floor10Perception';
+import { deliberationBonus, type Floor10Deliberation } from './floor10Deliberation';
 import {
     FLOOR10_RL_ACTIONS,
     Floor10ReinforcementLearner,
@@ -82,6 +83,12 @@ type WillInput = {
     npcPosition: Vec3Like;
     conversationOpen: boolean;
     speaking: boolean;
+    /**
+     * Intenção madurada pela DELIBERAÇÃO (o modelo pequeno pensando por fora).
+     * Chega quando fica pronta e apenas INCLINA a escolha: se a situação mudou,
+     * o reflexo continua livre para preferir outra coisa.
+     */
+    deliberation?: Floor10Deliberation | null;
 };
 
 type Candidate = {
@@ -693,6 +700,12 @@ export class Floor10WillBrain {
                     candidate.goal,
                 );
             }
+            // A vontade deliberada por fora entra aqui como peso, não como ordem.
+            candidate.utility += deliberationBonus(
+                input.deliberation ?? null,
+                candidate.goal,
+                time,
+            );
             candidate.utility += this.random() * 0.055;
         }
         candidates.sort((a, b) => b.utility - a.utility);
