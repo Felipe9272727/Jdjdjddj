@@ -65,6 +65,18 @@ const Floor10NpcChat: React.FC = () => {
         return () => window.clearInterval(timer);
     }, [st.phase]);
 
+    // Fala iniciada pela própria vontade desaparece da tela, mas permanece no
+    // histórico: quando o jogador responder, o Qwen sabe o que Nilo acabou de
+    // dizer e a conversa não recomeça do zero.
+    useEffect(() => {
+        if (!st.autonomousSpeech) return;
+        const speechId = st.autonomousSpeechId;
+        const timer = window.setTimeout(() => {
+            if (npc.autonomousSpeechId === speechId) npcSet({ autonomousSpeech: '' });
+        }, 7000);
+        return () => window.clearTimeout(timer);
+    }, [st.autonomousSpeech, st.autonomousSpeechId]);
+
     const send = () => {
         const t = input.trim();
         if (!t || st.phase === 'thinking') return;
@@ -74,11 +86,23 @@ const Floor10NpcChat: React.FC = () => {
 
     // dica flutuante quando perto e fechado
     if (!st.open) {
-        if (!st.near) return null;
+        const speechAudible = st.autonomousSpeech !== ''
+            && (st.perception.player?.distance ?? Infinity) <= 9;
+        if (!st.near && !speechAudible) return null;
         return (
-            <button onClick={open} style={hintStyle}>
-                💬 Conversar <span style={{ opacity: 0.7 }}>(E)</span>
-            </button>
+            <>
+                {speechAudible && (
+                    <div style={autonomousSpeechStyle}>
+                        <strong style={{ color: '#f5c96b' }}>{NPC_NAME}</strong>
+                        <span>{st.autonomousSpeech}</span>
+                    </div>
+                )}
+                {st.near && (
+                    <button onClick={open} style={hintStyle}>
+                        💬 {st.autonomousSpeech ? 'Responder' : 'Conversar'} <span style={{ opacity: 0.7 }}>(E)</span>
+                    </button>
+                )}
+            </>
         );
     }
 
@@ -88,7 +112,7 @@ const Floor10NpcChat: React.FC = () => {
     return (
         <div style={panelStyle}>
             <div style={headerStyle}>
-                <span>{NPC_NAME} · Hóspede do 10º{st.modelLabel ? ` · ${st.modelLabel}` : ''}</span>
+                <span>{NPC_NAME} · Hóspede do 10º{st.modelLabel ? ` · ${st.modelLabel}` : ''} · 👁🧭</span>
                 <button onClick={close} style={xStyle} aria-label="Fechar">✕</button>
             </div>
 
@@ -114,7 +138,7 @@ const Floor10NpcChat: React.FC = () => {
                     <div ref={scrollRef} style={logStyle}>
                         {st.history.length === 0 && (
                             <div style={{ opacity: 0.5, fontSize: 13, textAlign: 'center', marginTop: 20 }}>
-                                Nilo te encara, esperando você dizer algo.
+                                Vontade atual: {st.autonomy.label}. Os olhos e a autonomia continuam ativos.
                             </div>
                         )}
                         {st.history.map((m, i) => (
@@ -161,6 +185,14 @@ const hintStyle: React.CSSProperties = {
     zIndex: 60, padding: '10px 18px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.25)',
     background: 'rgba(20,22,28,0.82)', color: '#fff', fontSize: 15, fontWeight: 600,
     backdropFilter: 'blur(6px)', cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
+};
+const autonomousSpeechStyle: React.CSSProperties = {
+    position: 'fixed', bottom: 'max(142px, 21vh)', left: '50%', transform: 'translateX(-50%)',
+    zIndex: 60, width: 'min(560px, 88vw)', display: 'flex', flexDirection: 'column', gap: 5,
+    padding: '12px 16px', borderRadius: 15, border: '1px solid rgba(245,201,107,0.32)',
+    background: 'rgba(16,18,24,0.9)', color: '#f3f3f3', fontSize: 14, lineHeight: 1.4,
+    boxShadow: '0 10px 32px rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)',
+    pointerEvents: 'none', fontFamily: 'system-ui, sans-serif',
 };
 const panelStyle: React.CSSProperties = {
     position: 'fixed', zIndex: 61, right: 'max(12px, 3vw)', bottom: 'max(12px, 3vh)',

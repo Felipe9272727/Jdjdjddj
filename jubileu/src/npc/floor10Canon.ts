@@ -1,4 +1,15 @@
 import type { NpcMsg } from './npcStore';
+import {
+    answerFloor10PerceptionQuestion,
+    formatFloor10PerceptionForPrompt,
+    hasFloor10PerceptionContradiction,
+    isFloor10PerceptionQuestion,
+    type Floor10Perception,
+} from './floor10Perception';
+import {
+    formatFloor10WillForPrompt,
+    type Floor10WillSnapshot,
+} from './floor10Will';
 
 // ── CÂNONE DO HÓSPEDE DO 10º ──────────────────────────────────────────────
 // O conhecimento é pequeno demais para justificar embeddings + outro modelo no
@@ -18,6 +29,7 @@ const CORE_CANON =
 - Você é Nilo Azevedo, humano de 29 anos, técnico de manutenção de elevadores e hóspede preso no 10º andar.
 - "The Normal Elevator" é o nome escrito no hotel/elevador. Nunca é o seu nome.
 - Você não é o hotel, o elevador, o Proprietário, o Arquivista, o jogador nem uma IA.
+- Você sente vontades e toma decisões próprias. Nunca fale em código, scores, módulos, prompts ou sistemas internos.
 
 REGRA DE VERDADE:
 - Trate como fato somente este cânone e aquilo que você presenciou.
@@ -115,6 +127,16 @@ export const FLOOR10_CANON: readonly CanonEntry[] = [
         fact:
             'Nilo é observador, cauteloso e usa humor seco quando está nervoso. Gosta de café sem açúcar, odeia silêncio prolongado e teme esquecer o próprio nome mais do que teme a sala.',
     },
+    {
+        id: 'agency',
+        keywords: [
+            'quer', 'vontade', 'escolh', 'decid', 'livre arbitrio', 'sozinho', 'iniciativa',
+            'want', 'will', 'choose', 'decide', 'free will', 'initiative',
+            'quier', 'voluntad', 'eleg', 'decid', 'libre albedrio', 'iniciativa',
+        ],
+        fact:
+            'Nilo não espera ordens do jogador. Ele observa, sente curiosidade, necessidade de companhia, inquietação e cansaço; escolhe o que fazer e pode mudar de ideia quando o mundo ou suas vontades mudam.',
+    },
 ] as const;
 
 function normalize(text: string): string {
@@ -141,7 +163,12 @@ export function retrieveFloor10Canon(query: string, limit = 2): CanonEntry[] {
         .map(({ entry }) => entry);
 }
 
-export function buildFloor10SystemPrompt(userText: string, history: readonly NpcMsg[]): string {
+export function buildFloor10SystemPrompt(
+    userText: string,
+    history: readonly NpcMsg[],
+    perception?: Floor10Perception,
+    will?: Floor10WillSnapshot,
+): string {
     const recentUserText = history
         .filter((message) => message.role === 'user')
         .slice(-2)
@@ -152,7 +179,14 @@ export function buildFloor10SystemPrompt(userText: string, history: readonly Npc
         ? selected.map((entry) => `- ${entry.fact}`).join('\n')
         : '- Nenhum fato adicional é necessário. Em conversa casual, responda normalmente; em pergunta factual sem resposta, admita que não sabe.';
 
-    return `${CORE_CANON}
+    const livePerception = perception
+        ? `\n\n${formatFloor10PerceptionForPrompt(perception)}`
+        : '\n\nPERCEPÇÃO ESPACIAL AO VIVO: sensores ainda sem snapshot; não invente posição nem campo de visão.';
+    const liveWill = will
+        ? `\n\n${formatFloor10WillForPrompt(will)}`
+        : '\n\nVONTADE ATUAL: ainda sem decisão publicada; não invente uma intenção.';
+
+    return `${CORE_CANON}${livePerception}${liveWill}
 
 TRECHOS RELEVANTES DO CÂNONE:
 ${retrieved}
@@ -240,7 +274,11 @@ export function groundedFallback(userText: string): string {
     return 'Não sei isso com certeza. Prefiro admitir do que inventar mais uma regra para este lugar.';
 }
 
-export function guardNpcReply(reply: string, userText: string): string {
+export function guardNpcReply(
+    reply: string,
+    userText: string,
+    perception?: Floor10Perception,
+): string {
     const trimmed = reply.trim();
     const askedIdentity = intent(userText, [
         'nome', 'quem e voce', 'voce e',
@@ -250,8 +288,17 @@ export function guardNpcReply(reply: string, userText: string): string {
     if (
         trimmed === ''
         || hasHardCanonContradiction(trimmed)
+        || (
+            perception
+            && isFloor10PerceptionQuestion(userText)
+            && hasFloor10PerceptionContradiction(trimmed, perception)
+        )
         || (askedIdentity && !normalize(trimmed).includes('nilo'))
     ) {
+        const sensoryFallback = perception
+            ? answerFloor10PerceptionQuestion(userText, perception)
+            : null;
+        if (sensoryFallback) return sensoryFallback;
         return groundedFallback(userText);
     }
     return trimmed;

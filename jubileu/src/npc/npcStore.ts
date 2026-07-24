@@ -3,6 +3,14 @@
 // observável simples — mesmo padrão dos outros módulos-estado do projeto
 // (f6Escape / f9Eco). Sem dependência de three/react aqui.
 import { useSyncExternalStore } from 'react';
+import {
+    INITIAL_FLOOR10_PERCEPTION,
+    type Floor10Perception,
+} from './floor10Perception';
+import {
+    INITIAL_FLOOR10_WILL,
+    type Floor10WillSnapshot,
+} from './floor10Will';
 
 export type NpcRole = 'system' | 'user' | 'assistant';
 export type NpcMsg = { role: NpcRole; content: string };
@@ -18,13 +26,21 @@ export type NpcState = {
     history: NpcMsg[];      // conversa (sem o system prompt)
     streaming: string;      // resposta parcial sendo transmitida token a token
     speaking: boolean;      // true enquanto o NPC "fala" (pro corpo animar a boca)
+    perception: Floor10Perception; // micro-IA dos olhos (sensores espaciais ao vivo)
+    autonomy: Floor10WillSnapshot; // vontade atual escolhida pela Utility AI
+    autonomousSpeech: string; // iniciativa de fala fora do painel
+    autonomousSpeechId: number;
     error: string;
     version: number;
 };
 
 const s: NpcState = {
     near: false, open: false, phase: 'cold', loadText: '', loadProgress: 0,
-    modelLabel: '', history: [], streaming: '', speaking: false, error: '', version: 0,
+    modelLabel: '', history: [], streaming: '', speaking: false,
+    perception: INITIAL_FLOOR10_PERCEPTION,
+    autonomy: INITIAL_FLOOR10_WILL,
+    autonomousSpeech: '', autonomousSpeechId: 0,
+    error: '', version: 0,
 };
 
 const subs = new Set<() => void>();
@@ -32,9 +48,27 @@ export const npc = s;
 export function npcSubscribe(fn: () => void) { subs.add(fn); return () => { subs.delete(fn); }; }
 export function npcBump() { s.version++; for (const f of subs) f(); }
 export function npcSet(patch: Partial<NpcState>) { Object.assign(s, patch); npcBump(); }
+// Percepção muda várias vezes por segundo. O LLM lê o snapshot vivo direto,
+// mas a UI não precisa re-renderizar para cada centímetro que o player anda.
+export function npcPublishPerception(perception: Floor10Perception) {
+    s.perception = perception;
+}
+export function npcPublishAutonomy(autonomy: Floor10WillSnapshot) {
+    const changedDecision = autonomy.decisionId !== s.autonomy.decisionId;
+    s.autonomy = autonomy;
+    if (changedDecision) npcBump();
+}
+export function npcAutonomousSay(content: string) {
+    const speech = content.trim();
+    if (!speech) return;
+    s.history = [...s.history, { role: 'assistant', content: speech }];
+    s.autonomousSpeech = speech;
+    s.autonomousSpeechId++;
+    npcBump();
+}
 export function npcReset() {
     Object.assign(s, { open: false, phase: s.phase === 'ready' || s.phase === 'thinking' ? 'ready' : s.phase,
-        history: [], streaming: '', speaking: false, error: '' });
+        history: [], streaming: '', speaking: false, autonomousSpeech: '', error: '' });
     npcBump();
 }
 

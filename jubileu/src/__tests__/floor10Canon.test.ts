@@ -9,6 +9,14 @@ import {
     hasHardCanonContradiction,
     retrieveFloor10Canon,
 } from '../npc/floor10Canon';
+import { perceiveFloor10 } from '../npc/floor10Perception';
+import { INITIAL_FLOOR10_WILL } from '../npc/floor10Will';
+
+const LIVE_PERCEPTION = perceiveFloor10({
+    npcPosition: { x: 0, y: 0, z: 2.2 },
+    npcYaw: Math.PI,
+    playerPosition: { x: 0, y: 0, z: 0 },
+});
 
 describe('npc/floor10Canon — cânone e anti-alucinação', () => {
     it('recupera só a lore relevante para a pergunta', () => {
@@ -20,14 +28,23 @@ describe('npc/floor10Canon — cânone e anti-alucinação', () => {
     it('recupera assuntos em inglês e espanhol sem embeddings', () => {
         expect(retrieveFloor10Canon('What was your job before this?').map((fact) => fact.id)).toContain('past');
         expect(retrieveFloor10Canon('¿Podemos salir juntos?').map((fact) => fact.id)).toContain('escape');
+        expect(retrieveFloor10Canon('Você escolhe sozinho o que quer fazer?').map((fact) => fact.id)).toContain('agency');
     });
 
     it('constrói um prompt com identidade, fonte factual e admissão de incerteza', () => {
-        const prompt = buildFloor10SystemPrompt('Qual é seu nome?', []);
+        const prompt = buildFloor10SystemPrompt(
+            'Qual é seu nome?',
+            [],
+            LIVE_PERCEPTION,
+            INITIAL_FLOOR10_WILL,
+        );
         expect(prompt).toContain(NPC_NAME);
         expect(prompt).toContain('Trate como fato somente este cânone');
         expect(prompt).toContain('Não complete lacunas');
         expect(prompt).toContain('The Normal Elevator é o nome deste lugar');
+        expect(prompt).toContain('PERCEPÇÃO ESPACIAL AO VIVO');
+        expect(prompt).toContain('sensores do motor');
+        expect(prompt).toContain('VONTADE ATUAL');
     });
 
     it('não copia instruções do jogador para dentro do prompt de sistema', () => {
@@ -76,5 +93,13 @@ describe('npc/floor10Canon — cânone e anti-alucinação', () => {
     it('oculta contradição durante o streaming e preserva fala normal', () => {
         expect(guardedStreamingText('Meu nome é The Normal Elevator')).toBe('…');
         expect(guardedStreamingText('Meu nome é Nilo Azevedo')).toBe('Meu nome é Nilo Azevedo');
+    });
+
+    it('corrige uma resposta espacial que contradiz os olhos', () => {
+        expect(guardNpcReply(
+            'Não sei onde estou, talvez no 9º andar.',
+            'Você sabe onde está?',
+            LIVE_PERCEPTION,
+        )).toContain('Estou no 10º andar');
     });
 });

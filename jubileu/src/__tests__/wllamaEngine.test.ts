@@ -8,9 +8,13 @@ import {
     consumeChatStream,
     cpuThreadCount,
     modelHistory,
+    sendToNpc,
     shouldUseFastFallback,
     visibleText,
 } from '../npc/wllamaEngine';
+import { npc, npcSet } from '../npc/npcStore';
+import { perceiveFloor10 } from '../npc/floor10Perception';
+import { INITIAL_FLOOR10_WILL } from '../npc/floor10Will';
 
 describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
     it('usa a chave WASM obrigatória "default"', () => {
@@ -167,5 +171,42 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
             0,
             false,
         )).toBe(false);
+    });
+
+    it('deixa a micro-IA dos olhos responder sem iniciar inferência do 2B', async () => {
+        npcSet({
+            phase: 'ready',
+            history: [],
+            perception: perceiveFloor10({
+                npcPosition: { x: 0, y: 0, z: 2.2 },
+                npcYaw: Math.PI,
+                playerPosition: { x: 0, y: 0, z: 0 },
+            }),
+            error: '',
+        });
+        await sendToNpc('Onde você está?');
+        expect(npc.phase).toBe('ready');
+        expect(npc.history).toHaveLength(2);
+        expect(npc.history[0]).toEqual({ role: 'user', content: 'Onde você está?' });
+        expect(npc.history[1]?.content).toContain('Estou no 10º andar');
+    });
+
+    it('deixa a vontade explicar a própria decisão sem iniciar o 2B', async () => {
+        npcSet({
+            phase: 'ready',
+            history: [],
+            autonomy: {
+                ...INITIAL_FLOOR10_WILL,
+                decisionId: 12,
+                goal: 'inspect-elevator',
+                label: 'examinar o elevador',
+                reason: 'quero investigar a única saída visível',
+            },
+            error: '',
+        });
+        await sendToNpc('O que você quer fazer?');
+        expect(npc.phase).toBe('ready');
+        expect(npc.history).toHaveLength(2);
+        expect(npc.history[1]?.content).toContain('examinar o elevador');
     });
 });

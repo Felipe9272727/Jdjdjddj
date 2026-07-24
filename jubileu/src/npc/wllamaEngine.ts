@@ -19,6 +19,8 @@ import {
     guardNpcReply,
     guardedStreamingText,
 } from './floor10Canon';
+import { answerFloor10PerceptionQuestion } from './floor10Perception';
+import { answerFloor10WillQuestion } from './floor10Will';
 
 const WLLAMA_V = '3.5.1';
 // esm.sh/esm.run reempacotavam o wllama e quebravam worker/WASM. O ESM
@@ -337,12 +339,46 @@ export async function sendToNpc(userText: string): Promise<void> {
     const text = userText.trim();
     if (!text || npc.phase === 'thinking') return;
 
+    // A vontade conhece a própria escolha sem consultar o LLM. Ela vem antes
+    // dos olhos para "onde você está indo?" significar intenção, não posição.
+    const willAnswer = answerFloor10WillQuestion(text, npc.autonomy);
+    if (willAnswer) {
+        npcSet({
+            history: [
+                ...npc.history,
+                { role: 'user', content: text },
+                { role: 'assistant', content: willAnswer },
+            ],
+            streaming: '',
+            speaking: false,
+            error: '',
+        });
+        return;
+    }
+
+    // Os olhos são outra IA separada: perguntas sobre posição/campo de visão
+    // recebem resposta instantânea e factual, sem gastar inferência do 2B.
+    const sensoryAnswer = answerFloor10PerceptionQuestion(text, npc.perception);
+    if (sensoryAnswer) {
+        npcSet({
+            history: [
+                ...npc.history,
+                { role: 'user', content: text },
+                { role: 'assistant', content: sensoryAnswer },
+            ],
+            streaming: '',
+            speaking: false,
+            error: '',
+        });
+        return;
+    }
+
     let engine: WllamaInstance;
     try { engine = await initLLM(); } catch { return; }
 
     const history = [...npc.history, { role: 'user' as const, content: text }];
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
-    const systemPrompt = buildFloor10SystemPrompt(text, history);
+    const systemPrompt = buildFloor10SystemPrompt(text, history, npc.perception, npc.autonomy);
     const messages = [
         { role: 'system', content: systemPrompt },
         ...groundedModelHistory(history),
@@ -379,7 +415,7 @@ export async function sendToNpc(userText: string): Promise<void> {
                     },
                 },
             );
-            const finalText = guardNpcReply(visibleText(acc), text);
+            const finalText = guardNpcReply(visibleText(acc), text, npc.perception);
             npcSet({
                 history: [...history, { role: 'assistant', content: finalText }],
                 streaming: '',
@@ -416,7 +452,7 @@ export async function sendToNpc(userText: string): Promise<void> {
             // Preservamos a fala recebida e reiniciamos o mesmo 2B apenas na
             // próxima interação.
             if (timedOut && error.hadVisibleText && error.partialText) {
-                const safePartialText = guardNpcReply(error.partialText, text);
+                const safePartialText = guardNpcReply(error.partialText, text, npc.perception);
                 npcSet({
                     history: [...history, { role: 'assistant', content: safePartialText }],
                     phase: 'ready',
