@@ -32,9 +32,10 @@ const HF = (repo: string, file: string) => `https://huggingface.co/${repo}/resol
 // wllama v3 usa uma única build e exige literalmente a chave "default".
 export const WLLAMA_PATHS = Object.freeze({ default: WASM_SINGLE });
 export const CPU_LOAD_CONFIG = Object.freeze({
-    // A conversa enviada ao modelo é limitada a seis mensagens. 2048 só
-    // dobrava o custo de contexto sem melhorar esse NPC.
-    n_ctx: 1024,
+    // 1024 quase estourava com um system prompt grande + histórico: na 2ª
+    // mensagem o contexto transbordava e o 2B parava de responder. 1536 dá
+    // folga real (prompt + histórico curto + geração cabem).
+    n_ctx: 1536,
     n_threads: 1,
     n_gpu_layers: 0,
     // Qwen3.5 traz um template Jinja multimodal. Fixar estas opções no load
@@ -42,7 +43,9 @@ export const CPU_LOAD_CONFIG = Object.freeze({
     jinja: true,
     reasoning: false,
     default_template_kwargs: Object.freeze({ enable_thinking: false }),
-    warmup: false,
+    // Aquece no load: paga o custo do 1º prefill uma vez, na tela de "carregando",
+    // em vez de estourar o watchdog na primeira fala real.
+    warmup: true,
 });
 export const CHAT_COMPLETION_CONFIG = Object.freeze({
     stream: true,
@@ -52,7 +55,10 @@ export const CHAT_COMPLETION_CONFIG = Object.freeze({
     temperature: 0.45,
     top_p: 0.85,
     top_k: 40,
-    cache_prompt: true,
+    // DESLIGADO de propósito: o cache híbrido de prompt do Qwen3.5 tem bug de
+    // REUSO de contexto (llama.cpp#20225 / Qwen3#1826) — na 2ª mensagem o
+    // estado cacheado corrompia e o modelo travava ("parou de responder").
+    cache_prompt: false,
 });
 
 export type Floor10ModelDef = {
@@ -202,11 +208,16 @@ export async function consumeChatStream(
     const iterator = stream[Symbol.asyncIterator]();
     let acc = '';
     let sawVisibleText = false;
+    let sawAnyChunk = false;   // tokens OCULTOS (<think>) também contam como progresso
 
     while (true) {
         const now = Date.now();
         const stage: GenerationTimeoutError['stage'] = sawVisibleText ? 'next-token' : 'first-token';
-        const stageRemaining = sawVisibleText ? options.nextTokenMs : firstDeadline - now;
+        // Assim que QUALQUER chunk chega (mesmo raciocínio oculto do Qwen3.5),
+        // passamos a medir só INATIVIDADE entre chunks. Antes, enquanto a fala
+        // visível não começava, o prazo absoluto de first-token corria mesmo com
+        // o modelo emitindo <think> — e o 2B "parava de responder" trabalhando.
+        const stageRemaining = sawAnyChunk ? options.nextTokenMs : firstDeadline - now;
         if (stageRemaining <= 0) {
             options.onTimeout?.(stage);
             throw new GenerationTimeoutError(stage, sawVisibleText, visibleText(acc).trim());
@@ -220,6 +231,7 @@ export async function consumeChatStream(
         );
         if (result.done) break;
 
+        sawAnyChunk = true;
         const chunk = result.value;
         if (typeof chunk.currentText === 'string') acc = chunk.currentText;
         else acc += chunkDelta(chunk);

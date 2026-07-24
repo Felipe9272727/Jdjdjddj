@@ -25,13 +25,13 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
 
     it('mantém configuração-base CPU e contexto curto', () => {
         expect(CPU_LOAD_CONFIG).toEqual({
-            n_ctx: 1024,
+            n_ctx: 1536,
             n_threads: 1,
             n_gpu_layers: 0,
             jinja: true,
             reasoning: false,
             default_template_kwargs: { enable_thinking: false },
-            warmup: false,
+            warmup: true,
         });
     });
 
@@ -67,7 +67,7 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
             temperature: 0.45,
             top_p: 0.85,
             top_k: 40,
-            cache_prompt: true,
+            cache_prompt: false,
         });
         expect(CHAT_COMPLETION_CONFIG).not.toHaveProperty('nPredict');
         expect(CHAT_COMPLETION_CONFIG).not.toHaveProperty('sampling');
