@@ -101,10 +101,10 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
             // NADA aqui espera por ela. Se o
             // cérebro pequeno não carregar, a promessa resolve null e o reflexo
             // segue sozinho, como sempre fez.
-            // Só delibera com a conversa REALMENTE parada. Medido: com os dois
-            // modelos juntos a geração do 3B cai de 10,9 para 0,3 tok/s (36x),
-            // que era a resposta que nunca chegava.
-            if (!npc.open && npc.phase !== 'thinking' && npc.phase !== 'loading'
+            // Os dois modelos ficam residentes, mas não geram ao mesmo tempo:
+            // o Mini pensa nas janelas ociosas, inclusive enquanto o jogador
+            // escreve. Ao começar uma fala, ele é pausado sem perder os pesos.
+            if (npc.phase !== 'thinking' && npc.phase !== 'loading'
                 && t >= nextDeliberationAt.current) {
                 nextDeliberationAt.current = t + 60;
                 void deliberateFloor10({
@@ -123,7 +123,16 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                     },
                     now: t,
                 }).then((decided) => {
-                    if (decided) deliberation.current = decided;
+                    if (decided) {
+                        deliberation.current = decided;
+                    } else if (npc.deliberationPhase !== 'unavailable') {
+                        // Uma fala pode ter interrompido só esta rodada. Retoma
+                        // em poucos segundos, sem esperar o ciclo inteiro.
+                        nextDeliberationAt.current = Math.min(
+                            nextDeliberationAt.current,
+                            t + 5,
+                        );
+                    }
                 });
             }
 

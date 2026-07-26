@@ -1,6 +1,7 @@
-// ── O CÉREBRO DO NPC — CPU/WASM ───────────────────────────────────────────
-// A inferência roda no processador, dentro de um Worker, via wllama/llama.cpp.
-// O modelo fica em cache no navegador depois do primeiro download.
+// ── O CÉREBRO DO NPC — CPU + WEBGPU ───────────────────────────────────────
+// O wllama divide o SmolLM3 entre WebGPU e CPU quando o aparelho comporta; em
+// aparelhos menores recua sozinho para CPU/WASM. O modelo fica em cache no
+// navegador depois do primeiro download.
 //
 // O SmolLM3-3B é o cérebro de fala. RAG apenas fornece contexto; olhos e vontade
 // continuam sendo micro-IAs independentes, inclusive com suas respostas
@@ -105,8 +106,9 @@ export function prepareFloor10SystemPrompt(prompt: string): string {
 
 /**
  * Sem isolamento, SharedArrayBuffer/pthreads não estão disponíveis. Com
- * COOP+COEP, usa todos os núcleos lógicos anunciados pelo navegador, até 8.
- * getNumThreads() confirma depois quantos o runtime realmente conseguiu criar.
+ * COOP+COEP, segue a estratégia padrão do wllama: metade dos núcleos, até 4.
+ * Isso deixa o render/jogo responsivo e evita colocar núcleos de eficiência no
+ * caminho crítico. getNumThreads() confirma o total criado pelo runtime.
  */
 export function cpuThreadCount(
     isolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated,
@@ -116,7 +118,37 @@ export function cpuThreadCount(
     const detected = Number.isFinite(hardwareConcurrency)
         ? Math.floor(hardwareConcurrency)
         : 1;
-    return Math.max(1, Math.min(8, detected));
+    return Math.max(1, Math.min(4, Math.floor(detected / 2)));
+}
+
+/**
+ * O SmolLM3 tem 36 camadas. Offload de 12 (um terço) acelera o 3B sem repetir
+ * o antigo pico de VRAM causado por tentar colocar o modelo inteiro na GPU.
+ */
+export const SPEECH_WEBGPU_LAYERS = 12;
+export const SPEECH_WEBGPU_LOW_MEMORY_LAYERS = 8;
+
+/**
+ * Reserva GPU só em aparelhos com memória suficiente. Chrome limita
+ * navigator.deviceMemory a valores aproximados; 8 representa o Redmi de 12 GB.
+ */
+export function speechGpuLayerCount(
+    webGpuAvailable = typeof navigator !== 'undefined' && 'gpu' in navigator,
+    deviceMemoryGiB = typeof navigator !== 'undefined'
+        ? ((navigator as unknown as { deviceMemory?: number }).deviceMemory ?? 8)
+        : 0,
+): number {
+    if (!webGpuAvailable || !Number.isFinite(deviceMemoryGiB) || deviceMemoryGiB < 6) {
+        return 0;
+    }
+    return deviceMemoryGiB >= 8
+        ? SPEECH_WEBGPU_LAYERS
+        : SPEECH_WEBGPU_LOW_MEMORY_LAYERS;
+}
+
+export function speechRuntimeLabel(gpuLayers: number, threads: number): string {
+    const cpu = `CPU×${Math.max(1, Math.floor(threads))}`;
+    return gpuLayers > 0 ? `WebGPU×${gpuLayers} + ${cpu}` : cpu;
 }
 
 export const STREAM_WATCHDOG = Object.freeze({
@@ -323,6 +355,8 @@ let loadedDisableThinking = false;
 let currentEngine: WllamaInstance | null = null;
 let activeModelUrl = '';
 let loadedThreads = 1;
+let loadedGpuLayers = 0;
+let webGpuDisabledForSession = false;
 let modulePromise: Promise<WllamaModule> | null = null;
 let transitionPromise: Promise<WllamaInstance> | null = null;
 
@@ -332,6 +366,8 @@ async function teardownEngine(engine: WllamaInstance | null = currentEngine): Pr
         activeModelUrl = '';
         loadedDisableThinking = false;
         loadedThreads = 1;
+        loadedGpuLayers = 0;
+        floor10ModelCoordinator.markUnloaded('conversation');
     }
     try { await engine?.exit?.(); } catch { /* worker já morreu */ }
 }
@@ -346,8 +382,8 @@ function initConversationEngine(): Promise<WllamaInstance> {
 
     npcSet({
         phase: 'loading',
-        modelLabel: `${model.label} · detectando CPU`,
-        loadText: `preparando ${model.label} na CPU…`,
+        modelLabel: `${model.label} · detectando aceleração`,
+        loadText: `preparando ${model.label} localmente…`,
         loadProgress: 0,
         error: '',
     });
@@ -364,46 +400,68 @@ function initConversationEngine(): Promise<WllamaInstance> {
         modulePromise ??= import(/* @vite-ignore */ WLLAMA_ESM) as unknown as Promise<WllamaModule>;
         const mod = await modulePromise;
         const threads = cpuThreadCount();
-        const cpuLabel = `CPU×${threads}`;
-        npcSet({
-            modelLabel: `${model.label} · ${cpuLabel}`,
-            loadText: `carregando ${model.label} (${cpuLabel})…`,
-            loadProgress: 0,
-        });
+        const requestedGpuLayers = webGpuDisabledForSession
+            ? 0
+            : speechGpuLayerCount();
+        const plans = requestedGpuLayers > 0
+            ? [requestedGpuLayers, 0]
+            : [0];
+        let lastError: unknown = new Error('Nenhum backend local disponível');
 
-        let candidate: WllamaInstance | null = null;
-        try {
-            candidate = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true });
-            await candidate.loadModelFromUrl(model.url, {
-                ...CPU_LOAD_CONFIG,
-                n_threads: threads,
-                progressCallback: (progress: { loaded?: number; total?: number }) => {
-                    const fraction = progress.total ? (progress.loaded ?? 0) / progress.total : 0;
-                    npcSet({
-                        loadProgress: fraction,
-                        loadText: `baixando ${model.label}… ${Math.round(fraction * 100)}%`,
-                    });
-                },
-            });
-            loadedDisableThinking = model.disableThinking;
-            const confirmedThreads = candidate.getNumThreads?.();
-            loadedThreads = Number.isFinite(confirmedThreads) && (confirmedThreads ?? 0) > 0
-                ? Math.min(8, Math.floor(confirmedThreads as number))
-                : threads;
-            activeModelUrl = model.url;
-            currentEngine = candidate;
+        for (const gpuLayers of plans) {
+            const runtime = speechRuntimeLabel(gpuLayers, threads);
             npcSet({
-                phase: 'ready',
-                modelLabel: `${model.label} · CPU×${loadedThreads}`,
-                loadText: 'pronto',
-                loadProgress: 1,
+                modelLabel: `${model.label} · ${runtime}`,
+                loadText: `carregando ${model.label} (${runtime})…`,
+                loadProgress: 0,
             });
 
-            return candidate;
-        } catch (error) {
-            try { await candidate?.exit?.(); } catch { /* ok */ }
-            throw error;
+            let candidate: WllamaInstance | null = null;
+            try {
+                candidate = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true });
+                await candidate.loadModelFromUrl(model.url, {
+                    ...CPU_LOAD_CONFIG,
+                    n_threads: threads,
+                    n_gpu_layers: gpuLayers,
+                    progressCallback: (progress: { loaded?: number; total?: number }) => {
+                        const fraction = progress.total
+                            ? Math.max(0, Math.min(1, (progress.loaded ?? 0) / progress.total))
+                            : 0;
+                        npcSet({
+                            loadProgress: fraction,
+                            loadText: `preparando ${model.label}… ${Math.round(fraction * 100)}%`,
+                        });
+                    },
+                });
+                loadedDisableThinking = model.disableThinking;
+                const confirmedThreads = candidate.getNumThreads?.();
+                loadedThreads = Number.isFinite(confirmedThreads) && (confirmedThreads ?? 0) > 0
+                    ? Math.min(4, Math.floor(confirmedThreads as number))
+                    : threads;
+                loadedGpuLayers = gpuLayers;
+                activeModelUrl = model.url;
+                currentEngine = candidate;
+                npcSet({
+                    phase: 'ready',
+                    modelLabel: `${model.label} · ${speechRuntimeLabel(loadedGpuLayers, loadedThreads)}`,
+                    loadText: 'pronto',
+                    loadProgress: 1,
+                });
+
+                return candidate;
+            } catch (error) {
+                lastError = error;
+                try { await candidate?.exit?.(); } catch { /* ok */ }
+                if (gpuLayers > 0) {
+                    webGpuDisabledForSession = true;
+                    npcSet({
+                        loadText: 'WebGPU não coube; retomando pela CPU sem trocar o modelo…',
+                        loadProgress: 0,
+                    });
+                }
+            }
         }
+        throw lastError;
     })();
 
     const tracked: Promise<WllamaInstance> = pending.then(
@@ -421,12 +479,13 @@ function initConversationEngine(): Promise<WllamaInstance> {
             activeModelUrl = '';
             loadedDisableThinking = false;
             loadedThreads = 1;
+            loadedGpuLayers = 0;
             modulePromise = null;
             npcSet({
                 phase: 'error',
                 speaking: false,
                 streaming: '',
-                error: `Falha ao carregar ${model.label} na CPU: ${
+                error: `Falha ao carregar ${model.label} localmente: ${
                     error instanceof Error ? error.message : String(error)
                 }. Nenhum outro modelo foi ativado.`,
             });
@@ -438,8 +497,8 @@ function initConversationEngine(): Promise<WllamaInstance> {
 }
 
 /**
- * O coordenador garante que o MiniCPM terminou de sair da memória antes de o
- * Smol carregar ou responder. Duas chamadas simultâneas entram na mesma fila.
+ * O coordenador serializa somente as cargas. MiniCPM e SmolLM3 podem ficar
+ * residentes ao mesmo tempo; a geração pequena é pausada durante uma fala.
  */
 export function initLLM(): Promise<WllamaInstance> {
     return floor10ModelCoordinator.activate('conversation', initConversationEngine);
@@ -453,12 +512,6 @@ export function unloadConversationBrain(): Promise<void> {
 export async function sendToNpc(userText: string): Promise<void> {
     const text = userText.trim();
     if (!text || npc.phase === 'thinking' || npc.phase === 'loading') return;
-
-    // A conversa tem prioridade absoluta sobre a deliberação. Sem isto, o
-    // cérebro pequeno (que roda sem teto de tokens) continuava queimando CPU e
-    // a geração do 3B despencava de 10,9 para 0,3 tok/s — medido nos dois
-    // modelos reais. Era a resposta que nunca chegava.
-    abortDeliberation();
 
     // Perguntas factuais dos olhos e da vontade preservam as falas rápidas que
     // dão personalidade às micro-IAs. Um possível pedido corporal sempre vai
@@ -500,6 +553,10 @@ export async function sendToNpc(userText: string): Promise<void> {
         }
     }
 
+    // Só pausa o Mini quando o Smol realmente vai gerar. O runtime e os pesos
+    // de 688 MB permanecem residentes, então a autonomia retoma sem recarga.
+    abortDeliberation();
+
     const history = [...npc.history, { role: 'user' as const, content: text }];
     npcSet({
         history,
@@ -508,10 +565,7 @@ export async function sendToNpc(userText: string): Promise<void> {
         streaming: '',
         speaking: false,
         error: '',
-        // Mantém CPU×N à vista durante a conversa. Antes virava "modelo único" e
-        // parecia que a inferência caía para 1 thread — o número some da tela,
-        // não as threads (o wllama fixa n_threads no load e não muda depois).
-        modelLabel: `${FLOOR10_MODEL.label} · CPU×${loadedThreads}`,
+        modelLabel: `${FLOOR10_MODEL.label} · ${speechRuntimeLabel(loadedGpuLayers, loadedThreads)}`,
     });
 
     let engine: WllamaInstance;
@@ -574,7 +628,11 @@ export async function sendToNpc(userText: string): Promise<void> {
                 onTimings: (timings) => {
                     const measured = formatTimings(timings);
                     if (measured) {
-                        npcSet({ modelLabel: `${FLOOR10_MODEL.label} · CPU×${loadedThreads} · ${measured}` });
+                        npcSet({
+                            modelLabel:
+                                `${FLOOR10_MODEL.label} · `
+                                + `${speechRuntimeLabel(loadedGpuLayers, loadedThreads)} · ${measured}`,
+                        });
                     }
                 },
                 onTimeout: () => {
@@ -657,6 +715,7 @@ export async function sendToNpc(userText: string): Promise<void> {
         }
 
         if (!timedOut && !(error instanceof UngroundedNpcReplyError)) {
+            if (loadedGpuLayers > 0) webGpuDisabledForSession = true;
             await teardownEngine(engine);
         }
         const message = error instanceof Error ? error.message : String(error);

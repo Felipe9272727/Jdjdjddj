@@ -23,11 +23,12 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
         expect(SMALL_BRAIN_MODEL.url).toMatch(/MiniCPM5-1B.*\.gguf$/i);
     });
 
-    it('mantém o teto ilimitado, mas usa quatro threads e saída curta', () => {
-        expect(SMALL_BRAIN_COMPLETION_CONFIG.max_tokens).toBe(-1);
-        expect(SMALL_BRAIN_THREADS).toBe(4);
-        expect(SMALL_BRAIN_LOAD_CONFIG.n_threads).toBe(4);
-        expect(SMALL_BRAIN_LOAD_CONFIG.n_ctx).toBeGreaterThanOrEqual(4096);
+    it('usa dois núcleos e um orçamento curto para a escolha estruturada', () => {
+        expect(SMALL_BRAIN_COMPLETION_CONFIG.max_tokens).toBe(24);
+        expect(SMALL_BRAIN_THREADS).toBe(2);
+        expect(SMALL_BRAIN_LOAD_CONFIG.n_threads).toBe(2);
+        expect(SMALL_BRAIN_LOAD_CONFIG.n_ctx).toBe(1024);
+        expect(SMALL_BRAIN_LOAD_CONFIG.n_batch).toBe(256);
         expect(SMALL_BRAIN_LOAD_CONFIG.n_gpu_layers).toBe(0);
         expect(SMALL_BRAIN_LOAD_CONFIG.default_template_kwargs).toEqual({
             enable_thinking: false,
@@ -125,7 +126,7 @@ describe('a conversa tem prioridade absoluta sobre a deliberação', () => {
     });
 });
 
-describe('um modelo por vez na memória', () => {
+describe('descarga explícita do cérebro pequeno', () => {
     it('unloadSmallBrain devolve a fase para repouso e libera o motor', async () => {
         const { unloadSmallBrain } = await import('../npc/floor10SmallBrain');
         const { npc, npcSet } = await import('../npc/npcStore');

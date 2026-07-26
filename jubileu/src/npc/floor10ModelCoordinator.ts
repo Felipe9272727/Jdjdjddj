@@ -1,68 +1,64 @@
 // ── COORDENADOR DOS CÉREBROS DO 10º ───────────────────────────────────────
-// O navegador só pode manter um LLM residente por vez. Esta fila serializa a
-// troca entre o cérebro de conversa e o de deliberação: antes de carregar um,
-// ela aguarda a descarga completa do outro.
+// Os dois LLMs podem permanecer residentes. A fila evita carregar/encerrar dois
+// runtimes ao mesmo tempo (pico de memória), mas NÃO expulsa o outro cérebro.
+// A conversa pode pausar uma geração do MiniCPM; pausar não apaga seus pesos,
+// Worker nem cache KV, portanto o livre-arbítrio volta sem recarregar 688 MB.
 
 export type Floor10BrainOwner = 'conversation' | 'deliberation';
 type BrainUnloader = () => Promise<void> | void;
+type BrainPreemptor = () => Promise<void> | void;
 
 export class Floor10ModelCoordinator {
-    private activeOwner: Floor10BrainOwner | null = null;
     private loadingOwner: Floor10BrainOwner | null = null;
+    private lastActivatedOwner: Floor10BrainOwner | null = null;
     private transition: Promise<void> = Promise.resolve();
+    private readonly residentOwners = new Set<Floor10BrainOwner>();
+    private readonly cleanupNeededOwners = new Set<Floor10BrainOwner>();
     private readonly unloaders: Partial<Record<Floor10BrainOwner, BrainUnloader>> = {};
+    private readonly preemptors: Partial<Record<Floor10BrainOwner, BrainPreemptor>> = {};
     private readonly generations: Record<Floor10BrainOwner, number> = {
         conversation: 0,
         deliberation: 0,
     };
 
-    register(owner: Floor10BrainOwner, unload: BrainUnloader): void {
+    register(
+        owner: Floor10BrainOwner,
+        unload: BrainUnloader,
+        preempt?: BrainPreemptor,
+    ): void {
         this.unloaders[owner] = unload;
+        if (preempt) this.preemptors[owner] = preempt;
     }
 
     /**
-     * Torna `owner` o único cérebro residente e só então executa `load`.
-     * Chamadas concorrentes entram na mesma fila, preservando a ordem.
-     *
-     * A conversa é a única prioridade: se o MiniCPM estiver carregando, seu
-     * unloader é acionado imediatamente para cancelar download/WASM. A tarefa
-     * continua serializada, mas deixa de esperar um carregamento inútil.
+     * Carrega um cérebro sem descarregar o outro. Cargas são serializadas para
+     * não duplicar o pico de inicialização. Se o Smol ainda não está residente,
+     * uma carga/inferência do Mini é pausada imediatamente.
      */
     activate<T>(owner: Floor10BrainOwner, load: () => Promise<T>): Promise<T> {
         const generation = ++this.generations[owner];
-        let priorityUnload: Promise<void> | null = null;
-        if (
-            owner === 'conversation'
-            && (
-                this.activeOwner === 'deliberation'
-                || this.loadingOwner === 'deliberation'
-            )
-        ) {
-            // Impede a ativação cancelada de se declarar dona da memória caso
-            // seu Promise resolva alguns microssegundos depois.
+        if (owner === 'conversation' && !this.residentOwners.has('conversation')) {
             this.generations.deliberation += 1;
-            this.activeOwner = null;
             try {
-                priorityUnload = Promise.resolve(this.unloaders.deliberation?.())
+                void Promise.resolve(this.preemptors.deliberation?.())
                     .catch(() => undefined);
-            } catch { /* o fluxo serializado repetirá a descarga */ }
+            } catch { /* a carga serializada continuará com segurança */ }
         }
 
         const task = this.transition
             .catch(() => undefined)
             .then(async () => {
-                await priorityUnload;
-                if (this.activeOwner && this.activeOwner !== owner) {
-                    const previous = this.activeOwner;
-                    this.activeOwner = null;
-                    await this.unloaders[previous]?.();
-                }
-
                 this.loadingOwner = owner;
+                this.cleanupNeededOwners.add(owner);
                 try {
                     const value = await load();
-                    if (this.generations[owner] === generation) {
-                        this.activeOwner = owner;
+                    if (
+                        this.generations[owner] === generation
+                        && value !== null
+                        && value !== undefined
+                    ) {
+                        this.residentOwners.add(owner);
+                        this.lastActivatedOwner = owner;
                     }
                     return value;
                 } finally {
@@ -77,14 +73,26 @@ export class Floor10ModelCoordinator {
         return task;
     }
 
-    /** Libera um cérebro explicitamente sem atravessar outra transição. */
+    /** Libera somente o cérebro pedido; o outro continua residente. */
     release(owner: Floor10BrainOwner): Promise<void> {
+        this.generations[owner] += 1;
         const task = this.transition
             .catch(() => undefined)
             .then(async () => {
-                if (this.activeOwner !== owner) return;
-                this.activeOwner = null;
-                await this.unloaders[owner]?.();
+                this.residentOwners.delete(owner);
+                // Uma falha/cancelamento pode ter produzido um Promise<null>
+                // sem chegar a marcar residência. A limpeza explícita também
+                // precisa zerar esse Promise para permitir nova tentativa.
+                if (this.cleanupNeededOwners.delete(owner)) {
+                    await this.unloaders[owner]?.();
+                }
+                if (this.lastActivatedOwner === owner) {
+                    this.lastActivatedOwner = this.residentOwners.has('conversation')
+                        ? 'conversation'
+                        : this.residentOwners.has('deliberation')
+                            ? 'deliberation'
+                            : null;
+                }
             });
 
         this.transition = task.then(
@@ -94,8 +102,31 @@ export class Floor10ModelCoordinator {
         return task;
     }
 
+    isResident(owner: Floor10BrainOwner): boolean {
+        return this.residentOwners.has(owner);
+    }
+
+    /** Sincroniza falhas encerradas diretamente pelo próprio runtime. */
+    markUnloaded(owner: Floor10BrainOwner): void {
+        this.residentOwners.delete(owner);
+        this.cleanupNeededOwners.delete(owner);
+        if (this.lastActivatedOwner === owner) {
+            this.lastActivatedOwner = this.residentOwners.has('conversation')
+                ? 'conversation'
+                : this.residentOwners.has('deliberation')
+                    ? 'deliberation'
+                    : null;
+        }
+    }
+
+    residents(): Floor10BrainOwner[] {
+        return (['conversation', 'deliberation'] as const)
+            .filter((owner) => this.residentOwners.has(owner));
+    }
+
+    /** Compatibilidade: informa o último cérebro ativado, não posse exclusiva. */
     owner(): Floor10BrainOwner | null {
-        return this.activeOwner;
+        return this.lastActivatedOwner;
     }
 }
 

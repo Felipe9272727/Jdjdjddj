@@ -65,7 +65,7 @@ Valid options: ${DELIBERATION_GOALS.join(', ')}`;
 /**
  * A gramática deixa o MiniCPM livre para escolher a meta, mas torna impossível
  * desperdiçar minutos narrando raciocínio que nenhum outro módulo consome.
- * max_tokens permanece ilimitado; a resposta encerra porque a raiz foi aceita.
+ * Um teto curto adicional impede qualquer geração órfã de queimar CPU.
  */
 export const DELIBERATION_GRAMMAR =
     `root ::= "CHOICE: " goal

@@ -1,16 +1,15 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNpc, npc, npcSet } from './npc/npcStore';
-// Motor do NPC agora é o wllama (CPU/WASM, sem WebGPU). O llmEngine (WebGPU) fica
-// preservado no repo; trocar só esta linha volta pra ele.
+// Motor do NPC: wllama híbrido, com parte do Smol na WebGPU e fallback CPU.
 import { FLOOR10_MODEL, initLLM, sendToNpc } from './npc/wllamaEngine';
 import { NPC_NAME } from './npc/floor10Canon';
 import { deliberationThought } from './npc/floor10Deliberation';
-import { SMALL_BRAIN_MODEL, unloadSmallBrain } from './npc/floor10SmallBrain';
+import { SMALL_BRAIN_MODEL } from './npc/floor10SmallBrain';
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
 // Vive FORA do Canvas. Reage ao npcStore: mostra a dica quando o player chega
-// perto, abre o painel de chat (tecla E ou toque), carrega o cérebro de fala 3B
-// depois da primeira pergunta (com barra de progresso) e transmite a resposta.
+// perto, abre o painel de chat (tecla E ou toque), pré-aquece o cérebro de fala
+// enquanto o jogador digita e transmite a resposta.
 // Mobile-first (o Felipe joga no celular): input embaixo, alvos grandes.
 //
 // REGRA DE OURO: erro NUNCA fica invisível. Antes, falhas na geração só
@@ -26,10 +25,10 @@ const Floor10NpcChat: React.FC = () => {
 
     const open = useCallback(() => {
         if (npc.open) return;
-        // Um modelo por vez: o cérebro pequeno SAI da memória assim que o
-        // painel abre, para o 3B ter a RAM inteira quando o jogador falar.
-        void unloadSmallBrain();
         npcSet({ open: true });
+        // Começa a carga enquanto o jogador digita. O Mini só pausa se ainda
+        // estiver gerando; seus pesos permanecem residentes para retomar.
+        void initLLM().catch(() => undefined);
     }, []);
     const close = useCallback(() => { npcSet({ open: false }); }, []);
 
@@ -83,7 +82,9 @@ const Floor10NpcChat: React.FC = () => {
 
     const send = () => {
         const t = input.trim();
-        if (!t || st.phase === 'thinking') return;
+        // Durante o pré-aquecimento o jogador já pode escrever; Enter só envia
+        // quando o runtime estiver pronto, sem apagar o texto digitado.
+        if (!t || st.phase === 'thinking' || st.phase === 'loading') return;
         setInput('');
         void sendToNpc(t);
     };
@@ -178,11 +179,19 @@ const Floor10NpcChat: React.FC = () => {
             {st.phase === 'error' && (
                 <div style={{ padding: '14px 16px' }}>
                     <div style={{ fontSize: 13, color: '#ff9a9a', marginBottom: 10 }}>{st.error}</div>
-                    <button onClick={() => void initLLM()} style={retryStyle}>Tentar de novo</button>
+                    <button
+                        onClick={() => void initLLM().catch(() => undefined)}
+                        style={retryStyle}
+                    >
+                        Tentar de novo
+                    </button>
                 </div>
             )}
 
-            {(st.phase === 'cold' || st.phase === 'ready' || st.phase === 'thinking') && (
+            {(st.phase === 'cold'
+                || st.phase === 'loading'
+                || st.phase === 'ready'
+                || st.phase === 'thinking') && (
                 <>
                     <div ref={scrollRef} style={logStyle}>
                         {st.history.length === 0 && (
@@ -198,7 +207,7 @@ const Floor10NpcChat: React.FC = () => {
                         {st.phase === 'thinking' && (
                             <div style={{ ...bubbleRow, justifyContent: 'flex-start' }}>
                                 <div style={npcBubble} aria-live="polite">
-                                    {st.streaming || `Pensando na CPU… ${thinkingSeconds}s`}
+                                    {st.streaming || `Pensando localmente… ${thinkingSeconds}s`}
                                 </div>
                             </div>
                         )}
@@ -216,11 +225,19 @@ const Floor10NpcChat: React.FC = () => {
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } }}
-                            placeholder="Fale com ele…"
+                            placeholder={loading
+                                ? 'Digite enquanto o cérebro de fala aquece…'
+                                : 'Fale com ele…'}
                             style={inputStyle}
                             autoFocus
                         />
-                        <button onClick={send} disabled={st.phase === 'thinking'} style={sendStyle}>➤</button>
+                        <button
+                            onClick={send}
+                            disabled={st.phase === 'thinking' || loading}
+                            style={sendStyle}
+                        >
+                            ➤
+                        </button>
                     </div>
                 </>
             )}

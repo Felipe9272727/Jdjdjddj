@@ -13,6 +13,8 @@ import {
     modelHistory,
     prepareFloor10SystemPrompt,
     sendToNpc,
+    speechGpuLayerCount,
+    speechRuntimeLabel,
     visibleText,
 } from '../npc/wllamaEngine';
 import { npc, npcSet } from '../npc/npcStore';
@@ -38,13 +40,22 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         });
     });
 
-    it('detecta automaticamente até oito núcleos com cross-origin isolation', () => {
+    it('reserva metade da CPU, até quatro núcleos, para não travar o jogo', () => {
         expect(cpuThreadCount(false, 12)).toBe(1);
-        expect(cpuThreadCount(true, 2)).toBe(2);
-        expect(cpuThreadCount(true, 4)).toBe(4);
-        expect(cpuThreadCount(true, 8)).toBe(8);
-        expect(cpuThreadCount(true, 16)).toBe(8);
+        expect(cpuThreadCount(true, 2)).toBe(1);
+        expect(cpuThreadCount(true, 4)).toBe(2);
+        expect(cpuThreadCount(true, 8)).toBe(4);
+        expect(cpuThreadCount(true, 16)).toBe(4);
         expect(cpuThreadCount(true, Number.NaN)).toBe(1);
+    });
+
+    it('usa offload WebGPU parcial e adaptado à memória do aparelho', () => {
+        expect(speechGpuLayerCount(false, 12)).toBe(0);
+        expect(speechGpuLayerCount(true, 4)).toBe(0);
+        expect(speechGpuLayerCount(true, 6)).toBe(8);
+        expect(speechGpuLayerCount(true, 8)).toBe(12);
+        expect(speechRuntimeLabel(12, 4)).toBe('WebGPU×12 + CPU×4');
+        expect(speechRuntimeLabel(0, 4)).toBe('CPU×4');
     });
 
     it('usa o SmolLM3-3B oficial como cérebro de fala', () => {

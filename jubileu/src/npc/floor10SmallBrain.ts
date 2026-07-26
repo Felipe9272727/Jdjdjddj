@@ -1,8 +1,8 @@
 // ── O CÉREBRO PEQUENO — deliberação em segundo plano ──────────────────────
 // Instância própria do wllama com o MiniCPM5-1B (688 MB). Não conversa com o
 // jogador: recebe o estado do mundo em inglês estruturado e devolve a intenção
-// do Nilo. Roda sem limite de tokens porque ninguém está esperando por ela — o
-// reflexo (Utility AI) continua dirigindo o corpo enquanto isto pensa.
+// do Nilo. A saída é curta e presa por gramática; o reflexo (Utility AI)
+// continua dirigindo o corpo enquanto isto pensa.
 //
 // Tudo aqui é OPCIONAL por construção: se o aparelho não tiver memória para o
 // segundo modelo, a carga falha em silêncio e o Nilo segue com o reflexo. O
@@ -30,13 +30,14 @@ export const SMALL_BRAIN_MODEL = Object.freeze({
     url: 'https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
 });
 
-/** Fixo por projeto: metade dos oito núcleos do aparelho-alvo. */
-export const SMALL_BRAIN_THREADS = 4;
+/** Dois núcleos bastam para a escolha curta e deixam CPU livre para o jogo. */
+export const SMALL_BRAIN_THREADS = 2;
 
 export const SMALL_BRAIN_LOAD_CONFIG = Object.freeze({
-    // Mantido largo para memória futura e para preservar o contrato já usado.
-    n_ctx: 4096,
-    n_batch: 512,
+    // O prompt estruturado usa poucas centenas de tokens. 4096 só reservava KV
+    // desnecessário no celular e tornava cada reativação mais cara.
+    n_ctx: 1024,
+    n_batch: 256,
     n_threads: SMALL_BRAIN_THREADS,
     n_gpu_layers: 0,
     jinja: true,
@@ -47,9 +48,8 @@ export const SMALL_BRAIN_LOAD_CONFIG = Object.freeze({
 
 export const SMALL_BRAIN_COMPLETION_CONFIG = Object.freeze({
     stream: false,
-    // O teto continua ilimitado, conforme o desenho original. A gramática e o
-    // modo no-think fazem a resposta terminar naturalmente após a escolha.
-    max_tokens: -1,
+    // "CHOICE: inspect-elevator" cabe com ampla folga; a gramática impede prosa.
+    max_tokens: 24,
     temperature: 0.7,
     top_p: 0.95,
     top_k: 40,
@@ -110,14 +110,13 @@ function terminateSmallEngine(engine: SmallInstance | null): void {
 
 /**
  * Interrompe a deliberação em curso. O 3B da conversa tem PRIORIDADE ABSOLUTA:
- * sem isto, uma deliberação sem teto de tokens continuava queimando CPU depois
- * de o jogador mandar mensagem, e os dois modelos disputavam os mesmos núcleos
- * — foi o que travou a resposta por mais de 370s no aparelho do Felipe.
+ * sem isto, uma deliberação continuava queimando CPU depois de o jogador mandar
+ * mensagem, e os dois modelos disputavam os mesmos núcleos — foi o que travou a
+ * resposta por mais de 370s no aparelho do Felipe. O runtime não é descarregado.
  */
 export function abortDeliberation(): void {
     const interruptedDownload = npc.deliberationPhase === 'loading';
-    const unloadedReadyModel = npc.deliberationPhase === 'thinking'
-        || npc.deliberationPhase === 'decided';
+    const pausedInference = npc.deliberationPhase === 'thinking';
     currentAbort?.abort();
     currentAbort = null;
     loadAbort?.abort();
@@ -129,7 +128,7 @@ export function abortDeliberation(): void {
             deliberationPhase: 'off',
             deliberationLoadText: interruptedDownload
                 ? 'download interrompido para dar prioridade à conversa'
-                : unloadedReadyModel
+                : pausedInference
                     ? 'modelo em cache · CPU liberada para a conversa'
                     : npc.deliberationLoadText,
         });
@@ -137,16 +136,10 @@ export function abortDeliberation(): void {
 }
 
 /**
- * TIRA O CÉREBRO PEQUENO DA MEMÓRIA. Um modelo por vez, sempre.
- *
- * Manter os dois residentes somava 688 MB + 1,93 GB ≈ 2,6 GB numa aba de
- * celular. Acima de ~1,5-2 GB o navegador entra em pressão de memória e a
- * inferência despenca — foi o que derrubou a leitura para ~1,5 tok/s e deixou
- * a resposta sem chegar em 286s. Abortar a deliberação libera CPU, mas só
- * descarregar libera a MEMÓRIA, que era o gargalo real.
- *
- * O arquivo continua em cache no navegador: recarregar depois é rápido e não
- * baixa nada de novo.
+ * Descarga de emergência/encerramento. No fluxo normal o Mini fica residente:
+ * abortDeliberation pausa apenas a geração para o Smol falar e preserva pesos,
+ * Worker e cache KV. Esta função continua disponível para aparelhos que
+ * realmente não comportem os dois runtimes.
  */
 async function disposeSmallBrainEngine(): Promise<void> {
     abortDeliberation();
@@ -160,7 +153,7 @@ async function disposeSmallBrainEngine(): Promise<void> {
     npcSet({
         deliberationPhase: 'off',
         deliberationLoadText: npc.deliberationLoadProgress >= 1
-            ? 'modelo em cache · pausado durante a conversa'
+            ? 'modelo em cache · descarregado por limite de memória'
             : npc.deliberationLoadText,
     });
 
@@ -185,7 +178,11 @@ async function disposeSmallBrainEngine(): Promise<void> {
     }
 }
 
-floor10ModelCoordinator.register('deliberation', disposeSmallBrainEngine);
+floor10ModelCoordinator.register(
+    'deliberation',
+    disposeSmallBrainEngine,
+    abortDeliberation,
+);
 
 /** Pede ao coordenador para retirar o cérebro pequeno da memória. */
 export function unloadSmallBrain(): Promise<void> {
@@ -294,7 +291,9 @@ export type DeliberateInput = {
 };
 
 function conversationHasPriority(): boolean {
-    return npc.open || npc.phase === 'thinking' || npc.phase === 'loading';
+    // O Mini pode formar intenções com o painel aberto, enquanto o jogador
+    // pensa no que escrever. Ele só para durante carga/geração real do Smol.
+    return npc.phase === 'thinking' || npc.phase === 'loading';
 }
 
 /**
@@ -312,7 +311,15 @@ export async function deliberateFloor10(
             ensureSmallEngine,
         );
         if (!engine) {
+            const unavailable = npc.deliberationPhase === 'unavailable';
+            const unavailableText = npc.deliberationLoadText;
             await floor10ModelCoordinator.release('deliberation');
+            if (unavailable) {
+                npcSet({
+                    deliberationPhase: 'unavailable',
+                    deliberationLoadText: unavailableText,
+                });
+            }
             return null;
         }
         // Se o jogador começou a falar enquanto o modelo carregava, desiste
@@ -343,9 +350,20 @@ export async function deliberateFloor10(
                 deliberationGoal: decided.goal,
                 deliberationCount: npc.deliberationCount + 1,
             });
+        } else {
+            npcSet({
+                deliberationPhase: 'off',
+                deliberationLoadText: `${SMALL_BRAIN_MODEL.label} pronto · tentando outra ideia`,
+            });
         }
         return decided;
     } catch {
+        if (npc.deliberationPhase !== 'unavailable') {
+            npcSet({
+                deliberationPhase: 'off',
+                deliberationLoadText: `${SMALL_BRAIN_MODEL.label} pronto · deliberação pausada`,
+            });
+        }
         return null;
     } finally {
         inFlight = false;
@@ -356,6 +374,7 @@ export async function deliberateFloor10(
 /** Só para os testes: devolve o módulo ao estado inicial. */
 export function resetSmallBrainForTests(): void {
     abortDeliberation();
+    floor10ModelCoordinator.markUnloaded('deliberation');
     enginePromise = null;
     disposePromise = null;
     inFlight = false;

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Floor10ModelCoordinator } from '../npc/floor10ModelCoordinator';
 
-describe('Floor10ModelCoordinator — um único LLM residente', () => {
-    it('descarrega o cérebro anterior antes de carregar o próximo', async () => {
+describe('Floor10ModelCoordinator — dois LLMs residentes, uma geração por vez', () => {
+    it('mantém o cérebro anterior residente ao carregar o próximo', async () => {
         const coordinator = new Floor10ModelCoordinator();
         const events: string[] = [];
         coordinator.register('conversation', () => { events.push('unload-conversation'); });
@@ -19,10 +19,29 @@ describe('Floor10ModelCoordinator — um único LLM residente', () => {
 
         expect(events).toEqual([
             'load-conversation',
-            'unload-conversation',
             'load-deliberation',
         ]);
+        expect(coordinator.residents()).toEqual(['conversation', 'deliberation']);
         expect(coordinator.owner()).toBe('deliberation');
+    });
+
+    it('pausa o Mini para carregar o Smol sem descarregar seus pesos', async () => {
+        const coordinator = new Floor10ModelCoordinator();
+        let pauses = 0;
+        let unloads = 0;
+        coordinator.register(
+            'deliberation',
+            () => { unloads += 1; },
+            () => { pauses += 1; },
+        );
+        coordinator.register('conversation', () => undefined);
+        await coordinator.activate('deliberation', async () => '1B');
+
+        await coordinator.activate('conversation', async () => '3B');
+
+        expect(pauses).toBe(1);
+        expect(unloads).toBe(0);
+        expect(coordinator.residents()).toEqual(['conversation', 'deliberation']);
     });
 
     it('serializa ativações concorrentes sem sobrepor os carregamentos', async () => {
@@ -58,9 +77,9 @@ describe('Floor10ModelCoordinator — um único LLM residente', () => {
         expect(events).toEqual([
             'conversation-start',
             'conversation-end',
-            'unload-conversation',
             'deliberation-start',
         ]);
+        expect(coordinator.residents()).toEqual(['conversation', 'deliberation']);
     });
 
     it('interrompe a carga da deliberação assim que a conversa é pedida', async () => {
@@ -74,10 +93,14 @@ describe('Floor10ModelCoordinator — um único LLM residente', () => {
         const loadGate = new Promise<void>((resolve) => {
             cancelLoad = resolve;
         });
-        coordinator.register('deliberation', () => {
-            events.push('cancel-deliberation');
-            cancelLoad?.();
-        });
+        coordinator.register(
+            'deliberation',
+            () => { events.push('unload-deliberation'); },
+            () => {
+                events.push('pause-deliberation');
+                cancelLoad?.();
+            },
+        );
 
         const deliberation = coordinator.activate('deliberation', async () => {
             events.push('deliberation-start');
@@ -96,10 +119,12 @@ describe('Floor10ModelCoordinator — um único LLM residente', () => {
 
         expect(events).toEqual([
             'deliberation-start',
-            'cancel-deliberation',
+            'pause-deliberation',
             'deliberation-stopped',
             'conversation-start',
         ]);
+        expect(events).not.toContain('unload-deliberation');
+        expect(coordinator.residents()).toEqual(['conversation']);
         expect(coordinator.owner()).toBe('conversation');
     });
 
@@ -114,5 +139,21 @@ describe('Floor10ModelCoordinator — um único LLM residente', () => {
 
         expect(unloads).toBe(1);
         expect(coordinator.owner()).toBeNull();
+    });
+
+    it('libera um cérebro sem expulsar o outro', async () => {
+        const coordinator = new Floor10ModelCoordinator();
+        let conversationUnloads = 0;
+        let deliberationUnloads = 0;
+        coordinator.register('conversation', () => { conversationUnloads += 1; });
+        coordinator.register('deliberation', () => { deliberationUnloads += 1; });
+        await coordinator.activate('conversation', async () => '3B');
+        await coordinator.activate('deliberation', async () => '1B');
+
+        await coordinator.release('deliberation');
+
+        expect(deliberationUnloads).toBe(1);
+        expect(conversationUnloads).toBe(0);
+        expect(coordinator.residents()).toEqual(['conversation']);
     });
 });
