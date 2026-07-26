@@ -321,7 +321,7 @@ function clipHistoryText(text: string, limit: number): string {
 /**
  * Não deixa uma fala alucinada antiga contaminar as próximas gerações.
  *
- * Também normaliza o histórico para o ChatML do Qwen:
+ * Também normaliza o histórico para o template de chat do modelo:
  * - começa sempre em `user`, nunca em uma fala autônoma de `assistant`;
  * - junta papéis consecutivos depois de uma tentativa que falhou;
  * - limita o prefill real sem apagar nada do painel visível.

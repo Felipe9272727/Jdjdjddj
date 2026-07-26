@@ -212,7 +212,7 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 9 && <Floor9Forest playerPositionRef={playerPositionRef} />}
       {/* Andar 10 — PLACEHOLDER: base plana, esperando virar um andar */}
       {level === 10 && <Floor10Base />}
-      {/* NPC com LLM real (Qwen2.5 quantizado no browser) — corpo procedural v1 */}
+      {/* NPC com LLM real (SmolLM3 quantizado no browser) — corpo procedural v1 */}
       {level === 10 && <Floor10Npc playerPositionRef={playerPositionRef} />}
       {/* the old baseplate is the FLOOR 7 TEMPLATE now — Creator Mode only */}
       {/* Andar 7 (navio pirata) is mounted as a Canvas sibling below — it needs

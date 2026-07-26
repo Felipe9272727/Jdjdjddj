@@ -9,6 +9,7 @@
 // jogo nunca depende desta camada para funcionar.
 import {
     DELIBERATION_SYSTEM_PROMPT,
+    DELIBERATION_GRAMMAR,
     buildDeliberationPrompt,
     parseDeliberation,
     type DeliberationMemory,
@@ -29,23 +30,34 @@ export const SMALL_BRAIN_MODEL = Object.freeze({
     url: 'https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
 });
 
+/** Fixo por projeto: metade dos oito núcleos do aparelho-alvo. */
+export const SMALL_BRAIN_THREADS = 4;
+
 export const SMALL_BRAIN_LOAD_CONFIG = Object.freeze({
-    // Ele delibera longo: precisa de espaço para o raciocínio inteiro caber.
+    // Mantido largo para memória futura e para preservar o contrato já usado.
     n_ctx: 4096,
     n_batch: 512,
+    n_threads: SMALL_BRAIN_THREADS,
     n_gpu_layers: 0,
+    jinja: true,
+    reasoning: false,
+    default_template_kwargs: Object.freeze({ enable_thinking: false }),
+    warmup: true,
 });
 
 export const SMALL_BRAIN_COMPLETION_CONFIG = Object.freeze({
     stream: false,
-    // SEM teto de tokens: com limite ele nunca conclui (fica deliberando e a
-    // resposta é cortada no meio). Solto, ele termina sozinho e assina a
-    // escolha. Medido no modelo real.
+    // O teto continua ilimitado, conforme o desenho original. A gramática e o
+    // modo no-think fazem a resposta terminar naturalmente após a escolha.
     max_tokens: -1,
-    temperature: 0.6,
-    top_p: 0.9,
-    penalty_repeat: 1.15,
-    cache_prompt: false,
+    temperature: 0.7,
+    top_p: 0.95,
+    top_k: 40,
+    penalty_repeat: 1.1,
+    penalty_last_n: 64,
+    cache_prompt: true,
+    grammar: DELIBERATION_GRAMMAR,
+    chat_template_kwargs: Object.freeze({ enable_thinking: false }),
 });
 
 type SmallInstance = {
@@ -135,16 +147,20 @@ export function readCompletionText(response: unknown): string {
 }
 
 /** Carrega o cérebro pequeno uma única vez; falha vira null, nunca exceção. */
-function ensureSmallEngine(threads: number): Promise<SmallInstance | null> {
+function ensureSmallEngine(): Promise<SmallInstance | null> {
     enginePromise ??= (async () => {
         npcSet({ deliberationPhase: 'loading' });
         try {
+            try {
+                if (typeof navigator !== 'undefined') {
+                    await (navigator as unknown as {
+                        storage?: { persist?: () => Promise<boolean> };
+                    }).storage?.persist?.();
+                }
+            } catch { /* cache persistente é só uma otimização */ }
             const mod = await (import(/* @vite-ignore */ WLLAMA_ESM) as Promise<{ Wllama: SmallCtor }>);
             const engine = new mod.Wllama({ default: WASM_SINGLE }, { suppressNativeLog: true });
-            await engine.loadModelFromUrl(SMALL_BRAIN_MODEL.url, {
-                ...SMALL_BRAIN_LOAD_CONFIG,
-                n_threads: threads,
-            });
+            await engine.loadModelFromUrl(SMALL_BRAIN_MODEL.url, SMALL_BRAIN_LOAD_CONFIG);
             return engine;
         } catch {
             // Sem memória, sem rede ou modelo incompatível: o reflexo segue só.
@@ -160,7 +176,6 @@ export type DeliberateInput = {
     drives: Floor10WillDrives;
     memory: DeliberationMemory;
     now: number;
-    threads?: number;
 };
 
 function conversationHasPriority(): boolean {
@@ -179,7 +194,7 @@ export async function deliberateFloor10(
     try {
         const engine = await floor10ModelCoordinator.activate(
             'deliberation',
-            () => ensureSmallEngine(input.threads ?? 1),
+            ensureSmallEngine,
         );
         if (!engine) {
             await floor10ModelCoordinator.release('deliberation');

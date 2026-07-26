@@ -70,7 +70,7 @@ const Floor10NpcChat: React.FC = () => {
     }, [st.phase]);
 
     // Fala iniciada pela própria vontade desaparece da tela, mas permanece no
-    // histórico: quando o jogador responder, o Qwen sabe o que Nilo acabou de
+    // histórico: quando o jogador responder, o Smol sabe o que Nilo acabou de
     // dizer e a conversa não recomeça do zero.
     useEffect(() => {
         if (!st.autonomousSpeech) return;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     DELIBERATION_GOALS,
+    DELIBERATION_GRAMMAR,
     DELIBERATION_SYSTEM_PROMPT,
     DELIBERATION_TTL_SECONDS,
     buildDeliberationPrompt,
@@ -35,7 +36,7 @@ Yes.
 Wander is the most neutral and safe action given no interaction instructions, aligning with his traits of curiosity (0.9) but low social engagement (0.2).
 CHOICE: wander`;
 
-describe('npc/floor10Deliberation — o segundo cérebro, lento e barato', () => {
+describe('npc/floor10Deliberation — o segundo cérebro pequeno e privado', () => {
     it('descreve o mundo em estrutura, não em prosa', () => {
         const prompt = buildDeliberationPrompt(PERCEPTION, INITIAL_FLOOR10_WILL.drives, MEMORY);
         expect(prompt).toContain('SEES:');
@@ -51,8 +52,10 @@ describe('npc/floor10Deliberation — o segundo cérebro, lento e barato', () =>
     it('pede livre arbítrio e lista as metas válidas', () => {
         expect(DELIBERATION_SYSTEM_PROMPT).toContain('free will');
         expect(DELIBERATION_SYSTEM_PROMPT).toContain('CHOICE:');
+        expect(DELIBERATION_SYSTEM_PROMPT).toContain('Do not narrate reasoning');
         for (const goal of DELIBERATION_GOALS) {
             expect(DELIBERATION_SYSTEM_PROMPT).toContain(goal);
+            expect(DELIBERATION_GRAMMAR).toContain(`"${goal}"`);
         }
     });
 

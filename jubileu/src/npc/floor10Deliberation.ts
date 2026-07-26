@@ -1,8 +1,8 @@
-// ── A DELIBERAÇÃO — o segundo cérebro, lento e barato ─────────────────────
+// ── A DELIBERAÇÃO — o segundo cérebro, pequeno e privado ──────────────────
 // A Utility AI é o REFLEXO do Nilo: decide em microssegundos e nunca deixa o
 // corpo parado. Este módulo é a DELIBERAÇÃO: um modelo pequeno (MiniCPM5-1B)
-// que fica pensando por fora, sem pressa e sem limite de tokens, e de vez em
-// quando chega com uma intenção própria que o reflexo passa a servir.
+// que escolhe por fora e, de vez em quando, entrega uma intenção própria que o
+// reflexo passa a servir.
 //
 // Por que um modelo pequeno e em inglês:
 // - Ele não fala com o jogador, então não precisa de português (medido: em
@@ -10,9 +10,9 @@
 //   posição, desejos e memória).
 // - É barato (688 MB, ~200 tok/s de leitura), então roda em celular fraco sem
 //   disputar com o 3B da conversa.
-// - Ele PENSA muito antes de concluir. Aqui isso é uma qualidade: ninguém está
-//   esperando essa resposta, e o pensamento é o que produz uma escolha menos
-//   mecânica que a tabela de utilidade.
+// - O checkpoint continua sendo o mesmo modelo híbrido, mas usamos o modo
+//   no-think: gerar milhares de tokens de raciocínio não tornava a escolha mais
+//   livre, apenas atrasava a única informação consumida pelo corpo.
 
 import type { Floor10Perception } from './floor10Perception';
 import type { Floor10WillDrives, Floor10WillGoal } from './floor10Will';
@@ -58,9 +58,18 @@ export const DELIBERATION_SYSTEM_PROMPT =
 `You are the instinct of a man trapped alone on floor 10: one square gray room, grid floor, four walls, an elevator door. He never left. The elevator never obeys him.
 You receive what he SEES right now, what he WANTS, and what he REMEMBERS trying.
 Decide what he does next, by his own free will — he is a person, not a servant, and he may choose something unexpected as long as it makes sense for him.
-Think as long as you need, then end with exactly one line:
+Do not narrate reasoning. Answer immediately with exactly one line:
 CHOICE: <option>
 Valid options: ${DELIBERATION_GOALS.join(', ')}`;
+
+/**
+ * A gramática deixa o MiniCPM livre para escolher a meta, mas torna impossível
+ * desperdiçar minutos narrando raciocínio que nenhum outro módulo consome.
+ * max_tokens permanece ilimitado; a resposta encerra porque a raiz foi aceita.
+ */
+export const DELIBERATION_GRAMMAR =
+    `root ::= "CHOICE: " goal
+goal ::= ${DELIBERATION_GOALS.map((goal) => `"${goal}"`).join(' | ')}`;
 
 function round1(value: number): number {
     return Math.round(value * 10) / 10;

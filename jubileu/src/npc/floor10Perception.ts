@@ -4,7 +4,7 @@
 // sensores exatos do motor 3D e transforma números em percepção semântica:
 // onde Nilo está, para onde olha, o que está no campo de visão e onde ficam os
 // marcos conhecidos. O módulo não baixa modelo e custa apenas algumas contas
-// vetoriais; portanto continua ativo mesmo enquanto o Qwen está carregando.
+// vetoriais; portanto continua ativo mesmo enquanto o cérebro de fala carrega.
 
 export type Vec3Like = Readonly<{ x: number; y: number; z: number }>;
 

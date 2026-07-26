@@ -14,7 +14,7 @@ import {
 // e custos de repetição. A cada decisão ele compara ações possíveis e escolhe
 // a que mais atende ao que quer naquele instante — não uma sequência roteirizada.
 //
-// O Qwen continua responsável por conversa aberta. Esta micro-IA decide e age
+// O cérebro de fala continua responsável por conversa aberta. Esta micro-IA decide e age
 // mesmo sem chat, sem download adicional e sem bloquear o jogo.
 
 export type Floor10WillGoal =
@@ -1084,7 +1084,7 @@ function inferredAcceptance(
             || /\b(?:i will stop following you|i'll stop following you|i will stop|i'll stop)\b/.test(text)
             || /\b(?:dejare de seguirte|voy a dejar de seguirte|dejare de hacerlo)\b/.test(text);
     }
-    // Nas demais ações, só o marcador explícito do 2B cria uma ordem corporal.
+    // Nas demais ações, só o marcador explícito do cérebro de fala cria uma ordem corporal.
     return false;
 }
 

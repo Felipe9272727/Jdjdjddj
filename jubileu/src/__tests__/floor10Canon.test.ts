@@ -161,7 +161,7 @@ describe('npc/floor10Canon — cânone e anti-alucinação', () => {
         )).toBe(false);
     });
 
-    it('rejeita fala falsa sem fabricar uma resposta fora do 2B', () => {
+    it('rejeita fala falsa sem fabricar uma resposta fora do cérebro de fala', () => {
         expect(floor10ReplyIssue(
             'Sim, meu nome é The Normal Elevator.',
             'Você lembra do seu nome?',
@@ -191,7 +191,7 @@ describe('npc/floor10Canon — cânone e anti-alucinação', () => {
         expect(history.at(-1)?.content).toBe('Meu nome é Nilo Azevedo.');
     });
 
-    it('nunca entrega ao Qwen um histórico começando em assistant', () => {
+    it('nunca entrega ao modelo um histórico começando em assistant', () => {
         const history = groundedModelHistory([
             { role: 'user', content: 'Primeira pergunta' },
             { role: 'assistant', content: 'Primeira resposta' },

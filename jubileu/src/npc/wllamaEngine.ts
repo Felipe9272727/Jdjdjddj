@@ -2,7 +2,7 @@
 // A inferência roda no processador, dentro de um Worker, via wllama/llama.cpp.
 // O modelo fica em cache no navegador depois do primeiro download.
 //
-// O Qwen2.5-3B é o cérebro de fala. RAG apenas fornece contexto; olhos e vontade
+// O SmolLM3-3B é o cérebro de fala. RAG apenas fornece contexto; olhos e vontade
 // continuam sendo micro-IAs independentes, inclusive com suas respostas
 // factuais próprias. O MiniCPM delibera, mas nunca fala no lugar do 3B.
 import { npc, npcIssueWillCommand, npcSet } from './npcStore';
@@ -45,8 +45,8 @@ export const CPU_LOAD_CONFIG = Object.freeze({
     n_batch: 512,
     n_threads: 1,
     n_gpu_layers: 0,
-    // Qwen3.5 traz um template Jinja multimodal. Fixar estas opções no load
-    // evita autodetecção/reasoning ambíguos na primeira geração.
+    // SmolLM3 é híbrido. Fixar o modo rápido no load evita que o template ligue
+    // raciocínio longo antes mesmo de receber a primeira fala.
     jinja: true,
     reasoning: false,
     default_template_kwargs: Object.freeze({ enable_thinking: false }),
@@ -70,35 +70,38 @@ export const CHAT_COMPLETION_CONFIG = Object.freeze({
     penalty_last_n: 256,
     // Faz o motor emitir as medições de velocidade durante o stream.
     timings_per_token: true,
-    // O bloqueio anterior era específico do cache híbrido do Qwen3.5. O modelo
-    // atual é Qwen2.5-Instruct puro, então pode reaproveitar o prefixo estável
-    // da persona e do histórico em vez de reler tudo a cada mensagem.
+    // Reaproveita o prefixo estável da persona e do histórico em vez de reler
+    // tudo a cada mensagem.
     cache_prompt: true,
 });
 
 export type Floor10ModelDef = {
     url: string;
     label: string;
-    qwen3: boolean;
+    disableThinking: boolean;
+    systemTemplateFlags: string;
 };
 
 /**
- * Cérebro de fala. Escolhido por comparação medida no modelo real (6 candidatos,
- * com o prompt e o histórico do jogo): o Qwen3.5-2B saía incoerente ("o teto está
- * cortando meu ombro", "um fio invisível cortando meu caminho") porque é um
- * modelo de RACIOCÍNIO rodando com o raciocínio desligado — modo em que ele
- * obedece pior a instruções. Gemma-4-E2B e MiniCPM5-1B caem no mesmo problema
- * (gastam a resposta inteira "pensando"); Llama-3.2-3B chegou a negar o próprio
- * nome; Phi-4-mini virou assistente ("como posso te ajudar hoje?").
- * O Qwen2.5-3B-Instruct respondeu certo, no personagem e TERMINANDO a frase —
- * e na mesma faixa de velocidade de leitura do 2B. Como ele acerta de primeira,
- * evita a segunda geração que a validação disparava: mais rápido na prática.
+ * Cérebro de fala escolhido para o equilíbrio celular: 3B/Q4_K_M, português
+ * nativo e forte obediência a instruções e chamadas estruturadas. O GGUF oficial
+ * usa dois controles próprios:
+ * - /no_think impede que uma fala curta gaste tempo em raciocínio visível;
+ * - /system_override fecha corretamente a mensagem de sistema e impede que o
+ *   template acrescente a identidade genérica "SmolLM".
+ * Os controles são removidos pelo próprio template antes da inferência.
  */
 export const FLOOR10_MODEL: Readonly<Floor10ModelDef> = Object.freeze({
-    label: 'Qwen2.5-3B',
-    qwen3: false,
-    url: HF('bartowski/Qwen2.5-3B-Instruct-GGUF', 'Qwen2.5-3B-Instruct-Q4_K_M.gguf'),
+    label: 'SmolLM3-3B',
+    disableThinking: true,
+    systemTemplateFlags: '/system_override /no_think',
+    url: HF('ggml-org/SmolLM3-3B-GGUF', 'SmolLM3-Q4_K_M.gguf'),
 });
+
+/** Adapta a persona ao template do Smol sem deixar os controles chegarem à fala. */
+export function prepareFloor10SystemPrompt(prompt: string): string {
+    return `${FLOOR10_MODEL.systemTemplateFlags}\n${prompt}`;
+}
 
 /**
  * Sem isolamento, SharedArrayBuffer/pthreads não estão disponíveis. Com
@@ -199,7 +202,7 @@ function raceWithTimeout<T>(
     });
 }
 
-// Tira o raciocínio do Qwen3.x (<think>…</think>) — no-op no Qwen2.5.
+// Tira qualquer bloco de raciocínio que um template híbrido ainda devolva.
 export function visibleText(s: string): string {
     const close = s.lastIndexOf('</think>');
     if (close !== -1) return s.slice(close + '</think>'.length).replace(/^\s+/, '');
@@ -272,7 +275,7 @@ export async function consumeChatStream(
     while (true) {
         const now = Date.now();
         const stage: GenerationTimeoutError['stage'] = sawVisibleText ? 'next-token' : 'first-token';
-        // Assim que QUALQUER chunk chega (mesmo raciocínio oculto do Qwen3.5),
+        // Assim que QUALQUER chunk chega (mesmo raciocínio oculto do template),
         // passamos a medir só INATIVIDADE entre chunks. Antes, enquanto a fala
         // visível não começava, o prazo absoluto de first-token corria mesmo com
         // o modelo emitindo <think> — e o LLM "parava de responder" trabalhando.
@@ -316,7 +319,7 @@ type WllamaInstance = {
 type WllamaCtor = new (paths: Record<string, string>, cfg?: Record<string, unknown>) => WllamaInstance;
 type WllamaModule = { Wllama: WllamaCtor };
 
-let loadedQwen3 = false;
+let loadedDisableThinking = false;
 let currentEngine: WllamaInstance | null = null;
 let activeModelUrl = '';
 let loadedThreads = 1;
@@ -327,7 +330,7 @@ async function teardownEngine(engine: WllamaInstance | null = currentEngine): Pr
     if (engine === currentEngine) {
         currentEngine = null;
         activeModelUrl = '';
-        loadedQwen3 = false;
+        loadedDisableThinking = false;
         loadedThreads = 1;
     }
     try { await engine?.exit?.(); } catch { /* worker já morreu */ }
@@ -380,7 +383,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
                     });
                 },
             });
-            loadedQwen3 = model.qwen3;
+            loadedDisableThinking = model.disableThinking;
             const confirmedThreads = candidate.getNumThreads?.();
             loadedThreads = Number.isFinite(confirmedThreads) && (confirmedThreads ?? 0) > 0
                 ? Math.min(8, Math.floor(confirmedThreads as number))
@@ -414,7 +417,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
             }
             currentEngine = null;
             activeModelUrl = '';
-            loadedQwen3 = false;
+            loadedDisableThinking = false;
             loadedThreads = 1;
             modulePromise = null;
             npcSet({
@@ -434,7 +437,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
 
 /**
  * O coordenador garante que o MiniCPM terminou de sair da memória antes de o
- * Qwen carregar ou responder. Duas chamadas simultâneas entram na mesma fila.
+ * Smol carregar ou responder. Duas chamadas simultâneas entram na mesma fila.
  */
 export function initLLM(): Promise<WllamaInstance> {
     return floor10ModelCoordinator.activate('conversation', initConversationEngine);
@@ -513,11 +516,13 @@ export async function sendToNpc(userText: string): Promise<void> {
     try { engine = await initLLM(); } catch { return; }
 
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
-    const systemPrompt = buildFloor10SystemPrompt(
-        text,
-        history,
-        npc.perception,
-        npc.autonomy,
+    const systemPrompt = prepareFloor10SystemPrompt(
+        buildFloor10SystemPrompt(
+            text,
+            history,
+            npc.perception,
+            npc.autonomy,
+        ),
     );
     // Memória curta de propósito: as últimas 2 trocas (4 mensagens). Histórico
     // longo inchava o prefill e fazia o 3B "fixar" num tema. O essencial do
@@ -551,7 +556,9 @@ export async function sendToNpc(userText: string): Promise<void> {
             ...CHAT_COMPLETION_CONFIG,
             ...sampling,
             abortSignal: abort.signal,
-            ...(loadedQwen3 ? { chat_template_kwargs: { enable_thinking: false } } : {}),
+            ...(loadedDisableThinking
+                ? { chat_template_kwargs: { enable_thinking: false } }
+                : {}),
         });
         return consumeChatStream(
             streamPromise,

@@ -20,7 +20,7 @@ import type { Floor10Deliberation } from './npc/floor10Deliberation';
 // ── O CORPO DO NPC (procedural, v1) ────────────────────────────────────────
 // Um hóspede humanoide de pé na base do Andar 10. Por enquanto o corpo é
 // procedural (o Felipe pediu "inicialmente pode ser procedural"); o CÉREBRO é o
-// LLM (npc/llmEngine). Olhos, vontade e fala são módulos separados: os olhos
+// LLM (npc/wllamaEngine). Olhos, vontade e fala são módulos separados: os olhos
 // publicam a percepção real, a Utility AI escolhe uma intenção e este corpo
 // executa a navegação. O LLM só precisa acordar quando há conversa aberta.
 
@@ -97,8 +97,8 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 );
                 consumedWillCommandId.current = languageCommand.id;
             }
-            // Dispara uma deliberação quando a anterior já envelheceu. É async e
-            // pode levar minutos no celular: NADA aqui espera por ela. Se o
+            // Dispara uma deliberação quando a anterior já envelheceu. É async:
+            // NADA aqui espera por ela. Se o
             // cérebro pequeno não carregar, a promessa resolve null e o reflexo
             // segue sozinho, como sempre fez.
             // Só delibera com a conversa REALMENTE parada. Medido: com os dois
@@ -122,10 +122,6 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                             ?? npc.autonomy.commitmentReason ?? null,
                     },
                     now: t,
-                    // 4 threads: seguro porque a deliberação NUNCA roda junto com
-                    // a conversa (é abortada ao abrir o painel). Sozinha, ela
-                    // pode usar metade dos núcleos e concluir bem mais rápido.
-                    threads: 4,
                 }).then((decided) => {
                     if (decided) deliberation.current = decided;
                 });

@@ -11,6 +11,7 @@ import {
     cpuThreadCount,
     formatTimings,
     modelHistory,
+    prepareFloor10SystemPrompt,
     sendToNpc,
     visibleText,
 } from '../npc/wllamaEngine';
@@ -46,14 +47,21 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(cpuThreadCount(true, Number.NaN)).toBe(1);
     });
 
-    it('usa o Qwen2.5-3B-Instruct como cérebro de fala', () => {
-        expect(FLOOR10_MODEL.label).toBe('Qwen2.5-3B');
-        expect(FLOOR10_MODEL.url).toMatch(/Qwen2\.5-3B-Instruct/i);
-        // Instruct puro: nada de modo-raciocínio para desligar na marra.
-        expect(FLOOR10_MODEL.qwen3).toBe(false);
+    it('usa o SmolLM3-3B oficial como cérebro de fala', () => {
+        expect(FLOOR10_MODEL.label).toBe('SmolLM3-3B');
+        expect(FLOOR10_MODEL.url).toMatch(/ggml-org\/SmolLM3-3B-GGUF/i);
+        expect(FLOOR10_MODEL.url).toMatch(/SmolLM3-Q4_K_M\.gguf$/i);
+        expect(FLOOR10_MODEL.disableThinking).toBe(true);
     });
 
-    it('pede autocorreção ao próprio 2B sem fornecer resposta pronta', () => {
+    it('preserva a persona e desliga o thinking no template do Smol', () => {
+        const prompt = prepareFloor10SystemPrompt('Você é Nilo Azevedo.');
+        expect(prompt).toContain('/system_override');
+        expect(prompt).toContain('/no_think');
+        expect(prompt).toContain('Você é Nilo Azevedo.');
+    });
+
+    it('pede autocorreção ao próprio cérebro sem fornecer resposta pronta', () => {
         const prompt = buildFloor10CorrectionPrompt(
             'CONTEXTO RAG PARA O MODELO',
             'contradição com o cânone',
@@ -71,7 +79,7 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
             top_p: 0.85,
             top_k: 40,
             cache_prompt: true,
-            // Sem isto o 2B entra em loop e a fala reprovada dispara uma
+            // Sem isto um modelo pequeno pode entrar em loop e a fala reprovada dispara uma
             // segunda geração completa, dobrando a espera.
             penalty_repeat: 1.15,
             penalty_last_n: 256,
