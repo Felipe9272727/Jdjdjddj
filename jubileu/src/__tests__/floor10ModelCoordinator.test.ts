@@ -63,6 +63,46 @@ describe('Floor10ModelCoordinator — um único LLM residente', () => {
         ]);
     });
 
+    it('interrompe a carga da deliberação assim que a conversa é pedida', async () => {
+        const coordinator = new Floor10ModelCoordinator();
+        const events: string[] = [];
+        let signalStarted: (() => void) | undefined;
+        let cancelLoad: (() => void) | undefined;
+        const started = new Promise<void>((resolve) => {
+            signalStarted = resolve;
+        });
+        const loadGate = new Promise<void>((resolve) => {
+            cancelLoad = resolve;
+        });
+        coordinator.register('deliberation', () => {
+            events.push('cancel-deliberation');
+            cancelLoad?.();
+        });
+
+        const deliberation = coordinator.activate('deliberation', async () => {
+            events.push('deliberation-start');
+            signalStarted?.();
+            await loadGate;
+            events.push('deliberation-stopped');
+            return null;
+        });
+        await started;
+
+        const conversation = coordinator.activate('conversation', async () => {
+            events.push('conversation-start');
+            return '3B';
+        });
+        await Promise.all([deliberation, conversation]);
+
+        expect(events).toEqual([
+            'deliberation-start',
+            'cancel-deliberation',
+            'deliberation-stopped',
+            'conversation-start',
+        ]);
+        expect(coordinator.owner()).toBe('conversation');
+    });
+
     it('libera o cérebro ativo uma única vez', async () => {
         const coordinator = new Floor10ModelCoordinator();
         let unloads = 0;

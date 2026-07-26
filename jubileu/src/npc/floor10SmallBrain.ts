@@ -71,6 +71,42 @@ let enginePromise: Promise<SmallInstance | null> | null = null;
 let disposePromise: Promise<void> | null = null;
 let inFlight = false;
 let currentAbort: AbortController | null = null;
+let loadAbort: AbortController | null = null;
+let loadingEngine: SmallInstance | null = null;
+
+export const SMALL_BRAIN_HANDOFF_TIMEOUT_MS = 3_000;
+
+function abortError(): Error {
+    const error = new Error('MiniCPM load aborted for conversation');
+    error.name = 'AbortError';
+    return error;
+}
+
+/** Faz qualquer etapa de carga devolver o controle assim que a conversa chega. */
+export function raceWithAbort<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
+    if (signal.aborted) return Promise.reject(abortError());
+    return new Promise<T>((resolve, reject) => {
+        const onAbort = () => reject(abortError());
+        signal.addEventListener('abort', onAbort, { once: true });
+        task.then(
+            (value) => {
+                signal.removeEventListener('abort', onAbort);
+                resolve(value);
+            },
+            (error: unknown) => {
+                signal.removeEventListener('abort', onAbort);
+                reject(error);
+            },
+        );
+    });
+}
+
+function terminateSmallEngine(engine: SmallInstance | null): void {
+    if (!engine?.exit) return;
+    try {
+        void Promise.resolve(engine.exit()).catch(() => undefined);
+    } catch { /* worker já encerrou */ }
+}
 
 /**
  * Interrompe a deliberação em curso. O 3B da conversa tem PRIORIDADE ABSOLUTA:
@@ -79,10 +115,24 @@ let currentAbort: AbortController | null = null;
  * — foi o que travou a resposta por mais de 370s no aparelho do Felipe.
  */
 export function abortDeliberation(): void {
+    const interruptedDownload = npc.deliberationPhase === 'loading';
+    const unloadedReadyModel = npc.deliberationPhase === 'thinking'
+        || npc.deliberationPhase === 'decided';
     currentAbort?.abort();
     currentAbort = null;
+    loadAbort?.abort();
+    const loading = loadingEngine;
+    loadingEngine = null;
+    terminateSmallEngine(loading);
     if (npc.deliberationPhase === 'thinking' || npc.deliberationPhase === 'loading') {
-        npcSet({ deliberationPhase: 'off' });
+        npcSet({
+            deliberationPhase: 'off',
+            deliberationLoadText: interruptedDownload
+                ? 'download interrompido para dar prioridade à conversa'
+                : unloadedReadyModel
+                    ? 'modelo em cache · CPU liberada para a conversa'
+                    : npc.deliberationLoadText,
+        });
     }
 }
 
@@ -107,13 +157,25 @@ async function disposeSmallBrainEngine(): Promise<void> {
 
     const pending = enginePromise;
     enginePromise = null;
-    npcSet({ deliberationPhase: 'off' });
+    npcSet({
+        deliberationPhase: 'off',
+        deliberationLoadText: npc.deliberationLoadProgress >= 1
+            ? 'modelo em cache · pausado durante a conversa'
+            : npc.deliberationLoadText,
+    });
 
     const task = (async () => {
-        try {
-            const engine = await pending;
-            await engine?.exit?.();
-        } catch { /* já morreu; o que importa é a memória voltar */ }
+        const cleanup = Promise.resolve(pending)
+            .then((engine) => engine?.exit?.())
+            .catch(() => undefined);
+        // O wllama encerra o Worker imediatamente. Este limite protege a
+        // conversa até de um Promise antigo que tenha ficado órfão no browser.
+        await Promise.race([
+            cleanup,
+            new Promise<void>((resolve) => {
+                globalThis.setTimeout(resolve, SMALL_BRAIN_HANDOFF_TIMEOUT_MS);
+            }),
+        ]);
     })();
     disposePromise = task;
     try {
@@ -149,23 +211,76 @@ export function readCompletionText(response: unknown): string {
 /** Carrega o cérebro pequeno uma única vez; falha vira null, nunca exceção. */
 function ensureSmallEngine(): Promise<SmallInstance | null> {
     enginePromise ??= (async () => {
-        npcSet({ deliberationPhase: 'loading' });
+        const controller = new AbortController();
+        loadAbort = controller;
+        let engine: SmallInstance | null = null;
+        npcSet({
+            deliberationPhase: 'loading',
+            deliberationLoadText: `verificando o cache do ${SMALL_BRAIN_MODEL.label}…`,
+            deliberationLoadProgress: 0,
+        });
         try {
             try {
                 if (typeof navigator !== 'undefined') {
-                    await (navigator as unknown as {
+                    void (navigator as unknown as {
                         storage?: { persist?: () => Promise<boolean> };
-                    }).storage?.persist?.();
+                    }).storage?.persist?.().catch(() => undefined);
                 }
             } catch { /* cache persistente é só uma otimização */ }
-            const mod = await (import(/* @vite-ignore */ WLLAMA_ESM) as Promise<{ Wllama: SmallCtor }>);
-            const engine = new mod.Wllama({ default: WASM_SINGLE }, { suppressNativeLog: true });
-            await engine.loadModelFromUrl(SMALL_BRAIN_MODEL.url, SMALL_BRAIN_LOAD_CONFIG);
+            const mod = await raceWithAbort(
+                import(/* @vite-ignore */ WLLAMA_ESM) as Promise<{ Wllama: SmallCtor }>,
+                controller.signal,
+            );
+            engine = new mod.Wllama({ default: WASM_SINGLE }, { suppressNativeLog: true });
+            loadingEngine = engine;
+            const loadTask = engine.loadModelFromUrl(SMALL_BRAIN_MODEL.url, {
+                ...SMALL_BRAIN_LOAD_CONFIG,
+                // O wllama usa `signal` no download; raceWithAbort também cobre
+                // a abertura do cache e a inicialização do Worker/WASM.
+                signal: controller.signal,
+                progressCallback: (progress: { loaded?: number; total?: number }) => {
+                    if (controller.signal.aborted) return;
+                    const fraction = progress.total
+                        ? Math.max(0, Math.min(1, (progress.loaded ?? 0) / progress.total))
+                        : 0;
+                    npcSet({
+                        deliberationLoadProgress: fraction,
+                        deliberationLoadText:
+                            `baixando ${SMALL_BRAIN_MODEL.label}… ${Math.round(fraction * 100)}%`,
+                    });
+                },
+            });
+            // Se o cancelamento venceu a corrida enquanto o wllama terminava
+            // uma etapa interna, encerra qualquer Worker que apareça depois.
+            void loadTask.then(
+                () => {
+                    if (controller.signal.aborted) terminateSmallEngine(engine);
+                },
+                () => undefined,
+            );
+            await raceWithAbort(loadTask, controller.signal);
+            if (controller.signal.aborted) {
+                terminateSmallEngine(engine);
+                return null;
+            }
+            npcSet({
+                deliberationLoadProgress: 1,
+                deliberationLoadText: `${SMALL_BRAIN_MODEL.label} pronto · iniciando vontade`,
+            });
             return engine;
         } catch {
+            terminateSmallEngine(engine);
             // Sem memória, sem rede ou modelo incompatível: o reflexo segue só.
-            npcSet({ deliberationPhase: 'unavailable' });
+            if (!controller.signal.aborted) {
+                npcSet({
+                    deliberationPhase: 'unavailable',
+                    deliberationLoadText: `não foi possível carregar ${SMALL_BRAIN_MODEL.label}`,
+                });
+            }
             return null;
+        } finally {
+            if (loadAbort === controller) loadAbort = null;
+            if (loadingEngine === engine) loadingEngine = null;
         }
     })();
     return enginePromise;
@@ -203,7 +318,11 @@ export async function deliberateFloor10(
         // Se o jogador começou a falar enquanto o modelo carregava, desiste
         // agora: a conversa vem primeiro.
         if (conversationHasPriority()) return null;
-        npcSet({ deliberationPhase: 'thinking' });
+        npcSet({
+            deliberationPhase: 'thinking',
+            deliberationLoadProgress: 1,
+            deliberationLoadText: `${SMALL_BRAIN_MODEL.label} pronto · escolhendo uma intenção`,
+        });
         currentAbort = new AbortController();
         const response = await engine.createChatCompletion({
             messages: [
@@ -220,6 +339,7 @@ export async function deliberateFloor10(
         if (decided) {
             npcSet({
                 deliberationPhase: 'decided',
+                deliberationLoadText: `${SMALL_BRAIN_MODEL.label} pronto no cache`,
                 deliberationGoal: decided.goal,
                 deliberationCount: npc.deliberationCount + 1,
             });
@@ -239,4 +359,6 @@ export function resetSmallBrainForTests(): void {
     enginePromise = null;
     disposePromise = null;
     inFlight = false;
+    loadAbort = null;
+    loadingEngine = null;
 }

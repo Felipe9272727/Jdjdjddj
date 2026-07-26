@@ -5,7 +5,7 @@ import { useNpc, npc, npcSet } from './npc/npcStore';
 import { FLOOR10_MODEL, initLLM, sendToNpc } from './npc/wllamaEngine';
 import { NPC_NAME } from './npc/floor10Canon';
 import { deliberationThought } from './npc/floor10Deliberation';
-import { unloadSmallBrain } from './npc/floor10SmallBrain';
+import { SMALL_BRAIN_MODEL, unloadSmallBrain } from './npc/floor10SmallBrain';
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
 // Vive FORA do Canvas. Reage ao npcStore: mostra a dica quando o player chega
@@ -90,17 +90,31 @@ const Floor10NpcChat: React.FC = () => {
 
     // dica flutuante quando perto e fechado
     if (!st.open) {
+        const miniLoading = st.deliberationPhase === 'loading';
+        const miniPct = Math.round(st.deliberationLoadProgress * 100);
         const speechAudible = st.autonomousSpeech !== ''
             && (st.perception.player?.distance ?? Infinity) <= 9;
         // Pensamento do 2º cérebro: bolha no mundo, não linha no painel — dá
         // para ver que ele tem vida própria SEM abrir a conversa. Some quando
         // ele fala de verdade: a fala manda mais que o pensamento.
         const thought = deliberationThought(st.deliberationPhase, st.deliberationGoal);
-        const thoughtVisible = thought !== '' && !speechAudible
+        const thoughtVisible = !miniLoading && thought !== '' && !speechAudible
             && (st.perception.player?.distance ?? Infinity) <= 9;
-        if (!st.near && !speechAudible && !thoughtVisible) return null;
+        if (!st.near && !speechAudible && !thoughtVisible && !miniLoading) return null;
         return (
             <>
+                {miniLoading && (
+                    <div style={miniDownloadFloatingStyle} aria-live="polite">
+                        <div style={miniDownloadTitleStyle}>
+                            <span>🧭 Cérebro de vontade · {SMALL_BRAIN_MODEL.label}</span>
+                            <strong>{miniPct}%</strong>
+                        </div>
+                        <div style={barOuter}>
+                            <div style={{ ...miniBarInner, width: `${miniPct}%` }} />
+                        </div>
+                        <div style={miniDownloadTextStyle}>{st.deliberationLoadText}</div>
+                    </div>
+                )}
                 {thoughtVisible && (
                     <div style={thoughtBubbleStyle}>
                         <span style={{ opacity: 0.75 }}>💭</span>
@@ -124,6 +138,8 @@ const Floor10NpcChat: React.FC = () => {
 
     const loading = st.phase === 'loading';
     const pct = Math.round(st.loadProgress * 100);
+    const miniPct = Math.round(st.deliberationLoadProgress * 100);
+    const showMiniHandoff = loading && st.deliberationLoadText !== '';
 
     return (
         <div style={panelStyle}>
@@ -133,12 +149,29 @@ const Floor10NpcChat: React.FC = () => {
             </div>
 
             {loading && (
-                <div style={{ padding: '14px 16px' }}>
-                    <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 8 }}>
-                        Preparando o {FLOOR10_MODEL.label} (depois fica em cache)…
+                <div style={modelLoadingStackStyle}>
+                    {showMiniHandoff && (
+                        <div style={modelLoadingCardStyle}>
+                            <div style={modelLoadingTitleStyle}>
+                                <span>🧭 Vontade · {SMALL_BRAIN_MODEL.label}</span>
+                                <strong>{miniPct}%</strong>
+                            </div>
+                            <div style={barOuter}>
+                                <div style={{ ...miniBarInner, width: `${miniPct}%` }} />
+                            </div>
+                            <div style={modelLoadingDetailStyle}>{st.deliberationLoadText}</div>
+                        </div>
+                    )}
+                    <div style={modelLoadingCardStyle}>
+                        <div style={modelLoadingTitleStyle}>
+                            <span>💬 Conversa · {FLOOR10_MODEL.label}</span>
+                            <strong>{pct}%</strong>
+                        </div>
+                        <div style={barOuter}>
+                            <div style={{ ...barInner, width: `${pct}%` }} />
+                        </div>
+                        <div style={modelLoadingDetailStyle}>{st.loadText}</div>
                     </div>
-                    <div style={barOuter}><div style={{ ...barInner, width: `${pct}%` }} /></div>
-                    <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>{pct}% — {st.loadText}</div>
                 </div>
             )}
 
@@ -249,6 +282,36 @@ const sendStyle: React.CSSProperties = {
 const retryStyle: React.CSSProperties = { padding: '8px 16px', borderRadius: 10, border: 'none', background: '#3a6df0', color: '#fff', fontSize: 14, cursor: 'pointer' };
 const barOuter: React.CSSProperties = { height: 8, borderRadius: 999, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' };
 const barInner: React.CSSProperties = { height: '100%', background: 'linear-gradient(90deg,#3a6df0,#7aa2ff)', transition: 'width 0.2s' };
+const miniBarInner: React.CSSProperties = { height: '100%', background: 'linear-gradient(90deg,#c58a22,#f5c96b)', transition: 'width 0.2s' };
+const modelLoadingStackStyle: React.CSSProperties = {
+    padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10,
+};
+const modelLoadingCardStyle: React.CSSProperties = {
+    padding: '10px 11px', borderRadius: 11, background: 'rgba(255,255,255,0.045)',
+    border: '1px solid rgba(255,255,255,0.08)',
+};
+const modelLoadingTitleStyle: React.CSSProperties = {
+    display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 8,
+    fontSize: 12.5, color: '#f1f1f1',
+};
+const modelLoadingDetailStyle: React.CSSProperties = {
+    fontSize: 11, opacity: 0.65, marginTop: 6,
+};
+const miniDownloadFloatingStyle: React.CSSProperties = {
+    position: 'fixed', zIndex: 60, left: 'max(12px, 2.5vw)', top: 'max(82px, 13vh)',
+    width: 'min(310px, 72vw)', padding: '10px 12px', borderRadius: 12,
+    border: '1px solid rgba(245,201,107,0.32)', background: 'rgba(16,18,24,0.9)',
+    color: '#f2f2f2', boxShadow: '0 8px 28px rgba(0,0,0,0.4)',
+    backdropFilter: 'blur(8px)', pointerEvents: 'none', fontFamily: 'system-ui, sans-serif',
+};
+const miniDownloadTitleStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: 8, marginBottom: 7, color: '#f5c96b', fontSize: 11.5, fontWeight: 650,
+};
+const miniDownloadTextStyle: React.CSSProperties = {
+    marginTop: 6, fontSize: 10.5, opacity: 0.68, whiteSpace: 'nowrap',
+    overflow: 'hidden', textOverflow: 'ellipsis',
+};
 const errBannerStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 12px',
     borderTop: '1px solid rgba(255,120,120,0.35)', background: 'rgba(120,30,30,0.35)',

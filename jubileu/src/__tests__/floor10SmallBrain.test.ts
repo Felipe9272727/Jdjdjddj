@@ -4,6 +4,7 @@ import {
     SMALL_BRAIN_LOAD_CONFIG,
     SMALL_BRAIN_MODEL,
     SMALL_BRAIN_THREADS,
+    raceWithAbort,
     readCompletionText,
 } from '../npc/floor10SmallBrain';
 import { Floor10WillBrain } from '../npc/floor10Will';
@@ -46,6 +47,14 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
         expect(readCompletionText('cru')).toBe('cru');
         expect(readCompletionText(null)).toBe('');
         expect(readCompletionText({})).toBe('');
+    });
+
+    it('cancela imediatamente uma etapa de carga que nunca termina', async () => {
+        const controller = new AbortController();
+        const pendingForever = new Promise<string>(() => undefined);
+        const result = raceWithAbort(pendingForever, controller.signal);
+        controller.abort();
+        await expect(result).rejects.toMatchObject({ name: 'AbortError' });
     });
 });
 
@@ -104,9 +113,15 @@ describe('a conversa tem prioridade absoluta sobre a deliberação', () => {
     it('abortDeliberation devolve a fase para repouso', async () => {
         const { abortDeliberation } = await import('../npc/floor10SmallBrain');
         const { npc, npcSet } = await import('../npc/npcStore');
-        npcSet({ deliberationPhase: 'thinking' });
+        npcSet({
+            deliberationPhase: 'loading',
+            deliberationLoadProgress: 0.42,
+            deliberationLoadText: 'baixando MiniCPM5-1B… 42%',
+        });
         abortDeliberation();
         expect(npc.deliberationPhase).toBe('off');
+        expect(npc.deliberationLoadProgress).toBe(0.42);
+        expect(npc.deliberationLoadText).toContain('interrompido');
     });
 });
 

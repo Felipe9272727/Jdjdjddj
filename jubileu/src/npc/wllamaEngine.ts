@@ -355,7 +355,9 @@ function initConversationEngine(): Promise<WllamaInstance> {
     const pending = (async () => {
         try {
             if (typeof navigator !== 'undefined') {
-                await (navigator as unknown as { storage?: { persist?: () => Promise<boolean> } }).storage?.persist?.();
+                void (navigator as unknown as {
+                    storage?: { persist?: () => Promise<boolean> };
+                }).storage?.persist?.().catch(() => undefined);
             }
         } catch { /* persistência é só uma otimização */ }
 

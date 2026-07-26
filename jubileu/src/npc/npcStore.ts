@@ -38,6 +38,8 @@ export type NpcState = {
     // segundo cérebro trabalharia invisível e não haveria como diferenciar
     // "pensando", "decidiu" e "não carregou".
     deliberationPhase: 'off' | 'loading' | 'thinking' | 'decided' | 'unavailable';
+    deliberationLoadText: string;      // download/cache do MiniCPM, separado do 3B
+    deliberationLoadProgress: number;  // 0..1, progresso real do arquivo do MiniCPM
     deliberationGoal: string;   // a intenção que ele assinou
     deliberationCount: number;  // quantas vezes já deliberou nesta sessão
     error: string;
@@ -51,7 +53,8 @@ const s: NpcState = {
     autonomy: INITIAL_FLOOR10_WILL,
     willCommand: null,
     autonomousSpeech: '', autonomousSpeechId: 0,
-    deliberationPhase: 'off', deliberationGoal: '', deliberationCount: 0,
+    deliberationPhase: 'off', deliberationLoadText: '', deliberationLoadProgress: 0,
+    deliberationGoal: '', deliberationCount: 0,
     error: '', version: 0,
 };
 
