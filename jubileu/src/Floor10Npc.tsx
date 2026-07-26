@@ -16,7 +16,6 @@ import {
 } from './npc/floor10Will';
 import { deliberateFloor10 } from './npc/floor10SmallBrain';
 import type { Floor10Deliberation } from './npc/floor10Deliberation';
-import { cpuThreadCount } from './npc/wllamaEngine';
 
 // ── O CORPO DO NPC (procedural, v1) ────────────────────────────────────────
 // Um hóspede humanoide de pé na base do Andar 10. Por enquanto o corpo é

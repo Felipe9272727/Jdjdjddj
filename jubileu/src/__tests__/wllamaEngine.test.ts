@@ -70,7 +70,7 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
             temperature: 0.45,
             top_p: 0.85,
             top_k: 40,
-            cache_prompt: false,
+            cache_prompt: true,
             // Sem isto o 2B entra em loop e a fala reprovada dispara uma
             // segunda geração completa, dobrando a espera.
             penalty_repeat: 1.15,

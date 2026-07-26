@@ -2,19 +2,21 @@
 // A inferência roda no processador, dentro de um Worker, via wllama/llama.cpp.
 // O modelo fica em cache no navegador depois do primeiro download.
 //
-// O Qwen3.5-2B é o único LLM. RAG apenas fornece contexto; olhos e vontade
+// O Qwen2.5-3B é o cérebro de fala. RAG apenas fornece contexto; olhos e vontade
 // continuam sendo micro-IAs independentes, inclusive com suas respostas
-// factuais próprias. Não existe roteamento, fallback ou outro download de LLM.
+// factuais próprias. O MiniCPM delibera, mas nunca fala no lugar do 3B.
 import { npc, npcIssueWillCommand, npcSet } from './npcStore';
 import {
     buildFloor10SystemPrompt,
     floor10ReplyIssue,
     groundedModelHistory,
     guardedStreamingText,
+    isFloor10IdentityQuestion,
     type Floor10ReplyIssue,
 } from './floor10Canon';
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
-import { abortDeliberation, unloadSmallBrain } from './floor10SmallBrain';
+import { floor10ModelCoordinator } from './floor10ModelCoordinator';
+import { abortDeliberation } from './floor10SmallBrain';
 import {
     answerFloor10WillQuestion,
     hasFloor10PhysicalActionCue,
@@ -34,7 +36,7 @@ const HF = (repo: string, file: string) => `https://huggingface.co/${repo}/resol
 export const WLLAMA_PATHS = Object.freeze({ default: WASM_SINGLE });
 export const CPU_LOAD_CONFIG = Object.freeze({
     // 1024 quase estourava com um system prompt grande + histórico: na 2ª
-    // mensagem o contexto transbordava e o 2B parava de responder. 1536 dá
+    // mensagem o contexto transbordava e o modelo parava de responder. 1536 dá
     // folga real (prompt + histórico curto + geração cabem).
     n_ctx: 1536,
     // Tamanho do bloco de prefill. Sem isto o wllama não define n_batch e o
@@ -60,7 +62,7 @@ export const CHAT_COMPLETION_CONFIG = Object.freeze({
     temperature: 0.45,
     top_p: 0.85,
     top_k: 40,
-    // SEM penalidade o 2B entrava em loop ("meu nome é o mesmo que o seu quando
+    // SEM penalidade o modelo entrava em loop ("meu nome é o mesmo que o seu quando
     // você for perguntar…"). Pior: a fala degenerada era reprovada na validação
     // e disparava uma SEGUNDA geração completa — dobrando o tempo de espera.
     // Reproduzido no modelo real: 1.15 devolve fala coerente e no personagem.
@@ -68,10 +70,10 @@ export const CHAT_COMPLETION_CONFIG = Object.freeze({
     penalty_last_n: 256,
     // Faz o motor emitir as medições de velocidade durante o stream.
     timings_per_token: true,
-    // DESLIGADO de propósito: o cache híbrido de prompt do Qwen3.5 tem bug de
-    // REUSO de contexto (llama.cpp#20225 / Qwen3#1826) — na 2ª mensagem o
-    // estado cacheado corrompia e o modelo travava ("parou de responder").
-    cache_prompt: false,
+    // O bloqueio anterior era específico do cache híbrido do Qwen3.5. O modelo
+    // atual é Qwen2.5-Instruct puro, então pode reaproveitar o prefixo estável
+    // da persona e do histórico em vez de reler tudo a cada mensagem.
+    cache_prompt: true,
 });
 
 export type Floor10ModelDef = {
@@ -116,7 +118,7 @@ export function cpuThreadCount(
 
 export const STREAM_WATCHDOG = Object.freeze({
     // O PREFILL de um prompt grande (~1000+ tokens) na CPU do celular passava
-    // dos 150s antigos e o watchdog matava o 2B TRABALHANDO ("parou de
+    // dos 150s antigos e o watchdog matava o 3B TRABALHANDO ("parou de
     // responder"). Como só o mesmo cérebro é reiniciado (nunca troca de rota),
     // é seguro dar MUITO mais folga: melhor esperar do que falhar. O prefill
     // real termina bem antes desses tetos.
@@ -273,7 +275,7 @@ export async function consumeChatStream(
         // Assim que QUALQUER chunk chega (mesmo raciocínio oculto do Qwen3.5),
         // passamos a medir só INATIVIDADE entre chunks. Antes, enquanto a fala
         // visível não começava, o prazo absoluto de first-token corria mesmo com
-        // o modelo emitindo <think> — e o 2B "parava de responder" trabalhando.
+        // o modelo emitindo <think> — e o LLM "parava de responder" trabalhando.
         const stageRemaining = sawAnyChunk ? options.nextTokenMs : firstDeadline - now;
         if (stageRemaining <= 0) {
             options.onTimeout?.(stage);
@@ -331,7 +333,9 @@ async function teardownEngine(engine: WllamaInstance | null = currentEngine): Pr
     try { await engine?.exit?.(); } catch { /* worker já morreu */ }
 }
 
-export function initLLM(): Promise<WllamaInstance> {
+floor10ModelCoordinator.register('conversation', () => teardownEngine());
+
+function initConversationEngine(): Promise<WllamaInstance> {
     const model = FLOOR10_MODEL;
 
     if (currentEngine && activeModelUrl === model.url) return Promise.resolve(currentEngine);
@@ -351,11 +355,6 @@ export function initLLM(): Promise<WllamaInstance> {
                 await (navigator as unknown as { storage?: { persist?: () => Promise<boolean> } }).storage?.persist?.();
             }
         } catch { /* persistência é só uma otimização */ }
-
-        // UM MODELO POR VEZ. Carregar o cérebro pequeno antes deixava os dois
-        // residentes (2,6 GB numa aba de celular) e a inferência despencava por
-        // pressão de memória. Aqui ele SAI da memória para o 3B entrar inteiro.
-        await unloadSmallBrain();
 
         modulePromise ??= import(/* @vite-ignore */ WLLAMA_ESM) as unknown as Promise<WllamaModule>;
         const mod = await modulePromise;
@@ -395,27 +394,6 @@ export function initLLM(): Promise<WllamaInstance> {
                 loadProgress: 1,
             });
 
-            // AFERIÇÃO REAL DO APARELHO. Uma geração minúscula (prompt curto,
-            // poucos tokens) logo após o load, só para o llama.cpp devolver
-            // quantos tokens por segundo ESTE celular faz. Sem isto a lentidão
-            // só podia ser estimada, e estimativa já me levou a duas teorias
-            // erradas. Termina em segundos mesmo num aparelho lento.
-            void (async () => {
-                try {
-                    const probe = await candidate!.createChatCompletion({
-                        messages: [{ role: 'user', content: 'Oi' }],
-                        stream: false,
-                        max_tokens: 8,
-                        temperature: 0.1,
-                    });
-                    const timings = (probe as { timings?: ChatTimings })?.timings;
-                    const measured = formatTimings(timings ?? null);
-                    if (measured) {
-                        npcSet({ modelLabel: `${model.label} · CPU×${loadedThreads} · ${measured}` });
-                    }
-                } catch { /* aferição é diagnóstico, nunca bloqueia a conversa */ }
-            })();
-
             return candidate;
         } catch (error) {
             try { await candidate?.exit?.(); } catch { /* ok */ }
@@ -454,6 +432,18 @@ export function initLLM(): Promise<WllamaInstance> {
     return tracked;
 }
 
+/**
+ * O coordenador garante que o MiniCPM terminou de sair da memória antes de o
+ * Qwen carregar ou responder. Duas chamadas simultâneas entram na mesma fila.
+ */
+export function initLLM(): Promise<WllamaInstance> {
+    return floor10ModelCoordinator.activate('conversation', initConversationEngine);
+}
+
+export function unloadConversationBrain(): Promise<void> {
+    return floor10ModelCoordinator.release('conversation');
+}
+
 /** Manda a fala do jogador e transmite a resposta token a token pro npcStore. */
 export async function sendToNpc(userText: string): Promise<void> {
     const text = userText.trim();
@@ -467,7 +457,7 @@ export async function sendToNpc(userText: string): Promise<void> {
 
     // Perguntas factuais dos olhos e da vontade preservam as falas rápidas que
     // dão personalidade às micro-IAs. Um possível pedido corporal sempre vai
-    // ao 2B, pois só a decisão verbal dele pode virar ação na Utility AI.
+    // ao 3B, pois só a decisão verbal dele pode virar ação na Utility AI.
     const actionRequest = hasFloor10PhysicalActionCue(text);
     if (!actionRequest) {
         const willAnswer = answerFloor10WillQuestion(text, npc.autonomy);
@@ -508,6 +498,8 @@ export async function sendToNpc(userText: string): Promise<void> {
     const history = [...npc.history, { role: 'user' as const, content: text }];
     npcSet({
         history,
+        phase: 'loading',
+        loadText: 'liberando a CPU para a conversa…',
         streaming: '',
         speaking: false,
         error: '',
@@ -528,12 +520,12 @@ export async function sendToNpc(userText: string): Promise<void> {
         npc.autonomy,
     );
     // Memória curta de propósito: as últimas 2 trocas (4 mensagens). Histórico
-    // longo inchava o prefill e fazia o 2B "fixar" num tema. O essencial do
+    // longo inchava o prefill e fazia o 3B "fixar" num tema. O essencial do
     // personagem vive na persona, não no histórico.
     const groundedHistory = groundedModelHistory(history, 4);
 
-    // Toda tentativa usa o mesmo 2B. Se a validação detectar uma contradição,
-    // o próprio 2B recebe uma única chance de revisar; não há frase pronta nem
+    // Toda tentativa usa o mesmo 3B. Se a validação detectar uma contradição,
+    // o próprio 3B recebe uma única chance de revisar; não há frase pronta nem
     // outro modelo respondendo no lugar dele.
     let teardownAfterTimeout: Promise<void> | null = null;
     const firstTokenMs = loadedThreads > 1
@@ -542,7 +534,7 @@ export async function sendToNpc(userText: string): Promise<void> {
     const nextTokenMs = loadedThreads > 1
         ? STREAM_WATCHDOG.nextTokenMultiMs
         : STREAM_WATCHDOG.nextTokenSingleMs;
-    const generateWith2B = async (
+    const generateWithMainModel = async (
         prompt: string,
         sampling: Partial<{
             temperature: number;
@@ -587,16 +579,21 @@ export async function sendToNpc(userText: string): Promise<void> {
     try {
         let languageDecision = parseFloor10WillLanguageDecision(
             text,
-            visibleText(await generateWith2B(systemPrompt)),
+            visibleText(await generateWithMainModel(
+                systemPrompt,
+                isFloor10IdentityQuestion(text)
+                    ? { temperature: 0.3, top_p: 0.8, top_k: 30 }
+                    : {},
+            )),
         );
         let finalText = languageDecision.visibleReply;
         let replyIssue = floor10ReplyIssue(finalText, text, npc.perception);
         if (replyIssue) {
-            npcSet({ streaming: 'O 2B está revisando a consistência…' });
+            npcSet({ streaming: `O ${FLOOR10_MODEL.label} está revisando a consistência…` });
             const correctionPrompt = buildFloor10CorrectionPrompt(systemPrompt, replyIssue);
             languageDecision = parseFloor10WillLanguageDecision(
                 text,
-                visibleText(await generateWith2B(correctionPrompt, {
+                visibleText(await generateWithMainModel(correctionPrompt, {
                     temperature: 0.2,
                     top_p: 0.75,
                     top_k: 20,
@@ -619,7 +616,7 @@ export async function sendToNpc(userText: string): Promise<void> {
         if (teardownAfterTimeout) await teardownAfterTimeout;
         const timedOut = error instanceof GenerationTimeoutError;
 
-        // Se a fala começou, ela pertence ao 2B e pode ser preservada desde que
+        // Se a fala começou, ela pertence ao 3B e pode ser preservada desde que
         // não contradiga o cânone ou os sensores.
         if (timedOut && error.hadVisibleText && error.partialText) {
             const partialDecision = parseFloor10WillLanguageDecision(

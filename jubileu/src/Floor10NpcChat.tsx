@@ -9,7 +9,7 @@ import { unloadSmallBrain } from './npc/floor10SmallBrain';
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
 // Vive FORA do Canvas. Reage ao npcStore: mostra a dica quando o player chega
-// perto, abre o painel de chat (tecla E ou toque), carrega o único cérebro 2B
+// perto, abre o painel de chat (tecla E ou toque), carrega o cérebro de fala 3B
 // depois da primeira pergunta (com barra de progresso) e transmite a resposta.
 // Mobile-first (o Felipe joga no celular): input embaixo, alvos grandes.
 //

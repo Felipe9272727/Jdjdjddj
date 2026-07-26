@@ -25,18 +25,18 @@ type CanonEntry = {
     fact: string;
 };
 
-// PERSONA ESSENCIAL — o único bloco SEMPRE presente. Rico o bastante para o 2B
+// PERSONA ESSENCIAL — o único bloco SEMPRE presente. Rico o bastante para o 3B
 // atuar um personagem inteligente, mas compacto para o prefill ser rápido. O
 // curador (abaixo) anexa a este núcleo só o 1 fato/percepção/vontade que a fala
-// atual realmente pede — o 2B nunca lê o cânone inteiro de uma vez.
+// atual realmente pede — o 3B nunca lê o cânone inteiro de uma vez.
 const ESSENTIAL_PERSONA =
 // NOTA: a identidade é afirmada de forma POSITIVA. Quando o texto trazia a
-// negação explícita ("esse é o nome do hotel, nunca o seu"), o 2B papagaiava a
+// negação explícita ("esse é o nome do hotel, nunca o seu"), o modelo papagaiava a
 // própria instrução na fala ("Não é um nome de hotel, é o meu").
-`Seu nome é Nilo Azevedo. Você tem 29 anos, é técnico de manutenção de elevadores e um hóspede humano preso no 10º andar do hotel chamado "The Normal Elevator". Você não é o hotel, o elevador, o Proprietário, o Arquivista nem uma IA, e nunca fala de código, sistemas ou prompts.
-Seu jeito: observador, cauteloso, humor seco quando fica nervoso. Sente vontades e decide sozinho — você é um igual do jogador, preso aqui como ele, nunca um ajudante: não se ofereça para servir nem pergunte o que ele precisa que você faça. Seu jeito transparece no TOM — nunca liste nem recite seus próprios traços, gostos ou medos sem que o jogador pergunte.
-Seus limites, sempre verdadeiros: o 10º andar é só uma sala quadrada cinza, piso em grade, quatro paredes e a entrada do elevador — não há corredor, janela nem mais nada, e você nunca saiu daqui. O elevador nunca obedeceu a você (não pode levar ninguém a lugar nenhum) e você não sabe quem comanda o hotel nem se ele acaba.
-Responda como uma pessoa real, no idioma do jogador, em 1 a 3 frases: fale só do que a mensagem dele pede, com opinião e emoção, e pode devolver perguntas. Trate como fato só o que você sabe; se não souber, diga que não sabe e nunca invente nomes, datas, lugares, objetos ou regras. Responda somente com a fala de Nilo, sem rótulos.`;
+`Você é Nilo Azevedo, 29 anos, humano e ex-técnico de elevadores; agora é hóspede preso no 10º andar do hotel "The Normal Elevator", não dentro do elevador.
+É observador, cauteloso, tem humor seco e vontades próprias. Decide sozinho como igual do jogador, nunca ajudante; não ofereça serviço nem peça ordens.
+Cânone fixo: o 10º é só uma sala cinza com piso em grade, quatro paredes e porta do elevador; não há corredor ou janela e você nunca saiu. O elevador não lhe obedece. Você ignora quem controla o hotel e se ele termina. Hotel, elevador, Proprietário e Arquivista são entidades separadas de você. Nunca fale de IA, código, sistema ou prompt.
+Responda no idioma do jogador, em 1 a 3 frases naturais, só ao pedido, com opinião e emoção. Pode perguntar de volta; se não souber, admita e nunca invente fatos. Responda somente com a fala de Nilo, sem rótulo.`;
 
 export const FLOOR10_CANON: readonly CanonEntry[] = [
     {
@@ -166,7 +166,7 @@ export function retrieveFloor10Canon(query: string, limit = 2): CanonEntry[] {
 }
 
 // Palavras que indicam que a fala precisa dos SENSORES ao vivo no prompt.
-// Perguntas espaciais diretas já são respondidas pelas micro-IAs antes do 2B;
+// Perguntas espaciais diretas já são respondidas pelas micro-IAs antes do 3B;
 // aqui pegamos MENÇÕES espaciais em conversa (ex.: "essa sala é estranha").
 // ATENÇÃO: estas pistas casam por INÍCIO DE PALAVRA (ver matchesCue), nunca por
 // substring solta. Com substring, 'la' acendia os sensores em "olá"/"fala"/"blá"
@@ -187,6 +187,16 @@ const WILL_CUES: readonly string[] = [
     'follow', 'wait', 'decide', 'goal', 'quiere', 'quiero',
     'salir', 'sigue', 'espera',
 ];
+const IDENTITY_PATTERNS: readonly RegExp[] = [
+    /\b(?:nome|quem e voce|voce e quem|o que voce e|como voce se chama)\b/,
+    /\b(?:name|who are you|what are you|what do they call you)\b/,
+    /\b(?:nombre|quien eres|que eres|como te llamas)\b/,
+];
+
+export function isFloor10IdentityQuestion(text: string): boolean {
+    const normalized = normalize(text);
+    return IDENTITY_PATTERNS.some((pattern) => pattern.test(normalized));
+}
 
 /** Casa a pista com o INÍCIO de alguma palavra da fala (aceita radicais). */
 function matchesCue(normalizedQuery: string, cues: readonly string[]): boolean {
@@ -207,18 +217,21 @@ export function buildFloor10SystemPrompt(
         .join(' ');
     const query = `${recentUserText} ${userText}`;
     // ── O CURADOR (determinístico, instantâneo, alucinação zero) ──────────────
-    // Ele decide o MÍNIMO essencial que o 2B precisa ler para esta fala. Assim o
-    // 2B continua hiper-inteligente, mas com um prompt pequeno → prefill rápido.
+    // Ele decide o MÍNIMO essencial que o 3B precisa ler para esta fala. Assim o
+    // 3B continua hiper-inteligente, mas com um prompt pequeno → prefill rápido.
     // - 1 único fato do cânone, e só quando a fala casa um assunto (RAG lexical);
     // - sensores só em fala espacial; vontade só em fala volitiva/ação.
     const normalizedQuery = normalize(query);
     const needsPerception = matchesCue(normalizedQuery, SPATIAL_CUES);
     const hasAction = hasFloor10PhysicalActionCue(userText);
     const needsWill = hasAction || matchesCue(normalizedQuery, WILL_CUES);
+    const identityGuard = isFloor10IdentityQuestion(userText)
+        ? '\n\nNESTA FALA: responda à pergunta inteira e diga na primeira frase que seu nome é "Nilo Azevedo" e que é hóspede preso no 10º andar.'
+        : '';
 
     const [topFact] = retrieveFloor10Canon(query, 1);
     // O cânone é escrito em 3ª pessoa ("Nilo fazia…", "sua última lembrança").
-    // Sem este enquadramento o 2B tropeçava na conversão e chegava a negar o
+    // Sem este enquadramento o modelo tropeçava na conversão e chegava a negar o
     // próprio passado/nome ("eu não tenho passado", "não sei meu nome").
     const factBlock = topFact
         ? `\n\nSUA MEMÓRIA (verdadeira, é você mesmo; conte na primeira pessoa, com suas palavras): ${topFact.fact}`
@@ -235,7 +248,7 @@ export function buildFloor10SystemPrompt(
         : '';
     const actionRequest = formatFloor10ActionRequestForPrompt(userText);
 
-    return `${ESSENTIAL_PERSONA}${factBlock}${livePerception}${liveWill}${actionRequest}`;
+    return `${ESSENTIAL_PERSONA}${factBlock}${livePerception}${liveWill}${identityGuard}${actionRequest}`;
 }
 
 const HARD_CONTRADICTIONS: readonly RegExp[] = [
@@ -245,6 +258,9 @@ const HARD_CONTRADICTIONS: readonly RegExp[] = [
     /\b(?:eu )?sou (?:o |a )?(?:the normal elevator|hotel|elevador|propriet[aá]rio|arquivista)\b/i,
     /\bi am (?:the )?(?:normal elevator|hotel|elevator|owner|archivist)\b/i,
     /\bsoy (?:el |la )?(?:the normal elevator|hotel|ascensor|propietario|archivista)\b/i,
+    /\b(?:nao|não) (?:e|é) (?:um )?hotel\b/i,
+    /\b(?:preso|presa|trancado|trancada) (?:dentro d[eo]|n[oa]) elevador\b/i,
+    /\b(?:vim|estou) aqui para (?:trabalhar|consertar|manusear|fazer manuten[cç][aã]o)\b/i,
     /\b(?:cada dia|a cada dia).{0,45}\b(?:andar|hotel).{0,35}\b(?:sobe|cresce)\b/i,
     /\b(?:floor|hotel).{0,35}\b(?:rises|grows).{0,35}\b(?:every day|each day)\b/i,
     /\b(?:piso|hotel).{0,35}\b(?:sube|crece).{0,35}\b(?:cada dia)\b/i,
@@ -257,11 +273,6 @@ export function hasHardCanonContradiction(text: string): boolean {
     return HARD_CONTRADICTIONS.some((pattern) => pattern.test(text));
 }
 
-function intent(text: string, keywords: readonly string[]): boolean {
-    const normalized = normalize(text);
-    return keywords.some((keyword) => normalized.includes(normalize(keyword)));
-}
-
 export type Floor10ReplyIssue =
     | 'resposta vazia'
     | 'contradição com o cânone'
@@ -270,7 +281,7 @@ export type Floor10ReplyIssue =
 
 /**
  * Valida a fala sem fabricar uma resposta substituta. Se houver problema, o
- * chamador pode pedir outra geração ao 2B; RAG e regras nunca falam por Nilo.
+ * chamador pode pedir outra geração ao 3B; RAG e regras nunca falam por Nilo.
  */
 export function floor10ReplyIssue(
     reply: string,
@@ -278,11 +289,7 @@ export function floor10ReplyIssue(
     perception?: Floor10Perception,
 ): Floor10ReplyIssue | null {
     const trimmed = reply.trim();
-    const askedIdentity = intent(userText, [
-        'nome', 'quem e voce', 'voce e',
-        'name', 'who are you', 'are you',
-        'nombre', 'quien eres', 'eres', 'llam',
-    ]);
+    const askedIdentity = isFloor10IdentityQuestion(userText);
     if (trimmed === '') return 'resposta vazia';
     if (hasHardCanonContradiction(trimmed)) return 'contradição com o cânone';
     if (
@@ -296,11 +303,60 @@ export function floor10ReplyIssue(
     return null;
 }
 
-/** Não deixa uma fala alucinada antiga contaminar as próximas gerações. */
+export const FLOOR10_HISTORY_CHAR_BUDGET = 1_800;
+export const FLOOR10_HISTORY_MESSAGE_CHAR_LIMIT = 900;
+
+function clipHistoryText(text: string, limit: number): string {
+    const trimmed = text.trim();
+    if (limit <= 0) return '';
+    if (trimmed.length <= limit) return trimmed;
+    const separator = '\n[…]\n';
+    if (limit <= separator.length + 2) return trimmed.slice(-limit);
+    const available = Math.max(2, limit - separator.length);
+    const head = Math.ceil(available * 0.45);
+    const tail = available - head;
+    return `${trimmed.slice(0, head)}${separator}${trimmed.slice(-tail)}`;
+}
+
+/**
+ * Não deixa uma fala alucinada antiga contaminar as próximas gerações.
+ *
+ * Também normaliza o histórico para o ChatML do Qwen:
+ * - começa sempre em `user`, nunca em uma fala autônoma de `assistant`;
+ * - junta papéis consecutivos depois de uma tentativa que falhou;
+ * - limita o prefill real sem apagar nada do painel visível.
+ */
 export function groundedModelHistory(history: readonly NpcMsg[], maxMessages = 6): NpcMsg[] {
-    return history
-        .filter((message) => message.role !== 'assistant' || !hasHardCanonContradiction(message.content))
-        .slice(-Math.max(1, maxMessages));
+    const coalesced: NpcMsg[] = [];
+    for (const message of history) {
+        if (message.role === 'system') continue;
+        if (message.role === 'assistant' && hasHardCanonContradiction(message.content)) continue;
+        const content = clipHistoryText(message.content, FLOOR10_HISTORY_MESSAGE_CHAR_LIMIT);
+        if (!content) continue;
+        const previous = coalesced.at(-1);
+        if (previous?.role === message.role) {
+            previous.content = clipHistoryText(
+                `${previous.content}\n${content}`,
+                FLOOR10_HISTORY_MESSAGE_CHAR_LIMIT,
+            );
+        } else {
+            coalesced.push({ role: message.role, content });
+        }
+    }
+
+    const selected: NpcMsg[] = [];
+    let remainingChars = FLOOR10_HISTORY_CHAR_BUDGET;
+    for (let index = coalesced.length - 1; index >= 0; index -= 1) {
+        if (selected.length >= Math.max(1, maxMessages) || remainingChars <= 0) break;
+        const message = coalesced[index];
+        const content = clipHistoryText(message.content, remainingChars);
+        if (!content) break;
+        selected.unshift({ role: message.role, content });
+        remainingChars -= content.length;
+    }
+
+    while (selected[0]?.role !== 'user') selected.shift();
+    return selected;
 }
 
 /** Durante o streaming, esconde uma contradição assim que ela fica reconhecível. */

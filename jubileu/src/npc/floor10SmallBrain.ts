@@ -16,6 +16,7 @@ import {
 } from './floor10Deliberation';
 import type { Floor10Perception } from './floor10Perception';
 import type { Floor10WillDrives } from './floor10Will';
+import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { npc, npcSet } from './npcStore';
 
 const WLLAMA_V = '3.5.1';
@@ -55,6 +56,7 @@ type SmallInstance = {
 type SmallCtor = new (paths: Record<string, string>, cfg?: Record<string, unknown>) => SmallInstance;
 
 let enginePromise: Promise<SmallInstance | null> | null = null;
+let disposePromise: Promise<void> | null = null;
 let inFlight = false;
 let currentAbort: AbortController | null = null;
 
@@ -84,15 +86,38 @@ export function abortDeliberation(): void {
  * O arquivo continua em cache no navegador: recarregar depois é rápido e não
  * baixa nada de novo.
  */
-export async function unloadSmallBrain(): Promise<void> {
+async function disposeSmallBrainEngine(): Promise<void> {
     abortDeliberation();
+    if (disposePromise) {
+        await disposePromise;
+        return;
+    }
+
     const pending = enginePromise;
     enginePromise = null;
     npcSet({ deliberationPhase: 'off' });
+
+    const task = (async () => {
+        try {
+            const engine = await pending;
+            await engine?.exit?.();
+        } catch { /* já morreu; o que importa é a memória voltar */ }
+    })();
+    disposePromise = task;
     try {
-        const engine = await pending;
-        await engine?.exit?.();
-    } catch { /* já morreu; o que importa é a memória voltar */ }
+        await task;
+    } finally {
+        if (disposePromise === task) disposePromise = null;
+    }
+}
+
+floor10ModelCoordinator.register('deliberation', disposeSmallBrainEngine);
+
+/** Pede ao coordenador para retirar o cérebro pequeno da memória. */
+export function unloadSmallBrain(): Promise<void> {
+    abortDeliberation();
+    npcSet({ deliberationPhase: 'off' });
+    return floor10ModelCoordinator.release('deliberation');
 }
 
 /** Texto da resposta, tolerando os formatos que o wllama já devolveu. */
@@ -138,6 +163,10 @@ export type DeliberateInput = {
     threads?: number;
 };
 
+function conversationHasPriority(): boolean {
+    return npc.open || npc.phase === 'thinking' || npc.phase === 'loading';
+}
+
 /**
  * Uma rodada de deliberação. Devolve null se o cérebro pequeno não estiver
  * disponível, se já houver uma rodada em curso ou se ele não assinar escolha.
@@ -145,14 +174,20 @@ export type DeliberateInput = {
 export async function deliberateFloor10(
     input: DeliberateInput,
 ): Promise<Floor10Deliberation | null> {
-    if (inFlight) return null;
+    if (inFlight || conversationHasPriority()) return null;
     inFlight = true;
     try {
-        const engine = await ensureSmallEngine(input.threads ?? 1);
-        if (!engine) return null;
+        const engine = await floor10ModelCoordinator.activate(
+            'deliberation',
+            () => ensureSmallEngine(input.threads ?? 1),
+        );
+        if (!engine) {
+            await floor10ModelCoordinator.release('deliberation');
+            return null;
+        }
         // Se o jogador começou a falar enquanto o modelo carregava, desiste
         // agora: a conversa vem primeiro.
-        if (npc.open || npc.phase === 'thinking') return null;
+        if (conversationHasPriority()) return null;
         npcSet({ deliberationPhase: 'thinking' });
         currentAbort = new AbortController();
         const response = await engine.createChatCompletion({
@@ -185,6 +220,8 @@ export async function deliberateFloor10(
 
 /** Só para os testes: devolve o módulo ao estado inicial. */
 export function resetSmallBrainForTests(): void {
+    abortDeliberation();
     enginePromise = null;
+    disposePromise = null;
     inFlight = false;
 }
