@@ -47,14 +47,21 @@ const Floor2Preview = lazy(() => import('./Floor2Preview.tsx'));
 // build publicado emite um único index.html — o floor10.html só existe no dev,
 // e no celular (que é onde o problema aparece) a página não seria alcançável.
 const Floor10Bench = lazy(() => import('./Floor10Bench.tsx'));
+// `?mente` abre a sala da mente: o Andar 10 de cima, para observar o cérebro
+// pequeno pensar. Em jogo a deliberação é invisível de propósito, então é a
+// única forma de flagrar uma cadeia de pensamento circular.
+const Floor10Mente = lazy(() => import('./Floor10Mente.tsx'));
 const search = typeof window !== 'undefined' ? window.location.search : '';
 const isF3Preview = search.includes('f3preview');
 const isF2Preview = search.includes('f2preview');
 const isBench = search.includes('bancada');
+const isMente = search.includes('mente');
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {isBench ? (
+    {isMente ? (
+      <Suspense fallback={null}><Floor10Mente /></Suspense>
+    ) : isBench ? (
       <Suspense fallback={null}><Floor10Bench /></Suspense>
     ) : isF2Preview ? (
       <Suspense fallback={null}><Floor2Preview /></Suspense>

@@ -125,16 +125,19 @@ export function prepareFloor10SystemPrompt(prompt: string): string {
 /**
  * Sem isolamento, SharedArrayBuffer/pthreads não estão disponíveis.
  *
- * Antes usávamos metade dos núcleos, teto 4 — a receita padrão do wllama. Num
- * celular de 8 núcleos isso pedia 4 threads e deixava metade da máquina parada
- * enquanto o jogador esperava um token por segundo. Passou para ~3/4 dos
- * núcleos, teto 6: sobra folga para o render e para o MiniCPM, sem desperdiçar
- * o resto. O teto existe porque acima disso entram os núcleos de eficiência,
- * que só atrasam a thread mais lenta do lote.
+ * Foram três regras até esta, e cada mudança veio de MEDIÇÃO, não de teoria:
+ * metade dos núcleos (teto 4) → ~3/4 (teto 6) → todos (teto 8).
  *
- * getNumThreads() confirma o total realmente criado pelo runtime.
+ * Eu tinha guardado folga para o render e para o MiniCPM, e supus que os
+ * núcleos de eficiência de um celular big.LITTLE atrapalhariam. O Felipe mediu
+ * no aparelho dele, de 1 a 8, e 8 ganhou — a folga que eu reservava só estava
+ * deixando o jogador esperando. Quem tem o aparelho mede melhor que quem
+ * teoriza sobre ele.
+ *
+ * getNumThreads() confirma o total realmente criado pelo runtime, e o seletor
+ * da bancada permite refazer essa medição em qualquer aparelho.
  */
-export const MAX_SPEECH_THREADS = 6;
+export const MAX_SPEECH_THREADS = 8;
 
 /**
  * Número de threads escolhido À MÃO e guardado no aparelho.
@@ -179,7 +182,7 @@ export function cpuThreadCount(
     const detected = Number.isFinite(hardwareConcurrency)
         ? Math.floor(hardwareConcurrency)
         : 1;
-    return Math.max(1, Math.min(MAX_SPEECH_THREADS, Math.floor((detected * 3) / 4)));
+    return Math.max(1, Math.min(MAX_SPEECH_THREADS, detected));
 }
 
 /**

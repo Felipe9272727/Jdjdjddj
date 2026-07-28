@@ -21,6 +21,7 @@ import type { Floor10Perception } from './floor10Perception';
 import type { Floor10WillDrives } from './floor10Will';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { npc, npcSet } from './npcStore';
+import { cpuThreadCount } from './wllamaEngine';
 
 const WLLAMA_V = '3.5.1';
 // Mesmos overrides do cérebro de fala. Sem eles o cérebro PEQUENO era
@@ -38,15 +39,26 @@ export const SMALL_BRAIN_MODEL = Object.freeze({
         ?? 'https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
 });
 
-/** Dois núcleos bastam para a escolha curta e deixam CPU livre para o jogo. */
-export const SMALL_BRAIN_THREADS = 2;
+/**
+ * Metade das threads da fala, no mínimo 2.
+ *
+ * Estava fixo em 2, escolhido quando eu achava que a escolha era curta demais
+ * para importar. Observado na sala da mente: com 2 threads o prefill sozinho
+ * passou dos 60s e a rodada morreu no teto SEM PRODUZIR UM TOKEN — o Nilo
+ * ficaria sem livre-arbítrio e ninguém veria por quê. Metade, e não tudo,
+ * porque isto pensa enquanto o jogador anda pelo andar: levar a CPU inteira
+ * engasgaria o render.
+ */
+export function smallBrainThreads(): number {
+    return Math.max(2, Math.floor(cpuThreadCount() / 2));
+}
 
+// n_threads é resolvido na CARGA, não aqui: depende do aparelho.
 export const SMALL_BRAIN_LOAD_CONFIG = Object.freeze({
     // O prompt estruturado usa poucas centenas de tokens. 4096 só reservava KV
     // desnecessário no celular e tornava cada reativação mais cara.
     n_ctx: 1024,
     n_batch: 256,
-    n_threads: SMALL_BRAIN_THREADS,
     n_gpu_layers: 0,
     jinja: true,
     reasoning: false,
@@ -240,6 +252,7 @@ function ensureSmallEngine(): Promise<SmallInstance | null> {
             loadingEngine = engine;
             const loadTask = engine.loadModelFromUrl(SMALL_BRAIN_MODEL.url, {
                 ...SMALL_BRAIN_LOAD_CONFIG,
+                n_threads: smallBrainThreads(),
                 // O wllama usa `signal` no download; raceWithAbort também cobre
                 // a abertura do cache e a inicialização do Worker/WASM.
                 signal: controller.signal,
@@ -399,6 +412,100 @@ export async function deliberateFloor10(
         inFlight = false;
         currentAbort = null;
     }
+}
+
+export type PensamentoAoVivo = {
+    raw: string;
+    decided: Floor10Deliberation | null;
+    loop: boolean;
+    ms: number;
+    tokens: number;
+    erro: string | null;
+};
+
+/**
+ * Deliberação OBSERVÁVEL, para a sala da mente.
+ *
+ * Em jogo a saída é presa por gramática e não transmitida: só interessa a meta.
+ * Isso esconde exatamente aquilo que precisamos vigiar — se o modelo pequeno
+ * entra em cadeia de pensamento circular. Aqui dá para desligar a gramática e
+ * ver o texto CRU nascendo token a token, que é onde um loop aparece.
+ *
+ * Não substitui deliberateFloor10: é instrumento de observação, não o caminho
+ * que o jogo usa.
+ */
+export async function deliberarObservando(
+    input: DeliberateInput,
+    opts: {
+        useGrammar: boolean;
+        maxTokens: number;
+        onToken: (parcial: string) => void;
+        /**
+         * Teto próprio da observação. O do jogo (60s) existe para uma rodada
+         * PRESA não matar o livre-arbítrio; aqui ele atrapalhava o oposto —
+         * cortava antes do primeiro token e não sobrava raciocínio nenhum para
+         * olhar, que é o motivo de a sala existir.
+         */
+        timeoutMs?: number;
+    },
+): Promise<PensamentoAoVivo> {
+    const comecou = Date.now();
+    const engine = await floor10ModelCoordinator.activate('deliberation', ensureSmallEngine);
+    if (!engine) {
+        return {
+            raw: '', decided: null, loop: false, ms: Date.now() - comecou, tokens: 0,
+            erro: npc.deliberationLoadText || `não foi possível carregar ${SMALL_BRAIN_MODEL.label}`,
+        };
+    }
+    npcSet({ deliberationPhase: 'thinking' });
+    const abort = new AbortController();
+    const teto = opts.timeoutMs ?? DELIBERATION_TIMEOUT_MS;
+    const relogio = globalThis.setTimeout(() => abort.abort(), teto);
+    let raw = '';
+    let tokens = 0;
+    try {
+        const stream = await engine.createChatCompletion({
+            messages: [
+                { role: 'system', content: DELIBERATION_SYSTEM_PROMPT },
+                {
+                    role: 'user',
+                    content: buildDeliberationPrompt(input.perception, input.drives, input.memory),
+                },
+            ],
+            ...SMALL_BRAIN_COMPLETION_CONFIG,
+            stream: true,
+            max_tokens: opts.maxTokens,
+            // Sem gramática o modelo fica livre — é assim que se vê um loop.
+            ...(opts.useGrammar ? {} : { grammar: undefined }),
+            abortSignal: abort.signal,
+        }) as AsyncIterable<unknown>;
+        for await (const chunk of stream) {
+            const c = chunk as {
+                choices?: Array<{ delta?: { content?: string | null } }>;
+                piece?: string;
+            };
+            const pedaco = c.choices?.[0]?.delta?.content ?? c.piece ?? '';
+            if (pedaco) { raw += pedaco; tokens += 1; opts.onToken(raw); }
+        }
+    } catch (e) {
+        return {
+            raw, decided: null, loop: looksLikeLoop(raw), ms: Date.now() - comecou, tokens,
+            erro: abort.signal.aborted
+                ? `cortado pelo teto de ${teto / 1000}s`
+                : String(e).slice(0, 160),
+        };
+    } finally {
+        globalThis.clearTimeout(relogio);
+        npcSet({ deliberationPhase: 'off' });
+    }
+    return {
+        raw,
+        decided: parseDeliberation(raw, input.now),
+        loop: looksLikeLoop(raw),
+        ms: Date.now() - comecou,
+        tokens,
+        erro: null,
+    };
 }
 
 /** Só para os testes: devolve o módulo ao estado inicial. */

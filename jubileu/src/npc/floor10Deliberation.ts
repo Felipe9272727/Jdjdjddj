@@ -129,6 +129,22 @@ export function parseDeliberation(raw: string, at = 0): Floor10Deliberation | nu
             };
         }
     }
+    // Sem o prefixo "CHOICE:". Visto na sala da mente: solto da gramática, o
+    // modelo respondeu apenas "talk-player" — uma decisão perfeitamente boa que
+    // era descartada por causa do formato. Aceitar o rótulo puro não afrouxa
+    // nada, porque ele ainda precisa ser um dos alvos conhecidos; só evita
+    // perder a escolha quando o modelo é econômico na formatação.
+    const solto = raw.toLowerCase().match(/[a-z]+(?:-[a-z]+)+/g) ?? [];
+    for (let index = solto.length - 1; index >= 0; index -= 1) {
+        const candidate = solto[index];
+        if (candidate && (DELIBERATION_GOALS as readonly string[]).includes(candidate)) {
+            return {
+                goal: candidate as DeliberationGoal,
+                rationale: extractRationale(raw),
+                at,
+            };
+        }
+    }
     return null;
 }
 

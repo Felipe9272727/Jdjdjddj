@@ -169,3 +169,20 @@ describe('floor10Deliberation — travas contra o loop do modelo pequeno', () =>
         expect(DELIBERATION_TIMEOUT_MS).toBeLessThanOrEqual(120_000);
     });
 });
+
+describe('floor10Deliberation — decisão sem o prefixo CHOICE', () => {
+    it('aceita o rótulo puro (caso REAL visto na sala da mente)', () => {
+        // Solto da gramática, o modelo respondeu só isto.
+        expect(parseDeliberation('talk-player', 5)?.goal).toBe('talk-player');
+        expect(parseDeliberation('\n inspect-elevator \n')?.goal).toBe('inspect-elevator');
+    });
+
+    it('continua preferindo o CHOICE quando ele existe', () => {
+        expect(parseDeliberation('wander ... CHOICE: idle')?.goal).toBe('idle');
+    });
+
+    it('não inventa meta a partir de palavra hifenizada qualquer', () => {
+        expect(parseDeliberation('i feel half-awake and self-aware')).toBeNull();
+        expect(parseDeliberation('sem nada aqui')).toBeNull();
+    });
+});

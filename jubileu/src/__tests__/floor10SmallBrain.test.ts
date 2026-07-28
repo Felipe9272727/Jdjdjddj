@@ -3,10 +3,11 @@ import {
     SMALL_BRAIN_COMPLETION_CONFIG,
     SMALL_BRAIN_LOAD_CONFIG,
     SMALL_BRAIN_MODEL,
-    SMALL_BRAIN_THREADS,
+    smallBrainThreads,
     raceWithAbort,
     readCompletionText,
 } from '../npc/floor10SmallBrain';
+import { cpuThreadCount } from '../npc/wllamaEngine';
 import { Floor10WillBrain } from '../npc/floor10Will';
 import { perceiveFloor10 } from '../npc/floor10Perception';
 import { parseDeliberation } from '../npc/floor10Deliberation';
@@ -23,10 +24,15 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
         expect(SMALL_BRAIN_MODEL.url).toMatch(/MiniCPM5-1B.*\.gguf$/i);
     });
 
-    it('usa dois núcleos e um orçamento curto para a escolha estruturada', () => {
+    it('divide a CPU com a fala em vez de ficar preso em dois núcleos', () => {
         expect(SMALL_BRAIN_COMPLETION_CONFIG.max_tokens).toBe(24);
-        expect(SMALL_BRAIN_THREADS).toBe(2);
-        expect(SMALL_BRAIN_LOAD_CONFIG.n_threads).toBe(2);
+        // Nunca menos que 2 (com 2 threads o prefill sozinho estourou o teto de
+        // 60s na sala da mente), nem mais que metade — ele pensa enquanto o
+        // jogador anda, e levar a CPU inteira engasgaria o render.
+        expect(smallBrainThreads()).toBeGreaterThanOrEqual(2);
+        expect(smallBrainThreads()).toBeLessThanOrEqual(
+            Math.max(2, Math.floor(cpuThreadCount() / 2)),
+        );
         expect(SMALL_BRAIN_LOAD_CONFIG.n_ctx).toBe(1024);
         expect(SMALL_BRAIN_LOAD_CONFIG.n_batch).toBe(256);
         expect(SMALL_BRAIN_LOAD_CONFIG.n_gpu_layers).toBe(0);
