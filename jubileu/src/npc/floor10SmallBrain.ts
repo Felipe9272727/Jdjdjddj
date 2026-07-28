@@ -23,13 +23,19 @@ import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { npc, npcSet } from './npcStore';
 
 const WLLAMA_V = '3.5.1';
-const CDN = `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_V}/esm`;
+// Mesmos overrides do cérebro de fala. Sem eles o cérebro PEQUENO era
+// impossível de testar fora da internet aberta: runtime e modelo estavam
+// fixos, e a deliberação simplesmente nunca rodava numa caixa fechada — o que
+// escondia justamente os defeitos de loop e de travamento que ele pode ter.
+const CDN = (globalThis as { __wllamaCdn?: string }).__wllamaCdn
+    ?? `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_V}/esm`;
 const WLLAMA_ESM = `${CDN}/index.js`;
 const WASM_SINGLE = `${CDN}/wasm/wllama.wasm`;
 
 export const SMALL_BRAIN_MODEL = Object.freeze({
     label: 'MiniCPM5-1B',
-    url: 'https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
+    url: (globalThis as { __smallBrainModelUrl?: string }).__smallBrainModelUrl
+        ?? 'https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
 });
 
 /** Dois núcleos bastam para a escolha curta e deixam CPU livre para o jogo. */

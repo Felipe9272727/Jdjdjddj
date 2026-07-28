@@ -162,7 +162,10 @@ describe('floor10Deliberation — travas contra o loop do modelo pequeno', () =>
     });
 
     it('tem teto de tempo por rodada, senão uma rodada presa mata o livre-arbítrio', () => {
-        expect(DELIBERATION_TIMEOUT_MS).toBeGreaterThan(0);
-        expect(DELIBERATION_TIMEOUT_MS).toBeLessThanOrEqual(60_000);
+        // Folgado de propósito: medido no navegador, 20s reprovava deliberação
+        // SAUDÁVEL e o Nilo perdia o livre-arbítrio calado. O teto é contra
+        // travamento, não contra lentidão — ninguém espera por ele.
+        expect(DELIBERATION_TIMEOUT_MS).toBeGreaterThanOrEqual(45_000);
+        expect(DELIBERATION_TIMEOUT_MS).toBeLessThanOrEqual(120_000);
     });
 });

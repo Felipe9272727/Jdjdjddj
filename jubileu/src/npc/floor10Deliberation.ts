@@ -194,8 +194,15 @@ export function deliberationBonus(
  * Teto de tempo para UMA deliberação. Sem ele, um worker preso deixava a rodada
  * pendente para sempre — e como a trava `inFlight` só é liberada no `finally`,
  * o livre-arbítrio morria calado pelo resto da sessão.
+ *
+ * 20s era APERTADO DEMAIS: rodando de verdade no navegador, uma deliberação
+ * honesta levou mais que isso só para ler o estado do mundo, e o teto matava
+ * TODAS elas — o Nilo perderia o livre-arbítrio em silêncio, que é pior do que
+ * o defeito original. Este número não existe para deixar a deliberação rápida
+ * (ela roda em segundo plano e nunca faz o jogador esperar), e sim para que uma
+ * rodada PRESA acabe algum dia. Um minuto cumpre isso com folga.
  */
-export const DELIBERATION_TIMEOUT_MS = 20_000;
+export const DELIBERATION_TIMEOUT_MS = 60_000;
 
 /** A partir daqui paramos de insistir depressa e passamos a espaçar. */
 export const DELIBERATION_MAX_FAST_RETRIES = 3;
