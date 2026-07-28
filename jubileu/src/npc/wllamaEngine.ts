@@ -136,12 +136,43 @@ export function prepareFloor10SystemPrompt(prompt: string): string {
  */
 export const MAX_SPEECH_THREADS = 6;
 
+/**
+ * Número de threads escolhido À MÃO e guardado no aparelho.
+ *
+ * Existe porque a regra automática não tem como acertar sozinha: num celular
+ * big.LITTLE o llama.cpp divide o trabalho IGUALMENTE entre as threads, então a
+ * mais lenta segura cada token — e colocar núcleos de eficiência no lote pode
+ * DEIXAR MAIS LENTO. Medido: nesta caixa (núcleos iguais) 2→4 threads dobrou a
+ * velocidade; no celular do Felipe 4→6 não mudou nada. Sem saber quantos
+ * núcleos rápidos o aparelho tem — e o navegador não conta —, o único caminho
+ * honesto é medir no próprio aparelho e fixar o vencedor.
+ */
+export const SAVED_THREADS_KEY = 'floor10-threads';
+
+export function readSavedThreads(): number | null {
+    try {
+        const raw = globalThis.localStorage?.getItem(SAVED_THREADS_KEY);
+        const n = raw ? Number(raw) : Number.NaN;
+        return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+    } catch {
+        return null;
+    }
+}
+
+export function saveThreads(threads: number | null): void {
+    try {
+        if (threads === null) globalThis.localStorage?.removeItem(SAVED_THREADS_KEY);
+        else globalThis.localStorage?.setItem(SAVED_THREADS_KEY, String(Math.max(1, threads)));
+    } catch { /* sem localStorage: segue com a regra automática */ }
+}
+
 export function cpuThreadCount(
     isolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated,
     hardwareConcurrency = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1,
 ): number {
-    const forced = (globalThis as { __npcThreads?: number }).__npcThreads;
-    if (typeof forced === 'number' && Number.isFinite(forced)) {
+    const forced = (globalThis as { __npcThreads?: number }).__npcThreads
+        ?? readSavedThreads();
+    if (typeof forced === 'number' && Number.isFinite(forced) && forced > 0) {
         return Math.max(1, Math.floor(forced));
     }
     if (!isolated) return 1;

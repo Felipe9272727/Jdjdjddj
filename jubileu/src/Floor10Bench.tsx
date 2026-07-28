@@ -15,7 +15,10 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { npc, npcSubscribe, npcReset } from './npc/npcStore';
-import { initLLM, sendToNpc, FLOOR10_MODEL, cpuThreadCount, speechGpuLayerCount } from './npc/wllamaEngine';
+import {
+    initLLM, sendToNpc, FLOOR10_MODEL, cpuThreadCount, speechGpuLayerCount,
+    readSavedThreads, saveThreads,
+} from './npc/wllamaEngine';
 import {
     formatGB, planModelCache, probeModelBytes, readStorageEstimate,
 } from './npc/floor10ModelStorage';
@@ -215,6 +218,45 @@ const Bancada: React.FC = () => {
                         borderRadius: 6, padding: 8, font: 'inherit',
                     }}
                 />
+            </div>
+
+            {/* O NÚMERO QUE SÓ O APARELHO SABE. Em celular big.LITTLE, mais
+                threads pode ser mais LENTO: o llama.cpp reparte o trabalho por
+                igual e a thread no núcleo fraco segura cada token. Mede aqui,
+                do mais alto para o mais baixo, e fixa o vencedor. */}
+            <div style={box}>
+                <b>Threads (mede e escolhe)</b>
+                <div style={{ color: '#999', margin: '4px 0 8px', fontSize: 13 }}>
+                    Troca, recarrega, carrega o modelo e compara o <b>fala tok/s</b> da
+                    etiqueta. Mais threads nem sempre é mais rápido.
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {[1, 2, 3, 4, 6, 8].map((n) => (
+                        <button
+                            key={n}
+                            type="button"
+                            style={{
+                                ...btn, marginRight: 0, padding: '8px 14px',
+                                background: readSavedThreads() === n ? '#2d6cdf' : '#333',
+                            }}
+                            onClick={() => { saveThreads(n); location.reload(); }}
+                        >
+                            {n}
+                        </button>
+                    ))}
+                    <button
+                        type="button"
+                        style={{ ...btn, marginRight: 0, padding: '8px 14px', background: '#333' }}
+                        onClick={() => { saveThreads(null); location.reload(); }}
+                    >
+                        automático
+                    </button>
+                </div>
+                <div style={{ marginTop: 8 }}>
+                    em uso agora: <b style={{ color: '#ffd479' }}>
+                        {readSavedThreads() ?? 'automático'}
+                    </b>
+                </div>
             </div>
 
             <div style={box}>
