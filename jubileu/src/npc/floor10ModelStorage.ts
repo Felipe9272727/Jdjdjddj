@@ -53,35 +53,6 @@ export function planModelCache(
     };
 }
 
-export type CachedEntry = { name: string; size?: number; metadata?: { originalURL?: string } };
-
-/**
- * Um GGUF em cache é "estrangeiro" quando não é mais nenhum dos modelos atuais.
- * Cada troca de modelo deixava o anterior ocupando a cota — foi assim que 1 GB
- * de sobra virou zero e os DOIS cérebros passaram a rebaixar toda hora.
- */
-export function isForeignModel(entry: CachedEntry, keepUrls: readonly string[]): boolean {
-    const url = entry.metadata?.originalURL ?? '';
-    const alvo = url || entry.name;
-    if (!/\.gguf/i.test(alvo)) return false;
-    return !keepUrls.some((keep) => keep === url || alvo.includes(fileNameOf(keep)));
-}
-
-function fileNameOf(url: string): string {
-    const semQuery = url.split('?')[0] ?? url;
-    return semQuery.slice(semQuery.lastIndexOf('/') + 1);
-}
-
-/** Soma o que a limpeza recuperaria, para poder dizer isso ao jogador. */
-export function reclaimableBytes(
-    entries: readonly CachedEntry[],
-    keepUrls: readonly string[],
-): number {
-    return entries
-        .filter((e) => isForeignModel(e, keepUrls))
-        .reduce((total, e) => total + (e.size ?? 0), 0);
-}
-
 export async function readStorageEstimate(): Promise<StorageEstimate> {
     try {
         const storage = (navigator as unknown as {

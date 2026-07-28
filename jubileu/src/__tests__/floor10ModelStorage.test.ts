@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     CACHE_HEADROOM,
     formatGB,
-    isForeignModel,
     planModelCache,
-    reclaimableBytes,
 } from '../npc/floor10ModelStorage';
 
 const GB = 1e9;
@@ -38,41 +36,6 @@ describe('floor10ModelStorage — a cota que travava a carga', () => {
     it('na dúvida deixa tentar em vez de bloquear o NPC', () => {
         expect(planModelCache({ quota: null, usage: 0 }, 1.915 * GB).ok).toBe(true);
         expect(planModelCache({ quota: 1.07 * GB, usage: 0 }, null).ok).toBe(true);
-    });
-});
-
-describe('floor10ModelStorage — limpeza dos modelos antigos', () => {
-    const manter = [
-        'https://huggingface.co/ggml-org/SmolLM3-3B-GGUF/resolve/main/SmolLM3-Q4_K_M.gguf',
-        'https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
-    ];
-
-    it('marca como estrangeiro o modelo que foi trocado (o Qwen antigo)', () => {
-        const antigo = {
-            name: 'abc_Qwen3.5-2B-Q4_K_M.gguf',
-            size: 1.6e9,
-            metadata: { originalURL: 'https://huggingface.co/x/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf' },
-        };
-        expect(isForeignModel(antigo, manter)).toBe(true);
-    });
-
-    it('preserva os dois cérebros em uso', () => {
-        for (const url of manter) {
-            expect(isForeignModel({ name: 'k_x.gguf', metadata: { originalURL: url } }, manter)).toBe(false);
-        }
-    });
-
-    it('não mexe em nada que não seja modelo', () => {
-        expect(isForeignModel({ name: 'wllama.wasm', metadata: {} }, manter)).toBe(false);
-    });
-
-    it('soma quanto espaço a limpeza devolve', () => {
-        const entradas = [
-            { name: 'a_Qwen.gguf', size: 1.6e9, metadata: { originalURL: 'https://h/Qwen.gguf' } },
-            { name: 'b_Gemma.gguf', size: 1.2e9, metadata: { originalURL: 'https://h/Gemma.gguf' } },
-            { name: 'c.gguf', size: 1.9e9, metadata: { originalURL: manter[0] } },
-        ];
-        expect(reclaimableBytes(entradas, manter)).toBe(2.8e9);
     });
 });
 

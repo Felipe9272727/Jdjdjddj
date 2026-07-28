@@ -19,15 +19,11 @@ import {
 } from './floor10Canon';
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
-import { SMALL_BRAIN_MODEL, abortDeliberation } from './floor10SmallBrain';
+import { abortDeliberation } from './floor10SmallBrain';
 import {
-    formatGB,
-    isForeignModel,
     planModelCache,
     probeModelBytes,
     readStorageEstimate,
-    reclaimableBytes,
-    type CachedEntry,
 } from './floor10ModelStorage';
 import {
     answerFloor10WillQuestion,
@@ -469,27 +465,55 @@ export class ModelStorageError extends Error {
 }
 
 /**
- * Apaga GGUFs de modelos que não usamos mais. Cada troca de cérebro deixava o
- * anterior parado no cache; como o navegador dá uma cota fixa por site, o
- * modelo novo deixava de caber e o wllama rebaixava tudo a cada sessão.
+ * Cache do modelo em estado inconsistente: o wllama ACHA a entrada na listagem,
+ * mas o arquivo não está lá, e `open()` estoura "Model file not found". Uma
+ * carga interrompida (aba fechada, aparelho sem espaço no meio do download)
+ * deixa exatamente esse rastro, e sozinho ele nunca se resolve: toda tentativa
+ * seguinte falha igual, porque ninguém apaga o registro quebrado.
+ *
+ * Aqui apagamos o registro e deixamos a próxima tentativa baixar limpo.
  */
-async function pruneStaleModels(mod: WllamaModule, keepUrl: string): Promise<void> {
+function isBrokenCacheError(error: unknown): boolean {
+    const msg = error instanceof Error ? error.message : String(error);
+    return /Model file not found|must be non-empty Blob/i.test(msg);
+}
+
+/**
+ * O modelo já está guardado neste navegador?
+ *
+ * Importa muito: a conta de espaço livre é `cota - em uso`, e o modelo em cache
+ * ENTRA no "em uso". Sem esta pergunta, quanto mais pronto o modelo estivesse,
+ * menos espaço parecia sobrar — e a checagem recusava carregar um arquivo que
+ * já estava baixado e não ia ocupar um byte a mais. Medido no navegador: 2ª
+ * sessão com o modelo em cache acusava "só libera 1.38 GB" e travava a carga.
+ */
+async function isModelCached(mod: WllamaModule, url: string): Promise<boolean> {
     try {
         const probe = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true }) as WllamaInstance & {
             cacheManager?: {
-                list: () => Promise<CachedEntry[]>;
-                deleteMany: (p: (e: CachedEntry) => boolean) => Promise<void>;
+                list: () => Promise<Array<{ metadata?: { originalURL?: string } }>>;
             };
         };
-        const cache = probe.cacheManager;
-        if (!cache) return;
-        const entries = await cache.list();
-        const keep = [keepUrl, SMALL_BRAIN_MODEL.url];
-        const liberavel = reclaimableBytes(entries, keep);
-        if (liberavel <= 0) return;
-        await cache.deleteMany((entry) => isForeignModel(entry, keep));
-        npcSet({ loadText: `liberando ${formatGB(liberavel)} de modelos antigos…` });
-    } catch { /* limpeza é oportunista: nunca pode impedir a carga */ }
+        const entries = await probe.cacheManager?.list();
+        return !!entries?.some((e) => e.metadata?.originalURL === url);
+    } catch {
+        return false;
+    }
+}
+
+async function forgetCachedModel(mod: WllamaModule, url: string): Promise<boolean> {
+    try {
+        const probe = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true }) as WllamaInstance & {
+            cacheManager?: { delete: (nameOrUrl: string) => Promise<void> };
+        };
+        // Apaga SOMENTE o modelo que acabou de falhar — nada de varrer o cache
+        // por conta própria: quem apaga por dedução acaba levando junto o
+        // arquivo que estava em uso.
+        await probe.cacheManager?.delete(url);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 async function teardownEngine(engine: WllamaInstance | null = currentEngine): Promise<void> {
@@ -532,14 +556,14 @@ function initConversationEngine(): Promise<WllamaInstance> {
         modulePromise ??= import(/* @vite-ignore */ WLLAMA_ESM) as unknown as Promise<WllamaModule>;
         const mod = await modulePromise;
 
-        // Antes de gastar 1,9 GB de dados: cabe? Modelos de versões anteriores
-        // continuavam ocupando a cota e eram a causa mais provável do "baixa
-        // tudo de novo toda hora" — limpar devolve o espaço sem custo nenhum.
-        await pruneStaleModels(mod, model.url);
-        const modelBytes = await probeModelBytes(model.url);
-        const cachePlan = planModelCache(await readStorageEstimate(), modelBytes);
-        if (!cachePlan.ok) {
-            throw new ModelStorageError(cachePlan.message);
+        // Antes de gastar 1,9 GB de DADOS NOVOS: cabe? Se o modelo já está no
+        // cache, não há nada a caber — a pergunta simplesmente não se aplica.
+        if (!await isModelCached(mod, model.url)) {
+            const modelBytes = await probeModelBytes(model.url);
+            const cachePlan = planModelCache(await readStorageEstimate(), modelBytes);
+            if (!cachePlan.ok) {
+                throw new ModelStorageError(cachePlan.message);
+            }
         }
 
         const threads = cpuThreadCount();
@@ -551,6 +575,11 @@ function initConversationEngine(): Promise<WllamaInstance> {
             : [0];
         let lastError: unknown = new Error('Nenhum backend local disponível');
 
+        // Duas voltas: se a primeira morrer por CACHE QUEBRADO, apagamos o
+        // registro do modelo e baixamos limpo. Sem isto o jogador ficava preso
+        // para sempre no mesmo erro, porque cada tentativa reencontrava o mesmo
+        // registro corrompido — e nada no jogo apagava aquilo.
+        for (let tentativa = 0; tentativa < 2; tentativa += 1) {
         for (const gpuLayers of plans) {
             const runtime = speechRuntimeLabel(gpuLayers, threads);
             npcSet({
@@ -608,8 +637,10 @@ function initConversationEngine(): Promise<WllamaInstance> {
                 );
                 loadedDisableThinking = model.disableThinking;
                 const confirmedThreads = candidate.getNumThreads?.();
+                // O teto aqui precisa acompanhar MAX_SPEECH_THREADS: preso em 4,
+                // a etiqueta mentiria "CPU×4" num aparelho rodando com 6.
                 loadedThreads = Number.isFinite(confirmedThreads) && (confirmedThreads ?? 0) > 0
-                    ? Math.min(4, Math.floor(confirmedThreads as number))
+                    ? Math.min(MAX_SPEECH_THREADS, Math.floor(confirmedThreads as number))
                     : threads;
                 loadedGpuLayers = gpuLayers;
                 activeModelUrl = model.url;
@@ -641,6 +672,18 @@ function initConversationEngine(): Promise<WllamaInstance> {
                     });
                 }
             }
+        }
+        // Fim de uma volta. Cache quebrado tem conserto; qualquer outra falha
+        // não melhora repetindo, então sai na hora.
+        if (tentativa === 0 && isBrokenCacheError(lastError)) {
+            npcSet({
+                loadText: `o download anterior de ${model.label} ficou pela metade; baixando de novo…`,
+                loadProgress: 0,
+            });
+            if (!await forgetCachedModel(mod, model.url)) break;
+            continue;
+        }
+        break;
         }
         throw lastError;
     })();
