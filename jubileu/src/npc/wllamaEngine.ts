@@ -22,6 +22,7 @@ import { SMALL_BRAIN_MODEL, abortDeliberation } from './floor10SmallBrain';
 import {
     formatGB,
     isForeignModel,
+    isModelCacheEntry,
     planModelCache,
     probeModelBytes,
     readStorageEstimate,
@@ -94,6 +95,7 @@ export const CHAT_COMPLETION_CONFIG = Object.freeze({
 
 export type Floor10ModelDef = {
     url: string;
+    sizeBytes: number;
     label: string;
     disableThinking: boolean;
     systemTemplateFlags: string;
@@ -110,6 +112,9 @@ export type Floor10ModelDef = {
  */
 export const FLOOR10_MODEL: Readonly<Floor10ModelDef> = Object.freeze({
     label: 'SmolLM3-3B',
+    // Tamanho publicado do Q4_K_M. É fallback deliberado para Chromes Android
+    // que escondem o content-length no redirecionamento do Hugging Face.
+    sizeBytes: 1_915_305_312,
     disableThinking: true,
     systemTemplateFlags: '/system_override /no_think',
     url: (globalThis as { __npcModelUrl?: string }).__npcModelUrl
@@ -443,6 +448,24 @@ export class ModelStorageError extends Error {
     }
 }
 
+/** O download terminou, mas o wllama não encontrou um GGUF íntegro no cache. */
+export class ModelCacheError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'ModelCacheError';
+    }
+}
+
+/**
+ * Esta frase vem de Model.getAllFiles() do wllama, depois do download. Ela NÃO
+ * significa HTTP 404: significa que a entrada esperada não apareceu na listagem
+ * do cache (metadata sem espaço, arquivo removido ou download interrompido).
+ */
+export function isWllamaModelCacheMiss(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /^Model file not found:\s*https?:\/\//i.test(message.trim());
+}
+
 /**
  * Apaga GGUFs de modelos que não usamos mais. Cada troca de cérebro deixava o
  * anterior parado no cache; como o navegador dá uma cota fixa por site, o
@@ -465,6 +488,22 @@ async function pruneStaleModels(mod: WllamaModule, keepUrl: string): Promise<voi
         await cache.deleteMany((entry) => isForeignModel(entry, keep));
         npcSet({ loadText: `liberando ${formatGB(liberavel)} de modelos antigos…` });
     } catch { /* limpeza é oportunista: nunca pode impedir a carga */ }
+}
+
+/**
+ * Se a gravação do GGUF termina mas a metadata estoura a cota, o wllama deixa
+ * um arquivo órfão de quase 2 GB. A limpeza normal o preservava pelo nome e cada
+ * "Tentar de novo" repetia o mesmo fracasso. Remove somente esse modelo.
+ */
+async function discardBrokenModelCache(mod: WllamaModule, modelUrl: string): Promise<void> {
+    try {
+        const probe = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true }) as WllamaInstance & {
+            cacheManager?: {
+                deleteMany: (p: (e: CachedEntry) => boolean) => Promise<void>;
+            };
+        };
+        await probe.cacheManager?.deleteMany((entry) => isModelCacheEntry(entry, modelUrl));
+    } catch { /* a mensagem original ainda será mostrada se a limpeza falhar */ }
 }
 
 async function teardownEngine(engine: WllamaInstance | null = currentEngine): Promise<void> {
@@ -511,7 +550,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
         // continuavam ocupando a cota e eram a causa mais provável do "baixa
         // tudo de novo toda hora" — limpar devolve o espaço sem custo nenhum.
         await pruneStaleModels(mod, model.url);
-        const modelBytes = await probeModelBytes(model.url);
+        const modelBytes = await probeModelBytes(model.url, model.sizeBytes);
         const cachePlan = planModelCache(await readStorageEstimate(), modelBytes);
         if (!cachePlan.ok) {
             throw new ModelStorageError(cachePlan.message);
@@ -598,7 +637,23 @@ function initConversationEngine(): Promise<WllamaInstance> {
 
                 return candidate;
             } catch (error) {
-                lastError = error;
+                let handledError = error;
+                if (isWllamaModelCacheMiss(error)) {
+                    await discardBrokenModelCache(mod, model.url);
+                    const afterCleanup = planModelCache(
+                        await readStorageEstimate(),
+                        modelBytes,
+                    );
+                    handledError = !afterCleanup.ok
+                        ? new ModelStorageError(
+                            `${afterCleanup.message} O cache incompleto foi removido.`,
+                        )
+                        : new ModelCacheError(
+                            'o download não ficou íntegro no armazenamento do navegador. '
+                            + 'O cache incompleto foi removido; confira a conexão e tente novamente.',
+                        );
+                }
+                lastError = handledError;
                 // Encerrar o Worker é o que realmente mata o trabalho de GPU em
                 // curso. Se ele estiver ocupado demais para responder, seguimos
                 // adiante: esperar aqui recriaria a travada que acabamos de sair.
@@ -606,6 +661,12 @@ function initConversationEngine(): Promise<WllamaInstance> {
                     Promise.resolve(candidate?.exit?.()).catch(() => undefined),
                     new Promise<void>((resolve) => { globalThis.setTimeout(resolve, 3_000); }),
                 ]);
+                // CPU e WebGPU usam o mesmo arquivo local. Se ele não coube ou
+                // ficou incompleto, trocar o backend só repetiria 1,9 GB de rede.
+                if (handledError instanceof ModelStorageError
+                    || handledError instanceof ModelCacheError) {
+                    throw handledError;
+                }
                 if (gpuLayers > 0) {
                     webGpuDisabledForSession = true;
                     npcSet({
@@ -645,6 +706,8 @@ function initConversationEngine(): Promise<WllamaInstance> {
                 // dizer só "falha ao carregar" escondia isso.
                 error: error instanceof ModelStorageError
                     ? `Sem espaço para o ${model.label}: ${error.message}`
+                    : error instanceof ModelCacheError
+                        ? `Cache local incompleto para o ${model.label}: ${error.message}`
                     : error instanceof WebGpuInitTimeoutError
                         ? `O ${model.label} travou ao iniciar e foi interrompido. `
                           + 'Tente falar com ele de novo.'

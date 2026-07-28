@@ -55,6 +55,12 @@ export function planModelCache(
 
 export type CachedEntry = { name: string; size?: number; metadata?: { originalURL?: string } };
 
+/** Reconhece o arquivo físico de um modelo mesmo quando a metadata não foi salva. */
+export function isModelCacheEntry(entry: CachedEntry, modelUrl: string): boolean {
+    const originalUrl = entry.metadata?.originalURL ?? '';
+    return originalUrl === modelUrl || entry.name.includes(fileNameOf(modelUrl));
+}
+
 /**
  * Um GGUF em cache é "estrangeiro" quando não é mais nenhum dos modelos atuais.
  * Cada troca de modelo deixava o anterior ocupando a cota — foi assim que 1 GB
@@ -64,7 +70,7 @@ export function isForeignModel(entry: CachedEntry, keepUrls: readonly string[]):
     const url = entry.metadata?.originalURL ?? '';
     const alvo = url || entry.name;
     if (!/\.gguf/i.test(alvo)) return false;
-    return !keepUrls.some((keep) => keep === url || alvo.includes(fileNameOf(keep)));
+    return !keepUrls.some((keep) => isModelCacheEntry(entry, keep));
 }
 
 function fileNameOf(url: string): string {
@@ -98,16 +104,45 @@ export async function readStorageEstimate(): Promise<StorageEstimate> {
 }
 
 /**
- * Tamanho do GGUF sem baixá-lo. O Hugging Face responde HEAD com content-length
- * depois do redirecionamento para o CDN; se algo falhar, devolve null e o plano
- * simplesmente deixa tentar.
+ * Extrai o tamanho tanto do CDN final quanto da resposta inicial do Hugging
+ * Face. Em alguns Chromes Android o redirecionamento expõe `x-linked-size`, mas
+ * não `content-length`; ignorar isso fazia o preflight liberar um GGUF de 1,9 GB
+ * numa cota de 1,07 GB.
  */
-export async function probeModelBytes(url: string): Promise<number | null> {
+export function modelBytesFromHeaders(
+    headers: Pick<Headers, 'get'>,
+): number | null {
+    const candidates = [
+        headers.get('content-length'),
+        headers.get('x-linked-size'),
+        headers.get('content-range')?.match(/\/(\d+)\s*$/)?.[1] ?? null,
+    ];
+    for (const candidate of candidates) {
+        const value = Number(candidate);
+        if (Number.isFinite(value) && value > 0) return value;
+    }
+    return null;
+}
+
+function validKnownBytes(bytes: number | null): number | null {
+    return typeof bytes === 'number' && Number.isFinite(bytes) && bytes > 0
+        ? bytes
+        : null;
+}
+
+/**
+ * Tamanho do GGUF sem baixá-lo. `knownBytes` é a defesa para um modelo fixo:
+ * falha de HEAD/CORS nunca mais transforma tamanho desconhecido em permissão
+ * para iniciar um download que fisicamente não cabe.
+ */
+export async function probeModelBytes(
+    url: string,
+    knownBytes: number | null = null,
+): Promise<number | null> {
     try {
         const res = await fetch(url, { method: 'HEAD', redirect: 'follow' });
-        const len = Number(res.headers.get('content-length'));
-        return Number.isFinite(len) && len > 0 ? len : null;
+        return modelBytesFromHeaders(res.headers) ?? validKnownBytes(knownBytes);
     } catch {
-        return null;
+        return validKnownBytes(knownBytes);
     }
 }

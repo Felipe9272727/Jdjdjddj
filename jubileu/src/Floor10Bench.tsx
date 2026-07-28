@@ -41,7 +41,7 @@ const AMBIENTE = () => ({
 async function medirCota() {
     const [estimativa, bytes] = await Promise.all([
         readStorageEstimate(),
-        probeModelBytes(FLOOR10_MODEL.url),
+        probeModelBytes(FLOOR10_MODEL.url, FLOOR10_MODEL.sizeBytes),
     ]);
     const plano = planModelCache(estimativa, bytes);
     return {
