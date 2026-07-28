@@ -195,12 +195,17 @@ const Bancada: React.FC = () => {
 
             <div style={box}>
                 <b>Conversa</b>
-                {npc.history.length === 0 ? <div style={{ color: '#777' }}>vazia</div> : null}
-                {npc.history.map((m, i) => (
-                    <div key={i} style={{ marginTop: 4, color: m.role === 'user' ? '#8fb8ff' : '#c8e6c9' }}>
-                        <b>{m.role}:</b> {m.content}
-                    </div>
-                ))}
+                {/* Sem teto de altura a conversa empurrava os botões e o
+                    cronômetro para fora da tela do celular depois de 3 ou 4
+                    falas, e não dava mais para testar. Aqui ela rola sozinha. */}
+                <div style={{ maxHeight: '38vh', overflowY: 'auto', marginTop: 4 }}>
+                    {npc.history.length === 0 ? <div style={{ color: '#777' }}>vazia</div> : null}
+                    {npc.history.map((m, i) => (
+                        <div key={i} style={{ marginTop: 4, color: m.role === 'user' ? '#8fb8ff' : '#c8e6c9' }}>
+                            <b>{m.role}:</b> {m.content}
+                        </div>
+                    ))}
+                </div>
             </div>
 
             <div style={box}>

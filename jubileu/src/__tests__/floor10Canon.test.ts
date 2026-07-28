@@ -3,6 +3,7 @@ import {
     FLOOR10_HISTORY_CHAR_BUDGET,
     FLOOR10_HISTORY_MESSAGE_CHAR_LIMIT,
     NPC_NAME,
+    trimToCompleteSentence,
     buildFloor10SystemPrompt,
     floor10ReplyIssue,
     groundedModelHistory,
@@ -234,5 +235,34 @@ describe('npc/floor10Canon — cânone e anti-alucinação', () => {
             'Você sabe onde está?',
             LIVE_PERCEPTION,
         )).toBe('contradição com os olhos');
+    });
+});
+
+describe('floor10Canon — fala cortada pelo teto de tokens', () => {
+    it('corta na última frase completa em vez de entregar palavra pela metade', () => {
+        // Caso REAL do celular: o teto caiu no meio de "claras".
+        const cru = 'O hotel é um lugar estranho, e não sei como cheguei. Não tenho memória cl';
+        expect(trimToCompleteSentence(cru))
+            .toBe('O hotel é um lugar estranho, e não sei como cheguei.');
+    });
+
+    it('não mexe numa fala que já termina fechada', () => {
+        const ok = 'Meu nome é Nilo Azevedo. Estou preso no 10º andar.';
+        expect(trimToCompleteSentence(ok)).toBe(ok);
+    });
+
+    it('aceita pontuação seguida de aspas', () => {
+        const ok = 'Ele disse "não há saída."';
+        expect(trimToCompleteSentence(ok)).toBe(ok);
+    });
+
+    it('prefere entregar truncado a entregar vazio quando não há frase fechada', () => {
+        const semPonto = 'Eu estava consertando o elevador quando';
+        expect(trimToCompleteSentence(semPonto)).toBe(semPonto);
+    });
+
+    it('tolera vazio e só espaços', () => {
+        expect(trimToCompleteSentence('')).toBe('');
+        expect(trimToCompleteSentence('   ')).toBe('');
     });
 });

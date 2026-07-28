@@ -96,7 +96,12 @@ while (Date.now() - t0 < budgetMs) {
     // Espera o AQUECIMENTO terminar antes de falar — é o caso real: o painel
     // abre quando o jogador chega e ele ainda leva alguns segundos digitando.
     // Falar no exato instante do "ready" mediria a disputa, não a conversa.
-    if (!enviou && snap.phase === 'ready' && snap.loadText === 'pronto') {
+    // F10_RACE=1 fala NO MEIO do aquecimento — foi assim que o Felipe pegou o
+    // "(ABORT)" na primeira mensagem. É o caso que precisa continuar passando.
+    const podeFalar = process.env.F10_RACE
+        ? snap.phase === 'ready'
+        : snap.phase === 'ready' && snap.loadText === 'pronto';
+    if (!enviou && podeFalar) {
         enviou = true;
         enviadoEm = Date.now();
         console.log(`[${el}s] AQUECIDO — mandando "oi"`);

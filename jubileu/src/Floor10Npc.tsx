@@ -15,6 +15,7 @@ import {
     stepFloor10Movement,
 } from './npc/floor10Will';
 import { deliberateFloor10 } from './npc/floor10SmallBrain';
+import { initLLM } from './npc/wllamaEngine';
 import type { Floor10Deliberation } from './npc/floor10Deliberation';
 
 // ── O CORPO DO NPC (procedural, v1) ────────────────────────────────────────
@@ -219,7 +220,16 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
             tmp.copy(pp).sub(g.position); tmp.y = 0;
             const dist = tmp.length();
             const near = dist < NEAR_DIST;
-            if (near !== nearRef.current) { nearRef.current = near; npcSet({ near }); }
+            if (near !== nearRef.current) {
+                nearRef.current = near;
+                npcSet({ near });
+                // Começa a carregar e a AQUECER quando o jogador se aproxima,
+                // não quando ele abre o painel. No celular do Felipe a carga
+                // sozinha leva ~200s: esperar o painel abrir jogava tudo isso
+                // em cima da primeira pergunta. Aqui o custo corre enquanto ele
+                // ainda está andando. Falhar é inofensivo — só fica mais lento.
+                if (near) void initLLM().catch(() => undefined);
+            }
         }
 
         // "fala": cabeça balança enquanto o NPC responde

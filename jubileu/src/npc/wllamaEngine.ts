@@ -11,6 +11,7 @@ import {
     FLOOR10_STABLE_PREFIX,
     buildFloor10SystemPrompt,
     floor10ReplyIssue,
+    trimToCompleteSentence,
     groundedModelHistory,
     guardedStreamingText,
     isFloor10IdentityQuestion,
@@ -675,18 +676,27 @@ function loadConversationBrain(): Promise<WllamaInstance> {
  */
 export function initLLM(): Promise<WllamaInstance> {
     return loadConversationBrain().then((engine) => {
-        void prewarmPersona(engine);
+        prewarmPromise ??= prewarmPersona(engine);
         return engine;
     });
 }
 
-let prewarmAbort: AbortController | null = null;
+let prewarmPromise: Promise<void> | null = null;
 let personaPrewarmed = false;
 
-/** Cancela o aquecimento: a fala do jogador tem prioridade sobre ele. */
-export function abortPersonaPrewarm(): void {
-    prewarmAbort?.abort();
-    prewarmAbort = null;
+/**
+ * Espera o aquecimento acabar — NUNCA o corta.
+ *
+ * Cortar foi o meu erro: uma instância do wllama atende uma geração por vez, e
+ * o `abort` não é por tarefa. Quando o aquecimento já tinha terminado, o corte
+ * chegava atrasado e derrubava a geração SEGUINTE, que era a fala do jogador —
+ * o `(ABORT)` na PRIMEIRA mensagem, com o painel sem resposta nenhuma.
+ *
+ * Esperar é seguro e quase de graça: o aquecimento está lendo exatamente o
+ * prefixo que a fala real vai reaproveitar, então o trabalho não é jogado fora.
+ */
+export function settlePersonaPrewarm(): Promise<void> {
+    return prewarmPromise?.catch(() => undefined) ?? Promise.resolve();
 }
 
 /**
@@ -703,10 +713,10 @@ export function abortPersonaPrewarm(): void {
 async function prewarmPersona(engine: WllamaInstance): Promise<void> {
     if (personaPrewarmed) return;
     personaPrewarmed = true;
-    const abort = new AbortController();
-    prewarmAbort = abort;
     npcSet({ loadText: 'aquecendo a memória do Nilo…' });
     try {
+        // Sem abortSignal DE PROPÓSITO: ver settlePersonaPrewarm(). Um sinal de
+        // cancelamento aqui vazava para a fala seguinte do jogador.
         const stream = await engine.createChatCompletion({
             messages: [
                 { role: 'system', content: prepareFloor10SystemPrompt(FLOOR10_STABLE_PREFIX) },
@@ -714,18 +724,15 @@ async function prewarmPersona(engine: WllamaInstance): Promise<void> {
             ],
             ...CHAT_COMPLETION_CONFIG,
             max_tokens: 1,
-            abortSignal: abort.signal,
             ...(loadedDisableThinking
                 ? { chat_template_kwargs: { enable_thinking: false } }
                 : {}),
         });
-        for await (const _chunk of stream) { if (abort.signal.aborted) break; }
-        if (!abort.signal.aborted) npcSet({ loadText: 'pronto' });
+        for await (const _chunk of stream) { /* só interessa o prefill */ }
+        npcSet({ loadText: 'pronto' });
     } catch {
         // Falhar aqui não custa nada: a fala real só ficará mais lenta.
         personaPrewarmed = false;
-    } finally {
-        if (prewarmAbort === abort) prewarmAbort = null;
     }
 }
 
@@ -737,10 +744,6 @@ export function unloadConversationBrain(): Promise<void> {
 export async function sendToNpc(userText: string): Promise<void> {
     const text = userText.trim();
     if (!text || npc.phase === 'thinking' || npc.phase === 'loading') return;
-
-    // O aquecimento existe para ganhar tempo, não para roubá-lo: se o jogador
-    // falou, ele para na hora. O que já entrou no cache de KV continua valendo.
-    abortPersonaPrewarm();
 
     // Perguntas factuais dos olhos e da vontade preservam as falas rápidas que
     // dão personalidade às micro-IAs. Um possível pedido corporal sempre vai
@@ -800,6 +803,10 @@ export async function sendToNpc(userText: string): Promise<void> {
     let engine: WllamaInstance;
     // Só CARREGA. Aquecer agora seria disputar o modelo com a própria fala.
     try { engine = await loadConversationBrain(); } catch { return; }
+    // Deixa o aquecimento TERMINAR antes de gerar. Cancelá-lo derrubava esta
+    // fala aqui — era o "(ABORT)" na primeira mensagem. O prefixo que ele está
+    // lendo é justamente o que esta geração reaproveita, então não se perde nada.
+    await settlePersonaPrewarm();
 
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
     const systemPrompt = prepareFloor10SystemPrompt(
@@ -904,7 +911,10 @@ export async function sendToNpc(userText: string): Promise<void> {
             npcIssueWillCommand(languageDecision.command, finalText);
         }
         npcSet({
-            history: [...history, { role: 'assistant', content: finalText }],
+            // Entrega só o que ficou inteiro: o teto de tokens cortava a fala no
+            // meio da palavra, e o pedaço solto ainda contaminava a mensagem
+            // seguinte (".O elevador…", "eu possa.O hotel…").
+            history: [...history, { role: 'assistant', content: trimToCompleteSentence(finalText) }],
             streaming: '',
             phase: 'ready',
             speaking: false,

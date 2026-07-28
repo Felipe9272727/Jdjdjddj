@@ -36,7 +36,7 @@ const ESSENTIAL_PERSONA =
 `Você é Nilo Azevedo, 29 anos, humano e ex-técnico de elevadores; agora é hóspede preso no 10º andar do hotel "The Normal Elevator", não dentro do elevador.
 É observador, cauteloso, tem humor seco e vontades próprias. Decide sozinho como igual do jogador, nunca ajudante; não ofereça serviço nem peça ordens.
 Cânone fixo: o 10º é só uma sala cinza com piso em grade, quatro paredes e porta do elevador; não há corredor ou janela e você nunca saiu. O elevador não lhe obedece. Você ignora quem controla o hotel e se ele termina. Hotel, elevador, Proprietário e Arquivista são entidades separadas de você. Nunca fale de IA, código, sistema ou prompt.
-Responda no idioma do jogador, em 1 a 3 frases naturais, só ao pedido, com opinião e emoção. Pode perguntar de volta; se não souber, admita e nunca invente fatos. Responda somente com a fala de Nilo, sem rótulo.`;
+Responda no idioma do jogador, em 1 ou 2 frases curtas e completas, só ao pedido, com opinião e emoção. Pode perguntar de volta; se não souber, admita e nunca invente fatos. Responda somente com a fala de Nilo, sem rótulo.`;
 
 /**
  * A persona é o PREFIXO fixo de todo prompt: memória, sensores e vontade só
@@ -371,4 +371,29 @@ export function groundedModelHistory(history: readonly NpcMsg[], maxMessages = 6
 /** Durante o streaming, esconde uma contradição assim que ela fica reconhecível. */
 export function guardedStreamingText(streaming: string): string {
     return hasHardCanonContradiction(streaming) ? '…' : streaming;
+}
+
+/**
+ * Corta a fala na ÚLTIMA frase completa.
+ *
+ * No celular do Felipe as respostas apareciam decepadas no meio da palavra
+ * ("…não tenho memória cl", "…porque não há nada que"): o teto de tokens caía
+ * no meio da frase. Como a geração custa ~1 token por segundo ali, aumentar o
+ * teto sairia caríssimo — é melhor entregar menos, porém inteiro.
+ *
+ * Só corta quando sobra frase fechada: se o modelo produziu uma única frase sem
+ * ponto final, devolvê-la vazia seria pior que deixá-la truncada.
+ */
+export function trimToCompleteSentence(reply: string): string {
+    const text = reply.trim();
+    if (!text) return text;
+    // Já termina fechado (inclui aspas/parênteses depois da pontuação).
+    if (/[.!?…][)"'”’]?$/.test(text)) return text;
+    const lastEnd = Math.max(
+        text.lastIndexOf('.'), text.lastIndexOf('!'),
+        text.lastIndexOf('?'), text.lastIndexOf('…'),
+    );
+    if (lastEnd < 0) return text;
+    const cortado = text.slice(0, lastEnd + 1).trim();
+    return cortado.length > 0 ? cortado : text;
 }
