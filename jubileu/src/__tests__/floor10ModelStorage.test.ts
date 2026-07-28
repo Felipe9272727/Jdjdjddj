@@ -3,7 +3,10 @@ import {
     CACHE_HEADROOM,
     formatGB,
     isForeignModel,
+    isModelCacheEntry,
+    modelBytesFromHeaders,
     planModelCache,
+    probeModelBytes,
     reclaimableBytes,
 } from '../npc/floor10ModelStorage';
 
@@ -62,6 +65,16 @@ describe('floor10ModelStorage — limpeza dos modelos antigos', () => {
         }
     });
 
+    it('reconhece o GGUF mesmo quando a cota impediu salvar a metadata', () => {
+        const semMetadata = {
+            name: 'hash_SmolLM3-Q4_K_M.gguf',
+            size: 1_915_305_312,
+            metadata: { originalURL: '' },
+        };
+        expect(isModelCacheEntry(semMetadata, manter[0])).toBe(true);
+        expect(isForeignModel(semMetadata, manter)).toBe(false);
+    });
+
     it('não mexe em nada que não seja modelo', () => {
         expect(isForeignModel({ name: 'wllama.wasm', metadata: {} }, manter)).toBe(false);
     });
@@ -73,6 +86,41 @@ describe('floor10ModelStorage — limpeza dos modelos antigos', () => {
             { name: 'c.gguf', size: 1.9e9, metadata: { originalURL: manter[0] } },
         ];
         expect(reclaimableBytes(entradas, manter)).toBe(2.8e9);
+    });
+});
+
+describe('floor10ModelStorage — tamanho antes do download', () => {
+    const headers = (values: Record<string, string | null>) => ({
+        get: (name: string) => values[name] ?? null,
+    });
+
+    it('lê content-length do CDN', () => {
+        expect(modelBytesFromHeaders(headers({
+            'content-length': '1915305312',
+        }))).toBe(1_915_305_312);
+    });
+
+    it('lê x-linked-size do redirecionamento do Hugging Face', () => {
+        expect(modelBytesFromHeaders(headers({
+            'content-length': null,
+            'x-linked-size': '1915305312',
+        }))).toBe(1_915_305_312);
+    });
+
+    it('barra o caso Android mesmo quando HEAD/CORS esconde o tamanho', async () => {
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
+        try {
+            const bytes = await probeModelBytes(
+                'https://h/SmolLM3-Q4_K_M.gguf',
+                1_915_305_312,
+            );
+            expect(bytes).toBe(1_915_305_312);
+            expect(planModelCache({ quota: 1.07 * GB, usage: 0 }, bytes).ok)
+                .toBe(false);
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
     });
 });
 

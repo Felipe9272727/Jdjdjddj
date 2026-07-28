@@ -4,6 +4,7 @@ import {
     CPU_LOAD_CONFIG,
     FLOOR10_MODEL,
     GenerationTimeoutError,
+    isWllamaModelCacheMiss,
     WEBGPU_INIT_WATCHDOG_MS,
     WLLAMA_PATHS,
     WebGpuInitTimeoutError,
@@ -65,7 +66,15 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(FLOOR10_MODEL.label).toBe('SmolLM3-3B');
         expect(FLOOR10_MODEL.url).toMatch(/ggml-org\/SmolLM3-3B-GGUF/i);
         expect(FLOOR10_MODEL.url).toMatch(/SmolLM3-Q4_K_M\.gguf$/i);
+        expect(FLOOR10_MODEL.sizeBytes).toBe(1_915_305_312);
         expect(FLOOR10_MODEL.disableThinking).toBe(true);
+    });
+
+    it('não confunde a mensagem de cache do wllama com HTTP 404', () => {
+        expect(isWllamaModelCacheMiss(new Error(
+            `Model file not found: ${FLOOR10_MODEL.url}`,
+        ))).toBe(true);
+        expect(isWllamaModelCacheMiss(new Error('Failed to fetch: HTTP 404'))).toBe(false);
     });
 
     it('preserva a persona e desliga o thinking no template do Smol', () => {
