@@ -28,24 +28,32 @@ let js = fs.readFileSync(path.join(dist, jsRel), 'utf8');
 // script CLÁSSICO autossuficiente (public/npcWorker.js — também servido como
 // fallback fora do single-file) e a referência 'npcWorker.js' no bundle vira
 // um Blob URL embutido em base64. Assim roda em file://, Vercel, onde for.
-esbuild.buildSync({
-  entryPoints: [path.join(scriptDir, 'src/npc/npcWorker.ts')],
-  bundle: true,
-  format: 'iife',
-  target: 'es2020',
-  // minificado: o worker embutido soma ~4MB no single-file em vez de ~9MB —
-  // e a Vercel Hobby tem limite de 100MB por deploy, então cada MB conta.
-  // (o bundle principal continua legível, como o projeto gosta)
-  minify: true,
-  outfile: path.join(scriptDir, 'public', 'npcWorker.js'),
-  logLevel: 'silent',
-});
-const workerB64 = fs.readFileSync(path.join(scriptDir, 'public', 'npcWorker.js')).toString('base64');
-// fallback pra quando o app NÃO é single-file (Vercel servindo dist): garante
-// que dist tenha a versão fresca do worker
-fs.copyFileSync(path.join(scriptDir, 'public', 'npcWorker.js'), path.join(dist, 'npcWorker.js'));
+// O Andar 10 roda no wllama (CPU) desde que o motor WebGPU foi aposentado, e o
+// fonte do worker saiu junto com ele. Este passo agora só existe para o caso de
+// o WebLLM voltar: sem o arquivo, ele é pulado em vez de quebrar o build.
+const workerEntry = path.join(scriptDir, 'src/npc/npcWorker.ts');
+const temWorker = fs.existsSync(workerEntry);
+let workerB64 = '';
+if (temWorker) {
+  esbuild.buildSync({
+    entryPoints: [workerEntry],
+    bundle: true,
+    format: 'iife',
+    target: 'es2020',
+    // minificado: o worker embutido soma ~4MB no single-file em vez de ~9MB —
+    // e a Vercel Hobby tem limite de 100MB por deploy, então cada MB conta.
+    // (o bundle principal continua legível, como o projeto gosta)
+    minify: true,
+    outfile: path.join(scriptDir, 'public', 'npcWorker.js'),
+    logLevel: 'silent',
+  });
+  workerB64 = fs.readFileSync(path.join(scriptDir, 'public', 'npcWorker.js')).toString('base64');
+  // fallback pra quando o app NÃO é single-file (Vercel servindo dist): garante
+  // que dist tenha a versão fresca do worker
+  fs.copyFileSync(path.join(scriptDir, 'public', 'npcWorker.js'), path.join(dist, 'npcWorker.js'));
+}
 const workerMarker = '"npcWorker.js"';
-if (js.includes(workerMarker)) {
+if (temWorker && js.includes(workerMarker)) {
   const workerBlobBuilder = '(URL.createObjectURL(new Blob([Uint8Array.from(atob(__NPC_WORKER_B64__),(c)=>c.charCodeAt(0))],{type:"text/javascript"})))';
   js = `const __NPC_WORKER_B64__="${workerB64}";\n` + js.split(workerMarker).join(workerBlobBuilder);
 } else {

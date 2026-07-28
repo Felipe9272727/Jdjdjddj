@@ -8,6 +8,7 @@
 // factuais próprias. O MiniCPM delibera, mas nunca fala no lugar do 3B.
 import { npc, npcIssueWillCommand, npcSet } from './npcStore';
 import {
+    FLOOR10_STABLE_PREFIX,
     buildFloor10SystemPrompt,
     floor10ReplyIssue,
     groundedModelHistory,
@@ -17,7 +18,16 @@ import {
 } from './floor10Canon';
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
-import { abortDeliberation } from './floor10SmallBrain';
+import { SMALL_BRAIN_MODEL, abortDeliberation } from './floor10SmallBrain';
+import {
+    formatGB,
+    isForeignModel,
+    planModelCache,
+    probeModelBytes,
+    readStorageEstimate,
+    reclaimableBytes,
+    type CachedEntry,
+} from './floor10ModelStorage';
 import {
     answerFloor10WillQuestion,
     hasFloor10PhysicalActionCue,
@@ -28,7 +38,13 @@ import {
 const WLLAMA_V = '3.5.1';
 // esm.sh/esm.run reempacotavam o wllama e quebravam worker/WASM. O ESM
 // pré-buildado do jsDelivr preserva os imports relativos do pacote.
-const CDN = `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_V}/esm`;
+//
+// __wllamaCdn e __npcModelUrl permitem apontar runtime e modelo para cópias
+// LOCAIS. É o que torna possível medir o NPC dentro do jogo num ambiente sem
+// internet (sonda headless): sem override, o motor nem carrega e a única coisa
+// observável é "Failed to fetch".
+const cdnOverride = (globalThis as { __wllamaCdn?: string }).__wllamaCdn;
+const CDN = cdnOverride ?? `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_V}/esm`;
 const WLLAMA_ESM = `${CDN}/index.js`;
 const WASM_SINGLE = `${CDN}/wasm/wllama.wasm`;
 const HF = (repo: string, file: string) => `https://huggingface.co/${repo}/resolve/main/${file}`;
@@ -96,7 +112,8 @@ export const FLOOR10_MODEL: Readonly<Floor10ModelDef> = Object.freeze({
     label: 'SmolLM3-3B',
     disableThinking: true,
     systemTemplateFlags: '/system_override /no_think',
-    url: HF('ggml-org/SmolLM3-3B-GGUF', 'SmolLM3-Q4_K_M.gguf'),
+    url: (globalThis as { __npcModelUrl?: string }).__npcModelUrl
+        ?? HF('ggml-org/SmolLM3-3B-GGUF', 'SmolLM3-Q4_K_M.gguf'),
 });
 
 /** Adapta a persona ao template do Smol sem deixar os controles chegarem à fala. */
@@ -138,12 +155,70 @@ export function speechGpuLayerCount(
         ? ((navigator as unknown as { deviceMemory?: number }).deviceMemory ?? 8)
         : 0,
 ): number {
+    // A sonda usa este override para medir CPU pura contra CPU+WebGPU no mesmo
+    // aparelho, sem recompilar o jogo.
+    const forced = (globalThis as { __npcGpuLayers?: number }).__npcGpuLayers;
+    if (typeof forced === 'number' && Number.isFinite(forced)) {
+        return Math.max(0, Math.floor(forced));
+    }
     if (!webGpuAvailable || !Number.isFinite(deviceMemoryGiB) || deviceMemoryGiB < 6) {
         return 0;
     }
     return deviceMemoryGiB >= 8
         ? SPEECH_WEBGPU_LAYERS
         : SPEECH_WEBGPU_LOW_MEMORY_LAYERS;
+}
+
+/**
+ * O caminho WebGPU pode ser LENTO em vez de quebrado — e essa é a pior falha
+ * possível, porque o `catch` do plano nunca dispara e o jogo fica preso em
+ * "carregando" para sempre. Medido nesta caixa: o processo de GPU passou de 17
+ * MINUTOS de CPU compilando shaders com o modelo ainda fora da memória, sem
+ * lançar um único erro. O cronômetro só começa depois que o DOWNLOAD termina
+ * (baixar 1,9 GB no celular é legitimamente demorado); ele cobre apenas a
+ * inicialização do backend, que é rápida quando funciona.
+ */
+export const WEBGPU_INIT_WATCHDOG_MS = 45_000;
+
+/**
+ * Na CPU a mesma travada acontece por outro motivo (cota de disco estourada
+ * dentro do Worker), e aí não há plano melhor para onde cair — então damos bem
+ * mais corda antes de desistir. Abrir um GGUF de 2 GB e aquecer o KV num celular
+ * fraco leva um tempo honesto; três minutos parados já são defeito.
+ */
+export const CPU_INIT_WATCHDOG_MS = 180_000;
+
+export class WebGpuInitTimeoutError extends Error {
+    constructor() {
+        super('WEBGPU_INIT_TIMEOUT');
+        this.name = 'WebGpuInitTimeoutError';
+    }
+}
+
+/**
+ * Reprova o plano de GPU se a inicialização travar depois do download. Só
+ * decide com base no tempo PARADO após o download, então nunca interrompe uma
+ * carga que ainda esteja progredindo.
+ */
+export function raceGpuInitWatchdog(
+    load: Promise<unknown>,
+    stalledMs: () => number | null,
+    limitMs = WEBGPU_INIT_WATCHDOG_MS,
+    pollMs = 1_000,
+): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        const timer = globalThis.setInterval(() => {
+            const stalled = stalledMs();
+            if (stalled !== null && stalled > limitMs) {
+                globalThis.clearInterval(timer);
+                reject(new WebGpuInitTimeoutError());
+            }
+        }, pollMs);
+        load.then(
+            () => { globalThis.clearInterval(timer); resolve(); },
+            (error: unknown) => { globalThis.clearInterval(timer); reject(error); },
+        );
+    });
 }
 
 export function speechRuntimeLabel(gpuLayers: number, threads: number): string {
@@ -360,6 +435,38 @@ let webGpuDisabledForSession = false;
 let modulePromise: Promise<WllamaModule> | null = null;
 let transitionPromise: Promise<WllamaInstance> | null = null;
 
+/** Falha de ARMAZENAMENTO, não do modelo: merece texto próprio para o jogador. */
+export class ModelStorageError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'ModelStorageError';
+    }
+}
+
+/**
+ * Apaga GGUFs de modelos que não usamos mais. Cada troca de cérebro deixava o
+ * anterior parado no cache; como o navegador dá uma cota fixa por site, o
+ * modelo novo deixava de caber e o wllama rebaixava tudo a cada sessão.
+ */
+async function pruneStaleModels(mod: WllamaModule, keepUrl: string): Promise<void> {
+    try {
+        const probe = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true }) as WllamaInstance & {
+            cacheManager?: {
+                list: () => Promise<CachedEntry[]>;
+                deleteMany: (p: (e: CachedEntry) => boolean) => Promise<void>;
+            };
+        };
+        const cache = probe.cacheManager;
+        if (!cache) return;
+        const entries = await cache.list();
+        const keep = [keepUrl, SMALL_BRAIN_MODEL.url];
+        const liberavel = reclaimableBytes(entries, keep);
+        if (liberavel <= 0) return;
+        await cache.deleteMany((entry) => isForeignModel(entry, keep));
+        npcSet({ loadText: `liberando ${formatGB(liberavel)} de modelos antigos…` });
+    } catch { /* limpeza é oportunista: nunca pode impedir a carga */ }
+}
+
 async function teardownEngine(engine: WllamaInstance | null = currentEngine): Promise<void> {
     if (engine === currentEngine) {
         currentEngine = null;
@@ -399,6 +506,17 @@ function initConversationEngine(): Promise<WllamaInstance> {
 
         modulePromise ??= import(/* @vite-ignore */ WLLAMA_ESM) as unknown as Promise<WllamaModule>;
         const mod = await modulePromise;
+
+        // Antes de gastar 1,9 GB de dados: cabe? Modelos de versões anteriores
+        // continuavam ocupando a cota e eram a causa mais provável do "baixa
+        // tudo de novo toda hora" — limpar devolve o espaço sem custo nenhum.
+        await pruneStaleModels(mod, model.url);
+        const modelBytes = await probeModelBytes(model.url);
+        const cachePlan = planModelCache(await readStorageEstimate(), modelBytes);
+        if (!cachePlan.ok) {
+            throw new ModelStorageError(cachePlan.message);
+        }
+
         const threads = cpuThreadCount();
         const requestedGpuLayers = webGpuDisabledForSession
             ? 0
@@ -417,9 +535,18 @@ function initConversationEngine(): Promise<WllamaInstance> {
             });
 
             let candidate: WllamaInstance | null = null;
+            // Marca o instante em que o download acabou. Enquanto for null, o
+            // cão de guarda do WebGPU nem começa a contar.
+            let downloadDoneAt: number | null = null;
             try {
-                candidate = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true });
-                await candidate.loadModelFromUrl(model.url, {
+                // Em jogo o log nativo do llama.cpp só polui o console; na
+                // bancada ele é a ÚNICA janela para saber em que etapa a carga
+                // travou (abrir o GGUF, montar o KV, aquecer…).
+                candidate = new mod.Wllama(WLLAMA_PATHS, {
+                    suppressNativeLog: !(globalThis as { __npcVerboseLlama?: boolean })
+                        .__npcVerboseLlama,
+                });
+                const loadTask = candidate.loadModelFromUrl(model.url, {
                     ...CPU_LOAD_CONFIG,
                     n_threads: threads,
                     n_gpu_layers: gpuLayers,
@@ -427,12 +554,33 @@ function initConversationEngine(): Promise<WllamaInstance> {
                         const fraction = progress.total
                             ? Math.max(0, Math.min(1, (progress.loaded ?? 0) / progress.total))
                             : 0;
+                        const acabou = fraction >= 1;
+                        downloadDoneAt = acabou ? (downloadDoneAt ?? Date.now()) : null;
                         npcSet({
                             loadProgress: fraction,
-                            loadText: `preparando ${model.label}… ${Math.round(fraction * 100)}%`,
+                            // Depois de 100% o wllama ainda lê o arquivo de volta do
+                            // cache e copia ~2 GB para dentro do WASM — e nesse
+                            // trecho ele não reporta NADA. Medido na sonda: minutos
+                            // parados em "100%", que é exatamente a tela travada que
+                            // o jogador vê. Trocar o texto não acelera, mas para de
+                            // mentir que acabou.
+                            loadText: acabou
+                                ? `instalando ${model.label} na memória… (só na primeira vez)`
+                                : `preparando ${model.label}… ${Math.round(fraction * 100)}%`,
                         });
                     },
                 });
+                // O cão de guarda vale para OS DOIS planos. Na CPU o travamento
+                // medido foi o pior de todos: o Worker levantou QuotaExceeded,
+                // não conseguiu devolver o erro por postMessage (DOMException
+                // não é clonável) e a promessa nunca resolveu NEM rejeitou —
+                // "carregando" eterno, sem uma linha de erro. Passar batido por
+                // isso é o que fazia o jogador esperar 300s por nada.
+                await raceGpuInitWatchdog(
+                    loadTask,
+                    () => (downloadDoneAt === null ? null : Date.now() - downloadDoneAt),
+                    gpuLayers > 0 ? WEBGPU_INIT_WATCHDOG_MS : CPU_INIT_WATCHDOG_MS,
+                );
                 loadedDisableThinking = model.disableThinking;
                 const confirmedThreads = candidate.getNumThreads?.();
                 loadedThreads = Number.isFinite(confirmedThreads) && (confirmedThreads ?? 0) > 0
@@ -451,11 +599,19 @@ function initConversationEngine(): Promise<WllamaInstance> {
                 return candidate;
             } catch (error) {
                 lastError = error;
-                try { await candidate?.exit?.(); } catch { /* ok */ }
+                // Encerrar o Worker é o que realmente mata o trabalho de GPU em
+                // curso. Se ele estiver ocupado demais para responder, seguimos
+                // adiante: esperar aqui recriaria a travada que acabamos de sair.
+                await Promise.race([
+                    Promise.resolve(candidate?.exit?.()).catch(() => undefined),
+                    new Promise<void>((resolve) => { globalThis.setTimeout(resolve, 3_000); }),
+                ]);
                 if (gpuLayers > 0) {
                     webGpuDisabledForSession = true;
                     npcSet({
-                        loadText: 'WebGPU não coube; retomando pela CPU sem trocar o modelo…',
+                        loadText: error instanceof WebGpuInitTimeoutError
+                            ? 'WebGPU travou na inicialização; seguindo pela CPU…'
+                            : 'WebGPU não coube; retomando pela CPU sem trocar o modelo…',
                         loadProgress: 0,
                     });
                 }
@@ -485,9 +641,16 @@ function initConversationEngine(): Promise<WllamaInstance> {
                 phase: 'error',
                 speaking: false,
                 streaming: '',
-                error: `Falha ao carregar ${model.label} localmente: ${
-                    error instanceof Error ? error.message : String(error)
-                }. Nenhum outro modelo foi ativado.`,
+                // Espaço em disco e travamento têm CONSERTO do lado do jogador;
+                // dizer só "falha ao carregar" escondia isso.
+                error: error instanceof ModelStorageError
+                    ? `Sem espaço para o ${model.label}: ${error.message}`
+                    : error instanceof WebGpuInitTimeoutError
+                        ? `O ${model.label} travou ao iniciar e foi interrompido. `
+                          + 'Tente falar com ele de novo.'
+                        : `Falha ao carregar ${model.label} localmente: ${
+                            error instanceof Error ? error.message : String(error)
+                        }. Nenhum outro modelo foi ativado.`,
             });
             throw error;
         },
@@ -500,8 +663,70 @@ function initConversationEngine(): Promise<WllamaInstance> {
  * O coordenador serializa somente as cargas. MiniCPM e SmolLM3 podem ficar
  * residentes ao mesmo tempo; a geração pequena é pausada durante uma fala.
  */
-export function initLLM(): Promise<WllamaInstance> {
+function loadConversationBrain(): Promise<WllamaInstance> {
     return floor10ModelCoordinator.activate('conversation', initConversationEngine);
+}
+
+/**
+ * Carrega E aquece a persona. É o caminho de QUEM SE APROXIMA (abrir o painel),
+ * nunca o de quem já está falando: uma instância do wllama atende uma geração
+ * por vez, e disparar o aquecimento junto da fala real fez as duas brigarem —
+ * medido, a resposta saiu picotada ("OiNilo Azevedo…") e sem ganho de tempo.
+ */
+export function initLLM(): Promise<WllamaInstance> {
+    return loadConversationBrain().then((engine) => {
+        void prewarmPersona(engine);
+        return engine;
+    });
+}
+
+let prewarmAbort: AbortController | null = null;
+let personaPrewarmed = false;
+
+/** Cancela o aquecimento: a fala do jogador tem prioridade sobre ele. */
+export function abortPersonaPrewarm(): void {
+    prewarmAbort?.abort();
+    prewarmAbort = null;
+}
+
+/**
+ * Lê a persona UMA vez, logo depois da carga, enquanto o jogador ainda está
+ * andando até o Nilo. Com `cache_prompt` ligado, o KV desse prefixo fica
+ * guardado e a primeira fala real deixa de pagar ~390 tokens de prefill.
+ *
+ * Medido: prefill de 3 tok/s → esses 390 tokens custavam ~130s de espera antes
+ * da PRIMEIRA palavra. Aqui esse custo sai da frente do jogador.
+ *
+ * `max_tokens: 1` porque só interessa o prefill; a fala gerada é descartada e
+ * nunca chega ao histórico.
+ */
+async function prewarmPersona(engine: WllamaInstance): Promise<void> {
+    if (personaPrewarmed) return;
+    personaPrewarmed = true;
+    const abort = new AbortController();
+    prewarmAbort = abort;
+    npcSet({ loadText: 'aquecendo a memória do Nilo…' });
+    try {
+        const stream = await engine.createChatCompletion({
+            messages: [
+                { role: 'system', content: prepareFloor10SystemPrompt(FLOOR10_STABLE_PREFIX) },
+                { role: 'user', content: 'oi' },
+            ],
+            ...CHAT_COMPLETION_CONFIG,
+            max_tokens: 1,
+            abortSignal: abort.signal,
+            ...(loadedDisableThinking
+                ? { chat_template_kwargs: { enable_thinking: false } }
+                : {}),
+        });
+        for await (const _chunk of stream) { if (abort.signal.aborted) break; }
+        if (!abort.signal.aborted) npcSet({ loadText: 'pronto' });
+    } catch {
+        // Falhar aqui não custa nada: a fala real só ficará mais lenta.
+        personaPrewarmed = false;
+    } finally {
+        if (prewarmAbort === abort) prewarmAbort = null;
+    }
 }
 
 export function unloadConversationBrain(): Promise<void> {
@@ -512,6 +737,10 @@ export function unloadConversationBrain(): Promise<void> {
 export async function sendToNpc(userText: string): Promise<void> {
     const text = userText.trim();
     if (!text || npc.phase === 'thinking' || npc.phase === 'loading') return;
+
+    // O aquecimento existe para ganhar tempo, não para roubá-lo: se o jogador
+    // falou, ele para na hora. O que já entrou no cache de KV continua valendo.
+    abortPersonaPrewarm();
 
     // Perguntas factuais dos olhos e da vontade preservam as falas rápidas que
     // dão personalidade às micro-IAs. Um possível pedido corporal sempre vai
@@ -569,7 +798,8 @@ export async function sendToNpc(userText: string): Promise<void> {
     });
 
     let engine: WllamaInstance;
-    try { engine = await initLLM(); } catch { return; }
+    // Só CARREGA. Aquecer agora seria disputar o modelo com a própria fala.
+    try { engine = await loadConversationBrain(); } catch { return; }
 
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
     const systemPrompt = prepareFloor10SystemPrompt(
@@ -730,4 +960,22 @@ export async function sendToNpc(userText: string): Promise<void> {
                     : `Deu ruim na resposta do ${FLOOR10_MODEL.label}: ${message}`,
         });
     }
+}
+
+// ── GANCHO DE DEPURAÇÃO ────────────────────────────────────────────────────
+// Expõe estado e ações do NPC no console. Serve para dirigir a conversa de fora
+// (sondas headless, teste manual) sem precisar caminhar até o NPC no mundo 3D,
+// e para inspecionar fase, etiqueta e histórico enquanto ele responde.
+//   __npcDebug.npc        estado vivo do NPC
+//   __npcDebug.open()     abre a conversa
+//   __npcDebug.send('oi') manda uma mensagem
+if (typeof window !== 'undefined') {
+    (window as unknown as { __npcDebug?: unknown }).__npcDebug = {
+        npc,
+        npcSet,
+        sendToNpc,
+        initLLM,
+        open: () => npcSet({ open: true, near: true }),
+        send: (text: string) => void sendToNpc(text),
+    };
 }

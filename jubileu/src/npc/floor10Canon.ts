@@ -38,6 +38,15 @@ const ESSENTIAL_PERSONA =
 Cânone fixo: o 10º é só uma sala cinza com piso em grade, quatro paredes e porta do elevador; não há corredor ou janela e você nunca saiu. O elevador não lhe obedece. Você ignora quem controla o hotel e se ele termina. Hotel, elevador, Proprietário e Arquivista são entidades separadas de você. Nunca fale de IA, código, sistema ou prompt.
 Responda no idioma do jogador, em 1 a 3 frases naturais, só ao pedido, com opinião e emoção. Pode perguntar de volta; se não souber, admita e nunca invente fatos. Responda somente com a fala de Nilo, sem rótulo.`;
 
+/**
+ * A persona é o PREFIXO fixo de todo prompt: memória, sensores e vontade só
+ * entram depois dela. Medido no aparelho: são ~390 dos 447 tokens que o modelo
+ * lia antes de responder "oi" — a 3 tokens/s, uns 2 minutos relendo a mesma
+ * coisa toda vez. Expor o prefixo permite aquecê-lo no cache de KV enquanto o
+ * jogador ainda está andando, e aí a primeira fala só paga os tokens novos.
+ */
+export const FLOOR10_STABLE_PREFIX = ESSENTIAL_PERSONA;
+
 export const FLOOR10_CANON: readonly CanonEntry[] = [
     {
         id: 'past',

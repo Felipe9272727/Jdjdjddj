@@ -4,7 +4,10 @@ import {
     CPU_LOAD_CONFIG,
     FLOOR10_MODEL,
     GenerationTimeoutError,
+    WEBGPU_INIT_WATCHDOG_MS,
     WLLAMA_PATHS,
+    WebGpuInitTimeoutError,
+    raceGpuInitWatchdog,
     buildFloor10CorrectionPrompt,
     chunkDelta,
     consumeChatStream,
@@ -244,4 +247,50 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(npc.history[1]?.content).toContain('examinar o elevador');
     });
 
+});
+
+describe('npc/wllamaEngine — cão de guarda do WebGPU', () => {
+    it('deixa o download demorar o quanto precisar', async () => {
+        // Baixando: stalledMs devolve null, então o cronômetro nem começa.
+        let done = false;
+        const load = new Promise<void>((resolve) => {
+            setTimeout(() => { done = true; resolve(); }, 60);
+        });
+        await expect(
+            raceGpuInitWatchdog(load, () => null, 10, 5),
+        ).resolves.toBeUndefined();
+        expect(done).toBe(true);
+    });
+
+    it('reprova o plano quando a inicialização trava depois do download', async () => {
+        // Download terminou há muito tempo e a carga nunca resolve: é o caso
+        // medido nesta caixa (processo de GPU queimando CPU sem lançar erro).
+        const nunca = new Promise<void>(() => { /* trava de propósito */ });
+        await expect(
+            raceGpuInitWatchdog(nunca, () => 50_000, 10, 5),
+        ).rejects.toBeInstanceOf(WebGpuInitTimeoutError);
+    });
+
+    it('propaga a falha real do wllama sem mascarar de timeout', async () => {
+        const boom = Promise.reject(new Error('sem VRAM'));
+        await expect(
+            raceGpuInitWatchdog(boom, () => null, 10, 5),
+        ).rejects.toThrow('sem VRAM');
+    });
+
+    it('só entra em ação depois do download, com folga de verdade', () => {
+        expect(WEBGPU_INIT_WATCHDOG_MS).toBeGreaterThanOrEqual(30_000);
+    });
+
+    it('permite forçar o plano de camadas para medição', () => {
+        const alvo = globalThis as { __npcGpuLayers?: number };
+        try {
+            alvo.__npcGpuLayers = 0;
+            // Aparelho com WebGPU e memória de sobra continuaria em 12 sem o override.
+            expect(speechGpuLayerCount(true, 8)).toBe(0);
+        } finally {
+            delete alvo.__npcGpuLayers;
+        }
+        expect(speechGpuLayerCount(true, 8)).toBeGreaterThan(0);
+    });
 });
