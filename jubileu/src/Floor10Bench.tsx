@@ -53,6 +53,28 @@ async function medirCota() {
     };
 }
 
+/**
+ * Apaga o modelo guardado, dos DOIS lugares onde o wllama pode tê-lo posto.
+ * A API dele só alcança o OPFS, então aqui varremos OPFS e Cache API na mão —
+ * é o único jeito de sair de um cache que ficou inconsistente.
+ */
+async function limparTudo() {
+    try {
+        const raiz = await navigator.storage.getDirectory();
+        const alvos: string[] = [];
+        for await (const [nome] of (raiz as unknown as {
+            entries: () => AsyncIterable<[string, unknown]>;
+        }).entries()) alvos.push(nome);
+        for (const nome of alvos) {
+            await raiz.removeEntry(nome, { recursive: true }).catch(() => undefined);
+        }
+    } catch { /* navegador sem OPFS: segue para o Cache API */ }
+    try {
+        for (const nome of await caches.keys()) await caches.delete(nome);
+    } catch { /* idem */ }
+    return medirCota();
+}
+
 const Bancada: React.FC = () => {
     const [, force] = useState(0);
     const [marcos, setMarcos] = useState<Marco[]>([]);
@@ -170,6 +192,19 @@ const Bancada: React.FC = () => {
                     onClick={() => { npcReset(); setMarcos([]); setErros([]); }}
                 >
                     limpar
+                </button>
+                {/* SAÍDA DE EMERGÊNCIA. O wllama grava o modelo em dois lugares
+                    (OPFS e um store por sha256), mas só sabe listar e apagar o
+                    primeiro — dá para ficar com um registro que aponta para um
+                    arquivo que a listagem não enxerga, e aí toda carga morre em
+                    "Model file not found" sem nada no jogo capaz de desfazer.
+                    Este botão apaga TUDO e força um download limpo. */}
+                <button
+                    type="button"
+                    style={{ ...btn, background: '#7a2f2f' }}
+                    onClick={() => { void limparTudo().then(setCota); }}
+                >
+                    apagar modelo baixado
                 </button>
                 <input
                     value={texto}
