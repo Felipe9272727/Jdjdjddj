@@ -4,8 +4,11 @@ import {
     DELIBERATION_GRAMMAR,
     DELIBERATION_SYSTEM_PROMPT,
     DELIBERATION_TTL_SECONDS,
+    DELIBERATION_TIMEOUT_MS,
     buildDeliberationPrompt,
     deliberationBonus,
+    deliberationRetryDelay,
+    looksLikeLoop,
     parseDeliberation,
 } from '../npc/floor10Deliberation';
 import { perceiveFloor10 } from '../npc/floor10Perception';
@@ -123,5 +126,43 @@ describe('os dois cérebros se falam', () => {
         expect(comPromessa).toContain('JUST PROMISED THE PLAYER: enter-elevator');
         expect(comPromessa).toContain('Tudo bem, eu entro com você.');
         expect(comPromessa).toContain('Keep your word');
+    });
+});
+
+describe('floor10Deliberation — travas contra o loop do modelo pequeno', () => {
+    it('reconhece a cadeia de pensamento girando no lugar', () => {
+        expect(looksLikeLoop(
+            'inspect elevator inspect elevator inspect elevator inspect elevator',
+        )).toBe(true);
+        expect(looksLikeLoop('wait wait wait wait wait wait wait wait')).toBe(true);
+    });
+
+    it('não confunde uma decisão normal com loop', () => {
+        expect(looksLikeLoop('CHOICE: inspect-elevator')).toBe(false);
+        expect(looksLikeLoop(
+            'The player is close and quiet, so I will watch before speaking. CHOICE: observe-player',
+        )).toBe(false);
+    });
+
+    it('ignora saídas curtas demais para julgar', () => {
+        expect(looksLikeLoop('')).toBe(false);
+        expect(looksLikeLoop('idle idle')).toBe(false);
+    });
+
+    it('retoma rápido nas primeiras falhas — normalmente é só uma fala atravessando', () => {
+        expect(deliberationRetryDelay(1)).toBe(5);
+        expect(deliberationRetryDelay(3)).toBe(5);
+    });
+
+    it('espaça a insistência quando a falha vira defeito, em vez de repetir para sempre', () => {
+        expect(deliberationRetryDelay(4)).toBeGreaterThan(5);
+        expect(deliberationRetryDelay(6)).toBeGreaterThan(deliberationRetryDelay(5));
+        // E para de piorar: nunca desiste de vez nem espera meia hora.
+        expect(deliberationRetryDelay(99)).toBe(300);
+    });
+
+    it('tem teto de tempo por rodada, senão uma rodada presa mata o livre-arbítrio', () => {
+        expect(DELIBERATION_TIMEOUT_MS).toBeGreaterThan(0);
+        expect(DELIBERATION_TIMEOUT_MS).toBeLessThanOrEqual(60_000);
     });
 });

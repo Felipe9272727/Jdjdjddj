@@ -10,7 +10,9 @@
 import {
     DELIBERATION_SYSTEM_PROMPT,
     DELIBERATION_GRAMMAR,
+    DELIBERATION_TIMEOUT_MS,
     buildDeliberationPrompt,
+    looksLikeLoop,
     parseDeliberation,
     type DeliberationMemory,
     type Floor10Deliberation,
@@ -331,18 +333,40 @@ export async function deliberateFloor10(
             deliberationLoadText: `${SMALL_BRAIN_MODEL.label} pronto · escolhendo uma intenção`,
         });
         currentAbort = new AbortController();
-        const response = await engine.createChatCompletion({
-            messages: [
-                { role: 'system', content: DELIBERATION_SYSTEM_PROMPT },
-                {
-                    role: 'user',
-                    content: buildDeliberationPrompt(input.perception, input.drives, input.memory),
-                },
-            ],
-            ...SMALL_BRAIN_COMPLETION_CONFIG,
-            abortSignal: currentAbort.signal,
-        });
-        const decided = parseDeliberation(readCompletionText(response), input.now);
+        const abort = currentAbort;
+        // TETO DE TEMPO. Sem ele, um worker preso deixava esta promessa pendente
+        // para sempre; como `inFlight` só é liberado no finally, o livre-arbítrio
+        // morria calado pelo resto da sessão. Agora a rodada é abandonada e a
+        // próxima tenta de novo.
+        const relogio = globalThis.setTimeout(() => abort.abort(), DELIBERATION_TIMEOUT_MS);
+        let response: unknown;
+        try {
+            response = await engine.createChatCompletion({
+                messages: [
+                    { role: 'system', content: DELIBERATION_SYSTEM_PROMPT },
+                    {
+                        role: 'user',
+                        content: buildDeliberationPrompt(input.perception, input.drives, input.memory),
+                    },
+                ],
+                ...SMALL_BRAIN_COMPLETION_CONFIG,
+                abortSignal: abort.signal,
+            });
+        } finally {
+            globalThis.clearTimeout(relogio);
+        }
+        const texto = readCompletionText(response);
+        // Cadeia de pensamento girando no lugar: a gramática limita QUAIS
+        // palavras saem, não quantas vezes. Descartar aqui evita alimentar o
+        // corpo com uma "decisão" tirada de um texto em círculo.
+        if (looksLikeLoop(texto)) {
+            npcSet({
+                deliberationPhase: 'off',
+                deliberationLoadText: `${SMALL_BRAIN_MODEL.label} se enrolou; vai tentar de novo`,
+            });
+            return null;
+        }
+        const decided = parseDeliberation(texto, input.now);
         if (decided) {
             npcSet({
                 deliberationPhase: 'decided',

@@ -162,6 +162,9 @@ export function cpuThreadCount(
 export const SPEECH_WEBGPU_LAYERS = 12;
 export const SPEECH_WEBGPU_LOW_MEMORY_LAYERS = 8;
 
+/** O jogo roda em CPU. Ver a nota em speechGpuLayerCount(). */
+export const SPEECH_WEBGPU_ENABLED = false;
+
 /**
  * Reserva GPU só em aparelhos com memória suficiente. Chrome limita
  * navigator.deviceMemory a valores aproximados; 8 representa o Redmi de 12 GB.
@@ -178,6 +181,11 @@ export function speechGpuLayerCount(
     if (typeof forced === 'number' && Number.isFinite(forced)) {
         return Math.max(0, Math.floor(forced));
     }
+    // DESLIGADO POR PADRÃO — decisão do dono do jogo, que testou no aparelho
+    // dele: com offload de WebGPU o celular inteiro engasga, e pela CPU o jogo
+    // roda liso. O ganho de tokens/s não paga travar o aparelho de quem joga.
+    // A engrenagem fica aqui inteira: `__npcGpuLayers` religa para medir.
+    if (!SPEECH_WEBGPU_ENABLED) return 0;
     if (!webGpuAvailable || !Number.isFinite(deviceMemoryGiB) || deviceMemoryGiB < 6) {
         return 0;
     }

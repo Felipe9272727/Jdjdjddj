@@ -4,6 +4,7 @@ import {
     CPU_LOAD_CONFIG,
     FLOOR10_MODEL,
     GenerationTimeoutError,
+    SPEECH_WEBGPU_ENABLED,
     WEBGPU_INIT_WATCHDOG_MS,
     WLLAMA_PATHS,
     WebGpuInitTimeoutError,
@@ -65,13 +66,19 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(cpuThreadCount(true, 8)).toBe(6);
     });
 
-    it('usa offload WebGPU parcial e adaptado à memória do aparelho', () => {
+    it('roda em CPU: nenhum aparelho recebe offload de WebGPU', () => {
+        // O dono do jogo testou no aparelho dele: com WebGPU o celular engasga,
+        // pela CPU roda liso. Nem memória de sobra reabre essa porta.
+        expect(SPEECH_WEBGPU_ENABLED).toBe(false);
         expect(speechGpuLayerCount(false, 12)).toBe(0);
         expect(speechGpuLayerCount(true, 4)).toBe(0);
-        expect(speechGpuLayerCount(true, 6)).toBe(8);
-        expect(speechGpuLayerCount(true, 8)).toBe(12);
+        expect(speechGpuLayerCount(true, 6)).toBe(0);
+        expect(speechGpuLayerCount(true, 8)).toBe(0);
+    });
+
+    it('mantém a etiqueta capaz de descrever os dois modos', () => {
         expect(speechRuntimeLabel(12, 4)).toBe('WebGPU×12 + CPU×4');
-        expect(speechRuntimeLabel(0, 4)).toBe('CPU×4');
+        expect(speechRuntimeLabel(0, 6)).toBe('CPU×6');
     });
 
     it('usa o SmolLM3-3B oficial como cérebro de fala', () => {
@@ -295,15 +302,15 @@ describe('npc/wllamaEngine — cão de guarda do WebGPU', () => {
         expect(WEBGPU_INIT_WATCHDOG_MS).toBeGreaterThanOrEqual(30_000);
     });
 
-    it('permite forçar o plano de camadas para medição', () => {
+    it('deixa religar a GPU por override, só para medir', () => {
         const alvo = globalThis as { __npcGpuLayers?: number };
         try {
-            alvo.__npcGpuLayers = 0;
-            // Aparelho com WebGPU e memória de sobra continuaria em 12 sem o override.
-            expect(speechGpuLayerCount(true, 8)).toBe(0);
+            alvo.__npcGpuLayers = 12;
+            expect(speechGpuLayerCount(true, 8)).toBe(12);
         } finally {
             delete alvo.__npcGpuLayers;
         }
-        expect(speechGpuLayerCount(true, 8)).toBeGreaterThan(0);
+        // Fora da medição, volta a ser CPU pura.
+        expect(speechGpuLayerCount(true, 8)).toBe(0);
     });
 });

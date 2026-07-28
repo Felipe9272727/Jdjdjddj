@@ -16,7 +16,10 @@ import {
 } from './npc/floor10Will';
 import { deliberateFloor10 } from './npc/floor10SmallBrain';
 import { initLLM } from './npc/wllamaEngine';
-import type { Floor10Deliberation } from './npc/floor10Deliberation';
+import {
+    deliberationRetryDelay,
+    type Floor10Deliberation,
+} from './npc/floor10Deliberation';
 
 // ── O CORPO DO NPC (procedural, v1) ────────────────────────────────────────
 // Um hóspede humanoide de pé na base do Andar 10. Por enquanto o corpo é
@@ -57,6 +60,8 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     // intenção pronta; o reflexo abaixo continua decidindo a cada quadro.
     const deliberation = useRef<Floor10Deliberation | null>(null);
     const nextDeliberationAt = useRef(6);
+    // Falhas seguidas do cérebro pequeno; zera assim que ele decide de novo.
+    const deliberationFailures = useRef(0);
     const elevatorInspections = useRef(0);
     const lastGoalTrail = useRef<string[]>([]);
     const playerQuietSince = useRef(0);
@@ -126,12 +131,17 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 }).then((decided) => {
                     if (decided) {
                         deliberation.current = decided;
+                        deliberationFailures.current = 0;
                     } else if (npc.deliberationPhase !== 'unavailable') {
-                        // Uma fala pode ter interrompido só esta rodada. Retoma
-                        // em poucos segundos, sem esperar o ciclo inteiro.
+                        // Uma fala pode ter interrompido só esta rodada, e aí
+                        // retomar em segundos é certo. Mas insistir a cada 5s
+                        // PARA SEMPRE, quando o modelo pequeno está enrolado,
+                        // só cozinha o celular — então a espera cresce a cada
+                        // falha seguida até voltar ao ciclo normal.
+                        deliberationFailures.current += 1;
                         nextDeliberationAt.current = Math.min(
                             nextDeliberationAt.current,
-                            t + 5,
+                            t + deliberationRetryDelay(deliberationFailures.current),
                         );
                     }
                 });

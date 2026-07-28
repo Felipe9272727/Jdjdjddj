@@ -184,3 +184,49 @@ export function deliberationBonus(
     // Perde força com o tempo: uma intenção velha não deve mandar para sempre.
     return DELIBERATION_BONUS * (1 - age / DELIBERATION_TTL_SECONDS);
 }
+
+// ── TRAVAS CONTRA O LOOP DO MODELO PEQUENO ────────────────────────────────
+// Alerta do Felipe, e procede: modelo pequeno de raciocínio às vezes entra em
+// cadeia de pensamento circular. Aqui isso não pode virar um NPC travado nem um
+// celular esquentando à toa, então há três limites independentes.
+
+/**
+ * Teto de tempo para UMA deliberação. Sem ele, um worker preso deixava a rodada
+ * pendente para sempre — e como a trava `inFlight` só é liberada no `finally`,
+ * o livre-arbítrio morria calado pelo resto da sessão.
+ */
+export const DELIBERATION_TIMEOUT_MS = 20_000;
+
+/** A partir daqui paramos de insistir depressa e passamos a espaçar. */
+export const DELIBERATION_MAX_FAST_RETRIES = 3;
+
+/**
+ * Reconhece a saída em círculo ("inspect elevator inspect elevator inspect…").
+ * A gramática já limita QUAIS palavras saem, mas não impede repeti-las até o
+ * teto de tokens; sem detectar isso, cada rodada gasta CPU para devolver nada.
+ */
+export function looksLikeLoop(raw: string): boolean {
+    const words = raw.toLowerCase().match(/[a-zà-ú0-9-]+/gi) ?? [];
+    if (words.length < 6) return false;
+    const unique = new Set(words);
+    // Muitas palavras e pouquíssima variedade = está girando no lugar.
+    if (unique.size <= Math.max(2, Math.floor(words.length / 4))) return true;
+    // Ou o mesmo par de palavras repetido em sequência.
+    let repeats = 0;
+    for (let i = 2; i < words.length; i += 1) {
+        if (words[i] === words[i - 2] && words[i - 1] === words[i - 3]) repeats += 1;
+    }
+    return repeats >= 4;
+}
+
+/**
+ * Espaçamento entre tentativas depois de uma rodada sem escolha. As primeiras
+ * falhas costumam ser só uma fala do jogador atravessando, então retomar rápido
+ * é certo; falha repetida é defeito, e aí insistir a cada 5s só cozinha o
+ * aparelho. Cresce até o ciclo normal e para de piorar.
+ */
+export function deliberationRetryDelay(consecutiveFailures: number): number {
+    const falhas = Math.max(0, Math.floor(consecutiveFailures));
+    if (falhas <= DELIBERATION_MAX_FAST_RETRIES) return 5;
+    return Math.min(300, 5 * 2 ** (falhas - DELIBERATION_MAX_FAST_RETRIES));
+}
