@@ -40,13 +40,15 @@ const page = await browser.newPage({ viewport: { width: 900, height: 900 } });
 const localCdn = process.env.F10_WLLAMA_CDN;
 const localModel = process.env.F10_MODEL_URL;
 const forcedGpuLayers = process.env.F10_GPU_LAYERS;
-await page.addInitScript(({ cdn, model, gpu }) => {
+const forcedThreads = process.env.F10_THREADS;
+await page.addInitScript(({ cdn, model, gpu, threads }) => {
     if (cdn) window.__wllamaCdn = cdn;
     if (model) window.__npcModelUrl = model;
     if (gpu !== undefined) window.__npcGpuLayers = Number(gpu);
+    if (threads !== undefined) window.__npcThreads = Number(threads);
     // O log do llama.cpp é o que revela a etapa exata da carga.
     window.__npcVerboseLlama = true;
-}, { cdn: localCdn, model: localModel, gpu: forcedGpuLayers });
+}, { cdn: localCdn, model: localModel, gpu: forcedGpuLayers, threads: forcedThreads });
 
 const errors = [];
 let crashed = false;

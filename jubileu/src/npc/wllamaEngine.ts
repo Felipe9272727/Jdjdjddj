@@ -74,9 +74,13 @@ export const CPU_LOAD_CONFIG = Object.freeze({
 });
 export const CHAT_COMPLETION_CONFIG = Object.freeze({
     stream: true,
-    // O personagem responde em 1–3 frases. 220 tokens só faziam a CPU trabalhar
-    // mais e davam espaço para modelos pequenos divagarem.
-    max_tokens: 64,
+    // 64 cortava a fala no meio da palavra no celular do Felipe. Medido: passar
+    // de 2 para 4 threads dobra a velocidade (fala 2→3 tok/s, espera 84s→42s),
+    // e é essa folga que paga o orçamento maior. O modelo continua mirando 1–2
+    // frases pela persona; este teto é só a margem para FECHAR a última delas,
+    // não um convite para divagar (penalty_repeat + corte na frase completa
+    // seguram o resto).
+    max_tokens: 96,
     temperature: 0.45,
     top_p: 0.85,
     top_k: 40,
@@ -123,20 +127,32 @@ export function prepareFloor10SystemPrompt(prompt: string): string {
 }
 
 /**
- * Sem isolamento, SharedArrayBuffer/pthreads não estão disponíveis. Com
- * COOP+COEP, segue a estratégia padrão do wllama: metade dos núcleos, até 4.
- * Isso deixa o render/jogo responsivo e evita colocar núcleos de eficiência no
- * caminho crítico. getNumThreads() confirma o total criado pelo runtime.
+ * Sem isolamento, SharedArrayBuffer/pthreads não estão disponíveis.
+ *
+ * Antes usávamos metade dos núcleos, teto 4 — a receita padrão do wllama. Num
+ * celular de 8 núcleos isso pedia 4 threads e deixava metade da máquina parada
+ * enquanto o jogador esperava um token por segundo. Passou para ~3/4 dos
+ * núcleos, teto 6: sobra folga para o render e para o MiniCPM, sem desperdiçar
+ * o resto. O teto existe porque acima disso entram os núcleos de eficiência,
+ * que só atrasam a thread mais lenta do lote.
+ *
+ * getNumThreads() confirma o total realmente criado pelo runtime.
  */
+export const MAX_SPEECH_THREADS = 6;
+
 export function cpuThreadCount(
     isolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated,
     hardwareConcurrency = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1,
 ): number {
+    const forced = (globalThis as { __npcThreads?: number }).__npcThreads;
+    if (typeof forced === 'number' && Number.isFinite(forced)) {
+        return Math.max(1, Math.floor(forced));
+    }
     if (!isolated) return 1;
     const detected = Number.isFinite(hardwareConcurrency)
         ? Math.floor(hardwareConcurrency)
         : 1;
-    return Math.max(1, Math.min(4, Math.floor(detected / 2)));
+    return Math.max(1, Math.min(MAX_SPEECH_THREADS, Math.floor((detected * 3) / 4)));
 }
 
 /**

@@ -43,13 +43,26 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         });
     });
 
-    it('reserva metade da CPU, até quatro núcleos, para não travar o jogo', () => {
+    it('usa ~3/4 da CPU, até seis núcleos, sem travar o jogo', () => {
         expect(cpuThreadCount(false, 12)).toBe(1);
         expect(cpuThreadCount(true, 2)).toBe(1);
-        expect(cpuThreadCount(true, 4)).toBe(2);
-        expect(cpuThreadCount(true, 8)).toBe(4);
-        expect(cpuThreadCount(true, 16)).toBe(4);
+        expect(cpuThreadCount(true, 4)).toBe(3);
+        // O caso do Felipe: 8 núcleos rendiam só 4 threads e metade do celular
+        // ficava parada enquanto ele esperava um token por segundo.
+        expect(cpuThreadCount(true, 8)).toBe(6);
+        expect(cpuThreadCount(true, 16)).toBe(6);
         expect(cpuThreadCount(true, Number.NaN)).toBe(1);
+    });
+
+    it('permite forçar as threads para medir escalonamento', () => {
+        const alvo = globalThis as { __npcThreads?: number };
+        try {
+            alvo.__npcThreads = 2;
+            expect(cpuThreadCount(true, 8)).toBe(2);
+        } finally {
+            delete alvo.__npcThreads;
+        }
+        expect(cpuThreadCount(true, 8)).toBe(6);
     });
 
     it('usa offload WebGPU parcial e adaptado à memória do aparelho', () => {
@@ -88,7 +101,7 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
     it('usa os nomes OpenAI-compatible aceitos pela API v3', () => {
         expect(CHAT_COMPLETION_CONFIG).toMatchObject({
             stream: true,
-            max_tokens: 64,
+            max_tokens: 96,
             temperature: 0.45,
             top_p: 0.85,
             top_k: 40,
