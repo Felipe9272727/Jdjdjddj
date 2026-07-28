@@ -11,6 +11,7 @@ import {
     raceGpuInitWatchdog,
     buildFloor10CorrectionPrompt,
     chunkDelta,
+    chunkOpensReply,
     consumeChatStream,
     cpuThreadCount,
     formatTimings,
@@ -312,5 +313,69 @@ describe('npc/wllamaEngine — cão de guarda do WebGPU', () => {
         }
         // Fora da medição, volta a ser CPU pura.
         expect(speechGpuLayerCount(true, 8)).toBe(0);
+    });
+});
+
+describe('npc/wllamaEngine — restos da geração anterior no início do stream', () => {
+    const abre = (content: string | null = null) => ({
+        choices: [{ delta: { role: 'assistant', content } }],
+    });
+    const pedaco = (content: string) => ({ choices: [{ delta: { content } }] });
+
+    it('reconhece o pedaço que abre uma resposta', () => {
+        expect(chunkOpensReply(abre())).toBe(true);
+        expect(chunkOpensReply(pedaco('oi'))).toBe(false);
+        expect(chunkOpensReply({})).toBe(false);
+    });
+
+    it('descarta a cauda da rodada anterior — sequência REAL capturada', async () => {
+        // Vista crua na sala da mente: um content solto e o "stop" da rodada
+        // passada chegam ANTES da abertura desta. Sem descartar, o texto saía
+        // "OSE: idleCHO" em vez de "CHOICE: approach-player".
+        async function* chunks() {
+            yield pedaco('\n');
+            yield { choices: [{ finish_reason: 'stop', delta: {} }] };
+            yield abre();
+            yield pedaco('CHO');
+            yield pedaco('ICE');
+            yield pedaco(':');
+            yield pedaco(' approach');
+            yield pedaco('-player');
+        }
+        const raw = await consumeChatStream(
+            Promise.resolve(chunks() as never),
+            () => undefined,
+            { firstTokenMs: 5_000, nextTokenMs: 5_000 },
+        );
+        expect(raw).toBe('CHOICE: approach-player');
+        expect(raw).not.toContain('\n');
+    });
+
+    it('não estraga um stream limpo, que abre já no primeiro pedaço', async () => {
+        async function* chunks() {
+            yield abre();
+            yield pedaco('Meu nome é Nilo.');
+        }
+        await expect(consumeChatStream(
+            Promise.resolve(chunks() as never),
+            () => undefined,
+            { firstTokenMs: 5_000, nextTokenMs: 5_000 },
+        )).resolves.toBe('Meu nome é Nilo.');
+    });
+
+    it('limpa também o texto JÁ MOSTRADO, senão a fala velha pisca na tela', async () => {
+        async function* chunks() {
+            yield pedaco('resto velho');
+            yield abre();
+            yield pedaco('fala nova');
+        }
+        const vistos: string[] = [];
+        await consumeChatStream(
+            Promise.resolve(chunks() as never),
+            (t) => vistos.push(t),
+            { firstTokenMs: 5_000, nextTokenMs: 5_000 },
+        );
+        expect(vistos.at(-1)).toBe('fala nova');
+        expect(vistos).toContain('');
     });
 });

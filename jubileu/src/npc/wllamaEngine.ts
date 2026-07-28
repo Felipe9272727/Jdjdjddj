@@ -382,7 +382,9 @@ export type ChatTimings = {
 };
 
 export type ChatChunk = {
-    choices?: Array<{ delta?: { content?: string | null } }>;
+    // `role` só aparece no pedaço que ABRE uma resposta — é o marco que separa
+    // esta geração dos restos da anterior.
+    choices?: Array<{ delta?: { content?: string | null; role?: string } }>;
     // Compatibilidade defensiva com builds antigos do wllama.
     currentText?: string;
     piece?: string;
@@ -393,6 +395,22 @@ export function chunkDelta(chunk: ChatChunk): string {
     const oaiDelta = chunk.choices?.[0]?.delta?.content;
     if (typeof oaiDelta === 'string') return oaiDelta;
     return typeof chunk.piece === 'string' ? chunk.piece : '';
+}
+
+/**
+ * Este pedaço ABRE uma resposta nova?
+ *
+ * O stream do wllama entrega, no começo de uma geração, os restos da geração
+ * ANTERIOR — vistos crus na sala da mente: um `content` solto e um
+ * `finish_reason: "stop"` chegando ANTES do primeiro pedaço real. Foi isso que
+ * transformou "CHOICE: idle" em "OSE: idleCHO" e emendou falas do Nilo
+ * ("eu possa.O hotel…"). Eu tinha culpado o teto de tokens; era vazamento.
+ *
+ * A convenção OpenAI marca a abertura com `delta.role`. Ao vê-la, tudo o que
+ * veio antes é lixo da rodada passada e deve ser descartado.
+ */
+export function chunkOpensReply(chunk: ChatChunk): boolean {
+    return typeof chunk.choices?.[0]?.delta?.role === 'string';
 }
 
 /**
@@ -458,6 +476,10 @@ export async function consumeChatStream(
         sawAnyChunk = true;
         const chunk = result.value;
         if (chunk.timings) options.onTimings?.(chunk.timings);
+        // Restos da geração anterior chegam ANTES da abertura desta. Jogar fora
+        // o que já se acumulou é o que impede a fala nova de nascer emendada na
+        // velha (ver chunkOpensReply).
+        if (chunkOpensReply(chunk)) { acc = ''; onVisibleText(''); }
         if (typeof chunk.currentText === 'string') acc = chunk.currentText;
         else acc += chunkDelta(chunk);
         const visible = visibleText(acc);

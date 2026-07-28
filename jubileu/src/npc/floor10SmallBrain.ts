@@ -21,7 +21,9 @@ import type { Floor10Perception } from './floor10Perception';
 import type { Floor10WillDrives } from './floor10Will';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { npc, npcSet } from './npcStore';
-import { cpuThreadCount } from './wllamaEngine';
+import {
+    chunkDelta, chunkOpensReply, cpuThreadCount, type ChatChunk,
+} from './wllamaEngine';
 
 const WLLAMA_V = '3.5.1';
 // Mesmos overrides do cérebro de fala. Sem eles o cérebro PEQUENO era
@@ -447,6 +449,8 @@ export async function deliberarObservando(
          * olhar, que é o motivo de a sala existir.
          */
         timeoutMs?: number;
+        /** Cada pedaço cru do stream, para diagnosticar texto embaralhado. */
+        onChunk?: (chunk: unknown) => void;
     },
 ): Promise<PensamentoAoVivo> {
     const comecou = Date.now();
@@ -480,11 +484,13 @@ export async function deliberarObservando(
             abortSignal: abort.signal,
         }) as AsyncIterable<unknown>;
         for await (const chunk of stream) {
-            const c = chunk as {
-                choices?: Array<{ delta?: { content?: string | null } }>;
-                piece?: string;
-            };
-            const pedaco = c.choices?.[0]?.delta?.content ?? c.piece ?? '';
+            opts.onChunk?.(chunk);
+            const c = chunk as ChatChunk;
+            // Mesmo vazamento do cérebro de fala: os restos da rodada anterior
+            // vêm na frente. Sem descartar, "CHOICE: idle" chegava como
+            // "OSE: idleCHO" e a decisão era perdida.
+            if (chunkOpensReply(c)) { raw = ''; tokens = 0; opts.onToken(raw); }
+            const pedaco = chunkDelta(c);
             if (pedaco) { raw += pedaco; tokens += 1; opts.onToken(raw); }
         }
     } catch (e) {
