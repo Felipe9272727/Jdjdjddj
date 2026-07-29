@@ -57,6 +57,28 @@ export class DownloadMeter {
 
     push(bytes: number, totalBytes: number, agora = Date.now()): DownloadSample {
         if (!this.iniciado) this.reset(agora);
+        // O RELÓGIO COMEÇA NO PRIMEIRO BYTE, não quando a carga foi pedida.
+        //
+        // Entre o pedido e o primeiro pedaço o wllama ainda abre o cache e o
+        // Worker — foram 68s numa medição real. Contando esse tempo morto, a
+        // primeira leitura saiu "16 KB/s · faltam ~9h09" para um arquivo que
+        // chegou inteiro 10s depois. Uma barra que mente assim é pior que
+        // nenhuma: descartar a espera e começar a medir agora dá "—" por alguns
+        // segundos e a verdade em seguida.
+        if (this.ultimoBytes === 0 && bytes > 0) {
+            this.ultimoBytes = bytes;
+            this.ultimoAvanco = agora;
+            this.janelaBytes = 0;
+            this.janelaInicio = agora;
+            return {
+                fraction: totalBytes > 0 ? Math.max(0, Math.min(1, bytes / totalBytes)) : 0,
+                bytes,
+                totalBytes,
+                rate: 0,
+                etaSec: null,
+                stalledSec: 0,
+            };
+        }
         const avancou = bytes > this.ultimoBytes;
         if (avancou) {
             this.janelaBytes += bytes - this.ultimoBytes;

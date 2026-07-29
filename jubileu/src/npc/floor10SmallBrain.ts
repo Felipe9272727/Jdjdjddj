@@ -26,6 +26,9 @@ import {
     SMALL_BRAIN_CATALOG, SMALL_BRAIN_DEFAULT, type SmallBrainId,
 } from './floor10Brains';
 import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
+import {
+    CACHE_HEADROOM, planModelCache, readStorageEstimate,
+} from './floor10ModelStorage';
 import { npc, npcSet } from './npcStore';
 import {
     chunkDelta, chunkOpensReply, cpuThreadCount, speechModelReady,
@@ -364,7 +367,7 @@ export function readCompletionText(response: unknown): string {
 }
 
 /** Carrega o cérebro pequeno uma única vez; falha vira null, nunca exceção. */
-function ensureSmallEngine(): Promise<SmallInstance | null> {
+function ensureSmallEngine(cederParaFala = true): Promise<SmallInstance | null> {
     enginePromise ??= (async () => {
         const controller = new AbortController();
         loadAbort = controller;
@@ -376,13 +379,19 @@ function ensureSmallEngine(): Promise<SmallInstance | null> {
             deliberationLoadProgress: 0,
             deliberationDownload: DOWNLOAD_ZERO,
         });
-        // A FALA PRIMEIRO. Os dois cérebros dividem o mesmo cofre de
-        // armazenamento do site; medido no navegador, um cérebro pequeno
-        // baixado antes derrubava a cota abaixo do que o SmolLM3 precisa e a
-        // fala era RECUSADA — o "agr nem falar ele fala". Enquanto o cérebro da
-        // conversa não estiver garantido, a vontade não gasta um byte. Ela
-        // tenta de novo na próxima rodada, e o reflexo dirige o corpo até lá.
-        if (!await speechModelReady()) {
+        // A FALA PRIMEIRO — mas SÓ na deliberação automática do jogo.
+        //
+        // Os dois cérebros dividem o mesmo cofre de armazenamento do site, e um
+        // cérebro pequeno baixado antes derrubava a cota abaixo do que o
+        // SmolLM3 precisa: a fala era recusada e o Nilo emudecia.
+        //
+        // Só que eu apliquei essa trava em TODO caminho, inclusive na sala da
+        // mente — onde não existe cérebro de fala e nunca vai existir. Lá a
+        // trava nunca liberava e o download simplesmente não começava: eu criei
+        // o "não estou conseguindo baixar nada" do Felipe. Quando é ELE quem
+        // manda pensar, é ordem, e ordem não espera por um modelo que aquela
+        // página nem usa.
+        if (cederParaFala && !await speechModelReady()) {
             npcSet({
                 deliberationPhase: 'off',
                 deliberationLoadText: 'esperando o cérebro da fala ficar pronto antes de baixar a vontade',
@@ -403,6 +412,31 @@ function ensureSmallEngine(): Promise<SmallInstance | null> {
                 import(/* @vite-ignore */ WLLAMA_ESM) as Promise<{ Wllama: SmallCtor }>,
                 controller.signal,
             );
+            // CABE? A mesma defesa que a fala já tinha, que faltava aqui.
+            // Sem ela, quando o cache estoura, o Worker levanta
+            // QuotaExceededError — um DOMException, que não atravessa o
+            // postMessage — e a promessa da carga não resolve NEM rejeita. Na
+            // tela: "carregando" para sempre, sem uma palavra de explicação.
+            // Publica o número também, para a barra poder mostrá-lo.
+            const estimativa = await readStorageEstimate();
+            const plano = planModelCache(estimativa, SMALL_BRAIN_MODEL.bytes);
+            npcSet({
+                storage: {
+                    quota: estimativa.quota,
+                    usage: estimativa.usage,
+                    needBytes: Math.ceil(SMALL_BRAIN_MODEL.bytes * CACHE_HEADROOM),
+                },
+            });
+            if (!plano.ok) {
+                npcSet({
+                    deliberationPhase: 'unavailable',
+                    deliberationLoadText:
+                        `${SMALL_BRAIN_MODEL.label} não cabe: ${plano.message}`,
+                });
+                enginePromise = null;
+                loadAbort = null;
+                return null;
+            }
             engine = new mod.Wllama({ default: WASM_SINGLE }, { suppressNativeLog: true });
             loadingEngine = engine;
             const loadTask = engine.loadModelFromUrl(SMALL_BRAIN_MODEL.url, {
@@ -556,7 +590,8 @@ export async function deliberateFloor10(
     try {
         const engine = await floor10ModelCoordinator.activate(
             'deliberation',
-            ensureSmallEngine,
+            // Automática: cede a vez para a fala, que é quem o jogador espera.
+            () => ensureSmallEngine(true),
         );
         if (!engine) {
             const unavailable = npc.deliberationPhase === 'unavailable';
@@ -690,7 +725,12 @@ export async function deliberarObservando(
     },
 ): Promise<PensamentoAoVivo> {
     const comecou = Date.now();
-    const engine = await floor10ModelCoordinator.activate('deliberation', ensureSmallEngine);
+    // A sala da mente observa o cérebro pequeno SOZINHO: não há fala nesta
+    // página, então esperar por ela seria esperar para sempre.
+    const engine = await floor10ModelCoordinator.activate(
+        'deliberation',
+        () => ensureSmallEngine(false),
+    );
     if (!engine) {
         return {
             raw: '', decided: null, loop: false, ms: Date.now() - comecou, tokens: 0,

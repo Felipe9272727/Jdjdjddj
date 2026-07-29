@@ -10,10 +10,13 @@ describe('npc/floor10Download — a barra que responde "está baixando ou travou
         const m = new DownloadMeter();
         m.reset(0);
         m.push(0, 2 * GB, 0);
-        // 100 MB em 5s = 20 MB/s.
-        const s = m.push(100e6, 2 * GB, 5_000);
-        expect(s.bytes).toBe(100e6);
-        expect(s.fraction).toBeCloseTo(0.05, 3);
+        // O primeiro pedaço real só marca o início do relógio (ver o teste da
+        // espera antes do primeiro byte); a velocidade sai a partir do próximo.
+        m.push(20e6, 2 * GB, 1_000);
+        // +100 MB em 5s = 20 MB/s.
+        const s = m.push(120e6, 2 * GB, 6_000);
+        expect(s.bytes).toBe(120e6);
+        expect(s.fraction).toBeCloseTo(0.06, 3);
         expect(s.rate).toBeGreaterThan(15e6);
         expect(s.rate).toBeLessThan(25e6);
         expect(s.etaSec).toBeGreaterThan(0);
@@ -33,6 +36,24 @@ describe('npc/floor10Download — a barra que responde "está baixando ou travou
         const andando = m.push(300e6, 2 * GB, 1_000 + 31_000);
         expect(andando.stalledSec).toBe(0);
         expect(downloadLine(andando)).not.toContain('parado');
+    });
+
+    it('NÃO conta a espera antes do primeiro byte como lentidão', () => {
+        // Caso real: 68s abrindo cache/Worker, depois 150 MB de uma vez. A
+        // conta ingênua dava "16 KB/s · faltam ~9h09" para um arquivo que
+        // terminou 10s depois.
+        const m = new DownloadMeter();
+        m.reset(0);
+        const primeiro = m.push(150e6, 688e6, 68_000);
+        expect(primeiro.rate).toBe(0);
+        expect(primeiro.etaSec).toBeNull();
+        expect(primeiro.bytes).toBe(150e6);
+        expect(downloadLine(primeiro)).toContain('150 MB de 688 MB');
+        expect(downloadLine(primeiro)).not.toContain('9h');
+        // E a partir daí mede o download de verdade: +300 MB em 5s.
+        const depois = m.push(450e6, 688e6, 73_000);
+        expect(depois.rate).toBeGreaterThan(50e6);
+        expect(depois.etaSec).toBeLessThan(10);
     });
 
     it('não inventa progresso quando o servidor não diz o tamanho', () => {
