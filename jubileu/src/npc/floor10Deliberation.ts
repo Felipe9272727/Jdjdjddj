@@ -70,11 +70,21 @@ export type DeliberationMemory = {
 export const DELIBERATION_SYSTEM_PROMPT =
 `You are the inner voice of Nilo, a man trapped alone on floor 10: one square gray room, grid floor, four walls, an elevator door. He never left. The elevator never obeys him.
 You receive what he SEES right now, what he WANTS, and what he REMEMBERS trying.
-Think it through in a few short sentences, in first person, as the man himself: what you notice, what bothers you, what you feel like doing.
+Think it through in first person, as the man himself: what you notice, what bothers you, what you feel like doing.
 Then decide by your own free will — you are a person, not a servant, and you may choose something unexpected as long as it makes sense for you.
-Be brief. Never repeat yourself. End with exactly one final line:
+Be brief: at most three short sentences. Never repeat yourself.
+Then end with exactly one final line, choosing the option that fits what you just said:
 CHOICE: <option>
-Valid options: ${DELIBERATION_GOALS.join(', ')}`;
+
+The options, and what each one means for you:
+- inspect-elevator: walk to the elevator door and study it again
+- wander: walk around the room with no destination
+- idle: stay where you are and do nothing
+- observe-player: watch him in silence from where you are (only if you can see him)
+- approach-player: walk closer to him (only if you can see him)
+- make-space: step away from him, put distance between you
+- seek-player: go looking for him, because he is not in sight
+- talk-player: say something to him out loud`;
 
 /**
  * A gramática força UMA linha e, com isso, torna o raciocínio impossível.
@@ -90,7 +100,7 @@ goal ::= ${DELIBERATION_GOALS.map((goal) => `"${goal}"`).join(' | ')}`;
 export const DELIBERATION_EXTRACT_TOKENS = 16;
 
 /** Quanto do raciocínio volta como contexto na hora de assinar a escolha. */
-export const DELIBERATION_EXTRACT_TAIL = 800;
+export const DELIBERATION_EXTRACT_TAIL = 400;
 
 /**
  * A SEGUNDA PASSADA — o pensamento já aconteceu, falta só assiná-lo.
@@ -106,12 +116,12 @@ export const DELIBERATION_EXTRACT_TAIL = 800;
  */
 export function buildChoiceExtractionPrompt(thinking: string): string {
     const cauda = thinking.trim().slice(-DELIBERATION_EXTRACT_TAIL);
-    return `This is what you just thought:
+    return `A man trapped alone in a room just thought this:
 """
 ${cauda}
 """
-Write only your final decision line, nothing else.
-Valid options: ${DELIBERATION_GOALS.join(', ')}`;
+Which of these is he about to do? Answer with one line only.
+Options: ${DELIBERATION_GOALS.join(', ')}`;
 }
 
 function round1(value: number): number {

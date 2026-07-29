@@ -1,8 +1,8 @@
 // ── O CÉREBRO PEQUENO — deliberação em segundo plano ──────────────────────
-// Instância própria do wllama com o MiniCPM5-1B (688 MB). Não conversa com o
-// jogador: recebe o estado do mundo em inglês estruturado e devolve a intenção
-// do Nilo. A saída é curta e presa por gramática; o reflexo (Utility AI)
-// continua dirigindo o corpo enquanto isto pensa.
+// Instância própria do wllama com um modelo de ~1B (ver SMALL_BRAIN_CATALOG).
+// Não conversa com o jogador: recebe o estado do mundo em inglês estruturado,
+// PENSA em primeira pessoa e assina uma intenção do Nilo. O reflexo (Utility
+// AI) continua dirigindo o corpo o tempo todo enquanto isto pensa.
 //
 // Tudo aqui é OPCIONAL por construção: se o aparelho não tiver memória para o
 // segundo modelo, a carga falha em silêncio e o Nilo segue com o reflexo. O
@@ -37,11 +37,89 @@ const CDN = (globalThis as { __wllamaCdn?: string }).__wllamaCdn
 const WLLAMA_ESM = `${CDN}/index.js`;
 const WASM_SINGLE = `${CDN}/wasm/wllama.wasm`;
 
+/**
+ * OS CANDIDATOS A CÉREBRO PEQUENO.
+ *
+ * Não é lista de gosto: os três foram medidos no MESMO prompt de deliberação
+ * deste arquivo, nos cenários reais do andar, pelo mesmo llama.cpp que roda no
+ * navegador. O que importa aqui não é nota de benchmark, é caber no orçamento
+ * do celular (≈320 tokens por rodada) E soar como o Nilo, não como um aluno
+ * comentando um enunciado.
+ */
+export const SMALL_BRAIN_CATALOG = Object.freeze([
+    {
+        id: 'gemma3-1b',
+        label: 'Gemma 3 1B',
+        url: 'https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf',
+        bytes: 806_058_240,
+        nota: 'assina a escolha em todas as rodadas; o pensamento mais curto e mais dentro do personagem',
+    },
+    {
+        id: 'llama32-1b',
+        label: 'Llama 3.2 1B',
+        url: 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
+        bytes: 807_694_464,
+        nota: 'o raciocínio mais rico em 1ª pessoa, e o mais rápido; inventa lembranças de fora do hotel',
+    },
+    {
+        id: 'minicpm5-1b',
+        label: 'MiniCPM5-1B',
+        url: 'https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
+        bytes: 688_065_920,
+        nota: 'o antigo: gasta os 320 tokens discutindo o enunciado e quase nunca chega a decidir',
+    },
+] as const);
+
+export type SmallBrainId = (typeof SMALL_BRAIN_CATALOG)[number]['id'];
+
+const SMALL_BRAIN_STORAGE_KEY = 'floor10-small-brain';
+const SMALL_BRAIN_DEFAULT: SmallBrainId = 'gemma3-1b';
+
+function readSavedBrain(): SmallBrainId | null {
+    try {
+        const saved = globalThis.localStorage?.getItem(SMALL_BRAIN_STORAGE_KEY);
+        return SMALL_BRAIN_CATALOG.some((m) => m.id === saved)
+            ? (saved as SmallBrainId)
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+let escolhido: SmallBrainId = readSavedBrain() ?? SMALL_BRAIN_DEFAULT;
+
+function brainAtual() {
+    return SMALL_BRAIN_CATALOG.find((m) => m.id === escolhido) ?? SMALL_BRAIN_CATALOG[0];
+}
+
+/**
+ * Continua sendo lido como um objeto simples em todo o resto do arquivo, mas
+ * agora responde ao modelo escolhido. O override global existe para as sondas
+ * servirem o .gguf de uma caixa fechada.
+ */
 export const SMALL_BRAIN_MODEL = Object.freeze({
-    label: 'MiniCPM5-1B',
-    url: (globalThis as { __smallBrainModelUrl?: string }).__smallBrainModelUrl
-        ?? 'https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
+    get id(): SmallBrainId { return brainAtual().id; },
+    get label(): string { return brainAtual().label; },
+    get url(): string {
+        return (globalThis as { __smallBrainModelUrl?: string }).__smallBrainModelUrl
+            ?? brainAtual().url;
+    },
+    get bytes(): number { return brainAtual().bytes; },
 });
+
+/**
+ * Troca o cérebro pequeno. Descarrega o atual antes: dois modelos de 800 MB
+ * vivos ao mesmo tempo é exatamente como o aparelho do Felipe trava.
+ */
+export async function setSmallBrain(id: SmallBrainId): Promise<void> {
+    if (id === escolhido) return;
+    if (!SMALL_BRAIN_CATALOG.some((m) => m.id === id)) return;
+    await unloadSmallBrain();
+    escolhido = id;
+    try {
+        globalThis.localStorage?.setItem(SMALL_BRAIN_STORAGE_KEY, id);
+    } catch { /* sem localStorage a escolha só vale para esta sessão */ }
+}
 
 /**
  * DOIS núcleos, e não metade da máquina.
@@ -130,7 +208,7 @@ export const SMALL_BRAIN_EXTRACT_CONFIG = Object.freeze({
 });
 
 /** Teto próprio do resgate: 16 tokens presos por gramática não demoram. */
-export const DELIBERATION_EXTRACT_TIMEOUT_MS = 45_000;
+export const DELIBERATION_EXTRACT_TIMEOUT_MS = 90_000;
 
 type SmallInstance = {
     loadModelFromUrl(url: string, params: Record<string, unknown>): Promise<void>;
@@ -418,6 +496,18 @@ function conversationHasPriority(): boolean {
  * acabou de escrever. Devolve '' se falhar — o resgate nunca pode derrubar a
  * rodada, ele só tenta salvá-la.
  */
+/**
+ * Por que o último resgate falhou. Engolir esta exceção já me custou caro duas
+ * vezes neste andar (a carga infinita por quota e as rodadas de zero token):
+ * o resgate NÃO pode derrubar a deliberação, mas o motivo tem que aparecer em
+ * algum lugar — a sala da mente lê daqui.
+ */
+let ultimoErroResgate: string | null = null;
+
+export function erroDoResgate(): string | null {
+    return ultimoErroResgate;
+}
+
 export async function assinarEscolha(
     engine: SmallInstance,
     pensamento: string,
@@ -433,15 +523,25 @@ export async function assinarEscolha(
     );
     try {
         const response = await engine.createChatCompletion({
+            // SEM o prompt de sistema, de propósito. Medido no navegador: com
+            // ele, esta chamada de 16 tokens estourava o teto de 45s — o custo
+            // não era gerar, era RELER os ~330 tokens da persona. E ela não faz
+            // falta aqui: o Nilo já pensou, isto é só a assinatura.
             messages: [
-                { role: 'system', content: DELIBERATION_SYSTEM_PROMPT },
                 { role: 'user', content: buildChoiceExtractionPrompt(pensamento) },
             ],
             ...SMALL_BRAIN_EXTRACT_CONFIG,
             abortSignal: controller.signal,
         });
-        return readCompletionText(response);
-    } catch {
+        const texto = readCompletionText(response);
+        ultimoErroResgate = texto.trim()
+            ? null
+            : `resposta vazia — ${JSON.stringify(response).slice(0, 160)}`;
+        return texto;
+    } catch (e) {
+        ultimoErroResgate = controller.signal.aborted
+            ? `cortado pelo teto de ${DELIBERATION_EXTRACT_TIMEOUT_MS / 1000}s`
+            : String(e).slice(0, 200);
         return '';
     } finally {
         globalThis.clearTimeout(relogio);
@@ -649,9 +749,11 @@ export async function deliberarObservando(
     // Mesmo resgate do jogo, visível aqui de propósito: a sala da mente existe
     // para mostrar o que acontece de verdade, inclusive a segunda passada.
     let resgate: string | null = null;
+    let erro: string | null = null;
     if (!decided && !opts.useGrammar && raw.trim() && !looksLikeLoop(raw)) {
         resgate = (await assinarEscolha(engine, raw)) || null;
         if (resgate) decided = parseDeliberation(`${raw}\n${resgate}`, input.now);
+        else erro = `resgate falhou: ${erroDoResgate() ?? 'sem motivo'}`;
     }
     return {
         raw,
@@ -659,7 +761,7 @@ export async function deliberarObservando(
         loop: looksLikeLoop(raw),
         ms: Date.now() - comecou,
         tokens,
-        erro: null,
+        erro,
         resgate,
     };
 }

@@ -15,7 +15,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { npc } from './npc/npcStore';
 import { perceiveFloor10 } from './npc/floor10Perception';
-import { deliberarObservando, SMALL_BRAIN_MODEL, type PensamentoAoVivo } from './npc/floor10SmallBrain';
+import {
+    deliberarObservando, setSmallBrain, SMALL_BRAIN_CATALOG, SMALL_BRAIN_MODEL,
+    type PensamentoAoVivo, type SmallBrainId,
+} from './npc/floor10SmallBrain';
 import { cpuThreadCount } from './npc/wllamaEngine';
 import {
     buildDeliberationPrompt, deliberationRetryDelay, looksLikeLoop,
@@ -45,8 +48,18 @@ const Mente: React.FC = () => {
     const [vivo, setVivo] = useState('');
     const [pensando, setPensando] = useState(false);
     const [rodadas, setRodadas] = useState<PensamentoAoVivo[]>([]);
+    const [cerebro, setCerebro] = useState<SmallBrainId>(SMALL_BRAIN_MODEL.id);
     const arrastando = useRef<'nilo' | 'jogador' | null>(null);
     const svgRef = useRef<SVGSVGElement>(null);
+
+    // Trocar de modelo zera a comparação: as rodadas anteriores são de OUTRO
+    // cérebro e misturá-las na mesma lista seria mentira.
+    const trocarCerebro = async (id: SmallBrainId) => {
+        await setSmallBrain(id);
+        setCerebro(id);
+        setRodadas([]);
+        setVivo('');
+    };
 
     const perception = perceiveFloor10({
         npcPosition: { x: nilo.x, y: 0, z: nilo.z },
@@ -205,6 +218,34 @@ const Mente: React.FC = () => {
             </div>
 
             <div style={box}>
+                {/* Trocar o cérebro aqui, e não na minha palavra: os três foram
+                    medidos no mesmo prompt, mas quem joga é o dono do jogo. */}
+                <div style={{ marginBottom: 10 }}>
+                    <b>Cérebro pequeno</b>
+                    <div style={{ marginTop: 6 }}>
+                        {SMALL_BRAIN_CATALOG.map((m) => (
+                            <label key={m.id} style={{ display: 'block', marginBottom: 4 }}>
+                                <input
+                                    type="radio"
+                                    name="cerebro"
+                                    checked={cerebro === m.id}
+                                    disabled={pensando}
+                                    onChange={() => void trocarCerebro(m.id)}
+                                />{' '}
+                                <b style={{ color: cerebro === m.id ? '#ffd479' : '#d8d8e0' }}>
+                                    {m.label}
+                                </b>
+                                <span style={{ color: '#777' }}>
+                                    {' '}· {(m.bytes / 1e9).toFixed(2)} GB · {m.nota}
+                                </span>
+                            </label>
+                        ))}
+                    </div>
+                    <div style={{ color: '#777' }}>
+                        trocar descarrega o modelo atual e baixa o novo na primeira
+                        vez que ele pensar.
+                    </div>
+                </div>
                 <label style={{ display: 'block', marginBottom: 6 }}>
                     <input
                         type="checkbox" checked={semGramatica}
