@@ -73,10 +73,10 @@ export const PRISON_DEVICES: readonly Omit<PrisonDevice, 'heldByNpc' | 'heldByPl
     Object.freeze([
         // As duas placas ficam em cantos OPOSTOS: nenhuma pessoa alcança as
         // duas. É a geometria que obriga a dupla, não um aviso na tela.
-        { id: 'placa-oeste', kind: 'plate', x: -4.2, z: -3.4 },
-        { id: 'placa-leste', kind: 'plate', x: 4.2, z: -3.4 },
-        { id: 'alavanca-norte', kind: 'lever', x: -3.6, z: 4.4 },
-        { id: 'alavanca-sul', kind: 'lever', x: 3.6, z: 4.4 },
+        { id: 'placa-oeste', kind: 'plate', x: -7, z: -6 },
+        { id: 'placa-leste', kind: 'plate', x: 7, z: -6 },
+        { id: 'alavanca-norte', kind: 'lever', x: -7, z: 6 },
+        { id: 'alavanca-sul', kind: 'lever', x: 7, z: 6 },
     ]);
 
 const LOCKS: readonly Omit<PrisonLock, 'progress' | 'solved' | 'nearMisses'>[] = Object.freeze([
@@ -241,4 +241,35 @@ export function describePrison(state: F10PrisonState): string {
         partes.push('Nothing has changed in a long while, no matter what you try alone.');
     }
     return partes.join(' ');
+}
+
+// ── O ESTADO VIVO ─────────────────────────────────────────────────────────
+// Singleton observável, mesmo padrão de f6Escape/npcStore: o mundo 3D desenha,
+// a vontade decide e o aprendizado aprende, todos lendo a mesma sala.
+
+export const f10prison: F10PrisonState = freshPrison();
+
+const inscritos = new Set<() => void>();
+
+export function prisonSubscribe(fn: () => void): () => void {
+    inscritos.add(fn);
+    return () => { inscritos.delete(fn); };
+}
+
+export function prisonBump(): void {
+    for (const fn of inscritos) fn();
+}
+
+/** Um passo da sala viva. Devolve os eventos para quem quiser recompensar. */
+export function prisonTick(input: PrisonStepInput): PrisonEvent[] {
+    const antes = f10prison.version;
+    const eventos = stepPrison(f10prison, input);
+    if (f10prison.version !== antes) prisonBump();
+    return eventos;
+}
+
+/** Zera a sala — o jogador saiu do andar e voltou. */
+export function prisonReset(): void {
+    Object.assign(f10prison, freshPrison());
+    prisonBump();
 }

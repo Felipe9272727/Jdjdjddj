@@ -241,6 +241,8 @@ export class Floor10WillBrain {
         drives: drivesCopy(INITIAL_FLOOR10_WILL.drives),
         learning: { ...INITIAL_FLOOR10_WILL.learning },
     };
+    /** Recompensa acumulada pelos eventos da sala desde a última rodada. */
+    private externalReward = 0;
     private driftSeconds = 0;
     private clock: Floor10Clock = readClock();
     private nextDecisionAt = 0;
@@ -446,10 +448,17 @@ export class Floor10WillBrain {
         prison: F10PrisonState,
         from: Vec3Like,
     ): { x: number; z: number } | null {
+        // FICAR é parte de tentar. Eu tinha escrito `if (device.heldByNpc)
+        // continue`, ou seja: assim que ele pisava em algo, o alvo virava OUTRO
+        // aparelho e ele saía de cima. Medido na bancada — os dois chegaram a
+        // estar nas alavancas ao mesmo tempo e a tranca começou a ceder (0.09
+        // de 1), mas ele ia embora antes dos 4s. Ninguém aprende cooperação
+        // saindo no primeiro segundo.
+        const jaEmCima = Object.values(prison.devices).find((d) => d.heldByNpc);
+        if (jaEmCima) return { x: jaEmCima.x, z: jaEmCima.z };
         let melhor: { x: number; z: number } | null = null;
         let menor = Infinity;
         for (const device of Object.values(prison.devices)) {
-            if (device.heldByNpc) continue;
             const d = Math.hypot(from.x - device.x, from.z - device.z);
             if (d < menor) {
                 menor = d;
@@ -545,6 +554,20 @@ export class Floor10WillBrain {
         return clamp(reward, -1.5, 1.5);
     }
 
+    /**
+     * Recompensa vinda do MUNDO, não da minha tabela.
+     *
+     * A tabela de learningReward sabe julgar "andei na direção do alvo" e
+     * "descansei quando estava cansado" — coisas que eu escrevi. O que
+     * acontece na prisão ela não tem como saber: quem diz que a tranca cedeu é
+     * a sala. Isto entra somado à rodada de aprendizado em curso, e é por aqui
+     * que a cooperação vira aprendizado de verdade.
+     */
+    addExternalReward(amount: number): void {
+        if (!Number.isFinite(amount)) return;
+        this.externalReward = clamp(this.externalReward + amount, -3, 3);
+    }
+
     private settleLearning(input: WillInput, done = false): Float32Array {
         const nextState = this.reinforcementState(input);
         const previous = this.learningDecision;
@@ -552,10 +575,11 @@ export class Floor10WillBrain {
             this.snapshot.learning = this.reinforcement.remember(
                 previous.state,
                 previous.action,
-                this.learningReward(previous, input),
+                this.learningReward(previous, input) + this.externalReward,
                 nextState,
                 done,
             );
+            this.externalReward = 0;
             this.learningDecision = null;
         }
         return nextState;
@@ -947,7 +971,16 @@ export class Floor10WillBrain {
                             ? 2
                             : candidate.goal === 'make-space'
                                 ? 1.6
-                                : 3.5;
+                                // A prisão é GRANDE: um aparelho fica a 14 m do
+                                // outro lado, e com 3,5s ele repensava antes de
+                                // chegar — escolhia try-device sem nunca pisar
+                                // em nada. Medido na bancada: 60s de sala e
+                                // ZERO tentativas, com a meta certa escolhida.
+                                : candidate.goal === 'try-device'
+                                    ? 12
+                                    : candidate.goal === 'call-player'
+                                        ? 5
+                                        : 3.5;
             this.setGoal(candidate, input.time, lock);
 
             if (candidate.goal === 'talk-player') {
@@ -1035,6 +1068,12 @@ export function speedForWillGoal(goal: Floor10WillGoal): number {
     if (goal === 'enter-elevator') return 0.92;
     if (goal === 'inspect-elevator') return 0.78;
     if (goal === 'wander') return 0.68;
+    // SEM ISTO ELE NÃO SAI DO LUGAR. A tabela devolve 0 para tudo que não
+    // conhece, e a meta nova caía justamente aí: ele escolhia try-device,
+    // segurava a meta por 12s e ficava parado olhando o aparelho a 14 m de
+    // distância. Medido na bancada: a meta certa escolhida dezenas de vezes e
+    // ZERO tentativas. Um passo mais decidido que o passeio: ele quer chegar.
+    if (goal === 'try-device') return 0.95;
     return 0;
 }
 

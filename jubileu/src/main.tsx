@@ -50,16 +50,23 @@ const Floor10Bench = lazy(() => import('./Floor10Bench.tsx'));
 // `?mente` abre a sala da mente: o Andar 10 de cima, para observar o cérebro
 // pequeno pensar. Em jogo a deliberação é invisível de propósito, então é a
 // única forma de flagrar uma cadeia de pensamento circular.
+const Floor10Prisao = lazy(() => import('./Floor10Prisao'));
 const Floor10Mente = lazy(() => import('./Floor10Mente.tsx'));
 const search = typeof window !== 'undefined' ? window.location.search : '';
 const isF3Preview = search.includes('f3preview');
 const isF2Preview = search.includes('f2preview');
 const isBench = search.includes('bancada');
 const isMente = search.includes('mente');
+// `?prisao` abre a bancada do campo de provas do Andar 10: a sala vista de
+// cima, os aparelhos, e o Nilo tentando. Existe porque o andar ainda não é
+// alcançável pelo elevador — sem ela o campo de provas seria invisível.
+const isPrisao = search.includes('prisao');
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {isMente ? (
+    {isPrisao ? (
+      <Suspense fallback={null}><Floor10Prisao /></Suspense>
+    ) : isMente ? (
       <Suspense fallback={null}><Floor10Mente /></Suspense>
     ) : isBench ? (
       <Suspense fallback={null}><Floor10Bench /></Suspense>

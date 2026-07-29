@@ -1485,6 +1485,12 @@ export default function App() {
     w.__startFloor = (n: number) => handleStartGame(false, 'Tester', n);
     w.__startFloor8Boss = () => handleStartGame(false, 'Tester', 8, 'floor8Boss');
     w.__playerPos = () => [sharedPlayerPositionRef.current.x, sharedPlayerPositionRef.current.y, sharedPlayerPositionRef.current.z];
+    // Teleporte de teste: usado pela sonda da prisão do Andar 10 para pôr o
+    // jogador numa placa sem precisar dirigir o personagem por 14 metros.
+    (w as unknown as { __f10teleport?: (x: number, z: number) => void }).__f10teleport =
+      (x: number, z: number) => {
+        playerPositionCmdRef.current = { x, y: sharedPlayerPositionRef.current.y, z };
+      };
   });
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
@@ -16,6 +16,7 @@ import {
 } from './npc/floor10Will';
 import { deliberateFloor10 } from './npc/floor10SmallBrain';
 import { describeMood, readClock } from './npc/floor10Drives';
+import { describePrison, f10prison, prisonReward, prisonTick } from './npc/f10Prison';
 import { initLLM } from './npc/wllamaEngine';
 import {
     deliberationRetryDelay,
@@ -67,11 +68,26 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     const lastGoalTrail = useRef<string[]>([]);
     const playerQuietSince = useRef(0);
 
+    // Sonda: colocar o Nilo num ponto para testar a prisão sem esperar a
+    // vontade dele escolher ir. Não muda nada do jogo — só existe para o teste
+    // headless conseguir montar a cena dos dois em pontas opostas.
+    const forcado = useRef<{ x: number; z: number } | null>(null);
+    useEffect(() => {
+        (window as unknown as Record<string, unknown>).__f10moveNpc = (x: number, z: number) => {
+            forcado.current = { x, z };
+        };
+    }, []);
+
     useFrame(({ clock }, dt) => {
         const t = clock.elapsedTime;
         const safeDt = Math.min(0.1, Math.max(0, dt));
         const pp = playerPositionRef?.current;
         const g = root.current;
+
+        if (forcado.current && g) {
+            g.position.x = forcado.current.x;
+            g.position.z = forcado.current.z;
+        }
 
         // Primeiro os olhos leem a transformação atual. A vontade nunca decide
         // usando uma posição inventada ou a coordenada de spawn.
@@ -127,7 +143,8 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                         agreedAction: npc.willCommand?.action ?? npc.autonomy.commitment ?? null,
                         agreedReason: npc.willCommand?.reason
                             ?? npc.autonomy.commitmentReason ?? null,
-                        mood: describeMood(npc.autonomy.drives, readClock()),
+                        mood: `${describeMood(npc.autonomy.drives, readClock())} `
+                            + describePrison(f10prison),
                     },
                     now: t,
                 }).then((decided) => {
@@ -149,6 +166,17 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 });
             }
 
+            // A SALA TRANCADA anda antes da vontade decidir: o que ele sente
+            // da prisão precisa estar atualizado quando a rede olhar o estado.
+            // E cada evento vira recompensa — quem diz que a tranca cedeu é a
+            // sala, não a minha tabela de utilidade.
+            const eventos = prisonTick({
+                npc: { x: g.position.x, z: g.position.z },
+                player: pp ? { x: pp.x, z: pp.z } : null,
+                dt: safeDt,
+            });
+            for (const evento of eventos) willBrain.addExternalReward(prisonReward(evento));
+
             const will = willBrain.tick({
                 dt: safeDt,
                 time: t,
@@ -157,6 +185,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 conversationOpen: npc.open,
                 speaking: npc.speaking,
                 deliberation: deliberation.current,
+                prison: f10prison,
             });
             npcPublishAutonomy(will.snapshot);
             if (will.snapshot.goal !== lastGoalTrail.current.at(-1)) {

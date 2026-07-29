@@ -1,4 +1,5 @@
 import React from 'react';
+import Floor10Prison from './Floor10Prison';
 
 // ── ANDAR 10 — PLACEHOLDER ────────────────────────────────────────────────
 // Uma BASE PLANA e limpa, esperando virar um andar de verdade (o Felipe tem
@@ -33,6 +34,9 @@ const Floor10Base: React.FC = () => {
             </mesh>
             {/* grade sutil — leitura de "base/placeholder" (nível-editor) */}
             <gridHelper args={[BND * 2, BND, '#4a4e57', '#42454d']} position={[0, 0.02, 0]} />
+
+            {/* A PRISÃO: os aparelhos que só cedem com duas pessoas. */}
+            <Floor10Prison />
 
             {/* borda quadrada (±22), casa com a colisão */}
             <EdgeWall pos={[0, WALL_H / 2, -BND]} size={[BND * 2, WALL_H, 0.4]} />
