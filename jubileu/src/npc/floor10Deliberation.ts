@@ -78,12 +78,41 @@ Valid options: ${DELIBERATION_GOALS.join(', ')}`;
 
 /**
  * A gramática força UMA linha e, com isso, torna o raciocínio impossível.
- * Continua exportada porque a sala da mente permite ligá-la para comparar os
- * dois modos, mas o jogo não a usa mais.
+ * Por isso ela saiu da passada de pensamento — mas NÃO foi aposentada: virou a
+ * rede de segurança da SEGUNDA passada, quando o raciocínio livre termina sem
+ * uma escolha legível (ver buildChoiceExtractionPrompt).
  */
 export const DELIBERATION_GRAMMAR =
     `root ::= "CHOICE: " goal
 goal ::= ${DELIBERATION_GOALS.map((goal) => `"${goal}"`).join(' | ')}`;
+
+/** A linha final cabe em poucos tokens; mais que isso é desperdício. */
+export const DELIBERATION_EXTRACT_TOKENS = 16;
+
+/** Quanto do raciocínio volta como contexto na hora de assinar a escolha. */
+export const DELIBERATION_EXTRACT_TAIL = 800;
+
+/**
+ * A SEGUNDA PASSADA — o pensamento já aconteceu, falta só assiná-lo.
+ *
+ * Modelo de 1B erra formato com uma frequência que nada tem a ver com a
+ * qualidade do que ele pensou: a literatura mede ~9,6% de acerto de formato sem
+ * ajuda e ~91-94% com decodificação restrita por gramática. É exatamente o que
+ * víamos aqui — raciocínio bom, terminado sem a linha "CHOICE:", jogado fora.
+ *
+ * Então a gramática não volta para amordaçar o pensamento; ela entra DEPOIS
+ * dele, numa chamada curta que só relê o que ele mesmo escreveu e escolhe. O
+ * raciocínio exibido continua sendo o da primeira passada, íntegro.
+ */
+export function buildChoiceExtractionPrompt(thinking: string): string {
+    const cauda = thinking.trim().slice(-DELIBERATION_EXTRACT_TAIL);
+    return `This is what you just thought:
+"""
+${cauda}
+"""
+Write only your final decision line, nothing else.
+Valid options: ${DELIBERATION_GOALS.join(', ')}`;
+}
 
 function round1(value: number): number {
     return Math.round(value * 10) / 10;
@@ -145,19 +174,29 @@ export function parseDeliberation(raw: string, at = 0): Floor10Deliberation | nu
     }
     // Sem o prefixo "CHOICE:". Visto na sala da mente: solto da gramática, o
     // modelo respondeu apenas "talk-player" — uma decisão perfeitamente boa que
-    // era descartada por causa do formato. Aceitar o rótulo puro não afrouxa
-    // nada, porque ele ainda precisa ser um dos alvos conhecidos; só evita
-    // perder a escolha quando o modelo é econômico na formatação.
+    // era descartada por causa do formato.
+    //
+    // MAS: quando ele PENSA, ele relê o enunciado em voz alta — "I must choose
+    // from the given options: inspect-elevator, wander, idle, …" — e o leitor
+    // antigo pegava o ÚLTIMO rótulo da lista como se fosse a escolha. Ou seja: o
+    // Nilo "decidia" sempre o último item da minha própria lista, sem ter
+    // decidido nada. Peguei isso na sonda, numa rodada em que a saída era só o
+    // enunciado repetido.
+    //
+    // Então o rótulo solto só vale quando NÃO há enumeração: um único alvo
+    // conhecido no texto inteiro. Se houver mais de um, não dá para saber qual é
+    // escolha e qual é eco — e aí quem decide é a segunda passada, com gramática.
     const solto = raw.toLowerCase().match(/[a-z]+(?:-[a-z]+)+/g) ?? [];
-    for (let index = solto.length - 1; index >= 0; index -= 1) {
-        const candidate = solto[index];
-        if (candidate && (DELIBERATION_GOALS as readonly string[]).includes(candidate)) {
-            return {
-                goal: candidate as DeliberationGoal,
-                rationale: extractRationale(raw),
-                at,
-            };
-        }
+    const conhecidos = new Set(
+        solto.filter((word) => (DELIBERATION_GOALS as readonly string[]).includes(word)),
+    );
+    if (conhecidos.size === 1) {
+        const [candidate] = [...conhecidos];
+        return {
+            goal: candidate as DeliberationGoal,
+            rationale: extractRationale(raw),
+            at,
+        };
     }
     return null;
 }

@@ -190,4 +190,15 @@ describe('floor10Deliberation — decisão sem o prefixo CHOICE', () => {
         expect(parseDeliberation('i feel half-awake and self-aware')).toBeNull();
         expect(parseDeliberation('sem nada aqui')).toBeNull();
     });
+
+    it('NÃO confunde o eco do enunciado com uma decisão', () => {
+        // Saída REAL da sonda: pensando alto, ele relê a lista de opções. O
+        // leitor antigo pegava o último rótulo — ou seja, o Nilo "escolhia"
+        // sempre o último item da minha lista sem ter escolhido nada.
+        const eco = `First, I need to analyze what he sees.
+I must choose from the given options: ${DELIBERATION_GOALS.join(', ')}.`;
+        expect(parseDeliberation(eco)).toBeNull();
+        // Com a assinatura da segunda passada anexada, aí sim decide.
+        expect(parseDeliberation(`${eco}\nCHOICE: idle`)?.goal).toBe('idle');
+    });
 });

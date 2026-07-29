@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     SMALL_BRAIN_COMPLETION_CONFIG,
+    SMALL_BRAIN_EXTRACT_CONFIG,
     SMALL_BRAIN_LOAD_CONFIG,
     SMALL_BRAIN_MODEL,
     SMALL_BRAIN_THREADS,
@@ -9,10 +10,15 @@ import {
     raceWithAbort,
     readCompletionText,
 } from '../npc/floor10SmallBrain';
-import { cpuThreadCount } from '../npc/wllamaEngine';
 import { Floor10WillBrain } from '../npc/floor10Will';
 import { perceiveFloor10 } from '../npc/floor10Perception';
-import { parseDeliberation } from '../npc/floor10Deliberation';
+import {
+    DELIBERATION_EXTRACT_TAIL,
+    DELIBERATION_EXTRACT_TOKENS,
+    DELIBERATION_GRAMMAR,
+    buildChoiceExtractionPrompt,
+    parseDeliberation,
+} from '../npc/floor10Deliberation';
 
 const PERCEPTION = perceiveFloor10({
     npcPosition: { x: 0, y: 0, z: 2.2 },
@@ -48,6 +54,39 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
         });
         expect(SMALL_BRAIN_COMPLETION_CONFIG).not.toHaveProperty('grammar');
         expect(SMALL_BRAIN_COMPLETION_CONFIG.cache_prompt).toBe(true);
+    });
+
+    it('guarda a gramática para a SEGUNDA passada, nunca para o pensamento', () => {
+        // A primeira passada é livre (é onde ele pensa). A gramática só entra
+        // depois, para não perder um raciocínio bom por causa de formatação —
+        // 1B erra formato ~90% das vezes sem restrição e ~6% com ela.
+        expect(SMALL_BRAIN_COMPLETION_CONFIG).not.toHaveProperty('grammar');
+        expect(SMALL_BRAIN_EXTRACT_CONFIG.grammar).toBe(DELIBERATION_GRAMMAR);
+        expect(SMALL_BRAIN_EXTRACT_CONFIG.max_tokens).toBe(DELIBERATION_EXTRACT_TOKENS);
+        expect(SMALL_BRAIN_EXTRACT_CONFIG.max_tokens).toBeLessThan(SMALL_BRAIN_THINK_TOKENS / 10);
+        expect(SMALL_BRAIN_EXTRACT_CONFIG.temperature).toBe(0);
+    });
+
+    it('o resgate relê o próprio raciocínio e pede só a linha final', () => {
+        const pensamento = 'The player is close. I want to say something.';
+        const prompt = buildChoiceExtractionPrompt(pensamento);
+        expect(prompt).toContain(pensamento);
+        expect(prompt).toContain('talk-player');
+        // Cauda limitada: um raciocínio longo não pode estourar o contexto.
+        const longo = 'x'.repeat(5000);
+        expect(buildChoiceExtractionPrompt(longo).length)
+            .toBeLessThan(DELIBERATION_EXTRACT_TAIL + 400);
+    });
+
+    it('a assinatura do resgate vira decisão sem apagar a justificativa', () => {
+        const pensamento = 'He has been quiet for a while. I feel like talking.';
+        // Sozinho o raciocínio não decide nada…
+        expect(parseDeliberation(pensamento, 0)).toBeNull();
+        // …com a assinatura anexada, decide — e a razão continua sendo a dele.
+        const decidido = parseDeliberation(`${pensamento}\nCHOICE: talk-player`, 7);
+        expect(decidido?.goal).toBe('talk-player');
+        expect(decidido?.rationale).toContain('quiet');
+        expect(decidido?.at).toBe(7);
     });
 
     it('lê o texto nos formatos que o wllama devolve', () => {

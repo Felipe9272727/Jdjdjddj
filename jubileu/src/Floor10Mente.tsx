@@ -273,6 +273,11 @@ const Mente: React.FC = () => {
                             {' · '}{(r.ms / 1000).toFixed(1)}s · {r.tokens} tokens
                             {r.loop ? ' · ↻ LOOP' : ''}
                             {r.erro ? ` · ${r.erro}` : ''}
+                            {r.resgate ? (
+                                <span style={{ color: '#7fc7ff' }}>
+                                    {' · '}assinou na 2ª passada: {r.resgate.trim()}
+                                </span>
+                            ) : null}
                         </div>
                         <pre style={{ margin: '4px 0 0', whiteSpace: 'pre-wrap', color: '#8a8a96' }}>
                             {r.raw.slice(0, 400) || '(vazio)'}

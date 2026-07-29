@@ -8,8 +8,11 @@
 // segundo modelo, a carga falha em silêncio e o Nilo segue com o reflexo. O
 // jogo nunca depende desta camada para funcionar.
 import {
+    DELIBERATION_EXTRACT_TOKENS,
+    DELIBERATION_GRAMMAR,
     DELIBERATION_SYSTEM_PROMPT,
     DELIBERATION_TIMEOUT_MS,
+    buildChoiceExtractionPrompt,
     buildDeliberationPrompt,
     looksLikeLoop,
     parseDeliberation,
@@ -73,8 +76,15 @@ export const SMALL_BRAIN_LOAD_CONFIG = Object.freeze({
     n_batch: 256,
     n_gpu_layers: 0,
     jinja: true,
-    // O Nilo pensa. Ver DELIBERATION_SYSTEM_PROMPT.
-    reasoning: true,
+    // Esta flag NÃO liga nem desliga o pensamento — e, medido no navegador, ela
+    // também não decide por qual canal ele chega: com `reasoning: false` o
+    // llama.cpp continuou entregando o raciocínio em `reasoning_content`, com
+    // `content` nulo. Eu já culpei esta linha pelas rodadas de zero token; a
+    // culpa era do LEITOR, corrigido em chunkPensamento/readCompletionText.
+    // Fica falsa por ser o comportamento medido e estável.
+    //
+    // Quem liga o pensamento é enable_thinking, logo abaixo.
+    reasoning: false,
     default_template_kwargs: Object.freeze({ enable_thinking: true }),
     warmup: true,
 });
@@ -94,6 +104,33 @@ export const SMALL_BRAIN_COMPLETION_CONFIG = Object.freeze({
     // SEM gramática: ela forçava uma linha só e tornava o raciocínio impossível.
     chat_template_kwargs: Object.freeze({ enable_thinking: true }),
 });
+
+/**
+ * A PASSADA DE RESGATE. Só roda quando o pensamento livre terminou sem uma
+ * escolha legível; nunca no lugar dele.
+ *
+ * Aqui a gramática é bem-vinda: não há nada para pensar, o pensamento já
+ * aconteceu e está na tela. Esta chamada existe para não jogar fora um
+ * raciocínio bom por causa de formatação — o modelo relê o que escreveu e
+ * assina. Custa ~16 tokens contra os 320 da primeira passada.
+ *
+ * enable_thinking desligado SÓ AQUI, e sem contradição com "o Nilo pensa": a
+ * gramática já obriga o primeiro token a ser "CHOICE:", então pensar nesta
+ * chamada seria impossível de qualquer jeito — desligar apenas evita que o
+ * template injete um bloco de raciocínio que morreria vazio.
+ */
+export const SMALL_BRAIN_EXTRACT_CONFIG = Object.freeze({
+    stream: false,
+    max_tokens: DELIBERATION_EXTRACT_TOKENS,
+    // Determinístico: não é criação, é leitura do que ele já decidiu.
+    temperature: 0,
+    grammar: DELIBERATION_GRAMMAR,
+    cache_prompt: true,
+    chat_template_kwargs: Object.freeze({ enable_thinking: false }),
+});
+
+/** Teto próprio do resgate: 16 tokens presos por gramática não demoram. */
+export const DELIBERATION_EXTRACT_TIMEOUT_MS = 45_000;
 
 type SmallInstance = {
     loadModelFromUrl(url: string, params: Record<string, unknown>): Promise<void>;
@@ -226,15 +263,50 @@ export function unloadSmallBrain(): Promise<void> {
     return floor10ModelCoordinator.release('deliberation');
 }
 
+/**
+ * O PENSAMENTO NÃO VEM PELO CANAL DO TEXTO.
+ *
+ * Visto cru no navegador, pedaço por pedaço: o llama.cpp separa o raciocínio do
+ * MiniCPM e o entrega em `delta.reasoning_content`, enquanto `delta.content`
+ * chega NULO. Como o leitor só olhava `content`, cada rodada terminava com ZERO
+ * token e texto vazio — 128s de CPU queimada para devolver nada. Era isto que
+ * aparecia no aparelho do Felipe: 172s, 66s, 245s, todas sem uma palavra.
+ *
+ * Eu tinha atribuído isso à flag `reasoning` da carga e a desliguei; a sonda
+ * mostrou que o canal separado continua vindo do mesmo jeito. Então a correção
+ * não é brigar com a flag, é LER OS DOIS CANAIS — que é o que o Felipe pediu de
+ * qualquer forma: ver o raciocínio interno dele, não só a conclusão.
+ */
+export function chunkPensamento(chunk: unknown): string {
+    const delta = (chunk as {
+        choices?: Array<{ delta?: { content?: unknown; reasoning_content?: unknown } }>;
+    } | null)?.choices?.[0]?.delta;
+    if (typeof delta?.reasoning_content === 'string') return delta.reasoning_content;
+    return chunkDelta(chunk as ChatChunk);
+}
+
 /** Texto da resposta, tolerando os formatos que o wllama já devolveu. */
 export function readCompletionText(response: unknown): string {
     if (typeof response === 'string') return response;
     const record = response as {
-        choices?: Array<{ message?: { content?: string | null }; text?: string }>;
+        choices?: Array<{
+            message?: { content?: string | null; reasoning_content?: string | null };
+            text?: string;
+        }>;
         content?: string;
     } | null;
     const fromChoices = record?.choices?.[0];
-    if (typeof fromChoices?.message?.content === 'string') return fromChoices.message.content;
+    // Mesmo canal separado da versão em stream: sem juntar os dois, a decisão
+    // que ele assina DEPOIS de pensar chega sozinha e sem justificativa — ou não
+    // chega nada.
+    const raciocinio = fromChoices?.message?.reasoning_content;
+    const conteudo = fromChoices?.message?.content;
+    if (typeof raciocinio === 'string' && raciocinio.trim()) {
+        return typeof conteudo === 'string' && conteudo.trim()
+            ? `${raciocinio}\n${conteudo}`
+            : raciocinio;
+    }
+    if (typeof conteudo === 'string') return conteudo;
     if (typeof fromChoices?.text === 'string') return fromChoices.text;
     if (typeof record?.content === 'string') return record.content;
     return '';
@@ -342,6 +414,42 @@ function conversationHasPriority(): boolean {
 }
 
 /**
+ * Segunda passada: devolve a linha "CHOICE: x" tirada do raciocínio que o modelo
+ * acabou de escrever. Devolve '' se falhar — o resgate nunca pode derrubar a
+ * rodada, ele só tenta salvá-la.
+ */
+export async function assinarEscolha(
+    engine: SmallInstance,
+    pensamento: string,
+    signal?: AbortSignal,
+): Promise<string> {
+    const controller = new AbortController();
+    const herdar = () => controller.abort();
+    if (signal?.aborted) return '';
+    signal?.addEventListener('abort', herdar, { once: true });
+    const relogio = globalThis.setTimeout(
+        () => controller.abort(),
+        DELIBERATION_EXTRACT_TIMEOUT_MS,
+    );
+    try {
+        const response = await engine.createChatCompletion({
+            messages: [
+                { role: 'system', content: DELIBERATION_SYSTEM_PROMPT },
+                { role: 'user', content: buildChoiceExtractionPrompt(pensamento) },
+            ],
+            ...SMALL_BRAIN_EXTRACT_CONFIG,
+            abortSignal: controller.signal,
+        });
+        return readCompletionText(response);
+    } catch {
+        return '';
+    } finally {
+        globalThis.clearTimeout(relogio);
+        signal?.removeEventListener('abort', herdar);
+    }
+}
+
+/**
  * Uma rodada de deliberação. Devolve null se o cérebro pequeno não estiver
  * disponível, se já houver uma rodada em curso ou se ele não assinar escolha.
  */
@@ -409,7 +517,16 @@ export async function deliberateFloor10(
             });
             return null;
         }
-        const decided = parseDeliberation(texto, input.now);
+        let decided = parseDeliberation(texto, input.now);
+        // RESGATE. O raciocínio saiu, mas sem a linha final legível. Em vez de
+        // descartar o que ele pensou, pedimos só a assinatura — presa por
+        // gramática, ~16 tokens. O pensamento continua sendo o da primeira
+        // passada; o que entra aqui é a última linha, e ela é anexada ao texto
+        // para que a justificativa lida depois continue vindo do raciocínio.
+        if (!decided && texto.trim() && !conversationHasPriority()) {
+            const assinatura = await assinarEscolha(engine, texto, abort.signal);
+            if (assinatura) decided = parseDeliberation(`${texto}\n${assinatura}`, input.now);
+        }
         if (decided) {
             npcSet({
                 deliberationPhase: 'decided',
@@ -445,6 +562,8 @@ export type PensamentoAoVivo = {
     ms: number;
     tokens: number;
     erro: string | null;
+    /** Assinatura da segunda passada, quando o pensamento livre não decidiu. */
+    resgate?: string | null;
 };
 
 /**
@@ -512,7 +631,7 @@ export async function deliberarObservando(
             // vêm na frente. Sem descartar, "CHOICE: idle" chegava como
             // "OSE: idleCHO" e a decisão era perdida.
             if (chunkOpensReply(c)) { raw = ''; tokens = 0; opts.onToken(raw); }
-            const pedaco = chunkDelta(c);
+            const pedaco = chunkPensamento(c);
             if (pedaco) { raw += pedaco; tokens += 1; opts.onToken(raw); }
         }
     } catch (e) {
@@ -526,13 +645,22 @@ export async function deliberarObservando(
         globalThis.clearTimeout(relogio);
         npcSet({ deliberationPhase: 'off' });
     }
+    let decided = parseDeliberation(raw, input.now);
+    // Mesmo resgate do jogo, visível aqui de propósito: a sala da mente existe
+    // para mostrar o que acontece de verdade, inclusive a segunda passada.
+    let resgate: string | null = null;
+    if (!decided && !opts.useGrammar && raw.trim() && !looksLikeLoop(raw)) {
+        resgate = (await assinarEscolha(engine, raw)) || null;
+        if (resgate) decided = parseDeliberation(`${raw}\n${resgate}`, input.now);
+    }
     return {
         raw,
-        decided: parseDeliberation(raw, input.now),
+        decided,
         loop: looksLikeLoop(raw),
         ms: Date.now() - comecou,
         tokens,
         erro: null,
+        resgate,
     };
 }
 
