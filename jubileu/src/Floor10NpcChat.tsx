@@ -5,6 +5,8 @@ import { FLOOR10_MODEL, initLLM, sendToNpc } from './npc/wllamaEngine';
 import { NPC_NAME } from './npc/floor10Canon';
 import { deliberationThought } from './npc/floor10Deliberation';
 import { SMALL_BRAIN_MODEL } from './npc/floor10SmallBrain';
+import { DOWNLOAD_STALL_SEC, downloadLine } from './npc/floor10Download';
+import { formatGB } from './npc/floor10ModelStorage';
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
 // Vive FORA do Canvas. Reage ao npcStore: mostra a dica quando o player chega
@@ -113,6 +115,9 @@ const Floor10NpcChat: React.FC = () => {
                         <div style={barOuter}>
                             <div style={{ ...miniBarInner, width: `${miniPct}%` }} />
                         </div>
+                        <div style={downloadBytesStyle}>
+                            {downloadLine(st.deliberationDownload)}
+                        </div>
                         <div style={miniDownloadTextStyle}>{st.deliberationLoadText}</div>
                     </div>
                 )}
@@ -139,6 +144,20 @@ const Floor10NpcChat: React.FC = () => {
 
     const loading = st.phase === 'loading';
     const pct = Math.round(st.loadProgress * 100);
+    const falaTravou = st.loadDownload.stalledSec >= DOWNLOAD_STALL_SEC;
+    // O espaço do site é o que decide se o download PODE acontecer. Fica na
+    // tela durante a carga porque, quando não cabe, este número é a resposta
+    // inteira — e ele não aparecia em lugar nenhum.
+    const livre = st.storage.quota === null
+        ? null
+        : Math.max(0, st.storage.quota - st.storage.usage);
+    const espacoFalta = livre !== null && st.storage.needBytes > 0
+        && livre < st.storage.needBytes;
+    const espacoLinha = livre === null
+        ? ''
+        : `espaço do site: ${formatGB(livre)} livre`
+          + (st.storage.needBytes > 0 ? ` · precisa de ${formatGB(st.storage.needBytes)}` : '')
+          + (espacoFalta ? ' — não cabe' : '');
     const miniPct = Math.round(st.deliberationLoadProgress * 100);
     const showMiniHandoff = loading && st.deliberationLoadText !== '';
 
@@ -160,6 +179,9 @@ const Floor10NpcChat: React.FC = () => {
                             <div style={barOuter}>
                                 <div style={{ ...miniBarInner, width: `${miniPct}%` }} />
                             </div>
+                            <div style={downloadBytesStyle}>
+                                {downloadLine(st.deliberationDownload)}
+                            </div>
                             <div style={modelLoadingDetailStyle}>{st.deliberationLoadText}</div>
                         </div>
                     )}
@@ -169,10 +191,30 @@ const Floor10NpcChat: React.FC = () => {
                             <strong>{pct}%</strong>
                         </div>
                         <div style={barOuter}>
-                            <div style={{ ...barInner, width: `${pct}%` }} />
+                            <div style={{
+                                ...barInner,
+                                width: `${pct}%`,
+                                // Travou? A barra muda de cor junto com o texto:
+                                // dá para perceber sem ler.
+                                ...(falaTravou ? { background: '#c2554a' } : null),
+                            }}
+                            />
                         </div>
+                        {/* Os BYTES. Porcentagem sozinha não distingue "acabou
+                            de começar" de "parado faz três minutos". */}
+                        <div style={downloadBytesStyle}>{downloadLine(st.loadDownload)}</div>
                         <div style={modelLoadingDetailStyle}>{st.loadText}</div>
                     </div>
+                    {espacoLinha && (
+                        <div style={{
+                            ...modelLoadingDetailStyle,
+                            padding: '0 2px',
+                            color: espacoFalta ? '#ff9c9c' : '#8a8a96',
+                        }}
+                        >
+                            {espacoLinha}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -328,6 +370,14 @@ const miniDownloadTitleStyle: React.CSSProperties = {
 const miniDownloadTextStyle: React.CSSProperties = {
     marginTop: 6, fontSize: 10.5, opacity: 0.68, whiteSpace: 'nowrap',
     overflow: 'hidden', textOverflow: 'ellipsis',
+};
+/**
+ * Os bytes ficam MAIS legíveis que o texto de estado, de propósito: é a linha
+ * que responde "está baixando ou travou?", e era ela que faltava na tela.
+ */
+const downloadBytesStyle: React.CSSProperties = {
+    marginTop: 6, fontSize: 12, fontWeight: 600, color: '#cfd6e4',
+    fontVariantNumeric: 'tabular-nums',
 };
 const errBannerStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 12px',

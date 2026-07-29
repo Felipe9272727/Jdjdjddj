@@ -13,7 +13,8 @@
  * Abre em:  /?mente
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { npc } from './npc/npcStore';
+import { npc, useNpc } from './npc/npcStore';
+import { DOWNLOAD_STALL_SEC, downloadLine } from './npc/floor10Download';
 import { perceiveFloor10 } from './npc/floor10Perception';
 import {
     deliberarObservando, setSmallBrain, SMALL_BRAIN_CATALOG, SMALL_BRAIN_MODEL,
@@ -49,6 +50,9 @@ const Mente: React.FC = () => {
     const [pensando, setPensando] = useState(false);
     const [rodadas, setRodadas] = useState<PensamentoAoVivo[]>([]);
     const [cerebro, setCerebro] = useState<SmallBrainId>(SMALL_BRAIN_MODEL.id);
+    const estado = useNpc();
+    const baixando = estado.deliberationPhase === 'loading';
+    const travado = estado.deliberationDownload.stalledSec >= DOWNLOAD_STALL_SEC;
     const arrastando = useRef<'nilo' | 'jogador' | null>(null);
     const svgRef = useRef<SVGSVGElement>(null);
 
@@ -277,6 +281,33 @@ const Mente: React.FC = () => {
                     o que torna o loop eterno impossível.
                 </div>
             </div>
+
+            {/* O DOWNLOAD, com bytes. Sem isto a sala da mente também só dizia
+                "carregando" e não dava para saber se o arquivo estava vindo. */}
+            {baixando ? (
+                <div style={box}>
+                    <b>Baixando o cérebro pequeno</b>
+                    <div style={{
+                        height: 10, borderRadius: 5, background: '#22222a',
+                        overflow: 'hidden', margin: '8px 0 6px',
+                    }}
+                    >
+                        <div style={{
+                            height: '100%',
+                            width: `${Math.round(estado.deliberationLoadProgress * 100)}%`,
+                            background: travado ? '#c2554a' : '#7fc7ff',
+                            transition: 'width .3s',
+                        }}
+                        />
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e6e6ee' }}>
+                        {downloadLine(estado.deliberationDownload)}
+                    </div>
+                    <div style={{ color: '#888', marginTop: 4 }}>
+                        {estado.deliberationLoadText}
+                    </div>
+                </div>
+            ) : null}
 
             {(pensando || vivo) ? (
                 <div style={{ ...box, borderColor: looksLikeLoop(vivo) ? '#8a2a2a' : '#2a2a33' }}>

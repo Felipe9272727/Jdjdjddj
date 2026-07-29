@@ -25,6 +25,7 @@ import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import {
     SMALL_BRAIN_CATALOG, SMALL_BRAIN_DEFAULT, type SmallBrainId,
 } from './floor10Brains';
+import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
 import { npc, npcSet } from './npcStore';
 import {
     chunkDelta, chunkOpensReply, cpuThreadCount, speechModelReady,
@@ -186,6 +187,8 @@ type SmallInstance = {
     exit?: () => Promise<void> | void;
 };
 type SmallCtor = new (paths: Record<string, string>, cfg?: Record<string, unknown>) => SmallInstance;
+
+const medidorVontade = new DownloadMeter();
 
 let enginePromise: Promise<SmallInstance | null> | null = null;
 let disposePromise: Promise<void> | null = null;
@@ -366,10 +369,12 @@ function ensureSmallEngine(): Promise<SmallInstance | null> {
         const controller = new AbortController();
         loadAbort = controller;
         let engine: SmallInstance | null = null;
+        medidorVontade.reset();
         npcSet({
             deliberationPhase: 'loading',
             deliberationLoadText: `verificando o cache do ${SMALL_BRAIN_MODEL.label}…`,
             deliberationLoadProgress: 0,
+            deliberationDownload: DOWNLOAD_ZERO,
         });
         // A FALA PRIMEIRO. Os dois cérebros dividem o mesmo cofre de
         // armazenamento do site; medido no navegador, um cérebro pequeno
@@ -411,10 +416,15 @@ function ensureSmallEngine(): Promise<SmallInstance | null> {
                     const fraction = progress.total
                         ? Math.max(0, Math.min(1, (progress.loaded ?? 0) / progress.total))
                         : 0;
+                    const amostra = medidorVontade.push(
+                        progress.loaded ?? 0,
+                        progress.total ?? 0,
+                    );
                     npcSet({
+                        deliberationDownload: amostra,
                         deliberationLoadProgress: fraction,
                         deliberationLoadText:
-                            `baixando ${SMALL_BRAIN_MODEL.label}… ${Math.round(fraction * 100)}%`,
+                            `baixando ${SMALL_BRAIN_MODEL.label} · ${downloadLine(amostra)}`,
                     });
                 },
             });

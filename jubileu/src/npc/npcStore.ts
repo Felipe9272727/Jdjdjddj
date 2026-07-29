@@ -13,6 +13,7 @@ import {
     type Floor10WillCommandAction,
     type Floor10WillSnapshot,
 } from './floor10Will';
+import { DOWNLOAD_ZERO, type DownloadSample } from './floor10Download';
 
 export type NpcRole = 'system' | 'user' | 'assistant';
 export type NpcMsg = { role: NpcRole; content: string };
@@ -24,6 +25,10 @@ export type NpcState = {
     phase: NpcPhase;        // ciclo de vida do modelo
     loadText: string;       // texto de progresso do download do modelo
     loadProgress: number;   // 0..1
+    // Bytes de verdade, não só a fração. Uma porcentagem parada em 12% é
+    // indistinguível de uma que ainda vai andar; "412 MB de 1,92 GB, parado há
+    // 40s" não é. Foi a primeira coisa que faltou quando o download falhou.
+    loadDownload: DownloadSample;
     modelLabel: string;     // "7B" / "3B" / ...
     history: NpcMsg[];      // conversa (sem o system prompt)
     streaming: string;      // resposta parcial sendo transmitida token a token
@@ -38,22 +43,28 @@ export type NpcState = {
     // segundo cérebro trabalharia invisível e não haveria como diferenciar
     // "pensando", "decidiu" e "não carregou".
     deliberationPhase: 'off' | 'loading' | 'thinking' | 'decided' | 'unavailable';
-    deliberationLoadText: string;      // download/cache do MiniCPM, separado do 3B
-    deliberationLoadProgress: number;  // 0..1, progresso real do arquivo do MiniCPM
+    deliberationLoadText: string;      // download/cache do cérebro pequeno
+    deliberationLoadProgress: number;  // 0..1, progresso real do arquivo
+    deliberationDownload: DownloadSample;
     deliberationGoal: string;   // a intenção que ele assinou
     deliberationCount: number;  // quantas vezes já deliberou nesta sessão
+    /** Cota do site medida no aparelho — o que decide se dá pra baixar. */
+    storage: { quota: number | null; usage: number; needBytes: number };
     error: string;
     version: number;
 };
 
 const s: NpcState = {
     near: false, open: false, phase: 'cold', loadText: '', loadProgress: 0,
+    loadDownload: DOWNLOAD_ZERO,
     modelLabel: '', history: [], streaming: '', speaking: false,
     perception: INITIAL_FLOOR10_PERCEPTION,
     autonomy: INITIAL_FLOOR10_WILL,
     willCommand: null,
     autonomousSpeech: '', autonomousSpeechId: 0,
     deliberationPhase: 'off', deliberationLoadText: '', deliberationLoadProgress: 0,
+    deliberationDownload: DOWNLOAD_ZERO,
+    storage: { quota: null, usage: 0, needBytes: 0 },
     deliberationGoal: '', deliberationCount: 0,
     error: '', version: 0,
 };

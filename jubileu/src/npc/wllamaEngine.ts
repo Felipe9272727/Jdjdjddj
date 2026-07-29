@@ -21,7 +21,9 @@ import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { abortDeliberation } from './floor10SmallBrain';
 import { smallBrainUrls } from './floor10Brains';
+import { DownloadMeter, DOWNLOAD_ZERO } from './floor10Download';
 import {
+    CACHE_HEADROOM,
     planModelCache,
     probeModelBytes,
     readStorageEstimate,
@@ -504,6 +506,9 @@ type WllamaInstance = {
 type WllamaCtor = new (paths: Record<string, string>, cfg?: Record<string, unknown>) => WllamaInstance;
 type WllamaModule = { Wllama: WllamaCtor };
 
+/** Um por cérebro: o da fala vive aqui, o da vontade no floor10SmallBrain. */
+const medidorFala = new DownloadMeter();
+
 let loadedDisableThinking = false;
 let currentEngine: WllamaInstance | null = null;
 let activeModelUrl = '';
@@ -544,14 +549,32 @@ function isBrokenCacheError(error: unknown): boolean {
  * já estava baixado e não ia ocupar um byte a mais. Medido no navegador: 2ª
  * sessão com o modelo em cache acusava "só libera 1.38 GB" e travava a carga.
  */
+type CacheProbe = WllamaInstance & {
+    cacheManager?: {
+        list: () => Promise<Array<{ metadata?: { originalURL?: string } }>>;
+        delete: (nameOrUrl: string) => Promise<void>;
+    };
+};
+
+/**
+ * UMA instância para todas as perguntas ao cache.
+ *
+ * Antes cada consulta construía um `new Wllama` — e depois que a fala passou a
+ * perguntar "o modelo já está aqui?" a cada ciclo da vontade, e a reciclagem a
+ * perguntar por três URLs, isso virava meia dúzia de runtimes WASM criados à
+ * toa. Num celular isso é memória que falta justamente na hora de carregar o
+ * modelo. Uma só, reaproveitada, responde igual.
+ */
+let cacheProbe: CacheProbe | null = null;
+
+function probeDoCache(mod: WllamaModule): CacheProbe {
+    cacheProbe ??= new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true }) as CacheProbe;
+    return cacheProbe;
+}
+
 async function isModelCached(mod: WllamaModule, url: string): Promise<boolean> {
     try {
-        const probe = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true }) as WllamaInstance & {
-            cacheManager?: {
-                list: () => Promise<Array<{ metadata?: { originalURL?: string } }>>;
-            };
-        };
-        const entries = await probe.cacheManager?.list();
+        const entries = await probeDoCache(mod).cacheManager?.list();
         return !!entries?.some((e) => e.metadata?.originalURL === url);
     } catch {
         return false;
@@ -596,9 +619,7 @@ export async function speechModelReady(): Promise<boolean> {
 
 async function forgetCachedModel(mod: WllamaModule, url: string): Promise<boolean> {
     try {
-        const probe = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true }) as WllamaInstance & {
-            cacheManager?: { delete: (nameOrUrl: string) => Promise<void> };
-        };
+        const probe = probeDoCache(mod);
         // Apaga SOMENTE o modelo que acabou de falhar — nada de varrer o cache
         // por conta própria: quem apaga por dedução acaba levando junto o
         // arquivo que estava em uso.
@@ -629,11 +650,13 @@ function initConversationEngine(): Promise<WllamaInstance> {
     if (currentEngine && activeModelUrl === model.url) return Promise.resolve(currentEngine);
     if (transitionPromise) return transitionPromise;
 
+    medidorFala.reset();
     npcSet({
         phase: 'loading',
         modelLabel: `${model.label} · detectando aceleração`,
         loadText: `preparando ${model.label} localmente…`,
         loadProgress: 0,
+        loadDownload: DOWNLOAD_ZERO,
         error: '',
     });
 
@@ -653,11 +676,29 @@ function initConversationEngine(): Promise<WllamaInstance> {
         // cache, não há nada a caber — a pergunta simplesmente não se aplica.
         if (!await isModelCached(mod, model.url)) {
             const modelBytes = await probeModelBytes(model.url);
-            let cachePlan = planModelCache(await readStorageEstimate(), modelBytes);
+            let estimativa = await readStorageEstimate();
+            // Publica o espaço ANTES de tentar: se não couber, o jogador vê o
+            // número que explica, em vez de uma barra que nunca sai do lugar.
+            npcSet({
+                storage: {
+                    quota: estimativa.quota,
+                    usage: estimativa.usage,
+                    needBytes: Math.ceil((modelBytes ?? 0) * CACHE_HEADROOM),
+                },
+            });
+            let cachePlan = planModelCache(estimativa, modelBytes);
             if (!cachePlan.ok && await reclaimSmallBrains(mod)) {
                 // Devolveu os pesos da vontade e refaz a conta: se agora cabe,
                 // o jogador fala. A vontade rebaixa sozinha depois.
-                cachePlan = planModelCache(await readStorageEstimate(), modelBytes);
+                estimativa = await readStorageEstimate();
+                npcSet({
+                    storage: {
+                        quota: estimativa.quota,
+                        usage: estimativa.usage,
+                        needBytes: Math.ceil((modelBytes ?? 0) * CACHE_HEADROOM),
+                    },
+                });
+                cachePlan = planModelCache(estimativa, modelBytes);
             }
             if (!cachePlan.ok) {
                 throw new ModelStorageError(cachePlan.message);
@@ -709,6 +750,14 @@ function initConversationEngine(): Promise<WllamaInstance> {
                         const acabou = fraction >= 1;
                         downloadDoneAt = acabou ? (downloadDoneAt ?? Date.now()) : null;
                         npcSet({
+                            // Bytes reais na tela: "412 MB de 1,92 GB · 1,2 MB/s"
+                            // responde "está baixando?" — a porcentagem sozinha,
+                            // não. Foi a informação que faltou quando o download
+                            // parou de acontecer no aparelho do Felipe.
+                            loadDownload: medidorFala.push(
+                                progress.loaded ?? 0,
+                                progress.total ?? 0,
+                            ),
                             loadProgress: fraction,
                             // Depois de 100% o wllama ainda lê o arquivo de volta do
                             // cache e copia ~2 GB para dentro do WASM — e nesse
