@@ -175,7 +175,9 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 player: pp ? { x: pp.x, z: pp.z } : null,
                 dt: safeDt,
             });
-            for (const evento of eventos) willBrain.addExternalReward(prisonReward(evento));
+            for (const evento of eventos) {
+                willBrain.addExternalReward(prisonReward(evento, safeDt));
+            }
 
             const will = willBrain.tick({
                 dt: safeDt,

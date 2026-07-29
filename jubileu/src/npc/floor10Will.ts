@@ -719,7 +719,24 @@ export class Floor10WillBrain {
             : null;
 
         if (player?.visible) {
-            if (player.distance < 1.05) {
+            // ESPAÇO PESSOAL, MENOS QUANDO ELE ESCOLHEU ESTAR ALI.
+            //
+            // Esta regra tem utilidade 2,5 e atropela tudo. Na prisão isso
+            // virava uma armadilha: o jogador chega ao aparelho gêmeo para
+            // fazer a dupla, entra no raio de 1,05 m, e o Nilo é EXPULSO
+            // justamente no instante em que o puzzle acontece. Medido na
+            // bancada: 70 segundos de vaivém make-space ↔ seek-player, sem
+            // encostar em nada.
+            //
+            // Ele continua tendo espaço pessoal em todo o resto: só não abre
+            // mão de um lugar que ele mesmo decidiu ocupar.
+            // A condição é a DISTÂNCIA AO ALVO DELE, não "já está em cima":
+            // ele nunca chegava a ficar em cima, porque era expulso na
+            // chegada — o guard nunca ligava e o vaivém continuava.
+            const plantado = this.snapshot.goal === 'try-device'
+                && !!this.snapshot.target
+                && distanceXZ(npcPosition, this.snapshot.target) <= 2.2;
+            if (player.distance < 1.05 && !plantado) {
                 candidates.push({
                     goal: 'make-space',
                     utility: 2.5,

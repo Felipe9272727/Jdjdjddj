@@ -74,6 +74,19 @@ describe('npc/f10Prison — a saída precisa de dois', () => {
         expect(eventos.some((e) => e.type === 'porta-aberta')).toBe(true);
     });
 
+    it('os eventos contínuos valem POR SEGUNDO, não por quadro', () => {
+        // 'juntos' dispara a cada quadro. Sem escalar pelo dt, um segundo lado
+        // a lado valia 60 × 0,35 = 21 — mais de dez vezes o prêmio de abrir a
+        // porta, afogando todo o resto do sinal.
+        const umQuadro = prisonReward({ type: 'juntos', lock: 'placas', progress: 0.5 }, 1 / 60);
+        const umSegundo = prisonReward({ type: 'juntos', lock: 'placas', progress: 0.5 }, 1);
+        expect(umQuadro * 60).toBeCloseTo(umSegundo, 5);
+        expect(umQuadro).toBeLessThan(prisonReward({ type: 'porta-aberta' }, 1 / 60));
+        // Os discretos ignoram o dt: acontecem uma vez e valem cheio.
+        expect(prisonReward({ type: 'tranca-aberta', lock: 'placas' }, 1 / 60))
+            .toBe(prisonReward({ type: 'tranca-aberta', lock: 'placas' }, 1));
+    });
+
     it('a recompensa ensina COOPERAÇÃO, não decoreba de aparelho', () => {
         expect(prisonReward({ type: 'tentativa-sozinho', device: 'placa-oeste' }))
             .toBeLessThan(0);

@@ -184,13 +184,19 @@ export function stepPrison(state: F10PrisonState, input: PrisonStepInput): Priso
  * placa a tarde toda), estar junto do jogador em duas pontas paga bem, e abrir
  * uma tranca paga muito.
  */
-export function prisonReward(evento: PrisonEvent): number {
+export function prisonReward(evento: PrisonEvent, dt = 1): number {
     switch (evento.type) {
+        // Discretos: acontecem UMA vez e valem o número cheio.
         case 'tentativa-sozinho': return -0.02;
-        case 'juntos': return 0.35;
-        case 'quase': return 0.05;
         case 'tranca-aberta': return 1;
         case 'porta-aberta': return 2;
+        // CONTÍNUOS: 'juntos' e 'quase' disparam a cada quadro enquanto a
+        // situação dura. Sem escalar pelo dt, um único segundo lado a lado
+        // valia 60 × 0,35 = 21 de recompensa — mais de dez vezes o prêmio de
+        // ABRIR a porta, e saturando o teto o tempo todo. O sinal que deveria
+        // ensinar a cooperar afogava todo o resto, inclusive o próprio final.
+        case 'juntos': return 0.35 * dt;
+        case 'quase': return 0.05 * dt;
         default: return 0;
     }
 }
