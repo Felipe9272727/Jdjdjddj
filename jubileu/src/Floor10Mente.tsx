@@ -210,7 +210,7 @@ const Mente: React.FC = () => {
                         type="checkbox" checked={semGramatica}
                         onChange={(e) => setSemGramatica(e.target.checked)}
                     />{' '}
-                    soltar a gramática (mostra o raciocínio cru — é aqui que o loop aparece)
+                    deixar ele pensar (igual ao jogo). Desmarcar prende numa linha só.
                 </label>
                 <div style={{ marginBottom: 8 }}>
                     teto de tokens: <b style={{ color: '#ffd479' }}>{maxTokens}</b>
@@ -231,9 +231,9 @@ const Mente: React.FC = () => {
                     limpar
                 </button>
                 <div style={{ color: '#777', marginTop: 6 }}>
-                    em jogo ele pensa com gramática, teto de 24 tokens e corte de
-                    segurança de {DELIBERATION_TIMEOUT_MS / 1000}s. Aqui o corte é de
-                    300s, senão não sobraria raciocínio para observar.
+                    em jogo ele pensa livre, com teto de 320 tokens e corte de
+                    segurança de {DELIBERATION_TIMEOUT_MS / 1000}s. O teto de tokens é
+                    o que torna o loop eterno impossível.
                 </div>
             </div>
 

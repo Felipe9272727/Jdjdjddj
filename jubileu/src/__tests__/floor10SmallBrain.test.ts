@@ -4,6 +4,7 @@ import {
     SMALL_BRAIN_LOAD_CONFIG,
     SMALL_BRAIN_MODEL,
     SMALL_BRAIN_THREADS,
+    SMALL_BRAIN_THINK_TOKENS,
     smallBrainThreads,
     raceWithAbort,
     readCompletionText,
@@ -26,7 +27,7 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
     });
 
     it('cede a CPU para a fala: no máximo dois núcleos', () => {
-        expect(SMALL_BRAIN_COMPLETION_CONFIG.max_tokens).toBe(24);
+        expect(SMALL_BRAIN_COMPLETION_CONFIG.max_tokens).toBe(SMALL_BRAIN_THINK_TOKENS);
         // Eu já subi isto para "metade das threads da fala" e voltei: no celular
         // do Felipe virou 8 + 4 = 12 threads em 8 núcleos, e a conversa travou
         // em "liberando a CPU". A deliberação roda em segundo plano num ciclo de
@@ -34,17 +35,19 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
         expect(smallBrainThreads()).toBeLessThanOrEqual(SMALL_BRAIN_THREADS);
         expect(smallBrainThreads()).toBeGreaterThanOrEqual(1);
         expect(SMALL_BRAIN_THREADS).toBe(2);
-        expect(SMALL_BRAIN_LOAD_CONFIG.n_ctx).toBe(1024);
+        expect(SMALL_BRAIN_LOAD_CONFIG.n_ctx).toBe(2048);
         expect(SMALL_BRAIN_LOAD_CONFIG.n_batch).toBe(256);
         expect(SMALL_BRAIN_LOAD_CONFIG.n_gpu_layers).toBe(0);
+        // O Nilo PENSA — decisão do dono do jogo. Quem impede o loop eterno é o
+        // teto de tokens, não a mordaça.
         expect(SMALL_BRAIN_LOAD_CONFIG.default_template_kwargs).toEqual({
-            enable_thinking: false,
+            enable_thinking: true,
         });
         expect(SMALL_BRAIN_COMPLETION_CONFIG.chat_template_kwargs).toEqual({
-            enable_thinking: false,
+            enable_thinking: true,
         });
+        expect(SMALL_BRAIN_COMPLETION_CONFIG).not.toHaveProperty('grammar');
         expect(SMALL_BRAIN_COMPLETION_CONFIG.cache_prompt).toBe(true);
-        expect(SMALL_BRAIN_COMPLETION_CONFIG.grammar).toContain('CHOICE: ');
     });
 
     it('lê o texto nos formatos que o wllama devolve', () => {

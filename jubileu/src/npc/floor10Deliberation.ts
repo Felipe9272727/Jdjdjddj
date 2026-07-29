@@ -54,18 +54,32 @@ export type DeliberationMemory = {
     agreedReason?: string | null;
 };
 
+/**
+ * O Nilo PENSA antes de escolher — por decisão do dono do jogo.
+ *
+ * Antes este texto mandava "Do not narrate reasoning" e a saída era presa por
+ * gramática a uma única linha. Isso deixava o modelo de raciocínio incapaz de
+ * raciocinar: pagávamos o preço de um modelo pensante e proibíamos o
+ * pensamento. Agora ele olha o que os olhos mostram, pesa o que sente, e só
+ * então assina a escolha na última linha.
+ *
+ * O que impede o pensamento eterno NÃO é mais a mordaça, e sim três limites que
+ * não interferem no conteúdo: teto de tokens, teto de tempo e o descarte de
+ * texto que gira no lugar.
+ */
 export const DELIBERATION_SYSTEM_PROMPT =
-`You are the instinct of a man trapped alone on floor 10: one square gray room, grid floor, four walls, an elevator door. He never left. The elevator never obeys him.
+`You are the inner voice of Nilo, a man trapped alone on floor 10: one square gray room, grid floor, four walls, an elevator door. He never left. The elevator never obeys him.
 You receive what he SEES right now, what he WANTS, and what he REMEMBERS trying.
-Decide what he does next, by his own free will — he is a person, not a servant, and he may choose something unexpected as long as it makes sense for him.
-Do not narrate reasoning. Answer immediately with exactly one line:
+Think it through in a few short sentences, in first person, as the man himself: what you notice, what bothers you, what you feel like doing.
+Then decide by your own free will — you are a person, not a servant, and you may choose something unexpected as long as it makes sense for you.
+Be brief. Never repeat yourself. End with exactly one final line:
 CHOICE: <option>
 Valid options: ${DELIBERATION_GOALS.join(', ')}`;
 
 /**
- * A gramática deixa o MiniCPM livre para escolher a meta, mas torna impossível
- * desperdiçar minutos narrando raciocínio que nenhum outro módulo consome.
- * Um teto curto adicional impede qualquer geração órfã de queimar CPU.
+ * A gramática força UMA linha e, com isso, torna o raciocínio impossível.
+ * Continua exportada porque a sala da mente permite ligá-la para comparar os
+ * dois modos, mas o jogo não a usa mais.
  */
 export const DELIBERATION_GRAMMAR =
     `root ::= "CHOICE: " goal
@@ -211,14 +225,17 @@ export function deliberationBonus(
  * pendente para sempre — e como a trava `inFlight` só é liberada no `finally`,
  * o livre-arbítrio morria calado pelo resto da sessão.
  *
- * 20s era APERTADO DEMAIS: rodando de verdade no navegador, uma deliberação
- * honesta levou mais que isso só para ler o estado do mundo, e o teto matava
- * TODAS elas — o Nilo perderia o livre-arbítrio em silêncio, que é pior do que
- * o defeito original. Este número não existe para deixar a deliberação rápida
- * (ela roda em segundo plano e nunca faz o jogador esperar), e sim para que uma
- * rodada PRESA acabe algum dia. Um minuto cumpre isso com folga.
+ * Foi de 20s para 60s quando o teto passou a reprovar deliberação SAUDÁVEL, e
+ * agora para 150s porque o Nilo voltou a PENSAR: ler o mundo e escrever algumas
+ * frases custa mais que assinar uma linha. Apertar aqui não deixa nada rápido,
+ * só mata o pensamento antes do fim — que é pior do que o defeito original.
+ *
+ * Quem impede o loop eterno é o teto de TOKENS (o modelo não tem como passar
+ * dele) mais o descarte do texto que gira. Este relógio é só a garantia de que
+ * uma rodada PRESA acaba algum dia. Ninguém espera por ela: a deliberação roda
+ * em segundo plano e o reflexo continua dirigindo o corpo o tempo todo.
  */
-export const DELIBERATION_TIMEOUT_MS = 60_000;
+export const DELIBERATION_TIMEOUT_MS = 150_000;
 
 /** A partir daqui paramos de insistir depressa e passamos a espaçar. */
 export const DELIBERATION_MAX_FAST_RETRIES = 3;

@@ -9,7 +9,6 @@
 // jogo nunca depende desta camada para funcionar.
 import {
     DELIBERATION_SYSTEM_PROMPT,
-    DELIBERATION_GRAMMAR,
     DELIBERATION_TIMEOUT_MS,
     buildDeliberationPrompt,
     looksLikeLoop,
@@ -59,31 +58,41 @@ export function smallBrainThreads(): number {
     return Math.min(SMALL_BRAIN_THREADS, Math.max(1, cpuThreadCount()));
 }
 
+/**
+ * Teto de tokens do pensamento. É ELE que torna o loop eterno impossível — não
+ * a mordaça que havia antes. Mesmo que o modelo comece a girar, ele para aqui,
+ * e o texto circular é descartado por looksLikeLoop.
+ */
+export const SMALL_BRAIN_THINK_TOKENS = 320;
+
 // n_threads é resolvido na CARGA, não aqui: depende do aparelho.
 export const SMALL_BRAIN_LOAD_CONFIG = Object.freeze({
-    // O prompt estruturado usa poucas centenas de tokens. 4096 só reservava KV
-    // desnecessário no celular e tornava cada reativação mais cara.
-    n_ctx: 1024,
+    // Precisa caber o estado do mundo (~300) MAIS o raciocínio (~320). Com 1024
+    // o pensamento batia no teto do contexto e saía truncado.
+    n_ctx: 2048,
     n_batch: 256,
     n_gpu_layers: 0,
     jinja: true,
-    reasoning: false,
-    default_template_kwargs: Object.freeze({ enable_thinking: false }),
+    // O Nilo pensa. Ver DELIBERATION_SYSTEM_PROMPT.
+    reasoning: true,
+    default_template_kwargs: Object.freeze({ enable_thinking: true }),
     warmup: true,
 });
 
 export const SMALL_BRAIN_COMPLETION_CONFIG = Object.freeze({
     stream: false,
-    // "CHOICE: inspect-elevator" cabe com ampla folga; a gramática impede prosa.
-    max_tokens: 24,
+    // Espaço para pensar de verdade, com fim garantido.
+    max_tokens: SMALL_BRAIN_THINK_TOKENS,
     temperature: 0.7,
     top_p: 0.95,
     top_k: 40,
-    penalty_repeat: 1.1,
-    penalty_last_n: 64,
+    // Janela LONGA de propósito: com 64 o modelo podia repetir um parágrafo
+    // inteiro sem penalidade, que é exatamente a cara de um loop de pensamento.
+    penalty_repeat: 1.15,
+    penalty_last_n: 256,
     cache_prompt: true,
-    grammar: DELIBERATION_GRAMMAR,
-    chat_template_kwargs: Object.freeze({ enable_thinking: false }),
+    // SEM gramática: ela forçava uma linha só e tornava o raciocínio impossível.
+    chat_template_kwargs: Object.freeze({ enable_thinking: true }),
 });
 
 type SmallInstance = {

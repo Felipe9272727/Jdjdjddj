@@ -57,12 +57,12 @@ const saida = await page.evaluate(async (n) => {
             },
             {
                 useGrammar: false,
-                maxTokens: 64,
+                maxTokens: 320,
                 timeoutMs: 240_000,
                 onToken: () => undefined,
                 // Guarda a FORMA do pedaço, não só o texto: é ela que diz se o
                 // transporte manda delta, texto acumulado, ou as duas coisas.
-                onChunk: (c) => chunks.push(JSON.parse(JSON.stringify(c))),
+                onChunk: () => undefined,
             },
         );
         relatorio.push({ raw: r.raw, tokens: r.tokens, erro: r.erro, chunks });

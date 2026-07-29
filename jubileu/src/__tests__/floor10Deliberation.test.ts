@@ -55,7 +55,10 @@ describe('npc/floor10Deliberation — o segundo cérebro pequeno e privado', () 
     it('pede livre arbítrio e lista as metas válidas', () => {
         expect(DELIBERATION_SYSTEM_PROMPT).toContain('free will');
         expect(DELIBERATION_SYSTEM_PROMPT).toContain('CHOICE:');
-        expect(DELIBERATION_SYSTEM_PROMPT).toContain('Do not narrate reasoning');
+        // O Nilo PENSA antes de assinar — antes este teste exigia o contrário.
+        expect(DELIBERATION_SYSTEM_PROMPT).toContain('Think it through');
+        expect(DELIBERATION_SYSTEM_PROMPT).toContain('Never repeat yourself');
+        expect(DELIBERATION_SYSTEM_PROMPT).not.toContain('Do not narrate reasoning');
         for (const goal of DELIBERATION_GOALS) {
             expect(DELIBERATION_SYSTEM_PROMPT).toContain(goal);
             expect(DELIBERATION_GRAMMAR).toContain(`"${goal}"`);
@@ -165,8 +168,10 @@ describe('floor10Deliberation — travas contra o loop do modelo pequeno', () =>
         // Folgado de propósito: medido no navegador, 20s reprovava deliberação
         // SAUDÁVEL e o Nilo perdia o livre-arbítrio calado. O teto é contra
         // travamento, não contra lentidão — ninguém espera por ele.
-        expect(DELIBERATION_TIMEOUT_MS).toBeGreaterThanOrEqual(45_000);
-        expect(DELIBERATION_TIMEOUT_MS).toBeLessThanOrEqual(120_000);
+        // Folgado porque ele PENSA: escrever frases custa mais que assinar uma
+        // linha. Quem barra o loop eterno é o teto de tokens, não este relógio.
+        expect(DELIBERATION_TIMEOUT_MS).toBeGreaterThanOrEqual(120_000);
+        expect(DELIBERATION_TIMEOUT_MS).toBeLessThanOrEqual(300_000);
     });
 });
 
