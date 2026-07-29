@@ -20,6 +20,7 @@ import {
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { abortDeliberation } from './floor10SmallBrain';
+import { smallBrainUrls } from './floor10Brains';
 import {
     planModelCache,
     probeModelBytes,
@@ -557,6 +558,42 @@ async function isModelCached(mod: WllamaModule, url: string): Promise<boolean> {
     }
 }
 
+/**
+ * A FALA TEM PRIORIDADE SOBRE A VONTADE — no armazenamento também.
+ *
+ * Os dois cérebros dividem o mesmo cofre do site. Medido no navegador: com o
+ * cérebro pequeno já baixado, a cota restante caiu para 1,87 GB e o SmolLM3
+ * precisa de 2,07 GB — a fala era recusada e o Nilo emudecia. Era isto o "agr
+ * nem falar ele fala".
+ *
+ * A vontade é opcional por construção (sem ela o Nilo segue no reflexo); a fala
+ * não é. Então, e só quando falta espaço PARA A FALA, os pesos da vontade são
+ * devolvidos. Nada de varrer o cache por dedução — a lista de URLs é fechada e
+ * conhecida, e ela volta sozinha no próximo ciclo de deliberação.
+ */
+async function reclaimSmallBrains(mod: WllamaModule): Promise<number> {
+    let liberados = 0;
+    for (const url of smallBrainUrls()) {
+        if (!await isModelCached(mod, url)) continue;
+        if (await forgetCachedModel(mod, url)) liberados += 1;
+    }
+    return liberados;
+}
+
+/**
+ * O cérebro da FALA já está baixado? A vontade pergunta isto antes de gastar
+ * 800 MB: quem baixa primeiro fica com o espaço, e não pode ser ela.
+ */
+export async function speechModelReady(): Promise<boolean> {
+    if (currentEngine && activeModelUrl === FLOOR10_MODEL.url) return true;
+    try {
+        modulePromise ??= import(/* @vite-ignore */ WLLAMA_ESM) as unknown as Promise<WllamaModule>;
+        return await isModelCached(await modulePromise, FLOOR10_MODEL.url);
+    } catch {
+        return false;
+    }
+}
+
 async function forgetCachedModel(mod: WllamaModule, url: string): Promise<boolean> {
     try {
         const probe = new mod.Wllama(WLLAMA_PATHS, { suppressNativeLog: true }) as WllamaInstance & {
@@ -616,7 +653,12 @@ function initConversationEngine(): Promise<WllamaInstance> {
         // cache, não há nada a caber — a pergunta simplesmente não se aplica.
         if (!await isModelCached(mod, model.url)) {
             const modelBytes = await probeModelBytes(model.url);
-            const cachePlan = planModelCache(await readStorageEstimate(), modelBytes);
+            let cachePlan = planModelCache(await readStorageEstimate(), modelBytes);
+            if (!cachePlan.ok && await reclaimSmallBrains(mod)) {
+                // Devolveu os pesos da vontade e refaz a conta: se agora cabe,
+                // o jogador fala. A vontade rebaixa sozinha depois.
+                cachePlan = planModelCache(await readStorageEstimate(), modelBytes);
+            }
             if (!cachePlan.ok) {
                 throw new ModelStorageError(cachePlan.message);
             }

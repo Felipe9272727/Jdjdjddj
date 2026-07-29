@@ -22,10 +22,16 @@ import {
 import type { Floor10Perception } from './floor10Perception';
 import type { Floor10WillDrives } from './floor10Will';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
+import {
+    SMALL_BRAIN_CATALOG, SMALL_BRAIN_DEFAULT, type SmallBrainId,
+} from './floor10Brains';
 import { npc, npcSet } from './npcStore';
 import {
-    chunkDelta, chunkOpensReply, cpuThreadCount, type ChatChunk,
+    chunkDelta, chunkOpensReply, cpuThreadCount, speechModelReady,
+    type ChatChunk,
 } from './wllamaEngine';
+
+export { SMALL_BRAIN_CATALOG, type SmallBrainId } from './floor10Brains';
 
 const WLLAMA_V = '3.5.1';
 // Mesmos overrides do cérebro de fala. Sem eles o cérebro PEQUENO era
@@ -37,43 +43,7 @@ const CDN = (globalThis as { __wllamaCdn?: string }).__wllamaCdn
 const WLLAMA_ESM = `${CDN}/index.js`;
 const WASM_SINGLE = `${CDN}/wasm/wllama.wasm`;
 
-/**
- * OS CANDIDATOS A CÉREBRO PEQUENO.
- *
- * Não é lista de gosto: os três foram medidos no MESMO prompt de deliberação
- * deste arquivo, nos cenários reais do andar, pelo mesmo llama.cpp que roda no
- * navegador. O que importa aqui não é nota de benchmark, é caber no orçamento
- * do celular (≈320 tokens por rodada) E soar como o Nilo, não como um aluno
- * comentando um enunciado.
- */
-export const SMALL_BRAIN_CATALOG = Object.freeze([
-    {
-        id: 'gemma3-1b',
-        label: 'Gemma 3 1B',
-        url: 'https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf',
-        bytes: 806_058_240,
-        nota: 'assina a escolha em todas as rodadas; o pensamento mais curto e mais dentro do personagem',
-    },
-    {
-        id: 'llama32-1b',
-        label: 'Llama 3.2 1B',
-        url: 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
-        bytes: 807_694_464,
-        nota: 'o raciocínio mais rico em 1ª pessoa, e o mais rápido; inventa lembranças de fora do hotel',
-    },
-    {
-        id: 'minicpm5-1b',
-        label: 'MiniCPM5-1B',
-        url: 'https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf',
-        bytes: 688_065_920,
-        nota: 'o antigo: gasta os 320 tokens discutindo o enunciado e quase nunca chega a decidir',
-    },
-] as const);
-
-export type SmallBrainId = (typeof SMALL_BRAIN_CATALOG)[number]['id'];
-
 const SMALL_BRAIN_STORAGE_KEY = 'floor10-small-brain';
-const SMALL_BRAIN_DEFAULT: SmallBrainId = 'gemma3-1b';
 
 function readSavedBrain(): SmallBrainId | null {
     try {
@@ -401,6 +371,21 @@ function ensureSmallEngine(): Promise<SmallInstance | null> {
             deliberationLoadText: `verificando o cache do ${SMALL_BRAIN_MODEL.label}…`,
             deliberationLoadProgress: 0,
         });
+        // A FALA PRIMEIRO. Os dois cérebros dividem o mesmo cofre de
+        // armazenamento do site; medido no navegador, um cérebro pequeno
+        // baixado antes derrubava a cota abaixo do que o SmolLM3 precisa e a
+        // fala era RECUSADA — o "agr nem falar ele fala". Enquanto o cérebro da
+        // conversa não estiver garantido, a vontade não gasta um byte. Ela
+        // tenta de novo na próxima rodada, e o reflexo dirige o corpo até lá.
+        if (!await speechModelReady()) {
+            npcSet({
+                deliberationPhase: 'off',
+                deliberationLoadText: 'esperando o cérebro da fala ficar pronto antes de baixar a vontade',
+            });
+            enginePromise = null;
+            loadAbort = null;
+            return null;
+        }
         try {
             try {
                 if (typeof navigator !== 'undefined') {
