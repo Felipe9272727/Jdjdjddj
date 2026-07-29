@@ -15,21 +15,23 @@ function memoryStorage() {
 }
 
 describe('npc/floor10Reinforcement — RL neural ligada à Utility AI', () => {
-    it('usa uma Dueling Double DQN de 13.835 parâmetros treináveis', () => {
+    it('inclui intenção motora na Dueling Double DQN', () => {
         // Era 3.993 (estado 24, oculta 48, 8 ações). Cresceu por dois motivos
         // concretos, não por gosto: o estado passou a incluir o que ele sente
         // da PRISÃO (sem isso a rede não liga "o zumbido começou" a "não
         // estávamos sozinhos"), e o corpo ganhou as duas ações que tornam a
         // cooperação aprendível — mexer num aparelho e chamar o jogador.
-        expect(FLOOR10_RL_PARAMETER_COUNT).toBe(13835);
-        expect(FLOOR10_RL_STATE_SIZE).toBe(35);
-        expect(FLOOR10_RL_ACTIONS).toHaveLength(10);
+        // 16 do corpo + 11 ações + 9 sentidos da prisão + 12 do plano motor.
+        expect(FLOOR10_RL_PARAMETER_COUNT).toBe(15180);
+        expect(FLOOR10_RL_STATE_SIZE).toBe(48);
+        expect(FLOOR10_RL_ACTIONS).toHaveLength(11);
+        expect(FLOOR10_RL_ACTIONS).toContain('embodied-intent');
         expect(FLOOR10_RL_ACTIONS).toContain('try-device');
         expect(FLOOR10_RL_ACTIONS).toContain('call-player');
         const learner = new Floor10ReinforcementLearner({ seed: 3, storage: null });
         expect(learner.snapshot()).toMatchObject({
             source: 'floor10-dueling-double-dqn',
-            parameterCount: 13835,
+            parameterCount: 15180,
             experiences: 0,
             confidence: 0,
         });

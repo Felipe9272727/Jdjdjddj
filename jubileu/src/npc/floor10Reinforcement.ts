@@ -1,8 +1,10 @@
 // ── APRENDIZADO POR REFORÇO DA VONTADE ─────────────────────────────────────
 // Uma Dueling Double DQN pequena, treinada online nas decisões da Utility AI.
 // Ela não substitui olhos, fala ou regras de segurança: aprende um resíduo
-// limitado sobre os scores da Utility AI. Pedidos aceitos pelo 2B continuam
-// sendo compromissos explícitos e nunca podem ser vetados por esta rede.
+// limitado sobre os scores da Utility AI. Pedidos aceitos pelo cérebro de fala
+// continuam sendo compromissos explícitos e nunca podem ser vetados por esta rede.
+
+import { FLOOR10_MOTOR_FEATURE_SIZE } from './floor10MotorCortex';
 
 export const FLOOR10_RL_ACTIONS = [
     'idle',
@@ -13,6 +15,8 @@ export const FLOOR10_RL_ACTIONS = [
     'observe-player',
     'make-space',
     'talk-player',
+    // Movimento proposto pelo pensamento livre e aterrado pelo córtex motor.
+    'embodied-intent',
     // ── As duas que existem por causa da PRISÃO ────────────────────────────
     // Sem elas o Nilo não tem como aprender a cooperar: dá para querer sair
     // daqui a vida inteira e nunca descobrir nada se as únicas coisas que o
@@ -32,13 +36,17 @@ export type Floor10RlAction = typeof FLOOR10_RL_ACTIONS[number];
  */
 export const FLOOR10_RL_BODY_STATE_SIZE = 16;
 export const FLOOR10_RL_PRISON_STATE_SIZE = 9;
+export const FLOOR10_RL_MOTOR_STATE_SIZE = FLOOR10_MOTOR_FEATURE_SIZE;
 export const FLOOR10_RL_STATE_SIZE =
-    FLOOR10_RL_BODY_STATE_SIZE + FLOOR10_RL_ACTIONS.length + FLOOR10_RL_PRISON_STATE_SIZE;
+    FLOOR10_RL_BODY_STATE_SIZE
+    + FLOOR10_RL_ACTIONS.length
+    + FLOOR10_RL_PRISON_STATE_SIZE
+    + FLOOR10_RL_MOTOR_STATE_SIZE;
 /**
  * Dobrou (48 → 96) a pedido do dono do jogo: "uma ia de bastantes parâmetros
- * de RL, onde ele aprende com as fases que ele faz". Com o estado maior e duas
- * ações novas, a rede sai de ~4 mil para ~15 mil parâmetros — e o custo por
- * passo continua desprezível perto de um modelo de linguagem.
+ * de RL, onde ele aprende com as fases que ele faz". Agora o estado também
+ * recebe o plano motor compacto e existe uma ação para julgá-lo; a rede fica
+ * em ~15 mil parâmetros, ainda desprezível perto de um modelo de linguagem.
  */
 export const FLOOR10_RL_HIDDEN_SIZE = 96;
 export const FLOOR10_RL_ACTION_COUNT = FLOOR10_RL_ACTIONS.length;

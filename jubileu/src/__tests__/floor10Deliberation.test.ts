@@ -57,6 +57,7 @@ describe('npc/floor10Deliberation — o segundo cérebro pequeno e privado', () 
         expect(DELIBERATION_SYSTEM_PROMPT).toContain('CHOICE:');
         // O Nilo PENSA antes de assinar — antes este teste exigia o contrário.
         expect(DELIBERATION_SYSTEM_PROMPT).toContain('Think it through');
+        expect(DELIBERATION_SYSTEM_PROMPT).toContain('motor interpreter');
         expect(DELIBERATION_SYSTEM_PROMPT).toContain('Never repeat yourself');
         expect(DELIBERATION_SYSTEM_PROMPT).not.toContain('Do not narrate reasoning');
         for (const goal of DELIBERATION_GOALS) {

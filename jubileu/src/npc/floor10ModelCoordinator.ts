@@ -1,8 +1,9 @@
 // ── COORDENADOR DOS CÉREBROS DO 10º ───────────────────────────────────────
-// Os dois LLMs podem permanecer residentes. A fila evita carregar/encerrar dois
-// runtimes ao mesmo tempo (pico de memória), mas NÃO expulsa o outro cérebro.
-// A conversa pode pausar uma geração do MiniCPM; pausar não apaga seus pesos,
-// Worker nem cache KV, portanto o livre-arbítrio volta sem recarregar 688 MB.
+// SmolLM3, MiniBrain e o tradutor motor podem permanecer residentes. Os donos
+// abaixo são PIPELINES: fala e deliberação (esta inclui o motor de 135M). A fila
+// evita carregar dois runtimes ao mesmo tempo, mas NÃO expulsa o outro pipeline.
+// A fala pode pausar MiniBrain + motor; pausar não apaga os pesos já residentes,
+// então o livre-arbítrio volta sem baixar os modelos de novo.
 
 export type Floor10BrainOwner = 'conversation' | 'deliberation';
 type BrainUnloader = () => Promise<void> | void;

@@ -21,6 +21,12 @@ import {
 } from './floor10Deliberation';
 import type { Floor10Perception } from './floor10Perception';
 import type { Floor10WillDrives } from './floor10Will';
+import type { F10PrisonState } from './f10Prison';
+import {
+    abortFloor10MotorBrain,
+    resetFloor10MotorBrainForTests,
+    translateFloor10MotorThought,
+} from './floor10MotorBrain';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import {
     SMALL_BRAIN_CATALOG, SMALL_BRAIN_DEFAULT, type SmallBrainId,
@@ -96,18 +102,15 @@ export async function setSmallBrain(id: SmallBrainId): Promise<void> {
 }
 
 /**
- * DOIS núcleos, e não metade da máquina.
+ * Até QUATRO núcleos para o MiniBrain.
  *
- * Eu subi para metade das threads da fala depois de ver, na sala da mente, uma
- * rodada morrer no teto sem produzir um token. Só que medi isso numa caixa de 4
- * núcleos, onde "metade" continuava sendo 2 — ou seja, não medi nada. No
- * celular do Felipe, com a fala em 8, virou 8 + 4 = 12 threads disputando 8
- * núcleos, e a conversa passou a travar em "liberando a CPU".
- *
- * A deliberação não tem pressa: ela roda em segundo plano, num ciclo de 60s, e
- * ninguém espera por ela. A fala do jogador tem. Então quem cede é esta.
+ * O limite antigo de 2 tentava evitar disputa com a fala, mas hoje o
+ * floor10ModelCoordinator interrompe a inferência pequena antes de o SmolLM3
+ * gerar. Portanto não existe mais motivo para deixar metade dos celulares
+ * modernos ociosa durante uma rodada que roda sozinha. Quatro é o teto, não
+ * uma exigência: aparelhos menores continuam usando hardwareConcurrency.
  */
-export const SMALL_BRAIN_THREADS = 2;
+export const SMALL_BRAIN_THREADS = 4;
 
 export function smallBrainThreads(): number {
     return Math.min(SMALL_BRAIN_THREADS, Math.max(1, cpuThreadCount()));
@@ -203,7 +206,7 @@ let loadingEngine: SmallInstance | null = null;
 export const SMALL_BRAIN_HANDOFF_TIMEOUT_MS = 3_000;
 
 function abortError(): Error {
-    const error = new Error('MiniCPM load aborted for conversation');
+    const error = new Error('MiniBrain load aborted for conversation');
     error.name = 'AbortError';
     return error;
 }
@@ -245,6 +248,7 @@ export function abortDeliberation(): void {
     const pausedInference = npc.deliberationPhase === 'thinking';
     currentAbort?.abort();
     currentAbort = null;
+    abortFloor10MotorBrain();
     loadAbort?.abort();
     const loading = loadingEngine;
     loadingEngine = null;
@@ -511,6 +515,8 @@ export type DeliberateInput = {
     perception: Floor10Perception;
     drives: Floor10WillDrives;
     memory: DeliberationMemory;
+    /** Sensores da sala, sem a regra/solução do puzzle. */
+    prison?: F10PrisonState | null;
     now: number;
 };
 
@@ -665,10 +671,21 @@ export async function deliberateFloor10(
             const assinatura = await assinarEscolha(engine, texto, abort.signal);
             if (assinatura) decided = parseDeliberation(`${texto}\n${assinatura}`, input.now);
         }
+        if (decided && texto.trim() && !conversationHasPriority()) {
+            const motion = await translateFloor10MotorThought(
+                texto,
+                input.perception,
+                input.prison,
+                abort.signal,
+            );
+            if (motion) decided = { ...decided, motion };
+        }
         if (decided) {
             npcSet({
                 deliberationPhase: 'decided',
-                deliberationLoadText: `${SMALL_BRAIN_MODEL.label} pronto no cache`,
+                deliberationLoadText: decided.motion
+                    ? `${SMALL_BRAIN_MODEL.label} pronto · ${decided.motion.verb} ${decided.motion.target}`
+                    : `${SMALL_BRAIN_MODEL.label} pronto no cache`,
                 deliberationGoal: decided.goal,
                 deliberationCount: npc.deliberationCount + 1,
             });
@@ -798,6 +815,14 @@ export async function deliberarObservando(
         if (resgate) decided = parseDeliberation(`${raw}\n${resgate}`, input.now);
         else erro = `resgate falhou: ${erroDoResgate() ?? 'sem motivo'}`;
     }
+    if (decided && raw.trim() && !looksLikeLoop(raw)) {
+        const motion = await translateFloor10MotorThought(
+            raw,
+            input.perception,
+            input.prison,
+        );
+        if (motion) decided = { ...decided, motion };
+    }
     return {
         raw,
         decided,
@@ -812,6 +837,7 @@ export async function deliberarObservando(
 /** Só para os testes: devolve o módulo ao estado inicial. */
 export function resetSmallBrainForTests(): void {
     abortDeliberation();
+    resetFloor10MotorBrainForTests();
     floor10ModelCoordinator.markUnloaded('deliberation');
     enginePromise = null;
     disposePromise = null;

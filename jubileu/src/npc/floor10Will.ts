@@ -1,9 +1,19 @@
 import type { Floor10Perception, Vec3Like } from './floor10Perception';
 import { readClock, stepDrives, type Floor10Clock } from './floor10Drives';
 import {
-    PRISON_DEVICES, PRISON_REACH, prisonSenses, type F10PrisonState,
+    PRISON_DEVICES, PRISON_REACH, PRISON_SENSE_SIZE, prisonSenses, type F10PrisonState,
 } from './f10Prison';
-import { deliberationBonus, type Floor10Deliberation } from './floor10Deliberation';
+import {
+    DELIBERATION_BONUS,
+    DELIBERATION_TTL_SECONDS,
+    deliberationBonus,
+    type Floor10Deliberation,
+} from './floor10Deliberation';
+import {
+    groundMotorPlan,
+    motorPlanFeatures,
+    type Floor10MotorPlan,
+} from './floor10MotorCortex';
 import {
     FLOOR10_RL_ACTIONS,
     FLOOR10_RL_BODY_STATE_SIZE,
@@ -35,6 +45,7 @@ export type Floor10WillGoal =
     | 'observe-player'
     | 'make-space'
     | 'talk-player'
+    | 'embodied-intent'
     // As duas da PRISÃO. Ele não sabe para que servem: descobrir é com ele.
     | 'try-device'
     | 'call-player';
@@ -72,6 +83,10 @@ export type Floor10WillSnapshot = {
     reason: string;
     target: null | { x: number; z: number };
     moving: boolean;
+    /** Plano textual do MiniBrain que originou este movimento, quando houver. */
+    motion: Floor10MotorPlan | null;
+    /** Ritmo aterrado do plano; não afeta as outras ações da Utility AI. */
+    motionSpeed: number | null;
     commitment: Floor10WillCommitment;
     commitmentReason: string | null;
     activeDirective: Floor10WillCommandAction | null;
@@ -110,6 +125,11 @@ type Candidate = {
     utility: number;
     target: Floor10WillSnapshot['target'];
     reason: string;
+    motion?: Floor10MotorPlan | null;
+    motionSpeed?: number | null;
+    lockSeconds?: number;
+    deliberationAt?: number;
+    learningState?: Float32Array;
 };
 
 type ActiveDirective = {
@@ -151,6 +171,7 @@ const GOAL_LABEL: Record<Floor10WillGoal, string> = {
     'observe-player': 'observar você',
     'make-space': 'abrir um pouco de espaço',
     'talk-player': 'falar com você',
+    'embodied-intent': 'seguir o movimento que imaginei',
     'try-device': 'mexer naquilo outra vez',
     'call-player': 'te chamar aqui',
 };
@@ -167,6 +188,7 @@ const GOAL_LABEL_EN: Record<Floor10WillGoal, string> = {
     'observe-player': 'observe you',
     'make-space': 'give you some space',
     'talk-player': 'talk to you',
+    'embodied-intent': 'follow the movement I imagined',
     'try-device': 'go poke at that thing again',
     'call-player': 'call you over here',
 };
@@ -183,6 +205,7 @@ const GOAL_LABEL_ES: Record<Floor10WillGoal, string> = {
     'observe-player': 'observarte',
     'make-space': 'darte un poco de espacio',
     'talk-player': 'hablar contigo',
+    'embodied-intent': 'seguir el movimiento que imaginé',
     'try-device': 'volver a tocar esa cosa',
     'call-player': 'llamarte aquí',
 };
@@ -216,6 +239,8 @@ export const INITIAL_FLOOR10_WILL: Floor10WillSnapshot = {
     reason: 'estou entendendo o que existe ao meu redor',
     target: null,
     moving: false,
+    motion: null,
+    motionSpeed: null,
     commitment: null,
     commitmentReason: null,
     activeDirective: null,
@@ -256,6 +281,8 @@ export class Floor10WillBrain {
     private activeDirective: ActiveDirective | null = null;
     private reinforcement: Floor10ReinforcementLearner;
     private learningDecision: LearningDecision | null = null;
+    /** Impede a mesma deliberação de comandar o corpo em um loop de 45s. */
+    private lastMotorDeliberationAt: number | null = null;
 
     constructor(seed?: number) {
         if (seed === undefined) {
@@ -374,6 +401,8 @@ export class Floor10WillBrain {
             reason: candidate.reason,
             target: candidate.target,
             moving: candidate.target !== null,
+            motion: candidate.motion ?? null,
+            motionSpeed: candidate.motionSpeed ?? null,
             commitment: this.commitment,
             commitmentReason: this.commitmentReason,
             activeDirective: this.activeDirective?.action ?? null,
@@ -419,6 +448,10 @@ export class Floor10WillBrain {
     }
 
     private goalReached(position: Vec3Like, perception: Floor10Perception): boolean {
+        // "hold" é uma decisão temporal: chegar ao ponto não encerra a ação,
+        // ele precisa permanecer ali até o lock do plano acabar.
+        if (this.snapshot.goal === 'embodied-intent'
+            && this.snapshot.motion?.verb === 'hold') return false;
         if (this.snapshot.goal === 'approach-player') {
             return !!perception.player && perception.player.distance <= 1.9;
         }
@@ -434,6 +467,8 @@ export class Floor10WillBrain {
             this.drives.restlessness = clamp01(this.drives.restlessness - 0.08);
         } else if (this.snapshot.goal === 'seek-player') {
             this.lastSeenPlayer = null;
+        } else if (this.snapshot.goal === 'embodied-intent') {
+            this.drives.restlessness = clamp01(this.drives.restlessness - 0.12);
         }
     }
 
@@ -468,7 +503,10 @@ export class Floor10WillBrain {
         return melhor;
     }
 
-    private reinforcementState(input: WillInput): Float32Array {
+    private reinforcementState(
+        input: WillInput,
+        motorPlan: Floor10MotorPlan | null = this.snapshot.motion,
+    ): Float32Array {
         const state = new Float32Array(FLOOR10_RL_STATE_SIZE);
         const player = input.perception.player;
         state[0] = this.drives.social;
@@ -501,6 +539,13 @@ export class Floor10WillBrain {
             for (let i = 0; i < sentidos.length && base + i < state.length; i += 1) {
                 state[base + i] = sentidos[i];
             }
+        }
+        const motorBase = FLOOR10_RL_BODY_STATE_SIZE
+            + FLOOR10_RL_ACTIONS.length
+            + PRISON_SENSE_SIZE;
+        const motor = motorPlanFeatures(motorPlan);
+        for (let i = 0; i < motor.length && motorBase + i < state.length; i += 1) {
+            state[motorBase + i] = motor[i];
         }
         return state;
     }
@@ -550,6 +595,9 @@ export class Floor10WillBrain {
                 && input.perception.player.distance <= 2.8;
             reward += closeAndVisible ? 0.72 : -0.35;
             reward += clamp((decision.restlessness - this.drives.restlessness) * 0.5, -0.2, 0.25);
+        } else if (decision.action === 'embodied-intent') {
+            reward += targetProgress * 0.65;
+            if (targetDistance !== null && targetDistance <= 0.42) reward += 0.55;
         }
         return clamp(reward, -1.5, 1.5);
     }
@@ -717,6 +765,33 @@ export class Floor10WillBrain {
         const recentPlayerMemory = this.lastSeenPlayer && time - this.lastSeenPlayer.at <= 9
             ? this.lastSeenPlayer
             : null;
+        const deliberation = input.deliberation ?? null;
+        const deliberationAge = deliberation ? time - deliberation.at : Infinity;
+        const motorIsFresh = !!deliberation?.motion
+            && deliberationAge >= 0
+            && deliberationAge <= DELIBERATION_TTL_SECONDS
+            && deliberation.at !== this.lastMotorDeliberationAt;
+        const groundedMotor = motorIsFresh && deliberation?.motion
+            ? groundMotorPlan(deliberation.motion, perception, prison, npcPosition)
+            : null;
+
+        if (groundedMotor) {
+            const freshness = 1 - deliberationAge / DELIBERATION_TTL_SECONDS;
+            const motorLearningState = this.reinforcementState(input, groundedMotor.plan);
+            candidates.push({
+                goal: 'embodied-intent',
+                // Forte como uma intenção própria, mas ainda abaixo de regras
+                // urgentes (espaço pessoal) e corrigível pelo aprendizado.
+                utility: 0.58 + DELIBERATION_BONUS * freshness,
+                target: groundedMotor.target,
+                reason: groundedMotor.reason,
+                motion: groundedMotor.plan,
+                motionSpeed: groundedMotor.speed,
+                lockSeconds: groundedMotor.lockSeconds,
+                deliberationAt: deliberation?.at,
+                learningState: motorLearningState,
+            });
+        }
 
         if (player?.visible) {
             // ESPAÇO PESSOAL, MENOS QUANDO ELE ESCOLHEU ESTAR ALI.
@@ -845,21 +920,28 @@ export class Floor10WillBrain {
             else if (candidate.goal === this.lastGoal) candidate.utility -= 0.06;
             if (isFloor10RlAction(candidate.goal)) {
                 candidate.utility += this.reinforcement.utilityBonus(
-                    learningState,
+                    candidate.learningState ?? learningState,
                     candidate.goal,
                 );
             }
             // A vontade deliberada por fora entra aqui como peso, não como ordem.
-            candidate.utility += deliberationBonus(
-                input.deliberation ?? null,
-                candidate.goal,
-                time,
-            );
+            // Se a tradução motora está executável, ela é a expressão principal
+            // do pensamento. O rótulo amplo só volta como fallback.
+            if (!groundedMotor) {
+                candidate.utility += deliberationBonus(deliberation, candidate.goal, time);
+            }
             candidate.utility += this.random() * 0.055;
         }
         candidates.sort((a, b) => b.utility - a.utility);
         const selected = candidates[0];
-        this.rememberLearningChoice(selected, input, learningState);
+        this.rememberLearningChoice(
+            selected,
+            input,
+            selected.learningState ?? learningState,
+        );
+        if (selected.goal === 'embodied-intent' && selected.deliberationAt !== undefined) {
+            this.lastMotorDeliberationAt = selected.deliberationAt;
+        }
         return selected;
     }
 
@@ -968,6 +1050,17 @@ export class Floor10WillBrain {
         if (this.snapshot.goal === 'approach-player' && player?.visible) {
             this.snapshot.target = this.safeTarget(player.position.x, player.position.z);
         }
+        if (this.snapshot.goal === 'embodied-intent'
+            && this.snapshot.motion?.target === 'player'
+            && player) {
+            const current = groundMotorPlan(
+                this.snapshot.motion,
+                input.perception,
+                input.prison,
+                input.npcPosition,
+            );
+            if (current) this.snapshot.target = current.target;
+        }
 
         const urgentPersonalSpace = !!player?.visible && player.distance < 1.05;
         const closeEnoughToTalk = !!player?.visible
@@ -978,7 +1071,7 @@ export class Floor10WillBrain {
             && input.time >= this.goalLockedUntil;
         if (reached || urgentPersonalSpace || closeEnoughToTalk || decisionDue) {
             const candidate = this.decide(input);
-            const lock = candidate.goal === 'talk-player'
+            const lock = candidate.lockSeconds ?? (candidate.goal === 'talk-player'
                 ? 2.4
                 : candidate.goal === 'approach-player'
                     ? 4
@@ -997,7 +1090,7 @@ export class Floor10WillBrain {
                                     ? 12
                                     : candidate.goal === 'call-player'
                                         ? 5
-                                        : 3.5;
+                                        : 3.5);
             this.setGoal(candidate, input.time, lock);
 
             if (candidate.goal === 'talk-player') {
@@ -1078,7 +1171,11 @@ export function stepFloor10Movement(
     };
 }
 
-export function speedForWillGoal(goal: Floor10WillGoal): number {
+export function speedForWillGoal(
+    goal: Floor10WillGoal,
+    motionSpeed: number | null = null,
+): number {
+    if (goal === 'embodied-intent') return clamp(motionSpeed ?? 0.86, 0.45, 1.3);
     if (goal === 'follow-player') return 1.18;
     if (goal === 'approach-player' || goal === 'seek-player') return 1.12;
     if (goal === 'make-space') return 1.28;

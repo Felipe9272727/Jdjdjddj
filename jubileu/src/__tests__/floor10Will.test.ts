@@ -139,10 +139,94 @@ describe('npc/floor10Will — autonomia e desejos do hóspede', () => {
         }
         expect(snapshot.learning).toMatchObject({
             source: 'floor10-dueling-double-dqn',
-            parameterCount: 13835,
+            parameterCount: 15180,
         });
         expect(snapshot.learning.experiences).toBeGreaterThan(0);
         expect(['inspect-elevator', 'wander', 'idle']).toContain(snapshot.goal);
+    });
+
+    it('executa o movimento imaginado pelo MiniBrain e deixa o RL observá-lo', () => {
+        const brain = new Floor10WillBrain(6);
+        const deliberation = {
+            goal: 'wander' as const,
+            rationale: 'I want to cross toward the eastern wall and look around.',
+            at: 0,
+            motion: {
+                verb: 'explore' as const,
+                target: 'east-side' as const,
+                pace: 'fast' as const,
+                duration: 9 as const,
+                raw: 'MOTION: explore | east-side | fast | 9',
+            },
+        };
+        const result = brain.tick({
+            dt: 0.1,
+            time: 0,
+            perception: vision(null),
+            npcPosition: NPC,
+            conversationOpen: false,
+            speaking: false,
+            deliberation,
+        });
+        expect(result.snapshot).toMatchObject({
+            goal: 'embodied-intent',
+            motion: {
+                verb: 'explore',
+                target: 'east-side',
+                pace: 'fast',
+            },
+            motionSpeed: 1.16,
+            moving: true,
+        });
+        expect(result.snapshot.target?.x).toBeGreaterThan(10);
+        expect(speedForWillGoal(
+            result.snapshot.goal,
+            result.snapshot.motionSpeed,
+        )).toBeCloseTo(1.16);
+
+        // A mesma frase não comanda o corpo de novo a cada reavaliação.
+        const arrived = result.snapshot.target!;
+        const next = brain.tick({
+            dt: 0.1,
+            time: 10,
+            perception: perceiveFloor10({
+                npcPosition: { ...arrived, y: 0 },
+                npcYaw: 0,
+                playerPosition: null,
+            }),
+            npcPosition: { ...arrived, y: 0 },
+            conversationOpen: false,
+            speaking: false,
+            deliberation,
+        });
+        expect(next.snapshot.goal).not.toBe('embodied-intent');
+    });
+
+    it('mantém o reflexo urgente acima de uma tradução motora', () => {
+        const closePlayer = { x: 0, y: 0, z: 2.7 };
+        const brain = new Floor10WillBrain(8);
+        const result = brain.tick({
+            dt: 0.1,
+            time: 0,
+            perception: vision(closePlayer),
+            npcPosition: NPC,
+            conversationOpen: false,
+            speaking: false,
+            deliberation: {
+                goal: 'wander',
+                rationale: 'I want to cross the room.',
+                at: 0,
+                motion: {
+                    verb: 'explore',
+                    target: 'east-side',
+                    pace: 'fast',
+                    duration: 12,
+                    raw: 'MOTION: explore | east-side | fast | 12',
+                },
+            },
+        });
+        expect(result.snapshot.goal).toBe('make-space');
+        expect(result.snapshot.motion).toBeNull();
     });
 
     it('procura a última posição vista quando o jogador sai do campo de visão', () => {

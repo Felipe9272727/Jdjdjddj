@@ -63,8 +63,8 @@ describe('npc/floor10Will — o Nilo dentro da prisão', () => {
             speaking: false,
             prison,
         });
-        // 35 entradas: 16 do corpo + 10 do one-hot da última ação + 9 da prisão.
-        expect(tick.snapshot.learning.parameterCount).toBe(13835);
+        // 48 entradas: corpo + ações + prisão + plano de movimento traduzido.
+        expect(tick.snapshot.learning.parameterCount).toBe(15180);
     });
 
     it('a prisão não sequestra o reflexo: ele continua fazendo o resto', () => {

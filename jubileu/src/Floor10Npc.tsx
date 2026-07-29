@@ -25,10 +25,9 @@ import {
 
 // ── O CORPO DO NPC (procedural, v1) ────────────────────────────────────────
 // Um hóspede humanoide de pé na base do Andar 10. Por enquanto o corpo é
-// procedural (o Felipe pediu "inicialmente pode ser procedural"); o CÉREBRO é o
-// LLM (npc/wllamaEngine). Olhos, vontade e fala são módulos separados: os olhos
-// publicam a percepção real, a Utility AI escolhe uma intenção e este corpo
-// executa a navegação. O LLM só precisa acordar quando há conversa aberta.
+// procedural (o Felipe pediu "inicialmente pode ser procedural"). Olhos,
+// MiniBrain, vontade, córtex motor e fala são módulos separados: os olhos
+// publicam a percepção real, a vontade escolhe, e este corpo executa.
 
 const NPC_START = { x: 0, y: 0, z: 2.2 } as const;
 const NEAR_DIST = 2.8;
@@ -146,6 +145,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                         mood: `${describeMood(npc.autonomy.drives, readClock())} `
                             + describePrison(f10prison),
                     },
+                    prison: f10prison,
                     now: t,
                 }).then((decided) => {
                     if (decided) {
@@ -204,7 +204,10 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 const step = stepFloor10Movement(
                     g.position,
                     will.snapshot.target,
-                    speedForWillGoal(will.snapshot.goal),
+                    speedForWillGoal(
+                        will.snapshot.goal,
+                        will.snapshot.motionSpeed,
+                    ),
                     safeDt,
                 );
                 g.position.x = step.x;
@@ -219,6 +222,10 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 || will.snapshot.goal === 'talk-player'
                 || will.snapshot.goal === 'observe-player'
                 || will.snapshot.goal === 'follow-player'
+                || (
+                    will.snapshot.goal === 'embodied-intent'
+                    && will.snapshot.motion?.target === 'player'
+                )
             );
             if (!moving && shouldFacePlayer) {
                 tmp.copy(pp).sub(g.position);

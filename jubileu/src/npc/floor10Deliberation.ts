@@ -1,21 +1,22 @@
 // ── A DELIBERAÇÃO — o segundo cérebro, pequeno e privado ──────────────────
 // A Utility AI é o REFLEXO do Nilo: decide em microssegundos e nunca deixa o
-// corpo parado. Este módulo é a DELIBERAÇÃO: um modelo pequeno (MiniCPM5-1B)
-// que escolhe por fora e, de vez em quando, entrega uma intenção própria que o
-// reflexo passa a servir.
+// corpo parado. Este módulo é a DELIBERAÇÃO: o MiniBrain configurado pelo
+// jogador (Llama 3.2 1B por padrão), que escolhe por fora e, de vez em quando,
+// entrega uma intenção própria que o reflexo passa a servir.
 //
 // Por que um modelo pequeno e em inglês:
 // - Ele não fala com o jogador, então não precisa de português (medido: em
 //   português ele devolve a própria entrada; em inglês raciocina certo sobre
 //   posição, desejos e memória).
-// - É barato (688 MB, ~200 tok/s de leitura), então roda em celular fraco sem
-//   disputar com o 3B da conversa.
-// - O checkpoint continua sendo o mesmo modelo híbrido, mas usamos o modo
-//   no-think: gerar milhares de tokens de raciocínio não tornava a escolha mais
-//   livre, apenas atrasava a única informação consumida pelo corpo.
+// - Fica entre ~688 e ~808 MB conforme a escolha e é opcional: se não couber,
+//   o reflexo continua funcionando.
+// - Pensa em texto livre com teto de tempo/tokens; sua passada restrita só
+//   assina a escolha ampla. Uma terceira LLM de 135M traduz as palavras em
+//   movimento executável, sem pedir outro trabalho ao MiniBrain.
 
 import type { Floor10Perception } from './floor10Perception';
 import type { Floor10WillDrives, Floor10WillGoal } from './floor10Will';
+import type { Floor10MotorPlan } from './floor10MotorCortex';
 
 /** Metas que a deliberação pode propor ao reflexo. */
 export const DELIBERATION_GOALS = [
@@ -36,6 +37,11 @@ export type Floor10Deliberation = {
     /** Justificativa crua do modelo (inglês) — vira cor para a fala, nunca é exibida. */
     rationale: string;
     at: number;
+    /**
+     * Tradução motora daquilo que ele pensou. É opcional: se a passagem curta
+     * de tradução falhar, a escolha antiga continua funcionando normalmente.
+     */
+    motion?: Floor10MotorPlan | null;
 };
 
 /** Memória curta do que ele já tentou, para a deliberação não repetir à toa. */
@@ -79,6 +85,7 @@ export const DELIBERATION_SYSTEM_PROMPT =
 You receive what he SEES right now, what he WANTS, and what he REMEMBERS trying.
 Think it through in first person, as the man himself: what you notice, what bothers you, what you feel like doing.
 Then decide by your own free will — you are a person, not a servant, and you may choose something unexpected as long as it makes sense for you.
+Describe the physical movement you actually imagine doing. A separate motor interpreter will read your words and ground them in the room, so your body is not limited to the broad labels below.
 Be brief: at most three short sentences. Never repeat yourself.
 Then end with exactly one final line, choosing the option that fits what you just said:
 CHOICE: <option>

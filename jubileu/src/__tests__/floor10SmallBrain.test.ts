@@ -57,15 +57,14 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
         expect(SMALL_BRAIN_MODEL.id).toBe(antes);
     });
 
-    it('cede a CPU para a fala: no máximo dois núcleos', () => {
+    it('usa até quatro núcleos quando pensa sozinho e cede a CPU para a fala', () => {
         expect(SMALL_BRAIN_COMPLETION_CONFIG.max_tokens).toBe(SMALL_BRAIN_THINK_TOKENS);
-        // Eu já subi isto para "metade das threads da fala" e voltei: no celular
-        // do Felipe virou 8 + 4 = 12 threads em 8 núcleos, e a conversa travou
-        // em "liberando a CPU". A deliberação roda em segundo plano num ciclo de
-        // 60s e ninguém espera por ela; a fala do jogador, sim.
+        // O coordenador não deixa SmolLM3 e MiniBrain gerarem juntos. Portanto
+        // quatro aqui são um teto durante a janela ociosa, não 8 + 4 núcleos
+        // concorrendo durante a conversa.
         expect(smallBrainThreads()).toBeLessThanOrEqual(SMALL_BRAIN_THREADS);
         expect(smallBrainThreads()).toBeGreaterThanOrEqual(1);
-        expect(SMALL_BRAIN_THREADS).toBe(2);
+        expect(SMALL_BRAIN_THREADS).toBe(4);
         expect(SMALL_BRAIN_LOAD_CONFIG.n_ctx).toBe(2048);
         expect(SMALL_BRAIN_LOAD_CONFIG.n_batch).toBe(256);
         expect(SMALL_BRAIN_LOAD_CONFIG.n_gpu_layers).toBe(0);
