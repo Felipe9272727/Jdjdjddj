@@ -1,8 +1,13 @@
 import type { Floor10Perception, Vec3Like } from './floor10Perception';
 import { readClock, stepDrives, type Floor10Clock } from './floor10Drives';
+import {
+    PRISON_DEVICES, PRISON_REACH, prisonSenses, type F10PrisonState,
+} from './f10Prison';
 import { deliberationBonus, type Floor10Deliberation } from './floor10Deliberation';
 import {
     FLOOR10_RL_ACTIONS,
+    FLOOR10_RL_BODY_STATE_SIZE,
+    FLOOR10_RL_STATE_SIZE,
     Floor10ReinforcementLearner,
     INITIAL_FLOOR10_REINFORCEMENT,
     type Floor10ReinforcementSnapshot,
@@ -29,7 +34,10 @@ export type Floor10WillGoal =
     | 'seek-player'
     | 'observe-player'
     | 'make-space'
-    | 'talk-player';
+    | 'talk-player'
+    // As duas da PRISÃO. Ele não sabe para que servem: descobrir é com ele.
+    | 'try-device'
+    | 'call-player';
 
 export type Floor10WillDrives = {
     social: number;
@@ -90,6 +98,11 @@ type WillInput = {
      * o reflexo continua livre para preferir outra coisa.
      */
     deliberation?: Floor10Deliberation | null;
+    /**
+     * A sala trancada. Opcional: sem ela o Nilo continua sendo o que sempre
+     * foi, e nenhuma das duas metas novas chega a ser considerada.
+     */
+    prison?: F10PrisonState | null;
 };
 
 type Candidate = {
@@ -138,6 +151,8 @@ const GOAL_LABEL: Record<Floor10WillGoal, string> = {
     'observe-player': 'observar você',
     'make-space': 'abrir um pouco de espaço',
     'talk-player': 'falar com você',
+    'try-device': 'mexer naquilo outra vez',
+    'call-player': 'te chamar aqui',
 };
 
 const GOAL_LABEL_EN: Record<Floor10WillGoal, string> = {
@@ -152,6 +167,8 @@ const GOAL_LABEL_EN: Record<Floor10WillGoal, string> = {
     'observe-player': 'observe you',
     'make-space': 'give you some space',
     'talk-player': 'talk to you',
+    'try-device': 'go poke at that thing again',
+    'call-player': 'call you over here',
 };
 
 const GOAL_LABEL_ES: Record<Floor10WillGoal, string> = {
@@ -166,6 +183,8 @@ const GOAL_LABEL_ES: Record<Floor10WillGoal, string> = {
     'observe-player': 'observarte',
     'make-space': 'darte un poco de espacio',
     'talk-player': 'hablar contigo',
+    'try-device': 'volver a tocar esa cosa',
+    'call-player': 'llamarte aquí',
 };
 
 const AUTONOMOUS_LINES = [
@@ -416,8 +435,32 @@ export class Floor10WillBrain {
         }
     }
 
+    /**
+     * Qual aparelho ele vai cutucar agora.
+     *
+     * NÃO é "o que resolve": é o mais perto entre os que ele não está pisando.
+     * Nenhuma pista da regra mora aqui — a preferência por um ou outro é
+     * trabalho da rede, que aprende olhando o que acontece depois.
+     */
+    private deviceToTry(
+        prison: F10PrisonState,
+        from: Vec3Like,
+    ): { x: number; z: number } | null {
+        let melhor: { x: number; z: number } | null = null;
+        let menor = Infinity;
+        for (const device of Object.values(prison.devices)) {
+            if (device.heldByNpc) continue;
+            const d = Math.hypot(from.x - device.x, from.z - device.z);
+            if (d < menor) {
+                menor = d;
+                melhor = { x: device.x, z: device.z };
+            }
+        }
+        return melhor;
+    }
+
     private reinforcementState(input: WillInput): Float32Array {
-        const state = new Float32Array(24);
+        const state = new Float32Array(FLOOR10_RL_STATE_SIZE);
         const player = input.perception.player;
         state[0] = this.drives.social;
         state[1] = this.drives.curiosity;
@@ -438,7 +481,17 @@ export class Floor10WillBrain {
             ? 1 - clamp((input.time - this.lastSeenPlayer.at) / 9, 0, 1)
             : 0;
         if (isFloor10RlAction(this.snapshot.goal)) {
-            state[16 + FLOOR10_RL_ACTIONS.indexOf(this.snapshot.goal)] = 1;
+            state[FLOOR10_RL_BODY_STATE_SIZE + FLOOR10_RL_ACTIONS.indexOf(this.snapshot.goal)] = 1;
+        }
+        // O QUE ELE SENTE DA PRISÃO. Sem isto a rede não teria como ligar "o
+        // zumbido começou" a "não estávamos sozinhos" — e a cooperação nunca
+        // sairia de uma coincidência.
+        if (input.prison) {
+            const sentidos = prisonSenses(input.prison);
+            const base = FLOOR10_RL_BODY_STATE_SIZE + FLOOR10_RL_ACTIONS.length;
+            for (let i = 0; i < sentidos.length && base + i < state.length; i += 1) {
+                state[base + i] = sentidos[i];
+            }
         }
         return state;
     }
@@ -633,6 +686,7 @@ export class Floor10WillBrain {
 
     private decide(input: WillInput): Candidate {
         const { perception, npcPosition, time } = input;
+        const prison = input.prison ?? null;
         const learningState = this.settleLearning(input);
         const candidates: Candidate[] = [];
         const player = perception.player;
@@ -691,6 +745,44 @@ export class Floor10WillBrain {
             target: { x: 0, z: -8.35 },
             reason: 'a porta continua sendo a única saída que eu ainda posso investigar',
         });
+
+        // ── AS DUAS DA PRISÃO ─────────────────────────────────────────────
+        // Elas entram com utilidade BAIXA de propósito. Se eu as colocasse em
+        // primeiro lugar, ele iria direto ao aparelho certo e o campo de provas
+        // não provaria nada: o mérito seria da minha tabela, não do que ele
+        // aprendeu. Baixas, elas só ganham quando a rede aprende que ganham —
+        // e é isso que o Felipe quer ver acontecendo.
+        if (prison && !prison.doorOpen) {
+            const alvo = this.deviceToTry(prison, npcPosition);
+            if (alvo) {
+                candidates.push({
+                    goal: 'try-device',
+                    // Alta o bastante para ACONTECER, baixa o bastante para
+                    // não dominar. Se ela nunca ganhasse, a rede nunca poderia
+                    // aprender que cooperar funciona — ação que não é escolhida
+                    // não recebe recompensa, e eu tinha deixado exatamente esse
+                    // buraco (o teste pegou: 1200s sem uma única tentativa).
+                    // O termo do silêncio é o homem trancado cutucando as
+                    // coisas quando nada acontece — não é conhecer a regra.
+                    utility: 0.28
+                        + this.drives.curiosity * 0.3
+                        + this.drives.restlessness * 0.12
+                        + clamp(prison.secondsSinceProgress / 240, 0, 0.35),
+                    target: this.safeTarget(alvo.x, alvo.z),
+                    reason: 'aquilo ali reage quando eu piso — não sei por quê',
+                });
+            }
+            // Chamar só faz sentido se houver alguém para vir.
+            if (perception.player) {
+                candidates.push({
+                    goal: 'call-player',
+                    utility: 0.24 + this.drives.social * 0.32
+                        + clamp(prison.secondsSinceProgress / 180, 0, 0.3),
+                    target: null,
+                    reason: 'sozinho eu já tentei de tudo aqui',
+                });
+            }
+        }
         candidates.push({
             goal: 'wander',
             utility: this.drives.restlessness * 0.72

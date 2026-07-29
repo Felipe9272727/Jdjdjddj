@@ -13,12 +13,34 @@ export const FLOOR10_RL_ACTIONS = [
     'observe-player',
     'make-space',
     'talk-player',
+    // ── As duas que existem por causa da PRISÃO ────────────────────────────
+    // Sem elas o Nilo não tem como aprender a cooperar: dá para querer sair
+    // daqui a vida inteira e nunca descobrir nada se as únicas coisas que o
+    // corpo sabe fazer são andar e olhar. Ele não sabe para que servem — é
+    // justamente isso que a rede aprende, tentando.
+    'try-device',
+    'call-player',
 ] as const;
 
 export type Floor10RlAction = typeof FLOOR10_RL_ACTIONS[number];
 
-export const FLOOR10_RL_STATE_SIZE = 24;
-export const FLOOR10_RL_HIDDEN_SIZE = 48;
+/**
+ * 16 sinais do corpo + o que ele acabou de fazer (one-hot) + o que ele sente
+ * da prisão. Cresceu de 24 para acomodar a sala trancada: sem os sentidos da
+ * prisão no estado, a rede não teria como associar "o zumbido começou" a
+ * "estávamos os dois em cima de alguma coisa".
+ */
+export const FLOOR10_RL_BODY_STATE_SIZE = 16;
+export const FLOOR10_RL_PRISON_STATE_SIZE = 9;
+export const FLOOR10_RL_STATE_SIZE =
+    FLOOR10_RL_BODY_STATE_SIZE + FLOOR10_RL_ACTIONS.length + FLOOR10_RL_PRISON_STATE_SIZE;
+/**
+ * Dobrou (48 → 96) a pedido do dono do jogo: "uma ia de bastantes parâmetros
+ * de RL, onde ele aprende com as fases que ele faz". Com o estado maior e duas
+ * ações novas, a rede sai de ~4 mil para ~15 mil parâmetros — e o custo por
+ * passo continua desprezível perto de um modelo de linguagem.
+ */
+export const FLOOR10_RL_HIDDEN_SIZE = 96;
 export const FLOOR10_RL_ACTION_COUNT = FLOOR10_RL_ACTIONS.length;
 export const FLOOR10_RL_PARAMETER_COUNT =
     FLOOR10_RL_STATE_SIZE * FLOOR10_RL_HIDDEN_SIZE

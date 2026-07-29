@@ -139,7 +139,7 @@ describe('npc/floor10Will — autonomia e desejos do hóspede', () => {
         }
         expect(snapshot.learning).toMatchObject({
             source: 'floor10-dueling-double-dqn',
-            parameterCount: 3993,
+            parameterCount: 13835,
         });
         expect(snapshot.learning.experiences).toBeGreaterThan(0);
         expect(['inspect-elevator', 'wander', 'idle']).toContain(snapshot.goal);
