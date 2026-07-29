@@ -29,20 +29,20 @@ const PERCEPTION = perceiveFloor10({
 });
 
 describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => {
-    it('começa no Gemma 3 1B, que foi o medido no prompt real do Nilo', () => {
-        // Os três do catálogo rodaram o MESMO prompt de deliberação, nos mesmos
-        // 8 cenários do andar, no mesmo llama.cpp. O MiniCPM assinou escolha em
-        // 0 de 16 rodadas e gastou os 320 tokens discutindo o enunciado; o
-        // Gemma assinou em 16 de 16, em 7,6s por rodada, falando em 1ª pessoa.
-        expect(SMALL_BRAIN_MODEL.label).toBe('Gemma 3 1B');
+    it('começa no Llama 3.2 1B — escolha de quem joga, não da minha planilha', () => {
+        // Nos meus 8 cenários o Gemma ia melhor (assinou 16/16, 7,6s). Jogando,
+        // o Felipe viu o que a medição não pega: o Gemma repete a mesma
+        // abertura e usa 4 das 8 metas, o Llama varia mais. Os três continuam
+        // no catálogo, trocáveis no ?mente.
+        expect(SMALL_BRAIN_MODEL.label).toBe('Llama 3.2 1B');
         expect(SMALL_BRAIN_MODEL.url).toMatch(/\.gguf$/i);
-        expect(SMALL_BRAIN_MODEL.id).toBe('gemma3-1b');
+        expect(SMALL_BRAIN_MODEL.id).toBe('llama32-1b');
     });
 
     it('o catálogo continua oferecendo o antigo, para o dono do jogo comparar', () => {
         const ids = SMALL_BRAIN_CATALOG.map((m) => m.id);
         expect(ids).toContain('minicpm5-1b');
-        expect(ids).toContain('llama32-1b');
+        expect(ids).toContain('gemma3-1b');
         for (const m of SMALL_BRAIN_CATALOG) {
             expect(m.url).toMatch(/^https:\/\/huggingface\.co\/.*\.gguf$/);
             // Dois modelos de 800 MB vivos ao mesmo tempo é como o aparelho

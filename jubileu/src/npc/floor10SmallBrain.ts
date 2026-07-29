@@ -596,7 +596,15 @@ export async function deliberateFloor10(
         if (!engine) {
             const unavailable = npc.deliberationPhase === 'unavailable';
             const unavailableText = npc.deliberationLoadText;
-            await floor10ModelCoordinator.release('deliberation');
+            // markUnloaded, NÃO release.
+            //
+            // `release` chama o descarregador registrado — e aqui não há nada
+            // carregado para descarregar: a carga acabou de falhar ou de ser
+            // recusada. Pior: quando havia, isso virava carregar e DESCARREGAR
+            // a cada rodada que falhasse, que é justamente o vaivém que o
+            // Felipe pediu para acabar. Este caminho só acerta a contabilidade
+            // do coordenador para a próxima tentativa poder acontecer.
+            floor10ModelCoordinator.markUnloaded('deliberation');
             if (unavailable) {
                 npcSet({
                     deliberationPhase: 'unavailable',

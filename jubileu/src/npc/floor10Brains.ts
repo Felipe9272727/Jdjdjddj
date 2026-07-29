@@ -51,7 +51,16 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
     },
 ] as const);
 
-export const SMALL_BRAIN_DEFAULT: SmallBrainId = 'gemma3-1b';
+/**
+ * O Felipe testou os três no aparelho dele e escolheu o Llama 3.2 1B.
+ *
+ * Minha medição tinha o Gemma na frente por assinar a escolha em 16/16 e ser o
+ * mais rápido. Só que os meus 8 cenários não medem o que ele vê jogando: o
+ * Gemma repete a mesma abertura entre situações diferentes ("It's cold here, a
+ * dull ache…") e usa 4 das 8 metas; o Llama varia mais e acompanha melhor a
+ * situação. Quem joga vê o que a planilha não mostra.
+ */
+export const SMALL_BRAIN_DEFAULT: SmallBrainId = 'llama32-1b';
 
 /** Todo cache que a FALA pode reciclar quando faltar espaço para ela. */
 export function smallBrainUrls(): string[] {

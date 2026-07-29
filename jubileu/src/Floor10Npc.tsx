@@ -15,6 +15,7 @@ import {
     stepFloor10Movement,
 } from './npc/floor10Will';
 import { deliberateFloor10 } from './npc/floor10SmallBrain';
+import { describeMood, readClock } from './npc/floor10Drives';
 import { initLLM } from './npc/wllamaEngine';
 import {
     deliberationRetryDelay,
@@ -126,6 +127,7 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                         agreedAction: npc.willCommand?.action ?? npc.autonomy.commitment ?? null,
                         agreedReason: npc.willCommand?.reason
                             ?? npc.autonomy.commitmentReason ?? null,
+                        mood: describeMood(npc.autonomy.drives, readClock()),
                     },
                     now: t,
                 }).then((decided) => {

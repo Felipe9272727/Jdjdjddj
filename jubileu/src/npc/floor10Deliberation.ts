@@ -52,6 +52,13 @@ export type DeliberationMemory = {
      */
     agreedAction?: string | null;
     agreedReason?: string | null;
+    /**
+     * A HORA e o humor, em inglês, vindos do relógio interno (floor10Drives).
+     * Sem isto o modelo recebe quatro números e nenhuma noção de que são 3 da
+     * manhã — e a hora do dia não influencia nada do que ele decide pensar,
+     * que era justamente o ponto de dar um ciclo a ele.
+     */
+    mood?: string | null;
 };
 
 /**
@@ -146,6 +153,7 @@ export function buildDeliberationPrompt(
         ? memory.lastGoals.join(' -> ')
         : 'nothing yet';
     const lines = [
+        ...(memory.mood ? [memory.mood] : []),
         `SEES: ${sees}; ${elevator}.`,
         `WANTS: social ${round1(drives.social)}, curiosity ${round1(drives.curiosity)}, restless ${round1(drives.restlessness)}, fatigue ${round1(drives.fatigue)}.`,
         `REMEMBERS: inspected the elevator ${memory.inspectedElevatorCount}x and found nothing; slept ${memory.sleeps} times here; player silent for ${Math.round(memory.playerSilentSeconds)}s.`,

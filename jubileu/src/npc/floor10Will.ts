@@ -1,4 +1,5 @@
 import type { Floor10Perception, Vec3Like } from './floor10Perception';
+import { readClock, stepDrives, type Floor10Clock } from './floor10Drives';
 import { deliberationBonus, type Floor10Deliberation } from './floor10Deliberation';
 import {
     FLOOR10_RL_ACTIONS,
@@ -221,6 +222,8 @@ export class Floor10WillBrain {
         drives: drivesCopy(INITIAL_FLOOR10_WILL.drives),
         learning: { ...INITIAL_FLOOR10_WILL.learning },
     };
+    private driftSeconds = 0;
+    private clock: Floor10Clock = readClock();
     private nextDecisionAt = 0;
     private goalLockedUntil = 0;
     private speechCooldown = 0;
@@ -309,22 +312,35 @@ export class Floor10WillBrain {
         return this.randomState / 0x100000000;
     }
 
+    /**
+     * O RELÓGIO INTERNO. Antes isto aqui só somava: social +0,014/s, curiosity
+     * +0,007/s, para sempre. Saindo de 0,62, a carência social encostava em 1,0
+     * em meio minuto e MORAVA lá — a tabela de utilidade passava a devolver
+     * sempre a mesma ordem e o Nilo virava um homem de humor único. Era o "as
+     * vontades dele são fixas".
+     *
+     * Agora quem manda é floor10Drives: linha de base que muda com a HORA do
+     * dia, homeostase puxando de volta, e a ação em curso esvaziando o desejo
+     * que ela serve. Ver o jogador não soma mais nada — move o alvo.
+     */
     private updateDrives(dt: number, perception: Floor10Perception) {
         const safeDt = clamp(dt, 0, 0.25);
-        const moving = this.snapshot.moving;
-        this.drives.social = clamp01(
-            this.drives.social + safeDt * (perception.player?.visible ? 0.014 : 0.007),
-        );
-        this.drives.curiosity = clamp01(
-            this.drives.curiosity + safeDt * (perception.elevator.visible ? 0.007 : 0.004),
-        );
-        this.drives.restlessness = clamp01(
-            this.drives.restlessness + safeDt * (moving ? -0.018 : 0.016),
-        );
-        this.drives.fatigue = clamp01(
-            this.drives.fatigue + safeDt * (moving ? 0.013 : -0.02),
-        );
+        this.driftSeconds += safeDt;
+        this.clock = readClock();
+        this.drives = stepDrives(this.drives, {
+            hour: this.clock.hour,
+            playerVisible: !!perception.player?.visible,
+            elevatorVisible: perception.elevator.visible,
+            moving: this.snapshot.moving,
+            goal: this.snapshot.goal,
+            driftSeconds: this.driftSeconds,
+        }, safeDt);
         this.speechCooldown = Math.max(0, this.speechCooldown - safeDt);
+    }
+
+    /** A hora que o Nilo está vivendo agora — vai para o prompt e para a UI. */
+    currentClock(): Floor10Clock {
+        return this.clock;
     }
 
     private setGoal(candidate: Candidate, time: number, lockSeconds: number): Floor10WillSnapshot {

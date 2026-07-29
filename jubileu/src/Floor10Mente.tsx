@@ -15,6 +15,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { npc, useNpc } from './npc/npcStore';
 import { DOWNLOAD_STALL_SEC, downloadLine } from './npc/floor10Download';
+import {
+    circadianBaseline, describeMood, readClock, stepDrives,
+} from './npc/floor10Drives';
 import { perceiveFloor10 } from './npc/floor10Perception';
 import {
     deliberarObservando, setSmallBrain, SMALL_BRAIN_CATALOG, SMALL_BRAIN_MODEL,
@@ -44,6 +47,10 @@ const Mente: React.FC = () => {
     const [drives, setDrives] = useState<Floor10WillDrives>({
         social: 0.6, curiosity: 0.7, restlessness: 0.4, fatigue: 0.2,
     });
+    // A HORA. O relógio interno muda a linha de base dos desejos, então dá
+    // para arrastar o dia inteiro aqui e ver a vontade dele mudar junto —
+    // era impossível conferir isso esperando o relógio de verdade virar.
+    const [hora, setHora] = useState(() => readClock().hour);
     const [semGramatica, setSemGramatica] = useState(true);
     const [maxTokens, setMaxTokens] = useState(160);
     const [vivo, setVivo] = useState('');
@@ -78,7 +85,11 @@ const Mente: React.FC = () => {
         agreedAction: null,
         agreedReason: null,
     };
-    const prompt = buildDeliberationPrompt(perception, drives, memoria);
+    const relogio = { ...readClock(), hour: hora,
+        phase: readClock(new Date(2026, 0, 1, Math.floor(hora))).phase };
+    const humor = describeMood(drives, relogio);
+    const baseDoDia = circadianBaseline(hora);
+    const prompt = buildDeliberationPrompt(perception, drives, { ...memoria, mood: humor });
 
     // Arrastar os dois pontos direto no mapa: é o jeito mais rápido de gerar
     // situações diferentes e ver a decisão mudar.
@@ -214,6 +225,51 @@ const Mente: React.FC = () => {
                         <b style={{ color: '#ffd479', width: 34 }}>{drives[k].toFixed(2)}</b>
                     </div>
                 ))}
+            </div>
+
+            <div style={box}>
+                <b>A hora que ele está vivendo</b>
+                <div style={{ margin: '6px 0' }}>
+                    <b style={{ color: '#ffd479' }}>
+                        {String(Math.floor(hora)).padStart(2, '0')}h
+                        {String(Math.round((hora % 1) * 60)).padStart(2, '0')}
+                    </b>
+                    {' · '}{relogio.phase}
+                    <input
+                        type="range" min={0} max={23.75} step={0.25} value={hora}
+                        onChange={(e) => setHora(Number(e.target.value))}
+                        style={{ width: '100%' }}
+                    />
+                </div>
+                <div style={{ color: '#8a8a96' }}>
+                    para onde os desejos puxam nesta hora:{' '}
+                    social {baseDoDia.social.toFixed(2)} · curiosidade{' '}
+                    {baseDoDia.curiosity.toFixed(2)} · inquietação{' '}
+                    {baseDoDia.restlessness.toFixed(2)} · cansaço{' '}
+                    {baseDoDia.fatigue.toFixed(2)}
+                </div>
+                <button
+                    type="button"
+                    style={{ ...btn, marginTop: 8, background: '#3a3a46' }}
+                    onClick={() => {
+                        // Meia hora de relógio interno de uma vez, para ver
+                        // aonde os desejos VÃO PARAR nesta hora.
+                        let d = drives;
+                        for (let t = 0; t < 1800; t += 0.5) {
+                            d = stepDrives(d, {
+                                hour: hora,
+                                playerVisible: !!perception.player?.visible,
+                                elevatorVisible: perception.elevator.visible,
+                                moving: false,
+                                goal: 'idle',
+                                driftSeconds: t,
+                            }, 0.5);
+                        }
+                        setDrives(d);
+                    }}
+                >
+                    correr 30 min
+                </button>
             </div>
 
             <div style={box}>
