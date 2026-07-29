@@ -42,17 +42,21 @@ export const SMALL_BRAIN_MODEL = Object.freeze({
 });
 
 /**
- * Metade das threads da fala, no mínimo 2.
+ * DOIS núcleos, e não metade da máquina.
  *
- * Estava fixo em 2, escolhido quando eu achava que a escolha era curta demais
- * para importar. Observado na sala da mente: com 2 threads o prefill sozinho
- * passou dos 60s e a rodada morreu no teto SEM PRODUZIR UM TOKEN — o Nilo
- * ficaria sem livre-arbítrio e ninguém veria por quê. Metade, e não tudo,
- * porque isto pensa enquanto o jogador anda pelo andar: levar a CPU inteira
- * engasgaria o render.
+ * Eu subi para metade das threads da fala depois de ver, na sala da mente, uma
+ * rodada morrer no teto sem produzir um token. Só que medi isso numa caixa de 4
+ * núcleos, onde "metade" continuava sendo 2 — ou seja, não medi nada. No
+ * celular do Felipe, com a fala em 8, virou 8 + 4 = 12 threads disputando 8
+ * núcleos, e a conversa passou a travar em "liberando a CPU".
+ *
+ * A deliberação não tem pressa: ela roda em segundo plano, num ciclo de 60s, e
+ * ninguém espera por ela. A fala do jogador tem. Então quem cede é esta.
  */
+export const SMALL_BRAIN_THREADS = 2;
+
 export function smallBrainThreads(): number {
-    return Math.max(2, Math.floor(cpuThreadCount() / 2));
+    return Math.min(SMALL_BRAIN_THREADS, Math.max(1, cpuThreadCount()));
 }
 
 // n_threads é resolvido na CARGA, não aqui: depende do aparelho.
@@ -288,13 +292,22 @@ function ensureSmallEngine(): Promise<SmallInstance | null> {
                 deliberationLoadText: `${SMALL_BRAIN_MODEL.label} pronto · iniciando vontade`,
             });
             return engine;
-        } catch {
+        } catch (falha) {
             terminateSmallEngine(engine);
             // Sem memória, sem rede ou modelo incompatível: o reflexo segue só.
+            //
+            // O MOTIVO precisa aparecer. Sem ele, uma falha instantânea no
+            // GitHub Pages virou "não foi possível carregar" e nada mais — e a
+            // primeira suspeita (URL errada do modelo) estava errada, o arquivo
+            // existe. Engolir a causa custou uma volta inteira de investigação.
             if (!controller.signal.aborted) {
+                const motivo = falha instanceof Error
+                    ? `${falha.name}: ${falha.message}`
+                    : String(falha);
                 npcSet({
                     deliberationPhase: 'unavailable',
-                    deliberationLoadText: `não foi possível carregar ${SMALL_BRAIN_MODEL.label}`,
+                    deliberationLoadText:
+                        `não foi possível carregar ${SMALL_BRAIN_MODEL.label} — ${motivo.slice(0, 200)}`,
                 });
             }
             return null;

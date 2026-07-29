@@ -16,6 +16,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { npc } from './npc/npcStore';
 import { perceiveFloor10 } from './npc/floor10Perception';
 import { deliberarObservando, SMALL_BRAIN_MODEL, type PensamentoAoVivo } from './npc/floor10SmallBrain';
+import { cpuThreadCount } from './npc/wllamaEngine';
 import {
     buildDeliberationPrompt, deliberationRetryDelay, looksLikeLoop,
     DELIBERATION_TIMEOUT_MS,
@@ -29,6 +30,8 @@ const LADO = 320;
 const px = (m: number) => ((m + SALA) / (SALA * 2)) * LADO;
 
 type Ponto = { x: number; z: number };
+
+const isolado = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated;
 
 const Mente: React.FC = () => {
     const [nilo, setNilo] = useState<Ponto>({ x: 0, z: 2.2 });
@@ -110,9 +113,22 @@ const Mente: React.FC = () => {
             <h1 style={{ fontSize: 18, margin: '4px 0 4px' }}>
                 Andar 10 — a sala da mente ({SMALL_BRAIN_MODEL.label})
             </h1>
-            <div style={{ color: '#888', marginBottom: 14 }}>
+            <div style={{ color: '#888', marginBottom: 6 }}>
                 Arraste o Nilo e o jogador. O prompt muda junto. Mande pensar e
                 acompanhe o raciocínio nascer.
+            </div>
+            {/* Sem COOP/COEP não há SharedArrayBuffer e o wllama cai para UMA
+                thread. Hospedagens sem esses cabeçalhos (GitHub Pages, por
+                exemplo) mudam o resultado inteiro, e isso é invisível a olho nu:
+                fica aqui em cima, antes de qualquer medição. */}
+            <div style={{
+                marginBottom: 14,
+                color: isolado ? '#9fd3a0' : '#ff9c9c',
+            }}>
+                {isolado
+                    ? `isolado ✓ · ${cpuThreadCount()} threads`
+                    : `SEM isolamento (COOP/COEP) → 1 thread. Esta hospedagem não manda `
+                      + 'os cabeçalhos; use o preview da Vercel para medir.'}
             </div>
 
             <div style={box}>

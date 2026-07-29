@@ -806,6 +806,7 @@ export function initLLM(): Promise<WllamaInstance> {
 
 let prewarmPromise: Promise<void> | null = null;
 let personaPrewarmed = false;
+let personaPrewarmDone = false;
 
 /**
  * Espera o aquecimento acabar — NUNCA o corta.
@@ -820,6 +821,11 @@ let personaPrewarmed = false;
  */
 export function settlePersonaPrewarm(): Promise<void> {
     return prewarmPromise?.catch(() => undefined) ?? Promise.resolve();
+}
+
+/** Há aquecimento em curso AGORA? Serve para explicar a espera na tela. */
+export function personaPrewarmRunning(): boolean {
+    return prewarmPromise !== null && !personaPrewarmDone;
 }
 
 /**
@@ -852,10 +858,12 @@ async function prewarmPersona(engine: WllamaInstance): Promise<void> {
                 : {}),
         });
         for await (const _chunk of stream) { /* só interessa o prefill */ }
+        personaPrewarmDone = true;
         npcSet({ loadText: 'pronto' });
     } catch {
         // Falhar aqui não custa nada: a fala real só ficará mais lenta.
         personaPrewarmed = false;
+        personaPrewarmDone = true;
     }
 }
 
@@ -929,6 +937,13 @@ export async function sendToNpc(userText: string): Promise<void> {
     // Deixa o aquecimento TERMINAR antes de gerar. Cancelá-lo derrubava esta
     // fala aqui — era o "(ABORT)" na primeira mensagem. O prefixo que ele está
     // lendo é justamente o que esta geração reaproveita, então não se perde nada.
+    //
+    // Mas o jogador precisa SABER que é isso. Parado em "liberando a CPU para a
+    // conversa…", o painel parecia travado e não dava para distinguir de um
+    // defeito — foi assim que este ponto virou "loading infinito" no relato.
+    if (personaPrewarmRunning()) {
+        npcSet({ loadText: 'terminando de aquecer a memória do Nilo…' });
+    }
     await settlePersonaPrewarm();
 
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
