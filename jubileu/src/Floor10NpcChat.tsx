@@ -46,6 +46,7 @@ definirFilaDoAndar10({
 /** Cores por cérebro: dá para saber QUAL barra está andando sem ler o rótulo. */
 const TOM_VONTADE = { barra: 'linear-gradient(90deg,#c58a22,#f5c96b)', texto: '#f5c96b' };
 const TOM_MOTOR = { barra: 'linear-gradient(90deg,#2f8f6b,#7fe0b0)', texto: '#7fe0b0' };
+const TOM_FALHOU = { barra: 'linear-gradient(90deg,#8a2f2f,#c2554a)', texto: '#ff9c9c' };
 const TOM_FILA = { barra: 'linear-gradient(90deg,#3a6df0,#7fe0b0)', texto: '#cfd6e4' };
 const TOM_FALA = { barra: 'linear-gradient(90deg,#3a6df0,#7aa2ff)', texto: '#a8bcf0' };
 
@@ -316,9 +317,19 @@ const Floor10NpcChat: React.FC = () => {
                                 totalBytes: fila.bytesTotais,
                             }}
                             detalhe={detalheDaFila}
-                            tom={TOM_FILA}
+                            tom={fila.falhados.length > 0 ? TOM_FALHOU : TOM_FILA}
                         />
                     </div>
+                    {/* A FALHA APARECE. Antes ela era engolida por um `catch`
+                        vazio e o modelo era marcado como baixado — a barra
+                        pulava adiante como se estivesse tudo bem, e quem joga
+                        teve de deduzir olhando. */}
+                    {fila.falhados.map((f) => (
+                        <div key={f.id} style={filaFalhaStyle}>
+                            <span>⚠</span>
+                            <span>{f.motivo}</span>
+                        </div>
+                    ))}
                     {espacoLinha && (
                         <div style={{
                             ...modelLoadingDetailStyle,
@@ -466,6 +477,11 @@ const sendStyle: React.CSSProperties = {
 const retryStyle: React.CSSProperties = { padding: '8px 16px', borderRadius: 10, border: 'none', background: '#3a6df0', color: '#fff', fontSize: 14, cursor: 'pointer' };
 const barOuter: React.CSSProperties = { height: 8, borderRadius: 999, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' };
 /** Separa as barras dos dois cérebros dentro do MESMO cartão flutuante. */
+/** O cérebro que não desceu, com o motivo — nunca em silêncio. */
+const filaFalhaStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'flex-start', gap: 7, padding: '6px 2px 0',
+    color: '#ff9c9c', fontSize: 11.5, lineHeight: 1.4,
+};
 /** "Ele está pensando" — visível DE DENTRO do painel, que era o ponto cego. */
 const pensandoStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px',

@@ -91,3 +91,49 @@ describe('npc/floor10Precarga — baixa TUDO primeiro, um depois do outro', () =
         expect(precargaEtapa()).toBe('pronto');
     });
 });
+
+describe('falha ≠ concluído — o "pulou direto pra baixar o motor"', () => {
+    beforeEach(() => {
+        ordem.length = 0;
+        resetPrecargaForTests();
+        definirFilaDoAndar10({ fala: 1_915_305_312, vontade: 1_321_083_008, motor: 639_446_688 });
+    });
+
+    it('um carregador que devolve FALSE não conta como baixado', async () => {
+        // `precarregarVontade` devolve `false` quando não consegue — e `false`
+        // não é exceção, então o try/catch sozinho não via nada. A fila dava
+        // por baixado 1,32 GB que nunca chegaram, e a barra pulava adiante.
+        await iniciarPrecarga(passosDoAndar10({
+            fala: carregador('fala'),
+            vontade: () => Promise.resolve(false),
+            motor: carregador('motor'),
+        }));
+        const e = floor10Fila.estado();
+        expect(e.prontos).not.toContain('vontade');
+        expect(e.falhados.map((f) => f.id)).toContain('vontade');
+        // E a barra NÃO chega a 100%, porque de fato não baixou tudo.
+        expect(e.fracao).toBeLessThan(1);
+        expect(floor10Fila.completa()).toBe(false);
+    });
+
+    it('a falha carrega um motivo legível, em vez de silêncio', async () => {
+        await iniciarPrecarga(passosDoAndar10({
+            fala: carregador('fala'),
+            vontade: () => Promise.reject(new Error('o navegador só libera 1.87 GB')),
+            motor: carregador('motor'),
+        }));
+        const falha = floor10Fila.estado().falhados.find((f) => f.id === 'vontade');
+        expect(falha?.motivo).toContain('1.87 GB');
+    });
+
+    it('mesmo falhando, a fila SEGUE para o próximo', async () => {
+        await iniciarPrecarga(passosDoAndar10({
+            fala: carregador('fala'),
+            vontade: () => Promise.resolve(false),
+            motor: carregador('motor'),
+        }));
+        // Sem a vontade ele anda no reflexo; parar seria virar pane.
+        expect(ordem).toContain('inicio:motor');
+        expect(floor10Fila.estado().prontos).toContain('motor');
+    });
+});

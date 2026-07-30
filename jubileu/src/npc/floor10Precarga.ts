@@ -28,6 +28,17 @@ import { floor10Fila, FILA_FALA, FILA_VONTADE, FILA_MOTOR } from './floor10Fila'
 
 export type PrecargaEtapa = 'fala' | 'vontade' | 'motor' | 'pronto';
 
+/**
+ * Quando o carregador devolve `false` sem exceção, o motivo já está escrito na
+ * tela por quem tentou — "não cabe: o navegador só libera X", "o cache ficou
+ * incompleto". Aproveitar esse texto é melhor que inventar um genérico.
+ */
+function motivoDaTela(etapa: PrecargaEtapa): string {
+    if (etapa === 'vontade') return npc.deliberationLoadText || 'não foi possível baixar';
+    if (etapa === 'motor') return npc.motorLoadText || 'não foi possível baixar';
+    return npc.loadText || 'não foi possível baixar';
+}
+
 let emCurso: Promise<void> | null = null;
 let etapa: PrecargaEtapa = 'fala';
 
@@ -55,16 +66,29 @@ export function iniciarPrecarga(passos: readonly Passo[]): Promise<void> {
     emCurso ??= (async () => {
         for (const passo of passos) {
             etapa = passo.etapa;
+            let ok = false;
+            let motivo = '';
             try {
-                await passo.carregar();
-            } catch {
-                // Um cérebro que não desce NÃO pode travar a fila. O jogo tem
-                // caminho para todos: sem a vontade ele segue no reflexo, sem o
-                // motor a intenção continua ampla. Parar aqui transformaria uma
-                // degradação em pane.
+                // O RETORNO IMPORTA. `precarregarVontade` devolve `false`
+                // quando não consegue — e `false` não é exceção, então um
+                // `try/catch` sozinho não via nada. Foi assim que a fila deu
+                // por baixado um modelo que nunca chegou.
+                ok = await passo.carregar() !== false;
+            } catch (erro) {
+                motivo = erro instanceof Error ? erro.message : String(erro);
             }
-            // Terminou (ou desistiu): a fila registra e passa para o próximo.
-            floor10Fila.concluir(passo.id);
+            if (ok) {
+                floor10Fila.concluir(passo.id);
+            } else {
+                // FALHA ≠ CONCLUÍDO. Marcar como concluído somava à barra bytes
+                // que nunca desceram, e ela pulava para o próximo como se
+                // estivesse tudo bem — que foi exatamente o que quem joga viu.
+                //
+                // A fila SEGUE assim mesmo: sem a vontade ele anda no reflexo,
+                // sem o motor a intenção continua ampla. Parar transformaria
+                // degradação em pane. Mas segue DIZENDO que falhou.
+                floor10Fila.falhar(passo.id, motivo || motivoDaTela(passo.etapa));
+            }
         }
         etapa = 'pronto';
     })();

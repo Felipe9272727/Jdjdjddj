@@ -39,6 +39,8 @@ export type FilaEstado = {
     amostra: DownloadSample;
     /** Ids já concluídos, para não recontar. */
     prontos: readonly string[];
+    /** Quem não desceu, e por quê. Os bytes destes NÃO entram na fração. */
+    falhados: readonly { id: string; motivo: string }[];
 };
 
 export const FILA_VAZIA: FilaEstado = Object.freeze({
@@ -50,6 +52,7 @@ export const FILA_VAZIA: FilaEstado = Object.freeze({
     bytesTotais: 0,
     amostra: DOWNLOAD_ZERO,
     prontos: Object.freeze([]),
+    falhados: Object.freeze([]),
 });
 
 /**
@@ -63,6 +66,7 @@ export const FILA_VAZIA: FilaEstado = Object.freeze({
 export class Floor10Fila {
     private itens: FilaItem[] = [];
     private prontos = new Set<string>();
+    private falhados = new Map<string, string>();
     private atualId: string | null = null;
     private amostra: DownloadSample = DOWNLOAD_ZERO;
 
@@ -90,6 +94,25 @@ export class Floor10Fila {
     /** Este cérebro terminou (carregou, veio do cache, ou já estava pronto). */
     concluir(id: string): FilaEstado {
         this.prontos.add(id);
+        if (this.atualId === id) {
+            this.atualId = null;
+            this.amostra = DOWNLOAD_ZERO;
+        }
+        return this.estado();
+    }
+
+    /**
+     * Este cérebro NÃO desceu. Diferente de `concluir`: os bytes dele não
+     * entram na conta, e a fila guarda o motivo para a tela poder dizer.
+     *
+     * A distinção nasceu de um defeito real: a pré-carga marcava como
+     * CONCLUÍDO o modelo que tinha falhado, então a barra pulava 1,32 GB que
+     * nunca chegaram e seguia para o próximo como se tudo estivesse bem. Quem
+     * joga percebeu antes de mim — "pulou direto pra baixar o motor".
+     */
+    falhar(id: string, motivo: string): FilaEstado {
+        this.falhados.set(id, motivo);
+        this.prontos.delete(id);
         if (this.atualId === id) {
             this.atualId = null;
             this.amostra = DOWNLOAD_ZERO;
@@ -133,6 +156,7 @@ export class Floor10Fila {
             bytesTotais,
             amostra: this.amostra,
             prontos: [...this.prontos],
+            falhados: [...this.falhados.entries()].map(([id, motivo]) => ({ id, motivo })),
         };
     }
 
@@ -144,6 +168,7 @@ export class Floor10Fila {
 
     reset(): void {
         this.prontos.clear();
+        this.falhados.clear();
         this.atualId = null;
         this.amostra = DOWNLOAD_ZERO;
     }
@@ -182,6 +207,11 @@ export function definirFilaDoAndar10(bytes: {
  * Fica DELIBERADAMENTE curta — quem quiser o detalhe por modelo tem o ?mente.
  */
 export function filaLinha(estado: FilaEstado): string {
+    // A falha vem PRIMEIRO na linha: um cérebro que não desceu é a informação
+    // mais importante da tela, não uma nota de rodapé.
+    if (estado.falhados.length > 0 && !estado.atual) {
+        return `${estado.falhados.length} de ${estado.total} não baixou`;
+    }
     if (!estado.atual) {
         return estado.total > 0 && estado.prontos.length >= estado.total
             ? 'tudo pronto'
