@@ -44,16 +44,23 @@ await page.waitForFunction(() => !!window.__f10mente, { timeout: 120_000 });
 
 const saida = await page.evaluate(async ({ modelo, threads }) => {
     const mod = await import(window.__wllamaCdn + '/index.js');
-    const engine = new mod.Wllama(
-        { default: window.__wllamaCdn + '/wasm/wllama.wasm' },
-        { suppressNativeLog: true },
-    );
-    await engine.loadModelFromUrl(modelo, {
-        n_ctx: 1536, n_batch: 512, n_threads: threads, n_gpu_layers: 0,
-        cache_type_k: 'q8_0', cache_type_v: 'q8_0',
-        jinja: true, reasoning: false,
-        default_template_kwargs: { enable_thinking: false }, warmup: true,
-    });
+    // UM MOTOR NOVO PARA CADA MONTAGEM. Na primeira versão desta sonda as duas
+    // dividiam o mesmo motor, e a montagem B começava com o KV já quente do que
+    // a A tinha deixado — a primeira fala dela "reaproveitou" 387 tokens que
+    // ela não tinha pago. Comparação suja: a B saía com vantagem de graça.
+    const novoMotor = async () => {
+        const engine = new mod.Wllama(
+            { default: window.__wllamaCdn + '/wasm/wllama.wasm' },
+            { suppressNativeLog: true },
+        );
+        await engine.loadModelFromUrl(modelo, {
+            n_ctx: 1536, n_batch: 512, n_threads: threads, n_gpu_layers: 0,
+            cache_type_k: 'q8_0', cache_type_v: 'q8_0',
+            jinja: true, reasoning: false,
+            default_template_kwargs: { enable_thinking: false }, warmup: true,
+        });
+        return engine;
+    };
 
     const PERSONA = ('Você é Nilo Azevedo, hóspede preso no décimo andar de um hotel '
         + 'que não devia existir. Fala pouco, em português, frases curtas e secas. '
@@ -82,7 +89,7 @@ const saida = await page.evaluate(async ({ modelo, threads }) => {
         },
     ];
 
-    const falar = async (messages) => {
+    const falar = async (engine, messages) => {
         let timings = null;
         let texto = '';
         const stream = await engine.createChatCompletion({
@@ -104,6 +111,7 @@ const saida = await page.evaluate(async ({ modelo, threads }) => {
 
     // ── MONTAGEM A: o que muda fica NO MEIO do system (como é hoje) ────────
     const rodarA = async () => {
+        const engine = await novoMotor();
         const hist = [];
         const passos = [];
         for (const t of TURNOS) {
@@ -112,16 +120,18 @@ const saida = await page.evaluate(async ({ modelo, threads }) => {
                 ...hist,
                 { role: 'user', content: t.pergunta },
             ];
-            const r = await falar(messages);
+            const r = await falar(engine, messages);
             hist.push({ role: 'user', content: t.pergunta });
             hist.push({ role: 'assistant', content: r.texto.slice(0, 120) });
             passos.push(r.timings ?? {});
         }
+        try { await engine.exit(); } catch { /* já morreu */ }
         return passos;
     };
 
     // ── MONTAGEM B: persona, histórico, e o que muda POR ÚLTIMO ────────────
     const rodarB = async () => {
+        const engine = await novoMotor();
         const hist = [];
         const passos = [];
         for (const t of TURNOS) {
@@ -130,17 +140,20 @@ const saida = await page.evaluate(async ({ modelo, threads }) => {
                 ...hist,
                 { role: 'user', content: `${t.volatil}\n\n${t.pergunta}` },
             ];
-            const r = await falar(messages);
+            const r = await falar(engine, messages);
             hist.push({ role: 'user', content: `${t.volatil}\n\n${t.pergunta}` });
             hist.push({ role: 'assistant', content: r.texto.slice(0, 120) });
             passos.push(r.timings ?? {});
         }
+        try { await engine.exit(); } catch { /* já morreu */ }
         return passos;
     };
 
-    const a = await rodarA();
+    // A ordem também importa: B primeiro, para que se sobrar qualquer vantagem
+    // de "quem roda depois", ela caia sobre a montagem de HOJE, não sobre a
+    // que eu quero aprovar.
     const b = await rodarB();
-    try { await engine.exit(); } catch { /* já morreu */ }
+    const a = await rodarA();
     return { a, b };
 }, { modelo: MODELO, threads: THREADS });
 
