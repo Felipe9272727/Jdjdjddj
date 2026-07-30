@@ -7,6 +7,7 @@ import {
     FLOOR10_GPU_START_LAYERS,
     Floor10GpuGovernor,
     FpsSampler,
+    layersThatFit,
 } from '../npc/floor10Gpu';
 
 // O ambiente de teste é `node` puro: não existe localStorage. Sem este
@@ -201,5 +202,43 @@ describe('FpsSampler — o termômetro é o próprio jogo', () => {
         expect(() => s.start()).not.toThrow();
         expect(s.stop()).toBeNull();
         (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = raf;
+    });
+});
+
+describe('o teto de buffer do aparelho — a causa provável do (ABORT)', () => {
+    const SMOL3B = 1_915_305_312;
+    const CAMADAS = 36;
+    const MB = 1024 * 1024;
+
+    it('no limite de 128 MB do Android cabem DUAS camadas, e eu tinha chutado três', () => {
+        // 1,92 GB / 36 ≈ 53 MB por camada. O Android dá 128 MB de binding —
+        // é o mesmo teto que impede a demo do WebLLM de rodar em celular.
+        // Três camadas dão ~160 MB e estouram. Eu escolhi exatamente três.
+        expect(layersThatFit(128 * MB, SMOL3B, CAMADAS)).toBe(2);
+        expect(layersThatFit(128 * MB, SMOL3B, CAMADAS)).toBeLessThan(3);
+    });
+
+    it('num limite de desktop cabe muito mais', () => {
+        expect(layersThatFit(2048 * MB, SMOL3B, CAMADAS)).toBeGreaterThan(12);
+    });
+
+    it('sem limite legível não arrisca: zero', () => {
+        // Chutar aqui é como o problema começou.
+        expect(layersThatFit(null, SMOL3B, CAMADAS)).toBe(0);
+        expect(layersThatFit(0, SMOL3B, CAMADAS)).toBe(0);
+        expect(layersThatFit(128 * MB, SMOL3B, 0)).toBe(0);
+    });
+
+    it('deixa margem e nunca cresce mais rápido que o limite', () => {
+        // A margem existe porque o binding não carrega só peso de camada: há
+        // tensores de trabalho e alinhamento no mesmo orçamento. Sem ela, 128
+        // MB dariam 2,4 camadas e alguém arredondaria para cima.
+        const semMargem = Math.floor((128 * MB) / (SMOL3B / CAMADAS));
+        expect(layersThatFit(128 * MB, SMOL3B, CAMADAS)).toBeLessThanOrEqual(semMargem);
+        // E é monótona: mais limite nunca dá menos camadas.
+        expect(layersThatFit(64 * MB, SMOL3B, CAMADAS))
+            .toBeLessThanOrEqual(layersThatFit(128 * MB, SMOL3B, CAMADAS));
+        expect(layersThatFit(128 * MB, SMOL3B, CAMADAS))
+            .toBeLessThanOrEqual(layersThatFit(256 * MB, SMOL3B, CAMADAS));
     });
 });

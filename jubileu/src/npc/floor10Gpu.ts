@@ -383,17 +383,67 @@ export class FpsSampler {
     }
 }
 
-/** O aparelho concede um adaptador? É o que decide se o assunto existe. */
-export async function probeWebGpuAdapter(): Promise<{ ok: boolean; motivo: string }> {
-    const gpu = (globalThis.navigator as { gpu?: { requestAdapter: () => Promise<unknown> } })?.gpu;
-    if (!gpu) return { ok: false, motivo: 'este navegador não expõe navigator.gpu' };
+/**
+ * QUANTAS CAMADAS CABEM NO LIMITE DE BUFFER DESTE APARELHO.
+ *
+ * Este é o número que eu deveria ter calculado em vez de chutar 3.
+ *
+ * O WebGPU no Android limita `maxStorageBufferBindingSize` a 128 MB — é o
+ * mesmo teto que impede a demo do WebLLM de rodar em celular (issue #209
+ * deles). Trocar de biblioteca não resolve: o limite é do NAVEGADOR, não do
+ * motor. O que resolve é dimensionar o offload por ele.
+ *
+ * A conta é direta e explica a falha: o SmolLM3-3B Q4_K_M tem 1,92 GB em 36
+ * camadas, ~53 MB cada. Uma cabe, duas cabem, TRÊS dão ~160 MB e estouram os
+ * 128 MB. Eu escolhi exatamente três.
+ *
+ * A margem de 0,8 existe porque o binding não carrega só peso: há tensores de
+ * trabalho e alinhamento no mesmo orçamento.
+ */
+export function layersThatFit(
+    maxBindingBytes: number | null,
+    modelBytes: number,
+    modelLayers: number,
+    margem = 0.8,
+): number {
+    if (!maxBindingBytes || !Number.isFinite(maxBindingBytes) || maxBindingBytes <= 0) return 0;
+    if (!modelLayers || modelBytes <= 0) return 0;
+    const porCamada = modelBytes / modelLayers;
+    return Math.max(0, Math.floor((maxBindingBytes * margem) / porCamada));
+}
+
+export type GpuAdapterInfo = {
+    ok: boolean;
+    motivo: string;
+    /** O teto que decide quantas camadas cabem; null quando não dá para ler. */
+    maxBindingBytes: number | null;
+};
+
+/** O aparelho concede um adaptador — e com que limites? */
+export async function probeWebGpuAdapter(): Promise<GpuAdapterInfo> {
+    const gpu = (globalThis.navigator as {
+        gpu?: { requestAdapter: () => Promise<{ limits?: Record<string, number> } | null> };
+    })?.gpu;
+    if (!gpu) {
+        return { ok: false, motivo: 'este navegador não expõe navigator.gpu', maxBindingBytes: null };
+    }
     try {
         const adapter = await gpu.requestAdapter();
-        return adapter
-            ? { ok: true, motivo: '' }
-            : { ok: false, motivo: 'o navegador não concedeu adaptador WebGPU' };
+        if (!adapter) {
+            return {
+                ok: false,
+                motivo: 'o navegador não concedeu adaptador WebGPU',
+                maxBindingBytes: null,
+            };
+        }
+        const limite = adapter.limits?.maxStorageBufferBindingSize;
+        return {
+            ok: true,
+            motivo: '',
+            maxBindingBytes: typeof limite === 'number' && limite > 0 ? limite : null,
+        };
     } catch (e) {
-        return { ok: false, motivo: String(e).slice(0, 120) };
+        return { ok: false, motivo: String(e).slice(0, 120), maxBindingBytes: null };
     }
 }
 

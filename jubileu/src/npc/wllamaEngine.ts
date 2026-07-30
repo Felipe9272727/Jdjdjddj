@@ -31,7 +31,7 @@ import {
     probeModelStorageBackend,
     readStorageEstimate,
 } from './floor10ModelStorage';
-import { floor10Gpu, FpsSampler, probeWebGpuAdapter } from './floor10Gpu';
+import { floor10Gpu, FpsSampler, layersThatFit, probeWebGpuAdapter } from './floor10Gpu';
 import {
     answerFloor10WillQuestion,
     hasFloor10PhysicalActionCue,
@@ -212,6 +212,10 @@ export function cpuThreadCount(
  * o antigo pico de VRAM causado por tentar colocar o modelo inteiro na GPU.
  */
 export const SPEECH_WEBGPU_LAYERS = 12;
+
+/** O SmolLM3-3B Q4_K_M: bytes e camadas, para a conta de quanto cabe na GPU. */
+export const SPEECH_MODEL_BYTES = 1_915_305_312;
+export const SPEECH_MODEL_LAYERS = 36;
 export const SPEECH_WEBGPU_LOW_MEMORY_LAYERS = 8;
 
 /**
@@ -759,9 +763,19 @@ function initConversationEngine(): Promise<WllamaInstance> {
         // "tem a API" de "tem GPU".
         const adaptador = await probeWebGpuAdapter();
         if (!adaptador.ok) floor10Gpu.markUnavailable(adaptador.motivo);
+        // O TETO DE BUFFER DO APARELHO manda mais que o gerente.
+        //
+        // No Android o `maxStorageBufferBindingSize` costuma ser 128 MB, e o
+        // SmolLM3-3B tem ~53 MB por camada: cabem duas, não três. Pedir mais do
+        // que cabe é o caminho mais curto para "Binding size is larger than the
+        // maximum binding size" — que no aparelho do dono do jogo apareceu como
+        // a geração simplesmente morrendo.
+        const cabem = adaptador.ok
+            ? layersThatFit(adaptador.maxBindingBytes, SPEECH_MODEL_BYTES, SPEECH_MODEL_LAYERS)
+            : 0;
         const requestedGpuLayers = (webGpuDisabledForSession || !adaptador.ok)
             ? 0
-            : speechGpuLayerCount();
+            : Math.min(speechGpuLayerCount(), cabem);
         const plans = requestedGpuLayers > 0
             ? [requestedGpuLayers, 0]
             : [0];
