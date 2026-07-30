@@ -23,6 +23,10 @@ import {
     deliberarObservando, setSmallBrain, SMALL_BRAIN_CATALOG, SMALL_BRAIN_MODEL,
     type PensamentoAoVivo, type SmallBrainId,
 } from './npc/floor10SmallBrain';
+import {
+    FLOOR10_MOTOR_MODEL,
+    FLOOR10_MOTOR_SIZE_LABEL,
+} from './npc/floor10MotorBrain';
 import { cpuThreadCount } from './npc/wllamaEngine';
 import {
     buildDeliberationPrompt, deliberationRetryDelay, looksLikeLoop,
@@ -60,6 +64,11 @@ const Mente: React.FC = () => {
     const estado = useNpc();
     const baixando = estado.deliberationPhase === 'loading';
     const travado = estado.deliberationDownload.stalledSec >= DOWNLOAD_STALL_SEC;
+    // O TERCEIRO cérebro tem barra própria aqui também: ele baixa depois da
+    // vontade, na mesma rodada de "pensar agora", e são 386 MB — grandes demais
+    // para descerem sem aparecer na tela.
+    const baixandoMotor = estado.motorPhase === 'loading';
+    const motorTravado = estado.motorDownload.stalledSec >= DOWNLOAD_STALL_SEC;
     const arrastando = useRef<'nilo' | 'jogador' | null>(null);
     const svgRef = useRef<SVGSVGElement>(null);
 
@@ -361,6 +370,34 @@ const Mente: React.FC = () => {
                     </div>
                     <div style={{ color: '#888', marginTop: 4 }}>
                         {estado.deliberationLoadText}
+                    </div>
+                </div>
+            ) : null}
+
+            {/* O TRADUTOR MOTOR, na mesma régua. Ele escrevia nos campos da
+                vontade: enquanto os 386 MB dele desciam, esta caixa dizia
+                "Baixando o cérebro pequeno" com o progresso de outro arquivo. */}
+            {baixandoMotor ? (
+                <div style={box}>
+                    <b>Baixando o tradutor motor · {FLOOR10_MOTOR_SIZE_LABEL}</b>
+                    <div style={{
+                        height: 10, borderRadius: 5, background: '#22222a',
+                        overflow: 'hidden', margin: '8px 0 6px',
+                    }}
+                    >
+                        <div style={{
+                            height: '100%',
+                            width: `${Math.round(estado.motorLoadProgress * 100)}%`,
+                            background: motorTravado ? '#c2554a' : '#7fe0b0',
+                            transition: 'width .3s',
+                        }}
+                        />
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e6e6ee' }}>
+                        {downloadLine(estado.motorDownload)}
+                    </div>
+                    <div style={{ color: '#888', marginTop: 4 }}>
+                        {estado.motorLoadText || FLOOR10_MOTOR_MODEL.label}
                     </div>
                 </div>
             ) : null}

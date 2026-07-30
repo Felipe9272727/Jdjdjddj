@@ -5,7 +5,15 @@ import { FLOOR10_MODEL, initLLM, sendToNpc } from './npc/wllamaEngine';
 import { NPC_NAME } from './npc/floor10Canon';
 import { deliberationThought } from './npc/floor10Deliberation';
 import { SMALL_BRAIN_MODEL } from './npc/floor10SmallBrain';
-import { DOWNLOAD_STALL_SEC, downloadLine } from './npc/floor10Download';
+import {
+    FLOOR10_MOTOR_MODEL,
+    FLOOR10_MOTOR_SIZE_LABEL,
+} from './npc/floor10MotorBrain';
+import {
+    DOWNLOAD_STALL_SEC,
+    downloadLine,
+    type DownloadSample,
+} from './npc/floor10Download';
 import { formatGB } from './npc/floor10ModelStorage';
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
@@ -18,6 +26,58 @@ import { formatGB } from './npc/floor10ModelStorage';
 // escreviam st.error na fase 'ready' — e a UI só mostrava erro na fase
 // 'error' → silêncio total (o "tudo quieto" do bug). Agora a faixa de erro
 // aparece em QUALQUER fase enquanto houver mensagem.
+
+/** Cores por cérebro: dá para saber QUAL barra está andando sem ler o rótulo. */
+const TOM_VONTADE = { barra: 'linear-gradient(90deg,#c58a22,#f5c96b)', texto: '#f5c96b' };
+const TOM_MOTOR = { barra: 'linear-gradient(90deg,#2f8f6b,#7fe0b0)', texto: '#7fe0b0' };
+const TOM_FALA = { barra: 'linear-gradient(90deg,#3a6df0,#7aa2ff)', texto: '#a8bcf0' };
+
+/**
+ * UMA linha de download: rótulo, porcentagem, barra, os BYTES e o estado.
+ *
+ * Existe porque cada cérebro tinha o seu próprio código de tela, e foi assim
+ * que o tradutor motor de 386 MB acabou sem barra nenhuma — pior, escrevendo
+ * nos campos da vontade, então a tela mostrava o nome do Llama 1B enquanto
+ * baixava outro arquivo. Agora os três passam pela mesma régua.
+ */
+const LinhaDownload: React.FC<{
+    rotulo: string;
+    pct: number;
+    amostra: DownloadSample;
+    detalhe: string;
+    tom: { barra: string; texto: string };
+    flutuante?: boolean;
+}> = ({ rotulo, pct, amostra, detalhe, tom, flutuante = false }) => {
+    // Travou? A barra muda de cor junto com o texto: dá para perceber sem ler.
+    const travado = amostra.stalledSec >= DOWNLOAD_STALL_SEC;
+    return (
+        <div>
+            <div
+                style={flutuante
+                    ? { ...miniDownloadTitleStyle, color: tom.texto }
+                    : { ...modelLoadingTitleStyle, color: tom.texto }}
+            >
+                <span>{rotulo}</span>
+                <strong>{pct}%</strong>
+            </div>
+            <div style={barOuter}>
+                <div style={{
+                    height: '100%',
+                    transition: 'width 0.2s',
+                    width: `${pct}%`,
+                    background: travado ? '#c2554a' : tom.barra,
+                }}
+                />
+            </div>
+            {/* Os BYTES. Porcentagem sozinha não distingue "acabou de começar"
+                de "parado faz três minutos". */}
+            <div style={downloadBytesStyle}>{downloadLine(amostra)}</div>
+            <div style={flutuante ? miniDownloadTextStyle : modelLoadingDetailStyle}>
+                {detalhe}
+            </div>
+        </div>
+    );
+};
 
 const Floor10NpcChat: React.FC = () => {
     const st = useNpc();
@@ -95,30 +155,47 @@ const Floor10NpcChat: React.FC = () => {
     if (!st.open) {
         const miniLoading = st.deliberationPhase === 'loading';
         const miniPct = Math.round(st.deliberationLoadProgress * 100);
+        // O TERCEIRO cérebro. Ele baixa DEPOIS da vontade, dentro da mesma
+        // deliberação — então as duas barras podem aparecer na mesma sessão,
+        // uma seguida da outra, e cada uma precisa dizer de qual arquivo é.
+        const motorLoading = st.motorPhase === 'loading';
+        const motorPct = Math.round(st.motorLoadProgress * 100);
+        const baixandoCerebro = miniLoading || motorLoading;
         const speechAudible = st.autonomousSpeech !== ''
             && (st.perception.player?.distance ?? Infinity) <= 9;
         // Pensamento do 2º cérebro: bolha no mundo, não linha no painel — dá
         // para ver que ele tem vida própria SEM abrir a conversa. Some quando
         // ele fala de verdade: a fala manda mais que o pensamento.
         const thought = deliberationThought(st.deliberationPhase, st.deliberationGoal);
-        const thoughtVisible = !miniLoading && thought !== '' && !speechAudible
+        const thoughtVisible = !baixandoCerebro && thought !== '' && !speechAudible
             && (st.perception.player?.distance ?? Infinity) <= 9;
-        if (!st.near && !speechAudible && !thoughtVisible && !miniLoading) return null;
+        if (!st.near && !speechAudible && !thoughtVisible && !baixandoCerebro) return null;
         return (
             <>
-                {miniLoading && (
+                {baixandoCerebro && (
                     <div style={miniDownloadFloatingStyle} aria-live="polite">
-                        <div style={miniDownloadTitleStyle}>
-                            <span>🧭 Cérebro de vontade · {SMALL_BRAIN_MODEL.label}</span>
-                            <strong>{miniPct}%</strong>
-                        </div>
-                        <div style={barOuter}>
-                            <div style={{ ...miniBarInner, width: `${miniPct}%` }} />
-                        </div>
-                        <div style={downloadBytesStyle}>
-                            {downloadLine(st.deliberationDownload)}
-                        </div>
-                        <div style={miniDownloadTextStyle}>{st.deliberationLoadText}</div>
+                        {miniLoading && (
+                            <LinhaDownload
+                                flutuante
+                                rotulo={`🧭 Vontade · ${SMALL_BRAIN_MODEL.label}`}
+                                pct={miniPct}
+                                amostra={st.deliberationDownload}
+                                detalhe={st.deliberationLoadText}
+                                tom={TOM_VONTADE}
+                            />
+                        )}
+                        {miniLoading && motorLoading && <div style={divisorStyle} />}
+                        {motorLoading && (
+                            <LinhaDownload
+                                flutuante
+                                rotulo={`🦿 Motor · ${FLOOR10_MOTOR_MODEL.label}`}
+                                pct={motorPct}
+                                amostra={st.motorDownload}
+                                detalhe={st.motorLoadText
+                                    || `tradutor de ${FLOOR10_MOTOR_SIZE_LABEL}`}
+                                tom={TOM_MOTOR}
+                            />
+                        )}
                     </div>
                 )}
                 {thoughtVisible && (
@@ -144,7 +221,6 @@ const Floor10NpcChat: React.FC = () => {
 
     const loading = st.phase === 'loading';
     const pct = Math.round(st.loadProgress * 100);
-    const falaTravou = st.loadDownload.stalledSec >= DOWNLOAD_STALL_SEC;
     // O espaço do site é o que decide se o download PODE acontecer. Fica na
     // tela durante a carga porque, quando não cabe, este número é a resposta
     // inteira — e ele não aparecia em lugar nenhum.
@@ -160,6 +236,10 @@ const Floor10NpcChat: React.FC = () => {
           + (espacoFalta ? ' — não cabe' : '');
     const miniPct = Math.round(st.deliberationLoadProgress * 100);
     const showMiniHandoff = loading && st.deliberationLoadText !== '';
+    const motorPct = Math.round(st.motorLoadProgress * 100);
+    // Mesma regra do cartão da vontade: aparece quando há algo a contar sobre
+    // ele. Antes o motor de 386 MB descia com a tela em silêncio absoluto.
+    const showMotor = loading && st.motorLoadText !== '';
 
     return (
         <div style={panelStyle}>
@@ -172,38 +252,34 @@ const Floor10NpcChat: React.FC = () => {
                 <div style={modelLoadingStackStyle}>
                     {showMiniHandoff && (
                         <div style={modelLoadingCardStyle}>
-                            <div style={modelLoadingTitleStyle}>
-                                <span>🧭 Vontade · {SMALL_BRAIN_MODEL.label}</span>
-                                <strong>{miniPct}%</strong>
-                            </div>
-                            <div style={barOuter}>
-                                <div style={{ ...miniBarInner, width: `${miniPct}%` }} />
-                            </div>
-                            <div style={downloadBytesStyle}>
-                                {downloadLine(st.deliberationDownload)}
-                            </div>
-                            <div style={modelLoadingDetailStyle}>{st.deliberationLoadText}</div>
+                            <LinhaDownload
+                                rotulo={`🧭 Vontade · ${SMALL_BRAIN_MODEL.label}`}
+                                pct={miniPct}
+                                amostra={st.deliberationDownload}
+                                detalhe={st.deliberationLoadText}
+                                tom={TOM_VONTADE}
+                            />
+                        </div>
+                    )}
+                    {showMotor && (
+                        <div style={modelLoadingCardStyle}>
+                            <LinhaDownload
+                                rotulo={`🦿 Motor · ${FLOOR10_MOTOR_MODEL.label}`}
+                                pct={motorPct}
+                                amostra={st.motorDownload}
+                                detalhe={st.motorLoadText}
+                                tom={TOM_MOTOR}
+                            />
                         </div>
                     )}
                     <div style={modelLoadingCardStyle}>
-                        <div style={modelLoadingTitleStyle}>
-                            <span>💬 Conversa · {FLOOR10_MODEL.label}</span>
-                            <strong>{pct}%</strong>
-                        </div>
-                        <div style={barOuter}>
-                            <div style={{
-                                ...barInner,
-                                width: `${pct}%`,
-                                // Travou? A barra muda de cor junto com o texto:
-                                // dá para perceber sem ler.
-                                ...(falaTravou ? { background: '#c2554a' } : null),
-                            }}
-                            />
-                        </div>
-                        {/* Os BYTES. Porcentagem sozinha não distingue "acabou
-                            de começar" de "parado faz três minutos". */}
-                        <div style={downloadBytesStyle}>{downloadLine(st.loadDownload)}</div>
-                        <div style={modelLoadingDetailStyle}>{st.loadText}</div>
+                        <LinhaDownload
+                            rotulo={`💬 Conversa · ${FLOOR10_MODEL.label}`}
+                            pct={pct}
+                            amostra={st.loadDownload}
+                            detalhe={st.loadText}
+                            tom={TOM_FALA}
+                        />
                     </div>
                     {espacoLinha && (
                         <div style={{
@@ -340,8 +416,10 @@ const sendStyle: React.CSSProperties = {
 };
 const retryStyle: React.CSSProperties = { padding: '8px 16px', borderRadius: 10, border: 'none', background: '#3a6df0', color: '#fff', fontSize: 14, cursor: 'pointer' };
 const barOuter: React.CSSProperties = { height: 8, borderRadius: 999, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' };
-const barInner: React.CSSProperties = { height: '100%', background: 'linear-gradient(90deg,#3a6df0,#7aa2ff)', transition: 'width 0.2s' };
-const miniBarInner: React.CSSProperties = { height: '100%', background: 'linear-gradient(90deg,#c58a22,#f5c96b)', transition: 'width 0.2s' };
+/** Separa as barras dos dois cérebros dentro do MESMO cartão flutuante. */
+const divisorStyle: React.CSSProperties = {
+    height: 1, margin: '9px 0 8px', background: 'rgba(255,255,255,0.12)',
+};
 const modelLoadingStackStyle: React.CSSProperties = {
     padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10,
 };

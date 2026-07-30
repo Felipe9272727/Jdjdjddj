@@ -1,10 +1,18 @@
 // ── O TRADUTOR MOTOR — terceira LLM, minúscula e especializada ─────────────
 // O MiniBrain continua fazendo apenas aquilo em que é bom: pensar livremente.
-// Um SmolLM2 de 135M lê o pensamento pronto e o comprime numa instrução motora.
+// Um SmolLM2 de 360M lê o pensamento pronto e o comprime numa instrução motora.
 //
 // São PESOS e runtime próprios. Ele não reutiliza nem altera o KV cache do
-// MiniBrain e nunca gera ao mesmo tempo que ele. Com Q4_K_M, o arquivo tem
-// cerca de 105 MB — quase oito vezes menor que o Llama 3.2 1B da vontade.
+// MiniBrain e nunca gera ao mesmo tempo que ele. Em Q8_0 o arquivo tem 386 MB —
+// três vezes menor que o Llama 3.2 1B da vontade, mas longe de ser invisível
+// num plano de dados de celular. Por isso ele tem BARRA DE DOWNLOAD PRÓPRIA,
+// com os mesmos bytes/velocidade/ETA da barra do 1B.
+import {
+    DownloadMeter,
+    DOWNLOAD_ZERO,
+    downloadLine,
+    formatBytes,
+} from './floor10Download';
 import type { F10PrisonState } from './f10Prison';
 import {
     FLOOR10_MOTOR_GRAMMAR,
@@ -17,10 +25,12 @@ import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import {
     deleteCachedModel,
     isBrokenModelCacheError,
+    planModelCache,
     probeModelStorageBackend,
+    readStorageEstimate,
 } from './floor10ModelStorage';
 import type { Floor10Perception } from './floor10Perception';
-import { npcSet } from './npcStore';
+import { npc, npcSet } from './npcStore';
 import { cpuThreadCount } from './wllamaEngine';
 
 const WLLAMA_V = '3.5.1';
@@ -40,7 +50,14 @@ export const FLOOR10_MOTOR_MODEL = Object.freeze({
     bytes: 386_405_280,
 });
 
-/** Duas threads bastam para 135M e evitam outro pico de CPU no telefone. */
+/**
+ * O tamanho por extenso, tirado dos bytes DE VERDADE. A tela dizia "105 MB"
+ * escrito à mão — o tamanho do 135M que já não é mais usado — enquanto baixava
+ * 386 MB. Derivando do campo `bytes`, esse erro não tem como voltar.
+ */
+export const FLOOR10_MOTOR_SIZE_LABEL = formatBytes(FLOOR10_MOTOR_MODEL.bytes);
+
+/** Duas threads bastam para 360M e evitam outro pico de CPU no telefone. */
 export const FLOOR10_MOTOR_THREADS = 2;
 
 export function motorBrainThreads(): number {
@@ -60,7 +77,7 @@ export const FLOOR10_MOTOR_LOAD_CONFIG = Object.freeze({
 
 /**
  * `useCache: false` no wllama não evita o OPFS: ele apenas força baixar tudo
- * novamente. Persistir os 105 MB evita castigar o celular em cada abertura.
+ * novamente. Persistir os 386 MB evita castigar o celular em cada abertura.
  */
 export const FLOOR10_MOTOR_USE_CACHE = true;
 
@@ -87,6 +104,9 @@ type MotorInstance = {
 };
 type MotorCtor =
     new (paths: Record<string, string>, cfg?: Record<string, unknown>) => MotorInstance;
+
+/** Medidor próprio: bytes, velocidade e "parado há Ns" só do arquivo do motor. */
+const medidorMotor = new DownloadMeter();
 
 let enginePromise: Promise<MotorInstance | null> | null = null;
 let residentEngine: MotorInstance | null = null;
@@ -166,16 +186,36 @@ async function ensureMotorEngine(
             () => controller.abort(),
             FLOOR10_MOTOR_LOAD_TIMEOUT_MS,
         );
+        medidorMotor.reset();
         npcSet({
-            deliberationPhase: 'loading',
-            deliberationLoadText:
-                `${FLOOR10_MOTOR_MODEL.label} · baixando tradutor de 105 MB`,
-            deliberationLoadProgress: 0,
+            motorPhase: 'loading',
+            motorLoadText: `verificando o cache do ${FLOOR10_MOTOR_MODEL.label}…`,
+            motorLoadProgress: 0,
+            motorDownload: DOWNLOAD_ZERO,
         });
         let engine: MotorInstance | null = null;
         try {
             const backend = await probeModelStorageBackend();
             if (!backend.ok) throw new Error(backend.message);
+
+            // CABE? O terceiro modelo entra no MESMO cofre dos outros dois, e
+            // quando o cofre estoura o Worker levanta QuotaExceededError — um
+            // DOMException, que não atravessa o postMessage. A carga então não
+            // resolve NEM rejeita: barra parada para sempre, sem explicação.
+            // Já aconteceu com a fala e com a vontade; aqui a conta vem antes.
+            const plano = planModelCache(
+                await readStorageEstimate(),
+                FLOOR10_MOTOR_MODEL.bytes,
+            );
+            if (!plano.ok) {
+                npcSet({
+                    motorPhase: 'unavailable',
+                    motorLoadText:
+                        `${FLOOR10_MOTOR_MODEL.label} não cabe: ${plano.message}`,
+                });
+                enginePromise = null;
+                return null;
+            }
 
             const mod = await raceWithAbort(
                 import(/* @vite-ignore */ WLLAMA_ESM) as Promise<{ Wllama: MotorCtor }>,
@@ -187,7 +227,7 @@ async function ensureMotorEngine(
             await raceWithAbort(engine.loadModelFromUrl(FLOOR10_MOTOR_MODEL.url, {
                 ...FLOOR10_MOTOR_LOAD_CONFIG,
                 n_threads: motorBrainThreads(),
-                // Sem isto o wllama rebaixa 105 MB em toda abertura, embora
+                // Sem isto o wllama rebaixa os 386 MB em toda abertura, embora
                 // continue gravando a cópia temporária no mesmo OPFS.
                 useCache: FLOOR10_MOTOR_USE_CACHE,
                 signal: controller.signal,
@@ -199,19 +239,27 @@ async function ensureMotorEngine(
                             (progress.loaded ?? 0) / progress.total,
                         ))
                         : 0;
+                    // Os BYTES, na mesma régua da barra do 1B. "38%" não
+                    // distingue um download que anda de um que morreu;
+                    // "147 MB de 386 MB · 4,2 MB/s · faltam 57s" distingue.
+                    const amostra = medidorMotor.push(
+                        progress.loaded ?? 0,
+                        progress.total ?? 0,
+                    );
                     npcSet({
-                        deliberationLoadProgress: fraction,
-                        deliberationLoadText:
+                        motorDownload: amostra,
+                        motorLoadProgress: fraction,
+                        motorLoadText:
                             `baixando ${FLOOR10_MOTOR_MODEL.label} · `
-                            + `${Math.round(fraction * 100)}% de 105 MB`,
+                            + downloadLine(amostra),
                     });
                 },
             }), controller.signal);
             residentEngine = engine;
             npcSet({
-                deliberationPhase: 'thinking',
-                deliberationLoadProgress: 1,
-                deliberationLoadText: `${FLOOR10_MOTOR_MODEL.label} pronto · traduzindo`,
+                motorPhase: 'translating',
+                motorLoadProgress: 1,
+                motorLoadText: `${FLOOR10_MOTOR_MODEL.label} pronto · traduzindo`,
             });
             return engine;
         } catch (falha) {
@@ -223,22 +271,32 @@ async function ensureMotorEngine(
                 && await deleteCachedModel(engine?.cacheManager, FLOOR10_MOTOR_MODEL.url)
             ) {
                 npcSet({
-                    deliberationPhase: 'loading',
-                    deliberationLoadProgress: 0,
-                    deliberationLoadText:
+                    motorPhase: 'loading',
+                    motorLoadProgress: 0,
+                    motorDownload: DOWNLOAD_ZERO,
+                    motorLoadText:
                         `o cache do ${FLOOR10_MOTOR_MODEL.label} `
                         + 'ficou incompleto; baixando de novo…',
                 });
                 enginePromise = null;
                 return ensureMotorEngine(parentSignal, false);
             }
-            if (!controller.signal.aborted) {
+            if (controller.signal.aborted) {
+                // Cortado pela fala ou pelo teto de tempo. A barra para de dizer
+                // "baixando" — mas o PROGRESSO fica: ele é a única prova de
+                // quanto do arquivo já está no cache.
+                npcSet({
+                    motorPhase: 'off',
+                    motorLoadText:
+                        `${FLOOR10_MOTOR_MODEL.label} · download interrompido`,
+                });
+            } else {
                 const motivo = falha instanceof Error
                     ? `${falha.name}: ${falha.message}`
                     : String(falha);
                 npcSet({
-                    deliberationPhase: 'unavailable',
-                    deliberationLoadText:
+                    motorPhase: 'unavailable',
+                    motorLoadText:
                         `não foi possível carregar ${FLOOR10_MOTOR_MODEL.label} — `
                         + motivo.slice(0, 200),
                 });
@@ -309,14 +367,27 @@ export async function translateFloor10MotorThought(
     inFlight = true;
     try {
         // O motor pertence ao pipeline de deliberação. Passar pelo mesmo
-        // coordenador serializa o download de 105 MB contra uma carga da fala;
+        // coordenador serializa o download de 386 MB contra uma carga da fala;
         // se a fala chegar, o preemptor da deliberação aborta este Worker.
         const engine = await floor10ModelCoordinator.activate(
             'deliberation',
             () => ensureMotorEngine(signal),
         );
         if (!engine || signal?.aborted) return null;
-        return translateWithMotorEngine(engine, thinking, perception, prison, signal);
+        npcSet({
+            motorPhase: 'translating',
+            motorLoadText: `${FLOOR10_MOTOR_MODEL.label} · lendo o pensamento`,
+        });
+        const plan = await translateWithMotorEngine(
+            engine, thinking, perception, prison, signal,
+        );
+        npcSet({
+            motorPhase: 'ready',
+            motorLoadText: plan
+                ? `${FLOOR10_MOTOR_MODEL.label} · ${plan.verb} ${plan.target}`
+                : `${FLOOR10_MOTOR_MODEL.label} pronto · sem ordem clara`,
+        });
+        return plan;
     } finally {
         inFlight = false;
     }
@@ -331,6 +402,14 @@ export function abortFloor10MotorBrain(): void {
     const loading = loadingEngine;
     loadingEngine = null;
     terminate(loading);
+    // A barra não pode continuar dizendo "baixando" depois do corte. O
+    // progresso permanece: ele mostra quanto do arquivo já está no cache.
+    if (npc.motorPhase === 'loading' || npc.motorPhase === 'translating') {
+        npcSet({
+            motorPhase: 'off',
+            motorLoadText: `${FLOOR10_MOTOR_MODEL.label} · interrompido pela fala`,
+        });
+    }
 }
 
 /** Descarga explícita para aparelhos sem memória ou encerramento de testes. */
@@ -341,6 +420,7 @@ export async function unloadFloor10MotorBrain(): Promise<void> {
     const engine = residentEngine ?? (pending ? await pending.catch(() => null) : null);
     residentEngine = null;
     terminate(engine);
+    npcSet({ motorPhase: 'off', motorLoadText: '' });
 }
 
 export function resetFloor10MotorBrainForTests(): void {
@@ -349,4 +429,10 @@ export function resetFloor10MotorBrainForTests(): void {
     residentEngine = null;
     loadingEngine = null;
     inFlight = false;
+    npcSet({
+        motorPhase: 'off',
+        motorLoadText: '',
+        motorLoadProgress: 0,
+        motorDownload: DOWNLOAD_ZERO,
+    });
 }

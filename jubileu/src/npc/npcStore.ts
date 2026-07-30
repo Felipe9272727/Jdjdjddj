@@ -48,6 +48,15 @@ export type NpcState = {
     deliberationDownload: DownloadSample;
     deliberationGoal: string;   // a intenção que ele assinou
     deliberationCount: number;  // quantas vezes já deliberou nesta sessão
+    // ── CÓRTEX MOTOR (o TERCEIRO cérebro, 360M, que vira pensamento em ação) ─
+    // Campos PRÓPRIOS, e isso é o ponto. Antes ele publicava nos campos da
+    // deliberação: enquanto os 386 MB dele desciam, a tela mostrava uma barra
+    // rotulada "Llama 3.2 1B" andando com o progresso de outro arquivo — e o
+    // estado real do 1B sumia. Cada modelo que ocupa a rede tem a sua barra.
+    motorPhase: 'off' | 'loading' | 'translating' | 'ready' | 'unavailable';
+    motorLoadText: string;
+    motorLoadProgress: number;  // 0..1
+    motorDownload: DownloadSample;
     /** Cota do site medida no aparelho — o que decide se dá pra baixar. */
     storage: { quota: number | null; usage: number; needBytes: number };
     error: string;
@@ -66,6 +75,8 @@ const s: NpcState = {
     deliberationDownload: DOWNLOAD_ZERO,
     storage: { quota: null, usage: 0, needBytes: 0 },
     deliberationGoal: '', deliberationCount: 0,
+    motorPhase: 'off', motorLoadText: '', motorLoadProgress: 0,
+    motorDownload: DOWNLOAD_ZERO,
     error: '', version: 0,
 };
 

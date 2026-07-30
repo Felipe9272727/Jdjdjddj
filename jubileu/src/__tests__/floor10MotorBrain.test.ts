@@ -1,17 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
+    abortFloor10MotorBrain,
     FLOOR10_MOTOR_COMPLETION_CONFIG,
     FLOOR10_MOTOR_LOAD_CONFIG,
     FLOOR10_MOTOR_LOAD_TIMEOUT_MS,
     FLOOR10_MOTOR_MODEL,
+    FLOOR10_MOTOR_SIZE_LABEL,
     FLOOR10_MOTOR_THREADS,
     FLOOR10_MOTOR_TIMEOUT_MS,
     FLOOR10_MOTOR_TOKENS,
     FLOOR10_MOTOR_USE_CACHE,
     motorBrainThreads,
+    resetFloor10MotorBrainForTests,
     translateWithMotorEngine,
 } from '../npc/floor10MotorBrain';
 import { perceiveFloor10 } from '../npc/floor10Perception';
+import { npc, npcSet } from '../npc/npcStore';
 
 const PERCEPTION = perceiveFloor10({
     npcPosition: { x: 0, y: 0, z: 2.2 },
@@ -114,5 +118,72 @@ describe('npc/floor10MotorBrain — a terceira LLM especializada', () => {
         );
         parent.abort();
         await expect(pending).resolves.toBeNull();
+    });
+});
+
+describe('o download do motor tem barra PRÓPRIA, do lado da barra do 1B', () => {
+    it('anuncia o tamanho a partir dos bytes de verdade, nunca de um número escrito à mão', () => {
+        // O texto na tela dizia "105 MB" — o tamanho do 135M que já não é mais
+        // usado — enquanto baixava 386 MB. Derivar do campo `bytes` torna esse
+        // erro impossível de repetir.
+        expect(FLOOR10_MOTOR_SIZE_LABEL).toBe('386 MB');
+        expect(FLOOR10_MOTOR_SIZE_LABEL).not.toContain('105');
+    });
+
+    it('escreve nos campos do MOTOR e não encosta nos da vontade', () => {
+        resetFloor10MotorBrainForTests();
+        npcSet({
+            deliberationPhase: 'thinking',
+            deliberationLoadProgress: 0.5,
+            deliberationLoadText: 'baixando Llama 3.2 1B (Q8)',
+            deliberationDownload: {
+                fraction: 0.5, bytes: 660_000_000, totalBytes: 1_321_083_008,
+                rate: 20e6, etaSec: 33, stalledSec: 0,
+            },
+        });
+        // Era exatamente aqui que a tela mentia: o motor publicava
+        // `deliberationLoadProgress`, então a barra rotulada "Llama 3.2 1B"
+        // passava a mostrar o progresso de OUTRO arquivo, e o estado real do
+        // 1B desaparecia.
+        npcSet({
+            motorPhase: 'loading',
+            motorLoadProgress: 0.25,
+            motorLoadText: `baixando ${FLOOR10_MOTOR_MODEL.label}`,
+            motorDownload: {
+                fraction: 0.25, bytes: 96_601_320,
+                totalBytes: FLOOR10_MOTOR_MODEL.bytes,
+                rate: 4.2e6, etaSec: 69, stalledSec: 0,
+            },
+        });
+        expect(npc.motorDownload.totalBytes).toBe(FLOOR10_MOTOR_MODEL.bytes);
+        expect(npc.deliberationLoadProgress).toBe(0.5);
+        expect(npc.deliberationDownload.totalBytes).toBe(1_321_083_008);
+        expect(npc.deliberationLoadText).toContain('Llama');
+        expect(npc.deliberationPhase).toBe('thinking');
+    });
+
+    it('interromper pela fala para a barra mas PRESERVA o progresso já baixado', () => {
+        npcSet({
+            motorPhase: 'loading',
+            motorLoadProgress: 0.61,
+            motorLoadText: 'baixando…',
+        });
+        abortFloor10MotorBrain();
+        expect(npc.motorPhase).toBe('off');
+        // O progresso é a única prova de quanto do arquivo já está no cache;
+        // zerá-lo faria a próxima tentativa parecer começar do nada.
+        expect(npc.motorLoadProgress).toBe(0.61);
+        expect(npc.motorLoadText).toContain('interrompido');
+    });
+
+    it('não reescreve a fase quando o motor já estava parado', () => {
+        npcSet({ motorPhase: 'unavailable', motorLoadText: 'não cabe' });
+        abortFloor10MotorBrain();
+        expect(npc.motorPhase).toBe('unavailable');
+        expect(npc.motorLoadText).toBe('não cabe');
+        resetFloor10MotorBrainForTests();
+        expect(npc.motorPhase).toBe('off');
+        expect(npc.motorLoadProgress).toBe(0);
+        expect(npc.motorDownload.bytes).toBe(0);
     });
 });
