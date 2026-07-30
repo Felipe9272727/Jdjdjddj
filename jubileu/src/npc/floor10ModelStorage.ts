@@ -23,8 +23,78 @@ export type CachePlan =
     | { ok: true; freeBytes: number | null; message: '' }
     | { ok: false; freeBytes: number; needBytes: number; message: string };
 
+export type ModelStorageBackendPlan =
+    | { ok: true; message: '' }
+    | { ok: false; message: string };
+
+export type ModelCacheDelete = {
+    delete?: (nameOrUrl: string) => Promise<void>;
+};
+
 export function formatGB(bytes: number): string {
     return `${(bytes / 1e9).toFixed(2)} GB`;
+}
+
+/**
+ * O cache do wllama é OPFS mesmo quando `useCache` recebe false. Antes de
+ * começar um GGUF enorme, confirma que a página possui uma origem estável e
+ * que o navegador realmente consegue abrir esse armazenamento.
+ */
+export async function probeModelStorageBackend(
+    protocol = globalThis.location?.protocol ?? '',
+    storage = (globalThis.navigator as unknown as {
+        storage?: { getDirectory?: () => Promise<unknown> };
+    } | undefined)?.storage,
+): Promise<ModelStorageBackendPlan> {
+    if (protocol === 'file:') {
+        return {
+            ok: false,
+            message:
+                'este index.html foi aberto como file://, mas os modelos locais precisam '
+                + 'do armazenamento do navegador. Abra o jogo pelo endereço HTTPS do deploy.',
+        };
+    }
+    if (!storage?.getDirectory) {
+        return {
+            ok: false,
+            message:
+                'este navegador não disponibilizou o armazenamento OPFS necessário '
+                + 'para instalar os modelos locais.',
+        };
+    }
+    try {
+        await storage.getDirectory();
+        return { ok: true, message: '' };
+    } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        return {
+            ok: false,
+            message:
+                'o navegador bloqueou o armazenamento dos modelos locais'
+                + (reason ? `: ${reason}` : '.'),
+        };
+    }
+}
+
+/** Assinaturas emitidas pelo wllama quando existe um GGUF parcial no OPFS. */
+export function isBrokenModelCacheError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /Model file not found|must be non-empty Blob|Failed to open file.*model may be invalid/i
+        .test(message);
+}
+
+/** Apaga somente a URL que falhou; nunca varre os outros cérebros por dedução. */
+export async function deleteCachedModel(
+    cache: ModelCacheDelete | null | undefined,
+    url: string,
+): Promise<boolean> {
+    if (!cache?.delete) return false;
+    try {
+        await cache.delete(url);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 /**

@@ -33,7 +33,12 @@ import {
 } from './floor10Brains';
 import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
 import {
-    CACHE_HEADROOM, planModelCache, readStorageEstimate,
+    CACHE_HEADROOM,
+    deleteCachedModel,
+    isBrokenModelCacheError,
+    planModelCache,
+    probeModelStorageBackend,
+    readStorageEstimate,
 } from './floor10ModelStorage';
 import { npc, npcSet } from './npcStore';
 import {
@@ -190,6 +195,9 @@ export const DELIBERATION_EXTRACT_TIMEOUT_MS = 90_000;
 type SmallInstance = {
     loadModelFromUrl(url: string, params: Record<string, unknown>): Promise<void>;
     createChatCompletion(opts: Record<string, unknown>): Promise<unknown>;
+    cacheManager?: {
+        delete?: (nameOrUrl: string) => Promise<void>;
+    };
     exit?: () => Promise<void> | void;
 };
 type SmallCtor = new (paths: Record<string, string>, cfg?: Record<string, unknown>) => SmallInstance;
@@ -371,7 +379,10 @@ export function readCompletionText(response: unknown): string {
 }
 
 /** Carrega o cérebro pequeno uma única vez; falha vira null, nunca exceção. */
-function ensureSmallEngine(cederParaFala = true): Promise<SmallInstance | null> {
+function ensureSmallEngine(
+    cederParaFala = true,
+    recoverBrokenCache = true,
+): Promise<SmallInstance | null> {
     enginePromise ??= (async () => {
         const controller = new AbortController();
         loadAbort = controller;
@@ -405,6 +416,9 @@ function ensureSmallEngine(cederParaFala = true): Promise<SmallInstance | null> 
             return null;
         }
         try {
+            const backend = await probeModelStorageBackend();
+            if (!backend.ok) throw new Error(backend.message);
+
             try {
                 if (typeof navigator !== 'undefined') {
                     void (navigator as unknown as {
@@ -486,6 +500,22 @@ function ensureSmallEngine(cederParaFala = true): Promise<SmallInstance | null> 
             return engine;
         } catch (falha) {
             terminateSmallEngine(engine);
+            if (
+                !controller.signal.aborted
+                && recoverBrokenCache
+                && isBrokenModelCacheError(falha)
+                && await deleteCachedModel(engine?.cacheManager, SMALL_BRAIN_MODEL.url)
+            ) {
+                npcSet({
+                    deliberationPhase: 'loading',
+                    deliberationLoadProgress: 0,
+                    deliberationLoadText:
+                        `o cache do ${SMALL_BRAIN_MODEL.label} ficou `
+                        + 'incompleto; baixando de novo…',
+                });
+                enginePromise = null;
+                return ensureSmallEngine(cederParaFala, false);
+            }
             // Sem memória, sem rede ou modelo incompatível: o reflexo segue só.
             //
             // O MOTIVO precisa aparecer. Sem ele, uma falha instantânea no

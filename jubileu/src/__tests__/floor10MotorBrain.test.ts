@@ -20,11 +20,11 @@ const PERCEPTION = perceiveFloor10({
 });
 
 describe('npc/floor10MotorBrain — a terceira LLM especializada', () => {
-    it('usa pesos próprios de 135M sem ocupar o cache persistente da fala', () => {
+    it('usa pesos próprios de 135M e não baixa tudo de novo em cada sessão', () => {
         expect(FLOOR10_MOTOR_MODEL.id).toBe('smollm2-135m-instruct');
         expect(FLOOR10_MOTOR_MODEL.url).toMatch(/SmolLM2-135M.*Q4_K_M\.gguf$/);
         expect(FLOOR10_MOTOR_MODEL.bytes).toBeLessThanOrEqual(110_000_000);
-        expect(FLOOR10_MOTOR_USE_CACHE).toBe(false);
+        expect(FLOOR10_MOTOR_USE_CACHE).toBe(true);
     });
 
     it('limita CPU, contexto, saída e tempo porque só traduz uma linha', () => {

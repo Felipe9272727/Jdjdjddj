@@ -24,8 +24,11 @@ import { smallBrainUrls } from './floor10Brains';
 import { DownloadMeter, DOWNLOAD_ZERO } from './floor10Download';
 import {
     CACHE_HEADROOM,
+    deleteCachedModel,
+    isBrokenModelCacheError,
     planModelCache,
     probeModelBytes,
+    probeModelStorageBackend,
     readStorageEstimate,
 } from './floor10ModelStorage';
 import {
@@ -527,20 +530,6 @@ export class ModelStorageError extends Error {
 }
 
 /**
- * Cache do modelo em estado inconsistente: o wllama ACHA a entrada na listagem,
- * mas o arquivo não está lá, e `open()` estoura "Model file not found". Uma
- * carga interrompida (aba fechada, aparelho sem espaço no meio do download)
- * deixa exatamente esse rastro, e sozinho ele nunca se resolve: toda tentativa
- * seguinte falha igual, porque ninguém apaga o registro quebrado.
- *
- * Aqui apagamos o registro e deixamos a próxima tentativa baixar limpo.
- */
-function isBrokenCacheError(error: unknown): boolean {
-    const msg = error instanceof Error ? error.message : String(error);
-    return /Model file not found|must be non-empty Blob/i.test(msg);
-}
-
-/**
  * O modelo já está guardado neste navegador?
  *
  * Importa muito: a conta de espaço livre é `cota - em uso`, e o modelo em cache
@@ -618,16 +607,8 @@ export async function speechModelReady(): Promise<boolean> {
 }
 
 async function forgetCachedModel(mod: WllamaModule, url: string): Promise<boolean> {
-    try {
-        const probe = probeDoCache(mod);
-        // Apaga SOMENTE o modelo que acabou de falhar — nada de varrer o cache
-        // por conta própria: quem apaga por dedução acaba levando junto o
-        // arquivo que estava em uso.
-        await probe.cacheManager?.delete(url);
-        return true;
-    } catch {
-        return false;
-    }
+    const probe = probeDoCache(mod);
+    return deleteCachedModel(probe.cacheManager, url);
 }
 
 async function teardownEngine(engine: WllamaInstance | null = currentEngine): Promise<void> {
@@ -661,6 +642,9 @@ function initConversationEngine(): Promise<WllamaInstance> {
     });
 
     const pending = (async () => {
+        const backend = await probeModelStorageBackend();
+        if (!backend.ok) throw new ModelStorageError(backend.message);
+
         try {
             if (typeof navigator !== 'undefined') {
                 void (navigator as unknown as {
@@ -822,7 +806,7 @@ function initConversationEngine(): Promise<WllamaInstance> {
         }
         // Fim de uma volta. Cache quebrado tem conserto; qualquer outra falha
         // não melhora repetindo, então sai na hora.
-        if (tentativa === 0 && isBrokenCacheError(lastError)) {
+        if (tentativa === 0 && isBrokenModelCacheError(lastError)) {
             npcSet({
                 loadText: `o download anterior de ${model.label} ficou pela metade; baixando de novo…`,
                 loadProgress: 0,

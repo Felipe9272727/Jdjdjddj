@@ -14,6 +14,11 @@ import {
     type Floor10MotorPlan,
 } from './floor10MotorCortex';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
+import {
+    deleteCachedModel,
+    isBrokenModelCacheError,
+    probeModelStorageBackend,
+} from './floor10ModelStorage';
 import type { Floor10Perception } from './floor10Perception';
 import { npcSet } from './npcStore';
 import { cpuThreadCount } from './wllamaEngine';
@@ -55,11 +60,10 @@ export const FLOOR10_MOTOR_LOAD_CONFIG = Object.freeze({
 });
 
 /**
- * O SmolLM3 da fala é o dono do cache persistente. Os 105 MB do córtex motor
- * ficam residentes apenas nesta sessão para não recriar o bug em que outro
- * GGUF expulsava a fala da cota do navegador.
+ * `useCache: false` no wllama não evita o OPFS: ele apenas força baixar tudo
+ * novamente. Persistir os 105 MB evita castigar o celular em cada abertura.
  */
-export const FLOOR10_MOTOR_USE_CACHE = false;
+export const FLOOR10_MOTOR_USE_CACHE = true;
 
 export const FLOOR10_MOTOR_TOKENS = 32;
 export const FLOOR10_MOTOR_TIMEOUT_MS = 30_000;
@@ -77,6 +81,9 @@ export const FLOOR10_MOTOR_COMPLETION_CONFIG = Object.freeze({
 type MotorInstance = {
     loadModelFromUrl(url: string, params: Record<string, unknown>): Promise<void>;
     createChatCompletion(opts: Record<string, unknown>): Promise<unknown>;
+    cacheManager?: {
+        delete?: (nameOrUrl: string) => Promise<void>;
+    };
     exit?: () => Promise<void> | void;
 };
 type MotorCtor =
@@ -139,7 +146,10 @@ function raceWithAbort<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
     });
 }
 
-async function ensureMotorEngine(parentSignal?: AbortSignal): Promise<MotorInstance | null> {
+async function ensureMotorEngine(
+    parentSignal?: AbortSignal,
+    recoverBrokenCache = true,
+): Promise<MotorInstance | null> {
     if (residentEngine) return residentEngine;
     if (parentSignal?.aborted) return null;
     if (enginePromise) {
@@ -165,6 +175,9 @@ async function ensureMotorEngine(parentSignal?: AbortSignal): Promise<MotorInsta
         });
         let engine: MotorInstance | null = null;
         try {
+            const backend = await probeModelStorageBackend();
+            if (!backend.ok) throw new Error(backend.message);
+
             const mod = await raceWithAbort(
                 import(/* @vite-ignore */ WLLAMA_ESM) as Promise<{ Wllama: MotorCtor }>,
                 controller.signal,
@@ -175,8 +188,8 @@ async function ensureMotorEngine(parentSignal?: AbortSignal): Promise<MotorInsta
             await raceWithAbort(engine.loadModelFromUrl(FLOOR10_MOTOR_MODEL.url, {
                 ...FLOOR10_MOTOR_LOAD_CONFIG,
                 n_threads: motorBrainThreads(),
-                // Não ocupa a cota persistente que protege o GGUF do SmolLM3.
-                // O download acontece uma vez por sessão e os pesos ficam na RAM.
+                // Sem isto o wllama rebaixa 105 MB em toda abertura, embora
+                // continue gravando a cópia temporária no mesmo OPFS.
                 useCache: FLOOR10_MOTOR_USE_CACHE,
                 signal: controller.signal,
                 progressCallback: (progress: { loaded?: number; total?: number }) => {
@@ -202,8 +215,35 @@ async function ensureMotorEngine(parentSignal?: AbortSignal): Promise<MotorInsta
                 deliberationLoadText: `${FLOOR10_MOTOR_MODEL.label} pronto · traduzindo`,
             });
             return engine;
-        } catch {
+        } catch (falha) {
             terminate(engine);
+            if (
+                !controller.signal.aborted
+                && recoverBrokenCache
+                && isBrokenModelCacheError(falha)
+                && await deleteCachedModel(engine?.cacheManager, FLOOR10_MOTOR_MODEL.url)
+            ) {
+                npcSet({
+                    deliberationPhase: 'loading',
+                    deliberationLoadProgress: 0,
+                    deliberationLoadText:
+                        `o cache do ${FLOOR10_MOTOR_MODEL.label} `
+                        + 'ficou incompleto; baixando de novo…',
+                });
+                enginePromise = null;
+                return ensureMotorEngine(parentSignal, false);
+            }
+            if (!controller.signal.aborted) {
+                const motivo = falha instanceof Error
+                    ? `${falha.name}: ${falha.message}`
+                    : String(falha);
+                npcSet({
+                    deliberationPhase: 'unavailable',
+                    deliberationLoadText:
+                        `não foi possível carregar ${FLOOR10_MOTOR_MODEL.label} — `
+                        + motivo.slice(0, 200),
+                });
+            }
             enginePromise = null;
             return null;
         } finally {
