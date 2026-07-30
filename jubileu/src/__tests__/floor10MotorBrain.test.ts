@@ -24,9 +24,13 @@ const PERCEPTION = perceiveFloor10({
 });
 
 describe('npc/floor10MotorBrain — a terceira LLM especializada', () => {
-    it('usa pesos próprios de 360M e não baixa tudo de novo em cada sessão', () => {
-        expect(FLOOR10_MOTOR_MODEL.id).toBe('smollm2-360m-instruct');
-        expect(FLOOR10_MOTOR_MODEL.url).toMatch(/SmolLM2-360M.*Q8_0\.gguf$/);
+    it('usa o tradutor que ACERTA a ordem, medido contra o anterior', () => {
+        // O SmolLM2-360M não repetia por acaso: ele mandava o Nilo fazer o
+        // OPOSTO. "Ele está perto demais, preciso de espaço" virava
+        // `approach|player`. Quatro de seis pensamentos viravam a mesma ordem
+        // errada, e o livre-arbítrio da deliberação morria aqui.
+        expect(FLOOR10_MOTOR_MODEL.id).toBe('qwen3-06b');
+        expect(FLOOR10_MOTOR_MODEL.url).toMatch(/Qwen3-0\.6B.*Q8_0\.gguf$/);
         // 386 MB, e não os 105 MB do 135M que estava aqui antes. Medido no
         // prompt real de tradução: o 135M respondia a MESMA linha para todo
         // pensamento — `stay | self` para tudo com um prompt, `approach |
@@ -34,7 +38,11 @@ describe('npc/floor10MotorBrain — a terceira LLM especializada', () => {
         // mais próximo. O 360M é o menor que diferencia (15/30 verbos contra
         // 10/30), e trocar Q4 por Q8 no 135M não mudou NADA: o gargalo era
         // tamanho, não precisão.
-        expect(FLOOR10_MOTOR_MODEL.bytes).toBeLessThanOrEqual(400_000_000);
+        // 253 MB a mais que o anterior — o preço de 5/5 acertos contra 1/6.
+        expect(FLOOR10_MOTOR_MODEL.bytes).toBe(639_446_688);
+        // E ainda é MUITO menor que o cérebro de fala: continua sendo o
+        // especialista barato, não um segundo modelo grande.
+        expect(FLOOR10_MOTOR_MODEL.bytes).toBeLessThan(1_000_000_000);
         expect(FLOOR10_MOTOR_USE_CACHE).toBe(true);
     });
 
@@ -126,7 +134,7 @@ describe('o download do motor tem barra PRÓPRIA, do lado da barra do 1B', () =>
         // O texto na tela dizia "105 MB" — o tamanho do 135M que já não é mais
         // usado — enquanto baixava 386 MB. Derivar do campo `bytes` torna esse
         // erro impossível de repetir.
-        expect(FLOOR10_MOTOR_SIZE_LABEL).toBe('386 MB');
+        expect(FLOOR10_MOTOR_SIZE_LABEL).toBe('639 MB');
         expect(FLOOR10_MOTOR_SIZE_LABEL).not.toContain('105');
     });
 

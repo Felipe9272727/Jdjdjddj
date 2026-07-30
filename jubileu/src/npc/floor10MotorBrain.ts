@@ -39,15 +39,34 @@ const CDN = (globalThis as { __wllamaCdn?: string }).__wllamaCdn
 const WLLAMA_ESM = `${CDN}/index.js`;
 const WASM = `${CDN}/wasm/wllama.wasm`;
 
+/**
+ * O TRADUTOR, medido no navegador contra o que estava aqui antes.
+ *
+ * O SmolLM2-360M não estava "repetindo" — estava mandando o Nilo fazer o
+ * OPOSTO do que ele pensava. Nos mesmos 6 pensamentos, no mesmo prompt:
+ *
+ *   "ele está perto demais, preciso de espaço"  → approach|player   ✗
+ *   "aquilo sob meu pé zumbiu, não vou sair"    → approach|player   ✗
+ *   "a porta do elevador, de outro ângulo"      → approach|player   ✗
+ *   "vou andar no lado que nunca confiro"       → approach|player   ✗
+ *
+ * Quatro de seis viravam "aproximar do jogador". Todo o livre-arbítrio que a
+ * deliberação produzia morria neste elo.
+ *
+ * O Qwen3-0.6B acertou 5 de 5 que respondeu, com nuance real: distinguiu
+ * `stay` (ficar parado) de `hold` (manter o peso sobre a placa), que são
+ * coisas diferentes na prisão do andar. Custa 253 MB a mais e ~40% mais tempo
+ * por tradução (9–11s contra 7s) — e essas ordens nascem em segundo plano,
+ * longe da conversa, então o tempo cabe onde a correção não cabia.
+ */
 export const FLOOR10_MOTOR_MODEL = Object.freeze({
-    id: 'smollm2-360m-instruct',
-    label: 'Motor SmolLM2 360M',
+    id: 'qwen3-06b',
+    label: 'Motor Qwen3 0.6B',
     url: (globalThis as { __motorBrainModelUrl?: string }).__motorBrainModelUrl
-        ?? 'https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/'
         // Revisão fixa: uma mudança futura em `main` não repete o erro de
         // "Model file not found" que já derrubou o SmolLM3 no celular.
-        + 'resolve/main/SmolLM2-360M-Instruct-Q8_0.gguf',
-    bytes: 386_405_280,
+        ?? 'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf',
+    bytes: 639_446_688,
 });
 
 /**
@@ -255,6 +274,24 @@ async function ensureMotorEngine(
                     });
                 },
             }), controller.signal);
+            // ── AQUECIMENTO ───────────────────────────────────────────────
+            // Medido: a PRIMEIRA tradução depois da carga estourou o teto de
+            // 30s e voltou vazia, enquanto as cinco seguintes ficaram em 9–11s.
+            // Não é o modelo ser lento, é a primeira passada pagar cache frio e
+            // compilação da gramática. Esse custo tem que cair aqui, ao lado da
+            // barra de download — e não sobre o primeiro pensamento de verdade,
+            // que é justamente o que o jogador está esperando virar movimento.
+            npcSet({
+                motorLoadText: `${FLOOR10_MOTOR_MODEL.label} · aquecendo o tradutor…`,
+            });
+            try {
+                await raceWithAbort(engine.createChatCompletion({
+                    messages: [{ role: 'user', content: 'MOTION:' }],
+                    ...FLOOR10_MOTOR_COMPLETION_CONFIG,
+                    max_tokens: 1,
+                    abortSignal: controller.signal,
+                }), controller.signal);
+            } catch { /* falhar aqui só devolve a lentidão da 1ª tradução */ }
             residentEngine = engine;
             npcSet({
                 motorPhase: 'translating',
