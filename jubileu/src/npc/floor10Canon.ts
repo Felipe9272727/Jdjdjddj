@@ -284,6 +284,7 @@ export function hasHardCanonContradiction(text: string): boolean {
 
 export type Floor10ReplyIssue =
     | 'resposta vazia'
+    | 'frase incompleta'
     | 'contradição com o cânone'
     | 'contradição com os olhos'
     | 'identidade ausente';
@@ -381,8 +382,9 @@ export function guardedStreamingText(streaming: string): string {
  * no meio da frase. Como a geração custa ~1 token por segundo ali, aumentar o
  * teto sairia caríssimo — é melhor entregar menos, porém inteiro.
  *
- * Só corta quando sobra frase fechada: se o modelo produziu uma única frase sem
- * ponto final, devolvê-la vazia seria pior que deixá-la truncada.
+ * Se não sobrou nenhuma frase fechada, devolve vazio. O chamador pode então
+ * pedir UMA revisão ao próprio SmolLM3, em vez de transformar "mas eu" ou
+ * "não há por" em uma fala válida do Nilo.
  */
 export function trimToCompleteSentence(reply: string): string {
     const text = reply.trim();
@@ -393,7 +395,67 @@ export function trimToCompleteSentence(reply: string): string {
         text.lastIndexOf('.'), text.lastIndexOf('!'),
         text.lastIndexOf('?'), text.lastIndexOf('…'),
     );
-    if (lastEnd < 0) return text;
+    if (lastEnd < 0) return '';
     const cortado = text.slice(0, lastEnd + 1).trim();
-    return cortado.length > 0 ? cortado : text;
+    return cortado;
+}
+
+// Um EOS normal pode chegar sem pontuação ("Não", "Vou com você"). Isso não é
+// o mesmo que uma oração abandonada. Estes finais são pistas fortes de que
+// ainda faltava o complemento, nos três idiomas aceitos pelo personagem.
+const DANGLING_REPLY_END = new RegExp(
+    String.raw`\b(?:`
+    + String.raw`mas|e|ou|porque|pois|por|para|a|ao|aos|as|de|do|da|dos|das|em|no|na|nos|nas|com|sem|que|se|quando|como|enquanto|embora|um|uma|uns|umas|me|te|lhe|`
+    + String.raw`but|and|or|because|for|to|of|in|on|with|without|that|if|when|while|although|a|an|the|`
+    + String.raw`pero|y|o|porque|por|para|de|en|con|sin|que|si|cuando|como|aunque|el|la|los|las|un|una`
+    + String.raw`)$`,
+    'i',
+);
+const DANGLING_SUBJECT_END = new RegExp(
+    String.raw`\b(?:mas|e|que|porque|se|but|and|that|because|if|pero|y|si)`
+    + String.raw`\s+(?:eu|voce|tu|ele|ela|nos|i|you|he|she|we|yo|el|ella|nosotros)$`,
+    'i',
+);
+
+function normalizeReplyEnding(text: string): string {
+    return text
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLocaleLowerCase()
+        .replace(/[)"'”’\s]+$/g, '');
+}
+
+/**
+ * Produz somente uma fala publicável.
+ *
+ * - `length`/timeout: aceita apenas a última frase realmente fechada;
+ * - `stop`: acrescenta pontuação a uma resposta curta semanticamente fechada;
+ * - oração pendurada: devolve vazio para acionar a única revisão do 3B.
+ */
+export function finalizeFloor10Reply(
+    reply: string,
+    finishReason: string | null,
+): string {
+    const text = reply.trim();
+    if (!text) return '';
+
+    const complete = trimToCompleteSentence(text);
+    if (complete) return complete;
+
+    // Limite, filtro ou protocolo inesperado nunca podem fingir que uma frase
+    // sem pontuação terminou normalmente.
+    if (finishReason && finishReason !== 'stop') return '';
+
+    const ending = normalizeReplyEnding(text);
+    if (
+        /[,;:—-]$/.test(ending)
+        || DANGLING_REPLY_END.test(ending)
+        || DANGLING_SUBJECT_END.test(ending)
+    ) {
+        return '';
+    }
+
+    // O modelo encerrou por EOS e a oração não está pendurada. Pontuar evita
+    // gastar outra inferência apenas porque ele respondeu "Não" sem o ponto.
+    return `${text}.`;
 }

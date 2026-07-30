@@ -1,4 +1,6 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, {
+    useCallback, useEffect, useLayoutEffect, useRef, useState,
+} from 'react';
 import { useNpc, npc, npcSet } from './npc/npcStore';
 // Motor do NPC: wllama híbrido, com parte do Smol na WebGPU e fallback CPU.
 import { FLOOR10_MODEL, initLLM, sendToNpc } from './npc/wllamaEngine';
@@ -24,6 +26,24 @@ const Floor10NpcChat: React.FC = () => {
     const [input, setInput] = useState('');
     const [thinkingSeconds, setThinkingSeconds] = useState(0);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const scrollFrameRef = useRef<number | null>(null);
+
+    const scrollToEnd = useCallback(() => {
+        if (scrollFrameRef.current !== null) {
+            window.cancelAnimationFrame(scrollFrameRef.current);
+        }
+        // useLayoutEffect posiciona já no primeiro layout; o frame seguinte
+        // cobre mudanças tardias de altura do Chrome/teclado e fontes.
+        const scroll = () => {
+            const log = scrollRef.current;
+            if (log) log.scrollTop = log.scrollHeight;
+        };
+        scroll();
+        scrollFrameRef.current = window.requestAnimationFrame(() => {
+            scrollFrameRef.current = null;
+            scroll();
+        });
+    }, []);
 
     const open = useCallback(() => {
         if (npc.open) return;
@@ -48,10 +68,35 @@ const Floor10NpcChat: React.FC = () => {
         return () => window.removeEventListener('keydown', onKey);
     }, [open, close]);
 
-    // auto-scroll pro fim quando chega texto
+    // A bolha nova precisa estar no fim ANTES de pintar. O useEffect antigo
+    // rodava uma vez e, no Chrome móvel, o composer/viewport mudava de altura
+    // logo depois — deixando a última fala escondida atrás do input.
+    useLayoutEffect(() => {
+        scrollToEnd();
+    }, [scrollToEnd, st.open, st.history.length, st.streaming, st.phase, st.error]);
+
     useEffect(() => {
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }, [st.history.length, st.streaming, st.phase, st.error]);
+        const viewport = window.visualViewport;
+        const onResize = () => scrollToEnd();
+        window.addEventListener('resize', onResize);
+        viewport?.addEventListener('resize', onResize);
+
+        const log = scrollRef.current;
+        const observer = typeof ResizeObserver !== 'undefined' && log
+            ? new ResizeObserver(onResize)
+            : null;
+        if (log) observer?.observe(log);
+
+        return () => {
+            window.removeEventListener('resize', onResize);
+            viewport?.removeEventListener('resize', onResize);
+            observer?.disconnect();
+            if (scrollFrameRef.current !== null) {
+                window.cancelAnimationFrame(scrollFrameRef.current);
+                scrollFrameRef.current = null;
+            }
+        };
+    }, [scrollToEnd, st.open]);
 
     // O prefill de um LLM local é a parte mais lenta. Mostrar tempo corrido
     // distingue "a CPU está trabalhando" de um Worker realmente morto; o
@@ -313,7 +358,10 @@ const autonomousSpeechStyle: React.CSSProperties = {
 };
 const panelStyle: React.CSSProperties = {
     position: 'fixed', zIndex: 61, right: 'max(12px, 3vw)', bottom: 'max(12px, 3vh)',
-    width: 'min(420px, 94vw)', height: 'min(560px, 76vh)', display: 'flex', flexDirection: 'column',
+    // `vh` mantém compatibilidade com Chrome antigo; em navegadores atuais,
+    // `dvh` limita o painel ao viewport realmente visível quando o teclado abre.
+    width: 'min(420px, 94vw)', height: 'min(560px, 76vh)', maxHeight: 'min(76dvh, calc(100dvh - 24px))',
+    display: 'flex', flexDirection: 'column',
     borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.16)',
     background: 'rgba(16,18,24,0.94)', color: '#f2f2f2', boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
     backdropFilter: 'blur(10px)', fontFamily: 'system-ui, sans-serif',
@@ -321,15 +369,23 @@ const panelStyle: React.CSSProperties = {
 const headerStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '11px 14px', borderBottom: '1px solid rgba(255,255,255,0.1)', fontSize: 13, fontWeight: 600,
-    letterSpacing: 0.2, background: 'rgba(255,255,255,0.03)',
+    letterSpacing: 0.2, background: 'rgba(255,255,255,0.03)', flexShrink: 0,
 };
 const xStyle: React.CSSProperties = { background: 'none', border: 'none', color: '#bbb', fontSize: 16, cursor: 'pointer', padding: 4 };
-const logStyle: React.CSSProperties = { flex: 1, overflowY: 'auto', padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 8 };
+const logStyle: React.CSSProperties = {
+    flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain',
+    padding: '14px 12px', scrollPaddingBottom: 8,
+    display: 'flex', flexDirection: 'column', gap: 8,
+};
 const bubbleRow: React.CSSProperties = { display: 'flex', width: '100%' };
 const baseBubble: React.CSSProperties = { maxWidth: '82%', padding: '9px 12px', borderRadius: 14, fontSize: 14, lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
 const userBubble: React.CSSProperties = { ...baseBubble, background: '#3a6df0', color: '#fff', borderBottomRightRadius: 4 };
 const npcBubble: React.CSSProperties = { ...baseBubble, background: 'rgba(255,255,255,0.09)', color: '#f0f0f0', borderBottomLeftRadius: 4 };
-const inputRow: React.CSSProperties = { display: 'flex', gap: 8, padding: 10, borderTop: '1px solid rgba(255,255,255,0.1)' };
+const inputRow: React.CSSProperties = {
+    display: 'flex', flexShrink: 0, gap: 8, padding: 10,
+    borderTop: '1px solid rgba(255,255,255,0.1)',
+    background: 'rgba(16,18,24,0.98)', zIndex: 1,
+};
 const inputStyle: React.CSSProperties = {
     flex: 1, padding: '11px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.16)',
     background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 15, outline: 'none',

@@ -13,6 +13,7 @@ import {
     chunkDelta,
     chunkOpensReply,
     consumeChatStream,
+    effectiveChatFinishReason,
     cpuThreadCount,
     formatTimings,
     modelHistory,
@@ -161,15 +162,36 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
             yield { choices: [{ delta: { content: '<think>' } }] };
             yield { choices: [{ delta: { content: '</think> Oi' } }] };
             yield { choices: [{ delta: { content: ', tudo bem?' } }] };
+            yield {
+                choices: [{ delta: {}, finish_reason: 'stop' }],
+                usage: { completion_tokens: 4 },
+            };
         }
         const visible: string[] = [];
-        const raw = await consumeChatStream(
+        const result = await consumeChatStream(
             Promise.resolve(chunks()),
             (text) => visible.push(text),
             { firstTokenMs: 200, nextTokenMs: 200 },
         );
-        expect(raw).toBe('<think></think> Oi, tudo bem?');
+        expect(result).toEqual({
+            rawText: '<think></think> Oi, tudo bem?',
+            finishReason: 'stop',
+            completionTokens: 4,
+        });
         expect(visible.at(-1)).toBe('Oi, tudo bem?');
+    });
+
+    it('deduz corte pelo teto quando o wllama omite finish_reason', () => {
+        expect(effectiveChatFinishReason({
+            rawText: 'Ainda estou',
+            finishReason: null,
+            completionTokens: 96,
+        })).toBe('length');
+        expect(effectiveChatFinishReason({
+            rawText: 'Não',
+            finishReason: null,
+            completionTokens: 2,
+        })).toBeNull();
     });
 
     it('interrompe um stream que não produz o primeiro token', async () => {
@@ -199,12 +221,13 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
             await new Promise((resolve) => setTimeout(resolve, 20));
             yield { choices: [{ delta: { content: '!' } }] };
         }
-        const raw = await consumeChatStream(
+        const result = await consumeChatStream(
             Promise.resolve(slowChunks()),
             () => undefined,
             { firstTokenMs: 100, nextTokenMs: 100 },
         );
-        expect(raw).toBe('Oi, jogador!');
+        expect(result.rawText).toBe('Oi, jogador!');
+        expect(result.finishReason).toBeNull();
     });
 
     it('preserva a resposta parcial e identifica timeout após o texto começar', async () => {
@@ -342,13 +365,14 @@ describe('npc/wllamaEngine — restos da geração anterior no início do stream
             yield pedaco(' approach');
             yield pedaco('-player');
         }
-        const raw = await consumeChatStream(
+        const result = await consumeChatStream(
             Promise.resolve(chunks() as never),
             () => undefined,
             { firstTokenMs: 5_000, nextTokenMs: 5_000 },
         );
-        expect(raw).toBe('CHOICE: approach-player');
-        expect(raw).not.toContain('\n');
+        expect(result.rawText).toBe('CHOICE: approach-player');
+        expect(result.rawText).not.toContain('\n');
+        expect(result.finishReason).toBeNull();
     });
 
     it('não estraga um stream limpo, que abre já no primeiro pedaço', async () => {
@@ -360,7 +384,7 @@ describe('npc/wllamaEngine — restos da geração anterior no início do stream
             Promise.resolve(chunks() as never),
             () => undefined,
             { firstTokenMs: 5_000, nextTokenMs: 5_000 },
-        )).resolves.toBe('Meu nome é Nilo.');
+        )).resolves.toMatchObject({ rawText: 'Meu nome é Nilo.' });
     });
 
     it('limpa também o texto JÁ MOSTRADO, senão a fala velha pisca na tela', async () => {
@@ -377,5 +401,27 @@ describe('npc/wllamaEngine — restos da geração anterior no início do stream
         );
         expect(vistos.at(-1)).toBe('fala nova');
         expect(vistos).toContain('');
+    });
+
+    it('registra o motivo final somente da resposta atual', async () => {
+        async function* chunks() {
+            yield pedaco('cauda velha');
+            yield { choices: [{ finish_reason: 'stop', delta: {} }] };
+            yield abre();
+            yield pedaco('Ainda estou tentando');
+            yield {
+                choices: [{ finish_reason: 'length', delta: {} }],
+                timings: { predicted_n: 96 },
+            };
+        }
+        await expect(consumeChatStream(
+            Promise.resolve(chunks() as never),
+            () => undefined,
+            { firstTokenMs: 5_000, nextTokenMs: 5_000 },
+        )).resolves.toEqual({
+            rawText: 'Ainda estou tentando',
+            finishReason: 'length',
+            completionTokens: 96,
+        });
     });
 });

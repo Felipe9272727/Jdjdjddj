@@ -3,6 +3,7 @@ import {
     FLOOR10_HISTORY_CHAR_BUDGET,
     FLOOR10_HISTORY_MESSAGE_CHAR_LIMIT,
     NPC_NAME,
+    finalizeFloor10Reply,
     trimToCompleteSentence,
     buildFloor10SystemPrompt,
     floor10ReplyIssue,
@@ -256,9 +257,29 @@ describe('floor10Canon — fala cortada pelo teto de tokens', () => {
         expect(trimToCompleteSentence(ok)).toBe(ok);
     });
 
-    it('prefere entregar truncado a entregar vazio quando não há frase fechada', () => {
+    it('não transforma uma única oração truncada em fala válida', () => {
         const semPonto = 'Eu estava consertando o elevador quando';
-        expect(trimToCompleteSentence(semPonto)).toBe(semPonto);
+        expect(trimToCompleteSentence(semPonto)).toBe('');
+    });
+
+    it('reprova os dois cortes reais mostrados no chat', () => {
+        expect(finalizeFloor10Reply('Você está me observando, mas eu', 'stop')).toBe('');
+        expect(finalizeFloor10Reply('Não há por', 'stop')).toBe('');
+        expect(finalizeFloor10Reply('Eu estava tentando decidir se investigava a', null)).toBe('');
+        expect(finalizeFloor10Reply('Talvez eu pudesse explicar,', 'stop')).toBe('');
+    });
+
+    it('aceita EOS sem pontuação quando a resposta está semanticamente fechada', () => {
+        expect(finalizeFloor10Reply('Não', 'stop')).toBe('Não.');
+        expect(finalizeFloor10Reply('Vou com você', 'stop')).toBe('Vou com você.');
+    });
+
+    it('não aceita frase sem pontuação quando o motor terminou por limite', () => {
+        expect(finalizeFloor10Reply('Ainda estou tentando sair', 'length')).toBe('');
+        expect(finalizeFloor10Reply(
+            'Eu ainda estou aqui. Mas preciso encontrar',
+            'length',
+        )).toBe('Eu ainda estou aqui.');
     });
 
     it('tolera vazio e só espaços', () => {

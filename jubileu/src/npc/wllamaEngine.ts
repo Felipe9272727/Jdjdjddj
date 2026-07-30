@@ -10,8 +10,8 @@ import { npc, npcIssueWillCommand, npcSet } from './npcStore';
 import {
     FLOOR10_STABLE_PREFIX,
     buildFloor10SystemPrompt,
+    finalizeFloor10Reply,
     floor10ReplyIssue,
-    trimToCompleteSentence,
     groundedModelHistory,
     guardedStreamingText,
     isFloor10IdentityQuestion,
@@ -329,6 +329,7 @@ REVISÃO OBRIGATÓRIA:
 - Uma tentativa anterior do próprio modelo foi descartada por: ${issue}.
 - Gere outra fala do zero, respondendo à mesma mensagem do jogador.
 - Confira identidade, cânone, olhos e vontade antes de responder.
+- Termine a fala com ponto, interrogação, exclamação ou reticências.
 - Nenhuma resposta pronta é fornecida aqui; a nova fala deve ser sua.`;
 }
 
@@ -383,19 +384,52 @@ export function visibleText(s: string): string {
 export type ChatTimings = {
     prompt_n?: number;
     prompt_per_second?: number;
+    predicted_n?: number;
     predicted_per_second?: number;
     cache_n?: number;
 };
 
+export type ChatFinishReason =
+    | 'stop'
+    | 'length'
+    | 'tool_calls'
+    | 'content_filter'
+    | string;
+
 export type ChatChunk = {
     // `role` só aparece no pedaço que ABRE uma resposta — é o marco que separa
     // esta geração dos restos da anterior.
-    choices?: Array<{ delta?: { content?: string | null; role?: string } }>;
+    choices?: Array<{
+        delta?: { content?: string | null; role?: string };
+        finish_reason?: ChatFinishReason | null;
+    }>;
     // Compatibilidade defensiva com builds antigos do wllama.
     currentText?: string;
     piece?: string;
     timings?: ChatTimings;
+    usage?: { completion_tokens?: number };
 };
+
+export type ChatStreamResult = {
+    rawText: string;
+    finishReason: ChatFinishReason | null;
+    completionTokens: number | null;
+};
+
+/**
+ * Algumas builds do wllama encerram o iterador sem preencher `finish_reason`,
+ * mas publicam `timings.predicted_n`. Bater exatamente no orçamento equivale a
+ * `length`; ignorar esse sinal recriaria o corte que apareceu no chat.
+ */
+export function effectiveChatFinishReason(
+    result: ChatStreamResult,
+    maxTokens = CHAT_COMPLETION_CONFIG.max_tokens,
+): ChatFinishReason | null {
+    if (result.finishReason) return result.finishReason;
+    return result.completionTokens !== null && result.completionTokens >= maxTokens
+        ? 'length'
+        : null;
+}
 
 export function chunkDelta(chunk: ChatChunk): string {
     const oaiDelta = chunk.choices?.[0]?.delta?.content;
@@ -443,7 +477,7 @@ export async function consumeChatStream(
     streamPromise: Promise<AsyncIterable<ChatChunk>>,
     onVisibleText: (text: string) => void,
     options: StreamWatchdogOptions,
-): Promise<string> {
+): Promise<ChatStreamResult> {
     const startedAt = Date.now();
     const firstDeadline = startedAt + options.firstTokenMs;
     const initialWait = Math.max(0, firstDeadline - Date.now());
@@ -455,6 +489,8 @@ export async function consumeChatStream(
     );
     const iterator = stream[Symbol.asyncIterator]();
     let acc = '';
+    let finishReason: ChatFinishReason | null = null;
+    let completionTokens: number | null = null;
     let sawVisibleText = false;
     let sawAnyChunk = false;   // tokens OCULTOS (<think>) também contam como progresso
 
@@ -485,14 +521,26 @@ export async function consumeChatStream(
         // Restos da geração anterior chegam ANTES da abertura desta. Jogar fora
         // o que já se acumulou é o que impede a fala nova de nascer emendada na
         // velha (ver chunkOpensReply).
-        if (chunkOpensReply(chunk)) { acc = ''; onVisibleText(''); }
+        if (chunkOpensReply(chunk)) {
+            acc = '';
+            finishReason = null;
+            completionTokens = null;
+            sawVisibleText = false;
+            onVisibleText('');
+        }
+        const chunkFinishReason = chunk.choices?.[0]?.finish_reason;
+        if (typeof chunkFinishReason === 'string') finishReason = chunkFinishReason;
+        const measuredTokens = chunk.usage?.completion_tokens ?? chunk.timings?.predicted_n;
+        if (typeof measuredTokens === 'number' && Number.isFinite(measuredTokens)) {
+            completionTokens = Math.max(0, Math.floor(measuredTokens));
+        }
         if (typeof chunk.currentText === 'string') acc = chunk.currentText;
         else acc += chunkDelta(chunk);
         const visible = visibleText(acc);
         if (visible.length > 0) sawVisibleText = true;
         onVisibleText(visible);
     }
-    return acc;
+    return { rawText: acc, finishReason, completionTokens };
 }
 
 /** Limita só o contexto do modelo; a UI continua mostrando a conversa toda. */
@@ -1052,7 +1100,7 @@ export async function sendToNpc(userText: string): Promise<void> {
             top_p: number;
             top_k: number;
         }> = {},
-    ): Promise<string> => {
+    ): Promise<ChatStreamResult> => {
         const abort = new AbortController();
         const streamPromise = engine.createChatCompletion({
             messages: [
@@ -1094,40 +1142,55 @@ export async function sendToNpc(userText: string): Promise<void> {
     };
 
     try {
+        let generation = await generateWithMainModel(
+            systemPrompt,
+            isFloor10IdentityQuestion(text)
+                ? { temperature: 0.3, top_p: 0.8, top_k: 30 }
+                : {},
+        );
         let languageDecision = parseFloor10WillLanguageDecision(
             text,
-            visibleText(await generateWithMainModel(
-                systemPrompt,
-                isFloor10IdentityQuestion(text)
-                    ? { temperature: 0.3, top_p: 0.8, top_k: 30 }
-                    : {},
-            )),
+            visibleText(generation.rawText),
         );
-        let finalText = languageDecision.visibleReply;
-        let replyIssue = floor10ReplyIssue(finalText, text, npc.perception);
+        let finalText = finalizeFloor10Reply(
+            languageDecision.visibleReply,
+            effectiveChatFinishReason(generation),
+        );
+        let replyIssue: Floor10ReplyIssue | null = finalText
+            ? floor10ReplyIssue(finalText, text, npc.perception)
+            : 'frase incompleta';
         if (replyIssue) {
-            npcSet({ streaming: `O ${FLOOR10_MODEL.label} está revisando a consistência…` });
+            npcSet({
+                streaming: replyIssue === 'frase incompleta'
+                    ? `O ${FLOOR10_MODEL.label} está terminando a própria fala…`
+                    : `O ${FLOOR10_MODEL.label} está revisando a consistência…`,
+            });
             const correctionPrompt = buildFloor10CorrectionPrompt(systemPrompt, replyIssue);
+            generation = await generateWithMainModel(correctionPrompt, {
+                temperature: 0.2,
+                top_p: 0.75,
+                top_k: 20,
+            });
             languageDecision = parseFloor10WillLanguageDecision(
                 text,
-                visibleText(await generateWithMainModel(correctionPrompt, {
-                    temperature: 0.2,
-                    top_p: 0.75,
-                    top_k: 20,
-                })),
+                visibleText(generation.rawText),
             );
-            finalText = languageDecision.visibleReply;
-            replyIssue = floor10ReplyIssue(finalText, text, npc.perception);
-            if (replyIssue) throw new UngroundedNpcReplyError(replyIssue);
+            finalText = finalizeFloor10Reply(
+                languageDecision.visibleReply,
+                effectiveChatFinishReason(generation),
+            );
+            replyIssue = finalText
+                ? floor10ReplyIssue(finalText, text, npc.perception)
+                : 'frase incompleta';
+            if (replyIssue) {
+                throw new UngroundedNpcReplyError(replyIssue);
+            }
         }
         if (languageDecision.command) {
             npcIssueWillCommand(languageDecision.command, finalText);
         }
         npcSet({
-            // Entrega só o que ficou inteiro: o teto de tokens cortava a fala no
-            // meio da palavra, e o pedaço solto ainda contaminava a mensagem
-            // seguinte (".O elevador…", "eu possa.O hotel…").
-            history: [...history, { role: 'assistant', content: trimToCompleteSentence(finalText) }],
+            history: [...history, { role: 'assistant', content: finalText }],
             streaming: '',
             phase: 'ready',
             speaking: false,
@@ -1136,21 +1199,31 @@ export async function sendToNpc(userText: string): Promise<void> {
         if (teardownAfterTimeout) await teardownAfterTimeout;
         const timedOut = error instanceof GenerationTimeoutError;
 
-        // Se a fala começou, ela pertence ao 3B e pode ser preservada desde que
-        // não contradiga o cânone ou os sensores.
+        // Timeout só pode preservar uma frase que JÁ estava fechada. Antes,
+        // "Você está me observando, mas eu" virava uma resposta normal e o
+        // jogador não tinha como saber que o Worker havia parado.
         if (timedOut && error.hadVisibleText && error.partialText) {
             const partialDecision = parseFloor10WillLanguageDecision(
                 text,
                 visibleText(error.partialText),
             );
-            const safePartialText = partialDecision.visibleReply;
-            const replyIssue = floor10ReplyIssue(safePartialText, text, npc.perception);
+            const safePartialText = finalizeFloor10Reply(
+                partialDecision.visibleReply,
+                'length',
+            );
+            const replyIssue: Floor10ReplyIssue | null = safePartialText
+                ? floor10ReplyIssue(safePartialText, text, npc.perception)
+                : 'frase incompleta';
             if (replyIssue) {
                 npcSet({
                     phase: 'ready',
                     speaking: false,
                     streaming: '',
-                    error: `O ${FLOOR10_MODEL.label} interrompeu uma fala inconsistente (${replyIssue}). Tente novamente; nenhum texto do RAG foi usado como resposta.`,
+                    error: replyIssue === 'frase incompleta'
+                        ? `O ${FLOOR10_MODEL.label} parou antes de completar a frase. `
+                          + 'O fragmento não foi salvo; tente novamente.'
+                        : `O ${FLOOR10_MODEL.label} interrompeu uma fala inconsistente `
+                          + `(${replyIssue}). Tente novamente; nenhum texto do RAG foi usado como resposta.`,
                 });
                 return;
             }
@@ -1162,7 +1235,8 @@ export async function sendToNpc(userText: string): Promise<void> {
                 phase: 'ready',
                 speaking: false,
                 streaming: '',
-                error: '',
+                error: `O ${FLOOR10_MODEL.label} demorou além do limite; `
+                    + 'mantive somente a frase que já estava completa.',
             });
             return;
         }
