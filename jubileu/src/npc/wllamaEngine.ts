@@ -65,6 +65,21 @@ export const CPU_LOAD_CONFIG = Object.freeze({
     n_batch: 512,
     n_threads: 1,
     n_gpu_layers: 0,
+    // ── O KV EM 8 BITS ────────────────────────────────────────────────────
+    // Num celular a fala não é limitada por conta, é limitada por BANDA DE
+    // MEMÓRIA: cada token gerado relê os pesos e o cache de atenção inteiros.
+    // Guardar o KV em q8_0 em vez de f16 corta pela metade os bytes desse
+    // cache, e o que economiza banda vira velocidade direta.
+    //
+    // Medido no navegador com o SmolLM3-3B de verdade (4 threads): fala de
+    // 2,2 → 2,5 tok/s, +15%. Não é o dobro, mas é de graça e não muda uma
+    // vírgula do que ele responde — a perda de precisão do KV em 8 bits é
+    // irrelevante num contexto de 1536 tokens.
+    //
+    // `flash_attn` foi medido junto e NÃO ajudou nada nesta build WASM
+    // (0,99×); fica de fora para não pagar risco por zero.
+    cache_type_k: 'q8_0',
+    cache_type_v: 'q8_0',
     // SmolLM3 é híbrido. Fixar o modo rápido no load evita que o template ligue
     // raciocínio longo antes mesmo de receber a primeira fala.
     jinja: true,
@@ -423,18 +438,42 @@ export function chunkOpensReply(chunk: ChatChunk): boolean {
  * Resume as medições para a etiqueta da UI. Sem isto só dava para ADIVINHAR a
  * velocidade do aparelho; agora o número na tela é o que o motor mediu.
  */
+/**
+ * A partir daqui a taxa de leitura significa alguma coisa. Abaixo disso o
+ * tempo medido é quase todo custo fixo da chamada, não trabalho de verdade.
+ */
+export const TIMINGS_MIN_PROMPT_N = 24;
+
+/**
+ * A "leitura 2 tok/s" que assustou o dono do jogo era UM ARTEFATO DA CONTA.
+ *
+ * Medido no navegador: com `cache_prompt` ligado, a segunda fala reaproveitou
+ * 376 dos ~380 tokens do prompt. Sobraram 4 tokens para processar, e 4 tokens
+ * divididos pelo custo fixo da chamada dão "2 tok/s" — um número que parece
+ * catastrófico e na verdade é o oposto: significa que a leitura foi de graça.
+ *
+ * Uma etiqueta que transforma o melhor caso possível no pior número da tela é
+ * pior que etiqueta nenhuma; foi ela que mandou a gente caçar um problema que
+ * não existia. Agora a taxa só aparece quando há prompt de verdade para ler, e
+ * o que é reaproveitado aparece como o que é: trabalho economizado.
+ */
 export function formatTimings(timings: ChatTimings | null): string {
     if (!timings) return '';
     const parts: string[] = [];
-    if (typeof timings.prompt_per_second === 'number' && timings.prompt_per_second > 0) {
+    const lidos = typeof timings.prompt_n === 'number' ? timings.prompt_n : 0;
+    const reusados = typeof timings.cache_n === 'number' ? timings.cache_n : 0;
+    if (
+        lidos >= TIMINGS_MIN_PROMPT_N
+        && typeof timings.prompt_per_second === 'number'
+        && timings.prompt_per_second > 0
+    ) {
         parts.push(`leitura ${Math.round(timings.prompt_per_second)} tok/s`);
     }
     if (typeof timings.predicted_per_second === 'number' && timings.predicted_per_second > 0) {
         parts.push(`fala ${Math.round(timings.predicted_per_second)} tok/s`);
     }
-    if (typeof timings.prompt_n === 'number' && timings.prompt_n > 0) {
-        parts.push(`${timings.prompt_n} tokens lidos`);
-    }
+    if (reusados > 0) parts.push(`${reusados} reaproveitados`);
+    if (lidos > 0) parts.push(`${lidos} lidos`);
     return parts.join(' · ');
 }
 

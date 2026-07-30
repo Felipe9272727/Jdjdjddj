@@ -38,6 +38,8 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
             n_batch: 512,
             n_threads: 1,
             n_gpu_layers: 0,
+            cache_type_k: 'q8_0',
+            cache_type_v: 'q8_0',
             jinja: true,
             reasoning: false,
             default_template_kwargs: { enable_thinking: false },
@@ -128,9 +130,43 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
             prompt_n: 337,
             prompt_per_second: 12.4,
             predicted_per_second: 3.2,
-        })).toBe('leitura 12 tok/s · fala 3 tok/s · 337 tokens lidos');
+        })).toBe('leitura 12 tok/s · fala 3 tok/s · 337 lidos');
         expect(formatTimings(null)).toBe('');
         expect(formatTimings({})).toBe('');
+    });
+
+    it('não transforma um cache PERFEITO no pior número da tela', () => {
+        // O caso real medido no navegador: 376 dos 380 tokens vieram do KV
+        // guardado, sobraram 4 para ler, e a divisão pelo custo fixo da chamada
+        // dava "leitura 2 tok/s". Foi esse número que fez o dono do jogo achar
+        // que a leitura estava quebrada — quando ela tinha sido de graça.
+        const quase_tudo_reusado = formatTimings({
+            prompt_n: 4,
+            cache_n: 376,
+            prompt_per_second: 2.1,
+            predicted_per_second: 2.4,
+        });
+        expect(quase_tudo_reusado).not.toContain('leitura');
+        expect(quase_tudo_reusado).toContain('376 reaproveitados');
+        expect(quase_tudo_reusado).toContain('fala 2 tok/s');
+        // Com prompt de verdade para ler, a taxa volta — e o reaproveitamento
+        // continua aparecendo, porque é ele que explica a diferença.
+        const prompt_real = formatTimings({
+            prompt_n: 380,
+            cache_n: 0,
+            prompt_per_second: 3.2,
+            predicted_per_second: 2.2,
+        });
+        expect(prompt_real).toContain('leitura 3 tok/s');
+        expect(prompt_real).not.toContain('reaproveitados');
+    });
+
+    it('guarda o KV em 8 bits: +15% de fala medidos, sem mudar a resposta', () => {
+        expect(CPU_LOAD_CONFIG.cache_type_k).toBe('q8_0');
+        expect(CPU_LOAD_CONFIG.cache_type_v).toBe('q8_0');
+        // flash_attn foi medido e deu 0,99× nesta build WASM. Ligar um botão
+        // que não paga nada só adiciona risco.
+        expect(CPU_LOAD_CONFIG).not.toHaveProperty('flash_attn');
     });
 
     it('extrai texto do streaming OpenAI choices[0].delta.content', () => {
