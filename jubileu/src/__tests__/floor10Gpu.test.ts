@@ -105,6 +105,26 @@ describe('npc/floor10Gpu — a IA que decide quanto da GPU vale a pena', () => {
         expect(s.nextLayers).toBe(0);
     });
 
+    it('uma fala que ABORTA com GPU ligada recua — o buraco que custou uma mensagem', () => {
+        // Isto aconteceu de verdade: etiqueta "WebGPU×3 + CPU×8", tela com
+        // "(ABORT)", e o gerente sem ficar sabendo de nada. O motivo é sutil:
+        // `observe` só aprende com falas que produziram tokens, e uma geração
+        // que aborta produz ZERO. O pior resultado possível não ensinava nada,
+        // e o degrau ruim continuava marcado para a próxima carga.
+        const g = new Floor10GpuGovernor();
+        expect(g.layersForLoad()).toBe(FLOOR10_GPU_START_LAYERS);
+        // Amostra de fala abortada: sem tokens, o `observe` ignora…
+        expect(g.observe({ layers: FLOOR10_GPU_START_LAYERS, tps: 0, fps: 60 }).verdict)
+            .not.toBe('recuado');
+        // …e é por isso que a falha precisa de porta própria.
+        const s = g.markGenerationFailed('WllamaAbortError: (ABORT)');
+        expect(s.verdict).toBe('recuado');
+        expect(s.nextLayers).toBe(0);
+        expect(s.reason).toContain('ABORT');
+        // E fica guardado: a próxima sessão não repete o experimento.
+        expect(new Floor10GpuGovernor().layersForLoad()).toBe(0);
+    });
+
     it('uma carga que falha com GPU volta para a CPU e fica lá', () => {
         const g = new Floor10GpuGovernor();
         const s = g.markLoadFailed('QuotaExceededError');

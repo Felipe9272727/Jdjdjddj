@@ -1010,8 +1010,25 @@ async function prewarmPersona(engine: WllamaInstance): Promise<void> {
         for await (const _chunk of stream) { /* só interessa o prefill */ }
         personaPrewarmDone = true;
         npcSet({ loadText: 'pronto' });
-    } catch {
-        // Falhar aqui não custa nada: a fala real só ficará mais lenta.
+    } catch (falha) {
+        // ── O AQUECIMENTO É O LUGAR CERTO PARA A GPU FALHAR ───────────────
+        // Ele roda na tela de carregamento, com o jogador ainda andando até o
+        // Nilo, e exercita exatamente o mesmo caminho de geração que abortou.
+        // Descobrir aqui que a GPU não presta custa segundos de carregamento;
+        // descobrir na primeira mensagem custa a mensagem — foi o que
+        // aconteceu no aparelho do dono do jogo.
+        if (loadedGpuLayers > 0) {
+            const motivo = falha instanceof Error
+                ? `${falha.name}: ${falha.message}`
+                : String(falha);
+            floor10Gpu.markGenerationFailed(`no aquecimento — ${motivo}`);
+            webGpuDisabledForSession = true;
+            npcSet({ loadText: 'a GPU não passou no aquecimento; seguindo pela CPU…' });
+            // Derruba o motor com GPU. A próxima carga já vem sem ela, porque
+            // o gerente e a trava de sessão concordam em zero.
+            await teardownEngine(engine).catch(() => undefined);
+        }
+        // Falhar aqui não custa a fala: no pior caso ela só fica mais lenta.
         personaPrewarmed = false;
         personaPrewarmDone = true;
     }
@@ -1235,6 +1252,65 @@ export async function sendToNpc(userText: string): Promise<void> {
     } catch (error: unknown) {
         if (teardownAfterTimeout) await teardownAfterTimeout;
         const timedOut = error instanceof GenerationTimeoutError;
+
+        // ── A GPU FALHOU: A CPU RESPONDE, E O JOGADOR NÃO PERDE A FALA ─────
+        //
+        // Foi exatamente isto que aconteceu no aparelho do dono do jogo:
+        // "WebGPU×3 + CPU×8" na etiqueta e "(ABORT)" na tela. A mensagem dele
+        // morreu, e o gerente não ficou sabendo de nada — `observe` só aprende
+        // com falas que produziram tokens, e uma que aborta produz zero.
+        //
+        // Então a falha com GPU agora faz três coisas, nesta ordem: ensina o
+        // gerente (e ele recua para sempre neste aparelho), derruba o motor com
+        // GPU, e REFAZ a fala pela CPU. O jogador vê uma espera a mais, não uma
+        // mensagem perdida — a GPU é um experimento, e experimento não pode
+        // cobrar o preço de quem está jogando.
+        if (loadedGpuLayers > 0 && !(error instanceof UngroundedNpcReplyError)) {
+            const motivo = error instanceof Error
+                ? `${error.name}: ${error.message}`
+                : String(error);
+            floor10Gpu.markGenerationFailed(motivo);
+            webGpuDisabledForSession = true;
+            npcSet({
+                streaming: '',
+                loadText: 'a GPU falhou nesta fala; refazendo pela CPU…',
+                error: '',
+            });
+            await teardownEngine(engine);
+            try {
+                // REAPONTA o motor. `generateWithMainModel` fecha sobre
+                // `engine`, e eu acabei de derrubar aquela instância — sem esta
+                // linha a nova tentativa falaria com um Worker morto, que é um
+                // jeito criativo de trocar um erro por outro.
+                //
+                // A recarga já vem sem GPU: `webGpuDisabledForSession` e o
+                // veredito do gerente concordam em zero.
+                engine = await loadConversationBrain();
+                npcSet({ phase: 'thinking', speaking: true, streaming: '' });
+                const decisao = parseFloor10WillLanguageDecision(
+                    text,
+                    visibleText(await generateWithMainModel(systemPrompt)),
+                );
+                if (decisao.command) {
+                    npcIssueWillCommand(decisao.command, decisao.visibleReply);
+                }
+                const reposta = decisao.visibleReply;
+                npcSet({
+                    history: [
+                        ...history,
+                        { role: 'assistant', content: trimToCompleteSentence(reposta) },
+                    ],
+                    streaming: '',
+                    phase: 'ready',
+                    speaking: false,
+                    error: '',
+                });
+                return;
+            } catch {
+                // A CPU também não deu conta: cai no relato de erro normal
+                // abaixo, sem inventar resposta nenhuma.
+            }
+        }
 
         // Se a fala começou, ela pertence ao 3B e pode ser preservada desde que
         // não contradiga o cânone ou os sensores.

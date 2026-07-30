@@ -174,6 +174,24 @@ export class Floor10GpuGovernor {
         return this.snapshot();
     }
 
+    /**
+     * A FALA MORREU com a GPU ligada. Este é o sinal mais forte que existe, e
+     * era o que faltava.
+     *
+     * O gerente só aprendia com falas que TERMINARAM: `observe` exige tokens
+     * por segundo. Uma geração que aborta produz zero tokens, então uma falha
+     * total — o pior resultado possível — não ensinava nada, e o degrau ruim
+     * continuava marcado para a próxima carga. Foi assim que o jogador levou
+     * "(ABORT)" com WebGPU×3 e o gerente seguiu achando que estava tudo bem.
+     *
+     * Não existe "talvez tenha sido azar": abortar uma vez já custou uma fala
+     * do jogador, e a CPU responde. Recua e pronto.
+     */
+    markGenerationFailed(motivo: string): GpuState {
+        if (this.state.verdict === 'indisponivel') return this.snapshot();
+        return this.recuar(`a fala morreu com a GPU ligada (${motivo.slice(0, 60)})`);
+    }
+
     /** Uma fala terminou. Aqui é onde ele aprende. */
     observe(sample: GpuSample): GpuState {
         if (this.state.verdict === 'indisponivel' || this.state.verdict === 'recuado') {
