@@ -351,7 +351,13 @@ function perceptionLanguage(text: string): PerceptionLanguage {
     return 'pt';
 }
 
-type PerceptionIntent = 'self-location' | 'vision' | 'player-location' | 'elevator-location';
+type PerceptionIntent =
+    | 'self-location' | 'vision' | 'player-location' | 'elevator-location'
+    // "tem alguém do seu lado?" / "você está sozinho?". Faltava, e a falta
+    // custava caro: sem intenção reconhecida a pergunta ia para o 3B, e ele
+    // respondia "Não, estou sozinho" com o jogador a 2,7m na frente dele.
+    // Os olhos SABEM — quem não sabia era o classificador.
+    | 'company';
 
 function perceptionIntent(text: string): PerceptionIntent | null {
     const normalized = normalize(text);
@@ -368,6 +374,19 @@ function perceptionIntent(text: string): PerceptionIntent | null {
         || /\bdonde estamos\b/.test(normalized)
         || /\ben que piso estas\b/.test(normalized)
     ) return 'self-location';
+
+    if (
+        /\btem (?:mais )?alguem\b/.test(normalized)
+        || /\b(?:ha|existe) (?:mais )?alguem\b/.test(normalized)
+        || /\balguem (?:do seu lado|perto|contigo|com voce|aqui|ai)\b/.test(normalized)
+        || /\b(?:voce|vc|ce|tu) (?:esta|ta) sozinh[oa]\b/.test(normalized)
+        || /\b(?:estamos|a gente esta) sozinh/.test(normalized)
+        || /\bare you alone\b/.test(normalized)
+        || /\bis (?:there )?any(?:one|body) (?:there|here|with you)\b/.test(normalized)
+        || /\bany(?:one|body) else\b/.test(normalized)
+        || /\bestas solo\b/.test(normalized)
+        || /\bhay alguien\b/.test(normalized)
+    ) return 'company';
 
     if (
         /\bo que (?:voce|vc|ce|tu) (?:ve|enxerga)\b/.test(normalized)
@@ -437,6 +456,26 @@ export function answerFloor10PerceptionQuestion(
         return `${player} Neste instante vejo: ${perception.visibleObjects.map((object) => OBJECT_PT[object]).join(', ')}.`;
     }
 
+    if (intent === 'company') {
+        // A resposta sai do SENSOR, não do modelo. Instantânea, zero token,
+        // e impossível de contradizer o que os olhos estão vendo.
+        if (perception.player?.visible) {
+            if (language === 'en') return `No, you are right there — ${RELATIVE_EN[perception.player.direction]}, ${perception.player.distance} m away.`;
+            if (language === 'es') return `No, estás justo ahí — ${RELATIVE_ES[perception.player.direction]}, a ${perception.player.distance} m.`;
+            return `Não, você está bem aí — ${RELATIVE_PT[perception.player.direction]}, a ${perception.player.distance} m.`;
+        }
+        if (perception.player) {
+            // Existe, mas fora do campo de visão: não dá para afirmar solidão
+            // nem posição. A honestidade aqui é parte do personagem.
+            if (language === 'en') return 'I cannot see you from here, but I know you have not left this floor.';
+            if (language === 'es') return 'No te veo desde aquí, pero sé que no saliste de este piso.';
+            return 'Daqui eu não te vejo, mas sei que você não saiu deste andar.';
+        }
+        if (language === 'en') return 'Yes. Just me and the elevator that will not obey.';
+        if (language === 'es') return 'Sí. Solo yo y el ascensor que no obedece.';
+        return 'Estou. Só eu e o elevador que não obedece.';
+    }
+
     if (intent === 'player-location') {
         if (!perception.player?.visible) {
             if (language === 'en') return 'I cannot see you in my field of view right now, so I will not pretend to know your position.';
@@ -460,6 +499,27 @@ export function hasFloor10PerceptionContradiction(
     const normalized = normalize(reply);
     const unknownLocation = /\b(?:nao sei onde estou|i do not know where i am|no se donde estoy)\b/.test(normalized);
     if (unknownLocation) return true;
+
+    // NEGAR A PRESENÇA DE QUEM ESTÁ À VISTA.
+    //
+    // Este detector só olhava o número do andar, e por isso "Não, estou
+    // sozinho" — com o jogador a 2,7m e dentro do campo de visão — passava
+    // pela validação sem ninguém reclamar. É a contradição mais grosseira
+    // possível: os sensores estão no prompt e a fala diz o contrário.
+    //
+    // Só entram formas que AFIRMAM ausência. "Me sinto sozinho" continua
+    // válido: solidão é sentimento, e o Nilo tem direito a ela mesmo
+    // acompanhado.
+    if (perception.player?.visible) {
+        const negaPresenca = /\b(?:estou|to) sozinh[oa]\b/.test(normalized)
+            || /\bnao (?:tem|ha) ningu[eé]m\b/.test(normalized)
+            || /\bningu[eé]m (?:aqui|comigo|do meu lado|mais)\b/.test(normalized)
+            || /\bi am alone\b/.test(normalized)
+            || /\b(?:there is )?no ?(?:one|body) (?:here|with me)\b/.test(normalized)
+            || /\bestoy solo\b/.test(normalized)
+            || /\bno hay nadie\b/.test(normalized);
+        if (negaPresenca) return true;
+    }
 
     const floorPatterns = [
         /\b(?:andar|piso)\s*(?:numero\s*)?(\d{1,2})\b/g,
