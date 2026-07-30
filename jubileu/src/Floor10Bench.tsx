@@ -16,6 +16,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { npc, npcSubscribe, npcReset } from './npc/npcStore';
 import {
+    FLOOR10_GPU_MAX_LAYERS, floor10Gpu, layersThatFit, probeWebGpuAdapter,
+} from './npc/floor10Gpu';
+import {
     initLLM, sendToNpc, FLOOR10_MODEL, cpuThreadCount, speechGpuLayerCount,
     readSavedThreads, saveThreads,
 } from './npc/wllamaEngine';
@@ -84,6 +87,14 @@ const Bancada: React.FC = () => {
     const [erros, setErros] = useState<string[]>([]);
     const [texto, setTexto] = useState('Oi, qual o seu nome?');
     const [cota, setCota] = useState<Record<string, string> | null>(null);
+    // O EXPERIMENTO DA GPU. Ver o painel lá embaixo: o offload matou a fala
+    // duas vezes neste tipo de aparelho, e ficou uma pergunta que só o celular
+    // responde — estourou o buffer de 128 MB, ou o backend não roda ali?
+    const [gpuInfo, setGpuInfo] = useState<
+        { ok: boolean; motivo: string; maxBindingBytes: number | null } | null
+    >(null);
+    const [gpuEstado, setGpuEstado] = useState(() => floor10Gpu.snapshot());
+    useEffect(() => { void probeWebGpuAdapter().then(setGpuInfo); }, []);
     const t0 = useRef<number | null>(null);
     const visto = useRef(new Set<string>());
     const ambiente = useRef(AMBIENTE());
@@ -256,6 +267,73 @@ const Bancada: React.FC = () => {
                     em uso agora: <b style={{ color: '#ffd479' }}>
                         {readSavedThreads() ?? 'automático'}
                     </b>
+                </div>
+            </div>
+
+            {/* O EXPERIMENTO DA GPU — desligado por padrão, e com o motivo à
+                vista. O offload matou a fala DUAS vezes neste aparelho, com
+                três camadas; depois descobri que três provavelmente nem cabiam
+                (Android limita o binding a 128 MB, cada camada pesa ~53 MB).
+                Ficou uma pergunta que só o celular responde: estourou o buffer,
+                ou o backend não roda ali? UMA camada separa as duas. */}
+            <div style={box}>
+                <b>WebGPU (experimento)</b>
+                <div style={{ color: '#999', margin: '4px 0 8px', fontSize: 13 }}>
+                    Já quebrou a fala duas vezes neste aparelho, com 3 camadas.
+                    O padrão é CPU. <b>Uma</b> camada é metade do limite do
+                    Android: se rodar, o problema era tamanho; se morrer, o
+                    backend não serve aqui.
+                </div>
+                <div style={{ color: '#888', marginBottom: 8 }}>
+                    {gpuInfo === null ? 'perguntando ao adaptador…' : gpuInfo.ok ? (
+                        <>
+                            adaptador <b style={{ color: '#9fd3a0' }}>sim</b>
+                            {' · limite de buffer '}
+                            <b style={{ color: '#ffd479' }}>
+                                {gpuInfo.maxBindingBytes
+                                    ? `${Math.round(gpuInfo.maxBindingBytes / 1048576)} MB`
+                                    : 'não informado'}
+                            </b>
+                            {' · cabem '}
+                            <b style={{ color: '#ffd479' }}>
+                                {layersThatFit(gpuInfo.maxBindingBytes, 1_915_305_312, 36)}
+                            </b>
+                            {' camadas'}
+                        </>
+                    ) : (
+                        <>adaptador <b style={{ color: '#ff9c9c' }}>não</b> — {gpuInfo.motivo}</>
+                    )}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {[0, 1, 2].map((n) => (
+                        <button
+                            key={n}
+                            type="button"
+                            disabled={n > 0 && !gpuInfo?.ok}
+                            style={{
+                                ...btn, marginRight: 0, padding: '8px 14px',
+                                background: gpuEstado.nextLayers === n ? '#2d6cdf' : '#333',
+                                opacity: n > 0 && !gpuInfo?.ok ? 0.4 : 1,
+                            }}
+                            onClick={() => { floor10Gpu.force(n); location.reload(); }}
+                        >
+                            {n === 0 ? 'CPU pura' : `${n} camada${n > 1 ? 's' : ''}`}
+                        </button>
+                    ))}
+                    <button
+                        type="button"
+                        style={{ ...btn, marginRight: 0, padding: '8px 14px', background: '#444' }}
+                        onClick={() => { setGpuEstado(floor10Gpu.reset()); location.reload(); }}
+                    >
+                        esquecer
+                    </button>
+                </div>
+                <div style={{ marginTop: 8, color: '#888' }}>
+                    veredito <b style={{ color: '#ffd479' }}>{gpuEstado.verdict}</b>
+                    {' · próxima carga '}
+                    <b style={{ color: '#ffd479' }}>{gpuEstado.nextLayers}</b>
+                    {` camadas (teto ${FLOOR10_GPU_MAX_LAYERS})`}
+                    <div style={{ marginTop: 4 }}>{gpuEstado.reason}</div>
                 </div>
             </div>
 
