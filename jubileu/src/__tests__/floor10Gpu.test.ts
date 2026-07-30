@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
     FLOOR10_GPU_FPS_FLOOR,
+    FLOOR10_GPU_FIRST_RUNG,
     FLOOR10_GPU_MAX_LAYERS,
     FLOOR10_GPU_MIN_SAMPLES,
     FLOOR10_GPU_START_LAYERS,
@@ -35,20 +36,26 @@ const medir = (g: Floor10GpuGovernor, layers: number, tps: number, fps: number |
 describe('npc/floor10Gpu — a IA que decide quanto da GPU vale a pena', () => {
     beforeEach(zerar);
 
-    it('já começa com uma parte pequena da GPU ligada — decisão do dono do jogo', () => {
-        // "deixa pelo menos uma pequena parte de webgpu ligada inicialmente".
+    it('o PADRÃO é a CPU: a GPU quebrou a fala duas vezes no aparelho real', () => {
+        // O dono do jogo pediu uma parte da GPU ligada de saída, e foi o que
+        // eu entreguei: 3 de 36 camadas. No celular dele isso deu "(ABORT)" e
+        // depois "loadModel() is not yet called" — a geração morrendo, não
+        // ficando lenta. Um padrão que quebra a primeira mensagem de todo
+        // jogador não é "uma parte pequena ligada", é um defeito ligado.
         const g = new Floor10GpuGovernor();
-        expect(g.layersForLoad()).toBe(FLOOR10_GPU_START_LAYERS);
-        expect(FLOOR10_GPU_START_LAYERS).toBeGreaterThan(0);
-        // …e "pequena" tem que ser pequena de verdade: a configuração que
-        // travava o celular dele era 12 de 36 camadas, um terço do modelo.
-        expect(FLOOR10_GPU_START_LAYERS).toBeLessThanOrEqual(4);
+        expect(FLOOR10_GPU_START_LAYERS).toBe(0);
+        expect(g.layersForLoad()).toBe(0);
+        // A engrenagem continua inteira: ligar é um botão, e o degrau de
+        // partida é pequeno, longe do terço de modelo que travava antes.
+        expect(FLOOR10_GPU_FIRST_RUNG).toBeGreaterThan(0);
+        expect(FLOOR10_GPU_FIRST_RUNG).toBeLessThanOrEqual(4);
         expect(FLOOR10_GPU_MAX_LAYERS).toBeLessThan(12);
+        expect(g.force(FLOOR10_GPU_FIRST_RUNG).nextLayers).toBe(FLOOR10_GPU_FIRST_RUNG);
     });
 
     it('mede a CPU pura antes de decidir qualquer coisa — precisa da régua', () => {
         const g = new Floor10GpuGovernor();
-        const s = medir(g, FLOOR10_GPU_START_LAYERS, 2.6, 60);
+        const s = medir(g, FLOOR10_GPU_FIRST_RUNG, 2.6, 60);
         expect(s.baselineTps).toBeNull();
         // Sem linha de base ele não sabe se ganhou; a próxima carga vai medi-la.
         expect(s.nextLayers).toBe(0);
@@ -56,9 +63,9 @@ describe('npc/floor10Gpu — a IA que decide quanto da GPU vale a pena', () => {
 
     it('REQUISITO DO DONO: nunca fica num degrau mais lento que a CPU', () => {
         const g = new Floor10GpuGovernor();
-        medir(g, FLOOR10_GPU_START_LAYERS, 2.0, 60);
+        medir(g, FLOOR10_GPU_FIRST_RUNG, 2.0, 60);
         medir(g, 0, 2.5, 60);              // CPU pura é MAIS rápida
-        const s = medir(g, FLOOR10_GPU_START_LAYERS, 2.0, 60);
+        const s = medir(g, FLOOR10_GPU_FIRST_RUNG, 2.0, 60);
         expect(s.verdict).toBe('recuado');
         expect(s.nextLayers).toBe(0);
         expect(s.reason).toContain('menos que');
@@ -66,11 +73,11 @@ describe('npc/floor10Gpu — a IA que decide quanto da GPU vale a pena', () => {
 
     it('sobe de degrau quando a GPU ganha da CPU e o FPS aguenta', () => {
         const g = new Floor10GpuGovernor();
-        medir(g, FLOOR10_GPU_START_LAYERS, 3.4, 60);
+        medir(g, FLOOR10_GPU_FIRST_RUNG, 3.4, 60);
         medir(g, 0, 2.5, 60);
-        const s = medir(g, FLOOR10_GPU_START_LAYERS, 3.4, 60);
+        const s = medir(g, FLOOR10_GPU_FIRST_RUNG, 3.4, 60);
         expect(s.verdict).toBe('subindo');
-        expect(s.nextLayers).toBeGreaterThan(FLOOR10_GPU_START_LAYERS);
+        expect(s.nextLayers).toBeGreaterThan(FLOOR10_GPU_FIRST_RUNG);
         expect(s.nextLayers).toBeLessThanOrEqual(FLOOR10_GPU_MAX_LAYERS);
     });
 
@@ -78,7 +85,7 @@ describe('npc/floor10Gpu — a IA que decide quanto da GPU vale a pena', () => {
         const g = new Floor10GpuGovernor();
         medir(g, 0, 2.5, 60);
         // Dobro da velocidade de fala, e ainda assim é rejeitado.
-        const s = g.observe({ layers: FLOOR10_GPU_START_LAYERS, tps: 5.0, fps: 18 });
+        const s = g.observe({ layers: FLOOR10_GPU_FIRST_RUNG, tps: 5.0, fps: 18 });
         expect(FLOOR10_GPU_FPS_FLOOR).toBeGreaterThan(18);
         expect(s.verdict).toBe('recuado');
         expect(s.nextLayers).toBe(0);
@@ -90,7 +97,7 @@ describe('npc/floor10Gpu — a IA que decide quanto da GPU vale a pena', () => {
         medir(g, 0, 2.5, 60);
         // 40 FPS está acima do piso de 24, mas é uma queda de 33% sobre os 60
         // que o jogo fazia sem GPU. O jogador sente isso.
-        const s = g.observe({ layers: FLOOR10_GPU_START_LAYERS, tps: 4.0, fps: 40 });
+        const s = g.observe({ layers: FLOOR10_GPU_FIRST_RUNG, tps: 4.0, fps: 40 });
         expect(s.verdict).toBe('recuado');
         expect(s.reason).toContain('60');
     });
@@ -98,9 +105,9 @@ describe('npc/floor10Gpu — a IA que decide quanto da GPU vale a pena', () => {
     it('recuar é definitivo: não fica tentando a GPU de novo sozinho', () => {
         const g = new Floor10GpuGovernor();
         medir(g, 0, 2.5, 60);
-        g.observe({ layers: FLOOR10_GPU_START_LAYERS, tps: 5.0, fps: 10 });
+        g.observe({ layers: FLOOR10_GPU_FIRST_RUNG, tps: 5.0, fps: 10 });
         // Amostras ótimas depois do castigo não reabrem o assunto.
-        const s = medir(g, FLOOR10_GPU_START_LAYERS, 9.9, 60);
+        const s = medir(g, FLOOR10_GPU_FIRST_RUNG, 9.9, 60);
         expect(s.verdict).toBe('recuado');
         expect(s.nextLayers).toBe(0);
     });
@@ -114,7 +121,7 @@ describe('npc/floor10Gpu — a IA que decide quanto da GPU vale a pena', () => {
         const g = new Floor10GpuGovernor();
         expect(g.layersForLoad()).toBe(FLOOR10_GPU_START_LAYERS);
         // Amostra de fala abortada: sem tokens, o `observe` ignora…
-        expect(g.observe({ layers: FLOOR10_GPU_START_LAYERS, tps: 0, fps: 60 }).verdict)
+        expect(g.observe({ layers: FLOOR10_GPU_FIRST_RUNG, tps: 0, fps: 60 }).verdict)
             .not.toBe('recuado');
         // …e é por isso que a falha precisa de porta própria.
         const s = g.markGenerationFailed('WllamaAbortError: (ABORT)');
@@ -144,7 +151,7 @@ describe('npc/floor10Gpu — a IA que decide quanto da GPU vale a pena', () => {
 
     it('não decide por UMA amostra: ruído de uma fala não vira veredito', () => {
         const g = new Floor10GpuGovernor();
-        const s = g.observe({ layers: FLOOR10_GPU_START_LAYERS, tps: 3.4, fps: 60 });
+        const s = g.observe({ layers: FLOOR10_GPU_FIRST_RUNG, tps: 3.4, fps: 60 });
         expect(s.verdict).toBe('medindo');
         expect(s.reason).toContain(`1/${FLOOR10_GPU_MIN_SAMPLES}`);
         expect(FLOOR10_GPU_MIN_SAMPLES).toBeGreaterThanOrEqual(3);
@@ -153,7 +160,7 @@ describe('npc/floor10Gpu — a IA que decide quanto da GPU vale a pena', () => {
     it('para de subir no teto e assenta no melhor degrau medido', () => {
         const g = new Floor10GpuGovernor();
         medir(g, 0, 2.0, 60);
-        for (let l = FLOOR10_GPU_START_LAYERS; l <= FLOOR10_GPU_MAX_LAYERS; l += 2) {
+        for (let l = FLOOR10_GPU_FIRST_RUNG; l <= FLOOR10_GPU_MAX_LAYERS; l += 2) {
             medir(g, l, 2.0 + l * 0.1, 60);
         }
         const s = g.snapshot();
@@ -172,7 +179,7 @@ describe('npc/floor10Gpu — a IA que decide quanto da GPU vale a pena', () => {
     it('o que aprendeu sobrevive ao fechar o jogo', () => {
         const g = new Floor10GpuGovernor();
         medir(g, 0, 2.5, 60);
-        g.observe({ layers: FLOOR10_GPU_START_LAYERS, tps: 5, fps: 12 });
+        g.observe({ layers: FLOOR10_GPU_FIRST_RUNG, tps: 5, fps: 12 });
         // Sessão nova, mesmo aparelho: não repete o erro que já custou caro.
         const outro = new Floor10GpuGovernor();
         expect(outro.snapshot().verdict).toBe('recuado');

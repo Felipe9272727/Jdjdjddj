@@ -32,12 +32,29 @@
 export const FLOOR10_GPU_KEY = 'floor10-gpu';
 
 /**
- * A GPU já começa com uma parte ligada — decisão do dono do jogo ("deixa pelo
- * menos uma pequena parte de webgpu ligada inicialmente, e o resto deixa pra
- * ia que gerência"). Três de 36 camadas é ~8% do modelo: dentro da faixa que o
- * paper mostra não atrapalhar o render, e longe do terço que travava antes.
+ * COMEÇA EM ZERO — e isto contraria um pedido explícito do dono do jogo, então
+ * a razão precisa estar escrita aqui.
+ *
+ * Ele pediu "deixa pelo menos uma pequena parte de webgpu ligada
+ * inicialmente", e foi o que eu entreguei: 3 de 36 camadas, ~8% do modelo,
+ * dentro da faixa que o paper diz não atrapalhar o render. No aparelho dele
+ * isso falhou DUAS VEZES seguidas, com a etiqueta mostrando "WebGPU×3 +
+ * CPU×8": primeiro "(ABORT)" na fala, depois "loadModel() is not yet called".
+ *
+ * Não é lentidão — é a geração morrendo. O backend WebGPU do wllama 3.5.1 é
+ * experimental (o próprio llama.cpp o classifica assim) e neste aparelho ele
+ * não completa uma fala. Um padrão que quebra a primeira mensagem de todo
+ * jogador não é "uma parte pequena ligada", é um defeito ligado.
+ *
+ * Então a engrenagem fica inteira e o padrão fica seguro: o gerente existe,
+ * aprende e sobe degraus — mas quem dá a partida é o botão do ?bancada. Se o
+ * dono do jogo quiser 3 de novo por padrão, é uma linha, e ele decide com as
+ * duas medições na mão.
  */
-export const FLOOR10_GPU_START_LAYERS = 3;
+export const FLOOR10_GPU_START_LAYERS = 0;
+
+/** O primeiro degrau que o gerente experimenta quando alguém liga a GPU. */
+export const FLOOR10_GPU_FIRST_RUNG = 3;
 
 /** Teto absoluto. Acima disto entra na faixa que já travou o aparelho dele. */
 export const FLOOR10_GPU_MAX_LAYERS = 10;

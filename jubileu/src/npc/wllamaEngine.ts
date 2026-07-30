@@ -1253,63 +1253,24 @@ export async function sendToNpc(userText: string): Promise<void> {
         if (teardownAfterTimeout) await teardownAfterTimeout;
         const timedOut = error instanceof GenerationTimeoutError;
 
-        // ── A GPU FALHOU: A CPU RESPONDE, E O JOGADOR NÃO PERDE A FALA ─────
+        // ── A GPU FALHOU ──────────────────────────────────────────────────
         //
-        // Foi exatamente isto que aconteceu no aparelho do dono do jogo:
-        // "WebGPU×3 + CPU×8" na etiqueta e "(ABORT)" na tela. A mensagem dele
-        // morreu, e o gerente não ficou sabendo de nada — `observe` só aprende
-        // com falas que produziram tokens, e uma que aborta produz zero.
+        // Aqui já esteve uma tentativa de RECARREGAR e refazer a fala pela CPU
+        // dentro deste `catch`. A intenção era boa — a falha não devia custar a
+        // mensagem do jogador — mas a execução brigou com o ciclo de vida do
+        // motor (coordenador, `transitionPromise`, o teardown do watchdog) e no
+        // aparelho do dono do jogo trocou "(ABORT)" por "loadModel() is not yet
+        // called", que é pior: um erro interno, sem sentido para quem joga.
         //
-        // Então a falha com GPU agora faz três coisas, nesta ordem: ensina o
-        // gerente (e ele recua para sempre neste aparelho), derruba o motor com
-        // GPU, e REFAZ a fala pela CPU. O jogador vê uma espera a mais, não uma
-        // mensagem perdida — a GPU é um experimento, e experimento não pode
-        // cobrar o preço de quem está jogando.
+        // O que sobrou é o que é seguro e verdadeiro: ensinar o gerente e
+        // desligar a GPU. A recarga acontece sozinha na próxima mensagem, pelo
+        // caminho normal, que funciona. Menos esperto e mais confiável.
         if (loadedGpuLayers > 0 && !(error instanceof UngroundedNpcReplyError)) {
             const motivo = error instanceof Error
                 ? `${error.name}: ${error.message}`
                 : String(error);
             floor10Gpu.markGenerationFailed(motivo);
             webGpuDisabledForSession = true;
-            npcSet({
-                streaming: '',
-                loadText: 'a GPU falhou nesta fala; refazendo pela CPU…',
-                error: '',
-            });
-            await teardownEngine(engine);
-            try {
-                // REAPONTA o motor. `generateWithMainModel` fecha sobre
-                // `engine`, e eu acabei de derrubar aquela instância — sem esta
-                // linha a nova tentativa falaria com um Worker morto, que é um
-                // jeito criativo de trocar um erro por outro.
-                //
-                // A recarga já vem sem GPU: `webGpuDisabledForSession` e o
-                // veredito do gerente concordam em zero.
-                engine = await loadConversationBrain();
-                npcSet({ phase: 'thinking', speaking: true, streaming: '' });
-                const decisao = parseFloor10WillLanguageDecision(
-                    text,
-                    visibleText(await generateWithMainModel(systemPrompt)),
-                );
-                if (decisao.command) {
-                    npcIssueWillCommand(decisao.command, decisao.visibleReply);
-                }
-                const reposta = decisao.visibleReply;
-                npcSet({
-                    history: [
-                        ...history,
-                        { role: 'assistant', content: trimToCompleteSentence(reposta) },
-                    ],
-                    streaming: '',
-                    phase: 'ready',
-                    speaking: false,
-                    error: '',
-                });
-                return;
-            } catch {
-                // A CPU também não deu conta: cai no relato de erro normal
-                // abaixo, sem inventar resposta nenhuma.
-            }
         }
 
         // Se a fala começou, ela pertence ao 3B e pode ser preservada desde que

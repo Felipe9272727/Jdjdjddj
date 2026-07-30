@@ -82,10 +82,12 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         // seguem fechadas.
         expect(speechGpuLayerCount(false, 12)).toBe(0);
         expect(speechGpuLayerCount(true, 4)).toBe(0);
-        // Com o aparelho apto, quem dá o número é o gerente — e o primeiro
-        // número dele é PEQUENO, muito abaixo das 12 camadas que travavam.
+        // E o padrão do gerente é ZERO: no aparelho do dono do jogo as 3
+        // camadas mataram a fala duas vezes. A engrenagem fica ligada, a
+        // partida fica no botão do ?bancada.
         const camadas = speechGpuLayerCount(true, 12);
         expect(camadas).toBe(FLOOR10_GPU_START_LAYERS);
+        expect(camadas).toBe(0);
         expect(camadas).toBeLessThan(SPEECH_WEBGPU_LAYERS);
     });
 
@@ -359,8 +361,7 @@ describe('npc/wllamaEngine — cão de guarda do WebGPU', () => {
         } finally {
             delete alvo.__npcGpuLayers;
         }
-        // Sem override, quem decide é o gerente — e ele começa pequeno, não em
-        // zero: o dono do jogo pediu uma parte da GPU ligada desde o início.
+        // Sem override, quem decide é o gerente.
         expect(speechGpuLayerCount(true, 8)).toBe(FLOOR10_GPU_START_LAYERS);
     });
 });
