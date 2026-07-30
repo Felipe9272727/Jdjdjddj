@@ -638,10 +638,28 @@ export async function assinarEscolha(
  * Uma rodada de deliberação. Devolve null se o cérebro pequeno não estiver
  * disponível, se já houver uma rodada em curso ou se ele não assinar escolha.
  */
+/**
+ * A ÚLTIMA RODADA FOI DESISTÊNCIA, NÃO FRACASSO?
+ *
+ * `deliberateFloor10` devolve `null` em duas situações muito diferentes: ele
+ * TENTOU E FALHOU, ou ele CEDEU A VEZ porque o jogador está conversando e a
+ * fala tem prioridade. O jogo contava as duas como falha e crescia a espera
+ * exponencialmente.
+ *
+ * O efeito no aparelho: enquanto o modelo de fala baixa — minutos, no celular
+ * — a deliberação cede a vez a cada 5 segundos. Em poucas rodadas a espera
+ * bate o teto de 300s. Quando a fala finalmente termina e a CPU fica livre, o
+ * cérebro de vontade está de castigo por 5 minutos por um crime que não
+ * cometeu: ele nunca chegou a tentar. É por isso que "depois ele não baixa".
+ */
+let cedeuAVez = false;
+export function deliberationYieldedTurn(): boolean { return cedeuAVez; }
+
 export async function deliberateFloor10(
     input: DeliberateInput,
 ): Promise<Floor10Deliberation | null> {
-    if (inFlight || conversationHasPriority()) return null;
+    if (inFlight || conversationHasPriority()) { cedeuAVez = true; return null; }
+    cedeuAVez = false;
     inFlight = true;
     try {
         const engine = await floor10ModelCoordinator.activate(
@@ -671,7 +689,7 @@ export async function deliberateFloor10(
         }
         // Se o jogador começou a falar enquanto o modelo carregava, desiste
         // agora: a conversa vem primeiro.
-        if (conversationHasPriority()) return null;
+        if (conversationHasPriority()) { cedeuAVez = true; return null; }
         npcSet({
             deliberationPhase: 'thinking',
             deliberationLoadProgress: 1,

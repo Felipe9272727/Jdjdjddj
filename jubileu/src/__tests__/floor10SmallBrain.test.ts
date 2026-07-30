@@ -216,3 +216,34 @@ describe('descarga explícita do cérebro pequeno', () => {
         await expect(unloadSmallBrain()).resolves.toBeUndefined();
     });
 });
+
+describe('ceder a vez não é falhar — o castigo de 5 minutos que não fazia sentido', () => {
+    it('marca DESISTÊNCIA quando a conversa tem prioridade', async () => {
+        const { deliberateFloor10, deliberationYieldedTurn, resetSmallBrainForTests } =
+            await import('../npc/floor10SmallBrain');
+        const { npcSet } = await import('../npc/npcStore');
+        resetSmallBrainForTests();
+        // Enquanto o modelo de fala baixa, isto acontece a cada 5 segundos —
+        // por minutos, no celular. O jogo contava cada uma como fracasso e
+        // dobrava a espera até o teto de 300s. Quando a CPU enfim liberava, o
+        // cérebro de vontade estava de castigo sem nunca ter tentado nada.
+        npcSet({ open: true, phase: 'loading' });
+        expect(await deliberateFloor10({
+            perception: PERCEPTION,
+            drives: { social: 0.5, curiosity: 0.5, restlessness: 0.5, fatigue: 0.1 },
+            memory: { inspectedElevatorCount: 0, sleeps: 0, playerSilentSeconds: 0, lastGoals: [] },
+            now: 0,
+        })).toBeNull();
+        expect(deliberationYieldedTurn()).toBe(true);
+        npcSet({ open: false, phase: 'cold' });
+    });
+
+    it('a espera só cresce em fracasso de verdade', async () => {
+        const { deliberationRetryDelay } = await import('../npc/floor10Deliberation');
+        // A curva em si continua certa: rápido no começo, com teto.
+        expect(deliberationRetryDelay(1)).toBe(5);
+        expect(deliberationRetryDelay(20)).toBeLessThanOrEqual(300);
+        // O que estava errado era CONTAR desistência como fracasso, não a curva.
+        expect(deliberationRetryDelay(9)).toBeGreaterThan(deliberationRetryDelay(3));
+    });
+});

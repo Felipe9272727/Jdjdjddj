@@ -36,6 +36,10 @@ const Bancada: React.FC = () => {
     // mostra se a transição de largura funciona.
     const [t, setT] = useState(0);
     const [travarMotor, setTravarMotor] = useState(false);
+    // O CENÁRIO DO JOGO DE VERDADE: a fala JÁ terminou e só então os pequenos
+    // começam. Era exatamente aqui que as barras sumiam, e a bancada não
+    // pegava porque eu ligava os três juntos.
+    const [comoNoJogo, setComoNoJogo] = useState(true);
 
     useEffect(() => {
         const id = window.setInterval(() => setT((v) => v + 1), 700);
@@ -50,7 +54,7 @@ const Bancada: React.FC = () => {
         npcSet({
             open: true,
             near: true,
-            phase: 'loading',
+            phase: comoNoJogo ? 'ready' : 'loading',
             modelLabel: '3B',
             loadProgress: fFala,
             loadDownload: amostra(SPEECH_BRAIN_BYTES * fFala, SPEECH_BRAIN_BYTES, 21.4e6),
@@ -75,7 +79,7 @@ const Bancada: React.FC = () => {
                 needBytes: Math.ceil(SPEECH_BRAIN_BYTES * 1.08),
             },
         });
-    }, [t, travarMotor]);
+    }, [t, travarMotor, comoNoJogo]);
 
     return (
         <>
@@ -84,6 +88,17 @@ const Bancada: React.FC = () => {
                 color: '#cfd6e4', font: '13px system-ui, sans-serif',
             }}
             >
+                <button
+                    type="button"
+                    onClick={() => setComoNoJogo((v) => !v)}
+                    style={{
+                        padding: '8px 12px', borderRadius: 10, border: '1px solid #333',
+                        background: comoNoJogo ? '#2d6cdf' : '#20202a', color: '#fff',
+                        fontSize: 13, cursor: 'pointer', marginRight: 8,
+                    }}
+                >
+                    {comoNoJogo ? 'fala PRONTA (como no jogo)' : 'fala baixando junto'}
+                </button>
                 <button
                     type="button"
                     onClick={() => setTravarMotor((v) => !v)}

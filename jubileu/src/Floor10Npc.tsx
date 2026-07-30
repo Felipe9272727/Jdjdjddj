@@ -14,7 +14,7 @@ import {
     speedForWillGoal,
     stepFloor10Movement,
 } from './npc/floor10Will';
-import { deliberateFloor10 } from './npc/floor10SmallBrain';
+import { deliberateFloor10, deliberationYieldedTurn } from './npc/floor10SmallBrain';
 import { describeMood, readClock } from './npc/floor10Drives';
 import { describePrison, f10prison, prisonReward, prisonTick } from './npc/f10Prison';
 import { initLLM } from './npc/wllamaEngine';
@@ -151,7 +151,15 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                     if (decided) {
                         deliberation.current = decided;
                         deliberationFailures.current = 0;
-                    } else if (npc.deliberationPhase !== 'unavailable') {
+                    } else if (
+                        npc.deliberationPhase !== 'unavailable'
+                        // CEDER A VEZ NÃO É FALHAR. Enquanto o modelo de fala
+                        // baixa, a deliberação cede a cada 5s — e contar isso
+                        // como fracasso levava a espera ao teto de 300s. Quando
+                        // a CPU enfim liberava, o cérebro de vontade estava de
+                        // castigo por 5 minutos sem nunca ter tentado.
+                        && !deliberationYieldedTurn()
+                    ) {
                         // Uma fala pode ter interrompido só esta rodada, e aí
                         // retomar em segundos é certo. Mas insistir a cada 5s
                         // PARA SEMPRE, quando o modelo pequeno está enrolado,

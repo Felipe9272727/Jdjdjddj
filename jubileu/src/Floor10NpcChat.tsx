@@ -234,12 +234,31 @@ const Floor10NpcChat: React.FC = () => {
         : `espaço do site: ${formatGB(livre)} livre`
           + (st.storage.needBytes > 0 ? ` · precisa de ${formatGB(st.storage.needBytes)}` : '')
           + (espacoFalta ? ' — não cabe' : '');
+    // ── CADA BARRA OBEDECE AO SEU PRÓPRIO MODELO ──────────────────────────
+    //
+    // Estas três condições eram `loading && ...`, ou seja: as barras da vontade
+    // e do motor só apareciam ENQUANTO O MODELO DE FALA BAIXAVA — que é
+    // exatamente quando esses dois ainda não baixaram nada. Eles só começam
+    // depois que a fala termina, e aí `phase` já é 'ready', o bloco inteiro
+    // sumia da tela e os dois desciam em silêncio absoluto.
+    //
+    // Eu testei no ?mente e numa bancada onde empurrei os três estados à mão.
+    // Nos dois lugares funcionava, porque nos dois eu tinha ligado tudo junto.
+    // No jogo de verdade eles NUNCA baixam junto — e era só ali que dava para
+    // ver o defeito.
     const miniPct = Math.round(st.deliberationLoadProgress * 100);
-    const showMiniHandoff = loading && st.deliberationLoadText !== '';
+    const showMiniHandoff = st.deliberationPhase === 'loading'
+        || (loading && st.deliberationLoadText !== '');
     const motorPct = Math.round(st.motorLoadProgress * 100);
-    // Mesma regra do cartão da vontade: aparece quando há algo a contar sobre
-    // ele. Antes o motor de 386 MB descia com a tela em silêncio absoluto.
-    const showMotor = loading && st.motorLoadText !== '';
+    const showMotor = st.motorPhase === 'loading'
+        || (loading && st.motorLoadText !== '');
+    // O painel mostra o bloco se QUALQUER um dos três estiver baixando.
+    const algumBaixando = loading || showMiniHandoff || showMotor;
+    // E quando ele está PENSANDO (não baixando), também precisa aparecer: sem
+    // isto, de dentro do painel não dá para saber se o cérebro de vontade está
+    // trabalhando, travado ou desligado.
+    const vontadeTrabalhando = st.deliberationPhase === 'thinking'
+        || st.motorPhase === 'translating';
 
     return (
         <div style={panelStyle}>
@@ -248,7 +267,7 @@ const Floor10NpcChat: React.FC = () => {
                 <button onClick={close} style={xStyle} aria-label="Fechar">✕</button>
             </div>
 
-            {loading && (
+            {algumBaixando && (
                 <div style={modelLoadingStackStyle}>
                     {showMiniHandoff && (
                         <div style={modelLoadingCardStyle}>
@@ -272,15 +291,17 @@ const Floor10NpcChat: React.FC = () => {
                             />
                         </div>
                     )}
-                    <div style={modelLoadingCardStyle}>
-                        <LinhaDownload
-                            rotulo={`💬 Conversa · ${FLOOR10_MODEL.label}`}
-                            pct={pct}
-                            amostra={st.loadDownload}
-                            detalhe={st.loadText}
-                            tom={TOM_FALA}
-                        />
-                    </div>
+                    {loading && (
+                        <div style={modelLoadingCardStyle}>
+                            <LinhaDownload
+                                rotulo={`💬 Conversa · ${FLOOR10_MODEL.label}`}
+                                pct={pct}
+                                amostra={st.loadDownload}
+                                detalhe={st.loadText}
+                                tom={TOM_FALA}
+                            />
+                        </div>
+                    )}
                     {espacoLinha && (
                         <div style={{
                             ...modelLoadingDetailStyle,
@@ -291,6 +312,17 @@ const Floor10NpcChat: React.FC = () => {
                             {espacoLinha}
                         </div>
                     )}
+                </div>
+            )}
+
+            {vontadeTrabalhando && (
+                <div style={pensandoStyle} aria-live="polite">
+                    <span>🧭</span>
+                    <span>
+                        {st.deliberationPhase === 'thinking'
+                            ? `${NPC_NAME} está pensando por conta própria…`
+                            : 'traduzindo o pensamento em movimento…'}
+                    </span>
                 </div>
             )}
 
@@ -417,6 +449,13 @@ const sendStyle: React.CSSProperties = {
 const retryStyle: React.CSSProperties = { padding: '8px 16px', borderRadius: 10, border: 'none', background: '#3a6df0', color: '#fff', fontSize: 14, cursor: 'pointer' };
 const barOuter: React.CSSProperties = { height: 8, borderRadius: 999, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' };
 /** Separa as barras dos dois cérebros dentro do MESMO cartão flutuante. */
+/** "Ele está pensando" — visível DE DENTRO do painel, que era o ponto cego. */
+const pensandoStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px',
+    borderTop: '1px solid rgba(245,201,107,0.22)',
+    background: 'rgba(245,201,107,0.07)', color: '#f5c96b',
+    fontSize: 12, fontStyle: 'italic',
+};
 const divisorStyle: React.CSSProperties = {
     height: 1, margin: '9px 0 8px', background: 'rgba(255,255,255,0.12)',
 };
