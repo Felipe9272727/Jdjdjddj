@@ -15,6 +15,19 @@ import {
     type DownloadSample,
 } from './npc/floor10Download';
 import { formatGB } from './npc/floor10ModelStorage';
+import { SPEECH_BRAIN_BYTES } from './npc/floor10Brains';
+import {
+    definirFilaDoAndar10, filaLinha, floor10Fila, FILA_MOTOR, FILA_VONTADE,
+} from './npc/floor10Fila';
+
+// A fila nasce sabendo os três tamanhos. Fica aqui porque este é o arquivo que
+// já importa os três catálogos — e assim `floor10Fila` não precisa importar
+// motor nenhum, o que fecharia um ciclo.
+definirFilaDoAndar10({
+    fala: SPEECH_BRAIN_BYTES,
+    vontade: SMALL_BRAIN_MODEL.bytes,
+    motor: FLOOR10_MOTOR_MODEL.bytes,
+});
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
 // Vive FORA do Canvas. Reage ao npcStore: mostra a dica quando o player chega
@@ -30,6 +43,7 @@ import { formatGB } from './npc/floor10ModelStorage';
 /** Cores por cérebro: dá para saber QUAL barra está andando sem ler o rótulo. */
 const TOM_VONTADE = { barra: 'linear-gradient(90deg,#c58a22,#f5c96b)', texto: '#f5c96b' };
 const TOM_MOTOR = { barra: 'linear-gradient(90deg,#2f8f6b,#7fe0b0)', texto: '#7fe0b0' };
+const TOM_FILA = { barra: 'linear-gradient(90deg,#3a6df0,#7fe0b0)', texto: '#cfd6e4' };
 const TOM_FALA = { barra: 'linear-gradient(90deg,#3a6df0,#7aa2ff)', texto: '#a8bcf0' };
 
 /**
@@ -161,6 +175,7 @@ const Floor10NpcChat: React.FC = () => {
         const motorLoading = st.motorPhase === 'loading';
         const motorPct = Math.round(st.motorLoadProgress * 100);
         const baixandoCerebro = miniLoading || motorLoading;
+        const filaFlut = floor10Fila.estado();
         const speechAudible = st.autonomousSpeech !== ''
             && (st.perception.player?.distance ?? Infinity) <= 9;
         // Pensamento do 2º cérebro: bolha no mundo, não linha no painel — dá
@@ -174,28 +189,20 @@ const Floor10NpcChat: React.FC = () => {
             <>
                 {baixandoCerebro && (
                     <div style={miniDownloadFloatingStyle} aria-live="polite">
-                        {miniLoading && (
-                            <LinhaDownload
-                                flutuante
-                                rotulo={`🧭 Vontade · ${SMALL_BRAIN_MODEL.label}`}
-                                pct={miniPct}
-                                amostra={st.deliberationDownload}
-                                detalhe={st.deliberationLoadText}
-                                tom={TOM_VONTADE}
-                            />
-                        )}
-                        {miniLoading && motorLoading && <div style={divisorStyle} />}
-                        {motorLoading && (
-                            <LinhaDownload
-                                flutuante
-                                rotulo={`🦿 Motor · ${FLOOR10_MOTOR_MODEL.label}`}
-                                pct={motorPct}
-                                amostra={st.motorDownload}
-                                detalhe={st.motorLoadText
-                                    || `tradutor de ${FLOOR10_MOTOR_SIZE_LABEL}`}
-                                tom={TOM_MOTOR}
-                            />
-                        )}
+                        <LinhaDownload
+                            flutuante
+                            rotulo={`⬇ ${filaLinha(filaFlut)}`}
+                            pct={Math.round(filaFlut.fracao * 100)}
+                            amostra={{
+                                ...filaFlut.amostra,
+                                bytes: filaFlut.bytesBaixados,
+                                totalBytes: filaFlut.bytesTotais,
+                            }}
+                            detalhe={filaFlut.atual?.id === FILA_MOTOR
+                                ? st.motorLoadText
+                                : st.deliberationLoadText}
+                            tom={TOM_FILA}
+                        />
                     </div>
                 )}
                 {thoughtVisible && (
@@ -259,6 +266,17 @@ const Floor10NpcChat: React.FC = () => {
     // trabalhando, travado ou desligado.
     const vontadeTrabalhando = st.deliberationPhase === 'thinking'
         || st.motorPhase === 'translating';
+    // A fila é lida do singleton; `st.version` já força o re-render a cada
+    // npcSet, e todo progresso passa por um npcSet.
+    const fila = floor10Fila.estado();
+    // O detalhe segue QUEM A FILA DIZ que está baixando. Antes ele checava as
+    // fases numa ordem fixa e podia mostrar o texto de um modelo com o rótulo
+    // de outro — apareceu na bancada, com os dois estados ligados juntos.
+    const detalheDaFila = fila.atual?.id === FILA_MOTOR
+        ? st.motorLoadText
+        : fila.atual?.id === FILA_VONTADE
+            ? st.deliberationLoadText
+            : st.loadText;
 
     return (
         <div style={panelStyle}>
@@ -269,39 +287,27 @@ const Floor10NpcChat: React.FC = () => {
 
             {algumBaixando && (
                 <div style={modelLoadingStackStyle}>
-                    {showMiniHandoff && (
-                        <div style={modelLoadingCardStyle}>
-                            <LinhaDownload
-                                rotulo={`🧭 Vontade · ${SMALL_BRAIN_MODEL.label}`}
-                                pct={miniPct}
-                                amostra={st.deliberationDownload}
-                                detalhe={st.deliberationLoadText}
-                                tom={TOM_VONTADE}
-                            />
-                        </div>
-                    )}
-                    {showMotor && (
-                        <div style={modelLoadingCardStyle}>
-                            <LinhaDownload
-                                rotulo={`🦿 Motor · ${FLOOR10_MOTOR_MODEL.label}`}
-                                pct={motorPct}
-                                amostra={st.motorDownload}
-                                detalhe={st.motorLoadText}
-                                tom={TOM_MOTOR}
-                            />
-                        </div>
-                    )}
-                    {loading && (
-                        <div style={modelLoadingCardStyle}>
-                            <LinhaDownload
-                                rotulo={`💬 Conversa · ${FLOOR10_MODEL.label}`}
-                                pct={pct}
-                                amostra={st.loadDownload}
-                                detalhe={st.loadText}
-                                tom={TOM_FALA}
-                            />
-                        </div>
-                    )}
+                    {/* UMA BARRA SÓ, e ela mede a fila INTEIRA.
+                        Três barras separadas pareciam certas enquanto eu
+                        escrevia. Jogando, não: os cérebros não baixam juntos —
+                        um começa quando o outro acaba — e o que o jogador via
+                        era uma barra sumindo e outra nascendo do zero, sem
+                        nunca dizer quanto faltava no TOTAL, que é a única coisa
+                        que ele quer saber. O detalhe por modelo continua no
+                        ?mente e na bancada. */}
+                    <div style={modelLoadingCardStyle}>
+                        <LinhaDownload
+                            rotulo={`⬇ Cérebros do Nilo · ${filaLinha(fila)}`}
+                            pct={Math.round(fila.fracao * 100)}
+                            amostra={{
+                                ...fila.amostra,
+                                bytes: fila.bytesBaixados,
+                                totalBytes: fila.bytesTotais,
+                            }}
+                            detalhe={detalheDaFila}
+                            tom={TOM_FILA}
+                        />
+                    </div>
                     {espacoLinha && (
                         <div style={{
                             ...modelLoadingDetailStyle,

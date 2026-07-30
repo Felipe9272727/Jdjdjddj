@@ -34,6 +34,7 @@ import {
 import {
     floor10Gpu, FpsSampler, layersThatFit, looksCorrupted, probeWebGpuAdapter,
 } from './floor10Gpu';
+import { floor10Fila, FILA_FALA } from './floor10Fila';
 import {
     answerFloor10WillQuestion,
     hasFloor10PhysicalActionCue,
@@ -818,15 +819,20 @@ function initConversationEngine(): Promise<WllamaInstance> {
                             : 0;
                         const acabou = fraction >= 1;
                         downloadDoneAt = acabou ? (downloadDoneAt ?? Date.now()) : null;
+                        const amostraFala = medidorFala.push(
+                            progress.loaded ?? 0,
+                            progress.total ?? 0,
+                        );
+                        // A FILA ÚNICA. As barras por modelo continuam vivas no
+                        // ?mente e na bancada, onde a granularidade é o ponto;
+                        // no jogo o que vale é "quanto falta ao TODO".
+                        floor10Fila.progresso(FILA_FALA, amostraFala);
                         npcSet({
                             // Bytes reais na tela: "412 MB de 1,92 GB · 1,2 MB/s"
                             // responde "está baixando?" — a porcentagem sozinha,
                             // não. Foi a informação que faltou quando o download
                             // parou de acontecer no aparelho do Felipe.
-                            loadDownload: medidorFala.push(
-                                progress.loaded ?? 0,
-                                progress.total ?? 0,
-                            ),
+                            loadDownload: amostraFala,
                             loadProgress: fraction,
                             // Depois de 100% o wllama ainda lê o arquivo de volta do
                             // cache e copia ~2 GB para dentro do WASM — e nesse

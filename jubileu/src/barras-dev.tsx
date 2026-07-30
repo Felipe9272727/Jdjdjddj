@@ -16,6 +16,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Floor10NpcChat from './Floor10NpcChat';
 import { npcSet } from './npc/npcStore';
+import { floor10Fila, FILA_FALA, FILA_VONTADE, FILA_MOTOR } from './npc/floor10Fila';
 import { FLOOR10_MOTOR_MODEL } from './npc/floor10MotorBrain';
 import { SMALL_BRAIN_MODEL } from './npc/floor10SmallBrain';
 import { SPEECH_BRAIN_BYTES } from './npc/floor10Brains';
@@ -51,6 +52,12 @@ const Bancada: React.FC = () => {
         const fVontade = anda(40);
         const fMotor = anda(23);
         const fFala = anda(70);
+        // Alimenta a FILA do mesmo jeito que os motores alimentam em jogo.
+        if (comoNoJogo) floor10Fila.concluir(FILA_FALA);
+        else floor10Fila.progresso(FILA_FALA, amostra(SPEECH_BRAIN_BYTES * fFala, SPEECH_BRAIN_BYTES, 21.4e6));
+        floor10Fila.progresso(FILA_VONTADE, amostra(
+            SMALL_BRAIN_MODEL.bytes * fVontade, SMALL_BRAIN_MODEL.bytes, 18.9e6,
+        ));
         npcSet({
             open: true,
             near: true,

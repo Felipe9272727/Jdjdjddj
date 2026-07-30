@@ -32,6 +32,7 @@ import {
     SMALL_BRAIN_CATALOG, SMALL_BRAIN_DEFAULT, SPEECH_BRAIN_BYTES, type SmallBrainId,
 } from './floor10Brains';
 import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
+import { floor10Fila, FILA_VONTADE } from './floor10Fila';
 import {
     CACHE_HEADROOM,
     deleteCachedModel,
@@ -492,6 +493,7 @@ function ensureSmallEngine(
                         progress.loaded ?? 0,
                         progress.total ?? 0,
                     );
+                    floor10Fila.progresso(FILA_VONTADE, amostra);
                     npcSet({
                         deliberationDownload: amostra,
                         deliberationLoadProgress: fraction,

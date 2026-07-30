@@ -13,6 +13,7 @@ import {
     downloadLine,
     formatBytes,
 } from './floor10Download';
+import { floor10Fila, FILA_MOTOR } from './floor10Fila';
 import type { F10PrisonState } from './f10Prison';
 import {
     FLOOR10_MOTOR_GRAMMAR,
@@ -265,6 +266,7 @@ async function ensureMotorEngine(
                         progress.loaded ?? 0,
                         progress.total ?? 0,
                     );
+                    floor10Fila.progresso(FILA_MOTOR, amostra);
                     npcSet({
                         motorDownload: amostra,
                         motorLoadProgress: fraction,
