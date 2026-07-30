@@ -204,6 +204,17 @@ export class Floor10GpuGovernor {
      * Não existe "talvez tenha sido azar": abortar uma vez já custou uma fala
      * do jogador, e a CPU responde. Recua e pronto.
      */
+    /**
+     * A fala SAIU, mas saiu corrompida — e isso é pior que abortar. Um abort o
+     * jogador percebe como erro; lixo ele lê como se fosse o personagem.
+     */
+    markCorruptOutput(amostra: string): GpuState {
+        if (this.state.verdict === 'indisponivel') return this.snapshot();
+        return this.recuar(
+            `a resposta saiu corrompida com a GPU ligada ("${amostra.slice(0, 40)}…")`,
+        );
+    }
+
     markGenerationFailed(motivo: string): GpuState {
         if (this.state.verdict === 'indisponivel') return this.snapshot();
         return this.recuar(`a fala morreu com a GPU ligada (${motivo.slice(0, 60)})`);
@@ -449,3 +460,39 @@ export async function probeWebGpuAdapter(): Promise<GpuAdapterInfo> {
 
 /** Instância viva, uma por sessão. */
 export const floor10Gpu = new Floor10GpuGovernor();
+
+/**
+ * A RESPOSTA SAIU CORROMPIDA?
+ *
+ * Este detector nasceu de uma tela real. Com 2 camadas na GPU o Nilo respondeu:
+ *
+ *   fdf)-,2ehir4Hccb, frank= geilBBA;*'A&#55E:%xdd4H:ratulations;6DMI!
+ *   libertinmgrGVENTORY9285bfd7=7<Capt5?D=_trampoline pgFD=CarC@hotmailA5.
+ *
+ * Isso NÃO é alucinação — alucinação tem gramática, e a mesma pergunta na CPU
+ * devolveu uma frase inteira e no personagem. É a assinatura de kernel
+ * numérico errado: a GPU devolve números ruins, os logits viram lixo e o
+ * modelo sorteia tokens do nada.
+ *
+ * E o gerente tinha APROVADO aquele degrau — "veredito estável" na tela —
+ * porque tokens/s e FPS passaram. Eu media velocidade e nunca sanidade: um
+ * degrau que gera lixo rápido passava em todos os testes que escrevi. Este é
+ * o buraco que faltava fechar.
+ *
+ * A heurística é grosseira de propósito. Texto humano, em qualquer idioma que
+ * o jogo aceita, é dominado por letras e espaços; lixo numérico é dominado por
+ * pontuação, dígitos e maiúsculas grudadas no meio de palavra. Só precisa
+ * separar "frase" de "ruído" — não julgar estilo, nem conteúdo.
+ */
+export function looksCorrupted(texto: string): boolean {
+    const limpo = texto.trim();
+    // Curto demais para julgar: silêncio não é corrupção.
+    if (limpo.length < 24) return false;
+    const letras = (limpo.match(/[\p{L} ]/gu) ?? []).length;
+    const proporcaoLetras = letras / limpo.length;
+    // Maiúsculas GRUDADAS no meio de palavra: "geilBBA", "libertinmgrGVENTORY".
+    const camelEstranho = (limpo.match(/\p{Ll}\p{Lu}{2,}/gu) ?? []).length;
+    // Blocos longos sem vogal nenhuma: "xdd4H", "pgFD", "krvAH".
+    const semVogal = (limpo.match(/\b[^\s\Waeiouáéíóúàâêôãõü]{5,}\b/giu) ?? []).length;
+    return proporcaoLetras < 0.72 || camelEstranho >= 2 || semVogal >= 3;
+}

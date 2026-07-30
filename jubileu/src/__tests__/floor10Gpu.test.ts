@@ -8,6 +8,7 @@ import {
     Floor10GpuGovernor,
     FpsSampler,
     layersThatFit,
+    looksCorrupted,
 } from '../npc/floor10Gpu';
 
 // O ambiente de teste é `node` puro: não existe localStorage. Sem este
@@ -240,5 +241,48 @@ describe('o teto de buffer do aparelho — a causa provável do (ABORT)', () => 
             .toBeLessThanOrEqual(layersThatFit(128 * MB, SMOL3B, CAMADAS));
         expect(layersThatFit(128 * MB, SMOL3B, CAMADAS))
             .toBeLessThanOrEqual(layersThatFit(256 * MB, SMOL3B, CAMADAS));
+    });
+});
+
+describe('sanidade antes de velocidade — o lixo que passou por "estável"', () => {
+    // Este bloco tem beforeEach PRÓPRIO: sem ele o gerente nasceria já
+    // "recuado", herdado do localStorage que o bloco anterior deixou — e o
+    // teste passaria por engano, sem nunca exercitar o veto de corrupção.
+    beforeEach(zerar);
+
+    const LIXO = "fdf)-,2ehir4Hccb, frank= geilBBA;*'A&#55E:%xdd4H:ratulations;6DMI!"
+        + 'libertinmgrGVENTORY9285bfd7=7<Capt5?D=_trampoline pgFD=CarC@hotmailA5.';
+    const BOA = 'Olá, sou Nilo Azevedo. Não sei quem você é, mas chegou pelo elevador '
+        + 'como todo mundo que aparece aqui.';
+
+    it('reconhece a saída corrompida da GPU e não confunde com fala normal', () => {
+        expect(looksCorrupted(LIXO)).toBe(true);
+        expect(looksCorrupted(BOA)).toBe(false);
+    });
+
+    it('não confunde alucinação com corrupção — alucinação tem gramática', () => {
+        // Isto é FALSO (o passado de técnico é do Nilo, não do jogador), mas é
+        // uma frase. Quem julga conteúdo é o cânone; aqui só se julga se saiu
+        // texto ou ruído.
+        expect(looksCorrupted(
+            'Lembro que você era um ex-técnico de elevadores, agora preso no 10º andar.',
+        )).toBe(false);
+    });
+
+    it('silêncio e frase curta não são corrupção', () => {
+        expect(looksCorrupted('')).toBe(false);
+        expect(looksCorrupted('Não sei.')).toBe(false);
+    });
+
+    it('um degrau que gera lixo RECUA, por mais rápido que seja', () => {
+        const g = new Floor10GpuGovernor();
+        medir(g, 0, 2.5, 60);
+        // Velocidade ótima e FPS perfeito — e ainda assim é rejeitado.
+        medir(g, FLOOR10_GPU_FIRST_RUNG, 9.9, 60);
+        expect(g.snapshot().verdict).not.toBe('recuado');
+        const s = g.markCorruptOutput(LIXO);
+        expect(s.verdict).toBe('recuado');
+        expect(s.nextLayers).toBe(0);
+        expect(s.reason).toContain('corrompida');
     });
 });

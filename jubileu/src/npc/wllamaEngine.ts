@@ -31,7 +31,9 @@ import {
     probeModelStorageBackend,
     readStorageEstimate,
 } from './floor10ModelStorage';
-import { floor10Gpu, FpsSampler, layersThatFit, probeWebGpuAdapter } from './floor10Gpu';
+import {
+    floor10Gpu, FpsSampler, layersThatFit, looksCorrupted, probeWebGpuAdapter,
+} from './floor10Gpu';
 import {
     answerFloor10WillQuestion,
     hasFloor10PhysicalActionCue,
@@ -1217,8 +1219,18 @@ export async function sendToNpc(userText: string): Promise<void> {
     };
 
     /** Fecha a medição desta fala e entrega o veredito ao gerente de GPU. */
-    const entregarAmostra = () => {
+    const entregarAmostra = (resposta = '') => {
         const fps = quadrosDaVez?.stop() ?? null;
+        // ── SANIDADE ANTES DE VELOCIDADE ──────────────────────────────────
+        // Com 2 camadas na GPU o Nilo respondeu lixo — tokens aleatórios,
+        // e-mail, `_trampoline` — e o gerente carimbou "estável", porque
+        // tokens/s e FPS tinham passado. Rápido e errado passava em todos os
+        // testes que eu tinha escrito. Não passa mais.
+        if (loadedGpuLayers > 0 && looksCorrupted(resposta)) {
+            floor10Gpu.markCorruptOutput(resposta);
+            webGpuDisabledForSession = true;
+            return;
+        }
         if (tpsDaVez > 0) {
             floor10Gpu.observe({ layers: loadedGpuLayers, tps: tpsDaVez, fps });
         }
@@ -1334,10 +1346,13 @@ export async function sendToNpc(userText: string): Promise<void> {
                     : `Deu ruim na resposta do ${FLOOR10_MODEL.label}: ${message}`,
         });
     } finally {
-        // SEMPRE. Uma fala que estourou o watchdog com a GPU ligada é a amostra
-        // mais valiosa que existe — é ela que denuncia o degrau ruim. Deixar
-        // isto só no caminho feliz ensinaria o gerente apenas com os sucessos.
-        entregarAmostra();
+        // SEMPRE, e COM O TEXTO. Uma fala que estourou o watchdog com a GPU
+        // ligada é a amostra mais valiosa que existe — é ela que denuncia o
+        // degrau ruim. E o texto é o que denuncia o degrau que responde rápido
+        // e errado, que o gerente aprovava.
+        entregarAmostra(npc.history.at(-1)?.role === 'assistant'
+            ? npc.history.at(-1)!.content
+            : '');
     }
 }
 
