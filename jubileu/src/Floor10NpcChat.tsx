@@ -19,6 +19,9 @@ import { SPEECH_BRAIN_BYTES } from './npc/floor10Brains';
 import {
     definirFilaDoAndar10, filaLinha, floor10Fila, FILA_MOTOR, FILA_VONTADE,
 } from './npc/floor10Fila';
+import { iniciarPrecarga, passosDoAndar10, precargaEtapa } from './npc/floor10Precarga';
+import { precarregarVontade } from './npc/floor10SmallBrain';
+import { precarregarMotor } from './npc/floor10MotorBrain';
 
 // A fila nasce sabendo os três tamanhos. Fica aqui porque este é o arquivo que
 // já importa os três catálogos — e assim `floor10Fila` não precisa importar
@@ -102,9 +105,17 @@ const Floor10NpcChat: React.FC = () => {
     const open = useCallback(() => {
         if (npc.open) return;
         npcSet({ open: true });
-        // Começa a carga enquanto o jogador digita. O Mini só pausa se ainda
-        // estiver gerando; seus pesos permanecem residentes para retomar.
-        void initLLM().catch(() => undefined);
+        // DISPARA A FILA INTEIRA, não só a fala.
+        //
+        // Antes aqui só havia `initLLM()`. Os outros dois cérebros esperavam
+        // alguém precisar deles — e por isso a barra da fila parava em "1 de 3"
+        // e ficava lá. Agora os três descem em sequência, e a conversa libera
+        // assim que o primeiro chega, sem esperar os 3,9 GB.
+        void iniciarPrecarga(passosDoAndar10({
+            fala: () => initLLM(),
+            vontade: () => precarregarVontade(),
+            motor: () => precarregarMotor(),
+        }));
     }, []);
     const close = useCallback(() => { npcSet({ open: false }); }, []);
 

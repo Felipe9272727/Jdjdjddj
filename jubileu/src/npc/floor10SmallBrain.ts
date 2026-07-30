@@ -904,6 +904,27 @@ export async function deliberarObservando(
     };
 }
 
+/**
+ * SÓ BAIXA. Não delibera, não decide, não gasta token.
+ *
+ * Faltava exatamente isto. Cada cérebro só começava a descer quando alguém
+ * PRECISAVA dele — a vontade na primeira deliberação, o motor no primeiro
+ * pensamento a traduzir. O resultado no aparelho de quem joga: a barra da fila
+ * parava em "1 de 3 · 49%" e ficava lá, porque os outros dois nunca tinham
+ * sido pedidos. Uma barra que soma três coisas que ninguém mandou baixar é uma
+ * barra mentirosa.
+ *
+ * `cederParaFala: false` porque quem chama isto é a fila, que já esperou a
+ * fala terminar — a trava de "a fala vem primeiro" já foi respeitada lá fora.
+ */
+export async function precarregarVontade(): Promise<boolean> {
+    const engine = await floor10ModelCoordinator.activate(
+        'deliberation',
+        () => ensureSmallEngine(false),
+    );
+    return engine !== null;
+}
+
 /** Só para os testes: devolve o módulo ao estado inicial. */
 export function resetSmallBrainForTests(): void {
     abortDeliberation();

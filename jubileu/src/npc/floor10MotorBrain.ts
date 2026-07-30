@@ -432,6 +432,19 @@ export async function translateFloor10MotorThought(
     }
 }
 
+/**
+ * SÓ BAIXA o tradutor, sem traduzir nada. Ver a nota em `precarregarVontade`:
+ * sem uma porta assim, este modelo só começava a descer no primeiro pensamento
+ * a traduzir — e a fila ficava eternamente em "2 de 3".
+ */
+export async function precarregarMotor(): Promise<boolean> {
+    const engine = await floor10ModelCoordinator.activate(
+        'deliberation',
+        () => ensureMotorEngine(),
+    );
+    return engine !== null;
+}
+
 /** Fala tem prioridade: corta carga ou geração, mas preserva pesos já residentes. */
 export function abortFloor10MotorBrain(): void {
     inferenceAbort?.abort();
