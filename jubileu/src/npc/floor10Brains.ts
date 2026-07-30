@@ -71,6 +71,14 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
  * dull ache…") e usa 4 das 8 metas; o Llama varia mais e acompanha melhor a
  * situação. Quem joga vê o que a planilha não mostra.
  */
+/**
+ * Tamanho do cérebro da FALA (SmolLM3-3B Q4_K_M), aqui e não no wllamaEngine
+ * porque quem precisa do número é a VONTADE: é ela que tem de perguntar "cabem
+ * os dois?" antes de gastar um byte. Importar o motor da fala de dentro do
+ * cérebro pequeno fecharia um ciclo.
+ */
+export const SPEECH_BRAIN_BYTES = 1_915_305_312;
+
 export const SMALL_BRAIN_DEFAULT: SmallBrainId = 'llama32-1b';
 
 /** Todo cache que a FALA pode reciclar quando faltar espaço para ela. */

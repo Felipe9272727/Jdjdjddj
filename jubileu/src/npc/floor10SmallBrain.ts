@@ -29,13 +29,14 @@ import {
 } from './floor10MotorBrain';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import {
-    SMALL_BRAIN_CATALOG, SMALL_BRAIN_DEFAULT, type SmallBrainId,
+    SMALL_BRAIN_CATALOG, SMALL_BRAIN_DEFAULT, SPEECH_BRAIN_BYTES, type SmallBrainId,
 } from './floor10Brains';
 import { DownloadMeter, DOWNLOAD_ZERO, downloadLine } from './floor10Download';
 import {
     CACHE_HEADROOM,
     deleteCachedModel,
     isBrokenModelCacheError,
+    formatGB,
     planModelCache,
     probeModelStorageBackend,
     readStorageEstimate,
@@ -394,26 +395,45 @@ function ensureSmallEngine(
             deliberationLoadProgress: 0,
             deliberationDownload: DOWNLOAD_ZERO,
         });
-        // A FALA PRIMEIRO — mas SÓ na deliberação automática do jogo.
+        // A FALA PRIMEIRO — mas a pergunta certa é "CABEM OS DOIS?", não
+        // "a fala já baixou?".
         //
-        // Os dois cérebros dividem o mesmo cofre de armazenamento do site, e um
+        // Terceira versão desta trava, e as duas primeiras foram erro meu.
+        // Ela nasceu porque os dois cérebros dividem o cofre do site e um
         // cérebro pequeno baixado antes derrubava a cota abaixo do que o
-        // SmolLM3 precisa: a fala era recusada e o Nilo emudecia.
+        // SmolLM3 precisa. Só que eu a escrevi como "espere a fala estar em
+        // CACHE", e essa pergunta é respondida pelo cacheManager do wllama, que
+        // não enxerga o armazenamento todo — ele responde "não" para modelos que
+        // ESTÃO lá. Resultado no aparelho do Felipe: em jogo o cérebro pequeno
+        // nunca baixava. (A primeira versão era pior ainda: valia também no
+        // ?mente, onde não existe fala nenhuma.)
         //
-        // Só que eu apliquei essa trava em TODO caminho, inclusive na sala da
-        // mente — onde não existe cérebro de fala e nunca vai existir. Lá a
-        // trava nunca liberava e o download simplesmente não começava: eu criei
-        // o "não estou conseguindo baixar nada" do Felipe. Quando é ELE quem
-        // manda pensar, é ordem, e ordem não espera por um modelo que aquela
-        // página nem usa.
-        if (cederParaFala && !await speechModelReady()) {
-            npcSet({
-                deliberationPhase: 'off',
-                deliberationLoadText: 'esperando o cérebro da fala ficar pronto antes de baixar a vontade',
-            });
-            enginePromise = null;
-            loadAbort = null;
-            return null;
+        // Agora a conta é direta e verdadeira: se a cota do site couber os dois
+        // modelos, baixa. Ele mediu 12 GB livres no aparelho — para quem tem
+        // espaço, esta trava simplesmente não existe mais.
+        if (cederParaFala) {
+            const espaco = await readStorageEstimate();
+            const precisa = Math.ceil(
+                (SMALL_BRAIN_MODEL.bytes + SPEECH_BRAIN_BYTES) * CACHE_HEADROOM,
+            );
+            const livre = espaco.quota === null
+                ? null
+                : Math.max(0, espaco.quota - espaco.usage);
+            // quota nula = navegador que não informa. Na dúvida, DEIXA TENTAR:
+            // um palpite meu que bloqueia o cérebro é pior que um download que
+            // falha com mensagem.
+            if (livre !== null && livre < precisa) {
+                npcSet({
+                    deliberationPhase: 'off',
+                    deliberationLoadText:
+                        `a fala vem primeiro: ${formatGB(livre)} livres não cabem os dois cérebros `
+                        + `(${formatGB(precisa)}). Libere espaço ou escolha o ${SMALL_BRAIN_CATALOG
+                            .find((m) => m.id === 'llama32-1b-q4')?.label ?? 'modelo menor'} no ?mente.`,
+                });
+                enginePromise = null;
+                loadAbort = null;
+                return null;
+            }
         }
         try {
             const backend = await probeModelStorageBackend();
