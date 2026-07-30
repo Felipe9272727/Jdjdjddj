@@ -21,10 +21,13 @@ describe('npc/floor10Brains — a lista que os DOIS cérebros precisam ver', () 
     });
 
     it('nenhum candidato é grande a ponto de sufocar a fala', () => {
-        // O SmolLM3 da conversa pede ~2,07 GB de cota. Um cérebro pequeno de
-        // 800 MB já derrubou a fala uma vez; nada aqui pode passar de 1,1 GB.
+        // O SmolLM3 da conversa pede ~2,07 GB de cota, e o teto aqui subiu para
+        // 1,4 GB por causa de uma MEDIÇÃO: em Q4 o Llama 1B assinava escolha em
+        // 5 de 15 rodadas e quase não falava em 1ª pessoa; em Q8 (1,32 GB) faz
+        // 14 de 15. Vale os 513 MB. Quem não tiver a cota usa a entrada Q4, que
+        // continua no catálogo exatamente para isso.
         for (const m of SMALL_BRAIN_CATALOG) {
-            expect(m.bytes).toBeLessThan(1_100_000_000);
+            expect(m.bytes).toBeLessThan(1_400_000_000);
             expect(m.url).toMatch(/\.gguf$/);
             expect(m.nota.length).toBeGreaterThan(10);
         }

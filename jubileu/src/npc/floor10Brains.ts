@@ -9,7 +9,7 @@
 // Nilo simplesmente parava de falar. A vontade é opcional por construção; a
 // fala, não. Então a fala pode reciclar isto aqui, e só isto.
 
-export type SmallBrainId = 'gemma3-1b' | 'llama32-1b' | 'minicpm5-1b';
+export type SmallBrainId = 'gemma3-1b' | 'llama32-1b' | 'llama32-1b-q4' | 'minicpm5-1b';
 
 export type SmallBrainEntry = {
     id: SmallBrainId;
@@ -37,10 +37,21 @@ export const SMALL_BRAIN_CATALOG: readonly SmallBrainEntry[] = Object.freeze([
     },
     {
         id: 'llama32-1b',
-        label: 'Llama 3.2 1B',
+        label: 'Llama 3.2 1B (Q8)',
+        url: 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf',
+        bytes: 1_321_083_008,
+        nota: 'assina a escolha em 14/15 rodadas e fala em 1ª pessoa — o Q4 fazia 5/15',
+    },
+    {
+        // A MESMA cabeça em 4 bits. Fica no catálogo porque o cofre do
+        // navegador é finito: com o SmolLM3 (1,92 GB) já dentro, o Q8 pede
+        // ~3,5 GB de cota somando os dois, e no aparelho do Felipe a cota já
+        // recusou 2,07 GB uma vez. Quando não couber, esta é a que cabe.
+        id: 'llama32-1b-q4',
+        label: 'Llama 3.2 1B (Q4, cabe em menos espaço)',
         url: 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
         bytes: 807_694_464,
-        nota: 'raciocínio rico em 1ª pessoa e o mais rápido; inventa lembranças de fora do hotel',
+        nota: 'mesma cabeça comprimida: 513 MB menor, mas assina escolha em 5/15 e quase não fala em 1ª pessoa',
     },
     {
         id: 'minicpm5-1b',

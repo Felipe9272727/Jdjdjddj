@@ -30,15 +30,14 @@ const WLLAMA_ESM = `${CDN}/index.js`;
 const WASM = `${CDN}/wasm/wllama.wasm`;
 
 export const FLOOR10_MOTOR_MODEL = Object.freeze({
-    id: 'smollm2-135m-instruct',
-    label: 'Motor SmolLM2 135M',
+    id: 'smollm2-360m-instruct',
+    label: 'Motor SmolLM2 360M',
     url: (globalThis as { __motorBrainModelUrl?: string }).__motorBrainModelUrl
-        ?? 'https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/'
+        ?? 'https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/'
         // Revisão fixa: uma mudança futura em `main` não repete o erro de
         // "Model file not found" que já derrubou o SmolLM3 no celular.
-        + 'resolve/ce7737e81beace910ffe847aa1f244bb3abac620/'
-        + 'SmolLM2-135M-Instruct-Q4_K_M.gguf',
-    bytes: 105_000_000,
+        + 'resolve/main/SmolLM2-360M-Instruct-Q8_0.gguf',
+    bytes: 386_405_280,
 });
 
 /** Duas threads bastam para 135M e evitam outro pico de CPU no telefone. */

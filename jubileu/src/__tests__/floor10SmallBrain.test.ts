@@ -34,7 +34,7 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
         // o Felipe viu o que a medição não pega: o Gemma repete a mesma
         // abertura e usa 4 das 8 metas, o Llama varia mais. Os três continuam
         // no catálogo, trocáveis no ?mente.
-        expect(SMALL_BRAIN_MODEL.label).toBe('Llama 3.2 1B');
+        expect(SMALL_BRAIN_MODEL.label).toBe('Llama 3.2 1B (Q8)');
         expect(SMALL_BRAIN_MODEL.url).toMatch(/\.gguf$/i);
         expect(SMALL_BRAIN_MODEL.id).toBe('llama32-1b');
     });
@@ -43,11 +43,13 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
         const ids = SMALL_BRAIN_CATALOG.map((m) => m.id);
         expect(ids).toContain('minicpm5-1b');
         expect(ids).toContain('gemma3-1b');
+        // A MESMA cabeça em Q4, para quem não tem cota para o Q8.
+        expect(ids).toContain('llama32-1b-q4');
         for (const m of SMALL_BRAIN_CATALOG) {
             expect(m.url).toMatch(/^https:\/\/huggingface\.co\/.*\.gguf$/);
             // Dois modelos de 800 MB vivos ao mesmo tempo é como o aparelho
             // trava; nenhum candidato pode ser gordo.
-            expect(m.bytes).toBeLessThan(1_100_000_000);
+            expect(m.bytes).toBeLessThan(1_400_000_000);
         }
     });
 

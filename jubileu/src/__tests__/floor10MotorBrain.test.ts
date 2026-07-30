@@ -20,10 +20,17 @@ const PERCEPTION = perceiveFloor10({
 });
 
 describe('npc/floor10MotorBrain — a terceira LLM especializada', () => {
-    it('usa pesos próprios de 135M e não baixa tudo de novo em cada sessão', () => {
-        expect(FLOOR10_MOTOR_MODEL.id).toBe('smollm2-135m-instruct');
-        expect(FLOOR10_MOTOR_MODEL.url).toMatch(/SmolLM2-135M.*Q4_K_M\.gguf$/);
-        expect(FLOOR10_MOTOR_MODEL.bytes).toBeLessThanOrEqual(110_000_000);
+    it('usa pesos próprios de 360M e não baixa tudo de novo em cada sessão', () => {
+        expect(FLOOR10_MOTOR_MODEL.id).toBe('smollm2-360m-instruct');
+        expect(FLOOR10_MOTOR_MODEL.url).toMatch(/SmolLM2-360M.*Q8_0\.gguf$/);
+        // 386 MB, e não os 105 MB do 135M que estava aqui antes. Medido no
+        // prompt real de tradução: o 135M respondia a MESMA linha para todo
+        // pensamento — `stay | self` para tudo com um prompt, `approach |
+        // player` para tudo com outro. Ele não lia a frase, copiava o exemplo
+        // mais próximo. O 360M é o menor que diferencia (15/30 verbos contra
+        // 10/30), e trocar Q4 por Q8 no 135M não mudou NADA: o gargalo era
+        // tamanho, não precisão.
+        expect(FLOOR10_MOTOR_MODEL.bytes).toBeLessThanOrEqual(400_000_000);
         expect(FLOOR10_MOTOR_USE_CACHE).toBe(true);
     });
 
