@@ -1,3 +1,4 @@
+import { FLOOR10_GPU_START_LAYERS } from '../npc/floor10Gpu';
 import { describe, expect, it } from 'vitest';
 import {
     CHAT_COMPLETION_CONFIG,
@@ -5,6 +6,7 @@ import {
     FLOOR10_MODEL,
     GenerationTimeoutError,
     SPEECH_WEBGPU_ENABLED,
+    SPEECH_WEBGPU_LAYERS,
     WEBGPU_INIT_WATCHDOG_MS,
     WLLAMA_PATHS,
     WebGpuInitTimeoutError,
@@ -69,14 +71,22 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(cpuThreadCount(true, 8)).toBe(8);
     });
 
-    it('roda em CPU: nenhum aparelho recebe offload de WebGPU', () => {
-        // O dono do jogo testou no aparelho dele: com WebGPU o celular engasga,
-        // pela CPU roda liso. Nem memória de sobra reabre essa porta.
-        expect(SPEECH_WEBGPU_ENABLED).toBe(false);
+    it('a GPU só entra pela mão do gerente, e começa pequena', () => {
+        // A regra ANTIGA aqui era "nunca WebGPU", e estava certa para o que
+        // existia: 12 de 36 camadas fixas, sem ninguém medindo, travavam o
+        // aparelho do dono do jogo. Ele reabriu a porta com uma condição —
+        // "deixa pelo menos uma pequena parte ligada, e o resto pra ia que
+        // gerência" — e o que entra agora é isso, não o offload antigo.
+        expect(SPEECH_WEBGPU_ENABLED).toBe(true);
+        // Sem adaptador ou com pouca memória, continua zero: as portas velhas
+        // seguem fechadas.
         expect(speechGpuLayerCount(false, 12)).toBe(0);
         expect(speechGpuLayerCount(true, 4)).toBe(0);
-        expect(speechGpuLayerCount(true, 6)).toBe(0);
-        expect(speechGpuLayerCount(true, 8)).toBe(0);
+        // Com o aparelho apto, quem dá o número é o gerente — e o primeiro
+        // número dele é PEQUENO, muito abaixo das 12 camadas que travavam.
+        const camadas = speechGpuLayerCount(true, 12);
+        expect(camadas).toBe(FLOOR10_GPU_START_LAYERS);
+        expect(camadas).toBeLessThan(SPEECH_WEBGPU_LAYERS);
     });
 
     it('mantém a etiqueta capaz de descrever os dois modos', () => {
@@ -339,16 +349,19 @@ describe('npc/wllamaEngine — cão de guarda do WebGPU', () => {
         expect(WEBGPU_INIT_WATCHDOG_MS).toBeGreaterThanOrEqual(30_000);
     });
 
-    it('deixa religar a GPU por override, só para medir', () => {
+    it('o override manda mais que o gerente, para a sonda poder medir', () => {
         const alvo = globalThis as { __npcGpuLayers?: number };
         try {
             alvo.__npcGpuLayers = 12;
             expect(speechGpuLayerCount(true, 8)).toBe(12);
+            alvo.__npcGpuLayers = 0;
+            expect(speechGpuLayerCount(true, 8)).toBe(0);
         } finally {
             delete alvo.__npcGpuLayers;
         }
-        // Fora da medição, volta a ser CPU pura.
-        expect(speechGpuLayerCount(true, 8)).toBe(0);
+        // Sem override, quem decide é o gerente — e ele começa pequeno, não em
+        // zero: o dono do jogo pediu uma parte da GPU ligada desde o início.
+        expect(speechGpuLayerCount(true, 8)).toBe(FLOOR10_GPU_START_LAYERS);
     });
 });
 

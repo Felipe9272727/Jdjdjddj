@@ -31,6 +31,7 @@ import {
     probeModelStorageBackend,
     readStorageEstimate,
 } from './floor10ModelStorage';
+import { floor10Gpu, FpsSampler, probeWebGpuAdapter } from './floor10Gpu';
 import {
     answerFloor10WillQuestion,
     hasFloor10PhysicalActionCue,
@@ -213,8 +214,24 @@ export function cpuThreadCount(
 export const SPEECH_WEBGPU_LAYERS = 12;
 export const SPEECH_WEBGPU_LOW_MEMORY_LAYERS = 8;
 
-/** O jogo roda em CPU. Ver a nota em speechGpuLayerCount(). */
-export const SPEECH_WEBGPU_ENABLED = false;
+/**
+ * A GPU voltou — mas AGORA COM GERENTE, e é isso que muda tudo.
+ *
+ * O desligamento anterior estava certo para o que existia na época: 12 de 36
+ * camadas, fixas, sem ninguém olhando o resultado. Isso travava o aparelho do
+ * dono do jogo. A causa não era memória: o jogo desenha na MESMA GPU, o
+ * trabalho da LLM entope a fila de submissão e o render perde o prazo do
+ * quadro (arXiv 2501.14794). O mesmo trabalho mostra a saída — mandar só uma
+ * PARTE PEQUENA das camadas mantém o FPS intacto e custa 0,5–2,2% de
+ * velocidade.
+ *
+ * Então o que liga aqui não é o offload antigo: é `floor10Gpu`, que começa em
+ * 3 camadas (~8% do modelo), mede tokens/s e FPS no aparelho de quem joga, e
+ * VOLTA SOZINHO para a CPU se qualquer um dos dois piorar. O requisito do dono
+ * do jogo — "não diminuir a velocidade atual" — está codificado como regra de
+ * recuo, não como esperança.
+ */
+export const SPEECH_WEBGPU_ENABLED = true;
 
 /**
  * Reserva GPU só em aparelhos com memória suficiente. Chrome limita
@@ -232,17 +249,19 @@ export function speechGpuLayerCount(
     if (typeof forced === 'number' && Number.isFinite(forced)) {
         return Math.max(0, Math.floor(forced));
     }
-    // DESLIGADO POR PADRÃO — decisão do dono do jogo, que testou no aparelho
-    // dele: com offload de WebGPU o celular inteiro engasga, e pela CPU o jogo
-    // roda liso. O ganho de tokens/s não paga travar o aparelho de quem joga.
-    // A engrenagem fica aqui inteira: `__npcGpuLayers` religa para medir.
     if (!SPEECH_WEBGPU_ENABLED) return 0;
     if (!webGpuAvailable || !Number.isFinite(deviceMemoryGiB) || deviceMemoryGiB < 6) {
         return 0;
     }
-    return deviceMemoryGiB >= 8
-        ? SPEECH_WEBGPU_LAYERS
-        : SPEECH_WEBGPU_LOW_MEMORY_LAYERS;
+    // QUEM DECIDE É O GERENTE, não uma tabela de memória.
+    //
+    // A regra antiga ("8 GB ou mais → 12 camadas") olhava só o tamanho da RAM,
+    // que não diz nada sobre a briga entre a LLM e o render pela fila da GPU —
+    // e era justamente essa briga que travava o aparelho. O gerente olha o que
+    // importa: os tokens/s e o FPS medidos ali, naquele celular.
+    //
+    // O teto de memória continua valendo como porta: abaixo de 6 GB nem começa.
+    return Math.min(floor10Gpu.layersForLoad(), SPEECH_WEBGPU_LAYERS);
 }
 
 /**
@@ -729,7 +748,18 @@ function initConversationEngine(): Promise<WllamaInstance> {
         }
 
         const threads = cpuThreadCount();
-        const requestedGpuLayers = webGpuDisabledForSession
+        // `'gpu' in navigator` NÃO significa que existe GPU para usar.
+        //
+        // Medido aqui: neste ambiente `navigator.gpu` existe e
+        // `requestAdapter()` devolve null — o wllama registra
+        // "ggml_webgpu: Failed to get an adapter" e segue pela CPU em silêncio.
+        // Sem esta checagem o gerente creditaria ao degrau "3 camadas" um
+        // desempenho que é da CPU pura, e aprenderia a coisa errada sobre o
+        // aparelho. Perguntar pelo adaptador de verdade é o que separa
+        // "tem a API" de "tem GPU".
+        const adaptador = await probeWebGpuAdapter();
+        if (!adaptador.ok) floor10Gpu.markUnavailable(adaptador.motivo);
+        const requestedGpuLayers = (webGpuDisabledForSession || !adaptador.ok)
             ? 0
             : speechGpuLayerCount();
         const plans = requestedGpuLayers > 0
@@ -833,6 +863,12 @@ function initConversationEngine(): Promise<WllamaInstance> {
                     new Promise<void>((resolve) => { globalThis.setTimeout(resolve, 3_000); }),
                 ]);
                 if (gpuLayers > 0) {
+                    // O gerente precisa saber. Sem isto ele proporia GPU de
+                    // novo na próxima carga e o jogador pagaria o mesmo
+                    // prejuízo outra vez.
+                    floor10Gpu.markLoadFailed(
+                        error instanceof Error ? error.name : String(error),
+                    );
                     webGpuDisabledForSession = true;
                     npcSet({
                         loadText: error instanceof WebGpuInitTimeoutError
@@ -1084,6 +1120,10 @@ export async function sendToNpc(userText: string): Promise<void> {
     const nextTokenMs = loadedThreads > 1
         ? STREAM_WATCHDOG.nextTokenMultiMs
         : STREAM_WATCHDOG.nextTokenSingleMs;
+    // Vivem FORA do closure: cada geração reinicia a medição, mas quem entrega
+    // a amostra ao gerente é o `finally` desta fala, lá embaixo.
+    let quadrosDaVez: FpsSampler | null = null;
+    let tpsDaVez = 0;
     const generateWithMainModel = async (
         prompt: string,
         sampling: Partial<{
@@ -1093,6 +1133,13 @@ export async function sendToNpc(userText: string): Promise<void> {
         }> = {},
     ): Promise<string> => {
         const abort = new AbortController();
+        // ── O QUE O GERENTE DE GPU VAI JULGAR ─────────────────────────────
+        // O FPS é medido DURANTE a geração, que é exatamente a janela em que a
+        // LLM e o render disputam a fila da GPU. Medir fora dela mostraria um
+        // jogo liso e esconderia o problema.
+        quadrosDaVez = new FpsSampler();
+        quadrosDaVez.start();
+        tpsDaVez = 0;
         const streamPromise = engine.createChatCompletion({
             messages: [
                 { role: 'system', content: prompt },
@@ -1115,6 +1162,10 @@ export async function sendToNpc(userText: string): Promise<void> {
                 nextTokenMs,
                 // Publica a velocidade MEDIDA pelo motor no aparelho do jogador.
                 onTimings: (timings) => {
+                    if (typeof timings.predicted_per_second === 'number'
+                        && timings.predicted_per_second > 0) {
+                        tpsDaVez = timings.predicted_per_second;
+                    }
                     const measured = formatTimings(timings);
                     if (measured) {
                         npcSet({
@@ -1130,6 +1181,16 @@ export async function sendToNpc(userText: string): Promise<void> {
                 },
             },
         );
+        // O `finally` é obrigatório aqui: se a geração estourar o watchdog, é
+        // JUSTAMENTE a amostra que o gerente mais precisa ver.
+    };
+
+    /** Fecha a medição desta fala e entrega o veredito ao gerente de GPU. */
+    const entregarAmostra = () => {
+        const fps = quadrosDaVez?.stop() ?? null;
+        if (tpsDaVez > 0) {
+            floor10Gpu.observe({ layers: loadedGpuLayers, tps: tpsDaVez, fps });
+        }
     };
 
     try {
@@ -1221,6 +1282,11 @@ export async function sendToNpc(userText: string): Promise<void> {
                     ? `${FLOOR10_MODEL.label} produziu uma fala inconsistente (${error.issue}). Tente novamente; o RAG não respondeu no lugar dele.`
                     : `Deu ruim na resposta do ${FLOOR10_MODEL.label}: ${message}`,
         });
+    } finally {
+        // SEMPRE. Uma fala que estourou o watchdog com a GPU ligada é a amostra
+        // mais valiosa que existe — é ela que denuncia o degrau ruim. Deixar
+        // isto só no caminho feliz ensinaria o gerente apenas com os sucessos.
+        entregarAmostra();
     }
 }
 
