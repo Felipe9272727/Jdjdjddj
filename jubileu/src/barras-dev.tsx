@@ -1,13 +1,13 @@
 /**
- * AS BARRAS DE DOWNLOAD DOS TRÊS CÉREBROS, sem baixar 3,6 GB para vê-las.
+ * AS BARRAS DE DOWNLOAD DOS QUATRO CÉREBROS, sem baixar 4,2 GB para vê-las.
  *
  * O painel de conversa do Andar 10 só mostra as barras enquanto os modelos
  * descem — o que significa que, para conferir um detalhe de tela, era preciso
  * repetir um download de horas. Esta página monta o painel DE VERDADE
  * (`Floor10NpcChat`, o mesmo componente do jogo) e empurra números no
- * `npcStore` como se os três estivessem baixando.
+ * `npcStore` como se os quatro estivessem baixando.
  *
- * Serve para responder, olhando: as três barras aparecem juntas? dá para saber
+ * Serve para responder, olhando: as barras aparecem juntas? dá para saber
  * qual é qual? o "parado há Ns" muda a cor certa?
  *
  * Abre em:  /barras.html
@@ -16,10 +16,13 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Floor10NpcChat from './Floor10NpcChat';
 import { npcSet } from './npc/npcStore';
-import { floor10Fila, FILA_FALA, FILA_VONTADE, FILA_MOTOR } from './npc/floor10Fila';
+import {
+    floor10Fila, FILA_FALA, FILA_VONTADE, FILA_MOTOR, FILA_MEMORIA,
+} from './npc/floor10Fila';
 import { FLOOR10_MOTOR_MODEL } from './npc/floor10MotorBrain';
 import { SMALL_BRAIN_MODEL } from './npc/floor10SmallBrain';
 import { SPEECH_BRAIN_BYTES } from './npc/floor10Brains';
+import { FLOOR10_MEMORIA_MODEL } from './npc/floor10Memoria';
 
 const amostra = (
     bytes: number, total: number, rate: number, parado = 0,
@@ -51,12 +54,22 @@ const Bancada: React.FC = () => {
         const anda = (periodo: number) => (t % periodo) / periodo;
         const fVontade = anda(40);
         const fMotor = anda(23);
+        const fMemoria = anda(17);
         const fFala = anda(70);
         // Alimenta a FILA do mesmo jeito que os motores alimentam em jogo.
         if (comoNoJogo) floor10Fila.concluir(FILA_FALA);
         else floor10Fila.progresso(FILA_FALA, amostra(SPEECH_BRAIN_BYTES * fFala, SPEECH_BRAIN_BYTES, 21.4e6));
         floor10Fila.progresso(FILA_VONTADE, amostra(
             SMALL_BRAIN_MODEL.bytes * fVontade, SMALL_BRAIN_MODEL.bytes, 18.9e6,
+        ));
+        // A memória é a ÚLTIMA da fila, então é ela que a barra única está
+        // mostrando — e por isso é nela que o botão de travar precisa bater:
+        // travar um modelo que não é o atual não muda nada na tela do jogo.
+        floor10Fila.progresso(FILA_MEMORIA, amostra(
+            FLOOR10_MEMORIA_MODEL.bytes * fMemoria,
+            FLOOR10_MEMORIA_MODEL.bytes,
+            travarMotor ? 0 : 9.4e6,
+            travarMotor ? 31 : 0,
         ));
         npcSet({
             open: true,
@@ -81,6 +94,15 @@ const Bancada: React.FC = () => {
                 travarMotor ? 31 : 0,
             ),
             motorLoadText: `baixando ${FLOOR10_MOTOR_MODEL.label}…`,
+            memoriaPhase: 'loading',
+            memoriaLoadProgress: fMemoria,
+            memoriaDownload: amostra(
+                FLOOR10_MEMORIA_MODEL.bytes * fMemoria,
+                FLOOR10_MEMORIA_MODEL.bytes,
+                travarMotor ? 0 : 9.4e6,
+                travarMotor ? 31 : 0,
+            ),
+            memoriaLoadText: `baixando ${FLOOR10_MEMORIA_MODEL.label}…`,
             storage: {
                 quota: 12.4e9, usage: 1.1e9,
                 needBytes: Math.ceil(SPEECH_BRAIN_BYTES * 1.08),
@@ -115,7 +137,7 @@ const Bancada: React.FC = () => {
                         fontSize: 13, cursor: 'pointer',
                     }}
                 >
-                    {travarMotor ? 'destravar o motor' : 'travar o motor (⚠ parado)'}
+                    {travarMotor ? 'destravar o download' : 'travar o download (⚠ parado)'}
                 </button>
             </div>
             <Floor10NpcChat />

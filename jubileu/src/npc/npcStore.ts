@@ -57,6 +57,16 @@ export type NpcState = {
     motorLoadText: string;
     motorLoadProgress: number;  // 0..1
     motorDownload: DownloadSample;
+    // ── MEMÓRIA (o QUARTO cérebro, 300M, que acha o fato pelo significado) ──
+    // Também com campos próprios, pela mesma razão dos do motor: enquanto os
+    // 333 MB descem, a barra tem de dizer QUAL arquivo está descendo.
+    memoriaPhase: 'off' | 'loading' | 'ready' | 'unavailable';
+    memoriaLoadText: string;
+    memoriaLoadProgress: number;  // 0..1
+    memoriaDownload: DownloadSample;
+    /** Id do fato que ela escolheu na última fala — visível no ?mente. */
+    memoriaLembrou: string;
+    memoriaScore: number;
     /** Cota do site medida no aparelho — o que decide se dá pra baixar. */
     storage: { quota: number | null; usage: number; needBytes: number };
     error: string;
@@ -77,6 +87,8 @@ const s: NpcState = {
     deliberationGoal: '', deliberationCount: 0,
     motorPhase: 'off', motorLoadText: '', motorLoadProgress: 0,
     motorDownload: DOWNLOAD_ZERO,
+    memoriaPhase: 'off', memoriaLoadText: '', memoriaLoadProgress: 0,
+    memoriaDownload: DOWNLOAD_ZERO, memoriaLembrou: '', memoriaScore: 0,
     error: '', version: 0,
 };
 

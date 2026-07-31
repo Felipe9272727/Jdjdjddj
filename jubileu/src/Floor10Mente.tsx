@@ -27,7 +27,13 @@ import {
     FLOOR10_MOTOR_MODEL,
     FLOOR10_MOTOR_SIZE_LABEL,
 } from './npc/floor10MotorBrain';
-import { cpuThreadCount } from './npc/wllamaEngine';
+import {
+    cpuThreadCount, initLLM, sendToNpc, prepareFloor10SystemPrompt,
+} from './npc/wllamaEngine';
+import {
+    FLOOR10_CANON, buildFloor10SystemPrompt, retrieveFloor10Canon,
+} from './npc/floor10Canon';
+import * as memoria from './npc/floor10Memoria';
 import {
     buildDeliberationPrompt, deliberationRetryDelay, looksLikeLoop,
     DELIBERATION_TIMEOUT_MS,
@@ -454,8 +460,17 @@ const Mente: React.FC = () => {
     );
 };
 
+// ── A PORTA DAS SONDAS ────────────────────────────────────────────────────
+// Tudo o que uma sonda precisa sai DAQUI, e não de um `import()` dela própria.
+// A razão é concreta: um `import('/src/npc/npcStore.ts')` feito de dentro do
+// `page.evaluate` pode cair num SEGUNDO exemplar do módulo (o dev server serve
+// o do app com `?t=`), e aí a sonda mede um estado que não é o do jogo — foi
+// exatamente assim que uma medição "reprovou" uma integração que funcionava.
 (window as unknown as Record<string, unknown>).__f10mente = {
     npc, deliberarObservando, perceiveFloor10,
+    initLLM, sendToNpc, prepareFloor10SystemPrompt,
+    buildFloor10SystemPrompt, retrieveFloor10Canon, FLOOR10_CANON,
+    memoria,
 };
 
 export default Mente;

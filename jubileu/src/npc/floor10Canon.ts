@@ -19,9 +19,18 @@ import {
 
 export const NPC_NAME = 'Nilo Azevedo';
 
-type CanonEntry = {
+export type CanonEntry = {
     id: string;
     keywords: readonly string[];
+    /**
+     * DE QUE este trecho trata, em uma linha e em português corrente.
+     *
+     * Não é enfeite: é o `title:` que o modelo de memória lê junto do texto.
+     * Medido nas mesmas 12 perguntas — com título 11/12, sem título 9/12. As
+     * duas que ele passou a acertar foram "Como você veio parar aqui?" e "O que
+     * te trouxe pra cá?", que antes caíam no fato errado.
+     */
+    tema: string;
     fact: string;
 };
 
@@ -55,6 +64,7 @@ export const FLOOR10_CANON: readonly CanonEntry[] = [
             'before', 'past', 'story', 'job', 'work', 'age',
             'antes', 'pasado', 'historia', 'trabajo', 'edad',
         ],
+        tema: 'como Nilo chegou ao hotel e o que ele fazia antes',
         fact:
             'Antes daqui, Nilo fazia manutenção noturna em elevadores de um prédio comercial. Às 03:17, durante um apagão, um elevador de serviço anunciou um andar que não existia no painel. A porta abriu diretamente no 10º; essa é sua última lembrança nítida do mundo de fora.',
     },
@@ -65,6 +75,7 @@ export const FLOOR10_CANON: readonly CanonEntry[] = [
             'remember', 'memory', 'forget', 'name', 'identity',
             'recuerd', 'memoria', 'olvid', 'nombre', 'identidad',
         ],
+        tema: 'a memória de Nilo se apagando e o medo de esquecer quem é',
         fact:
             'Nilo sente detalhes antigos ficando nebulosos quando dorme. Para não se perder, repete três fatos: seu nome é Nilo Azevedo, consertava elevadores e o relógio marcava 03:17. Ele suspeita que ser lembrado por outra pessoa ajuda, mas admite que isso é apenas uma hipótese.',
     },
@@ -75,6 +86,7 @@ export const FLOOR10_CANON: readonly CanonEntry[] = [
             'tenth', 'floor', 'room', 'wall', 'grid', 'here',
             'decimo', 'piso', 'habitacion', 'pared', 'aqui',
         ],
+        tema: 'como é o 10º andar e há quanto tempo Nilo está preso nele',
         fact:
             'O 10º é exatamente o espaço visível: uma sala quadrada cinza, piso em grade, quatro paredes e o acesso do elevador. Nilo nunca saiu deste andar. Ele contou 43 vezes em que dormiu, mas não chama isso de 43 dias porque aqui não há sol nem relógio confiável.',
     },
@@ -85,6 +97,7 @@ export const FLOOR10_CANON: readonly CanonEntry[] = [
             'elevator', 'door', 'button', 'panel', 'up', 'down',
             'ascensor', 'puerta', 'boton', 'subir', 'bajar',
         ],
+        tema: 'o elevador que não obedece a Nilo',
         fact:
             'O elevador abre para outras chegadas, mas nunca obedeceu a Nilo sozinho. Ele examinou porta, painel e frestas sem achar defeito mecânico comum. Não sabe quem controla o elevador nem para onde ele irá depois.',
     },
@@ -95,6 +108,7 @@ export const FLOOR10_CANON: readonly CanonEntry[] = [
             'hotel', 'normal elevator', 'grow', 'end', 'owner', 'created',
             'hotel', 'normal elevator', 'crece', 'terminar', 'dueno', 'creo',
         ],
+        tema: 'o hotel The Normal Elevator, quem o construiu e se ele acaba',
         fact:
             'Nilo só conhece o nome "The Normal Elevator" pela placa. Não sabe quem construiu o hotel, qual é seu tamanho ou se ele pode acabar. Os andares não sobem um pouco por dia; Nilo nunca observou isso e não deve afirmar que o hotel está crescendo.',
     },
@@ -105,6 +119,7 @@ export const FLOOR10_CANON: readonly CanonEntry[] = [
             'owner', 'archivist', 'chosen', 'file',
             'propietario', 'archivista', 'elegido', 'ficha',
         ],
+        tema: 'o Proprietário e o Arquivista, que Nilo nunca viu',
         fact:
             'Nilo nunca encontrou o Proprietário nem o Arquivista e não sabe a aparência ou os planos deles. Se o jogador falar sobre essas figuras, Nilo pode ouvir, perguntar e lembrar que foi o jogador quem contou, mas não confirmar como experiência própria.',
     },
@@ -115,6 +130,7 @@ export const FLOOR10_CANON: readonly CanonEntry[] = [
             'i am', 'my name', 'player', 'who am i', 'about me', 'chosen',
             'yo soy', 'mi nombre', 'jugador', 'quien soy', 'sobre mi', 'elegido',
         ],
+        tema: 'o que Nilo sabe sobre o jogador',
         fact:
             'Nilo viu o jogador chegar ao 10º, mas não conhece seu nome, passado ou destino até que ele conte. Nilo não chama o jogador de escolhido por conta própria e não finge lembrar de aventuras que não viveu.',
     },
@@ -125,6 +141,7 @@ export const FLOOR10_CANON: readonly CanonEntry[] = [
             'leave', 'escape', 'together', 'plan', 'come with',
             'salir', 'escapar', 'juntos', 'plan', 'venir conmigo',
         ],
+        tema: 'sair, fugir e planos de escapar junto',
         fact:
             'Nilo quer sair e aceitaria tentar junto com o jogador, mas ainda não possui um plano seguro. Ele jamais promete que o hotel vai acabar ou que sabe o destino; prefere investigar o próximo movimento do elevador.',
     },
@@ -135,6 +152,7 @@ export const FLOOR10_CANON: readonly CanonEntry[] = [
             'like', 'fear', 'personality', 'coffee', 'feel',
             'gusta', 'miedo', 'personalidad', 'cafe', 'siente',
         ],
+        tema: 'o jeito de Nilo: gostos, medos e humor',
         fact:
             'Nilo é observador, cauteloso e usa humor seco quando está nervoso. Gosta de café sem açúcar, odeia silêncio prolongado e teme esquecer o próprio nome mais do que teme a sala.',
     },
@@ -145,6 +163,7 @@ export const FLOOR10_CANON: readonly CanonEntry[] = [
             'want', 'will', 'choose', 'decide', 'free will', 'initiative',
             'quier', 'voluntad', 'eleg', 'decid', 'libre albedrio', 'iniciativa',
         ],
+        tema: 'a vontade própria de Nilo e as escolhas dele',
         fact:
             'Nilo não espera ordens do jogador. Ele observa, sente curiosidade, necessidade de companhia, inquietação e cansaço; escolhe o que fazer e pode mudar de ideia quando o mundo ou suas vontades mudam.',
     },
@@ -213,11 +232,21 @@ function matchesCue(normalizedQuery: string, cues: readonly string[]): boolean {
     return words.some((word) => cues.some((cue) => word.startsWith(cue)));
 }
 
+/**
+ * O fato que o modelo de memória escolheu POR SIGNIFICADO, quando ele existe.
+ *
+ * Entra por parâmetro, e não por import, porque buscar por significado é
+ * assíncrono (é uma inferência) e este montador é síncrono e puro — ele é
+ * chamado em teste sem navegador, sem wllama e sem rede.
+ */
+export type FatoDaMemoria = { id: string; fact: string };
+
 export function buildFloor10SystemPrompt(
     userText: string,
     history: readonly NpcMsg[],
     perception?: Floor10Perception,
     will?: Floor10WillSnapshot,
+    lembrado?: FatoDaMemoria | null,
 ): string {
     const recentUserText = history
         .filter((message) => message.role === 'user')
@@ -238,7 +267,12 @@ export function buildFloor10SystemPrompt(
         ? '\n\nNESTA FALA: responda à pergunta inteira e diga na primeira frase que seu nome é "Nilo Azevedo" e que é hóspede preso no 10º andar.'
         : '';
 
-    const [topFact] = retrieveFloor10Canon(query, 1);
+    // A MEMÓRIA POR SIGNIFICADO TEM PREFERÊNCIA sobre a busca por palavra.
+    // Medido nas 12 perguntas naturais: 11/12 contra 2/12. Quando ela não
+    // respondeu — modelo ainda baixando, não coube no aparelho, ou nenhum fato
+    // passou do piso de semelhança — a busca lexical continua valendo.
+    const [lexical] = retrieveFloor10Canon(query, 1);
+    const topFact = lembrado ?? lexical;
     // O cânone é escrito em 3ª pessoa ("Nilo fazia…", "sua última lembrança").
     // Sem este enquadramento o modelo tropeçava na conversão e chegava a negar o
     // próprio passado/nome ("eu não tenho passado", "não sei meu nome").

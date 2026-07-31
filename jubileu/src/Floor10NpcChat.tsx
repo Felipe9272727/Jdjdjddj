@@ -17,19 +17,26 @@ import {
 import { formatGB } from './npc/floor10ModelStorage';
 import { SPEECH_BRAIN_BYTES } from './npc/floor10Brains';
 import {
-    definirFilaDoAndar10, filaLinha, floor10Fila, FILA_MOTOR, FILA_VONTADE,
+    definirFilaDoAndar10, filaLinha, floor10Fila,
+    FILA_MOTOR, FILA_VONTADE, FILA_MEMORIA,
 } from './npc/floor10Fila';
 import { iniciarPrecarga, passosDoAndar10, precargaEtapa } from './npc/floor10Precarga';
 import { precarregarVontade } from './npc/floor10SmallBrain';
 import { precarregarMotor } from './npc/floor10MotorBrain';
+import {
+    FLOOR10_MEMORIA_MODEL,
+    FLOOR10_MEMORIA_SIZE_LABEL,
+    precarregarMemoria,
+} from './npc/floor10Memoria';
 
-// A fila nasce sabendo os três tamanhos. Fica aqui porque este é o arquivo que
+// A fila nasce sabendo os quatro tamanhos. Fica aqui porque este é o arquivo que
 // já importa os três catálogos — e assim `floor10Fila` não precisa importar
 // motor nenhum, o que fecharia um ciclo.
 definirFilaDoAndar10({
     fala: SPEECH_BRAIN_BYTES,
     vontade: SMALL_BRAIN_MODEL.bytes,
     motor: FLOOR10_MOTOR_MODEL.bytes,
+    memoria: FLOOR10_MEMORIA_MODEL.bytes,
 });
 
 // ── UI DE CONVERSA COM O NPC (overlay DOM) ─────────────────────────────────
@@ -46,6 +53,7 @@ definirFilaDoAndar10({
 /** Cores por cérebro: dá para saber QUAL barra está andando sem ler o rótulo. */
 const TOM_VONTADE = { barra: 'linear-gradient(90deg,#c58a22,#f5c96b)', texto: '#f5c96b' };
 const TOM_MOTOR = { barra: 'linear-gradient(90deg,#2f8f6b,#7fe0b0)', texto: '#7fe0b0' };
+const TOM_MEMORIA = { barra: 'linear-gradient(90deg,#6b3fa0,#c39bf0)', texto: '#c39bf0' };
 const TOM_FALHOU = { barra: 'linear-gradient(90deg,#8a2f2f,#c2554a)', texto: '#ff9c9c' };
 const TOM_FILA = { barra: 'linear-gradient(90deg,#3a6df0,#7fe0b0)', texto: '#cfd6e4' };
 const TOM_FALA = { barra: 'linear-gradient(90deg,#3a6df0,#7aa2ff)', texto: '#a8bcf0' };
@@ -109,13 +117,14 @@ const Floor10NpcChat: React.FC = () => {
         // DISPARA A FILA INTEIRA, não só a fala.
         //
         // Antes aqui só havia `initLLM()`. Os outros dois cérebros esperavam
-        // alguém precisar deles — e por isso a barra da fila parava em "1 de 3"
-        // e ficava lá. Agora os três descem em sequência, e a conversa libera
+        // alguém precisar deles — e por isso a barra da fila parava em "1 de 4"
+        // e ficava lá. Agora os quatro descem em sequência, e a conversa libera
         // assim que o primeiro chega, sem esperar os 3,9 GB.
         void iniciarPrecarga(passosDoAndar10({
             fala: () => initLLM(),
             vontade: () => precarregarVontade(),
             motor: () => precarregarMotor(),
+            memoria: () => precarregarMemoria(),
         }));
     }, []);
     const close = useCallback(() => { npcSet({ open: false }); }, []);
@@ -186,7 +195,8 @@ const Floor10NpcChat: React.FC = () => {
         // uma seguida da outra, e cada uma precisa dizer de qual arquivo é.
         const motorLoading = st.motorPhase === 'loading';
         const motorPct = Math.round(st.motorLoadProgress * 100);
-        const baixandoCerebro = miniLoading || motorLoading;
+        const memoriaLoading = st.memoriaPhase === 'loading';
+        const baixandoCerebro = miniLoading || motorLoading || memoriaLoading;
         const filaFlut = floor10Fila.estado();
         const speechAudible = st.autonomousSpeech !== ''
             && (st.perception.player?.distance ?? Infinity) <= 9;
@@ -212,7 +222,9 @@ const Floor10NpcChat: React.FC = () => {
                             }}
                             detalhe={filaFlut.atual?.id === FILA_MOTOR
                                 ? st.motorLoadText
-                                : st.deliberationLoadText}
+                                : filaFlut.atual?.id === FILA_MEMORIA
+                                    ? st.memoriaLoadText
+                                    : st.deliberationLoadText}
                             tom={TOM_FILA}
                         />
                     </div>
@@ -271,8 +283,11 @@ const Floor10NpcChat: React.FC = () => {
     const motorPct = Math.round(st.motorLoadProgress * 100);
     const showMotor = st.motorPhase === 'loading'
         || (loading && st.motorLoadText !== '');
-    // O painel mostra o bloco se QUALQUER um dos três estiver baixando.
-    const algumBaixando = loading || showMiniHandoff || showMotor;
+    const memoriaPct = Math.round(st.memoriaLoadProgress * 100);
+    const showMemoria = st.memoriaPhase === 'loading'
+        || (loading && st.memoriaLoadText !== '');
+    // O painel mostra o bloco se QUALQUER um dos quatro estiver baixando.
+    const algumBaixando = loading || showMiniHandoff || showMotor || showMemoria;
     // E quando ele está PENSANDO (não baixando), também precisa aparecer: sem
     // isto, de dentro do painel não dá para saber se o cérebro de vontade está
     // trabalhando, travado ou desligado.
@@ -288,7 +303,9 @@ const Floor10NpcChat: React.FC = () => {
         ? st.motorLoadText
         : fila.atual?.id === FILA_VONTADE
             ? st.deliberationLoadText
-            : st.loadText;
+            : fila.atual?.id === FILA_MEMORIA
+                ? st.memoriaLoadText
+                : st.loadText;
 
     return (
         <div style={panelStyle}>

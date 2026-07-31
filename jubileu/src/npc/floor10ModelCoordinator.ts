@@ -5,7 +5,10 @@
 // A fala pode pausar MiniBrain + motor; pausar não apaga os pesos já residentes,
 // então o livre-arbítrio volta sem baixar os modelos de novo.
 
-export type Floor10BrainOwner = 'conversation' | 'deliberation';
+// 'memory' é o modelo de embedding que escolhe o fato do cânone. Ele entra
+// aqui só para as CARGAS não acontecerem ao mesmo tempo — nunca preempta nem é
+// preemptado, porque a busca dele dura ~200ms e não disputa nada de verdade.
+export type Floor10BrainOwner = 'conversation' | 'deliberation' | 'memory';
 type BrainUnloader = () => Promise<void> | void;
 type BrainPreemptor = () => Promise<void> | void;
 
@@ -20,6 +23,7 @@ export class Floor10ModelCoordinator {
     private readonly generations: Record<Floor10BrainOwner, number> = {
         conversation: 0,
         deliberation: 0,
+        memory: 0,
     };
 
     register(
@@ -121,7 +125,7 @@ export class Floor10ModelCoordinator {
     }
 
     residents(): Floor10BrainOwner[] {
-        return (['conversation', 'deliberation'] as const)
+        return (['conversation', 'deliberation', 'memory'] as const)
             .filter((owner) => this.residentOwners.has(owner));
     }
 

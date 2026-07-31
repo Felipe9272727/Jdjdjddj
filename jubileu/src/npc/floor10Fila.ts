@@ -181,6 +181,7 @@ export const floor10Fila = new Floor10Fila();
 export const FILA_FALA = 'fala';
 export const FILA_VONTADE = 'vontade';
 export const FILA_MOTOR = 'motor';
+export const FILA_MEMORIA = 'memoria';
 
 /**
  * A ORDEM É A DO JOGO, não a do meu gosto.
@@ -193,12 +194,15 @@ export const FILA_MOTOR = 'motor';
  * motores — importar fecharia um ciclo, já que os três reportam progresso aqui.
  */
 export function definirFilaDoAndar10(bytes: {
-    fala: number; vontade: number; motor: number;
+    fala: number; vontade: number; motor: number; memoria: number;
 }): void {
     floor10Fila.definir([
         { id: FILA_FALA, label: 'conversa', bytes: bytes.fala },
         { id: FILA_VONTADE, label: 'vontade', bytes: bytes.vontade },
         { id: FILA_MOTOR, label: 'movimento', bytes: bytes.motor },
+        // A memória é a ÚLTIMA de propósito: sem ela o Nilo continua falando,
+        // só que procurando o fato por palavra, como fazia antes.
+        { id: FILA_MEMORIA, label: 'memória', bytes: bytes.memoria },
     ]);
 }
 

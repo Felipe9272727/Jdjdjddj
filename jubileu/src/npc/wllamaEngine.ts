@@ -20,6 +20,7 @@ import {
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { abortDeliberation } from './floor10SmallBrain';
+import { lembrarPorSignificado, memoriaJaCarregada } from './floor10Memoria';
 import { smallBrainUrls } from './floor10Brains';
 import { DownloadMeter, DOWNLOAD_ZERO } from './floor10Download';
 import {
@@ -1135,6 +1136,19 @@ export async function sendToNpc(userText: string): Promise<void> {
     }
     await settlePersonaPrewarm();
 
+    // ── A MEMÓRIA, ANTES DE MONTAR O PROMPT ───────────────────────────────
+    // Roda aqui, e não durante a geração, porque o fato escolhido É parte do
+    // prompt. Custa ~200ms medidos e NUNCA bloqueia: se o modelo de 333 MB
+    // ainda não desceu, `lembrarPorSignificado` devolve null na hora e o
+    // curador volta a procurar por palavra, como fazia antes de existir.
+    if (memoriaJaCarregada()) {
+        npcSet({ loadText: 'lembrando…' });
+    }
+    const lembrado = await lembrarPorSignificado(
+        `${history.filter((m) => m.role === 'user').slice(-2)
+            .map((m) => m.content).join(' ')} ${text}`,
+    );
+
     npcSet({ history, phase: 'thinking', streaming: '', speaking: true, error: '' });
     const systemPrompt = prepareFloor10SystemPrompt(
         buildFloor10SystemPrompt(
@@ -1142,6 +1156,7 @@ export async function sendToNpc(userText: string): Promise<void> {
             history,
             npc.perception,
             npc.autonomy,
+            lembrado,
         ),
     );
     // Memória curta de propósito: as últimas 2 trocas (4 mensagens). Histórico

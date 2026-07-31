@@ -24,9 +24,11 @@
 // dentro do WASM ao terminar. Dois modelos fazendo isso ao mesmo tempo num
 // celular é a receita da travada que já aconteceu aqui.
 import { npc } from './npcStore';
-import { floor10Fila, FILA_FALA, FILA_VONTADE, FILA_MOTOR } from './floor10Fila';
+import {
+    floor10Fila, FILA_FALA, FILA_VONTADE, FILA_MOTOR, FILA_MEMORIA,
+} from './floor10Fila';
 
-export type PrecargaEtapa = 'fala' | 'vontade' | 'motor' | 'pronto';
+export type PrecargaEtapa = 'fala' | 'vontade' | 'motor' | 'memoria' | 'pronto';
 
 /**
  * Quando o carregador devolve `false` sem exceção, o motivo já está escrito na
@@ -36,6 +38,7 @@ export type PrecargaEtapa = 'fala' | 'vontade' | 'motor' | 'pronto';
 function motivoDaTela(etapa: PrecargaEtapa): string {
     if (etapa === 'vontade') return npc.deliberationLoadText || 'não foi possível baixar';
     if (etapa === 'motor') return npc.motorLoadText || 'não foi possível baixar';
+    if (etapa === 'memoria') return npc.memoriaLoadText || 'não foi possível baixar';
     return npc.loadText || 'não foi possível baixar';
 }
 
@@ -100,11 +103,13 @@ export function passosDoAndar10(carregadores: {
     fala: () => Promise<unknown>;
     vontade: () => Promise<unknown>;
     motor: () => Promise<unknown>;
+    memoria: () => Promise<unknown>;
 }): Passo[] {
     return [
         { id: FILA_FALA, etapa: 'fala', carregar: carregadores.fala },
         { id: FILA_VONTADE, etapa: 'vontade', carregar: carregadores.vontade },
         { id: FILA_MOTOR, etapa: 'motor', carregar: carregadores.motor },
+        { id: FILA_MEMORIA, etapa: 'memoria', carregar: carregadores.memoria },
     ];
 }
 

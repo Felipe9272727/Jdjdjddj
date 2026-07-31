@@ -16,7 +16,10 @@ describe('npc/floor10Precarga — baixa TUDO primeiro, um depois do outro', () =
     beforeEach(() => {
         ordem.length = 0;
         resetPrecargaForTests();
-        definirFilaDoAndar10({ fala: 1_915_305_312, vontade: 1_321_083_008, motor: 639_446_688 });
+        definirFilaDoAndar10({
+            fala: 1_915_305_312, vontade: 1_321_083_008,
+            motor: 639_446_688, memoria: 333_590_944,
+        });
     });
 
     it('baixa UM DE CADA VEZ, na ordem do jogador', async () => {
@@ -27,21 +30,24 @@ describe('npc/floor10Precarga — baixa TUDO primeiro, um depois do outro', () =
             fala: carregador('fala'),
             vontade: carregador('vontade'),
             motor: carregador('motor'),
+            memoria: carregador('memoria'),
         }));
         expect(ordem).toEqual([
             'inicio:fala', 'fim:fala',
             'inicio:vontade', 'fim:vontade',
             'inicio:motor', 'fim:motor',
+            'inicio:memoria', 'fim:memoria',
         ]);
     });
 
     it('a fila chega a 100% — era isto que não acontecia', async () => {
-        // O relato: a barra parava em "1 de 3 · 49%" e ficava lá, porque os
+        // O relato: a barra parava em "1 de 4 · 49%" e ficava lá, porque os
         // outros dois nunca eram pedidos.
         await iniciarPrecarga(passosDoAndar10({
             fala: carregador('fala'),
             vontade: carregador('vontade'),
             motor: carregador('motor'),
+            memoria: carregador('memoria'),
         }));
         expect(floor10Fila.completa()).toBe(true);
         expect(floor10Fila.estado().fracao).toBe(1);
@@ -55,6 +61,7 @@ describe('npc/floor10Precarga — baixa TUDO primeiro, um depois do outro', () =
             fala: carregador('fala'),
             vontade: () => Promise.reject(new Error('sem espaço')),
             motor: carregador('motor'),
+            memoria: carregador('memoria'),
         }));
         expect(ordem).toContain('inicio:motor');
         expect(precargaCompleta()).toBe(true);
@@ -65,6 +72,7 @@ describe('npc/floor10Precarga — baixa TUDO primeiro, um depois do outro', () =
             fala: carregador('fala'),
             vontade: carregador('vontade'),
             motor: carregador('motor'),
+            memoria: carregador('memoria'),
         });
         const a = iniciarPrecarga(passos);
         const b = iniciarPrecarga(passos);
@@ -87,6 +95,7 @@ describe('npc/floor10Precarga — baixa TUDO primeiro, um depois do outro', () =
             fala: carregador('fala'),
             vontade: carregador('vontade'),
             motor: carregador('motor'),
+            memoria: carregador('memoria'),
         }));
         expect(precargaEtapa()).toBe('pronto');
     });
@@ -96,7 +105,10 @@ describe('falha ≠ concluído — o "pulou direto pra baixar o motor"', () => {
     beforeEach(() => {
         ordem.length = 0;
         resetPrecargaForTests();
-        definirFilaDoAndar10({ fala: 1_915_305_312, vontade: 1_321_083_008, motor: 639_446_688 });
+        definirFilaDoAndar10({
+            fala: 1_915_305_312, vontade: 1_321_083_008,
+            motor: 639_446_688, memoria: 333_590_944,
+        });
     });
 
     it('um carregador que devolve FALSE não conta como baixado', async () => {
@@ -107,6 +119,7 @@ describe('falha ≠ concluído — o "pulou direto pra baixar o motor"', () => {
             fala: carregador('fala'),
             vontade: () => Promise.resolve(false),
             motor: carregador('motor'),
+            memoria: carregador('memoria'),
         }));
         const e = floor10Fila.estado();
         expect(e.prontos).not.toContain('vontade');
@@ -121,6 +134,7 @@ describe('falha ≠ concluído — o "pulou direto pra baixar o motor"', () => {
             fala: carregador('fala'),
             vontade: () => Promise.reject(new Error('o navegador só libera 1.87 GB')),
             motor: carregador('motor'),
+            memoria: carregador('memoria'),
         }));
         const falha = floor10Fila.estado().falhados.find((f) => f.id === 'vontade');
         expect(falha?.motivo).toContain('1.87 GB');
@@ -131,6 +145,7 @@ describe('falha ≠ concluído — o "pulou direto pra baixar o motor"', () => {
             fala: carregador('fala'),
             vontade: () => Promise.resolve(false),
             motor: carregador('motor'),
+            memoria: carregador('memoria'),
         }));
         // Sem a vontade ele anda no reflexo; parar seria virar pane.
         expect(ordem).toContain('inicio:motor');
