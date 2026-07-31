@@ -657,10 +657,35 @@ export async function assinarEscolha(
 let cedeuAVez = false;
 export function deliberationYieldedTurn(): boolean { return cedeuAVez; }
 
+/**
+ * O CÉREBRO DE VONTADE JÁ ESTÁ NO APARELHO?
+ *
+ * Pergunta sem baixar nada. `enginePromise` só existe depois que alguém pediu
+ * a carga — e é essa distinção que faltava.
+ */
+export function vontadeJaCarregada(): boolean { return enginePromise !== null; }
+
 export async function deliberateFloor10(
     input: DeliberateInput,
 ): Promise<Floor10Deliberation | null> {
     if (inFlight || conversationHasPriority()) { cedeuAVez = true; return null; }
+    // ── A DELIBERAÇÃO NÃO BAIXA NADA ──────────────────────────────────────
+    //
+    // Isto é o defeito que quem joga encontrou: "sempre que eu entro no andar,
+    // o download da vontade inicia, sendo que isso é pra acontecer só quando eu
+    // clicar em conversar".
+    //
+    // Estava certo. O laço de deliberação começa a rodar assim que o NPC nasce
+    // no andar, e ele chamava `ensureSmallEngine` — que BAIXA. Ou seja: pisar no
+    // 10º disparava 1,32 GB sem ninguém pedir, competindo com a fala e com a
+    // própria fila de pré-carga que eu tinha acabado de escrever. Os dois
+    // brigando pelo mesmo lugar explicam a carga travada e o "pulou direto".
+    //
+    // Agora ela USA o cérebro se ele já estiver no aparelho, e desiste em
+    // silêncio se não estiver. Quem manda baixar é a fila, e a fila começa no
+    // botão de conversar. Desistir aqui é ceder a vez, não fracassar — senão a
+    // espera cresceria até o teto por um download que ninguém pediu.
+    if (!vontadeJaCarregada()) { cedeuAVez = true; return null; }
     cedeuAVez = false;
     inFlight = true;
     try {

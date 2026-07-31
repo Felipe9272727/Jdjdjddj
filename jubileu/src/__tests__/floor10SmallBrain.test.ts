@@ -247,3 +247,29 @@ describe('ceder a vez não é falhar — o castigo de 5 minutos que não fazia s
         expect(deliberationRetryDelay(9)).toBeGreaterThan(deliberationRetryDelay(3));
     });
 });
+
+describe('pisar no andar NÃO pode disparar 1,32 GB de download', () => {
+    it('a deliberação automática usa o cérebro, mas nunca manda baixar', async () => {
+        const { deliberateFloor10, deliberationYieldedTurn, vontadeJaCarregada,
+            resetSmallBrainForTests } = await import('../npc/floor10SmallBrain');
+        const { npcSet } = await import('../npc/npcStore');
+        resetSmallBrainForTests();
+        npcSet({ open: false, phase: 'cold' });
+        // O laço de deliberação roda assim que o NPC nasce no andar. Antes ele
+        // chamava o carregador, e pisar no 10º baixava 1,32 GB sem ninguém
+        // pedir — competindo com a fala e com a própria fila de pré-carga.
+        expect(vontadeJaCarregada()).toBe(false);
+        const decidido = await deliberateFloor10({
+            perception: PERCEPTION,
+            drives: { social: 0.5, curiosity: 0.5, restlessness: 0.5, fatigue: 0.1 },
+            memory: { inspectedElevatorCount: 0, sleeps: 0, playerSilentSeconds: 0, lastGoals: [] },
+            now: 0,
+        });
+        expect(decidido).toBeNull();
+        // E desistir assim é CEDER A VEZ, não fracassar: contar como fracasso
+        // faria a espera crescer até o teto por um download que ninguém pediu.
+        expect(deliberationYieldedTurn()).toBe(true);
+        // O carregador continua intocado — nenhum byte foi pedido.
+        expect(vontadeJaCarregada()).toBe(false);
+    });
+});
