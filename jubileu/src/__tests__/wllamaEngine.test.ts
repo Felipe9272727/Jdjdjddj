@@ -220,6 +220,45 @@ describe('npc/wllamaEngine — contrato do wllama 3.5.1', () => {
         expect(visible.at(-1)).toBe('Oi, tudo bem?');
     });
 
+    it('não republica texto que não mudou — tokens ocultos custavam um render cada', async () => {
+        // O <think> do template rende vários chunks sem UMA letra visível. Antes
+        // cada um deles virava um npcSet idêntico ao anterior, e cada npcSet é um
+        // re-render do painel na thread que desenha o jogo.
+        const chunks = async function* () {
+            yield { currentText: '<think>' };
+            yield { currentText: '<think>hmm' };
+            yield { currentText: '<think>hmm, ele quer saber' };
+            yield { currentText: '<think>hmm, ele quer saber</think>' };
+            yield { currentText: '<think>hmm, ele quer saber</think> Oi' };
+            yield { currentText: '<think>hmm, ele quer saber</think> Oi.' };
+        };
+        const publicados: string[] = [];
+        await consumeChatStream(
+            Promise.resolve(chunks()),
+            (text) => publicados.push(text),
+            { firstTokenMs: 200, nextTokenMs: 200 },
+        );
+        // 6 chunks; só 3 estados visíveis distintos ('', 'Oi', 'Oi.').
+        expect(publicados).toEqual(['', 'Oi', 'Oi.']);
+    });
+
+    it('o texto final sempre chega, mesmo publicando só as mudanças', async () => {
+        const chunks = async function* () {
+            yield { currentText: 'Oi' };
+            yield { currentText: 'Oi' };
+            yield { currentText: 'Oi, tudo bem?' };
+        };
+        const publicados: string[] = [];
+        const raw = await consumeChatStream(
+            Promise.resolve(chunks()),
+            (text) => publicados.push(text),
+            { firstTokenMs: 200, nextTokenMs: 200 },
+        );
+        expect(raw).toBe('Oi, tudo bem?');
+        expect(publicados.at(-1)).toBe('Oi, tudo bem?');
+        expect(publicados).toHaveLength(2);
+    });
+
     it('interrompe um stream que não produz o primeiro token', async () => {
         const never: AsyncIterable<never> = {
             [Symbol.asyncIterator]() {

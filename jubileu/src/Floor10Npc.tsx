@@ -18,6 +18,8 @@ import { deliberateFloor10, deliberationYieldedTurn } from './npc/floor10SmallBr
 import { describeMood, readClock } from './npc/floor10Drives';
 import { describePrison, f10prison, prisonReward, prisonTick } from './npc/f10Prison';
 import { initLLM } from './npc/wllamaEngine';
+import { Cadencia, CADENCIA_PERCEPCAO, CADENCIA_VONTADE } from './npc/floor10Cadencia';
+import { yawDaVarredura } from './npc/floor10Olhar';
 import {
     deliberationRetryDelay,
     type Floor10Deliberation,
@@ -52,10 +54,21 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
     const npcWorld = useMemo(() => new THREE.Vector3(), []);
     const forward = useMemo(() => new THREE.Vector3(), []);
     const worldQuaternion = useMemo(() => new THREE.Quaternion(), []);
-    const lastPerceptionAt = useRef(-Infinity);
     const willBrain = useMemo(() => new Floor10WillBrain(), []);
     const consumedWillCommandId = useRef(0);
     const autonomousTalkUntil = useRef(0);
+    // Os dois relógios do NPC. Ver floor10Cadencia.ts: a vontade deixou de ser
+    // reavaliada uma vez por quadro — ela lê uma percepção de 6 Hz, então 60
+    // avaliações por segundo eram 48 conclusões idênticas e 60 objetos de lixo.
+    const cadenciaPercepcao = useMemo(() => new Cadencia(CADENCIA_PERCEPCAO), []);
+    const cadenciaVontade = useMemo(() => new Cadencia(CADENCIA_VONTADE), []);
+    // O último veredito da vontade continua valendo entre os passos: o corpo se
+    // move e anima a 60 Hz mirando o alvo que ela escolheu.
+    const ultimaVontade = useRef<ReturnType<Floor10WillBrain['tick']> | null>(null);
+    // O rumo em que ele estava quando parou — a varredura do olhar oscila em
+    // volta dele em vez de girar sem fim.
+    const rumoParado = useRef<number | null>(null);
+    const conversaAberta = useRef(false);
     // ── DELIBERAÇÃO ────────────────────────────────────────────────────────
     // O cérebro pequeno pensa por fora, sem pressa. Guardamos só a última
     // intenção pronta; o reflexo abaixo continua decidindo a cada quadro.
@@ -91,7 +104,8 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
         // Primeiro os olhos leem a transformação atual. A vontade nunca decide
         // usando uma posição inventada ou a coordenada de spawn.
         let livePerception = npc.perception;
-        if (g && t - lastPerceptionAt.current >= 1 / 6) {
+        const passoPercepcao = cadenciaPercepcao.passo(safeDt);
+        if (g && passoPercepcao > 0) {
             g.getWorldPosition(npcWorld);
             g.getWorldQuaternion(worldQuaternion);
             forward.set(0, 0, 1).applyQuaternion(worldQuaternion);
@@ -102,7 +116,6 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 playerPosition: pp ?? null,
             });
             npcPublishPerception(livePerception);
-            lastPerceptionAt.current = t;
         }
 
         // A micro-IA escolhe. O corpo executa o alvo, mas conversa aberta e
@@ -174,41 +187,64 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 });
             }
 
-            // A SALA TRANCADA anda antes da vontade decidir: o que ele sente
-            // da prisão precisa estar atualizado quando a rede olhar o estado.
-            // E cada evento vira recompensa — quem diz que a tranca cedeu é a
-            // sala, não a minha tabela de utilidade.
-            const eventos = prisonTick({
-                npc: { x: g.position.x, z: g.position.z },
-                player: pp ? { x: pp.x, z: pp.z } : null,
-                dt: safeDt,
-            });
-            for (const evento of eventos) {
-                willBrain.addExternalReward(prisonReward(evento, safeDt));
+            // ── O PASSO DA VONTADE ────────────────────────────────────────
+            // 12 vezes por segundo, não 60. O `dt` dos quadros pulados vem
+            // acumulado dentro de `passoVontade`, então a prisão, os impulsos e
+            // os cooldowns integram exatamente o mesmo tempo de antes.
+            //
+            // Abrir a conversa não espera os 83 ms: ali a decisão muda de
+            // verdade e o jogador está olhando.
+            if (npc.open !== conversaAberta.current) {
+                conversaAberta.current = npc.open;
+                cadenciaVontade.agora();
             }
+            const passoVontade = cadenciaVontade.passo(safeDt);
+            if (passoVontade > 0) {
+                // A SALA TRANCADA anda antes da vontade decidir: o que ele sente
+                // da prisão precisa estar atualizado quando a rede olhar o
+                // estado. E cada evento vira recompensa — quem diz que a tranca
+                // cedeu é a sala, não a minha tabela de utilidade.
+                const eventos = prisonTick({
+                    npc: { x: g.position.x, z: g.position.z },
+                    player: pp ? { x: pp.x, z: pp.z } : null,
+                    dt: passoVontade,
+                });
+                for (const evento of eventos) {
+                    willBrain.addExternalReward(prisonReward(evento, passoVontade));
+                }
 
-            const will = willBrain.tick({
-                dt: safeDt,
-                time: t,
-                perception: livePerception,
-                npcPosition: g.position,
-                conversationOpen: npc.open,
-                speaking: npc.speaking,
-                deliberation: deliberation.current,
-                prison: f10prison,
-            });
-            npcPublishAutonomy(will.snapshot);
-            if (will.snapshot.goal !== lastGoalTrail.current.at(-1)) {
-                lastGoalTrail.current = [...lastGoalTrail.current.slice(-4), will.snapshot.goal];
-                if (will.snapshot.goal === 'inspect-elevator') elevatorInspections.current += 1;
+                const passo = willBrain.tick({
+                    dt: passoVontade,
+                    time: t,
+                    perception: livePerception,
+                    npcPosition: g.position,
+                    conversationOpen: npc.open,
+                    speaking: npc.speaking,
+                    deliberation: deliberation.current,
+                    prison: f10prison,
+                });
+                ultimaVontade.current = passo;
+                npcPublishAutonomy(passo.snapshot);
+                if (passo.snapshot.goal !== lastGoalTrail.current.at(-1)) {
+                    lastGoalTrail.current = [...lastGoalTrail.current.slice(-4), passo.snapshot.goal];
+                    if (passo.snapshot.goal === 'inspect-elevator') elevatorInspections.current += 1;
+                }
+                // A fala nasce no passo que a produziu e morre nele: fora do
+                // `if`, ela seria dita de novo em cada quadro até o passo
+                // seguinte.
+                if (passo.speech) {
+                    autonomousTalkUntil.current = t + 2.8;
+                    npcAutonomousSay(passo.speech);
+                }
             }
             if (npc.open || npc.speaking) playerQuietSince.current = t;
-            if (will.speech) {
-                autonomousTalkUntil.current = t + 2.8;
-                npcAutonomousSay(will.speech);
-            }
+            // O corpo continua a 60 Hz, mirando o que a vontade decidiu por
+            // último — é isso que mantém o andar liso sem reavaliar nada.
+            // Antes do primeiro passo não há veredito nenhum, e isso é normal
+            // no primeiro quadro. O corpo segue respirando e piscando abaixo.
+            const will = ultimaVontade.current;
 
-            if (!npc.open && !npc.speaking && will.snapshot.target) {
+            if (will && !npc.open && !npc.speaking && will.snapshot.target) {
                 const step = stepFloor10Movement(
                     g.position,
                     will.snapshot.target,
@@ -224,25 +260,29 @@ const Floor10Npc: React.FC<{ playerPositionRef?: React.MutableRefObject<THREE.Ve
                 if (moving) desiredYaw = step.yaw;
             }
 
+            const meta = will?.snapshot.goal;
             const shouldFacePlayer = pp && (
                 npc.open
                 || npc.speaking
-                || will.snapshot.goal === 'talk-player'
-                || will.snapshot.goal === 'observe-player'
-                || will.snapshot.goal === 'follow-player'
-                || (
-                    will.snapshot.goal === 'embodied-intent'
-                    && will.snapshot.motion?.target === 'player'
-                )
+                || meta === 'talk-player'
+                || meta === 'observe-player'
+                || meta === 'follow-player'
+                || (meta === 'embodied-intent' && will?.snapshot.motion?.target === 'player')
             );
             if (!moving && shouldFacePlayer) {
+                rumoParado.current = null;
                 tmp.copy(pp).sub(g.position);
                 tmp.y = 0;
                 if (tmp.lengthSq() > 0.0001) desiredYaw = Math.atan2(tmp.x, tmp.z);
             } else if (!moving && !shouldFacePlayer) {
-                // Sem alvo imediato, Nilo varre a sala lentamente em vez de
-                // ficar congelado olhando para uma direção para sempre.
-                desiredYaw = g.rotation.y + 0.32;
+                // Sem alvo imediato, ele VARRE a sala: olha para um ponto, segura
+                // alguns segundos, escolhe outro. Ver floor10Olhar.ts — antes era
+                // `rotation.y + 0.32` por quadro, um alvo que ele nunca alcançava,
+                // e o Nilo girava a ~40°/s para sempre.
+                rumoParado.current ??= g.rotation.y;
+                desiredYaw = yawDaVarredura(rumoParado.current, t);
+            } else if (moving) {
+                rumoParado.current = null;
             }
 
             if (desiredYaw !== null) {

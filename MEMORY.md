@@ -3746,3 +3746,33 @@ guardado continua lá, inalcançável a partir da URL do deploy.
 `coi-serviceworker.js`, o `crossOriginIsolated` cai e o wllama volta para uma thread só.
 
 **Estado:** tsc 0 · 492/492 vitest · audit sem erros · index.html rebuildado (83,9 MB).
+
+### Sessão 2026-07-31 (cont.) — otimizações no NPC: o que rodava à toa
+
+Felipe: *"faz otimizações e melhorias principalmente no npc"*. O caminho da fala já
+estava muito trabalhado (`cache_prompt`, KV em q8_0, curador de prompt, vetores do cânone
+pré-calculados no bundle) — não mexi em sampling nem em threads, que são números MEDIDOS no
+aparelho dele. O que sobrou foi trabalho repetido, e dá para provar lendo:
+
+- **A vontade pensava 60 vezes por segundo lendo uma percepção de 6 Hz.** `willBrain.tick()`
+  e `prisonTick()` rodavam por QUADRO; 48 dessas 60 avaliações por segundo chegavam à mesma
+  conclusão, cada uma alocando um `drives` novo e lendo o relógio. Agora rodam a 12 Hz
+  (`floor10Cadencia.ts`), com o `dt` dos quadros pulados ACUMULADO — nenhum tempo se perde,
+  então impulsos, cooldowns e a recompensa da prisão integram exatamente o mesmo total. O
+  corpo continua andando e animando a 60 Hz mirando o último veredito. Abrir a conversa
+  chama `agora()` e não espera os 83 ms.
+- **O Nilo parado era um pião.** `desiredYaw = g.rotation.y + 0.32` a cada quadro é um alvo
+  que ele nunca alcança: girava ~40°/s para sempre, no mesmo sentido. Agora ele varre a sala
+  como gente (`floor10Olhar.ts`): olha um ponto, segura ~3,4 s, escolhe outro, sempre dentro
+  de ±1,15 rad do rumo em que parou. Teste afirma que em 10 min parado o olhar nunca escapa
+  dessa faixa — o defeito antigo acumulava mais de 200 rad no mesmo tempo.
+- **Dois re-renders por token viraram bem menos.** `consumeChatStream` publicava o texto
+  visível a cada chunk, inclusive durante o `<think>`, quando o visível não muda por dezenas
+  de tokens; agora só publica o que mudou (teste: 6 chunks → 3 publicações). E
+  `timings_per_token` disparava um `npcSet` de etiqueta por token, com o mesmo texto
+  arredondado; agora só quando o número muda.
+
+Cada `npcSet` é um re-render do painel na MESMA thread que desenha o jogo enquanto 8 threads
+geram a fala — e é o FPS durante a geração que o gerente de GPU (`floor10Gpu`) julga.
+
+**Estado:** tsc 0 · 509/509 vitest (+17) · audit sem erros · index.html rebuildado.

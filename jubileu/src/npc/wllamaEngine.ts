@@ -523,6 +523,19 @@ export async function consumeChatStream(
     let acc = '';
     let sawVisibleText = false;
     let sawAnyChunk = false;   // tokens OCULTOS (<think>) também contam como progresso
+    // ── SÓ PUBLICA O QUE MUDOU ────────────────────────────────────────────
+    // Cada chamada aqui vira um `npcSet`, e todo `npcSet` re-renderiza o painel.
+    // Enquanto o modelo escreve raciocínio oculto (<think>), o texto VISÍVEL
+    // fica o mesmo por dezenas de tokens — e cada um desses tokens estava
+    // custando um render idêntico ao anterior, na mesma thread que desenha o
+    // jogo enquanto 8 threads geram a fala. Publicar só a mudança não altera
+    // uma vírgula do que aparece na tela.
+    let ultimoPublicado: string | null = null;
+    const publicar = (texto: string) => {
+        if (texto === ultimoPublicado) return;
+        ultimoPublicado = texto;
+        onVisibleText(texto);
+    };
 
     while (true) {
         const now = Date.now();
@@ -551,12 +564,12 @@ export async function consumeChatStream(
         // Restos da geração anterior chegam ANTES da abertura desta. Jogar fora
         // o que já se acumulou é o que impede a fala nova de nascer emendada na
         // velha (ver chunkOpensReply).
-        if (chunkOpensReply(chunk)) { acc = ''; onVisibleText(''); }
+        if (chunkOpensReply(chunk)) { acc = ''; publicar(''); }
         if (typeof chunk.currentText === 'string') acc = chunk.currentText;
         else acc += chunkDelta(chunk);
         const visible = visibleText(acc);
         if (visible.length > 0) sawVisibleText = true;
-        onVisibleText(visible);
+        publicar(visible);
     }
     return acc;
 }
@@ -1178,6 +1191,8 @@ export async function sendToNpc(userText: string): Promise<void> {
     // a amostra ao gerente é o `finally` desta fala, lá embaixo.
     let quadrosDaVez: FpsSampler | null = null;
     let tpsDaVez = 0;
+    /** Última etiqueta de velocidade publicada — evita re-render repetido. */
+    let ultimaMedicao = '';
     const generateWithMainModel = async (
         prompt: string,
         sampling: Partial<{
@@ -1221,7 +1236,14 @@ export async function sendToNpc(userText: string): Promise<void> {
                         tpsDaVez = timings.predicted_per_second;
                     }
                     const measured = formatTimings(timings);
-                    if (measured) {
+                    // `timings_per_token` entrega medição a CADA token, e cada
+                    // npcSet aqui era um segundo re-render por token, em cima do
+                    // render do texto. Só que a etiqueta é arredondada: depois
+                    // dos primeiros tokens ela repete o mesmo texto até o fim da
+                    // fala. Publicar só quando o número MUDA mostra exatamente a
+                    // mesma coisa pela metade do custo.
+                    if (measured && measured !== ultimaMedicao) {
+                        ultimaMedicao = measured;
                         npcSet({
                             modelLabel:
                                 `${FLOOR10_MODEL.label} · `
