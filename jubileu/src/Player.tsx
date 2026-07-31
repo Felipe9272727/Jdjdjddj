@@ -3,12 +3,14 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { Vector3, Euler } from 'three';
 import * as THREE from 'three';
-import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
+import { WALKING_URL, IDLE_URL, SPEED, PR, EZ_START, HOUSE_DOOR_X, HOUSE_DOOR_Z, wallsForState, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, CASHIER_INTERACT_DIST, CASHIER_POS, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, hasWalkInElevator } from './constants';
 import { platforms as f3Platforms, f3PlayerZ, f3PlayerY, f3HandState, respawnPoint as f3RespawnPoint } from './f3Parkour';
 import { playFloor3Step, playFloor3Jump, playFloor3Land, playFloor3Brush, playFloor3Hit } from './floor3Sfx';
 import { registerJump as f3RegisterJump, hazardKnockback as f3HazardKnockback, tryCollectBrush as f3TryCollectBrush } from './f3Hazards';
 import { HOLE_CENTER_X, HOLE_CENTER_Z, HOLE_RADIUS, SWIM_THRESHOLD_Y, UW_ROCK_COLLIDERS, CAVE_ROCK_COLLIDERS, CAVE_WALL_COLLIDERS, UW_PILLAR_COLLIDERS, STALAGMITE_COLLIDERS, resolveUWWalls, uwFloorHeight } from './Floor2Underwater';
 import { resolveCollision as _resolve } from './physics';
+import { f6DoorWalls } from './f6Escape';
+import { f9eco } from './f9Eco';
 
 useGLTF.preload(WALKING_URL);
 useGLTF.preload(IDLE_URL);
@@ -40,6 +42,36 @@ function findArmBones(scene: THREE.Object3D): { arm: THREE.Bone | null; forearm:
 
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInCubic = (t: number) => t * t * t;
+
+// Pointer-lock deltas already describe distance travelled since the previous
+// event. Multiplying them by frame dt made desktop sensitivity vary between
+// 30/60/120 fps; consume each accumulated delta exactly once in radians.
+const DESKTOP_LOOK_RADIANS = 0.00235;
+const MOBILE_LOOK_SCALE = 0.90; // App already converts touch pixels to radians.
+
+function consumeFirstPersonLook(
+  input: { x: number; y: number },
+  angles: { theta: number; phi: number },
+  desktop: boolean,
+): void {
+  if (!input.x && !input.y) return;
+  const scale = desktop ? DESKTOP_LOOK_RADIANS : MOBILE_LOOK_SCALE;
+  angles.theta -= input.x * scale;
+  angles.phi += input.y * scale;
+  input.x = 0;
+  input.y = 0;
+}
+
+const damp = (value: number, target: number, lambda: number, dt: number): number =>
+  target + (value - target) * Math.exp(-lambda * dt);
+
+function firstPersonBaseFov(aspect: number, level: number): number {
+  if (level === 2) return aspect < 0.85 ? 92 : 87;
+  if (level === 9) return aspect < 0.85 ? 87 : 80;
+  if (aspect < 0.85) return 88;
+  if (aspect < 1.15) return 83;
+  return 78;
+}
 
 export type PickupItem = 'flashlight' | 'cookie' | null;
 
@@ -310,6 +342,9 @@ interface PlayerProps {
   zoomLevel: number;
   npcPositionRef: React.MutableRefObject<Vector3>;
   dialogueTargetRef?: React.MutableRefObject<Vector3>;
+  /** Tall-NPC dialogue framing (the ~2.4m Floor-7 captain): pulls the camera back
+   *  and aims higher so his face + full torso sit in frame. */
+  dialogueTallNpc?: boolean;
   dialogueOpen: boolean;
   sharedPositionRef: React.MutableRefObject<Vector3>;
   sharedRotationYRef: React.MutableRefObject<number>;
@@ -331,7 +366,7 @@ interface PlayerProps {
   jumpRef?: React.MutableRefObject<boolean>;
 }
 
-export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
+export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, onCashierInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueTargetRef, dialogueTallNpc = false, dialogueOpen, sharedPositionRef, sharedRotationYRef, cameraThetaRef, cameraShakeRef, diverBeatRef, positionCmdRef, onElevatorZoneChange, pickupTrigger = 0, armExtended = false, pickupItem = null, onRightHandAnchor, sprintHeldRef, staminaRef, jumpRef }: PlayerProps) => {
   const { camera, size } = useThree();
   const pos = useRef(new Vector3(0, 0, 8)); const charRot = useRef(new Euler(0, Math.PI, 0)); const camAng = useRef({ theta: Math.PI, phi: 0.2 });
   const avRef = useRef<any>(null); const camLookRef = useRef(new Vector3());
@@ -352,6 +387,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
   const diverFrameRef = useRef({ dist: 0, fov: 0 });
   const camPosRef = useRef(new Vector3(0, 0, 8)); // smooth camera position
   const camInitRef = useRef(false); // sync camera to player pos on first frame
+  const fpFeelRef = useRef({ phase: 0, motion: 0, roll: 0, fov: 78 });
   const walls = useMemo(() => wallsForState(currentLevel, doorsClosed, houseDoorOpen), [currentLevel, doorsClosed, houseDoorOpen]);
 
   useEffect(() => {
@@ -361,8 +397,13 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     // z=-13 inside the elevator) we'd immediately fire onEnterElevator
     // and start a new countdown right after arrival. That manifested as
     // "level 2 auto-teleports back to lobby after 5s".
-    elevTriggered.current = pos.current.z < EZ_START - 1;
-  }, [currentLevel]);
+    const enabled = hasWalkInElevator(currentLevel);
+    elevTriggered.current = !enabled || pos.current.z < EZ_START - 1;
+    if (!enabled && prevInsideElevatorRef.current) {
+      prevInsideElevatorRef.current = false;
+      onElevatorZoneChange?.(false);
+    }
+  }, [currentLevel, onElevatorZoneChange]);
 
   useFrame((state, dt) => {
     if (!active) return;
@@ -388,7 +429,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         if (pos.current.z < EZ_START - 1) elevTriggered.current = true;
     }
     
-    const fp = zoomLevel < 0.5;
+    const fp = true; // third-person removed permanently — the game is first-person only
     if (sharedPositionRef) sharedPositionRef.current.copy(pos.current);
     if (sharedRotationYRef) sharedRotationYRef.current = charRot.current.y;
     // Bot reads this to map world deltas into camera-frame moveInput.
@@ -411,7 +452,9 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
     }
     
     if (onElevatorZoneChange) {
-        const inside = pos.current.z <= ELEVATOR_ZONE_Z && Math.abs(pos.current.x) <= ELEVATOR_ZONE_X;
+        const inside = hasWalkInElevator(currentLevel)
+          && pos.current.z <= ELEVATOR_ZONE_Z
+          && Math.abs(pos.current.x) <= ELEVATOR_ZONE_X;
         if (inside !== prevInsideElevatorRef.current) {
             prevInsideElevatorRef.current = inside;
             onElevatorZoneChange(inside);
@@ -430,7 +473,11 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
       diverFrameRef.current.dist = 0;
       diverFrameRef.current.fov = 0;
     }
-    if (dialogueOpen && dialogueFocusRef?.current) {
+    // Floor 6 (Suíte 612): the escape-room cards/keypad/crank freeze input
+    // (App gates WASD/joystick/look while f6UiOpen), but the camera must STAY
+    // first-person exactly where it was — the dialogue rig would yank it out
+    // to a third-person shot of an NPC ref that doesn't even live on this floor.
+    if (dialogueOpen && dialogueFocusRef?.current && currentLevel !== 6) {
         if (animRef.current !== 'Idle') { animRef.current = 'Idle'; setAnim('Idle'); }
         if (avRef.current) { avRef.current.position.copy(pos.current); avRef.current.rotation.copy(charRot.current); }
         const nP = dialogueFocusRef.current; const pP = pos.current;
@@ -444,7 +491,9 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         // handheld drift so the shot is never dead-still (AA feel). The
         // look target stays fixed, so the diver holds frame while the
         // camera breathes around him for subtle parallax.
-        let camDist = isDiverScene ? 5.8 : 2.2;
+        // the captain (dialogueTallNpc) is a ~2.4m model — pull back + aim higher
+        // than the lobby-NPC framing so his face and full torso sit in frame.
+        let camDist = isDiverScene ? 5.8 : (dialogueTallNpc ? 3.4 : 2.2);
         let driftX = 0, driftY = 0;
         let beatFov = 0;
         if (isDiverScene) {
@@ -478,9 +527,9 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
           camDist += diverFrameRef.current.dist;
           beatFov = diverFrameRef.current.fov;
         }
-        const camHeight  = isDiverScene ? 1.55 : 1.75;
-        const lookHeight = isDiverScene ? 1.3  : 1.35;
-        const targetFov  = (isDiverScene ? 46 : 40) + beatFov;
+        const camHeight  = isDiverScene ? 1.55 : (dialogueTallNpc ? 1.95 : 1.75);
+        const lookHeight = isDiverScene ? 1.3  : (dialogueTallNpc ? 1.75 : 1.35);
+        const targetFov  = (isDiverScene ? 46 : (dialogueTallNpc ? 44 : 40)) + beatFov;
         const tCam = _v.current[1].copy(nP).addScaledVector(d2p, camDist);
         tCam.y += camHeight + driftY; tCam.x += driftX;
         const tLook = _v.current[2].copy(nP); tLook.y += lookHeight;
@@ -492,18 +541,14 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         (camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((camera as THREE.PerspectiveCamera).fov, targetFov, dlgAlpha); camera.updateProjectionMatrix();
         // Sync smooth refs for transition back to 3P
         camPosRef.current.copy(camera.position);
+        fpFeelRef.current.fov = (camera as THREE.PerspectiveCamera).fov;
     } else if (currentLevel === 2 && pos.current.y < SWIM_THRESHOLD_Y) {
         // ─── SWIM MODE (Floor 2, below water) ─────────────────────────
         // 3D movement: WASD/joystick moves the player along the camera's
         // forward (including pitch — looking down = sink, up = rise) plus
         // a perpendicular strafe in the XZ plane. No gravity, no walls,
         // light buoyancy. Speed ~55% of land speed for "water resistance".
-        const sens = 0.003 * 1.5;
-        if (isDesktop) {
-           if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * sens * 500 * safeDt; camAng.current.phi += lookInput.current.y * sens * 500 * safeDt; lookInput.current.x = 0; lookInput.current.y = 0; }
-        } else {
-           if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * 1.5; camAng.current.phi += lookInput.current.y * 1.5; lookInput.current.x = 0; lookInput.current.y = 0; }
-        }
+        consumeFirstPersonLook(lookInput.current, camAng.current, isDesktop);
         camAng.current.phi = Math.max(-1.5, Math.min(1.5, camAng.current.phi));
 
         const fwd = -moveInput.current.y; const strafe = moveInput.current.x; let moving = false;
@@ -629,23 +674,27 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         camera.position.set(pos.current.x + swayX, ly, pos.current.z + swayZ);
         const ld = 5;
         camera.lookAt(
-            pos.current.x - Math.sin(camAng.current.theta) * ld * Math.cos(camAng.current.phi) + swayX * 0.4,
-            ly - Math.sin(camAng.current.phi) * ld,
-            pos.current.z - Math.cos(camAng.current.theta) * ld * Math.cos(camAng.current.phi) + swayZ * 0.4
+            camera.position.x - Math.sin(camAng.current.theta) * ld * Math.cos(camAng.current.phi),
+            camera.position.y - Math.sin(camAng.current.phi) * ld,
+            camera.position.z - Math.cos(camAng.current.theta) * ld * Math.cos(camAng.current.phi)
         );
-        (camera as THREE.PerspectiveCamera).fov = 95; camera.updateProjectionMatrix();
+        const fpFeel = fpFeelRef.current;
+        fpFeel.motion = damp(fpFeel.motion, willMove ? (sprinting ? 1 : 0.65) : 0, 7, safeDt);
+        fpFeel.roll = damp(fpFeel.roll, -THREE.MathUtils.clamp(strafe, -1, 1) * 0.018 * fpFeel.motion, 9, safeDt);
+        camera.rotateZ(fpFeel.roll + Math.sin(tNow * 0.7) * 0.004);
+        const targetFov = firstPersonBaseFov(size.width / size.height, 2) + (sprinting ? 3.5 : fpFeel.motion * 0.8);
+        fpFeel.fov = damp(fpFeel.fov, targetFov, 5.5, safeDt);
+        if (Math.abs((camera as THREE.PerspectiveCamera).fov - fpFeel.fov) > 0.01) {
+            (camera as THREE.PerspectiveCamera).fov = fpFeel.fov;
+            camera.updateProjectionMatrix();
+        }
         camPosRef.current.copy(camera.position);
 
         // Reuse Walking anim while moving (no swim anim available)
         const nextAnim = moving ? 'Walking' : 'Idle';
         if (nextAnim !== animRef.current) { animRef.current = nextAnim; setAnim(nextAnim); }
     } else {
-        const sens = 0.003 * (fp ? 1.5 : 1.0);
-        if (isDesktop) {
-           if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * sens * 500 * safeDt; camAng.current.phi += lookInput.current.y * sens * 500 * safeDt; lookInput.current.x = 0; lookInput.current.y = 0; }
-        } else {
-           if (lookInput.current.x || lookInput.current.y) { camAng.current.theta -= lookInput.current.x * (fp ? 1.5 : 1); camAng.current.phi += lookInput.current.y * (fp ? 1.5 : 1); lookInput.current.x = 0; lookInput.current.y = 0; }
-        }
+        consumeFirstPersonLook(lookInput.current, camAng.current, isDesktop);
         camAng.current.phi = Math.max(fp ? -1.5 : -0.5, Math.min(fp ? 1.5 : 1.2, camAng.current.phi));
 
         const fwd = -moveInput.current.y; const strafe = moveInput.current.x; let moving = false;
@@ -653,19 +702,34 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
             moving = true;
             const cd = _v.current[3].set(Math.sin(camAng.current.theta), 0, Math.cos(camAng.current.theta));
             const rd = _v.current[4].set(Math.sin(camAng.current.theta-Math.PI/2), 0, Math.cos(camAng.current.theta-Math.PI/2));
-            const mv = _v.current[5].set(0,0,0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * safeDt);
+            // Andar 9 (V4): carregando oferenda o Fiapo fica PESADO — speed ×0.55
+            const carryK = currentLevel === 9 && f9eco.offerings.some((o) => o.state === 'carregada') ? 0.55 : 1;
+            const mv = _v.current[5].set(0,0,0).addScaledVector(cd, -fwd).addScaledVector(rd, -strafe).normalize().multiplyScalar(SPEED * carryK * safeDt);
             const nx = pos.current.x + mv.x, nz = pos.current.z + mv.z;
 
             const [rx, rz] = _resolve(nx, nz, PR, walls);
             pos.current.x = rx; pos.current.z = rz;
+
+            // Floor 6 (Suíte 612): the LOCKED doors are live state, not part of
+            // the memoized wall list — resolve against them separately so
+            // opening a door takes effect the same frame.
+            if (currentLevel === 6) {
+                const dw = f6DoorWalls();
+                if (dw.length) {
+                    const [rx6, rz6] = _resolve(pos.current.x, pos.current.z, PR, dw);
+                    pos.current.x = rx6; pos.current.z = rz6;
+                }
+            }
 
             if (fp) { charRot.current.y = camAng.current.theta + Math.PI; } else { const a = Math.atan2(mv.x, mv.z); let d = a - charRot.current.y; while(d>Math.PI) d-=Math.PI*2; while(d<-Math.PI) d+=Math.PI*2; charRot.current.y += d*10*safeDt; }
             // Re-arm when player walks back out of the elevator zone, so a
             // later re-entry can fire onEnterElevator. Combined with the
             // teleport-aware setter at line ~152, the trigger only fires on
             // GENUINE walk-ins (never on respawn teleports).
-            if (pos.current.z >= EZ_START - 1) elevTriggered.current = false;
-            else if (!elevTriggered.current && !dialogueOpen) { elevTriggered.current = true; onEnterElevator(); }
+            if (hasWalkInElevator(currentLevel)) {
+              if (pos.current.z >= EZ_START - 1) elevTriggered.current = false;
+              else if (!elevTriggered.current && !dialogueOpen) { elevTriggered.current = true; onEnterElevator(); }
+            }
         }
         // ─── Y axis handling (runs every frame, even when standing still) ──
         // Default: feet on the floor.
@@ -831,9 +895,47 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         const lookAlpha = Math.min(10 * safeDt, 0.5);
         camLookRef.current.lerp(nla, lookAlpha);
         if (fp) {
-            camera.position.set(pos.current.x + shakeX, ly + shakeY, pos.current.z);
-            const ld = 5; camera.lookAt(pos.current.x - Math.sin(camAng.current.theta)*ld*Math.cos(camAng.current.phi), ly - Math.sin(camAng.current.phi)*ld, pos.current.z - Math.cos(camAng.current.theta)*ld*Math.cos(camAng.current.phi));
-            (camera as THREE.PerspectiveCamera).fov = 90; camera.updateProjectionMatrix();
+            const feel = fpFeelRef.current;
+            const isCreatureView = currentLevel === 9;
+            const groundedForView = currentLevel !== 3 || f3HandState.grounded;
+            const inputAmount = Math.min(1, Math.hypot(fwd, strafe));
+            const motionTarget = moving && groundedForView && !isCreatureView ? inputAmount : 0;
+            feel.motion = damp(feel.motion, motionTarget, moving ? 11 : 7, safeDt);
+            if (motionTarget > 0.01) feel.phase += safeDt * (7.4 + inputAmount * 1.7);
+
+            // Local camera motion keeps the world stable while still giving
+            // footsteps weight. Floor 9 owns its gait in the Fiapo rig.
+            const step = feel.phase;
+            const bobX = Math.sin(step) * 0.014 * feel.motion;
+            const bobY = (Math.abs(Math.cos(step)) - 0.5) * 0.024 * feel.motion;
+            const bobZ = Math.sin(step * 2) * 0.006 * feel.motion;
+            const breath = Math.sin(timeRef.current * 1.35) * 0.0035 * (1 - feel.motion);
+            const rightX = Math.cos(camAng.current.theta);
+            const rightZ = -Math.sin(camAng.current.theta);
+            const forwardX = -Math.sin(camAng.current.theta);
+            const forwardZ = -Math.cos(camAng.current.theta);
+            camera.position.set(
+                pos.current.x + rightX * (bobX + shakeX) + forwardX * bobZ,
+                ly + bobY + breath + shakeY,
+                pos.current.z + rightZ * (bobX + shakeX) + forwardZ * bobZ,
+            );
+            const ld = 5;
+            camera.lookAt(
+                camera.position.x + forwardX * ld * Math.cos(camAng.current.phi),
+                camera.position.y - Math.sin(camAng.current.phi) * ld,
+                camera.position.z + forwardZ * ld * Math.cos(camAng.current.phi),
+            );
+            const rollTarget = isCreatureView ? 0 : -THREE.MathUtils.clamp(strafe, -1, 1) * 0.013 * feel.motion;
+            feel.roll = damp(feel.roll, rollTarget, 10, safeDt);
+            camera.rotateZ(feel.roll + Math.sin(step) * 0.0025 * feel.motion);
+
+            const baseFov = firstPersonBaseFov(size.width / size.height, currentLevel);
+            const targetFov = baseFov + (isCreatureView ? 0 : feel.motion * 1.4);
+            feel.fov = damp(feel.fov, targetFov, 6.5, safeDt);
+            if (Math.abs((camera as THREE.PerspectiveCamera).fov - feel.fov) > 0.01) {
+                (camera as THREE.PerspectiveCamera).fov = feel.fov;
+                camera.updateProjectionMatrix();
+            }
             // Sync smooth refs when in FP so transition back is instant
             camPosRef.current.copy(camera.position);
         } else {
@@ -855,7 +957,7 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
         }
     }
   });
-  return (<group ref={avRef} visible={!(zoomLevel < 0.5)}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} pickupItem={pickupItem} onHandAnchor={onRightHandAnchor} /></group>);
+  return (<group ref={avRef} visible={false}><Avatar animation={anim} visible={!dialogueOpen} pickupTrigger={pickupTrigger} armExtended={armExtended} pickupItem={pickupItem} onHandAnchor={onRightHandAnchor} /></group>);
 };
 
 // ─── FPArmModel: first-person viewmodel — simple 3D arm in camera space ──
@@ -876,15 +978,17 @@ export const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doors
 
 interface FPArmModelProps {
   zoomLevel: number;
+  currentLevel?: number;
   armExtended: boolean;
   pickupTrigger: number;
   active: boolean;
   flashlightActive: boolean;
   flashlightOwned: boolean;
   pickupItem: PickupItem;
+  cutsceneActive?: boolean;   // hide the FP arm while a cutscene/dialogue owns the camera
 }
 
-export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, pickupTrigger, active, flashlightActive, flashlightOwned, pickupItem }) => {
+export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, currentLevel = 0, armExtended, pickupTrigger, active, flashlightActive, flashlightOwned, pickupItem, cutsceneActive }) => {
   const { camera } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   const armPivotRef = useRef<THREE.Group>(null);
@@ -939,7 +1043,10 @@ export const FPArmModel: React.FC<FPArmModelProps> = ({ zoomLevel, armExtended, 
     //   - s.timed.active → mid pickup-or-use animation (buy, cookie)
     const holdingSomething = armExtended || s.timed.active;
     const fpView = zoomLevel < 0.5;
-    g.visible = active && fpView && holdingSomething;
+    // Floors 3 and 9 own their viewmodels. Never stack the human arm over the
+    // rubber-hose gloves or the textured Fiapo body.
+    const floorOwnsViewmodel = currentLevel === 3 || currentLevel === 9;
+    g.visible = active && fpView && holdingSomething && !cutsceneActive && !floorOwnsViewmodel;
     if (!g.visible) return;
 
     g.position.copy(camera.position);

@@ -3053,3 +3053,652 @@ Sem wiring extra (level 4 já dispara o overlay+ResolveFX; o variant não-fallDe
 tsc 0 · 58/58 · audit 0 · index.html rebuildado (card no build = 2).
 Obs: a transição atual é o pixel-resolve 2D na entrada (o literal "3D pixelando na viagem"
 segue deferido pelo conflito com AdaptiveDpr).
+
+### Sessão 2026-06-09 — Viagem de 20s + transição 3D→2D DE VERDADE + saguão destruído
+
+Felipe: (1) a viagem tem que ser 20s DENTRO do elevador, com estrutura interna, abrindo
+no fim; (2) aos 10s restantes o mundo 3D vira 2D GRADUALMENTE (nada abrupto); (3) lore do
+Floor 4 = o LOBBY completamente destruído/caótico (meio gore), com andares de baixo,
+porta de fundo (conteúdo ele decide depois) e visual caprichado.
+
+**1. Viagem de 20s dentro do elevador (App.tsx):** o overlay 2D agora só monta em
+`currentLevel === 4 && !doorsClosed` — antes montava no timer 18 e cobria a viagem
+inteira. O player fica os 20s no `ElevatorInterior` 3D que já existia.
+
+**2. Transição gradual (o deferido virou real):** `Pixelate3DRamp` (em `Floor4.tsx`)
+monta no Canvas 3D quando `currentLevel===4 && doorsClosed && timer<=10`: derruba o dpr
+em 26 degraus quantizados com ease-in CÚBICO (9s — começa imperceptível, termina em
+blocões) + dessatura/contrasta via CSS filter no canvas. **Resolvi o conflito com o
+AdaptiveDpr trocando um pelo outro**: o ramp SUBSTITUI o `<AdaptiveDpr>` no JSX enquanto
+ativo; no unmount o AdaptiveDpr remonta e restaura o dpr sozinho (comportamento do drei).
+Na abertura das portas o `Floor4Canvas2D` monta começando tão pixelado quanto o 3D
+terminou e resolve pra nítido (ResolveFX 2.6s) — continuidade pixel-a-pixel.
+
+**3. Chegada coreografada:** player nasce DENTRO do elevador 2D (z entre poço e portas),
+`IntroDirector` abre as portas (smoothstep, ~1.6s..3s) via novo `openRef` do
+`Floor4Elevator2D`, e destrava o controle (`lockRef` no `Floor4Player2D`). Exit de volta
+exige ter SAÍDO do elevador antes (sem exit acidental no spawn).
+
+**4. Cena nova — o saguão destruído (`Floor4Scene2D.tsx` reescrito):** versão em ruínas
+do lobby com a MESMA linguagem (papel creme, lambri, checker, placa dourada): buracos na
+parede/teto/chão, sangue seco + arrasto + handprint (meio gore), grafites de lore
+("O ANDAR 4 NÃO EXISTE", "ROUBARAM O CHÃO" + seta pro buraco — callback do Dussekar,
+"ELE AINDA SOBE", "NÃO DURMA.", "AS PARTES QUE SOBRAM" meio apagado), SAGUÃO pendurada
+por uma corrente (sway), fluorescente agonizando (pêndulo + flicker + faísca), RECEPÇÃO
+tombada com papéis, planta morta, poeira flutuando, fumaça no colapso do teto,
+**andares de baixo em cutaway** (corredor destruído + nível silhueta + void, sangue
+escorrendo do buraco), **porta de fundo lacrada** + SAÍDA vermelha piscando, entulho
+selando a direita. Mundo x -13..15.2. Tudo procedural (pixelTex, sem assets).
+
+**5. Creator Mode:** card "Transição → 2D" agora dispara a VIAGEM COMPLETA de 20s
+(flag `f4Demo.ride` em floor4Sfx.ts, espelho do f3Demo; App inicia no elevador do lobby
+com portas fechadas + destino 4). Card "Andar 4" = spawn direto (sem viagem).
+
+**🐛 Descoberta importante (`AxisAlignedCamera`):** o R3F mira a câmera default na
+origem → `position:[0,3,10]` chegava INCLINADA ~16° pra baixo, e câmera ortográfica
+inclinada CISALHA as camadas 2D por paralaxe (cada plano z desliza verticalmente — era
+por isso que o céu "vazava" no meio da parede e o chão desalinhava do player).
+Diagnostiquei com um harness de calibração (quads em y conhecidos) e fixei zerando
+`camera.rotation` ao montar. REGRA: toda cena ortográfica 2D nova precisa disso.
+
+Validado renderizando (bancada + Playwright): chegada portas fechadas → portas abertas
+com player dentro → caminhada até a porta de fundo. 3 iterações de arte (grafite
+realocado 2x, mancha de arrasto quebrada em streaks, monte de entulho no lugar do
+"prancha caindo"). ⚠️ O ramp 3D (Pixelate3DRamp) não dá pra screenshotar offline (precisa
+do jogo completo) — lógica simples, validar no vercel.
+
+**Estado:** tsc 0 · 58/58 vitest · audit 0 erros · index.html rebuildado (~28.5MB, +21KB).
+Branch `claude/oi-vfpz3w`. FLOOR4.md §8 atualizado (transição FEITA + spec da cena).
+Falta: sprites de perfil do Felipe (spec §8), sfx 8-bit no ramp, pulo/plataformas,
+conteúdo da porta de fundo, e parar de montar o Floor4Environment 3D atrás do overlay.
+
+### Sessão 2026-06-09 (parte 2) — "não funcionou": e2e do jogo REAL + rodada de melhorias
+
+Felipe: "não funcionou" + pediu: visual do player 2D melhor, SÓ 1ª pessoa (na transição
+tbm), 2Dficação melhor, e o interior do elevador 2D visível na saída.
+
+**🔬 Consegui testar o JOGO COMPLETO no sandbox** (novidade — antes só harness isolado):
+o sandbox TEM rede; os assets externos (raw.githubusercontent) falham por cert MITM →
+`ignoreHTTPSErrors: true` no contexto Playwright resolve TUDO. E2e: `npm run dev` + script
+que clica MainMenu → MODO CRIADOR → card → INICIAR e screenshota a viagem inteira.
+⚠️ No sandbox o tick do elevador leva ~2s (CPU render lento) — esticar os tempos do
+script (viagem de 20s ≈ 45s de wall time). Botões: usar `>> visible=true` (o botão
+mobile escondido vem primeiro no DOM).
+
+**Causa raiz do "não funcionou":** a pixelação com ease CÚBICO + relógio próprio de 9s
+era imperceptível até os ~2s finais (e dessincronizava se os ticks atrasassem). A viagem
+em si FUNCIONAVA (o breu que vi primeiro era o overlay intencional do switch no timer
+18 + texturas falhando só no sandbox — o ElevatorInterior tem pointLight próprio).
+
+**Melhorias aplicadas:**
+1. **Pixelate3DRamp v2 — dirigido pelo TIMER** (prop `timer`, não relógio próprio): cada
+   frame persegue `(10-timer)/10` com taxa máx 0.14/s → sempre culmina exatamente quando
+   as portas abrem, suave entre ticks. Curva ^1.5 (visível desde ~1/3) + saturate até
+   0.25 + contrast/brightness. App passa `timer={elevatorTimer}`.
+2. **Letterbox cinematográfico**: barras pretas top/bottom (11vh) fecham junto com a
+   pixelação (div com transition 1.15s linear por tick, monta no timer 11 com altura 0).
+3. **1ª pessoa TOTAL**: `setZoomLevel(0)` ao armar a viagem (advanceToFloor4AfterWin +
+   creator ride); wheel gate ganhou `|| nextElevatorDestination === 4`; pinch gate ganhou
+   `currentLevel !== 4 && nextElevatorDestination !== 4`.
+4. **Cabine 2D iluminada** (`Floor4Elevator.tsx`): o "poço escuro" virou interior de
+   cabine (paredes prata com painéis, barra de luz no teto + wash, corrimão, painel de
+   botões com LEDs, chão escuro com losango dourado) + **luz quente vazando** pelo vão
+   conforme as portas abrem (spillTex, opacity = open) + **casings laterais** (colunas
+   escuras) escondendo o overshoot das portas deslizando.
+5. **Sprite do player v2** (`Floor4Player2D.tsx`): bacon hair de perfil 20×30 com
+   **outline automático** (two-pass ImageData), shading (cabelo com shine, sombra de
+   mandíbula, camisa com luz/sombra), braço da frente balançando + braço de trás,
+   walk de 4 frames (stride/pass/stride/pass) + idle de 2 frames (respiração).
+6. **Floor4Environment = shell**: o baseplate 3D morto virou só o backdrop escuro
+   (Sky2D) — o andar é 100% o overlay 2D.
+
+**Validado no e2e real:** viagem iluminada → letterbox + pixelação progressiva clara
+(painel em blocos, cores lavando) → chegada com player novo DENTRO da cabine acesa →
+portas abrem → sai andando no saguão destruído. Zero erros de console.
+
+**Estado:** tsc 0 · 58/58 · audit 0 · index.html rebuildado. Branch `claude/oi-vfpz3w`.
+⚠️ Se o Felipe testou no vercel de MAIN, ele viu o build velho — lembrar ele de mergear
+a branch (ou apontar o deploy pra ela) antes de testar.
+
+### Sessão 2026-06-09 (parte 3) — LORE + PUZZLES do Andar 4 (design aprovado → implementado)
+
+Felipe pediu (modo planejamento): como o player descobre a lore, puzzles, e uma ótima
+lore. Design escrito em **`jubileu/FLOOR4_LORE.md`** (lore canon completa + textos
+prontos + roadmap), aprovado ("pode fazer"), e implementado nas 5 fases.
+
+**Lore canon (resumo):** andares vivem de MEMÓRIA (Supervisor: "memórias são tijolos",
+"andares aparecem quando são lembrados"). O Andar 4 era o SAGUÃO ORIGINAL; após um
+incidente foi des-lembrado → decai pra 2D (a pixelação da viagem é o prédio sem memória
+pra renderizar 3D). O saguão do Andar 03 é construído com os tijolos reciclados do 4
+(Dussekar: "roubaram o chão"; "as partes que sobram são bem tratadas" = a reciclagem,
+inclusive dos hóspedes → o gore). A voz do andar é **o Esquecido** (1º Supervisor,
+preso por não poder ser lembrado), que deixou 5 páginas de diário + grafites. O
+elevador é intacto porque é a única coisa que TODOS os andares lembram.
+
+**Mecânicas de descoberta:** 4 camadas — ambiente → exames de 1 linha (prompt [E]/touch
++ typewriter) → 5 páginas do diário (HUD "PÁGINAS n/5") → 3 puzzles que soltam as 3
+tábuas da porta de fundo. Convergência: porta range, "ainda não." (conteúdo da porta
+fica pro Felipe), página 5 aparece NA CABINE, e fecha com "VOCÊ LEMBROU DO ANDAR 4".
+
+**Puzzles:** P1 Disjuntor (a luminária pisca curto·curto·curto·longo = posição das 4
+alavancas; payoff: o lado direito que começa em PENUMBRA acende + mural escondido com
+o prédio e o 4 riscado). P2 Sino (tally 4+1 interrompido → tocar 5x; payoff: 1.2s de
+silêncio e BATIDAS DE BAIXO + screen shake). P3 Cofre 404 (atrás do quadro torto;
+pistas: grafite "O ANDAR 4 NÃO EXISTE" + exame da placa "SAGUÃO 04"; payoff: a FOTO do
+saguão original intacto, gerada em pixel-art).
+
+**Arquitetura:** `f4Lore.ts` — estado/regras PURO (padrão f3Hazards; pontos de
+interação com gating `when()`, posições únicas pra cena e UI) — **13 testes vitest**.
+`Floor4Interact.tsx` — camada DOM (prompt contextual via playerXRef poll, painel
+typewriter, alavancas, keypad, foto, toast, finale; uiLockRef congela o player).
+`Floor4Scene2D.tsx` — sprites reativos (tábuas separadas do bake, sino, caixa de
+disjuntor c/ LED, cofre 2 estados, páginas com glow pulsante, mural, Gloom com fade,
+porta mais aberta, DyingLight agora pisca O PADRÃO e estabiliza pós-P1) + export
+`lobbyPhotoUrl` (dataURL). `floor4Sfx.ts` — 10 cues sintetizados (sino, batidas,
+clack, power-on, tábua, keypad, cofre, rangido, papel, chime de memória).
+`Floor4Canvas2D` é o DONO da assinatura f4SetOnChange (listener único!) e do shake.
+
+**Regra de level design descoberta:** tudo à ESQUERDA do elevador (x < -7.5) é
+inalcançável — andar pra lá dispara o exit do andar. Todos os pontos em x ≥ -7.4.
+
+**Validado com bot e2e na bancada** (Playwright joga o fluxo inteiro: lê páginas,
+resolve os 3 puzzles clicando na UI, empurra a porta, finale — zero erros, todos os
+passos OK). Fix achado no teste: fillText do SAGUÃO na foto saía preto-sobre-preto.
+
+**Estado:** tsc 0 · **71/71** vitest · audit 0 · index.html rebuildado (lore no build).
+Falta (futuro): conteúdo atrás da porta, sprites do Felipe, pulo/plataformas,
+persistência em localStorage, sfx 8-bit no ramp.
+
+### Sessão 2026-06-19 — Goal: WASM no jogo (gráfico/ray tracing/física, sem bugs)
+
+Felipe abriu um goal: usar WebAssembly pra melhorar o jogo (gráfico, ray tracing,
+física), sem bugs, até ficar "incrível". Dei o reality-check técnico (WASM é CPU,
+não mexe em gráfico WebGL; ray tracing real-time não roda nesse stack mobile/MP a
+60fps — eles já arrancaram postprocessing por lag). Felipe escolheu 3 direções REAIS:
+**(1) Modo Foto / path tracer** (ray tracing de verdade, não-realtime), **(2) Física
+em WASM (Rapier)**, **(3) Perf + caça-bugs geral**.
+
+Branch trazido pro dia: fiz `--ff-only` do `claude/floor-6-escape-room-polish-mlz5t7`
+pro meu branch `claude/review-commits-memory-y6iqnf` (peguei Floors 5 e 6). Baseline
+verde: tsc 0 · 91/91 · audit 0.
+
+**Fase 1 — Física em WASM (Rapier) ENTREGUE:**
+- `@dimforge/rapier3d-compat@0.14.0` (engine Rust→WASM, WASM embutido em base64). Travei
+  e confirmei: three/react/fiber/drei NÃO mudaram de versão.
+- `src/rapierPhysics.ts` — núcleo PURO (sem three/react, roda headless): `initRapier()`
+  (init idempotente), classe `PropsWorld` (ground, static boxes, paredes a partir dos
+  segmentos `wallsForState`, caixas dinâmicas com CCD, **capsule cinemático que segue o
+  player**, step com timestep fixo 1/60 + acumulador → determinístico).
+- `src/__tests__/rapierPhysics.test.ts` — **8 testes headless** (queda+repouso,
+  DETERMINISMO bit-a-bit, separação sem interpenetração, capsule empurra caixa, parede
+  contém sem tunneling, clamp de dt gigante). Provam "sem bugs" na física de verdade.
+- `src/PhysicsProps.tsx` — bridge R3F: instancedMesh, useFrame faz updateCapsule+step+
+  escreve matrizes. Gated por `profile.physicsProps` (NOVA flag — só `high`).
+- Wiring: pilha de "bagagem" (7 caixas) num canto do lobby (x≈-6,-8.5; z≈-6..-7), longe
+  do NPC/loja/elevador, contida pelas paredes seladas do lobby. Level 0 + high only.
+- A física do PLAYER (resolveCollision em physics.ts) NÃO foi tocada — Rapier é camada
+  aditiva de props. Zero risco pro movimento.
+
+**🐛 Bug de build achado e corrigido (importante):** o `inline-build.mjs` só inca o
+chunk PRINCIPAL. O Rapier (e os previews do creator) viravam **chunks dinâmicos
+separados** → 404 no single-file; pior, o rollup passou a `export{}` do main pros chunks,
+e embrulhar ESM com `export` num `<script>` clássico QUEBRA o jogo inteiro ("Unexpected
+token 'export'"). Fix em `vite.config.ts`: `output.inlineDynamicImports: true` → UM chunk
+autocontido, sem export, com os `import()` dinâmicos foldados (de quebra conserta os
+previews do creator que davam 404 offline). O single-file volta a ser 100% autocontido.
+
+**Verificação:** tsc 0 · **99/99 vitest** (+8) · audit 0 erros · build reprodutível
+(1 chunk, 41.8MB) · **smoke test Playwright** no index.html buildado (chromium
+swiftshader): root monta, conteúdo renderiza, **0 erros fatais de console**, Rapier WASM
+inlined sem ref a chunk externo. index.html rebuildado.
+⚠️ Falta verificar IN-GAME no lobby high (entrar no jogo) — a física é unit-testada
+headless e a integração é type-checked, mas o "feel" das caixas só dá pra ver renderizando
+o jogo completo. Próximo: Fase 2 (path tracer photo mode) + Fase 3 (perf/bugs) + e2e in-game.
+
+### Sessão 2026-06-19 (cont.) — Fase 3 parcial: perf/leak fixes (Floor 5 + 6)
+
+Sub-agente read-only caçou bugs nos andares mais novos. Validei cada achado no código
+(descartei 2 falsos positivos) e corrigi os reais:
+- **Floor5Race3D.tsx (CameraRig):** criava 3–5 `new THREE.Vector3()` POR FRAME durante a
+  corrida (eye/chase/chaseLook + 2 introLook) → GC stutter. Pré-aloquei como refs e troquei
+  pra `.set()`/refs. Hot path agora zero-alloc.
+- **Floor5Robot64.tsx:86:** `GATE_POS.clone().sub(new Vector3(...))` por frame nas fases de
+  largada → scratch ref + `.set()` (comportamento idêntico, GATE_POS.y - 0 = GATE_POS.y).
+- **Floor6Suite.tsx:313:** `setTimeout(playF6Pickup)` dentro do useFrame sem cleanup →
+  disparava após sair do andar (callback num audio graph já destruído). Agora rastreia os ids
+  num `pickupTimers` ref (Set), auto-remove ao disparar, e limpa todos no unmount.
+
+Verde: tsc 0 · 99/99 vitest · index.html rebuildado. Próximo: Fase 2 (Photo Mode / path
+tracer, guardado — só validável em GPU real) + mais varredura de perf.
+
+### Sessão 2026-06-19 (cont.) — Floor 6 "lagando muito": otimização de render
+
+Felipe acrescentou ao goal: Floor 6 está LAGANDO muito. Medi com um profiler
+não-invasivo (Playwright + patch de drawElements/drawArrays pra contar draw calls/
+frame + FPS; swiftshader). **Baseline Floor 6: 507 draw calls/frame** (idêntico em
+medium e high → descoberta: o `<Floor6Suite>` era renderizado SEM receber o profile de
+qualidade, então ignorava 100% a config e sempre rodava a cena cara, mesmo no mobile).
+
+Nota honesta: lag de Floor 6 é GPU/render-bound (luzes + env HDRI + overdraw + draw calls),
+não CPU — então WASM não conserta isso (WASM é a física, onde há CPU). Fix = otimização de
+render de verdade:
+
+**Quality-gating do Floor 6 (novo — antes inexistente):** `Floor6Suite` agora recebe
+`profile`; deriva `lite = !profile.atmosphere` (medium/low). No lite:
+- **Env map HDRI PMREM DESLIGADO** (samplear o cubemap por-fragmento em todo PBR é caro no
+  mobile) — compensado com hemisphereLight mais forte (0.34→0.52). Visualmente confirmado
+  em render: a sala continua bem iluminada, nada escuro/quebrado.
+- Point lights de intensidade-0 (bath/tv) agora montam SÓ quando acendem (`f6.bathOpen`/
+  `f6.tvOn`) — antes ficavam no shader como luzes ativas mesmo apagadas (custo por-fragmento
+  em TODOS os materiais). Vale pra todas as qualidades.
+
+**Gating de salas trancadas (todas as qualidades, −142 draw calls):** `<Bathroom>` e
+`<Kitchen>` montam só quando `f6.bathOpen`/`f6.kitchenOpen`. Enquanto trancadas, a porta
+sólida + a parede escondem 100% o interior → renderizá-lo era puro desperdício. Verifiquei
+que a `BathDoor` é um slab opaco fechado antes do unlock (sem pop-in visível). Montam
+exatamente quando a porta abre.
+
+**DustMotes** (12 billboards transparentes) → só high (`!lite`).
+
+**Resultado medido: 507 → 365 draw calls/frame (−28%)** em todas as qualidades, mais o corte
+de custo de fragmento (env+luzes) no lite pro mobile. (swiftshader fica ~1.5fps pinned — é
+mau proxy de FPS; o ganho objetivo são draw calls + custo de fragmento, que aliviam o device
+real do Felipe.) tsc 0 · 99/99 vitest · audit 0 · index.html rebuildado · smoke OK.
+⚠️ Validar o FPS final na GPU real do Felipe; dá pra otimizar mais (merge de geometria do
+shell/props) se ainda lagar.
+
+### Sessão 2026-06-19 (cont.) — Fase 2: Photo Mode (path tracer GPU) ENTREGUE
+
+Ray tracing DE VERDADE, no único lugar viável nesse stack: um "modo foto" não-realtime.
+Deps (versões core three/react INALTERADAS): `three-gpu-pathtracer@0.0.24` +
+`three-mesh-bvh@0.9.10`.
+
+- `src/PhotoMode.tsx`:
+  - `PhotoModeRig` (DENTRO do Canvas): com `useFrame(cb, 1)` (prioridade 1 = assume o
+    render) acumula amostras path-traced da cena congelada via `WebGLPathTracer` (GI real,
+    sombras suaves, reflexos). TUDO em try/catch — GPU que não suporta cai no fallback, não
+    crasha. Quando inativo, prioridade 0 + early-return → ZERO impacto no jogo normal.
+  - `PhotoModeOverlay` (DOM): letterbox + barra de progresso + "Salvar PNG"
+    (canvas.toDataURL) + Fechar. Estados: REVELANDO / FOTO PRONTA / INDISPONÍVEL.
+  - `PhotoModeButton` (📷) + hook `usePhotoMode`.
+- Wiring no App: rig dentro do Canvas; botão+overlay fora (gated aos andares fotográficos
+  0/1/6, só com portas abertas); player PAUSA enquanto ativo; **EffectComposer desligado
+  durante o photo mode** (senão briga pelo render loop).
+
+**Verificado:** tsc 0 · 99/99 vitest · audit 0 · build = 1 chunk (sem worker separado,
+inlineDynamicImports segura) · single-file inca o path tracer · smoke OK. E2e do photo
+mode: botão presente → abre → em swiftshader cai no **fallback "INDISPONÍVEL" sem crash**,
+jogo segue a 60fps (esperado: software GL não path-traceia). ⚠️ A imagem ray-traced em si
+só dá pra ver na GPU REAL do Felipe (validar no Vercel) — swiftshader não roda o tracer.
+Obs UX: no desktop com pointer-lock o 📷 (como os outros botões de HUD) precisa do cursor
+livre (Esc); no mobile/touch funciona direto.
+
+### Sessão 2026-06-19 (cont.) — Varredura de bugs nos hot paths restantes
+
+Sub-agente auditou Player/Multiplayer/AudioEngine/Atmosphere/Floor2/Floor3/Bot/RemotePlayer.
+Verifiquei cada achado no código: a maioria foi FALSO POSITIVO (os "leaks de timer" do
+Atmosphere já limpam com `if (timer) clearInterval(timer)` antes de re-armar + no stop; o
+`scheduleDrip` do cave tem guard `if (stopped) return` no topo). Os hot paths principais
+estão limpos — bom sinal de saúde do código.
+
+**Único bug real corrigido — Floor3Hazards.tsx:** a assinatura pra detectar mudança no
+conjunto de hazards/brushes era `hazards.map(h=>h.id).join(',')+...` construída TODO FRAME
+(2 .map + join + concat = lixo de GC 60×/s). Troquei por um **hash numérico** sobre os ids
+(zero alocação, O(n) com n pequeno, detecta qualquer mudança incl. troca com mesmo tamanho).
+Comportamento equivalente. tsc 0 · 99/99 vitest.
+
+**Regressão checada:** smoke e2e multi-andar (lobby c/ física + corrida + suíte) — todos
+renderizam com 0 erros fatais de console. index.html rebuildado.
+
+### Sessão 2026-06-19 (cont.) — Floor 6 rodada 2: overdraw + correção de regressão
+
+Empurrei o Floor 6 mais longe (o hook pediu pra não parar esperando feedback). Atribuí os
+365 draw calls restantes e achei o vilão de overdraw: **15 `GroundBlob`** (sombras de
+contato = planos transparentes) + DustMotes. Gateei ambos no lite (`!profile.atmosphere`).
+
+**Regressão pega e corrigida no caminho:** eu tinha desligado o env map HDRI no lite —
+mas isso ESCURECEU a sala (o env dava boa parte da luz ambiente) e medindo deu ~0 ganho de
+fps isolado. Reverti: **env map fica ON em todas as qualidades** (visual preservado, sem
+regressão). O ganho do lite vem 100% de cortar overdraw transparente (não de escurecer).
+
+**Medido (swiftshader):** Floor 6 medium **507 → 323 draw calls (−36%)**, FPS 1.5 → 2.2;
+o corte de overdraw sozinho (sombras+dust) leva a ~4.3 fps se o env também sair, mas mantive
+o env pelo visual. HIGH = 365 dc (mantém tudo). **Sem regressão visual** — screenshot do
+medium bate com o high (sala quente e iluminada), só sem as sombras de contato sutis (LOD
+aceitável no mobile).
+
+⚠️ O env map é o maior custo restante (≈dobra o fps quando removido) mas é um trade
+look-vs-perf — deixei a cargo do Felipe: se ainda lagar no device dele, dá pra adicionar um
+"modo performance" explícito que dropa o env. tsc 0 · 99/99 vitest · single-file smoke OK.
+
+### Sessão 2026-06-19 (cont.) — Floor 6 rodada 3: merge de geometria do trim
+
+Mais um ganho de draw call SEM regressão e em TODAS as qualidades: os baseboards + crown
+molding eram 8 segmentos × 4 boxes = 32 meshes, todos `F6M.woodDk`. Criei `MergedTrim` que
+funde os 32 numa única BufferGeometry (mesma matemática de transform dos `<Baseboard>`/
+`<Crown>` originais, T(group)·R(ang)·T(local)) → **1 draw call**. Removidos os componentes
+`Baseboard`/`Crown` (mortos). Verificado em render: trim idêntico (baseboards na junção
+parede-piso, crown no teto). Colisão é independente (`wallsForState`), então merge visual
+não afeta gameplay.
+
+**Floor 6 acumulado (swiftshader, medium): 507 → 294 draw calls (−42%)**; high 507 → 335
+(−34%). Sem regressão visual, env map preservado. tsc 0 · 99/99 vitest · single-file smoke OK.
+
+### Sessão 2026-06-19 (cont.) — Floor 6: investigação de modelos pesados + análise de custo (medium é o default)
+
+Felipe: medium é o DEFAULT e o mais importante; checar modelo 3D pesado e substituir; ver
+como outros levels otimizam e aplicar; manter bonito.
+
+**Modelos 3D pesados: NÃO EXISTEM.** `grep useGLTF|GLTFLoader|.glb|.fbx` no Floor 6 = 0.
+A suíte é 100% PROCEDURAL (boxes + canvas textures). Não há modelo pra substituir.
+
+**Como o Floor 2 (mais otimizado) faz:** geometria estática pré-construída 1× no module load
+(IIFE: CAVE_WALL/FLOOR/CEILING) + geometria compartilhada + InstancedMesh pra repetidos +
+`mergeGeometries`. **Apliquei o merge** no trim do Floor 6 (rodada anterior, −30 draws).
+
+**Análise de custo do medium (medido):** o gargalo dominante no swiftshader é o **env map
+HDRI** (env-off leva medium de 2.2→7.2 fps no MESMO nº de draw calls). Mas:
+- O env é o que deixa a sala BONITA (IBL: reflexos + fill quente) → mantido no medium/high
+  conforme a prioridade do Felipe. Só o tier LOW dropa (escolha explícita de perf).
+- O custo do env é ALL-OR-NOTHING: o sampling por-fragmento é fixo pelo tamanho do cubemap
+  do PMREM; não dá pra baratear sem remover (testado o raciocínio: envMapIntensity=0 não pula
+  o sample; RoomEnvironment gera PMREM do mesmo tamanho → mesmo custo). Então não há meio-termo.
+- Sombras: NÃO usadas (Canvas sem `shadows`, 0 castShadow no Floor 6) → nada a cortar aí.
+- Shell (piso/teto) já são planos eficientes. Paredes são multi-material por-comprimento
+  (UV escala por parede) → merge arriscaria o visual. Props de mobília são MISTOS de material
+  e muitos ANIMADOS (useFrame: Bed/Wardrobe/Desk/TvSet/Window/Painting) → merge inseguro.
+
+**Conclusão:** o que dava pra otimizar com segurança SEM perder beleza foi feito: draw calls
+507→294 no medium (−42%), overdraw transparente cortado (sombras de contato + dust), trim
+mesclado, luzes apagadas desmontadas. Essas reduções de draw call + overdraw **ajudam o mobile
+real do Felipe** mesmo que o swiftshader (env-bound) não mostre no FPS. O env (beleza) fica no
+medium; quem precisar de FPS máximo usa o tier low (env off, ~4.8× mais rápido).
+tsc 0 · 99/99 vitest · audit 0.
+
+### Sessão 2026-06-19 (cont.) — Garantia de FPS no medium: piso de dpr mais baixo
+
+Pra fechar o "medium bem level" sem eu poder validar na GPU real: o jogo JÁ tem AdaptiveDpr
++ PerformanceMonitor (baixam a resolução sob carga pra segurar FPS), ativos no Floor 6. Mas o
+piso de dpr do medium era 0.75 — pouca margem pro andar pesado (env-bound) se recuperar num
+phone fraco. **Aumentei o range do medium: dpr [0.75,1.0] → [0.6,1.0].** Mais headroom pro
+auto-scaling recuperar FPS no Floor 6; fica nítido (1.0) quando o device aguenta, só suaviza
+sob carga sustentada (suave-mas-fluido > travado). Systemic e seguro (auto-recupera).
+
+Smoke multi-andar (medium): lobby/submerso/parkour/corrida/suíte — todos renderizam, 0 erros.
+tsc 0 · 99/99 vitest.
+
+### Sessão 2026-06-19 (cont.) — ANDAR 7: o Navio Pirata, 100% em WebAssembly (C + Assembly)
+
+Felipe pediu o Andar 7 feito **100% em WebAssembly, em C e Assembly**: navio pirata 3D de
+tamanho médio, player nasce no convés de um navio EM MOVIMENTO, o elevador faz uma animação
+de sumir, o capitão aparece e pede pra pegar um balde com pano e limpar as poças do convés;
+quando termina de limpar não tem mais nada pra fazer MAS não pode sair (level parcial, de
+propósito).
+
+**Toolchain achada no ambiente:** `clang 18` com target **wasm32** + `wasm-ld` + `llc`
+(sem emscripten/wat2wasm). Compilo C freestanding (-nostdlib) direto pra wasm. Provei o
+pipeline (C→wasm rodando no Node) E que dá pra escrever **WASM assembly à mão (.s)** e linkar.
+
+**A FÍSICA/LÓGICA do andar é 100% C+Assembly compilado pra WASM** (o Three.js só LÊ os números
+e desenha — rendering precisa de WebGL, inevitável):
+- `wasm/floor7_asm.s` — **assembly WASM escrita à mão**: `f7_sinp` (seno polinomial Horner) e
+  `f7_inv_len2` (1/sqrt guardado). Toda a oscilação do mar, bob do capitão e direções saem daí.
+- `wasm/floor7.c` — o CÉREBRO: movimento do navio (heave/pitch/roll via o seno do asm), máquina
+  de estados da quest (INTRO→GREET→FETCH→CLEAN→DONE), fade do elevador, capitão que caminha da
+  proa, balde (pega/segura), 6 poças com progresso de limpeza, RNG xorshift, atan2 próprio.
+  `f7_can_leave()` retorna SEMPRE 0 (não pode sair). Exporta getters + ponteiro do array de
+  poças na memória linear.
+- `wasm/build-wasm.mjs` (`npm run build:wasm`) — compila C+asm → wasm → **base64 embutido em
+  `src/floor7-wasm.ts`** (commitado) pro build de produção (Vercel sem clang) inlinar no
+  single-file. O `.wasm` em si é gitignorado (a fonte-da-verdade é o .ts).
+- `src/Floor7Brain.ts` — bridge TS tipado (instancia síncrono, lê poças da memória WASM).
+- `src/__tests__/floor7Brain.test.ts` — **6 testes headless** validam a quest inteira no WASM
+  (intro→limpeza→DONE), o movimento do mar (asm), e que NUNCA pode sair.
+- `src/Floor7.tsx` — renderer R3F: casco/convés/mastros/velas/leme/proa procedurais, mar com
+  névoa que desliza (sensação de movimento), capitão estilizado (casaco+tricorne), balde+pano,
+  poças que encolhem ao limpar, elevador que desmaterializa (fade+sobe). Cada frame mapeia a
+  posição do player pro frame LOCAL do navio (worldToLocal) e alimenta o cérebro → limpeza
+  alinhada mesmo com o balanço. `Floor7Overlay` (DOM): diálogo do capitão + HUD "CONVÉS LIMPO
+  n/6" + botão ESFREGAR + tecla E/Espaço.
+- Wiring no App: spawn no convés (z=4.2), elevador padrão suprimido no level 7, ambiente
+  montado como sibling do World (precisa do handle do WASM), overlay fora do Canvas. Paredes do
+  convés (`_WALLS_FLOOR7`, 6×14) no `wallsForState`. Card do creator atualizado.
+
+**Validado renderizando (Playwright/swiftshader):** navio+oceano+capitão+poças+balde+elevador
+renderizam; o capitão caminha até o player e dá a missão ("Ahá, um novo grumete!… esfrega
+essas poças, marujo!"); **0 erros fatais** no dev E no single-file de produção (WASM instancia
+do base64 inlined). tsc 0 · **105/105 vitest** (+6) · audit 0 · index.html rebuildado.
+Obs: o swiftshader roda ~5fps então a intro de sim demora (dt clampado) — na GPU real a 60fps
+a intro fecha em 3.9s. Falta (Felipe vai dizer depois): o resto do level além da limpeza.
+
+### Sessão 2026-06-19 (cont.) — 1ª pessoa global + Floor 7 graficamente reformulado
+
+Felipe: tirar a 3ª pessoa PERMANENTE (todos os levels) + deixar o Floor 7 "extremamente
+bonito" (estava feio/mal acabado); pesquisar técnicas; C++ liberado pra gráficos.
+
+**3ª pessoa removida (todos os levels):** `fp=true` forçado no Player, avatar sempre oculto,
+`zoomLevel` travado em 0, controles de scroll/pinch desabilitados. Câmeras de corrida/cutscene
+(Floor 5/3) são sistemas próprios, intactas. Validado: lobby em 1ª pessoa.
+
+**Pesquisa (web):** confirmou Gerstner + fresnel + foam (Jacobian/cristas) + fade pro horizonte
+pra água; e low-poly estilizado + texturas PBR (diffuse/rough/normal/AO) + paleta coesa +
+espuma onde a água toca o casco pro navio. (FFT/WebGPU = overkill, quebraria WebGL/single-file.)
+Fontes: discoverthreejs PBR, sbcode gerstner, threejs ocean examples, pirate-sea-jam devlog.
+
+**Floor 7 reformulado (3 stages, tudo self-contained pro single-file):**
+- A) `Floor7Water.tsx` — **shader Gerstner custom** (4 ondas, gradiente fundo/raso, fresnel,
+  brilho do sol agudo, foam nas cristas, fade pro céu no horizonte). + drei `<Sky>` atmosférico
+  com sol baixo quente + key light casado. Substitui o plano azul flat.
+- B) `floor7Textures.ts` — **madeira procedural** (grão+tábuas+nós + roughness map) no
+  convés/casco/trim; **Jolly Roger** procedural (caveira+ossos) numa bandeira que tremula;
+  crow's nest, cordame (shrouds), barris com aros de ferro, pilha de caixotes, lanterna do leme
+  com glow+pointLight.
+- C) Bloom/EffectComposer habilitado no Floor 7 em TODAS as qualidades (inclui o medium/default)
+  pro brilho do sol na água/lanterna/velas.
+
+Validado renderizando (dev + medium): água com ondas, céu atmosférico, madeira texturizada,
+0 erros fatais. tsc 0 · 105/105 vitest · audit 0 · index.html rebuildado.
+⚠️ A câmera FP é difícil de tiltar no Playwright headless, então não consegui um print do
+mastro/velas/bandeira de frente — mas compilam e renderizam (0 erros); pedir o olho do Felipe
+in-game. C++ pro casco curvo: planejado mas ainda não feito (a permissão fica pra próxima
+iteração se ele quiser mais).
+
+### Sessão 2026-06-20 — Loop visual do Floor 7 (render→crítica→conserto, eu mesmo testando)
+
+Felipe (/loop): parar de fazer às cegas — eu mesmo renderizo, vejo os erros gráficos e
+conserto, iterando, pq estava "terrível" e o pirata parecia placeholder.
+
+**Bancada de inspeção:** `floor7.html` + `src/floor7-dev.tsx` (OrbitControls + fast-forward
+do cérebro WASM pra pular a intro e esconder o elevador) + `shot7.cjs` → renderizo o navio de
+qualquer ângulo offline. (Sem ScheduleWakeup/Cron nesse ambiente, então iterei dentro da sessão.)
+
+**Iteração 1:** casco caixa→**casco extrudado com proa pontuda** (ExtrudeGeometry de um
+footprint de barco + belly inferior afilado); **capitão placeholder→pirata estilizado**
+(pernas+bota+perna-de-pau, casaco com botões dourados, cinto/fivela, braços com punhos+mãos,
+cabeça com barba/nariz/olhos, tricorne com trim dourado, cutelo); água com ondas Gerstner mais
+fortes (5 bandas) + cor mais rica; sol golden-hour.
+**Iteração 2:** **espuma na linha d'água** (colar de espuma do contorno do casco); canhões +
+cordas enroladas no convés; **nuvens procedurais** (billboard canvas via `makeCloud`) — troquei
+o `<Cloud>` do drei que baixava PNG de CDN (quebra offline/single-file). 0 refs de CDN no build.
+**Iteração 3:** halo do sol (`makeGlow`, additive), **gaivotas** voando (flap+círculo), céu
+mais quente/atmosférico.
+
+Verificado renderizando vários ângulos: oceano rolando + espuma + navio detalhado + nuvens +
+gaivotas = navio pirata bonito de verdade (vs o blocão marrom de antes). Tudo self-contained
+(sem assets externos). tsc 0 · 105/105 vitest · index.html rebuildado. Bancada é dev-only
+(não vaza pro build). Próximo (se quiser mais): refinar rosto do capitão, mais props de convés,
+sun-streak na água, talvez casco em C++.
+
+### Sessão 2026-06-20 (cont.) — Capitão de verdade + materiais molhados + casco em C++
+
+Felipe (/loop, irritado): "isso que vc considera bonito? as texturas, o pirata, está tudo
+péssimo" — de volta ao loop render→crítica→conserto.
+
+Renderizei close-ups e confirmei os 2 piores defeitos: **chapéu = um torus preto gigante (rosca)**
+e **cabeça = esfera bege sem rosto** (os "olhos" eram pontinhos escondidos sob a aba enorme).
+
+**Conserto do capitão (Floor7.tsx `Captain`):**
+- **Tricorne de verdade**: coroa (cilindro+domo) + **3 abas viradas pra cima a 120 graus** com
+  galao dourado e uma pluma vermelha — silhueta de chapeu armado (confere de cima/lado/frente).
+- **Rosto real**: olho com esclera+iris(marrom)+pupila+sobrancelha arqueada; **tapa-olho** com
+  alca atravessando a cabeca; nariz definido; **bigode** repartido; **barba** cheia + costeletas.
+- Casaco vermelho com 2 fileiras de botoes dourados, gola, faixa, fivela, cutelo.
+
+**Materiais:** **PMREM environment map** de um ceu equiretangular proprio (`makeSkyEquirect`) →
+todo material PBR reflete o ceu. **Pocas = MeshPhysicalMaterial com clearcoat** (molhadas:
+escuras de cima, brilhantes de raspao — fresnel) em vez de manchas azuis chapadas. Madeira
+(casco/conves/corrimao) ganhou **bumpMap + envMapIntensity** pra pegar luz.
+
+**Casco ja e C++** (`wasm/floor7_geo.cpp` → secoes lofted, proa pontuda; JS so sobe os buffers).
+Verificado: tsc 0 · 105/105 vitest · build single-file OK · push em claude/review-commits-memory-y6iqnf.
+Proximo (se quiser): velas menos chapadas (sombrear/curvar), streak do sol na agua, mais geometria
+de conves migrada pra C++.
+
+### Sessão 2026-07-09 — ANDAR 7: caça aos bugs com tripulação de Haikus + FINAL com lore
+
+Felipe: "melhore MUITO o andar 7, conecte com a lore, está CHEIO de bugs e problemas gráficos"
++ autorizou orquestrar 5 subagentes Haiku ("tripulação") pros trabalhos baratos.
+
+**Tripulação (Agent tool, model haiku):** Gaivota (screenshots/QA visual), Luneta (QA da
+cutscene), Carpinteiro (auditoria de código, 2 rodadas), Grumete (playtest da quest via
+probes), Papagaio (dossiê da lore — salvo no scratchpad da sessão). Eu (Fable) consolidei
+e escrevi TODOS os consertos. Fluxo barato: relatórios deles → edits meus.
+
+**Bugs achados e consertados:**
+- "Parede de tábuas" no spawn = o MASTRO DO TRAQUETE (local z=4.0) na cara do player
+  (spawn z=4.2, x=0). Spawn movido pra (0.75, 4.3) local — App.tsx + floor7-play.tsx.
+- Mão FP com escova: aparecia desde a intro (gate era só elevFade<0.85) e era GIGANTE
+  (scale 1.4 a 0.34m da câmera). Agora: `bucketState.held && elevFade<0.85`, scale 0.85,
+  translateZ -0.42 (Floor7.tsx).
+- Poças: y fixo 0.02 ignorava o tosamento do convés (z-fight nas pontas, disco flutuando
+  na amurada). Agora y = deckYAt((z+7)/15.2)+0.022; spawns no WASM apertados
+  (|x|∈[0.55,1.30], z∈[-3.5,3.5], r∈[0.40,0.65]).
+- Água listrada: as 2 ondas Gerstner menores (wl 1.7/0.95) sub-amostradas pela grade
+  180x180 viravam listras coerentes → removidas (detalhe fino já era fragment-side);
+  spec 150→90; chop grosso 0.028→0.034. + uniform uCalm (mar acalma na chegada).
+- tideWarn congelava no último valor ao sair de CLEAN → anel de ressaca eterno na água.
+  Zerado na transição pra DONE (floor7.c).
+- Capitão GLB sumiria quando o elevador voltasse (gate elevFade<0.85) → gate agora só
+  vale em ST_INTRO.
+- Cordas #caa56a viravam "macarrão" claro → #8a6a42 + bump; gaivotas eram 2 caixas
+  pretas → corpo branco + asas cinza + cabeça/cauda; grade do porão flutuava (barras
+  y0.1→0.07); deck envMapIntensity 0.6→0.22 (listras azuis de reflexo no convés seco);
+  vela do traquete encurtada/erguida (billowSail 3.3x2.2x0.6 @ y2.6); dip do model-swap
+  da cutscene 0.92→1.0 (nota da Luneta).
+
+**FINAL NOVO (lore, 100% no WASM — floor7.c):** estados ST_SAIL(5)→ST_ANCHOR(6)→ST_FREE(7).
+DONE→(4.6s)→SAIL: landfall 0→1 em 26s, ilha SE APROXIMA de verdade (z 90→28), mar acalma
+(S.calm escala heave/pitch/roll + uCalm na água), capitão no leme solta 3 barks de lore
+(diálogos 9-11: 40 anos no mar, "o oceano é tudo que o hotel esquece", visita do Zelador).
+ANCHOR: capitão manda ler o DIÁRIO DE BORDO (diálogo 12) — livro 3D na escotilha
+(LOG local (0,-3.1), glow pulsante). 3 páginas no overlay (pergaminho DOM) amarrando:
+administração do hotel, Zelador pregando tábua, "a maré é o hotel respirando", regra do
+Andar 4 ("ser lembrado é ser cuidado"). Ler tudo → logRead → "VOCÊ LEMBROU DO ANDAR 7"
+(card igual ao do Andar 4) → ST_FREE: elevFade VOLTA (cab rematerializa com ding
+f7PuddleDone+clunk), portas deslizam abertas (seam some — refs elevDoorL/R/Seam/Edge),
+f7_can_leave()=1. Player entra no vão + E → f7_boarded latch → App.handleF7Board:
+teleporta pro cab global (0,0,-13), monta ElevatorInterior (era suprimido no lvl 7),
+nextElevatorDestination=0, elevatorTimer=20 (mesmo caminho do SAVED do Barney) → lobby.
+Exports novos: f7_landfall/calm/log_page/log_read/log_x/log_z/near_exit/boarded.
+Overlay: HUD "RUMO À ILHA", botão vira VIRAR/EMBARCAR, beacon "APERTE E PARA EMBARCAR".
+
+**Testes:** floor7Brain.test.ts reescrito — 10 testes (arco completo até boarded; poças
+dentro da amurada; log fechado até abrir; "não sai antes do final"). Asserts de DONE viram
+>= DONE (o DONE avança sozinho pro SAIL em 4.6s — o sweep do mop pode vazar). 108/108.
+
+**Higgsfield:** Felipe liberou (5 créditos) — NÃO usado ainda; candidato: textura de
+pergaminho pro diário (o overlay atual é CSS e ficou bom; só usar se Felipe pedir upgrade).
+
+### Sessão 2026-07-09 (cont.) — Polish do Andar 7 com marujos-Haiku CODANDO
+
+Felipe pediu pra delegar CÓDIGO de baixo risco pros Haikus (não só teste). Divisão por
+arquivo (zero conflito): Calafate (floor7Sfx.ts: f7ElevatorReturn ding + f7AnchorSplash),
+Veleiro (floor7Textures.ts: remendos/sal/vinheta sutis no makeSailcloth), Ilhéu
+(Floor7.tsx: palmeiras/pedras/2ª praia na ilha, com fade integrado). Eu revisei cada diff:
+- Calafate: removi o pitch-glide dos tons do ding (sino segura a frequência e decai).
+- Ilhéu: praias estavam SUBMERSAS (local -1.2 → world -1.8 < água -1.3) → subidas pra
+  -0.55/-0.57; ilha ficava fantasma (transparent) → materiais viram opacos (transparent
+  =false, opacity 1) quando op>0.95 (transparência só existe pro fade).
+- Gaivota reauditou: aprovou spawn/mão FP/elevador; reprovações viraram fixes: chop
+  grosso da água atenuado com a distância (faixas paralelas no far field), vela do
+  traquete agora FERRADA na verga (clipava na cabine do elevador, cujo canto rotacionado
+  chega a z=4.0), balde 3D invisível enquanto held (viewmodel é o balde), rail
+  envMapIntensity 0.8→0.4, shell do elevador matte (#9fb0b9 r0.62 m0.3 — parede branca
+  estourada). SFX fiados: ANCHOR = f7Wave+f7AnchorSplash; FREE = f7ElevatorReturn.
+Commits: dab0e0a (bugs+finale), a585d23 (sfx Calafate), + polish final. 108/108 · tsc 0.
+
+### Sessão 2026-07-09 (cont.) — 1ª onda visual (time de Haikus)
+
+Contramestre coordenou QA visual e integração: 5 marujos (FACHO, MARÉ, VERNIZ, LENHO,
+ILHOTA) fecharam os 5 maiores consertos do Almirante (diretor de arte) em arquivo-lanes
+isolados (zero merge conflicts). Passou tsc 0 e 108/108 vitest logo no dia. Veredito QA:
+- OCEANO: Gerstner cruzado (não telha de zinco paralela) + especular pontilhado ✓
+- POÇAS: Translúcidas com tabuado por baixo + borda escura (menisco) ✓
+- CASCO: Juntas escalonadas (running bond, não padrão brick) ✓
+- CONVÉS: Costuras retas (UVs fore-aft, não onduladas) ✓
+- BLOOM: Floor 7 threshold 0.68→0.85, intensity 0.6→0.38 (verificado em App.tsx) ✓
+- ILHA: Praia + halo turquesa + palmeiras + rochas (tropical, não brócolis) ✓
+Commit: 57ec051 — Build index.html (~65MB single-file), push OK. Comodoro só observou.
+
+## Andar 6 — prioridade total (2026-07-11, Capitão Fable executando direto)
+- Móveis maciços corrigidos: armário e geladeira eram blocos SÓLIDOS com "interior" enterrado
+  dentro (portas abriam pra parede) → reconstruídos como cascas ocas; interior/prateleiras/
+  marmitas/gelo agora visíveis. Luz da geladeira reposicionada no forro do fundo.
+- Cortina da banheira: varão reto virou VARÃO OVAL preso ao teto contornando a banheira solta;
+  cortina = segmento de cilindro elíptico com dobras (rebuild só durante a transição), borda
+  fixa + borda puxada (fechada ~295°, aberta amontoada); argolas acompanham pela elipse.
+- Hóspede procedural SUBSTITUÍDO pelo GLB do Felipe (Meshy "Midnight Trenchcoat", texturas
+  reduzidas 2048→1024 = 7.1MB→0.9MB) em `assets/models/guest-trenchcoat.glb`; Floor6Guest.tsx
+  reescrito: malha estática + vida procedural no grupo (respiração/sway/encarar atrasado) +
+  step-aside 'free'/'leave' preservado.
+- QA E2E no bench: guestIdle→guest2 (7 falas)→card→free (vão passável)→botoeira→'leave'→
+  onLeave ✓. Portas do cab FECHAM no leave (ding + slam do Decorador) — no bench swiftshader
+  (~3fps + clamp de dt) animações rodam ~6x mais lentas: esperar 20s+ antes de acusar bug.
+- Cuidado no bench: perto do hóspede o hotspot 'portabanheiro' (1.75m) ganha do 'hospede'
+  (1.8m) — teste a interação parado em (0,-7).
+
+### Sessão 2026-07-11 (cont.) — Acabamento: lore + atmosfera + cozinha
+
+**Tripulação (SendMessage):** Dramaturgo (`ac4a7186cff065519` — textos + ritmo), Maestro
+(`a73651a33aecd4c27` — luz + som), Vitrinista (`afc5c2145e53cc229` — props cozinha +
+arandelas). Porteiro (Claude Fable) coordenou QA E2E + integração final.
+
+**Lore (Dramaturgo):**
+- Nome do hóspede AURÉLIO CAMPOS integrado em 5 locais (máquina de escrever, diário, mala,
+  geladeira, card de memória). Etiqueta da mala: textura leather aged em Floor6Textures.ts.
+- Ato 2 (F6_GUEST_LINES2): 7 falas expandidas, cada uma revelando camadas (despensa,
+  check-out, descida, nome, memória-tijolo, "lembra de mim", despedida). Beats preservados,
+  falas enxutas.
+
+**Atmosfera (Maestro):**
+- Dimming ato 2: guest2 reduz bedLight a 55% (guest2DimTarget=0.55 em Floor6Suite.tsx),
+  suave recovery 4s ao entrar em 'free'. Visualmente impacto: cena ~45% mais escura.
+- Memory pulse (guestLine===4, "Lembra. De. Mim."): playF6MemoryPulse() = sub-drone 48Hz
+  + shimmer 6kHz, envelope 1.2s. Light pulse sincronizado: bedLight ramp-down 0.4s +
+  ramp-up 0.6s. playF6MemorySting() = 880Hz+740Hz (card sting, 0.8s decay).
+
+**Cozinha (Vitrinista):**
+- Fogão: 4 bocas em grid 2x2, cada uma com anel de ferro + 3 grades. Chama + panela na
+  boca frente-esquerda. 4 botões de controle na frente (painel tátil).
+- Microondas: painel lateral com 2 botões, janela escura com reflexo sutil, corpo em
+  appliance matte, 4 pés na base. Geometria realista: F6M.appliance (cor/material).
+- Utensílios no trilho chrome (3 unidades reconhecíveis):
+  1. Concha/ladle (z=-0.4): handle cilíndrico + bowl hemisphere
+  2. Espátula (z=-0.1): handle wood taper + blade retangular em steel
+  3. Frigideira (z=0.2): pan disk (fundo) + handle wood rod
+- Arandelas: metal bracket + shade bowl com emissive #ffcf80 (warm), intensity 1.6.
+  Subtle bulb glow interior (opacity 0.3, MeshBasicMaterial).
+
+**QA E2E:**
+- 115/115 testes vitest, tsc clean. Screenshots visuais: guestIdle (base) vs guest2 (55%
+  darker) vs free (recovered). Diálogo ato 2 = 7 linhas avançadas, card exibido (sem sting
+  capturado na screenshot, mas código verificado). Boarding: "F6 LEAVE OK" no console.
+- Critérios aceite: 1(tests), 2(nome+etiqueta), 3(ato2), 4(luz), 5(cozinha), 6(arandelas),
+  7(regressão E2E), 8(raias), 9(MEMORY.md) = ✓ ALL GREEN.
+
+**Merge:** Floor6Overlay.tsx (card nome), Floor6Props.tsx (suitcase tag, sconce glow),
+Floor6Suite.tsx (dimming + memory pulse light), Floor6Textures.ts (suitcaseTagTex),
+Floor6Wet.tsx (fogão 4-bocas, microondas detalhado, utensílios 3x), f6Escape.ts (nome em
+5 textos), floor6Sfx.ts (playF6MemoryPulse/Sting).
+
+**Commit:** branch `claude/floor-7-bugs-lore-celwdy`, build index.html (~66MB), push OK.

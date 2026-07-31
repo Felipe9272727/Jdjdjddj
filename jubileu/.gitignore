@@ -3,3 +3,18 @@ dist/
 .env
 .env.local
 *.log
+wasm/*.wasm
+
+# transient headless-capture/critic scripts (throwaway)
+_*.cjs
+*_tmp.cjs
+__*.mjs
+__*.cjs
+scripts/
+
+# Artefatos locais da sonda do Andar 10 (modelo e runtime servidos em dev)
+public/models/*.gguf
+public/wllama/
+
+# fotos das sondas (saída, não fonte)
+tools/out-*.png

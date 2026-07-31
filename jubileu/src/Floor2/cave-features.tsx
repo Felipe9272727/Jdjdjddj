@@ -119,11 +119,15 @@ export const DustMotes: React.FC = () => {
         }))
     );
     const refs = useRef<(THREE.Object3D | null)[]>(new Array(DUST_COUNT).fill(null));
+    const frameTickRef = useRef(0);
     useFrame((state, dt) => {
         const safeDt = Math.min(dt, 0.033);
         const t = state.clock.elapsedTime;
         const pos = positions.current;
+        const tick = frameTickRef.current++;
+        // Update half the dust each frame (alternating indices)
         for (let i = 0; i < DUST_COUNT; i++) {
+            if ((i & 1) !== (tick & 1)) continue;  // Skip if parity doesn't match
             const p = pos[i];
             p.x += (p.vx + Math.sin(t * 0.6 + p.seed) * 0.02) * safeDt;
             p.y += p.vy * safeDt;

@@ -1,14 +1,24 @@
 import { Vector3, Euler } from 'three';
 import { boxCollider } from './physics';
+import { F6_STATIC_WALLS, F6_FURNITURE } from './f6Escape';
+import { F8_STATIC_WALLS, F8_FURNITURE } from './f8Arquivo';
+import { F9_STATIC_WALLS, F9_OCOS, F9_OCO_MOUTH, F9_RAIZ_MOUTH, F9_RAIZ_CHAMBER } from './f9Floresta';
+import { F9_TREE_OBSTACLES } from './f9Eco';
 
 // Keep in sync with `data.level <= MAX_LEVEL` in firestore.rules.
 export const MAX_LEVEL = 100;
 
-export const WALKING_URL = "https://raw.githubusercontent.com/Felipe9272727/Bancon...../main/Walking(1).glb";
-export const IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/BACON-PROJETO-FUNCIONALLLLL/main/Idle.glb";
-export const NPC_WALK_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20walking.glb";
-export const NPC_IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20idle.glb";
-export const DUSSEKAR_URL = "https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb";
+// Character/NPC GLBs are now imported as bundled assets (Vite inlines them as
+// base64 data-URIs) so the single-file index.html works with no network — the
+// previous raw.githubusercontent runtime fetches failed when installed as one
+// standalone HTML. useGLTF() takes a data-URI just as happily as an https URL.
+import { walkingModel, idleModel, npcWalkModel, npcIdleModel, blockyCharModel } from './assets/textureImports';
+
+export const WALKING_URL = walkingModel;
+export const IDLE_URL = idleModel;
+export const NPC_WALK_URL = npcWalkModel;
+export const NPC_IDLE_URL = npcIdleModel;
+export const DUSSEKAR_URL = blockyCharModel;
 export const BARNEY_URL = "https://raw.githubusercontent.com/Felipe9272727/For-my-game/main/1776639536329.png";
 
 export const COLORS = { wall: "#D7CCC8", wood: "#6D4C41", ceiling: "#BCAAA4", metal: "#B0BEC5", elevTrim: "#3E2723", elevFloor: "#F5F0EB", elevDiamond: "#FFD54F", elevDoor: "#9E9E9E", elevPanel: "#78909C", grass: "#66BB6A", sky: "#81D4FA", houseWall: "#EFEBE9", houseRoof: "#6D4C41", bed: "#1565C0", sofa: "#4E342E", light: "#FFE0B2" };
@@ -142,6 +152,13 @@ export const NPC_INTERACT_DIST = 4.0;       // Distance to interact with lobby N
 export const BED_INTERACT_DIST = 3.0;       // Distance to interact with bed
 export const ELEVATOR_ZONE_X = 3.1;         // Half-width of elevator entrance
 export const ELEVATOR_ZONE_Z = -10;         // Z threshold for elevator interior
+/**
+ * Only the original hotel floors expose the global walk-in elevator trigger.
+ * Later floors own their exits (overlays, cutscenes or explicit interactions),
+ * and several maps legitimately extend through z <= -10. Treating that strip
+ * as a cab silently starts the five-second lobby ride.
+ */
+export const hasWalkInElevator = (level: number): boolean => level >= 0 && level <= 3;
 export const MP_GHOST_TTL_MS = 15000;       // Ghost player timeout
 export const MP_WRITE_INTERVAL = 200;       // Firestore write interval (ms)
 export const MP_WRITE_THRESHOLD = 0.1;      // Min position change to trigger write
@@ -258,11 +275,131 @@ const _LEVEL2_BASE = [...ELEV_W, ...ELEV_BLD, ...CAVE_WALLS_L2];
 const _WALLS_LEVEL2_OPEN          = _LEVEL2_BASE;
 const _WALLS_LEVEL2_SEALED        = [..._LEVEL2_BASE, DOOR_SEAL];
 
+// Floors 4/5 — the 3D side is just the elevator on open ground (Floor 4 is the
+// 2D overlay; Floor 5 is O NOVO BASEPLATE). Elevator shell + a far boundary at
+// the plate's edge so nobody walks off the world.
+const BASEPLATE_BND: number[][] = [
+    [-58, -58, -58, 58], [58, -58, 58, 58], [-58, -58, 58, -58], [-58, 58, 58, 58],
+];
+const _WALLS_FLOOR5        = [...ELEV_W, ...ELEV_BLD, ...BASEPLATE_BND];
+const _WALLS_FLOOR5_SEALED = [..._WALLS_FLOOR5, DOOR_SEAL];
+
+// Floor 6 — a Suíte 612 (the escape room). Static shell + furniture; the
+// LOCKED doors are dynamic (f6DoorWalls, resolved per-frame in Player.tsx)
+// so unlocking them doesn't need a wallsForState recompute.
+const F6_FURN_W = F6_FURNITURE.flatMap(([cx, cz, w, d]) => boxCollider(cx, cz, w, d));
+const _WALLS_FLOOR6        = [...ELEV_W, ...F6_STATIC_WALLS, ...F6_FURN_W];
+const _WALLS_FLOOR6_SEALED = [..._WALLS_FLOOR6, DOOR_SEAL];
+
+// Floor 8 — a sala de interrogatório do Arquivista. Casca da sala + a mesa; o
+// vão do elevador no sul casa com ELEV_W/DOOR_SEAL (mesmo padrão do Floor 6).
+const F8_FURN_W = F8_FURNITURE.flatMap(([cx, cz, w, d]) => boxCollider(cx, cz, w, d));
+const _WALLS_FLOOR8        = [...ELEV_W, ...F8_STATIC_WALLS, ...F8_FURN_W];
+const _WALLS_FLOOR8_SEALED = [..._WALLS_FLOOR8, DOOR_SEAL];
+
+// Andar 9 (O VIVEIRO) — colisão de verdade (revisão M18):
+//  - ANEL COM VÃO: o tronco de cada oco e a câmara da Raiz são anéis de
+//    segmentos com uma BOCA aberta no ângulo compartilhado com a cena
+//    (F9_OCO_MOUTH/F9_RAIZ_MOUTH) — entra-se SÓ pela boca, nunca varando
+//    a parede do tronco.
+//  - as 12 árvores-mãe ganham caixa (o player varava os troncos).
+const ringCollider = (cx: number, cz: number, r: number, segs: number, mouth: number, mouthHalf: number): number[][] => {
+    const out: number[][] = [];
+    for (let i = 0; i < segs; i++) {
+        const a0 = (i / segs) * Math.PI * 2, a1 = ((i + 1) / segs) * Math.PI * 2;
+        let d = ((a0 + a1) / 2 - mouth) % (Math.PI * 2);
+        if (d > Math.PI) d -= Math.PI * 2;
+        if (d < -Math.PI) d += Math.PI * 2;
+        if (Math.abs(d) < mouthHalf) continue;               // o vão da boca
+        out.push([cx + Math.cos(a0) * r, cz + Math.sin(a0) * r, cx + Math.cos(a1) * r, cz + Math.sin(a1) * r]);
+    }
+    return out;
+};
+const _WALLS_FLOOR9 = [
+    ...F9_STATIC_WALLS,
+    ...F9_OCOS.flatMap(([cx, cz], i) => ringCollider(cx, cz, 2.05, 12, F9_OCO_MOUTH[i], 0.72)),
+    ...ringCollider(F9_RAIZ_CHAMBER[0], F9_RAIZ_CHAMBER[1], F9_RAIZ_CHAMBER[2], 16, F9_RAIZ_MOUTH, 0.42),
+    ...F9_TREE_OBSTACLES.flatMap(([tx, tz, tr]) => boxCollider(tx, tz, tr * 1.7, tr * 1.7)),
+    // O ELEVADOR QUEBRADO no meio do Viveiro: o <ElevatorInterior> é renderizado
+    // em (0,-13) em TODO nível (App.tsx) menos o 7 — inclusive aqui. Sem esta
+    // caixa o player ATRAVESSAVA as paredes dele (bug do Felipe). Agora é SÓLIDO:
+    // o elevador que te despejou aqui, engolido pela floresta. boxCollider usa
+    // LARGURA CHEIA (hw=w/2) → o footprint do cab é EW6.5 × ED6.0 em (0,-13).
+    ...boxCollider(0, -13, 6.5, 6.0),
+];
+
+// Floor 7 (pirate ship). The whole ship is scaled up so it reads as a SHIP, not
+// a dinghy; the deck/spawn/water all use this one factor.
+export const FLOOR7_SCALE = 1.85;
+
+// The bulwark boundary follows the actual DECK OUTLINE (narrow at the pointed
+// bow + bluff stern), not a rectangle, so the player can't walk through the
+// hull where it tapers. Plus box colliders for the masts, capstan, ship's boat,
+// companionway and the stern deckhouse so you can't walk through them. All in
+// ship-local units, scaled by FLOOR7_SCALE to match the enlarged ship.
+const _F7_DECK_HALF: [number, number][] = [
+    [1.40, -6.6], [1.75, -5.0], [1.90, -2.4], [2.14, 1.0], [1.95, 3.0], [1.60, 4.8], [1.05, 6.2], [0.45, 7.2],
+];
+
+// Reachable deck props (ship-local, unscaled) clustered along the bulwarks and
+// at the mast bases so the deck feels like a working ship at eye level. Shared:
+// Floor7.tsx renders them, and the solid ones get colliders below. Kept clear
+// of the central puddle-mopping zone (|x|<1.9, |z|<5).
+export type F7PropKind = 'barrel' | 'crate' | 'rope' | 'bell';
+export interface F7Prop { kind: F7PropKind; x: number; z: number; rot?: number; }
+export const F7_DECK_PROPS: F7Prop[] = [
+    { kind: 'barrel', x: 2.05, z: -2.0 }, { kind: 'barrel', x: 2.28, z: -2.5 }, { kind: 'barrel', x: 1.98, z: -1.5 },
+    { kind: 'barrel', x: -2.05, z: 2.6 }, { kind: 'barrel', x: -2.25, z: 3.1 },
+    { kind: 'crate', x: -2.1, z: -3.4, rot: 0.3 }, { kind: 'crate', x: -2.25, z: -2.85, rot: -0.2 }, { kind: 'crate', x: 2.15, z: 3.6, rot: 0.5 },
+    { kind: 'rope', x: 1.95, z: 0.6 }, { kind: 'rope', x: -1.95, z: -0.6 }, { kind: 'rope', x: 2.0, z: 4.2 }, { kind: 'rope', x: -2.0, z: 4.4 },
+    { kind: 'bell', x: 0.75, z: -5.0 },
+];
+const _WALLS_FLOOR7 = (() => {
+    const S = FLOOR7_SCALE;
+    const port = _F7_DECK_HALF.map(([x, z]) => [-x * S, z * S]);
+    const star = [..._F7_DECK_HALF].reverse().map(([x, z]) => [x * S, z * S]);
+    const loop = [...port, [0, 7.9 * S], ...star];
+    const segs: number[][] = [];
+    for (let i = 0; i < loop.length - 1; i++) segs.push([loop[i][0], loop[i][1], loop[i + 1][0], loop[i + 1][1]]);
+    segs.push([1.40 * S, -6.6 * S, -1.40 * S, -6.6 * S]); // close across the transom
+    // deck obstacles (centre-lane props the brain keeps clear of puddles)
+    // NOTE: the thin masts deliberately have NO colliders — the player spawns
+    // right by the foremast and must walk aft past it to reach the captain, so a
+    // mast collider there pins them ("born stuck"). Walking through a thin mast
+    // is far less bad than being unable to move.
+    const obs: [number, number, number, number][] = [
+        [0, 2.7, 0.55, 0.55], // capstan
+        [0, -3.1, 0.7, 0.6],  // companionway
+        [0, -5.9, 2.2, 1.4],  // stern deckhouse
+    ];
+    for (const [cx, cz, w, d] of obs) segs.push(...boxCollider(cx * S, cz * S, w * S, d * S));
+    // colliders for the solid deck props (barrels/crates/bell); rope coils are flat
+    for (const p of F7_DECK_PROPS) {
+        if (p.kind === 'rope') continue;
+        const sz = p.kind === 'bell' ? 0.5 : 0.62;
+        segs.push(...boxCollider(p.x * S, p.z * S, sz * S, sz * S));
+    }
+    return segs;
+})();
+
+// Andar 10 — PLACEHOLDER: base plana e delimitada, esperando virar um andar.
+// Casca do elevador + borda quadrada (±22) pra ninguém andar pro infinito.
+const FLOOR10_BND: number[][] = [
+    [-22, -22, -22, 22], [22, -22, 22, 22], [-22, -22, 22, -22], [-22, 22, 22, 22],
+];
+const _WALLS_FLOOR10 = [...ELEV_W, ...ELEV_BLD, ...FLOOR10_BND];
+
 /** Pick the right pre-built wall list. No allocation per frame. */
 export const wallsForState = (level: number, doorsClosed: boolean, houseDoorOpen: boolean): number[][] => {
     if (level === 0) return doorsClosed ? _WALLS_LOBBY_SEALED : _WALLS_LOBBY_OPEN;
     if (level === 2) return doorsClosed ? _WALLS_LEVEL2_SEALED : _WALLS_LEVEL2_OPEN;
     if (level === 3) return doorsClosed ? _WALLS_FLOOR3_SEALED : _WALLS_FLOOR3;
+    if (level === 6) return doorsClosed ? _WALLS_FLOOR6_SEALED : _WALLS_FLOOR6;
+    if (level === 7) return _WALLS_FLOOR7;
+    if (level === 8) return doorsClosed ? _WALLS_FLOOR8_SEALED : _WALLS_FLOOR8;
+    if (level === 9) return _WALLS_FLOOR9;
+    if (level === 10) return _WALLS_FLOOR10;   // base plana (placeholder)
+    if (level >= 4) return doorsClosed ? _WALLS_FLOOR5_SEALED : _WALLS_FLOOR5;
     if (houseDoorOpen) return doorsClosed ? _WALLS_HOUSE_SEALED : _WALLS_HOUSE_OPEN;
     return doorsClosed ? _WALLS_HOUSE_DOOR_SEALED : _WALLS_HOUSE_DOOR;
 };

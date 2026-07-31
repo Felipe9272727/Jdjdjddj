@@ -4,6 +4,7 @@ import {
   WALKING_URL, IDLE_URL, NPC_WALK_URL, NPC_IDLE_URL, DUSSEKAR_URL, BARNEY_URL,
   COLORS, ASSETS, BARNEY_DIALOGUE, DIALOGUE_TREE,
   LOBBY_W, ELEV_W, HOUSE_EX, HOUSE_IN, HOUSE_DW, L1_BND, ELEV_BLD, DOOR_SEAL,
+  hasWalkInElevator,
 } from '../constants';
 
 describe('Game constants', () => {
@@ -24,23 +25,34 @@ describe('Game constants', () => {
     it('EZ_START should be negative (elevator entrance z)', () => {
       expect(EZ_START).toBeLessThan(0);
     });
+
+    it('only enables the global walk-in elevator on floors that own one', () => {
+      expect([0, 1, 2, 3].map(hasWalkInElevator)).toEqual([true, true, true, true]);
+      expect([4, 5, 6, 7, 8, 9, 10].map(hasWalkInElevator)).toEqual([
+        false, false, false, false, false, false, false,
+      ]);
+    });
   });
 
   describe('Asset URLs', () => {
-    const urls = {
-      WALKING_URL, IDLE_URL, NPC_WALK_URL, NPC_IDLE_URL, DUSSEKAR_URL, BARNEY_URL,
-    };
+    // Character/NPC GLBs are now BUNDLED assets (Vite inlines them as data-URIs
+    // for the self-contained single-file build), so they resolve to a local
+    // asset reference — a "/…glb" path under test, a "data:model/gltf-binary…"
+    // URI in the production build — not a remote https URL anymore.
+    const glbAssets = { WALKING_URL, IDLE_URL, NPC_WALK_URL, NPC_IDLE_URL, DUSSEKAR_URL };
 
-    for (const [name, url] of Object.entries(urls)) {
-      it(`${name} should be a valid URL`, () => {
-        expect(url).toMatch(/^https?:\/\/.+/);
+    for (const [name, url] of Object.entries(glbAssets)) {
+      it(`${name} should be a bundled GLB asset reference`, () => {
+        expect(typeof url).toBe('string');
         expect(url.length).toBeGreaterThan(10);
+        // either a resolved .glb asset path or an inlined glb data-URI
+        expect(/\.glb/i.test(url) || /^data:model\/gltf-binary/.test(url)).toBe(true);
       });
     }
 
-    it('GLB URLs should end with .glb or be encoded', () => {
-      expect(WALKING_URL).toMatch(/\.glb/i);
-      expect(IDLE_URL).toMatch(/\.glb/i);
+    it('BARNEY_URL should be a valid remote URL', () => {
+      expect(BARNEY_URL).toMatch(/^https?:\/\/.+/);
+      expect(BARNEY_URL.length).toBeGreaterThan(10);
     });
   });
 

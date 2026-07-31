@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense, Component } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, Loader, AdaptiveDpr, PerformanceMonitor } from '@react-three/drei';
 import { EffectComposer, Bloom, ChromaticAberration, Vignette, N8AO, HueSaturation, Sepia, BrightnessContrast } from '@react-three/postprocessing';
 import { KernelSize, BlendFunction } from 'postprocessing';
@@ -45,9 +45,43 @@ import { LobbyEnvironment, WatchingText } from './LobbyEnv';
 import { FlatMapEnvironment, BarneyActor } from './HouseEnv';
 import { Floor2Environment, SHARD_POSITIONS } from './Floor2Underwater';
 import { Floor3Environment } from './Floor3';
-import { Floor4Environment, useFloor4Audio } from './Floor4';
+import { Floor4Environment, useFloor4Audio, Pixelate3DRamp } from './Floor4';
 import Floor4Canvas2D from './Floor4Canvas2D';
-import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z } from './constants';
+import { f4Demo } from './floor4Sfx';
+import { f4 } from './f4Lore';
+import { Floor7Environment, Floor7Overlay, useFloor7Handle } from './Floor7';
+import Floor7IntroCutscene, { F7_DIALOGUE } from './Floor7IntroCutscene';
+import Floor7IntroUI from './Floor7IntroUI';
+import Floor5Race3D from './Floor5Race3D';
+import { configureFloor5RaceSfx, clearFloor5RaceSfx } from './floor5RaceSfx';
+import Floor6Suite from './Floor6Suite';
+import Floor6Overlay from './Floor6Overlay';
+import Floor8Room from './Floor8Room';
+import Floor10Base from './Floor10Base';
+import Floor10Npc from './Floor10Npc';
+import Floor10NpcChat from './Floor10NpcChat';
+import { useNpcOpen } from './npc/npcStore';
+import Floor8Cutscene from './Floor8Cutscene';
+import Floor9Forest from './Floor9Forest';
+import { Floor9Elevator } from './Floor9Elevator';
+import Floor9Overlay from './Floor9Overlay';
+import Floor9Cutscene from './Floor9Cutscene';
+import { Fiapo } from './Floor9Fauna';
+import { f9, f9Reset, f9Subscribe, F9_HOME_SPAWN, f9TriggerWake } from './f9Floresta';
+import { f9EcoReset, f9RequestPounce } from './f9Eco';
+import Floor8Overlay, { Floor8Ride } from './Floor8Overlay';
+import Floor8Image from './Floor8Image';
+import Floor8Platformer from './Floor8Platformer';
+import { configureFloor6Sfx, clearFloor6Sfx } from './floor6Sfx';
+import { configureFloor7Sfx, clearFloor7Sfx, startFloor7Ambient, stopFloor7Ambient, f7CaptainLaugh, f7CutMusicStart, f7CutBeat, f7CutMusicStop, f7BootClomp, f7ElevatorVanish, f7CaptainVoice } from './floor7Sfx';
+import { configureFloor9Sfx, clearFloor9Sfx } from './floor9Sfx';
+import { f6, f6Reset, f6Subscribe } from './f6Escape';
+import { f8, f8Reset, f8Subscribe } from './f8Arquivo';
+import { p8Reset } from './f8Platformer';
+import { f8StartBoss } from './f8Dev';
+import { BARNEY_URL, BARNEY_CATCH_DIST, DOOR_INTERACT_DIST, NPC_INTERACT_DIST, BED_INTERACT_DIST, ELEVATOR_ZONE_X, ELEVATOR_ZONE_Z, wallsForState, FLOOR7_SCALE, hasWalkInElevator } from './constants';
+import PhysicsProps, { type CrateSpec } from './PhysicsProps';
+import { PhotoModeRig, PhotoModeOverlay, PhotoModeButton, usePhotoMode } from './PhotoMode';
 import { useMultiplayer, getPlayerName } from './Multiplayer';
 import { RemotePlayer } from './RemotePlayer';
 import { useSettings, SettingsMenu, FpsCounter, QUALITY_PROFILES, type QualityProfile } from './Settings';
@@ -66,6 +100,21 @@ const AdaptivePerfProbe: React.FC = () => {
   return null;
 };
 
+// Ao trocar o Canvas do 10º para `demand`, força um frame já com o painel
+// aberto. `never` deixava o drawing buffer sem uma apresentação nova e alguns
+// Chromes Android exibiam preto. Dois frames bastam para manter o cenário
+// estático visível sem disputar CPU com o LLM.
+const Floor10ChatBackdropFrame: React.FC<{ active: boolean }> = ({ active }) => {
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    if (!active) return;
+    invalidate();
+    const frame = window.requestAnimationFrame(() => invalidate());
+    return () => window.cancelAnimationFrame(frame);
+  }, [active, invalidate]);
+  return null;
+};
+
 
 const MAX_JOYSTICK_RADIUS = 50;
 
@@ -76,6 +125,7 @@ interface WorldProps {
   timer: number | null;
   doorsClosed: boolean;
   level: number;
+  f8InImage?: boolean;
   houseDoorOpen: boolean;
   npcPositionRef: React.MutableRefObject<Vector3>;
   isPaused: boolean;
@@ -110,9 +160,28 @@ interface WorldProps {
   /** During the defeat fall cutscene, hide the live parkour/elevator/hazards so
    *  the cutscene shows its OWN staged "high up the climb" set, not the start. */
   floor3FallActive: boolean;
+  /** Floor 6: true once the cab blows — Floor6Suite renders its own DEAD cab
+   *  (crooked, enterable), so the global "alive" interior must unmount. */
+  f6CabDead: boolean;
 }
 
-const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves, floor3FallActive }: WorldProps) => (
+// A small stack of hotel "luggage" crates in a back corner of the lobby (away
+// from the NPC, the shop counter at x≈7, and the elevator mouth at z=-10).
+// Rapier (WASM) makes them fall, settle and get shoved when the player walks
+// into them — high quality only (see profile.physicsProps).
+const LOBBY_CRATES: CrateSpec[] = [
+    { hx: 0.4, hy: 0.4, hz: 0.4, x: -6.0, y: 0.4, z: -6.0, color: '#9a753f' },
+    { hx: 0.4, hy: 0.4, hz: 0.4, x: -6.85, y: 0.4, z: -6.1, color: '#8a6a3a' },
+    { hx: 0.4, hy: 0.4, hz: 0.4, x: -6.0, y: 0.4, z: -6.9, color: '#a87f45' },
+    { hx: 0.35, hy: 0.35, hz: 0.35, x: -6.45, y: 1.2, z: -6.45, color: '#7d5f33' },
+    { hx: 0.3, hy: 0.3, hz: 0.3, x: -6.1, y: 1.95, z: -6.2, color: '#b5904e' },
+    { hx: 0.45, hy: 0.3, hz: 0.45, x: -8.4, y: 0.3, z: -7.2, color: '#6f5530' },
+    { hx: 0.35, hy: 0.35, hz: 0.35, x: -8.5, y: 1.0, z: -7.1, color: '#9a753f' },
+];
+// Sealed lobby perimeter — keeps debris in the room no matter the door state.
+const LOBBY_PHYS_WALLS = wallsForState(0, true, false);
+
+const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef, gameState, barneyRef, barneyTargetRef, nightMode, doorOpenAmount, profile, collectedShards, onCollectShard, diverPhase, diverBeatRef, nightVisionActive, onPlayerCaught, monsterPositionRef, monsterProximityRef, berserk, cameraShakeRef, floor3Hands, floor3Gloves, floor3FallActive, f6CabDead, f8InImage }: WorldProps) => (
   <>
       {/* Lobby main light. In low/medium it's a static pointLight (cheap); in
           high we replace it with FluorescentFlicker which animates intensity
@@ -128,9 +197,26 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
       {level === 0 && profile.atmosphere && <CeilingFan x={-5} z={0} speed={0.6} />}
       {level === 0 && profile.atmosphere && <CeilingFan x={5} z={-5} speed={0.8} />}
       {level === 0 && profile.atmosphere && <WallClock x={9.5} z={-7} />}
+      {/* Rapier (WASM) dynamic debris — high quality only. Purely cosmetic
+          physics; the player can kick the crates around. */}
+      {level === 0 && profile.physicsProps && (
+          <PhysicsProps playerPositionRef={playerPositionRef} groundY={0} crates={LOBBY_CRATES} walls={LOBBY_PHYS_WALLS} paused={isPaused} />
+      )}
       {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} nightMode={nightMode} doorOpenAmount={doorOpenAmount} />}
       {level === 3 && <Floor3Environment hands={floor3Hands} gloves={floor3Gloves} fallActive={floor3FallActive} />}
       {level === 4 && <Floor4Environment />}
+      {/* Floor 6 — a Suíte 612: "O Hóspede que Sabia Demais" (escape room) */}
+      {level === 6 && <Floor6Suite playerPositionRef={playerPositionRef} profile={profile} />}
+      {/* Andar 8 — a sala de interrogatório do Arquivista (→ platformer de tricô) */}
+      {level === 8 && !f8InImage && <Floor8Room playerPositionRef={playerPositionRef} />}
+      {level === 9 && <Floor9Forest playerPositionRef={playerPositionRef} />}
+      {/* Andar 10 — PLACEHOLDER: base plana, esperando virar um andar */}
+      {level === 10 && <Floor10Base />}
+      {/* NPC com LLM real (SmolLM3 quantizado no browser) — corpo procedural v1 */}
+      {level === 10 && <Floor10Npc playerPositionRef={playerPositionRef} />}
+      {/* the old baseplate is the FLOOR 7 TEMPLATE now — Creator Mode only */}
+      {/* Andar 7 (navio pirata) is mounted as a Canvas sibling below — it needs
+          the Floor7 WASM handle ref that this memoized World doesn't carry. */}
       {level === 2 && (
         <Suspense fallback={null}>
           <Floor2Environment
@@ -157,7 +243,10 @@ const World = React.memo(({ timer, doorsClosed, level, houseDoorOpen, npcPositio
           dialogueBeatRef={diverBeatRef}
         />
       )}
-      <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
+      {!(level === 6 && f6CabDead) && level !== 7 && level !== 9 && <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />}
+      {/* Andar 9 (O Viveiro): o elevador é o cab enferrujado/coberto de vinhas
+          (GLB modelado no Blender), não o <ElevatorInterior> genérico. */}
+      {level === 9 && <Floor9Elevator />}
       {level === 1 && <BarneyActor gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} playerPosRef={playerPositionRef} houseDoorOpen={houseDoorOpen} />}
       {profile.nightLights && <NightAmbient active={nightMode && level === 1} />}
       {/* Night-vision boost. Only mounts when active — adds bright green
@@ -170,13 +259,15 @@ export default function App() {
   const { settings, update: updateSettings } = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
+  const photo = usePhotoMode(); // GPU path-tracer "photo mode" (off until the camera button)
+  const floor7Handle = useFloor7Handle(); // Andar 7 (pirate ship) — bridge to the WASM brain
   const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
   // Master audio bus (the AudioEngine's muteable/volume-controlled input).
   // The Floor-3 cartoon ragtime + SFX route through this so they sit inside the
   // mix (obeying mute + the volume slider) instead of straight to the speakers.
   const cartoonBusRef = useRef<AudioNode | null>(null);
   const [muted, setMuted] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(4.0);
+  const [zoomLevel, setZoomLevel] = useState(0); // first-person only (third person removed permanently)
   const prevPinchDist = useRef<number | null>(null);
   const moveInput = useRef({ x: 0, y: 0 }); const lookInput = useRef({ x: 0, y: 0 });
   const keysRef = useRef({ w: false, a: false, s: false, d: false });
@@ -202,6 +293,10 @@ export default function App() {
   useEffect(() => () => { pendingTimeoutsRef.current.forEach(clearTimeout); pendingTimeoutsRef.current.clear(); }, []);
   const [elevatorTimer, setElevatorTimer] = useState<number | null>(null); const [doorsClosed, setDoorsClosed] = useState(false);
   const [currentLevel, setCurrentLevel] = useState(0); const [overlayOpacity, setOverlayOpacity] = useState(0);
+  // Creator variants are prepared synchronously inside handleStartGame. Keep
+  // the pending variant across the currentLevel render so the normal Floor 8
+  // arrival effect does not immediately erase a direct YOURSELF jump.
+  const floor8StartVariantRef = useRef<string | null>(null);
   const [travelPhase, setTravelPhase] = useState('idle');
   const elevatorHumStopRef = useRef<(() => void) | null>(null);
   const [floorReveal, setFloorReveal] = useState(false);
@@ -418,6 +513,83 @@ export default function App() {
   const [cartoonCutscene, setCartoonCutscene] = useState(false);   // meet-the-Diabrete dialogue (after the intro)
   const [cutsceneLine, setCutsceneLine] = useState(0);             // active Diabrete script line
   const cutsceneTargetRef = useRef(new Vector3(0.9, 0, -9.2));     // camera look-at (devil's feet) during the cutscene
+  const captainAnchorRef = useRef(new Vector3(0, 0, 0));           // Floor7 captain feet (dialogue-camera look-at)
+  const f7ElevFadeRef = useRef<number | null>(null);              // intro cutscene drives the elevator dematerialisation (null = brain)
+  const f7LaughRef = useRef(0);
+  const f7PoseRef = useRef(0);
+  const f7HideSailsRef = useRef(0);                                   // intro cutscene LAUGH-beat strength → captain laugh pose
+  const f7LegsRef = useRef(0);                                        // intro LEGS close-up → swap the GLB for the rigid primitive legs
+  const f7TalkRef = useRef(0);                                        // intro TALK beat → captain speaking gesture
+  const f7DimRef = useRef(0);                                         // intro transition dip (UI darkens to mask hard cuts)
+  const [captainGreeting, setCaptainGreeting] = useState(false);   // captain is delivering the quest → lock the camera on him
+  const [f7Boarded, setF7Boarded] = useState(false);               // player boarded the returned cab → riding home
+  const [f7Intro, setF7Intro] = useState(false);                   // captain arrival cutscene running
+  const [f7IntroBeat, setF7IntroBeat] = useState(0);               // active cutscene beat (UI/SFX)
+  const [f7IntroLine, setF7IntroLine] = useState(-1);              // active cutscene dialogue line
+  // play the captain-arrival cutscene the first time the player lands on Andar 7
+  useEffect(() => {
+    if (hasStarted && currentLevel === 7) {
+      setF7Intro(true); setF7IntroBeat(0); setF7IntroLine(-1);
+      // SAFETY backstop only: the cutscene ends itself at T_END (~9.5s) via onDone.
+      // This timer just guarantees control returns if a hard stall ever swallowed
+      // that. It is WALL-clock while the cutscene's own clock is FRAME-based (it
+      // stretches at low fps), so the budget must clear the worst realistic playback
+      // time — 60s covers everything down to ~3fps, so it never clips a normal run
+      // and only fires on a genuine freeze. (The player can also skip at any time.)
+      const safety = setTimeout(() => setF7Intro(false), 60000);
+      return () => clearTimeout(safety);
+    }
+    setF7Intro(false);
+  }, [hasStarted, currentLevel]);
+  // BRIDGE the intro→greet hand-off: captainGreeting is set in a deferred effect off the
+  // WASM GREET state, so for ~1 render after f7Intro ends neither flag is set and the FP
+  // hand/brush flashes into frame before the greet camera locks on. Keep "settling" true
+  // for a beat after the intro so the hand stays hidden across that gap.
+  const [f7Settling, setF7Settling] = useState(false);
+  const f7IntroPrev = useRef(false);
+  useEffect(() => {
+    let id: ReturnType<typeof setTimeout> | undefined;
+    if (f7IntroPrev.current && !f7Intro && currentLevel === 7) {
+      setF7Settling(true);
+      id = setTimeout(() => setF7Settling(false), 1800);
+    }
+    f7IntroPrev.current = f7Intro;
+    return () => { if (id) clearTimeout(id); };
+  }, [f7Intro, currentLevel]);
+  // End the intro SYNCHRONOUSLY raising the settling bridge in the SAME React batch, so
+  // there's never a render where both f7Intro and f7Settling are false (the effect above
+  // reacts one render late — that single frame was the FP hand still flashing in). Use
+  // this at every place the cutscene ends (natural onDone + manual skip).
+  const endF7Intro = useCallback(() => { setF7Settling(true); setF7Intro(false); }, []);
+  // Andar 7 FINALE — the WASM latched `boarded`: the player stepped into the
+  // rematerialised cab and pressed E. "Máquina não esquece": teleport into the
+  // global elevator interior and take the standard 20s ride UP to Floor 8 —
+  // o interrogatório do Arquivista espera o escolhido.
+  const handleF7Board = useCallback(() => {
+    setF7Boarded(true);
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+    setNextElevatorDestination(8);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
+  useEffect(() => { if (currentLevel !== 7) setF7Boarded(false); }, [currentLevel]);
+  // CUTSCENE SCORE: start the building music bed while the intro runs, fade it on end.
+  useEffect(() => {
+    if (!f7Intro || !audioCtx) return;
+    f7CutMusicStart();
+    return () => f7CutMusicStop();
+  }, [f7Intro, audioCtx]);
+  // per-beat stinger + bed modulation (REVEAL hero stab, LOOK_BACK eerie, LAUGH menace,
+  // TALK heartbeat pulse). Driven off the beat state the cutscene reports.
+  useEffect(() => { if (f7Intro && audioCtx) f7CutBeat(f7IntroBeat); }, [f7IntroBeat, f7Intro, audioCtx]);
+  // the captain's VOICE — gruff gibberish per spoken line (line 0 is covered by the laugh).
+  useEffect(() => {
+    if (f7Intro && audioCtx && f7IntroLine >= 1 && f7IntroLine < F7_DIALOGUE.length) f7CaptainVoice(F7_DIALOGUE[f7IntroLine]);
+  }, [f7IntroLine, f7Intro, audioCtx]);
   const [brushCount, setBrushCount] = useState(0);                 // paintbrushes stolen (HUD, win at 3)
   const [cartoonFall, setCartoonFall] = useState(false);           // cinematic camera-lock on the devil's defeat fall
   const [fallBegging, setFallBegging] = useState(false);           // devil is pleading — show the save/stomp choice
@@ -698,6 +870,67 @@ export default function App() {
       setInsideElevator(inside);
   }, []);
 
+  // Floor 6 (Suíte 612): true while any escape-room UI is up (examine card,
+  // keypad, crank, the guest's dialogue) — freezes the Player and drops
+  // pointer lock, same contract as the shop/dialogue overlays.
+  const [f6UiOpen, setF6UiOpen] = useState(false);
+  const handleF6UiOpenChange = useCallback((open: boolean) => setF6UiOpen(open), []);
+  // Andar 10: painel de conversa do NPC (LLM) aberto → congela o player e solta
+  // o pointer lock, mesmo contrato dos overlays acima. Seletor enxuto (só o bool).
+  const npcChatOpen = useNpcOpen();
+  // Andar 8 (interrogatório): true enquanto a caixa de diálogo está na tela —
+  // congela o Player e solta o pointer lock, mesmo contrato do Floor 6.
+  const [f8UiOpen, setF8UiOpen] = useState(false);
+  const handleF8UiOpenChange = useCallback((open: boolean) => setF8UiOpen(open), []);
+  // Andar 8 FINALE — o Arquivista te JOGA: você acorda dentro do elevador em
+  // trânsito. O painel marca "9" — e agora o 9 EXISTE: o Viveiro. As portas
+  // abrem e não há chão; a queda pela copa é a chegada.
+  const handleF8Thrown = useCallback(() => {
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+    setNextElevatorDestination(9);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
+  // Andar 9 FINALE (V4) — a Raiz desabrochou, o player entrou na luz e o
+  // cartão teaser manda "Voltar ao elevador". MESMO fluxo do finale do 8
+  // (handleF8Thrown), só que a viagem é de VOLTA pro saguão (0): o 9 não tem
+  // elevador navegável — a entrada foi pela copa, a saída é pela Raiz. Não
+  // existe flag de andar completo no App (convenção conferida), então é só
+  // o retorno.
+  const handleF9Complete = useCallback(() => {
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13 };
+    setNextElevatorDestination(0);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
+  // Floor 6 FINALE — the guest stepped aside and the player pressed T inside
+  // the repaired cab. "Máquina não esquece: ele te deve uma descida" — o
+  // Aurélio manda o player pro ANDAR 7 (o navio). O beat de embarque/portas
+  // fechando já aconteceu no cab (f6BoardElevator + os 1.7s do overlay), então
+  // aqui a gente entrega o convés direto — MESMO caminho da entrada que o
+  // Andar 7 já suporta (o creator-jump). A cutscene do capitão faz o reveal e,
+  // no beat LOOK_BACK, mostra o elevador se desmaterializando atrás de você —
+  // exatamente o "o mar não devolve ninguém". Sem a viagem de 20s visível,
+  // que no 7 não teria cabine pra mostrar (o convés não tem interior).
+  const handleF6Leave = useCallback(() => {
+    setGameState('outdoor');
+    setNightMode(false);
+    setHouseDoorOpen(false);
+    setDoorOpenAmount(0);
+    setDoorsClosed(false);
+    setZoomLevel(0);
+    setCurrentLevel(7);
+    playerPositionCmdRef.current = { x: 0.75 * FLOOR7_SCALE, y: 0, z: 4.3 * FLOOR7_SCALE, theta: Math.PI };
+  }, []);
+
   useEffect(() => { cameraShakeRef.current = cameraShake; }, [cameraShake]);
   
   useEffect(() => {
@@ -799,9 +1032,93 @@ export default function App() {
 
   // ── Floor 4 audio lifecycle lives in the Floor4 module (self-contained app).
   useFloor4Audio(currentLevel === 4, audioCtx, cartoonBusRef);
-  // Floor 4 is the 2D side-scroller: lock the 3D camera to first person under the
-  // overlay (no third-person) — the transition begins in FP and stays there.
-  useEffect(() => { if (currentLevel === 4) setZoomLevel(0); }, [currentLevel]);
+  // Floors 4/5 are overlays: lock the 3D camera to first person beneath them —
+  // both transitions begin in FP (Floor 5 then pulls out to its own 3rd person).
+  useEffect(() => { if (currentLevel === 4 || currentLevel === 5 || currentLevel === 6) setZoomLevel(0); }, [currentLevel]);
+  // ── Floor 5 audio: point the race SFX at the master bus while up there.
+  useEffect(() => {
+    if (currentLevel !== 5 || !audioCtx) return;
+    configureFloor5RaceSfx(audioCtx, cartoonBusRef.current);
+    return () => clearFloor5RaceSfx();
+  }, [currentLevel, audioCtx]);
+  // ── Floor 6 audio + fresh escape-room state on every arrival.
+  useEffect(() => {
+    if (currentLevel !== 6) return;
+    f6Reset();
+  }, [currentLevel]);
+  // ── Andar 8 — estado fresco do interrogatório a cada chegada. (Numa viagem
+  // real de elevador o player desembarca na cabine z=-13 e caminha até a mesa;
+  // o creator jump já posiciona em z=-8.2.)
+  useEffect(() => {
+    if (currentLevel !== 8) return;
+    const creatorVariant = floor8StartVariantRef.current;
+    floor8StartVariantRef.current = null;
+    if (creatorVariant === 'floor8Boss') return;
+    f8Reset(); p8Reset();
+  }, [currentLevel]);
+  // ── Andar 9 — O VIVEIRO: ecossistema + queda frescos a cada chegada, e o
+  // player nasce no ar sobre a clareira de pouso (a cutscene da queda dirige).
+  useEffect(() => {
+    if (currentLevel !== 9) return;
+    f9Reset(); f9EcoReset();
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -1.5 };
+  }, [currentLevel]);
+  // M20/M21 SPAWN FIXO: quando a onda (ou o vulto) apaga o player, ele SEMPRE
+  // acorda na TOCA-CASA (F9_HOME_SPAWN) — não mais no oco mais próximo (que
+  // variava). É aqui que o respawn REALMENTE acontece no jogo: via
+  // playerPositionCmdRef, que o <Player> obedece (setar sharedPlayerPositionRef
+  // direto não cola — o Player sobrescreve todo frame). f9TriggerWake dispara a
+  // animação de DESPERTAR (a câmera brota do chão na toca).
+  const f9PrevPhaseRef = useRef(f9.phase);
+  useEffect(() => f9Subscribe(() => {
+    if (f9.phase === 'explorar' && f9PrevPhaseRef.current === 'apagando') {
+      playerPositionCmdRef.current = { x: F9_HOME_SPAWN[0], y: 0, z: F9_HOME_SPAWN[1], theta: 0 };
+      f9TriggerWake();
+    }
+    f9PrevPhaseRef.current = f9.phase;
+  }), []);
+  // Mirrors f6.phase into React so World can swap the live cab for the dead
+  // one the moment the panel blows (f6 itself mutates outside React).
+  const [f6CabDead, setF6CabDead] = useState(false);
+  useEffect(() => f6Subscribe(() => {
+    setF6CabDead((prev) => {
+      const dead = f6.phase !== 'arrive';
+      return prev !== dead ? dead : prev;
+    });
+  }), []);
+  // Mirrors f8.phase: quando o player está DENTRO da imagem (corredor/porta21/
+  // platformer/vitória) o overlay 2.5D opaco cobre a tela — então desmontamos a
+  // sala 3D do interrogatório atrás dele pra não renderizar dois mundos à toa.
+  const [f8InImage, setF8InImage] = useState(false);
+  useEffect(() => f8Subscribe(() => {
+    setF8InImage((prev) => {
+      const inImg = f8.phase === 'corredor20' || f8.phase === 'porta21'
+        || f8.phase === 'platformer' || f8.phase === 'memoriaRecuperada';
+      return prev !== inImg ? inImg : prev;
+    });
+  }), []);
+  useEffect(() => {
+    if (currentLevel !== 6 || !audioCtx) return;
+    configureFloor6Sfx(audioCtx, cartoonBusRef.current);
+    return () => clearFloor6Sfx();
+  }, [currentLevel, audioCtx]);
+
+  useEffect(() => {
+    if (currentLevel !== 7 || !audioCtx) return;
+    configureFloor7Sfx(audioCtx, cartoonBusRef.current);
+    if (!muted) startFloor7Ambient();
+    return () => { stopFloor7Ambient(); clearFloor7Sfx(); };
+  }, [currentLevel, audioCtx, muted]);
+
+  // ── Andar 9 — O VIVEIRO: a floresta ganha voz ao entrar no andar e cala ao
+  // sair. Mesmo contrato do floor6Sfx: configure com o bus cartoon na entrada,
+  // clear no cleanup — sem o clear os loops (cama/chuva/vento da queda)
+  // vazariam por cima do hum do elevador na troca de andar.
+  useEffect(() => {
+    if (currentLevel !== 9 || !audioCtx) return;
+    configureFloor9Sfx(audioCtx, cartoonBusRef.current);
+    return () => clearFloor9Sfx();
+  }, [currentLevel, audioCtx]);
 
   useEffect(() => {
       if (gameState !== 'chase') return;
@@ -887,10 +1204,15 @@ export default function App() {
   // changed every second during a ride — which forced <Player/> to
   // re-render once per tick. Reading the latest values via a ref keeps
   // the function ref stable across renders.
-  const elevatorStateRef = useRef({ elevatorTimer, doorsClosed });
-  elevatorStateRef.current = { elevatorTimer, doorsClosed };
+  const elevatorStateRef = useRef({ elevatorTimer, doorsClosed, currentLevel });
+  elevatorStateRef.current = { elevatorTimer, doorsClosed, currentLevel };
   const handlePlayerEnterElevator = useCallback(() => {
-    const { elevatorTimer: t, doorsClosed: d } = elevatorStateRef.current;
+    const { elevatorTimer: t, doorsClosed: d, currentLevel: lv } = elevatorStateRef.current;
+    // Floors 4+ own their exits. In particular, the Viveiro's main path crosses
+    // the lobby cab's old z coordinate; an ever-growing blacklist let this bug
+    // return whenever a new floor shipped. Keep an allow-list here as defense
+    // in depth even though Player suppresses the spatial trigger there too.
+    if (!hasWalkInElevator(lv)) return;
     if (t === null && !d) setElevatorTimer(5);
   }, []);
   const handleInteractionUpdate = useCallback((c: boolean) => { setCanInteractDoor(p => p !== c ? c : p); }, []);
@@ -1008,12 +1330,12 @@ export default function App() {
 
   const handleStartDialogue = () => { setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
   // ─── CREATOR MODE ───
-  // handleStartGame now accepts an optional 3rd arg `startLevel`.
+  // handleStartGame accepts an optional floor and an explicit Creator variant.
   // When provided (via Creator Mode), the game starts directly on that floor,
   // skipping the normal lobby → elevator → floor progression.
   // If omitted, the game starts normally at level 0 (lobby).
   // ─── CREATOR MODE ───
-  const handleStartGame = (mpEnabled: boolean, name?: string, startLevel?: number) => {
+  const handleStartGame = (mpEnabled: boolean, name?: string, startLevel?: number, startVariant?: string) => {
     if (audioCtx) return;
     setMultiplayerEnabled(mpEnabled);
     if (name) setPlayerName(name);
@@ -1025,6 +1347,7 @@ export default function App() {
     setHasStarted(true);
     // ─── CREATOR MODE: jump to selected floor ───
     if (startLevel !== undefined && startLevel !== 0) {
+      if (startLevel === 8) floor8StartVariantRef.current = startVariant ?? null;
       setCurrentLevel(startLevel);
       // Set appropriate game state for the chosen floor
       if (startLevel === 1) {
@@ -1049,12 +1372,101 @@ export default function App() {
         setDoorOpenAmount(0);
         setDoorsClosed(false);
       } else if (startLevel === 4) {
-        // Floor 4 (WIP base plate). Flat walking; spawn near the elevator.
+        if (f4Demo.ride) {
+          // Creator "Transição → 2D": the FULL 20s elevator ride — start inside
+          // the lobby's elevator with the doors shut; at T-10s the 3D pixelates,
+          // at T0 the doors open into the 2D floor. (Mirrors the post-Floor-3
+          // win flow in advanceToFloor4AfterWin.)
+          f4Demo.ride = false;
+          setCurrentLevel(0);
+          setGameState('lobby');
+          setNightMode(false);
+          playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+          setDoorsClosed(true);
+          setDoorSoundTrigger(prev => prev + 1);
+          setNextElevatorDestination(4);
+          setZoomLevel(0);                      // 1st person for the whole ride
+          setElevatorTimer(20);
+          setTravelPhase('closing');
+          if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+          elevatorHumStopRef.current = createElevatorHum(ctx);
+        } else {
+          // Floor 4 (2D) instant jump: doors already open → the 2D overlay
+          // mounts straight away (with its own pixel-resolve entry).
+          setGameState('outdoor');
+          setNightMode(false);
+          setHouseDoorOpen(false);
+          setDoorOpenAmount(0);
+          setDoorsClosed(false);
+          playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
+        }
+      } else if (startLevel === 5) {
+        // Andar 5 — A CORRIDA: doors open → the N64 overlay mounts with its
+        // own 1st→3rd-person intro (ding, TROCO-64, the pitch).
         setGameState('outdoor');
         setNightMode(false);
         setHouseDoorOpen(false);
         setDoorOpenAmount(0);
         setDoorsClosed(false);
+        setZoomLevel(0);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
+      } else if (startLevel === 6) {
+        // Andar 6 — a Suíte 612 (escape room). First person, fresh state,
+        // spawn just outside the doors so the BANG beat fires on the walk-in.
+        f6Reset();
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        setZoomLevel(0);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -8.6, theta: Math.PI };
+      } else if (startLevel === 7) {
+        // Andar 7 — o navio pirata. Player nasce no convés em frente ao elevador
+        // (que então se desmaterializa); o capitão vem da proa dar a missão.
+        // Spawn deslocado pro LADO do mastro do traquete (que fica em ship-local
+        // (0, 4)): em x=0 o jogador nascia com o rosto a ~0.4m do mastro — a tela
+        // inteira virava uma "parede de tábuas". Em x=0.75 a vista desce limpa
+        // pelo convés até o capitão.
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        playerPositionCmdRef.current = { x: 0.75 * FLOOR7_SCALE, y: 0, z: 4.3 * FLOOR7_SCALE, theta: Math.PI };
+      } else if (startLevel === 8) {
+        // Andar 8 — a sala de interrogatório do Arquivista. 1ª pessoa, estado
+        // fresco, spawn logo à frente do vão pra caminhar até a mesa.
+        // O destino do Modo Desenvolvedor atravessa o fluxo como dado explícito.
+        // Isso torna YOURSELF determinístico e mantém o Andar 8 normal intacto.
+        if (startVariant === 'floor8Boss') f8StartBoss();
+        else { f8Reset(); p8Reset(); }
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        setZoomLevel(0);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -8.2, theta: Math.PI };
+      } else if (startLevel === 9) {
+        // Andar 9 — O VIVEIRO: ecossistema fresco + a queda pela copa.
+        f9Reset(); f9EcoReset();
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        setZoomLevel(0);
+        playerPositionCmdRef.current = { x: 0, y: 0, z: -1.5, theta: Math.PI };
+      } else if (startLevel === 10) {
+        // Andar 10 — PLACEHOLDER (base plana). 1ª pessoa, spawn na frente das
+        // portas do elevador, olhando pro salão vazio. Vira andar de verdade depois.
+        setGameState('outdoor');
+        setNightMode(false);
+        setHouseDoorOpen(false);
+        setDoorOpenAmount(0);
+        setDoorsClosed(false);
+        setZoomLevel(0);
         playerPositionCmdRef.current = { x: 0, y: 0, z: -6, theta: Math.PI };
       }
     }
@@ -1064,6 +1476,22 @@ export default function App() {
       if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {});
     }
   };
+
+  // DEBUG/playtest hook: window.__startFloor(7) jumps straight onto a floor
+  // (used by the offline playtest harness + the critic to actually play). Inert
+  // unless something calls it.
+  useEffect(() => {
+    const w = window as unknown as { __startFloor?: (n: number) => void; __startFloor8Boss?: () => void; __playerPos?: () => [number, number, number] };
+    w.__startFloor = (n: number) => handleStartGame(false, 'Tester', n);
+    w.__startFloor8Boss = () => handleStartGame(false, 'Tester', 8, 'floor8Boss');
+    w.__playerPos = () => [sharedPlayerPositionRef.current.x, sharedPlayerPositionRef.current.y, sharedPlayerPositionRef.current.z];
+    // Teleporte de teste: usado pela sonda da prisão do Andar 10 para pôr o
+    // jogador numa placa sem precisar dirigir o personagem por 14 metros.
+    (w as unknown as { __f10teleport?: (x: number, z: number) => void }).__f10teleport =
+      (x: number, z: number) => {
+        playerPositionCmdRef.current = { x, y: sharedPlayerPositionRef.current.y, z };
+      };
+  });
 
   useEffect(() => {
     let timerId: ReturnType<typeof setTimeout> | undefined;
@@ -1148,6 +1576,7 @@ export default function App() {
       setDoorsClosed(true);
       setDoorSoundTrigger((prev) => prev + 1);
       setNextElevatorDestination(4);            // beat the devil → up to Floor 4
+      setZoomLevel(0);                          // the whole ride/transition is 1st person
       setElevatorTimer(20);
       setTravelPhase('closing');
       if (elevatorHumStopRef.current) elevatorHumStopRef.current();
@@ -1155,14 +1584,39 @@ export default function App() {
     }, 1400);
   }, [audioCtx, muted, scheduleTimeout]);
 
-  // ── Leave the 2D Floor 4 (walked into its elevator) → ride back to the lobby.
+  // ── Leave the 2D Floor 4 (confirmed at its elevator). The hotel only goes
+  // UP from here (Felipe: "pós o floor 4 não é pro player descer"): the
+  // elevator always rides to Floor 5 — A CORRIDA, where TROCO-64 has been
+  // waiting 412 days.
   const handleFloor4Exit = useCallback(() => {
-    setCurrentLevel(0);
-    setGameState('lobby');
+    setGameState('outdoor');
     setNightMode(false);
-    playerPositionCmdRef.current = { x: 0, y: 0, z: -5 };
-    setFloorReveal(true);
-  }, []);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    setNextElevatorDestination(5);
+    setZoomLevel(0);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
+
+  // ── Leave Floor 5 (the podium's ELEVADOR button): still going UP — the
+  // ride continues to Floor 6, the fresh baseplate waiting to become a floor.
+  const handleFloor5RaceExit = useCallback(() => {
+    setGameState('outdoor');
+    setNightMode(false);
+    playerPositionCmdRef.current = { x: 0, y: 0, z: -13, theta: Math.PI };
+    setDoorsClosed(true);
+    setDoorSoundTrigger(prev => prev + 1);
+    setNextElevatorDestination(6);
+    setZoomLevel(0);
+    setElevatorTimer(20);
+    setTravelPhase('closing');
+    if (elevatorHumStopRef.current) elevatorHumStopRef.current();
+    elevatorHumStopRef.current = createElevatorHum(audioCtx);
+  }, [audioCtx]);
 
   // ── Player SAVED the devil → BETRAYAL: he shoves the player off the ledge.
   // Instead of a full Game Over to the lobby (too punishing for the "nice"
@@ -1224,14 +1678,14 @@ export default function App() {
   const activePointers = useRef(new Map<number, { type: 'move' | 'look' | 'aux'; startX: number; startY: number; currX: number; currY: number }>());
 
   useEffect(() => {
-    if (!dialogueOpen && !barneyDialogueOpen) return;
+    if (!dialogueOpen && !barneyDialogueOpen && !f6UiOpen && !f8UiOpen && !npcChatOpen) return;
     moveInput.current = { x: 0, y: 0 };
     lookInput.current = { x: 0, y: 0 };
     keysRef.current = { w: false, a: false, s: false, d: false };
     activePointers.current.clear();
     prevPinchDist.current = null;
     setJoystickVisual(p => ({ ...p, active: false }));
-  }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen]);
+  }, [dialogueOpen, barneyDialogueOpen, diverDialogueOpen, f6UiOpen, f8UiOpen, npcChatOpen]);
 
   useEffect(() => {
     if (!dialogueOpen && !barneyDialogueOpen && !diverDialogueOpen) return;
@@ -1243,8 +1697,8 @@ export default function App() {
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!hasStarted) return;
-    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
-    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen) return;
+    if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen && !barneyDialogueOpen && !shopOpen && !diverDialogueOpen && !f6UiOpen && !f8UiOpen && !npcChatOpen) { const req = document.body.requestPointerLock() as unknown as Promise<void> | undefined; if (req && typeof (req as any).catch === 'function') (req as Promise<void>).catch(() => {}); } return; }
+    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen || npcChatOpen) return;
     e.preventDefault(); e.stopPropagation();
     const { pointerId, clientX, clientY } = e; const screenW = window.innerWidth; const screenH = window.innerHeight;
     const isPortrait = screenH > screenW; const zoneLimit = isPortrait ? 0.5 : 0.4;
@@ -1297,8 +1751,8 @@ export default function App() {
       if (isPinch && !dialogueOpen && !barneyDialogueOpen) {
           const pts = Array.from(activePointers.current.values()); const p1 = pts[0]; const p2 = pts[1];
           const dist = Math.sqrt(Math.pow(p1.currX-p2.currX, 2) + Math.pow(p1.currY-p2.currY, 2));
-          // Floor 2 locks the camera in 1st person — ignore pinch zoom there.
-          if (prevPinchDist.current !== null && currentLevel !== 2 && currentLevel !== 3) { const delta = dist - prevPinchDist.current; setZoomLevel(prev => Math.min(Math.max(prev - delta * 0.02, 0), 10)); }
+          // Floors 2/3/4 (and the ride up to 4) lock the camera in 1st person — ignore pinch zoom there.
+          /* pinch-zoom disabled — first-person only (third person removed permanently) */
           prevPinchDist.current = dist;
       }
     }
@@ -1313,7 +1767,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isDesktop || !hasStarted) return;
-    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen) { document.exitPointerLock(); return; }
+    if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen || npcChatOpen) { document.exitPointerLock(); return; }
     const upd = () => { const k = keysRef.current; let x=0, y=0; if (k.w) y-=1; if (k.s) y+=1; if (k.a) x-=1; if (k.d) x+=1; moveInput.current.x=x; moveInput.current.y=y; };
     const kd = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -1322,7 +1776,7 @@ export default function App() {
         setSettingsOpen((v) => !v);
         return;
       }
-      if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen) return;
+      if (dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || f6UiOpen || f8UiOpen || npcChatOpen) return;
       const k = keysRef.current;
       switch(e.key.toLowerCase()) {
         case 'w': k.w=true; break;
@@ -1331,7 +1785,10 @@ export default function App() {
         case 'd': k.d=true; break;
         case 'f': if (inventoryRef.current.flashlight.owned) handleToggleFlashlight(); break;
         case 'n': if (inventoryRef.current.nightVision.owned) toggleNightVision(); break;
-        case ' ': if (currentLevel === 3) { jumpRef.current = true; e.preventDefault(); } break;
+        case ' ':
+          if (currentLevel === 3) { jumpRef.current = true; e.preventDefault(); }
+          else if (currentLevel === 9 && f9.phase === 'explorar') { f9RequestPounce(); e.preventDefault(); } // M20: o BOTE
+          break;
         case 'e':
           if (canInteractCashier) handleOpenShop();
           else if (canInteractNPC) handleStartDialogue();
@@ -1364,12 +1821,19 @@ export default function App() {
   const { info: botInfo } = useBotStore();
 
   return (
-    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={(e: React.WheelEvent) => { if (!hasStarted || dialogueOpen || barneyDialogueOpen || shopOpen || currentLevel === 2 || currentLevel === 3 || currentLevel === 4) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10)); }}>
+    <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={() => { /* scroll-zoom disabled — first-person only (third person removed permanently) */ }}>
       <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted || shopOpen} masterVolume={settings.masterVolume} nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} doorsClosed={doorsClosed} busRef={cartoonBusRef} />
       <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
       {cameraShake && <div className="absolute inset-0 z-20 pointer-events-none traveling-vignette" />}
       <CanvasErrorBoundary>
       <Canvas
+        // O Andar 8 abre um segundo Canvas ortográfico para corredor/memórias.
+        // Manter o mundo FPS animando por trás dobrava o custo (Player, braços,
+        // multiplayer e efeitos continuavam em useFrame embora invisíveis).
+        // O Andar 8 fica totalmente coberto e pode usar `never`. No chat do 10º
+        // o cenário precisa continuar visível: `demand` desenha sob demanda,
+        // preservando o fundo sem manter 60 FPS competindo com o LLM.
+        frameloop={f8InImage ? 'never' : ((currentLevel === 10 && npcChatOpen) ? 'demand' : 'always')}
         // NOTE: no `key` here. Re-keying on settings change would unmount/remount
         // the entire scene (and reload every GLB!), which is what was causing the
         // visible "cut/flash" mid-game. dpr is reactive in r3f; antialias change
@@ -1385,6 +1849,7 @@ export default function App() {
           outputColorSpace: SRGBColorSpace,
         }}
       >
+        <Floor10ChatBackdropFrame active={currentLevel === 10 && npcChatOpen} />
         {/* PerformanceMonitor watches the frame rate. When it sees sustained
             slowdowns it calls onDecline → we drop dpr a notch. AdaptiveDpr
             wires that up to the renderer automatically. Keeps the game
@@ -1394,10 +1859,16 @@ export default function App() {
           onIncline={() => { if (typeof window !== 'undefined') (window as any).__lowPerf = false; }}
           flipflops={3}
         />
-        <AdaptiveDpr pixelated />
+        {/* Riding up to Floor 4, the last 10s of the 20s trip gradually collapse
+            the 3D render into 2D pixels (Pixelate3DRamp). It REPLACES AdaptiveDpr
+            while active so the two never fight over the dpr; when the doors open
+            (doorsClosed flips) AdaptiveDpr remounts and restores it. */}
+        {(currentLevel === 4 && doorsClosed && elevatorTimer !== null && elevatorTimer <= 10)
+          ? <Pixelate3DRamp timer={elevatorTimer} />
+          : <AdaptiveDpr pixelated />}
         <AdaptivePerfProbe />
         <Suspense fallback={<Html center><div className="px-5 py-3 rounded-xl bg-black/90 ring-1 ring-amber-500/30 backdrop-blur-xl text-center"><div className="text-amber-400 text-xs font-medium tracking-[0.3em] uppercase mb-1.5">The Normal Elevator</div><div className="flex items-center justify-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/60 animate-pulse" style={{animationDelay:'0.2s'}} /><div className="w-1.5 h-1.5 rounded-full bg-amber-400/30 animate-pulse" style={{animationDelay:'0.4s'}} /></div></div></Html>}>
-            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} onPlayerCaught={() => {
+            <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || cartoonCutscene || cartoonFall} playerPositionRef={sharedPlayerPositionRef} gameState={gameState} barneyRef={barneyRef} barneyTargetRef={barneyTargetRef} nightMode={nightMode} doorOpenAmount={doorOpenAmount} profile={QUALITY_PROFILES[settings.quality]} collectedShards={collectedShards} onCollectShard={handleCollectShard} diverPhase={diverPhase} diverBeatRef={diverBeatRef} nightVisionActive={inventory.nightVision.owned && inventory.nightVision.active} monsterPositionRef={monsterPositionRef} monsterProximityRef={monsterProximityRef} berserk={berserk} cameraShakeRef={cameraShakeRef} floor3Hands={!cartoonIntro && !cartoonCutscene} floor3Gloves={!cartoonIntro && !cartoonCutscene && !cartoonFall} floor3FallActive={cartoonFall} f6CabDead={f6CabDead} f8InImage={f8InImage} onPlayerCaught={() => {
                 setFishJumpscareKey(k => k + 1);
                 setDevoured(true);
                 playJumpscareStab(audioCtx);
@@ -1419,6 +1890,13 @@ export default function App() {
                   setPendingPostDeathDialogue(true);
                 }, 2800);
               }} />
+            {/* Andar 7 — the pirate ship, 100% driven by the WASM (C + assembly)
+                brain. Mounted here (not in World) so it gets the Floor7 handle. */}
+            {currentLevel === 7 && <Floor7Environment playerPositionRef={sharedPlayerPositionRef} handleRef={floor7Handle} captainAnchorRef={captainAnchorRef} introElevFadeRef={f7ElevFadeRef} introLaughRef={f7LaughRef} introPoseRef={f7PoseRef} introTalkRef={f7TalkRef} introHideSailsRef={f7HideSailsRef} introLegsRef={f7LegsRef} />}
+            {/* Andar 7 finale: once the player boards the returned cab, mount the
+                global elevator interior around them for the ride home (the World
+                memo suppresses it on level 7 for the "elevator is gone" gag). */}
+            {currentLevel === 7 && f7Boarded && <ElevatorInterior timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} />}
             {/* RemotePlayers receive only id + the multiplayer data ref. Position
                 updates flow through the ref + useFrame, so the React tree no
                 longer re-renders every 200ms. The id list only changes when a
@@ -1426,7 +1904,41 @@ export default function App() {
             {visibleRemotePlayerIds.map(id => (
                 <RemotePlayer key={id} id={id} dataRef={otherPlayersDataRef} chatBubbles3D={QUALITY_PROFILES[settings.quality].chatBubbles3D} />
             ))}
-            <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef)))} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
+            <Player active={hasStarted && !photo.progress.active} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} onCashierInteractionUpdate={handleCashierInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueTargetRef={(currentLevel === 7 && captainGreeting) ? captainAnchorRef : (cartoonFall ? f3DevilPos : (cartoonCutscene ? cutsceneTargetRef : ((diverDialogueOpen || diverPhase === 'fading') ? diverPositionRef : (barneyDialogueOpen ? barneyRef : npcPositionRef))))} dialogueTallNpc={currentLevel === 7 && captainGreeting} dialogueOpen={dialogueOpen || barneyDialogueOpen || shopOpen || diverDialogueOpen || rebreather3DActive || diverPhase === 'fading' || diveBlackActive || cartoonCutscene || cartoonFall || f6UiOpen || f8UiOpen || npcChatOpen || (currentLevel === 7 && (captainGreeting || f7Intro))} sharedPositionRef={sharedPlayerPositionRef} sharedRotationYRef={sharedRotationYRef} cameraThetaRef={cameraThetaRef} cameraShakeRef={cameraShakeRef} diverBeatRef={diverBeatRef} positionCmdRef={playerPositionCmdRef} onElevatorZoneChange={handleElevatorZoneChange} pickupTrigger={pickupTrigger} pickupItem={pickupItem} armExtended={inventory.flashlight.owned && inventory.flashlight.active} onRightHandAnchor={handleRightHandAnchor} sprintHeldRef={sprintHeldRef} staminaRef={staminaRef} jumpRef={jumpRef} />
+            {/* Andar 8: direção de câmera do interrogatório/despertar/arremesso —
+                montada DEPOIS do <Player> pra sobrescrever a câmera por frame. */}
+            {hasStarted && currentLevel === 8 && (
+                <Floor8Cutscene playerPositionRef={sharedPlayerPositionRef} />
+            )}
+            {/* Andar 9: o FIAPO (player-bicho, 3ª pessoa) + a QUEDA pela copa.
+                Ordem importa: Fiapo depois do Player (rouba a câmera), cutscene
+                por último (a queda ganha de todo mundo). */}
+            {hasStarted && currentLevel === 9 && (
+                <Fiapo playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} />
+            )}
+            {hasStarted && currentLevel === 9 && <Floor9Cutscene />}
+            {/* Andar 7 captain-arrival cutscene — mounted AFTER <Player> so its
+                priority-0 useFrame overwrites the player camera while it runs. */}
+            {currentLevel === 7 && f7Intro && (
+                <Floor7IntroCutscene
+                    active={f7Intro}
+                    captainAnchorRef={captainAnchorRef}
+                    playerPositionRef={sharedPlayerPositionRef}
+                    elevFadeRef={f7ElevFadeRef}
+                    laughRef={f7LaughRef}
+                    poseRef={f7PoseRef}
+                    talkRef={f7TalkRef}
+                    hideSailsRef={f7HideSailsRef}
+                    legsRef={f7LegsRef}
+                    dimRef={f7DimRef}
+                    onBeat={setF7IntroBeat}
+                    onLine={setF7IntroLine}
+                    onStep={f7BootClomp}
+                    onElevatorVanish={f7ElevatorVanish}
+                    onLaugh={f7CaptainLaugh}
+                    onDone={endF7Intro}
+                />
+            )}
             {hasStarted && inventory.flashlight.owned && (
                 <>
                   <FlashlightLight
@@ -1452,12 +1964,14 @@ export default function App() {
             {hasStarted && (
                 <FPArmModel
                   zoomLevel={zoomLevel}
+                  currentLevel={currentLevel}
                   armExtended={inventory.flashlight.owned && inventory.flashlight.active}
                   pickupTrigger={pickupTrigger}
                   pickupItem={pickupItem}
                   active={hasStarted}
                   flashlightActive={inventory.flashlight.active}
                   flashlightOwned={inventory.flashlight.owned}
+                  cutsceneActive={(currentLevel === 7 && (f7Intro || captainGreeting || f7Settling)) || cartoonCutscene || cartoonFall || rebreather3DActive || diverPhase === 'fading'}
                 />
             )}
             {/* Rebreather 3D put-on cinematic — viewmodel-style, attaches
@@ -1514,7 +2028,10 @@ export default function App() {
             The ChromaticAberration simulates light dispersion through water,
             and the Vignette deepens the claustrophobic underwater feel.
             Medium/low: no postprocessing pass at all. */}
-        {hasStarted && (settings.quality === 'high' || currentLevel === 3) && (
+        {/* Photo mode takes over the render loop, so the raster post stack is
+            disabled while it accumulates samples. */}
+        {/* o andar 9 tem composer próprio (F9PostEffects) — sem duplicar aqui */}
+        {hasStarted && !photo.progress.active && currentLevel !== 9 && (settings.quality === 'high' || currentLevel === 3 || currentLevel === 7) && (
             <EffectComposer multisampling={0} enableNormalPass={false}>
                 {/* N8AO — screen-space ambient occlusion (Floor 3 only). Tuned
                     conservatively: tight screen-space radius + low intensity +
@@ -1538,10 +2055,10 @@ export default function App() {
                     low enough to avoid washing the whole cave cyan.
                     High quality only — on medium/low the Floor-3 composer runs
                     just the cheap grayscale pass below. */}
-                {settings.quality === 'high' && (
+                {(settings.quality === 'high' || currentLevel === 7) && (
                 <Bloom
-                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 0.22 : 0.35}
-                    luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 3 ? 0.95 : 0.95}
+                    intensity={currentLevel === 2 ? 0.45 : currentLevel === 3 ? 0.22 : currentLevel === 7 ? 0.38 : 0.35}
+                    luminanceThreshold={currentLevel === 2 ? 0.72 : currentLevel === 7 ? 0.85 : 0.95}
                     luminanceSmoothing={currentLevel === 2 ? 0.25 : currentLevel === 3 ? 0.20 : 0.2}
                     mipmapBlur
                     kernelSize={currentLevel === 2 ? KernelSize.SMALL : KernelSize.MEDIUM}
@@ -1581,11 +2098,23 @@ export default function App() {
                 )}
             </EffectComposer>
         )}
+        {/* Photo mode — path-traces the frozen view when active (inert otherwise). */}
+        <PhotoModeRig active={photo.progress.active} onSample={photo.onSample} onFailed={photo.onFailed} />
       </Canvas>
       </CanvasErrorBoundary>
       {hasStarted && QUALITY_PROFILES[settings.quality].overlay && (
           <GameEffects nightMode={nightMode} gameState={gameState} currentLevel={currentLevel} quality={settings.quality} dangerRef={barneyDistRef} />
       )}
+      {/* Photo mode (GPU path tracer) — activator + overlay. Offered on the
+          photographic PBR floors (lobby, house, hotel suite) only; the toon /
+          underwater / 2D floors don't path-trace cleanly. */}
+      {hasStarted && !photo.progress.active && !doorsClosed && [0, 1, 6].includes(currentLevel) && (
+          <PhotoModeButton onClick={photo.open} />
+      )}
+      <PhotoModeOverlay progress={photo.progress} onClose={photo.close} />
+      {/* Andar 7 (pirate ship) — captain dialogue + cleaning HUD + interact button */}
+      {hasStarted && currentLevel === 7 && !f7Intro && !f7Boarded && <Floor7Overlay handleRef={floor7Handle} onGreeting={setCaptainGreeting} onBoard={handleF7Board} />}
+      {hasStarted && currentLevel === 7 && f7Intro && <Floor7IntroUI beat={f7IntroBeat} line={f7IntroLine} dimRef={f7DimRef} onSkip={endF7Intro} />}
       {/* Empty lobby atmospheric touches — thuds, flickers, wall text */}
       {hasStarted && currentLevel === 0 && gameState === 'lobby' && (
           <EmptyLobbyAmbience playerCount={otherPlayerIds.length} />
@@ -1594,7 +2123,10 @@ export default function App() {
       {hasStarted && currentLevel === 0 && gameState === 'lobby' && (
           <WatchingText />
       )}
-      <Loader />
+      {/* The 2.5D Floor 8 owns its own opaque loading/cinematic surface. The
+          global drei loader also tracks unrelated hotel textures and could sit
+          over the YOURSELF reveal while one of those remote files timed out. */}
+      {!f8InImage && <Loader />}
       {!hasStarted && <MainMenu onPlay={handleStartGame} />}
       {hasStarted && (
         <InventoryHUD
@@ -2018,7 +2550,41 @@ export default function App() {
       {/* FLOOR 4 — the real 2D side-scroller, its own orthographic canvas over
           the 3D game (Felipe: Floor 4 is literally 2D). Walk left into the
           elevator to ride back down. */}
-      {currentLevel === 4 && <Floor4Canvas2D onExit={handleFloor4Exit} />}
+      {/* 3D→2D ride: cinematic black bars close in while the world pixelates
+          (mounted one tick early at height 0 so the CSS transition can run). */}
+      {currentLevel === 4 && doorsClosed && elevatorTimer !== null && elevatorTimer <= 11 && (
+        <>
+          <div className="absolute left-0 right-0 top-0 z-30 bg-black pointer-events-none"
+            style={{ height: `${((10 - Math.min(elevatorTimer, 10)) / 10) * 11}vh`, transition: 'height 1.15s linear' }} />
+          <div className="absolute left-0 right-0 bottom-0 z-30 bg-black pointer-events-none"
+            style={{ height: `${((10 - Math.min(elevatorTimer, 10)) / 10) * 11}vh`, transition: 'height 1.15s linear' }} />
+        </>
+      )}
+      {/* Floor 4 (2D) mounts only when the elevator DOORS OPEN — the player rides
+          the full 20s inside the 3D elevator (the 3D side pixelates from T-10s),
+          then arrives inside the 2D elevator, whose doors slide open. */}
+      {currentLevel === 4 && !doorsClosed && <Floor4Canvas2D onExit={handleFloor4Exit} />}
+      {currentLevel === 5 && !doorsClosed && <Floor5Race3D onExit={handleFloor5RaceExit} />}
+      {hasStarted && currentLevel === 6 && !doorsClosed && (
+        <Floor6Overlay playerPositionRef={sharedPlayerPositionRef} onUiOpenChange={handleF6UiOpenChange} onLeave={handleF6Leave} />
+      )}
+      {/* Andar 8 — o interrogatório do Arquivista (caixa de diálogo) */}
+      {hasStarted && currentLevel === 8 && !doorsClosed && (
+        <Floor8Overlay onUiOpenChange={handleF8UiOpenChange} onLeave={handleF8Thrown} />
+      )}
+      {hasStarted && currentLevel === 9 && (
+        <Floor9Overlay onUiOpenChange={handleF8UiOpenChange} playerPositionRef={sharedPlayerPositionRef} cameraThetaRef={cameraThetaRef} onComplete={handleF9Complete} />
+      )}
+      {/* Andar 8 — a volta: acorda no elevador "subindo pro 9", com o fio vermelho
+          (self-gate na fase leave; fica de pé durante o doorsClosed do trânsito) */}
+      {hasStarted && currentLevel === 8 && <Floor8Ride />}
+      {/* Andar 8 — DENTRO da imagem: o corredor de 20 portas + a porta 21
+          (self-gate por fase; cobre a tela durante corredor20/porta21/platformer) */}
+      {hasStarted && currentLevel === 8 && <Floor8Image />}
+      {/* Andar 8 — DENTRO da porta 21: o platformer 2.5D de tricô (self-gate por fase) */}
+      {hasStarted && currentLevel === 8 && <Floor8Platformer />}
+      {/* Andar 10 — UI de conversa com o NPC (LLM). Overlay DOM fora do Canvas. */}
+      {hasStarted && currentLevel === 10 && <Floor10NpcChat />}
 
       {/* BETRAYED — the devil shoved you off; you tumble back to the start */}
       {fallGameOver && (
@@ -2116,6 +2682,27 @@ export default function App() {
             </svg>
           </button>
         </div>
+      )}
+
+      {/* M20: BOTE button — Andar 9, mobile, durante o explorar. É o botão que
+          FALTAVA pra caçar (o player não tinha como pegar presa). Desktop: Espaço. */}
+      {hasStarted && currentLevel === 9 && !isDesktop && f9.phase === 'explorar' && (
+        <button
+          aria-label="Dar o bote"
+          className="fixed z-[45] right-[calc(env(safe-area-inset-right,0px)+18px)] bottom-[calc(env(safe-area-inset-bottom,0px)+26px)] w-24 h-24 rounded-full flex flex-col items-center justify-center select-none touch-none active:scale-90 transition-transform"
+          style={{
+            background: 'radial-gradient(circle at 50% 32%, #e8917a, #8a3020)',
+            boxShadow: '0 6px 0 #4a1a12, 0 0 0 4px #241410, 0 10px 20px rgba(0,0,0,0.5)',
+            border: '3px solid #241410',
+          }}
+          onPointerDown={(e) => { e.stopPropagation(); f9RequestPounce(); }}
+        >
+          <svg viewBox="0 0 24 24" className="w-9 h-9" fill="#fff2e8" stroke="#241410" strokeWidth={1.5} strokeLinejoin="round">
+            {/* uma pata com garras (o bote) */}
+            <path d="M12 3c1 0 1.6 1 1.6 2.4S13 8 12 8s-1.6-1.2-1.6-2.6S11 3 12 3zM6.5 5.2c.9.3 1.2 1.5.8 2.8s-1.4 2-2.3 1.7-1.2-1.5-.8-2.8 1.4-2 2.3-1.7zM17.5 5.2c.9-.3 1.9.4 2.3 1.7s0 2.5-.8 2.8-1.9-.4-2.3-1.7 0-2.5.8-2.8zM12 9.5c3 0 5.2 2 5.2 4.3 0 2-1.6 3.2-3.4 3.2-.8 0-1.2-.3-1.8-.3s-1 .3-1.8.3c-1.8 0-3.4-1.2-3.4-3.2C6.8 11.5 9 9.5 12 9.5z" />
+          </svg>
+          <span style={{ color: '#fff2e8', fontSize: 12, letterSpacing: 1.5, textShadow: '1.5px 1.5px 0 #241410' }}>BOTE</span>
+        </button>
       )}
 
       {/* Jump button — Floor 3 only, mobile only. Desktop uses Space. */}

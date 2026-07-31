@@ -97,6 +97,14 @@ git push -u origin <branch>
 - Testa no celular (mobile), prefere builds que cabem em 1 arquivo
 - Tem testado branches diversas ao longo do desenvolvimento, prefere `claude/review-project-docs-R4bFk` agora
 
+## Andar 7 (navio pirata) — estado 2026-07-09
+Quest completa COM final: limpa 6 poças → capitão ao leme → navega até a ilha (ST_SAIL,
+landfall/calm no WASM) → lê o DIÁRIO DE BORDO na escotilha (lore: maré = hotel respirando,
+Zelador, regra do Andar 4) → "VOCÊ LEMBROU DO ANDAR 7" → elevador rematerializa → EMBARCAR
+→ lobby (App.handleF7Board usa o fluxo do elevatorTimer). Lógica 100% em wasm/floor7.c
+(estados 0-7; rebuild: node wasm/build-wasm.mjs). Spawn do lvl 7: (0.75, 4.3)×1.85 — NÃO
+volte pra x=0 (mastro na cara). Mão FP só com bucket held. Bench: floor7play.html.
+
 ## Próximas IAs: leia também
 - `MEMORY.md` — histórico completo (longo)
 - `MAP.md` — visão geral do projeto

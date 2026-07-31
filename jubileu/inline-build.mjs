@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import esbuild from 'esbuild';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.join(scriptDir, 'dist');
@@ -18,7 +19,50 @@ const escapeScript = (s) => s.replace(/<\/script/gi, '<\\/script');
 const escapeStyle = (s) => s.replace(/<\/style/gi, '<\\/style');
 
 const jsRel = scriptMatch[1].replace(/^\//, '');
-const js = fs.readFileSync(path.join(dist, jsRel), 'utf8');
+let js = fs.readFileSync(path.join(dist, jsRel), 'utf8');
+
+// ── WORKER DO NPC: bundle clássico embutido como Blob URL ─────────────────
+// O worker (src/npc/npcWorker.ts) roda o WebLLM fora da thread principal. Em
+// file:// o Chrome BLOQUEIA module workers (era o "WORKER_MORTO" ao abrir o
+// index.html baixado), então aqui o worker é (re)gerado com esbuild como
+// script CLÁSSICO autossuficiente (public/npcWorker.js — também servido como
+// fallback fora do single-file) e a referência 'npcWorker.js' no bundle vira
+// um Blob URL embutido em base64. Assim roda em file://, Vercel, onde for.
+// O Andar 10 roda no wllama (CPU) desde que o motor WebGPU foi aposentado, e o
+// fonte do worker saiu junto com ele. Este passo agora só existe para o caso de
+// o WebLLM voltar: sem o arquivo, ele é pulado em vez de quebrar o build.
+const workerEntry = path.join(scriptDir, 'src/npc/npcWorker.ts');
+const temWorker = fs.existsSync(workerEntry);
+let workerB64 = '';
+if (temWorker) {
+  esbuild.buildSync({
+    entryPoints: [workerEntry],
+    bundle: true,
+    format: 'iife',
+    target: 'es2020',
+    // minificado: o worker embutido soma ~4MB no single-file em vez de ~9MB —
+    // e a Vercel Hobby tem limite de 100MB por deploy, então cada MB conta.
+    // (o bundle principal continua legível, como o projeto gosta)
+    minify: true,
+    outfile: path.join(scriptDir, 'public', 'npcWorker.js'),
+    logLevel: 'silent',
+  });
+  workerB64 = fs.readFileSync(path.join(scriptDir, 'public', 'npcWorker.js')).toString('base64');
+  // fallback pra quando o app NÃO é single-file (Vercel servindo dist): garante
+  // que dist tenha a versão fresca do worker
+  fs.copyFileSync(path.join(scriptDir, 'public', 'npcWorker.js'), path.join(dist, 'npcWorker.js'));
+}
+const workerMarker = '"npcWorker.js"';
+if (temWorker && js.includes(workerMarker)) {
+  const workerBlobBuilder = '(URL.createObjectURL(new Blob([Uint8Array.from(atob(__NPC_WORKER_B64__),(c)=>c.charCodeAt(0))],{type:"text/javascript"})))';
+  js = `const __NPC_WORKER_B64__="${workerB64}";\n` + js.split(workerMarker).join(workerBlobBuilder);
+} else {
+  // O Floor 10 atual importa wllamaEngine (CPU), então o Rollup remove
+  // llmEngine/npcWorker (WebGPU) do bundle. Não há referência para substituir
+  // e, portanto, nada precisa ser embutido. Se o WebGPU voltar a ser usado, o
+  // marcador reaparece e o caminho acima continua funcionando.
+  console.log('npcWorker.js ausente do chunk (motor WebGPU não utilizado); pulando embed.');
+}
 // Remove the external script tag from <head>.
 // Use a function replacement to prevent JS's $& / $' / $` special patterns
 // inside the bundle from being expanded by String.prototype.replace().

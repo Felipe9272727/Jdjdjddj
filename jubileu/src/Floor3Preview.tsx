@@ -20,9 +20,10 @@ import { OrbitControls, useGLTF, Grid } from '@react-three/drei';
 import { Suspense } from 'react';
 import Floor3Environment from './Floor3';
 import FpHands from './Floor3Hands';
+import { glovesModel } from './assets/textureImports';
 
 function HandsDebug() {
-    const { scene } = useGLTF('/cartoon_gloves.glb');
+    const { scene } = useGLTF(glovesModel);
     return (
         <group>
             <ambientLight intensity={0.8} />

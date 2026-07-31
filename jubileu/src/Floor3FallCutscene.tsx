@@ -28,8 +28,9 @@ import { f3DevilPos, f3DevilPosValid, devilStageBase } from './f3Hazards';
 import { playFloor3Land, playFloor3Fall, playFloor3Dizzy, playFloor3Stomp, playFloor3Shove } from './floor3Sfx';
 import { PlatformView } from './Floor3';
 import { type F3Plat } from './f3Parkour';
+import { diabreteModel } from './assets/textureImports';
 
-const RIVAL_URL = '/diabrete.glb';
+const RIVAL_URL = diabreteModel; // bundled (inlined) — no runtime fetch
 const HANG_DROP = 1.5;      // how far below the ledge he dangles (hands clamp the lip, head just under)
 const EDGE_Z    = 0.35;     // he hangs just off the front edge (abyss side)
 const FACE_Y    = Math.PI;  // turn him to FACE the platform / the player

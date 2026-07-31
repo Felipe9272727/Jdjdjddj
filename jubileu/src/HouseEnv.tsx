@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF, Instances, Instance, useTexture } from '@react-three/drei';
-import { ASSETS, COLORS, BARNEY_URL } from './constants';
+import { ASSETS, COLORS, BARNEY_URL, DUSSEKAR_URL } from './constants';
 import { TextureMaterial } from './Materials';
 import { ContextSteer, interceptTime } from './ai/contextSteering';
 import { AIDirector } from './ai/AIDirector';
@@ -12,8 +12,8 @@ import { Sofa, CoffeeTable, Bed, KitchenCounter, Barrel } from './Furniture';
 import * as THREE from 'three';
 
 // Preload Dussekar's GLB at module load so the first time the player walks
-// near the shop we don't fall to 4fps loading it synchronously.
-const DUSSEKAR_URL = "https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb";
+// near the shop we don't fall to 4fps loading it synchronously. DUSSEKAR_URL
+// is now a bundled (inlined) asset — no runtime fetch in the single-file build.
 useGLTF.preload(DUSSEKAR_URL);
 
 // ─── Tree positions (consolidated) ─────────────────────────────────────

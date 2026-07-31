@@ -52,31 +52,44 @@ const BIO_POSITIONS: readonly [number, number, number, string, number][] = [
 ];
 
 export const BioluminescentPatches: React.FC = () => {
-    const matRefs = React.useRef<(THREE.SpriteMaterial | null)[]>(new Array(BIO_POSITIONS.length).fill(null));
-    const haloRefs = React.useRef<(THREE.SpriteMaterial | null)[]>(new Array(BIO_POSITIONS.length).fill(null));
+    // Group patches into 4 material groups based on phase
+    const groupedMats = React.useRef<(THREE.SpriteMaterial | null)[]>(new Array(4).fill(null));
+    const groupedHalos = React.useRef<(THREE.SpriteMaterial | null)[]>(new Array(4).fill(null));
+    const frameTickRef = React.useRef(0);
+
     useFrame((state) => {
         const t = state.clock.elapsedTime;
-        for (let i = 0; i < BIO_POSITIONS.length; i++) {
-            const phase = i * 0.97;
+        const tick = frameTickRef.current++;
+        // Update only 1 material group per frame (round-robin every 4 frames)
+        const updateGroup = tick % 4;
+
+        // Compute breath value for each of 4 phase groups
+        for (let g = 0; g < 4; g++) {
+            if (g !== updateGroup) continue;  // Skip other groups
+            const phase = g * 0.97;
             const breath = 0.55 + Math.sin(t * 0.8 + phase) * 0.25 + Math.sin(t * 2.3 + phase * 1.7) * 0.08;
-            const mat = matRefs.current[i];
+            const mat = groupedMats.current[g];
             if (mat) mat.opacity = breath * 0.42;
-            const halo = haloRefs.current[i];
+            const halo = groupedHalos.current[g];
             if (halo) halo.opacity = breath * 0.08;
         }
     });
+
     return (
         <group>
-            {BIO_POSITIONS.map(([x, y, z, color, scl], i) => (
-                <React.Fragment key={i}>
-                    <sprite position={[x, y, z]} scale={[0.5 * scl, 0.5 * scl, 1]}>
-                        <spriteMaterial ref={(r: any) => { matRefs.current[i] = r; }} color={color} transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
-                    </sprite>
-                    <sprite position={[x, y, z]} scale={[2 * scl, 2 * scl, 1]}>
-                        <spriteMaterial ref={(r: any) => { haloRefs.current[i] = r; }} color={color} transparent opacity={0.08} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
-                    </sprite>
-                </React.Fragment>
-            ))}
+            {BIO_POSITIONS.map(([x, y, z, color, scl], i) => {
+                const group = i % 4;  // Assign to one of 4 phase groups
+                return (
+                    <React.Fragment key={i}>
+                        <sprite position={[x, y, z]} scale={[0.5 * scl, 0.5 * scl, 1]}>
+                            <spriteMaterial ref={(r: any) => { groupedMats.current[group] = r; }} color={color} transparent opacity={0.35} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                        </sprite>
+                        <sprite position={[x, y, z]} scale={[2 * scl, 2 * scl, 1]}>
+                            <spriteMaterial ref={(r: any) => { groupedHalos.current[group] = r; }} color={color} transparent opacity={0.08} depthWrite={false} toneMapped={false} blending={THREE.AdditiveBlending} />
+                        </sprite>
+                    </React.Fragment>
+                );
+            })}
         </group>
     );
 };
@@ -162,11 +175,18 @@ export const UnderwaterLighting: React.FC<{
     const _hemiWater = useMemo(() => new THREE.Color('#3aa0c0'), []);
     const _ambTmp = useMemo(() => new THREE.Color(), []);
     const _hemiTmp = useMemo(() => new THREE.Color(), []);
+    const lastUpdateRef = useRef(0);
 
-    useFrame((_, dt) => {
+    useFrame((state, dt) => {
         const safeDt = Math.min(dt, 0.033);
         const y = playerPositionRef.current?.y ?? 0;
         swimmerY.current = y;
+
+        // Throttle color lerps to ~10Hz (update every 0.1s)
+        lastUpdateRef.current += dt;
+        if (lastUpdateRef.current < 0.1) return;
+        lastUpdateRef.current = 0;
+
         const tWater = Math.max(0, Math.min(1, (SWIM_THRESHOLD_Y - y) / 5));
         const depth = Math.max(0, Math.min(1, -y / 29));
 
