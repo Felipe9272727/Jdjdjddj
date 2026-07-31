@@ -3702,3 +3702,47 @@ Floor6Wet.tsx (fogão 4-bocas, microondas detalhado, utensílios 3x), f6Escape.t
 5 textos), floor6Sfx.ts (playF6MemoryPulse/Sting).
 
 **Commit:** branch `claude/floor-7-bugs-lore-celwdy`, build index.html (~66MB), push OK.
+
+### Sessão 2026-07-31 — "baixo tudo de novo a cada commit": era a REGRA DE ORIGEM, não o cache
+
+Felipe: *"eu uso o vercel pra testar, e no vercel, sempre que tem um novo commit, o Chrome
+dá como se fosse outro site, e eu tenho que baixar dnv"*. Ele matou a charada — eu tinha
+começado a investigar cota (os comentários antigos do `floor10ModelStorage.ts` falam de
+1,07 GB) e ele corrigiu: **a cota do aparelho dele são 12 GB e o cache funciona**. O
+problema nunca foi espaço.
+
+**A causa.** Todo armazenamento do navegador — OPFS (onde o wllama guarda os .gguf), Cache
+Storage, IndexedDB, localStorage — é indexado por ORIGEM. A Vercel dá uma URL nova por
+deploy (`jdjdjddj-<hash>-<escopo>.vercel.app`), e para o Chrome isso é outro site: cofre
+vazio, 4,2 GB de cérebros de novo. O alias fixo é `jdjdjddj-five.vercel.app`, e o que está
+guardado continua lá, inalcançável a partir da URL do deploy.
+
+**O que entrou:**
+- `src/origemEstavel.ts` + `src/OrigemEstavelAviso.tsx` — detecta que a página abriu numa
+  URL descartável. Se o endereço fixo servir **o mesmo build**, salta sozinho (não custa
+  nada e economiza 4,2 GB); se os builds diferirem, mostra os dois lados e deixa quem testa
+  decidir — pode ser justamente o build novo que ele quer ver. `?deploy=1` fica na URL do
+  deploy de propósito. 11 testes.
+- `public/coi-serviceworker.js` — o MESMO worker do isolamento passou a guardar o
+  `index.html` de 84 MB (só um SW controla um escopo; um segundo derrubaria o COOP/COEP e a
+  fala cairia para CPU×1). Frescura sem pagar 84 MB: ele pergunta ao `version.json` (~100
+  bytes) qual build está no ar e só baixa quando o id difere. Não toca em nada que não seja
+  navegação — os .gguf continuam indo direto para o wllama.
+- `src/main.tsx` — o registro do worker era condicional (`if (crossOriginIsolated) return`),
+  então na Vercel, que já manda os cabeçalhos certos, **o worker nunca era instalado**.
+  Agora registra sempre; o reload só acontece quando falta isolamento.
+- `inline-build.mjs` — gera `version.json` e copia worker/manifest/ícones para a raiz (o
+  `/coi-serviceworker.js` dava **404 em produção**: era registrado e não existia). Saíram as
+  metas `Cache-Control: no-store`, que mandavam rebaixar 84 MB a cada abertura.
+- Identidade do build = **hash do conteúdo**, não o commit: o index.html é gerado antes do
+  commit que o publica (o carimbo nasceria apontando para o commit anterior) e rebuildar o
+  mesmo código cobraria 84 MB à toa. Verificado: duas rodadas seguidas dão `9d5b334d7b9d`.
+- `src/armazenamentoPersistente.ts` + `manifest.webmanifest` + ícones — `storage.persist()`
+  a cada abertura. No Android o Chrome concede por engajamento, e o sinal mais forte é o
+  site estar INSTALADO na tela inicial: o manifest não é enfeite, é o que faz o pedido ser
+  aceito. Sem isso os 4,2 GB seguem despejáveis quando o aparelho apertar.
+
+**ARMADILHA:** não registre um segundo Service Worker em `/`. Ele substitui o
+`coi-serviceworker.js`, o `crossOriginIsolated` cai e o wllama volta para uma thread só.
+
+**Estado:** tsc 0 · 492/492 vitest · audit sem erros · index.html rebuildado (83,9 MB).

@@ -2,16 +2,29 @@ import {StrictMode, lazy, Suspense} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { SettingsProvider } from './Settings';
+import { iniciarPersistencia } from './armazenamentoPersistente';
+import { OrigemEstavelAviso } from './OrigemEstavelAviso';
 import './index.css';
+
+// Pede ao navegador para NÃO despejar os 4,2 GB de cérebros quando o aparelho
+// apertar de espaço. Fora do caminho crítico: nada aqui bloqueia o jogo.
+iniciarPersistencia();
 
 // Alguns previews do Vercel não aplicam os headers COOP/COEP do projeto e
 // derrubam o wllama para CPU×1. O Service Worker injeta os mesmos headers na
 // navegação seguinte. Recarrega no máximo uma vez e nunca bloqueia o jogo.
+//
+// O REGISTRO DEIXOU DE SER CONDICIONAL. Antes, um host que já mandava os
+// cabeçalhos certos (o caso da Vercel com o vercel.json) fazia esta função sair
+// na primeira linha e o worker nunca era instalado. Isso bastava para o
+// isolamento, mas hoje o mesmo arquivo também é quem guarda os 84 MB do
+// index.html — e sem registro nada era guardado: o jogo inteiro descia de novo
+// a cada abertura. Agora registra sempre; o recarregamento é que continua
+// acontecendo só quando falta isolamento.
 const COI_RELOAD_KEY = 'floor10-coi-reload-v1';
 async function enableCpuThreadsFallback(): Promise<void> {
   if (
     typeof window === 'undefined'
-    || window.crossOriginIsolated
     || !window.isSecureContext
     || !('serviceWorker' in navigator)
   ) return;
@@ -20,6 +33,7 @@ async function enableCpuThreadsFallback(): Promise<void> {
     await navigator.serviceWorker.register('/coi-serviceworker.js', {
       updateViaCache: 'none',
     });
+    if (window.crossOriginIsolated) return; // já isolado: nada a recarregar
     if (sessionStorage.getItem(COI_RELOAD_KEY) === 'done') return;
     const reloadIsolated = () => {
       sessionStorage.setItem(COI_RELOAD_KEY, 'done');
@@ -64,6 +78,9 @@ const isPrisao = search.includes('prisao');
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    {/* Fora do jogo de propósito: vale para a bancada, o ?mente e os previews
+        também — qualquer um deles aberto numa URL de deploy paga os 4,2 GB. */}
+    <OrigemEstavelAviso />
     {isPrisao ? (
       <Suspense fallback={null}><Floor10Prisao /></Suspense>
     ) : isMente ? (
