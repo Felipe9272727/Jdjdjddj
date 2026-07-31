@@ -15,6 +15,7 @@ import {
     type DownloadSample,
 } from './npc/floor10Download';
 import { formatGB } from './npc/floor10ModelStorage';
+import { useOptionalSettings } from './Settings';
 import { SPEECH_BRAIN_BYTES } from './npc/floor10Brains';
 import {
     definirFilaDoAndar10, filaLinha, floor10Fila,
@@ -105,8 +106,47 @@ const LinhaDownload: React.FC<{
     );
 };
 
+/**
+ * O RACIOCÍNIO DO NILO, COMO ELE SAI.
+ *
+ * Não é resumo nem paráfrase: é o texto que o cérebro de vontade está
+ * escrevendo neste instante, com os números que explicam a demora — quantos
+ * núcleos, quantos tokens por segundo, há quantos segundos. Nasceu de uma
+ * reclamação exata de quem joga: "está demorando muito pra pensar, e eu nunca
+ * sei o processo de pensamento".
+ *
+ * Some com um toque na opção "Pensamento do Nilo" das configurações.
+ */
+const PensamentoCru: React.FC<{
+    texto: string;
+    pensando: boolean;
+    tps: number;
+    threads: number;
+    segundos: number;
+}> = ({ texto, pensando, tps, threads, segundos }) => (
+    <div style={pensamentoCruStyle} aria-live="polite">
+        <div style={pensamentoCabecaStyle}>
+            <span>{pensando ? '🧠 vontade · pensando' : '🧠 vontade · pensou'}</span>
+            <span style={{ opacity: 0.75, fontVariantNumeric: 'tabular-nums' }}>
+                {threads > 0 ? `CPU×${threads}` : ''}
+                {tps > 0 ? ` · ${tps.toFixed(1)} tok/s` : ''}
+                {segundos > 0 ? ` · ${segundos.toFixed(0)}s` : ''}
+            </span>
+        </div>
+        <div style={pensamentoTextoStyle}>
+            {/* column-reverse: o texto novo empurra o antigo para cima
+                sozinho, sem precisar mexer no scroll a cada token. */}
+            <span>
+                {texto}
+                {pensando && <span style={{ opacity: 0.5 }}>▌</span>}
+            </span>
+        </div>
+    </div>
+);
+
 const Floor10NpcChat: React.FC = () => {
     const st = useNpc();
+    const { showNiloThoughts } = useOptionalSettings();
     const [input, setInput] = useState('');
     const [thinkingSeconds, setThinkingSeconds] = useState(0);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -206,7 +246,14 @@ const Floor10NpcChat: React.FC = () => {
         const thought = deliberationThought(st.deliberationPhase, st.deliberationGoal);
         const thoughtVisible = !baixandoCerebro && thought !== '' && !speechAudible
             && (st.perception.player?.distance ?? Infinity) <= 9;
-        if (!st.near && !speechAudible && !thoughtVisible && !baixandoCerebro) return null;
+        // O pensamento cru NÃO depende de estar perto: ele pensa o tempo todo, e
+        // a pergunta que isto responde ("ele está vivo ou travado?") é a mesma
+        // do outro lado da sala.
+        const pensamentoVisivel = showNiloThoughts && !baixandoCerebro
+            && st.deliberationLive !== ''
+            && (st.deliberationPhase === 'thinking' || st.deliberationPhase === 'decided');
+        if (!st.near && !speechAudible && !thoughtVisible && !baixandoCerebro
+            && !pensamentoVisivel) return null;
         return (
             <>
                 {baixandoCerebro && (
@@ -228,6 +275,15 @@ const Floor10NpcChat: React.FC = () => {
                             tom={TOM_FILA}
                         />
                     </div>
+                )}
+                {pensamentoVisivel && (
+                    <PensamentoCru
+                        texto={st.deliberationLive}
+                        pensando={st.deliberationPhase === 'thinking'}
+                        tps={st.deliberationTps}
+                        threads={st.deliberationThreads}
+                        segundos={st.deliberationSeconds}
+                    />
                 )}
                 {thoughtVisible && (
                     <div style={thoughtBubbleStyle}>
@@ -455,6 +511,30 @@ const thoughtBubbleStyle: React.CSSProperties = {
     padding: '8px 14px', borderRadius: 999, border: '1px dashed rgba(180,200,255,0.34)',
     background: 'rgba(14,16,22,0.72)', color: '#cdd6ea', fontSize: 13, lineHeight: 1.35,
     backdropFilter: 'blur(6px)', pointerEvents: 'none', fontFamily: 'system-ui, sans-serif',
+};
+// ── O PENSAMENTO CRU, NA TELA ──────────────────────────────────────────────
+// Fica em cima, à esquerda, no lugar da barra de download (elas nunca aparecem
+// juntas: enquanto baixa não há pensamento). Não intercepta toque nenhum — o
+// jogo continua jogável com ele aberto.
+const pensamentoCruStyle: React.CSSProperties = {
+    position: 'fixed', zIndex: 60, left: 'max(12px, 2.5vw)', top: 'max(82px, 13vh)',
+    width: 'min(340px, 76vw)', maxHeight: 'min(38vh, 300px)', overflow: 'hidden',
+    display: 'flex', flexDirection: 'column', gap: 6,
+    padding: '10px 12px', borderRadius: 12,
+    border: '1px solid rgba(180,200,255,0.28)', background: 'rgba(12,14,20,0.88)',
+    color: '#cdd6ea', boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
+    backdropFilter: 'blur(8px)', pointerEvents: 'none',
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+};
+const pensamentoCabecaStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+    color: '#9fb4e6', fontSize: 10.5, fontWeight: 650, letterSpacing: 0.3,
+    fontFamily: 'system-ui, sans-serif',
+};
+const pensamentoTextoStyle: React.CSSProperties = {
+    fontSize: 11.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', overflowY: 'auto',
+    // A leitura é da PONTA: o que interessa é o que ele está escrevendo agora.
+    display: 'flex', flexDirection: 'column-reverse',
 };
 const autonomousSpeechStyle: React.CSSProperties = {
     position: 'fixed', bottom: 'max(142px, 21vh)', left: '50%', transform: 'translateX(-50%)',

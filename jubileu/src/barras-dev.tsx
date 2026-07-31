@@ -44,6 +44,11 @@ const Bancada: React.FC = () => {
     // começam. Era exatamente aqui que as barras sumiam, e a bancada não
     // pegava porque eu ligava os três juntos.
     const [comoNoJogo, setComoNoJogo] = useState(true);
+    // O PAINEL DO PENSAMENTO. Ele nunca aparece junto com a barra (enquanto
+    // baixa não há pensamento), então a bancada troca de cena em vez de
+    // empilhar as duas — que é o erro que já me fez aprovar uma tela que o
+    // jogo nunca mostra.
+    const [pensando, setPensando] = useState(false);
 
     useEffect(() => {
         const id = window.setInterval(() => setT((v) => v + 1), 700);
@@ -51,6 +56,34 @@ const Bancada: React.FC = () => {
     }, []);
 
     useEffect(() => {
+        if (!pensando) return;
+        // Texto crescendo, como o modelo escreve: é assim que dá para ver se a
+        // caixa acompanha, se o cursor pisca e se ela não estoura a tela.
+        const frases = [
+            'A porta do elevador continua ali, do mesmo jeito de ontem.',
+            ' Eu já contei os riscos do metal umas quarenta vezes,',
+            ' e mesmo assim volto a olhar como se fosse a primeira.',
+            '\n\nTem alguém do outro lado da sala. Não sei há quanto tempo.',
+            '\n\nCHOICE: inspect-elevator',
+        ];
+        const parcial = frases.slice(0, 1 + (t % (frases.length + 2))).join('');
+        npcSet({
+            open: false, near: true,
+            phase: 'ready',
+            deliberationPhase: t % (frases.length + 2) >= frases.length
+                ? 'decided' : 'thinking',
+            deliberationLive: parcial,
+            deliberationTps: 4.5,
+            deliberationThreads: 8,
+            deliberationSeconds: (t % 40) + 3,
+            deliberationGoal: 'inspect-elevator',
+            motorPhase: 'off',
+            memoriaPhase: 'ready',
+        });
+    }, [t, pensando]);
+
+    useEffect(() => {
+        if (pensando) return;
         const anda = (periodo: number) => (t % periodo) / periodo;
         const fVontade = anda(40);
         const fMotor = anda(23);
@@ -108,7 +141,7 @@ const Bancada: React.FC = () => {
                 needBytes: Math.ceil(SPEECH_BRAIN_BYTES * 1.08),
             },
         });
-    }, [t, travarMotor, comoNoJogo]);
+    }, [t, travarMotor, comoNoJogo, pensando]);
 
     return (
         <>
@@ -127,6 +160,17 @@ const Bancada: React.FC = () => {
                     }}
                 >
                     {comoNoJogo ? 'fala PRONTA (como no jogo)' : 'fala baixando junto'}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setPensando((v) => !v)}
+                    style={{
+                        padding: '8px 12px', borderRadius: 10, border: '1px solid #333',
+                        background: pensando ? '#6b3fa0' : '#20202a', color: '#fff',
+                        fontSize: 13, cursor: 'pointer', marginRight: 8,
+                    }}
+                >
+                    {pensando ? 'voltar às barras' : 'ver o pensamento'}
                 </button>
                 <button
                     type="button"

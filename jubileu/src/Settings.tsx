@@ -11,6 +11,16 @@ export interface GameSettings {
     multiplayer: boolean;
     showFps: boolean;
     botMode: boolean;         // dev/test driver — auto-walks the player
+    /**
+     * Mostrar o PENSAMENTO CRU do Nilo (10º andar) enquanto ele delibera.
+     *
+     * O cérebro de vontade pensa em segundo plano e pode levar mais de um
+     * minuto por rodada. Sem isto, de fora, "pensando" e "travado" são a mesma
+     * imagem — e foi assim que o dono do jogo descreveu o problema: "nunca sei
+     * se ele está pensando ou não". Ligado, o texto que ele está escrevendo
+     * aparece na tela, token a token, com os núcleos e os tok/s medidos.
+     */
+    showNiloThoughts: boolean;
 }
 
 const DEFAULTS: GameSettings = {
@@ -22,6 +32,9 @@ const DEFAULTS: GameSettings = {
     multiplayer: false,
     showFps: false,
     botMode: false,
+    // Nasce LIGADO: quem pediu quer ver, e um NPC que pensa em voz alta é
+    // metade da graça do andar. Desligar é um toque.
+    showNiloThoughts: true,
 };
 
 const STORAGE_KEY = 'jubileu_settings_v1';
@@ -82,6 +95,20 @@ export const useSettings = (): Ctx => {
     const ctx = useContext(SettingsCtx);
     if (!ctx) throw new Error('useSettings must be used within SettingsProvider');
     return ctx;
+};
+
+/**
+ * As configurações para quem pode viver FORA do provedor.
+ *
+ * O painel do Andar 10 é montado no jogo (dentro do provedor) e também nas
+ * bancadas (`/barras.html`, `?mente`), que renderizam só o componente. Ali o
+ * `useSettings` estouraria — e uma bancada que quebra é uma bancada que não é
+ * usada. Aqui o que vale é o disco: as mesmas preferências que o menu gravou.
+ */
+export const useOptionalSettings = (): GameSettings => {
+    const ctx = useContext(SettingsCtx);
+    const [fallback] = useState<GameSettings>(() => (ctx ? ctx.settings : loadSettings()));
+    return ctx ? ctx.settings : fallback;
 };
 
 // Per-quality renderer + scene profile. Read across App.tsx, RemotePlayer.tsx,
@@ -200,6 +227,13 @@ export const SettingsMenu = ({ open, onClose }: { open: boolean; onClose: () => 
 
                     <Row label="Show FPS">
                         <Toggle on={settings.showFps} onChange={(on) => update({ showFps: on })} />
+                    </Row>
+
+                    <Row label="Pensamento do Nilo (10º andar)">
+                        <Toggle
+                            on={settings.showNiloThoughts}
+                            onChange={(on) => update({ showNiloThoughts: on })}
+                        />
                     </Row>
 
                     <Row label="Bot Mode (auto-test)">

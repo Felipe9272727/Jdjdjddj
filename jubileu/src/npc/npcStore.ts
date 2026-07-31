@@ -48,6 +48,19 @@ export type NpcState = {
     deliberationDownload: DownloadSample;
     deliberationGoal: string;   // a intenção que ele assinou
     deliberationCount: number;  // quantas vezes já deliberou nesta sessão
+    // ── O PENSAMENTO CRU, AO VIVO ──────────────────────────────────────────
+    // O texto que o cérebro de vontade está escrevendo NESTE instante, token a
+    // token. Existe porque, de fora, "pensando…" e "travado" eram a mesma
+    // imagem: dava para esperar dois minutos sem saber se havia alguém
+    // trabalhando. Aqui não se resume nem se enfeita nada — é o raciocínio dele,
+    // como sai. A tela mostra ou não conforme a opção nas configurações.
+    deliberationLive: string;
+    /** Tokens por segundo da última rodada, medidos no aparelho. */
+    deliberationTps: number;
+    /** Quantos núcleos a última rodada realmente usou. */
+    deliberationThreads: number;
+    /** Quanto durou a última rodada de pensamento, em segundos. */
+    deliberationSeconds: number;
     // ── CÓRTEX MOTOR (o TERCEIRO cérebro, 360M, que vira pensamento em ação) ─
     // Campos PRÓPRIOS, e isso é o ponto. Antes ele publicava nos campos da
     // deliberação: enquanto os 386 MB dele desciam, a tela mostrava uma barra
@@ -85,6 +98,8 @@ const s: NpcState = {
     deliberationDownload: DOWNLOAD_ZERO,
     storage: { quota: null, usage: 0, needBytes: 0 },
     deliberationGoal: '', deliberationCount: 0,
+    deliberationLive: '', deliberationTps: 0, deliberationThreads: 0,
+    deliberationSeconds: 0,
     motorPhase: 'off', motorLoadText: '', motorLoadProgress: 0,
     motorDownload: DOWNLOAD_ZERO,
     memoriaPhase: 'off', memoriaLoadText: '', memoriaLoadProgress: 0,

@@ -20,7 +20,9 @@ import {
 } from './npc/floor10Drives';
 import { perceiveFloor10 } from './npc/floor10Perception';
 import {
-    deliberarObservando, setSmallBrain, SMALL_BRAIN_CATALOG, SMALL_BRAIN_MODEL,
+    deliberarObservando, deliberateFloor10, precarregarVontade,
+    setSmallBrain, smallBrainThreads,
+    SMALL_BRAIN_CATALOG, SMALL_BRAIN_MODEL,
     type PensamentoAoVivo, type SmallBrainId,
 } from './npc/floor10SmallBrain';
 import {
@@ -468,6 +470,9 @@ const Mente: React.FC = () => {
 // exatamente assim que uma medição "reprovou" uma integração que funcionava.
 (window as unknown as Record<string, unknown>).__f10mente = {
     npc, deliberarObservando, perceiveFloor10,
+    // O caminho do JOGO (não o observado): é ele que a sonda do pensamento
+    // ao vivo precisa medir.
+    deliberateFloor10, precarregarVontade, smallBrainThreads,
     initLLM, sendToNpc, prepareFloor10SystemPrompt,
     buildFloor10SystemPrompt, retrieveFloor10Canon, FLOOR10_CANON,
     memoria,

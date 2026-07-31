@@ -9,6 +9,7 @@
 // jogo nunca depende desta camada para funcionar.
 import {
     DELIBERATION_EXTRACT_TOKENS,
+    DELIBERATION_GOALS,
     DELIBERATION_GRAMMAR,
     DELIBERATION_SYSTEM_PROMPT,
     DELIBERATION_TIMEOUT_MS,
@@ -109,18 +110,59 @@ export async function setSmallBrain(id: SmallBrainId): Promise<void> {
 }
 
 /**
- * Até QUATRO núcleos para o MiniBrain.
+ * Os MESMOS núcleos da fala — hoje oito.
  *
- * O limite antigo de 2 tentava evitar disputa com a fala, mas hoje o
- * floor10ModelCoordinator interrompe a inferência pequena antes de o SmolLM3
- * gerar. Portanto não existe mais motivo para deixar metade dos celulares
- * modernos ociosa durante uma rodada que roda sozinha. Quatro é o teto, não
- * uma exigência: aparelhos menores continuam usando hardwareConcurrency.
+ * Foi 2 (medo de disputar com o SmolLM3), depois 4, e agora acompanha o teto da
+ * fala. A razão é o coordenador: fala e vontade NUNCA geram ao mesmo tempo. A
+ * fala preempta a deliberação antes de gerar, e a deliberação cede a vez
+ * enquanto o painel está aberto. Deixar metade do aparelho parada durante uma
+ * rodada que roda sozinha era desperdício puro.
+ *
+ * Continua sendo TETO, não exigência: quem tem menos núcleos usa o que tem.
+ *
+ * Uma ressalva honesta, porque ela é medível e eu não tenho o aparelho aqui:
+ * em celular big.LITTLE (o Snapdragon 7s Gen 2 tem 4 núcleos grandes e 4
+ * pequenos) o llama.cpp espera pela thread mais lenta, então mais threads nem
+ * sempre é mais rápido. Por isso o painel de pensamento publica `CPU×N` e os
+ * tok/s medidos: dá para ver, na hora, se 8 ficou melhor que 4 — e é um número
+ * só para voltar atrás.
  */
-export const SMALL_BRAIN_THREADS = 4;
+export const SMALL_BRAIN_THREADS = 8;
 
 export function smallBrainThreads(): number {
     return Math.min(SMALL_BRAIN_THREADS, Math.max(1, cpuThreadCount()));
+}
+
+/**
+ * De quanto em quanto tempo o pensamento em curso vai para a tela. 150ms é
+ * rápido o bastante para parecer que ele está escrevendo e devagar o bastante
+ * para não re-renderizar o painel a cada token.
+ */
+export const PENSAMENTO_PUBLICA_MS = 150;
+
+/**
+ * O PENSAMENTO JÁ FOI ASSINADO?
+ *
+ * O prompt manda terminar com uma linha "CHOICE: <opção>", e ela é a ÚLTIMA
+ * coisa que ele escreve. Reconhecê-la enquanto o texto ainda chega permite
+ * encerrar a rodada ali, em vez de ficar lendo até o teto de 320 tokens.
+ *
+ * Exige a opção INTEIRA (uma das conhecidas) e mais um caractere depois, senão
+ * "CHOICE: approach" pararia no meio de "approach-player" e a decisão viraria
+ * outra.
+ */
+export function escolhaAssinada(texto: string): boolean {
+    // NO COMEÇO DA LINHA, e não em qualquer lugar. O modelo às vezes repete o
+    // enunciado dentro do próprio raciocínio ("...terminar com CHOICE: idle,
+    // então..."), e parar ali seria trocar a decisão dele por um eco da
+    // instrução. `parseDeliberation` lê a ÚLTIMA ocorrência justamente por
+    // isso; encerrar cedo demais desfaria essa proteção.
+    const m = /^[ \t]*CHOICE:[ \t]*([a-z-]+)/im.exec(texto);
+    if (!m) return false;
+    const escolha = m[1].toLowerCase();
+    return DELIBERATION_GOALS.some(
+        (goal) => escolha === goal && texto.length > (m.index + m[0].length),
+    );
 }
 
 /**
@@ -729,9 +771,27 @@ export async function deliberateFloor10(
         // morria calado pelo resto da sessão. Agora a rodada é abandonada e a
         // próxima tenta de novo.
         const relogio = globalThis.setTimeout(() => abort.abort(), DELIBERATION_TIMEOUT_MS);
-        let response: unknown;
+        // ── O PENSAMENTO SAI AO VIVO ──────────────────────────────────────
+        //
+        // Antes esta chamada era `stream: false`: o texto aparecia inteiro, de
+        // uma vez, dois minutos depois. De fora, "pensando…" e "travado" eram a
+        // mesma imagem — não dava para saber se havia alguém trabalhando.
+        //
+        // Em stream o custo é o mesmo (o modelo já gerava token a token; só o
+        // JS não olhava) e ganha-se duas coisas: o raciocínio pode ser LIDO
+        // enquanto nasce, e a rodada pode PARAR assim que ele assina a escolha,
+        // em vez de continuar até o teto de 320 tokens.
+        const comecouAPensar = Date.now();
+        let texto = '';
+        let tokens = 0;
+        let cortadoNaEscolha = false;
+        npcSet({
+            deliberationLive: '',
+            deliberationThreads: smallBrainThreads(),
+            deliberationSeconds: 0,
+        });
         try {
-            response = await engine.createChatCompletion({
+            const stream = await engine.createChatCompletion({
                 messages: [
                     { role: 'system', content: DELIBERATION_SYSTEM_PROMPT },
                     {
@@ -740,12 +800,61 @@ export async function deliberateFloor10(
                     },
                 ],
                 ...SMALL_BRAIN_COMPLETION_CONFIG,
+                stream: true,
                 abortSignal: abort.signal,
-            });
+            }) as AsyncIterable<unknown>;
+            let publicadoEm = 0;
+            for await (const chunk of stream) {
+                const c = chunk as ChatChunk;
+                // Mesmo vazamento do cérebro de fala: os restos da rodada
+                // anterior vêm na frente. Sem descartar, "CHOICE: idle" chegava
+                // como "OSE: idleCHO" e a decisão era perdida.
+                if (chunkOpensReply(c)) { texto = ''; tokens = 0; }
+                const pedaco = chunkPensamento(c);
+                if (!pedaco) continue;
+                texto += pedaco;
+                tokens += 1;
+                // A tela não precisa de 30 atualizações por segundo; cada uma
+                // custa um re-render do painel inteiro.
+                const agora = Date.now();
+                if (agora - publicadoEm >= PENSAMENTO_PUBLICA_MS) {
+                    publicadoEm = agora;
+                    npcSet({
+                        deliberationLive: texto,
+                        deliberationSeconds: (agora - comecouAPensar) / 1000,
+                    });
+                }
+                if (escolhaAssinada(texto)) { cortadoNaEscolha = true; break; }
+            }
+        } catch {
+            // Cortado pela fala, pelo teto ou pelo worker. O que já saiu vale:
+            // se ele chegou a assinar a escolha, a rodada ainda conta.
         } finally {
             globalThis.clearTimeout(relogio);
+            const segundos = (Date.now() - comecouAPensar) / 1000;
+            npcSet({
+                deliberationLive: texto,
+                deliberationSeconds: segundos,
+                deliberationTps: segundos > 0 ? tokens / segundos : 0,
+            });
         }
-        const texto = readCompletionText(response);
+        // PARAR NO "CHOICE:" É ENCERRAR A RODADA, não interromper o modelo no
+        // meio de uma frase: a linha da escolha é a última coisa que ele
+        // escreve, por instrução do prompt.
+        //
+        // O QUE ISSO ECONOMIZA, E O QUE NÃO ECONOMIZA — sem ilusão: o `abort`
+        // do wllama 3.5.1 só faz o JS PARAR DE LER (`getResponse` checa o sinal
+        // entre um `get_result` e outro); o worker continua gerando até o EOS
+        // ou até os 320 tokens. Portanto isto não devolve CPU. O que ele
+        // devolve é TEMPO DE JOGO: a intenção chega ao corpo do Nilo assim que
+        // ele a assina, em vez de esperar o resto do texto que ninguém vai ler.
+        if (cortadoNaEscolha) {
+            npcSet({
+                deliberationLoadText:
+                    `${SMALL_BRAIN_MODEL.label} · assinou a escolha em ${tokens} tokens`,
+            });
+        }
+
         // Cadeia de pensamento girando no lugar: a gramática limita QUAIS
         // palavras saem, não quantas vezes. Descartar aqui evita alimentar o
         // corpo com uma "decisão" tirada de um texto em círculo.

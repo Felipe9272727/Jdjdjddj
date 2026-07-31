@@ -9,9 +9,11 @@ import {
     SMALL_BRAIN_THREADS,
     SMALL_BRAIN_THINK_TOKENS,
     smallBrainThreads,
+    escolhaAssinada,
     raceWithAbort,
     readCompletionText,
 } from '../npc/floor10SmallBrain';
+import { MAX_SPEECH_THREADS } from '../npc/wllamaEngine';
 import { Floor10WillBrain } from '../npc/floor10Will';
 import { perceiveFloor10 } from '../npc/floor10Perception';
 import {
@@ -59,14 +61,14 @@ describe('npc/floor10SmallBrain — o cérebro pequeno da deliberação', () => 
         expect(SMALL_BRAIN_MODEL.id).toBe(antes);
     });
 
-    it('usa até quatro núcleos quando pensa sozinho e cede a CPU para a fala', () => {
+    it('usa o aparelho inteiro quando pensa sozinho, e cede a vez para a fala', () => {
         expect(SMALL_BRAIN_COMPLETION_CONFIG.max_tokens).toBe(SMALL_BRAIN_THINK_TOKENS);
         // O coordenador não deixa SmolLM3 e MiniBrain gerarem juntos. Portanto
-        // quatro aqui são um teto durante a janela ociosa, não 8 + 4 núcleos
+        // oito aqui são um teto durante a janela OCIOSA — nunca 8 + 8 núcleos
         // concorrendo durante a conversa.
         expect(smallBrainThreads()).toBeLessThanOrEqual(SMALL_BRAIN_THREADS);
         expect(smallBrainThreads()).toBeGreaterThanOrEqual(1);
-        expect(SMALL_BRAIN_THREADS).toBe(4);
+        expect(SMALL_BRAIN_THREADS).toBe(MAX_SPEECH_THREADS);
         expect(SMALL_BRAIN_LOAD_CONFIG.n_ctx).toBe(2048);
         expect(SMALL_BRAIN_LOAD_CONFIG.n_batch).toBe(256);
         expect(SMALL_BRAIN_LOAD_CONFIG.n_gpu_layers).toBe(0);
@@ -271,5 +273,24 @@ describe('pisar no andar NÃO pode disparar 1,32 GB de download', () => {
         expect(deliberationYieldedTurn()).toBe(true);
         // O carregador continua intocado — nenhum byte foi pedido.
         expect(vontadeJaCarregada()).toBe(false);
+    });
+});
+
+describe('npc/floor10SmallBrain — a rodada acaba quando ele assina', () => {
+    it('reconhece a escolha completa, e só depois de terminada', () => {
+        // "approach" é prefixo de "approach-player": parar cedo demais trocaria
+        // a decisão por outra, que é pior do que esperar mais dois tokens.
+        expect(escolhaAssinada('penso...\nCHOICE: approach')).toBe(false);
+        expect(escolhaAssinada('penso...\nCHOICE: approach-player\n')).toBe(true);
+        expect(escolhaAssinada('penso...\nCHOICE: idle\n')).toBe(true);
+    });
+
+    it('não confunde a palavra CHOICE no meio do pensamento', () => {
+        expect(escolhaAssinada('a escolha (CHOICE) ainda não foi feita')).toBe(false);
+        // O eco do enunciado DENTRO de uma frase não encerra a rodada: se
+        // encerrasse, a decisão do Nilo viraria a instrução que ele releu.
+        expect(escolhaAssinada('devo terminar com CHOICE: idle no fim')).toBe(false);
+        expect(escolhaAssinada('nada aqui')).toBe(false);
+        expect(escolhaAssinada('')).toBe(false);
     });
 });
