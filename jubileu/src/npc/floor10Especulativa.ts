@@ -46,6 +46,39 @@
 // devolve o arquivo do cache como Blob. Se ele não estiver lá, a especulativa
 // simplesmente não liga — e a fala carrega do jeito de sempre.
 //
+// ── ⚠ INERTE COM O WASM DE PRATELEIRA — LEIA ANTES DE MEXER ───────────────
+//
+// Este encanamento está CERTO e ainda assim não liga nada com o wllama.wasm
+// publicado. O motivo, achado em `common/speculative.cpp` do llama.cpp que a
+// 3.5.1 embute (commit dd4623a7):
+//
+//     common_speculative_init(params, n_seq) {
+//       uint32_t enabled_configs = common_get_enabled_speculative_configs(params.types);
+//
+// TUDO depende de `params.speculative.types` — e o glue da wllama
+// (`cpp/wllama-context.h`, linhas 524-538) preenche apenas
+// `params.speculative.draft.*`. Nunca toca em `types`, que fica no padrão
+// `{ COMMON_SPECULATIVE_TYPE_NONE }`. Resultado: o modelo rascunhador é
+// aceito, guardado… e nenhum especulador é criado.
+//
+// O QUE FALTA É UMA LINHA no C++ da wllama (mais um campo na mensagem de
+// carga) para repassar `types`. Todo o resto — draft-simple, eagle3, mtp e
+// CINCO variantes de n-grama — já está compilado dentro do .wasm que o jogo
+// baixa hoje:
+//
+//     COMMON_SPECULATIVE_TYPE_NGRAM_SIMPLE   // auto-especulação, SEM modelo
+//     COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K
+//     COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K4V
+//     COMMON_SPECULATIVE_TYPE_NGRAM_MOD
+//     COMMON_SPECULATIVE_TYPE_NGRAM_CACHE
+//
+// As variantes de n-grama são a resposta para "quem rascunha para o 1B?": ele
+// mesmo. Elas dispensam segundo modelo, dispensam vocabulário compatível e
+// dispensam download — servem a fala, a vontade e o motor igualmente.
+//
+// Por isso este arquivo fica: quando o .wasm modificado existir, o cano já
+// está pronto e testado. Até lá ele é uma trilha documentada, não um recurso.
+//
 // ── DESLIGADA POR PADRÃO ──────────────────────────────────────────────────
 // Só liga com `?especulativa` na URL. O caminho que funciona hoje não muda
 // sozinho: primeiro se mede no aparelho de quem joga, depois se decide.

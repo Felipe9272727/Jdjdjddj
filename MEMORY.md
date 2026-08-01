@@ -4048,3 +4048,42 @@ Llama 3.2 1B **Q4** (807 MB, já no catálogo) com `n_max` baixo, ou aceitar que
 ganho não paga.
 
 **Estado:** tsc 0 · 574/574 vitest (+8) · audit sem erros · index.html rebuildado.
+
+### Sessão 2026-08-01 (cont. 8) — CORREÇÃO: o encanamento da especulativa é inerte, e falta UMA linha
+
+Investigando o rascunhador, achei o que faltava — e junto, um erro no que eu já tinha
+commitado.
+
+**O ERRO:** `spec_draft_model` é aceito pela wllama, guardado em `params.speculative.draft`,
+e **nenhum especulador é criado**. Em `common/speculative.cpp` (llama.cpp dd4623a7, o commit
+que a 3.5.1 embute):
+```cpp
+common_speculative_init(params, n_seq) {
+  uint32_t enabled_configs = common_get_enabled_speculative_configs(params.types);
+```
+Tudo depende de `params.speculative.**types**`, e o glue da wllama (`cpp/wllama-context.h`
+524-538) preenche só `params.speculative.draft.*` — `types` fica em `{ NONE }`.
+
+**O QUE FALTA: uma linha no C++ da wllama** (+ um campo na mensagem de carga) repassando
+`types`. Todo o resto JÁ ESTÁ COMPILADO no .wasm que o jogo baixa hoje:
+`draft-simple`, `draft-eagle3`, `draft-mtp` e **cinco variantes de n-grama**
+(`ngram-simple`, `ngram-map-k`, `ngram-map-k4v`, `ngram-mod`, `ngram-cache`).
+
+**AS N-GRAMA MUDAM TUDO — auto-especulação, sem modelo rascunhador.** Resolvem "quem
+rascunha para o 1B?" (ele mesmo), dispensam vocabulário compatível e não custam download nem
+RAM. Servem fala, vontade e motor igualmente.
+
+**Sobre o rascunhador por MODELO, se um dia for esse o caminho:**
+- Tokenizadores conferidos: SmolLM3-3B `tokenizer.json` = 17.208.819 bytes; Llama-3.2-1B =
+  17.209.920. Diferença de 1.101 bytes (tokens especiais do modo thinking) → mesmo
+  vocabulário, um rascunhador serviria os dois.
+- Um rascunhador de 100M com esse vocabulário é IMPOSSÍVEL: a tabela de embeddings sozinha
+  (128.256 × 2.048) são **263M parâmetros**. O piso é ~240 MB em Q4 (2 camadas + tabela).
+- Não existe DRAFT model público para Llama-3/SmolLM3 (há para DeepSeek, Mistral, GLM, Qwen,
+  Gemma). Teria de ser fabricado por poda do 1B.
+
+`floor10Especulativa.ts` fica no repositório com esse diagnóstico no cabeçalho: quando o
+.wasm modificado existir, o cano está pronto e testado. Até lá é trilha documentada, não
+recurso — e continua desligado por padrão.
+
+**Estado:** tsc 0 · 574/574 vitest · index.html do commit anterior (só documentação mudou).
