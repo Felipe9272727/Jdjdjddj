@@ -4087,3 +4087,46 @@ RAM. Servem fala, vontade e motor igualmente.
 recurso — e continua desligado por padrão.
 
 **Estado:** tsc 0 · 574/574 vitest · index.html do commit anterior (só documentação mudou).
+
+### Sessão 2026-08-01 (cont. 9) — N-GRAMA LIGADO: a wllama foi recompilada com o patch
+
+O que faltava era uma linha, e ela foi escrita. `wllama-espec/` traz o wllama 3.5.1
+**recompilado do fonte** (emsdk, `emcmake` + `emmake`, sem WebGPU) com este patch em
+`cpp/wllama-context.h`:
+
+```cpp
+if (spec_value.rfind("types:", 0) == 0) {           // "types:ngram-simple,ngram-cache"
+  params.speculative.types = common_speculative_types_from_names(nomes);
+} else {                                             // caminho de .gguf
+  params.speculative.draft.mparams.path = spec_value;
+  params.speculative.types = { COMMON_SPECULATIVE_TYPE_DRAFT_SIMPLE };  // <- faltava ISTO
+}
+```
+
+**Por que sobrecarregar `spec_draft_model` em vez de criar campo:** o GLUE lê os campos
+POSICIONALMENTE. Campo novo obrigaria o JS a enviá-lo; sobrecarregando uma string existente,
+o protocolo continua idêntico.
+
+**Prova de que o patch entrou no binário:** `strings wllama.wasm | grep WLLAMA_PATCH_TNE` = 2
+ocorrências (as duas linhas de LOG_INF que o patch adiciona — e que aparecem no console do
+aparelho quando a especulativa liga).
+
+**Artefatos** (`wllama-espec/`, 6 MB, servidos pela própria origem): `wllama.wasm` (5,85 MB,
+build principal wasm64) + `index.js` (313 KB, o ESM construído do MESMO fonte — o glue do
+emscripten e o binário andam em par, não dá para misturar com o do CDN).
+
+**Como está ligado:** só com `?especulativa`, e só para a FALA. Sem a flag o jogo carrega o
+wllama do CDN exatamente como sempre, e este binário nem é baixado. Vontade, motor e memória
+seguem no wllama de prateleira em qualquer caso.
+
+**Por que n-grama e não modelo rascunhador:** `ngram-simple`/`ngram-cache` são
+auto-especulação — o próprio modelo propõe a partir do texto que já viu. Resolve "quem
+rascunha para o 1B?" (ele mesmo), dispensa vocabulário compatível e custa zero de download e
+de RAM. Um rascunhador por modelo precisaria do vocabulário do SmolLM3 (128.256 tokens =
+263M params só na tabela), o que põe o piso em ~240 MB — e não existe nenhum público.
+
+**FALTA MEDIR NO APARELHO.** Nada disto foi executado num navegador: aqui não há um. O que
+está provado é que compila, que o patch está no binário e que o jogo continua idêntico com a
+flag desligada. O ganho — e se o `smollm3` carrega neste build — só o celular do Felipe diz.
+
+**Estado:** tsc 0 · 572/572 vitest · audit sem erros · index.html rebuildado.

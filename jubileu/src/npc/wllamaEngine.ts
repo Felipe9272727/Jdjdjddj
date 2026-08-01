@@ -20,8 +20,9 @@ import {
 import { answerFloor10PerceptionQuestion } from './floor10Perception';
 import { floor10ModelCoordinator } from './floor10ModelCoordinator';
 import { anotar } from './floor10CaixaPreta';
-import { especulativaLigada, prepararEspeculativa } from './floor10Especulativa';
-import { SMALL_BRAIN_MODEL } from './floor10SmallBrain';
+import {
+    caminhosDaEspeculativa, especulativaLigada, parametrosEspeculativos,
+} from './floor10Especulativa';
 import { completar, reagir, reflexoJaCarregado } from './floor10Reflexo';
 import { dobrarConversa } from './floor10Compressor';
 import { abortDeliberation } from './floor10SmallBrain';
@@ -775,7 +776,10 @@ function initConversationEngine(): Promise<WllamaInstance> {
             }
         } catch { /* persistência é só uma otimização */ }
 
-        modulePromise ??= import(/* @vite-ignore */ WLLAMA_ESM) as unknown as Promise<WllamaModule>;
+        // Com a especulativa ligada, o ESM tem de ser o do binário
+        // recompilado: o glue do emscripten e o .wasm andam em par.
+        const esmDaVez = especulativaLigada() ? caminhosDaEspeculativa().esm : WLLAMA_ESM;
+        modulePromise ??= import(/* @vite-ignore */ esmDaVez) as unknown as Promise<WllamaModule>;
         const mod = await modulePromise;
 
         // Antes de gastar 1,9 GB de DADOS NOVOS: cabe? Se o modelo já está no
@@ -862,39 +866,24 @@ function initConversationEngine(): Promise<WllamaInstance> {
                 // Em jogo o log nativo do llama.cpp só polui o console; na
                 // bancada ele é a ÚNICA janela para saber em que etapa a carga
                 // travou (abrir o GGUF, montar o KV, aquecer…).
-                candidate = new mod.Wllama(WLLAMA_PATHS, {
+                candidate = new mod.Wllama(
+                    especulativaLigada()
+                        ? { default: caminhosDaEspeculativa().wasm }
+                        : WLLAMA_PATHS,
+                    {
                     suppressNativeLog: !(globalThis as { __npcVerboseLlama?: boolean })
                         .__npcVerboseLlama,
-                });
-                // ── ESPECULATIVA (só com `?especulativa`) ─────────────
-                //
-                // Precisa acontecer AQUI, entre construir e carregar: é o único
-                // instante em que dá para acrescentar o .gguf do rascunhador à
-                // montagem e injetar os campos `spec_draft_*` na mensagem de
-                // carga. Falhar aqui não é problema — a carga segue normal, e a
-                // fala de hoje continua exatamente a fala de hoje.
-                if (especulativaLigada()) {
-                    try {
-                        const preparo = await prepararEspeculativa(
-                            candidate as unknown as Parameters<typeof prepararEspeculativa>[0],
-                            SMALL_BRAIN_MODEL.url,
-                        );
-                        if (preparo.ok) {
-                            npcSet({
-                                loadText: `especulativa ligada · rascunhador de ${Math.round(preparo.bytes / 1e6)} MB`,
-                            });
-                        } else {
-                            npcSet({ loadText: `especulativa desligada: ${preparo.motivo}` });
-                            anotar('especulativa:recusada', { motivo: preparo.motivo });
-                        }
-                    } catch (erro) {
-                        anotar('especulativa:erro', {
-                            motivo: (erro instanceof Error ? erro.message : String(erro)).slice(0, 80),
-                        });
-                    }
-                }
+                    },
+                );
+                // ── ESPECULATIVA POR N-GRAMAS (só com `?especulativa`) ─
+                // Ver floor10Especulativa.ts: o wllama de prateleira ignora
+                // `speculative.types`, então esta build vem do binário
+                // recompilado em /wllama-espec. Desligada, nada disto acontece
+                // e o jogo carrega o CDN de sempre.
+                const espec = especulativaLigada() ? parametrosEspeculativos() : {};
                 const loadTask = candidate.loadModelFromUrl(model.url, {
                     ...CPU_LOAD_CONFIG,
+                    ...espec,
                     n_threads: threads,
                     n_gpu_layers: gpuLayers,
                     progressCallback: (progress: { loaded?: number; total?: number }) => {
